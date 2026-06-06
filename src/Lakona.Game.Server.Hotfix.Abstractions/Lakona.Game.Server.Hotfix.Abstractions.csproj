@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Lakona.Game.Server.Hotfix.Abstractions</RootNamespace>
+    <PackageId>Lakona.Game.Server.Hotfix.Abstractions</PackageId>
+    <Version>0.1.1</Version>
+    <Description>Attributes and stable contracts for Lakona.Game server hotfix systems.</Description>
+    <PackageTags>lakona-game;hotfix;server;source-generator</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Update="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>

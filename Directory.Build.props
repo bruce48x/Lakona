@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>
+    <Authors>Lakona</Authors>
+    <Company>Lakona</Company>
+    <Product>Lakona</Product>
+    <PackageProjectUrl>https://github.com/bruce48x/lakona</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/bruce48x/lakona</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+</Project>
+

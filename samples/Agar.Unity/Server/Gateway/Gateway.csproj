@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Gateway</RootNamespace>
+    <LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>
+    <LakonaRpcServerGeneratedNamespace>Gateway.Generated</LakonaRpcServerGeneratedNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shared\Shared.csproj" />
+    <ProjectReference Include="../State.Contracts/State.Contracts.csproj" />
+    <ProjectReference Include="../State/State.csproj" />
+    <ProjectReference Include="../Hotfix/Agar.Sample.Hotfix.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server\Lakona.Game.Server.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Hotfix\Lakona.Game.Server.Hotfix.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Server\Lakona.Rpc.Server.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Analyzers\Lakona.Rpc.Analyzers.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Transport.Kcp\Lakona.Rpc.Transport.Kcp.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Transport.WebSocket\Lakona.Rpc.Transport.WebSocket.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+  <Target Name="CopyHotfixOutput" AfterTargets="Build">
+    <Copy SourceFiles="$(ProjectDir)..\Hotfix\bin\$(Configuration)\$(TargetFramework)\Agar.Sample.Hotfix.dll" DestinationFolder="$(OutDir)hotfix\" Condition="Exists('$(ProjectDir)..\Hotfix\bin\$(Configuration)\$(TargetFramework)\Agar.Sample.Hotfix.dll')" />
+  </Target>
+</Project>

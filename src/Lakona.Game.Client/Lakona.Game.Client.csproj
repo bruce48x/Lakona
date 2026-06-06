@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Lakona.Game.Client</RootNamespace>
+    <PackageId>Lakona.Game.Client</PackageId>
+    <Version>0.1.6</Version>
+    <Description>Engine-neutral client helpers for Lakona.Game applications, including reliable push sequence tracking.</Description>
+    <PackageTags>lakona-game;lakona-rpc;game;client;unity;godot;rpc;reliable-push</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Lakona.Game.Abstractions\Lakona.Game.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>

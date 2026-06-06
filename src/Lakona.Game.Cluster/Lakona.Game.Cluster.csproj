@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Lakona.Game.Cluster</RootNamespace>
+    <PackageId>Lakona.Game.Cluster</PackageId>
+    <Version>0.1.4</Version>
+    <Description>Optional explicit cluster routing contracts and in-memory runtime primitives for Lakona.Game.</Description>
+    <PackageTags>lakona-game;game;cluster;routing;actor</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>

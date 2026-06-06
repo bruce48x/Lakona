@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Lakona.Game.Cluster.Sql</RootNamespace>
+    <PackageId>Lakona.Game.Cluster.Sql</PackageId>
+    <Version>0.1.0</Version>
+    <Description>SQL-backed node directory persistence for Lakona.Game cluster membership.</Description>
+    <PackageTags>lakona-game;game;cluster;node-directory;sql</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Lakona.Game.Cluster\Lakona.Game.Cluster.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>

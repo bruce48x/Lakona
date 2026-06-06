@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.6.0" />
+    <PackageReference Include="MemoryPack.UnityShims" Version="1.21.4" />
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Core\Lakona.Rpc.Core.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../Shared/Shared.csproj" />
+    <ProjectReference Include="../../Server/Hotfix/Agar.Sample.Hotfix.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../Server/HotfixV2/Agar.Sample.Hotfix.V2.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../Server/State.Contracts/State.Contracts.csproj" />
+    <ProjectReference Include="../../../../src/Lakona.Game.Server.Hotfix.Abstractions/Lakona.Game.Server.Hotfix.Abstractions.csproj" />
+    <ProjectReference Include="../../../../src/Lakona.Game.Server.Hotfix/Lakona.Game.Server.Hotfix.csproj" />
+    <ProjectReference Include="../../../../src/Lakona.Game.Server.Hotfix.Generators/Lakona.Game.Server.Hotfix.Generators.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
+    <ProjectReference Include="../../../../src/Lakona.Game.Server/Lakona.Game.Server.csproj" />
+    <ProjectReference Include="../../Server/State/State.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../../Server/Gateway/Services/SessionDirectory.cs" Link="TestHooks/SessionDirectory.cs" />
+    <Compile Include="../../Server/Gateway/Services/SessionRegistration.cs" Link="TestHooks/SessionRegistration.cs" />
+  </ItemGroup>
+</Project>

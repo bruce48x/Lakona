@@ -1,0 +1,29 @@
+
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lakona.Rpc.Testing", "Lakona.Rpc.Testing.csproj", "{c4f63c22-28f7-5eab-5952-ef594ca3c048}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Game.Rpc.Contracts", "Game.Rpc.Contracts.csproj", "{b96693f1-ee49-9b19-a7c5-aa92ddfbe8c5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Game.Rpc.Tests.Editor", "Game.Rpc.Tests.Editor.csproj", "{27cd3118-b046-87ad-13de-c4224e4d696b}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Assembly-CSharp", "Assembly-CSharp.csproj", "{44e3b799-8b34-e383-0ed2-5c7b12cc78c3}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{c4f63c22-28f7-5eab-5952-ef594ca3c048}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{c4f63c22-28f7-5eab-5952-ef594ca3c048}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{b96693f1-ee49-9b19-a7c5-aa92ddfbe8c5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{b96693f1-ee49-9b19-a7c5-aa92ddfbe8c5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{27cd3118-b046-87ad-13de-c4224e4d696b}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{27cd3118-b046-87ad-13de-c4224e4d696b}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{44e3b799-8b34-e383-0ed2-5c7b12cc78c3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{44e3b799-8b34-e383-0ed2-5c7b12cc78c3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

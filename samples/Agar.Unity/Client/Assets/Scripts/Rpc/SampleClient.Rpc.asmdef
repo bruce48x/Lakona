@@ -1,0 +1,21 @@
+{
+  "name": "SampleClient.Rpc",
+  "rootNamespace": "Rpc",
+  "references": [
+    "Shared",
+    "Lakona.Rpc.Client",
+    "Lakona.Rpc.Core",
+    "Lakona.Rpc.Serializer.MemoryPack",
+    "Lakona.Rpc.Transport.Kcp",
+    "Lakona.Rpc.Transport.WebSocket"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

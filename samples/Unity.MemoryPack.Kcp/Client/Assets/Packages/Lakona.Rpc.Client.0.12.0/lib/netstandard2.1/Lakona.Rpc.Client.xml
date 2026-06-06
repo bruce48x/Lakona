@@ -1,0 +1,156 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Lakona.Rpc.Client</name>
+    </assembly>
+    <members>
+        <member name="T:Lakona.Rpc.Client.RpcClientOptions">
+            <summary>
+                Configuration used to create a client runtime or generated client facade.
+            </summary>
+            <remarks>
+                The options object owns the selected transport and serializer references. If security is configured,
+                <see cref="M:Lakona.Rpc.Client.RpcClientOptions.CreateConfiguredTransport"/> wraps the transport in a <see cref="T:Lakona.Rpc.Core.TransformingTransport"/>.
+            </remarks>
+        </member>
+        <member name="M:Lakona.Rpc.Client.RpcClientOptions.#ctor(Lakona.Rpc.Core.ITransport,Lakona.Rpc.Core.IRpcSerializer)">
+            <summary>
+                Creates client runtime options.
+            </summary>
+            <param name="transport">Concrete transport used by the client.</param>
+            <param name="serializer">Serializer used for RPC method payloads.</param>
+            <exception cref="T:System.ArgumentNullException">Thrown when <paramref name="transport"/> or <paramref name="serializer"/> is null.</exception>
+        </member>
+        <member name="P:Lakona.Rpc.Client.RpcClientOptions.KeepAlive">
+            <summary>
+                Optional keepalive configuration. Disabled by default.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Client.RpcClientOptions.Serializer">
+            <summary>
+                Serializer used for request, response, and push payloads.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Client.RpcClientOptions.Security">
+            <summary>
+                Mutable frame security configuration.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Client.RpcClientOptions.Transport">
+            <summary>
+                Underlying transport before optional security wrapping.
+            </summary>
+        </member>
+        <member name="M:Lakona.Rpc.Client.RpcClientOptions.UseSecurity(System.Action{Lakona.Rpc.Core.TransportSecurityConfig})">
+            <summary>
+                Configures compression or encryption for the client transport.
+            </summary>
+            <param name="configure">Configuration callback.</param>
+            <returns>This options instance.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when <paramref name="configure"/> is null.</exception>
+        </member>
+        <member name="M:Lakona.Rpc.Client.RpcClientOptions.CreateConfiguredTransport">
+            <summary>
+                Returns the transport that should be passed to the runtime.
+            </summary>
+            <returns>
+                The original transport when security is disabled; otherwise a <see cref="T:Lakona.Rpc.Core.TransformingTransport"/>
+                wrapping the original transport.
+            </returns>
+        </member>
+        <member name="T:Lakona.Rpc.Client.RpcNotificationPayloadHandler">
+            <summary>
+                Handles a serialized server-to-client notification payload.
+            </summary>
+            <param name="payload">Serialized notification payload.</param>
+        </member>
+        <member name="T:Lakona.Rpc.Client.RpcClientRuntime">
+            <summary>
+                Default client runtime for Lakona.Rpc request/response calls and server notification dispatch.
+            </summary>
+            <remarks>
+                The runtime owns background receive, notification, and keepalive loops after <see cref="M:Lakona.Rpc.Client.RpcClientRuntime.StartAsync(System.Threading.CancellationToken)"/>.
+                Notification handlers run on the runtime notification loop and are not marshalled to the Unity main thread.
+            </remarks>
+        </member>
+        <member name="M:Lakona.Rpc.Client.RpcClientRuntime.#ctor(Lakona.Rpc.Client.RpcClientOptions)">
+            <summary>
+                Creates a runtime from client options.
+            </summary>
+            <param name="options">Client options containing transport, serializer, keepalive, and security settings.</param>
+            <exception cref="T:System.ArgumentNullException">Thrown when <paramref name="options"/> is null.</exception>
+        </member>
+        <member name="M:Lakona.Rpc.Client.RpcClientRuntime.#ctor(Lakona.Rpc.Core.ITransport,Lakona.Rpc.Core.IRpcSerializer,Lakona.Rpc.Core.RpcKeepAliveOptions)">
+            <summary>
+                Creates a runtime from explicit transport and serializer instances.
+            </summary>
+            <param name="transport">Connected or connectable transport used by the runtime.</param>
+            <param name="serializer">Serializer used for RPC payloads.</param>
+            <param name="keepAlive">Optional keepalive configuration.</param>
+            <exception cref="T:System.ArgumentNullException">Thrown when <paramref name="transport"/> or <paramref name="serializer"/> is null.</exception>
+        </member>
+        <member name="E:Lakona.Rpc.Client.RpcClientRuntime.Disconnected">
+            <summary>
+                Raised when the receive loop ends.
+            </summary>
+            <remarks>
+                The event argument is the disconnect reason when one is available. A null value means a normal or
+                locally requested shutdown.
+            </remarks>
+        </member>
+        <member name="E:Lakona.Rpc.Client.RpcClientRuntime.UnhandledNotificationReceived">
+            <summary>
+                Raised when a server-to-client notification frame has no registered handler.
+            </summary>
+        </member>
+        <member name="E:Lakona.Rpc.Client.RpcClientRuntime.NotificationHandlerException">
+            <summary>
+                Raised when a registered notification handler throws.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Client.RpcClientRuntime.LastSendAt">
+            <summary>
+                Last UTC timestamp at which the runtime sent a frame.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Client.RpcClientRuntime.LastReceiveAt">
+            <summary>
+                Last UTC timestamp at which the runtime received a frame.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Client.RpcClientRuntime.LastRtt">
+            <summary>
+                Last measured keepalive round-trip time, when RTT measurement is enabled.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Client.RpcClientRuntime.TimedOutByKeepAlive">
+            <summary>
+                Indicates whether the runtime stopped because keepalive timed out.
+            </summary>
+        </member>
+        <member name="M:Lakona.Rpc.Client.RpcClientRuntime.StartAsync(System.Threading.CancellationToken)">
+            <summary>
+                Connects the transport and starts background runtime loops.
+            </summary>
+            <param name="ct">Cancellation token for the initial transport connection.</param>
+            <exception cref="T:System.InvalidOperationException">Thrown when the runtime has already been started.</exception>
+            <exception cref="T:System.ObjectDisposedException">Thrown when the runtime has been disposed.</exception>
+        </member>
+        <member name="M:Lakona.Rpc.Client.RpcClientRuntime.RegisterNotificationHandler``1(Lakona.Rpc.Core.RpcNotificationMethod{``0},System.Func{``0,System.Threading.Tasks.ValueTask})">
+            <inheritdoc />
+        </member>
+        <member name="M:Lakona.Rpc.Client.RpcClientRuntime.RegisterNotificationHandler``1(Lakona.Rpc.Core.RpcNotificationMethod{``0},System.Action{``0})">
+            <summary>
+                Registers a synchronous handler for a server-to-client notification method.
+            </summary>
+        </member>
+        <member name="M:Lakona.Rpc.Client.RpcClientRuntime.CallAsync``2(Lakona.Rpc.Core.RpcMethod{``0,``1},``0,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:Lakona.Rpc.Client.RpcClientRuntime.DisposeAsync">
+            <summary>
+                Stops background loops, fails pending requests, and disposes the transport.
+            </summary>
+        </member>
+    </members>
+</doc>

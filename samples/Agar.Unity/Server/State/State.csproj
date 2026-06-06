@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>Agar.Sample.State</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../../../../src/Lakona.Game.Server/Lakona.Game.Server.csproj" />
+        <ProjectReference Include="../State.Contracts/State.Contracts.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Remove="Program.cs" />
+        <Compile Remove="Persistence\**\*.cs" />
+        <None Remove="appsettings.json" />
+    </ItemGroup>
+
+</Project>

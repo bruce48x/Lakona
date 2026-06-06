@@ -1,0 +1,8 @@
+{
+    "name": "com.samples.contracts",
+    "version": "0.0.1",
+    "displayName": "RPC Contracts",
+    "unity": "2022.3",
+    "description": "Shared RPC contracts (interfaces + DTOs) for Unity client and .NET server."
+  }
+  

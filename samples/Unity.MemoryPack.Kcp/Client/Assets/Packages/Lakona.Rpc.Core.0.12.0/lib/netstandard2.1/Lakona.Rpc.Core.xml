@@ -1,0 +1,748 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Lakona.Rpc.Core</name>
+    </assembly>
+    <members>
+        <member name="T:Lakona.Rpc.Core.IRemoteEndPointProvider">
+            <summary>
+                Optional interface for transports that can report the remote endpoint
+                of the connected peer. Implement on server-side transports where the
+                remote address is known (TCP, UDP/KCP, WebSocket with HTTP context, etc.).
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.IRpcClient">
+            <summary>
+                Runtime-facing RPC client abstraction used by generated client proxies.
+            </summary>
+            <remarks>
+                Application code normally uses the generated client facade instead of this interface directly.
+                Implementations are responsible for request correlation, response decoding, and server notification dispatch.
+            </remarks>
+        </member>
+        <member name="M:Lakona.Rpc.Core.IRpcClient.CallAsync``2(Lakona.Rpc.Core.RpcMethod{``0,``1},``0,System.Threading.CancellationToken)">
+            <summary>
+                Sends one RPC request and waits for the matching response.
+            </summary>
+            <typeparam name="TArg">Request DTO type.</typeparam>
+            <typeparam name="TResult">Response DTO type.</typeparam>
+            <param name="method">Generated method descriptor containing the service id and method id.</param>
+            <param name="arg">Request DTO instance, or <see langword="null"/> for void-style requests.</param>
+            <param name="ct">Cancellation token for the outbound send and response wait.</param>
+            <returns>The deserialized response DTO.</returns>
+            <exception cref="T:Lakona.Rpc.Core.RpcException">
+                Thrown by the default runtime when the remote response status is not <see cref="F:Lakona.Rpc.Core.RpcStatus.Ok"/>.
+            </exception>
+        </member>
+        <member name="M:Lakona.Rpc.Core.IRpcClient.RegisterNotificationHandler``1(Lakona.Rpc.Core.RpcNotificationMethod{``0},System.Func{``0,System.Threading.Tasks.ValueTask})">
+            <summary>
+                Registers the handler for a server-to-client notification method.
+            </summary>
+            <typeparam name="TArg">Notification DTO type.</typeparam>
+            <param name="method">Generated notification descriptor containing the service id and notification method id.</param>
+            <param name="handler">Handler invoked with the deserialized notification DTO.</param>
+            <exception cref="T:System.InvalidOperationException">
+                Thrown when a handler is already registered for the notification method.
+            </exception>
+            <remarks>
+                The default runtime invokes handlers from its internal notification-processing loop. It does not marshal
+                notifications to the Unity main thread.
+            </remarks>
+        </member>
+        <member name="T:Lakona.Rpc.Core.IRpcConnectionAcceptor">
+            <summary>
+                Server-side transport acceptor that yields accepted RPC connections.
+            </summary>
+            <remarks>
+                Concrete transports such as TCP, WebSocket, and KCP implement this interface. The server host owns
+                the accept loop and creates one <c>RpcSession</c> per accepted connection.
+            </remarks>
+        </member>
+        <member name="P:Lakona.Rpc.Core.IRpcConnectionAcceptor.ListenAddress">
+            <summary>
+                Human-readable listen address for logs and diagnostics.
+            </summary>
+        </member>
+        <member name="M:Lakona.Rpc.Core.IRpcConnectionAcceptor.AcceptAsync(System.Threading.CancellationToken)">
+            <summary>
+                Waits for the next accepted connection.
+            </summary>
+            <param name="ct">Cancellation token for the accept operation.</param>
+            <returns>The accepted transport plus display and remote endpoint metadata.</returns>
+        </member>
+        <member name="T:Lakona.Rpc.Core.IRpcSerializer">
+            <summary>
+                Serializer for RPC method payloads (arguments and return values).
+                Envelope encoding is handled by <see cref="T:Lakona.Rpc.Core.RpcEnvelopeCodec"/>.
+            </summary>
+        </member>
+        <member name="M:Lakona.Rpc.Core.IRpcSerializer.SerializeFrame``1(``0)">
+            <summary>
+                Serializes a DTO value into an owned transport frame.
+            </summary>
+            <typeparam name="T">DTO type.</typeparam>
+            <param name="value">DTO instance to serialize.</param>
+            <returns>An owned frame containing the serialized payload. The caller disposes it.</returns>
+        </member>
+        <member name="M:Lakona.Rpc.Core.IRpcSerializer.Deserialize``1(System.ReadOnlySpan{System.Byte})">
+            <summary>
+                Deserializes a DTO value from payload bytes.
+            </summary>
+            <typeparam name="T">DTO type.</typeparam>
+            <param name="data">Payload bytes.</param>
+            <returns>The deserialized DTO value.</returns>
+        </member>
+        <member name="M:Lakona.Rpc.Core.IRpcSerializer.Deserialize``1(System.ReadOnlyMemory{System.Byte})">
+            <summary>
+                Deserializes a DTO value from payload bytes.
+            </summary>
+            <typeparam name="T">DTO type.</typeparam>
+            <param name="data">Payload bytes.</param>
+            <returns>The deserialized DTO value.</returns>
+        </member>
+        <member name="T:Lakona.Rpc.Core.ITransport">
+            <summary>
+                Transport boundary for RPC: sends and receives complete frames (one message).
+                TCP/WS/KCP differences are hidden below this interface.
+            </summary>
+        </member>
+        <member name="M:Lakona.Rpc.Core.ITransport.ConnectAsync(System.Threading.CancellationToken)">
+            <summary>
+                Prepares this transport for frame I/O.
+            </summary>
+            <remarks>
+                Client transports use this call to actively connect to their remote endpoint.
+                Accepted server transports use it to initialize per-connection state such as streams,
+                schedulers, or framing over an already accepted connection. In-memory or already-open
+                transports may implement it as an idempotent no-op.
+            </remarks>
+        </member>
+        <member name="M:Lakona.Rpc.Core.ITransport.SendFrameAsync(System.ReadOnlyMemory{System.Byte},System.Threading.CancellationToken)">
+            <summary>
+                Sends one complete frame.
+            </summary>
+            <param name="frame">Frame bytes to send. The transport must not retain this memory after the call completes.</param>
+            <param name="ct">Cancellation token for the send operation.</param>
+        </member>
+        <member name="M:Lakona.Rpc.Core.ITransport.ReceiveFrameAsync(System.Threading.CancellationToken)">
+            <summary>
+                Receives one complete frame.
+            </summary>
+            <param name="ct">Cancellation token for the receive operation.</param>
+            <returns>
+                An owned frame. The caller disposes it after processing. An empty frame means the remote side closed
+                the connection.
+            </returns>
+        </member>
+        <member name="T:Lakona.Rpc.Core.RpcServiceAttribute">
+            <summary>
+                Marks an interface as an RPC service. ServiceId must be stable across versions.
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.RpcNotificationContractAttribute">
+            <summary>
+                Marks an interface as the server-to-client notification contract for a specific RPC service.
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.RpcMethodAttribute">
+            <summary>
+                Marks an interface method as an RPC method. MethodId must be stable within a service.
+                Lakona.Rpc source generation requires exactly one request DTO parameter and generates payload packing/unpacking for it.
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.RpcNotificationAttribute">
+            <summary>
+                Marks an interface method as a server-to-client notification. MethodId must be stable within a notification contract.
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.LakonaRpcGenerateClientAttribute">
+            <summary>
+                Marks the current assembly as the client assembly that should receive generated RPC client glue.
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.RpcMethod`2">
+            <summary>
+                Typed descriptor for a client-to-server RPC method.
+            </summary>
+            <typeparam name="TArg">Request DTO type.</typeparam>
+            <typeparam name="TResult">Response DTO type.</typeparam>
+        </member>
+        <member name="M:Lakona.Rpc.Core.RpcMethod`2.#ctor(System.Int32,System.Int32)">
+            <summary>
+                Creates a method descriptor from stable protocol ids.
+            </summary>
+            <param name="serviceId">Stable service id declared by <see cref="T:Lakona.Rpc.Core.RpcServiceAttribute"/>.</param>
+            <param name="methodId">Stable method id declared by <see cref="T:Lakona.Rpc.Core.RpcMethodAttribute"/>.</param>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcMethod`2.ServiceId">
+            <summary>
+                Stable service id used on the wire.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcMethod`2.MethodId">
+            <summary>
+                Stable method id used on the wire.
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.RpcNotificationMethod`1">
+            <summary>
+                Typed descriptor for a server-to-client notification method.
+            </summary>
+            <typeparam name="TArg">Notification DTO type.</typeparam>
+        </member>
+        <member name="M:Lakona.Rpc.Core.RpcNotificationMethod`1.#ctor(System.Int32,System.Int32)">
+            <summary>
+                Creates a notification descriptor from stable protocol ids.
+            </summary>
+            <param name="serviceId">Stable service id declared by <see cref="T:Lakona.Rpc.Core.RpcServiceAttribute"/>.</param>
+            <param name="methodId">Stable notification method id declared by <see cref="T:Lakona.Rpc.Core.RpcNotificationAttribute"/>.</param>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcNotificationMethod`1.ServiceId">
+            <summary>
+                Stable service id used on the wire.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcNotificationMethod`1.MethodId">
+            <summary>
+                Stable notification method id used on the wire.
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.LengthPrefix">
+            <summary>
+                Network framing: uint32 length prefix (big-endian) + payload bytes.
+                Matches Unity client's LengthPrefix for wire compatibility.
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.RpcKeepAliveOptions">
+            <summary>
+                Peer liveness probing for RPC transports.
+                Only inbound traffic proves the remote peer is alive; outbound sends do not suppress probes.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcKeepAliveOptions.Disabled">
+            <summary>
+                Shared disabled keepalive configuration.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcKeepAliveOptions.Enabled">
+            <summary>
+                Enables keepalive probing.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcKeepAliveOptions.Interval">
+            <summary>
+                Maximum time without receiving any frame before a keepalive ping is sent.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcKeepAliveOptions.Timeout">
+            <summary>
+                Maximum time to wait for an inbound frame after a ping before disconnecting the session.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcKeepAliveOptions.MeasureRtt">
+            <summary>
+                Measures round-trip time from keepalive ping/pong timestamps when enabled.
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.RpcEnvelopeCodec">
+            <summary>
+            Encodes and decodes Lakona.Rpc wire envelopes.
+            </summary>
+            <remarks>
+            The codec serializes only the transport envelope fields. RPC method payloads are
+            opaque bytes produced by an <see cref="T:Lakona.Rpc.Core.IRpcSerializer"/>.
+            </remarks>
+        </member>
+        <member name="F:Lakona.Rpc.Core.RpcEnvelopeCodec.MaxPayloadSize">
+            <summary>
+            Maximum payload length accepted by envelope decoders.
+            </summary>
+        </member>
+        <member name="M:Lakona.Rpc.Core.RpcEnvelopeCodec.PeekFrameType(System.ReadOnlySpan{System.Byte})">
+            <summary>
+            Reads the frame type byte from an encoded RPC envelope without decoding the full frame.
+            </summary>
+            <param name="data">Encoded envelope bytes.</param>
+            <returns>The frame type stored in the first byte.</returns>
+            <exception cref="T:System.InvalidOperationException">Thrown when <paramref name="data"/> is empty.</exception>
+        </member>
+        <member name="M:Lakona.Rpc.Core.RpcEnvelopeCodec.EncodeRequest(Lakona.Rpc.Core.RpcRequestEnvelope)">
+            <summary>
+            Encodes a request envelope into a transport frame.
+            </summary>
+            <param name="req">Request metadata and serialized method payload.</param>
+            <returns>An owned transport frame containing the encoded request envelope.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when <paramref name="req"/> is <see langword="null"/>.</exception>
+        </member>
+        <member name="M:Lakona.Rpc.Core.RpcEnvelopeCodec.DecodeRequest(Lakona.Rpc.Core.TransportFrame)">
+            <summary>
+            Decodes a request envelope from a transport frame.
+            </summary>
+            <param name="data">Encoded request frame.</param>
+            <returns>A decoded request frame whose payload slice references <paramref name="data"/>.</returns>
+            <exception cref="T:System.InvalidOperationException">Thrown when the frame type or envelope length is invalid.</exception>
+        </member>
+        <member name="M:Lakona.Rpc.Core.RpcEnvelopeCodec.EncodeResponse(Lakona.Rpc.Core.RpcResponseEnvelope)">
+            <summary>
+            Encodes a response envelope into a transport frame.
+            </summary>
+            <param name="resp">Response metadata, status, serialized payload, and optional error message.</param>
+            <returns>An owned transport frame containing the encoded response envelope.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when <paramref name="resp"/> is <see langword="null"/>.</exception>
+        </member>
+        <member name="M:Lakona.Rpc.Core.RpcEnvelopeCodec.EncodeResponse(System.UInt32,Lakona.Rpc.Core.RpcStatus,System.ReadOnlyMemory{System.Byte},System.String)">
+            <summary>
+            Encodes response fields into a transport frame.
+            </summary>
+            <param name="requestId">Identifier of the request being answered.</param>
+            <param name="status">Response status.</param>
+            <param name="payload">Serialized return payload or empty bytes for non-success responses.</param>
+            <param name="errorMessage">Optional UTF-8 error text included with the response.</param>
+            <returns>An owned transport frame containing the encoded response envelope.</returns>
+        </member>
+        <member name="M:Lakona.Rpc.Core.RpcEnvelopeCodec.DecodeResponse(Lakona.Rpc.Core.TransportFrame)">
+            <summary>
+            Decodes a response envelope from a transport frame.
+            </summary>
+            <param name="data">Encoded response frame.</param>
+            <returns>A decoded response frame whose payload slice references <paramref name="data"/>.</returns>
+            <exception cref="T:System.InvalidOperationException">Thrown when the frame type or envelope length is invalid.</exception>
+        </member>
+        <member name="M:Lakona.Rpc.Core.RpcEnvelopeCodec.EncodePush(Lakona.Rpc.Core.RpcPushEnvelope)">
+            <summary>
+            Encodes a server-to-client push envelope into a transport frame.
+            </summary>
+            <param name="push">Push metadata and serialized method payload.</param>
+            <returns>An owned transport frame containing the encoded push envelope.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when <paramref name="push"/> is <see langword="null"/>.</exception>
+        </member>
+        <member name="M:Lakona.Rpc.Core.RpcEnvelopeCodec.DecodePush(Lakona.Rpc.Core.TransportFrame)">
+            <summary>
+            Decodes a server-to-client push envelope from a transport frame.
+            </summary>
+            <param name="data">Encoded push frame.</param>
+            <returns>A decoded push frame whose payload slice references <paramref name="data"/>.</returns>
+            <exception cref="T:System.InvalidOperationException">Thrown when the frame type or envelope length is invalid.</exception>
+        </member>
+        <member name="M:Lakona.Rpc.Core.RpcEnvelopeCodec.EncodeKeepAlivePing(Lakona.Rpc.Core.RpcKeepAlivePingEnvelope)">
+            <summary>
+            Encodes a keepalive ping envelope into a transport frame.
+            </summary>
+            <param name="ping">Ping timestamp data.</param>
+            <returns>An owned transport frame containing the encoded keepalive ping.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when <paramref name="ping"/> is <see langword="null"/>.</exception>
+        </member>
+        <member name="M:Lakona.Rpc.Core.RpcEnvelopeCodec.DecodeKeepAlivePing(System.ReadOnlySpan{System.Byte})">
+            <summary>
+            Decodes a keepalive ping envelope.
+            </summary>
+            <param name="data">Encoded keepalive ping bytes.</param>
+            <returns>The decoded keepalive ping envelope.</returns>
+            <exception cref="T:System.InvalidOperationException">Thrown when the frame type or envelope length is invalid.</exception>
+        </member>
+        <member name="M:Lakona.Rpc.Core.RpcEnvelopeCodec.EncodeKeepAlivePong(Lakona.Rpc.Core.RpcKeepAlivePongEnvelope)">
+            <summary>
+            Encodes a keepalive pong envelope into a transport frame.
+            </summary>
+            <param name="pong">Pong timestamp data.</param>
+            <returns>An owned transport frame containing the encoded keepalive pong.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when <paramref name="pong"/> is <see langword="null"/>.</exception>
+        </member>
+        <member name="M:Lakona.Rpc.Core.RpcEnvelopeCodec.DecodeKeepAlivePong(System.ReadOnlySpan{System.Byte})">
+            <summary>
+            Decodes a keepalive pong envelope.
+            </summary>
+            <param name="data">Encoded keepalive pong bytes.</param>
+            <returns>The decoded keepalive pong envelope.</returns>
+            <exception cref="T:System.InvalidOperationException">Thrown when the frame type or envelope length is invalid.</exception>
+        </member>
+        <member name="T:Lakona.Rpc.Core.RpcFrameType">
+            <summary>
+            Identifies the kind of RPC envelope stored in a transport frame.
+            </summary>
+        </member>
+        <member name="F:Lakona.Rpc.Core.RpcFrameType.Request">
+            <summary>
+            A client-to-server RPC request.
+            </summary>
+        </member>
+        <member name="F:Lakona.Rpc.Core.RpcFrameType.Response">
+            <summary>
+            A server-to-client RPC response.
+            </summary>
+        </member>
+        <member name="F:Lakona.Rpc.Core.RpcFrameType.Push">
+            <summary>
+            A server-to-client push notification.
+            </summary>
+        </member>
+        <member name="F:Lakona.Rpc.Core.RpcFrameType.KeepAlivePing">
+            <summary>
+            A keepalive ping frame.
+            </summary>
+        </member>
+        <member name="F:Lakona.Rpc.Core.RpcFrameType.KeepAlivePong">
+            <summary>
+            A keepalive pong frame.
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.RpcStatus">
+            <summary>
+            Describes the framework-level outcome of an RPC response.
+            </summary>
+        </member>
+        <member name="F:Lakona.Rpc.Core.RpcStatus.Ok">
+            <summary>
+            The request completed successfully and the payload contains the serialized return value.
+            </summary>
+        </member>
+        <member name="F:Lakona.Rpc.Core.RpcStatus.NotFound">
+            <summary>
+            The target service or method was not found.
+            </summary>
+        </member>
+        <member name="F:Lakona.Rpc.Core.RpcStatus.HandlerError">
+            <summary>
+            The server handler failed or returned an invalid framework response.
+            </summary>
+        </member>
+        <member name="F:Lakona.Rpc.Core.RpcStatus.Overloaded">
+            <summary>
+            The server could not accept the request because it is overloaded.
+            </summary>
+        </member>
+        <member name="F:Lakona.Rpc.Core.RpcStatus.BadRequest">
+            <summary>
+            The request reached the RPC layer but was invalid for the target RPC contract.
+            </summary>
+        </member>
+        <member name="F:Lakona.Rpc.Core.RpcStatus.ProtocolError">
+            <summary>
+            The peer violated the RPC wire protocol or connection state machine.
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.RpcRequestEnvelope">
+            <summary>
+            Mutable request envelope used before encoding a client-to-server RPC request.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcRequestEnvelope.RequestId">
+            <summary>
+            Client-assigned request identifier used to correlate the response.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcRequestEnvelope.ServiceId">
+            <summary>
+            Generated numeric identifier for the target service.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcRequestEnvelope.MethodId">
+            <summary>
+            Generated numeric identifier for the target method.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcRequestEnvelope.Payload">
+            <summary>
+            Serialized method argument payload.
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.RpcRequestFrame">
+            <summary>
+            Decoded request envelope with an owned payload frame slice.
+            </summary>
+        </member>
+        <member name="M:Lakona.Rpc.Core.RpcRequestFrame.#ctor(System.UInt32,System.Int32,System.Int32,Lakona.Rpc.Core.TransportFrame)">
+            <summary>
+            Initializes a decoded request frame.
+            </summary>
+            <param name="requestId">Client-assigned request identifier.</param>
+            <param name="serviceId">Generated numeric identifier for the target service.</param>
+            <param name="methodId">Generated numeric identifier for the target method.</param>
+            <param name="payload">Serialized method argument payload.</param>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcRequestFrame.RequestId">
+            <summary>
+            Client-assigned request identifier used to correlate the response.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcRequestFrame.ServiceId">
+            <summary>
+            Generated numeric identifier for the target service.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcRequestFrame.MethodId">
+            <summary>
+            Generated numeric identifier for the target method.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcRequestFrame.Payload">
+            <summary>
+            Serialized method argument payload.
+            </summary>
+        </member>
+        <member name="M:Lakona.Rpc.Core.RpcRequestFrame.Dispose">
+            <summary>
+            Releases the underlying payload frame.
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.RpcResponseEnvelope">
+            <summary>
+            Mutable response envelope used before encoding a server-to-client RPC response.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcResponseEnvelope.RequestId">
+            <summary>
+            Identifier of the request being answered.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcResponseEnvelope.Status">
+            <summary>
+            Response status.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcResponseEnvelope.Payload">
+            <summary>
+            Serialized return payload.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcResponseEnvelope.ErrorMessage">
+            <summary>
+            Optional server error message associated with non-success responses.
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.RpcResponseFrame">
+            <summary>
+            Decoded response envelope with an owned payload frame slice.
+            </summary>
+        </member>
+        <member name="M:Lakona.Rpc.Core.RpcResponseFrame.#ctor(System.UInt32,Lakona.Rpc.Core.RpcStatus,Lakona.Rpc.Core.TransportFrame,System.String)">
+            <summary>
+            Initializes a decoded response frame.
+            </summary>
+            <param name="requestId">Identifier of the request being answered.</param>
+            <param name="status">Response status.</param>
+            <param name="payload">Serialized return payload.</param>
+            <param name="errorMessage">Optional server error message.</param>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcResponseFrame.RequestId">
+            <summary>
+            Identifier of the request being answered.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcResponseFrame.Status">
+            <summary>
+            Response status.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcResponseFrame.Payload">
+            <summary>
+            Serialized return payload.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcResponseFrame.ErrorMessage">
+            <summary>
+            Optional server error message associated with non-success responses.
+            </summary>
+        </member>
+        <member name="M:Lakona.Rpc.Core.RpcResponseFrame.Dispose">
+            <summary>
+            Releases the underlying payload frame.
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.RpcPushEnvelope">
+            <summary>
+            Mutable push envelope used before encoding a server-to-client notification.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcPushEnvelope.ServiceId">
+            <summary>
+            Generated numeric identifier for the target client service.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcPushEnvelope.MethodId">
+            <summary>
+            Generated numeric identifier for the target client method.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcPushEnvelope.Payload">
+            <summary>
+            Serialized push payload.
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.RpcPushFrame">
+            <summary>
+            Decoded push envelope with an owned payload frame slice.
+            </summary>
+        </member>
+        <member name="M:Lakona.Rpc.Core.RpcPushFrame.#ctor(System.Int32,System.Int32,Lakona.Rpc.Core.TransportFrame)">
+            <summary>
+            Initializes a decoded push frame.
+            </summary>
+            <param name="serviceId">Generated numeric identifier for the target client service.</param>
+            <param name="methodId">Generated numeric identifier for the target client method.</param>
+            <param name="payload">Serialized push payload.</param>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcPushFrame.ServiceId">
+            <summary>
+            Generated numeric identifier for the target client service.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcPushFrame.MethodId">
+            <summary>
+            Generated numeric identifier for the target client method.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcPushFrame.Payload">
+            <summary>
+            Serialized push payload.
+            </summary>
+        </member>
+        <member name="M:Lakona.Rpc.Core.RpcPushFrame.Dispose">
+            <summary>
+            Releases the underlying payload frame.
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.RpcKeepAlivePingEnvelope">
+            <summary>
+            Keepalive ping envelope sent to measure liveness and optional round-trip time.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcKeepAlivePingEnvelope.TimestampTicksUtc">
+            <summary>
+            UTC timestamp ticks captured by the sender.
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.RpcKeepAlivePongEnvelope">
+            <summary>
+            Keepalive pong envelope sent in response to a keepalive ping.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcKeepAlivePongEnvelope.TimestampTicksUtc">
+            <summary>
+            UTC timestamp ticks copied from the matching ping.
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.RpcVoid">
+            <summary>
+            Singleton marker value used for RPC methods with no return payload.
+            </summary>
+        </member>
+        <member name="F:Lakona.Rpc.Core.RpcVoid.Instance">
+            <summary>
+            Shared void marker instance.
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.RpcException">
+            <summary>
+                Exception thrown when a remote RPC response reports a non-success status.
+            </summary>
+        </member>
+        <member name="M:Lakona.Rpc.Core.RpcException.#ctor(Lakona.Rpc.Core.RpcStatus,System.String,System.UInt32,System.Int32,System.Int32)">
+            <summary>
+                Creates an exception from a remote RPC failure response.
+            </summary>
+            <param name="status">Remote response status.</param>
+            <param name="errorMessage">Optional remote error message.</param>
+            <param name="requestId">Request id associated with the failed response.</param>
+            <param name="serviceId">Target service id.</param>
+            <param name="methodId">Target method id.</param>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcException.Status">
+            <summary>
+                Remote response status.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcException.ErrorMessage">
+            <summary>
+                Optional remote error message.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcException.RequestId">
+            <summary>
+                Request id associated with the failed response.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcException.ServiceId">
+            <summary>
+                Target service id.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.RpcException.MethodId">
+            <summary>
+                Target method id.
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.RpcNotificationHandlerExceptionContext">
+            <summary>
+                Details for an exception thrown by a client-side notification handler.
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.RpcUnhandledNotificationContext">
+            <summary>
+                Details for a server-to-client notification frame that had no registered client-side handler.
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.RpcProtocolLimits">
+            <summary>
+                Central defaults for RPC protocol payload, transport frame, and security transform limits.
+            </summary>
+        </member>
+        <member name="T:Lakona.Rpc.Core.TransportSecurityConfig">
+            <summary>
+                Frame transformation settings applied above a concrete transport.
+            </summary>
+            <remarks>
+                This configuration controls optional compression and symmetric frame encryption performed by
+                <see cref="T:Lakona.Rpc.Core.TransformingTransport"/>. It is not a TLS replacement and does not authenticate the
+                remote peer by itself.
+            </remarks>
+        </member>
+        <member name="P:Lakona.Rpc.Core.TransportSecurityConfig.EnableCompression">
+            <summary>
+                Compresses frames before encryption and transmission when enabled.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.TransportSecurityConfig.CompressionThresholdBytes">
+            <summary>
+                Minimum frame size before compression is attempted.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.TransportSecurityConfig.MaxDecompressedFrameBytes">
+            <summary>
+                Maximum allowed decompressed frame size.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.TransportSecurityConfig.EnableEncryption">
+            <summary>
+                Encrypts transformed frames when enabled.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.TransportSecurityConfig.EncryptionKey">
+            <summary>
+                Raw symmetric encryption key bytes.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.TransportSecurityConfig.EncryptionKeyBase64">
+            <summary>
+                Base64-encoded symmetric encryption key. Used when <see cref="P:Lakona.Rpc.Core.TransportSecurityConfig.EncryptionKey"/> is not set.
+            </summary>
+        </member>
+        <member name="P:Lakona.Rpc.Core.TransportSecurityConfig.IsEnabled">
+            <summary>
+                Indicates whether any frame transformation is enabled.
+            </summary>
+        </member>
+        <member name="M:Lakona.Rpc.Core.TransportSecurityConfig.ResolveKey">
+            <summary>
+                Resolves the configured encryption key.
+            </summary>
+            <returns>
+                <see cref="P:Lakona.Rpc.Core.TransportSecurityConfig.EncryptionKey"/> when present, otherwise decoded <see cref="P:Lakona.Rpc.Core.TransportSecurityConfig.EncryptionKeyBase64"/>,
+                otherwise <see langword="null"/>.
+            </returns>
+            <exception cref="T:System.FormatException">
+                Thrown when <see cref="P:Lakona.Rpc.Core.TransportSecurityConfig.EncryptionKeyBase64"/> is not valid base64.
+            </exception>
+        </member>
+    </members>
+</doc>

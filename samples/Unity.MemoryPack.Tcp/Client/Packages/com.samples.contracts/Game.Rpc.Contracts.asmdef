@@ -1,0 +1,17 @@
+{
+  "name": "Game.Rpc.Contracts",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": true,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "MemoryPack.Core.dll",
+    "System.Runtime.CompilerServices.Unsafe.dll",
+    "Lakona.Rpc.Core.dll"
+  ],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

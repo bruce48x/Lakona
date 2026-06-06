@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Lakona.Game.Abstractions</RootNamespace>
+    <PackageId>Lakona.Game.Abstractions</PackageId>
+    <Version>0.1.3</Version>
+    <Description>Shared engine-neutral session and reliable push abstractions for Lakona.Game server and client packages.</Description>
+    <PackageTags>lakona-game;game;abstractions;session;reliable-push</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Update="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>

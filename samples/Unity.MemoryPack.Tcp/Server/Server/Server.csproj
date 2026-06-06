@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <UseAppHost>false</UseAppHost>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>Samples.Server</RootNamespace>
+        <AssemblyName>Samples.Server</AssemblyName>
+        <LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>
+        <LakonaRpcServerGeneratedNamespace>Game.Rpc.Server.Generated</LakonaRpcServerGeneratedNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <CompilerVisibleProperty Include="LakonaRpcGenerateServer" />
+        <CompilerVisibleProperty Include="LakonaRpcServerGeneratedNamespace" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="MemoryPack.Generator" Version="1.21.4">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <Compile Include="..\..\Client\Packages\com.samples.contracts\**\*.cs"/>
+        <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Analyzers\Lakona.Rpc.Analyzers.csproj"
+                          ReferenceOutputAssembly="false"
+                          OutputItemType="Analyzer"
+                          PrivateAssets="all" />
+        <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Server\Lakona.Rpc.Server.csproj" />
+        <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj" />
+        <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Transport.Tcp\Lakona.Rpc.Transport.Tcp.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Remove="Runtime\**\*.cs" />
+        <Compile Remove="Transports\**\*.cs" />
+    </ItemGroup>
+
+</Project>

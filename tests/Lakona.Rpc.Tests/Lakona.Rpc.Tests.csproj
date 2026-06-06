@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.*" />
+    <PackageReference Include="xunit" Version="2.*" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Lakona.Rpc.Client/Lakona.Rpc.Client.csproj" />
+    <ProjectReference Include="../../src/Lakona.Rpc.Core/Lakona.Rpc.Core.csproj" />
+    <ProjectReference Include="../../src/Lakona.Rpc.Server/Lakona.Rpc.Server.csproj" />
+    <ProjectReference Include="../../src/Lakona.Rpc.Serializer.Json/Lakona.Rpc.Serializer.Json.csproj" />
+    <ProjectReference Include="../../src/Lakona.Rpc.Transport.Tcp/Lakona.Rpc.Transport.Tcp.csproj" />
+    <ProjectReference Include="../../src/Lakona.Rpc.Transport.Loopback/Lakona.Rpc.Transport.Loopback.csproj" />
+  </ItemGroup>
+
+</Project>

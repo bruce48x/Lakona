@@ -1,0 +1,8 @@
+<Project>
+  <ItemGroup>
+    <CompilerVisibleProperty Include="LakonaRpcGenerateClient" />
+    <CompilerVisibleProperty Include="LakonaRpcGenerateServer" />
+    <CompilerVisibleProperty Include="LakonaRpcGeneratedNamespace" />
+    <CompilerVisibleProperty Include="LakonaRpcServerGeneratedNamespace" />
+  </ItemGroup>
+</Project>

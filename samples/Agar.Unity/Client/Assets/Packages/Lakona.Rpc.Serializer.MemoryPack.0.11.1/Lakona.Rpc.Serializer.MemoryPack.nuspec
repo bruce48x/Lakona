@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>ULinkRPC.Serializer.MemoryPack</id>
+    <version>0.11.1</version>
+    <authors>ULinkRPC</authors>
+    <license type="expression">MIT</license>
+    <licenseUrl>https://licenses.nuget.org/MIT</licenseUrl>
+    <readme>README.md</readme>
+    <projectUrl>https://github.com/bruce48x/ULinkRPC</projectUrl>
+    <description>MemoryPack based payload serializer for ULinkRPC.</description>
+    <tags>rpc unity serializer memorypack</tags>
+    <repository type="git" url="https://github.com/bruce48x/ULinkRPC" commit="2703e20249bb755fb1339f7310b2c69c27699a5a" />
+    <dependencies>
+      <group targetFramework="net10.0">
+        <dependency id="ULinkRPC.Core" version="0.11.3" exclude="Build,Analyzers" />
+        <dependency id="MemoryPack" version="1.21.4" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework=".NETStandard2.1">
+        <dependency id="ULinkRPC.Core" version="0.11.3" exclude="Build,Analyzers" />
+        <dependency id="MemoryPack" version="1.21.4" exclude="Build,Analyzers" />
+      </group>
+    </dependencies>
+  </metadata>
+</package>

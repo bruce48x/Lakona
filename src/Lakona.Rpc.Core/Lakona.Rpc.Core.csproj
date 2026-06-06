@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.1;net10.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>Lakona.Rpc.Core</PackageId>
+    <Version>0.12.0</Version>
+    <Authors>Lakona.Rpc</Authors>
+    <Description>Lakona.Rpc core abstractions, contracts, envelopes, and framing helpers.</Description>
+    <PackageTags>rpc;unity;dotnet;transport</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="" />
+    <None Include="buildTransitive\Lakona.Rpc.Core.props" Pack="true" PackagePath="buildTransitive" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Lakona.Rpc.Analyzers\Lakona.Rpc.Analyzers.csproj"
+                      ReferenceOutputAssembly="false"
+                      OutputItemType="Analyzer"
+                      PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Lakona.Rpc.Client" />
+    <InternalsVisibleTo Include="Lakona.Rpc.Server" />
+    <InternalsVisibleTo Include="Lakona.Rpc.Transport.Kcp" />
+    <InternalsVisibleTo Include="Lakona.Rpc.Transport.Loopback" />
+    <InternalsVisibleTo Include="Lakona.Rpc.Transport.Tcp" />
+    <InternalsVisibleTo Include="Lakona.Rpc.Transport.WebSocket" />
+    <InternalsVisibleTo Include="Lakona.Rpc.Transport.Tests" />
+  </ItemGroup>
+</Project>

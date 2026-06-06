@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <NoWarn>$(NoWarn);RS2008;NU5128</NoWarn>
+    <AssemblyName>Lakona.Rpc.Analyzers</AssemblyName>
+    <RootNamespace>Lakona.Rpc.Analyzers</RootNamespace>
+    <PackageId>Lakona.Rpc.Analyzers</PackageId>
+    <Version>0.2.0</Version>
+    <Authors>Lakona.Rpc</Authors>
+    <Description>Roslyn analyzers and source generators for Lakona.Rpc contracts.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <DefaultItemExcludes>$(DefaultItemExcludes);obj\**\*.cs;bin\**\*.cs</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="3.8.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="" />
+    <None Include="$(OutputPath)$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="buildTransitive\Lakona.Rpc.Analyzers.props" Pack="true" PackagePath="buildTransitive" />
+  </ItemGroup>
+</Project>

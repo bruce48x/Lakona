@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <UseAppHost>false</UseAppHost>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>Samples.Server</RootNamespace>
+        <AssemblyName>Samples.Server</AssemblyName>
+        <LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>
+        <LakonaRpcServerGeneratedNamespace>Game.Rpc.Server.Generated</LakonaRpcServerGeneratedNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <CompilerVisibleProperty Include="LakonaRpcGenerateServer" />
+        <CompilerVisibleProperty Include="LakonaRpcServerGeneratedNamespace" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="..\..\Client\Packages\com.samples.contracts\**\*.cs"/>
+        <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Analyzers\Lakona.Rpc.Analyzers.csproj"
+                          ReferenceOutputAssembly="false"
+                          OutputItemType="Analyzer"
+                          PrivateAssets="all" />
+        <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Server\Lakona.Rpc.Server.csproj" />
+        <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Serializer.Json\Lakona.Rpc.Serializer.Json.csproj" />
+        <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Transport.WebSocket\Lakona.Rpc.Transport.WebSocket.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Remove="Runtime\**\*.cs" />
+        <Compile Remove="Transports\**\*.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
+
+</Project>

@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Lakona.Rpc.Starter</RootNamespace>
+    <AssemblyName>Lakona.Rpc.Starter</AssemblyName>
+    <PackageId>Lakona.Rpc.Starter</PackageId>
+    <Version>0.4.2</Version>
+    <Authors>Lakona.Rpc</Authors>
+    <Description>CLI project tool to scaffold and manage Lakona.Rpc shared/server/client workspaces.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>lakona-starter</ToolCommandName>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Lakona.Rpc.Starter.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="TemplateAssets\NuGetForUnity.4.5.0.zip" LogicalName="Lakona.Rpc.Starter.TemplateAssets.NuGetForUnity.4.5.0.zip" />
+    <EmbeddedResource Include="ReleaseVersions.json" LogicalName="Lakona.Rpc.Starter.ReleaseVersions.json" />
+    <EmbeddedResource Include="Templates\Godot\project.godot.template" LogicalName="Lakona.Rpc.Starter.Templates.Godot.project.godot.template" />
+    <EmbeddedResource Include="Templates\Godot\Main.tscn.template" LogicalName="Lakona.Rpc.Starter.Templates.Godot.Main.tscn.template" />
+    <EmbeddedResource Include="Templates\Unity\EditorBuildSettings.asset.template" LogicalName="Lakona.Rpc.Starter.Templates.Unity.EditorBuildSettings.asset.template" />
+    <EmbeddedResource Include="Templates\Unity\AutoOpenConnectionScene.template" LogicalName="Lakona.Rpc.Starter.Templates.Unity.AutoOpenConnectionScene.template" />
+  </ItemGroup>
+</Project>

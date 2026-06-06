@@ -1,0 +1,21 @@
+{
+  "name": "SampleClient.Gameplay",
+  "rootNamespace": "SampleClient.Gameplay",
+  "references": [
+    "Shared",
+    "SampleClient.Rpc",
+    "Lakona.Game.Client",
+    "Unity.TextMeshPro",
+    "UnityEngine.UI",
+    "Unity.InputSystem"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

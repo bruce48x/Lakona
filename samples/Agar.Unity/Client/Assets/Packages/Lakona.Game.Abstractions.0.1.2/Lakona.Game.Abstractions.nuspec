@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
+  <metadata>
+    <id>ULinkGame.Abstractions</id>
+    <version>0.1.2</version>
+    <authors>ULinkGame</authors>
+    <license type="expression">MIT</license>
+    <licenseUrl>https://licenses.nuget.org/MIT</licenseUrl>
+    <readme>README.md</readme>
+    <projectUrl>https://github.com/bruce48x/ULinkGame</projectUrl>
+    <description>Shared engine-neutral session and reliable push abstractions for ULinkGame server and client packages.</description>
+    <tags>ulinkgame game abstractions session reliable-push</tags>
+    <repository type="git" url="https://github.com/bruce48x/ULinkGame" commit="3edfa32e0efbf581598c37806b0ee84335ddcbdc" />
+    <dependencies>
+      <group targetFramework=".NETStandard2.1" />
+    </dependencies>
+  </metadata>
+</package>

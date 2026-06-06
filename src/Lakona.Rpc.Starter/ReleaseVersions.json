@@ -1,0 +1,13 @@
+{
+  "Core": "0.12.0",
+  "Server": "0.12.1",
+  "Client": "0.12.0",
+  "TransportTcp": "0.11.4",
+  "TransportWebSocket": "0.11.6",
+  "TransportKcp": "0.11.13",
+  "SerializerJson": "0.11.1",
+  "SerializerMemoryPack": "0.11.1",
+  "Analyzers": "0.2.0",
+  "MemoryPackRuntime": "1.21.4",
+  "MemoryPackRuntimeCore": "1.21.4"
+}

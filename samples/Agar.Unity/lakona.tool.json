@@ -1,0 +1,11 @@
+{
+  "project": {
+    "name": "Sample-Agar.Unity",
+    "clientEngine": "unity",
+    "transport": "websocket",
+    "networkProfile": "realtime",
+    "serializer": "memorypack",
+    "persistence": "none",
+    "nuGetForUnitySource": "embedded"
+  }
+}

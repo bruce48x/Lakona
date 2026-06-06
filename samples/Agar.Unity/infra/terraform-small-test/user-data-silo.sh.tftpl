@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export DEBIAN_FRONTEND=noninteractive
+
+if ! command -v docker >/dev/null 2>&1; then
+  apt-get update
+  apt-get install -y docker.io
+fi
+
+systemctl enable --now docker
+
+PRIVATE_IPV4="$(curl -fsS --connect-timeout 3 http://100.100.100.200/latest/meta-data/private-ipv4 || hostname -I | awk '{print $1}')"
+
+docker rm -f agar-silo || true
+docker run -d \
+  --name agar-silo \
+  --restart unless-stopped \
+  --network host \
+  -e DOTNET_ENVIRONMENT=DistributedTest \
+  -e Cluster__ClusterId=${cluster_id} \
+  -e Cluster__ServiceId=${service_id} \
+  -e Persistence__Invariant=Npgsql \
+  -e Persistence__ConnectionString=${postgres_connection_string} \
+  -e Cluster__AdvertisedIPAddress="$PRIVATE_IPV4" \
+  -e Cluster__StatePort=11111 \
+  -e Cluster__GatewayPort=30000 \
+  -e Agar__NodeName=${node_name} \
+  ${silo_image}

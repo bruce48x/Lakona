@@ -1,0 +1,29 @@
+<Project Sdk="Godot.NET.Sdk/4.6.1">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Client</RootNamespace>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <NuGetAudit>false</NuGetAudit>
+    <LakonaRpcGenerateClient>true</LakonaRpcGenerateClient>
+    <LakonaRpcGeneratedNamespace>Rpc.Generated</LakonaRpcGeneratedNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <CompilerVisibleProperty Include="LakonaRpcGenerateClient" />
+    <CompilerVisibleProperty Include="LakonaRpcGeneratedNamespace" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shared\Shared.csproj" />
+    <ProjectReference Include="..\..\..\src\Lakona.Rpc.Analyzers\Lakona.Rpc.Analyzers.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" PrivateAssets="all" />
+    <ProjectReference Include="..\..\..\src\Lakona.Rpc.Core\Lakona.Rpc.Core.csproj" />
+    <ProjectReference Include="..\..\..\src\Lakona.Rpc.Client\Lakona.Rpc.Client.csproj" />
+    <ProjectReference Include="..\..\..\src\Lakona.Rpc.Transport.Tcp\Lakona.Rpc.Transport.Tcp.csproj" />
+    <ProjectReference Include="..\..\..\src\Lakona.Rpc.Transport.Kcp\Lakona.Rpc.Transport.Kcp.csproj" />
+    <ProjectReference Include="..\..\..\src\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj" />
+    <PackageReference Include="MemoryPack" Version="1.21.4" />
+    <PackageReference Include="MemoryPack.Core" Version="1.21.4" />
+  </ItemGroup>
+</Project>

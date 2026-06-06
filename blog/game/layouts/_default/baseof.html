@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="{{ .Site.Language.Lang | default "en-us" }}">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ if .Title }}{{ .Title }} | {{ end }}{{ .Site.Title }}</title>
+    <meta name="description" content="{{ with .Params.description }}{{ . }}{{ else }}{{ .Site.Params.description }}{{ end }}">
+    <link rel="stylesheet" href="{{ "css/site.css" | relURL }}">
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: 'neutral',
+        securityLevel: 'loose',
+        flowchart: {
+          useMaxWidth: true,
+          htmlLabels: true
+        }
+      });
+    </script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap">
+        <a class="brand" href="{{ .Site.Home.RelPermalink }}">{{ .Site.Title }}</a>
+        <nav class="nav">
+          <a href="{{ .Site.Home.RelPermalink }}">Home</a>
+          <a href="{{ "posts/" | relURL }}">Posts</a>
+          <a href="{{ "about/" | relURL }}">About</a>
+          <a href="{{ .Site.Params.repo }}">GitHub</a>
+        </nav>
+      </div>
+    </header>
+    <main class="wrap">
+      {{ block "main" . }}{{ end }}
+    </main>
+  </body>
+</html>

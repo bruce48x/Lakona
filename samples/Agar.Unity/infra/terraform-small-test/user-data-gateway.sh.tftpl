@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export DEBIAN_FRONTEND=noninteractive
+
+if ! command -v docker >/dev/null 2>&1; then
+  apt-get update
+  apt-get install -y docker.io
+fi
+
+systemctl enable --now docker
+
+PUBLIC_IPV4="$(curl -fsS --connect-timeout 3 http://100.100.100.200/latest/meta-data/eipv4 || true)"
+if [ -z "$PUBLIC_IPV4" ]; then
+  PUBLIC_IPV4="$(curl -fsS --connect-timeout 3 http://100.100.100.200/latest/meta-data/public-ipv4 || true)"
+fi
+if [ -z "$PUBLIC_IPV4" ]; then
+  PUBLIC_IPV4="$(curl -fsS --connect-timeout 5 https://ifconfig.me || true)"
+fi
+
+docker rm -f agar-gateway || true
+docker run -d \
+  --name agar-gateway \
+  --restart unless-stopped \
+  --network host \
+  -e DOTNET_ENVIRONMENT=DistributedTest \
+  -e Cluster__ClusterId=${cluster_id} \
+  -e Cluster__ServiceId=${service_id} \
+  -e Persistence__Invariant=Npgsql \
+  -e Persistence__ConnectionString=${postgres_connection_string} \
+  -e ControlPlane__Transport=websocket \
+  -e ControlPlane__Port=20000 \
+  -e ControlPlane__Path=/ws \
+  -e Realtime__Transport=kcp \
+  -e Realtime__Host="$PUBLIC_IPV4" \
+  -e Realtime__Port=20001 \
+  -e Realtime__Path="" \
+  -e Gateway__NodeId=${node_id} \
+  ${gateway_image}

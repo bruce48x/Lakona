@@ -1,0 +1,11 @@
+<Solution>
+  <Project Path="Lakona.Game.Client.Tests/Lakona.Game.Client.Tests.csproj" />
+  <Project Path="Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj" />
+  <Project Path="Lakona.Game.Cluster.Sql.Tests/Lakona.Game.Cluster.Sql.Tests.csproj" />
+  <Project Path="Lakona.Game.Cluster.Rpc.Tests/Lakona.Game.Cluster.Rpc.Tests.csproj" />
+  <Project Path="Lakona.Game.Server.Tests/Lakona.Game.Server.Tests.csproj" />
+  <Project Path="Lakona.Game.Server.Hotfix.Tests/Lakona.Game.Server.Hotfix.Tests.csproj" />
+  <Project Path="Lakona.Game.Server.Hotfix.Generators.Tests/Lakona.Game.Server.Hotfix.Generators.Tests.csproj" />
+  <Project Path="Lakona.Game.Server.Generators.Tests/Lakona.Game.Server.Generators.Tests.csproj" />
+  <Project Path="Lakona.Game.Tool.Tests/Lakona.Game.Tool.Tests.csproj" />
+</Solution>

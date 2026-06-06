@@ -1,0 +1,10 @@
+{
+  "name": "com.lakona-game.agar.unity.shared",
+  "version": "1.0.0",
+  "displayName": "Agar Unity Shared",
+  "description": "Agar Unity shared DTO and gameplay code",
+  "unity": "2022.3",
+  "author": {
+    "name": "Lakona.Game"
+  }
+}
