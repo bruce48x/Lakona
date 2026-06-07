@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using Xunit;
@@ -304,43 +305,58 @@ public sealed class ActorSystemTests
     {
         await using ActorSystem system = new(new ActorSystemOptions { MailboxCapacity = 1 });
         BlockingActor actor = new();
-        ActorHandle<object> actorHandle = await system.SpawnAsync(actor, new ActorSpawnOptions { MailboxCapacity = 2 });
+        ActorHandle<object> actorHandle = await system.SpawnAsync(
+            actor,
+            new ActorSpawnOptions { MailboxCapacity = 2 });
         ActorRef<object> actorRef = actorHandle.Ref;
 
-        await actorRef.Send("first");
-        await actorRef.Send("second");
+        try
+        {
+            await actorRef.Send("first").AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+            await actorRef.Send("second").AsTask().WaitAsync(TimeSpan.FromSeconds(1));
 
-        Task thirdSend = actorRef.Send("third").AsTask();
-        Task completed = await Task.WhenAny(thirdSend, Task.Delay(50));
+            Task thirdSend = actorRef.Send("third").AsTask();
+            Task completed = await Task.WhenAny(thirdSend, Task.Delay(50));
 
-        Assert.NotSame(thirdSend, completed);
-        Assert.Equal(2, actorHandle.GetMailboxMetrics().Capacity);
+            Assert.NotSame(thirdSend, completed);
+            Assert.Equal(2, actorHandle.GetMailboxMetrics().Capacity);
+        }
+        finally
+        {
+            actor.Release();
+        }
 
-        actor.Release();
-        await thirdSend.WaitAsync(TimeSpan.FromSeconds(1));
+        await Eventually(() => actorHandle.GetMailboxMetrics().ProcessedCount == 3);
     }
 
     [Fact]
     public async Task Mailbox_metrics_report_capacity_queue_and_counts()
     {
         await using ActorSystem system = new(new ActorSystemOptions { MailboxCapacity = 2 });
-        BlockingActor actor = new();
+        DisposeGaugeBlockingActor actor = new();
         ActorHandle<object> actorHandle = await system.SpawnAsync(actor);
         ActorRef<object> actorRef = actorHandle.Ref;
 
-        await actorRef.Send("first");
-        await actorRef.Send("second");
+        try
+        {
+            await actorRef.Send("first").AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+            await actor.MessageStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+            await actorRef.Send("second").AsTask().WaitAsync(TimeSpan.FromSeconds(1));
 
-        MailboxMetrics queuedMetrics = actorHandle.GetMailboxMetrics();
+            MailboxMetrics queuedMetrics = actorHandle.GetMailboxMetrics();
 
-        Assert.Equal(2, queuedMetrics.Capacity);
-        Assert.Equal(1, queuedMetrics.QueuedCount);
-        Assert.Equal(2, queuedMetrics.EnqueuedCount);
-        Assert.Equal(0, queuedMetrics.ProcessedCount);
-        Assert.Equal(0, queuedMetrics.RejectedCount);
-        Assert.False(queuedMetrics.IsCompleted);
+            Assert.Equal(2, queuedMetrics.Capacity);
+            Assert.Equal(1, queuedMetrics.QueuedCount);
+            Assert.Equal(2, queuedMetrics.EnqueuedCount);
+            Assert.Equal(0, queuedMetrics.ProcessedCount);
+            Assert.Equal(0, queuedMetrics.RejectedCount);
+            Assert.False(queuedMetrics.IsCompleted);
+        }
+        finally
+        {
+            actor.Release();
+        }
 
-        actor.Release();
         await Eventually(() => actorHandle.GetMailboxMetrics().ProcessedCount == 2);
     }
 
@@ -719,7 +735,7 @@ public sealed class ActorSystemTests
     public async Task Send_and_call_dispatch_activities_preserve_parent_activity_context()
     {
         using ActivitySource testSource = new("Lakona.Actor.Tests");
-        List<Activity> stopped = new();
+        ConcurrentQueue<Activity> stopped = new();
 
         using ActivityListener listener = new()
         {
@@ -729,7 +745,7 @@ public sealed class ActorSystemTests
             {
                 if (activity.OperationName == "Lakona.Actor.Actor.Dispatch")
                 {
-                    stopped.Add(activity);
+                    stopped.Enqueue(activity);
                 }
             }
         };
@@ -747,7 +763,7 @@ public sealed class ActorSystemTests
         await Eventually(() => stopped.Count >= 2);
 
         Assert.Equal("trace-call", response);
-        Assert.All(stopped, activity => Assert.Equal(parent!.SpanId, activity.ParentSpanId));
+        Assert.All(stopped.ToArray(), activity => Assert.Equal(parent!.SpanId, activity.ParentSpanId));
     }
 
     [Fact]
@@ -802,7 +818,7 @@ public sealed class ActorSystemTests
     [Fact]
     public async Task Runtime_metrics_emit_low_cardinality_counters_and_queue_gauge()
     {
-        List<MetricMeasurement> measurements = new();
+        ConcurrentQueue<MetricMeasurement> measurements = new();
 
         using MeterListener listener = new()
         {
@@ -817,7 +833,7 @@ public sealed class ActorSystemTests
 
         listener.SetMeasurementEventCallback<long>((instrument, measurement, tags, _) =>
         {
-            measurements.Add(new MetricMeasurement(
+            measurements.Enqueue(new MetricMeasurement(
                 instrument.Name,
                 measurement,
                 tags.ToArray()));
@@ -862,17 +878,18 @@ public sealed class ActorSystemTests
             "lakona-actor.deadletter.published",
             "lakona-actor.mailbox.queue.length"
         ];
+        MetricMeasurement[] measurementSnapshot = measurements.ToArray();
 
         foreach (string expectedInstrument in expectedInstruments)
         {
-            Assert.Contains(measurements, measurement => measurement.InstrumentName == expectedInstrument);
+            Assert.Contains(measurementSnapshot, measurement => measurement.InstrumentName == expectedInstrument);
         }
 
-        Assert.Contains(measurements, measurement =>
+        Assert.Contains(measurementSnapshot, measurement =>
             measurement.InstrumentName == "lakona-actor.mailbox.queue.length" && measurement.Value > 0);
 
         string[] allowedTagKeys = ["kind", "reason"];
-        foreach (MetricMeasurement measurement in measurements)
+        foreach (MetricMeasurement measurement in measurementSnapshot)
         {
             Assert.All(measurement.Tags, tag => Assert.Contains(tag.Key, allowedTagKeys));
         }
@@ -881,7 +898,7 @@ public sealed class ActorSystemTests
     [Fact]
     public async Task Mailbox_queue_gauge_counts_disposing_mailboxes_until_drained()
     {
-        List<MetricMeasurement> measurements = new();
+        ConcurrentQueue<MetricMeasurement> measurements = new();
 
         using MeterListener listener = new()
         {
@@ -896,7 +913,7 @@ public sealed class ActorSystemTests
 
         listener.SetMeasurementEventCallback<long>((instrument, measurement, tags, _) =>
         {
-            measurements.Add(new MetricMeasurement(
+            measurements.Enqueue(new MetricMeasurement(
                 instrument.Name,
                 measurement,
                 tags.ToArray()));
@@ -916,8 +933,9 @@ public sealed class ActorSystemTests
         try
         {
             listener.RecordObservableInstruments();
+            MetricMeasurement[] measurementSnapshot = measurements.ToArray();
 
-            Assert.Contains(measurements, measurement =>
+            Assert.Contains(measurementSnapshot, measurement =>
                 measurement.InstrumentName == "lakona-actor.mailbox.queue.length" &&
                 measurement.Value > 0);
         }
@@ -1843,4 +1861,3 @@ public sealed class ActorSystemTests
 
     private sealed record GetCounter : CounterMessage;
 }
-
