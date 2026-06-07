@@ -23,11 +23,11 @@ Supporting documents provide deeper rationale or user-facing context:
 | [docs/game/lakona-game-configuration-startup.md](./docs/game/lakona-game-configuration-startup.md) | Game configuration schema, feature catalog startup, and validation boundary |
 | [docs/game/lakona-game-runtime-guardrails.md](./docs/game/lakona-game-runtime-guardrails.md) | Runtime validation model for cluster, hotfix, endpoints, and production profile |
 | [docs/game/lakona-tool-default-experience.md](./docs/game/lakona-tool-default-experience.md) | Project tool generated experience and default configuration surface |
-| [design/rpc/README.md](./design/rpc/README.md) | RPC design notes and maintainer-facing decisions |
+| [docs/rpc/README.md](./docs/rpc/README.md) | RPC design notes and maintainer-facing decisions |
 
-Add durable design notes under `docs/**` or `design/**` and link them here when
-they affect contributor or maintenance policy. Do not put internal architecture
-RFCs, migration plans, or contributor-only technical notes under `blog/**`.
+Add durable design notes under `docs/**` and link them here when they affect
+contributor or maintenance policy. Do not put internal architecture RFCs,
+migration plans, or contributor-only technical notes under `blog/**`.
 
 ## Quick Workflow
 
@@ -97,8 +97,7 @@ docs/
   actor/                           Actor design docs
   game/                            Game framework design docs
 
-design/
-  rpc/                             RPC maintainer design notes
+docs/rpc/                          RPC maintainer design notes
 
 blog/
   game/, rpc/                      Hugo article sources
@@ -465,7 +464,7 @@ Get-ChildItem src -Filter *.csproj -Recurse | ForEach-Object {
 - Prefer changes that preserve existing tests and add focused coverage for new
   behavior.
 - Keep package README files user-facing.
-- Put maintainer rationale in `docs/**`, `design/**`, or this file.
+- Put maintainer rationale in `docs/**` or this file.
 - Avoid unrelated refactors unless explicitly requested or necessary to complete
   the task safely.
 - Delete temporary planning notes before finishing a development branch unless
