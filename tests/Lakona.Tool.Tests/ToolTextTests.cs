@@ -729,6 +729,36 @@ public sealed class ToolTextTests
     }
 
     [Fact]
+    public async Task NewCommand_DoesNotCreateFilesWhenRequiredOptionsMissingAndInputRedirected()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "lakona-tool-new-guard", Guid.NewGuid().ToString("N"));
+        var text = ToolText.ForCulture(CultureInfo.GetCultureInfo("en-US"));
+        var terminal = new FakeCliTerminal([], isInputRedirected: true);
+        var app = new CliApplication(
+            new RpcStarterGenerator(),
+            new ProjectScaffolder(),
+            new ToolConfigStore(),
+            text,
+            terminal);
+
+        try
+        {
+            var exitCode = await app.RunAsync(["new", "--output", root]);
+
+            Assert.Equal(1, exitCode);
+            Assert.False(Directory.Exists(root));
+            Assert.Contains("Missing required options for non-interactive project creation", terminal.Error.ToString(), StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public void ClusterEnvExampleUsesSelectedTransportForAdvertisedClientEndpoint()
     {
         var websocketOptions = new NewCommandOptions(

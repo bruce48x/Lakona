@@ -5,9 +5,11 @@ internal sealed class CliApplication(
     RpcStarterGenerator rpcStarterGenerator,
     ProjectScaffolder projectScaffolder,
     ToolConfigStore configStore,
-    ToolText? text = null)
+    ToolText? text = null,
+    ICliTerminal? terminal = null)
 {
     private readonly ToolText text = text ?? ToolText.Current;
+    private readonly ICliTerminal terminal = terminal ?? new ConsoleCliTerminal();
 
     public async Task<int> RunAsync(string[] args)
     {
@@ -28,8 +30,8 @@ internal sealed class CliApplication(
         }
         catch (CliUsageException ex)
         {
-            Console.Error.WriteLine($"{text.ErrorPrefix}: {ex.Message}");
-            Console.Error.WriteLine(text.RunHelpForUsage);
+            terminal.WriteErrorLine($"{text.ErrorPrefix}: {ex.Message}");
+            terminal.WriteErrorLine(text.RunHelpForUsage);
             return 1;
         }
     }
@@ -42,15 +44,16 @@ internal sealed class CliApplication(
 
     private int UnknownCommand(string command)
     {
-        Console.Error.WriteLine(text.UnknownCommand(command));
-        Console.Error.WriteLine();
+        terminal.WriteErrorLine(text.UnknownCommand(command));
+        terminal.WriteErrorLine("");
         PrintHelp();
         return 1;
     }
 
     private async Task<int> NewAsync(string[] args)
     {
-        var options = CliParser.ParseNewOptions(args, text);
+        var options = new NewCommandPrompter(text, terminal)
+            .Complete(CliParser.ParseNewOptions(args, text));
         var outputDirectory = Path.GetFullPath(options.OutputPath ?? Directory.GetCurrentDirectory());
         Directory.CreateDirectory(outputDirectory);
 
@@ -61,7 +64,7 @@ internal sealed class CliApplication(
 
         if (!Directory.Exists(projectRoot))
         {
-            Console.Error.WriteLine(text.GeneratedProjectRootNotFound(projectRoot));
+            terminal.WriteErrorLine(text.GeneratedProjectRootNotFound(projectRoot));
             return 1;
         }
 
@@ -70,7 +73,7 @@ internal sealed class CliApplication(
         var configPath = Path.Combine(projectRoot, ProjectConventions.ConfigFileName);
         if (File.Exists(configPath))
         {
-            Console.Error.WriteLine(text.ConfigAlreadyExists(configPath));
+            terminal.WriteErrorLine(text.ConfigAlreadyExists(configPath));
             return 1;
         }
 
