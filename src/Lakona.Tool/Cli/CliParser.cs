@@ -25,6 +25,7 @@ internal static class CliParser
         var persistence = ProjectConventions.DefaultPersistence;
         var nuGetForUnitySource = ProjectConventions.DefaultNuGetForUnitySource;
         var deployProfile = ProjectConventions.DefaultDeployProfile;
+        var presence = NewCommandOptionPresence.None;
 
         for (var index = 0; index < args.Length; index++)
         {
@@ -32,37 +33,46 @@ internal static class CliParser
             {
                 case "--name":
                     name = ReadOptionValue(args, ref index, "--name", text);
+                    presence |= NewCommandOptionPresence.Name;
                     break;
                 case "--output":
                     outputPath = ReadOptionValue(args, ref index, "--output", text);
+                    presence |= NewCommandOptionPresence.OutputPath;
                     break;
                 case "--client-engine":
                     clientEngine = ValidateChoice("--client-engine", ReadOptionValue(args, ref index, "--client-engine", text), ProjectConventions.SupportedClientEngines, text);
+                    presence |= NewCommandOptionPresence.ClientEngine;
                     break;
                 case "--transport":
                     transport = ValidateChoice("--transport", ReadOptionValue(args, ref index, "--transport", text), ProjectConventions.SupportedTransports, text);
+                    presence |= NewCommandOptionPresence.Transport;
                     break;
                 case "--network-profile":
                     ValidateChoice("--network-profile", ReadOptionValue(args, ref index, "--network-profile", text), ProjectConventions.SupportedNetworkProfiles, text);
+                    presence |= NewCommandOptionPresence.NetworkProfile;
                     break;
                 case "--serializer":
                     serializer = ValidateChoice("--serializer", ReadOptionValue(args, ref index, "--serializer", text), ProjectConventions.SupportedSerializers, text);
+                    presence |= NewCommandOptionPresence.Serializer;
                     break;
                 case "--persistence":
                     persistence = ValidateChoice("--persistence", ReadOptionValue(args, ref index, "--persistence", text), ProjectConventions.SupportedPersistence, text);
+                    presence |= NewCommandOptionPresence.Persistence;
                     break;
                 case "--nugetforunity-source":
                     nuGetForUnitySource = ValidateChoice("--nugetforunity-source", ReadOptionValue(args, ref index, "--nugetforunity-source", text), ProjectConventions.SupportedNuGetForUnitySources, text);
+                    presence |= NewCommandOptionPresence.NuGetForUnitySource;
                     break;
                 case "--deploy-profile":
                     deployProfile = ValidateChoice("--deploy-profile", ReadOptionValue(args, ref index, "--deploy-profile", text), ProjectConventions.SupportedDeployProfiles, text);
+                    presence |= NewCommandOptionPresence.DeployProfile;
                     break;
                 default:
                     throw CreateUnsupportedArgumentException(args[index], NewOptions, text);
             }
         }
 
-        return new NewCommandOptions(name, outputPath, clientEngine, transport, ProjectConventions.DefaultNetworkProfile, serializer, persistence, nuGetForUnitySource, deployProfile);
+        return new NewCommandOptions(name, outputPath, clientEngine, transport, ProjectConventions.DefaultNetworkProfile, serializer, persistence, nuGetForUnitySource, deployProfile, presence);
     }
 
     private static string ReadOptionValue(string[] args, ref int index, string optionName, ToolText text)

@@ -158,6 +158,66 @@ public sealed class ToolTextTests
     }
 
     [Fact]
+    public void ParserDefaultsKeepValuesButNoExplicitPresence()
+    {
+        var options = CliParser.ParseNewOptions([]);
+
+        Assert.Equal(ProjectConventions.DefaultProjectName, string.IsNullOrWhiteSpace(options.Name) ? ProjectConventions.DefaultProjectName : options.Name);
+        Assert.Equal(ProjectConventions.DefaultClientEngine, options.ClientEngine);
+        Assert.Equal(ProjectConventions.DefaultTransport, options.Transport);
+        Assert.Equal(ProjectConventions.DefaultNetworkProfile, options.NetworkProfile);
+        Assert.Equal(ProjectConventions.DefaultSerializer, options.Serializer);
+        Assert.Equal(ProjectConventions.DefaultPersistence, options.Persistence);
+        Assert.Equal(ProjectConventions.DefaultNuGetForUnitySource, options.NuGetForUnitySource);
+        Assert.Equal(ProjectConventions.DefaultDeployProfile, options.DeployProfile);
+        Assert.Equal(NewCommandOptionPresence.None, options.Presence);
+        Assert.False(options.HasExplicit(NewCommandOptionPresence.Name));
+        Assert.False(options.HasExplicit(NewCommandOptionPresence.ClientEngine));
+    }
+
+    [Fact]
+    public void ParserTracksExplicitNewOptionPresence()
+    {
+        var options = CliParser.ParseNewOptions([
+            "--name", "Arena",
+            "--output", "D:\\Games",
+            "--client-engine", "godot",
+            "--transport", "websocket",
+            "--serializer", "json",
+            "--persistence", "postgres",
+            "--nugetforunity-source", "openupm",
+            "--deploy-profile", "compose"
+        ]);
+
+        Assert.Equal("Arena", options.Name);
+        Assert.Equal("D:\\Games", options.OutputPath);
+        Assert.Equal("godot", options.ClientEngine);
+        Assert.Equal("websocket", options.Transport);
+        Assert.Equal("json", options.Serializer);
+        Assert.Equal("postgres", options.Persistence);
+        Assert.Equal("openupm", options.NuGetForUnitySource);
+        Assert.Equal("compose", options.DeployProfile);
+        Assert.True(options.HasExplicit(NewCommandOptionPresence.Name));
+        Assert.True(options.HasExplicit(NewCommandOptionPresence.OutputPath));
+        Assert.True(options.HasExplicit(NewCommandOptionPresence.ClientEngine));
+        Assert.True(options.HasExplicit(NewCommandOptionPresence.Transport));
+        Assert.True(options.HasExplicit(NewCommandOptionPresence.Serializer));
+        Assert.True(options.HasExplicit(NewCommandOptionPresence.Persistence));
+        Assert.True(options.HasExplicit(NewCommandOptionPresence.NuGetForUnitySource));
+        Assert.True(options.HasExplicit(NewCommandOptionPresence.DeployProfile));
+        Assert.False(options.HasExplicit(NewCommandOptionPresence.NetworkProfile));
+    }
+
+    [Fact]
+    public void ParserTracksCompatibilityNetworkProfilePresence()
+    {
+        var options = CliParser.ParseNewOptions(["--network-profile", "cluster"]);
+
+        Assert.Equal("cluster", options.NetworkProfile);
+        Assert.True(options.HasExplicit(NewCommandOptionPresence.NetworkProfile));
+    }
+
+    [Fact]
     public void ParserDefaultsToClusterNetworkProfile()
     {
         var options = CliParser.ParseNewOptions([]);

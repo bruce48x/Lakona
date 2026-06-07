@@ -89,6 +89,21 @@ internal sealed class ProjectConfig
     public string DeployProfile { get; set; } = ProjectConventions.DefaultDeployProfile;
 }
 
+[Flags]
+internal enum NewCommandOptionPresence
+{
+    None = 0,
+    Name = 1 << 0,
+    OutputPath = 1 << 1,
+    ClientEngine = 1 << 2,
+    Transport = 1 << 3,
+    NetworkProfile = 1 << 4,
+    Serializer = 1 << 5,
+    Persistence = 1 << 6,
+    NuGetForUnitySource = 1 << 7,
+    DeployProfile = 1 << 8
+}
+
 internal readonly record struct NewCommandOptions(
     string? Name,
     string? OutputPath,
@@ -98,7 +113,14 @@ internal readonly record struct NewCommandOptions(
     string Serializer,
     string Persistence,
     string NuGetForUnitySource,
-    string DeployProfile);
+    string DeployProfile,
+    NewCommandOptionPresence Presence = NewCommandOptionPresence.None)
+{
+    public bool HasExplicit(NewCommandOptionPresence option)
+    {
+        return (Presence & option) == option;
+    }
+}
 
 internal readonly record struct PackageArtifact(string PackageId, string Version, string Namespace);
 
