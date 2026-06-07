@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Lakona.Tool</RootNamespace>
     <PackAsTool>true</PackAsTool>
-    <ToolCommandName>lakona</ToolCommandName>
+    <ToolCommandName>lakona-tool</ToolCommandName>
     <PackageId>Lakona.Tool</PackageId>
     <Version>0.6.5</Version>
     <Description>Command-line project management tool for Lakona.Game project scaffolding and source-generator based RPC workflows.</Description>

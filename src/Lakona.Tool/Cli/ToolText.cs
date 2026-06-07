@@ -49,9 +49,9 @@ internal sealed class ToolText
 
     public string RunHelpForUsage => Language switch
     {
-        ToolLanguage.SimplifiedChinese => "运行 `lakona help` 查看用法。",
-        ToolLanguage.TraditionalChinese => "執行 `lakona help` 查看用法。",
-        _ => "Run `lakona help` for usage."
+        ToolLanguage.SimplifiedChinese => "运行 `lakona-tool help` 查看用法。",
+        ToolLanguage.TraditionalChinese => "執行 `lakona-tool help` 查看用法。",
+        _ => "Run `lakona-tool help` for usage."
     };
 
     public string HelpText => Language switch
@@ -61,8 +61,8 @@ internal sealed class ToolText
             Lakona.Tool
 
             命令:
-              new [--name MyGame] [--output .] [--client-engine unity|unity-cn|tuanjie|godot] [--transport tcp|websocket|kcp] [--serializer json|memorypack] [--persistence none|mysql|postgres] [--nugetforunity-source embedded|openupm] [--deploy-profile none|compose]
-                  通过 lakona-starter 生成 Lakona.Rpc 项目，然后补充 Lakona.Game.Server、Lakona.Game.Client 和 Lakona.Game actor runtime。
+              lakona-tool new [--name MyGame] [--output .] [--client-engine unity|unity-cn|tuanjie|godot] [--transport tcp|websocket|kcp] [--serializer json|memorypack] [--persistence none|mysql|postgres] [--nugetforunity-source embedded|openupm] [--deploy-profile none|compose]
+                  生成 Lakona.Rpc 项目并补充 Lakona.Game.Server、Lakona.Game.Client 和 Lakona.Game actor runtime。
                   默认生成显式 cluster 配置骨架，无需传入 network profile 参数。
             """,
         ToolLanguage.TraditionalChinese =>
@@ -70,8 +70,8 @@ internal sealed class ToolText
             Lakona.Tool
 
             命令:
-              new [--name MyGame] [--output .] [--client-engine unity|unity-cn|tuanjie|godot] [--transport tcp|websocket|kcp] [--serializer json|memorypack] [--persistence none|mysql|postgres] [--nugetforunity-source embedded|openupm] [--deploy-profile none|compose]
-                  透過 lakona-starter 生成 Lakona.Rpc 專案，然後補充 Lakona.Game.Server、Lakona.Game.Client 和 Lakona.Game actor runtime。
+              lakona-tool new [--name MyGame] [--output .] [--client-engine unity|unity-cn|tuanjie|godot] [--transport tcp|websocket|kcp] [--serializer json|memorypack] [--persistence none|mysql|postgres] [--nugetforunity-source embedded|openupm] [--deploy-profile none|compose]
+                  生成 Lakona.Rpc 專案並補充 Lakona.Game.Server、Lakona.Game.Client 和 Lakona.Game actor runtime。
                   預設生成明確的 cluster 設定骨架，無需傳入 network profile 參數。
             """,
         _ =>
@@ -79,8 +79,8 @@ internal sealed class ToolText
             Lakona.Tool
 
             Commands:
-              new [--name MyGame] [--output .] [--client-engine unity|unity-cn|tuanjie|godot] [--transport tcp|websocket|kcp] [--serializer json|memorypack] [--persistence none|mysql|postgres] [--nugetforunity-source embedded|openupm] [--deploy-profile none|compose]
-                  Generate a Lakona.Rpc project via lakona-starter, then augment it with Lakona.Game.Server, Lakona.Game.Client, and the Lakona.Game actor runtime.
+              lakona-tool new [--name MyGame] [--output .] [--client-engine unity|unity-cn|tuanjie|godot] [--transport tcp|websocket|kcp] [--serializer json|memorypack] [--persistence none|mysql|postgres] [--nugetforunity-source embedded|openupm] [--deploy-profile none|compose]
+                  Generate a Lakona.Rpc project and augment it with Lakona.Game.Server, Lakona.Game.Client, and the Lakona.Game actor runtime.
                   Generates explicit cluster configuration scaffolding by default; no network profile argument is required.
             """
     };

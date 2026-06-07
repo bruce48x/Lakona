@@ -23,14 +23,8 @@ public sealed class ToolTextTests
         var text = ToolText.ForCulture(CultureInfo.GetCultureInfo("zh-CN"));
 
         Assert.Contains("命令:", text.HelpText, StringComparison.Ordinal);
+        Assert.Contains("lakona-tool new", text.HelpText, StringComparison.Ordinal);
         Assert.Equal("Lakona.Game 项目已就绪。下一步:", text.NewProjectReadyHeader);
-        Assert.Contains("正在自动安装", text.InstallingStarter("Lakona.Rpc.Starter", ToolPackageVersions.ULinkRpcStarter), StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void PinsCurrentStarterPackageVersion()
-    {
-        Assert.Equal("0.4.2", ToolPackageVersions.ULinkRpcStarter);
     }
 
     [Fact]
@@ -93,6 +87,56 @@ public sealed class ToolTextTests
 
         Assert.Contains("--transport 不支持值 'websockt'", exception.Message, StringComparison.Ordinal);
         Assert.Contains("你是否想输入 'websocket'?", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PackageToolCommandName_IsLakonaTool()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var projectPath = Path.Combine(repositoryRoot, "src", "Lakona.Tool", "Lakona.Tool.csproj");
+        var xml = System.Xml.Linq.XDocument.Load(projectPath);
+
+        var toolCommandName = xml
+            .Descendants("ToolCommandName")
+            .Single()
+            .Value;
+
+        Assert.Equal("lakona-tool", toolCommandName);
+    }
+
+    [Fact]
+    public void HelpText_UsesLakonaToolAndDoesNotMentionLakonaStarter()
+    {
+        var english = ToolText.ForCulture(CultureInfo.GetCultureInfo("en-US"));
+        var simplifiedChinese = ToolText.ForCulture(CultureInfo.GetCultureInfo("zh-CN"));
+        var traditionalChinese = ToolText.ForCulture(CultureInfo.GetCultureInfo("zh-TW"));
+
+        Assert.Contains("lakona-tool new", english.HelpText, StringComparison.Ordinal);
+        Assert.Contains("lakona-tool new", simplifiedChinese.HelpText, StringComparison.Ordinal);
+        Assert.Contains("lakona-tool new", traditionalChinese.HelpText, StringComparison.Ordinal);
+
+        Assert.Contains("lakona-tool help", english.RunHelpForUsage, StringComparison.Ordinal);
+        Assert.Contains("lakona-tool help", simplifiedChinese.RunHelpForUsage, StringComparison.Ordinal);
+        Assert.Contains("lakona-tool help", traditionalChinese.RunHelpForUsage, StringComparison.Ordinal);
+
+        Assert.DoesNotContain("lakona-starter", english.HelpText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Lakona.Rpc.Starter", english.HelpText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "Lakona.slnx")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new InvalidOperationException("Could not find repository root.");
     }
 
     [Fact]
