@@ -8,8 +8,6 @@
     <Project Path="samples/Game.Cluster.TwoNode/Cluster.TwoNode.csproj" />
   </Folder>
   <Folder Name="/src/">
-    <Project Path="src/Lakona.Actor.SourceGenerator/Lakona.Actor.SourceGenerator.csproj" />
-    <Project Path="src/Lakona.Actor/Lakona.Actor.csproj" />
     <Project Path="src/Lakona.Game.Abstractions/Lakona.Game.Abstractions.csproj" />
     <Project Path="src/Lakona.Game.Client/Lakona.Game.Client.csproj" />
     <Project Path="src/Lakona.Game.Cluster.Rpc/Lakona.Game.Cluster.Rpc.csproj" />
@@ -33,7 +31,6 @@
     <Project Path="src/Lakona.Tool/Lakona.Tool.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/Lakona.Actor.Tests/Lakona.Actor.Tests.csproj" />
     <Project Path="tests/Lakona.Game.Client.Tests/Lakona.Game.Client.Tests.csproj" />
     <Project Path="tests/Lakona.Game.Cluster.Rpc.Tests/Lakona.Game.Cluster.Rpc.Tests.csproj" />
     <Project Path="tests/Lakona.Game.Cluster.Sql.Tests/Lakona.Game.Cluster.Sql.Tests.csproj" />

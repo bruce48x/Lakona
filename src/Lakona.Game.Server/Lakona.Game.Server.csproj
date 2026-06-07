@@ -13,7 +13,7 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
     <ProjectReference Include="..\Lakona.Rpc.Server\Lakona.Rpc.Server.csproj" />
-    <ProjectReference Include="..\Lakona.Actor\Lakona.Actor.csproj" />
+
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Lakona.Game.Abstractions\Lakona.Game.Abstractions.csproj" />
