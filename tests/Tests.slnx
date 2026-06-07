@@ -8,5 +8,5 @@
   <Project Path="Lakona.Game.Server.Hotfix.Tests/Lakona.Game.Server.Hotfix.Tests.csproj" />
   <Project Path="Lakona.Game.Server.Hotfix.Generators.Tests/Lakona.Game.Server.Hotfix.Generators.Tests.csproj" />
   <Project Path="Lakona.Game.Server.Generators.Tests/Lakona.Game.Server.Generators.Tests.csproj" />
-  <Project Path="Lakona.Game.Tool.Tests/Lakona.Game.Tool.Tests.csproj" />
+  <Project Path="Lakona.Tool.Tests/Lakona.Tool.Tests.csproj" />
 </Solution>

@@ -26,7 +26,6 @@
     <Project Path="src/Lakona.Rpc.Serializer.Json/Lakona.Rpc.Serializer.Json.csproj" />
     <Project Path="src/Lakona.Rpc.Serializer.MemoryPack/Lakona.Rpc.Serializer.MemoryPack.csproj" />
     <Project Path="src/Lakona.Rpc.Server/Lakona.Rpc.Server.csproj" />
-    <Project Path="src/Lakona.Rpc.Starter/Lakona.Rpc.Starter.csproj" />
     <Project Path="src/Lakona.Rpc.Transport.Kcp/Lakona.Rpc.Transport.Kcp.csproj" />
     <Project Path="src/Lakona.Rpc.Transport.Loopback/Lakona.Rpc.Transport.Loopback.csproj" />
     <Project Path="src/Lakona.Rpc.Transport.Tcp/Lakona.Rpc.Transport.Tcp.csproj" />
@@ -45,7 +44,6 @@
     <Project Path="tests/Lakona.Game.Server.Tests/Lakona.Game.Server.Tests.csproj" />
     <Project Path="tests/Lakona.Rpc.Analyzers.Tests/Lakona.Rpc.Analyzers.Tests.csproj" />
     <Project Path="tests/Lakona.Rpc.Serializer.Tests/Lakona.Rpc.Serializer.Tests.csproj" />
-    <Project Path="tests/Lakona.Rpc.Starter.Tests/Lakona.Rpc.Starter.Tests.csproj" />
     <Project Path="tests/Lakona.Rpc.Tests/Lakona.Rpc.Tests.csproj" />
     <Project Path="tests/Lakona.Rpc.Transport.Tests/Lakona.Rpc.Transport.Tests.csproj" />
     <Project Path="tests/Lakona.Tool.Tests/Lakona.Tool.Tests.csproj" />
