@@ -18,8 +18,6 @@ Supporting documents provide deeper rationale or user-facing context:
 | --- | --- |
 | [README.md](./README.md) | User-facing repository introduction and package map |
 | [CHANGELOG.md](./CHANGELOG.md) | Consolidated Lakona release history |
-| [docs/actor/overview.md](./docs/actor/overview.md) | Actor runtime user-facing overview retained from the former Actor repository |
-| [docs/actor/design-philosophy.md](./docs/actor/design-philosophy.md) | Actor runtime design principles and tradeoffs |
 | [docs/game/design-philosophy.md](./docs/game/design-philosophy.md) | Game framework design principles and roadmap |
 | [docs/game/lakona-actor-boundary.md](./docs/game/lakona-actor-boundary.md) | Responsibility split between actor runtime and game framework |
 | [docs/game/lakona-game-configuration-startup.md](./docs/game/lakona-game-configuration-startup.md) | Game configuration schema, feature catalog startup, and validation boundary |
@@ -81,8 +79,8 @@ src/
   Lakona.Rpc.Analyzers/            RPC analyzer and source generator package
   Lakona.Tool/                     Single CLI tool that owns RPC starter templates and game-framework augmentation
 
-  Lakona.Actor/                    Process-local actor runtime, mailbox execution, timers, diagnostics, named actors
-  Lakona.Actor.SourceGenerator/    Typed spawn generation, actor clients, and actor usage diagnostics
+  Lakona.Game.Server/Internal/ActorKernel/  Internal mailbox execution kernel (was standalone Lakona.Actor)
+  Lakona.Game.Server.Generators/     Game-facing typed actor spawn and accessor generation
 
   Lakona.Game.Abstractions/        Cross-side session and reliable-push primitives
   Lakona.Game.Client/              Engine-neutral client helpers and reliable-push tracking
@@ -104,7 +102,6 @@ samples/
   Rpc.*                            RPC-focused Unity and Godot samples
 
 docs/
-  actor/                           Actor design docs
   game/                            Game framework design docs
   rpc/                             RPC maintainer design notes
   lakona-monorepo.md               Monorepo structure, naming, and migration policy
@@ -119,8 +116,8 @@ Lakona has three layers:
 
 - `Lakona.Rpc`: transport, serialization, RPC calls, protocol primitives, and
   generated bindings.
-- `Lakona.Actor`: process-local actor identity, mailbox execution, timers,
-  backpressure, diagnostics, and generated typed spawn helpers.
+- `Lakona.Game.Server.Actors`: game-facing actor API backed by an internal mailbox kernel.
+  The internal kernel handles mailbox execution, timers, backpressure, and diagnostics.
 - `Lakona.Game`: game-session infrastructure that integrates RPC, actor
   execution, reconnect, named endpoint hosting, reliable push, cluster routing,
   hotfix, and runtime guardrails.

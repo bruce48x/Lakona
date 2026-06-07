@@ -25,7 +25,7 @@ Lakona brings the former RPC, Actor, and Game layers into one repository:
 
 - `Lakona.Rpc.*` for communication, transports, serializers, analyzers, and
   starter tooling.
-- `Lakona.Actor` for process-local actor/mailbox execution.
+- `Lakona.Game.Server.Actors` for game-facing actor execution backed by an internal mailbox kernel.
 - `Lakona.Game.*` for game server hosting, sessions, cluster routing, hotfix,
   client helpers, generators, and guardrails.
 - `Lakona.Tool` for `lakona-tool`, the single project scaffolding and maintenance command.
@@ -267,7 +267,7 @@ The repository publishes small packages under `src/`. Stable entry points are:
   adapters
 - `Lakona.Game.Server.Hotfix.*` and `Lakona.Game.Server.Generators` for hotfix
   and generated actor APIs
-- `Lakona.Actor` for process-local actor runtime
+- `Lakona.Game.Server` for game-facing actor runtime
 - `Lakona.Rpc.*` for RPC core, client/server runtime, transports, serializers,
   analyzers, and starter tooling
 
