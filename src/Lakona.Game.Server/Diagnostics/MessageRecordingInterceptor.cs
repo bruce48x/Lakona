@@ -3,36 +3,38 @@ using Lakona.Game.Server.Actors;
 
 namespace Lakona.Game.Server.Diagnostics;
 
-public sealed class MessageRecordingInterceptor : global::Lakona.Actor.IActorMessageInterceptor
+public sealed class MessageRecordingInterceptor : IActorMessageInterceptor
 {
     private readonly IMessageLogStore _store;
-    private readonly ConcurrentDictionary<global::Lakona.Actor.ActorId, ActorId> _idMap;
+    private readonly ConcurrentDictionary<ActorId, ActorId> _idMap;
 
     public MessageRecordingInterceptor(
         IMessageLogStore store,
-        ConcurrentDictionary<global::Lakona.Actor.ActorId, ActorId> idMap)
+        ConcurrentDictionary<ActorId, ActorId> idMap)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _idMap = idMap ?? throw new ArgumentNullException(nameof(idMap));
     }
 
     public ValueTask OnBeforeMessage(
-        global::Lakona.Actor.ActorId actorId,
-        object message,
+        ActorId actorId,
+        string messageType,
+        object? message,
         CancellationToken cancellationToken)
     {
         return ValueTask.CompletedTask;
     }
 
     public async ValueTask OnAfterMessage(
-        global::Lakona.Actor.ActorId actorId,
-        object message,
+        ActorId actorId,
+        string messageType,
+        object? message,
         Exception? error,
         CancellationToken cancellationToken)
     {
         var gameId = _idMap.TryGetValue(actorId, out var mapped)
             ? mapped
-            : ActorId.From(actorId.Value.ToString());
+            : actorId;
 
         var entry = new MessageLogEntry(
             DateTimeOffset.UtcNow,

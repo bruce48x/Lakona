@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.DependencyInjection;
 using Lakona.Game.Server.Diagnostics;
+using K = Lakona.Game.Server.Internal.ActorKernel;
 
 namespace Lakona.Game.Server.Actors;
 
@@ -9,20 +10,22 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
     private static readonly AsyncLocal<ActorCell?> CurrentCell = new();
 
     private readonly ConcurrentDictionary<ActorId, ActorCell> _actors = new();
-    private readonly ConcurrentDictionary<global::Lakona.Actor.ActorId, ActorId> _actorIds = new();
+    private readonly ConcurrentDictionary<K.ActorId, ActorId> _actorIds = new();
     private readonly IServiceProvider _services;
     private readonly ActorRuntimeOptions _options;
-    private readonly global::Lakona.Actor.ActorSystem _actorSystem;
+    private readonly K.ActorSystem _actorSystem;
 
     public LakonaActorRuntime(IServiceProvider services, ActorRuntimeOptions options)
     {
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _options = options ?? throw new ArgumentNullException(nameof(options));
-        _actorSystem = new global::Lakona.Actor.ActorSystem(new global::Lakona.Actor.ActorSystemOptions
+        _actorSystem = new K.ActorSystem(new K.ActorSystemOptions
         {
             MailboxCapacity = Math.Max(1, options.MailboxCapacity),
             SlowMessageThreshold = options.SlowMessageThreshold,
-            MessageInterceptor = options.MessageInterceptor
+            MessageInterceptor = options.MessageInterceptor is null
+                ? null
+                : new KernelMessageInterceptorAdapter(this, options.MessageInterceptor)
         });
         _actorSystem.DeadLetterPublished += OnDeadLetterPublished;
         _actorSystem.SlowMessageDetected += OnSlowMessageDetected;
@@ -198,7 +201,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
             var actorHandle = runtime._actorSystem.SpawnAsync(
                 actorId.Value,
                 new ActorAdapter(cell),
-                new global::Lakona.Actor.ActorSpawnOptions
+                new K.ActorSpawnOptions
                 {
                     MailboxCapacity = Math.Max(1, runtime._options.MailboxCapacity)
                 }).AsTask().GetAwaiter().GetResult();
@@ -216,7 +219,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
         return cell;
     }
 
-    private void OnDeadLetterPublished(global::Lakona.Actor.DeadLetter deadLetter)
+    private void OnDeadLetterPublished(K.DeadLetter deadLetter)
     {
         _options.DeadLetterHandler?.Invoke(new ActorDeadLetterDiagnostic(
             MapActorId(deadLetter.Target),
@@ -224,7 +227,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
             deadLetter.Reason));
     }
 
-    private void OnSlowMessageDetected(global::Lakona.Actor.SlowMessage slowMessage)
+    private void OnSlowMessageDetected(K.SlowMessage slowMessage)
     {
         _options.SlowMessageHandler?.Invoke(new ActorSlowMessageDiagnostic(
             MapActorId(slowMessage.ActorId),
@@ -232,7 +235,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
             slowMessage.Elapsed));
     }
 
-    private void OnCallTimedOut(global::Lakona.Actor.ActorCallTimeout timeout)
+    private void OnCallTimedOut(K.ActorCallTimeout timeout)
     {
         _options.CallTimeoutHandler?.Invoke(new ActorCallTimeoutDiagnostic(
             timeout.Caller is { } caller ? MapActorId(caller) : null,
@@ -243,42 +246,42 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
             timeout.CallChain.Select(MapActorId).ToArray()));
     }
 
-    private ActorId MapActorId(global::Lakona.Actor.ActorId id)
+    internal ActorId MapActorId(K.ActorId id)
     {
         return _actorIds.TryGetValue(id, out var actorId)
             ? actorId
             : ActorId.From(id.ToString());
     }
 
-    private static ActorCallTimeoutReason MapCallTimeoutReason(global::Lakona.Actor.ActorCallTimeoutReason reason)
+    private static ActorCallTimeoutReason MapCallTimeoutReason(K.ActorCallTimeoutReason reason)
     {
         return reason switch
         {
-            global::Lakona.Actor.ActorCallTimeoutReason.QueueTimeout => ActorCallTimeoutReason.QueueTimeout,
+            K.ActorCallTimeoutReason.QueueTimeout => ActorCallTimeoutReason.QueueTimeout,
             _ => ActorCallTimeoutReason.ResponseTimeout
         };
     }
 
-    private static TimeSpan MapCallTimeout(global::Lakona.Actor.ActorCallTimeout timeout)
+    private static TimeSpan MapCallTimeout(K.ActorCallTimeout timeout)
     {
-        return timeout.Reason == global::Lakona.Actor.ActorCallTimeoutReason.QueueTimeout
+        return timeout.Reason == K.ActorCallTimeoutReason.QueueTimeout
             ? timeout.QueueTimeout
             : timeout.ResponseTimeout;
     }
 
-    private static global::Lakona.Actor.ActorCallOptions CreateCallOptions(TimeSpan timeout)
+    private static K.ActorCallOptions CreateCallOptions(TimeSpan timeout)
     {
-        return new global::Lakona.Actor.ActorCallOptions(timeout, timeout);
+        return new K.ActorCallOptions(timeout, timeout);
     }
 
-    private static ActorStopOutcome MapStopOutcome(global::Lakona.Actor.ActorStopResult result)
+    private static ActorStopOutcome MapStopOutcome(K.ActorStopResult result)
     {
-        return result == global::Lakona.Actor.ActorStopResult.TimedOut
+        return result == K.ActorStopResult.TimedOut
             ? ActorStopOutcome.TimedOut
             : ActorStopOutcome.Drained;
     }
 
-    private static ActorMailboxMetrics MapMailboxMetrics(global::Lakona.Actor.MailboxMetrics metrics)
+    private static ActorMailboxMetrics MapMailboxMetrics(K.MailboxMetrics metrics)
     {
         return new ActorMailboxMetrics(
             metrics.Capacity,
@@ -291,6 +294,35 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
 
     private readonly record struct RuntimeState(LakonaActorRuntime Runtime);
 
+    private sealed class KernelMessageInterceptorAdapter : K.IActorMessageInterceptor
+    {
+        private readonly LakonaActorRuntime _runtime;
+        private readonly IActorMessageInterceptor _inner;
+
+        public KernelMessageInterceptorAdapter(LakonaActorRuntime runtime, IActorMessageInterceptor inner)
+        {
+            _runtime = runtime;
+            _inner = inner;
+        }
+
+        public ValueTask OnBeforeMessage(
+            K.ActorId actorId,
+            object message,
+            CancellationToken cancellationToken)
+        {
+            return _inner.OnBeforeMessage(_runtime.MapActorId(actorId), message.GetType().Name, message, cancellationToken);
+        }
+
+        public ValueTask OnAfterMessage(
+            K.ActorId actorId,
+            object message,
+            Exception? exception,
+            CancellationToken cancellationToken)
+        {
+            return _inner.OnAfterMessage(_runtime.MapActorId(actorId), message.GetType().Name, message, exception, cancellationToken);
+        }
+    }
+
     private sealed class ActorCell
     {
         private readonly ActorId _id;
@@ -298,7 +330,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
         private readonly IActorRuntime _runtime;
         private readonly ActorRuntimeOptions _runtimeOptions;
         private readonly IMessageLogStore? _messageLogStore;
-        private global::Lakona.Actor.ActorHandle<ActorRuntimeEnvelope>? _actorHandle;
+        private K.ActorHandle<ActorRuntimeEnvelope>? _actorHandle;
         private int _stopping;
         private bool _activated;
 
@@ -323,7 +355,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
 
         public Type ActorType { get; }
 
-        public global::Lakona.Actor.ActorId RuntimeActorId
+        public K.ActorId RuntimeActorId
         {
             get
             {
@@ -332,7 +364,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
             }
         }
 
-        public void Bind(global::Lakona.Actor.ActorHandle<ActorRuntimeEnvelope> actorHandle)
+        public void Bind(K.ActorHandle<ActorRuntimeEnvelope> actorHandle)
         {
             _actorHandle = actorHandle;
         }
@@ -435,16 +467,16 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
             await actorHandle.Stop().ConfigureAwait(false);
         }
 
-        public async ValueTask<global::Lakona.Actor.ActorStopResult> StopAsync(TimeSpan drainTimeout)
+        public async ValueTask<K.ActorStopResult> StopAsync(TimeSpan drainTimeout)
         {
             var actorHandle = _actorHandle ?? throw new InvalidOperationException($"Actor '{_id}' is not bound.");
             Volatile.Write(ref _stopping, 1);
             var deactivated = await TryDeactivateAsync(drainTimeout).ConfigureAwait(false);
             var stopResult = await actorHandle.Stop(drainTimeout).ConfigureAwait(false);
 
-            return !deactivated || stopResult == global::Lakona.Actor.ActorStopResult.TimedOut
-                ? global::Lakona.Actor.ActorStopResult.TimedOut
-                : global::Lakona.Actor.ActorStopResult.Drained;
+            return !deactivated || stopResult == K.ActorStopResult.TimedOut
+                ? K.ActorStopResult.TimedOut
+                : K.ActorStopResult.Drained;
         }
 
         public ActorMailboxMetrics GetMailboxMetrics()
@@ -481,7 +513,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
         }
 
         public async ValueTask RegisterNativeTimerAsync(
-            global::Lakona.Actor.ActorContext<ActorRuntimeEnvelope> ctx,
+            K.ActorContext<ActorRuntimeEnvelope> ctx,
             ActorTimerRegistration registration,
             CancellationToken cancellationToken)
         {
@@ -562,22 +594,22 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
             _activated = true;
         }
 
-        private static ActorState MapActorState(global::Lakona.Actor.ActorState state)
+        private static ActorState MapActorState(K.ActorState state)
     {
         return state switch
         {
-            global::Lakona.Actor.ActorState.Draining => ActorState.Draining,
-            global::Lakona.Actor.ActorState.Dead => ActorState.Dead,
+            K.ActorState.Draining => ActorState.Draining,
+            K.ActorState.Dead => ActorState.Dead,
             _ => ActorState.Active
         };
     }
 
-    private static ActorTellResult MapTellResult(global::Lakona.Actor.ActorSendResult result)
+    private static ActorTellResult MapTellResult(K.ActorSendResult result)
         {
             return result switch
             {
-                global::Lakona.Actor.ActorSendResult.MailboxFull => ActorTellResult.MailboxFull,
-                global::Lakona.Actor.ActorSendResult.ActorUnavailable => ActorTellResult.ActorUnavailable,
+                K.ActorSendResult.MailboxFull => ActorTellResult.MailboxFull,
+                K.ActorSendResult.ActorUnavailable => ActorTellResult.ActorUnavailable,
                 _ => ActorTellResult.Accepted
             };
         }
@@ -594,7 +626,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
         TimeSpan? Period,
         TimerRegistrationHandle Handle);
 
-    private sealed class ActorAdapter : global::Lakona.Actor.IActor<ActorRuntimeEnvelope>
+    private sealed class ActorAdapter : K.IActor<ActorRuntimeEnvelope>
     {
         private readonly ActorCell _cell;
 
@@ -604,7 +636,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
         }
 
         public async ValueTask OnMessage(
-            global::Lakona.Actor.ActorContext<ActorRuntimeEnvelope> ctx,
+            K.ActorContext<ActorRuntimeEnvelope> ctx,
             ActorRuntimeEnvelope message)
         {
             if (message.State is ActorTimerRegistration registration)

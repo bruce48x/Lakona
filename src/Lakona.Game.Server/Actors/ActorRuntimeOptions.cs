@@ -8,7 +8,7 @@ public sealed class ActorRuntimeOptions
 
     public TimeSpan? SlowMessageThreshold { get; set; }
 
-    public global::Lakona.Actor.IActorMessageInterceptor? MessageInterceptor { get; set; }
+    public IActorMessageInterceptor? MessageInterceptor { get; set; }
 
     public Action<ActorDeadLetterDiagnostic>? DeadLetterHandler { get; set; }
 
