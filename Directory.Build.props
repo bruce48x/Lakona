@@ -3,8 +3,8 @@
     <Authors>Lakona</Authors>
     <Company>Lakona</Company>
     <Product>Lakona</Product>
-    <PackageProjectUrl>https://github.com/bruce48x/lakona</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/bruce48x/lakona</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/bruce48x/Lakona</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/bruce48x/Lakona</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <Nullable>enable</Nullable>

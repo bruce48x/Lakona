@@ -6,7 +6,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <PackageId>Lakona.Rpc.Transport.Tcp</PackageId>
     <Version>0.11.4</Version>
-    <Authors>Lakona.Rpc</Authors>
     <Description>TCP client/server transport implementations for Lakona.Rpc.</Description>
     <PackageTags>rpc;unity;transport;tcp</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

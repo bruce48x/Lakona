@@ -10,7 +10,6 @@
     <RootNamespace>Lakona.Rpc.Analyzers</RootNamespace>
     <PackageId>Lakona.Rpc.Analyzers</PackageId>
     <Version>0.2.0</Version>
-    <Authors>Lakona.Rpc</Authors>
     <Description>Roslyn analyzers and source generators for Lakona.Rpc contracts.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>

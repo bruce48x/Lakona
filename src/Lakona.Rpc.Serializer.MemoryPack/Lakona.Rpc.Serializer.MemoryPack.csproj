@@ -6,7 +6,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <PackageId>Lakona.Rpc.Serializer.MemoryPack</PackageId>
     <Version>0.11.1</Version>
-    <Authors>Lakona.Rpc</Authors>
     <Description>MemoryPack based payload serializer for Lakona.Rpc.</Description>
     <PackageTags>rpc;unity;serializer;memorypack</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

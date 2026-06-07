@@ -6,7 +6,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <PackageId>Lakona.Rpc.Server</PackageId>
     <Version>0.12.1</Version>
-    <Authors>Lakona.Rpc</Authors>
     <Description>Lakona.Rpc server runtime core.</Description>
     <PackageTags>rpc;unity;server</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

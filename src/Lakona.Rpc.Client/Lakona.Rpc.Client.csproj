@@ -6,7 +6,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <PackageId>Lakona.Rpc.Client</PackageId>
     <Version>0.12.0</Version>
-    <Authors>Lakona.Rpc</Authors>
     <Description>Lakona.Rpc client runtime and client-side transports.</Description>
     <PackageTags>rpc;unity;client;tcp;loopback</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

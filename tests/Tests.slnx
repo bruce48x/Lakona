@@ -1,4 +1,5 @@
 <Solution>
+  <Project Path="Lakona.Actor.Tests/Lakona.Actor.Tests.csproj" />
   <Project Path="Lakona.Game.Client.Tests/Lakona.Game.Client.Tests.csproj" />
   <Project Path="Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj" />
   <Project Path="Lakona.Game.Cluster.Sql.Tests/Lakona.Game.Cluster.Sql.Tests.csproj" />

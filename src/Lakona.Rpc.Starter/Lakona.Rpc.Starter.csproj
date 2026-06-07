@@ -8,7 +8,6 @@
     <AssemblyName>Lakona.Rpc.Starter</AssemblyName>
     <PackageId>Lakona.Rpc.Starter</PackageId>
     <Version>0.4.2</Version>
-    <Authors>Lakona.Rpc</Authors>
     <Description>CLI project tool to scaffold and manage Lakona.Rpc shared/server/client workspaces.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackAsTool>true</PackAsTool>

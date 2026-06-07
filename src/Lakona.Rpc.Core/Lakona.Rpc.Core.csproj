@@ -6,7 +6,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <PackageId>Lakona.Rpc.Core</PackageId>
     <Version>0.12.0</Version>
-    <Authors>Lakona.Rpc</Authors>
     <Description>Lakona.Rpc core abstractions, contracts, envelopes, and framing helpers.</Description>
     <PackageTags>rpc;unity;dotnet;transport</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

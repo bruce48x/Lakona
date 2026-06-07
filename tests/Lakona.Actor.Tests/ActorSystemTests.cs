@@ -1134,10 +1134,9 @@ public sealed class ActorSystemTests
 
         await actorRef.Send("blocked");
 
-        Task<ActorStopResult> stopTask = actorHandle.Stop(TimeSpan.FromMilliseconds(20)).AsTask();
-        await Task.Delay(5);
+        Task<ActorStopResult> stopTask = actorHandle.Stop(TimeSpan.FromSeconds(1)).AsTask();
 
-        Assert.Equal(ActorState.Draining, actorHandle.GetState());
+        await Eventually(() => actorHandle.GetState() == ActorState.Draining);
 
         actor.Release();
         ActorStopResult result = await stopTask;
