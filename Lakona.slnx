@@ -1,0 +1,53 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/samples/">
+    <Project Path="samples/Game.Cluster.TwoNode/Cluster.TwoNode.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Lakona.Actor.SourceGenerator/Lakona.Actor.SourceGenerator.csproj" />
+    <Project Path="src/Lakona.Actor/Lakona.Actor.csproj" />
+    <Project Path="src/Lakona.Game.Abstractions/Lakona.Game.Abstractions.csproj" />
+    <Project Path="src/Lakona.Game.Client/Lakona.Game.Client.csproj" />
+    <Project Path="src/Lakona.Game.Cluster.Rpc/Lakona.Game.Cluster.Rpc.csproj" />
+    <Project Path="src/Lakona.Game.Cluster.Sql/Lakona.Game.Cluster.Sql.csproj" />
+    <Project Path="src/Lakona.Game.Cluster/Lakona.Game.Cluster.csproj" />
+    <Project Path="src/Lakona.Game.Server.Generators/Lakona.Game.Server.Generators.csproj" />
+    <Project Path="src/Lakona.Game.Server.Hotfix.Abstractions/Lakona.Game.Server.Hotfix.Abstractions.csproj" />
+    <Project Path="src/Lakona.Game.Server.Hotfix.Generators/Lakona.Game.Server.Hotfix.Generators.csproj" />
+    <Project Path="src/Lakona.Game.Server.Hotfix/Lakona.Game.Server.Hotfix.csproj" />
+    <Project Path="src/Lakona.Game.Server/Lakona.Game.Server.csproj" />
+    <Project Path="src/Lakona.Rpc.Analyzers/Lakona.Rpc.Analyzers.csproj" />
+    <Project Path="src/Lakona.Rpc.Client/Lakona.Rpc.Client.csproj" />
+    <Project Path="src/Lakona.Rpc.Core/Lakona.Rpc.Core.csproj" />
+    <Project Path="src/Lakona.Rpc.Serializer.Json/Lakona.Rpc.Serializer.Json.csproj" />
+    <Project Path="src/Lakona.Rpc.Serializer.MemoryPack/Lakona.Rpc.Serializer.MemoryPack.csproj" />
+    <Project Path="src/Lakona.Rpc.Server/Lakona.Rpc.Server.csproj" />
+    <Project Path="src/Lakona.Rpc.Starter/Lakona.Rpc.Starter.csproj" />
+    <Project Path="src/Lakona.Rpc.Transport.Kcp/Lakona.Rpc.Transport.Kcp.csproj" />
+    <Project Path="src/Lakona.Rpc.Transport.Loopback/Lakona.Rpc.Transport.Loopback.csproj" />
+    <Project Path="src/Lakona.Rpc.Transport.Tcp/Lakona.Rpc.Transport.Tcp.csproj" />
+    <Project Path="src/Lakona.Rpc.Transport.WebSocket/Lakona.Rpc.Transport.WebSocket.csproj" />
+    <Project Path="src/Lakona.Tool/Lakona.Tool.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Lakona.Actor.Tests/Lakona.Actor.Tests.csproj" />
+    <Project Path="tests/Lakona.Game.Client.Tests/Lakona.Game.Client.Tests.csproj" />
+    <Project Path="tests/Lakona.Game.Cluster.Rpc.Tests/Lakona.Game.Cluster.Rpc.Tests.csproj" />
+    <Project Path="tests/Lakona.Game.Cluster.Sql.Tests/Lakona.Game.Cluster.Sql.Tests.csproj" />
+    <Project Path="tests/Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj" />
+    <Project Path="tests/Lakona.Game.Server.Generators.Tests/Lakona.Game.Server.Generators.Tests.csproj" />
+    <Project Path="tests/Lakona.Game.Server.Hotfix.Generators.Tests/Lakona.Game.Server.Hotfix.Generators.Tests.csproj" />
+    <Project Path="tests/Lakona.Game.Server.Hotfix.Tests/Lakona.Game.Server.Hotfix.Tests.csproj" />
+    <Project Path="tests/Lakona.Game.Server.Tests/Lakona.Game.Server.Tests.csproj" />
+    <Project Path="tests/Lakona.Rpc.Analyzers.Tests/Lakona.Rpc.Analyzers.Tests.csproj" />
+    <Project Path="tests/Lakona.Rpc.Serializer.Tests/Lakona.Rpc.Serializer.Tests.csproj" />
+    <Project Path="tests/Lakona.Rpc.Starter.Tests/Lakona.Rpc.Starter.Tests.csproj" />
+    <Project Path="tests/Lakona.Rpc.Tests/Lakona.Rpc.Tests.csproj" />
+    <Project Path="tests/Lakona.Rpc.Transport.Tests/Lakona.Rpc.Transport.Tests.csproj" />
+    <Project Path="tests/Lakona.Tool.Tests/Lakona.Tool.Tests.csproj" />
+  </Folder>
+</Solution>

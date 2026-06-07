@@ -373,26 +373,26 @@ The Agar sample uses the same idea with real gameplay code.
 Stable state:
 
 ```txt
-samples/Agar.Unity/Shared/Gameplay/ArenaSimulation.cs
+samples/Game.Unity.Agar/Shared/Gameplay/ArenaSimulation.cs
 ```
 
 Hotfix rules:
 
 ```txt
-samples/Agar.Unity/Server/Hotfix/Gameplay/ArenaSimulationSystem.cs
-samples/Agar.Unity/Server/Hotfix/Gameplay/ArenaSettlementSystem.cs
+samples/Game.Unity.Agar/Server/Hotfix/Gameplay/ArenaSimulationSystem.cs
+samples/Game.Unity.Agar/Server/Hotfix/Gameplay/ArenaSettlementSystem.cs
 ```
 
 Server registration:
 
 ```txt
-samples/Agar.Unity/Server/Gateway/Program.cs
+samples/Game.Unity.Agar/Server/Gateway/Program.cs
 ```
 
 Tests that show reload and state survival:
 
 ```txt
-samples/Agar.Unity/tests/BusinessLogic.Tests/AgarHotfixTests.cs
+samples/Game.Unity.Agar/tests/BusinessLogic.Tests/AgarHotfixTests.cs
 ```
 
 In Agar, `RoomRuntime` owns the tick loop, session cleanup, profile writes, leaderboard writes, logging, and network messages. `ArenaSimulation` owns the live state. The hotfix systems own replaceable arena rules.

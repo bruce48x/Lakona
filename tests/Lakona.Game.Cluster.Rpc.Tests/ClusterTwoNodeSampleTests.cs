@@ -9,7 +9,7 @@ public sealed class ClusterTwoNodeSampleTests
     public async Task DriverRunsDirectoryAndWorkerAsSeparateProcesses()
     {
         var repoRoot = FindRepoRoot();
-        var sampleProject = Path.Combine(repoRoot, "samples", "Cluster.TwoNode", "Cluster.TwoNode.csproj");
+        var sampleProject = Path.Combine(repoRoot, "samples", "Game.Cluster.TwoNode", "Cluster.TwoNode.csproj");
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         var startInfo = new ProcessStartInfo
         {
@@ -56,7 +56,7 @@ public sealed class ClusterTwoNodeSampleTests
         while (current is not null)
         {
             if (File.Exists(Path.Combine(current.FullName, "CONTRIBUTING.md")) &&
-                Directory.Exists(Path.Combine(current.FullName, "samples", "Cluster.TwoNode")))
+                Directory.Exists(Path.Combine(current.FullName, "samples", "Game.Cluster.TwoNode")))
             {
                 return current.FullName;
             }

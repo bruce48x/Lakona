@@ -391,7 +391,7 @@ The tool should generate:
 - optional `Lakona.Game:Cluster` only when the selected template participates in cluster routing
 - top-level operational `Cluster` environment variables only for deployment scaffolds such as Docker Compose
 
-`samples/Agar.Unity` should move its control WebSocket and realtime KCP listeners into `Lakona.Game:Endpoints`. `control` and `realtime` remain business concepts in Agar code, not endpoint names in the framework schema. Agar Features can declare transport requirements, for example battle requiring `kcp` and login/control requiring `websocket`.
+`samples/Game.Unity.Agar` should move its control WebSocket and realtime KCP listeners into `Lakona.Game:Endpoints`. `control` and `realtime` remain business concepts in Agar code, not endpoint names in the framework schema. Agar Features can declare transport requirements, for example battle requiring `kcp` and login/control requiring `websocket`.
 
 Because the framework is early, legacy shapes do not need to be supported:
 

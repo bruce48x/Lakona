@@ -1,0 +1,22 @@
+# Alicloud provider credentials are read from environment variables:
+#   ALICLOUD_ACCESS_KEY
+#   ALICLOUD_SECRET_KEY
+#   ALICLOUD_REGION
+
+image_id          = "replace-with-debian-or-ubuntu-image-id"
+ssh_allowed_cidr  = "replace-with-your-public-ip/32"
+key_pair_name     = "replace-with-existing-key-pair"
+silo_count        = 2
+gateway_count        = 2
+data_instance_type = "ecs.c8a.large"
+silo_instance_type = "ecs.c8a.large"
+gateway_instance_type = "ecs.c8a.large"
+
+# Build and push these from the repository root:
+#   docker build -f samples/Game.Unity.Agar/Server/Dockerfile --target gateway -t registry.example.com/ulinkgame/agar-gateway:small-test .
+#   docker build -f samples/Game.Unity.Agar/Server/Dockerfile --target silo -t registry.example.com/ulinkgame/agar-silo:small-test .
+gateway_image = "registry.example.com/ulinkgame/agar-gateway:small-test"
+silo_image = "registry.example.com/ulinkgame/agar-silo:small-test"
+
+postgres_password = "replace-with-strong-postgres-password"
+redis_password    = "replace-with-strong-redis-password"
