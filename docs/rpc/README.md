@@ -7,6 +7,7 @@ These documents are contributor-facing. Public user documentation and blog conte
 
 ## Starter
 
+- [Overview](overview.md)
 - [Source Generation](starter/source-generation.md)
 - [Dependency Planning](starter/dependency-planning.md)
 - [Unity Shared Source Link](starter/unity-shared-source-link.md)

@@ -305,10 +305,13 @@ RPC-focused samples:
 ## Further Reading
 
 - [Design Philosophy](docs/game/design-philosophy.md)
+- [Actor Overview](docs/actor/overview.md)
 - [Feature Catalog Startup](docs/game/feature-role.md)
 - [Runtime Guardrails](docs/game/lakona-game-runtime-guardrails.md)
 - [Actor Boundary](docs/game/lakona-actor-boundary.md)
+- [RPC Overview](docs/rpc/overview.md)
 - [RPC Design Notes](docs/rpc/README.md)
+- [Changelog](CHANGELOG.md)
 
 ## Contributing
 

@@ -17,6 +17,9 @@ Supporting documents provide deeper rationale or user-facing context:
 | Document | Purpose |
 | --- | --- |
 | [README.md](./README.md) | User-facing repository introduction and package map |
+| [CHANGELOG.md](./CHANGELOG.md) | Imported release history from the former Actor, RPC, and Game repositories |
+| [docs/maintenance/imported-contributing-notes.md](./docs/maintenance/imported-contributing-notes.md) | Historical contributor guidance imported from the former repositories |
+| [docs/actor/overview.md](./docs/actor/overview.md) | Actor runtime user-facing overview retained from the former Actor repository |
 | [docs/actor/design-philosophy.md](./docs/actor/design-philosophy.md) | Actor runtime design principles and tradeoffs |
 | [docs/game/design-philosophy.md](./docs/game/design-philosophy.md) | Game framework design principles and roadmap |
 | [docs/game/lakona-actor-boundary.md](./docs/game/lakona-actor-boundary.md) | Responsibility split between actor runtime and game framework |
@@ -24,6 +27,7 @@ Supporting documents provide deeper rationale or user-facing context:
 | [docs/game/lakona-game-runtime-guardrails.md](./docs/game/lakona-game-runtime-guardrails.md) | Runtime validation model for cluster, hotfix, endpoints, and production profile |
 | [docs/game/lakona-tool-default-experience.md](./docs/game/lakona-tool-default-experience.md) | Project tool generated experience and default configuration surface |
 | [docs/lakona-monorepo.md](./docs/lakona-monorepo.md) | Monorepo structure, naming, and migration policy |
+| [docs/rpc/overview.md](./docs/rpc/overview.md) | RPC user-facing overview retained from the former RPC repository |
 | [docs/rpc/README.md](./docs/rpc/README.md) | RPC design notes and maintainer-facing decisions |
 
 Add durable design notes under `docs/**` and link them here when they affect
