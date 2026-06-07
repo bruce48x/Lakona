@@ -1,0 +1,14 @@
+baseURL = "https://bruce48x.github.io/lakona/"
+languageCode = "en-us"
+title = "Lakona Docs"
+
+[params]
+description = "Documentation for Lakona.Rpc and Lakona.Game — C# networking infrastructure for online multiplayer games."
+repo = "https://github.com/bruce48x/lakona"
+
+[markup]
+  [markup.highlight]
+    noClasses = false
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      unsafe = true

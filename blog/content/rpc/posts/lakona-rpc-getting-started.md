@@ -570,14 +570,14 @@ The real source of truth in daily development is always:
 
 After the default `Ping` works, real projects still need connection, error, security, versioning, and performance strategies. Continue with:
 
-- [Error Handling](/Lakona.Rpc/posts/error-handling/)
-- [Security Model](/Lakona.Rpc/posts/security-model/)
-- [DTO Versioning](/Lakona.Rpc/posts/dto-versioning/)
-- [Connection Lifecycle](/Lakona.Rpc/posts/connection-lifecycle/)
-- [Threading Model](/Lakona.Rpc/posts/threading-model/)
-- [Performance Tuning](/Lakona.Rpc/posts/performance-tuning/)
-- [Godot Integration Guide](/Lakona.Rpc/posts/godot-guide/)
-- [Technology Selection Guide](/Lakona.Rpc/posts/selection-guide/)
+- [Error Handling](/rpc/posts/error-handling/)
+- [Security Model](/rpc/posts/security-model/)
+- [DTO Versioning](/rpc/posts/dto-versioning/)
+- [Connection Lifecycle](/rpc/posts/connection-lifecycle/)
+- [Threading Model](/rpc/posts/threading-model/)
+- [Performance Tuning](/rpc/posts/performance-tuning/)
+- [Godot Integration Guide](/rpc/posts/godot-guide/)
+- [Technology Selection Guide](/rpc/posts/selection-guide/)
 
 ## Final Summary
 

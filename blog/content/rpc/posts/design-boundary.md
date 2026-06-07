@@ -45,8 +45,8 @@ This information does not belong in the low-level RPC runtime. Lakona.Rpc should
 
 Before production, put these policies in the application layer or an upper framework:
 
-- [Error Handling](/Lakona.Rpc/posts/error-handling/)
-- [Security Model](/Lakona.Rpc/posts/security-model/)
-- [DTO Versioning](/Lakona.Rpc/posts/dto-versioning/)
-- [Connection Lifecycle](/Lakona.Rpc/posts/connection-lifecycle/)
-- [Threading Model](/Lakona.Rpc/posts/threading-model/)
+- [Error Handling](/rpc/posts/error-handling/)
+- [Security Model](/rpc/posts/security-model/)
+- [DTO Versioning](/rpc/posts/dto-versioning/)
+- [Connection Lifecycle](/rpc/posts/connection-lifecycle/)
+- [Threading Model](/rpc/posts/threading-model/)

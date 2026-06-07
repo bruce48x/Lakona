@@ -14,7 +14,7 @@ categories:
 
 The previous article focused on usage:
 
-- [Quickly Create a Shared-C# .NET Server and Game Client Project with Lakona.Rpc.Starter](/Lakona.Rpc/posts/lakona-rpc-getting-started/)
+- [Quickly Create a Shared-C# .NET Server and Game Client Project with Lakona.Rpc.Starter](/rpc/posts/lakona-rpc-getting-started/)
 
 Once you consider putting Lakona.Rpc into a real project, the next questions are usually about design:
 
