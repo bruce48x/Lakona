@@ -21,6 +21,8 @@ public sealed class ClusterTwoNodeSampleTests
         };
         startInfo.ArgumentList.Add("run");
         startInfo.ArgumentList.Add("--no-build");
+        startInfo.ArgumentList.Add("--configuration");
+        startInfo.ArgumentList.Add(DetectBuildConfiguration());
         startInfo.ArgumentList.Add("--project");
         startInfo.ArgumentList.Add(sampleProject);
         startInfo.ArgumentList.Add("--");
@@ -48,6 +50,18 @@ public sealed class ClusterTwoNodeSampleTests
         Assert.Contains("staleRegister=StaleLocation", stdout, StringComparison.Ordinal);
         Assert.Contains("oldRouteAfterClear=null", stdout, StringComparison.Ordinal);
         Assert.Contains("afterRestart=Accepted", stdout, StringComparison.Ordinal);
+    }
+
+    private static string DetectBuildConfiguration()
+    {
+        // AppContext.BaseDirectory includes the build configuration, e.g.
+        // .../bin/Release/net10.0/ or .../bin/Debug/net10.0/
+        var path = AppContext.BaseDirectory;
+        if (path.Contains($"{Path.DirectorySeparatorChar}Release{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            return "Release";
+        if (path.Contains($"{Path.DirectorySeparatorChar}Debug{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            return "Debug";
+        return "Debug";
     }
 
     private static string FindRepoRoot()
