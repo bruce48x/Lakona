@@ -19,7 +19,7 @@ Supporting documents provide deeper rationale or user-facing context:
 | [README.md](./README.md) | User-facing repository introduction and package map |
 | [CHANGELOG.md](./CHANGELOG.md) | Consolidated Lakona release history |
 | [docs/game/design-philosophy.md](./docs/game/design-philosophy.md) | Game framework design principles and roadmap |
-| [docs/game/lakona-actor-boundary.md](./docs/game/lakona-actor-boundary.md) | Responsibility split between actor runtime and game framework |
+| [docs/game/actor-kernel-boundary.md](./docs/game/actor-kernel-boundary.md) | Responsibility split between actor kernel and game framework |
 | [docs/game/lakona-game-configuration-startup.md](./docs/game/lakona-game-configuration-startup.md) | Game configuration schema, feature catalog startup, and validation boundary |
 | [docs/game/lakona-game-runtime-guardrails.md](./docs/game/lakona-game-runtime-guardrails.md) | Runtime validation model for cluster, hotfix, endpoints, and production profile |
 | [docs/game/lakona-tool-default-experience.md](./docs/game/lakona-tool-default-experience.md) | Project tool generated experience and default configuration surface |
@@ -79,7 +79,7 @@ src/
   Lakona.Rpc.Analyzers/            RPC analyzer and source generator package
   Lakona.Tool/                     Single CLI tool that owns RPC starter templates and game-framework augmentation
 
-  Lakona.Game.Server/Internal/ActorKernel/  Internal mailbox execution kernel (was standalone Lakona.Actor)
+  Lakona.Game.Server/Internal/ActorKernel/  Internal mailbox execution kernel merged into the game server
   Lakona.Game.Server.Generators/     Game-facing typed actor spawn and accessor generation
 
   Lakona.Game.Abstractions/        Cross-side session and reliable-push primitives

@@ -1,5 +1,5 @@
 ---
-title: Quickly Create a Shared-C# .NET Server and Game Client Project with Lakona.Rpc.Starter
+title: Quickly Create a Shared-C# .NET Server and Game Client Project with Lakona.Tool
 date: 2026-03-15T12:30:00+08:00
 tags:
   - lakona-rpc
@@ -15,11 +15,11 @@ categories:
   - Tutorial
 ---
 
-If you want to start a new two-sided C# project today, `Lakona.Rpc.Starter` is the recommended path.
+If you want to start a new two-sided C# project today, `Lakona.Tool` is the recommended path.
 
 It is no longer just an initialization scaffold. It is the project tool for Lakona.Rpc:
 
-- Create new projects with `lakona-starter new`
+- Create new projects with `lakona-tool new`
 - Generate projects with Roslyn Source Generator configuration, so later contract changes refresh server and client glue during normal compilation
 
 It generates all of this at once:
@@ -56,11 +56,11 @@ If you only want the fastest path to a running project:
 Commands:
 
 ```bash
-dotnet tool install -g Lakona.Rpc.Starter
-lakona-starter new --name MyGame --client-engine unity --transport websocket --serializer json
+dotnet tool install -g Lakona.Tool
+lakona-tool new --name MyGame --client-engine unity --transport websocket --serializer json
 
 # Or
-lakona-starter new --name MyGame --client-engine tuanjie --transport websocket --serializer json
+lakona-tool new --name MyGame --client-engine tuanjie --transport websocket --serializer json
 cd MyGame
 dotnet run --project Server/Server/Server.csproj
 ```
@@ -133,13 +133,13 @@ The important part is not that the structure looks tidy. The important part is:
 Install the global tool:
 
 ```bash
-dotnet tool install -g Lakona.Rpc.Starter
+dotnet tool install -g Lakona.Tool
 ```
 
 If it is already installed, update it:
 
 ```bash
-dotnet tool update -g Lakona.Rpc.Starter
+dotnet tool update -g Lakona.Tool
 ```
 
 ## Generate a Project
@@ -147,13 +147,13 @@ dotnet tool update -g Lakona.Rpc.Starter
 The most common command is:
 
 ```bash
-lakona-starter new --name MyGame --transport websocket --serializer json
+lakona-tool new --name MyGame --transport websocket --serializer json
 ```
 
 You can also omit options and enter interactive mode:
 
 ```bash
-lakona-starter new --name MyGame
+lakona-tool new --name MyGame
 ```
 
 Current options:
@@ -175,7 +175,7 @@ Current options:
 For example, to generate a `WebSocket + MemoryPack` project:
 
 ```bash
-lakona-starter new --name MyGame --client-engine godot --transport websocket --serializer memorypack
+lakona-tool new --name MyGame --client-engine godot --transport websocket --serializer memorypack
 ```
 
 ## What the Starter Generates
@@ -583,7 +583,7 @@ After the default `Ping` works, real projects still need connection, error, secu
 
 The recommended Lakona.Rpc getting-started path is now clear:
 
-1. Generate a project with `Lakona.Rpc.Starter`.
+1. Generate a project with `Lakona.Tool`.
 2. Get the default `Ping` sample running.
 3. Replace it with your own contracts and business logic.
 

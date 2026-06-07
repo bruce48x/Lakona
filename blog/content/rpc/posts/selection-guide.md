@@ -44,13 +44,13 @@ Lakona.Rpc is currently C# contract-first: you write C# interfaces and DTOs dire
 First integration:
 
 ```bash
-lakona-starter new --name MyGame --client-engine unity --transport websocket --serializer json
+lakona-tool new --name MyGame --client-engine unity --transport websocket --serializer json
 ```
 
 Godot:
 
 ```bash
-lakona-starter new --name MyGame --client-engine godot --transport websocket --serializer json
+lakona-tool new --name MyGame --client-engine godot --transport websocket --serializer json
 ```
 
 Evaluate MemoryPack, TCP, or KCP during performance tuning. Do not choose a complex combination early without benchmarks and production constraints.

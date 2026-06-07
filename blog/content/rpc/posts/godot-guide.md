@@ -3,15 +3,15 @@ title = "Godot Integration Guide"
 date = 2026-05-12T09:40:00+08:00
 +++
 
-Lakona.Rpc.Starter can generate Godot 4.x C# clients. The Godot path shares the same `Shared` contracts, server project, and Roslyn Source Generator flow as the Unity path.
+Lakona.Tool can generate Godot 4.x C# clients. The Godot path shares the same `Shared` contracts, server project, and Roslyn Source Generator flow as the Unity path.
 
 ## Create a Godot Project
 
 Start with WebSocket + JSON:
 
 ```bash
-dotnet tool install -g Lakona.Rpc.Starter
-lakona-starter new --name MyGame --client-engine godot --transport websocket --serializer json
+dotnet tool install -g Lakona.Tool
+lakona-tool new --name MyGame --client-engine godot --transport websocket --serializer json
 cd MyGame
 dotnet run --project Server/Server/Server.csproj
 ```

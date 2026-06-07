@@ -465,7 +465,9 @@ public sealed class ActorSystemTests
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
             ActivityStopped = activity =>
             {
-                if (activity.OperationName == "Lakona.Actor.Actor.Dispatch")
+                if (activity.OperationName == "Lakona.Actor.Actor.Dispatch" &&
+                    (Equals(activity.GetTagItem("lakona-actor.slow_message"), true) ||
+                     activity.Events.Any(evt => evt.Name == "Lakona.Actor.Actor.SlowMessage")))
                 {
                     stopped.TrySetResult(activity);
                 }
@@ -1841,5 +1843,4 @@ public sealed class ActorSystemTests
 
     private sealed record GetCounter : CounterMessage;
 }
-
 

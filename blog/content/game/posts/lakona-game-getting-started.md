@@ -29,8 +29,8 @@ That is it. The CLI tool handles the rest.
 ## Quick Start
 
 ```bash
-dotnet tool install --global Lakona.Game.Tool
-lakona new --name MyGame --client-engine unity --transport tcp --serializer memorypack
+dotnet tool install --global Lakona.Tool
+lakona-tool new --name MyGame --client-engine unity --transport tcp --serializer memorypack
 cd MyGame
 dotnet run --project "Server/Server/Server.csproj"
 ```
@@ -40,7 +40,7 @@ Open `MyGame/Client` in Unity (or Godot), restore packages, open the default sce
 If you prefer WebSocket and JSON for easier debugging:
 
 ```bash
-lakona new --name MyGame --client-engine unity --transport websocket --serializer json
+lakona-tool new --name MyGame --client-engine unity --transport websocket --serializer json
 ```
 
 ## What You Got
@@ -219,13 +219,13 @@ The inbox tracks the highest acknowledged sequence, filters duplicates, and requ
 Start with the easiest path:
 
 ```bash
-lakona new --name MyGame --client-engine unity --transport websocket --serializer json
+lakona-tool new --name MyGame --client-engine unity --transport websocket --serializer json
 ```
 
 WebSocket + JSON lets you inspect traffic and debug faster. Once your flow is stable, upgrade:
 
 ```bash
-lakona new --name MyGame --client-engine unity --transport kcp --serializer memorypack
+lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack
 ```
 
 KCP + MemoryPack is better for low-latency realtime gameplay but harder to debug. Do not enable it on day one.
@@ -237,7 +237,7 @@ Persistence is optional. The default is no business database — omit `--persist
 When you need a database:
 
 ```bash
-lakona new --name MyGame --client-engine unity --persistence postgres
+lakona-tool new --name MyGame --client-engine unity --persistence postgres
 ```
 
 Options: `none` (default), `postgres`, `mysql`. The tool generates connection configuration and package references. It does not define your business tables — those belong to your game.
@@ -257,13 +257,13 @@ Do not manually maintain: build output, intermediate files, generated RPC glue.
 
 ## FAQ
 
-### Do I need to install Lakona.Rpc.Starter separately?
+### Do I need to install a separate starter tool?
 
-No. `lakona new` invokes the starter automatically.
+No. `lakona-tool new` owns project creation directly.
 
 ### Can I set up Lakona.Game.Server by hand?
 
-Yes, but it is not the recommended first path. The `lakona new` command generates a runnable project in one step. Understand the generated structure first, then customize.
+Yes, but it is not the recommended first path. The `lakona-tool new` command generates a runnable project in one step. Understand the generated structure first, then customize.
 
 ### Does Lakona.Game implement matchmaking, rooms, or inventory for me?
 

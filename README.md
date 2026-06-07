@@ -257,7 +257,7 @@ your game.
 
 The repository publishes small packages under `src/`. Stable entry points are:
 
-- `Lakona.Tool` for `lakona new`
+- `Lakona.Tool` for `lakona-tool new`
 - `Lakona.Game.Server` for server hosting, actors, sessions, reliable push,
   health checks, and guardrails
 - `Lakona.Game.Client` for engine-neutral client helpers
@@ -308,7 +308,7 @@ RPC-focused samples:
 - [Actor Overview](docs/actor/overview.md)
 - [Feature Catalog Startup](docs/game/feature-role.md)
 - [Runtime Guardrails](docs/game/lakona-game-runtime-guardrails.md)
-- [Actor Boundary](docs/game/lakona-actor-boundary.md)
+- [Actor Kernel Boundary](docs/game/actor-kernel-boundary.md)
 - [RPC Overview](docs/rpc/overview.md)
 - [RPC Design Notes](docs/rpc/README.md)
 - [Changelog](CHANGELOG.md)

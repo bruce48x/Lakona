@@ -2,9 +2,9 @@
 
 ## What Lakona.Game Is
 
-Lakona.Game is a **distributed game server framework** built on two lower-level libraries:
+Lakona.Game is a **distributed game server framework** built on two core foundations:
 
-- **Lakona.Actor** — process-local actor runtime (mailbox, lifecycle, timers, diagnostics)
+- **Lakona.Game.Server internal actor kernel** — process-local mailbox execution, lifecycle, timers, and diagnostics exposed through `Lakona.Game.Server.Actors`
 - **Lakona.Rpc** — transport, serialization, and RPC code generation
 
 Lakona.Game adds what games need on top: sessions, reliable message delivery, cluster routing, hot-reloadable business logic, and opinionated patterns for building multiplayer game servers.
@@ -41,11 +41,11 @@ If a feature from ET, Fantasy, or GeekServer conflicts with skynet's philosophy,
 Application (game logic, matchmaking, persistence)
     └─ Lakona.Game (sessions, reliable push, cluster, hotfix)
         └─ Lakona.Rpc (transport, serialization, RPC)
-        └─ Lakona.Actor (mailbox, lifecycle, timers)
+        └─ Internal ActorKernel (mailbox, lifecycle, timers)
             └─ .NET (thread pool, TPL Dataflow, System.Threading)
 ```
 
-Each layer has a well-defined responsibility. Lower layers do not know about higher layers. Lakona.Actor does not know about networking. Lakona.Rpc does not know about game sessions. Lakona.Game does not contain game logic.
+Each layer has a well-defined responsibility. Lower layers do not know about higher layers. The internal actor kernel does not know about networking. Lakona.Rpc does not know about game sessions. Lakona.Game does not contain game logic.
 
 ### 3. Node is the deployment unit
 
@@ -77,7 +77,7 @@ These belong to game projects. The framework provides infrastructure; the game p
 
 | Feature | Source | Status | Rationale |
 |---------|--------|--------|-----------|
-| Actor mailbox + diagnostics | skynet | Done (Lakona.Actor) | Core concurrency model |
+| Actor mailbox + diagnostics | skynet | Done (internal ActorKernel) | Core concurrency model |
 | Reliable push (at-least-once) | skynet (message log concept) | Done (Lakona.Game) | Business-level delivery guarantee |
 | Hot-reloadable business logic | skynet (Lua hotswap) | Done (`Lakona.Game.Server.Hotfix`) | Zero-downtime logic updates |
 | Explicit cluster routing | skynet (harbor) | Done (Lakona.Game.Cluster) | Cross-node messaging with visible boundaries |
@@ -87,10 +87,10 @@ These belong to game projects. The framework provides infrastructure; the game p
 | Managed distributed actor messaging | ET | Done | Typed `Get(id)` / `Local(id)` / `Remote(nodeId, id)` actor refs with typed exception failures |
 | Gate auto-routing (Roaming) | Fantasy | Planned | Client-transparent backend routing |
 | Service discovery + leader election | ET | Planned | Automatic failover |
-| Deadlock detection → immediate failure | GeekServer (adapted) | Done (Lakona.Actor 0.3.0) | Circular calls throw synchronously |
-| Execution timeout | skynet (monitor + signal) | Done (Lakona.Actor 0.3.0) | Stuck actor recovery |
-| Message recording hooks | skynet (message log replay) | Done (Lakona.Actor 0.3.0) | Interceptor for recording/replay |
-| Actor state machine | skynet (service lifecycle) | Done (Lakona.Actor 0.3.0) | Explicit Active→Draining→Dead |
+| Deadlock detection → immediate failure | GeekServer (adapted) | Done (internal ActorKernel) | Circular calls throw synchronously |
+| Execution timeout | skynet (monitor + signal) | Done (internal ActorKernel) | Stuck actor recovery |
+| Message recording hooks | skynet (message log replay) | Done (internal ActorKernel) | Interceptor for recording/replay |
+| Actor state machine | skynet (service lifecycle) | Done (internal ActorKernel) | Explicit Active→Draining→Dead |
 
 ### Rejected (conflicts with skynet philosophy)
 
@@ -100,7 +100,7 @@ These belong to game projects. The framework provides infrastructure; the game p
 | Actor = Entity (ECS merged with Actor) | ET, Fantasy | Conflates concurrency unit with data container, leads to overly fine-grained remote calls |
 | One-click network calls (network disguised as local method) | Fantasy | Makes remote cost invisible; violates "remote boundaries are visible" |
 | Kestrel as network layer | GeekServer | Lakona.Rpc already provides transport abstraction |
-| TPL Dataflow as sole actor backend | GeekServer | Lakona.Actor already provides this |
+| TPL Dataflow as sole actor backend | GeekServer | The internal actor kernel already owns mailbox execution |
 | Transparent persistence | GeekServer | Persistence is a game-layer concern, not a framework concern |
 
 ### Not applicable (different language or domain)
@@ -116,9 +116,9 @@ These belong to game projects. The framework provides infrastructure; the game p
 
 ## Design Decisions Log
 
-### Why string-based ActorId in Lakona.Game when Lakona.Actor uses long?
+### Why string-based ActorId in Lakona.Game when the actor kernel uses long?
 
-Lakona.Actor uses `long` for process-local actor identity (fast, monotonic, non-reusable). Lakona.Game uses `string` for game-level identity because game entities need human-readable, cross-process identifiers (e.g., `player:alice`, `room:42`). The string is hashed to a Lakona.Actor `long` when interacting with the local runtime.
+The internal actor kernel uses `long` for process-local actor identity (fast, monotonic, non-reusable). Lakona.Game uses `string` for game-level identity because game entities need human-readable, cross-process identifiers (e.g., `player:alice`, `room:42`). The string is mapped to a process-local kernel id when interacting with the local runtime.
 
 This mirrors skynet's 32-bit address scheme (8-bit node + 24-bit local) but with more flexibility for game-specific naming.
 
@@ -152,8 +152,8 @@ The tradeoff is that hotfix assemblies cannot modify state layout — only behav
 
 ### Phase 1: Foundation hardening (mostly complete)
 
-- [x] Lakona.Actor 0.3.0: execution timeout, state machine, interceptor hooks, circular call fast-fail
-- [x] Lakona.Game adapts Lakona.Actor 0.3.0 features: `ExecutionTimeout`, `GetState()`, `ActorState` enum
+- [x] Internal ActorKernel: execution timeout, state machine, interceptor hooks, circular call fast-fail
+- [x] Lakona.Game exposes actor kernel features through `ExecutionTimeout`, `GetState()`, and `ActorState`
 - [x] Message recording/replay via `IMessageLogStore` and `ActorCell.DispatchAsync` hook
 
 ### Phase 2: Developer experience (complete)

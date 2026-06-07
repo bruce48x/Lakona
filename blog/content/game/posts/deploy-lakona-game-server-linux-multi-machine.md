@@ -39,7 +39,7 @@ Lakona.Game does not try to own your whole operations platform. You still choose
 Start from a project that already runs locally:
 
 ```bash
-lakona new --name MyGame --client-engine unity --transport websocket --serializer json
+lakona-tool new --name MyGame --client-engine unity --transport websocket --serializer json
 cd MyGame
 dotnet run --project Server/State/State.csproj
 dotnet run --project Server/Server/Server.csproj
@@ -397,7 +397,7 @@ For production, add structured logs, metrics, and alerts around:
 For a local cluster deployment rehearsal, generate with:
 
 ```bash
-lakona new --name MyGame --deploy-profile compose
+lakona-tool new --name MyGame --deploy-profile compose
 ```
 
 That profile can generate:

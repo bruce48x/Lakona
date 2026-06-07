@@ -5,7 +5,7 @@ using UnityEditor.SceneManagement;
 [InitializeOnLoad]
 internal static class AutoOpenConnectionScene
 {
-    private const string SessionStateKey = "Lakona.Rpc.Starter.ConnectionSceneOpened";
+    private const string SessionStateKey = "Lakona.Tool.ConnectionSceneOpened";
     private const string ScenePath = "Assets/Scenes/ConnectionTest.unity";
 
     static AutoOpenConnectionScene()

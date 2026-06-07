@@ -1,4 +1,4 @@
-# Lakona.Game Actor Boundary
+# Lakona.Game Actor Kernel Boundary
 
 `Lakona.Game.Server.Actors` is the only public actor API for game code. The
 runtime uses an internal actor kernel under `Lakona.Game.Server.Internal`, but
@@ -28,9 +28,9 @@ Actor state reporting               Service discovery
 
 ## Feature Placement Rules
 
-### Belongs in Lakona.Actor
+### Belongs in the Internal ActorKernel
 
-A feature belongs in Lakona.Actor if it answers: **"How does a single actor execute safely?"**
+A feature belongs in the internal actor kernel if it answers: **"How does a single actor execute safely?"**
 
 Examples:
 - Message dispatch with try-catch isolation
@@ -67,9 +67,9 @@ Analyzer rules apply across the boundary:
 
 | Rule | Scope |
 |------|-------|
-| ULA001 (no self-call) | Lakona.Actor |
-| ULA002 (no blocking wait) | Lakona.Actor |
-| ULA003 (no discarded call) | Lakona.Actor |
+| ULA001 (no self-call) | Internal ActorKernel |
+| ULA002 (no blocking wait) | Internal ActorKernel |
+| ULA003 (no discarded call) | Internal ActorKernel |
 | Actor isolation rules | Shared (future) |
 | Thread safety annotations | Shared (future) |
 
@@ -77,12 +77,12 @@ Analyzer rules apply across the boundary:
 
 ```
 Lakona.Game.ActorRuntimeOptions
-    └─ maps to → Lakona.Actor.ActorSystemOptions
+    └─ maps to → Internal ActorKernel system options
         ├─ MailboxCapacity
         ├─ SlowMessageThreshold
         ├─ ExecutionTimeout       ← new in 0.3.0
         └─ MessageInterceptor     ← new in 0.3.0
-    └─ maps to → Lakona.Actor.ActorSpawnOptions
+    └─ maps to → Internal ActorKernel spawn options
         └─ MailboxCapacity
 ```
 
@@ -90,9 +90,9 @@ Lakona.Game adds its own configuration on top:
 - `CallTimeout` (for AskAsync)
 - Diagnostic event handlers (DeadLetter, SlowMessage, CallTimeout)
 
-## When Lakona.Actor changes, Lakona.Game adapts
+## When the ActorKernel changes, Lakona.Game adapts
 
-| Lakona.Actor change | Lakona.Game adaptation |
+| ActorKernel change | Lakona.Game adaptation |
 |------------------|---------------------|
 | New config option | Expose via `ActorRuntimeOptions` |
 | New public API | Wrap in `IActorRuntime` if relevant |
@@ -102,9 +102,4 @@ Lakona.Game adds its own configuration on top:
 
 ## Version Compatibility
 
-Lakona.Actor 0.3.0 is a breaking change from 0.2.x:
-- `ActorCallTimeoutReason.CircularWait` removed
-- `ActorCell` constructor gains `executionTimeout` parameter
-- `ActorSystem.Stop` flow reordered (removal after drain)
-
-Lakona.Game must update its `Lakona.Actor` NuGet reference and adapt the facade accordingly.
+The actor kernel is no longer an independently versioned package. Breaking changes are handled inside the repository by updating `Lakona.Game.Server.Actors`, its tests, and the game-facing generator in the same change.

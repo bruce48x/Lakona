@@ -8,7 +8,7 @@
 
 **Architecture:** Add small diagnostic and validation primitives to `Lakona.Game.Server`, introduce a resolved runtime model that records final values and provenance, implement the first low-risk validation rules, then make generated `--lakona-game-check` consume the framework validation model. Keep rule ownership in runtime packages and keep generated code responsible only for project-specific presentation.
 
-**Tech Stack:** C#/.NET 10, Microsoft.Extensions.DependencyInjection, Microsoft.Extensions.Configuration, xUnit v3, Lakona.Game.Server, Lakona.Game.Tool templates.
+**Tech Stack:** C#/.NET 10, Microsoft.Extensions.DependencyInjection, Microsoft.Extensions.Configuration, xUnit v3, Lakona.Game.Server, Lakona.Tool templates.
 
 ---
 
@@ -32,12 +32,12 @@
 - Create `src/Lakona.Game.Server/Guardrails/Rules/HotfixSourceRule.cs`: hotfix assembly presence validation.
 - Create `src/Lakona.Game.Server/Guardrails/Rules/ClusterServiceGraphRule.cs`: duplicate service validation.
 - Create `src/Lakona.Game.Server/Guardrails/LakonaGameGuardrailServiceCollectionExtensions.cs`: DI registration.
-- Modify `src/Lakona.Game.Tool/Scaffolding/ToolTemplates.cs`: generated check command calls framework validation model and supports `--json`.
+- Modify `src/Lakona.Tool/Scaffolding/ToolTemplates.cs`: generated check command calls framework validation model and supports `--json`.
 - Modify `Tests/Lakona.Game.Server.Tests/Lakona.Game.Server.Tests.csproj`: add configuration/DI package references only if tests require them.
 - Create `Tests/Lakona.Game.Server.Tests/Guardrails/LakonaGameRuntimeValidatorTests.cs`: unit tests for rules.
-- Modify `Tests/Lakona.Game.Tool.Tests/ToolTemplateTests.cs`: generated check command expectations.
+- Modify `tests/Lakona.Tool.Tests/ToolTemplateTests.cs`: generated check command expectations.
 - Modify `src/Lakona.Game.Server/Lakona.Game.Server.csproj`: bump package version before shipping runtime changes.
-- Modify `src/Lakona.Game.Tool/Lakona.Game.Tool.csproj`: bump package version before shipping template changes.
+- Modify `src/Lakona.Tool/Lakona.Tool.csproj`: bump package version before shipping template changes.
 - Modify `CHANGELOG.md`: note package changes and versions.
 
 ## Scope Boundary
@@ -769,12 +769,12 @@ git commit -m "feat: register runtime guardrail validation"
 ## Task 5: Update Generated Check Command To Use Validation Result
 
 **Files:**
-- Modify: `src/Lakona.Game.Tool/Scaffolding/ToolTemplates.cs`
-- Test: `Tests/Lakona.Game.Tool.Tests/ToolTemplateTests.cs`
+- Modify: `src/Lakona.Tool/Scaffolding/ToolTemplates.cs`
+- Test: `tests/Lakona.Tool.Tests/ToolTemplateTests.cs`
 
 - [ ] **Step 1: Add failing template tests for framework guardrail usage and JSON output**
 
-Update `RenderClusterOptions_IncludesLakonaGameCheckOutputLabels` in `Tests/Lakona.Game.Tool.Tests/ToolTemplateTests.cs` to include:
+Update `RenderClusterOptions_IncludesLakonaGameCheckOutputLabels` in `tests/Lakona.Tool.Tests/ToolTemplateTests.cs` to include:
 
 ```csharp
 Assert.Contains("using Lakona.Game.Server.Guardrails;", source);
@@ -790,7 +790,7 @@ Assert.Contains("ULINK071", source);
 Run:
 
 ```powershell
-dotnet test Tests\Lakona.Game.Tool.Tests\Lakona.Game.Tool.Tests.csproj --filter RenderClusterOptions_IncludesLakonaGameCheckOutputLabels --no-restore
+dotnet test tests\Lakona.Tool.Tests\Lakona.Tool.Tests.csproj --filter RenderClusterOptions_IncludesLakonaGameCheckOutputLabels --no-restore
 ```
 
 Expected: FAIL because the generated check command does not yet reference the framework guardrail result or JSON output.
@@ -935,7 +935,7 @@ return LakonaGameCheck.Run(runtimeOptions, runtimeOptions.ToClusterOptions(build
 Run:
 
 ```powershell
-dotnet test Tests\Lakona.Game.Tool.Tests\Lakona.Game.Tool.Tests.csproj --filter ToolTemplateTests --no-restore
+dotnet test tests\Lakona.Tool.Tests\Lakona.Tool.Tests.csproj --filter ToolTemplateTests --no-restore
 ```
 
 Expected: PASS after updating existing assertions from the old `LakonaGameCheck.Run(runtimeOptions, ...)` signature to include `args`.
@@ -945,7 +945,7 @@ Expected: PASS after updating existing assertions from the old `LakonaGameCheck.
 Run:
 
 ```powershell
-git add src/Lakona.Game.Tool/Scaffolding/ToolTemplates.cs Tests/Lakona.Game.Tool.Tests/ToolTemplateTests.cs
+git add src/Lakona.Tool/Scaffolding/ToolTemplates.cs tests/Lakona.Tool.Tests/ToolTemplateTests.cs
 git commit -m "feat: use runtime guardrails in generated check"
 ```
 
@@ -961,8 +961,8 @@ Run:
 ```powershell
 dotnet build src\Lakona.Game.Server\Lakona.Game.Server.csproj --no-restore
 dotnet test Tests\Lakona.Game.Server.Tests\Lakona.Game.Server.Tests.csproj --no-restore
-dotnet build src\Lakona.Game.Tool\Lakona.Game.Tool.csproj --no-restore
-dotnet test Tests\Lakona.Game.Tool.Tests\Lakona.Game.Tool.Tests.csproj --no-restore
+dotnet build src\Lakona.Tool\Lakona.Tool.csproj --no-restore
+dotnet test tests\Lakona.Tool.Tests\Lakona.Tool.Tests.csproj --no-restore
 ```
 
 Expected: all commands pass.
@@ -972,7 +972,7 @@ Expected: all commands pass.
 Run:
 
 ```powershell
-dotnet run --project src\Lakona.Game.Tool\Lakona.Game.Tool.csproj -- new --name VerifyGuardrails --output VerifyOut
+dotnet run --project src\Lakona.Tool\Lakona.Tool.csproj -- new --name VerifyGuardrails --output VerifyOut
 ```
 
 Expected: `VerifyOut\VerifyGuardrails` is created.
@@ -1067,10 +1067,10 @@ If no fixes were required, do not create an empty commit.
 
 **Files:**
 - Modify: `src/Lakona.Game.Server/Lakona.Game.Server.csproj`
-- Modify: `src/Lakona.Game.Tool/Lakona.Game.Tool.csproj`
+- Modify: `src/Lakona.Tool/Lakona.Tool.csproj`
 - Modify: `CHANGELOG.md`
 - Modify: `src/Lakona.Game.Server/README.md`
-- Modify: `src/Lakona.Game.Tool/README.md`
+- Modify: `src/Lakona.Tool/README.md`
 
 - [ ] **Step 1: Bump package versions**
 
@@ -1080,7 +1080,7 @@ Update `src/Lakona.Game.Server/Lakona.Game.Server.csproj`:
 <Version>0.1.10</Version>
 ```
 
-Update `src/Lakona.Game.Tool/Lakona.Game.Tool.csproj` to the next patch version from its current value. Preserve the existing major/minor version.
+Update `src/Lakona.Tool/Lakona.Tool.csproj` to the next patch version from its current value. Preserve the existing major/minor version.
 
 - [ ] **Step 2: Update changelog**
 
@@ -1090,7 +1090,7 @@ Add entries to `CHANGELOG.md`:
 ## Unreleased
 
 - Lakona.Game.Server: Added runtime guardrail diagnostics, resolved runtime model, and initial validation rules for node id, endpoints, hotfix presence, and duplicate cluster services.
-- Lakona.Game.Tool: Updated generated `--lakona-game-check` to reuse runtime guardrail diagnostics and support `--json` output.
+- Lakona.Tool: Updated generated `--lakona-game-check` to reuse runtime guardrail diagnostics and support `--json` output.
 ```
 
 If `CHANGELOG.md` already has an `Unreleased` section, append these bullets there instead of creating a duplicate section.
@@ -1105,7 +1105,7 @@ In `src/Lakona.Game.Server/README.md`, add a short section:
 Lakona.Game.Server provides runtime guardrail diagnostics for framework invariants such as node identity, endpoint shape, hotfix assembly presence, and cluster service graph consistency. Generated projects use these diagnostics through `--lakona-game-check`; server hosts can also register the default rules with `AddLakonaGameRuntimeValidation()`.
 ```
 
-In `src/Lakona.Game.Tool/README.md`, mention:
+In `src/Lakona.Tool/README.md`, mention:
 
 ```markdown
 The generated `--lakona-game-check --json` output is suitable for CI and deployment scripts that need machine-readable validation results.
@@ -1118,8 +1118,8 @@ Run:
 ```powershell
 dotnet build src\Lakona.Game.Server\Lakona.Game.Server.csproj --no-restore
 dotnet test Tests\Lakona.Game.Server.Tests\Lakona.Game.Server.Tests.csproj --no-restore
-dotnet build src\Lakona.Game.Tool\Lakona.Game.Tool.csproj --no-restore
-dotnet test Tests\Lakona.Game.Tool.Tests\Lakona.Game.Tool.Tests.csproj --no-restore
+dotnet build src\Lakona.Tool\Lakona.Tool.csproj --no-restore
+dotnet test tests\Lakona.Tool.Tests\Lakona.Tool.Tests.csproj --no-restore
 ```
 
 Expected: all commands pass.
@@ -1129,7 +1129,7 @@ Expected: all commands pass.
 Run:
 
 ```powershell
-git add src\Lakona.Game.Server\Lakona.Game.Server.csproj src\Lakona.Game.Tool\Lakona.Game.Tool.csproj CHANGELOG.md src\Lakona.Game.Server\README.md src\Lakona.Game.Tool\README.md
+git add src\Lakona.Game.Server\Lakona.Game.Server.csproj src\Lakona.Tool\Lakona.Tool.csproj CHANGELOG.md src\Lakona.Game.Server\README.md src\Lakona.Tool\README.md
 git commit -m "docs: document runtime guardrails release"
 ```
 

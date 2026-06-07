@@ -1,6 +1,6 @@
 # Lakona.Game 游戏样例
 
-这个样例用于验证 Lakona.Game 在轻量多人对战游戏中的接入方式。它同时包含本地单机、RPC 联机、控制连接、实时连接、可靠业务推送，以及基于 Lakona.Actor 的进程内状态执行路径。
+这个样例用于验证 Lakona.Game 在轻量多人对战游戏中的接入方式。它同时包含本地单机、RPC 联机、控制连接、实时连接、可靠业务推送，以及基于 Lakona.Game.Server.Actors 的进程内状态执行路径。
 
 ## 文档入口
 
@@ -65,7 +65,7 @@ samples/Game.Unity.Agar
 - `Shared/Interfaces/IPlayerService.cs`：客户端和服务端共用的 RPC 协议。
 - `Server/Gateway/Services/PlayerService.cs`：控制面 RPC 网关服务。
 - `Server/Gateway/Realtime/RoomRuntime.cs`：服务端房间模拟和世界状态广播。
-- `Server/State/StateStores.cs`：把 sample 业务状态接入 Lakona.Actor actor runtime。
+- `Server/State/StateStores.cs`：把 sample 业务状态接入 Lakona.Game.Server.Actors facade。
 - `Server/State/Users/UserActor.cs`：用户登录、资料和胜利积分状态。
 - `Server/State/Leaderboard/LeaderboardActor.cs`：胜利积分排行榜周期、排序和归档。
 - `Client/Assets/Scripts/Gameplay/DotArenaGame.cs`：客户端主流程、输入、渲染、模式切换和网络会话编排。
@@ -75,7 +75,7 @@ samples/Game.Unity.Agar
 
 ## 运行方式
 
-启动网关服务即可。用户、会话、匹配、房间和排行榜状态当前都在同一个 Gateway 进程内通过 Lakona.Actor 串行执行。
+启动网关服务即可。用户、会话、匹配、房间和排行榜状态当前都在同一个 Gateway 进程内通过 Lakona.Game.Server.Actors 串行执行。
 
 ```powershell
 dotnet run --project Server/Gateway/Gateway.csproj

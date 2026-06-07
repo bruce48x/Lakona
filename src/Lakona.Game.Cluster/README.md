@@ -8,7 +8,7 @@ Diagnostics are exposed through the `Lakona.Game.Cluster` `Meter` and `ActivityS
 
 It does not provide a production network adapter, Redis-specific state, external platform discovery bindings, remote actor proxies, actor migration, or durable route state.
 
-Actor route helpers produce route keys from application-chosen actor ids only. They do not encode node ids, endpoints, execution lanes, or Lakona.Actor scheduler internals.
+Actor route helpers produce route keys from application-chosen actor ids only. They do not encode node ids, endpoints, execution lanes, or local actor-kernel scheduler internals.
 
 Route locations include a route generation, node epoch, endpoint, lease expiration, and metadata. In-memory registration rejects stale generations and older node epochs, and lease refresh requires the caller to present the matching route owner. This keeps restarted nodes and moved route owners from accidentally reviving old ownership.
 

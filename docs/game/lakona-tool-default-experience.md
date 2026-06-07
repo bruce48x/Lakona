@@ -1,8 +1,8 @@
-# Lakona.Game.Tool Default Experience
+# Lakona.Tool Default Experience
 
 ## Purpose
 
-`lakona new` should create a runnable Lakona.Game application, not a set of optional framework modules for the user to assemble.
+`lakona-tool new` should create a runnable Lakona.Game application, not a set of optional framework modules for the user to assemble.
 
 The generated project must present Lakona.Game's core identity clearly:
 
@@ -183,14 +183,14 @@ Do not introduce:
 Future topology or deployment choices should be expressed as generation-time intent, not as default runtime JSON complexity. Examples:
 
 ```bash
-lakona new --name MyGame --deploy-profile compose
-lakona new --name MyGame --topology split-directory
+lakona-tool new --name MyGame --deploy-profile compose
+lakona-tool new --name MyGame --topology split-directory
 ```
 
 The default command remains:
 
 ```bash
-lakona new --name MyGame
+lakona-tool new --name MyGame
 ```
 
 ## Documentation Direction
@@ -237,7 +237,7 @@ These documents should explain that Cluster, Hotfix, and Reliable Push are defau
 A new user should be able to run:
 
 ```bash
-lakona new --name MyGame
+lakona-tool new --name MyGame
 dotnet build Server/Server.slnx
 dotnet run --project Server/Server/Server.csproj -- --lakona-game-check
 dotnet run --project Server/Server/Server.csproj

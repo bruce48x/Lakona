@@ -1,8 +1,8 @@
 # Lakona.Game.Server
 
-`Lakona.Game.Server` provides .NET server hosting helpers for Lakona.Rpc, Lakona.Actor-based game-state execution, session lifecycle, endpoint callback binding, and reliable business push.
+`Lakona.Game.Server` provides .NET server hosting helpers for Lakona.Rpc, actor-kernel-backed game-state execution, session lifecycle, endpoint callback binding, and reliable business push.
 
-It builds on Lakona.Actor so room, battle, and service state can run with predictable process-local mailbox behavior on the gateway process.
+It exposes `Lakona.Game.Server.Actors` so room, battle, and service state can run with predictable process-local mailbox behavior on the gateway process.
 
 ## Install
 
@@ -63,7 +63,7 @@ public sealed class ControlPlaneRpcServerConfigurator : IULinkRpcServerConfigura
 
 ## Use Actors
 
-Lakona.Game's server-side actor execution model is built on the standalone `Lakona.Actor` runtime through a process-local facade. Register the Lakona.Game server services in the same .NET host that runs your gateway:
+Lakona.Game's server-side actor execution model is built on the internal actor kernel through the public `Lakona.Game.Server.Actors` facade. Register the Lakona.Game server services in the same .NET host that runs your gateway:
 
 ```csharp
 using Lakona.Game.Server;
@@ -119,11 +119,11 @@ The facade also supports explicit actor stop/drain, mailbox metrics, mailbox-del
 
 - `StopAsync(id)` removes an actor after draining its mailbox.
 - `StopAsync(id, drainTimeout)` returns `ActorStopOutcome.TimedOut` when the actor cannot drain in time.
-- `TryGetMailboxMetrics(id, out metrics)` returns Lakona.Game-owned mailbox metrics without exposing `Lakona.Actor` runtime types.
+- `TryGetMailboxMetrics(id, out metrics)` returns Lakona.Game-owned mailbox metrics without exposing internal actor-kernel runtime types.
 - `Actor.Context.RegisterTimer(...)` and `IActorRuntime.RegisterTimer(...)` schedule timer ticks through the actor mailbox.
 - Override `OnActivateAsync` and `OnDeactivateAsync` for explicit startup and stop cleanup.
 
-Lakona.Actor is the foundation for actor/mailbox runtime concerns. Lakona.Game.Server builds on it through its facade and keeps the game-session layer focused on session identity, endpoint binding, reconnect, and reliable push integration. Add `Lakona.Actor.SourceGenerator` directly only when your game project chooses native Lakona.Actor typed actors or generated actor clients.
+The internal actor kernel is the foundation for actor/mailbox runtime concerns. Lakona.Game.Server exposes it only through its facade and keeps the game-session layer focused on session identity, endpoint binding, reconnect, and reliable push integration.
 
 `ClusterActorDispatcher<TActor>` can adapt an explicit `Lakona.Game.Cluster` actor envelope into the local `IActorRuntime` mailbox and wait for a handler result. `ClusterActorTellDispatcher<TActor>` is the one-way variant that uses `TryTell` and maps local mailbox pressure to `ClusterSendStatus.Backpressure`. Both adapters are intentionally typed and require application-provided handler delegates; they do not expose transparent remote actor references or generated remote actor proxies.
 

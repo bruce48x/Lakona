@@ -1,5 +1,4 @@
 <Solution>
-  <Project Path="Lakona.Actor.Tests/Lakona.Actor.Tests.csproj" />
   <Project Path="Lakona.Game.Client.Tests/Lakona.Game.Client.Tests.csproj" />
   <Project Path="Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj" />
   <Project Path="Lakona.Game.Cluster.Sql.Tests/Lakona.Game.Cluster.Sql.Tests.csproj" />
@@ -8,5 +7,9 @@
   <Project Path="Lakona.Game.Server.Hotfix.Tests/Lakona.Game.Server.Hotfix.Tests.csproj" />
   <Project Path="Lakona.Game.Server.Hotfix.Generators.Tests/Lakona.Game.Server.Hotfix.Generators.Tests.csproj" />
   <Project Path="Lakona.Game.Server.Generators.Tests/Lakona.Game.Server.Generators.Tests.csproj" />
+  <Project Path="Lakona.Rpc.Analyzers.Tests/Lakona.Rpc.Analyzers.Tests.csproj" />
+  <Project Path="Lakona.Rpc.Serializer.Tests/Lakona.Rpc.Serializer.Tests.csproj" />
+  <Project Path="Lakona.Rpc.Tests/Lakona.Rpc.Tests.csproj" />
+  <Project Path="Lakona.Rpc.Transport.Tests/Lakona.Rpc.Transport.Tests.csproj" />
   <Project Path="Lakona.Tool.Tests/Lakona.Tool.Tests.csproj" />
 </Solution>

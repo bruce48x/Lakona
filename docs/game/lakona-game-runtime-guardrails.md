@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`lakona new` reduces the configuration surface for new projects, but the runtime framework must still protect projects from invalid or unsafe states after users start editing configuration, deployment profiles, or generated code.
+`lakona-tool new` reduces the configuration surface for new projects, but the runtime framework must still protect projects from invalid or unsafe states after users start editing configuration, deployment profiles, or generated code.
 
 Runtime guardrails make Lakona.Game easier to use and easier to maintain by moving common "do not configure it this way" knowledge into framework-owned validation, diagnostics, and check output.
 
@@ -12,7 +12,7 @@ The goal is not to remove advanced configuration. The goal is to make the defaul
 
 Tooling and runtime validation have different responsibilities:
 
-- `Lakona.Game.Tool` hides unnecessary choices and generates safe defaults.
+- `Lakona.Tool` hides unnecessary choices and generates safe defaults.
 - Lakona.Game runtime packages enforce invariants that must hold for a server to run correctly.
 - `--health-check`, `--readiness-check`, and the compatibility `--lakona-game-check` explain runtime state at the right operational boundary.
 
@@ -24,9 +24,9 @@ Use this boundary when deciding where a rule or default belongs:
 
 | Concern | Owner |
 | --- | --- |
-| New project command shape and first-run text | `Lakona.Game.Tool` |
+| New project command shape and first-run text | `Lakona.Tool` |
 | Default runtime derivation | framework defaults |
-| Compact `appsettings.json` rendering | `Lakona.Game.Tool` |
+| Compact `appsettings.json` rendering | `Lakona.Tool` |
 | Runtime invariants | framework validators |
 | Local repair guidance | check formatter |
 | Production readiness | profile validators |
@@ -231,9 +231,9 @@ Recommended package split:
 - diagnostic primitives belong in the lowest package that both client-facing and server-facing tooling can reference without pulling in transport or hosting dependencies
 - server hosting composes the validation pipeline and owns startup behavior
 - Cluster packages provide Cluster-specific rules without depending on `Lakona.Game.Server`
-- Hotfix packages provide Hotfix-specific rules without depending on `Lakona.Game.Tool`
+- Hotfix packages provide Hotfix-specific rules without depending on `Lakona.Tool`
 - Reliable Push and session rules live with the server-side session/push abstractions they validate
-- `Lakona.Game.Tool` calls the generated host/check surface; it does not own runtime invariants
+- `Lakona.Tool` calls the generated host/check surface; it does not own runtime invariants
 
 Do not make `Lakona.Game.Cluster` depend on `Lakona.Game.Server` only to participate in validation. Prefer extension methods or rule registration hooks that allow server hosting to compose optional package rules.
 
