@@ -61,27 +61,42 @@ internal sealed class ToolText
             Lakona.Tool
 
             命令:
-              lakona-tool new [--name MyGame] [--output .] [--client-engine unity|unity-cn|tuanjie|godot] [--transport tcp|websocket|kcp] [--serializer json|memorypack] [--persistence none|mysql|postgres] [--nugetforunity-source embedded|openupm] [--deploy-profile none|compose]
-                  生成 Lakona.Rpc 项目并补充 Lakona.Game.Server、Lakona.Game.Client 和 Lakona.Game actor runtime。
-                  默认生成显式 cluster 配置骨架，无需传入 network profile 参数。
+              lakona-tool new
+                  交互式创建项目。会询问项目名称、输出目录、客户端引擎、传输协议、序列化器、持久化、需要时的 NuGetForUnity 来源，以及部署配置。
+
+              lakona-tool new --name MyGame --output . --client-engine unity --transport kcp --serializer memorypack --persistence none --nugetforunity-source embedded --deploy-profile none
+                  用于脚本和 CI 的非交互式创建。输入被重定向时，缺少必要选择会失败。
+
+              lakona-tool help
+                  显示此帮助。
             """,
         ToolLanguage.TraditionalChinese =>
             """
             Lakona.Tool
 
             命令:
-              lakona-tool new [--name MyGame] [--output .] [--client-engine unity|unity-cn|tuanjie|godot] [--transport tcp|websocket|kcp] [--serializer json|memorypack] [--persistence none|mysql|postgres] [--nugetforunity-source embedded|openupm] [--deploy-profile none|compose]
-                  生成 Lakona.Rpc 專案並補充 Lakona.Game.Server、Lakona.Game.Client 和 Lakona.Game actor runtime。
-                  預設生成明確的 cluster 設定骨架，無需傳入 network profile 參數。
+              lakona-tool new
+                  互動式建立專案。會詢問專案名稱、輸出目錄、用戶端引擎、傳輸協定、序列化器、持久化、需要時的 NuGetForUnity 來源，以及部署設定。
+
+              lakona-tool new --name MyGame --output . --client-engine unity --transport kcp --serializer memorypack --persistence none --nugetforunity-source embedded --deploy-profile none
+                  用於指令碼和 CI 的非互動式建立。輸入被重新導向時，缺少必要選擇會失敗。
+
+              lakona-tool help
+                  顯示此幫助。
             """,
         _ =>
             """
             Lakona.Tool
 
             Commands:
-              lakona-tool new [--name MyGame] [--output .] [--client-engine unity|unity-cn|tuanjie|godot] [--transport tcp|websocket|kcp] [--serializer json|memorypack] [--persistence none|mysql|postgres] [--nugetforunity-source embedded|openupm] [--deploy-profile none|compose]
-                  Generate a Lakona.Rpc project and augment it with Lakona.Game.Server, Lakona.Game.Client, and the Lakona.Game actor runtime.
-                  Generates explicit cluster configuration scaffolding by default; no network profile argument is required.
+              lakona-tool new
+                  Interactive project creation. Prompts for project name, output directory, client engine, transport, serializer, persistence, NuGetForUnity source when needed, and deploy profile.
+
+              lakona-tool new --name MyGame --output . --client-engine unity --transport kcp --serializer memorypack --persistence none --nugetforunity-source embedded --deploy-profile none
+                  Non-interactive project creation for scripts and CI. Missing required choices fail when input is redirected.
+
+              lakona-tool help
+                  Show this help.
             """
     };
 

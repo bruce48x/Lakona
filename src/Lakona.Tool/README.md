@@ -13,7 +13,13 @@ dotnet tool install -g Lakona.Tool
 ## Create A Project
 
 ```bash
-lakona-tool new --name MyGame --client-engine unity --transport websocket --serializer json
+lakona-tool new
+```
+
+For scripts and CI, provide every required generation choice explicitly:
+
+```bash
+lakona-tool new --name MyGame --output . --client-engine unity --transport kcp --serializer memorypack --persistence none --nugetforunity-source embedded --deploy-profile none
 ```
 
 After generation, run the printed check command before starting the server:
@@ -30,6 +36,7 @@ Supported values:
 - `--serializer`: `json`, `memorypack`
 - `--persistence`: `none`, `postgres`, `mysql`
 - `--nugetforunity-source`: `embedded`, `openupm`
+- `--deploy-profile`: `none`, `compose`
 
 ## Defaults
 

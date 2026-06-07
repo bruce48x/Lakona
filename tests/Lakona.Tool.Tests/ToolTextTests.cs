@@ -759,6 +759,35 @@ public sealed class ToolTextTests
     }
 
     [Fact]
+    public void HelpText_ExplainsInteractiveAndExplicitNewModes()
+    {
+        var english = ToolText.ForCulture(CultureInfo.GetCultureInfo("en-US"));
+        var simplifiedChinese = ToolText.ForCulture(CultureInfo.GetCultureInfo("zh-CN"));
+
+        Assert.Contains("lakona-tool new", english.HelpText, StringComparison.Ordinal);
+        Assert.Contains("Interactive", english.HelpText, StringComparison.Ordinal);
+        Assert.Contains("--persistence none", english.HelpText, StringComparison.Ordinal);
+        Assert.Contains("--deploy-profile none", english.HelpText, StringComparison.Ordinal);
+        Assert.Contains("交互", simplifiedChinese.HelpText, StringComparison.Ordinal);
+        Assert.Contains("--nugetforunity-source embedded", simplifiedChinese.HelpText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PackageVersion_IsBumpedForInteractiveNewFix()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var projectPath = Path.Combine(repositoryRoot, "src", "Lakona.Tool", "Lakona.Tool.csproj");
+        var xml = System.Xml.Linq.XDocument.Load(projectPath);
+
+        var version = xml
+            .Descendants("Version")
+            .Single()
+            .Value;
+
+        Assert.Equal("0.7.1", version);
+    }
+
+    [Fact]
     public void ClusterEnvExampleUsesSelectedTransportForAdvertisedClientEndpoint()
     {
         var websocketOptions = new NewCommandOptions(
