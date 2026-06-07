@@ -1,9 +1,7 @@
 # Changelog
 
 Lakona was created on 2026-06-07 by merging the former Lakona.Game, Lakona.Actor,
-and Lakona.Rpc repositories into a single monorepo. This changelog starts from
-that consolidation. Historical release notes from the pre-merge repositories are
-archived at `docs/maintenance/imported-contributing-notes.md`.
+and Lakona.Rpc repositories into a single monorepo. This changelog starts from that consolidation.
 
 ## 2026-06-07
 

@@ -17,8 +17,7 @@ Supporting documents provide deeper rationale or user-facing context:
 | Document | Purpose |
 | --- | --- |
 | [README.md](./README.md) | User-facing repository introduction and package map |
-| [CHANGELOG.md](./CHANGELOG.md) | Imported release history from the former Actor, RPC, and Game repositories |
-| [docs/maintenance/imported-contributing-notes.md](./docs/maintenance/imported-contributing-notes.md) | Historical contributor guidance imported from the former repositories |
+| [CHANGELOG.md](./CHANGELOG.md) | Consolidated Lakona release history |
 | [docs/actor/overview.md](./docs/actor/overview.md) | Actor runtime user-facing overview retained from the former Actor repository |
 | [docs/actor/design-philosophy.md](./docs/actor/design-philosophy.md) | Actor runtime design principles and tradeoffs |
 | [docs/game/design-philosophy.md](./docs/game/design-philosophy.md) | Game framework design principles and roadmap |
