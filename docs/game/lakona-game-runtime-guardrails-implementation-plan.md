@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Historical note:** This plan is superseded for configuration and startup shape by [Lakona.Game Configuration And Startup Model](lakona-game-configuration-startup.md) and [Lakona.Game Configuration Startup Implementation Plan](lakona-game-configuration-startup-implementation-plan.md). Old singular endpoint examples and service-shaped cluster examples below are historical only; current guidance uses `Lakona.Game:Endpoints[]`, `Lakona.Game:Node:Id`, compact `Lakona.Game:Feature`, and the `AddLakonaGame` Feature Catalog.
+> **Historical note:** This plan is superseded for configuration and startup shape by [Lakona.Game Configuration And Startup Model](lakona-game-configuration-startup.md). Old singular endpoint examples and service-shaped cluster examples below are historical only; current guidance uses `Lakona.Game:Endpoints[]`, `Lakona.Game:Node:Id`, compact `Lakona.Game:Feature`, and the `AddLakonaGame` Feature Catalog.
 
 **Goal:** Build the first runtime guardrails loop so generated projects and server startup can validate Lakona.Game runtime invariants with shared framework diagnostics.
 

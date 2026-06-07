@@ -23,11 +23,17 @@ Supporting documents provide deeper rationale or user-facing context:
 | [docs/game/lakona-game-configuration-startup.md](./docs/game/lakona-game-configuration-startup.md) | Game configuration schema, feature catalog startup, and validation boundary |
 | [docs/game/lakona-game-runtime-guardrails.md](./docs/game/lakona-game-runtime-guardrails.md) | Runtime validation model for cluster, hotfix, endpoints, and production profile |
 | [docs/game/lakona-tool-default-experience.md](./docs/game/lakona-tool-default-experience.md) | Project tool generated experience and default configuration surface |
+| [docs/lakona-monorepo.md](./docs/lakona-monorepo.md) | Monorepo structure, naming, and migration policy |
 | [docs/rpc/README.md](./docs/rpc/README.md) | RPC design notes and maintainer-facing decisions |
 
 Add durable design notes under `docs/**` and link them here when they affect
 contributor or maintenance policy. Do not put internal architecture RFCs,
 migration plans, or contributor-only technical notes under `blog/**`.
+
+`docs/superpowers/**` is a temporary working directory only. Before finishing a
+development branch, move any durable decisions or useful design material into
+the appropriate permanent documentation under `docs/**`, then delete the entire
+`docs/superpowers` directory.
 
 ## Quick Workflow
 
@@ -89,15 +95,16 @@ tests/
   Lakona.*.Tests/                  Package and sample tests
 
 samples/
-  Cluster.TwoNode/                 Multi-process cluster smoke sample
-  Agar.Unity/                      Unity realtime multiplayer sample
-  Chat.Godot/                      Godot .NET single-endpoint chat sample
+  Game.Cluster.TwoNode/            Multi-process cluster smoke sample
+  Game.Unity.Agar/                 Unity realtime multiplayer sample
+  Game.Godot.Chat/                 Godot .NET single-endpoint chat sample
+  Rpc.*                            RPC-focused Unity and Godot samples
 
 docs/
   actor/                           Actor design docs
   game/                            Game framework design docs
-
-docs/rpc/                          RPC maintainer design notes
+  rpc/                             RPC maintainer design notes
+  lakona-monorepo.md               Monorepo structure, naming, and migration policy
 
 blog/
   game/, rpc/                      Hugo article sources
@@ -467,5 +474,5 @@ Get-ChildItem src -Filter *.csproj -Recurse | ForEach-Object {
 - Put maintainer rationale in `docs/**` or this file.
 - Avoid unrelated refactors unless explicitly requested or necessary to complete
   the task safely.
-- Delete temporary planning notes before finishing a development branch unless
-  the user explicitly wants to keep them in the repository.
+- Treat `docs/superpowers/**` as temporary. Move useful decisions into durable
+  docs, then delete the directory before finishing development work.
