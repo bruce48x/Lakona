@@ -17,6 +17,15 @@
     <None Update="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="RpcStarter\TemplateAssets\NuGetForUnity.4.5.0.zip" LogicalName="Lakona.Tool.RpcStarter.TemplateAssets.NuGetForUnity.4.5.0.zip" />
+    <EmbeddedResource Include="RpcStarter\ReleaseVersions.json" LogicalName="Lakona.Tool.RpcStarter.ReleaseVersions.json" />
+    <EmbeddedResource Include="RpcStarter\Templates\Godot\project.godot.template" LogicalName="Lakona.Tool.RpcStarter.Templates.Godot.project.godot.template" />
+    <EmbeddedResource Include="RpcStarter\Templates\Godot\Main.tscn.template" LogicalName="Lakona.Tool.RpcStarter.Templates.Godot.Main.tscn.template" />
+    <EmbeddedResource Include="RpcStarter\Templates\Unity\EditorBuildSettings.asset.template" LogicalName="Lakona.Tool.RpcStarter.Templates.Unity.EditorBuildSettings.asset.template" />
+    <EmbeddedResource Include="RpcStarter\Templates\Unity\AutoOpenConnectionScene.template" LogicalName="Lakona.Tool.RpcStarter.Templates.Unity.AutoOpenConnectionScene.template" />
+  </ItemGroup>
+
   <PropertyGroup>
     <GeneratedToolPackageVersionsFile>$(MSBuildProjectDirectory)\obj\$(Configuration)\$(TargetFramework)\ToolPackageVersions.g.cs</GeneratedToolPackageVersionsFile>
   </PropertyGroup>
