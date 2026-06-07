@@ -128,7 +128,7 @@ into `src/**` only when it is demonstrably reusable framework infrastructure.
 
 ## Actor Runtime Rules
 
-`Lakona.Actor` is a message-driven, process-local service runtime. It is not an
+The actor kernel inside `Lakona.Game.Server.Internal` is a message-driven, process-local runtime. It is not an
 enterprise distributed actor platform.
 
 The core model is:

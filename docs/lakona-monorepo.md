@@ -12,7 +12,7 @@ The repository uses the Lakona public naming surface:
 
 - `Lakona.Rpc.*` owns typed RPC contracts, runtime, serializers, transports,
   analyzers, and starter support.
-- `Lakona.Actor` owns the process-local actor/mailbox runtime and source
+- `Lakona.Game.Server` owns the game-facing actor API and its internal actor kernel. Actor mailbox execution is an implementation detail of `Lakona.Game.Server`, not a separate package boundary.
   generator.
 - `Lakona.Game.*` owns game-server hosting, cluster adapters, hotfix runtime,
   client helpers, generators, and samples.

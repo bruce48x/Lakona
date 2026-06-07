@@ -1,18 +1,22 @@
-# Lakona.Actor / Lakona.Game Boundary
+# Lakona.Game Actor Boundary
 
-## The Facade Pattern
-
-Lakona.Game.Server wraps Lakona.Actor behind a facade (`LakonaActorRuntime.cs` is the **only** file that references Lakona.Actor types directly). All other Lakona.Game code goes through `IActorRuntime` and never sees Lakona.Actor internals.
-
-This boundary is deliberate. It prevents process-local actor semantics from leaking into higher-level infrastructure, and allows Lakona.Actor to evolve independently.
+`Lakona.Game.Server.Actors` is the only public actor API for game code. The
+runtime uses an internal actor kernel under `Lakona.Game.Server.Internal`, but
+that kernel is not a package, not a public API, and not something generated
+projects should reference directly.
 
 ## Responsibility Split
 
 ```
-Lakona.Actor                          Lakona.Game
+Internal ActorKernel                 Lakona.Game.Server.Actors
 ─────────────────────────────       ─────────────────────────────
-Actor identity (long ActorId)       Game identity (string ActorId)
-Mailbox + serialization             Session management
+Mailbox queue                       Game actor identity (string ActorId)
+Sequential dispatch                 Actor base class and context
+Call/response slots                 IActorRuntime
+Timers                              DI activation
+Stop/drain lifecycle                Remote actor calls
+Diagnostics mechanism               Cluster routing
+Backpressure metrics                Message recording storage
 Tell / Call (process-local)         Cluster routing (cross-node)
 Timer dispatch                      Reliable push (at-least-once)
 Lifecycle (start/stop/drain)        Hotfix (AssemblyLoadContext)
