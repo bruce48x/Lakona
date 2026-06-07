@@ -80,7 +80,7 @@ src/
   Lakona.Rpc.Transport.*           TCP, WebSocket, KCP, and loopback transport implementations
   Lakona.Rpc.Serializer.*          JSON and MemoryPack serializer implementations
   Lakona.Rpc.Analyzers/            RPC analyzer and source generator package
-  Lakona.Rpc.Starter/              CLI that scaffolds shared/server/client RPC workspaces
+  Lakona.Tool/                     Single CLI tool that owns RPC starter templates and game-framework augmentation
 
   Lakona.Actor/                    Process-local actor runtime, mailbox execution, timers, diagnostics, named actors
   Lakona.Actor.SourceGenerator/    Typed spawn generation, actor clients, and actor usage diagnostics

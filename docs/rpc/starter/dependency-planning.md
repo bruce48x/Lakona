@@ -8,13 +8,13 @@ Updated: 2026-05-25
 
 ## Decision
 
-`Lakona.Rpc.Starter` centralizes package ownership in `StarterDependencyPlanner`.
+`Lakona.Tool`'s RPC starter module centralizes package ownership in `StarterDependencyPlanner`.
 
 Starter templates should render dependency plans. They should not independently decide serializer, transport, analyzer, or Unity runtime package ownership.
 
 ## Context
 
-`Lakona.Rpc.Starter` generates multiple project areas from the same user choices:
+`Lakona.Tool`'s RPC starter module generates multiple project areas from the same user choices:
 
 - `Shared/Shared.csproj`
 - `Server/Server/Server.csproj`

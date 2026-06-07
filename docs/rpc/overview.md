@@ -26,8 +26,8 @@ Install the starter, generate a runnable project, and start the server:
 Requires .NET SDK 10.0 or later.
 
 ```bash
-dotnet tool install -g Lakona.Rpc.Starter
-lakona-starter new --name MyGame --client-engine unity --transport websocket --serializer json
+dotnet tool install -g Lakona.Tool
+lakona-tool new --name MyGame --client-engine unity --transport websocket --serializer json
 cd MyGame
 dotnet run --project Server/Server/Server.csproj
 ```
@@ -37,7 +37,7 @@ Then open `MyGame/Client` with Unity 2022 LTS and run `NuGet -> Restore Packages
 For Godot:
 
 ```bash
-lakona-starter new --name MyGame --client-engine godot --transport websocket --serializer json
+lakona-tool new --name MyGame --client-engine godot --transport websocket --serializer json
 cd MyGame
 dotnet run --project Server/Server/Server.csproj
 ```
@@ -48,7 +48,7 @@ For a first integration, start with `websocket + json`. After the path is stable
 
 Full walkthrough:
 
-- [Getting started with `Lakona.Rpc.Starter`](https://bruce48x.github.io/lakona/rpc/posts/lakona-rpc-getting-started/)
+- [Getting started with `Lakona.Tool`](https://bruce48x.github.io/lakona/rpc/posts/lakona-rpc-getting-started/)
 
 ## How It Works
 

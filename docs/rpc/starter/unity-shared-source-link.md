@@ -6,7 +6,7 @@ Date: 2026-04-21
 
 ## Context
 
-`Lakona.Rpc.Starter` generates three project areas:
+`Lakona.Tool`'s RPC starter module generates three project areas:
 
 - `Shared`
 - `Server`

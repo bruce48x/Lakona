@@ -28,13 +28,13 @@ Lakona brings the former RPC, Actor, and Game layers into one repository:
 - `Lakona.Actor` for process-local actor/mailbox execution.
 - `Lakona.Game.*` for game server hosting, sessions, cluster routing, hotfix,
   client helpers, generators, and guardrails.
-- `Lakona.Tool` for project scaffolding and maintenance commands.
+- `Lakona.Tool` for `lakona-tool`, the single project scaffolding and maintenance command.
 
 ## Quick Start
 
 ```bash
-dotnet tool install --global Lakona.Tool
-lakona new --name MyGame --client-engine unity --transport tcp --serializer memorypack
+dotnet tool install -g Lakona.Tool
+lakona-tool new --name MyGame --client-engine unity --transport tcp --serializer memorypack
 cd MyGame
 dotnet run --project "Server/Server/Server.csproj"
 ```
