@@ -16,4 +16,8 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Lakona.Tool/Lakona.Tool.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include="RpcStarter\Golden\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

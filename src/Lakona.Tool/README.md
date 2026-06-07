@@ -1,23 +1,19 @@
 # Lakona.Tool
 
-`Lakona.Tool` creates Lakona.Game projects.
+`Lakona.Tool` is the single command-line project tool for Lakona. It generates
+the base Lakona.Rpc shared/server/client workspace and then adds Lakona.Game
+server, client, actor, hotfix, cluster, and configuration scaffolding.
 
 ## Install
 
-Install the tool:
-
 ```bash
-dotnet tool install --global Lakona.Tool
+dotnet tool install -g Lakona.Tool
 ```
-
-The first time you run `lakona new`, the tool automatically installs the matching `Lakona.Rpc.Starter` version if `lakona-starter` is not already available, then continues project generation.
 
 ## Create A Project
 
-Start with the minimal command:
-
 ```bash
-lakona new --name MyGame
+lakona-tool new --name MyGame --client-engine unity --transport websocket --serializer json
 ```
 
 After generation, run the printed check command before starting the server:
@@ -25,12 +21,6 @@ After generation, run the printed check command before starting the server:
 ```bash
 cd MyGame
 dotnet run --project "Server/Server/Server.csproj" -- --lakona-game-check
-```
-
-Common options:
-
-```bash
-lakona new --name MyGame --client-engine unity --transport websocket --serializer json
 ```
 
 Supported values:
@@ -63,14 +53,14 @@ The generated `appsettings.json` intentionally stays small. It contains only the
 For a local Docker Compose rehearsal:
 
 ```bash
-lakona new --name MyGame --deploy-profile compose
+lakona-tool new --name MyGame --deploy-profile compose
 ```
 
 To include database dependencies:
 
 ```bash
-lakona new --name MyGame --persistence postgres
-lakona new --name MyGame --persistence mysql
+lakona-tool new --name MyGame --persistence postgres
+lakona-tool new --name MyGame --persistence mysql
 ```
 
 ## Generated Configuration
