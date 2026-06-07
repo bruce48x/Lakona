@@ -584,6 +584,150 @@ public sealed class ToolTextTests
         }
     }
 
+    private sealed class FakeCliTerminal : ICliTerminal
+    {
+        private readonly Queue<string?> input;
+
+        public FakeCliTerminal(IEnumerable<string?> input, bool isInputRedirected = false)
+        {
+            this.input = new Queue<string?>(input);
+            IsInputRedirected = isInputRedirected;
+        }
+
+        public bool IsInputRedirected { get; }
+        public bool IsOutputRedirected => false;
+        public StringWriter Output { get; } = new(CultureInfo.InvariantCulture);
+        public StringWriter Error { get; } = new(CultureInfo.InvariantCulture);
+
+        public string? ReadLine()
+        {
+            return input.Count == 0 ? null : input.Dequeue();
+        }
+
+        public void Write(string value)
+        {
+            Output.Write(value);
+        }
+
+        public void WriteLine(string value)
+        {
+            Output.WriteLine(value);
+        }
+
+        public void WriteErrorLine(string value)
+        {
+            Error.WriteLine(value);
+        }
+    }
+
+    [Fact]
+    public void NewCommandPrompter_CompletesMissingInteractiveOptions()
+    {
+        var text = ToolText.ForCulture(CultureInfo.GetCultureInfo("en-US"));
+        var terminal = new FakeCliTerminal([
+            "Arena",
+            "D:\\Games",
+            "4",
+            "1",
+            "1",
+            "3",
+            "2"
+        ]);
+        var prompter = new NewCommandPrompter(text, terminal);
+
+        var options = prompter.Complete(CliParser.ParseNewOptions([]));
+
+        Assert.Equal("Arena", options.Name);
+        Assert.Equal("D:\\Games", options.OutputPath);
+        Assert.Equal("godot", options.ClientEngine);
+        Assert.Equal("tcp", options.Transport);
+        Assert.Equal("json", options.Serializer);
+        Assert.Equal("postgres", options.Persistence);
+        Assert.Equal("compose", options.DeployProfile);
+        Assert.Equal(ProjectConventions.DefaultNuGetForUnitySource, options.NuGetForUnitySource);
+        Assert.True(options.HasExplicit(NewCommandOptionPresence.Name));
+        Assert.True(options.HasExplicit(NewCommandOptionPresence.OutputPath));
+        Assert.True(options.HasExplicit(NewCommandOptionPresence.ClientEngine));
+        Assert.True(options.HasExplicit(NewCommandOptionPresence.Transport));
+        Assert.True(options.HasExplicit(NewCommandOptionPresence.Serializer));
+        Assert.True(options.HasExplicit(NewCommandOptionPresence.Persistence));
+        Assert.True(options.HasExplicit(NewCommandOptionPresence.DeployProfile));
+        Assert.False(options.HasExplicit(NewCommandOptionPresence.NuGetForUnitySource));
+
+        var output = terminal.Output.ToString();
+        Assert.Contains("Project name", output, StringComparison.Ordinal);
+        Assert.Contains("Client engine", output, StringComparison.Ordinal);
+        Assert.Contains("1) unity", output, StringComparison.Ordinal);
+        Assert.Contains("4) godot", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NewCommandPrompter_PromptsUnityNuGetSource()
+    {
+        var text = ToolText.ForCulture(CultureInfo.GetCultureInfo("en-US"));
+        var terminal = new FakeCliTerminal([
+            "Arena",
+            "",
+            "1",
+            "3",
+            "2",
+            "1",
+            "1",
+            "2"
+        ]);
+        var prompter = new NewCommandPrompter(text, terminal);
+
+        var options = prompter.Complete(CliParser.ParseNewOptions([]));
+
+        Assert.Equal("unity", options.ClientEngine);
+        Assert.Equal("kcp", options.Transport);
+        Assert.Equal("memorypack", options.Serializer);
+        Assert.Equal("none", options.Persistence);
+        Assert.Equal("none", options.DeployProfile);
+        Assert.Equal("openupm", options.NuGetForUnitySource);
+        Assert.True(options.HasExplicit(NewCommandOptionPresence.NuGetForUnitySource));
+    }
+
+    [Fact]
+    public void NewCommandPrompter_DoesNotPromptExplicitOptionsAgain()
+    {
+        var text = ToolText.ForCulture(CultureInfo.GetCultureInfo("en-US"));
+        var terminal = new FakeCliTerminal([
+            "",
+            "1",
+            "2",
+            "1",
+            "1",
+            "1"
+        ]);
+        var prompter = new NewCommandPrompter(text, terminal);
+        var parsed = CliParser.ParseNewOptions([
+            "--name", "Arena",
+            "--client-engine", "godot"
+        ]);
+
+        var options = prompter.Complete(parsed);
+
+        Assert.Equal("Arena", options.Name);
+        Assert.Equal("godot", options.ClientEngine);
+        Assert.DoesNotContain("Project name", terminal.Output.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("Client engine", terminal.Output.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NewCommandPrompter_RejectsMissingOptionsWhenInputRedirected()
+    {
+        var text = ToolText.ForCulture(CultureInfo.GetCultureInfo("en-US"));
+        var terminal = new FakeCliTerminal([], isInputRedirected: true);
+        var prompter = new NewCommandPrompter(text, terminal);
+
+        var exception = Assert.Throws<CliUsageException>(() => prompter.Complete(CliParser.ParseNewOptions([])));
+
+        Assert.Contains("Missing required options for non-interactive project creation", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("lakona-tool new --name MyGame", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("--client-engine unity", exception.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void ClusterEnvExampleUsesSelectedTransportForAdvertisedClientEndpoint()
     {

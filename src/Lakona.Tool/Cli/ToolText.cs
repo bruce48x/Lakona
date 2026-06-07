@@ -85,6 +85,86 @@ internal sealed class ToolText
             """
     };
 
+    public string InteractiveNewHeader => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => "创建 Lakona.Game 项目。按 Enter 使用括号中的默认值。",
+        ToolLanguage.TraditionalChinese => "建立 Lakona.Game 專案。按 Enter 使用括號中的預設值。",
+        _ => "Create a Lakona.Game project. Press Enter to use the default in parentheses."
+    };
+
+    public string ProjectNamePrompt => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => "项目名称",
+        ToolLanguage.TraditionalChinese => "專案名稱",
+        _ => "Project name"
+    };
+
+    public string OutputDirectoryPrompt => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => "输出目录",
+        ToolLanguage.TraditionalChinese => "輸出目錄",
+        _ => "Output directory"
+    };
+
+    public string ClientEnginePrompt => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => "客户端引擎",
+        ToolLanguage.TraditionalChinese => "用戶端引擎",
+        _ => "Client engine"
+    };
+
+    public string TransportPrompt => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => "传输协议",
+        ToolLanguage.TraditionalChinese => "傳輸協定",
+        _ => "Transport"
+    };
+
+    public string SerializerPrompt => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => "序列化器",
+        ToolLanguage.TraditionalChinese => "序列化器",
+        _ => "Serializer"
+    };
+
+    public string PersistencePrompt => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => "持久化",
+        ToolLanguage.TraditionalChinese => "持久化",
+        _ => "Persistence"
+    };
+
+    public string NuGetForUnitySourcePrompt => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => "NuGetForUnity 来源",
+        ToolLanguage.TraditionalChinese => "NuGetForUnity 來源",
+        _ => "NuGetForUnity source"
+    };
+
+    public string DeployProfilePrompt => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => "部署配置",
+        ToolLanguage.TraditionalChinese => "部署設定",
+        _ => "Deploy profile"
+    };
+
+    public string InvalidSelection(string value, int max) => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => $"无效选择 '{value}'。请输入 1 到 {max} 之间的数字。",
+        ToolLanguage.TraditionalChinese => $"無效選擇 '{value}'。請輸入 1 到 {max} 之間的數字。",
+        _ => $"Invalid selection '{value}'. Enter a number from 1 to {max}."
+    };
+
+    public string MissingNonInteractiveNewOptions => Language switch
+    {
+        ToolLanguage.SimplifiedChinese =>
+            "非交互式创建项目缺少必要选项。请提供完整命令，例如: lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack --persistence none --nugetforunity-source embedded --deploy-profile none",
+        ToolLanguage.TraditionalChinese =>
+            "非互動式建立專案缺少必要選項。請提供完整命令，例如: lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack --persistence none --nugetforunity-source embedded --deploy-profile none",
+        _ =>
+            "Missing required options for non-interactive project creation. Provide a complete command, for example: lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack --persistence none --nugetforunity-source embedded --deploy-profile none"
+    };
+
     public string UnknownCommand(string command) => Language switch
     {
         ToolLanguage.SimplifiedChinese => $"未知命令: {command}",
