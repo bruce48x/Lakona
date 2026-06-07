@@ -215,7 +215,6 @@ pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Analyzers/Lakona.Rpc.Analyzers.cspr
 pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Core/Lakona.Rpc.Core.csproj"
 pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Client/Lakona.Rpc.Client.csproj"
 pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Server/Lakona.Rpc.Server.csproj"
-pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Starter/Lakona.Rpc.Starter.csproj"
 pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Transport.WebSocket/Lakona.Rpc.Transport.WebSocket.csproj"
 pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Transport.Tcp/Lakona.Rpc.Transport.Tcp.csproj"
 pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Transport.Kcp/Lakona.Rpc.Transport.Kcp.csproj"
@@ -232,9 +231,6 @@ pack_local_package "$ROOT_DIR/src/Lakona.Game.Cluster/Lakona.Game.Cluster.csproj
 pack_local_package "$ROOT_DIR/src/Lakona.Game.Cluster.Rpc/Lakona.Game.Cluster.Rpc.csproj"
 pack_local_package "$ROOT_DIR/src/Lakona.Tool/Lakona.Tool.csproj"
 
-echo "Installing lakona-starter into $TOOLS_DIR"
-dotnet tool install Lakona.Rpc.Starter --version 0.4.2 --add-source "$LOCAL_FEED" --tool-path "$TOOLS_DIR"
-export PATH="$TOOLS_DIR:$PATH"
 export ULINKRPC_GODOT_NUPKGS="$GODOT_NUPKGS"
 
 echo "Generating Lakona Godot project at $PROJECT_DIR ($TRANSPORT + $SERIALIZER)"

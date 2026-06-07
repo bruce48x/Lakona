@@ -12,60 +12,6 @@ env:
   GODOT_MONO_ARCHIVE: Godot_v4.6.1-stable_mono_linux_x86_64.zip
 
 jobs:
-  verify-rpc-godot-starter:
-    runs-on: ubuntu-latest
-    timeout-minutes: 35
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - transport: websocket
-            serializer: memorypack
-          - transport: tcp
-            serializer: json
-          - transport: kcp
-            serializer: memorypack
-    name: Verify RPC Godot starter (${{ matrix.transport }} + ${{ matrix.serializer }})
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Download Godot Mono
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/godot"
-          curl -fL "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable/${GODOT_MONO_ARCHIVE}" -o "$RUNNER_TEMP/godot/${GODOT_MONO_ARCHIVE}"
-          unzip -q "$RUNNER_TEMP/godot/${GODOT_MONO_ARCHIVE}" -d "$RUNNER_TEMP/godot"
-
-      - name: Resolve Godot paths
-        run: |
-          set -euo pipefail
-          GODOT_BIN="$(find "$RUNNER_TEMP/godot" -maxdepth 2 -type f \( -name 'Godot_v*-stable_mono_linux.x86_64' -o -name 'Godot_v*-stable_mono_linux_x86_64' \) | head -n 1)"
-          GODOT_NUPKGS="$(find "$RUNNER_TEMP/godot" -type d -path '*/GodotSharp/Tools/nupkgs' | head -n 1)"
-
-          if [ -z "$GODOT_BIN" ] || [ -z "$GODOT_NUPKGS" ]; then
-            echo "Failed to locate Godot binary or GodotSharp nupkgs." >&2
-            exit 1
-          fi
-
-          chmod +x "$GODOT_BIN"
-          {
-            echo "GODOT_BIN=$GODOT_BIN"
-            echo "GODOT_NUPKGS=$GODOT_NUPKGS"
-          } >> "$GITHUB_ENV"
-
-      - name: Verify starter-generated Godot project
-        env:
-          STARTER_TRANSPORT: ${{ matrix.transport }}
-          STARTER_SERIALIZER: ${{ matrix.serializer }}
-        run: bash ./scripts/rpc/ci/verify-starter-godot.sh
-
   verify-lakona-godot-tool:
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -79,7 +25,7 @@ jobs:
             serializer: json
           - transport: kcp
             serializer: memorypack
-    name: Verify Lakona Godot tool (${{ matrix.transport }} + ${{ matrix.serializer }})
+    name: Verify lakona-tool Godot project (${{ matrix.transport }} + ${{ matrix.serializer }})
 
     steps:
       - name: Checkout
