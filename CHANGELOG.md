@@ -1,38 +1,22 @@
 # Changelog
 
-Lakona was created on 2026-06-07 by merging the former Lakona.Game, Lakona.Actor,
-and Lakona.Rpc repositories into a single monorepo. This changelog starts from that consolidation.
+Lakona 于 2026-06-07 将原来的 ULinkGame、ULinkActor、ULinkRpc
+三个仓库合并为单一 monorepo。本 changelog 从此开始。
 
 ## 2026-06-07
 
-### Merged: Lakona.Rpc.Starter into Lakona.Tool
+### 合并 Lakona.Rpc.Starter 到 Lakona.Tool
 
-`Lakona.Tool` is now the single .NET CLI tool for Lakona project generation. The
-standalone `Lakona.Rpc.Starter` package and `lakona-starter` command have been
-removed — RPC workspace generation runs in-process.
-
-**Breaking change:** Install and run `lakona-tool` instead of `lakona` or
-`lakona-starter`. There is no compatibility alias.
+`Lakona.Tool` 现在是 Lakona 唯一的 .NET CLI 工具，一个命令完成所有项目生成。
 
 ```bash
 dotnet tool install -g Lakona.Tool
 lakona-tool new --name MyGame --client-engine unity --transport websocket --serializer json
 ```
 
-**What changed:**
-
-- `ToolCommandName` switched from `lakona` to `lakona-tool`.
-- Starter generator code moved into `src/Lakona.Tool/RpcStarter/` as the
-  internal `Lakona.Tool.RpcStarter` module. Generation is now in-process via
-  `RpcStarterGenerator`, called directly by `CliApplication.NewAsync`.
-- `ToolProcessRunner` and all external `lakona-starter` invocation, installation,
-  and version-checking behavior removed.
-- `ToolPackageVersions.ULinkRpcStarter` removed; starter release versions are
-  resolved from the embedded `ReleaseVersions.json` inside `Lakona.Tool`.
-- Starter tests moved into `tests/Lakona.Tool.Tests/RpcStarter/`.
-- `src/Lakona.Rpc.Starter` and `tests/Lakona.Rpc.Starter.Tests` deleted.
-- CI Godot daily workflow consolidated to a single `lakona-tool` job.
-  `scripts/rpc/ci/verify-starter-godot.sh` deleted.
-- Docs updated to show `lakona-tool` as the only project generator.
-  `src/Lakona.Tool/README.md` rewritten as the canonical tool README.
-- `ProcessInvocation` record struct removed from `ToolModels.cs`.
+- 原先分散在 `lakona-starter` 的 RPC 工作区生成逻辑已移入 `Lakona.Tool` 内部，不再需要单独安装第二个工具。
+- 工具命令名从 `lakona` 改为 `lakona-tool`，帮助文本和文档已同步更新。
+- 启动器生成代码位于 `src/Lakona.Tool/RpcStarter/`，作为内部 `Lakona.Tool.RpcStarter` 模块运行。
+- 删除了独立的 `src/Lakona.Rpc.Starter` 项目和 `tests/Lakona.Rpc.Starter.Tests`，测试已合并到 `tests/Lakona.Tool.Tests/RpcStarter/`。
+- CI 的 Godot 每日验证合并为单一 `lakona-tool` 任务。
+- 文档更新为 `lakona-tool` 作为唯一的项目生成入口。
