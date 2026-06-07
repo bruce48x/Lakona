@@ -1,7 +1,8 @@
 using System.Text.Json;
+using Lakona.Tool.RpcStarter;
 
 internal sealed class CliApplication(
-    ToolProcessRunner processRunner,
+    RpcStarterGenerator rpcStarterGenerator,
     ProjectScaffolder projectScaffolder,
     ToolConfigStore configStore,
     ToolText? text = null)
@@ -56,11 +57,7 @@ internal sealed class CliApplication(
         var projectName = string.IsNullOrWhiteSpace(options.Name) ? ProjectConventions.DefaultProjectName : options.Name;
         var projectRoot = Path.Combine(outputDirectory, projectName);
 
-        var starterExitCode = await processRunner.RunStarterNewAsync(projectName, outputDirectory, options).ConfigureAwait(false);
-        if (starterExitCode != 0)
-        {
-            return starterExitCode;
-        }
+        rpcStarterGenerator.Generate(ToRpcStarterOptions(projectName, outputDirectory, options));
 
         if (!Directory.Exists(projectRoot))
         {
@@ -95,6 +92,51 @@ internal sealed class CliApplication(
         Console.WriteLine(text.CheckProjectStep);
         Console.WriteLine(text.StartServerStep);
     }
+
+    private static RpcStarterNewOptions ToRpcStarterOptions(
+        string projectName,
+        string outputDirectory,
+        NewCommandOptions options)
+    {
+        return new RpcStarterNewOptions(
+            projectName,
+            outputDirectory,
+            ParseClientEngine(options.ClientEngine),
+            ParseTransport(options.Transport),
+            ParseSerializer(options.Serializer),
+            ParseNuGetForUnitySource(options.NuGetForUnitySource));
+    }
+
+    private static ClientEngineKind ParseClientEngine(string value) => value switch
+    {
+        "unity" => ClientEngineKind.Unity,
+        "unity-cn" => ClientEngineKind.UnityCn,
+        "tuanjie" => ClientEngineKind.Tuanjie,
+        "godot" => ClientEngineKind.Godot,
+        _ => throw new InvalidOperationException($"Unsupported --client-engine value after validation: {value}")
+    };
+
+    private static TransportKind ParseTransport(string value) => value switch
+    {
+        "tcp" => TransportKind.Tcp,
+        "websocket" => TransportKind.WebSocket,
+        "kcp" => TransportKind.Kcp,
+        _ => throw new InvalidOperationException($"Unsupported --transport value after validation: {value}")
+    };
+
+    private static SerializerKind ParseSerializer(string value) => value switch
+    {
+        "json" => SerializerKind.Json,
+        "memorypack" => SerializerKind.MemoryPack,
+        _ => throw new InvalidOperationException($"Unsupported --serializer value after validation: {value}")
+    };
+
+    private static NuGetForUnitySourceKind ParseNuGetForUnitySource(string value) => value switch
+    {
+        "embedded" => NuGetForUnitySourceKind.Embedded,
+        "openupm" => NuGetForUnitySourceKind.OpenUpm,
+        _ => throw new InvalidOperationException($"Unsupported --nugetforunity-source value after validation: {value}")
+    };
 }
 
 internal sealed class ToolConfigStore

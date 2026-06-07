@@ -172,55 +172,6 @@ internal sealed class ToolText
         _ => "  2) dotnet run --project \"Server/Server/Server.csproj\" -- --lakona-game-check"
     };
 
-    public string UnableToLocateStarter => Language switch
-    {
-        ToolLanguage.SimplifiedChinese => "无法找到 `lakona-starter`。",
-        ToolLanguage.TraditionalChinese => "無法找到 `lakona-starter`。",
-        _ => "Unable to locate `lakona-starter`."
-    };
-
-    public string InstallingStarter(string packageId, string version) => Language switch
-    {
-        ToolLanguage.SimplifiedChinese => $"未找到 `lakona-starter`，正在自动安装 `{packageId}` `{version}`...",
-        ToolLanguage.TraditionalChinese => $"找不到 `lakona-starter`，正在自動安裝 `{packageId}` `{version}`...",
-        _ => $"`lakona-starter` was not found. Installing `{packageId}` `{version}`..."
-    };
-
-    public string UnableToInstallStarter(string packageId) => Language switch
-    {
-        ToolLanguage.SimplifiedChinese => $"无法自动安装 `{packageId}`。",
-        ToolLanguage.TraditionalChinese => $"無法自動安裝 `{packageId}`。",
-        _ => $"Unable to install `{packageId}` automatically."
-    };
-
-    public string InstallStarterBeforeNew => Language switch
-    {
-        ToolLanguage.SimplifiedChinese => "请运行 `dotnet tool install --global Lakona.Rpc.Starter`，或确认 .NET 全局工具目录已加入 PATH。",
-        ToolLanguage.TraditionalChinese => "請執行 `dotnet tool install --global Lakona.Rpc.Starter`，或確認 .NET 全域工具目錄已加入 PATH。",
-        _ => "Run `dotnet tool install --global Lakona.Rpc.Starter`, or make sure the .NET global tools directory is on PATH."
-    };
-
-    public string StarterVersionMismatch(string installed, string expected) => Language switch
-    {
-        ToolLanguage.SimplifiedChinese => $"检测到 `lakona-starter` 版本不匹配：已安装 {installed}，需要 {expected}。正在自动更新...",
-        ToolLanguage.TraditionalChinese => $"偵測到 `lakona-starter` 版本不符：已安裝 {installed}，需要 {expected}。正在自動更新...",
-        _ => $"`lakona-starter` version mismatch detected: installed {installed}, expected {expected}. Updating..."
-    };
-
-    public string StarterUpdated(string version) => Language switch
-    {
-        ToolLanguage.SimplifiedChinese => $"`lakona-starter` 已更新至 {version}。",
-        ToolLanguage.TraditionalChinese => $"`lakona-starter` 已更新至 {version}。",
-        _ => $"`lakona-starter` has been updated to {version}."
-    };
-
-    public string UnableToUpdateStarter(string packageId) => Language switch
-    {
-        ToolLanguage.SimplifiedChinese => $"无法自动更新 `{packageId}`。",
-        ToolLanguage.TraditionalChinese => $"無法自動更新 `{packageId}`。",
-        _ => $"Unable to update `{packageId}` automatically."
-    };
-
     private string DidYouMeanValue(string suggestion) => Language switch
     {
         ToolLanguage.SimplifiedChinese => $"你是否想输入 '{suggestion}'?",

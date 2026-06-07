@@ -48,7 +48,6 @@ internal static class ProjectConventions
 
 internal static partial class ToolPackageVersions
 {
-    public const string ULinkRpcStarter = "0.4.2";
     public const string MicrosoftExtensionsHosting = "10.0.0";
     public const string Dapper = "2.1.72";
     public const string MySqlConnector = "2.5.0";
@@ -100,8 +99,6 @@ internal readonly record struct NewCommandOptions(
     string Persistence,
     string NuGetForUnitySource,
     string DeployProfile);
-
-internal readonly record struct ProcessInvocation(string FileName, IReadOnlyList<string> Arguments, bool CanFallback);
 
 internal readonly record struct PackageArtifact(string PackageId, string Version, string Namespace);
 

@@ -1,4 +1,5 @@
 using System.Globalization;
+using Lakona.Tool.RpcStarter;
 using Xunit;
 
 namespace Lakona.Tool.Tests;
@@ -52,7 +53,7 @@ public sealed class ToolTextTests
     public void NewProjectReadyOutput_DoesNotPrintFourthStep()
     {
         var text = ToolText.ForCulture(CultureInfo.GetCultureInfo("zh-CN"));
-        var app = new CliApplication(new ToolProcessRunner(text), new ProjectScaffolder(), new ToolConfigStore(), text);
+        var app = new CliApplication(new RpcStarterGenerator(), new ProjectScaffolder(), new ToolConfigStore(), text);
         using var writer = new StringWriter(CultureInfo.InvariantCulture);
         var originalOut = Console.Out;
 
@@ -137,6 +138,23 @@ public sealed class ToolTextTests
         }
 
         throw new InvalidOperationException("Could not find repository root.");
+    }
+
+    [Fact]
+    public void ToolText_DoesNotExposeStarterInstallMessages()
+    {
+        var text = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "Lakona.Tool",
+            "Cli",
+            "ToolText.cs"));
+
+        Assert.DoesNotContain("InstallingStarter", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("UnableToInstallStarter", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("StarterVersionMismatch", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona.Rpc.Starter", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("lakona-starter", text, StringComparison.Ordinal);
     }
 
     [Fact]

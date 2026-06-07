@@ -1,6 +1,8 @@
+using Lakona.Tool.RpcStarter;
+
 var text = ToolText.Current;
 var exitCode = await new CliApplication(
-        new ToolProcessRunner(text),
+        new RpcStarterGenerator(),
         new ProjectScaffolder(),
         new ToolConfigStore(),
         text)
