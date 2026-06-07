@@ -9,6 +9,7 @@
     <Version>0.1.3</Version>
     <Description>Lakona.Rpc-based node messenger adapter for Lakona.Game cluster routing.</Description>
     <PackageTags>lakona-game;game;cluster;routing;lakona-rpc</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Lakona.Game.Cluster\Lakona.Game.Cluster.csproj" />
@@ -19,6 +20,6 @@
     <ProjectReference Include="..\Lakona.Rpc.Transport.Tcp\Lakona.Rpc.Transport.Tcp.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <None Update="README.md" Pack="true" PackagePath="\" />
+    <None Include="README.md" Pack="true" PackagePath="" />
   </ItemGroup>
 </Project>

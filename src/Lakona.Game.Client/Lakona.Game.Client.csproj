@@ -9,6 +9,7 @@
     <Version>0.1.6</Version>
     <Description>Engine-neutral client helpers for Lakona.Game applications, including reliable push sequence tracking.</Description>
     <PackageTags>lakona-game;lakona-rpc;game;client;unity;godot;rpc;reliable-push</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,6 +17,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="README.md" Pack="true" PackagePath="\" />
+    <None Include="README.md" Pack="true" PackagePath="" />
   </ItemGroup>
 </Project>

@@ -8,6 +8,7 @@
     <Version>0.1.1</Version>
     <Description>Runtime loader and dispatcher for Lakona.Game server hotfix assemblies.</Description>
     <PackageTags>lakona-game;hotfix;server;reload</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,6 +20,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="README.md" Pack="true" PackagePath="\" />
+    <None Include="README.md" Pack="true" PackagePath="" />
   </ItemGroup>
 </Project>

@@ -9,6 +9,7 @@
     <Version>0.1.4</Version>
     <Description>Optional explicit cluster routing contracts and in-memory runtime primitives for Lakona.Game.</Description>
     <PackageTags>lakona-game;game;cluster;routing;actor</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,6 +17,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="README.md" Pack="true" PackagePath="\" />
+    <None Include="README.md" Pack="true" PackagePath="" />
   </ItemGroup>
 </Project>
