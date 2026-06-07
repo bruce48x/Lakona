@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
-WORK_DIR="$ROOT_DIR/.tmp/ulinkgame-tool-godot-daily"
+ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)"
+WORK_DIR="$ROOT_DIR/.tmp/lakona-tool-godot-daily"
 GENERATED_ROOT="$WORK_DIR/generated"
 TOOLS_DIR="$WORK_DIR/tools"
 LOG_DIR="$WORK_DIR/logs"
 LOCAL_FEED="$ROOT_DIR/artifacts/ci-nuget"
 CI_NUGET_CONFIG="$WORK_DIR/NuGet.config"
 
-TRANSPORT="${ULINKGAME_TOOL_TRANSPORT:-kcp}"
-SERIALIZER="${ULINKGAME_TOOL_SERIALIZER:-memorypack}"
+TRANSPORT="${LAKONA_TOOL_TRANSPORT:-${ULINKGAME_TOOL_TRANSPORT:-kcp}}"
+SERIALIZER="${LAKONA_TOOL_SERIALIZER:-${ULINKGAME_TOOL_SERIALIZER:-memorypack}}"
 TRANSPORT_LABEL="$(tr '[:lower:]' '[:upper:]' <<< "${TRANSPORT:0:1}")${TRANSPORT:1}"
 SERIALIZER_LABEL="$(tr '[:lower:]' '[:upper:]' <<< "${SERIALIZER:0:1}")${SERIALIZER:1}"
-PROJECT_NAME="ULinkGameGodot${TRANSPORT_LABEL}${SERIALIZER_LABEL}"
+PROJECT_NAME="LakonaGodot${TRANSPORT_LABEL}${SERIALIZER_LABEL}"
 PROJECT_DIR="$GENERATED_ROOT/$PROJECT_NAME"
 CLIENT_DIR="$PROJECT_DIR/Client"
 CLIENT_PROJECT=""
@@ -30,7 +30,7 @@ fi
 case "$TRANSPORT" in
   tcp|websocket|kcp) ;;
   *)
-    echo "Unsupported ULINKGAME_TOOL_TRANSPORT: $TRANSPORT" >&2
+    echo "Unsupported LAKONA_TOOL_TRANSPORT: $TRANSPORT" >&2
     exit 1
     ;;
 esac
@@ -38,7 +38,7 @@ esac
 case "$SERIALIZER" in
   json|memorypack) ;;
   *)
-    echo "Unsupported ULINKGAME_TOOL_SERIALIZER: $SERIALIZER" >&2
+    echo "Unsupported LAKONA_TOOL_SERIALIZER: $SERIALIZER" >&2
     exit 1
     ;;
 esac
@@ -210,18 +210,35 @@ cat > "$CI_NUGET_CONFIG" <<EOF
 </configuration>
 EOF
 
-echo "Packing local ULinkGame packages into $LOCAL_FEED"
-pack_local_package "$ROOT_DIR/src/ULinkGame.Client/ULinkGame.Client.csproj"
-pack_local_package "$ROOT_DIR/src/ULinkGame.Server/ULinkGame.Server.csproj"
-pack_local_package "$ROOT_DIR/src/ULinkGame.Tool/ULinkGame.Tool.csproj"
+echo "Packing local Lakona packages into $LOCAL_FEED"
+pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Analyzers/Lakona.Rpc.Analyzers.csproj"
+pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Core/Lakona.Rpc.Core.csproj"
+pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Client/Lakona.Rpc.Client.csproj"
+pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Server/Lakona.Rpc.Server.csproj"
+pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Starter/Lakona.Rpc.Starter.csproj"
+pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Transport.WebSocket/Lakona.Rpc.Transport.WebSocket.csproj"
+pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Transport.Tcp/Lakona.Rpc.Transport.Tcp.csproj"
+pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Transport.Kcp/Lakona.Rpc.Transport.Kcp.csproj"
+pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Serializer.Json/Lakona.Rpc.Serializer.Json.csproj"
+pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Serializer.MemoryPack/Lakona.Rpc.Serializer.MemoryPack.csproj"
+pack_local_package "$ROOT_DIR/src/Lakona.Game.Abstractions/Lakona.Game.Abstractions.csproj"
+pack_local_package "$ROOT_DIR/src/Lakona.Game.Client/Lakona.Game.Client.csproj"
+pack_local_package "$ROOT_DIR/src/Lakona.Game.Server/Lakona.Game.Server.csproj"
+pack_local_package "$ROOT_DIR/src/Lakona.Game.Server.Generators/Lakona.Game.Server.Generators.csproj"
+pack_local_package "$ROOT_DIR/src/Lakona.Game.Server.Hotfix/Lakona.Game.Server.Hotfix.csproj"
+pack_local_package "$ROOT_DIR/src/Lakona.Game.Server.Hotfix.Abstractions/Lakona.Game.Server.Hotfix.Abstractions.csproj"
+pack_local_package "$ROOT_DIR/src/Lakona.Game.Server.Hotfix.Generators/Lakona.Game.Server.Hotfix.Generators.csproj"
+pack_local_package "$ROOT_DIR/src/Lakona.Game.Cluster/Lakona.Game.Cluster.csproj"
+pack_local_package "$ROOT_DIR/src/Lakona.Game.Cluster.Rpc/Lakona.Game.Cluster.Rpc.csproj"
+pack_local_package "$ROOT_DIR/src/Lakona.Tool/Lakona.Tool.csproj"
 
-echo "Installing ulinkrpc-starter into $TOOLS_DIR"
-dotnet tool install ulinkrpc.starter --version 0.3.4 --tool-path "$TOOLS_DIR"
+echo "Installing lakona-starter into $TOOLS_DIR"
+dotnet tool install Lakona.Rpc.Starter --version 0.4.2 --add-source "$LOCAL_FEED" --tool-path "$TOOLS_DIR"
 export PATH="$TOOLS_DIR:$PATH"
 export ULINKRPC_GODOT_NUPKGS="$GODOT_NUPKGS"
 
-echo "Generating ULinkGame Godot project at $PROJECT_DIR ($TRANSPORT + $SERIALIZER)"
-dotnet run --project "$ROOT_DIR/src/ULinkGame.Tool/ULinkGame.Tool.csproj" -- \
+echo "Generating Lakona Godot project at $PROJECT_DIR ($TRANSPORT + $SERIALIZER)"
+dotnet run --project "$ROOT_DIR/src/Lakona.Tool/Lakona.Tool.csproj" -- \
   new \
   --name "$PROJECT_NAME" \
   --output "$GENERATED_ROOT" \
@@ -270,7 +287,7 @@ for ((i = 0; i < 90; i++)); do
   fi
 
   if grep -Fq "Ping ok:" "$GODOT_STDOUT_LOG" "$CLIENT_LOG" 2>/dev/null; then
-    echo "ULinkGame Tool Godot $TRANSPORT + $SERIALIZER verification passed."
+    echo "Lakona Tool Godot $TRANSPORT + $SERIALIZER verification passed."
     exit 0
   fi
 

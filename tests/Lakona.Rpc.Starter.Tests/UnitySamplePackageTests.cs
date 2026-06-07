@@ -7,20 +7,20 @@ namespace Lakona.Rpc.Starter.Tests;
 public sealed class UnitySamplePackageTests
 {
     [Fact]
-    public void UnitySamples_EmbedCurrentULinkRpcPackages()
+    public void UnitySamples_EmbedCurrentLakonaRpcPackages()
     {
         var repositoryRoot = FindRepositoryRoot();
         var sourceVersions = ReadSourcePackageVersions(repositoryRoot);
         var unityRoots = new[]
         {
-            Path.Combine(repositoryRoot, "samples", "Unity.Json.Websocket", "Client"),
-            Path.Combine(repositoryRoot, "samples", "Unity.MemoryPack.Kcp", "Client"),
-            Path.Combine(repositoryRoot, "samples", "Unity.MemoryPack.Tcp", "Client")
+            Path.Combine(repositoryRoot, "samples", "Rpc.Unity.Json.Websocket", "Client"),
+            Path.Combine(repositoryRoot, "samples", "Rpc.Unity.MemoryPack.Kcp", "Client"),
+            Path.Combine(repositoryRoot, "samples", "Rpc.Unity.MemoryPack.Tcp", "Client")
         };
 
         foreach (var unityRoot in unityRoots)
         {
-            foreach (var package in ReadULinkRpcPackagesConfig(unityRoot))
+            foreach (var package in ReadLakonaRpcPackagesConfig(unityRoot))
             {
                 Assert.True(sourceVersions.TryGetValue(package.Id, out var expectedVersion), $"No source project version was found for {package.Id}.");
                 Assert.Equal(expectedVersion, package.Version);
@@ -33,7 +33,7 @@ public sealed class UnitySamplePackageTests
                 var nuspec = ReadNuspec(nuspecPath);
                 Assert.Equal(expectedVersion, nuspec.Version);
 
-                foreach (var dependency in nuspec.ULinkRpcDependencies)
+                foreach (var dependency in nuspec.LakonaRpcDependencies)
                 {
                     Assert.True(sourceVersions.TryGetValue(dependency.Id, out var expectedDependencyVersion), $"No source project version was found for dependency {dependency.Id}.");
                     Assert.Equal(expectedDependencyVersion, dependency.Version);
@@ -57,9 +57,9 @@ public sealed class UnitySamplePackageTests
         var expectedCoreVersion = ReadProjectVersion(repositoryRoot, "src", "Lakona.Rpc.Core", "Lakona.Rpc.Core.csproj");
         var unityRoots = new[]
         {
-            Path.Combine(repositoryRoot, "samples", "Unity.Json.Websocket", "Client"),
-            Path.Combine(repositoryRoot, "samples", "Unity.MemoryPack.Kcp", "Client"),
-            Path.Combine(repositoryRoot, "samples", "Unity.MemoryPack.Tcp", "Client")
+            Path.Combine(repositoryRoot, "samples", "Rpc.Unity.Json.Websocket", "Client"),
+            Path.Combine(repositoryRoot, "samples", "Rpc.Unity.MemoryPack.Kcp", "Client"),
+            Path.Combine(repositoryRoot, "samples", "Rpc.Unity.MemoryPack.Tcp", "Client")
         };
 
         foreach (var unityRoot in unityRoots)
@@ -116,7 +116,7 @@ public sealed class UnitySamplePackageTests
             ?? throw new InvalidOperationException($"Package '{packageId}' not found in Assets/packages.config.");
     }
 
-    private static List<PackageVersion> ReadULinkRpcPackagesConfig(string unityRoot)
+    private static List<PackageVersion> ReadLakonaRpcPackagesConfig(string unityRoot)
     {
         var packagesConfig = XDocument.Load(Path.Combine(unityRoot, "Assets", "packages.config"));
         return packagesConfig.Root?
@@ -173,5 +173,5 @@ public sealed class UnitySamplePackageTests
 
     private sealed record PackageVersion(string Id, string Version);
 
-    private sealed record NuspecPackage(string Version, List<PackageVersion> ULinkRpcDependencies);
+    private sealed record NuspecPackage(string Version, List<PackageVersion> LakonaRpcDependencies);
 }

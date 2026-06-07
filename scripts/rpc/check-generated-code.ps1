@@ -12,13 +12,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$sampleScript = Join-Path $repoRoot "scripts/sample.ps1"
+$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "../..")
+$sampleScript = Join-Path $repoRoot "scripts/rpc/sample.ps1"
 $samples = @(
-    "Unity.MemoryPack.Tcp",
-    "Unity.Json.Websocket",
-    "Unity.MemoryPack.Kcp",
-    "Godot.MixedTransport"
+    "Rpc.Unity.MemoryPack.Tcp",
+    "Rpc.Unity.Json.Websocket",
+    "Rpc.Unity.MemoryPack.Kcp",
+    "Rpc.Godot.MixedTransport"
 )
 
 foreach ($sample in $samples) {
@@ -56,7 +56,7 @@ if (-not [string]::IsNullOrWhiteSpace($diffOutput)) {
     Write-Error @"
 Source-generated sample checks changed tracked files. Run this command locally and commit the result if the changes are intentional:
 
-  pwsh -NoProfile -File scripts/check-generated-code.ps1
+  pwsh -NoProfile -File scripts/rpc/check-generated-code.ps1
 
 Changed files:
 $diffOutput

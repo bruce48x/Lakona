@@ -37,7 +37,7 @@ migration need.
 
 ## Repository Entry Points
 
-- Root solution: `Lakona.sln`
+- Root solution: `Lakona.slnx`
 - Source packages: `src/**`
 - Tests: `tests/**`
 - Samples: `samples/**`
@@ -47,6 +47,6 @@ migration need.
 Build and test from the repository root:
 
 ```powershell
-dotnet build Lakona.sln
-dotnet test Lakona.sln --no-build
+dotnet build Lakona.slnx
+dotnet test Lakona.slnx --no-build
 ```

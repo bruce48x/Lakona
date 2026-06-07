@@ -1181,6 +1181,7 @@ public sealed class ActorSystemTests
         string response = await actorRef.Call<string>("hello", DefaultCallOptions);
 
         Assert.Equal("hello", response);
+        await Eventually(() => events.Count == 2);
         Assert.Equal(2, events.Count);
         Assert.Equal("before:hello", events[0]);
         Assert.Equal("after:hello:null", events[1]);

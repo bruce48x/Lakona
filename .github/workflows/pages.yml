@@ -1,0 +1,74 @@
+name: Deploy Docs
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/pages.yml"
+      - "blog/**"
+      - "docs/**"
+      - "README.md"
+      - "CONTRIBUTING.md"
+      - "scripts/rpc/check-docs-consistency.ps1"
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Hugo
+        run: |
+          set -eux
+          HUGO_VERSION="0.147.0"
+          ARCHIVE="hugo_extended_${HUGO_VERSION}_linux-amd64.tar.gz"
+          curl -fsSL -o "$ARCHIVE" "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/${ARCHIVE}"
+          sudo tar -C /usr/local/bin -xzf "$ARCHIVE" hugo
+          hugo version
+
+      - name: Check docs consistency
+        run: pwsh -NoProfile -File scripts/rpc/check-docs-consistency.ps1
+
+      - name: Build Hugo site
+        working-directory: blog
+        run: |
+          hugo --minify
+          test -d public
+          ls -la public
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./blog/public
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+

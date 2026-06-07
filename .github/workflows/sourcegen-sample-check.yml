@@ -1,0 +1,53 @@
+name: SourceGen Sample Check
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/sourcegen-sample-check.yml"
+      - "src/Lakona.Rpc.Analyzers/**"
+      - "src/Lakona.Rpc.Core/**"
+      - "src/Lakona.Rpc.Client/**"
+      - "src/Lakona.Rpc.Server/**"
+      - "src/Lakona.Rpc.Transport.*/**"
+      - "src/Lakona.Rpc.Serializer.*/**"
+      - "samples/Rpc.*/**"
+      - "scripts/rpc/sample.ps1"
+      - "scripts/rpc/check-generated-code.ps1"
+  pull_request:
+    paths:
+      - ".github/workflows/sourcegen-sample-check.yml"
+      - "src/Lakona.Rpc.Analyzers/**"
+      - "src/Lakona.Rpc.Core/**"
+      - "src/Lakona.Rpc.Client/**"
+      - "src/Lakona.Rpc.Server/**"
+      - "src/Lakona.Rpc.Transport.*/**"
+      - "src/Lakona.Rpc.Serializer.*/**"
+      - "samples/Rpc.*/**"
+      - "scripts/rpc/sample.ps1"
+      - "scripts/rpc/check-generated-code.ps1"
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  sourcegen-samples:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Check source-generated samples
+        run: pwsh -NoProfile -File scripts/rpc/check-generated-code.ps1 -Configuration Release
+

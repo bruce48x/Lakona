@@ -40,8 +40,8 @@ the appropriate permanent documentation under `docs/**`, then delete the entire
 Use the repository solution for normal validation:
 
 ```powershell
-dotnet build Lakona.sln
-dotnet test Lakona.sln --no-build
+dotnet build Lakona.slnx
+dotnet test Lakona.slnx --no-build
 ```
 
 For large solution test runs that time out under local tooling, run test

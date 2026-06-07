@@ -1,0 +1,75 @@
+name: Publish NuGet
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/publish-nuget.yml"
+      - "Directory.Build.props"
+      - "global.json"
+      - "src/**"
+      - "tests/**"
+
+concurrency:
+  group: publish-nuget
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore Lakona.slnx
+
+      - name: Build
+        run: dotnet build Lakona.slnx --no-restore -c Release -m:1 /nr:false /p:UseSharedCompilation=false
+
+      - name: Test projects
+        run: |
+          set -euo pipefail
+          while IFS= read -r project; do
+            echo "==> dotnet test $project"
+            dotnet test "$project" --no-build -c Release -m:1 /nr:false /p:UseSharedCompilation=false
+          done < <(find tests -name "*.csproj" -print | sort)
+
+      - name: Pack NuGet packages
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/nuget
+          mkdir -p artifacts/nuget
+          while IFS= read -r project; do
+            echo "==> dotnet pack $project"
+            dotnet pack "$project" --no-restore -c Release -o artifacts/nuget
+          done < <(find src -maxdepth 2 -name "*.csproj" -print | sort)
+
+      - name: NuGet login
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER || vars.NUGET_USER }}
+
+      - name: Push NuGet packages
+        run: |
+          dotnet nuget push "artifacts/nuget/*.nupkg" \
+            --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+

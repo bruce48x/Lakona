@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)"
 WORK_DIR="$ROOT_DIR/.tmp/starter-godot-daily"
 GENERATED_ROOT="$WORK_DIR/generated"
 TRANSPORT="${STARTER_TRANSPORT:-websocket}"
@@ -189,36 +189,36 @@ cat > "$CI_NUGET_CONFIG" <<EOF
 EOF
 
 echo "Packing local packages into $LOCAL_FEED"
-pack_local_package "$ROOT_DIR/src/ULinkRPC.Analyzers/ULinkRPC.Analyzers.csproj"
-pack_local_package "$ROOT_DIR/src/ULinkRPC.Core/ULinkRPC.Core.csproj"
-pack_local_package "$ROOT_DIR/src/ULinkRPC.Client/ULinkRPC.Client.csproj"
-pack_local_package "$ROOT_DIR/src/ULinkRPC.Server/ULinkRPC.Server.csproj"
+pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Analyzers/Lakona.Rpc.Analyzers.csproj"
+pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Core/Lakona.Rpc.Core.csproj"
+pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Client/Lakona.Rpc.Client.csproj"
+pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Server/Lakona.Rpc.Server.csproj"
 
 case "$TRANSPORT" in
   websocket)
-    pack_local_package "$ROOT_DIR/src/ULinkRPC.Transport.WebSocket/ULinkRPC.Transport.WebSocket.csproj"
+    pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Transport.WebSocket/Lakona.Rpc.Transport.WebSocket.csproj"
     ;;
   tcp)
-    pack_local_package "$ROOT_DIR/src/ULinkRPC.Transport.Tcp/ULinkRPC.Transport.Tcp.csproj"
+    pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Transport.Tcp/Lakona.Rpc.Transport.Tcp.csproj"
     ;;
   kcp)
-    pack_local_package "$ROOT_DIR/src/ULinkRPC.Transport.Kcp/ULinkRPC.Transport.Kcp.csproj"
+    pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Transport.Kcp/Lakona.Rpc.Transport.Kcp.csproj"
     ;;
 esac
 
 case "$SERIALIZER" in
   json)
-    pack_local_package "$ROOT_DIR/src/ULinkRPC.Serializer.Json/ULinkRPC.Serializer.Json.csproj"
+    pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Serializer.Json/Lakona.Rpc.Serializer.Json.csproj"
     ;;
   memorypack)
-    pack_local_package "$ROOT_DIR/src/ULinkRPC.Serializer.MemoryPack/ULinkRPC.Serializer.MemoryPack.csproj"
+    pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Serializer.MemoryPack/Lakona.Rpc.Serializer.MemoryPack.csproj"
     ;;
 esac
 
 export ULINKRPC_GODOT_NUPKGS="$GODOT_NUPKGS"
 
 echo "Generating starter project at $PROJECT_DIR ($TRANSPORT + $SERIALIZER)"
-dotnet run --project "$ROOT_DIR/src/ULinkRPC.Starter/ULinkRPC.Starter.csproj" -- \
+dotnet run --project "$ROOT_DIR/src/Lakona.Rpc.Starter/Lakona.Rpc.Starter.csproj" -- \
   --name "$PROJECT_NAME" \
   --output "$GENERATED_ROOT" \
   --client-engine godot \

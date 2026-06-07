@@ -1,0 +1,50 @@
+name: Docs Check
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/docs-check.yml"
+      - "README.md"
+      - "CONTRIBUTING.md"
+      - "docs/**"
+      - "blog/**"
+      - "scripts/rpc/check-docs-consistency.ps1"
+  pull_request:
+    paths:
+      - ".github/workflows/docs-check.yml"
+      - "README.md"
+      - "CONTRIBUTING.md"
+      - "docs/**"
+      - "blog/**"
+      - "scripts/rpc/check-docs-consistency.ps1"
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Hugo
+        run: |
+          set -eux
+          HUGO_VERSION="0.147.0"
+          ARCHIVE="hugo_extended_${HUGO_VERSION}_linux-amd64.tar.gz"
+          curl -fsSL -o "$ARCHIVE" "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/${ARCHIVE}"
+          sudo tar -C /usr/local/bin -xzf "$ARCHIVE" hugo
+          hugo version
+
+      - name: Check docs consistency
+        run: pwsh -NoProfile -File scripts/rpc/check-docs-consistency.ps1
+
+      - name: Build Hugo site
+        working-directory: blog
+        run: hugo --printPathWarnings
+

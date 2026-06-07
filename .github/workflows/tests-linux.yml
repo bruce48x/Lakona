@@ -1,0 +1,61 @@
+name: Tests Linux
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/tests-linux.yml"
+      - "Directory.Build.props"
+      - "global.json"
+      - "src/**"
+      - "tests/**"
+      - "samples/Game.Cluster.TwoNode/**"
+  pull_request:
+    paths:
+      - ".github/workflows/tests-linux.yml"
+      - "Directory.Build.props"
+      - "global.json"
+      - "src/**"
+      - "tests/**"
+      - "samples/Game.Cluster.TwoNode/**"
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Inspect workspace
+        run: |
+          pwd
+          find src tests -maxdepth 2 -name "*.csproj" -print
+
+      - name: Restore
+        run: dotnet restore Lakona.slnx
+
+      - name: Build
+        run: dotnet build Lakona.slnx --no-restore -c Release -m:1 /nr:false /p:UseSharedCompilation=false
+
+      - name: Test projects
+        run: |
+          set -euo pipefail
+          while IFS= read -r project; do
+            echo "==> dotnet test $project"
+            dotnet test "$project" --no-build -c Release -m:1 /nr:false /p:UseSharedCompilation=false
+          done < <(find tests -name "*.csproj" -print | sort)
+
