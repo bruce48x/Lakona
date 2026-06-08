@@ -948,4 +948,35 @@ public sealed class ToolTemplateTests
             }
         }
     }
+
+    [Fact]
+    public void ProjectXmlMutator_UpsertsPropertiesAndPackageReferences()
+    {
+        var document = System.Xml.Linq.XDocument.Parse(
+            """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+              </PropertyGroup>
+            </Project>
+            """);
+        var project = document.Root ?? throw new InvalidOperationException("Missing project root.");
+
+        ProjectXmlMutator.SetProperty(project, "TargetFramework", "net10.0");
+        ProjectXmlMutator.RemoveProperty(project, "TargetFrameworks");
+        ProjectXmlMutator.EnsurePackageReference(project, "Lakona.Game.Server", "1.2.3");
+        ProjectXmlMutator.EnsurePackageReference(
+            project,
+            "Lakona.Game.Server.Generators",
+            "2.3.4",
+            ("PrivateAssets", "all"),
+            ("OutputItemType", "Analyzer"));
+
+        var xml = document.ToString();
+
+        Assert.Contains("<TargetFramework>net10.0</TargetFramework>", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("TargetFrameworks", xml, StringComparison.Ordinal);
+        Assert.Contains(@"PackageReference Include=""Lakona.Game.Server"" Version=""1.2.3""", xml, StringComparison.Ordinal);
+        Assert.Contains(@"PackageReference Include=""Lakona.Game.Server.Generators"" Version=""2.3.4"" PrivateAssets=""all"" OutputItemType=""Analyzer""", xml, StringComparison.Ordinal);
+    }
 }

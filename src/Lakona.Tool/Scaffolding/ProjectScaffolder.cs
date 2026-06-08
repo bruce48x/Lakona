@@ -55,7 +55,7 @@ internal sealed class ProjectScaffolder
         var document = System.Xml.Linq.XDocument.Load(path);
         var project = document.Root ?? throw new InvalidOperationException($"Invalid project file: {path}");
 
-        EnsurePackageReference(project, "Lakona.Game.Client", ToolPackageVersions.LakonaGameClient);
+        ProjectXmlMutator.EnsurePackageReference(project, "Lakona.Game.Client", ToolPackageVersions.LakonaGameClient);
 
         await ToolFileWriter.WriteTextAsync(path, document.ToString()).ConfigureAwait(false);
     }
@@ -359,17 +359,17 @@ internal sealed class ProjectScaffolder
         var document = System.Xml.Linq.XDocument.Load(path);
         var project = document.Root ?? throw new InvalidOperationException($"Invalid project file: {path}");
 
-        EnsureConditionalPackageReference(
+        ProjectXmlMutator.EnsureConditionalPackageReference(
             project,
             "'$(TargetFramework)' == 'net10.0'",
             "Lakona.Game.Server.Hotfix.Abstractions",
             ToolPackageVersions.LakonaGameServerHotfixAbstractions);
-        EnsureConditionalPackageReference(
+        ProjectXmlMutator.EnsureConditionalPackageReference(
             project,
             "'$(TargetFramework)' == 'net10.0'",
             "Lakona.Game.Server.Hotfix",
             ToolPackageVersions.LakonaGameServerHotfix);
-        EnsureConditionalPackageReference(
+        ProjectXmlMutator.EnsureConditionalPackageReference(
             project,
             "'$(TargetFramework)' == 'net10.0'",
             "Lakona.Game.Server.Hotfix.Generators",
@@ -416,31 +416,31 @@ internal sealed class ProjectScaffolder
         var document = System.Xml.Linq.XDocument.Load(path);
         var project = document.Root ?? throw new InvalidOperationException($"Invalid project file: {path}");
 
-        SetProperty(project, "OutputType", "Exe");
-        SetProperty(project, "TargetFramework", "net10.0");
-        RemoveProperty(project, "TargetFrameworks");
-        SetProperty(project, "ImplicitUsings", "enable");
-        SetProperty(project, "Nullable", "enable");
-        SetProperty(project, "RootNamespace", "Server");
-        SetProperty(project, "BuildInParallel", "false");
-        SetProperty(project, "RestoreBuildInParallel", "false");
-        SetProperty(project, "LakonaRpcGenerateServer", "true");
-        SetProperty(project, "LakonaRpcServerGeneratedNamespace", ProjectConventions.StarterServerGeneratedNamespace);
+        ProjectXmlMutator.SetProperty(project, "OutputType", "Exe");
+        ProjectXmlMutator.SetProperty(project, "TargetFramework", "net10.0");
+        ProjectXmlMutator.RemoveProperty(project, "TargetFrameworks");
+        ProjectXmlMutator.SetProperty(project, "ImplicitUsings", "enable");
+        ProjectXmlMutator.SetProperty(project, "Nullable", "enable");
+        ProjectXmlMutator.SetProperty(project, "RootNamespace", "Server");
+        ProjectXmlMutator.SetProperty(project, "BuildInParallel", "false");
+        ProjectXmlMutator.SetProperty(project, "RestoreBuildInParallel", "false");
+        ProjectXmlMutator.SetProperty(project, "LakonaRpcGenerateServer", "true");
+        ProjectXmlMutator.SetProperty(project, "LakonaRpcServerGeneratedNamespace", ProjectConventions.StarterServerGeneratedNamespace);
 
-        EnsureProjectReference(project, @"..\..\Shared\Shared.csproj", "net10.0");
-        EnsureProjectReferenceWithoutOutput(project, @"..\Hotfix\Server.Hotfix.csproj");
-        EnsurePackageReference(project, "Microsoft.Extensions.Hosting", ToolPackageVersions.MicrosoftExtensionsHosting);
-        EnsurePackageReference(project, "Lakona.Game.Server", ToolPackageVersions.LakonaGameServer);
-        EnsurePackageReference(
+        ProjectXmlMutator.EnsureProjectReference(project, @"..\..\Shared\Shared.csproj", "net10.0");
+        ProjectXmlMutator.EnsureProjectReferenceWithoutOutput(project, @"..\Hotfix\Server.Hotfix.csproj");
+        ProjectXmlMutator.EnsurePackageReference(project, "Microsoft.Extensions.Hosting", ToolPackageVersions.MicrosoftExtensionsHosting);
+        ProjectXmlMutator.EnsurePackageReference(project, "Lakona.Game.Server", ToolPackageVersions.LakonaGameServer);
+        ProjectXmlMutator.EnsurePackageReference(
             project,
             "Lakona.Game.Server.Generators",
             ToolPackageVersions.LakonaGameServerGenerators,
             ("PrivateAssets", "all"),
             ("OutputItemType", "Analyzer"));
-        EnsurePackageReference(project, "Lakona.Game.Server.Hotfix", ToolPackageVersions.LakonaGameServerHotfix);
+        ProjectXmlMutator.EnsurePackageReference(project, "Lakona.Game.Server.Hotfix", ToolPackageVersions.LakonaGameServerHotfix);
         EnsureClusterPackageReferences(project, options);
         EnsurePersistenceProviderReference(project, options.Persistence, includeDapper: true);
-        EnsureNoneUpdate(project, "appsettings.json", "PreserveNewest");
+        ProjectXmlMutator.EnsureNoneUpdate(project, "appsettings.json", "PreserveNewest");
         EnsureHotfixCopyTarget(project);
 
         await ToolFileWriter.WriteTextAsync(path, document.ToString()).ConfigureAwait(false);
@@ -499,131 +499,6 @@ internal sealed class ProjectScaffolder
         return path.Replace('/', Path.DirectorySeparatorChar);
     }
 
-    private static void SetProperty(System.Xml.Linq.XElement project, string name, string value)
-    {
-        var property = project.Elements("PropertyGroup").SelectMany(group => group.Elements(name)).FirstOrDefault();
-        if (property is null)
-        {
-            var propertyGroup = project.Elements("PropertyGroup").FirstOrDefault() ?? AddElement(project, "PropertyGroup");
-            propertyGroup.Add(new System.Xml.Linq.XElement(name, value));
-            return;
-        }
-
-        property.Value = value;
-    }
-
-    private static void RemoveProperty(System.Xml.Linq.XElement project, string name)
-    {
-        foreach (var property in project.Elements("PropertyGroup").SelectMany(group => group.Elements(name)).ToArray())
-        {
-            property.Remove();
-        }
-    }
-
-    private static void EnsureProjectReference(System.Xml.Linq.XElement project, string include, string targetFramework)
-    {
-        var reference = project
-            .Descendants("ProjectReference")
-            .FirstOrDefault(element => string.Equals(element.Attribute("Include")?.Value, include, StringComparison.OrdinalIgnoreCase));
-
-        if (reference is null)
-        {
-            var itemGroup = FindOrAddItemGroup(project);
-            reference = new System.Xml.Linq.XElement("ProjectReference", new System.Xml.Linq.XAttribute("Include", include));
-            itemGroup.Add(reference);
-        }
-
-        reference.SetAttributeValue("TargetFramework", targetFramework);
-        var setTargetFramework = reference.Elements("SetTargetFramework").FirstOrDefault();
-        if (setTargetFramework is null)
-        {
-            reference.Add(new System.Xml.Linq.XElement("SetTargetFramework", $"TargetFramework={targetFramework}"));
-        }
-        else
-        {
-            setTargetFramework.Value = $"TargetFramework={targetFramework}";
-        }
-    }
-
-    private static void EnsureProjectReferenceWithoutOutput(System.Xml.Linq.XElement project, string include)
-    {
-        var reference = project
-            .Descendants("ProjectReference")
-            .FirstOrDefault(element => string.Equals(element.Attribute("Include")?.Value, include, StringComparison.OrdinalIgnoreCase));
-
-        if (reference is null)
-        {
-            reference = new System.Xml.Linq.XElement("ProjectReference", new System.Xml.Linq.XAttribute("Include", include));
-            FindOrAddItemGroup(project).Add(reference);
-        }
-
-        reference.SetAttributeValue("ReferenceOutputAssembly", "false");
-    }
-
-    private static void EnsurePackageReference(
-        System.Xml.Linq.XElement project,
-        string include,
-        string version,
-        params (string Name, string Value)[] attributes)
-    {
-        var reference = project
-            .Descendants("PackageReference")
-            .FirstOrDefault(element => string.Equals(element.Attribute("Include")?.Value, include, StringComparison.OrdinalIgnoreCase));
-
-        if (reference is null)
-        {
-            reference = new System.Xml.Linq.XElement(
-                "PackageReference",
-                new System.Xml.Linq.XAttribute("Include", include),
-                new System.Xml.Linq.XAttribute("Version", version));
-            FindOrAddItemGroup(project).Add(reference);
-        }
-        else
-        {
-            reference.SetAttributeValue("Version", version);
-        }
-
-        foreach (var attribute in attributes)
-        {
-            reference.SetAttributeValue(attribute.Name, attribute.Value);
-        }
-    }
-
-    private static void EnsureConditionalPackageReference(
-        System.Xml.Linq.XElement project,
-        string condition,
-        string include,
-        string version,
-        params (string Name, string Value)[] attributes)
-    {
-        var reference = project
-            .Descendants("PackageReference")
-            .FirstOrDefault(element => string.Equals(element.Attribute("Include")?.Value, include, StringComparison.OrdinalIgnoreCase));
-
-        if (reference is null)
-        {
-            var itemGroup = project
-                .Elements("ItemGroup")
-                .FirstOrDefault(group => string.Equals(group.Attribute("Condition")?.Value, condition, StringComparison.Ordinal));
-            if (itemGroup is null)
-            {
-                itemGroup = new System.Xml.Linq.XElement("ItemGroup", new System.Xml.Linq.XAttribute("Condition", condition));
-                project.Add(itemGroup);
-            }
-
-            reference = new System.Xml.Linq.XElement(
-                "PackageReference",
-                new System.Xml.Linq.XAttribute("Include", include));
-            itemGroup.Add(reference);
-        }
-
-        reference.SetAttributeValue("Version", version);
-        foreach (var attribute in attributes)
-        {
-            reference.SetAttributeValue(attribute.Name, attribute.Value);
-        }
-    }
-
     private static void EnsurePersistenceProviderReference(System.Xml.Linq.XElement project, string persistence, bool includeDapper)
     {
         if (!ProjectConventions.UsesExternalPersistence(persistence))
@@ -633,16 +508,16 @@ internal sealed class ProjectScaffolder
 
         if (includeDapper)
         {
-            EnsurePackageReference(project, "Dapper", ToolPackageVersions.Dapper);
+            ProjectXmlMutator.EnsurePackageReference(project, "Dapper", ToolPackageVersions.Dapper);
         }
 
         if (string.Equals(persistence, "mysql", StringComparison.OrdinalIgnoreCase))
         {
-            EnsurePackageReference(project, "MySqlConnector", ToolPackageVersions.MySqlConnector);
+            ProjectXmlMutator.EnsurePackageReference(project, "MySqlConnector", ToolPackageVersions.MySqlConnector);
             return;
         }
 
-        EnsurePackageReference(project, "Npgsql", ToolPackageVersions.Npgsql);
+        ProjectXmlMutator.EnsurePackageReference(project, "Npgsql", ToolPackageVersions.Npgsql);
     }
 
     private static void EnsureClusterPackageReferences(System.Xml.Linq.XElement project, NewCommandOptions options)
@@ -652,8 +527,8 @@ internal sealed class ProjectScaffolder
             return;
         }
 
-        EnsurePackageReference(project, "Lakona.Game.Cluster", ToolPackageVersions.LakonaGameCluster);
-        EnsurePackageReference(project, "Lakona.Game.Cluster.Rpc", ToolPackageVersions.LakonaGameClusterRpc);
+        ProjectXmlMutator.EnsurePackageReference(project, "Lakona.Game.Cluster", ToolPackageVersions.LakonaGameCluster);
+        ProjectXmlMutator.EnsurePackageReference(project, "Lakona.Game.Cluster.Rpc", ToolPackageVersions.LakonaGameClusterRpc);
     }
 
     private static void EnsureNuGetForUnityPackage(System.Xml.Linq.XElement packages, string id, string version)
@@ -674,29 +549,6 @@ internal sealed class ProjectScaffolder
 
         package.SetAttributeValue("version", version);
         package.SetAttributeValue("manuallyInstalled", "true");
-    }
-
-    private static void EnsureNoneUpdate(System.Xml.Linq.XElement project, string update, string copyToOutputDirectory)
-    {
-        var none = project
-            .Descendants("None")
-            .FirstOrDefault(element => string.Equals(element.Attribute("Update")?.Value, update, StringComparison.OrdinalIgnoreCase));
-
-        if (none is null)
-        {
-            none = new System.Xml.Linq.XElement("None", new System.Xml.Linq.XAttribute("Update", update));
-            FindOrAddItemGroup(project).Add(none);
-        }
-
-        var copy = none.Elements("CopyToOutputDirectory").FirstOrDefault();
-        if (copy is null)
-        {
-            none.Add(new System.Xml.Linq.XElement("CopyToOutputDirectory", copyToOutputDirectory));
-        }
-        else
-        {
-            copy.Value = copyToOutputDirectory;
-        }
     }
 
     private static void EnsureHotfixCopyTarget(System.Xml.Linq.XElement project)
@@ -720,18 +572,6 @@ internal sealed class ProjectScaffolder
                     new System.Xml.Linq.XAttribute("SourceFiles", @"$(ProjectDir)..\Hotfix\bin\$(Configuration)\$(TargetFramework)\Server.Hotfix.dll"),
                     new System.Xml.Linq.XAttribute("DestinationFolder", @"$(OutDir)hotfix\"),
                     new System.Xml.Linq.XAttribute("Condition", @"Exists('$(ProjectDir)..\Hotfix\bin\$(Configuration)\$(TargetFramework)\Server.Hotfix.dll')"))));
-    }
-
-    private static System.Xml.Linq.XElement FindOrAddItemGroup(System.Xml.Linq.XElement project)
-    {
-        return project.Elements("ItemGroup").FirstOrDefault() ?? AddElement(project, "ItemGroup");
-    }
-
-    private static System.Xml.Linq.XElement AddElement(System.Xml.Linq.XElement parent, string name)
-    {
-        var element = new System.Xml.Linq.XElement(name);
-        parent.Add(element);
-        return element;
     }
 
 }
