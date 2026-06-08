@@ -8,7 +8,7 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>lakona-tool</ToolCommandName>
     <PackageId>Lakona.Tool</PackageId>
-    <Version>0.7.4</Version>
+    <Version>0.7.5</Version>
     <Description>Command-line project management tool for Lakona.Game project scaffolding and source-generator based RPC workflows.</Description>
     <PackageTags>lakona-game;lakona-rpc;game;tool;cli;scaffold;source-generator</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
