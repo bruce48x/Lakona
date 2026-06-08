@@ -1,3 +1,3 @@
 # Claude Instructions
 
-This file contains no rules, preferences, or instructions. All agent and contributor guidance lives in [CONTRIBUTING.md](CONTRIBUTING.md), which is the single authority for this repository.
+Before doing anything else, read [CONTRIBUTING.md](CONTRIBUTING.md) — it is the single authority for all rules in this repository.
