@@ -19,6 +19,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\LakonaBrand.cs" Link="LakonaBrand.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <EmbeddedResource Include="RpcStarter\TemplateAssets\NuGetForUnity.4.5.0.zip" LogicalName="Lakona.Tool.RpcStarter.TemplateAssets.NuGetForUnity.4.5.0.zip" />
     <EmbeddedResource Include="RpcStarter\ReleaseVersions.json" LogicalName="Lakona.Tool.RpcStarter.ReleaseVersions.json" />
     <EmbeddedResource Include="RpcStarter\Templates\Godot\project.godot.template" LogicalName="Lakona.Tool.RpcStarter.Templates.Godot.project.godot.template" />

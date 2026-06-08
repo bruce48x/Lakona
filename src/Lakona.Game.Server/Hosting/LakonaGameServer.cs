@@ -54,6 +54,8 @@ public static class LakonaGameServer
         }
 
         // Full startup
+        Console.WriteLine(LakonaBrand.Text);
+
         builder.Services.AddLakonaGameServer();
         builder.Services.AddSingleton(runtimeOptions);
         builder.Services.AddSingleton(_ => runtimeOptions.ToServerRpcServerOptions(serverBuilder.GetTransport()));
