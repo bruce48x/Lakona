@@ -658,7 +658,7 @@ public sealed class ToolTemplateTests
     }
 
     [Fact]
-    public async Task AugmentExistingStarterServerProjectRemovesStarterPingSampleContracts()
+    public async Task AugmentExistingStarterServerProjectKeepsStarterPingSampleContracts()
     {
         var projectRoot = Path.Combine(Path.GetTempPath(), "lakona-tests", Guid.NewGuid().ToString("N"));
         try
@@ -757,11 +757,11 @@ public sealed class ToolTemplateTests
 
             await new ProjectScaffolder().AugmentProjectWithLakonaGameAsync(projectRoot, CliParser.ParseNewOptions([]));
 
-            Assert.False(File.Exists(Path.Combine(interfacesDirectory, "IPingService.cs")));
-            Assert.False(File.Exists(Path.Combine(interfacesDirectory, "SharedDtos.cs")));
-            Assert.False(File.Exists(Path.Combine(interfacesDirectory, "RpcContractIds.cs")));
-            Assert.False(File.Exists(Path.Combine(interfacesDirectory, "IPingService.cs.meta")));
-            Assert.False(File.Exists(Path.Combine(serverDirectory, "Services", "PingService.cs")));
+            Assert.True(File.Exists(Path.Combine(interfacesDirectory, "IPingService.cs")));
+            Assert.True(File.Exists(Path.Combine(interfacesDirectory, "SharedDtos.cs")));
+            Assert.True(File.Exists(Path.Combine(interfacesDirectory, "RpcContractIds.cs")));
+            Assert.True(File.Exists(Path.Combine(interfacesDirectory, "IPingService.cs.meta")));
+            Assert.True(File.Exists(Path.Combine(serverDirectory, "Services", "PingService.cs")));
         }
         finally
         {
