@@ -16,10 +16,10 @@ dotnet tool install -g Lakona.Tool
 lakona-tool new
 ```
 
-For scripts and CI, provide every required generation choice explicitly:
+For scripts and CI, provide the required options explicitly (--output, --persistence, --nugetforunity-source, and --deploy-profile default to `.`, `none`, `openupm`, and `none` respectively):
 
 ```bash
-lakona-tool new --name MyGame --output . --client-engine unity --transport kcp --serializer memorypack --persistence none --nugetforunity-source embedded --deploy-profile none
+lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack
 ```
 
 After generation, run the printed check command before starting the server:
