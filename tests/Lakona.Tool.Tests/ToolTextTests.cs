@@ -775,7 +775,7 @@ public sealed class ToolTextTests
             .Single()
             .Value;
 
-        Assert.Equal("0.7.12", version);
+        Assert.Equal("0.7.13", version);
     }
 
     [Fact]

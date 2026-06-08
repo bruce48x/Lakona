@@ -4,8 +4,10 @@ internal static class LakonaBrand
 {
     public const string Text = "૮ •ᴥ• ა  Lakona";
 
-    private const string PurpleBg  = "\x1b[48;2;85;37;131m";           // #552583
-    private const string GoldOnPurple = "\x1b[38;2;253;185;39;48;2;85;37;131m";
+    private const int Width = 30;
+
+    private const string PurpleBg  = "\x1b[48;2;46;8;84m";               // #2E0854
+    private const string GoldOnPurple = "\x1b[38;2;253;185;39;48;2;46;8;84m";
     private const string Reset     = "\x1b[0m";
 
     public static void Print()
@@ -19,42 +21,28 @@ internal static class LakonaBrand
             // Best-effort: if we can't set UTF-8, print anyway.
         }
 
-        int width = GetConsoleWidth();
-
         // Top: purple bar
-        PrintBar(width);
+        PrintBar();
 
         // Middle: purple bar with gold text overlaid
         Console.Write(PurpleBg);
-        Console.Write(new string(' ', width));
+        Console.Write(new string(' ', Width));
         Console.Write('\r');
         Console.Write(GoldOnPurple);
-        int pad = Math.Max(0, (width - Text.Length) / 2);
+        int pad = Math.Max(0, (Width - Text.Length) / 2);
         Console.Write(new string(' ', pad));
         Console.Write(Text);
         Console.Write(Reset);
         Console.WriteLine();
 
         // Bottom: purple bar
-        PrintBar(width);
+        PrintBar();
     }
 
-    private static int GetConsoleWidth()
-    {
-        try
-        {
-            return Math.Max(Console.WindowWidth, 40);
-        }
-        catch
-        {
-            return 80;
-        }
-    }
-
-    private static void PrintBar(int width)
+    private static void PrintBar()
     {
         Console.Write(PurpleBg);
-        Console.Write(new string(' ', width));
+        Console.Write(new string(' ', Width));
         Console.Write(Reset);
         Console.WriteLine();
     }
