@@ -352,6 +352,7 @@ internal static class ToolTemplates
     public static string RenderSharedChatRuleState()
     {
         return """
+        #if NET
         using Lakona.Game.Server.Hotfix.Abstractions;
 
         namespace Shared.Contracts.Chat
@@ -361,6 +362,7 @@ internal static class ToolTemplates
             {
             }
         }
+        #endif
         """;
     }
 
