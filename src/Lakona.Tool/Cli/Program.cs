@@ -1,6 +1,6 @@
 using Lakona.Tool.RpcStarter;
 
-Console.WriteLine(LakonaBrand.Text);
+LakonaBrand.Print();
 
 var text = ToolText.Current;
 var exitCode = await new CliApplication(
