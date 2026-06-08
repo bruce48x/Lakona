@@ -104,42 +104,11 @@ internal sealed class CliApplication(
         return new RpcStarterNewOptions(
             projectName,
             outputDirectory,
-            ParseClientEngine(options.ClientEngine),
-            ParseTransport(options.Transport),
-            ParseSerializer(options.Serializer),
-            ParseNuGetForUnitySource(options.NuGetForUnitySource));
+            ToolOptionValues.ParseClientEngine(options.ClientEngine),
+            ToolOptionValues.ParseTransport(options.Transport),
+            ToolOptionValues.ParseSerializer(options.Serializer),
+            ToolOptionValues.ParseNuGetForUnitySource(options.NuGetForUnitySource));
     }
-
-    private static ClientEngineKind ParseClientEngine(string value) => value switch
-    {
-        "unity" => ClientEngineKind.Unity,
-        "unity-cn" => ClientEngineKind.UnityCn,
-        "tuanjie" => ClientEngineKind.Tuanjie,
-        "godot" => ClientEngineKind.Godot,
-        _ => throw new InvalidOperationException($"Unsupported --client-engine value after validation: {value}")
-    };
-
-    private static TransportKind ParseTransport(string value) => value switch
-    {
-        "tcp" => TransportKind.Tcp,
-        "websocket" => TransportKind.WebSocket,
-        "kcp" => TransportKind.Kcp,
-        _ => throw new InvalidOperationException($"Unsupported --transport value after validation: {value}")
-    };
-
-    private static SerializerKind ParseSerializer(string value) => value switch
-    {
-        "json" => SerializerKind.Json,
-        "memorypack" => SerializerKind.MemoryPack,
-        _ => throw new InvalidOperationException($"Unsupported --serializer value after validation: {value}")
-    };
-
-    private static NuGetForUnitySourceKind ParseNuGetForUnitySource(string value) => value switch
-    {
-        "embedded" => NuGetForUnitySourceKind.Embedded,
-        "openupm" => NuGetForUnitySourceKind.OpenUpm,
-        _ => throw new InvalidOperationException($"Unsupported --nugetforunity-source value after validation: {value}")
-    };
 }
 
 internal sealed class ToolConfigStore

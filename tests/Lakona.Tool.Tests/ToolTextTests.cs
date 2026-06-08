@@ -800,4 +800,20 @@ public sealed class ToolTextTests
         Assert.DoesNotContain("ULINKGAME_CLUSTER_ADVERTISED_ENDPOINTS_CLIENT=tcp://gateway:20000", websocketEnv, StringComparison.Ordinal);
         Assert.Contains("ULINKGAME_CLUSTER_ADVERTISED_ENDPOINTS_CLIENT=kcp://gateway:20000", defaultEnv, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void ToolOptionValues_MapsValidatedCliValuesToStarterEnums()
+    {
+        Assert.Equal(ClientEngineKind.Unity, ToolOptionValues.ParseClientEngine("unity"));
+        Assert.Equal(ClientEngineKind.UnityCn, ToolOptionValues.ParseClientEngine("unity-cn"));
+        Assert.Equal(ClientEngineKind.Tuanjie, ToolOptionValues.ParseClientEngine("tuanjie"));
+        Assert.Equal(ClientEngineKind.Godot, ToolOptionValues.ParseClientEngine("godot"));
+        Assert.Equal(TransportKind.Tcp, ToolOptionValues.ParseTransport("tcp"));
+        Assert.Equal(TransportKind.WebSocket, ToolOptionValues.ParseTransport("websocket"));
+        Assert.Equal(TransportKind.Kcp, ToolOptionValues.ParseTransport("kcp"));
+        Assert.Equal(SerializerKind.Json, ToolOptionValues.ParseSerializer("json"));
+        Assert.Equal(SerializerKind.MemoryPack, ToolOptionValues.ParseSerializer("memorypack"));
+        Assert.Equal(NuGetForUnitySourceKind.Embedded, ToolOptionValues.ParseNuGetForUnitySource("embedded"));
+        Assert.Equal(NuGetForUnitySourceKind.OpenUpm, ToolOptionValues.ParseNuGetForUnitySource("openupm"));
+    }
 }
