@@ -979,4 +979,18 @@ public sealed class ToolTemplateTests
         Assert.Contains(@"PackageReference Include=""Lakona.Game.Server"" Version=""1.2.3""", xml, StringComparison.Ordinal);
         Assert.Contains(@"PackageReference Include=""Lakona.Game.Server.Generators"" Version=""2.3.4"" PrivateAssets=""all"" OutputItemType=""Analyzer""", xml, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void GameDependencyPlanner_DefaultClusterServerReferencesGamePackagesOnly()
+    {
+        var plan = GameDependencyPlanner.CreateServerPlan(CliParser.ParseNewOptions([]));
+
+        Assert.Contains(plan.PackageReferences, reference => reference.Id == "Microsoft.Extensions.Hosting");
+        Assert.Contains(plan.PackageReferences, reference => reference.Id == "Lakona.Game.Server");
+        Assert.Contains(plan.PackageReferences, reference => reference.Id == "Lakona.Game.Server.Generators" && reference.OutputItemType == "Analyzer");
+        Assert.Contains(plan.PackageReferences, reference => reference.Id == "Lakona.Game.Server.Hotfix");
+        Assert.Contains(plan.PackageReferences, reference => reference.Id == "Lakona.Game.Cluster");
+        Assert.Contains(plan.PackageReferences, reference => reference.Id == "Lakona.Game.Cluster.Rpc");
+        Assert.DoesNotContain(plan.PackageReferences, reference => reference.Id.StartsWith("Lakona.Rpc.", StringComparison.Ordinal));
+    }
 }

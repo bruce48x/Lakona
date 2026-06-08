@@ -429,17 +429,21 @@ internal sealed class ProjectScaffolder
 
         ProjectXmlMutator.EnsureProjectReference(project, @"..\..\Shared\Shared.csproj", "net10.0");
         ProjectXmlMutator.EnsureProjectReferenceWithoutOutput(project, @"..\Hotfix\Server.Hotfix.csproj");
-        ProjectXmlMutator.EnsurePackageReference(project, "Microsoft.Extensions.Hosting", ToolPackageVersions.MicrosoftExtensionsHosting);
-        ProjectXmlMutator.EnsurePackageReference(project, "Lakona.Game.Server", ToolPackageVersions.LakonaGameServer);
-        ProjectXmlMutator.EnsurePackageReference(
-            project,
-            "Lakona.Game.Server.Generators",
-            ToolPackageVersions.LakonaGameServerGenerators,
-            ("PrivateAssets", "all"),
-            ("OutputItemType", "Analyzer"));
-        ProjectXmlMutator.EnsurePackageReference(project, "Lakona.Game.Server.Hotfix", ToolPackageVersions.LakonaGameServerHotfix);
-        EnsureClusterPackageReferences(project, options);
-        EnsurePersistenceProviderReference(project, options.Persistence, includeDapper: true);
+        foreach (var reference in GameDependencyPlanner.CreateServerPlan(options).PackageReferences)
+        {
+            var attributes = new List<(string Name, string Value)>();
+            if (reference.PrivateAssets is not null)
+            {
+                attributes.Add(("PrivateAssets", reference.PrivateAssets));
+            }
+
+            if (reference.OutputItemType is not null)
+            {
+                attributes.Add(("OutputItemType", reference.OutputItemType));
+            }
+
+            ProjectXmlMutator.EnsurePackageReference(project, reference.Id, reference.Version, attributes.ToArray());
+        }
         ProjectXmlMutator.EnsureNoneUpdate(project, "appsettings.json", "PreserveNewest");
         EnsureHotfixCopyTarget(project);
 
@@ -497,38 +501,6 @@ internal sealed class ProjectScaffolder
     private static string ToNativePath(string path)
     {
         return path.Replace('/', Path.DirectorySeparatorChar);
-    }
-
-    private static void EnsurePersistenceProviderReference(System.Xml.Linq.XElement project, string persistence, bool includeDapper)
-    {
-        if (!ProjectConventions.UsesExternalPersistence(persistence))
-        {
-            return;
-        }
-
-        if (includeDapper)
-        {
-            ProjectXmlMutator.EnsurePackageReference(project, "Dapper", ToolPackageVersions.Dapper);
-        }
-
-        if (string.Equals(persistence, "mysql", StringComparison.OrdinalIgnoreCase))
-        {
-            ProjectXmlMutator.EnsurePackageReference(project, "MySqlConnector", ToolPackageVersions.MySqlConnector);
-            return;
-        }
-
-        ProjectXmlMutator.EnsurePackageReference(project, "Npgsql", ToolPackageVersions.Npgsql);
-    }
-
-    private static void EnsureClusterPackageReferences(System.Xml.Linq.XElement project, NewCommandOptions options)
-    {
-        if (!ProjectConventions.IsClusterNetworkProfile(options.NetworkProfile))
-        {
-            return;
-        }
-
-        ProjectXmlMutator.EnsurePackageReference(project, "Lakona.Game.Cluster", ToolPackageVersions.LakonaGameCluster);
-        ProjectXmlMutator.EnsurePackageReference(project, "Lakona.Game.Cluster.Rpc", ToolPackageVersions.LakonaGameClusterRpc);
     }
 
     private static void EnsureNuGetForUnityPackage(System.Xml.Linq.XElement packages, string id, string version)
