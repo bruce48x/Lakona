@@ -148,6 +148,31 @@ internal static class ProjectXmlMutator
         }
     }
 
+    public static void EnsureNuGetForUnityPackage(XElement packages, string id, string version)
+    {
+        if (!string.Equals(packages.Name.LocalName, "packages", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Invalid packages.config root element.");
+        }
+
+        var package = packages
+            .Elements("package")
+            .FirstOrDefault(element => string.Equals(element.Attribute("id")?.Value, id, StringComparison.OrdinalIgnoreCase));
+
+        if (package is null)
+        {
+            packages.Add(new XElement(
+                "package",
+                new XAttribute("id", id),
+                new XAttribute("version", version),
+                new XAttribute("manuallyInstalled", "true")));
+            return;
+        }
+
+        package.SetAttributeValue("version", version);
+        package.SetAttributeValue("manuallyInstalled", "true");
+    }
+
     public static XElement FindOrAddItemGroup(XElement project)
     {
         return project.Elements("ItemGroup").FirstOrDefault() ?? AddElement(project, "ItemGroup");

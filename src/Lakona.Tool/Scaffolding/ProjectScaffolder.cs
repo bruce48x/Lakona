@@ -103,8 +103,8 @@ internal sealed class ProjectScaffolder
             throw new InvalidOperationException($"Invalid packages.config root element in: {path}");
         }
 
-        EnsureNuGetForUnityPackage(packages, "Lakona.Game.Client", ToolPackageVersions.LakonaGameClient);
-        EnsureNuGetForUnityPackage(packages, "Lakona.Game.Abstractions", ToolPackageVersions.LakonaGameAbstractions);
+        ProjectXmlMutator.EnsureNuGetForUnityPackage(packages, "Lakona.Game.Client", ToolPackageVersions.LakonaGameClient);
+        ProjectXmlMutator.EnsureNuGetForUnityPackage(packages, "Lakona.Game.Abstractions", ToolPackageVersions.LakonaGameAbstractions);
 
         await ToolFileWriter.WriteTextAsync(path, document.ToString()).ConfigureAwait(false);
         await WriteUnityNuGetPackageImportGuardAsync(projectRoot).ConfigureAwait(false);
@@ -501,26 +501,6 @@ internal sealed class ProjectScaffolder
     private static string ToNativePath(string path)
     {
         return path.Replace('/', Path.DirectorySeparatorChar);
-    }
-
-    private static void EnsureNuGetForUnityPackage(System.Xml.Linq.XElement packages, string id, string version)
-    {
-        var package = packages
-            .Elements("package")
-            .FirstOrDefault(element => string.Equals(element.Attribute("id")?.Value, id, StringComparison.OrdinalIgnoreCase));
-
-        if (package is null)
-        {
-            packages.Add(new System.Xml.Linq.XElement(
-                "package",
-                new System.Xml.Linq.XAttribute("id", id),
-                new System.Xml.Linq.XAttribute("version", version),
-                new System.Xml.Linq.XAttribute("manuallyInstalled", "true")));
-            return;
-        }
-
-        package.SetAttributeValue("version", version);
-        package.SetAttributeValue("manuallyInstalled", "true");
     }
 
     private static void EnsureHotfixCopyTarget(System.Xml.Linq.XElement project)

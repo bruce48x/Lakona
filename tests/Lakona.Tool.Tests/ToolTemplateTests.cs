@@ -1012,4 +1012,19 @@ public sealed class ToolTemplateTests
         Assert.Equal("new MemoryPackRpcSerializer()", kcp.SerializerConstruction);
         Assert.Equal("", kcp.DefaultPath);
     }
+
+    [Fact]
+    public void ProjectXmlMutator_EnsuresNuGetForUnityPackage()
+    {
+        var document = System.Xml.Linq.XDocument.Parse("<packages><package id=\"Lakona.Game.Client\" version=\"0.0.1\" /></packages>");
+        var packages = document.Root ?? throw new InvalidOperationException("Missing packages root.");
+
+        ProjectXmlMutator.EnsureNuGetForUnityPackage(packages, "Lakona.Game.Client", "1.2.3");
+        ProjectXmlMutator.EnsureNuGetForUnityPackage(packages, "Lakona.Game.Abstractions", "2.3.4");
+
+        var xml = document.ToString();
+
+        Assert.Contains(@"<package id=""Lakona.Game.Client"" version=""1.2.3"" manuallyInstalled=""true"" />", xml, StringComparison.Ordinal);
+        Assert.Contains(@"<package id=""Lakona.Game.Abstractions"" version=""2.3.4"" manuallyInstalled=""true"" />", xml, StringComparison.Ordinal);
+    }
 }
