@@ -1736,9 +1736,9 @@ internal static class ServiceBindingConfigurator
 {
     public static void Bind(RpcServiceRegistry registry, IServiceProvider services)
     {
-        PingServiceBinder.Bind(
+        PingServiceBinder.BindFactory(
             registry,
-            callback => ActivatorUtilities.CreateInstance<PingService>(services, callback));
+            _ => ActivatorUtilities.CreateInstance<PingService>(services));
 
         ChatServiceBinder.Bind(
             registry,

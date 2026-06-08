@@ -247,8 +247,8 @@ public sealed class ToolTemplateTests
             Assert.DoesNotContain("LakonaGameGeneratedApplication", program, StringComparison.Ordinal);
             Assert.Contains("class ServiceBindingConfigurator", serviceBindingConfigurator, StringComparison.Ordinal);
             Assert.Contains("IServiceProvider services", serviceBindingConfigurator, StringComparison.Ordinal);
-            Assert.Contains("PingServiceBinder.Bind", serviceBindingConfigurator, StringComparison.Ordinal);
-            Assert.Contains("ActivatorUtilities.CreateInstance<PingService>(services, callback)", serviceBindingConfigurator, StringComparison.Ordinal);
+            Assert.Contains("PingServiceBinder.BindFactory", serviceBindingConfigurator, StringComparison.Ordinal);
+            Assert.Contains("ActivatorUtilities.CreateInstance<PingService>(services)", serviceBindingConfigurator, StringComparison.Ordinal);
             Assert.Contains("ChatServiceBinder.Bind", serviceBindingConfigurator, StringComparison.Ordinal);
             Assert.Contains("ActivatorUtilities.CreateInstance<ChatServiceImpl>(services, callback)", serviceBindingConfigurator, StringComparison.Ordinal);
             Assert.DoesNotContain("AllServicesBinder.BindAll", serviceBindingConfigurator, StringComparison.Ordinal);
@@ -483,8 +483,8 @@ public sealed class ToolTemplateTests
         Assert.Contains("using Server.Services;", source, StringComparison.Ordinal);
         Assert.Contains("using Server.Generated;", source, StringComparison.Ordinal);
         Assert.Contains("public static void Bind(RpcServiceRegistry registry, IServiceProvider services)", source, StringComparison.Ordinal);
-        Assert.Contains("PingServiceBinder.Bind", source, StringComparison.Ordinal);
-        Assert.Contains("ActivatorUtilities.CreateInstance<PingService>(services, callback)", source, StringComparison.Ordinal);
+        Assert.Contains("PingServiceBinder.BindFactory", source, StringComparison.Ordinal);
+        Assert.Contains("ActivatorUtilities.CreateInstance<PingService>(services)", source, StringComparison.Ordinal);
         Assert.Contains("ChatServiceBinder.Bind", source, StringComparison.Ordinal);
         Assert.Contains("ActivatorUtilities.CreateInstance<ChatServiceImpl>(services, callback)", source, StringComparison.Ordinal);
         Assert.DoesNotContain("AllServicesBinder.BindAll", source, StringComparison.Ordinal);
