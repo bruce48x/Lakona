@@ -1,3 +1,4 @@
+using Lakona.Tool.RpcStarter;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Xunit;
@@ -992,5 +993,23 @@ public sealed class ToolTemplateTests
         Assert.Contains(plan.PackageReferences, reference => reference.Id == "Lakona.Game.Cluster");
         Assert.Contains(plan.PackageReferences, reference => reference.Id == "Lakona.Game.Cluster.Rpc");
         Assert.DoesNotContain(plan.PackageReferences, reference => reference.Id.StartsWith("Lakona.Rpc.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ToolCodegenValues_ReturnsConsistentTransportAndSerializerValues()
+    {
+        var websocket = ToolCodegenValues.Create(TransportKind.WebSocket, SerializerKind.Json);
+        var kcp = ToolCodegenValues.Create(TransportKind.Kcp, SerializerKind.MemoryPack);
+
+        Assert.Equal("using Lakona.Rpc.Transport.WebSocket;", websocket.TransportUsing);
+        Assert.Equal("using Lakona.Rpc.Serializer.Json;", websocket.SerializerUsing);
+        Assert.Equal("new WsTransport($\"ws://{_serverHost}:{_serverPort}{NormalizePath(_serverPath)}\")", websocket.UnityChatTransportConstruction);
+        Assert.Equal("new JsonRpcSerializer()", websocket.SerializerConstruction);
+        Assert.Equal("/ws", websocket.DefaultPath);
+        Assert.Equal("using Lakona.Rpc.Transport.Kcp;", kcp.TransportUsing);
+        Assert.Equal("using Lakona.Rpc.Serializer.MemoryPack;", kcp.SerializerUsing);
+        Assert.Equal("new KcpTransport(_serverHost, _serverPort)", kcp.UnityChatTransportConstruction);
+        Assert.Equal("new MemoryPackRpcSerializer()", kcp.SerializerConstruction);
+        Assert.Equal("", kcp.DefaultPath);
     }
 }
