@@ -57,7 +57,7 @@ internal sealed class ProjectScaffolder
 
         EnsurePackageReference(project, "Lakona.Game.Client", ToolPackageVersions.LakonaGameClient);
 
-        await File.WriteAllTextAsync(path, document.ToString() + Environment.NewLine).ConfigureAwait(false);
+        await ToolFileWriter.WriteTextAsync(path, document.ToString()).ConfigureAwait(false);
     }
 
     private static Task WriteSharedHotfixBoundaryFilesAsync(string projectRoot, NewCommandOptions options)
@@ -106,7 +106,7 @@ internal sealed class ProjectScaffolder
         EnsureNuGetForUnityPackage(packages, "Lakona.Game.Client", ToolPackageVersions.LakonaGameClient);
         EnsureNuGetForUnityPackage(packages, "Lakona.Game.Abstractions", ToolPackageVersions.LakonaGameAbstractions);
 
-        await File.WriteAllTextAsync(path, document.ToString() + Environment.NewLine).ConfigureAwait(false);
+        await ToolFileWriter.WriteTextAsync(path, document.ToString()).ConfigureAwait(false);
         await WriteUnityNuGetPackageImportGuardAsync(projectRoot).ConfigureAwait(false);
     }
 
@@ -376,7 +376,7 @@ internal sealed class ProjectScaffolder
             ToolPackageVersions.LakonaGameServerHotfixGenerators,
             ("PrivateAssets", "all"));
 
-        await File.WriteAllTextAsync(path, document.ToString() + Environment.NewLine).ConfigureAwait(false);
+        await ToolFileWriter.WriteTextAsync(path, document.ToString()).ConfigureAwait(false);
     }
 
     private static void EnsureStarterServerProjectDirectory(string projectRoot)
@@ -443,7 +443,7 @@ internal sealed class ProjectScaffolder
         EnsureNoneUpdate(project, "appsettings.json", "PreserveNewest");
         EnsureHotfixCopyTarget(project);
 
-        await File.WriteAllTextAsync(path, document.ToString() + Environment.NewLine).ConfigureAwait(false);
+        await ToolFileWriter.WriteTextAsync(path, document.ToString()).ConfigureAwait(false);
     }
 
     private static Task WriteServerAppSettingsAsync(string projectRoot, NewCommandOptions options)
@@ -486,18 +486,12 @@ internal sealed class ProjectScaffolder
 
     private static Task WriteAsync(string path, string content)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(path) ?? ".");
-        return File.WriteAllTextAsync(path, content + Environment.NewLine);
+        return ToolFileWriter.WriteTextAsync(path, content);
     }
 
     private static Task WriteIfMissingAsync(string path, string content)
     {
-        if (File.Exists(path))
-        {
-            return Task.CompletedTask;
-        }
-
-        return WriteAsync(path, content);
+        return ToolFileWriter.WriteTextIfMissingAsync(path, content);
     }
 
     private static string ToNativePath(string path)

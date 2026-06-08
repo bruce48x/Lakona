@@ -908,4 +908,44 @@ public sealed class ToolTemplateTests
             }
         }
     }
+
+    [Fact]
+    public async Task AugmentExistingStarterServerProjectWritesUtf8NoBomWithLf()
+    {
+        var projectRoot = Path.Combine(Path.GetTempPath(), "lakona-tests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var serverDirectory = Path.Combine(projectRoot, "Server", "Server");
+            Directory.CreateDirectory(serverDirectory);
+            Directory.CreateDirectory(Path.Combine(projectRoot, "Shared"));
+            await File.WriteAllTextAsync(
+                Path.Combine(serverDirectory, "Server.csproj"),
+                """
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <TargetFramework>net10.0</TargetFramework>
+                  </PropertyGroup>
+                </Project>
+                """,
+                TestContext.Current.CancellationToken);
+
+            await new ProjectScaffolder().AugmentProjectWithLakonaGameAsync(projectRoot, CliParser.ParseNewOptions([]));
+
+            var programPath = Path.Combine(serverDirectory, "Program.cs");
+            var bytes = await File.ReadAllBytesAsync(programPath, TestContext.Current.CancellationToken);
+            var text = await File.ReadAllTextAsync(programPath, TestContext.Current.CancellationToken);
+
+            Assert.False(bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF,
+                "File should not start with UTF-8 BOM");
+            Assert.DoesNotContain("\r\n", text, StringComparison.Ordinal);
+            Assert.EndsWith("\n", text, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(projectRoot))
+            {
+                Directory.Delete(projectRoot, recursive: true);
+            }
+        }
+    }
 }
