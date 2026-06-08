@@ -8,6 +8,12 @@ WebSocket client/server transport implementations for Lakona.Rpc.
 dotnet add package Lakona.Rpc.Transport.WebSocket
 ```
 
+## Documentation
+
+API reference: https://bruce48x.github.io/Lakona.Rpc/reference/api/
+
+Design boundary: https://bruce48x.github.io/Lakona.Rpc/concepts/design-boundary/
+
 ## Includes
 
 - `WsTransport`

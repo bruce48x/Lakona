@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>Lakona.Game.Client</id>
+    <version>0.1.6</version>
+    <authors>Lakona</authors>
+    <license type="expression">MIT</license>
+    <licenseUrl>https://licenses.nuget.org/MIT</licenseUrl>
+    <projectUrl>https://github.com/bruce48x/Lakona</projectUrl>
+    <description>Engine-neutral client helpers for Lakona.Game applications, including reliable push sequence tracking.</description>
+    <tags>lakona-game lakona-rpc game client unity godot rpc reliable-push</tags>
+    <repository type="git" url="https://github.com/bruce48x/Lakona" commit="e38a33e473e8f481d520720001142653e419fe1b" />
+    <dependencies>
+      <group targetFramework=".NETStandard2.1">
+        <dependency id="Lakona.Game.Abstractions" version="0.1.3" exclude="Build,Analyzers" />
+      </group>
+    </dependencies>
+  </metadata>
+</package>

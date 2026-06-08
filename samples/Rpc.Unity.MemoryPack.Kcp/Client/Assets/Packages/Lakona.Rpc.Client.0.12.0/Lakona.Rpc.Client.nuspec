@@ -1,22 +1,22 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
   <metadata>
-    <id>ULinkRPC.Client</id>
+    <id>Lakona.Rpc.Client</id>
     <version>0.12.0</version>
-    <authors>ULinkRPC</authors>
+    <authors>Lakona</authors>
     <license type="expression">MIT</license>
     <licenseUrl>https://licenses.nuget.org/MIT</licenseUrl>
     <readme>README.md</readme>
-    <projectUrl>https://github.com/bruce48x/ULinkRPC</projectUrl>
-    <description>ULinkRPC client runtime and client-side transports.</description>
+    <projectUrl>https://github.com/bruce48x/Lakona</projectUrl>
+    <description>Lakona.Rpc client runtime and client-side transports.</description>
     <tags>rpc unity client tcp loopback</tags>
-    <repository type="git" url="https://github.com/bruce48x/ULinkRPC" commit="eb095e53fdd0c3b0e342f8ce485006a5173d64f2" />
+    <repository type="git" url="https://github.com/bruce48x/Lakona" commit="e38a33e473e8f481d520720001142653e419fe1b" />
     <dependencies>
       <group targetFramework="net10.0">
-        <dependency id="ULinkRPC.Core" version="0.12.0" exclude="Build,Analyzers" />
+        <dependency id="Lakona.Rpc.Core" version="0.12.0" exclude="Build,Analyzers" />
       </group>
       <group targetFramework=".NETStandard2.1">
-        <dependency id="ULinkRPC.Core" version="0.12.0" exclude="Build,Analyzers" />
+        <dependency id="Lakona.Rpc.Core" version="0.12.0" exclude="Build,Analyzers" />
         <dependency id="System.Threading.Channels" version="10.0.0" exclude="Build,Analyzers" />
       </group>
     </dependencies>
