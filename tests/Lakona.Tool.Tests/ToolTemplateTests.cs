@@ -861,4 +861,51 @@ public sealed class ToolTemplateTests
             }
         }
     }
+
+    [Fact]
+    public void ToolFileWriter_WriteText_NormalizesNewlinesAndCreatesDirectory()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "lakona-tests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var path = Path.Combine(root, "nested", "file.txt");
+
+            ToolFileWriter.WriteText(path, "﻿alpha\r\nbeta");
+
+            var bytes = File.ReadAllBytes(path);
+            Assert.False(bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF,
+                "File should not start with UTF-8 BOM");
+            Assert.Equal("alpha\nbeta\n", File.ReadAllText(path));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void ToolFileWriter_WriteTextIfMissing_DoesNotOverwriteExistingFile()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "lakona-tests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var path = Path.Combine(root, "file.txt");
+            Directory.CreateDirectory(root);
+            File.WriteAllText(path, "existing");
+
+            ToolFileWriter.WriteTextIfMissing(path, "replacement");
+
+            Assert.Equal("existing", File.ReadAllText(path));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
 }
