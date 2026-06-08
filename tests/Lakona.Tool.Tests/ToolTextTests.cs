@@ -626,32 +626,29 @@ public sealed class ToolTextTests
         var text = ToolText.ForCulture(CultureInfo.GetCultureInfo("en-US"));
         var terminal = new FakeCliTerminal([
             "Arena",
-            "D:\\Games",
             "4",
             "1",
-            "1",
-            "3",
-            "2"
+            "1"
         ]);
         var prompter = new NewCommandPrompter(text, terminal);
 
         var options = prompter.Complete(CliParser.ParseNewOptions([]));
 
         Assert.Equal("Arena", options.Name);
-        Assert.Equal("D:\\Games", options.OutputPath);
+        Assert.Null(options.OutputPath);
         Assert.Equal("godot", options.ClientEngine);
         Assert.Equal("tcp", options.Transport);
         Assert.Equal("json", options.Serializer);
-        Assert.Equal("postgres", options.Persistence);
-        Assert.Equal("compose", options.DeployProfile);
+        Assert.Equal(ProjectConventions.DefaultPersistence, options.Persistence);
+        Assert.Equal(ProjectConventions.DefaultDeployProfile, options.DeployProfile);
         Assert.Equal(ProjectConventions.DefaultNuGetForUnitySource, options.NuGetForUnitySource);
         Assert.True(options.HasExplicit(NewCommandOptionPresence.Name));
-        Assert.True(options.HasExplicit(NewCommandOptionPresence.OutputPath));
+        Assert.False(options.HasExplicit(NewCommandOptionPresence.OutputPath));
         Assert.True(options.HasExplicit(NewCommandOptionPresence.ClientEngine));
         Assert.True(options.HasExplicit(NewCommandOptionPresence.Transport));
         Assert.True(options.HasExplicit(NewCommandOptionPresence.Serializer));
-        Assert.True(options.HasExplicit(NewCommandOptionPresence.Persistence));
-        Assert.True(options.HasExplicit(NewCommandOptionPresence.DeployProfile));
+        Assert.False(options.HasExplicit(NewCommandOptionPresence.Persistence));
+        Assert.False(options.HasExplicit(NewCommandOptionPresence.DeployProfile));
         Assert.False(options.HasExplicit(NewCommandOptionPresence.NuGetForUnitySource));
 
         var output = terminal.Output.ToString();
@@ -662,17 +659,13 @@ public sealed class ToolTextTests
     }
 
     [Fact]
-    public void NewCommandPrompter_PromptsUnityNuGetSource()
+    public void NewCommandPrompter_UsesDefaultsForOptionalOptions()
     {
         var text = ToolText.ForCulture(CultureInfo.GetCultureInfo("en-US"));
         var terminal = new FakeCliTerminal([
             "Arena",
-            "",
             "1",
             "3",
-            "2",
-            "1",
-            "1",
             "2"
         ]);
         var prompter = new NewCommandPrompter(text, terminal);
@@ -682,10 +675,12 @@ public sealed class ToolTextTests
         Assert.Equal("unity", options.ClientEngine);
         Assert.Equal("kcp", options.Transport);
         Assert.Equal("memorypack", options.Serializer);
-        Assert.Equal("none", options.Persistence);
-        Assert.Equal("none", options.DeployProfile);
-        Assert.Equal("openupm", options.NuGetForUnitySource);
-        Assert.True(options.HasExplicit(NewCommandOptionPresence.NuGetForUnitySource));
+        Assert.Equal(ProjectConventions.DefaultPersistence, options.Persistence);
+        Assert.Equal(ProjectConventions.DefaultDeployProfile, options.DeployProfile);
+        Assert.Equal(ProjectConventions.DefaultNuGetForUnitySource, options.NuGetForUnitySource);
+        Assert.False(options.HasExplicit(NewCommandOptionPresence.Persistence));
+        Assert.False(options.HasExplicit(NewCommandOptionPresence.DeployProfile));
+        Assert.False(options.HasExplicit(NewCommandOptionPresence.NuGetForUnitySource));
     }
 
     [Fact]
@@ -693,12 +688,8 @@ public sealed class ToolTextTests
     {
         var text = ToolText.ForCulture(CultureInfo.GetCultureInfo("en-US"));
         var terminal = new FakeCliTerminal([
-            "",
             "1",
-            "2",
-            "1",
-            "1",
-            "1"
+            "2"
         ]);
         var prompter = new NewCommandPrompter(text, terminal);
         var parsed = CliParser.ParseNewOptions([
@@ -769,7 +760,7 @@ public sealed class ToolTextTests
         Assert.Contains("--persistence none", english.HelpText, StringComparison.Ordinal);
         Assert.Contains("--deploy-profile none", english.HelpText, StringComparison.Ordinal);
         Assert.Contains("交互", simplifiedChinese.HelpText, StringComparison.Ordinal);
-        Assert.Contains("--nugetforunity-source embedded", simplifiedChinese.HelpText, StringComparison.Ordinal);
+        Assert.Contains("--nugetforunity-source openupm", simplifiedChinese.HelpText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -784,7 +775,7 @@ public sealed class ToolTextTests
             .Single()
             .Value;
 
-        Assert.Equal("0.7.1", version);
+        Assert.Equal("0.7.2", version);
     }
 
     [Fact]

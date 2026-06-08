@@ -62,10 +62,10 @@ internal sealed class ToolText
 
             命令:
               lakona-tool new
-                  交互式创建项目。会询问项目名称、输出目录、客户端引擎、传输协议、序列化器、持久化、需要时的 NuGetForUnity 来源，以及部署配置。
+                  交互式创建项目。会询问项目名称、客户端引擎、传输协议、序列化器（输出目录、持久化、NuGetForUnity 来源、部署配置均可选，使用默认值）。
 
-              lakona-tool new --name MyGame --output . --client-engine unity --transport kcp --serializer memorypack --persistence none --nugetforunity-source embedded --deploy-profile none
-                  用于脚本和 CI 的非交互式创建。输入被重定向时，缺少必要选择会失败。
+              lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack [--output .] [--persistence none] [--nugetforunity-source openupm] [--deploy-profile none]
+                  用于脚本和 CI 的非交互式创建。输入被重定向时，缺少必填选项会失败。
 
               lakona-tool help
                   显示此帮助。
@@ -76,10 +76,10 @@ internal sealed class ToolText
 
             命令:
               lakona-tool new
-                  互動式建立專案。會詢問專案名稱、輸出目錄、用戶端引擎、傳輸協定、序列化器、持久化、需要時的 NuGetForUnity 來源，以及部署設定。
+                  互動式建立專案。會詢問專案名稱、用戶端引擎、傳輸協定、序列化器（輸出目錄、持久化、NuGetForUnity 來源、部署設定均可選，使用預設值）。
 
-              lakona-tool new --name MyGame --output . --client-engine unity --transport kcp --serializer memorypack --persistence none --nugetforunity-source embedded --deploy-profile none
-                  用於指令碼和 CI 的非互動式建立。輸入被重新導向時，缺少必要選擇會失敗。
+              lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack [--output .] [--persistence none] [--nugetforunity-source openupm] [--deploy-profile none]
+                  用於指令碼和 CI 的非互動式建立。輸入被重新導向時，缺少必填選項會失敗。
 
               lakona-tool help
                   顯示此幫助。
@@ -90,9 +90,9 @@ internal sealed class ToolText
 
             Commands:
               lakona-tool new
-                  Interactive project creation. Prompts for project name, output directory, client engine, transport, serializer, persistence, NuGetForUnity source when needed, and deploy profile.
+                  Interactive project creation. Prompts for project name, client engine, transport, and serializer (output directory, persistence, NuGetForUnity source, and deploy profile are optional with defaults).
 
-              lakona-tool new --name MyGame --output . --client-engine unity --transport kcp --serializer memorypack --persistence none --nugetforunity-source embedded --deploy-profile none
+              lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack [--output .] [--persistence none] [--nugetforunity-source openupm] [--deploy-profile none]
                   Non-interactive project creation for scripts and CI. Missing required choices fail when input is redirected.
 
               lakona-tool help
@@ -173,11 +173,11 @@ internal sealed class ToolText
     public string MissingNonInteractiveNewOptions => Language switch
     {
         ToolLanguage.SimplifiedChinese =>
-            "非交互式创建项目缺少必要选项。请提供完整命令，例如: lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack --persistence none --nugetforunity-source embedded --deploy-profile none",
+            "非交互式创建项目缺少必要选项。必填: --name, --client-engine, --transport, --serializer。示例: lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack",
         ToolLanguage.TraditionalChinese =>
-            "非互動式建立專案缺少必要選項。請提供完整命令，例如: lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack --persistence none --nugetforunity-source embedded --deploy-profile none",
+            "非互動式建立專案缺少必要選項。必填: --name, --client-engine, --transport, --serializer。範例: lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack",
         _ =>
-            "Missing required options for non-interactive project creation. Provide a complete command, for example: lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack --persistence none --nugetforunity-source embedded --deploy-profile none"
+            "Missing required options for non-interactive project creation. Required: --name, --client-engine, --transport, --serializer. Example: lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack"
     };
 
     public string UnknownCommand(string command) => Language switch

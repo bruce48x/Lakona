@@ -23,15 +23,6 @@ internal sealed class NewCommandPrompter(ToolText text, ICliTerminal terminal)
             };
         }
 
-        if (!options.HasExplicit(NewCommandOptionPresence.OutputPath))
-        {
-            options = options with
-            {
-                OutputPath = PromptText(text.OutputDirectoryPrompt, "."),
-                Presence = options.Presence | NewCommandOptionPresence.OutputPath
-            };
-        }
-
         if (!options.HasExplicit(NewCommandOptionPresence.ClientEngine))
         {
             options = options with
@@ -59,57 +50,20 @@ internal sealed class NewCommandPrompter(ToolText text, ICliTerminal terminal)
             };
         }
 
-        if (!options.HasExplicit(NewCommandOptionPresence.Persistence))
-        {
-            options = options with
-            {
-                Persistence = PromptChoice(text.PersistencePrompt, ProjectConventions.SupportedPersistence, ProjectConventions.DefaultPersistence),
-                Presence = options.Presence | NewCommandOptionPresence.Persistence
-            };
-        }
-
-        if (!options.HasExplicit(NewCommandOptionPresence.DeployProfile))
-        {
-            options = options with
-            {
-                DeployProfile = PromptChoice(text.DeployProfilePrompt, ProjectConventions.SupportedDeployProfiles, ProjectConventions.DefaultDeployProfile),
-                Presence = options.Presence | NewCommandOptionPresence.DeployProfile
-            };
-        }
-
-        if (RequiresNuGetForUnitySource(options) &&
-            !options.HasExplicit(NewCommandOptionPresence.NuGetForUnitySource))
-        {
-            options = options with
-            {
-                NuGetForUnitySource = PromptChoice(text.NuGetForUnitySourcePrompt, ProjectConventions.SupportedNuGetForUnitySources, ProjectConventions.DefaultNuGetForUnitySource),
-                Presence = options.Presence | NewCommandOptionPresence.NuGetForUnitySource
-            };
-        }
-
         return options;
     }
 
     private static bool RequiresPrompt(NewCommandOptions options)
     {
         if (!options.HasExplicit(NewCommandOptionPresence.Name) ||
-            !options.HasExplicit(NewCommandOptionPresence.OutputPath) ||
             !options.HasExplicit(NewCommandOptionPresence.ClientEngine) ||
             !options.HasExplicit(NewCommandOptionPresence.Transport) ||
-            !options.HasExplicit(NewCommandOptionPresence.Serializer) ||
-            !options.HasExplicit(NewCommandOptionPresence.Persistence) ||
-            !options.HasExplicit(NewCommandOptionPresence.DeployProfile))
+            !options.HasExplicit(NewCommandOptionPresence.Serializer))
         {
             return true;
         }
 
-        return RequiresNuGetForUnitySource(options) &&
-            !options.HasExplicit(NewCommandOptionPresence.NuGetForUnitySource);
-    }
-
-    private static bool RequiresNuGetForUnitySource(NewCommandOptions options)
-    {
-        return options.ClientEngine is "unity" or "unity-cn" or "tuanjie";
+        return false;
     }
 
     private string PromptText(string label, string defaultValue)

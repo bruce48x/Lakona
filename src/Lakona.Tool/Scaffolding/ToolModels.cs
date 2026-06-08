@@ -7,7 +7,7 @@ internal static class ProjectConventions
     public const string DefaultNetworkProfile = "cluster";
     public const string DefaultSerializer = "memorypack";
     public const string DefaultPersistence = "none";
-    public const string DefaultNuGetForUnitySource = "embedded";
+    public const string DefaultNuGetForUnitySource = "openupm";
     public const string DefaultDeployProfile = "none";
     public const string StarterServerProjectPath = "Server/Server";
     public const string StarterServerGeneratedNamespace = "Server.Generated";
