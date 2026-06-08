@@ -3,7 +3,7 @@ using Xunit;
 
 namespace Lakona.Rpc.Analyzers.Tests;
 
-public sealed class ULinkRpcSourceGeneratorTests
+public sealed class LakonaRpcSourceGeneratorTests
 {
     [Fact]
     public void SourceGenerator_ExplicitClientAndServerGeneration_ProducesCompilableGlue()

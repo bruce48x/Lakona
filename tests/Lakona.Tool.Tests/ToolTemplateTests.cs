@@ -89,7 +89,7 @@ public sealed class ToolTemplateTests
         Assert.DoesNotContain("LakonaGameGeneratedApplication", source, StringComparison.Ordinal);
         Assert.DoesNotContain("LakonaGameRuntimeOptions", source, StringComparison.Ordinal);
         Assert.DoesNotContain("ClusterOptions", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("AddULinkRpcServer", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("AddRpcServer", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public sealed class ToolTemplateTests
         Assert.DoesNotContain("LakonaGameGeneratedApplication", source, StringComparison.Ordinal);
         Assert.DoesNotContain("LakonaGameRuntimeOptions", source, StringComparison.Ordinal);
         Assert.DoesNotContain("ClusterOptions", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("AddULinkRpcServer", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("AddRpcServer", source, StringComparison.Ordinal);
     }
 
     [Fact]

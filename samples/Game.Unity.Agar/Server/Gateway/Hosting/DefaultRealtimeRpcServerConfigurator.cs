@@ -9,7 +9,7 @@ using Lakona.Rpc.Transport.WebSocket;
 
 namespace Gateway.Hosting;
 
-internal sealed class DefaultRealtimeRpcServerConfigurator : IULinkRpcServerConfigurator
+internal sealed class DefaultRealtimeRpcServerConfigurator : IRpcServerConfigurator
 {
     private readonly ServerRpcServerOptions _options;
 
@@ -47,6 +47,6 @@ internal sealed class DefaultRealtimeRpcServerConfigurator : IULinkRpcServerConf
         }
 
         throw new InvalidOperationException(
-            $"Unsupported realtime transport '{_options.Transport}'. Register a custom {nameof(IULinkRpcServerConfigurator)} for this project.");
+            $"Unsupported realtime transport '{_options.Transport}'. Register a custom {nameof(IRpcServerConfigurator)} for this project.");
     }
 }

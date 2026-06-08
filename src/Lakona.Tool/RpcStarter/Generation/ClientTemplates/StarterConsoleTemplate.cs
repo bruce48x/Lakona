@@ -79,11 +79,11 @@ using Lakona.Rpc.Core;
 {{transportUsing}}
 {{serializerUsing}}
 
-var host = Environment.GetEnvironmentVariable("ULINKRPC_HOST") ?? "127.0.0.1";
-var port = int.TryParse(Environment.GetEnvironmentVariable("ULINKRPC_PORT"), out var configuredPort)
+var host = Environment.GetEnvironmentVariable("LAKONA_RPC_HOST") ?? "127.0.0.1";
+var port = int.TryParse(Environment.GetEnvironmentVariable("LAKONA_RPC_PORT"), out var configuredPort)
     ? configuredPort
     : 20000;
-var path = Environment.GetEnvironmentVariable("ULINKRPC_PATH") ?? "{{defaultPath}}";
+var path = Environment.GetEnvironmentVariable("LAKONA_RPC_PATH") ?? "{{defaultPath}}";
 var message = args.Length > 0 ? string.Join(" ", args) : "hello";
 
 await using var client = new RpcClient(new RpcClientOptions(
@@ -135,9 +135,9 @@ dotnet run --project Client.csproj -- hello
 
 Environment overrides:
 
-- `ULINKRPC_HOST` defaults to `127.0.0.1`.
-- `ULINKRPC_PORT` defaults to `20000`.
-- `ULINKRPC_PATH` defaults to `{{(context.Transport == TransportKind.WebSocket ? "/ws" : string.Empty)}}`.
+- `LAKONA_RPC_HOST` defaults to `127.0.0.1`.
+- `LAKONA_RPC_PORT` defaults to `20000`.
+- `LAKONA_RPC_PATH` defaults to `{{(context.Transport == TransportKind.WebSocket ? "/ws" : string.Empty)}}`.
 
 Selected transport: {{context.Transport}}
 Selected serializer: {{context.Serializer}}

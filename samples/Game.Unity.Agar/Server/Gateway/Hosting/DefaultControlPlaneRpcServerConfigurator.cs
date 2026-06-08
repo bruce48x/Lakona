@@ -8,7 +8,7 @@ using Lakona.Rpc.Transport.WebSocket;
 
 namespace Gateway.Hosting;
 
-internal sealed class DefaultControlPlaneRpcServerConfigurator : IULinkRpcServerConfigurator
+internal sealed class DefaultControlPlaneRpcServerConfigurator : IRpcServerConfigurator
 {
     private readonly ServerRpcServerOptions _options;
 

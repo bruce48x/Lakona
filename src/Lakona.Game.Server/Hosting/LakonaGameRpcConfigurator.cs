@@ -4,7 +4,7 @@ using Lakona.Rpc.Server;
 
 namespace Lakona.Game.Server.Hosting;
 
-internal sealed class LakonaGameRpcConfigurator : IULinkRpcServerConfigurator
+internal sealed class LakonaGameRpcConfigurator : IRpcServerConfigurator
 {
     private readonly ServerRpcServerOptions _options;
     private readonly Func<IRpcSerializer> _serializerFactory;

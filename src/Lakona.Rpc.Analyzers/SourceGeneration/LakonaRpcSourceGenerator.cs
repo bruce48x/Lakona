@@ -11,7 +11,7 @@ using Microsoft.CodeAnalysis.Text;
 namespace Lakona.Rpc.Analyzers;
 
 [Generator]
-public sealed class ULinkRpcSourceGenerator : ISourceGenerator
+public sealed class LakonaRpcSourceGenerator : ISourceGenerator
 {
     private const string CoreRuntimeUsing = "Lakona.Rpc.Core";
     private const string ClientRuntimeUsing = "Lakona.Rpc.Client";

@@ -28,13 +28,13 @@ var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.AddSingleton<PlayerService>();
 builder.Services.AddLakonaGameServer();
-builder.Services.AddULinkRpcServer<ControlPlaneRpcServerConfigurator>();
+builder.Services.AddRpcServer<ControlPlaneRpcServerConfigurator>();
 builder.Services.AddLakonaGameServerGateway();
 
 await builder.Build().RunAsync();
 ```
 
-Implement `IULinkRpcServerConfigurator` to choose the serializer, transport, and generated service binder:
+Implement `IRpcServerConfigurator` to choose the serializer, transport, and generated service binder:
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
@@ -42,7 +42,7 @@ using Lakona.Game.Server.Hosting;
 using Lakona.Rpc.Serializer.MemoryPack;
 using Lakona.Rpc.Transport.WebSocket;
 
-public sealed class ControlPlaneRpcServerConfigurator : IULinkRpcServerConfigurator
+public sealed class ControlPlaneRpcServerConfigurator : IRpcServerConfigurator
 {
     public string Name => "control";
 

@@ -25,10 +25,10 @@ public sealed class GatewayBusinessFeature : LakonaGameFeature
         var runtimeOptions = LakonaGameRuntimeOptions.FromConfiguration(configuration);
         var kcpOptions = runtimeOptions.ToServerRpcServerOptions("kcp");
         services.AddSingleton(kcpOptions);
-        services.AddSingleton<IULinkRpcServerConfigurator>(_ =>
+        services.AddSingleton<IRpcServerConfigurator>(_ =>
             new DefaultControlPlaneRpcServerConfigurator(
                 runtimeOptions.ToServerRpcServerOptions("websocket")));
-        services.AddSingleton<IULinkRpcServerConfigurator>(_ =>
+        services.AddSingleton<IRpcServerConfigurator>(_ =>
             new DefaultRealtimeRpcServerConfigurator(kcpOptions));
 
         services.AddSingleton<GatewayNodeIdentity>();

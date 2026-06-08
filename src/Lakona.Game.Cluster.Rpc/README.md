@@ -5,15 +5,15 @@
 The package stays outside `Lakona.Game.Cluster` so core route contracts remain transport-neutral. It provides:
 
 - a Lakona.Rpc method contract for sending `ClusterMessage` envelopes between nodes
-- `ULinkRpcClusterNodeMessenger`, an `INodeMessenger` implementation backed by a Lakona.Rpc client factory
-- `ULinkRpcClusterClientFactory`, a reusable client cache over application-provided Lakona.Rpc transports
-- `IULinkRpcClusterTransportFactory`, the boundary where projects choose TCP, WebSocket, KCP, security, and endpoint policy
-- `TcpULinkRpcClusterTransportFactory`, a TCP transport factory for endpoint addresses such as `tcp://127.0.0.1:20010`
-- `ULinkRpcClusterMessageBinder`, a server-side binder that dispatches inbound cluster messages into an `IClusterMessageHandler`
-- `ULinkRpcNodeDirectory`, an `INodeDirectory` client backed by Lakona.Rpc calls
-- `ULinkRpcNodeDirectoryBinder`, a server-side binder that exposes an application-provided `INodeDirectory`
-- `ULinkRpcRouteDirectory`, an `IRouteDirectory` client backed by Lakona.Rpc calls
-- `ULinkRpcRouteDirectoryBinder`, a server-side binder that exposes an application-provided `IRouteDirectory`
+- `ClusterNodeMessenger`, an `INodeMessenger` implementation backed by a Lakona.Rpc client factory
+- `ClusterClientFactory`, a reusable client cache over application-provided Lakona.Rpc transports
+- `IClusterTransportFactory`, the boundary where projects choose TCP, WebSocket, KCP, security, and endpoint policy
+- `TcpClusterTransportFactory`, a TCP transport factory for endpoint addresses such as `tcp://127.0.0.1:20010`
+- `ClusterMessageBinder`, a server-side binder that dispatches inbound cluster messages into an `IClusterMessageHandler`
+- `NodeDirectoryClient`, an `INodeDirectory` client backed by Lakona.Rpc calls
+- `NodeDirectoryBinder`, a server-side binder that exposes an application-provided `INodeDirectory`
+- `RouteDirectoryClient`, an `IRouteDirectory` client backed by Lakona.Rpc calls
+- `RouteDirectoryBinder`, a server-side binder that exposes an application-provided `IRouteDirectory`
 
 It does not provide durable route directory storage, external platform discovery bindings, durable queues, gameplay DTOs, actor migration, or transparent remote actor clients. A route directory service can expose `InMemoryRouteDirectory` for smoke tests, or a project-owned durable implementation for production-specific policy.
 
@@ -73,4 +73,4 @@ Example production control node:
 
 Other nodes should use `Cluster:Bootstrap:NodeDirectoryEndpoints` to find one or more configured directory nodes, then register their own `NodeId`, advertised endpoints, service descriptors, and lease.
 
-Additional concrete transport factories should be added only with passing cross-process smoke tests. The package exposes `IULinkRpcClusterTransportFactory` so consuming projects can wire custom Lakona.Rpc transport policy while the package keeps the node messaging protocol and status mapping centralized.
+Additional concrete transport factories should be added only with passing cross-process smoke tests. The package exposes `IClusterTransportFactory` so consuming projects can wire custom Lakona.Rpc transport policy while the package keeps the node messaging protocol and status mapping centralized.

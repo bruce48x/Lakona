@@ -61,7 +61,7 @@ public static class LakonaGameServer
         builder.Services.AddSingleton(_ => runtimeOptions.ToServerRpcServerOptions(serverBuilder.GetTransport()));
 
         // Register primary RPC configurator
-        builder.Services.AddSingleton<IULinkRpcServerConfigurator>(sp =>
+        builder.Services.AddSingleton<IRpcServerConfigurator>(sp =>
             new LakonaGameRpcConfigurator(
                 runtimeOptions.ToServerRpcServerOptions(serverBuilder.GetTransport()),
                 serverBuilder.GetSerializerFactory(),
@@ -72,7 +72,7 @@ public static class LakonaGameServer
         // Register additional RPC endpoints
         foreach (var endpoint in serverBuilder.GetAdditionalEndpoints())
         {
-            builder.Services.AddSingleton<IULinkRpcServerConfigurator>(sp =>
+            builder.Services.AddSingleton<IRpcServerConfigurator>(sp =>
                 new LakonaGameRpcConfigurator(
                     runtimeOptions.ToServerRpcServerOptions(endpoint.Transport),
                     endpoint.SerializerFactory,
@@ -112,7 +112,7 @@ public static class LakonaGameServer
             new CurrentDirectoryHotfixAssemblySource(hotfixDirectory, "Server.Hotfix.dll"),
             sharedAssemblyNames: new[] { "Shared" });
 
-        // Gateway (registers ULinkRpcServersHostedService)
+        // Gateway (registers RpcServersHostedService)
         builder.Services.AddLakonaGameServerGateway();
 
         var host = builder.Build();

@@ -624,7 +624,7 @@ public sealed class StarterTemplateGeneratorTests
             Assert.Contains("await client.ConnectAsync();", program);
             Assert.Contains("client.Api.Shared.Ping.PingAsync", program);
             Assert.Contains("Console.WriteLine($\"Ping ok:", program);
-            Assert.Contains("ULINKRPC_HOST", program);
+            Assert.Contains("LAKONA_RPC_HOST", program);
             Assert.Contains("Console Client Starter (.NET 10)", clientReadme);
             Assert.Contains("dotnet run --project Client.csproj -- hello", clientReadme);
             Assert.DoesNotContain("<Project Path=\"../Client/Client.csproj\" />", solution);
@@ -839,8 +839,8 @@ public sealed class StarterTemplateGeneratorTests
 
     private static void WithGodotSdkSource(string path, Action action)
     {
-        var previous = Environment.GetEnvironmentVariable("ULINKRPC_GODOT_NUPKGS");
-        Environment.SetEnvironmentVariable("ULINKRPC_GODOT_NUPKGS", path);
+        var previous = Environment.GetEnvironmentVariable("LAKONA_RPC_GODOT_NUPKGS");
+        Environment.SetEnvironmentVariable("LAKONA_RPC_GODOT_NUPKGS", path);
 
         try
         {
@@ -848,7 +848,7 @@ public sealed class StarterTemplateGeneratorTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("ULINKRPC_GODOT_NUPKGS", previous);
+            Environment.SetEnvironmentVariable("LAKONA_RPC_GODOT_NUPKGS", previous);
         }
     }
 

@@ -10,7 +10,7 @@
     <PackageId>Lakona.Tool</PackageId>
     <Version>0.7.13</Version>
     <Description>Command-line project management tool for Lakona.Game project scaffolding and source-generator based RPC workflows.</Description>
-    <PackageTags>lakona-game;lakona-rpc;game;tool;cli;scaffold;source-generator</PackageTags>
+    <PackageTags>game-server;game-client;cli;scaffold;source-generator</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 

@@ -35,8 +35,8 @@ static async Task<int> RunDirectoryAsync(SampleOptions options)
     var builder = RpcServerHostBuilder.Create()
         .UseSerializer(serializer)
         .UseAcceptor(new TcpConnectionAcceptor(options.Port.Value));
-    ULinkRpcNodeDirectoryBinder.Bind(builder.ServiceRegistry, nodeDirectory);
-    ULinkRpcRouteDirectoryBinder.Bind(builder.ServiceRegistry, routeDirectory);
+    NodeDirectoryBinder.Bind(builder.ServiceRegistry, nodeDirectory);
+    RouteDirectoryBinder.Bind(builder.ServiceRegistry, routeDirectory);
 
     var serverTask = builder.RunAsync(CancellationToken.None).AsTask();
     await WaitForTcpEndpointAsync(
@@ -69,7 +69,7 @@ static async Task<int> RunWorkerAsync(SampleOptions options)
     var builder = RpcServerHostBuilder.Create()
         .UseSerializer(serializer)
         .UseAcceptor(new TcpConnectionAcceptor(options.Port.Value));
-    ULinkRpcClusterMessageBinder.Bind(builder.ServiceRegistry, handler);
+    ClusterMessageBinder.Bind(builder.ServiceRegistry, handler);
 
     var serverTask = builder.RunAsync(CancellationToken.None).AsTask();
     await WaitForTcpEndpointAsync(
@@ -79,14 +79,14 @@ static async Task<int> RunWorkerAsync(SampleOptions options)
         TimeSpan.FromSeconds(10),
         CancellationToken.None);
 
-    await using var clientFactory = new ULinkRpcClusterClientFactory(
-        new TcpULinkRpcClusterTransportFactory(),
+    await using var clientFactory = new ClusterClientFactory(
+        new TcpClusterTransportFactory(),
         serializer);
     var directoryClient = await clientFactory.GetClientAsync(
         DirectoryLocation(options.DirectoryEndpoint),
         CancellationToken.None);
-    var nodeDirectory = new ULinkRpcNodeDirectory(directoryClient);
-    var routeDirectory = new ULinkRpcRouteDirectory(directoryClient);
+    var nodeDirectory = new NodeDirectoryClient(directoryClient);
+    var routeDirectory = new RouteDirectoryClient(directoryClient);
     var registration = await nodeDirectory.RegisterAsync(
         WorkerRegistration(options.Port.Value),
         DateTimeOffset.UtcNow,
@@ -149,13 +149,13 @@ static async Task<int> RunDriverAsync()
         var workerRegistered = await WaitForLineAsync(worker, "node-registered", TimeSpan.FromSeconds(10));
         Console.WriteLine(workerRegistered);
 
-        await using var clientFactory = new ULinkRpcClusterClientFactory(
-            new TcpULinkRpcClusterTransportFactory(),
+        await using var clientFactory = new ClusterClientFactory(
+            new TcpClusterTransportFactory(),
             serializer);
         var directoryClient = await clientFactory.GetClientAsync(
             DirectoryLocation(directoryEndpoint),
             CancellationToken.None);
-        var directory = new ULinkRpcRouteDirectory(directoryClient);
+        var directory = new RouteDirectoryClient(directoryClient);
         var now = DateTimeOffset.UtcNow;
         var localRoute = new RouteLocation(
             "control/local",
@@ -179,9 +179,9 @@ static async Task<int> RunDriverAsync()
             "driver",
             directory,
             new DriverHandler(),
-            new ULinkRpcClusterNodeMessenger(
+            new ClusterNodeMessenger(
                 clientFactory,
-                new ULinkRpcClusterNodeMessengerOptions
+                new ClusterNodeMessengerOptions
                 {
                     SendTimeout = TimeSpan.FromSeconds(2)
                 }),

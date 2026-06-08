@@ -8,7 +8,7 @@
     <PackageId>Lakona.Game.Client</PackageId>
     <Version>0.1.6</Version>
     <Description>Engine-neutral client helpers for Lakona.Game applications, including reliable push sequence tracking.</Description>
-    <PackageTags>lakona-game;lakona-rpc;game;client;unity;godot;rpc;reliable-push</PackageTags>
+    <PackageTags>game-client;unity;godot</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 

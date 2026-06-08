@@ -9,7 +9,7 @@ public static class LakonaGameServerGatewayExtensions
 {
     public static IServiceCollection AddLakonaGameServerGateway(this IServiceCollection services)
     {
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ULinkRpcServersHostedService>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, RpcServersHostedService>());
         return services;
     }
 
@@ -19,11 +19,11 @@ public static class LakonaGameServerGatewayExtensions
         return services.AddLakonaGameServerGateway();
     }
 
-    public static IServiceCollection AddULinkRpcServer<TConfigurator>(this IServiceCollection services)
-        where TConfigurator : class, IULinkRpcServerConfigurator
+    public static IServiceCollection AddRpcServer<TConfigurator>(this IServiceCollection services)
+        where TConfigurator : class, IRpcServerConfigurator
     {
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IULinkRpcServerConfigurator, TConfigurator>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ULinkRpcServersHostedService>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IRpcServerConfigurator, TConfigurator>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, RpcServersHostedService>());
         return services;
     }
 }

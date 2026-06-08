@@ -32,20 +32,20 @@ internal static class OperationsTemplates
               LakonaGame__Endpoints__0__Host: "0.0.0.0"
               LakonaGame__Endpoints__0__Port: "20000"
               LakonaGame__Endpoints__0__Path: "{{TemplateText.SanitizeStringLiteral(endpointPath)}}"
-              Cluster__NodeId: "${ULINKGAME_CLUSTER_NODE_ID:-gateway-1}"
-              Cluster__AdvertisedEndpoints__cluster: "${ULINKGAME_CLUSTER_ADVERTISED_ENDPOINTS_CLUSTER:-tcp://gateway:21000}"
-              Cluster__AdvertisedEndpoints__client: "${ULINKGAME_CLUSTER_ADVERTISED_ENDPOINTS_CLIENT:-{{TemplateText.SanitizeStringLiteral(advertisedClientEndpoint)}}}"
-              Cluster__Bootstrap__NodeDirectoryEndpoints__0: "${ULINKGAME_CLUSTER_BOOTSTRAP_NODE_DIRECTORY_ENDPOINT_0:-tcp://gateway:21000}"
-              Cluster__NodeDirectory__Enabled: "${ULINKGAME_CLUSTER_NODE_DIRECTORY_ENABLED:-true}"
-              Cluster__NodeDirectory__Storage__Mode: "${ULINKGAME_CLUSTER_NODE_DIRECTORY_STORAGE_MODE:-InMemory}"
+              Cluster__NodeId: "${LAKONA_CLUSTER_NODE_ID:-gateway-1}"
+              Cluster__AdvertisedEndpoints__cluster: "${LAKONA_CLUSTER_ADVERTISED_ENDPOINTS_CLUSTER:-tcp://gateway:21000}"
+              Cluster__AdvertisedEndpoints__client: "${LAKONA_CLUSTER_ADVERTISED_ENDPOINTS_CLIENT:-{{TemplateText.SanitizeStringLiteral(advertisedClientEndpoint)}}}"
+              Cluster__Bootstrap__NodeDirectoryEndpoints__0: "${LAKONA_CLUSTER_BOOTSTRAP_NODE_DIRECTORY_ENDPOINT_0:-tcp://gateway:21000}"
+              Cluster__NodeDirectory__Enabled: "${LAKONA_CLUSTER_NODE_DIRECTORY_ENABLED:-true}"
+              Cluster__NodeDirectory__Storage__Mode: "${LAKONA_CLUSTER_NODE_DIRECTORY_STORAGE_MODE:-InMemory}"
               Cluster__Services__0__Kind: "node-directory"
               Cluster__Services__0__Name: "node-directory"
               Cluster__Services__1__Kind: "route-directory"
               Cluster__Services__1__Name: "route-directory"
               Cluster__Services__2__Kind: "gateway"
               Cluster__Services__2__Name: "gateway"
-              Cluster__RouteLeaseSeconds: "${ULINKGAME_CLUSTER_ROUTE_LEASE_SECONDS:-30}"
-              Cluster__SendTimeoutMilliseconds: "${ULINKGAME_CLUSTER_SEND_TIMEOUT_MILLISECONDS:-2000}"
+              Cluster__RouteLeaseSeconds: "${LAKONA_CLUSTER_ROUTE_LEASE_SECONDS:-30}"
+              Cluster__SendTimeoutMilliseconds: "${LAKONA_CLUSTER_SEND_TIMEOUT_MILLISECONDS:-2000}"
             ports:
               - "20000:20000"
             healthcheck:
@@ -65,14 +65,14 @@ internal static class OperationsTemplates
         return $$"""
         # This file intentionally contains no production secrets.
         # Put node authentication and TLS material in your deployment platform secret store.
-        ULINKGAME_CLUSTER_NODE_ID=gateway-1
-        ULINKGAME_CLUSTER_ADVERTISED_ENDPOINTS_CLUSTER=tcp://gateway:21000
-        ULINKGAME_CLUSTER_ADVERTISED_ENDPOINTS_CLIENT={{advertisedClientEndpoint}}
-        ULINKGAME_CLUSTER_BOOTSTRAP_NODE_DIRECTORY_ENDPOINT_0=tcp://gateway:21000
-        ULINKGAME_CLUSTER_NODE_DIRECTORY_ENABLED=true
-        ULINKGAME_CLUSTER_NODE_DIRECTORY_STORAGE_MODE=InMemory
-        ULINKGAME_CLUSTER_ROUTE_LEASE_SECONDS=30
-        ULINKGAME_CLUSTER_SEND_TIMEOUT_MILLISECONDS=2000
+        LAKONA_CLUSTER_NODE_ID=gateway-1
+        LAKONA_CLUSTER_ADVERTISED_ENDPOINTS_CLUSTER=tcp://gateway:21000
+        LAKONA_CLUSTER_ADVERTISED_ENDPOINTS_CLIENT={{advertisedClientEndpoint}}
+        LAKONA_CLUSTER_BOOTSTRAP_NODE_DIRECTORY_ENDPOINT_0=tcp://gateway:21000
+        LAKONA_CLUSTER_NODE_DIRECTORY_ENABLED=true
+        LAKONA_CLUSTER_NODE_DIRECTORY_STORAGE_MODE=InMemory
+        LAKONA_CLUSTER_ROUTE_LEASE_SECONDS=30
+        LAKONA_CLUSTER_SEND_TIMEOUT_MILLISECONDS=2000
         """;
     }
 
@@ -104,7 +104,7 @@ internal static class OperationsTemplates
         dotnet Server.dll --health-check
         ```
 
-        The generated health check validates that local cluster configuration has a node id, at least one advertised endpoint, and at least one configured service. Remote node-directory, route-directory, and node-messenger dependency checks should be wired by the project host using `ULinkRpcClusterDependencyProbe` once the project chooses its concrete topology and secret policy.
+        The generated health check validates that local cluster configuration has a node id, at least one advertised endpoint, and at least one configured service. Remote node-directory, route-directory, and node-messenger dependency checks should be wired by the project host using `ClusterDependencyProbe` once the project chooses its concrete topology and secret policy.
         """;
     }
 

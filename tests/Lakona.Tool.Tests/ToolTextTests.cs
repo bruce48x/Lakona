@@ -288,11 +288,11 @@ public sealed class ToolTextTests
         Assert.Contains("using Server.Hosting;", program, StringComparison.Ordinal);
         Assert.Contains("healthcheck:", compose, StringComparison.Ordinal);
         Assert.Contains("dotnet Server.dll --health-check", compose, StringComparison.Ordinal);
-        Assert.Contains("ULINKGAME_CLUSTER_NODE_ID", env, StringComparison.Ordinal);
-        Assert.Contains("ULINKGAME_CLUSTER_ADVERTISED_ENDPOINTS_CLUSTER", env, StringComparison.Ordinal);
-        Assert.Contains("ULINKGAME_CLUSTER_ADVERTISED_ENDPOINTS_CLIENT", env, StringComparison.Ordinal);
+        Assert.Contains("LAKONA_CLUSTER_NODE_ID", env, StringComparison.Ordinal);
+        Assert.Contains("LAKONA_CLUSTER_ADVERTISED_ENDPOINTS_CLUSTER", env, StringComparison.Ordinal);
+        Assert.Contains("LAKONA_CLUSTER_ADVERTISED_ENDPOINTS_CLIENT", env, StringComparison.Ordinal);
         Assert.Contains("Cluster__AdvertisedEndpoints__client", compose, StringComparison.Ordinal);
-        Assert.Contains("ULINKGAME_CLUSTER_ADVERTISED_ENDPOINTS_CLIENT", compose, StringComparison.Ordinal);
+        Assert.Contains("LAKONA_CLUSTER_ADVERTISED_ENDPOINTS_CLIENT", compose, StringComparison.Ordinal);
         Assert.Contains("LakonaGame__Endpoints__0__Transport", compose, StringComparison.Ordinal);
         Assert.Contains("LakonaGame__Endpoints__0__Host", compose, StringComparison.Ordinal);
         Assert.Contains("LakonaGame__Endpoints__0__Port", compose, StringComparison.Ordinal);
@@ -301,7 +301,7 @@ public sealed class ToolTextTests
         Assert.DoesNotContain("\n              Endpoint__Host:", compose.Replace("\r\n", "\n"), StringComparison.Ordinal);
         Assert.DoesNotContain("\n              Endpoint__Port:", compose.Replace("\r\n", "\n"), StringComparison.Ordinal);
         Assert.DoesNotContain("\n              Endpoint__Path:", compose.Replace("\r\n", "\n"), StringComparison.Ordinal);
-        Assert.Contains("ULinkRpcClusterDependencyProbe", operations, StringComparison.Ordinal);
+        Assert.Contains("ClusterDependencyProbe", operations, StringComparison.Ordinal);
         Assert.Contains("Cluster__AdvertisedEndpoints__client", operations, StringComparison.Ordinal);
         var generatedText = string.Concat(appSettings, project, program, generatedApplication, compose, env, operations);
         Assert.DoesNotContain("NodeEpoch", generatedText, StringComparison.Ordinal);
@@ -796,9 +796,9 @@ public sealed class ToolTextTests
         var websocketEnv = ToolTemplates.RenderClusterEnvExample(websocketOptions);
         var defaultEnv = ToolTemplates.RenderClusterEnvExample(defaultOptions);
 
-        Assert.Contains("ULINKGAME_CLUSTER_ADVERTISED_ENDPOINTS_CLIENT=ws://gateway:20000/ws", websocketEnv, StringComparison.Ordinal);
-        Assert.DoesNotContain("ULINKGAME_CLUSTER_ADVERTISED_ENDPOINTS_CLIENT=tcp://gateway:20000", websocketEnv, StringComparison.Ordinal);
-        Assert.Contains("ULINKGAME_CLUSTER_ADVERTISED_ENDPOINTS_CLIENT=kcp://gateway:20000", defaultEnv, StringComparison.Ordinal);
+        Assert.Contains("LAKONA_CLUSTER_ADVERTISED_ENDPOINTS_CLIENT=ws://gateway:20000/ws", websocketEnv, StringComparison.Ordinal);
+        Assert.DoesNotContain("LAKONA_CLUSTER_ADVERTISED_ENDPOINTS_CLIENT=tcp://gateway:20000", websocketEnv, StringComparison.Ordinal);
+        Assert.Contains("LAKONA_CLUSTER_ADVERTISED_ENDPOINTS_CLIENT=kcp://gateway:20000", defaultEnv, StringComparison.Ordinal);
     }
 
     [Fact]

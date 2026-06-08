@@ -28,10 +28,10 @@ public sealed class GatewayConfigurationTests
         Assert.False(root.TryGetProperty("Services", out _));
         Assert.False(root.TryGetProperty("Cluster", out _));
 
-        var ulinkGame = root.GetProperty("Lakona.Game");
-        Assert.Equal("gateway-dev-1", ulinkGame.GetProperty("Node").GetProperty("Id").GetString());
+        var lakonaGame = root.GetProperty("Lakona.Game");
+        Assert.Equal("gateway-dev-1", lakonaGame.GetProperty("Node").GetProperty("Id").GetString());
 
-        var endpoints = ulinkGame.GetProperty("Endpoints").EnumerateArray().ToArray();
+        var endpoints = lakonaGame.GetProperty("Endpoints").EnumerateArray().ToArray();
         Assert.Equal(2, endpoints.Length);
 
         var control = Assert.Single(endpoints, endpoint =>

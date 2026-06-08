@@ -37,7 +37,7 @@ internal static class AnalyzerTestHelpers
         out Compilation outputCompilation)
     {
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
-            new ISourceGenerator[] { new ULinkRpcSourceGenerator() },
+            new ISourceGenerator[] { new LakonaRpcSourceGenerator() },
             parseOptions: ParseOptions,
             optionsProvider: new TestAnalyzerConfigOptionsProvider(globalOptions));
 

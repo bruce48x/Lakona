@@ -280,7 +280,7 @@ public partial class RpcConnectionTester : Node
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var envName in new[] { "ULINKRPC_GODOT_NUPKGS", "GODOT_MONO_NUPKGS" })
+        foreach (var envName in new[] { "LAKONA_RPC_GODOT_NUPKGS", "GODOT_MONO_NUPKGS" })
         {
             var value = Environment.GetEnvironmentVariable(envName);
             if (!string.IsNullOrWhiteSpace(value) && seen.Add(value))
