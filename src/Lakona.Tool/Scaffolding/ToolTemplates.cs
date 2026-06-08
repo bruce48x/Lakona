@@ -1726,6 +1726,7 @@ internal static class ToolTemplates
     {
         return @"using Microsoft.Extensions.DependencyInjection;
 using Server.Chat;
+using Server.Services;
 using Server.Generated;
 using Lakona.Rpc.Server;
 
@@ -1735,6 +1736,10 @@ internal static class ServiceBindingConfigurator
 {
     public static void Bind(RpcServiceRegistry registry, IServiceProvider services)
     {
+        PingServiceBinder.Bind(
+            registry,
+            callback => ActivatorUtilities.CreateInstance<PingService>(services, callback));
+
         ChatServiceBinder.Bind(
             registry,
             callback => ActivatorUtilities.CreateInstance<ChatServiceImpl>(services, callback));
