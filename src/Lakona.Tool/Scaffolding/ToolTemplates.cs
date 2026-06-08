@@ -608,7 +608,7 @@ internal static class ToolTemplates
                 public async Task ConnectAsync(CancellationToken cancellationToken = default)
                 {
                     await _rpcClient.ConnectAsync(cancellationToken);
-                    _chatService = _rpcClient.Api.Shared.Contracts.Chat;
+                    _chatService = _rpcClient.Api.Shared.Chat;
                     _isConnected = true;
                 }
 

@@ -515,7 +515,7 @@ public sealed class ToolTemplateTests
         Assert.Contains("using System.Threading.Tasks;", source, StringComparison.Ordinal);
         Assert.Contains("using Rpc.Generated;", source, StringComparison.Ordinal);
         Assert.Contains("new RpcClient(options, callbacks)", source, StringComparison.Ordinal);
-        Assert.Contains("_rpcClient.Api.Shared.Contracts.Chat", source, StringComparison.Ordinal);
+        Assert.Contains("_rpcClient.Api.Shared.Chat", source, StringComparison.Ordinal);
         Assert.Contains("OnMessageReceived?.Invoke", source, StringComparison.Ordinal);
     }
 
@@ -540,7 +540,8 @@ public sealed class ToolTemplateTests
         Assert.Contains("using Shared.Contracts.Chat;", client, StringComparison.Ordinal);
         Assert.Contains("using Shared.Contracts.Chat;", unityUi, StringComparison.Ordinal);
         Assert.Contains("using Shared.Contracts.Chat;", godotScene, StringComparison.Ordinal);
-        Assert.DoesNotContain("Shared.Chat", string.Concat(protocols, messages, roomActor, rules, service, hotfix, client, unityUi, godotScene), StringComparison.Ordinal);
+        Assert.DoesNotContain("namespace Shared.Chat", string.Concat(protocols, messages, roomActor, rules, service, hotfix, client, unityUi, godotScene), StringComparison.Ordinal);
+        Assert.DoesNotContain("using Shared.Chat;", string.Concat(protocols, messages, roomActor, rules, service, hotfix, client, unityUi, godotScene), StringComparison.Ordinal);
     }
 
     [Fact]
