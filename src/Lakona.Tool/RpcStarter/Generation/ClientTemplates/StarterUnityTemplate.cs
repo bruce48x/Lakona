@@ -103,7 +103,7 @@ internal static class StarterUnityTemplate
 
     private static string BuildPackagesConfig(StarterTemplateContext context)
     {
-        var packageReferences = RenderUnityPackages(StarterDependencyPlanner.Create(context, StarterProjectRole.UnityClient));
+        var packageReferences = PackageReferenceText.RenderNuGetForUnityPackages(StarterDependencyPlanner.Create(context, StarterProjectRole.UnityClient));
 
         return $$"""
 <?xml version="1.0" encoding="utf-8"?>
@@ -111,15 +111,6 @@ internal static class StarterUnityTemplate
 {{packageReferences}}
 </packages>
 """;
-    }
-
-    private static string RenderUnityPackages(StarterDependencyPlan plan) =>
-        string.Join(Environment.NewLine, plan.PackageReferences.Select(RenderUnityPackage));
-
-    private static string RenderUnityPackage(StarterPackageReference reference)
-    {
-        var manuallyInstalled = reference.ManuallyInstalled ? " manuallyInstalled=\"true\"" : string.Empty;
-        return $"  <package id=\"{reference.Id}\" version=\"{reference.Version}\"{manuallyInstalled} />";
     }
 
     private static string BuildNuGetConfig(ClientEngineKind clientEngine)

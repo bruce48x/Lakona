@@ -38,7 +38,7 @@ internal static class StarterSharedTemplate
             _ => "netstandard2.1;net10.0"
         };
 
-        var packageReferences = RenderPackageReferences(StarterDependencyPlanner.Create(context, StarterProjectRole.Shared));
+        var packageReferences = PackageReferenceText.RenderSdkPackageReferences(StarterDependencyPlanner.Create(context, StarterProjectRole.Shared));
 
         return $$"""
 <Project Sdk="Microsoft.NET.Sdk">
@@ -56,34 +56,6 @@ internal static class StarterSharedTemplate
   </ItemGroup>
 </Project>
 """;
-    }
-
-    private static string RenderPackageReferences(StarterDependencyPlan plan) =>
-        string.Join(Environment.NewLine, plan.PackageReferences.Select(RenderPackageReference));
-
-    private static string RenderPackageReference(StarterPackageReference reference)
-    {
-        if (reference.PrivateAssets is null && reference.IncludeAssets is null)
-        {
-            return $"    <PackageReference Include=\"{reference.Id}\" Version=\"{reference.Version}\" />";
-        }
-
-        var metadata = new List<string>();
-        if (reference.PrivateAssets is not null)
-        {
-            metadata.Add($"      <PrivateAssets>{reference.PrivateAssets}</PrivateAssets>");
-        }
-
-        if (reference.IncludeAssets is not null)
-        {
-            metadata.Add($"      <IncludeAssets>{reference.IncludeAssets}</IncludeAssets>");
-        }
-
-        return string.Join(
-            Environment.NewLine,
-            $"    <PackageReference Include=\"{reference.Id}\" Version=\"{reference.Version}\">",
-            string.Join(Environment.NewLine, metadata),
-            "    </PackageReference>");
     }
 
     private static string BuildSharedDtos(SerializerKind serializer) => serializer == SerializerKind.MemoryPack

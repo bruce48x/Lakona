@@ -197,4 +197,39 @@ public sealed class StarterDependencyPlannerTests
 
         return StarterDependencyPlanner.Create(context, role);
     }
+
+    [Fact]
+    public void PackageReferenceText_RendersSdkPackageReferencesWithPrivateAssets()
+    {
+        var plan = new StarterDependencyPlan(
+        [
+            new StarterPackageReference("Lakona.Rpc.Analyzers", "0.1.2", PrivateAssets: "all", IncludeAssets: "runtime; build")
+        ]);
+
+        var xml = PackageReferenceText.RenderSdkPackageReferences(plan);
+
+        Assert.Equal(
+            """
+                <PackageReference Include="Lakona.Rpc.Analyzers" Version="0.1.2">
+                  <PrivateAssets>all</PrivateAssets>
+                  <IncludeAssets>runtime; build</IncludeAssets>
+                </PackageReference>
+            """.Replace("\r\n", "\n", StringComparison.Ordinal),
+            xml.Replace("\r\n", "\n", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void PackageReferenceText_RendersNuGetForUnityPackagesWithManualFlag()
+    {
+        var plan = new StarterDependencyPlan(
+        [
+            new StarterPackageReference("Lakona.Rpc.Client", "1.2.3", ManuallyInstalled: true),
+            new StarterPackageReference("System.Buffers", "4.6.1")
+        ]);
+
+        var xml = PackageReferenceText.RenderNuGetForUnityPackages(plan);
+
+        Assert.Contains(@"<package id=""Lakona.Rpc.Client"" version=""1.2.3"" manuallyInstalled=""true"" />", xml, StringComparison.Ordinal);
+        Assert.Contains(@"<package id=""System.Buffers"" version=""4.6.1"" />", xml, StringComparison.Ordinal);
+    }
 }
