@@ -62,7 +62,7 @@ public sealed class HotfixManager : IHotfixManager
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            var boundaryDiagnostics = HotfixDispatchBoundaryValidator.Validate(pendingContext, assembly, scan.Methods);
+            var boundaryDiagnostics = HotfixDispatchBoundaryValidator.Validate(pendingContext, scan.Methods);
             if (boundaryDiagnostics.Count != 0)
             {
                 throw new InvalidOperationException(string.Join(Environment.NewLine, boundaryDiagnostics));

@@ -32,8 +32,10 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_replaces_current_snapshot_after_successful_scan()
     {
-        var source = new FixedAssemblySource(typeof(ManagerTestStateSystem).Assembly.Location);
-        var manager = new HotfixManager(source, [typeof(ManagerTestStateSystem).Assembly.GetName().Name!]);
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var source = new FixedAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
+        var manager = new HotfixManager(source, [stableAssembly.GetName().Name!]);
 
         var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
 
@@ -46,8 +48,10 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_failure_keeps_previous_snapshot()
     {
-        var source = new SwitchableAssemblySource(typeof(ManagerTestStateSystem).Assembly.Location);
-        var manager = new HotfixManager(source, [typeof(ManagerTestStateSystem).Assembly.GetName().Name!]);
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var source = new SwitchableAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
+        var manager = new HotfixManager(source, [stableAssembly.GetName().Name!]);
         var first = await manager.ReloadAsync(TestContext.Current.CancellationToken);
         source.Path = @"Z:\missing\Missing.Hotfix.dll";
 
@@ -114,11 +118,12 @@ public sealed class HotfixManagerTests
     public async Task Reload_does_not_replace_dispatch_after_scan_failure()
     {
         using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
-        var source = new SwitchableAssemblySource(typeof(ManagerTestStateSystem).Assembly.Location);
-        var manager = new HotfixManager(source, [typeof(ManagerTestStateSystem).Assembly.GetName().Name!]);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var source = new SwitchableAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
+        var manager = new HotfixManager(source, [stableAssembly.GetName().Name!]);
         var first = await manager.ReloadAsync(TestContext.Current.CancellationToken);
         var key = first.Current.Methods.Single(key =>
-            key.StateTypeName == typeof(ManagerTestState).FullName && key.MethodName == "Add");
+            key.StateTypeName == "StableContracts.ManagerTestState" && key.MethodName == "Add");
         var previousMethod = HotfixDispatch.Current.Resolve(key);
         source.Path = compiled.InvalidHotfixAssemblyPath;
 
@@ -143,13 +148,15 @@ public sealed class HotfixManagerTests
     public async Task Reload_canceled_after_source_resolution_does_not_publish()
     {
         using var cts = new CancellationTokenSource();
-        var source = new SwitchableAssemblySource(typeof(ManagerTestStateSystem).Assembly.Location);
-        var manager = new HotfixManager(source, [typeof(ManagerTestStateSystem).Assembly.GetName().Name!]);
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var source = new SwitchableAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
+        var manager = new HotfixManager(source, [stableAssembly.GetName().Name!]);
         var first = await manager.ReloadAsync(TestContext.Current.CancellationToken);
         var key = first.Current.Methods.Single(key =>
-            key.StateTypeName == typeof(ManagerTestState).FullName && key.MethodName == "Add");
+            key.StateTypeName == "StableContracts.ManagerTestState" && key.MethodName == "Add");
         var previousMethod = HotfixDispatch.Current.Resolve(key);
-        source.Path = typeof(ManagerTestStateSystem).Assembly.Location;
+        source.Path = compiled.ManagerTestHotfixAssemblyPath;
         source.AfterResolve = () => cts.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await manager.ReloadAsync(cts.Token));
@@ -161,8 +168,10 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task ReloadAsync_serializes_concurrent_reloads()
     {
-        var source = new BlockingAssemblySource(typeof(ManagerTestStateSystem).Assembly.Location);
-        var manager = new HotfixManager(source, [typeof(ManagerTestStateSystem).Assembly.GetName().Name!]);
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var source = new BlockingAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
+        var manager = new HotfixManager(source, [stableAssembly.GetName().Name!]);
         var first = manager.ReloadAsync(TestContext.Current.CancellationToken).AsTask();
         await source.FirstResolveStarted.Task.WaitAsync(TestContext.Current.CancellationToken);
 
@@ -204,8 +213,9 @@ public sealed class HotfixManagerTests
     [Fact]
     public void AddLakonaGameHotfix_replaces_existing_source_registration()
     {
-        var oldSource = new FixedAssemblySource(typeof(ManagerTestStateSystem).Assembly.Location);
-        var newSource = new FixedAssemblySource(typeof(ManagerTestStateSystem).Assembly.Location);
+        var dummy = Path.Combine(AppContext.BaseDirectory, "dummy.dll");
+        var oldSource = new FixedAssemblySource(dummy);
+        var newSource = new FixedAssemblySource(dummy);
         var services = new ServiceCollection();
         services.AddSingleton<IHotfixAssemblySource>(oldSource);
 
@@ -213,6 +223,51 @@ public sealed class HotfixManagerTests
 
         using var provider = services.BuildServiceProvider();
         Assert.Same(newSource, provider.GetRequiredService<IHotfixAssemblySource>());
+    }
+
+    [Fact]
+    public async Task Reload_fails_when_state_type_is_defined_in_hotfix_assembly()
+    {
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var manager = new HotfixManager(new FixedAssemblySource(compiled.HotfixOwnedStateAssemblyPath));
+
+        var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Contains("must resolve from a shared AssemblyLoadContext", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Reload_fails_when_return_type_is_defined_in_hotfix_assembly()
+    {
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var manager = new HotfixManager(
+            new FixedAssemblySource(compiled.HotfixOwnedReturnAssemblyPath),
+            [stableAssembly.GetName().Name!]);
+
+        var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Contains("must resolve from a shared AssemblyLoadContext", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Reload_fails_when_argument_type_is_defined_in_hotfix_assembly()
+    {
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var manager = new HotfixManager(
+            new FixedAssemblySource(compiled.HotfixOwnedArgumentAssemblyPath),
+            [stableAssembly.GetName().Name!]);
+
+        var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Contains("must resolve from a shared AssemblyLoadContext", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -366,13 +421,21 @@ public sealed class HotfixManagerTests
             string stableAssemblyPath,
             string hotfixAssemblyPath,
             string secondHotfixAssemblyPath,
-            string invalidHotfixAssemblyPath)
+            string invalidHotfixAssemblyPath,
+            string hotfixOwnedStateAssemblyPath,
+            string hotfixOwnedReturnAssemblyPath,
+            string hotfixOwnedArgumentAssemblyPath,
+            string managerTestHotfixAssemblyPath)
         {
             RootDirectory = rootDirectory;
             StableAssemblyPath = stableAssemblyPath;
             HotfixAssemblyPath = hotfixAssemblyPath;
             SecondHotfixAssemblyPath = secondHotfixAssemblyPath;
             InvalidHotfixAssemblyPath = invalidHotfixAssemblyPath;
+            HotfixOwnedStateAssemblyPath = hotfixOwnedStateAssemblyPath;
+            HotfixOwnedReturnAssemblyPath = hotfixOwnedReturnAssemblyPath;
+            HotfixOwnedArgumentAssemblyPath = hotfixOwnedArgumentAssemblyPath;
+            ManagerTestHotfixAssemblyPath = managerTestHotfixAssemblyPath;
         }
 
         public string RootDirectory { get; }
@@ -384,6 +447,14 @@ public sealed class HotfixManagerTests
         public string SecondHotfixAssemblyPath { get; }
 
         public string InvalidHotfixAssemblyPath { get; }
+
+        public string HotfixOwnedStateAssemblyPath { get; }
+
+        public string HotfixOwnedReturnAssemblyPath { get; }
+
+        public string HotfixOwnedArgumentAssemblyPath { get; }
+
+        public string ManagerTestHotfixAssemblyPath { get; }
 
         public static async Task<CompiledHotfixFixture> CreateAsync(CancellationToken cancellationToken)
         {
@@ -397,11 +468,23 @@ public sealed class HotfixManagerTests
             var hotfixAssemblyPath = Path.Combine(root, "hotfix", $"{hotfixAssemblyName}.dll");
             var secondHotfixAssemblyPath = Path.Combine(root, "hotfix-v2", $"{secondHotfixAssemblyName}.dll");
             var invalidAssemblyPath = Path.Combine(root, "invalid", $"{invalidAssemblyName}.dll");
+            var hotfixOwnedStateAssemblyName = $"HotfixOwnedState_{suffix}";
+            var hotfixOwnedReturnAssemblyName = $"HotfixOwnedReturn_{suffix}";
+            var hotfixOwnedArgumentAssemblyName = $"HotfixOwnedArgument_{suffix}";
+            var managerTestHotfixAssemblyName = $"ManagerTestHotfix_{suffix}";
+            var hotfixOwnedStateAssemblyPath = Path.Combine(root, "hotfix-owned-state", $"{hotfixOwnedStateAssemblyName}.dll");
+            var hotfixOwnedReturnAssemblyPath = Path.Combine(root, "hotfix-owned-return", $"{hotfixOwnedReturnAssemblyName}.dll");
+            var hotfixOwnedArgumentAssemblyPath = Path.Combine(root, "hotfix-owned-argument", $"{hotfixOwnedArgumentAssemblyName}.dll");
+            var managerTestHotfixAssemblyPath = Path.Combine(root, "manager-test-hotfix", $"{managerTestHotfixAssemblyName}.dll");
 
             Directory.CreateDirectory(Path.GetDirectoryName(stableAssemblyPath)!);
             Directory.CreateDirectory(Path.GetDirectoryName(hotfixAssemblyPath)!);
             Directory.CreateDirectory(Path.GetDirectoryName(secondHotfixAssemblyPath)!);
             Directory.CreateDirectory(Path.GetDirectoryName(invalidAssemblyPath)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(hotfixOwnedStateAssemblyPath)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(hotfixOwnedReturnAssemblyPath)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(hotfixOwnedArgumentAssemblyPath)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(managerTestHotfixAssemblyPath)!);
 
             await EmitAssemblyAsync(
                 stableAssemblyName,
@@ -410,6 +493,10 @@ public sealed class HotfixManagerTests
                 namespace StableContracts;
 
                 public sealed class ArenaSimulation
+                {
+                }
+
+                public sealed class ManagerTestState
                 {
                 }
                 """,
@@ -483,12 +570,111 @@ public sealed class HotfixManagerTests
                 [stableReference, abstractionsReference],
                 cancellationToken);
 
+            await EmitAssemblyAsync(
+                hotfixOwnedStateAssemblyName,
+                hotfixOwnedStateAssemblyPath,
+                """
+                using Lakona.Game.Server.Hotfix.Abstractions;
+
+                namespace HotfixOwnedState;
+
+                public sealed class OwnedState
+                {
+                }
+
+                [HotfixSystemOf(typeof(OwnedState))]
+                public static class OwnedStateSystem
+                {
+                    public static int Tick(this OwnedState self)
+                    {
+                        return 1;
+                    }
+                }
+                """,
+                [abstractionsReference],
+                cancellationToken);
+
+            await EmitAssemblyAsync(
+                hotfixOwnedReturnAssemblyName,
+                hotfixOwnedReturnAssemblyPath,
+                """
+                using StableContracts;
+                using Lakona.Game.Server.Hotfix.Abstractions;
+
+                namespace HotfixOwnedReturn;
+
+                public sealed class OwnedResult
+                {
+                }
+
+                [HotfixSystemOf(typeof(ArenaSimulation))]
+                public static class ArenaSimulationSystem
+                {
+                    public static OwnedResult Tick(this ArenaSimulation self)
+                    {
+                        return new OwnedResult();
+                    }
+                }
+                """,
+                [stableReference, abstractionsReference],
+                cancellationToken);
+
+            await EmitAssemblyAsync(
+                hotfixOwnedArgumentAssemblyName,
+                hotfixOwnedArgumentAssemblyPath,
+                """
+                using StableContracts;
+                using Lakona.Game.Server.Hotfix.Abstractions;
+
+                namespace HotfixOwnedArgument;
+
+                public sealed class OwnedCommand
+                {
+                }
+
+                [HotfixSystemOf(typeof(ArenaSimulation))]
+                public static class ArenaSimulationSystem
+                {
+                    public static int Tick(this ArenaSimulation self, OwnedCommand command)
+                    {
+                        return 1;
+                    }
+                }
+                """,
+                [stableReference, abstractionsReference],
+                cancellationToken);
+
+            await EmitAssemblyAsync(
+                managerTestHotfixAssemblyName,
+                managerTestHotfixAssemblyPath,
+                """
+                using StableContracts;
+                using Lakona.Game.Server.Hotfix.Abstractions;
+
+                namespace HotfixLogic;
+
+                [HotfixSystemOf(typeof(ManagerTestState))]
+                public static class ManagerTestStateSystem
+                {
+                    public static int Add(this ManagerTestState state, int value)
+                    {
+                        return value;
+                    }
+                }
+                """,
+                [stableReference, abstractionsReference],
+                cancellationToken);
+
             return new CompiledHotfixFixture(
                 root,
                 stableAssemblyPath,
                 hotfixAssemblyPath,
                 secondHotfixAssemblyPath,
-                invalidAssemblyPath);
+                invalidAssemblyPath,
+                hotfixOwnedStateAssemblyPath,
+                hotfixOwnedReturnAssemblyPath,
+                hotfixOwnedArgumentAssemblyPath,
+                managerTestHotfixAssemblyPath);
         }
 
         public void Dispose()
@@ -549,18 +735,5 @@ public sealed class HotfixManagerTests
                 .Split(Path.PathSeparator)
                 .Select(static path => MetadataReference.CreateFromFile(path));
         }
-    }
-}
-
-public sealed class ManagerTestState
-{
-}
-
-[HotfixSystemOf(typeof(ManagerTestState))]
-public static class ManagerTestStateSystem
-{
-    public static int Add(this ManagerTestState state, int value)
-    {
-        return value;
     }
 }
