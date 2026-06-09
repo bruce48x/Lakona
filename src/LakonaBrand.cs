@@ -4,7 +4,7 @@ internal static class LakonaBrand
 {
     private static readonly string[] Text = {
         @" /\_/\",
-        @"( ･ᴥ･ )  Lakona",
+        @"( oᴥo )  Lakona",
         @" U___U",
     };
 
