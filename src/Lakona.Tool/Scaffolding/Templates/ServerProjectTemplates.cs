@@ -391,26 +391,6 @@ internal static class ServerProjectTemplates
         """;
     }
 
-    public static string RenderHotfixPingService()
-    {
-        return @"using Shared.Interfaces;
-
-namespace Server.Hotfix.Services
-{
-    public sealed class PingService : IPingService
-    {
-        public ValueTask<PingReply> PingAsync(PingRequest request)
-        {
-            return ValueTask.FromResult(new PingReply
-            {
-                Message = string.IsNullOrWhiteSpace(request.Message) ? ""pong"" : ""pong: "" + request.Message,
-                ServerTimeUtc = DateTime.UtcNow.ToString(""O"")
-            });
-        }
-    }
-}";
-    }
-
     public static string RenderServerAppAssemblyInfo()
     {
         return @"using System.Runtime.CompilerServices;
@@ -424,7 +404,6 @@ namespace Server.Hotfix.Services
         return @"using System;
 using Microsoft.Extensions.DependencyInjection;
 using Server.App.Generated;
-using Shared.Interfaces;
 using Shared.Contracts.Chat;
 using Lakona.Rpc.Server;
 
@@ -432,15 +411,10 @@ namespace Server.App.Hosting;
 
 internal static class ServiceBindingConfigurator
 {
-    private static readonly Type PingServiceType = Type.GetType(""Server.Hotfix.Services.PingService, Server.Hotfix"", throwOnError: true)!;
     private static readonly Type ChatServiceImplType = Type.GetType(""Server.Hotfix.Chat.ChatServiceImpl, Server.Hotfix"", throwOnError: true)!;
 
     public static void Bind(RpcServiceRegistry registry, IServiceProvider services)
     {
-        PingServiceBinder.BindFactory(
-            registry,
-            _ => (IPingService)ActivatorUtilities.CreateInstance(services, PingServiceType));
-
         ChatServiceBinder.Bind(
             registry,
             callback => (IChatService)ActivatorUtilities.CreateInstance(services, ChatServiceImplType, callback));

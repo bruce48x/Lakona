@@ -6,12 +6,9 @@ internal static class StarterServerTemplate
     {
         var serverPath = context.Paths.ServerAppPath;
         var serverProjectName = Path.GetFileName(serverPath);
-        var servicesPath = Path.Combine(serverPath, "Services");
-        Directory.CreateDirectory(servicesPath);
 
         StarterFileWriter.Write(Path.Combine(serverPath, $"{serverProjectName}.csproj"), BuildServerProjectFile(context));
         StarterFileWriter.Write(Path.Combine(serverPath, "Program.cs"), BuildServerProgramSource(context.Serializer, context.Transport));
-        StarterFileWriter.Write(Path.Combine(servicesPath, "PingService.cs"), BuildPingServiceSource());
     }
 
     private static string BuildServerProjectFile(StarterTemplateContext context)
@@ -46,25 +43,6 @@ internal static class StarterServerTemplate
 {{GetServerProgramUsings(serializer, transport)}}
 
 {{GetServerProgramBody(serializer, transport)}}
-""";
-
-    private static string BuildPingServiceSource() => """
-using Shared.Interfaces;
-
-namespace Server.Services
-{
-    public sealed class PingService : IPingService
-    {
-        public ValueTask<PingReply> PingAsync(PingRequest request)
-        {
-            return ValueTask.FromResult(new PingReply
-            {
-                Message = string.IsNullOrWhiteSpace(request.Message) ? "pong" : "pong: " + request.Message,
-                ServerTimeUtc = DateTime.UtcNow.ToString("O")
-            });
-        }
-    }
-}
 """;
 
     private static string GetServerSerializerConstruction(SerializerKind serializer) => serializer switch

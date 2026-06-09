@@ -5,6 +5,9 @@ internal sealed class ProjectScaffolder
     private const string UnityChatSceneUssGuid = "f7e09962267bcef45a558136fb62bb68";
     private const string UnityChatPanelSettingsGuid = "0c8089bab5856fe4d8f88e6f526fd306";
     private const string UnityDefaultRuntimeThemeGuid = "9a59d5efd84abc44da5e32a04db78d26";
+    private const string UnityLoginUiScriptGuid = "5a1b8c3d2e4f6a7b8c9d0e1f2a3b4c5d";
+    private const string UnityLoginSceneUxmlGuid = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6";
+    private const string UnityLoginSceneUssGuid = "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7";
 
     public async Task AugmentProjectWithLakonaGameAsync(string projectRoot, NewCommandOptions options)
     {
@@ -119,19 +122,33 @@ internal sealed class ProjectScaffolder
                     Path.Combine(projectRoot, "Client", "Scripts", "Chat", "ChatClient.cs"),
                     ToolTemplates.RenderClientChatClient()),
                 WriteIfMissingAsync(
+                    Path.Combine(projectRoot, "Client", "Scripts", "Chat", "ChatSession.cs"),
+                    ToolTemplates.RenderGodotChatSession()),
+                WriteIfMissingAsync(
+                    Path.Combine(projectRoot, "Client", "Scripts", "Login", "LoginScene.cs"),
+                    ToolTemplates.RenderGodotLoginScene(options)),
+                WriteIfMissingAsync(
                     Path.Combine(projectRoot, "Client", "Scripts", "Chat", "ChatScene.cs"),
-                    ToolTemplates.RenderGodotChatScene(options)),
+                    ToolTemplates.RenderGodotChatScene()),
                 WriteAsync(
-                    Path.Combine(projectRoot, "Client", "Main.tscn"),
-                    ToolTemplates.RenderGodotMainScene())).ConfigureAwait(false);
+                    Path.Combine(projectRoot, "Client", "Login.tscn"),
+                    ToolTemplates.RenderGodotLoginTscn()),
+                WriteAsync(
+                    Path.Combine(projectRoot, "Client", "Chat.tscn"),
+                    ToolTemplates.RenderGodotChatTscn())).ConfigureAwait(false);
 
+            await PatchGodotProjectForAutoloadAsync(projectRoot).ConfigureAwait(false);
             await PatchGodotMainSceneAsync(projectRoot).ConfigureAwait(false);
             return;
         }
 
+        var loginUiPath = Path.Combine(projectRoot, "Client", "Assets", "Scripts", "Login", "LoginUI.cs");
+        var chatSessionPath = Path.Combine(projectRoot, "Client", "Assets", "Scripts", "Chat", "ChatSession.cs");
         var chatUiPath = Path.Combine(projectRoot, "Client", "Assets", "Scripts", "Chat", "ChatUI.cs");
-        var uxmlPath = Path.Combine(projectRoot, "Client", "Assets", "UI", "ChatScene.uxml");
-        var ussPath = Path.Combine(projectRoot, "Client", "Assets", "UI", "ChatScene.uss");
+        var loginUxmlPath = Path.Combine(projectRoot, "Client", "Assets", "UI", "LoginScene.uxml");
+        var loginUssPath = Path.Combine(projectRoot, "Client", "Assets", "UI", "LoginScene.uss");
+        var chatUxmlPath = Path.Combine(projectRoot, "Client", "Assets", "UI", "ChatScene.uxml");
+        var chatUssPath = Path.Combine(projectRoot, "Client", "Assets", "UI", "ChatScene.uss");
         var panelSettingsPath = Path.Combine(projectRoot, "Client", "Assets", "UI", "LakonaGameChatPanelSettings.asset");
         var runtimeThemePath = Path.Combine(
             projectRoot,
@@ -146,22 +163,46 @@ internal sealed class ProjectScaffolder
                 Path.Combine(projectRoot, "Client", "Assets", "Scripts", "Chat", "ChatClient.cs"),
                 ToolTemplates.RenderClientChatClient()),
             WriteIfMissingAsync(
-                chatUiPath,
-                ToolTemplates.RenderClientChatUI(options)),
+                chatSessionPath,
+                ToolTemplates.RenderChatSession()),
             WriteIfMissingAsync(
-                uxmlPath,
+                loginUiPath,
+                ToolTemplates.RenderUnityLoginUI(options)),
+            WriteIfMissingAsync(
+                chatUiPath,
+                ToolTemplates.RenderClientChatUI()),
+            WriteIfMissingAsync(
+                loginUxmlPath,
+                ToolTemplates.RenderUnityLoginUxml()),
+            WriteIfMissingAsync(
+                loginUssPath,
+                ToolTemplates.RenderUnityLoginUss()),
+            WriteIfMissingAsync(
+                chatUxmlPath,
                 ToolTemplates.RenderClientChatUxml()),
             WriteIfMissingAsync(
-                ussPath,
+                chatUssPath,
                 ToolTemplates.RenderClientChatUss()),
+            WriteIfMissingAsync(
+                loginUiPath + ".meta",
+                ToolTemplates.RenderUnityMonoScriptMeta(UnityLoginUiScriptGuid)),
+            WriteIfMissingAsync(
+                chatSessionPath + ".meta",
+                ToolTemplates.RenderUnityMonoScriptMeta("c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6")),
             WriteIfMissingAsync(
                 chatUiPath + ".meta",
                 ToolTemplates.RenderUnityMonoScriptMeta(UnityChatUiScriptGuid)),
             WriteIfMissingAsync(
-                uxmlPath + ".meta",
+                loginUxmlPath + ".meta",
+                ToolTemplates.RenderUnityUxmlMeta(UnityLoginSceneUxmlGuid)),
+            WriteIfMissingAsync(
+                loginUssPath + ".meta",
+                ToolTemplates.RenderUnityUssMeta(UnityLoginSceneUssGuid)),
+            WriteIfMissingAsync(
+                chatUxmlPath + ".meta",
                 ToolTemplates.RenderUnityUxmlMeta(UnityChatSceneUxmlGuid)),
             WriteIfMissingAsync(
-                ussPath + ".meta",
+                chatUssPath + ".meta",
                 ToolTemplates.RenderUnityUssMeta(UnityChatSceneUssGuid)),
             WriteIfMissingAsync(
                 panelSettingsPath,
@@ -176,7 +217,39 @@ internal sealed class ProjectScaffolder
                 runtimeThemePath + ".meta",
                 ToolTemplates.RenderUnityTssMeta(UnityDefaultRuntimeThemeGuid))).ConfigureAwait(false);
 
-        await InstallUnityChatSceneAsync(projectRoot, chatUiPath, uxmlPath, panelSettingsPath, options).ConfigureAwait(false);
+        await InstallUnityLoginSceneAsync(projectRoot, loginUiPath, loginUxmlPath, panelSettingsPath, options).ConfigureAwait(false);
+        await InstallUnityChatSceneAsync(projectRoot, chatUiPath, chatUxmlPath, panelSettingsPath, options).ConfigureAwait(false);
+    }
+
+    private static async Task PatchGodotProjectForAutoloadAsync(string projectRoot)
+    {
+        var projectPath = Path.Combine(projectRoot, "Client", "project.godot");
+        if (!File.Exists(projectPath))
+        {
+            return;
+        }
+
+        var project = await File.ReadAllTextAsync(projectPath).ConfigureAwait(false);
+
+        const string autoloadEntry = "ChatSession=\"*res://Scripts/Chat/ChatSession.cs\"";
+        if (project.Contains(autoloadEntry, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (!project.Contains("[autoload]", StringComparison.Ordinal))
+        {
+            project += Environment.NewLine + "[autoload]" + Environment.NewLine + autoloadEntry + Environment.NewLine;
+        }
+        else
+        {
+            var autoloadIndex = project.IndexOf("[autoload]", StringComparison.Ordinal);
+            var nextSectionIndex = project.IndexOf('[', autoloadIndex + 1);
+            var insertIndex = nextSectionIndex >= 0 ? nextSectionIndex : project.Length;
+            project = project.Insert(insertIndex, autoloadEntry + Environment.NewLine);
+        }
+
+        await File.WriteAllTextAsync(projectPath, project).ConfigureAwait(false);
     }
 
     private static async Task PatchGodotMainSceneAsync(string projectRoot)
@@ -191,21 +264,309 @@ internal sealed class ProjectScaffolder
         var patched = System.Text.RegularExpressions.Regex.Replace(
             project,
             "(?m)^run/main_scene=.*$",
-            "run/main_scene=\"res://Main.tscn\"");
+            "run/main_scene=\"res://Login.tscn\"");
 
         if (!patched.Contains("[application]", StringComparison.Ordinal))
         {
-            patched += Environment.NewLine + "[application]" + Environment.NewLine + "run/main_scene=\"res://Main.tscn\"" + Environment.NewLine;
+            patched += Environment.NewLine + "[application]" + Environment.NewLine + "run/main_scene=\"res://Login.tscn\"" + Environment.NewLine;
         }
         else if (!patched.Contains("run/main_scene=", StringComparison.Ordinal))
         {
-            patched = patched.Replace("[application]", "[application]" + Environment.NewLine + "run/main_scene=\"res://Main.tscn\"", StringComparison.Ordinal);
+            patched = patched.Replace("[application]", "[application]" + Environment.NewLine + "run/main_scene=\"res://Login.tscn\"", StringComparison.Ordinal);
         }
 
         if (!string.Equals(project, patched, StringComparison.Ordinal))
         {
             await File.WriteAllTextAsync(projectPath, patched).ConfigureAwait(false);
         }
+    }
+
+    private static async Task InstallUnityLoginSceneAsync(
+        string projectRoot,
+        string loginUiPath,
+        string uxmlPath,
+        string panelSettingsPath,
+        NewCommandOptions options)
+    {
+        var scenePath = Path.Combine(projectRoot, "Client", "Assets", "Scenes", "LoginScene.unity");
+        if (File.Exists(scenePath))
+        {
+            return;
+        }
+
+        var loginUiGuid = await ReadUnityMetaGuidAsync(loginUiPath + ".meta", UnityLoginUiScriptGuid).ConfigureAwait(false);
+        var uxmlGuid = await ReadUnityMetaGuidAsync(uxmlPath + ".meta", UnityLoginSceneUxmlGuid).ConfigureAwait(false);
+        var panelSettingsGuid = await ReadUnityMetaGuidAsync(
+            panelSettingsPath + ".meta",
+            UnityChatPanelSettingsGuid).ConfigureAwait(false);
+
+        var defaultPath = string.Equals(options.Transport, "websocket", StringComparison.OrdinalIgnoreCase) ? "/ws" : "";
+
+        var sceneContent = $$"""
+        %YAML 1.1
+        %TAG !u! tag:unity3d.com,2011:
+        --- !u!1 &217437972
+        GameObject:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          serializedVersion: 6
+          m_Component:
+          - component: {fileID: 217437974}
+          - component: {fileID: 217437975}
+          - component: {fileID: 217437973}
+          m_Layer: 0
+          m_Name: Lakona.Game Login UI
+          m_TagString: Untagged
+          m_Icon: {fileID: 0}
+          m_NavMeshLayer: 0
+          m_StaticEditorFlags: 0
+          m_IsActive: 1
+        --- !u!114 &217437973
+        MonoBehaviour:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          m_GameObject: {fileID: 217437972}
+          m_Enabled: 1
+          m_EditorHideFlags: 0
+          m_Script: {fileID: 11500000, guid: {{loginUiGuid}}, type: 3}
+          m_Name:
+          m_EditorClassIdentifier:
+          _serverHost: 127.0.0.1
+          _serverPort: 20000
+          _serverPath: {{defaultPath}}
+        --- !u!114 &217437975
+        MonoBehaviour:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          m_GameObject: {fileID: 217437972}
+          m_Enabled: 1
+          m_EditorHideFlags: 0
+          m_Script: {fileID: 19102, guid: 0000000000000000e000000000000000, type: 0}
+          m_Name:
+          m_EditorClassIdentifier:
+          m_PanelSettings: {fileID: 11400000, guid: {{panelSettingsGuid}}, type: 2}
+          m_ParentUI: {fileID: 0}
+          sourceAsset: {fileID: 9197481963319205126, guid: {{uxmlGuid}}, type: 3}
+          m_SortingOrder: 0
+        --- !u!4 &217437974
+        Transform:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          m_GameObject: {fileID: 217437972}
+          serializedVersion: 2
+          m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+          m_LocalPosition: {x: 0, y: 0, z: 0}
+          m_LocalScale: {x: 1, y: 1, z: 1}
+          m_ConstrainProportionsScale: 0
+          m_Children: []
+          m_Father: {fileID: 0}
+          m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+        --- !u!1 &256380733
+        GameObject:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          serializedVersion: 6
+          m_Component:
+          - component: {fileID: 256380735}
+          - component: {fileID: 256380734}
+          m_Layer: 0
+          m_Name: Main Camera
+          m_TagString: MainCamera
+          m_Icon: {fileID: 0}
+          m_NavMeshLayer: 0
+          m_StaticEditorFlags: 0
+          m_IsActive: 1
+        --- !u!20 &256380734
+        Camera:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          m_GameObject: {fileID: 256380733}
+          m_Enabled: 1
+          serializedVersion: 2
+          m_ClearFlags: 1
+          m_BackGroundColor: {r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 0}
+          m_projectionMatrixMode: 1
+          m_GateFitMode: 2
+          m_FOVAxisMode: 0
+          m_Iso: 200
+          m_ShutterSpeed: 0.005
+          m_Aperture: 16
+          m_FocusDistance: 10
+          m_FocalLength: 50
+          m_BladeCount: 5
+          m_Curvature: {x: 2, y: 11}
+          m_BarrelClipping: 0.25
+          m_Anamorphism: 0
+          m_SensorSize: {x: 36, y: 24}
+          m_LensShift: {x: 0, y: 0}
+          m_NormalizedViewPortRect:
+            serializedVersion: 2
+            x: 0
+            y: 0
+            width: 1
+            height: 1
+          near clip plane: 0.3
+          far clip plane: 1000
+          field of view: 60
+          orthographic: 0
+          orthographic size: 5
+          m_Depth: 0
+          m_CullingMask:
+            serializedVersion: 2
+            m_Bits: 4294967295
+          m_RenderingPath: -1
+          m_TargetTexture: {fileID: 0}
+          m_TargetDisplay: 0
+          m_TargetEye: 3
+          m_HDR: 1
+          m_AllowMSAA: 1
+          m_AllowDynamicResolution: 0
+          m_ForceIntoRT: 0
+          m_OcclusionCulling: 1
+          m_StereoConvergence: 10
+          m_StereoSeparation: 0.022
+        --- !u!4 &256380735
+        Transform:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          m_GameObject: {fileID: 256380733}
+          serializedVersion: 2
+          m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+          m_LocalPosition: {x: 0, y: 0, z: -10}
+          m_LocalScale: {x: 1, y: 1, z: 1}
+          m_ConstrainProportionsScale: 0
+          m_Children: []
+          m_Father: {fileID: 0}
+          m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+        --- !u!1 &375611045
+        GameObject:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          serializedVersion: 6
+          m_Component:
+          - component: {fileID: 375611047}
+          - component: {fileID: 375611046}
+          m_Layer: 0
+          m_Name: Directional Light
+          m_TagString: Untagged
+          m_Icon: {fileID: 0}
+          m_NavMeshLayer: 0
+          m_StaticEditorFlags: 0
+          m_IsActive: 1
+        --- !u!108 &375611046
+        Light:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          m_GameObject: {fileID: 375611045}
+          m_Enabled: 1
+          serializedVersion: 11
+          m_Type: 1
+          m_Color: {r: 1, g: 0.95686275, b: 0.8392157, a: 1}
+          m_Intensity: 1
+          m_Range: 10
+          m_SpotAngle: 30
+          m_InnerSpotAngle: 21.80208
+          m_CookieSize: 10
+          m_Shadows:
+            m_Type: 2
+            m_Resolution: -1
+            m_CustomResolution: -1
+            m_Strength: 1
+            m_Bias: 0.05
+            m_NormalBias: 0.4
+            m_NearPlane: 0.2
+            m_CullingMatrixOverride:
+              e00: 1
+              e01: 0
+              e02: 0
+              e03: 0
+              e10: 0
+              e11: 1
+              e12: 0
+              e13: 0
+              e20: 0
+              e21: 0
+              e22: 1
+              e23: 0
+              e30: 0
+              e31: 0
+              e32: 0
+              e33: 1
+            m_UseCullingMatrixOverride: 0
+          m_Cookie: {fileID: 0}
+          m_DrawHalo: 0
+          m_Flare: {fileID: 0}
+          m_RenderMode: 0
+          m_CullingMask:
+            serializedVersion: 2
+            m_Bits: 4294967295
+          m_RenderingLayerMask: 1
+          m_Lightmapping: 4
+          m_LightShadowCasterMode: 0
+          m_AreaSize: {x: 1, y: 1}
+          m_BounceIntensity: 1
+          m_ColorTemperature: 6570
+          m_UseColorTemperature: 0
+          m_BoundingSphereOverride: {x: 0, y: 0, z: 0, w: 0}
+          m_UseBoundingSphereOverride: 0
+          m_UseViewFrustumForShadowCasterCull: 1
+          m_ShadowRadius: 0
+          m_ShadowAngle: 0
+        --- !u!4 &375611047
+        Transform:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          m_GameObject: {fileID: 375611045}
+          serializedVersion: 2
+          m_LocalRotation: {x: 0.40821788, y: -0.23456968, z: 0.10938163, w: 0.8754261}
+          m_LocalPosition: {x: 0, y: 3, z: 0}
+          m_LocalScale: {x: 1, y: 1, z: 1}
+          m_ConstrainProportionsScale: 0
+          m_Children: []
+          m_Father: {fileID: 0}
+          m_LocalEulerAnglesHint: {x: 50, y: -30, z: 0}
+        --- !u!1660057539 &9223372036854775807
+        SceneRoots:
+          m_ObjectHideFlags: 0
+          m_Roots:
+          - {fileID: 217437974}
+          - {fileID: 256380735}
+          - {fileID: 375611047}
+        """;
+
+        Directory.CreateDirectory(Path.GetDirectoryName(scenePath) ?? projectRoot);
+        await File.WriteAllTextAsync(scenePath, sceneContent).ConfigureAwait(false);
+
+        var sceneMeta = $$"""
+        fileFormatVersion: 2
+        guid: {{Guid.NewGuid().ToString("N")}}
+        DefaultImporter:
+          externalObjects: {}
+          userData:
+          assetBundleName:
+          assetBundleVariant:
+        """;
+        await File.WriteAllTextAsync(scenePath + ".meta", sceneMeta).ConfigureAwait(false);
     }
 
     private static async Task InstallUnityChatSceneAsync(
@@ -215,8 +576,8 @@ internal sealed class ProjectScaffolder
         string panelSettingsPath,
         NewCommandOptions options)
     {
-        var scenePath = Path.Combine(projectRoot, "Client", "Assets", "Scenes", "ConnectionTest.unity");
-        if (!File.Exists(scenePath))
+        var scenePath = Path.Combine(projectRoot, "Client", "Assets", "Scenes", "ChatScene.unity");
+        if (File.Exists(scenePath))
         {
             return;
         }
@@ -227,30 +588,11 @@ internal sealed class ProjectScaffolder
             panelSettingsPath + ".meta",
             UnityChatPanelSettingsGuid).ConfigureAwait(false);
 
-        var scene = await File.ReadAllTextAsync(scenePath).ConfigureAwait(false);
-        var defaultPath = string.Equals(options.Transport, "websocket", StringComparison.OrdinalIgnoreCase) ? "/ws" : "";
-        var panelSettingsReference =
-            $"m_PanelSettings: {{fileID: 11400000, guid: {panelSettingsGuid}, type: 2}}";
+        var gameObjectId = 317337972L;
+        var chatUiComponentId = gameObjectId + 1;
+        var uiDocumentComponentId = chatUiComponentId + 1;
+        var transformId = uiDocumentComponentId + 1;
 
-        if (scene.Contains("m_Name: Lakona.Game Chat UI", StringComparison.Ordinal))
-        {
-            var patchedExisting = scene.Replace("m_PanelSettings: {fileID: 0}", panelSettingsReference, StringComparison.Ordinal);
-            patchedExisting = System.Text.RegularExpressions.Regex.Replace(
-                patchedExisting,
-                @"(?m)^  _serverPath:.*$",
-                $"  _serverPath: {defaultPath}");
-            if (!string.Equals(patchedExisting, scene, StringComparison.Ordinal))
-            {
-                await File.WriteAllTextAsync(scenePath, patchedExisting).ConfigureAwait(false);
-            }
-
-            return;
-        }
-
-        var gameObjectId = NextAvailableFileId(scene, 217337972);
-        var chatUiComponentId = NextAvailableFileId(scene, gameObjectId + 1);
-        var uiDocumentComponentId = NextAvailableFileId(scene, chatUiComponentId + 1);
-        var transformId = NextAvailableFileId(scene, uiDocumentComponentId + 1);
         var chatSceneObjects = ToolTemplates.RenderUnityChatSceneObjects(
             gameObjectId,
             chatUiComponentId,
@@ -258,17 +600,114 @@ internal sealed class ProjectScaffolder
             transformId,
             chatUiGuid,
             uxmlGuid,
-            panelSettingsGuid,
-            defaultPath);
+            panelSettingsGuid);
 
-        var sceneRootsMarker = "--- !u!1660057539 &9223372036854775807";
-        var sceneRootsIndex = scene.LastIndexOf(sceneRootsMarker, StringComparison.Ordinal);
-        var patched = sceneRootsIndex >= 0
-            ? scene.Insert(sceneRootsIndex, chatSceneObjects + Environment.NewLine)
-            : scene + Environment.NewLine + chatSceneObjects + Environment.NewLine;
-        patched = AddUnitySceneRoot(patched, transformId);
+        var sceneContent = chatSceneObjects + """
 
-        await File.WriteAllTextAsync(scenePath, patched).ConfigureAwait(false);
+        --- !u!1 &256380733
+        GameObject:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          serializedVersion: 6
+          m_Component:
+          - component: {fileID: 256380735}
+          - component: {fileID: 256380734}
+          m_Layer: 0
+          m_Name: Main Camera
+          m_TagString: MainCamera
+          m_Icon: {fileID: 0}
+          m_NavMeshLayer: 0
+          m_StaticEditorFlags: 0
+          m_IsActive: 1
+        --- !u!20 &256380734
+        Camera:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          m_GameObject: {fileID: 256380733}
+          m_Enabled: 1
+          serializedVersion: 2
+          m_ClearFlags: 1
+          m_BackGroundColor: {r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 0}
+          m_projectionMatrixMode: 1
+          m_GateFitMode: 2
+          m_FOVAxisMode: 0
+          m_Iso: 200
+          m_ShutterSpeed: 0.005
+          m_Aperture: 16
+          m_FocusDistance: 10
+          m_FocalLength: 50
+          m_BladeCount: 5
+          m_Curvature: {x: 2, y: 11}
+          m_BarrelClipping: 0.25
+          m_Anamorphism: 0
+          m_SensorSize: {x: 36, y: 24}
+          m_LensShift: {x: 0, y: 0}
+          m_NormalizedViewPortRect:
+            serializedVersion: 2
+            x: 0
+            y: 0
+            width: 1
+            height: 1
+          near clip plane: 0.3
+          far clip plane: 1000
+          field of view: 60
+          orthographic: 0
+          orthographic size: 5
+          m_Depth: 0
+          m_CullingMask:
+            serializedVersion: 2
+            m_Bits: 4294967295
+          m_RenderingPath: -1
+          m_TargetTexture: {fileID: 0}
+          m_TargetDisplay: 0
+          m_TargetEye: 3
+          m_HDR: 1
+          m_AllowMSAA: 1
+          m_AllowDynamicResolution: 0
+          m_ForceIntoRT: 0
+          m_OcclusionCulling: 1
+          m_StereoConvergence: 10
+          m_StereoSeparation: 0.022
+        --- !u!4 &256380735
+        Transform:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          m_GameObject: {fileID: 256380733}
+          serializedVersion: 2
+          m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+          m_LocalPosition: {x: 0, y: 0, z: -10}
+          m_LocalScale: {x: 1, y: 1, z: 1}
+          m_ConstrainProportionsScale: 0
+          m_Children: []
+          m_Father: {fileID: 0}
+          m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+        --- !u!1660057539 &9223372036854775807
+        SceneRoots:
+          m_ObjectHideFlags: 0
+          m_Roots:
+          - {fileID: """ + transformId + """}
+          - {fileID: 256380735}
+        """;
+
+        Directory.CreateDirectory(Path.GetDirectoryName(scenePath) ?? projectRoot);
+        await File.WriteAllTextAsync(scenePath, sceneContent).ConfigureAwait(false);
+
+        var sceneMeta = $$"""
+        fileFormatVersion: 2
+        guid: {{Guid.NewGuid().ToString("N")}}
+        DefaultImporter:
+          externalObjects: {}
+          userData:
+          assetBundleName:
+          assetBundleVariant:
+        """;
+        await File.WriteAllTextAsync(scenePath + ".meta", sceneMeta).ConfigureAwait(false);
     }
 
     private static async Task<string> ReadUnityMetaGuidAsync(string path, string fallback)
@@ -426,13 +865,9 @@ internal sealed class ProjectScaffolder
 
     private static Task WriteHotfixBoundaryFilesAsync(string projectRoot)
     {
-        return Task.WhenAll(
-            WriteIfMissingAsync(
-                Path.Combine(projectRoot, "Server", "Hotfix", "Chat", "ChatServiceImpl.cs"),
-                ToolTemplates.RenderHotfixChatService()),
-            WriteIfMissingAsync(
-                Path.Combine(projectRoot, "Server", "Hotfix", "Services", "PingService.cs"),
-                ToolTemplates.RenderHotfixPingService()));
+        return WriteIfMissingAsync(
+            Path.Combine(projectRoot, "Server", "Hotfix", "Chat", "ChatServiceImpl.cs"),
+            ToolTemplates.RenderHotfixChatService());
     }
 
     private static Task WriteServerConfiguratorsAsync(string projectRoot, NewCommandOptions options)

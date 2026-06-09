@@ -88,7 +88,294 @@ internal static class ChatClientTemplates
         """;
     }
 
-    public static string RenderGodotChatScene(NewCommandOptions options)
+    public static string RenderChatSession()
+    {
+        return """
+        using Shared.Contracts.Chat;
+
+        namespace Client.Chat
+        {
+            public static class ChatSession
+            {
+                public static ChatClient? Client { get; set; }
+                public static ChatJoinReply? JoinReply { get; set; }
+            }
+        }
+        """;
+    }
+
+    public static string RenderGodotChatSession()
+    {
+        return """
+        using Godot;
+        using Shared.Contracts.Chat;
+
+        namespace Client.Chat
+        {
+            public partial class ChatSession : Node
+            {
+                public ChatClient? Client { get; set; }
+                public ChatJoinReply? JoinReply { get; set; }
+            }
+        }
+        """;
+    }
+
+    public static string RenderUnityLoginUI(NewCommandOptions options)
+    {
+        var defaultPath = string.Equals(options.Transport, "websocket", StringComparison.OrdinalIgnoreCase) ? "/ws" : "";
+        var serializerUsing = options.Serializer switch
+        {
+            "json" => "using Lakona.Rpc.Serializer.Json;",
+            _ => "using Lakona.Rpc.Serializer.MemoryPack;"
+        };
+        var transportUsing = options.Transport switch
+        {
+            "tcp" => "using Lakona.Rpc.Transport.Tcp;",
+            "websocket" => "using Lakona.Rpc.Transport.WebSocket;",
+            _ => "using Lakona.Rpc.Transport.Kcp;"
+        };
+        var serializerConstructor = options.Serializer switch
+        {
+            "json" => "new JsonRpcSerializer()",
+            _ => "new MemoryPackRpcSerializer()"
+        };
+        var transportConstructor = options.Transport switch
+        {
+            "tcp" => "new TcpTransport(_serverHost, _serverPort)",
+            "websocket" => "new WsTransport($\"ws://{_serverHost}:{_serverPort}{NormalizePath(_serverPath)}\")",
+            _ => "new KcpTransport(_serverHost, _serverPort)"
+        };
+
+        return $$"""
+        using System;
+        using System.Threading;
+        using System.Threading.Tasks;
+        using Shared.Contracts.Chat;
+        using Client.Chat;
+        using Lakona.Rpc.Client;
+        using Lakona.Rpc.Core;
+        {{serializerUsing}}
+        {{transportUsing}}
+        using UnityEngine;
+        using UnityEngine.SceneManagement;
+        using UnityEngine.UIElements;
+
+        namespace Client.Login
+        {
+            [RequireComponent(typeof(UIDocument))]
+            public sealed class LoginUI : MonoBehaviour
+            {
+                [SerializeField] private string _serverHost = "127.0.0.1";
+                [SerializeField] private int _serverPort = 20000;
+                [SerializeField] private string _serverPath = "{{TemplateText.SanitizeStringLiteral(defaultPath)}}";
+
+                private CancellationTokenSource? _cts;
+                private TextField? _nameField;
+                private Button? _connectButton;
+                private Label? _statusLabel;
+                private bool _isConnecting;
+
+                private void Start()
+                {
+                    var root = GetComponent<UIDocument>().rootVisualElement;
+
+                    _nameField = root.Q<TextField>("name-field");
+                    _connectButton = root.Q<Button>("connect-button");
+                    _statusLabel = root.Q<Label>("status-label");
+
+                    if (_connectButton != null)
+                    {
+                        _connectButton.clicked += OnConnectClicked;
+                    }
+
+                    _nameField?.RegisterCallback<KeyDownEvent>(evt =>
+                    {
+                        if (evt.keyCode == KeyCode.Return || evt.keyCode == KeyCode.KeypadEnter)
+                        {
+                            OnConnectClicked();
+                        }
+                    });
+
+                    SetBusy(false);
+                }
+
+                private async void OnConnectClicked()
+                {
+                    if (_isConnecting)
+                    {
+                        return;
+                    }
+
+                    var name = _nameField?.value?.Trim();
+                    if (string.IsNullOrWhiteSpace(name))
+                    {
+                        SetStatus("Enter a name.");
+                        return;
+                    }
+
+                    SetBusy(true);
+                    SetStatus("Connecting...");
+                    _cts = new CancellationTokenSource();
+
+                    var client = new ChatClient(CreateRpcClientOptions());
+                    client.OnDisconnected += () => Debug.Log("Disconnected from server.");
+
+                    try
+                    {
+                        await client.ConnectAsync(_cts.Token);
+                        var reply = await client.JoinAsync(name);
+                        ChatSession.Client = client;
+                        ChatSession.JoinReply = reply;
+                        SceneManager.LoadScene("ChatScene");
+                    }
+                    catch (Exception ex)
+                    {
+                        SetStatus($"Connection failed: {ex.Message}");
+                        await client.DisposeAsync();
+                    }
+                    finally
+                    {
+                        SetBusy(false);
+                    }
+                }
+
+                private void SetStatus(string text)
+                {
+                    if (_statusLabel != null)
+                    {
+                        _statusLabel.text = text;
+                    }
+                }
+
+                private void SetBusy(bool isBusy)
+                {
+                    _isConnecting = isBusy;
+                    if (_connectButton != null)
+                    {
+                        _connectButton.SetEnabled(!isBusy);
+                        _connectButton.text = isBusy ? "Connecting..." : "Connect";
+                    }
+                }
+
+                private RpcClientOptions CreateRpcClientOptions()
+                {
+                    return new RpcClientOptions(
+                        {{transportConstructor}},
+                        {{serializerConstructor}})
+                        .UseSecurity(ConfigureTransportSecurity);
+                }
+
+                private static string NormalizePath(string path)
+                {
+                    if (string.IsNullOrWhiteSpace(path))
+                    {
+                        return string.Empty;
+                    }
+
+                    return path.StartsWith("/", StringComparison.Ordinal) ? path : "/" + path;
+                }
+
+                private static void ConfigureTransportSecurity(TransportSecurityConfig security)
+                {
+                    security.EnableCompression = false;
+                    security.CompressionThresholdBytes = 1024;
+                    security.EnableEncryption = false;
+                    security.EncryptionKeyBase64 = null;
+                }
+
+                private void OnDestroy()
+                {
+                    _cts?.Cancel();
+                    _cts?.Dispose();
+                }
+            }
+        }
+        """;
+    }
+
+    public static string RenderUnityLoginUxml()
+    {
+        return """
+        <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements">
+            <Style src="LoginScene.uss" />
+            <ui:VisualElement class="login-container">
+                <ui:VisualElement class="login-panel">
+                    <ui:Label text="Login" class="login-title" />
+                    <ui:TextField name="name-field" label="Name" max-length="20" class="name-field" />
+                    <ui:Button text="Connect" name="connect-button" class="connect-button" />
+                    <ui:Label text="" name="status-label" class="status-label" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:UXML>
+        """;
+    }
+
+    public static string RenderUnityLoginUss()
+    {
+        return """
+        .login-container {
+            width: 100%;
+            height: 100%;
+            flex-grow: 1;
+            background-color: rgb(30, 30, 30);
+            align-items: center;
+            justify-content: center;
+        }
+        .login-panel {
+            width: 360px;
+            padding: 32px 24px;
+            background-color: rgb(42, 42, 42);
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: rgb(70, 70, 70);
+        }
+        .login-title {
+            font-size: 24px;
+            color: rgb(200, 200, 200);
+            margin-bottom: 20px;
+        }
+        .name-field {
+            margin-bottom: 16px;
+        }
+        .name-field .unity-text-field__label {
+            color: rgb(210, 210, 210);
+        }
+        .name-field .unity-text-field__input {
+            color: rgb(245, 245, 245);
+            background-color: rgb(24, 24, 24);
+            border-top-color: rgb(80, 80, 80);
+            border-right-color: rgb(80, 80, 80);
+            border-bottom-color: rgb(80, 80, 80);
+            border-left-color: rgb(80, 80, 80);
+        }
+        .connect-button {
+            width: 100%;
+            color: rgb(245, 245, 245);
+            background-color: rgb(54, 94, 160);
+            border-top-color: rgb(86, 132, 210);
+            border-right-color: rgb(86, 132, 210);
+            border-bottom-color: rgb(86, 132, 210);
+            border-left-color: rgb(86, 132, 210);
+            margin-bottom: 12px;
+        }
+        .connect-button:disabled {
+            color: rgb(190, 190, 190);
+            background-color: rgb(66, 66, 66);
+            border-top-color: rgb(90, 90, 90);
+            border-right-color: rgb(90, 90, 90);
+            border-bottom-color: rgb(90, 90, 90);
+            border-left-color: rgb(90, 90, 90);
+        }
+        .status-label {
+            font-size: 13px;
+            color: rgb(200, 140, 140);
+            white-space: normal;
+        }
+        """;
+    }
+
+    public static string RenderGodotLoginScene(NewCommandOptions options)
     {
         var defaultPath = string.Equals(options.Transport, "websocket", StringComparison.OrdinalIgnoreCase) ? "/ws" : "";
         var serializerUsing = options.Serializer switch
@@ -120,36 +407,244 @@ internal static class ChatClientTemplates
         using System.Threading.Tasks;
         using Godot;
         using Shared.Contracts.Chat;
+        using Client.Chat;
         using Lakona.Rpc.Client;
         using Lakona.Rpc.Core;
         {{serializerUsing}}
         {{transportUsing}}
 
-        namespace Client.Chat
+        namespace Client.Login
         {
-            public partial class ChatScene : Control
+            public partial class LoginScene : Control
             {
                 [Export] private string _serverHost = "127.0.0.1";
                 [Export] private int _serverPort = 20000;
                 [Export] private string _serverPath = "{{TemplateText.SanitizeStringLiteral(defaultPath)}}";
 
                 private readonly CancellationTokenSource _cts = new();
-                private ChatClient? _client;
                 private LineEdit? _nameField;
+                private Button? _connectButton;
+                private Label? _statusLabel;
+                private bool _isConnecting;
+
+                public override void _Ready()
+                {
+                    BuildUi();
+                    SetBusy(false);
+                }
+
+                private void BuildUi()
+                {
+                    SetAnchorsPreset(LayoutPreset.FullRect);
+
+                    var background = new ColorRect
+                    {
+                        Name = "Background",
+                        Color = new Color(0.10f, 0.10f, 0.12f, 1.0f)
+                    };
+                    background.SetAnchorsPreset(LayoutPreset.FullRect);
+                    AddChild(background);
+
+                    var center = new CenterContainer { Name = "Center" };
+                    center.SetAnchorsPreset(LayoutPreset.FullRect);
+                    AddChild(center);
+
+                    var panel = new VBoxContainer { Name = "LoginPanel" };
+                    panel.AddThemeConstantOverride("separation", 12);
+                    panel.CustomMinimumSize = new Vector2(360, 0);
+                    center.AddChild(panel);
+
+                    var title = new Label { Name = "Title", Text = "Login" };
+                    title.AddThemeFontSizeOverride("font_size", 24);
+                    title.AddThemeColorOverride("font_color", new Color(0.78f, 0.78f, 0.78f, 1.0f));
+                    panel.AddChild(title);
+
+                    _nameField = new LineEdit { Name = "NameField", PlaceholderText = "Name", MaxLength = 20 };
+                    _nameField.CustomMinimumSize = new Vector2(0, 36);
+                    _nameField.AddThemeColorOverride("font_color", new Color(0.96f, 0.96f, 0.96f, 1.0f));
+                    _nameField.AddThemeColorOverride("font_placeholder_color", new Color(0.58f, 0.62f, 0.70f, 1.0f));
+                    _nameField.TextSubmitted += _ => OnConnectPressed();
+                    panel.AddChild(_nameField);
+
+                    _connectButton = new Button { Name = "ConnectButton", Text = "Connect" };
+                    _connectButton.CustomMinimumSize = new Vector2(0, 36);
+                    _connectButton.AddThemeColorOverride("font_color", new Color(0.96f, 0.96f, 0.96f, 1.0f));
+                    _connectButton.AddThemeColorOverride("font_disabled_color", new Color(0.70f, 0.72f, 0.76f, 1.0f));
+                    _connectButton.Pressed += OnConnectPressed;
+                    panel.AddChild(_connectButton);
+
+                    _statusLabel = new Label { Name = "StatusLabel", Text = "" };
+                    _statusLabel.AddThemeColorOverride("font_color", new Color(0.85f, 0.55f, 0.55f, 1.0f));
+                    panel.AddChild(_statusLabel);
+                }
+
+                private async void OnConnectPressed()
+                {
+                    if (_isConnecting)
+                    {
+                        return;
+                    }
+
+                    var name = _nameField?.Text.Trim();
+                    if (string.IsNullOrWhiteSpace(name))
+                    {
+                        SetStatus("Enter a name.");
+                        _nameField?.GrabFocus();
+                        return;
+                    }
+
+                    SetBusy(true);
+                    SetStatus("Connecting...");
+
+                    var client = new ChatClient(CreateRpcClientOptions());
+                    client.OnDisconnected += () => GD.Print("Disconnected from server.");
+
+                    try
+                    {
+                        await client.ConnectAsync(_cts.Token);
+                        var reply = await client.JoinAsync(name);
+                        var session = GetNode<ChatSession>("/root/ChatSession");
+                        session.Client = client;
+                        session.JoinReply = reply;
+                        GetTree().ChangeSceneToFile("res://Chat.tscn");
+                    }
+                    catch (Exception ex)
+                    {
+                        SetStatus($"Connection failed: {ex.Message}");
+                        await client.DisposeAsync();
+                    }
+                    finally
+                    {
+                        SetBusy(false);
+                    }
+                }
+
+                private void SetStatus(string text)
+                {
+                    if (_statusLabel != null)
+                    {
+                        _statusLabel.Text = text;
+                    }
+                }
+
+                private void SetBusy(bool isBusy)
+                {
+                    _isConnecting = isBusy;
+                    if (_connectButton != null)
+                    {
+                        _connectButton.Disabled = isBusy;
+                        _connectButton.Text = isBusy ? "Connecting..." : "Connect";
+                    }
+                }
+
+                private RpcClientOptions CreateRpcClientOptions()
+                {
+                    return new RpcClientOptions(
+                        {{transportConstructor}},
+                        {{serializerConstructor}})
+                        .UseSecurity(ConfigureTransportSecurity);
+                }
+
+                private static string NormalizePath(string path)
+                {
+                    if (string.IsNullOrWhiteSpace(path))
+                    {
+                        return string.Empty;
+                    }
+
+                    return path.StartsWith("/", StringComparison.Ordinal) ? path : "/" + path;
+                }
+
+                private static void ConfigureTransportSecurity(TransportSecurityConfig security)
+                {
+                    security.EnableCompression = false;
+                    security.CompressionThresholdBytes = 1024;
+                    security.EnableEncryption = false;
+                    security.EncryptionKeyBase64 = null;
+                }
+
+                public override void _ExitTree()
+                {
+                    _cts.Cancel();
+                    _cts.Dispose();
+                }
+            }
+        }
+        """;
+    }
+
+    public static string RenderGodotLoginTscn()
+    {
+        return """
+        [gd_scene load_steps=2 format=3]
+
+        [ext_resource type="Script" path="res://Scripts/Login/LoginScene.cs" id="1"]
+
+        [node name="LoginScene" type="Control"]
+        layout_mode = 3
+        anchors_preset = 15
+        anchor_right = 1.0
+        anchor_bottom = 1.0
+        grow_horizontal = 2
+        grow_vertical = 2
+        script = ExtResource("1")
+        """;
+    }
+
+    public static string RenderGodotChatScene()
+    {
+        return """
+        using System;
+        using System.Threading;
+        using System.Threading.Tasks;
+        using Godot;
+        using Shared.Contracts.Chat;
+        using Client.Chat;
+
+        namespace Client.Chat
+        {
+            public partial class ChatScene : Control
+            {
+                private readonly CancellationTokenSource _cts = new();
+                private ChatClient? _client;
                 private LineEdit? _messageField;
-                private Button? _joinButton;
                 private Button? _sendButton;
                 private RichTextLabel? _messageLog;
                 private Label? _onlineCount;
-                private bool _isJoining;
                 private bool _isSending;
 
                 public override void _Ready()
                 {
                     BuildUi();
-                    SetJoinBusy(false);
+
+                    var session = GetNode<ChatSession>("/root/ChatSession");
+                    _client = session.Client;
+                    var joinReply = session.JoinReply;
+
+                    if (_client == null)
+                    {
+                        AppendSystemMessage("Session expired. Please return to login.");
+                        SetSendBusy(true);
+                        return;
+                    }
+
+                    _client.OnMessageReceived += msg => CallDeferred(nameof(AppendMessageDeferred), msg.SenderName, msg.Text);
+                    _client.OnUserJoined += member => CallDeferred(nameof(AppendSystemMessageDeferred), $"{member.Name} joined.");
+                    _client.OnUserLeft += memberName => CallDeferred(nameof(AppendSystemMessageDeferred), $"{memberName} left.");
+                    _client.OnDisconnected += () => CallDeferred(nameof(AppendSystemMessageDeferred), "Disconnected from server.");
+
+                    if (joinReply != null)
+                    {
+                        AppendSystemMessage($"Connected. {joinReply.Members.Count} online.");
+                        SetOnlineCount(joinReply.Members.Count);
+
+                        foreach (var msg in joinReply.RecentMessages)
+                        {
+                            AppendMessageText(msg.SenderName, msg.Text);
+                        }
+                    }
+
                     SetSendBusy(false);
-                    AppendSystemMessage("Enter a name, click Join, then send a message.");
                 }
 
                 private void BuildUi()
@@ -204,88 +699,24 @@ internal static class ChatClientTemplates
                     footer.AddThemeConstantOverride("separation", 8);
                     layout.AddChild(footer);
 
-                    var joinRow = new HBoxContainer { Name = "JoinRow" };
-                    joinRow.AddThemeConstantOverride("separation", 8);
-                    footer.AddChild(joinRow);
-
-                    _nameField = new LineEdit { Name = "NameField", PlaceholderText = "Name", MaxLength = 20 };
-                    StyleLineEdit(_nameField);
-                    _nameField.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-                    joinRow.AddChild(_nameField);
-
-                    _joinButton = new Button { Name = "JoinButton", Text = "Join" };
-                    StyleButton(_joinButton);
-                    _joinButton.Pressed += OnJoinPressed;
-                    joinRow.AddChild(_joinButton);
-
                     var sendRow = new HBoxContainer { Name = "SendRow" };
                     sendRow.AddThemeConstantOverride("separation", 8);
                     footer.AddChild(sendRow);
 
                     _messageField = new LineEdit { Name = "MessageField", PlaceholderText = "Message", MaxLength = 500 };
-                    StyleLineEdit(_messageField);
+                    _messageField.CustomMinimumSize = new Vector2(0, 36);
+                    _messageField.AddThemeColorOverride("font_color", new Color(0.96f, 0.96f, 0.96f, 1.0f));
+                    _messageField.AddThemeColorOverride("font_placeholder_color", new Color(0.58f, 0.62f, 0.70f, 1.0f));
                     _messageField.SizeFlagsHorizontal = SizeFlags.ExpandFill;
                     _messageField.TextSubmitted += _ => OnSendPressed();
                     sendRow.AddChild(_messageField);
 
                     _sendButton = new Button { Name = "SendButton", Text = "Send" };
-                    StyleButton(_sendButton);
+                    _sendButton.CustomMinimumSize = new Vector2(96, 36);
+                    _sendButton.AddThemeColorOverride("font_color", new Color(0.96f, 0.96f, 0.96f, 1.0f));
+                    _sendButton.AddThemeColorOverride("font_disabled_color", new Color(0.70f, 0.72f, 0.76f, 1.0f));
                     _sendButton.Pressed += OnSendPressed;
                     sendRow.AddChild(_sendButton);
-                }
-
-                private async void OnJoinPressed()
-                {
-                    if (_isJoining)
-                    {
-                        return;
-                    }
-
-                    if (_client != null && _client.IsConnected)
-                    {
-                        AppendSystemMessage("Already connected.");
-                        return;
-                    }
-
-                    var name = _nameField?.Text.Trim();
-                    if (string.IsNullOrWhiteSpace(name))
-                    {
-                        AppendSystemMessage("Enter a name before joining.");
-                        _nameField?.GrabFocus();
-                        return;
-                    }
-
-                    SetJoinBusy(true);
-                    AppendSystemMessage("Connecting...");
-
-                    var client = new ChatClient(CreateRpcClientOptions());
-                    client.OnMessageReceived += msg => CallDeferred(nameof(AppendMessageDeferred), msg.SenderName, msg.Text);
-                    client.OnUserJoined += member => CallDeferred(nameof(AppendSystemMessageDeferred), $"{member.Name} joined.");
-                    client.OnUserLeft += memberName => CallDeferred(nameof(AppendSystemMessageDeferred), $"{memberName} left.");
-                    client.OnDisconnected += () => CallDeferred(nameof(AppendSystemMessageDeferred), "Disconnected from server.");
-
-                    try
-                    {
-                        await client.ConnectAsync(_cts.Token);
-                        var reply = await client.JoinAsync(name);
-                        _client = client;
-                        AppendSystemMessage($"Connected. {reply.Members.Count} online.");
-                        SetOnlineCount(reply.Members.Count);
-
-                        foreach (var msg in reply.RecentMessages)
-                        {
-                            AppendMessageText(msg.SenderName, msg.Text);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        AppendSystemMessage($"Connection failed: {ex.Message}");
-                        await client.DisposeAsync();
-                    }
-                    finally
-                    {
-                        SetJoinBusy(false);
-                    }
                 }
 
                 private async void OnSendPressed()
@@ -297,7 +728,7 @@ internal static class ChatClientTemplates
 
                     if (_client == null || !_client.IsConnected)
                     {
-                        AppendSystemMessage("Join the chat before sending.");
+                        AppendSystemMessage("Not connected.");
                         return;
                     }
 
@@ -359,16 +790,6 @@ internal static class ChatClientTemplates
                     }
                 }
 
-                private void SetJoinBusy(bool isBusy)
-                {
-                    _isJoining = isBusy;
-                    if (_joinButton != null)
-                    {
-                        _joinButton.Disabled = isBusy;
-                        _joinButton.Text = isBusy ? "Joining..." : "Join";
-                    }
-                }
-
                 private void SetSendBusy(bool isBusy)
                 {
                     _isSending = isBusy;
@@ -377,46 +798,6 @@ internal static class ChatClientTemplates
                         _sendButton.Disabled = isBusy;
                         _sendButton.Text = isBusy ? "Sending..." : "Send";
                     }
-                }
-
-                private RpcClientOptions CreateRpcClientOptions()
-                {
-                    return new RpcClientOptions(
-                        {{transportConstructor}},
-                        {{serializerConstructor}})
-                        .UseSecurity(ConfigureTransportSecurity);
-                }
-
-                private static string NormalizePath(string path)
-                {
-                    if (string.IsNullOrWhiteSpace(path))
-                    {
-                        return string.Empty;
-                    }
-
-                    return path.StartsWith("/", StringComparison.Ordinal) ? path : "/" + path;
-                }
-
-                private static void ConfigureTransportSecurity(TransportSecurityConfig security)
-                {
-                    security.EnableCompression = false;
-                    security.CompressionThresholdBytes = 1024;
-                    security.EnableEncryption = false;
-                    security.EncryptionKeyBase64 = null;
-                }
-
-                private static void StyleLineEdit(LineEdit lineEdit)
-                {
-                    lineEdit.CustomMinimumSize = new Vector2(0, 36);
-                    lineEdit.AddThemeColorOverride("font_color", new Color(0.96f, 0.96f, 0.96f, 1.0f));
-                    lineEdit.AddThemeColorOverride("font_placeholder_color", new Color(0.58f, 0.62f, 0.70f, 1.0f));
-                }
-
-                private static void StyleButton(Button button)
-                {
-                    button.CustomMinimumSize = new Vector2(96, 36);
-                    button.AddThemeColorOverride("font_color", new Color(0.96f, 0.96f, 0.96f, 1.0f));
-                    button.AddThemeColorOverride("font_disabled_color", new Color(0.70f, 0.72f, 0.76f, 1.0f));
                 }
 
                 public override void _ExitTree()
@@ -433,7 +814,7 @@ internal static class ChatClientTemplates
         """;
     }
 
-    public static string RenderGodotMainScene()
+    public static string RenderGodotChatTscn()
     {
         return """
         [gd_scene load_steps=2 format=3]
@@ -451,42 +832,15 @@ internal static class ChatClientTemplates
         """;
     }
 
-    public static string RenderClientChatUI(NewCommandOptions options)
+    public static string RenderClientChatUI()
     {
-        var defaultPath = string.Equals(options.Transport, "websocket", StringComparison.OrdinalIgnoreCase) ? "/ws" : "";
-        var serializerUsing = options.Serializer switch
-        {
-            "json" => "using Lakona.Rpc.Serializer.Json;",
-            _ => "using Lakona.Rpc.Serializer.MemoryPack;"
-        };
-        var transportUsing = options.Transport switch
-        {
-            "tcp" => "using Lakona.Rpc.Transport.Tcp;",
-            "websocket" => "using Lakona.Rpc.Transport.WebSocket;",
-            _ => "using Lakona.Rpc.Transport.Kcp;"
-        };
-        var serializerConstructor = options.Serializer switch
-        {
-            "json" => "new JsonRpcSerializer()",
-            _ => "new MemoryPackRpcSerializer()"
-        };
-        var transportConstructor = options.Transport switch
-        {
-            "tcp" => "new TcpTransport(_serverHost, _serverPort)",
-            "websocket" => "new WsTransport($\"ws://{_serverHost}:{_serverPort}{NormalizePath(_serverPath)}\")",
-            _ => "new KcpTransport(_serverHost, _serverPort)"
-        };
-
-        return $$"""
+        return """
         using System;
         using System.Collections.Concurrent;
         using System.Threading;
         using System.Threading.Tasks;
         using Shared.Contracts.Chat;
-        using Lakona.Rpc.Client;
-        using Lakona.Rpc.Core;
-        {{serializerUsing}}
-        {{transportUsing}}
+        using Client.Chat;
         using UnityEngine;
         using UnityEngine.UIElements;
 
@@ -495,32 +849,23 @@ internal static class ChatClientTemplates
             [RequireComponent(typeof(UIDocument))]
             public sealed class ChatUI : MonoBehaviour
             {
-                [SerializeField] private string _serverHost = "127.0.0.1";
-                [SerializeField] private int _serverPort = 20000;
-                [SerializeField] private string _serverPath = "{{TemplateText.SanitizeStringLiteral(defaultPath)}}";
-
                 private readonly CancellationTokenSource _cts = new();
                 private readonly ConcurrentQueue<Action> _mainThreadActions = new();
                 private ChatClient? _client;
                 private TextField? _inputField;
-                private TextField? _nameField;
                 private ScrollView? _messageList;
                 private Label? _onlineCount;
                 private Button? _sendButton;
-                private Button? _joinButton;
-                private bool _isJoining;
                 private bool _isSending;
 
-                private async void Start()
+                private void Start()
                 {
                     var root = GetComponent<UIDocument>().rootVisualElement;
 
                     _inputField = root.Q<TextField>("chat-input");
-                    _nameField = root.Q<TextField>("name-field");
                     _messageList = root.Q<ScrollView>("message-list");
                     _onlineCount = root.Q<Label>("online-count");
                     _sendButton = root.Q<Button>("send-button");
-                    _joinButton = root.Q<Button>("join-button");
 
                     if (_sendButton != null)
                     {
@@ -535,68 +880,33 @@ internal static class ChatClientTemplates
                         }
                     });
 
-                    if (_joinButton != null)
-                    {
-                        _joinButton.clicked += OnJoinClicked;
-                    }
+                    _client = ChatSession.Client;
+                    var joinReply = ChatSession.JoinReply;
 
-                    SetSendBusy(false);
-                    SetJoinBusy(false);
-                    AppendSystemMessage("Enter a name, click Join, then send a message.");
-                }
-
-                private async void OnJoinClicked()
-                {
-                    if (_isJoining)
+                    if (_client == null)
                     {
+                        AppendSystemMessage("Session expired. Please return to login.");
+                        SetSendBusy(true);
                         return;
                     }
 
-                    if (_client != null && _client.IsConnected)
+                    _client.OnMessageReceived += msg => EnqueueMainThread(() => AppendMessage(msg));
+                    _client.OnUserJoined += member => EnqueueMainThread(() => OnUserJoinedHandler(member));
+                    _client.OnUserLeft += memberName => EnqueueMainThread(() => OnUserLeftHandler(memberName));
+                    _client.OnDisconnected += () => EnqueueMainThread(() => AppendSystemMessage("Disconnected from server."));
+
+                    if (joinReply != null)
                     {
-                        AppendSystemMessage("Already connected.");
-                        return;
-                    }
+                        AppendSystemMessage($"Connected. {joinReply.Members.Count} online.");
+                        SetOnlineCount(joinReply.Members.Count);
 
-                    var name = _nameField?.value?.Trim();
-                    if (string.IsNullOrWhiteSpace(name))
-                    {
-                        AppendSystemMessage("Enter a name before joining.");
-                        _nameField?.Focus();
-                        return;
-                    }
-
-                    SetJoinBusy(true);
-                    AppendSystemMessage("Connecting...");
-
-                    var client = new ChatClient(CreateRpcClientOptions());
-                    client.OnMessageReceived += msg => EnqueueMainThread(() => AppendMessage(msg));
-                    client.OnUserJoined += member => EnqueueMainThread(() => OnUserJoinedHandler(member));
-                    client.OnUserLeft += memberName => EnqueueMainThread(() => OnUserLeftHandler(memberName));
-                    client.OnDisconnected += () => EnqueueMainThread(() => AppendSystemMessage("Disconnected from server."));
-
-                    try
-                    {
-                        await client.ConnectAsync(_cts.Token);
-                        var reply = await client.JoinAsync(name);
-                        _client = client;
-                        AppendSystemMessage($"Connected. {reply.Members.Count} online.");
-                        SetOnlineCount(reply.Members.Count);
-
-                        foreach (var msg in reply.RecentMessages)
+                        foreach (var msg in joinReply.RecentMessages)
                         {
                             AppendMessage(msg);
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        AppendSystemMessage($"Connection failed: {ex.Message}");
-                        await client.DisposeAsync();
-                    }
-                    finally
-                    {
-                        SetJoinBusy(false);
-                    }
+
+                    SetSendBusy(false);
                 }
 
                 private async void OnSendClicked()
@@ -608,7 +918,7 @@ internal static class ChatClientTemplates
 
                     if (_client == null || !_client.IsConnected)
                     {
-                        AppendSystemMessage("Join the chat before sending.");
+                        AppendSystemMessage("Not connected.");
                         return;
                     }
 
@@ -678,16 +988,6 @@ internal static class ChatClientTemplates
                     }
                 }
 
-                private void SetJoinBusy(bool isBusy)
-                {
-                    _isJoining = isBusy;
-                    if (_joinButton != null)
-                    {
-                        _joinButton.SetEnabled(!isBusy);
-                        _joinButton.text = isBusy ? "Joining..." : "Join";
-                    }
-                }
-
                 private void SetSendBusy(bool isBusy)
                 {
                     _isSending = isBusy;
@@ -696,32 +996,6 @@ internal static class ChatClientTemplates
                         _sendButton.SetEnabled(!isBusy);
                         _sendButton.text = isBusy ? "Sending..." : "Send";
                     }
-                }
-
-                private RpcClientOptions CreateRpcClientOptions()
-                {
-                    return new RpcClientOptions(
-                        {{transportConstructor}},
-                        {{serializerConstructor}})
-                        .UseSecurity(ConfigureTransportSecurity);
-                }
-
-                private static string NormalizePath(string path)
-                {
-                    if (string.IsNullOrWhiteSpace(path))
-                    {
-                        return string.Empty;
-                    }
-
-                    return path.StartsWith("/", StringComparison.Ordinal) ? path : "/" + path;
-                }
-
-                private static void ConfigureTransportSecurity(TransportSecurityConfig security)
-                {
-                    security.EnableCompression = false;
-                    security.CompressionThresholdBytes = 1024;
-                    security.EnableEncryption = false;
-                    security.EncryptionKeyBase64 = null;
                 }
 
                 private void OnUserJoinedHandler(ChatMember member)
@@ -753,17 +1027,13 @@ internal static class ChatClientTemplates
         return """
         <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements">
             <Style src="ChatScene.uss" />
-            <ui:VisualElement class="chat-container" style="width: 100%; height: 100%; flex-grow: 1;">
+            <ui:VisualElement class="chat-container">
                 <ui:VisualElement class="chat-header">
                     <ui:Label text="Chat Room" class="header-title" />
                     <ui:Label text="Online: --" name="online-count" class="header-count" />
                 </ui:VisualElement>
                 <ui:ScrollView name="message-list" class="message-list" />
                 <ui:VisualElement class="chat-footer">
-                    <ui:VisualElement name="join-panel" class="join-panel">
-                        <ui:TextField name="name-field" label="Name" max-length="20" class="name-field" />
-                        <ui:Button text="Join" name="join-button" class="join-button" />
-                    </ui:VisualElement>
                     <ui:TextField name="chat-input" label="Message" max-length="500" class="chat-input" />
                     <ui:Button text="Send" name="send-button" class="send-button" />
                 </ui:VisualElement>
@@ -817,24 +1087,19 @@ internal static class ChatClientTemplates
             margin-bottom: 4px;
         }
         .chat-footer {
+            flex-direction: row;
             padding: 8px;
             background-color: rgb(40, 40, 40);
             border-top-width: 1px;
             border-top-color: rgb(60, 60, 60);
         }
-        .join-panel {
-            flex-direction: row;
-            margin-bottom: 8px;
-        }
-        .name-field {
+        .chat-input {
             flex-grow: 1;
             margin-right: 8px;
         }
-        .name-field .unity-text-field__label,
         .chat-input .unity-text-field__label {
             color: rgb(210, 210, 210);
         }
-        .name-field .unity-text-field__input,
         .chat-input .unity-text-field__input {
             color: rgb(245, 245, 245);
             background-color: rgb(24, 24, 24);
@@ -843,17 +1108,8 @@ internal static class ChatClientTemplates
             border-bottom-color: rgb(80, 80, 80);
             border-left-color: rgb(80, 80, 80);
         }
-        .join-button {
-            width: 80px;
-        }
-        .chat-input {
-            flex-grow: 1;
-        }
         .send-button {
             width: 80px;
-        }
-        .join-button,
-        .send-button {
             color: rgb(245, 245, 245);
             background-color: rgb(54, 94, 160);
             border-top-color: rgb(86, 132, 210);
@@ -861,7 +1117,6 @@ internal static class ChatClientTemplates
             border-bottom-color: rgb(86, 132, 210);
             border-left-color: rgb(86, 132, 210);
         }
-        .join-button:disabled,
         .send-button:disabled {
             color: rgb(190, 190, 190);
             background-color: rgb(66, 66, 66);

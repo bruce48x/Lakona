@@ -7,14 +7,8 @@ internal static class StarterSharedTemplate
         var sharedPath = context.Paths.SharedPath;
         var projectName = Path.GetFileName(sharedPath);
 
-        var interfacesDir = Path.Combine(sharedPath, "Interfaces");
-        Directory.CreateDirectory(interfacesDir);
-
         StarterFileWriter.Write(Path.Combine(sharedPath, "Directory.Build.props"), BuildSharedDirectoryBuildProps());
         StarterFileWriter.Write(Path.Combine(sharedPath, $"{projectName}.csproj"), BuildSharedProjectFile(context));
-        StarterFileWriter.Write(Path.Combine(sharedPath, "Interfaces", "SharedDtos.cs"), BuildSharedDtos(context.Serializer));
-        StarterFileWriter.Write(Path.Combine(sharedPath, "Interfaces", "RpcContractIds.cs"), BuildSharedContractIds());
-        StarterFileWriter.Write(Path.Combine(sharedPath, "Interfaces", "IPingService.cs"), BuildSharedServiceContract());
         StarterFileWriter.Write(Path.Combine(sharedPath, $"{projectName}.asmdef"), BuildSharedAsmdef(context.Serializer));
         StarterFileWriter.Write(Path.Combine(sharedPath, "package.json"), BuildSharedPackageJson(context, projectName));
     }
@@ -57,79 +51,6 @@ internal static class StarterSharedTemplate
 </Project>
 """;
     }
-
-    private static string BuildSharedDtos(SerializerKind serializer) => serializer == SerializerKind.MemoryPack
-        ? """
-using MemoryPack;
-
-namespace Shared.Interfaces
-{
-    [MemoryPackable]
-    public sealed partial class PingRequest
-    {
-        [MemoryPackOrder(0)]
-        public string Message { get; set; } = string.Empty;
-    }
-
-    [MemoryPackable]
-    public sealed partial class PingReply
-    {
-        [MemoryPackOrder(0)]
-        public string Message { get; set; } = string.Empty;
-
-        [MemoryPackOrder(1)]
-        public string ServerTimeUtc { get; set; } = string.Empty;
-    }
-}
-"""
-        : """
-namespace Shared.Interfaces
-{
-    public sealed class PingRequest
-    {
-        public string Message { get; set; } = string.Empty;
-    }
-
-    public sealed class PingReply
-    {
-        public string Message { get; set; } = string.Empty;
-        public string ServerTimeUtc { get; set; } = string.Empty;
-    }
-}
-""";
-
-    private static string BuildSharedContractIds() => """
-namespace Shared.Interfaces
-{
-    public static class RpcContractIds
-    {
-        public static class Services
-        {
-            public const int Ping = 1;
-        }
-
-        public static class PingServiceMethods
-        {
-            public const int PingAsync = 1;
-        }
-    }
-}
-""";
-
-    private static string BuildSharedServiceContract() => """
-using System.Threading.Tasks;
-using Lakona.Rpc.Core;
-
-namespace Shared.Interfaces
-{
-    [RpcService(RpcContractIds.Services.Ping)]
-    public interface IPingService
-    {
-        [RpcMethod(RpcContractIds.PingServiceMethods.PingAsync)]
-        ValueTask<PingReply> PingAsync(PingRequest request);
-    }
-}
-""";
 
     private static string BuildSharedPackageJson(StarterTemplateContext context, string projectName) => $$"""
 {

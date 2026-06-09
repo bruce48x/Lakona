@@ -9,7 +9,6 @@ internal static class ToolTemplates
     public static string RenderHotfixProject() => ServerProjectTemplates.RenderHotfixProject();
     public static string RenderServerChatRoomActor() => ServerProjectTemplates.RenderServerChatRoomActor();
     public static string RenderHotfixChatService() => ServerProjectTemplates.RenderHotfixChatService();
-    public static string RenderHotfixPingService() => ServerProjectTemplates.RenderHotfixPingService();
     public static string RenderServerAppAssemblyInfo() => ServerProjectTemplates.RenderServerAppAssemblyInfo();
     public static string RenderServiceBindingConfigurator() => ServerProjectTemplates.RenderServiceBindingConfigurator();
 
@@ -21,9 +20,16 @@ internal static class ToolTemplates
 
     // Client chat templates
     public static string RenderClientChatClient() => ChatClientTemplates.RenderClientChatClient();
-    public static string RenderGodotChatScene(NewCommandOptions options) => ChatClientTemplates.RenderGodotChatScene(options);
-    public static string RenderGodotMainScene() => ChatClientTemplates.RenderGodotMainScene();
-    public static string RenderClientChatUI(NewCommandOptions options) => ChatClientTemplates.RenderClientChatUI(options);
+    public static string RenderChatSession() => ChatClientTemplates.RenderChatSession();
+    public static string RenderGodotChatSession() => ChatClientTemplates.RenderGodotChatSession();
+    public static string RenderUnityLoginUI(NewCommandOptions options) => ChatClientTemplates.RenderUnityLoginUI(options);
+    public static string RenderUnityLoginUxml() => ChatClientTemplates.RenderUnityLoginUxml();
+    public static string RenderUnityLoginUss() => ChatClientTemplates.RenderUnityLoginUss();
+    public static string RenderGodotLoginScene(NewCommandOptions options) => ChatClientTemplates.RenderGodotLoginScene(options);
+    public static string RenderGodotLoginTscn() => ChatClientTemplates.RenderGodotLoginTscn();
+    public static string RenderGodotChatScene() => ChatClientTemplates.RenderGodotChatScene();
+    public static string RenderGodotChatTscn() => ChatClientTemplates.RenderGodotChatTscn();
+    public static string RenderClientChatUI() => ChatClientTemplates.RenderClientChatUI();
     public static string RenderClientChatUxml() => ChatClientTemplates.RenderClientChatUxml();
     public static string RenderClientChatUss() => ChatClientTemplates.RenderClientChatUss();
 

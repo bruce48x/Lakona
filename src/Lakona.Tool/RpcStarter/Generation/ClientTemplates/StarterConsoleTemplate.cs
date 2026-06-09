@@ -72,8 +72,6 @@ internal static class StarterConsoleTemplate
         var defaultPath = context.Transport == TransportKind.WebSocket ? "/ws" : string.Empty;
 
         return $$"""
-using Rpc.Generated;
-using Shared.Interfaces;
 using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
 {{transportUsing}}
@@ -84,7 +82,6 @@ var port = int.TryParse(Environment.GetEnvironmentVariable("LAKONA_RPC_PORT"), o
     ? configuredPort
     : 20000;
 var path = Environment.GetEnvironmentVariable("LAKONA_RPC_PATH") ?? "{{defaultPath}}";
-var message = args.Length > 0 ? string.Join(" ", args) : "hello";
 
 await using var client = new RpcClient(new RpcClientOptions(
     {{transportConstruction}},
@@ -93,12 +90,7 @@ await using var client = new RpcClient(new RpcClientOptions(
 
 await client.ConnectAsync();
 
-var reply = await client.Api.Shared.Ping.PingAsync(new PingRequest
-{
-    Message = message
-});
-
-Console.WriteLine($"Ping ok: message={reply.Message}, serverTimeUtc={reply.ServerTimeUtc}");
+Console.WriteLine("Connected to server.");
 
 static string NormalizePath(string path)
 {
