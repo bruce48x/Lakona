@@ -57,6 +57,26 @@ public sealed class HotfixManagerTests
     }
 
     [Fact]
+    public async Task Reload_does_not_hold_source_dll_file_lock()
+    {
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var manager = new HotfixManager(
+            new FixedAssemblySource(compiled.HotfixAssemblyPath),
+            [stableAssembly.GetName().Name!]);
+
+        var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
+        await using var stream = new FileStream(
+            compiled.HotfixAssemblyPath,
+            FileMode.Open,
+            FileAccess.ReadWrite,
+            FileShare.None);
+        Assert.True(stream.CanWrite);
+    }
+
+    [Fact]
     public async Task Reload_releases_previous_collectible_load_context_after_replacement()
     {
         using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
