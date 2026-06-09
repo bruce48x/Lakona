@@ -30,6 +30,35 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public void Feature_discovery_does_not_load_hotfix_directory_assemblies()
+    {
+        var before = AssemblyLoadContext.Default.Assemblies
+            .Select(assembly => assembly.GetName().Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder().Build();
+
+        Lakona.Game.Server.Hosting.LakonaGameServer.DiscoverStableFeaturesForTesting(services, configuration);
+
+        var after = AssemblyLoadContext.Default.Assemblies
+            .Select(assembly => assembly.GetName().Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.DoesNotContain("Server.Hotfix", after.Except(before, StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void Default_hotfix_shared_assemblies_include_generated_project_boundaries()
+    {
+        var names = Lakona.Game.Server.Hosting.LakonaGameServer.GetDefaultHotfixSharedAssemblyNames();
+
+        Assert.Contains("Shared", names);
+        Assert.Contains("Server.App", names);
+        Assert.Contains("State.Contracts", names);
+    }
+
+    [Fact]
     public async Task MainEntryStartsSessionBindsEndpointAndReturnsCallback()
     {
         var services = new ServiceCollection();

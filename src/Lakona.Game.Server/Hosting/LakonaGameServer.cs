@@ -110,7 +110,7 @@ public static class LakonaGameServer
         var hotfixDirectory = Path.Combine(AppContext.BaseDirectory, "hotfix");
         builder.Services.AddLakonaGameHotfix(
             new CurrentDirectoryHotfixAssemblySource(hotfixDirectory, "Server.Hotfix.dll"),
-            sharedAssemblyNames: new[] { "Shared" });
+            sharedAssemblyNames: GetDefaultHotfixSharedAssemblyNames());
 
         // Gateway (registers RpcServersHostedService)
         builder.Services.AddLakonaGameServerGateway();
@@ -215,5 +215,23 @@ public static class LakonaGameServer
             feature.Configure(services, configuration);
             services.AddSingleton(feature.GetType(), feature);
         }
+    }
+
+    internal static IReadOnlyList<string> GetDefaultHotfixSharedAssemblyNames()
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "Shared",
+            "Server.App",
+            "State.Contracts"
+        };
+
+        var entryName = Assembly.GetEntryAssembly()?.GetName().Name;
+        if (!string.IsNullOrWhiteSpace(entryName))
+        {
+            names.Add(entryName);
+        }
+
+        return names.OrderBy(static name => name, StringComparer.Ordinal).ToArray();
     }
 }
