@@ -255,16 +255,16 @@ internal sealed class ToolText
 
     public string StartServerStep => Language switch
     {
-        ToolLanguage.SimplifiedChinese => "  3) dotnet run --project \"Server/Server/Server.csproj\"",
-        ToolLanguage.TraditionalChinese => "  3) dotnet run --project \"Server/Server/Server.csproj\"",
-        _ => "  3) dotnet run --project \"Server/Server/Server.csproj\""
+        ToolLanguage.SimplifiedChinese => "  3) dotnet run --project \"Server/App/Server.App.csproj\"",
+        ToolLanguage.TraditionalChinese => "  3) dotnet run --project \"Server/App/Server.App.csproj\"",
+        _ => "  3) dotnet run --project \"Server/App/Server.App.csproj\""
     };
 
     public string CheckProjectStep => Language switch
     {
-        ToolLanguage.SimplifiedChinese => "  2) dotnet run --project \"Server/Server/Server.csproj\" -- --lakona-game-check",
-        ToolLanguage.TraditionalChinese => "  2) dotnet run --project \"Server/Server/Server.csproj\" -- --lakona-game-check",
-        _ => "  2) dotnet run --project \"Server/Server/Server.csproj\" -- --lakona-game-check"
+        ToolLanguage.SimplifiedChinese => "  2) dotnet run --project \"Server/App/Server.App.csproj\" -- --lakona-game-check",
+        ToolLanguage.TraditionalChinese => "  2) dotnet run --project \"Server/App/Server.App.csproj\" -- --lakona-game-check",
+        _ => "  2) dotnet run --project \"Server/App/Server.App.csproj\" -- --lakona-game-check"
     };
 
     private string DidYouMeanValue(string suggestion) => Language switch

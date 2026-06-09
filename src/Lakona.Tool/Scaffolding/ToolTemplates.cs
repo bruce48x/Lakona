@@ -9,18 +9,18 @@ internal static class ToolTemplates
     public static string RenderHotfixProject() => ServerProjectTemplates.RenderHotfixProject();
     public static string RenderServerChatRoomActor() => ServerProjectTemplates.RenderServerChatRoomActor();
     public static string RenderServerChatRules() => ServerProjectTemplates.RenderServerChatRules();
-    public static string RenderServerChatServiceImpl() => ServerProjectTemplates.RenderServerChatServiceImpl();
+    public static string RenderHotfixChatServiceImpl() => ServerProjectTemplates.RenderHotfixChatServiceImpl();
     public static string RenderHotfixChatSystem() => ServerProjectTemplates.RenderHotfixChatSystem();
+    public static string RenderHotfixPingService() => ServerProjectTemplates.RenderHotfixPingService();
+    public static string RenderServerAppAssemblyInfo() => ServerProjectTemplates.RenderServerAppAssemblyInfo();
     public static string RenderServiceBindingConfigurator() => ServerProjectTemplates.RenderServiceBindingConfigurator();
 
     // Shared contract templates
-    public static string RenderSharedProjectHotfixItemGroup() => SharedContractTemplates.RenderSharedProjectHotfixItemGroup();
-    public static string RenderSharedHotfixAssemblyInfo() => SharedContractTemplates.RenderSharedHotfixAssemblyInfo();
     public static string RenderSharedRpcContractIds() => SharedContractTemplates.RenderSharedRpcContractIds();
     public static string RenderSharedChatProtocols() => SharedContractTemplates.RenderSharedChatProtocols();
     public static string RenderSharedChatMessages() => SharedContractTemplates.RenderSharedChatMessages();
     public static string RenderSharedChatMessages(NewCommandOptions options) => SharedContractTemplates.RenderSharedChatMessages(options);
-    public static string RenderSharedChatRuleState() => SharedContractTemplates.RenderSharedChatRuleState();
+    public static string RenderServerChatRuleState() => ServerProjectTemplates.RenderServerChatRuleState();
 
     // Client chat templates
     public static string RenderClientChatClient() => ChatClientTemplates.RenderClientChatClient();

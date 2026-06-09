@@ -1,25 +1,5 @@
 internal static class SharedContractTemplates
 {
-    public static string RenderSharedProjectHotfixItemGroup()
-    {
-        return $$"""
-        <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
-          <PackageReference Include="Lakona.Game.Server.Hotfix.Abstractions" Version="{{ToolPackageVersions.LakonaGameServerHotfixAbstractions}}" />
-          <PackageReference Include="Lakona.Game.Server.Hotfix" Version="{{ToolPackageVersions.LakonaGameServerHotfix}}" />
-          <PackageReference Include="Lakona.Game.Server.Hotfix.Generators" Version="{{ToolPackageVersions.LakonaGameServerHotfixGenerators}}" PrivateAssets="all" />
-        </ItemGroup>
-        """;
-    }
-
-    public static string RenderSharedHotfixAssemblyInfo()
-    {
-        return """
-        using System.Runtime.CompilerServices;
-
-        [assembly: InternalsVisibleTo("Server.Hotfix")]
-        """;
-    }
-
     public static string RenderSharedRpcContractIds()
     {
         return """
@@ -141,20 +121,4 @@ internal static class SharedContractTemplates
         """;
     }
 
-    public static string RenderSharedChatRuleState()
-    {
-        return """
-        #if NET
-        using Lakona.Game.Server.Hotfix.Abstractions;
-
-        namespace Shared.Contracts.Chat
-        {
-            [HotfixState]
-            public partial class ChatRuleState
-            {
-            }
-        }
-        #endif
-        """;
-    }
 }

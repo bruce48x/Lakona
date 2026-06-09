@@ -6,7 +6,7 @@ internal static class ServerProjectTemplates
         <Solution>
           <Project Path="../Shared/Shared.csproj" />
           <Project Path="Hotfix/Server.Hotfix.csproj" />
-          <Project Path="Server/Server.csproj" />
+          <Project Path="App/Server.App.csproj" />
         </Solution>
         """;
     }
@@ -18,7 +18,7 @@ internal static class ServerProjectTemplates
         var acceptorFactory = RenderAcceptorFactory(options);
 
         return $$"""
-        using Server.Hosting;
+        using Server.App.Hosting;
         using Lakona.Game.Server.Hosting;
         using {{serializerPackage.Namespace}};
         using {{transportPackage.Namespace}};
@@ -49,7 +49,7 @@ internal static class ServerProjectTemplates
         var kcpAcceptor = RenderAcceptorFactory(CloneOptionsWithTransport(options, "kcp"));
 
         return $$"""
-        using Server.Hosting;
+        using Server.App.Hosting;
         using Lakona.Game.Server.Hosting;
         using {{serializerPackage.Namespace}};
         using {{wsTransportPackage.Namespace}};
@@ -92,18 +92,18 @@ internal static class ServerProjectTemplates
             <TargetFramework>net10.0</TargetFramework>
             <ImplicitUsings>enable</ImplicitUsings>
             <Nullable>enable</Nullable>
-            <RootNamespace>Server</RootNamespace>
+            <RootNamespace>Server.App</RootNamespace>
+            <AssemblyName>Server.App</AssemblyName>
             <BuildInParallel>false</BuildInParallel>
             <RestoreBuildInParallel>false</RestoreBuildInParallel>
             <LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>
-            <LakonaRpcServerGeneratedNamespace>Server.Generated</LakonaRpcServerGeneratedNamespace>
+            <LakonaRpcServerGeneratedNamespace>Server.App.Generated</LakonaRpcServerGeneratedNamespace>
           </PropertyGroup>
 
           <ItemGroup>
             <ProjectReference Include="..\..\Shared\Shared.csproj" TargetFramework="net10.0">
               <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
             </ProjectReference>
-            <ProjectReference Include="..\Hotfix\Server.Hotfix.csproj" ReferenceOutputAssembly="false" />
           </ItemGroup>
 
           <ItemGroup>
@@ -111,6 +111,7 @@ internal static class ServerProjectTemplates
             <PackageReference Include="Lakona.Game.Server" Version="{{ToolPackageVersions.LakonaGameServer}}" />
             <PackageReference Include="Lakona.Game.Server.Generators" Version="{{ToolPackageVersions.LakonaGameServerGenerators}}" PrivateAssets="all" OutputItemType="Analyzer" />
             <PackageReference Include="Lakona.Game.Server.Hotfix" Version="{{ToolPackageVersions.LakonaGameServerHotfix}}" />
+            <PackageReference Include="Lakona.Game.Server.Hotfix.Generators" Version="{{ToolPackageVersions.LakonaGameServerHotfixGenerators}}" PrivateAssets="all" OutputItemType="Analyzer" />
         {{clusterReferences}}
         {{persistenceReferences}}
           </ItemGroup>
@@ -120,13 +121,6 @@ internal static class ServerProjectTemplates
               <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             </None>
           </ItemGroup>
-
-          <Target Name="CopyHotfixOutput" AfterTargets="Build">
-            <Copy
-              SourceFiles="$(ProjectDir)..\Hotfix\bin\$(Configuration)\$(TargetFramework)\Server.Hotfix.dll"
-              DestinationFolder="$(OutDir)hotfix\"
-              Condition="Exists('$(ProjectDir)..\Hotfix\bin\$(Configuration)\$(TargetFramework)\Server.Hotfix.dll')" />
-          </Target>
         </Project>
         """;
     }
@@ -198,11 +192,18 @@ internal static class ServerProjectTemplates
             <ProjectReference Include="..\..\Shared\Shared.csproj" TargetFramework="net10.0">
               <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
             </ProjectReference>
+            <ProjectReference Include="..\App\Server.App.csproj" />
           </ItemGroup>
 
           <ItemGroup>
             <PackageReference Include="Lakona.Game.Server.Hotfix.Abstractions" Version="{{ToolPackageVersions.LakonaGameServerHotfixAbstractions}}" />
           </ItemGroup>
+
+          <Target Name="CopyHotfixOutput" AfterTargets="Build">
+            <Copy
+              SourceFiles="$(TargetPath)"
+              DestinationFolder="$(ProjectDir)..\App\bin\$(Configuration)\$(TargetFramework)\hotfix\" />
+          </Target>
         </Project>
         """;
     }
@@ -216,7 +217,7 @@ internal static class ServerProjectTemplates
         using Shared.Contracts.Chat;
         using Lakona.Game.Server.Actors;
 
-        namespace Server.Chat
+        namespace Server.App.Chat
         {
             internal sealed class ChatRoomActor : Actor
             {
@@ -301,10 +302,10 @@ internal static class ServerProjectTemplates
     public static string RenderServerChatRules()
     {
         return """
+        using Server.App.Chat;
         using Shared.Contracts.Chat;
-        using Lakona.Game.Server.Hotfix.Dispatch;
 
-        namespace Server.Chat
+        namespace Server.App.Chat
         {
             internal sealed class ChatRules
             {
@@ -312,24 +313,22 @@ internal static class ServerProjectTemplates
 
                 public string FilterMessage(string text)
                 {
-                    return HotfixDispatch.Invoke<ChatRuleState, string, string>(
-                        "FilterMessage",
-                        _state,
-                        text);
+                    return _state.Call<string, string>("FilterMessage", text);
                 }
             }
         }
         """;
     }
 
-    public static string RenderServerChatServiceImpl()
+    public static string RenderHotfixChatServiceImpl()
     {
         return """
         using System;
+        using Server.App.Chat;
         using Shared.Contracts.Chat;
         using Lakona.Game.Server.Actors;
 
-        namespace Server.Chat
+        namespace Server.Hotfix.Chat
         {
             internal sealed class ChatServiceImpl : IChatService
             {
@@ -382,7 +381,7 @@ internal static class ServerProjectTemplates
     public static string RenderHotfixChatSystem()
     {
         return """
-        using Shared.Contracts.Chat;
+        using Server.App.Chat;
         using Lakona.Game.Server.Hotfix.Abstractions;
 
         namespace Server.Hotfix.Chat
@@ -408,27 +407,74 @@ internal static class ServerProjectTemplates
         """;
     }
 
+    public static string RenderServerChatRuleState()
+    {
+        return """
+        using Lakona.Game.Server.Hotfix.Abstractions;
+
+        namespace Server.App.Chat
+        {
+            [HotfixState]
+            public partial class ChatRuleState
+            {
+            }
+        }
+        """;
+    }
+
+    public static string RenderHotfixPingService()
+    {
+        return @"using Shared.Interfaces;
+
+namespace Server.Hotfix.Services
+{
+    public sealed class PingService : IPingService
+    {
+        public ValueTask<PingReply> PingAsync(PingRequest request)
+        {
+            return ValueTask.FromResult(new PingReply
+            {
+                Message = string.IsNullOrWhiteSpace(request.Message) ? ""pong"" : ""pong: "" + request.Message,
+                ServerTimeUtc = DateTime.UtcNow.ToString(""O"")
+            });
+        }
+    }
+}";
+    }
+
+    public static string RenderServerAppAssemblyInfo()
+    {
+        return @"using System.Runtime.CompilerServices;
+
+[assembly: InternalsVisibleTo(""Server.Hotfix"")]
+";
+    }
+
     public static string RenderServiceBindingConfigurator()
     {
-        return @"using Microsoft.Extensions.DependencyInjection;
-using Server.Chat;
-using Server.Services;
-using Server.Generated;
+        return @"using System;
+using Microsoft.Extensions.DependencyInjection;
+using Server.App.Generated;
+using Shared.Interfaces;
+using Shared.Contracts.Chat;
 using Lakona.Rpc.Server;
 
-namespace Server.Hosting;
+namespace Server.App.Hosting;
 
 internal static class ServiceBindingConfigurator
 {
+    private static readonly Type PingServiceType = Type.GetType(""Server.Hotfix.Services.PingService, Server.Hotfix"", throwOnError: true)!;
+    private static readonly Type ChatServiceImplType = Type.GetType(""Server.Hotfix.Chat.ChatServiceImpl, Server.Hotfix"", throwOnError: true)!;
+
     public static void Bind(RpcServiceRegistry registry, IServiceProvider services)
     {
         PingServiceBinder.BindFactory(
             registry,
-            _ => ActivatorUtilities.CreateInstance<PingService>(services));
+            _ => (IPingService)ActivatorUtilities.CreateInstance(services, PingServiceType));
 
         ChatServiceBinder.Bind(
             registry,
-            callback => ActivatorUtilities.CreateInstance<ChatServiceImpl>(services, callback));
+            callback => (IChatService)ActivatorUtilities.CreateInstance(services, ChatServiceImplType, callback));
     }
 }";
     }

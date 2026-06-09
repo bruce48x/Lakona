@@ -72,8 +72,8 @@ public sealed class ToolTextTests
         var output = writer.ToString();
         Assert.Contains("Lakona.Game 项目已就绪。下一步:", output, StringComparison.Ordinal);
         Assert.Contains("  1) cd \"D:\\Lakona.Game-Sample-Unity24\"", output, StringComparison.Ordinal);
-        Assert.Contains("  2) dotnet run --project \"Server/Server/Server.csproj\" -- --lakona-game-check", output, StringComparison.Ordinal);
-        Assert.Contains("  3) dotnet run --project \"Server/Server/Server.csproj\"", output, StringComparison.Ordinal);
+        Assert.Contains("  2) dotnet run --project \"Server/App/Server.App.csproj\" -- --lakona-game-check", output, StringComparison.Ordinal);
+        Assert.Contains("  3) dotnet run --project \"Server/App/Server.App.csproj\"", output, StringComparison.Ordinal);
         Assert.DoesNotContain("  4)", output, StringComparison.Ordinal);
         Assert.DoesNotContain("修改 Shared 合约后", output, StringComparison.Ordinal);
     }
@@ -279,13 +279,13 @@ public sealed class ToolTextTests
         Assert.DoesNotContain("\"Services\"", appSettings, StringComparison.Ordinal);
         Assert.Contains("Lakona.Game.Cluster", project, StringComparison.Ordinal);
         Assert.Contains("Lakona.Game.Cluster.Rpc", project, StringComparison.Ordinal);
-        Assert.Contains("<RootNamespace>Server</RootNamespace>", project, StringComparison.Ordinal);
-        Assert.Contains("<LakonaRpcServerGeneratedNamespace>Server.Generated</LakonaRpcServerGeneratedNamespace>", project, StringComparison.Ordinal);
+        Assert.Contains("<RootNamespace>Server.App</RootNamespace>", project, StringComparison.Ordinal);
+        Assert.Contains("<LakonaRpcServerGeneratedNamespace>Server.App.Generated</LakonaRpcServerGeneratedNamespace>", project, StringComparison.Ordinal);
         Assert.Contains("return await LakonaGameServer.RunAsync(args", program, StringComparison.Ordinal);
         Assert.Contains("ServiceBindingConfigurator.Bind", program, StringComparison.Ordinal);
         Assert.DoesNotContain("LakonaGameRuntimeOptions", program, StringComparison.Ordinal);
         Assert.Empty(generatedApplication);
-        Assert.Contains("using Server.Hosting;", program, StringComparison.Ordinal);
+        Assert.Contains("using Server.App.Hosting;", program, StringComparison.Ordinal);
         Assert.Contains("healthcheck:", compose, StringComparison.Ordinal);
         Assert.Contains("dotnet Server.dll --health-check", compose, StringComparison.Ordinal);
         Assert.Contains("LAKONA_CLUSTER_NODE_ID", env, StringComparison.Ordinal);
@@ -323,8 +323,6 @@ public sealed class ToolTextTests
 
         var solution = ToolTemplates.RenderServerSolution();
         var project = ToolTemplates.RenderServerProject(options);
-        var sharedProject = ToolTemplates.RenderSharedProjectHotfixItemGroup();
-        var sharedAssemblyInfo = ToolTemplates.RenderSharedHotfixAssemblyInfo();
         var sharedContractIds = ToolTemplates.RenderSharedRpcContractIds();
         var sharedProtocols = ToolTemplates.RenderSharedChatProtocols();
         var sharedMessages = ToolTemplates.RenderSharedChatMessages();
@@ -335,12 +333,10 @@ public sealed class ToolTextTests
         var generatedApplication = ToolTemplates.RenderGeneratedServerApplication(options);
         var chatRoomActor = ToolTemplates.RenderServerChatRoomActor();
         var chatRules = ToolTemplates.RenderServerChatRules();
-        var chatServiceImpl = ToolTemplates.RenderServerChatServiceImpl();
+        var chatServiceImpl = ToolTemplates.RenderHotfixChatServiceImpl();
         var generatedText = string.Concat(
             solution,
             project,
-            sharedProject,
-            sharedAssemblyInfo,
             sharedContractIds,
             sharedProtocols,
             sharedMessages,
@@ -354,13 +350,9 @@ public sealed class ToolTextTests
             chatServiceImpl);
 
         Assert.Contains(@"<Project Path=""Hotfix/Server.Hotfix.csproj"" />", solution, StringComparison.Ordinal);
-        Assert.Contains(@"<ProjectReference Include=""..\Hotfix\Server.Hotfix.csproj"" ReferenceOutputAssembly=""false"" />", project, StringComparison.Ordinal);
         Assert.Contains(@"PackageReference Include=""Lakona.Game.Server.Hotfix""", project, StringComparison.Ordinal);
         Assert.Contains(@"PackageReference Include=""Lakona.Game.Server.Generators""", project, StringComparison.Ordinal);
         Assert.Contains(@"PrivateAssets=""all"" OutputItemType=""Analyzer""", project, StringComparison.Ordinal);
-        Assert.Contains(@"PackageReference Include=""Lakona.Game.Server.Hotfix.Abstractions""", sharedProject, StringComparison.Ordinal);
-        Assert.Contains(@"PackageReference Include=""Lakona.Game.Server.Hotfix.Generators""", sharedProject, StringComparison.Ordinal);
-        Assert.Contains(@"InternalsVisibleTo(""Server.Hotfix"")", sharedAssemblyInfo, StringComparison.Ordinal);
         Assert.Contains("public const int Chat = 2;", sharedContractIds, StringComparison.Ordinal);
         Assert.Contains("public const int MessageReceived = 1;", sharedContractIds, StringComparison.Ordinal);
         Assert.Contains("[RpcService(RpcContractIds.Services.Chat, NotificationContract = typeof(IChatCallback))]", sharedProtocols, StringComparison.Ordinal);
@@ -369,6 +361,7 @@ public sealed class ToolTextTests
         Assert.Contains("ChatJoinRequest", sharedMessages, StringComparison.Ordinal);
         Assert.Contains("ChatMessage", sharedMessages, StringComparison.Ordinal);
         Assert.Contains(@"ProjectReference Include=""..\..\Shared\Shared.csproj""", hotfixProject, StringComparison.Ordinal);
+        Assert.Contains(@"ProjectReference Include=""..\App\Server.App.csproj""", hotfixProject, StringComparison.Ordinal);
         Assert.Contains(@"PackageReference Include=""Lakona.Game.Server.Hotfix.Abstractions""", hotfixProject, StringComparison.Ordinal);
         Assert.Contains("class ChatRulesSystem", hotfixChatSystem, StringComparison.Ordinal);
         Assert.Contains("[HotfixSystemOf(typeof(ChatRuleState))]", hotfixChatSystem, StringComparison.Ordinal);
@@ -377,7 +370,7 @@ public sealed class ToolTextTests
         Assert.Contains("IActorRuntime", chatServiceImpl, StringComparison.Ordinal);
         Assert.Contains("class ChatServiceImpl", chatServiceImpl, StringComparison.Ordinal);
         Assert.Contains("IChatService", chatServiceImpl, StringComparison.Ordinal);
-        Assert.Contains("HotfixDispatch.Invoke", chatRules, StringComparison.Ordinal);
+        Assert.Contains("_state.Call<string, string>(\"FilterMessage\", text)", chatRules, StringComparison.Ordinal);
         Assert.DoesNotContain("static readonly ChatRoom", generatedText, StringComparison.Ordinal);
         Assert.DoesNotContain("SanitizeMessage", hotfixChatSystem, StringComparison.Ordinal);
         Assert.DoesNotContain("AddLakonaGameHotfix", program, StringComparison.Ordinal);
@@ -775,7 +768,7 @@ public sealed class ToolTextTests
             .Single()
             .Value;
 
-        Assert.Equal("0.8.0", version);
+        Assert.Equal("0.8.1", version);
     }
 
     [Fact]

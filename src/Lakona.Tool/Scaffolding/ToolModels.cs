@@ -9,8 +9,8 @@ internal static class ProjectConventions
     public const string DefaultPersistence = "none";
     public const string DefaultNuGetForUnitySource = "openupm";
     public const string DefaultDeployProfile = "none";
-    public const string StarterServerProjectPath = "Server/Server";
-    public const string StarterServerGeneratedNamespace = "Server.Generated";
+    public const string StarterServerProjectPath = "Server/App";
+    public const string StarterServerGeneratedNamespace = "Server.App.Generated";
 
     public static readonly string[] SupportedClientEngines = ["unity", "unity-cn", "tuanjie", "godot"];
     public static readonly string[] SupportedTransports = ["tcp", "websocket", "kcp"];

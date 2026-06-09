@@ -11,7 +11,6 @@ internal sealed class ProjectScaffolder
         EnsureStarterServerProjectDirectory(projectRoot);
         await WriteClientPackageReferenceAsync(projectRoot, options).ConfigureAwait(false);
         await WriteClientChatFilesAsync(projectRoot, options).ConfigureAwait(false);
-        await WriteSharedHotfixReferencesAsync(projectRoot).ConfigureAwait(false);
         await WriteSharedHotfixBoundaryFilesAsync(projectRoot, options).ConfigureAwait(false);
         await WriteServerSolutionAsync(projectRoot).ConfigureAwait(false);
         await WriteServerProgramAsync(projectRoot, options).ConfigureAwait(false);
@@ -64,9 +63,6 @@ internal sealed class ProjectScaffolder
     {
         return Task.WhenAll(
             WriteIfMissingAsync(
-                Path.Combine(projectRoot, "Shared", "Properties", "AssemblyInfo.cs"),
-                ToolTemplates.RenderSharedHotfixAssemblyInfo()),
-            WriteIfMissingAsync(
                 Path.Combine(projectRoot, "Shared", "Contracts", "RpcContractIds.cs"),
                 ToolTemplates.RenderSharedRpcContractIds()),
             WriteIfMissingAsync(
@@ -74,10 +70,7 @@ internal sealed class ProjectScaffolder
                 ToolTemplates.RenderSharedChatProtocols()),
             WriteIfMissingAsync(
                 Path.Combine(projectRoot, "Shared", "Contracts", "Chat", "ChatMessages.cs"),
-                ToolTemplates.RenderSharedChatMessages(options)),
-            WriteIfMissingAsync(
-                Path.Combine(projectRoot, "Shared", "Contracts", "Chat", "ChatRuleState.cs"),
-                ToolTemplates.RenderSharedChatRuleState()));
+                ToolTemplates.RenderSharedChatMessages(options)));
     }
 
     private static async Task WriteUnityClientPackageReferenceAsync(string projectRoot)
@@ -333,50 +326,22 @@ internal sealed class ProjectScaffolder
     {
         return Task.WhenAll(
             WriteIfMissingAsync(
-                Path.Combine(projectRoot, "Server", "Server", "Chat", "ChatRoomActor.cs"),
+                Path.Combine(projectRoot, "Server", "App", "Properties", "AssemblyInfo.cs"),
+                ToolTemplates.RenderServerAppAssemblyInfo()),
+            WriteIfMissingAsync(
+                Path.Combine(projectRoot, "Server", "App", "Chat", "ChatRoomActor.cs"),
                 ToolTemplates.RenderServerChatRoomActor()),
             WriteIfMissingAsync(
-                Path.Combine(projectRoot, "Server", "Server", "Chat", "ChatRules.cs"),
+                Path.Combine(projectRoot, "Server", "App", "Chat", "ChatRules.cs"),
                 ToolTemplates.RenderServerChatRules()),
             WriteIfMissingAsync(
-                Path.Combine(projectRoot, "Server", "Server", "Chat", "ChatServiceImpl.cs"),
-                ToolTemplates.RenderServerChatServiceImpl()));
+                Path.Combine(projectRoot, "Server", "App", "Contracts", "Chat", "ChatRuleState.cs"),
+                ToolTemplates.RenderServerChatRuleState()));
     }
 
     private static Task WriteServerSolutionAsync(string projectRoot)
     {
         return WriteAsync(Path.Combine(projectRoot, "Server", "Server.slnx"), ToolTemplates.RenderServerSolution());
-    }
-
-    private static async Task WriteSharedHotfixReferencesAsync(string projectRoot)
-    {
-        var path = Path.Combine(projectRoot, "Shared", "Shared.csproj");
-        if (!File.Exists(path))
-        {
-            return;
-        }
-
-        var document = System.Xml.Linq.XDocument.Load(path);
-        var project = document.Root ?? throw new InvalidOperationException($"Invalid project file: {path}");
-
-        ProjectXmlMutator.EnsureConditionalPackageReference(
-            project,
-            "'$(TargetFramework)' == 'net10.0'",
-            "Lakona.Game.Server.Hotfix.Abstractions",
-            ToolPackageVersions.LakonaGameServerHotfixAbstractions);
-        ProjectXmlMutator.EnsureConditionalPackageReference(
-            project,
-            "'$(TargetFramework)' == 'net10.0'",
-            "Lakona.Game.Server.Hotfix",
-            ToolPackageVersions.LakonaGameServerHotfix);
-        ProjectXmlMutator.EnsureConditionalPackageReference(
-            project,
-            "'$(TargetFramework)' == 'net10.0'",
-            "Lakona.Game.Server.Hotfix.Generators",
-            ToolPackageVersions.LakonaGameServerHotfixGenerators,
-            ("PrivateAssets", "all"));
-
-        await ToolFileWriter.WriteTextAsync(path, document.ToString()).ConfigureAwait(false);
     }
 
     private static void EnsureStarterServerProjectDirectory(string projectRoot)
@@ -388,7 +353,7 @@ internal sealed class ProjectScaffolder
 
     private static Task WriteServerProgramAsync(string projectRoot, NewCommandOptions options)
     {
-        return WriteAsync(Path.Combine(projectRoot, "Server", "Server", "Program.cs"), ToolTemplates.RenderServerProgram(options));
+        return WriteAsync(Path.Combine(projectRoot, "Server", "App", "Program.cs"), ToolTemplates.RenderServerProgram(options));
     }
 
     private static Task WriteGeneratedServerApplicationAsync(string projectRoot, NewCommandOptions options)
@@ -406,7 +371,7 @@ internal sealed class ProjectScaffolder
 
     private static async Task WriteServerProjectAsync(string projectRoot, NewCommandOptions options)
     {
-        var path = Path.Combine(projectRoot, "Server", "Server", "Server.csproj");
+        var path = Path.Combine(projectRoot, "Server", "App", "Server.App.csproj");
         if (!File.Exists(path))
         {
             await WriteAsync(path, ToolTemplates.RenderServerProject(options)).ConfigureAwait(false);
@@ -462,15 +427,22 @@ internal sealed class ProjectScaffolder
 
     private static Task WriteHotfixBoundaryFilesAsync(string projectRoot)
     {
-        return WriteIfMissingAsync(
-            Path.Combine(projectRoot, "Server", "Hotfix", "Chat", "ChatRulesSystem.cs"),
-            ToolTemplates.RenderHotfixChatSystem());
+        return Task.WhenAll(
+            WriteIfMissingAsync(
+                Path.Combine(projectRoot, "Server", "Hotfix", "Chat", "ChatRulesSystem.cs"),
+                ToolTemplates.RenderHotfixChatSystem()),
+            WriteIfMissingAsync(
+                Path.Combine(projectRoot, "Server", "Hotfix", "Chat", "ChatServiceImpl.cs"),
+                ToolTemplates.RenderHotfixChatServiceImpl()),
+            WriteIfMissingAsync(
+                Path.Combine(projectRoot, "Server", "Hotfix", "Services", "PingService.cs"),
+                ToolTemplates.RenderHotfixPingService()));
     }
 
     private static Task WriteServerConfiguratorsAsync(string projectRoot, NewCommandOptions options)
     {
         return WriteAsync(
-            Path.Combine(projectRoot, "Server", "Server", "Hosting", "ServiceBindingConfigurator.cs"),
+            Path.Combine(projectRoot, "Server", "App", "Hosting", "ServiceBindingConfigurator.cs"),
             ToolTemplates.RenderServiceBindingConfigurator());
     }
 
