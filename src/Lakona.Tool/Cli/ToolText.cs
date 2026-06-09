@@ -253,27 +253,20 @@ internal sealed class ToolText
         _ => "Lakona.Game project ready. Next steps:"
     };
 
-    public string StartServerStep => Language switch
-    {
-        ToolLanguage.SimplifiedChinese => "  3) dotnet run --project \"Server/App/Server.App.csproj\"",
-        ToolLanguage.TraditionalChinese => "  3) dotnet run --project \"Server/App/Server.App.csproj\"",
-        _ => "  3) dotnet run --project \"Server/App/Server.App.csproj\""
-    };
-
     public string OpenClientStep(string clientEngine)
     {
         var isGodot = string.Equals(clientEngine, "godot", StringComparison.OrdinalIgnoreCase);
         return Language switch
         {
             ToolLanguage.SimplifiedChinese => isGodot
-                ? "  4) 在 Godot Engine 中打开 Client/"
-                : "  4) 在 Unity Hub 中打开 Client/（Unity 2022 LTS）",
+                ? "  5) 在 Godot Engine 中打开 Client/"
+                : "  5) 在 Unity Hub 中打开 Client/（Unity 2022 LTS）",
             ToolLanguage.TraditionalChinese => isGodot
-                ? "  4) 在 Godot Engine 中開啟 Client/"
-                : "  4) 在 Unity Hub 中開啟 Client/（Unity 2022 LTS）",
+                ? "  5) 在 Godot Engine 中開啟 Client/"
+                : "  5) 在 Unity Hub 中開啟 Client/（Unity 2022 LTS）",
             _ => isGodot
-                ? "  4) Open Client/ in Godot Engine"
-                : "  4) Open Client/ in Unity Hub (Unity 2022 LTS)"
+                ? "  5) Open Client/ in Godot Engine"
+                : "  5) Open Client/ in Unity Hub (Unity 2022 LTS)"
         };
     }
 
@@ -282,6 +275,20 @@ internal sealed class ToolText
         ToolLanguage.SimplifiedChinese => "  2) dotnet run --project \"Server/App/Server.App.csproj\" -- --lakona-game-check",
         ToolLanguage.TraditionalChinese => "  2) dotnet run --project \"Server/App/Server.App.csproj\" -- --lakona-game-check",
         _ => "  2) dotnet run --project \"Server/App/Server.App.csproj\" -- --lakona-game-check"
+    };
+
+    public string BuildSolutionStep => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => "  3) dotnet build \"Server/Server.slnx\"",
+        ToolLanguage.TraditionalChinese => "  3) dotnet build \"Server/Server.slnx\"",
+        _ => "  3) dotnet build \"Server/Server.slnx\""
+    };
+
+    public string StartServerStep => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => "  4) dotnet run --project \"Server/App/Server.App.csproj\" --no-build",
+        ToolLanguage.TraditionalChinese => "  4) dotnet run --project \"Server/App/Server.App.csproj\" --no-build",
+        _ => "  4) dotnet run --project \"Server/App/Server.App.csproj\" --no-build"
     };
 
     private string DidYouMeanValue(string suggestion) => Language switch

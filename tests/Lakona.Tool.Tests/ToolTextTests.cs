@@ -46,7 +46,8 @@ public sealed class ToolTextTests
         Assert.Contains("--lakona-game-check", english.CheckProjectStep, StringComparison.Ordinal);
         Assert.Contains("--lakona-game-check", simplifiedChinese.CheckProjectStep, StringComparison.Ordinal);
         Assert.StartsWith("  2)", english.CheckProjectStep, StringComparison.Ordinal);
-        Assert.StartsWith("  3)", english.StartServerStep, StringComparison.Ordinal);
+        Assert.StartsWith("  3)", english.BuildSolutionStep, StringComparison.Ordinal);
+        Assert.StartsWith("  4)", english.StartServerStep, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -74,8 +75,9 @@ public sealed class ToolTextTests
         Assert.Contains("Lakona.Game 项目已就绪。下一步:", output, StringComparison.Ordinal);
         Assert.Contains("  1) cd \"D:\\Lakona.Game-Sample-Unity24\"", output, StringComparison.Ordinal);
         Assert.Contains("  2) dotnet run --project \"Server/App/Server.App.csproj\" -- --lakona-game-check", output, StringComparison.Ordinal);
-        Assert.Contains("  3) dotnet run --project \"Server/App/Server.App.csproj\"", output, StringComparison.Ordinal);
-        Assert.Contains("  4)", output, StringComparison.Ordinal);
+        Assert.Contains("  3) dotnet build \"Server/Server.slnx\"", output, StringComparison.Ordinal);
+        Assert.Contains("  4) dotnet run --project \"Server/App/Server.App.csproj\" --no-build", output, StringComparison.Ordinal);
+        Assert.Contains("  5)", output, StringComparison.Ordinal);
         Assert.Contains("在 Unity Hub 中打开 Client/", output, StringComparison.Ordinal);
         Assert.DoesNotContain("修改 Shared 合约后", output, StringComparison.Ordinal);
     }
