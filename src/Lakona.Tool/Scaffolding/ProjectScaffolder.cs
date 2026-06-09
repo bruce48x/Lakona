@@ -359,7 +359,7 @@ internal sealed class ProjectScaffolder
         }
 
         return WriteAsync(
-            Path.Combine(projectRoot, "Server", "Server", "Hosting", "Advanced", "LakonaGameGeneratedApplication.cs"),
+            Path.Combine(projectRoot, "Server", "App", "Hosting", "Advanced", "LakonaGameGeneratedApplication.cs"),
             content);
     }
 
@@ -416,7 +416,7 @@ internal sealed class ProjectScaffolder
 
     private static Task WriteServerAppSettingsAsync(string projectRoot, NewCommandOptions options)
     {
-        return WriteAsync(Path.Combine(projectRoot, "Server", "Server", "appsettings.json"), ToolTemplates.RenderServerAppSettings(options));
+        return WriteAsync(Path.Combine(projectRoot, "Server", "App", "appsettings.json"), ToolTemplates.RenderServerAppSettings(options));
     }
 
     private static Task WriteHotfixProjectAsync(string projectRoot)
