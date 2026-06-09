@@ -13,10 +13,27 @@ namespace Lakona.Game.Server.Hotfix.Tests;
 public sealed class HotfixManagerTests
 {
     [Fact]
+    public async Task Reload_fails_when_state_type_is_loaded_from_hotfix_context()
+    {
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var hotfixDir = Path.GetDirectoryName(compiled.HotfixAssemblyPath)!;
+        var stableName = Path.GetFileName(compiled.StableAssemblyPath);
+        var localStablePath = Path.Combine(hotfixDir, stableName);
+        File.Copy(compiled.StableAssemblyPath, localStablePath, overwrite: true);
+        var manager = new HotfixManager(new FixedAssemblySource(compiled.HotfixAssemblyPath));
+
+        var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Contains("must resolve from a shared AssemblyLoadContext", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Reload_replaces_current_snapshot_after_successful_scan()
     {
         var source = new FixedAssemblySource(typeof(ManagerTestStateSystem).Assembly.Location);
-        var manager = new HotfixManager(source);
+        var manager = new HotfixManager(source, [typeof(ManagerTestStateSystem).Assembly.GetName().Name!]);
 
         var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
 
@@ -30,7 +47,7 @@ public sealed class HotfixManagerTests
     public async Task Reload_failure_keeps_previous_snapshot()
     {
         var source = new SwitchableAssemblySource(typeof(ManagerTestStateSystem).Assembly.Location);
-        var manager = new HotfixManager(source);
+        var manager = new HotfixManager(source, [typeof(ManagerTestStateSystem).Assembly.GetName().Name!]);
         var first = await manager.ReloadAsync(TestContext.Current.CancellationToken);
         source.Path = @"Z:\missing\Missing.Hotfix.dll";
 
@@ -98,7 +115,7 @@ public sealed class HotfixManagerTests
     {
         using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
         var source = new SwitchableAssemblySource(typeof(ManagerTestStateSystem).Assembly.Location);
-        var manager = new HotfixManager(source);
+        var manager = new HotfixManager(source, [typeof(ManagerTestStateSystem).Assembly.GetName().Name!]);
         var first = await manager.ReloadAsync(TestContext.Current.CancellationToken);
         var key = first.Current.Methods.Single(key =>
             key.StateTypeName == typeof(ManagerTestState).FullName && key.MethodName == "Add");
@@ -127,7 +144,7 @@ public sealed class HotfixManagerTests
     {
         using var cts = new CancellationTokenSource();
         var source = new SwitchableAssemblySource(typeof(ManagerTestStateSystem).Assembly.Location);
-        var manager = new HotfixManager(source);
+        var manager = new HotfixManager(source, [typeof(ManagerTestStateSystem).Assembly.GetName().Name!]);
         var first = await manager.ReloadAsync(TestContext.Current.CancellationToken);
         var key = first.Current.Methods.Single(key =>
             key.StateTypeName == typeof(ManagerTestState).FullName && key.MethodName == "Add");
@@ -145,7 +162,7 @@ public sealed class HotfixManagerTests
     public async Task ReloadAsync_serializes_concurrent_reloads()
     {
         var source = new BlockingAssemblySource(typeof(ManagerTestStateSystem).Assembly.Location);
-        var manager = new HotfixManager(source);
+        var manager = new HotfixManager(source, [typeof(ManagerTestStateSystem).Assembly.GetName().Name!]);
         var first = manager.ReloadAsync(TestContext.Current.CancellationToken).AsTask();
         await source.FirstResolveStarted.Task.WaitAsync(TestContext.Current.CancellationToken);
 
