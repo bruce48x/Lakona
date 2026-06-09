@@ -330,13 +330,7 @@ internal sealed class ProjectScaffolder
                 ToolTemplates.RenderServerAppAssemblyInfo()),
             WriteIfMissingAsync(
                 Path.Combine(projectRoot, "Server", "App", "Chat", "ChatRoomActor.cs"),
-                ToolTemplates.RenderServerChatRoomActor()),
-            WriteIfMissingAsync(
-                Path.Combine(projectRoot, "Server", "App", "Chat", "ChatRules.cs"),
-                ToolTemplates.RenderServerChatRules()),
-            WriteIfMissingAsync(
-                Path.Combine(projectRoot, "Server", "App", "Contracts", "Chat", "ChatRuleState.cs"),
-                ToolTemplates.RenderServerChatRuleState()));
+                ToolTemplates.RenderServerChatRoomActor()));
     }
 
     private static Task WriteServerSolutionAsync(string projectRoot)
@@ -429,11 +423,8 @@ internal sealed class ProjectScaffolder
     {
         return Task.WhenAll(
             WriteIfMissingAsync(
-                Path.Combine(projectRoot, "Server", "Hotfix", "Chat", "ChatRulesSystem.cs"),
-                ToolTemplates.RenderHotfixChatSystem()),
-            WriteIfMissingAsync(
                 Path.Combine(projectRoot, "Server", "Hotfix", "Chat", "ChatServiceImpl.cs"),
-                ToolTemplates.RenderHotfixChatServiceImpl()),
+                ToolTemplates.RenderHotfixChatService()),
             WriteIfMissingAsync(
                 Path.Combine(projectRoot, "Server", "Hotfix", "Services", "PingService.cs"),
                 ToolTemplates.RenderHotfixPingService()));

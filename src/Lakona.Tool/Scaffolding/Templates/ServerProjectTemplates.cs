@@ -195,10 +195,6 @@ internal static class ServerProjectTemplates
             <ProjectReference Include="..\App\Server.App.csproj" />
           </ItemGroup>
 
-          <ItemGroup>
-            <PackageReference Include="Lakona.Game.Server.Hotfix.Abstractions" Version="{{ToolPackageVersions.LakonaGameServerHotfixAbstractions}}" />
-          </ItemGroup>
-
           <Target Name="CopyHotfixOutput" AfterTargets="Build">
             <Copy
               SourceFiles="$(TargetPath)"
@@ -224,7 +220,6 @@ internal static class ServerProjectTemplates
                 private const int MaxRecentMessages = 100;
                 private readonly Dictionary<string, (string Name, IChatCallback Callback)> _members = new();
                 private readonly Queue<ChatMessage> _recentMessages = new();
-                private readonly ChatRules _rules = new();
 
                 public ValueTask<ChatJoinReply> JoinAsync(string connectionId, string playerName, IChatCallback callback)
                 {
@@ -247,11 +242,10 @@ internal static class ServerProjectTemplates
                         return ValueTask.CompletedTask;
                     }
 
-                    var filteredText = _rules.FilterMessage(text);
                     var msg = new ChatMessage
                     {
                         SenderName = entry.Name,
-                        Text = filteredText,
+                        Text = text,
                         Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
                     };
 
@@ -299,28 +293,7 @@ internal static class ServerProjectTemplates
         """;
     }
 
-    public static string RenderServerChatRules()
-    {
-        return """
-        using Server.App.Chat;
-        using Shared.Contracts.Chat;
-
-        namespace Server.App.Chat
-        {
-            internal sealed class ChatRules
-            {
-                private readonly ChatRuleState _state = new();
-
-                public string FilterMessage(string text)
-                {
-                    return _state.Call<string, string>("FilterMessage", text);
-                }
-            }
-        }
-        """;
-    }
-
-    public static string RenderHotfixChatServiceImpl()
+    public static string RenderHotfixChatService()
     {
         return """
         using System;
@@ -354,11 +327,12 @@ internal static class ServerProjectTemplates
 
                 public async ValueTask SendAsync(ChatSendRequest req)
                 {
+                    var text = FilterMessage(req.Text);
                     await _actors.AskAsync<ChatRoomActor, bool>(
                         RoomId,
                         async (room, ct) =>
                         {
-                            await room.SendAsync(_connectionId, req.Text);
+                            await room.SendAsync(_connectionId, text);
                             return true;
                         });
                 }
@@ -373,24 +347,8 @@ internal static class ServerProjectTemplates
                             return true;
                         });
                 }
-            }
-        }
-        """;
-    }
 
-    public static string RenderHotfixChatSystem()
-    {
-        return """
-        using Server.App.Chat;
-        using Lakona.Game.Server.Hotfix.Abstractions;
-
-        namespace Server.Hotfix.Chat
-        {
-            [FriendOf(typeof(ChatRuleState))]
-            [HotfixSystemOf(typeof(ChatRuleState))]
-            public static class ChatRulesSystem
-            {
-                public static string FilterMessage(this ChatRuleState self, string text)
+                private static string FilterMessage(string text)
                 {
                     if (string.IsNullOrWhiteSpace(text))
                     {
@@ -399,24 +357,8 @@ internal static class ServerProjectTemplates
 
                     var filtered = text.Length > 500 ? text[..500] : text;
                     filtered = filtered.Replace("badword", "***", StringComparison.OrdinalIgnoreCase);
-                    filtered = filtered.Replace("脏话", "**", StringComparison.OrdinalIgnoreCase);
                     return filtered;
                 }
-            }
-        }
-        """;
-    }
-
-    public static string RenderServerChatRuleState()
-    {
-        return """
-        using Lakona.Game.Server.Hotfix.Abstractions;
-
-        namespace Server.App.Chat
-        {
-            [HotfixState]
-            public partial class ChatRuleState
-            {
             }
         }
         """;

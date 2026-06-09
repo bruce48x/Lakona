@@ -154,13 +154,11 @@ public sealed class ToolTemplateTests
         var sharedProtocols = ToolTemplates.RenderSharedChatProtocols();
         var sharedMessages = ToolTemplates.RenderSharedChatMessages();
         var hotfixProject = ToolTemplates.RenderHotfixProject();
-        var hotfixChatSystem = ToolTemplates.RenderHotfixChatSystem();
         var appSettings = ToolTemplates.RenderServerAppSettings(options);
         var program = ToolTemplates.RenderServerProgram(options);
         var generatedApplication = ToolTemplates.RenderGeneratedServerApplication(options);
         var chatRoomActor = ToolTemplates.RenderServerChatRoomActor();
-        var chatRules = ToolTemplates.RenderServerChatRules();
-        var chatServiceImpl = ToolTemplates.RenderHotfixChatServiceImpl();
+        var chatService = ToolTemplates.RenderHotfixChatService();
         var generatedText = string.Concat(
             solution,
             project,
@@ -168,13 +166,11 @@ public sealed class ToolTemplateTests
             sharedProtocols,
             sharedMessages,
             hotfixProject,
-            hotfixChatSystem,
             appSettings,
             program,
             generatedApplication,
             chatRoomActor,
-            chatRules,
-            chatServiceImpl);
+            chatService);
 
         Assert.Contains(@"<Project Path=""Hotfix/Server.Hotfix.csproj"" />", solution, StringComparison.Ordinal);
         Assert.DoesNotContain(@"<ProjectReference Include=""..\Hotfix\Server.Hotfix.csproj""", project, StringComparison.Ordinal);
@@ -190,17 +186,12 @@ public sealed class ToolTemplateTests
         Assert.Contains("ChatMessage", sharedMessages, StringComparison.Ordinal);
         Assert.Contains(@"ProjectReference Include=""..\..\Shared\Shared.csproj""", hotfixProject, StringComparison.Ordinal);
         Assert.Contains(@"ProjectReference Include=""..\App\Server.App.csproj""", hotfixProject, StringComparison.Ordinal);
-        Assert.Contains(@"PackageReference Include=""Lakona.Game.Server.Hotfix.Abstractions""", hotfixProject, StringComparison.Ordinal);
-        Assert.Contains("class ChatRulesSystem", hotfixChatSystem, StringComparison.Ordinal);
-        Assert.Contains("[HotfixSystemOf(typeof(ChatRuleState))]", hotfixChatSystem, StringComparison.Ordinal);
-        Assert.Contains("FilterMessage", hotfixChatSystem, StringComparison.Ordinal);
         Assert.Contains("class ChatRoomActor : Actor", chatRoomActor, StringComparison.Ordinal);
-        Assert.Contains("IActorRuntime", chatServiceImpl, StringComparison.Ordinal);
-        Assert.Contains("class ChatServiceImpl", chatServiceImpl, StringComparison.Ordinal);
-        Assert.Contains("IChatService", chatServiceImpl, StringComparison.Ordinal);
-        Assert.Contains("_state.Call<string, string>(\"FilterMessage\", text)", chatRules, StringComparison.Ordinal);
+        Assert.Contains("IActorRuntime", chatService, StringComparison.Ordinal);
+        Assert.Contains("class ChatServiceImpl", chatService, StringComparison.Ordinal);
+        Assert.Contains("IChatService", chatService, StringComparison.Ordinal);
+        Assert.Contains("FilterMessage", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("static readonly ChatRoom", generatedText, StringComparison.Ordinal);
-        Assert.DoesNotContain("SanitizeMessage", hotfixChatSystem, StringComparison.Ordinal);
         Assert.DoesNotContain("AddLakonaGameHotfix", program, StringComparison.Ordinal);
         Assert.DoesNotContain("CurrentDirectoryHotfixAssemblySource", program, StringComparison.Ordinal);
         Assert.DoesNotContain("IHotfixManager", program, StringComparison.Ordinal);
@@ -399,12 +390,10 @@ public sealed class ToolTemplateTests
     [Fact]
     public void RenderServerChatTemplates_ParseAsCurrentCSharp()
     {
-        var sources = new[]
+        var sources = new (string, string)[]
         {
             ("Server/App/Chat/ChatRoomActor.cs", ToolTemplates.RenderServerChatRoomActor()),
-            ("Server/App/Chat/ChatRules.cs", ToolTemplates.RenderServerChatRules()),
-            ("Server/App/Chat/ChatServiceImpl.cs", ToolTemplates.RenderHotfixChatServiceImpl()),
-            ("Server/Hotfix/Chat/ChatRulesSystem.cs", ToolTemplates.RenderHotfixChatSystem())
+            ("Server/Hotfix/Chat/ChatServiceImpl.cs", ToolTemplates.RenderHotfixChatService()),
         };
 
         AssertGeneratedSourcesParseAsCurrentCSharp(sources);
@@ -445,8 +434,6 @@ public sealed class ToolTemplateTests
         Assert.Contains("using Lakona.Game.Server.Actors;", source, StringComparison.Ordinal);
         Assert.Contains("private readonly Dictionary<string,", source, StringComparison.Ordinal);
         Assert.Contains("private readonly Queue<ChatMessage>", source, StringComparison.Ordinal);
-        Assert.Contains("ChatRules", source, StringComparison.Ordinal);
-        Assert.Contains("FilterMessage", source, StringComparison.Ordinal);
         Assert.Contains("Broadcast(cb => cb.OnMessageReceived", source, StringComparison.Ordinal);
         Assert.DoesNotContain("ConcurrentDictionary", source, StringComparison.Ordinal);
         Assert.DoesNotContain("ConcurrentQueue", source, StringComparison.Ordinal);
@@ -454,9 +441,9 @@ public sealed class ToolTemplateTests
     }
 
     [Fact]
-    public void RenderHotfixChatServiceImpl_UsesActorRuntime()
+    public void RenderHotfixChatService_UsesActorRuntime()
     {
-        var source = ToolTemplates.RenderHotfixChatServiceImpl();
+        var source = ToolTemplates.RenderHotfixChatService();
 
         Assert.Contains("class ChatServiceImpl : IChatService", source, StringComparison.Ordinal);
         Assert.Contains("private readonly IActorRuntime _actors;", source, StringComparison.Ordinal);
@@ -484,27 +471,6 @@ public sealed class ToolTemplateTests
     }
 
     [Fact]
-    public void RenderServerChatRules_UsesHotfixCall()
-    {
-        var source = ToolTemplates.RenderServerChatRules();
-
-        Assert.Contains("class ChatRules", source, StringComparison.Ordinal);
-        Assert.Contains("using Server.App.Chat;", source, StringComparison.Ordinal);
-        Assert.Contains("_state.Call<string, string>(\"FilterMessage\", text)", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("Lakona.Game.Server.Hotfix.Dispatch", source, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void RenderServerChatRuleState_DefinesHotfixState()
-    {
-        var source = ToolTemplates.RenderServerChatRuleState();
-
-        Assert.Contains("[HotfixState]", source, StringComparison.Ordinal);
-        Assert.Contains("partial class ChatRuleState", source, StringComparison.Ordinal);
-        Assert.Contains("namespace Server.App.Chat", source, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void RenderClientChatClient_ImplementsIChatCallback()
     {
         var source = ToolTemplates.RenderClientChatClient();
@@ -523,9 +489,7 @@ public sealed class ToolTemplateTests
         var protocols = ToolTemplates.RenderSharedChatProtocols();
         var messages = ToolTemplates.RenderSharedChatMessages();
         var roomActor = ToolTemplates.RenderServerChatRoomActor();
-        var rules = ToolTemplates.RenderServerChatRules();
-        var service = ToolTemplates.RenderHotfixChatServiceImpl();
-        var hotfix = ToolTemplates.RenderHotfixChatSystem();
+        var service = ToolTemplates.RenderHotfixChatService();
         var client = ToolTemplates.RenderClientChatClient();
         var unityUi = ToolTemplates.RenderClientChatUI(CliParser.ParseNewOptions([]));
         var godotScene = ToolTemplates.RenderGodotChatScene(CliParser.ParseNewOptions([]));
@@ -534,13 +498,12 @@ public sealed class ToolTemplateTests
         Assert.Contains("namespace Shared.Contracts.Chat", messages, StringComparison.Ordinal);
         Assert.Contains("using Shared.Contracts.Chat;", roomActor, StringComparison.Ordinal);
         Assert.Contains("using Shared.Contracts.Chat;", service, StringComparison.Ordinal);
-        Assert.Contains("using Server.App.Chat;", rules, StringComparison.Ordinal);
-        Assert.Contains("using Server.App.Chat;", hotfix, StringComparison.Ordinal);
+        Assert.Contains("using Server.App.Chat;", service, StringComparison.Ordinal);
         Assert.Contains("using Shared.Contracts.Chat;", client, StringComparison.Ordinal);
         Assert.Contains("using Shared.Contracts.Chat;", unityUi, StringComparison.Ordinal);
         Assert.Contains("using Shared.Contracts.Chat;", godotScene, StringComparison.Ordinal);
-        Assert.DoesNotContain("namespace Shared.Chat", string.Concat(protocols, messages, roomActor, rules, service, hotfix, client, unityUi, godotScene), StringComparison.Ordinal);
-        Assert.DoesNotContain("using Shared.Chat;", string.Concat(protocols, messages, roomActor, rules, service, hotfix, client, unityUi, godotScene), StringComparison.Ordinal);
+        Assert.DoesNotContain("namespace Shared.Chat", string.Concat(protocols, messages, roomActor, service, client, unityUi, godotScene), StringComparison.Ordinal);
+        Assert.DoesNotContain("using Shared.Chat;", string.Concat(protocols, messages, roomActor, service, client, unityUi, godotScene), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -833,15 +796,11 @@ public sealed class ToolTemplateTests
             var service = await File.ReadAllTextAsync(Path.Combine(projectRoot, "Server", "Hotfix", "Chat", "ChatServiceImpl.cs"), TestContext.Current.CancellationToken);
             var binding = await File.ReadAllTextAsync(Path.Combine(projectRoot, "Server", "App", "Hosting", "ServiceBindingConfigurator.cs"), TestContext.Current.CancellationToken);
             var actor = await File.ReadAllTextAsync(Path.Combine(projectRoot, "Server", "App", "Chat", "ChatRoomActor.cs"), TestContext.Current.CancellationToken);
-            var rules = await File.ReadAllTextAsync(Path.Combine(projectRoot, "Server", "App", "Chat", "ChatRules.cs"), TestContext.Current.CancellationToken);
-            var hotfix = await File.ReadAllTextAsync(Path.Combine(projectRoot, "Server", "Hotfix", "Chat", "ChatRulesSystem.cs"), TestContext.Current.CancellationToken);
 
             Assert.Contains("IActorRuntime", service, StringComparison.Ordinal);
             Assert.Contains("AskAsync<ChatRoomActor", service, StringComparison.Ordinal);
+            Assert.Contains("FilterMessage", service, StringComparison.Ordinal);
             Assert.Contains("class ChatRoomActor : Actor", actor, StringComparison.Ordinal);
-            Assert.Contains("FilterMessage", actor, StringComparison.Ordinal);
-            Assert.Contains("_state.Call<string, string>(\"FilterMessage\", text)", rules, StringComparison.Ordinal);
-            Assert.Contains("[HotfixSystemOf(typeof(ChatRuleState))]", hotfix, StringComparison.Ordinal);
             Assert.Contains("Type.GetType(\"Server.Hotfix.Chat.ChatServiceImpl", binding, StringComparison.Ordinal);
             Assert.DoesNotContain("AllServicesBinder.BindAll", binding, StringComparison.Ordinal);
             Assert.DoesNotContain("static readonly ChatRoom", service + actor, StringComparison.Ordinal);

@@ -8,9 +8,7 @@ internal static class ToolTemplates
     public static string RenderServerAppSettings(NewCommandOptions options) => ServerProjectTemplates.RenderServerAppSettings(options);
     public static string RenderHotfixProject() => ServerProjectTemplates.RenderHotfixProject();
     public static string RenderServerChatRoomActor() => ServerProjectTemplates.RenderServerChatRoomActor();
-    public static string RenderServerChatRules() => ServerProjectTemplates.RenderServerChatRules();
-    public static string RenderHotfixChatServiceImpl() => ServerProjectTemplates.RenderHotfixChatServiceImpl();
-    public static string RenderHotfixChatSystem() => ServerProjectTemplates.RenderHotfixChatSystem();
+    public static string RenderHotfixChatService() => ServerProjectTemplates.RenderHotfixChatService();
     public static string RenderHotfixPingService() => ServerProjectTemplates.RenderHotfixPingService();
     public static string RenderServerAppAssemblyInfo() => ServerProjectTemplates.RenderServerAppAssemblyInfo();
     public static string RenderServiceBindingConfigurator() => ServerProjectTemplates.RenderServiceBindingConfigurator();
@@ -20,7 +18,6 @@ internal static class ToolTemplates
     public static string RenderSharedChatProtocols() => SharedContractTemplates.RenderSharedChatProtocols();
     public static string RenderSharedChatMessages() => SharedContractTemplates.RenderSharedChatMessages();
     public static string RenderSharedChatMessages(NewCommandOptions options) => SharedContractTemplates.RenderSharedChatMessages(options);
-    public static string RenderServerChatRuleState() => ServerProjectTemplates.RenderServerChatRuleState();
 
     // Client chat templates
     public static string RenderClientChatClient() => ChatClientTemplates.RenderClientChatClient();
