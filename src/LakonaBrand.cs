@@ -10,9 +10,9 @@ internal static class LakonaBrand
 
     private const int Width = 30;
 
-    private const string PurpleBg  = "\x1b[48;2;46;8;84m";               // #2E0854
-    private const string GoldOnPurple = "\x1b[38;2;253;185;39;48;2;46;8;84m";
-    private const string Reset     = "\x1b[0m";
+    private const string PurpleFg  = "\x1b[38;2;46;8;84m";               // #2E0854 border
+    private const string GoldFg   = "\x1b[38;2;253;185;39m";               // gold text
+    private const string Reset    = "\x1b[0m";
 
     public static void Print()
     {
@@ -25,30 +25,43 @@ internal static class LakonaBrand
             // Best-effort: if we can't set UTF-8, print anyway.
         }
 
-        // Top: purple bar
-        PrintBar();
+        // Top border
+        PrintBorder('╔', '═', '╗');
 
-        // Middle: purple bars with gold text overlaid (3 lines)
+        // Content lines with side borders
         foreach (var line in Text)
         {
-            Console.Write(PurpleBg);
-            Console.Write(new string(' ', Width));
-            Console.Write('\r');
-            Console.Write(GoldOnPurple);
+            var contentWidth = 8 + line.Length;
+            var rightPadding = Width - contentWidth;
+
+            Console.Write(PurpleFg);
+            Console.Write('║');
+            Console.Write(Reset);
+
+            Console.Write(GoldFg);
             Console.Write(new string(' ', 8));
             Console.Write(line);
+            if (rightPadding > 0)
+                Console.Write(new string(' ', rightPadding));
             Console.Write(Reset);
+
+            Console.Write(PurpleFg);
+            Console.Write('║');
+            Console.Write(Reset);
+
             Console.WriteLine();
         }
 
-        // Bottom: purple bar
-        PrintBar();
+        // Bottom border
+        PrintBorder('╚', '═', '╝');
     }
 
-    private static void PrintBar()
+    private static void PrintBorder(char left, char fill, char right)
     {
-        Console.Write(PurpleBg);
-        Console.Write(new string(' ', Width));
+        Console.Write(PurpleFg);
+        Console.Write(left);
+        Console.Write(new string(fill, Width));
+        Console.Write(right);
         Console.Write(Reset);
         Console.WriteLine();
     }
