@@ -109,9 +109,6 @@ public sealed class StarterTemplateGeneratorTests
             var sharedProps = File.ReadAllText(Path.Combine(root, "Shared", "Directory.Build.props"));
             var sharedCsproj = File.ReadAllText(Path.Combine(root, "Shared", "Shared.csproj"));
             var sharedAsmdef = File.ReadAllText(Path.Combine(root, "Shared", "Shared.asmdef"));
-            var sharedDtos = File.ReadAllText(Path.Combine(root, "Shared", "Interfaces", "SharedDtos.cs"));
-            var contractIds = File.ReadAllText(Path.Combine(root, "Shared", "Interfaces", "RpcContractIds.cs"));
-            var pingContract = File.ReadAllText(Path.Combine(root, "Shared", "Interfaces", "IPingService.cs"));
             var gitIgnore = File.ReadAllText(Path.Combine(root, ".gitignore"));
 
             Assert.Contains("<LangVersion>latest</LangVersion>", sharedCsproj);
@@ -131,29 +128,11 @@ public sealed class StarterTemplateGeneratorTests
             Assert.Contains("\"Lakona.Rpc.Core.dll\"", sharedAsmdef);
             Assert.Contains("\"MemoryPack.Core.dll\"", sharedAsmdef);
             Assert.Contains("\"System.Runtime.CompilerServices.Unsafe.dll\"", sharedAsmdef);
-            Assert.DoesNotContain("My Game", sharedDtos, StringComparison.Ordinal);
-            Assert.Contains("using MemoryPack;", sharedDtos);
-            Assert.Contains("[MemoryPackable]", sharedDtos);
-            Assert.DoesNotContain("GenerateType.VersionTolerant", sharedDtos, StringComparison.Ordinal);
-            Assert.Contains("public sealed partial class PingRequest", sharedDtos);
-            Assert.Contains("public sealed partial class PingReply", sharedDtos);
-            Assert.Contains("[MemoryPackOrder(0)]", sharedDtos);
-            Assert.Contains("[MemoryPackOrder(1)]", sharedDtos);
-            Assert.Contains("namespace Shared.Interfaces", sharedDtos);
-            Assert.DoesNotContain("namespace Shared.Interfaces;", sharedDtos, StringComparison.Ordinal);
-            Assert.DoesNotContain("DateTimeOffset", sharedDtos, StringComparison.Ordinal);
-            Assert.Contains("public string ServerTimeUtc { get; set; } = string.Empty;", sharedDtos);
-            Assert.Contains("public static class RpcContractIds", contractIds);
-            Assert.Contains("public static class Services", contractIds);
-            Assert.Contains("public const int Ping = 1;", contractIds);
-            Assert.Contains("public static class PingServiceMethods", contractIds);
-            Assert.Contains("public const int PingAsync = 1;", contractIds);
-            Assert.Contains("[RpcService(RpcContractIds.Services.Ping)]", pingContract);
-            Assert.Contains("[RpcMethod(RpcContractIds.PingServiceMethods.PingAsync)]", pingContract);
-            Assert.True(File.Exists(Path.Combine(root, "Shared", "Interfaces", "IPingService.cs")));
+            Assert.DoesNotContain("My Game", sharedCsproj, StringComparison.Ordinal);
             Assert.True(File.Exists(Path.Combine(root, "Shared", "package.json")));
-            Assert.False(File.Exists(Path.Combine(root, "Shared", "UnityPackage", "package.json")));
-            Assert.False(File.Exists(Path.Combine(root, "Shared", "UnityPackage", "SharedDtos.cs")));
+            Assert.False(File.Exists(Path.Combine(root, "Shared", "Interfaces", "IPingService.cs")));
+            Assert.False(File.Exists(Path.Combine(root, "Shared", "Interfaces", "SharedDtos.cs")));
+            Assert.False(File.Exists(Path.Combine(root, "Shared", "Interfaces", "RpcContractIds.cs")));
             Assert.Contains("**/bin/", gitIgnore);
             Assert.Contains("/Client/[Ll]ibrary/", gitIgnore);
             Assert.Contains("/Client/Assets/Packages/", gitIgnore);
@@ -220,18 +199,11 @@ public sealed class StarterTemplateGeneratorTests
 
             var serverProgram = File.ReadAllText(Path.Combine(root, "Server", "Server", "Program.cs"));
             var serverCsproj = File.ReadAllText(Path.Combine(root, "Server", "Server", "Server.csproj"));
-            var pingServicePath = Path.Combine(root, "Server", "Server", "Services", "PingService.cs");
-            var pingService = File.ReadAllText(pingServicePath);
             var packagesConfig = File.ReadAllText(Path.Combine(root, "Client", "Assets", "packages.config"));
             var nugetConfig = File.ReadAllText(Path.Combine(root, "Client", "Assets", "NuGet.config"));
             var projectVersion = File.ReadAllText(Path.Combine(root, "Client", "ProjectSettings", "ProjectVersion.txt"));
             var clientReadme = File.ReadAllText(Path.Combine(root, "Client", "README.md"));
             var generationMarker = File.ReadAllText(Path.Combine(root, "Client", "Assets", "Scripts", "Rpc", "LakonaRpcGeneration.cs"));
-            var testerScript = File.ReadAllText(Path.Combine(root, "Client", "Assets", "Scripts", "Rpc", "Testing", "RpcConnectionTester.cs"));
-            var testerScriptMeta = File.ReadAllText(Path.Combine(root, "Client", "Assets", "Scripts", "Rpc", "Testing", "RpcConnectionTester.cs.meta"));
-            var scene = File.ReadAllText(Path.Combine(root, "Client", "Assets", "Scenes", "ConnectionTest.unity"));
-            var autoOpenSceneScript = File.ReadAllText(Path.Combine(root, "Client", "Assets", "Editor", "AutoOpenConnectionScene.cs"));
-            var editorBuildSettings = File.ReadAllText(Path.Combine(root, "Client", "ProjectSettings", "EditorBuildSettings.asset"));
             var legacyEditorScriptPath = Path.Combine(root, "Client", "Assets", "Editor", "LakonaRpcCodeGenEditor.cs");
             var starterGeneratedAsmdefPath = Path.Combine(root, "Client", "Assets", "Scripts", "Rpc", "Generated", "Lakona.Rpc.Generated.asmdef");
             var embeddedNuGetForUnity = Path.Combine(root, "Client", "Packages", "com.github-glitchenzo.nugetforunity", "package.json");
@@ -253,10 +225,7 @@ public sealed class StarterTemplateGeneratorTests
             Assert.Contains("static void ConfigureTransportSecurity(TransportSecurityConfig security)", serverProgram);
             Assert.Contains("builder.UseAcceptor(async ct => await WsConnectionAcceptor.CreateAsync(builder.ResolvePort(20000), \"/ws\", builder.Limits.MaxPendingAcceptedConnections, ct));", serverProgram);
             Assert.Contains("await builder.RunAsync();", serverProgram);
-            Assert.True(File.Exists(pingServicePath));
-            Assert.False(File.Exists(Path.Combine(root, "Server", "Server", "PingService.cs")));
-            Assert.Contains("public sealed class PingService : IPingService", pingService);
-            Assert.Contains("ServerTimeUtc = DateTime.UtcNow.ToString(\"O\")", pingService);
+            Assert.False(File.Exists(Path.Combine(root, "Server", "Server", "Services", "PingService.cs")));
             Assert.Contains("<RootNamespace>Server</RootNamespace>", serverCsproj);
             Assert.Contains("<LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>", serverCsproj);
             Assert.Contains("<LakonaRpcServerGeneratedNamespace>Server.Generated</LakonaRpcServerGeneratedNamespace>", serverCsproj);
@@ -284,35 +253,14 @@ public sealed class StarterTemplateGeneratorTests
             Assert.Contains("<add key=\"All\" value=\"(Aggregate source)\" />", nugetConfig);
             Assert.Contains("m_EditorVersion: 2022.3.62f3c1", projectVersion);
             Assert.Contains("m_EditorVersionWithRevision: 2022.3.62f3c1 (1623fc0bbb97)", projectVersion);
-            Assert.Contains("the editor will auto-open `Assets/Scenes/ConnectionTest.unity`", clientReadme);
             Assert.Contains("download from OpenUPM", clientReadme);
             Assert.Contains("[assembly: LakonaRpcGenerateClient(\"Rpc.Generated\")]", generationMarker);
-            Assert.Contains("using Rpc.Generated;", testerScript);
-            Assert.Contains("using Shared.Interfaces;", testerScript);
-            Assert.Contains("using Lakona.Rpc.Core;", testerScript);
-            Assert.Contains("using Lakona.Rpc.Transport.WebSocket;", testerScript);
-            Assert.Contains("using Lakona.Rpc.Serializer.Json;", testerScript);
-            Assert.Contains("new WsTransport($\"ws://{_endpoint.Host}:{_endpoint.Port}{NormalizePath(_endpoint.Path)}\")", testerScript);
-            Assert.Contains("new JsonRpcSerializer()", testerScript);
-            Assert.Contains(".UseSecurity(ConfigureTransportSecurity)", testerScript);
-            Assert.Contains("private static void ConfigureTransportSecurity(TransportSecurityConfig security)", testerScript);
-            Assert.Contains("_client.Api.Shared.Ping.PingAsync", testerScript);
-            Assert.DoesNotContain("}, _cts.Token);", testerScript, StringComparison.Ordinal);
-            Assert.Contains("                });", testerScript);
-            Assert.Contains("public string Path = string.Empty;", testerScript);
-            Assert.Contains("Path = \"/ws\"", testerScript);
-            Assert.Contains("guid: 8fbb7dbe54784d7995143ce24cf85121", testerScriptMeta);
-            Assert.Contains("guid: 8fbb7dbe54784d7995143ce24cf85121", scene);
-            Assert.Contains("Path: /ws", scene);
-            Assert.Contains("m_Name: RpcConnectionTester", scene);
-            Assert.Contains("[InitializeOnLoad]", autoOpenSceneScript);
-            Assert.Contains("EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);", autoOpenSceneScript);
-            Assert.Contains("SessionState.GetBool(SessionStateKey, false)", autoOpenSceneScript);
             Assert.False(File.Exists(legacyEditorScriptPath));
-            Assert.Contains("Assets/Scenes/ConnectionTest.unity", editorBuildSettings);
-            Assert.Contains("guid: d4d2d5faafe942e58a33f4a41e3b7cf2", editorBuildSettings);
             Assert.False(File.Exists(starterGeneratedAsmdefPath));
             Assert.False(File.Exists(embeddedNuGetForUnity));
+            Assert.False(File.Exists(Path.Combine(root, "Client", "Assets", "Scripts", "Rpc", "Testing", "RpcConnectionTester.cs")));
+            Assert.False(File.Exists(Path.Combine(root, "Client", "Assets", "Scenes", "ConnectionTest.unity")));
+            Assert.False(File.Exists(Path.Combine(root, "Client", "Assets", "Editor", "AutoOpenConnectionScene.cs")));
         }
         finally
         {
@@ -401,9 +349,6 @@ public sealed class StarterTemplateGeneratorTests
             generator.GenerateTemplate(root, "Kcp-Test", ClientEngineKind.Unity, TransportKind.Kcp, SerializerKind.MemoryPack, Versions);
 
             var packagesConfig = File.ReadAllText(Path.Combine(root, "Client", "Assets", "packages.config"));
-            var testerScript = File.ReadAllText(Path.Combine(root, "Client", "Assets", "Scripts", "Rpc", "Testing", "RpcConnectionTester.cs"));
-            var scene = File.ReadAllText(Path.Combine(root, "Client", "Assets", "Scenes", "ConnectionTest.unity"));
-            var sharedDtos = File.ReadAllText(Path.Combine(root, "Shared", "Interfaces", "SharedDtos.cs"));
 
             Assert.Contains("<package id=\"Lakona.Rpc.Transport.Kcp\" version=\"4.5.6\" manuallyInstalled=\"true\" />", packagesConfig);
             Assert.Contains("<package id=\"Kcp\" version=\"2.7.0\" />", packagesConfig);
@@ -411,17 +356,6 @@ public sealed class StarterTemplateGeneratorTests
             Assert.Contains("<package id=\"System.Threading.Tasks.Extensions\" version=\"4.5.4\" />", packagesConfig);
             Assert.Contains("<package id=\"Lakona.Rpc.Serializer.MemoryPack\" version=\"5.6.7\" manuallyInstalled=\"true\" />", packagesConfig);
             Assert.Contains("<package id=\"MemoryPack\" version=\"6.7.8\" />", packagesConfig);
-            Assert.Contains("using Lakona.Rpc.Transport.Kcp;", testerScript);
-            Assert.Contains("using Lakona.Rpc.Serializer.MemoryPack;", testerScript);
-            Assert.Contains("using Lakona.Rpc.Core;", testerScript);
-            Assert.Contains("new KcpTransport(_endpoint.Host, _endpoint.Port)", testerScript);
-            Assert.Contains("new MemoryPackRpcSerializer()", testerScript);
-            Assert.Contains(".UseSecurity(ConfigureTransportSecurity)", testerScript);
-            Assert.Contains("[MemoryPackable]", sharedDtos);
-            Assert.DoesNotContain("GenerateType.VersionTolerant", sharedDtos, StringComparison.Ordinal);
-            Assert.Contains("public sealed partial class PingRequest", sharedDtos);
-            Assert.Contains("public sealed partial class PingReply", sharedDtos);
-            Assert.Contains("Path: ", scene);
         }
         finally
         {
@@ -447,8 +381,6 @@ public sealed class StarterTemplateGeneratorTests
             var clientCsproj = File.ReadAllText(Path.Combine(root, "Client", "Client.csproj"));
             var nugetConfig = File.ReadAllText(Path.Combine(root, "Client", "NuGet.config"));
             var clientReadme = File.ReadAllText(Path.Combine(root, "Client", "README.md"));
-            var scene = File.ReadAllText(Path.Combine(root, "Client", "Main.tscn"));
-            var testerScript = File.ReadAllText(Path.Combine(root, "Client", "Scripts", "Rpc", "Testing", "RpcConnectionTester.cs"));
             var generatedClientApi = Path.Combine(root, "Client", "Scripts", "Rpc", "Generated", "RpcApi.cs");
 
             Assert.DoesNotContain(commands, static command => command.Contains("lakona-rpc-codegen", StringComparison.OrdinalIgnoreCase));
@@ -476,24 +408,6 @@ public sealed class StarterTemplateGeneratorTests
             Assert.Contains("<TargetFrameworks>net8.0;net10.0</TargetFrameworks>", File.ReadAllText(Path.Combine(root, "Shared", "Shared.csproj")));
             Assert.Contains("Godot 4.6", clientReadme);
             Assert.Contains(sdkSource, clientReadme);
-            Assert.Contains("[node name=\"Main\" type=\"Node\"]", scene);
-            Assert.Contains("path=\"res://Scripts/Rpc/Testing/RpcConnectionTester.cs\"", scene);
-            Assert.Contains("using Godot;", testerScript);
-            Assert.Contains("using Lakona.Rpc.Core;", testerScript);
-            Assert.Contains("using Lakona.Rpc.Transport.WebSocket;", testerScript);
-            Assert.Contains("using Lakona.Rpc.Serializer.Json;", testerScript);
-            Assert.DoesNotContain("namespace Rpc.Testing", testerScript, StringComparison.Ordinal);
-            Assert.Contains("public partial class RpcConnectionTester : Node", testerScript);
-            Assert.Contains("new WsTransport($\"ws://{_host}:{_port}{NormalizePath(_path)}\")", testerScript);
-            Assert.Contains("new JsonRpcSerializer()", testerScript);
-            Assert.Contains(".UseSecurity(ConfigureTransportSecurity)", testerScript);
-            Assert.Contains("GD.Print($\"Ping ok:", testerScript);
-            Assert.Contains("[Export] private string _path = \"/ws\";", testerScript);
-            Assert.Contains("public override void _Ready()", testerScript);
-            Assert.Contains("_ = ConnectAndPingAsync();", testerScript);
-            Assert.Contains("public async Task ConnectAndPingAsync()", testerScript);
-            Assert.Contains("public override void _ExitTree()", testerScript);
-            Assert.Contains("_ = ShutdownAsync();", testerScript);
             Assert.False(File.Exists(generatedClientApi));
             Assert.False(File.Exists(Path.Combine(root, "Client", "Assets", "Scripts", "Rpc", "Generated", "RpcApi.cs")));
             Assert.False(File.Exists(Path.Combine(root, "codegen.ps1")));
@@ -518,7 +432,6 @@ public sealed class StarterTemplateGeneratorTests
                 () => generator.GenerateTemplate(root, "Godot-Golden", ClientEngineKind.Godot, TransportKind.WebSocket, SerializerKind.Json, Versions));
 
             AssertGoldenFile("GodotWebSocketJson", "project.godot", File.ReadAllText(Path.Combine(root, "Client", "project.godot")));
-            AssertGoldenFile("GodotWebSocketJson", "Main.tscn", File.ReadAllText(Path.Combine(root, "Client", "Main.tscn")));
         }
         finally
         {
@@ -542,7 +455,6 @@ public sealed class StarterTemplateGeneratorTests
             var projectFile = File.ReadAllText(Path.Combine(root, "Client", "project.godot"));
             var clientCsproj = File.ReadAllText(Path.Combine(root, "Client", "Client.csproj"));
             var nugetConfig = File.ReadAllText(Path.Combine(root, "Client", "NuGet.config"));
-            var testerScript = File.ReadAllText(Path.Combine(root, "Client", "Scripts", "Rpc", "Testing", "RpcConnectionTester.cs"));
             var generatedClientApi = Path.Combine(root, "Client", "Scripts", "Rpc", "Generated", "RpcApi.cs");
 
             Assert.Contains("config/features=PackedStringArray(\"4.6\", \"C#\")", projectFile);
@@ -567,16 +479,6 @@ public sealed class StarterTemplateGeneratorTests
             Assert.Contains("<PackageReference Include=\"Lakona.Rpc.Serializer.MemoryPack\" Version=\"5.6.7\" />", sharedCsproj);
             Assert.Contains("<PackageReference Include=\"MemoryPack\" Version=\"6.7.8\" />", sharedCsproj);
 
-            Assert.Contains("using Lakona.Rpc.Transport.Kcp;", testerScript);
-            Assert.Contains("using Lakona.Rpc.Serializer.MemoryPack;", testerScript);
-            Assert.Contains("using Lakona.Rpc.Core;", testerScript);
-            Assert.DoesNotContain("namespace Rpc.Testing", testerScript, StringComparison.Ordinal);
-            Assert.Contains("public partial class RpcConnectionTester : Node", testerScript);
-            Assert.Contains("new KcpTransport(_host, _port)", testerScript);
-            Assert.Contains("new MemoryPackRpcSerializer()", testerScript);
-            Assert.Contains(".UseSecurity(ConfigureTransportSecurity)", testerScript);
-            Assert.Contains("[Export] private string _path = \"\";", testerScript);
-            Assert.Contains("if (_isShuttingDown || _client is not null)", testerScript);
             Assert.False(File.Exists(generatedClientApi));
         }
         finally
@@ -615,18 +517,15 @@ public sealed class StarterTemplateGeneratorTests
             Assert.Contains("<PackageReference Include=\"Lakona.Rpc.Analyzers\" Version=\"0.1.2\">", clientCsproj);
             Assert.Contains("<PrivateAssets>all</PrivateAssets>", clientCsproj);
             Assert.Contains("<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>", clientCsproj);
-            Assert.Contains("using Rpc.Generated;", program);
-            Assert.Contains("using Shared.Interfaces;", program);
             Assert.Contains("using Lakona.Rpc.Transport.WebSocket;", program);
             Assert.Contains("using Lakona.Rpc.Serializer.Json;", program);
             Assert.Contains("new WsTransport($\"ws://{host}:{port}{NormalizePath(path)}\")", program);
             Assert.Contains("new JsonRpcSerializer()", program);
             Assert.Contains("await client.ConnectAsync();", program);
-            Assert.Contains("client.Api.Shared.Ping.PingAsync", program);
-            Assert.Contains("Console.WriteLine($\"Ping ok:", program);
+            Assert.Contains("Console.WriteLine(\"Connected to server.\");", program);
             Assert.Contains("LAKONA_RPC_HOST", program);
             Assert.Contains("Console Client Starter (.NET 10)", clientReadme);
-            Assert.Contains("dotnet run --project Client.csproj -- hello", clientReadme);
+            Assert.Contains("dotnet run --project Client.csproj", clientReadme);
             Assert.DoesNotContain("<Project Path=\"../Client/Client.csproj\" />", solution);
             Assert.DoesNotContain(commands, command => command.Contains($"{Path.DirectorySeparatorChar}Client{Path.DirectorySeparatorChar}Client.csproj", StringComparison.Ordinal));
         }

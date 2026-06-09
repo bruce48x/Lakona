@@ -384,28 +384,7 @@ public sealed class ToolTextTests
             Directory.CreateDirectory(Path.Combine(projectRoot, "Server", "Server"));
             Directory.CreateDirectory(Path.Combine(projectRoot, "Shared"));
             Directory.CreateDirectory(Path.Combine(projectRoot, "Client", "Assets", "Scenes"));
-            var scenePath = Path.Combine(projectRoot, "Client", "Assets", "Scenes", "ConnectionTest.unity");
-            await File.WriteAllTextAsync(
-                scenePath,
-                """
-                %YAML 1.1
-                %TAG !u! tag:unity3d.com,2011:
-                --- !u!1 &1
-                GameObject:
-                  m_Component:
-                  - component: {fileID: 2}
-                  m_Name: Main Camera
-                --- !u!4 &2
-                Transform:
-                  m_GameObject: {fileID: 1}
-                  m_Father: {fileID: 0}
-                --- !u!1660057539 &9223372036854775807
-                SceneRoots:
-                  m_ObjectHideFlags: 0
-                  m_Roots:
-                  - {fileID: 2}
-                """,
-                TestContext.Current.CancellationToken);
+            var scenePath = Path.Combine(projectRoot, "Client", "Assets", "Scenes", "ChatScene.unity");
 
             await new ProjectScaffolder().AugmentProjectWithLakonaGameAsync(projectRoot, CliParser.ParseNewOptions([]));
 
@@ -547,21 +526,26 @@ public sealed class ToolTextTests
             var chatSceneScript = await File.ReadAllTextAsync(
                 Path.Combine(projectRoot, "Client", "Scripts", "Chat", "ChatScene.cs"),
                 TestContext.Current.CancellationToken);
-            var mainScene = await File.ReadAllTextAsync(
-                Path.Combine(projectRoot, "Client", "Main.tscn"),
+            var loginSceneScript = await File.ReadAllTextAsync(
+                Path.Combine(projectRoot, "Client", "Scripts", "Login", "LoginScene.cs"),
+                TestContext.Current.CancellationToken);
+            var chatTscn = await File.ReadAllTextAsync(
+                Path.Combine(projectRoot, "Client", "Chat.tscn"),
                 TestContext.Current.CancellationToken);
             var projectGodot = await File.ReadAllTextAsync(
                 Path.Combine(projectRoot, "Client", "project.godot"),
                 TestContext.Current.CancellationToken);
 
             Assert.Contains("public partial class ChatScene : Control", chatSceneScript, StringComparison.Ordinal);
-            Assert.Contains("new WsTransport($\"ws://{_serverHost}:{_serverPort}{NormalizePath(_serverPath)}\")", chatSceneScript, StringComparison.Ordinal);
-            Assert.Contains("new JsonRpcSerializer()", chatSceneScript, StringComparison.Ordinal);
+            Assert.DoesNotContain("new WsTransport", chatSceneScript, StringComparison.Ordinal);
+            Assert.DoesNotContain("new JsonRpcSerializer()", chatSceneScript, StringComparison.Ordinal);
             Assert.Contains("CallDeferred(nameof(AppendMessageDeferred), msg.SenderName, msg.Text);", chatSceneScript, StringComparison.Ordinal);
-            Assert.Contains("[ext_resource type=\"Script\" path=\"res://Scripts/Chat/ChatScene.cs\" id=\"1\"]", mainScene, StringComparison.Ordinal);
-            Assert.Contains("[node name=\"ChatScene\" type=\"Control\"]", mainScene, StringComparison.Ordinal);
-            Assert.Contains("script = ExtResource(\"1\")", mainScene, StringComparison.Ordinal);
-            Assert.Contains("run/main_scene=\"res://Main.tscn\"", projectGodot, StringComparison.Ordinal);
+            Assert.Contains("public partial class LoginScene : Control", loginSceneScript, StringComparison.Ordinal);
+            Assert.Contains("new WsTransport($\"ws://{_serverHost}:{_serverPort}{NormalizePath(_serverPath)}\")", loginSceneScript, StringComparison.Ordinal);
+            Assert.Contains("[ext_resource type=\"Script\" path=\"res://Scripts/Chat/ChatScene.cs\" id=\"1\"]", chatTscn, StringComparison.Ordinal);
+            Assert.Contains("[node name=\"ChatScene\" type=\"Control\"]", chatTscn, StringComparison.Ordinal);
+            Assert.Contains("script = ExtResource(\"1\")", chatTscn, StringComparison.Ordinal);
+            Assert.Contains("run/main_scene=\"res://Login.tscn\"", projectGodot, StringComparison.Ordinal);
         }
         finally
         {

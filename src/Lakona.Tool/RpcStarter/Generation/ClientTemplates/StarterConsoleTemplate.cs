@@ -122,7 +122,7 @@ dotnet run --project ../Server/Server/Server.csproj
 Then run this client:
 
 ```bash
-dotnet run --project Client.csproj -- hello
+dotnet run --project Client.csproj
 ```
 
 Environment overrides:

@@ -602,7 +602,7 @@ internal sealed class ProjectScaffolder
             uxmlGuid,
             panelSettingsGuid);
 
-        var sceneContent = chatSceneObjects + """
+        var sceneContent = chatSceneObjects + $$"""
 
         --- !u!1 &256380733
         GameObject:
@@ -691,7 +691,7 @@ internal sealed class ProjectScaffolder
         SceneRoots:
           m_ObjectHideFlags: 0
           m_Roots:
-          - {fileID: """ + transformId + """}
+          - {fileID: {{transformId}}}
           - {fileID: 256380735}
         """;
 

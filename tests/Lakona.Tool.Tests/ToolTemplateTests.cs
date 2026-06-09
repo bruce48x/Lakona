@@ -233,8 +233,8 @@ public sealed class ToolTemplateTests
             Assert.DoesNotContain("LakonaGameGeneratedApplication", program, StringComparison.Ordinal);
             Assert.Contains("class ServiceBindingConfigurator", serviceBindingConfigurator, StringComparison.Ordinal);
             Assert.Contains("IServiceProvider services", serviceBindingConfigurator, StringComparison.Ordinal);
-            Assert.Contains("PingServiceBinder.BindFactory", serviceBindingConfigurator, StringComparison.Ordinal);
-            Assert.Contains("Type.GetType(\"Server.Hotfix.Services.PingService, Server.Hotfix\"", serviceBindingConfigurator, StringComparison.Ordinal);
+            Assert.DoesNotContain("PingServiceBinder.BindFactory", serviceBindingConfigurator, StringComparison.Ordinal);
+            Assert.DoesNotContain("Server.Hotfix.Services.PingService", serviceBindingConfigurator, StringComparison.Ordinal);
             Assert.Contains("ChatServiceBinder.Bind", serviceBindingConfigurator, StringComparison.Ordinal);
             Assert.Contains("Type.GetType(\"Server.Hotfix.Chat.ChatServiceImpl, Server.Hotfix\"", serviceBindingConfigurator, StringComparison.Ordinal);
             Assert.DoesNotContain("AllServicesBinder.BindAll", serviceBindingConfigurator, StringComparison.Ordinal);
@@ -381,7 +381,7 @@ public sealed class ToolTemplateTests
             ("Shared/Contracts/Chat/ChatProtocols.cs", ToolTemplates.RenderSharedChatProtocols()),
             ("Shared/Contracts/Chat/ChatMessages.cs", ToolTemplates.RenderSharedChatMessages()),
             ("Client/Assets/Scripts/Chat/ChatClient.cs", ToolTemplates.RenderClientChatClient()),
-            ("Client/Assets/Scripts/Chat/ChatUI.cs", ToolTemplates.RenderClientChatUI(CliParser.ParseNewOptions([])))
+            ("Client/Assets/Scripts/Chat/ChatUI.cs", ToolTemplates.RenderClientChatUI())
         };
 
         AssertGeneratedSourcesParseAsCSharp9(sources);
@@ -459,12 +459,12 @@ public sealed class ToolTemplateTests
     {
         var source = ToolTemplates.RenderServiceBindingConfigurator();
 
-        Assert.Contains("using Shared.Interfaces;", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("using Shared.Interfaces;", source, StringComparison.Ordinal);
         Assert.Contains("using Shared.Contracts.Chat;", source, StringComparison.Ordinal);
         Assert.Contains("using Server.App.Generated;", source, StringComparison.Ordinal);
         Assert.Contains("public static void Bind(RpcServiceRegistry registry, IServiceProvider services)", source, StringComparison.Ordinal);
-        Assert.Contains("PingServiceBinder.BindFactory", source, StringComparison.Ordinal);
-        Assert.Contains("Type.GetType(\"Server.Hotfix.Services.PingService, Server.Hotfix\"", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("PingServiceBinder.BindFactory", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Server.Hotfix.Services.PingService", source, StringComparison.Ordinal);
         Assert.Contains("ChatServiceBinder.Bind", source, StringComparison.Ordinal);
         Assert.Contains("Type.GetType(\"Server.Hotfix.Chat.ChatServiceImpl, Server.Hotfix\"", source, StringComparison.Ordinal);
         Assert.DoesNotContain("AllServicesBinder.BindAll", source, StringComparison.Ordinal);
@@ -491,8 +491,8 @@ public sealed class ToolTemplateTests
         var roomActor = ToolTemplates.RenderServerChatRoomActor();
         var service = ToolTemplates.RenderHotfixChatService();
         var client = ToolTemplates.RenderClientChatClient();
-        var unityUi = ToolTemplates.RenderClientChatUI(CliParser.ParseNewOptions([]));
-        var godotScene = ToolTemplates.RenderGodotChatScene(CliParser.ParseNewOptions([]));
+        var unityUi = ToolTemplates.RenderClientChatUI();
+        var godotScene = ToolTemplates.RenderGodotChatScene();
 
         Assert.Contains("namespace Shared.Contracts.Chat", protocols, StringComparison.Ordinal);
         Assert.Contains("namespace Shared.Contracts.Chat", messages, StringComparison.Ordinal);
@@ -509,24 +509,24 @@ public sealed class ToolTemplateTests
     [Fact]
     public void RenderClientChatUi_RequiresUiDocument()
     {
-        var source = ToolTemplates.RenderClientChatUI(CliParser.ParseNewOptions([]));
+        var source = ToolTemplates.RenderClientChatUI();
 
         Assert.Contains("RequireComponent(typeof(UIDocument))", source, StringComparison.Ordinal);
-        Assert.Contains("new KcpTransport(_serverHost, _serverPort)", source, StringComparison.Ordinal);
-        Assert.Contains("new MemoryPackRpcSerializer()", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("new KcpTransport(_serverHost, _serverPort)", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("new MemoryPackRpcSerializer()", source, StringComparison.Ordinal);
         Assert.DoesNotContain("?.clicked +=", source, StringComparison.Ordinal);
         Assert.Contains("ConcurrentQueue<Action>", source, StringComparison.Ordinal);
         Assert.Contains("client.OnMessageReceived += msg => EnqueueMainThread(() => AppendMessage(msg));", source, StringComparison.Ordinal);
-        Assert.Contains("AppendSystemMessage(\"Join the chat before sending.\");", source, StringComparison.Ordinal);
+        Assert.Contains("AppendSystemMessage(\"Not connected.\");", source, StringComparison.Ordinal);
         Assert.Contains("chat-input", source, StringComparison.Ordinal);
         Assert.Contains("message-list", source, StringComparison.Ordinal);
         Assert.Contains("send-button", source, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void RenderClientChatUi_UsesSelectedTransportAndSerializer()
+    public void RenderUnityLoginUi_UsesSelectedTransportAndSerializer()
     {
-        var source = ToolTemplates.RenderClientChatUI(new NewCommandOptions(
+        var source = ToolTemplates.RenderUnityLoginUI(new NewCommandOptions(
             Name: "MyGame",
             OutputPath: null,
             ClientEngine: "unity",
@@ -550,9 +550,8 @@ public sealed class ToolTemplateTests
         var source = ToolTemplates.RenderClientChatUss();
 
         Assert.Contains("color: rgb(230, 230, 230);", source, StringComparison.Ordinal);
-        Assert.Contains(".name-field .unity-text-field__input", source, StringComparison.Ordinal);
         Assert.Contains("color: rgb(245, 245, 245);", source, StringComparison.Ordinal);
-        Assert.Contains(".join-button:disabled", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(".join-button", source, StringComparison.Ordinal);
         Assert.Contains(".send-button:disabled", source, StringComparison.Ordinal);
     }
 
