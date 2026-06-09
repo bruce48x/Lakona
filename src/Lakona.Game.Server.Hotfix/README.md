@@ -51,7 +51,7 @@ Use `AddLakonaGameHotfix(...)` to register a source such as `CurrentDirectoryHot
 
 ## Loader safety contract
 
-`HotfixManager` must be the only component that loads hotfix assemblies. Hosts must not call `Assembly.LoadFrom` on files in the hotfix directory. Reload loads DLL and PDB bytes into a collectible `AssemblyLoadContext`, validates shared type identity, and publishes the dispatch table only after validation succeeds.
+`HotfixManager` must be the only component that loads hotfix assemblies. Hosts must not call `Assembly.LoadFrom` on files in the hotfix directory. Reload reads the main hotfix DLL, adjacent PDB, and managed dependency DLLs into memory via stream loading before loading them into a collectible `AssemblyLoadContext`, validates shared type identity, and publishes the dispatch table only after validation succeeds. Native dependencies continue to use path-based loading.
 
 Use version-pointer deployment for production:
 

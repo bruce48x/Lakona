@@ -98,6 +98,35 @@ public sealed class HotfixManagerTests
     }
 
     [Fact]
+    public async Task Reload_does_not_hold_private_dependency_dll_file_lock()
+    {
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var manager = new HotfixManager(
+            new FixedAssemblySource(compiled.HotfixWithPrivateDependencyAssemblyPath),
+            [stableAssembly.GetName().Name!]);
+
+        var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
+        var hotfixDir = Path.GetDirectoryName(compiled.HotfixWithPrivateDependencyAssemblyPath)!;
+        var privateDepName = Path.GetFileName(compiled.PrivateDependencyAssemblyPath);
+        var privateDepNextToHotfix = Path.Combine(hotfixDir, privateDepName);
+        await using var hotfixStream = new FileStream(
+            compiled.HotfixWithPrivateDependencyAssemblyPath,
+            FileMode.Open,
+            FileAccess.ReadWrite,
+            FileShare.None);
+        await using var helperStream = new FileStream(
+            privateDepNextToHotfix,
+            FileMode.Open,
+            FileAccess.ReadWrite,
+            FileShare.None);
+        Assert.True(hotfixStream.CanWrite);
+        Assert.True(helperStream.CanWrite);
+    }
+
+    [Fact]
     public async Task Reload_releases_previous_collectible_load_context_after_replacement()
     {
         using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
@@ -425,7 +454,9 @@ public sealed class HotfixManagerTests
             string hotfixOwnedStateAssemblyPath,
             string hotfixOwnedReturnAssemblyPath,
             string hotfixOwnedArgumentAssemblyPath,
-            string managerTestHotfixAssemblyPath)
+            string managerTestHotfixAssemblyPath,
+            string privateDependencyAssemblyPath,
+            string hotfixWithPrivateDependencyAssemblyPath)
         {
             RootDirectory = rootDirectory;
             StableAssemblyPath = stableAssemblyPath;
@@ -436,6 +467,8 @@ public sealed class HotfixManagerTests
             HotfixOwnedReturnAssemblyPath = hotfixOwnedReturnAssemblyPath;
             HotfixOwnedArgumentAssemblyPath = hotfixOwnedArgumentAssemblyPath;
             ManagerTestHotfixAssemblyPath = managerTestHotfixAssemblyPath;
+            PrivateDependencyAssemblyPath = privateDependencyAssemblyPath;
+            HotfixWithPrivateDependencyAssemblyPath = hotfixWithPrivateDependencyAssemblyPath;
         }
 
         public string RootDirectory { get; }
@@ -455,6 +488,10 @@ public sealed class HotfixManagerTests
         public string HotfixOwnedArgumentAssemblyPath { get; }
 
         public string ManagerTestHotfixAssemblyPath { get; }
+
+        public string PrivateDependencyAssemblyPath { get; }
+
+        public string HotfixWithPrivateDependencyAssemblyPath { get; }
 
         public static async Task<CompiledHotfixFixture> CreateAsync(CancellationToken cancellationToken)
         {
@@ -476,6 +513,10 @@ public sealed class HotfixManagerTests
             var hotfixOwnedReturnAssemblyPath = Path.Combine(root, "hotfix-owned-return", $"{hotfixOwnedReturnAssemblyName}.dll");
             var hotfixOwnedArgumentAssemblyPath = Path.Combine(root, "hotfix-owned-argument", $"{hotfixOwnedArgumentAssemblyName}.dll");
             var managerTestHotfixAssemblyPath = Path.Combine(root, "manager-test-hotfix", $"{managerTestHotfixAssemblyName}.dll");
+            var privateDependencyAssemblyName = $"PrivateHelper_{suffix}";
+            var hotfixWithPrivateDependencyAssemblyName = $"HotfixWithPrivateDep_{suffix}";
+            var privateDependencyAssemblyPath = Path.Combine(root, "private-dep", $"{privateDependencyAssemblyName}.dll");
+            var hotfixWithPrivateDependencyAssemblyPath = Path.Combine(root, "hotfix-with-dep", $"{hotfixWithPrivateDependencyAssemblyName}.dll");
 
             Directory.CreateDirectory(Path.GetDirectoryName(stableAssemblyPath)!);
             Directory.CreateDirectory(Path.GetDirectoryName(hotfixAssemblyPath)!);
@@ -485,6 +526,8 @@ public sealed class HotfixManagerTests
             Directory.CreateDirectory(Path.GetDirectoryName(hotfixOwnedReturnAssemblyPath)!);
             Directory.CreateDirectory(Path.GetDirectoryName(hotfixOwnedArgumentAssemblyPath)!);
             Directory.CreateDirectory(Path.GetDirectoryName(managerTestHotfixAssemblyPath)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(privateDependencyAssemblyPath)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(hotfixWithPrivateDependencyAssemblyPath)!);
 
             await EmitAssemblyAsync(
                 stableAssemblyName,
@@ -665,6 +708,51 @@ public sealed class HotfixManagerTests
                 [stableReference, abstractionsReference],
                 cancellationToken);
 
+            await EmitAssemblyAsync(
+                privateDependencyAssemblyName,
+                privateDependencyAssemblyPath,
+                """
+                namespace PrivateHelper;
+
+                public static class InternalHelper
+                {
+                    public static int Transform(int value)
+                    {
+                        return value + 1;
+                    }
+                }
+                """,
+                [],
+                cancellationToken);
+
+            var privateDepReference = MetadataReference.CreateFromFile(privateDependencyAssemblyPath);
+
+            await EmitAssemblyAsync(
+                hotfixWithPrivateDependencyAssemblyName,
+                hotfixWithPrivateDependencyAssemblyPath,
+                """
+                using StableContracts;
+                using Lakona.Game.Server.Hotfix.Abstractions;
+                using PrivateHelper;
+
+                namespace HotfixWithPrivateDep;
+
+                [HotfixSystemOf(typeof(ArenaSimulation))]
+                public static class ArenaSimulationSystem
+                {
+                    public static int Tick(this ArenaSimulation self, int delta)
+                    {
+                        return InternalHelper.Transform(delta);
+                    }
+                }
+                """,
+                [stableReference, abstractionsReference, privateDepReference],
+                cancellationToken);
+
+            // Copy private dependency next to the hotfix assembly so AssemblyDependencyResolver finds it.
+            var privateDepNextToHotfix = Path.Combine(Path.GetDirectoryName(hotfixWithPrivateDependencyAssemblyPath)!, Path.GetFileName(privateDependencyAssemblyPath));
+            File.Copy(privateDependencyAssemblyPath, privateDepNextToHotfix, overwrite: true);
+
             return new CompiledHotfixFixture(
                 root,
                 stableAssemblyPath,
@@ -674,7 +762,9 @@ public sealed class HotfixManagerTests
                 hotfixOwnedStateAssemblyPath,
                 hotfixOwnedReturnAssemblyPath,
                 hotfixOwnedArgumentAssemblyPath,
-                managerTestHotfixAssemblyPath);
+                managerTestHotfixAssemblyPath,
+                privateDependencyAssemblyPath,
+                hotfixWithPrivateDependencyAssemblyPath);
         }
 
         public void Dispose()
