@@ -35,8 +35,7 @@ internal static class LakonaBrand
             Console.Write(new string(' ', Width));
             Console.Write('\r');
             Console.Write(GoldOnPurple);
-            int pad = Math.Max(0, (Width - line.Length) / 2);
-            Console.Write(new string(' ', pad));
+            Console.Write(new string(' ', 8));
             Console.Write(line);
             Console.Write(Reset);
             Console.WriteLine();
