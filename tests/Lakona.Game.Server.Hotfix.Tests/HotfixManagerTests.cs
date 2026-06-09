@@ -215,6 +215,23 @@ public sealed class HotfixManagerTests
         await second.WaitAsync(TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public void ValidateMethodShapes_rejects_binding_with_mismatched_parameter_count()
+    {
+        var key = HotfixDispatch.CreateKey<DispatchTestState, int>("NoArg");
+        var binding = new HotfixMethodBinding(
+            key,
+            typeof(DispatchTestStateSystem).GetMethod(nameof(DispatchTestStateSystem.Add))!,
+            typeof(DispatchTestState),
+            typeof(int),
+            []);
+        var table = new HotfixDispatchTable(1, [binding]);
+
+        var ex = Assert.Throws<InvalidOperationException>(() => table.ValidateMethodShapes());
+
+        Assert.Contains("parameter count", ex.Message, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(@"../Hotfix.dll")]
     [InlineData(@"nested/Hotfix.dll")]

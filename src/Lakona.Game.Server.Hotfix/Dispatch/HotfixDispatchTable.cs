@@ -39,7 +39,42 @@ public sealed class HotfixDispatchTable
             : throw new HotfixMethodNotLoadedException($"Hotfix method '{key}' is not loaded.");
     }
 
-    public void ValidateDelegates()
+    public void ValidateMethodShapes()
+    {
+        foreach (var binding in bindings.Values)
+        {
+            var parameters = binding.Method.GetParameters();
+            if (!binding.Method.IsStatic)
+            {
+                throw new InvalidOperationException($"Hotfix method '{binding.Key}' must be static.");
+            }
+
+            if (parameters.Length != binding.ParameterTypes.Count + 1)
+            {
+                throw new InvalidOperationException($"Hotfix method '{binding.Key}' parameter count does not match its dispatch key.");
+            }
+
+            if (parameters[0].ParameterType != binding.StateType)
+            {
+                throw new InvalidOperationException($"Hotfix method '{binding.Key}' state parameter does not match its dispatch key.");
+            }
+
+            for (var i = 0; i < binding.ParameterTypes.Count; i++)
+            {
+                if (parameters[i + 1].ParameterType != binding.ParameterTypes[i])
+                {
+                    throw new InvalidOperationException($"Hotfix method '{binding.Key}' argument parameter {i} does not match its dispatch key.");
+                }
+            }
+
+            if (binding.Method.ReturnType != binding.ReturnType)
+            {
+                throw new InvalidOperationException($"Hotfix method '{binding.Key}' return type does not match its dispatch key.");
+            }
+        }
+    }
+
+    public void ValidateTypedDispatchDelegates()
     {
         foreach (var binding in bindings.Values)
         {

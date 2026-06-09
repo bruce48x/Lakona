@@ -72,7 +72,8 @@ public sealed class HotfixManager : IHotfixManager
 
             var tableVersion = Interlocked.Increment(ref _nextVersion);
             var table = new HotfixDispatchTable(tableVersion, scan.Methods);
-            table.ValidateDelegates();
+            table.ValidateMethodShapes();
+            table.ValidateTypedDispatchDelegates();
             var snapshot = new HotfixSnapshot(
                 resolved.Version,
                 resolved.SourceKind,
