@@ -8,7 +8,7 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>lakona-tool</ToolCommandName>
     <PackageId>Lakona.Tool</PackageId>
-    <Version>0.8.3</Version>
+    <Version>0.8.4</Version>
     <Description>Command-line project management tool for Lakona.Game project scaffolding and source-generator based RPC workflows.</Description>
     <PackageTags>game-server;game-client;cli;scaffold;source-generator</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -24,7 +24,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="RpcStarter\TemplateAssets\NuGetForUnity.4.5.0.zip" LogicalName="Lakona.Tool.RpcStarter.TemplateAssets.NuGetForUnity.4.5.0.zip" />
-    <EmbeddedResource Include="RpcStarter\ReleaseVersions.json" LogicalName="Lakona.Tool.RpcStarter.ReleaseVersions.json" />
+
     <EmbeddedResource Include="RpcStarter\Templates\Godot\project.godot.template" LogicalName="Lakona.Tool.RpcStarter.Templates.Godot.project.godot.template" />
     <EmbeddedResource Include="RpcStarter\Templates\Godot\Main.tscn.template" LogicalName="Lakona.Tool.RpcStarter.Templates.Godot.Main.tscn.template" />
     <EmbeddedResource Include="RpcStarter\Templates\Unity\EditorBuildSettings.asset.template" LogicalName="Lakona.Tool.RpcStarter.Templates.Unity.EditorBuildSettings.asset.template" />
@@ -81,6 +81,51 @@
       Query="/Project/PropertyGroup/Version/text()">
       <Output TaskParameter="Result" PropertyName="LakonaGameServerHotfixGeneratorsPackageVersion" />
     </XmlPeek>
+    <XmlPeek
+      XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Rpc.Core\Lakona.Rpc.Core.csproj"
+      Query="/Project/PropertyGroup/Version/text()">
+      <Output TaskParameter="Result" PropertyName="LakonaRpcCorePackageVersion" />
+    </XmlPeek>
+    <XmlPeek
+      XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Rpc.Server\Lakona.Rpc.Server.csproj"
+      Query="/Project/PropertyGroup/Version/text()">
+      <Output TaskParameter="Result" PropertyName="LakonaRpcServerPackageVersion" />
+    </XmlPeek>
+    <XmlPeek
+      XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Rpc.Client\Lakona.Rpc.Client.csproj"
+      Query="/Project/PropertyGroup/Version/text()">
+      <Output TaskParameter="Result" PropertyName="LakonaRpcClientPackageVersion" />
+    </XmlPeek>
+    <XmlPeek
+      XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Rpc.Transport.Tcp\Lakona.Rpc.Transport.Tcp.csproj"
+      Query="/Project/PropertyGroup/Version/text()">
+      <Output TaskParameter="Result" PropertyName="LakonaRpcTransportTcpPackageVersion" />
+    </XmlPeek>
+    <XmlPeek
+      XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Rpc.Transport.WebSocket\Lakona.Rpc.Transport.WebSocket.csproj"
+      Query="/Project/PropertyGroup/Version/text()">
+      <Output TaskParameter="Result" PropertyName="LakonaRpcTransportWebSocketPackageVersion" />
+    </XmlPeek>
+    <XmlPeek
+      XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Rpc.Transport.Kcp\Lakona.Rpc.Transport.Kcp.csproj"
+      Query="/Project/PropertyGroup/Version/text()">
+      <Output TaskParameter="Result" PropertyName="LakonaRpcTransportKcpPackageVersion" />
+    </XmlPeek>
+    <XmlPeek
+      XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Rpc.Serializer.Json\Lakona.Rpc.Serializer.Json.csproj"
+      Query="/Project/PropertyGroup/Version/text()">
+      <Output TaskParameter="Result" PropertyName="LakonaRpcSerializerJsonPackageVersion" />
+    </XmlPeek>
+    <XmlPeek
+      XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj"
+      Query="/Project/PropertyGroup/Version/text()">
+      <Output TaskParameter="Result" PropertyName="LakonaRpcSerializerMemoryPackPackageVersion" />
+    </XmlPeek>
+    <XmlPeek
+      XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Rpc.Analyzers\Lakona.Rpc.Analyzers.csproj"
+      Query="/Project/PropertyGroup/Version/text()">
+      <Output TaskParameter="Result" PropertyName="LakonaRpcAnalyzersPackageVersion" />
+    </XmlPeek>
 
     <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(GeneratedToolPackageVersionsFile)'))" />
 
@@ -97,6 +142,15 @@
       <GeneratedToolPackageVersionsLine Include="    public const string LakonaGameServerHotfix = &quot;$(LakonaGameServerHotfixPackageVersion)&quot;%3B" />
       <GeneratedToolPackageVersionsLine Include="    public const string LakonaGameServerHotfixAbstractions = &quot;$(LakonaGameServerHotfixAbstractionsPackageVersion)&quot;%3B" />
       <GeneratedToolPackageVersionsLine Include="    public const string LakonaGameServerHotfixGenerators = &quot;$(LakonaGameServerHotfixGeneratorsPackageVersion)&quot;%3B" />
+      <GeneratedToolPackageVersionsLine Include="    public const string LakonaRpcCore = &quot;$(LakonaRpcCorePackageVersion)&quot;%3B" />
+      <GeneratedToolPackageVersionsLine Include="    public const string LakonaRpcServer = &quot;$(LakonaRpcServerPackageVersion)&quot;%3B" />
+      <GeneratedToolPackageVersionsLine Include="    public const string LakonaRpcClient = &quot;$(LakonaRpcClientPackageVersion)&quot;%3B" />
+      <GeneratedToolPackageVersionsLine Include="    public const string LakonaRpcTransportTcp = &quot;$(LakonaRpcTransportTcpPackageVersion)&quot;%3B" />
+      <GeneratedToolPackageVersionsLine Include="    public const string LakonaRpcTransportWebSocket = &quot;$(LakonaRpcTransportWebSocketPackageVersion)&quot;%3B" />
+      <GeneratedToolPackageVersionsLine Include="    public const string LakonaRpcTransportKcp = &quot;$(LakonaRpcTransportKcpPackageVersion)&quot;%3B" />
+      <GeneratedToolPackageVersionsLine Include="    public const string LakonaRpcSerializerJson = &quot;$(LakonaRpcSerializerJsonPackageVersion)&quot;%3B" />
+      <GeneratedToolPackageVersionsLine Include="    public const string LakonaRpcSerializerMemoryPack = &quot;$(LakonaRpcSerializerMemoryPackPackageVersion)&quot;%3B" />
+      <GeneratedToolPackageVersionsLine Include="    public const string LakonaRpcAnalyzers = &quot;$(LakonaRpcAnalyzersPackageVersion)&quot;%3B" />
       <GeneratedToolPackageVersionsLine Include="}" />
     </ItemGroup>
 

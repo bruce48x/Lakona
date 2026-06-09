@@ -52,6 +52,8 @@ internal static partial class ToolPackageVersions
     public const string Dapper = "2.1.72";
     public const string MySqlConnector = "2.5.0";
     public const string Npgsql = "10.0.2";
+    public const string MemoryPackRuntime = "1.21.4";
+    public const string MemoryPackRuntimeCore = "1.21.4";
 }
 
 internal sealed class ToolConfig

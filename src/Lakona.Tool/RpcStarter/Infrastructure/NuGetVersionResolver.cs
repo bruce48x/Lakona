@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace Lakona.Tool.RpcStarter;
 
 internal static class NuGetVersionResolver
@@ -50,73 +48,15 @@ internal static class NuGetVersionResolver
 
 internal static class StarterReleaseVersions
 {
-    private static readonly Lazy<ReleaseVersionManifest> Manifest = new(LoadManifest);
-
-    public static string Core => Manifest.Value.Core;
-    public static string Server => Manifest.Value.Server;
-    public static string Client => Manifest.Value.Client;
-    public static string TransportTcp => Manifest.Value.TransportTcp;
-    public static string TransportWebSocket => Manifest.Value.TransportWebSocket;
-    public static string TransportKcp => Manifest.Value.TransportKcp;
-    public static string SerializerJson => Manifest.Value.SerializerJson;
-    public static string SerializerMemoryPack => Manifest.Value.SerializerMemoryPack;
-    public static string Analyzers => Manifest.Value.Analyzers;
-    public static string MemoryPackRuntime => Manifest.Value.MemoryPackRuntime;
-    public static string MemoryPackRuntimeCore => Manifest.Value.MemoryPackRuntimeCore;
-
-    private static ReleaseVersionManifest LoadManifest()
-    {
-        const string resourceName = "Lakona.Tool.RpcStarter.ReleaseVersions.json";
-        var assembly = typeof(StarterReleaseVersions).Assembly;
-
-        using var stream = assembly.GetManifestResourceStream(resourceName)
-            ?? throw new InvalidOperationException($"Missing embedded starter release manifest resource '{resourceName}'.");
-
-        var manifest = JsonSerializer.Deserialize<ReleaseVersionManifest>(stream)
-            ?? throw new InvalidOperationException("Starter release manifest is empty.");
-
-        manifest.Validate();
-        return manifest;
-    }
-}
-
-internal sealed class ReleaseVersionManifest
-{
-    public string Core { get; init; } = string.Empty;
-    public string Server { get; init; } = string.Empty;
-    public string Client { get; init; } = string.Empty;
-    public string TransportTcp { get; init; } = string.Empty;
-    public string TransportWebSocket { get; init; } = string.Empty;
-    public string TransportKcp { get; init; } = string.Empty;
-    public string SerializerJson { get; init; } = string.Empty;
-    public string SerializerMemoryPack { get; init; } = string.Empty;
-    public string Analyzers { get; init; } = string.Empty;
-    public string MemoryPackRuntime { get; init; } = string.Empty;
-    public string MemoryPackRuntimeCore { get; init; } = string.Empty;
-
-    public void Validate()
-    {
-        foreach (var (name, version) in EnumerateVersions())
-        {
-            if (string.IsNullOrWhiteSpace(version))
-            {
-                throw new InvalidOperationException($"Starter release manifest is missing '{name}'.");
-            }
-        }
-    }
-
-    private IEnumerable<(string Name, string Version)> EnumerateVersions()
-    {
-        yield return (nameof(Core), Core);
-        yield return (nameof(Server), Server);
-        yield return (nameof(Client), Client);
-        yield return (nameof(TransportTcp), TransportTcp);
-        yield return (nameof(TransportWebSocket), TransportWebSocket);
-        yield return (nameof(TransportKcp), TransportKcp);
-        yield return (nameof(SerializerJson), SerializerJson);
-        yield return (nameof(SerializerMemoryPack), SerializerMemoryPack);
-        yield return (nameof(Analyzers), Analyzers);
-        yield return (nameof(MemoryPackRuntime), MemoryPackRuntime);
-        yield return (nameof(MemoryPackRuntimeCore), MemoryPackRuntimeCore);
-    }
+    public static string Core => ToolPackageVersions.LakonaRpcCore;
+    public static string Server => ToolPackageVersions.LakonaRpcServer;
+    public static string Client => ToolPackageVersions.LakonaRpcClient;
+    public static string TransportTcp => ToolPackageVersions.LakonaRpcTransportTcp;
+    public static string TransportWebSocket => ToolPackageVersions.LakonaRpcTransportWebSocket;
+    public static string TransportKcp => ToolPackageVersions.LakonaRpcTransportKcp;
+    public static string SerializerJson => ToolPackageVersions.LakonaRpcSerializerJson;
+    public static string SerializerMemoryPack => ToolPackageVersions.LakonaRpcSerializerMemoryPack;
+    public static string Analyzers => ToolPackageVersions.LakonaRpcAnalyzers;
+    public static string MemoryPackRuntime => ToolPackageVersions.MemoryPackRuntime;
+    public static string MemoryPackRuntimeCore => ToolPackageVersions.MemoryPackRuntimeCore;
 }
