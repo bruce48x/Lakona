@@ -23,17 +23,7 @@ internal sealed class HotfixAssemblyLoadContext : AssemblyLoadContext
 
     public Assembly LoadMainAssemblyFromBytes(string assemblyPath)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(assemblyPath);
-
-        using var assemblyStream = new MemoryStream(File.ReadAllBytes(assemblyPath));
-        var pdbPath = Path.ChangeExtension(assemblyPath, ".pdb");
-        if (File.Exists(pdbPath))
-        {
-            using var pdbStream = new MemoryStream(File.ReadAllBytes(pdbPath));
-            return LoadFromStream(assemblyStream, pdbStream);
-        }
-
-        return LoadFromStream(assemblyStream);
+        return LoadAssemblyFromBytes(assemblyPath);
     }
 
     protected override Assembly? Load(AssemblyName assemblyName)
@@ -46,7 +36,22 @@ internal sealed class HotfixAssemblyLoadContext : AssemblyLoadContext
         }
 
         var path = _resolver.ResolveAssemblyToPath(assemblyName);
-        return path is null ? null : LoadFromAssemblyPath(path);
+        return path is null ? null : LoadAssemblyFromBytes(path);
+    }
+
+    private Assembly LoadAssemblyFromBytes(string assemblyPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(assemblyPath);
+
+        using var assemblyStream = new MemoryStream(File.ReadAllBytes(assemblyPath));
+        var pdbPath = Path.ChangeExtension(assemblyPath, ".pdb");
+        if (File.Exists(pdbPath))
+        {
+            using var pdbStream = new MemoryStream(File.ReadAllBytes(pdbPath));
+            return LoadFromStream(assemblyStream, pdbStream);
+        }
+
+        return LoadFromStream(assemblyStream);
     }
 
     protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)

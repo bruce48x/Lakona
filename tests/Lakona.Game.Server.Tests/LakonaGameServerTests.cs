@@ -1,5 +1,7 @@
 using System.Reflection;
 using System.Runtime.Loader;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -42,13 +44,61 @@ public sealed class LakonaGameServerTests
         var services = new ServiceCollection();
         var configuration = new ConfigurationBuilder().Build();
 
-        Lakona.Game.Server.Hosting.LakonaGameServer.DiscoverStableFeaturesForTesting(services, configuration);
+        Lakona.Game.Server.Hosting.LakonaGameServer.DiscoverStableFeaturesForTesting(services, configuration, AppContext.BaseDirectory);
 
         var after = AssemblyLoadContext.Default.Assemblies
             .Select(assembly => assembly.GetName().Name)
             .ToHashSet(StringComparer.Ordinal);
 
         Assert.DoesNotContain("Server.Hotfix", after.Except(before, StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void Feature_discovery_does_not_load_existing_hotfix_directory_assemblies()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "LakonaFeatureDiscoveryTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var hotfixDirectory = Path.Combine(root, "hotfix");
+            Directory.CreateDirectory(hotfixDirectory);
+            var hotfixPath = Path.Combine(hotfixDirectory, "Server.Hotfix.dll");
+
+            var syntaxTree = CSharpSyntaxTree.ParseText("public sealed class Marker { }");
+            var references = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!
+                .ToString()!
+                .Split(Path.PathSeparator)
+                .Select(path => MetadataReference.CreateFromFile(path));
+            var compilation = CSharpCompilation.Create(
+                "Server.Hotfix",
+                [syntaxTree],
+                references,
+                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+            using var stream = File.Create(hotfixPath);
+            var emit = compilation.Emit(stream);
+            Assert.True(emit.Success, string.Join(Environment.NewLine, emit.Diagnostics));
+
+            var before = AssemblyLoadContext.Default.Assemblies
+                .Select(assembly => assembly.GetName().Name)
+                .ToHashSet(StringComparer.Ordinal);
+
+            var services = new ServiceCollection();
+            var configuration = new ConfigurationBuilder().Build();
+
+            Lakona.Game.Server.Hosting.LakonaGameServer.DiscoverStableFeaturesForTesting(services, configuration, root);
+
+            var after = AssemblyLoadContext.Default.Assemblies
+                .Select(assembly => assembly.GetName().Name)
+                .ToHashSet(StringComparer.Ordinal);
+
+            Assert.DoesNotContain("Server.Hotfix", after.Except(before, StringComparer.Ordinal));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
     }
 
     [Fact]
