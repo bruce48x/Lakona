@@ -79,7 +79,7 @@ internal sealed class CliApplication(
 
         await configStore.SaveAsync(configPath, ToolConfig.CreateDefault(projectName, options)).ConfigureAwait(false);
         Console.WriteLine(text.CreatedToolConfig(configPath));
-        PrintNewProjectNextSteps(projectRoot);
+        PrintNewProjectNextSteps(projectRoot, options);
         return 0;
     }
 
@@ -88,12 +88,13 @@ internal sealed class CliApplication(
         Console.WriteLine(text.HelpText);
     }
 
-    private void PrintNewProjectNextSteps(string projectRoot)
+    private void PrintNewProjectNextSteps(string projectRoot, NewCommandOptions options)
     {
         Console.WriteLine(text.NewProjectReadyHeader);
         Console.WriteLine($"  1) cd \"{projectRoot}\"");
         Console.WriteLine(text.CheckProjectStep);
         Console.WriteLine(text.StartServerStep);
+        Console.WriteLine(text.OpenClientStep(options.ClientEngine));
     }
 
     private static RpcStarterNewOptions ToRpcStarterOptions(

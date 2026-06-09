@@ -260,6 +260,23 @@ internal sealed class ToolText
         _ => "  3) dotnet run --project \"Server/App/Server.App.csproj\""
     };
 
+    public string OpenClientStep(string clientEngine)
+    {
+        var isGodot = string.Equals(clientEngine, "godot", StringComparison.OrdinalIgnoreCase);
+        return Language switch
+        {
+            ToolLanguage.SimplifiedChinese => isGodot
+                ? "  4) 在 Godot Engine 中打开 Client/"
+                : "  4) 在 Unity Hub 中打开 Client/（Unity 2022 LTS）",
+            ToolLanguage.TraditionalChinese => isGodot
+                ? "  4) 在 Godot Engine 中開啟 Client/"
+                : "  4) 在 Unity Hub 中開啟 Client/（Unity 2022 LTS）",
+            _ => isGodot
+                ? "  4) Open Client/ in Godot Engine"
+                : "  4) Open Client/ in Unity Hub (Unity 2022 LTS)"
+        };
+    }
+
     public string CheckProjectStep => Language switch
     {
         ToolLanguage.SimplifiedChinese => "  2) dotnet run --project \"Server/App/Server.App.csproj\" -- --lakona-game-check",

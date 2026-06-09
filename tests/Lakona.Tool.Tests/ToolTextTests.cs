@@ -50,7 +50,7 @@ public sealed class ToolTextTests
     }
 
     [Fact]
-    public void NewProjectReadyOutput_DoesNotPrintFourthStep()
+    public void NewProjectReadyOutput_IncludesClientOpenStep()
     {
         var text = ToolText.ForCulture(CultureInfo.GetCultureInfo("zh-CN"));
         var app = new CliApplication(new RpcStarterGenerator(), new ProjectScaffolder(), new ToolConfigStore(), text);
@@ -60,9 +60,10 @@ public sealed class ToolTextTests
         try
         {
             Console.SetOut(writer);
+            var options = CliParser.ParseNewOptions([]);
             typeof(CliApplication)
                 .GetMethod("PrintNewProjectNextSteps", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
-                .Invoke(app, ["D:\\Lakona.Game-Sample-Unity24"]);
+                .Invoke(app, ["D:\\Lakona.Game-Sample-Unity24", options]);
         }
         finally
         {
@@ -74,7 +75,8 @@ public sealed class ToolTextTests
         Assert.Contains("  1) cd \"D:\\Lakona.Game-Sample-Unity24\"", output, StringComparison.Ordinal);
         Assert.Contains("  2) dotnet run --project \"Server/App/Server.App.csproj\" -- --lakona-game-check", output, StringComparison.Ordinal);
         Assert.Contains("  3) dotnet run --project \"Server/App/Server.App.csproj\"", output, StringComparison.Ordinal);
-        Assert.DoesNotContain("  4)", output, StringComparison.Ordinal);
+        Assert.Contains("  4)", output, StringComparison.Ordinal);
+        Assert.Contains("在 Unity Hub 中打开 Client/", output, StringComparison.Ordinal);
         Assert.DoesNotContain("修改 Shared 合约后", output, StringComparison.Ordinal);
     }
 
