@@ -4,14 +4,13 @@
     <h1>{{ .Site.Title }}</h1>
     <p class="lead">{{ .Site.Params.description }}</p>
     <div class="hero-actions">
-      <a class="button primary" href="{{ "rpc/posts/" | relURL }}">RPC Docs</a>
-      <a class="button" href="{{ "game/posts/" | relURL }}">Game Docs</a>
+      <a class="button primary" href="{{ "posts/" | relURL }}">All Posts</a>
       <a class="button" href="{{ .Site.Params.repo }}">GitHub</a>
     </div>
   </section>
   <section class="post-list">
     <h2>Latest Posts</h2>
-    {{ range first 8 (where site.RegularPages "Section" "in" (slice "rpc" "game")).ByDate.Reverse }}
+    {{ range first 8 (where site.RegularPages "Section" "posts").ByDate.Reverse }}
       <article class="post-card">
         <h3><a href="{{ .RelPermalink }}">{{ .Title }}</a></h3>
         <p class="meta">{{ .Date.Format "2006-01-02" }} · {{ .Section }}</p>

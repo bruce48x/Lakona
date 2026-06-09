@@ -570,14 +570,14 @@ The real source of truth in daily development is always:
 
 After the default `Ping` works, real projects still need connection, error, security, versioning, and performance strategies. Continue with:
 
-- [Error Handling](/rpc/posts/error-handling/)
-- [Security Model](/rpc/posts/security-model/)
-- [DTO Versioning](/rpc/posts/dto-versioning/)
-- [Connection Lifecycle](/rpc/posts/connection-lifecycle/)
-- [Threading Model](/rpc/posts/threading-model/)
-- [Performance Tuning](/rpc/posts/performance-tuning/)
-- [Godot Integration Guide](/rpc/posts/godot-guide/)
-- [Technology Selection Guide](/rpc/posts/selection-guide/)
+- [Error Handling](/posts/error-handling/)
+- [Security Model](/posts/security-model/)
+- [DTO Versioning](/posts/dto-versioning/)
+- [Connection Lifecycle](/posts/connection-lifecycle/)
+- [Threading Model](/posts/threading-model/)
+- [Performance Tuning](/posts/performance-tuning/)
+- [Godot Integration Guide](/posts/godot-guide/)
+- [Technology Selection Guide](/posts/selection-guide/)
 
 ## Final Summary
 

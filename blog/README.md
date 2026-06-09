@@ -2,17 +2,17 @@
 
 Hugo site for Lakona documentation — covers Lakona.Rpc and Lakona.Game.
 
-## Sections
+## Structure
 
-- **RPC** (`content/rpc/`) — strongly typed bidirectional RPC framework docs, reference, and tutorials.
-- **Game** (`content/game/`) — actor-based game-session infrastructure docs and tutorials.
+- **Posts** (`content/posts/`) — tutorials, design notes, deployment guides, and architecture articles.
+- **Reference** (`content/reference/`) — API reference and generated client documentation.
 
-Canonical RPC pages that package READMEs and root docs should link to instead
+Canonical pages that package READMEs and root docs should link to instead
 of duplicating long explanations:
 
-- [Getting Started](content/rpc/posts/lakona-rpc-getting-started.md)
-- [Design boundary](content/rpc/posts/design-boundary.md)
-- [Generated RpcClient](content/rpc/reference/generated-client.md)
+- [Getting Started](content/posts/lakona-rpc-getting-started.md)
+- [Design boundary](content/posts/design-boundary.md)
+- [Generated RpcClient](content/reference/generated-client.md)
 
 ## Local Usage
 

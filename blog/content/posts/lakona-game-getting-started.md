@@ -277,6 +277,6 @@ After the default test works:
 2. Try changing a hotfix method and watch the server reload it
 3. Move long-lived state into an actor
 
-- [Reliable Business Push: Why Reliable Transport Is Not Enough](/game/posts/reliable-business-push/)
-- [Deploying A Lakona.Game Server To Multiple Linux Machines](/game/posts/deploy-lakona-game-server-linux-multi-machine/)
+- [Reliable Business Push: Why Reliable Transport Is Not Enough](/posts/reliable-business-push/)
+- [Deploying A Lakona.Game Server To Multiple Linux Machines](/posts/deploy-lakona-game-server-linux-multi-machine/)
 - [Design Philosophy](https://github.com/bruce48x/lakona/blob/main/docs/design-philosophy.md)
