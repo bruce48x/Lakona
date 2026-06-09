@@ -49,6 +49,20 @@ Reload with `IHotfixManager.ReloadAsync()`. Reload failure keeps the previous di
 
 Use `AddLakonaGameHotfix(...)` to register a source such as `CurrentDirectoryHotfixAssemblySource`, and pass stable assembly names as shared assemblies so hotfix systems operate on the same state types as the running server. `AddLakonaGameHotfixFileWatcher(...)` can be added when a host should reload after hotfix DLL changes.
 
+## Loader safety contract
+
+`HotfixManager` must be the only component that loads hotfix assemblies. Hosts must not call `Assembly.LoadFrom` on files in the hotfix directory. Reload loads DLL and PDB bytes into a collectible `AssemblyLoadContext`, validates shared type identity, and publishes the dispatch table only after validation succeeds.
+
+Use version-pointer deployment for production:
+
+```txt
+hotfix/current.txt
+hotfix/versions/<version>/Server.Hotfix.dll
+hotfix/versions/<version>/Server.Hotfix.pdb
+```
+
+The pointer should change only after the version directory is fully written.
+
 ## First-version boundaries
 
 The first implementation uses one process-global dispatch table. Treat it as one hotfix domain per server process; do not register unrelated hotfix managers that should carry independent behavior in the same process.
