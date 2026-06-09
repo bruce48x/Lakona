@@ -162,7 +162,14 @@ public static class LakonaGameServer
         throw new InvalidOperationException(message);
     }
 
-    private static void DiscoverAndRegisterFeatures(
+    internal static void DiscoverStableFeaturesForTesting(
+        IServiceCollection services,
+        IConfiguration configuration)
+    {
+        DiscoverAndRegisterFeatures(services, configuration);
+    }
+
+    internal static void DiscoverAndRegisterFeatures(
         IServiceCollection services,
         IConfiguration configuration)
     {
@@ -187,23 +194,8 @@ public static class LakonaGameServer
             }
         }
 
-        // Hotfix assemblies
-        var hotfixDir = Path.Combine(AppContext.BaseDirectory, "hotfix");
-        if (Directory.Exists(hotfixDir))
-        {
-            foreach (var dll in Directory.GetFiles(hotfixDir, "*.dll"))
-            {
-                try
-                {
-                    var hotfixAssembly = Assembly.LoadFrom(dll);
-                    featureBuilder.FromAssembly(hotfixAssembly);
-                }
-                catch
-                {
-                    // Skip unloadable assemblies
-                }
-            }
-        }
+        // Do not scan hotfix/*.dll here. Hotfix assemblies are loaded only by
+        // HotfixManager into a collectible AssemblyLoadContext.
 
         var features = featureBuilder.ResolveFeatures()
             .OrderBy(f => f.GetType().Assembly.GetName().Name)

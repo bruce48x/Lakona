@@ -1,3 +1,6 @@
+using System.Reflection;
+using System.Runtime.Loader;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -27,6 +30,25 @@ public sealed class LakonaGameServerTests
         Assert.False(result.Succeeded);
         Assert.Equal(HotfixReloadStatus.Failed, result.Status);
         Assert.Contains("Server.Hotfix.dll", result.RequestedPath, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Feature_discovery_does_not_load_hotfix_directory_assemblies()
+    {
+        var before = AssemblyLoadContext.Default.Assemblies
+            .Select(assembly => assembly.GetName().Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder().Build();
+
+        Lakona.Game.Server.Hosting.LakonaGameServer.DiscoverStableFeaturesForTesting(services, configuration);
+
+        var after = AssemblyLoadContext.Default.Assemblies
+            .Select(assembly => assembly.GetName().Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.DoesNotContain("Server.Hotfix", after.Except(before, StringComparer.Ordinal));
     }
 
     [Fact]
