@@ -401,6 +401,11 @@ internal sealed class ProjectScaffolder
                 attributes.Add(("OutputItemType", reference.OutputItemType));
             }
 
+            if (reference.IncludeAssets is not null)
+            {
+                attributes.Add(("IncludeAssets", reference.IncludeAssets));
+            }
+
             ProjectXmlMutator.EnsurePackageReference(project, reference.Id, reference.Version, attributes.ToArray());
         }
         ProjectXmlMutator.EnsureNoneUpdate(project, "appsettings.json", "PreserveNewest");

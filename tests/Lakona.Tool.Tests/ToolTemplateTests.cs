@@ -934,7 +934,7 @@ public sealed class ToolTemplateTests
     }
 
     [Fact]
-    public void GameDependencyPlanner_DefaultClusterServerReferencesGamePackagesOnly()
+    public void GameDependencyPlanner_DefaultClusterServerIncludesRpcPackages()
     {
         var plan = GameDependencyPlanner.CreateServerPlan(CliParser.ParseNewOptions([]));
 
@@ -942,9 +942,13 @@ public sealed class ToolTemplateTests
         Assert.Contains(plan.PackageReferences, reference => reference.Id == "Lakona.Game.Server");
         Assert.Contains(plan.PackageReferences, reference => reference.Id == "Lakona.Game.Server.Generators" && reference.OutputItemType == "Analyzer");
         Assert.Contains(plan.PackageReferences, reference => reference.Id == "Lakona.Game.Server.Hotfix");
+        Assert.Contains(plan.PackageReferences, reference => reference.Id == "Lakona.Game.Server.Hotfix.Generators" && reference.OutputItemType == "Analyzer");
+        Assert.Contains(plan.PackageReferences, reference => reference.Id == "Lakona.Rpc.Server");
+        Assert.Contains(plan.PackageReferences, reference => reference.Id == "Lakona.Rpc.Transport.Kcp");
+        Assert.Contains(plan.PackageReferences, reference => reference.Id == "Lakona.Rpc.Analyzers");
         Assert.Contains(plan.PackageReferences, reference => reference.Id == "Lakona.Game.Cluster");
         Assert.Contains(plan.PackageReferences, reference => reference.Id == "Lakona.Game.Cluster.Rpc");
-        Assert.DoesNotContain(plan.PackageReferences, reference => reference.Id.StartsWith("Lakona.Rpc.", StringComparison.Ordinal));
+        Assert.Equal(10, plan.PackageReferences.Count);
     }
 
     [Fact]
