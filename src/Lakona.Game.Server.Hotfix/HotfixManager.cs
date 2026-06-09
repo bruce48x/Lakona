@@ -53,7 +53,7 @@ public sealed class HotfixManager : IHotfixManager
             }
 
             pendingContext = new HotfixAssemblyLoadContext(resolved.AssemblyPath, _sharedAssemblyNames);
-            var assembly = pendingContext.LoadFromAssemblyPath(resolved.AssemblyPath);
+            var assembly = pendingContext.LoadMainAssemblyFromBytes(resolved.AssemblyPath);
             var scan = HotfixSystemScanner.Scan(assembly);
             if (!scan.Succeeded)
             {
@@ -62,8 +62,17 @@ public sealed class HotfixManager : IHotfixManager
 
             cancellationToken.ThrowIfCancellationRequested();
 
+            var boundaryDiagnostics = HotfixDispatchBoundaryValidator.Validate(pendingContext, assembly, scan.Methods);
+            if (boundaryDiagnostics.Count != 0)
+            {
+                throw new InvalidOperationException(string.Join(Environment.NewLine, boundaryDiagnostics));
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+
             var tableVersion = Interlocked.Increment(ref _nextVersion);
             var table = new HotfixDispatchTable(tableVersion, scan.Methods);
+            table.ValidateDelegates();
             var snapshot = new HotfixSnapshot(
                 resolved.Version,
                 resolved.SourceKind,

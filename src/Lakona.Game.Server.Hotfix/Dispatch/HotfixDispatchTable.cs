@@ -5,7 +5,7 @@ namespace Lakona.Game.Server.Hotfix.Dispatch;
 
 public sealed class HotfixDispatchTable
 {
-    private readonly IReadOnlyDictionary<HotfixMethodKey, MethodInfo> methods;
+    private readonly IReadOnlyDictionary<HotfixMethodKey, HotfixMethodBinding> bindings;
     private readonly Dictionary<DelegateCacheKey, Delegate> delegates = new();
 
     public HotfixDispatchTable(long version, IEnumerable<HotfixMethodBinding> methods)
@@ -24,8 +24,8 @@ public sealed class HotfixDispatchTable
         }
 
         Version = version;
-        this.methods = methodList.ToDictionary(static method => method.Key, static method => method.Method);
-        MethodKeys = this.methods.Keys.OrderBy(static key => key.ToString(), StringComparer.Ordinal).ToArray();
+        bindings = methodList.ToDictionary(static method => method.Key, static method => method);
+        MethodKeys = bindings.Keys.OrderBy(static key => key.ToString(), StringComparer.Ordinal).ToArray();
     }
 
     public long Version { get; }
@@ -34,9 +34,25 @@ public sealed class HotfixDispatchTable
 
     public MethodInfo Resolve(HotfixMethodKey key)
     {
-        return methods.TryGetValue(key, out var method)
-            ? method
+        return bindings.TryGetValue(key, out var binding)
+            ? binding.Method
             : throw new HotfixMethodNotLoadedException($"Hotfix method '{key}' is not loaded.");
+    }
+
+    public void ValidateDelegates()
+    {
+        foreach (var binding in bindings.Values)
+        {
+            if (binding.ReturnType == typeof(void) || binding.ParameterTypes.Count > 1)
+            {
+                continue;
+            }
+
+            var delegateType = binding.ParameterTypes.Count == 0
+                ? typeof(Func<,>).MakeGenericType(binding.StateType, binding.ReturnType)
+                : typeof(Func<,,>).MakeGenericType(binding.StateType, binding.ParameterTypes[0], binding.ReturnType);
+            binding.Method.CreateDelegate(delegateType);
+        }
     }
 
     public Func<TState, TResult> Resolve<TState, TResult>(HotfixMethodKey key)

@@ -15,8 +15,25 @@ internal sealed class HotfixAssemblyLoadContext : AssemblyLoadContext
     public HotfixAssemblyLoadContext(string mainAssemblyPath, IEnumerable<string> sharedAssemblyNames)
         : base("Lakona.Game.Hotfix", isCollectible: true)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(mainAssemblyPath);
+
         _resolver = new AssemblyDependencyResolver(mainAssemblyPath);
         (_sharedAssemblyNames, _sharedAssemblies) = CreateSharedAssemblyPolicy(sharedAssemblyNames);
+    }
+
+    public Assembly LoadMainAssemblyFromBytes(string assemblyPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(assemblyPath);
+
+        using var assemblyStream = new MemoryStream(File.ReadAllBytes(assemblyPath));
+        var pdbPath = Path.ChangeExtension(assemblyPath, ".pdb");
+        if (File.Exists(pdbPath))
+        {
+            using var pdbStream = new MemoryStream(File.ReadAllBytes(pdbPath));
+            return LoadFromStream(assemblyStream, pdbStream);
+        }
+
+        return LoadFromStream(assemblyStream);
     }
 
     protected override Assembly? Load(AssemblyName assemblyName)
