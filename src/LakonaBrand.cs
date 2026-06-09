@@ -2,7 +2,11 @@ using System.Text;
 
 internal static class LakonaBrand
 {
-    public const string Text = "૮ •ᴥ• ა  Lakona";
+    private static readonly string[] Text = {
+        @" /\_/\",
+        @"( ･ᴥ･ )  Lakona",
+        @" U___U",
+    };
 
     private const int Width = 30;
 
@@ -24,16 +28,19 @@ internal static class LakonaBrand
         // Top: purple bar
         PrintBar();
 
-        // Middle: purple bar with gold text overlaid
-        Console.Write(PurpleBg);
-        Console.Write(new string(' ', Width));
-        Console.Write('\r');
-        Console.Write(GoldOnPurple);
-        int pad = Math.Max(0, (Width - Text.Length) / 2);
-        Console.Write(new string(' ', pad));
-        Console.Write(Text);
-        Console.Write(Reset);
-        Console.WriteLine();
+        // Middle: purple bars with gold text overlaid (3 lines)
+        foreach (var line in Text)
+        {
+            Console.Write(PurpleBg);
+            Console.Write(new string(' ', Width));
+            Console.Write('\r');
+            Console.Write(GoldOnPurple);
+            int pad = Math.Max(0, (Width - line.Length) / 2);
+            Console.Write(new string(' ', pad));
+            Console.Write(line);
+            Console.Write(Reset);
+            Console.WriteLine();
+        }
 
         // Bottom: purple bar
         PrintBar();
