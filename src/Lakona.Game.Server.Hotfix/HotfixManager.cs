@@ -53,7 +53,7 @@ public sealed class HotfixManager : IHotfixManager
             }
 
             pendingContext = new HotfixAssemblyLoadContext(resolved.AssemblyPath, _sharedAssemblyNames);
-            var assembly = pendingContext.LoadFromAssemblyPath(resolved.AssemblyPath);
+            var assembly = pendingContext.LoadMainAssemblyFromBytes(resolved.AssemblyPath);
             var scan = HotfixSystemScanner.Scan(assembly);
             if (!scan.Succeeded)
             {
