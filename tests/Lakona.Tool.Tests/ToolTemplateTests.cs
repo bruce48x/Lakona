@@ -236,7 +236,7 @@ public sealed class ToolTemplateTests
             Assert.DoesNotContain("PingServiceBinder.BindFactory", serviceBindingConfigurator, StringComparison.Ordinal);
             Assert.DoesNotContain("Server.Hotfix.Services.PingService", serviceBindingConfigurator, StringComparison.Ordinal);
             Assert.Contains("ChatServiceBinder.Bind", serviceBindingConfigurator, StringComparison.Ordinal);
-            Assert.Contains("Type.GetType(\"Server.Hotfix.Chat.ChatServiceImpl, Server.Hotfix\"", serviceBindingConfigurator, StringComparison.Ordinal);
+            Assert.Contains("assembly.GetType(\"Server.Hotfix.Chat.ChatServiceImpl\"", serviceBindingConfigurator, StringComparison.Ordinal);
             Assert.DoesNotContain("AllServicesBinder.BindAll", serviceBindingConfigurator, StringComparison.Ordinal);
             Assert.False(File.Exists(Path.Combine(serverDirectory, "Hosting", "Advanced", "LakonaGameGeneratedApplication.cs")));
         }
@@ -466,7 +466,7 @@ public sealed class ToolTemplateTests
         Assert.DoesNotContain("PingServiceBinder.BindFactory", source, StringComparison.Ordinal);
         Assert.DoesNotContain("Server.Hotfix.Services.PingService", source, StringComparison.Ordinal);
         Assert.Contains("ChatServiceBinder.Bind", source, StringComparison.Ordinal);
-        Assert.Contains("Type.GetType(\"Server.Hotfix.Chat.ChatServiceImpl, Server.Hotfix\"", source, StringComparison.Ordinal);
+        Assert.Contains("assembly.GetType(\"Server.Hotfix.Chat.ChatServiceImpl\"", source, StringComparison.Ordinal);
         Assert.DoesNotContain("AllServicesBinder.BindAll", source, StringComparison.Ordinal);
     }
 
@@ -800,7 +800,7 @@ public sealed class ToolTemplateTests
             Assert.Contains("AskAsync<ChatRoomActor", service, StringComparison.Ordinal);
             Assert.Contains("FilterMessage", service, StringComparison.Ordinal);
             Assert.Contains("class ChatRoomActor : Actor", actor, StringComparison.Ordinal);
-            Assert.Contains("Type.GetType(\"Server.Hotfix.Chat.ChatServiceImpl", binding, StringComparison.Ordinal);
+            Assert.Contains("assembly.GetType(\"Server.Hotfix.Chat.ChatServiceImpl\"", binding, StringComparison.Ordinal);
             Assert.DoesNotContain("AllServicesBinder.BindAll", binding, StringComparison.Ordinal);
             Assert.DoesNotContain("static readonly ChatRoom", service + actor, StringComparison.Ordinal);
             Assert.DoesNotContain("ConcurrentDictionary", actor, StringComparison.Ordinal);

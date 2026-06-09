@@ -402,6 +402,7 @@ internal static class ServerProjectTemplates
     public static string RenderServiceBindingConfigurator()
     {
         return @"using System;
+using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Server.App.Generated;
 using Shared.Contracts.Chat;
@@ -411,7 +412,15 @@ namespace Server.App.Hosting;
 
 internal static class ServiceBindingConfigurator
 {
-    private static readonly Type ChatServiceImplType = Type.GetType(""Server.Hotfix.Chat.ChatServiceImpl, Server.Hotfix"", throwOnError: true)!;
+    private static readonly Type ChatServiceImplType = LoadChatServiceImplType();
+
+    private static Type LoadChatServiceImplType()
+    {
+        var hotfixDir = System.IO.Path.Combine(AppContext.BaseDirectory, ""hotfix"");
+        var hotfixPath = System.IO.Path.Combine(hotfixDir, ""Server.Hotfix.dll"");
+        var assembly = Assembly.LoadFrom(hotfixPath);
+        return assembly.GetType(""Server.Hotfix.Chat.ChatServiceImpl"", throwOnError: true)!;
+    }
 
     public static void Bind(RpcServiceRegistry registry, IServiceProvider services)
     {
