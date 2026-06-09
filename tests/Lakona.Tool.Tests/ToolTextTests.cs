@@ -748,21 +748,6 @@ public sealed class ToolTextTests
     }
 
     [Fact]
-    public void PackageVersion_IsBumpedForInteractiveNewFix()
-    {
-        var repositoryRoot = FindRepositoryRoot();
-        var projectPath = Path.Combine(repositoryRoot, "src", "Lakona.Tool", "Lakona.Tool.csproj");
-        var xml = System.Xml.Linq.XDocument.Load(projectPath);
-
-        var version = xml
-            .Descendants("Version")
-            .Single()
-            .Value;
-
-        Assert.Equal("0.8.6", version);
-    }
-
-    [Fact]
     public void ClusterEnvExampleUsesSelectedTransportForAdvertisedClientEndpoint()
     {
         var websocketOptions = new NewCommandOptions(
