@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Lakona.Game.Server</RootNamespace>
     <PackageId>Lakona.Game.Server</PackageId>
-    <Version>0.4.6</Version>
+    <Version>0.4.7</Version>
     <Description>Server-side actor runtime, RPC hosting helpers, session lifecycle, and reliable push infrastructure for Lakona.Game applications.</Description>
     <PackageTags>lakona-game;lakona-rpc;game;server;actor;rpc;reliable-push</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
