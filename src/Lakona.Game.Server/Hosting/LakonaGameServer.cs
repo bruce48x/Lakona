@@ -103,7 +103,7 @@ public static class LakonaGameServer
         }
         else
         {
-            DiscoverAndRegisterFeatures(builder.Services, builder.Configuration);
+            DiscoverAndRegisterFeatures(builder.Services, builder.Configuration, AppContext.BaseDirectory);
         }
 
         // Hotfix
@@ -164,14 +164,16 @@ public static class LakonaGameServer
 
     internal static void DiscoverStableFeaturesForTesting(
         IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        string baseDirectory)
     {
-        DiscoverAndRegisterFeatures(services, configuration);
+        DiscoverAndRegisterFeatures(services, configuration, baseDirectory);
     }
 
     internal static void DiscoverAndRegisterFeatures(
         IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        string baseDirectory)
     {
         var featureBuilder = new FeatureBuilder();
 
