@@ -9,21 +9,29 @@ internal static class SharedContractTemplates
             {
                 public static class Services
                 {
+                    public const int Login = 1;
                     public const int Chat = 2;
+                }
+
+                public static class LoginServiceMethods
+                {
+                    public const int LoginAsync = 1;
+                }
+
+                public static class LoginNotifications
+                {
+                    public const int UserJoined = 1;
+                    public const int UserLeft = 2;
                 }
 
                 public static class ChatServiceMethods
                 {
-                    public const int JoinAsync = 1;
-                    public const int SendAsync = 2;
-                    public const int LeaveAsync = 3;
+                    public const int SendAsync = 1;
                 }
 
                 public static class ChatNotifications
                 {
                     public const int MessageReceived = 1;
-                    public const int UserJoined = 2;
-                    public const int UserLeft = 3;
                 }
             }
         }
