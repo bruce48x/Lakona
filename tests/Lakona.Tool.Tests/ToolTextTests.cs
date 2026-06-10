@@ -537,6 +537,8 @@ public sealed class ToolTextTests
                 TestContext.Current.CancellationToken);
 
             Assert.Contains("public partial class ChatScene : Control", chatSceneScript, StringComparison.Ordinal);
+            Assert.Contains("using Client.Login;", chatSceneScript, StringComparison.Ordinal);
+            Assert.Contains("private LoginClient? _loginClient;", chatSceneScript, StringComparison.Ordinal);
             Assert.DoesNotContain("new WsTransport", chatSceneScript, StringComparison.Ordinal);
             Assert.DoesNotContain("new JsonRpcSerializer()", chatSceneScript, StringComparison.Ordinal);
             Assert.Contains("CallDeferred(nameof(AppendMessageDeferred), msg.SenderName, msg.Text);", chatSceneScript, StringComparison.Ordinal);

@@ -766,6 +766,7 @@ internal static class ChatClientTemplates
         using Godot;
         using Shared.Contracts.Chat;
         using Client.Chat;
+        using Client.Login;
         using Client.Theme;
 
         namespace Client.Chat
@@ -1094,6 +1095,7 @@ internal static class ChatClientTemplates
         using System.Threading.Tasks;
         using Shared.Contracts.Chat;
         using Client.Chat;
+        using Client.Login;
         using UnityEngine;
         using UnityEngine.UIElements;
 
