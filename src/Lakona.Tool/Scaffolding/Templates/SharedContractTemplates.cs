@@ -116,12 +116,12 @@ internal static class SharedContractTemplates
 
         namespace Shared.Contracts.Chat
         {
-            {{memoryPackable}}public partial class ChatJoinRequest
+            {{memoryPackable}}public partial class LoginRequest
             {
                 {{order0}}public string PlayerName { get; set; } = "";
             }
 
-            {{memoryPackable}}public partial class ChatJoinReply
+            {{memoryPackable}}public partial class LoginReply
             {
                 {{order0}}public List<ChatMember> Members { get; set; } = new();
                 {{order1}}public List<ChatMessage> RecentMessages { get; set; } = new();
@@ -130,10 +130,6 @@ internal static class SharedContractTemplates
             {{memoryPackable}}public partial class ChatSendRequest
             {
                 {{order0}}public string Text { get; set; } = "";
-            }
-
-            {{memoryPackable}}public partial class ChatLeaveRequest
-            {
             }
 
             {{memoryPackable}}public partial class ChatUserLeft
