@@ -381,12 +381,15 @@ internal static class ChatClientTemplates
     {
         return """
         <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements">
+            <Style src="Theme/LakonaTheme.tss" />
             <Style src="LoginScene.uss" />
             <ui:VisualElement class="login-container">
+                <ui:VisualElement class="scanline-overlay" />
                 <ui:VisualElement class="login-panel">
-                    <ui:Label text="Login" class="login-title" />
-                    <ui:TextField name="name-field" label="Name" max-length="20" class="name-field" />
-                    <ui:Button text="Connect" name="connect-button" class="connect-button" />
+                    <ui:Label text="LAKONA" class="login-title" />
+                    <ui:Label text="NAME:" class="name-label" />
+                    <ui:TextField name="name-field" max-length="20" class="name-field" />
+                    <ui:Button text="CONNECT" name="connect-button" class="connect-button" />
                     <ui:Label text="" name="status-label" class="status-label" />
                 </ui:VisualElement>
             </ui:VisualElement>
@@ -401,58 +404,99 @@ internal static class ChatClientTemplates
             width: 100%;
             height: 100%;
             flex-grow: 1;
-            background-color: rgb(30, 30, 30);
+            background-color: var(--lakona-bg-base);
             align-items: center;
             justify-content: center;
+        }
+        .scanline-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0);
+            pointer-events: none;
         }
         .login-panel {
             width: 360px;
             padding: 32px 24px;
-            background-color: rgb(42, 42, 42);
-            border-radius: 8px;
-            border-width: 1px;
-            border-color: rgb(70, 70, 70);
+            background-color: var(--lakona-bg-panel);
+            border-left-width: var(--lakona-border-width);
+            border-right-width: var(--lakona-border-width);
+            border-top-width: var(--lakona-border-width);
+            border-bottom-width: var(--lakona-border-width);
+            border-left-color: var(--lakona-accent);
+            border-right-color: var(--lakona-accent);
+            border-top-color: var(--lakona-accent);
+            border-bottom-color: var(--lakona-accent);
         }
         .login-title {
-            font-size: 24px;
-            color: rgb(200, 200, 200);
+            font-size: var(--lakona-font-size-title);
+            -unity-font: var(--lakona-font);
+            color: var(--lakona-accent);
             margin-bottom: 20px;
+        }
+        .name-label {
+            font-size: var(--lakona-font-size);
+            -unity-font: var(--lakona-font);
+            color: var(--lakona-accent-dim);
+            margin-bottom: 4px;
         }
         .name-field {
             margin-bottom: 16px;
         }
         .name-field .unity-text-field__label {
-            color: rgb(210, 210, 210);
+            color: var(--lakona-accent-dim);
+            -unity-font: var(--lakona-font);
         }
         .name-field .unity-text-field__input {
-            color: rgb(245, 245, 245);
-            background-color: rgb(24, 24, 24);
-            border-top-color: rgb(80, 80, 80);
-            border-right-color: rgb(80, 80, 80);
-            border-bottom-color: rgb(80, 80, 80);
-            border-left-color: rgb(80, 80, 80);
+            color: var(--lakona-accent);
+            -unity-font: var(--lakona-font);
+            font-size: var(--lakona-font-size);
+            background-color: var(--lakona-bg-input);
+            border-top-width: var(--lakona-border-width);
+            border-right-width: var(--lakona-border-width);
+            border-bottom-width: var(--lakona-border-width);
+            border-left-width: var(--lakona-border-width);
+            border-top-color: var(--lakona-accent-dim);
+            border-right-color: var(--lakona-accent-dim);
+            border-bottom-color: var(--lakona-accent-dim);
+            border-left-color: var(--lakona-accent-dim);
+        }
+        .name-field .unity-text-field__input:focus {
+            border-top-color: var(--lakona-accent);
+            border-right-color: var(--lakona-accent);
+            border-bottom-color: var(--lakona-accent);
+            border-left-color: var(--lakona-accent);
         }
         .connect-button {
             width: 100%;
-            color: rgb(245, 245, 245);
-            background-color: rgb(54, 94, 160);
-            border-top-color: rgb(86, 132, 210);
-            border-right-color: rgb(86, 132, 210);
-            border-bottom-color: rgb(86, 132, 210);
-            border-left-color: rgb(86, 132, 210);
+            font-size: var(--lakona-font-size);
+            -unity-font: var(--lakona-font);
+            color: var(--lakona-bg-base);
+            background-color: var(--lakona-accent);
+            border-top-width: var(--lakona-border-width);
+            border-right-width: var(--lakona-border-width);
+            border-bottom-width: var(--lakona-border-width);
+            border-left-width: var(--lakona-border-width);
+            border-top-color: var(--lakona-accent);
+            border-right-color: var(--lakona-accent);
+            border-bottom-color: var(--lakona-accent);
+            border-left-color: var(--lakona-accent);
             margin-bottom: 12px;
         }
         .connect-button:disabled {
-            color: rgb(190, 190, 190);
-            background-color: rgb(66, 66, 66);
-            border-top-color: rgb(90, 90, 90);
-            border-right-color: rgb(90, 90, 90);
-            border-bottom-color: rgb(90, 90, 90);
-            border-left-color: rgb(90, 90, 90);
+            color: var(--lakona-accent-dim);
+            background-color: var(--lakona-bg-panel);
+            border-top-color: var(--lakona-accent-dim);
+            border-right-color: var(--lakona-accent-dim);
+            border-bottom-color: var(--lakona-accent-dim);
+            border-left-color: var(--lakona-accent-dim);
         }
         .status-label {
-            font-size: 13px;
-            color: rgb(200, 140, 140);
+            font-size: var(--lakona-font-size);
+            -unity-font: var(--lakona-font);
+            color: var(--lakona-error);
             white-space: normal;
         }
         """;
