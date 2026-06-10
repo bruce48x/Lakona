@@ -12,6 +12,7 @@ internal static class ToolTemplates
     public static string RenderHotfixChatService() => ServerProjectTemplates.RenderHotfixChatService();
     public static string RenderServerAppAssemblyInfo() => ServerProjectTemplates.RenderServerAppAssemblyInfo();
     public static string RenderServiceBindingConfigurator() => ServerProjectTemplates.RenderServiceBindingConfigurator();
+    public static string RenderServerChatConnectionLifecycle() => ServerProjectTemplates.RenderServerChatConnectionLifecycle();
 
     // Shared contract templates
     public static string RenderSharedRpcContractIds() => SharedContractTemplates.RenderSharedRpcContractIds();

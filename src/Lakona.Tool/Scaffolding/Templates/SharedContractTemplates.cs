@@ -26,7 +26,8 @@ internal static class SharedContractTemplates
 
                 public static class ChatServiceMethods
                 {
-                    public const int SendAsync = 1;
+                    public const int BindAsync = 1;
+                    public const int SendAsync = 2;
                 }
 
                 public static class ChatNotifications
@@ -79,6 +80,9 @@ internal static class SharedContractTemplates
             [RpcService(RpcContractIds.Services.Chat, NotificationContract = typeof(IChatCallback))]
             public interface IChatService
             {
+                [RpcMethod(RpcContractIds.ChatServiceMethods.BindAsync)]
+                ValueTask BindAsync(ChatBindRequest req);
+
                 [RpcMethod(RpcContractIds.ChatServiceMethods.SendAsync)]
                 ValueTask SendAsync(ChatSendRequest req);
             }
@@ -125,13 +129,15 @@ internal static class SharedContractTemplates
             {
                 {{order0}}public List<ChatMember> Members { get; set; } = new();
                 {{order1}}public List<ChatMessage> RecentMessages { get; set; } = new();
-                {{order2}}public string ConnectionId { get; set; } = "";
             }
 
             {{memoryPackable}}public partial class ChatSendRequest
             {
                 {{order0}}public string Text { get; set; } = "";
-                {{order1}}public string ConnectionId { get; set; } = "";
+            }
+
+            {{memoryPackable}}public partial class ChatBindRequest
+            {
             }
 
             {{memoryPackable}}public partial class ChatUserLeft

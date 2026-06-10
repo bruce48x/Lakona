@@ -12,7 +12,7 @@ internal static class ChatClientTemplates
 
         namespace Client.Login
         {
-            public sealed class LoginClient : ILoginCallback, IAsyncDisposable
+            public sealed class LoginClient : ILoginCallback, IChatCallback, IAsyncDisposable
             {
                 private readonly RpcClient _rpcClient;
                 private ILoginService? _loginService;
@@ -21,6 +21,7 @@ internal static class ChatClientTemplates
                 public event Action<ChatMember>? OnUserJoined;
                 public event Action<string>? OnUserLeft;
                 public event Action? OnDisconnected;
+                public event Action<ChatMessage>? OnMessageReceived;
 
                 public bool IsConnected => _isConnected;
                 public RpcClient RpcClient => _rpcClient;
@@ -28,7 +29,8 @@ internal static class ChatClientTemplates
                 public LoginClient(RpcClientOptions options)
                 {
                     var callbacks = new RpcClient.RpcNotificationBindings();
-                    callbacks.Add(this);
+                    callbacks.Add((ILoginCallback)this);
+                    callbacks.Add((IChatCallback)this);
 
                     _rpcClient = new RpcClient(options, callbacks);
                     _rpcClient.Disconnected += _ =>
@@ -66,6 +68,11 @@ internal static class ChatClientTemplates
                 {
                     OnUserLeft?.Invoke(evt.Name);
                 }
+
+                void IChatCallback.OnMessageReceived(ChatMessage msg)
+                {
+                    OnMessageReceived?.Invoke(msg);
+                }
             }
         }
         """;
@@ -76,35 +83,36 @@ internal static class ChatClientTemplates
         return """
         using System;
         using System.Threading.Tasks;
-        using Rpc.Generated;
         using Shared.Contracts.Chat;
-        using Lakona.Rpc.Client;
+        using Client.Login;
 
         namespace Client.Chat
         {
-            public sealed class ChatClient : IChatCallback
+            public sealed class ChatClient
             {
+                private readonly LoginClient _loginClient;
                 private readonly IChatService _chatService;
-                private readonly string _connectionId;
 
-                public event Action<ChatMessage>? OnMessageReceived;
-
-                public ChatClient(RpcClient rpcClient, string connectionId)
+                public event Action<ChatMessage>? OnMessageReceived
                 {
-                    var callbacks = new RpcClient.RpcNotificationBindings();
-                    callbacks.Add(this);
-                    _chatService = rpcClient.Api.Shared.Chat;
-                    _connectionId = connectionId;
+                    add { _loginClient.OnMessageReceived += value; }
+                    remove { _loginClient.OnMessageReceived -= value; }
+                }
+
+                public ChatClient(LoginClient loginClient)
+                {
+                    _loginClient = loginClient ?? throw new ArgumentNullException(nameof(loginClient));
+                    _chatService = loginClient.RpcClient.Api.Shared.Chat;
+                }
+
+                public async Task BindAsync()
+                {
+                    await _chatService.BindAsync(new ChatBindRequest());
                 }
 
                 public async Task SendAsync(string text)
                 {
-                    await _chatService.SendAsync(new ChatSendRequest { Text = text, ConnectionId = _connectionId });
-                }
-
-                void IChatCallback.OnMessageReceived(ChatMessage msg)
-                {
-                    OnMessageReceived?.Invoke(msg);
+                    await _chatService.SendAsync(new ChatSendRequest { Text = text });
                 }
             }
         }
@@ -123,7 +131,6 @@ internal static class ChatClientTemplates
             {
                 public static LoginClient? LoginClient { get; set; }
                 public static LoginReply? LoginReply { get; set; }
-                public static string? ConnectionId { get; set; }
             }
         }
         """;
@@ -142,7 +149,6 @@ internal static class ChatClientTemplates
             {
                 public LoginClient? LoginClient { get; set; }
                 public LoginReply? LoginReply { get; set; }
-                public string? ConnectionId { get; set; }
             }
         }
         """;
@@ -254,7 +260,6 @@ internal static class ChatClientTemplates
                         var reply = await client.LoginAsync(name);
                         ChatSession.LoginClient = client;
                         ChatSession.LoginReply = reply;
-                        ChatSession.ConnectionId = reply.ConnectionId;
                         SceneManager.LoadScene("ChatScene");
                     }
                     catch (Exception ex)
@@ -534,7 +539,6 @@ internal static class ChatClientTemplates
                         var session = GetNode<ChatSession>("/root/ChatSession");
                         session.LoginClient = client;
                         session.LoginReply = reply;
-                        session.ConnectionId = reply.ConnectionId;
                         GetTree().ChangeSceneToFile("res://Chat.tscn");
                     }
                     catch (Exception ex)
@@ -659,7 +663,7 @@ internal static class ChatClientTemplates
                     }
 
                     _loginClient = loginClient;
-                    _client = new ChatClient(loginClient.RpcClient, session.ConnectionId!);
+                    _client = new ChatClient(loginClient);
 
                     _client.OnMessageReceived += msg => CallDeferred(nameof(AppendMessageDeferred), msg.SenderName, msg.Text);
                     loginClient.OnUserJoined += member => CallDeferred(nameof(AppendSystemMessageDeferred), $"{member.Name} joined.");
@@ -677,7 +681,8 @@ internal static class ChatClientTemplates
                         }
                     }
 
-                    SetSendBusy(false);
+                    SetSendBusy(true);
+                    _ = BindChatAsync();
                 }
 
                 private void BuildUi()
@@ -833,6 +838,29 @@ internal static class ChatClientTemplates
                     }
                 }
 
+                private async Task BindChatAsync()
+                {
+                    if (_client == null)
+                    {
+                        return;
+                    }
+
+                    try
+                    {
+                        await _client.BindAsync();
+                        CallDeferred(nameof(SetSendBusyDeferred), false);
+                    }
+                    catch (Exception ex)
+                    {
+                        CallDeferred(nameof(AppendSystemMessageDeferred), $"Chat bind failed: {ex.Message}");
+                    }
+                }
+
+                public void SetSendBusyDeferred(bool isBusy)
+                {
+                    SetSendBusy(isBusy);
+                }
+
                 public override void _ExitTree()
                 {
                     _cts.Cancel();
@@ -926,7 +954,7 @@ internal static class ChatClientTemplates
                     }
 
                     _loginClient = loginClient;
-                    _client = new ChatClient(loginClient.RpcClient, session.ConnectionId!);
+                    _client = new ChatClient(loginClient);
 
                     _client.OnMessageReceived += msg => EnqueueMainThread(() => AppendMessage(msg));
                     loginClient.OnUserJoined += member => EnqueueMainThread(() => OnUserJoinedHandler(member));
@@ -944,7 +972,8 @@ internal static class ChatClientTemplates
                         }
                     }
 
-                    SetSendBusy(false);
+                    SetSendBusy(true);
+                    _ = BindChatAsync();
                 }
 
                 private async void OnSendClicked()
@@ -1000,6 +1029,24 @@ internal static class ChatClientTemplates
                 private void EnqueueMainThread(Action action)
                 {
                     _mainThreadActions.Enqueue(action);
+                }
+
+                private async Task BindChatAsync()
+                {
+                    if (_client == null)
+                    {
+                        return;
+                    }
+
+                    try
+                    {
+                        await _client.BindAsync();
+                        EnqueueMainThread(() => SetSendBusy(false));
+                    }
+                    catch (Exception ex)
+                    {
+                        EnqueueMainThread(() => AppendSystemMessage($"Chat bind failed: {ex.Message}"));
+                    }
                 }
 
                 private void AppendMessage(ChatMessage msg)

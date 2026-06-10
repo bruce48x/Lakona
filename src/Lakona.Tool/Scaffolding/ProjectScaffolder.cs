@@ -941,7 +941,10 @@ internal sealed class ProjectScaffolder
                 ToolTemplates.RenderServerAppAssemblyInfo()),
             WriteIfMissingAsync(
                 Path.Combine(projectRoot, "Server", "App", "Chat", "ChatRoomActor.cs"),
-                ToolTemplates.RenderServerChatRoomActor()));
+                ToolTemplates.RenderServerChatRoomActor()),
+            WriteIfMissingAsync(
+                Path.Combine(projectRoot, "Server", "App", "Chat", "ChatConnectionLifecycle.cs"),
+                ToolTemplates.RenderServerChatConnectionLifecycle()));
     }
 
     private static Task WriteServerSolutionAsync(string projectRoot)

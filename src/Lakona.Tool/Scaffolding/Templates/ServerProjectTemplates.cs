@@ -18,6 +18,8 @@ internal static class ServerProjectTemplates
         var acceptorFactory = RenderAcceptorFactory(options);
 
         return $$"""
+        using Microsoft.Extensions.DependencyInjection;
+        using Server.App.Chat;
         using Server.App.Hosting;
         using Lakona.Game.Server.Hosting;
         using {{serializerPackage.Namespace}};
@@ -26,6 +28,7 @@ internal static class ServerProjectTemplates
         return await LakonaGameServer.RunAsync(args, server => server
             .UseSerializer(() => new {{serializerType}}())
             .UseAcceptor({{acceptorFactory}})
+            .AddServices(services => services.AddSingleton<ChatConnectionLifecycle>())
             .BindServices(ServiceBindingConfigurator.Bind));
         """;
     }
@@ -49,6 +52,8 @@ internal static class ServerProjectTemplates
         var kcpAcceptor = RenderAcceptorFactory(CloneOptionsWithTransport(options, "kcp"));
 
         return $$"""
+        using Microsoft.Extensions.DependencyInjection;
+        using Server.App.Chat;
         using Server.App.Hosting;
         using Lakona.Game.Server.Hosting;
         using {{serializerPackage.Namespace}};
@@ -64,6 +69,7 @@ internal static class ServerProjectTemplates
                 return await LakonaGameServer.RunAsync(args, server => server
                     .UseSerializer(() => new {{serializerType}}())
                     .UseAcceptor({{wsAcceptor}})
+                    .AddServices(services => services.AddSingleton<ChatConnectionLifecycle>())
                     .BindServices(ServiceBindingConfigurator.Bind)
                     .AddRpcEndpoint("realtime",
                         "kcp",
@@ -248,9 +254,8 @@ internal static class ServerProjectTemplates
                 private readonly Dictionary<string, (string Name, ILoginCallback LoginCallback, IChatCallback ChatCallback)> _members = new();
                 private readonly Queue<ChatMessage> _recentMessages = new();
 
-                public ValueTask<LoginReply> LoginAsync(string playerName, ILoginCallback loginCallback)
+                public ValueTask<LoginReply> LoginAsync(string connectionId, string playerName, ILoginCallback loginCallback)
                 {
-                    var connectionId = Guid.NewGuid().ToString("N");
                     var member = new ChatMember { Name = playerName };
                     _members[connectionId] = (playerName, loginCallback, null!);
 
@@ -259,8 +264,7 @@ internal static class ServerProjectTemplates
                     return new ValueTask<LoginReply>(new LoginReply
                     {
                         Members = _members.Values.Select(v => new ChatMember { Name = v.Name }).ToList(),
-                        RecentMessages = _recentMessages.ToList(),
-                        ConnectionId = connectionId
+                        RecentMessages = _recentMessages.ToList()
                     });
                 }
 
@@ -343,18 +347,20 @@ internal static class ServerProjectTemplates
 
                 private readonly ILoginCallback _callback;
                 private readonly IActorRuntime _actors;
+                private readonly string _connectionId;
 
-                public LoginService(ILoginCallback callback, IActorRuntime actors)
+                public LoginService(ILoginCallback callback, IActorRuntime actors, string connectionId)
                 {
                     _callback = callback;
                     _actors = actors;
+                    _connectionId = connectionId;
                 }
 
                 public ValueTask<LoginReply> LoginAsync(LoginRequest req)
                 {
                     return _actors.AskAsync<ChatRoomActor, LoginReply>(
                         RoomId,
-                        (room, ct) => room.LoginAsync(req.PlayerName, _callback));
+                        (room, ct) => room.LoginAsync(_connectionId, req.PlayerName, _callback));
                 }
             }
         }
@@ -377,22 +383,35 @@ internal static class ServerProjectTemplates
 
                 private readonly IChatCallback _callback;
                 private readonly IActorRuntime _actors;
+                private readonly string _connectionId;
 
-                public ChatService(IChatCallback callback, IActorRuntime actors)
+                public ChatService(IChatCallback callback, IActorRuntime actors, string connectionId)
                 {
                     _callback = callback;
                     _actors = actors;
+                    _connectionId = connectionId;
+                }
+
+                public async ValueTask BindAsync(ChatBindRequest req)
+                {
+                    await _actors.AskAsync<ChatRoomActor, bool>(
+                        RoomId,
+                        (room, ct) =>
+                        {
+                            room.BindChatCallback(_connectionId, _callback);
+                            return new ValueTask<bool>(true);
+                        });
                 }
 
                 public async ValueTask SendAsync(ChatSendRequest req)
                 {
+                    await BindAsync(new ChatBindRequest());
                     var text = FilterMessage(req.Text);
                     await _actors.AskAsync<ChatRoomActor, bool>(
                         RoomId,
                         async (room, ct) =>
                         {
-                            room.BindChatCallback(req.ConnectionId, _callback);
-                            await room.SendAsync(req.ConnectionId, text);
+                            await room.SendAsync(_connectionId, text);
                             return true;
                         });
                 }
@@ -426,6 +445,7 @@ internal static class ServerProjectTemplates
         return @"using System;
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
+using Server.App.Chat;
 using Server.App.Generated;
 using Shared.Contracts.Chat;
 using Lakona.Rpc.Server;
@@ -447,15 +467,84 @@ internal static class ServiceBindingConfigurator
 
     public static void Bind(RpcServiceRegistry registry, IServiceProvider services)
     {
-        LoginServiceBinder.Bind(
+        LoginServiceBinder.BindFactory(
             registry,
-            callback => (ILoginService)ActivatorUtilities.CreateInstance(services, LoginServiceType, callback));
+            session =>
+            {
+                services.GetRequiredService<ChatConnectionLifecycle>().Track(session);
+                return (ILoginService)ActivatorUtilities.CreateInstance(
+                    services,
+                    LoginServiceType,
+                    new LoginCallbackProxy(session),
+                    session.ContextId);
+            });
 
-        ChatServiceBinder.Bind(
+        ChatServiceBinder.BindFactory(
             registry,
-            callback => (IChatService)ActivatorUtilities.CreateInstance(services, ChatServiceType, callback));
+            session =>
+            {
+                services.GetRequiredService<ChatConnectionLifecycle>().Track(session);
+                return (IChatService)ActivatorUtilities.CreateInstance(
+                    services,
+                    ChatServiceType,
+                    new ChatCallbackProxy(session),
+                    session.ContextId);
+            });
     }
 }";
+    }
+
+    public static string RenderServerChatConnectionLifecycle()
+    {
+        return """
+        using System.Collections.Concurrent;
+        using Server.App.Chat;
+        using Lakona.Game.Server.Actors;
+        using Lakona.Rpc.Server;
+
+        namespace Server.App.Chat
+        {
+            internal sealed class ChatConnectionLifecycle
+            {
+                private static readonly ActorId RoomId = ActorId.From("chat:global");
+                private readonly ConcurrentDictionary<string, byte> _tracked = new();
+                private readonly IActorRuntime _actors;
+
+                public ChatConnectionLifecycle(IActorRuntime actors)
+                {
+                    _actors = actors;
+                }
+
+                public void Track(RpcSession session)
+                {
+                    if (!_tracked.TryAdd(session.ContextId, 0))
+                    {
+                        return;
+                    }
+
+                    session.Disconnected += _ => LeaveAsync(session.ContextId);
+                }
+
+                private async Task LeaveAsync(string connectionId)
+                {
+                    try
+                    {
+                        await _actors.AskAsync<ChatRoomActor, bool>(
+                            RoomId,
+                            async (room, ct) =>
+                            {
+                                await room.LeaveAsync(connectionId);
+                                return true;
+                            });
+                    }
+                    finally
+                    {
+                        _tracked.TryRemove(connectionId, out _);
+                    }
+                }
+            }
+        }
+        """;
     }
 
     private static string RenderAcceptorFactory(NewCommandOptions options)
