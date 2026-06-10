@@ -982,4 +982,125 @@ public sealed class ToolTemplateTests
         Assert.Contains(@"<package id=""Lakona.Game.Client"" version=""1.2.3"" manuallyInstalled=""true"" />", xml, StringComparison.Ordinal);
         Assert.Contains(@"<package id=""Lakona.Game.Abstractions"" version=""2.3.4"" manuallyInstalled=""true"" />", xml, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task AugmentProjectWithLakonaGame_RegistersUnityScenesInEditorBuildSettings()
+    {
+        var projectRoot = Path.Combine(Path.GetTempPath(), "lakona-tests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(projectRoot, "Server", "App"));
+            Directory.CreateDirectory(Path.Combine(projectRoot, "Shared"));
+            await File.WriteAllTextAsync(
+                Path.Combine(projectRoot, "Server", "App", "Server.App.csproj"),
+                """
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <TargetFramework>net10.0</TargetFramework>
+                  </PropertyGroup>
+                </Project>
+                """,
+                TestContext.Current.CancellationToken);
+
+            await new ProjectScaffolder().AugmentProjectWithLakonaGameAsync(projectRoot, CliParser.ParseNewOptions([]));
+
+            var settingsPath = Path.Combine(projectRoot, "Client", "ProjectSettings", "EditorBuildSettings.asset");
+            Assert.True(File.Exists(settingsPath), "EditorBuildSettings.asset should be created.");
+            var settings = await File.ReadAllTextAsync(settingsPath, TestContext.Current.CancellationToken);
+
+            Assert.Contains("Assets/Scenes/LoginScene.unity", settings, StringComparison.Ordinal);
+            Assert.Contains("Assets/Scenes/ChatScene.unity", settings, StringComparison.Ordinal);
+            Assert.Contains("enabled: 1", settings, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(projectRoot))
+            {
+                Directory.Delete(projectRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task AugmentProjectWithLakonaGame_GeneratedChatSceneIncludesUnityStandardHeaderSections()
+    {
+        var projectRoot = Path.Combine(Path.GetTempPath(), "lakona-tests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(projectRoot, "Server", "App"));
+            Directory.CreateDirectory(Path.Combine(projectRoot, "Shared"));
+            await File.WriteAllTextAsync(
+                Path.Combine(projectRoot, "Server", "App", "Server.App.csproj"),
+                """
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <TargetFramework>net10.0</TargetFramework>
+                  </PropertyGroup>
+                </Project>
+                """,
+                TestContext.Current.CancellationToken);
+
+            await new ProjectScaffolder().AugmentProjectWithLakonaGameAsync(projectRoot, CliParser.ParseNewOptions([]));
+
+            var chatScenePath = Path.Combine(projectRoot, "Client", "Assets", "Scenes", "ChatScene.unity");
+            Assert.True(File.Exists(chatScenePath), "ChatScene.unity should be created.");
+            var scene = await File.ReadAllTextAsync(chatScenePath, TestContext.Current.CancellationToken);
+
+            Assert.Contains("OcclusionCullingSettings", scene, StringComparison.Ordinal);
+            Assert.Contains("RenderSettings", scene, StringComparison.Ordinal);
+            Assert.Contains("LightmapSettings", scene, StringComparison.Ordinal);
+            Assert.Contains("NavMeshSettings", scene, StringComparison.Ordinal);
+            Assert.Contains("Lakona.Game Chat UI", scene, StringComparison.Ordinal);
+            Assert.Contains("Main Camera", scene, StringComparison.Ordinal);
+            Assert.Contains("SceneRoots:", scene, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(projectRoot))
+            {
+                Directory.Delete(projectRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task AugmentProjectWithLakonaGame_GeneratedLoginSceneIncludesUnityStandardHeaderSections()
+    {
+        var projectRoot = Path.Combine(Path.GetTempPath(), "lakona-tests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(projectRoot, "Server", "App"));
+            Directory.CreateDirectory(Path.Combine(projectRoot, "Shared"));
+            await File.WriteAllTextAsync(
+                Path.Combine(projectRoot, "Server", "App", "Server.App.csproj"),
+                """
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <TargetFramework>net10.0</TargetFramework>
+                  </PropertyGroup>
+                </Project>
+                """,
+                TestContext.Current.CancellationToken);
+
+            await new ProjectScaffolder().AugmentProjectWithLakonaGameAsync(projectRoot, CliParser.ParseNewOptions([]));
+
+            var loginScenePath = Path.Combine(projectRoot, "Client", "Assets", "Scenes", "LoginScene.unity");
+            Assert.True(File.Exists(loginScenePath), "LoginScene.unity should be created.");
+            var scene = await File.ReadAllTextAsync(loginScenePath, TestContext.Current.CancellationToken);
+
+            Assert.Contains("OcclusionCullingSettings", scene, StringComparison.Ordinal);
+            Assert.Contains("RenderSettings", scene, StringComparison.Ordinal);
+            Assert.Contains("LightmapSettings", scene, StringComparison.Ordinal);
+            Assert.Contains("NavMeshSettings", scene, StringComparison.Ordinal);
+            Assert.Contains("Lakona.Game Login UI", scene, StringComparison.Ordinal);
+            Assert.Contains("Main Camera", scene, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(projectRoot))
+            {
+                Directory.Delete(projectRoot, recursive: true);
+            }
+        }
+    }
 }
