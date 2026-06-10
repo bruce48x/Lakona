@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <PackageId>Lakona.Rpc.Transport.Kcp</PackageId>
-    <Version>0.11.13</Version>
+    <Version>0.11.14</Version>
     <Description>KCP client/server transport implementations for Lakona.Rpc.</Description>
     <PackageTags>rpc;unity;transport;kcp;udp</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

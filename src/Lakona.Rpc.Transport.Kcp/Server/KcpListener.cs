@@ -18,22 +18,37 @@ namespace Lakona.Rpc.Transport.Kcp
         private int _pendingAcceptedConnections;
 
         public KcpListener(int port)
-            : this(new IPEndPoint(IPAddress.Any, port), RpcConnectionAdmissionDefaults.MaxPendingAcceptedConnections)
+            : this(port, "127.0.0.1")
+        {
+        }
+
+        public KcpListener(int port, string host)
+            : this(port, host, RpcConnectionAdmissionDefaults.MaxPendingAcceptedConnections)
+        {
+        }
+
+        public KcpListener(int port, string host, int maxPendingAcceptedConnections)
+            : this(ResolveEndPoint(host, port), maxPendingAcceptedConnections)
+        {
+        }
+
+        public KcpListener(int port, string host, int maxPendingAcceptedConnections, KcpHandshakeAdmission? admission)
+            : this(ResolveEndPoint(host, port), maxPendingAcceptedConnections, admission)
+        {
+        }
+
+        public KcpListener(int port, int maxPendingAcceptedConnections)
+            : this(port, "127.0.0.1", maxPendingAcceptedConnections)
+        {
+        }
+
+        public KcpListener(int port, int maxPendingAcceptedConnections, KcpHandshakeAdmission? admission)
+            : this(port, "127.0.0.1", maxPendingAcceptedConnections, admission)
         {
         }
 
         public KcpListener(IPEndPoint endPoint)
             : this(endPoint, RpcConnectionAdmissionDefaults.MaxPendingAcceptedConnections)
-        {
-        }
-
-        public KcpListener(int port, int maxPendingAcceptedConnections)
-            : this(new IPEndPoint(IPAddress.Any, port), maxPendingAcceptedConnections, admission: null)
-        {
-        }
-
-        public KcpListener(int port, int maxPendingAcceptedConnections, KcpHandshakeAdmission? admission)
-            : this(new IPEndPoint(IPAddress.Any, port), maxPendingAcceptedConnections, admission)
         {
         }
 
@@ -62,6 +77,17 @@ namespace Lakona.Rpc.Transport.Kcp
             _socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             _socket.Bind(endPoint);
             _receiveLoop = Task.Run(ReceiveLoopAsync);
+        }
+
+        private static IPEndPoint ResolveEndPoint(string host, int port)
+        {
+            if (string.IsNullOrWhiteSpace(host))
+                throw new ArgumentException("Host is required.", nameof(host));
+
+            var address = IPAddress.TryParse(host, out var parsed)
+                ? parsed
+                : IPAddress.Parse(host);
+            return new IPEndPoint(address, port);
         }
 
         public EndPoint? LocalEndPoint => _socket.LocalEndPoint;

@@ -558,9 +558,9 @@ internal static class ServiceBindingConfigurator
     {
         return options.Transport switch
         {
-            "websocket" => """async opts => await WsConnectionAcceptor.CreateAsync(opts.Port, string.IsNullOrWhiteSpace(opts.Path) ? "/ws" : opts.Path, default)""",
-            "tcp" => """async opts => new TcpConnectionAcceptor(opts.Port)""",
-            _ => """async opts => new KcpConnectionAcceptor(opts.Port, 100)"""
+            "websocket" => """async opts => await WsConnectionAcceptor.CreateAsync(opts.Port, string.IsNullOrWhiteSpace(opts.Path) ? "/ws" : opts.Path, opts.Host, default)""",
+            "tcp" => """async opts => new TcpConnectionAcceptor(opts.Port, opts.Host)""",
+            _ => """async opts => new KcpConnectionAcceptor(opts.Port, opts.Host, 100)"""
         };
     }
 

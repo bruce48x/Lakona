@@ -9,23 +9,38 @@ public sealed class KcpConnectionAcceptor : IRpcConnectionAcceptor
     private readonly KcpListener _listener;
 
     public KcpConnectionAcceptor(int port)
-        : this(port, RpcConnectionAdmissionDefaults.MaxPendingAcceptedConnections)
+        : this(port, "127.0.0.1")
+    {
+    }
+
+    public KcpConnectionAcceptor(int port, string host)
+        : this(port, host, RpcConnectionAdmissionDefaults.MaxPendingAcceptedConnections)
     {
     }
 
     public KcpConnectionAcceptor(int port, int maxPendingAcceptedConnections)
-        : this(port, maxPendingAcceptedConnections, admission: null)
+        : this(port, "127.0.0.1", maxPendingAcceptedConnections)
     {
     }
 
     public KcpConnectionAcceptor(int port, KcpHandshakeAdmission? admission)
-        : this(port, RpcConnectionAdmissionDefaults.MaxPendingAcceptedConnections, admission)
+        : this(port, "127.0.0.1", RpcConnectionAdmissionDefaults.MaxPendingAcceptedConnections, admission)
+    {
+    }
+
+    public KcpConnectionAcceptor(int port, string host, int maxPendingAcceptedConnections)
+        : this(port, host, maxPendingAcceptedConnections, admission: null)
     {
     }
 
     public KcpConnectionAcceptor(int port, int maxPendingAcceptedConnections, KcpHandshakeAdmission? admission)
+        : this(port, "127.0.0.1", maxPendingAcceptedConnections, admission)
     {
-        _listener = new KcpListener(port, maxPendingAcceptedConnections, admission);
+    }
+
+    public KcpConnectionAcceptor(int port, string host, int maxPendingAcceptedConnections, KcpHandshakeAdmission? admission)
+    {
+        _listener = new KcpListener(port, host, maxPendingAcceptedConnections, admission);
     }
 
     public string ListenAddress
@@ -33,7 +48,8 @@ public sealed class KcpConnectionAcceptor : IRpcConnectionAcceptor
         get
         {
             var endPoint = (IPEndPoint?)_listener.LocalEndPoint;
-            return $"udp://0.0.0.0:{endPoint?.Port ?? 0}";
+            var host = endPoint?.Address?.ToString() ?? "0.0.0.0";
+            return $"udp://{host}:{endPoint?.Port ?? 0}";
         }
     }
 

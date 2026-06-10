@@ -183,7 +183,7 @@ public sealed class ToolScaffoldNewTests
             var unityChatUi = await File.ReadAllTextAsync(Path.Combine(projectRoot, "Client", "Assets", "Scripts", "Chat", "ChatUI.cs"));
 
             Assert.Contains(".UseTransport(\"tcp\")", program, StringComparison.Ordinal);
-            Assert.Contains("new TcpConnectionAcceptor(opts.Port)", program, StringComparison.Ordinal);
+            Assert.Contains("new TcpConnectionAcceptor(opts.Port, opts.Host)", program, StringComparison.Ordinal);
             Assert.Contains("\"Transport\": \"tcp\"", appsettings, StringComparison.Ordinal);
             Assert.DoesNotContain("\"Transport\": \"websocket\"", appsettings, StringComparison.Ordinal);
             Assert.Contains("using Client.Login;", unityChatUi, StringComparison.Ordinal);

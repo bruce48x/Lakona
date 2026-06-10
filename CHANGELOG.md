@@ -8,6 +8,10 @@ that consolidation.
 
 ### Fixed
 
+- `Lakona.Tool` `0.8.20`: scaffolded server programs now pass `opts.Host` to transport acceptors. WebSocket, TCP, and KCP acceptors now default to `127.0.0.1` instead of `0.0.0.0`, eliminating Windows Firewall prompts during local development.
+- `Lakona.Rpc.Transport.WebSocket` `0.11.7`: `WsConnectionAcceptor.CreateAsync` accepts optional `host` parameter (default `127.0.0.1`).
+- `Lakona.Rpc.Transport.Tcp` `0.11.5`: `TcpConnectionAcceptor` constructor accepts optional `host` parameter (default `127.0.0.1`).
+- `Lakona.Rpc.Transport.Kcp` `0.11.14`: `KcpConnectionAcceptor` and `KcpListener` constructors accept optional `host` parameter (default `127.0.0.1`).
 - `Lakona.Tool` `0.8.19`: generated Godot login scenes no longer assign `reply.ConnectionId` to `ChatSession`, fixing `CS1061` in scaffolded Godot clients.
 - `Lakona.Tool` `0.8.18`: generated chat clients now import the `Client.Login` namespace where `LoginClient` is defined.
 - `Lakona.Tool` `0.8.18`: generated server programs now call `UseTransport(...)` for the selected single-endpoint transport, so TCP/KCP projects no longer fail `--lakona-game-check` by looking for a websocket endpoint.

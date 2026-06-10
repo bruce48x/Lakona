@@ -85,7 +85,7 @@ public class WebSocketTransportTests
     {
         var port = GetFreePort();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await using var acceptor = await WsConnectionAcceptor.CreateAsync(port, "/ws", 2, cts.Token);
+        await using var acceptor = await WsConnectionAcceptor.CreateAsync(port, "/ws", "127.0.0.1", 2, cts.Token);
 
         using var staleClient = new ClientWebSocket();
         await staleClient.ConnectAsync(new Uri($"ws://127.0.0.1:{port}/ws"), cts.Token);
@@ -118,7 +118,7 @@ public class WebSocketTransportTests
     {
         var port = GetFreePort();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        var acceptor = await WsConnectionAcceptor.CreateAsync(port, "/ws", 1, cts.Token);
+        var acceptor = await WsConnectionAcceptor.CreateAsync(port, "/ws", "127.0.0.1", 1, cts.Token);
 
         using var client = new ClientWebSocket();
         await client.ConnectAsync(new Uri($"ws://127.0.0.1:{port}/ws"), cts.Token);
@@ -134,7 +134,7 @@ public class WebSocketTransportTests
     {
         var port = GetFreePort();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await using var acceptor = await WsConnectionAcceptor.CreateAsync(port, "/ws", 1, cts.Token);
+        await using var acceptor = await WsConnectionAcceptor.CreateAsync(port, "/ws", "127.0.0.1", 1, cts.Token);
 
         using var client = new ClientWebSocket();
         await client.ConnectAsync(new Uri($"ws://127.0.0.1:{port}/ws"), cts.Token);
@@ -159,7 +159,7 @@ public class WebSocketTransportTests
     {
         var port = GetFreePort();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        var acceptor = await WsConnectionAcceptor.CreateAsync(port, "/ws", 2, cts.Token);
+        var acceptor = await WsConnectionAcceptor.CreateAsync(port, "/ws", "127.0.0.1", 2, cts.Token);
 
         using var first = new ClientWebSocket();
         using var second = new ClientWebSocket();
@@ -181,7 +181,7 @@ public class WebSocketTransportTests
     {
         var port = GetFreePort();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await using var acceptor = await WsConnectionAcceptor.CreateAsync(port, "/ws", 1, cts.Token);
+        await using var acceptor = await WsConnectionAcceptor.CreateAsync(port, "/ws", "127.0.0.1", 1, cts.Token);
 
         using var client = new ClientWebSocket();
         await client.ConnectAsync(new Uri($"ws://127.0.0.1:{port}/ws"), cts.Token);
