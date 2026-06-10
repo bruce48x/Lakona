@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <PackageId>Lakona.Rpc.Transport.Tcp</PackageId>
-    <Version>0.11.5</Version>
+    <Version>0.11.6</Version>
     <Description>TCP client/server transport implementations for Lakona.Rpc.</Description>
     <PackageTags>rpc;unity;transport;tcp</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

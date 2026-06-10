@@ -9,15 +9,6 @@ internal sealed record GameDependencyPlan(IReadOnlyList<GamePackageReference> Pa
 
 internal static class GameDependencyPlanner
 {
-    private const string RpcCoreVersion = "0.12.0";
-    private const string RpcServerVersion = "0.12.1";
-    private const string RpcTransportTcpVersion = "0.11.4";
-    private const string RpcTransportWebSocketVersion = "0.11.6";
-    private const string RpcTransportKcpVersion = "0.11.13";
-    private const string RpcSerializerJsonVersion = "0.11.1";
-    private const string RpcSerializerMemoryPackVersion = "0.11.1";
-    private const string RpcAnalyzersVersion = "0.2.0";
-
     public static GameDependencyPlan CreateServerPlan(NewCommandOptions options)
     {
         var references = new List<GamePackageReference>
@@ -27,9 +18,9 @@ internal static class GameDependencyPlanner
             new("Lakona.Game.Server.Generators", ToolPackageVersions.LakonaGameServerGenerators, PrivateAssets: "all", OutputItemType: "Analyzer"),
             new("Lakona.Game.Server.Hotfix", ToolPackageVersions.LakonaGameServerHotfix),
             new("Lakona.Game.Server.Hotfix.Generators", ToolPackageVersions.LakonaGameServerHotfixGenerators, PrivateAssets: "all", OutputItemType: "Analyzer"),
-            new("Lakona.Rpc.Server", RpcServerVersion),
+            new("Lakona.Rpc.Server", ToolPackageVersions.LakonaRpcServer),
             new(GetTransportPackage(options.Transport), GetTransportVersion(options.Transport)),
-            new("Lakona.Rpc.Analyzers", RpcAnalyzersVersion,
+            new("Lakona.Rpc.Analyzers", ToolPackageVersions.LakonaRpcAnalyzers,
                 PrivateAssets: "all",
                 OutputItemType: null,
                 IncludeAssets: "runtime; build; native; contentfiles; analyzers; buildtransitive")
@@ -37,7 +28,7 @@ internal static class GameDependencyPlanner
 
         if (options.Serializer == "json")
         {
-            references.Add(new("Lakona.Rpc.Serializer.Json", RpcSerializerJsonVersion));
+            references.Add(new("Lakona.Rpc.Serializer.Json", ToolPackageVersions.LakonaRpcSerializerJson));
         }
 
         if (ProjectConventions.IsClusterNetworkProfile(options.NetworkProfile))
@@ -66,8 +57,8 @@ internal static class GameDependencyPlanner
 
     private static string GetTransportVersion(string transport) => transport switch
     {
-        "tcp" => RpcTransportTcpVersion,
-        "websocket" => RpcTransportWebSocketVersion,
-        _ => RpcTransportKcpVersion
+        "tcp" => ToolPackageVersions.LakonaRpcTransportTcp,
+        "websocket" => ToolPackageVersions.LakonaRpcTransportWebSocket,
+        _ => ToolPackageVersions.LakonaRpcTransportKcp
     };
 }

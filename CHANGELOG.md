@@ -8,6 +8,10 @@ that consolidation.
 
 ### Fixed
 
+- `Lakona.Rpc.Transport.Kcp` `0.11.15`: `KcpConnectionAcceptor` and `KcpListener` now resolve DNS hostnames and support IPv6 listen addresses.
+- `Lakona.Rpc.Transport.Tcp` `0.11.6`: `TcpConnectionAcceptor` now resolves DNS hostnames and supports IPv6 listen addresses.
+- `Lakona.Rpc.Transport.WebSocket` `0.11.8`: `WsConnectionAcceptor` now resolves DNS hostnames and supports IPv6 listen addresses.
+- `Lakona.Tool` `0.8.21`: updated scaffolded transport package references to `0.11.6`/`0.11.8`/`0.11.15` for DNS hostname resolution and IPv6 support.
 - `Lakona.Tool` `0.8.20`: scaffolded server programs now pass `opts.Host` to transport acceptors. WebSocket, TCP, and KCP acceptors now default to `127.0.0.1` instead of `0.0.0.0`, eliminating Windows Firewall prompts during local development.
 - `Lakona.Rpc.Transport.WebSocket` `0.11.7`: `WsConnectionAcceptor.CreateAsync` accepts optional `host` parameter (default `127.0.0.1`).
 - `Lakona.Rpc.Transport.Tcp` `0.11.5`: `TcpConnectionAcceptor` constructor accepts optional `host` parameter (default `127.0.0.1`).

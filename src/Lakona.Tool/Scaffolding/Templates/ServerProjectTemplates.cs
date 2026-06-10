@@ -89,26 +89,19 @@ internal static class ServerProjectTemplates
         return options with { Transport = transport };
     }
 
-    private const string RpcServerVersion = "0.12.1";
-    private const string RpcTransportTcpVersion = "0.11.4";
-    private const string RpcTransportWebSocketVersion = "0.11.6";
-    private const string RpcTransportKcpVersion = "0.11.13";
-    private const string RpcSerializerJsonVersion = "0.11.1";
-    private const string RpcAnalyzersVersion = "0.2.0";
-
     public static string RenderServerProject(NewCommandOptions options)
     {
         var persistenceReferences = RenderPersistencePackageReferences(options.Persistence, includeDapper: true);
         var clusterReferences = RenderClusterPackageReferences(options);
         var rpcTransportPackage = options.Transport switch
         {
-            "tcp" => ("Lakona.Rpc.Transport.Tcp", RpcTransportTcpVersion),
-            "websocket" => ("Lakona.Rpc.Transport.WebSocket", RpcTransportWebSocketVersion),
-            _ => ("Lakona.Rpc.Transport.Kcp", RpcTransportKcpVersion)
+            "tcp" => ("Lakona.Rpc.Transport.Tcp", ToolPackageVersions.LakonaRpcTransportTcp),
+            "websocket" => ("Lakona.Rpc.Transport.WebSocket", ToolPackageVersions.LakonaRpcTransportWebSocket),
+            _ => ("Lakona.Rpc.Transport.Kcp", ToolPackageVersions.LakonaRpcTransportKcp)
         };
         var serializerReferences = options.Serializer == "json"
             ? $$"""
-                <PackageReference Include="Lakona.Rpc.Serializer.Json" Version="{{RpcSerializerJsonVersion}}" />
+                <PackageReference Include="Lakona.Rpc.Serializer.Json" Version="{{ToolPackageVersions.LakonaRpcSerializerJson}}" />
             """
             : "";
 
@@ -144,9 +137,9 @@ internal static class ServerProjectTemplates
           </ItemGroup>
 
           <ItemGroup>
-            <PackageReference Include="Lakona.Rpc.Server" Version="{{RpcServerVersion}}" />
+            <PackageReference Include="Lakona.Rpc.Server" Version="{{ToolPackageVersions.LakonaRpcServer}}" />
             <PackageReference Include="{{rpcTransportPackage.Item1}}" Version="{{rpcTransportPackage.Item2}}" />
-            <PackageReference Include="Lakona.Rpc.Analyzers" Version="{{RpcAnalyzersVersion}}" PrivateAssets="all">
+            <PackageReference Include="Lakona.Rpc.Analyzers" Version="{{ToolPackageVersions.LakonaRpcAnalyzers}}" PrivateAssets="all">
               <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             </PackageReference>
         {{serializerReferences}}

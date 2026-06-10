@@ -1234,6 +1234,82 @@ public sealed class ToolTemplateTests
     }
 
     [Fact]
+    public void GameDependencyPlanner_TransportVersions_MatchToolPackageVersions()
+    {
+        var tcpPlan = GameDependencyPlanner.CreateServerPlan(CliParser.ParseNewOptions(["--transport", "tcp"]));
+        var wsPlan = GameDependencyPlanner.CreateServerPlan(CliParser.ParseNewOptions(["--transport", "websocket"]));
+        var kcpPlan = GameDependencyPlanner.CreateServerPlan(CliParser.ParseNewOptions([]));
+
+        var tcpVersion = tcpPlan.PackageReferences.Single(r => r.Id == "Lakona.Rpc.Transport.Tcp").Version;
+        var wsVersion = wsPlan.PackageReferences.Single(r => r.Id == "Lakona.Rpc.Transport.WebSocket").Version;
+        var kcpVersion = kcpPlan.PackageReferences.Single(r => r.Id == "Lakona.Rpc.Transport.Kcp").Version;
+
+        Assert.Equal(ToolPackageVersions.LakonaRpcTransportTcp, tcpVersion);
+        Assert.Equal(ToolPackageVersions.LakonaRpcTransportWebSocket, wsVersion);
+        Assert.Equal(ToolPackageVersions.LakonaRpcTransportKcp, kcpVersion);
+    }
+
+    [Fact]
+    public void ServerProjectTemplate_RenderServerProject_UsesToolPackageVersionsForTransport()
+    {
+        var tcpSource = ToolTemplates.RenderServerProject(new NewCommandOptions(
+            Name: "Test", OutputPath: ".", ClientEngine: "unity", Transport: "tcp",
+            NetworkProfile: ProjectConventions.DefaultNetworkProfile, Serializer: ProjectConventions.DefaultSerializer,
+            Persistence: ProjectConventions.DefaultPersistence, NuGetForUnitySource: ProjectConventions.DefaultNuGetForUnitySource,
+            DeployProfile: ProjectConventions.DefaultDeployProfile));
+        var wsSource = ToolTemplates.RenderServerProject(new NewCommandOptions(
+            Name: "Test", OutputPath: ".", ClientEngine: "unity", Transport: "websocket",
+            NetworkProfile: ProjectConventions.DefaultNetworkProfile, Serializer: ProjectConventions.DefaultSerializer,
+            Persistence: ProjectConventions.DefaultPersistence, NuGetForUnitySource: ProjectConventions.DefaultNuGetForUnitySource,
+            DeployProfile: ProjectConventions.DefaultDeployProfile));
+        var kcpSource = ToolTemplates.RenderServerProject(new NewCommandOptions(
+            Name: "Test", OutputPath: ".", ClientEngine: "unity", Transport: "kcp",
+            NetworkProfile: ProjectConventions.DefaultNetworkProfile, Serializer: ProjectConventions.DefaultSerializer,
+            Persistence: ProjectConventions.DefaultPersistence, NuGetForUnitySource: ProjectConventions.DefaultNuGetForUnitySource,
+            DeployProfile: ProjectConventions.DefaultDeployProfile));
+
+        Assert.Contains($$"""<PackageReference Include="Lakona.Rpc.Transport.Tcp" Version="{{ToolPackageVersions.LakonaRpcTransportTcp}}" />""", tcpSource, StringComparison.Ordinal);
+        Assert.Contains($$"""<PackageReference Include="Lakona.Rpc.Transport.WebSocket" Version="{{ToolPackageVersions.LakonaRpcTransportWebSocket}}" />""", wsSource, StringComparison.Ordinal);
+        Assert.Contains($$"""<PackageReference Include="Lakona.Rpc.Transport.Kcp" Version="{{ToolPackageVersions.LakonaRpcTransportKcp}}" />""", kcpSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void GameDependencyPlanner_RpcPackageVersions_MatchToolPackageVersions()
+    {
+        var plan = GameDependencyPlanner.CreateServerPlan(CliParser.ParseNewOptions([]));
+
+        var serverVersion = plan.PackageReferences.Single(r => r.Id == "Lakona.Rpc.Server").Version;
+        var analyzersVersion = plan.PackageReferences.Single(r => r.Id == "Lakona.Rpc.Analyzers").Version;
+
+        Assert.Equal(ToolPackageVersions.LakonaRpcServer, serverVersion);
+        Assert.Equal(ToolPackageVersions.LakonaRpcAnalyzers, analyzersVersion);
+    }
+
+    [Fact]
+    public void GameDependencyPlanner_SerializerJsonVersion_MatchesToolPackageVersions()
+    {
+        var plan = GameDependencyPlanner.CreateServerPlan(CliParser.ParseNewOptions(["--serializer", "json"]));
+
+        var serializerVersion = plan.PackageReferences.Single(r => r.Id == "Lakona.Rpc.Serializer.Json").Version;
+
+        Assert.Equal(ToolPackageVersions.LakonaRpcSerializerJson, serializerVersion);
+    }
+
+    [Fact]
+    public void ServerProjectTemplate_RenderServerProject_UsesToolPackageVersionsForRpcPackages()
+    {
+        var source = ToolTemplates.RenderServerProject(new NewCommandOptions(
+            Name: "Test", OutputPath: ".", ClientEngine: "unity", Transport: "kcp",
+            NetworkProfile: ProjectConventions.DefaultNetworkProfile, Serializer: "json",
+            Persistence: ProjectConventions.DefaultPersistence, NuGetForUnitySource: ProjectConventions.DefaultNuGetForUnitySource,
+            DeployProfile: ProjectConventions.DefaultDeployProfile));
+
+        Assert.Contains($$"""<PackageReference Include="Lakona.Rpc.Server" Version="{{ToolPackageVersions.LakonaRpcServer}}" />""", source, StringComparison.Ordinal);
+        Assert.Contains($$"""<PackageReference Include="Lakona.Rpc.Analyzers" Version="{{ToolPackageVersions.LakonaRpcAnalyzers}}" PrivateAssets="all">""", source, StringComparison.Ordinal);
+        Assert.Contains($$"""<PackageReference Include="Lakona.Rpc.Serializer.Json" Version="{{ToolPackageVersions.LakonaRpcSerializerJson}}" />""", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ProjectXmlMutator_EnsuresNuGetForUnityPackage()
     {
         var document = System.Xml.Linq.XDocument.Parse("<packages><package id=\"Lakona.Game.Client\" version=\"0.0.1\" /></packages>");

@@ -1,0 +1,30 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>Lakona.Rpc.Transport.WebSocket</id>
+    <version>0.11.8</version>
+    <authors>Lakona</authors>
+    <license type="expression">MIT</license>
+    <licenseUrl>https://licenses.nuget.org/MIT</licenseUrl>
+    <readme>README.md</readme>
+    <projectUrl>https://github.com/bruce48x/Lakona</projectUrl>
+    <description>WebSocket client/server transport implementations for Lakona.Rpc.</description>
+    <tags>rpc transport websocket</tags>
+    <repository type="git" url="https://github.com/bruce48x/Lakona" commit="1b68767afd58dbdcf66c16f2273cb24c50dde169" />
+    <dependencies>
+      <group targetFramework="net10.0">
+        <dependency id="Lakona.Rpc.Core" version="0.12.0" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework=".NETStandard2.1">
+        <dependency id="Lakona.Rpc.Core" version="0.12.0" exclude="Build,Analyzers" />
+        <dependency id="System.Threading.Channels" version="10.0.0" exclude="Build,Analyzers" />
+      </group>
+    </dependencies>
+    <frameworkReferences>
+      <group targetFramework="net10.0">
+        <frameworkReference name="Microsoft.AspNetCore.App" />
+      </group>
+      <group targetFramework=".NETStandard2.1" />
+    </frameworkReferences>
+  </metadata>
+</package>
