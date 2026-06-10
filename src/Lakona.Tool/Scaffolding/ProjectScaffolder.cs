@@ -211,6 +211,9 @@ internal sealed class ProjectScaffolder
                     Path.Combine(projectRoot, "Client", "Scripts", "Chat", "ChatSession.cs"),
                     ToolTemplates.RenderGodotChatSession()),
                 WriteIfMissingAsync(
+                    Path.Combine(projectRoot, "Client", "Scripts", "Theme", "LakonaTheme.cs"),
+                    ToolTemplates.RenderGodotThemeClass()),
+                WriteIfMissingAsync(
                     Path.Combine(projectRoot, "Client", "Scripts", "Login", "LoginClient.cs"),
                     ToolTemplates.RenderClientLoginClient()),
                 WriteIfMissingAsync(
@@ -302,6 +305,12 @@ internal sealed class ProjectScaffolder
             WriteIfMissingAsync(
                 panelSettingsPath + ".meta",
                 ToolTemplates.RenderUnityNativeAssetMeta(UnityChatPanelSettingsGuid)),
+            WriteIfMissingAsync(
+                Path.Combine(projectRoot, "Client", "Assets", "UI", "Theme", "LakonaTheme.tss"),
+                ToolTemplates.RenderLakonaThemeTss()),
+            WriteIfMissingAsync(
+                Path.Combine(projectRoot, "Client", "Assets", "UI", "Theme", "LakonaTheme.tss.meta"),
+                ToolTemplates.RenderUnityTssMeta("e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5")),
             WriteIfMissingAsync(
                 runtimeThemePath,
                 ToolTemplates.RenderUnityDefaultRuntimeTheme()),
