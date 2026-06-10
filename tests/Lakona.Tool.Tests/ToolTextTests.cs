@@ -290,6 +290,8 @@ public sealed class ToolTextTests
         Assert.DoesNotContain("LakonaGameRuntimeOptions", program, StringComparison.Ordinal);
         Assert.Empty(generatedApplication);
         Assert.Contains("using Server.App.Hosting;", program, StringComparison.Ordinal);
+        Assert.Contains("opts.Host", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("0.0.0.0", program, StringComparison.Ordinal);
         Assert.Contains("healthcheck:", compose, StringComparison.Ordinal);
         Assert.Contains("dotnet Server.dll --health-check", compose, StringComparison.Ordinal);
         Assert.Contains("LAKONA_CLUSTER_NODE_ID", env, StringComparison.Ordinal);
