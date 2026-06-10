@@ -15,6 +15,7 @@ internal static class ServerProjectTemplates
     {
         var (serializerPackage, serializerType) = PackageCatalog.GetSerializerArtifacts(options.Serializer);
         var (transportPackage, _) = PackageCatalog.GetTransportArtifacts(options.Transport);
+        var transport = TemplateText.SanitizeStringLiteral(options.Transport);
         var acceptorFactory = RenderAcceptorFactory(options);
 
         return $$"""
@@ -26,6 +27,7 @@ internal static class ServerProjectTemplates
         using {{transportPackage.Namespace}};
 
         return await LakonaGameServer.RunAsync(args, server => server
+            .UseTransport("{{transport}}")
             .UseSerializer(() => new {{serializerType}}())
             .UseAcceptor({{acceptorFactory}})
             .AddServices(services => services.AddSingleton<ChatConnectionLifecycle>())
@@ -67,6 +69,7 @@ internal static class ServerProjectTemplates
             public static async Task<int> RunAsync(string[] args)
             {
                 return await LakonaGameServer.RunAsync(args, server => server
+                    .UseTransport("websocket")
                     .UseSerializer(() => new {{serializerType}}())
                     .UseAcceptor({{wsAcceptor}})
                     .AddServices(services => services.AddSingleton<ChatConnectionLifecycle>())

@@ -158,4 +158,43 @@ public sealed class ToolScaffoldNewTests
                 Directory.Delete(projectRoot, recursive: true);
         }
     }
+
+    [Fact]
+    public async Task ScaffoldNewProject_UnityTcpJson_UsesTcpTransportAndClientLoginNamespace()
+    {
+        var projectRoot = Path.Combine(Path.GetTempPath(), "lakona-tests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var options = new NewCommandOptions(
+                Name: "Test",
+                OutputPath: null,
+                ClientEngine: "unity",
+                Transport: "tcp",
+                NetworkProfile: "single",
+                Serializer: "json",
+                Persistence: "none",
+                NuGetForUnitySource: "openupm",
+                DeployProfile: "none");
+
+            await new ProjectScaffolder().ScaffoldNewProjectAsync(projectRoot, options);
+
+            var program = await File.ReadAllTextAsync(Path.Combine(projectRoot, "Server", "App", "Program.cs"));
+            var appsettings = await File.ReadAllTextAsync(Path.Combine(projectRoot, "Server", "App", "appsettings.json"));
+            var unityChatUi = await File.ReadAllTextAsync(Path.Combine(projectRoot, "Client", "Assets", "Scripts", "Chat", "ChatUI.cs"));
+
+            Assert.Contains(".UseTransport(\"tcp\")", program, StringComparison.Ordinal);
+            Assert.Contains("new TcpConnectionAcceptor(opts.Port)", program, StringComparison.Ordinal);
+            Assert.Contains("\"Transport\": \"tcp\"", appsettings, StringComparison.Ordinal);
+            Assert.DoesNotContain("\"Transport\": \"websocket\"", appsettings, StringComparison.Ordinal);
+            Assert.Contains("using Client.Login;", unityChatUi, StringComparison.Ordinal);
+            Assert.Contains("private LoginClient? _loginClient;", unityChatUi, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(projectRoot))
+            {
+                Directory.Delete(projectRoot, recursive: true);
+            }
+        }
+    }
 }

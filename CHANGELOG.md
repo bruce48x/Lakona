@@ -6,6 +6,11 @@ that consolidation.
 
 ## 2026-06-10
 
+### Fixed
+
+- `Lakona.Tool` `0.8.18`: generated chat clients now import the `Client.Login` namespace where `LoginClient` is defined.
+- `Lakona.Tool` `0.8.18`: generated server programs now call `UseTransport(...)` for the selected single-endpoint transport, so TCP/KCP projects no longer fail `--lakona-game-check` by looking for a websocket endpoint.
+
 ### Released
 
 - `Lakona.Tool` `0.8.15`

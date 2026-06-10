@@ -120,6 +120,47 @@ public sealed class ToolTemplateTests
     }
 
     [Fact]
+    public void RenderServerProgram_TcpProject_UsesSelectedTransport()
+    {
+        var options = new NewCommandOptions(
+            Name: "MyGame",
+            OutputPath: null,
+            ClientEngine: "unity",
+            Transport: "tcp",
+            NetworkProfile: "single",
+            Serializer: "json",
+            Persistence: "none",
+            NuGetForUnitySource: ProjectConventions.DefaultNuGetForUnitySource,
+            DeployProfile: ProjectConventions.DefaultDeployProfile);
+
+        var source = ToolTemplates.RenderServerProgram(options);
+
+        Assert.Contains(".UseTransport(\"tcp\")", source, StringComparison.Ordinal);
+        Assert.Contains(".UseAcceptor(async opts => new TcpConnectionAcceptor(opts.Port))", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(".UseTransport(\"websocket\")", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderServerProgram_KcpProject_UsesSelectedTransport()
+    {
+        var options = new NewCommandOptions(
+            Name: "MyGame",
+            OutputPath: null,
+            ClientEngine: "unity",
+            Transport: "kcp",
+            NetworkProfile: "single",
+            Serializer: ProjectConventions.DefaultSerializer,
+            Persistence: ProjectConventions.DefaultPersistence,
+            NuGetForUnitySource: ProjectConventions.DefaultNuGetForUnitySource,
+            DeployProfile: ProjectConventions.DefaultDeployProfile);
+
+        var source = ToolTemplates.RenderServerProgram(options);
+
+        Assert.Contains(".UseTransport(\"kcp\")", source, StringComparison.Ordinal);
+        Assert.Contains(".UseAcceptor(async opts => new KcpConnectionAcceptor(opts.Port, 100))", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RenderGeneratedServerApplication_RealtimeProfile_ReturnsRealtimeGeneratedApplication()
     {
         var options = new NewCommandOptions(
@@ -634,6 +675,24 @@ public sealed class ToolTemplateTests
         Assert.Contains("chat-input", source, StringComparison.Ordinal);
         Assert.Contains("message-list", source, StringComparison.Ordinal);
         Assert.Contains("send-button", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderClientChatUI_ImportsLoginNamespace()
+    {
+        var source = ToolTemplates.RenderClientChatUI();
+
+        Assert.Contains("using Client.Login;", source, StringComparison.Ordinal);
+        Assert.Contains("private LoginClient? _loginClient;", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderGodotChatScene_ImportsLoginNamespace()
+    {
+        var source = ToolTemplates.RenderGodotChatScene();
+
+        Assert.Contains("using Client.Login;", source, StringComparison.Ordinal);
+        Assert.Contains("private LoginClient? _loginClient;", source, StringComparison.Ordinal);
     }
 
     [Fact]
