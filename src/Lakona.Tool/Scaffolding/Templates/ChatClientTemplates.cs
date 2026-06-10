@@ -491,6 +491,7 @@ internal static class ChatClientTemplates
         using Godot;
         using Shared.Contracts.Chat;
         using Client.Chat;
+        using Client.Theme;
         using Lakona.Rpc.Client;
         using Lakona.Rpc.Core;
         {{serializerUsing}}
@@ -523,42 +524,79 @@ internal static class ChatClientTemplates
                     var background = new ColorRect
                     {
                         Name = "Background",
-                        Color = new Color(0.10f, 0.10f, 0.12f, 1.0f)
+                        Color = LakonaTheme.BgBase
                     };
                     background.SetAnchorsPreset(LayoutPreset.FullRect);
                     AddChild(background);
+
+                    var scanlines = new ColorRect
+                    {
+                        Name = "Scanlines",
+                        Color = new Color(0, 0, 0, 0.08f)
+                    };
+                    scanlines.SetAnchorsPreset(LayoutPreset.FullRect);
+                    scanlines.MouseFilter = MouseFilterEnum.Ignore;
+                    AddChild(scanlines);
 
                     var center = new CenterContainer { Name = "Center" };
                     center.SetAnchorsPreset(LayoutPreset.FullRect);
                     AddChild(center);
 
-                    var panel = new VBoxContainer { Name = "LoginPanel" };
-                    panel.AddThemeConstantOverride("separation", 12);
-                    panel.CustomMinimumSize = new Vector2(360, 0);
+                    var panel = new PanelContainer { Name = "LoginPanel" };
+                    panel.CustomMinimumSize = LakonaTheme.PanelMinSize;
                     center.AddChild(panel);
 
-                    var title = new Label { Name = "Title", Text = "Login" };
-                    title.AddThemeFontSizeOverride("font_size", 24);
-                    title.AddThemeColorOverride("font_color", new Color(0.78f, 0.78f, 0.78f, 1.0f));
-                    panel.AddChild(title);
+                    var panelBg = new StyleBoxFlat
+                    {
+                        BgColor = LakonaTheme.BgPanel,
+                        BorderColor = LakonaTheme.Accent,
+                        BorderWidthLeft = 2,
+                        BorderWidthRight = 2,
+                        BorderWidthTop = 2,
+                        BorderWidthBottom = 2,
+                        CornerRadiusTopLeft = 0,
+                        CornerRadiusTopRight = 0,
+                        CornerRadiusBottomLeft = 0,
+                        CornerRadiusBottomRight = 0,
+                        ContentMarginLeft = 24,
+                        ContentMarginRight = 24,
+                        ContentMarginTop = 32,
+                        ContentMarginBottom = 32
+                    };
+                    panel.AddThemeStyleboxOverride("panel", panelBg);
 
-                    _nameField = new LineEdit { Name = "NameField", PlaceholderText = "Name", MaxLength = 20 };
-                    _nameField.CustomMinimumSize = new Vector2(0, 36);
-                    _nameField.AddThemeColorOverride("font_color", new Color(0.96f, 0.96f, 0.96f, 1.0f));
-                    _nameField.AddThemeColorOverride("font_placeholder_color", new Color(0.58f, 0.62f, 0.70f, 1.0f));
+                    var content = new VBoxContainer { Name = "PanelContent" };
+                    content.AddThemeConstantOverride("separation", LakonaTheme.PanelSeparation);
+                    panel.AddChild(content);
+
+                    var title = new Label { Name = "Title", Text = "LAKONA" };
+                    title.AddThemeFontSizeOverride("font_size", LakonaTheme.FontSizeTitle);
+                    title.AddThemeColorOverride("font_color", LakonaTheme.Accent);
+                    content.AddChild(title);
+
+                    var nameLabel = new Label { Name = "NameLabel", Text = "NAME:" };
+                    nameLabel.AddThemeFontSizeOverride("font_size", LakonaTheme.FontSize);
+                    nameLabel.AddThemeColorOverride("font_color", LakonaTheme.AccentDim);
+                    content.AddChild(nameLabel);
+
+                    _nameField = new LineEdit { Name = "NameField", PlaceholderText = "", MaxLength = 20 };
+                    _nameField.CustomMinimumSize = LakonaTheme.ButtonMinSize;
+                    _nameField.AddThemeColorOverride("font_color", LakonaTheme.Accent);
+                    _nameField.AddThemeColorOverride("font_placeholder_color", LakonaTheme.TextDim);
                     _nameField.TextSubmitted += _ => OnConnectPressed();
-                    panel.AddChild(_nameField);
+                    content.AddChild(_nameField);
 
-                    _connectButton = new Button { Name = "ConnectButton", Text = "Connect" };
-                    _connectButton.CustomMinimumSize = new Vector2(0, 36);
-                    _connectButton.AddThemeColorOverride("font_color", new Color(0.96f, 0.96f, 0.96f, 1.0f));
-                    _connectButton.AddThemeColorOverride("font_disabled_color", new Color(0.70f, 0.72f, 0.76f, 1.0f));
+                    _connectButton = new Button { Name = "ConnectButton", Text = "CONNECT" };
+                    _connectButton.CustomMinimumSize = LakonaTheme.ButtonMinSize;
+                    _connectButton.AddThemeColorOverride("font_color", LakonaTheme.BgBase);
+                    _connectButton.AddThemeColorOverride("font_disabled_color", LakonaTheme.AccentDim);
                     _connectButton.Pressed += OnConnectPressed;
-                    panel.AddChild(_connectButton);
+                    content.AddChild(_connectButton);
 
                     _statusLabel = new Label { Name = "StatusLabel", Text = "" };
-                    _statusLabel.AddThemeColorOverride("font_color", new Color(0.85f, 0.55f, 0.55f, 1.0f));
-                    panel.AddChild(_statusLabel);
+                    _statusLabel.AddThemeFontSizeOverride("font_size", LakonaTheme.FontSize);
+                    _statusLabel.AddThemeColorOverride("font_color", LakonaTheme.Error);
+                    content.AddChild(_statusLabel);
                 }
 
                 private async void OnConnectPressed()
@@ -589,6 +627,7 @@ internal static class ChatClientTemplates
                         var session = GetNode<ChatSession>("/root/ChatSession");
                         session.LoginClient = client;
                         session.LoginReply = reply;
+                        session.ConnectionId = reply.ConnectionId;
                         GetTree().ChangeSceneToFile("res://Chat.tscn");
                     }
                     catch (Exception ex)
@@ -616,7 +655,7 @@ internal static class ChatClientTemplates
                     if (_connectButton != null)
                     {
                         _connectButton.Disabled = isBusy;
-                        _connectButton.Text = isBusy ? "Connecting..." : "Connect";
+                        _connectButton.Text = isBusy ? "CONNECTING..." : "CONNECT";
                     }
                 }
 
