@@ -187,7 +187,7 @@ foreach ($engine in $engines) {
     foreach ($transport in $transports) {
         foreach ($ser in $serializerList) {
             $testIndex++
-            $projectName = "E2E_${engine}_${transport}_${serializerS}"
+            $projectName = "E2E_${engine}_${transport}_${ser}"
             $scaffoldDir = Join-Path $matrixDir $projectName
             $label = "[$testIndex/$totalTests] $engine / $transport / $ser"
 
@@ -204,6 +204,7 @@ foreach ($engine in $engines) {
             }
 
             try {
+                $proc = $null
                 # ── 0. Ensure port is free ────────────────────────────────
                 if (-not $Quick) {
                     try {
@@ -478,7 +479,9 @@ catch (Exception ex)
             } catch {
                 $result.Error = "Exception: $_"
                 Write-Host "  EXCEPTION: $_" -ForegroundColor Red
-                Get-Process dotnet -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+                if ($proc -and !$proc.HasExited) {
+                    Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+                }
             }
 
             $results += $result
@@ -493,7 +496,7 @@ if (-not $KeepScaffolds) {
     foreach ($engine in $engines) {
         foreach ($transport in $transports) {
             foreach ($ser in $serializerList) {
-                $dir = Join-Path $matrixDir "E2E_${engine}_${transport}_${serializerS}"
+                $dir = Join-Path $matrixDir "E2E_${engine}_${transport}_${ser}"
                 if (Test-Path $dir) { Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue }
             }
         }
