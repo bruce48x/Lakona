@@ -35,9 +35,15 @@ public sealed class WsConnectionAcceptor : IRpcConnectionAcceptor
 
     public static async ValueTask<WsConnectionAcceptor> CreateAsync(int port, string path, CancellationToken ct = default)
     {
+        return await CreateAsync(port, path, "127.0.0.1", ct).ConfigureAwait(false);
+    }
+
+    public static async ValueTask<WsConnectionAcceptor> CreateAsync(int port, string path, string host, CancellationToken ct = default)
+    {
         return await CreateAsync(
             port,
             path,
+            host,
             RpcConnectionAdmissionDefaults.MaxPendingAcceptedConnections,
             ct).ConfigureAwait(false);
     }
@@ -45,18 +51,26 @@ public sealed class WsConnectionAcceptor : IRpcConnectionAcceptor
     public static async ValueTask<WsConnectionAcceptor> CreateAsync(
         int port,
         string path,
+        string host,
         int maxPendingAcceptedConnections,
         CancellationToken ct = default)
     {
+        if (string.IsNullOrWhiteSpace(host))
+            throw new ArgumentException("Host is required.", nameof(host));
+
+        var bindHost = IPAddress.TryParse(host, out var parsed)
+            ? parsed.ToString()
+            : host;
+
         ValidatePendingAcceptedConnectionLimit(maxPendingAcceptedConnections);
         var normalizedPath = NormalizePath(path);
         var builder = WebApplication.CreateBuilder(Array.Empty<string>());
-        builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+        builder.WebHost.UseUrls($"http://{bindHost}:{port}");
 
         var app = builder.Build();
         var acceptor = new WsConnectionAcceptor(
             app,
-            $"ws://0.0.0.0:{port}{normalizedPath}",
+            $"ws://{bindHost}:{port}{normalizedPath}",
             maxPendingAcceptedConnections);
 
         app.UseWebSockets();
