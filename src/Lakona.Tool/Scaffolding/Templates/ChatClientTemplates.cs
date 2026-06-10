@@ -722,6 +722,7 @@ internal static class ChatClientTemplates
         using Godot;
         using Shared.Contracts.Chat;
         using Client.Chat;
+        using Client.Theme;
 
         namespace Client.Chat
         {
@@ -781,67 +782,124 @@ internal static class ChatClientTemplates
                     var background = new ColorRect
                     {
                         Name = "Background",
-                        Color = new Color(0.10f, 0.10f, 0.12f, 1.0f)
+                        Color = LakonaTheme.BgBase
                     };
                     background.SetAnchorsPreset(LayoutPreset.FullRect);
                     AddChild(background);
 
+                    var scanlines = new ColorRect
+                    {
+                        Name = "Scanlines",
+                        Color = new Color(0, 0, 0, 0.08f)
+                    };
+                    scanlines.SetAnchorsPreset(LayoutPreset.FullRect);
+                    scanlines.MouseFilter = MouseFilterEnum.Ignore;
+                    AddChild(scanlines);
+
                     var margin = new MarginContainer { Name = "Layout" };
                     margin.SetAnchorsPreset(LayoutPreset.FullRect);
-                    margin.AddThemeConstantOverride("margin_left", 16);
-                    margin.AddThemeConstantOverride("margin_top", 16);
-                    margin.AddThemeConstantOverride("margin_right", 16);
-                    margin.AddThemeConstantOverride("margin_bottom", 16);
+                    margin.AddThemeConstantOverride("margin_left", LakonaTheme.PageMargin);
+                    margin.AddThemeConstantOverride("margin_top", LakonaTheme.PageMargin);
+                    margin.AddThemeConstantOverride("margin_right", LakonaTheme.PageMargin);
+                    margin.AddThemeConstantOverride("margin_bottom", LakonaTheme.PageMargin);
                     AddChild(margin);
 
                     var layout = new VBoxContainer { Name = "ChatLayout" };
-                    layout.AddThemeConstantOverride("separation", 10);
+                    layout.AddThemeConstantOverride("separation", 0);
                     margin.AddChild(layout);
 
-                    var header = new HBoxContainer { Name = "Header" };
-                    header.AddThemeConstantOverride("separation", 12);
+                    // Header
+                    var header = new PanelContainer { Name = "Header" };
+                    var headerBg = new StyleBoxFlat
+                    {
+                        BgColor = LakonaTheme.BgPanel,
+                        BorderColor = LakonaTheme.Accent,
+                        BorderWidthBottom = 2,
+                        BorderWidthLeft = 0,
+                        BorderWidthRight = 0,
+                        BorderWidthTop = 0,
+                        CornerRadiusTopLeft = 0,
+                        CornerRadiusTopRight = 0,
+                        CornerRadiusBottomLeft = 0,
+                        CornerRadiusBottomRight = 0,
+                        ContentMarginLeft = 0,
+                        ContentMarginRight = 0,
+                        ContentMarginTop = 8,
+                        ContentMarginBottom = 8
+                    };
+                    header.AddThemeStyleboxOverride("panel", headerBg);
                     layout.AddChild(header);
 
-                    var title = new Label { Name = "Title", Text = "Chat Room" };
-                    title.AddThemeFontSizeOverride("font_size", 24);
-                    title.AddThemeColorOverride("font_color", new Color(0.92f, 0.94f, 0.98f, 1.0f));
+                    var headerRow = new HBoxContainer { Name = "HeaderRow" };
+                    headerRow.AddThemeConstantOverride("separation", LakonaTheme.HeaderSeparation);
+                    header.AddChild(headerRow);
+
+                    var title = new Label { Name = "Title", Text = "CHAT ROOM" };
+                    title.AddThemeFontSizeOverride("font_size", LakonaTheme.FontSizeHeader);
+                    title.AddThemeColorOverride("font_color", LakonaTheme.Accent);
                     title.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-                    header.AddChild(title);
+                    headerRow.AddChild(title);
 
-                    _onlineCount = new Label { Name = "OnlineCount", Text = "Online: --" };
-                    _onlineCount.AddThemeColorOverride("font_color", new Color(0.55f, 0.85f, 0.62f, 1.0f));
-                    header.AddChild(_onlineCount);
+                    _onlineCount = new Label { Name = "OnlineCount", Text = "ONLINE: --" };
+                    _onlineCount.AddThemeFontSizeOverride("font_size", LakonaTheme.FontSize);
+                    _onlineCount.AddThemeColorOverride("font_color", LakonaTheme.Warning);
+                    headerRow.AddChild(_onlineCount);
 
+                    // Message log
                     _messageLog = new RichTextLabel
                     {
                         Name = "MessageLog",
                         BbcodeEnabled = false,
                         ScrollFollowing = true
                     };
-                    _messageLog.AddThemeColorOverride("default_color", new Color(0.88f, 0.90f, 0.94f, 1.0f));
+                    _messageLog.AddThemeColorOverride("default_color", LakonaTheme.TextBody);
+                    _messageLog.AddThemeFontSizeOverride("normal_font_size", LakonaTheme.FontSize);
                     _messageLog.SizeFlagsVertical = SizeFlags.ExpandFill;
                     layout.AddChild(_messageLog);
 
-                    var footer = new VBoxContainer { Name = "Footer" };
-                    footer.AddThemeConstantOverride("separation", 8);
+                    // Footer
+                    var footer = new PanelContainer { Name = "Footer" };
+                    var footerBg = new StyleBoxFlat
+                    {
+                        BgColor = LakonaTheme.BgPanel,
+                        BorderColor = LakonaTheme.Accent,
+                        BorderWidthTop = 2,
+                        BorderWidthLeft = 0,
+                        BorderWidthRight = 0,
+                        BorderWidthBottom = 0,
+                        CornerRadiusTopLeft = 0,
+                        CornerRadiusTopRight = 0,
+                        CornerRadiusBottomLeft = 0,
+                        CornerRadiusBottomRight = 0,
+                        ContentMarginLeft = 0,
+                        ContentMarginRight = 0,
+                        ContentMarginTop = 8,
+                        ContentMarginBottom = 8
+                    };
+                    footer.AddThemeStyleboxOverride("panel", footerBg);
                     layout.AddChild(footer);
 
                     var sendRow = new HBoxContainer { Name = "SendRow" };
-                    sendRow.AddThemeConstantOverride("separation", 8);
+                    sendRow.AddThemeConstantOverride("separation", LakonaTheme.SendRowSeparation);
                     footer.AddChild(sendRow);
 
-                    _messageField = new LineEdit { Name = "MessageField", PlaceholderText = "Message", MaxLength = 500 };
-                    _messageField.CustomMinimumSize = new Vector2(0, 36);
-                    _messageField.AddThemeColorOverride("font_color", new Color(0.96f, 0.96f, 0.96f, 1.0f));
-                    _messageField.AddThemeColorOverride("font_placeholder_color", new Color(0.58f, 0.62f, 0.70f, 1.0f));
+                    var msgLabel = new Label { Name = "MessageLabel", Text = "MESSAGE:" };
+                    msgLabel.AddThemeFontSizeOverride("font_size", LakonaTheme.FontSize);
+                    msgLabel.AddThemeColorOverride("font_color", LakonaTheme.AccentDim);
+                    sendRow.AddChild(msgLabel);
+
+                    _messageField = new LineEdit { Name = "MessageField", PlaceholderText = "", MaxLength = 500 };
+                    _messageField.CustomMinimumSize = LakonaTheme.ButtonMinSize;
+                    _messageField.AddThemeColorOverride("font_color", LakonaTheme.Accent);
+                    _messageField.AddThemeColorOverride("font_placeholder_color", LakonaTheme.TextDim);
                     _messageField.SizeFlagsHorizontal = SizeFlags.ExpandFill;
                     _messageField.TextSubmitted += _ => OnSendPressed();
                     sendRow.AddChild(_messageField);
 
-                    _sendButton = new Button { Name = "SendButton", Text = "Send" };
-                    _sendButton.CustomMinimumSize = new Vector2(96, 36);
-                    _sendButton.AddThemeColorOverride("font_color", new Color(0.96f, 0.96f, 0.96f, 1.0f));
-                    _sendButton.AddThemeColorOverride("font_disabled_color", new Color(0.70f, 0.72f, 0.76f, 1.0f));
+                    _sendButton = new Button { Name = "SendButton", Text = "SEND" };
+                    _sendButton.CustomMinimumSize = LakonaTheme.SendButtonMinSize;
+                    _sendButton.AddThemeColorOverride("font_color", LakonaTheme.BgBase);
+                    _sendButton.AddThemeColorOverride("font_disabled_color", LakonaTheme.AccentDim);
                     _sendButton.Pressed += OnSendPressed;
                     sendRow.AddChild(_sendButton);
                 }
@@ -913,7 +971,7 @@ internal static class ChatClientTemplates
                 {
                     if (_onlineCount != null)
                     {
-                        _onlineCount.Text = $"Online: {count}";
+                        _onlineCount.Text = $"ONLINE: {count}";
                     }
                 }
 
@@ -923,7 +981,7 @@ internal static class ChatClientTemplates
                     if (_sendButton != null)
                     {
                         _sendButton.Disabled = isBusy;
-                        _sendButton.Text = isBusy ? "Sending..." : "Send";
+                        _sendButton.Text = isBusy ? "SENDING..." : "SEND";
                     }
                 }
 
