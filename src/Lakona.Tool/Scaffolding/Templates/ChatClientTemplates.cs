@@ -1,6 +1,6 @@
 internal static class ChatClientTemplates
 {
-    public static string RenderClientChatClient()
+    public static string RenderClientLoginClient()
     {
         return """
         using System;
@@ -10,22 +10,22 @@ internal static class ChatClientTemplates
         using Shared.Contracts.Chat;
         using Lakona.Rpc.Client;
 
-        namespace Client.Chat
+        namespace Client.Login
         {
-            public sealed class ChatClient : IChatCallback, IAsyncDisposable
+            public sealed class LoginClient : ILoginCallback, IAsyncDisposable
             {
                 private readonly RpcClient _rpcClient;
-                private IChatService? _chatService;
+                private ILoginService? _loginService;
                 private bool _isConnected;
 
-                public event Action<ChatMessage>? OnMessageReceived;
                 public event Action<ChatMember>? OnUserJoined;
                 public event Action<string>? OnUserLeft;
                 public event Action? OnDisconnected;
 
                 public bool IsConnected => _isConnected;
+                public RpcClient RpcClient => _rpcClient;
 
-                public ChatClient(RpcClientOptions options)
+                public LoginClient(RpcClientOptions options)
                 {
                     var callbacks = new RpcClient.RpcNotificationBindings();
                     callbacks.Add(this);
@@ -41,26 +41,14 @@ internal static class ChatClientTemplates
                 public async Task ConnectAsync(CancellationToken cancellationToken = default)
                 {
                     await _rpcClient.ConnectAsync(cancellationToken);
-                    _chatService = _rpcClient.Api.Shared.Chat;
+                    _loginService = _rpcClient.Api.Shared.Login;
                     _isConnected = true;
                 }
 
-                public async Task<ChatJoinReply> JoinAsync(string playerName)
+                public async Task<LoginReply> LoginAsync(string playerName)
                 {
-                    if (_chatService == null) throw new InvalidOperationException("Not connected.");
-                    return await _chatService.JoinAsync(new ChatJoinRequest { PlayerName = playerName });
-                }
-
-                public async Task SendAsync(string text)
-                {
-                    if (_chatService == null) throw new InvalidOperationException("Not connected.");
-                    await _chatService.SendAsync(new ChatSendRequest { Text = text });
-                }
-
-                public async Task LeaveAsync()
-                {
-                    if (_chatService == null) return;
-                    await _chatService.LeaveAsync(new ChatLeaveRequest());
+                    if (_loginService == null) throw new InvalidOperationException("Not connected.");
+                    return await _loginService.LoginAsync(new LoginRequest { PlayerName = playerName });
                 }
 
                 public async ValueTask DisposeAsync()
@@ -69,19 +57,52 @@ internal static class ChatClientTemplates
                     await _rpcClient.DisposeAsync();
                 }
 
-                void IChatCallback.OnMessageReceived(ChatMessage msg)
-                {
-                    OnMessageReceived?.Invoke(msg);
-                }
-
-                void IChatCallback.OnUserJoined(ChatMember member)
+                void ILoginCallback.OnUserJoined(ChatMember member)
                 {
                     OnUserJoined?.Invoke(member);
                 }
 
-                void IChatCallback.OnUserLeft(ChatUserLeft evt)
+                void ILoginCallback.OnUserLeft(ChatUserLeft evt)
                 {
                     OnUserLeft?.Invoke(evt.Name);
+                }
+            }
+        }
+        """;
+    }
+
+    public static string RenderClientChatClient()
+    {
+        return """
+        using System;
+        using System.Threading.Tasks;
+        using Rpc.Generated;
+        using Shared.Contracts.Chat;
+        using Lakona.Rpc.Client;
+
+        namespace Client.Chat
+        {
+            public sealed class ChatClient : IChatCallback
+            {
+                private readonly IChatService _chatService;
+
+                public event Action<ChatMessage>? OnMessageReceived;
+
+                public ChatClient(RpcClient rpcClient)
+                {
+                    var callbacks = new RpcClient.RpcNotificationBindings();
+                    callbacks.Add(this);
+                    _chatService = rpcClient.Api.Shared.Chat;
+                }
+
+                public async Task SendAsync(string text)
+                {
+                    await _chatService.SendAsync(new ChatSendRequest { Text = text });
+                }
+
+                void IChatCallback.OnMessageReceived(ChatMessage msg)
+                {
+                    OnMessageReceived?.Invoke(msg);
                 }
             }
         }
@@ -92,13 +113,14 @@ internal static class ChatClientTemplates
     {
         return """
         using Shared.Contracts.Chat;
+        using Client.Login;
 
         namespace Client.Chat
         {
             public static class ChatSession
             {
-                public static ChatClient? Client { get; set; }
-                public static ChatJoinReply? JoinReply { get; set; }
+                public static LoginClient? LoginClient { get; set; }
+                public static LoginReply? LoginReply { get; set; }
             }
         }
         """;
@@ -109,13 +131,14 @@ internal static class ChatClientTemplates
         return """
         using Godot;
         using Shared.Contracts.Chat;
+        using Client.Login;
 
         namespace Client.Chat
         {
             public partial class ChatSession : Node
             {
-                public ChatClient? Client { get; set; }
-                public ChatJoinReply? JoinReply { get; set; }
+                public LoginClient? LoginClient { get; set; }
+                public LoginReply? LoginReply { get; set; }
             }
         }
         """;
@@ -218,15 +241,15 @@ internal static class ChatClientTemplates
                     SetStatus("Connecting...");
                     _cts = new CancellationTokenSource();
 
-                    var client = new ChatClient(CreateRpcClientOptions());
+                    var client = new LoginClient(CreateRpcClientOptions());
                     client.OnDisconnected += () => Debug.Log("Disconnected from server.");
 
                     try
                     {
                         await client.ConnectAsync(_cts.Token);
-                        var reply = await client.JoinAsync(name);
-                        ChatSession.Client = client;
-                        ChatSession.JoinReply = reply;
+                        var reply = await client.LoginAsync(name);
+                        ChatSession.LoginClient = client;
+                        ChatSession.LoginReply = reply;
                         SceneManager.LoadScene("ChatScene");
                     }
                     catch (Exception ex)
@@ -496,16 +519,16 @@ internal static class ChatClientTemplates
                     SetBusy(true);
                     SetStatus("Connecting...");
 
-                    var client = new ChatClient(CreateRpcClientOptions());
+                    var client = new LoginClient(CreateRpcClientOptions());
                     client.OnDisconnected += () => GD.Print("Disconnected from server.");
 
                     try
                     {
                         await client.ConnectAsync(_cts.Token);
-                        var reply = await client.JoinAsync(name);
+                        var reply = await client.LoginAsync(name);
                         var session = GetNode<ChatSession>("/root/ChatSession");
-                        session.Client = client;
-                        session.JoinReply = reply;
+                        session.LoginClient = client;
+                        session.LoginReply = reply;
                         GetTree().ChangeSceneToFile("res://Chat.tscn");
                     }
                     catch (Exception ex)
@@ -606,6 +629,7 @@ internal static class ChatClientTemplates
             public partial class ChatScene : Control
             {
                 private readonly CancellationTokenSource _cts = new();
+                private LoginClient? _loginClient;
                 private ChatClient? _client;
                 private LineEdit? _messageField;
                 private Button? _sendButton;
@@ -618,27 +642,30 @@ internal static class ChatClientTemplates
                     BuildUi();
 
                     var session = GetNode<ChatSession>("/root/ChatSession");
-                    _client = session.Client;
-                    var joinReply = session.JoinReply;
+                    var loginClient = session.LoginClient;
+                    var loginReply = session.LoginReply;
 
-                    if (_client == null)
+                    if (loginClient == null)
                     {
                         AppendSystemMessage("Session expired. Please return to login.");
                         SetSendBusy(true);
                         return;
                     }
 
+                    _loginClient = loginClient;
+                    _client = new ChatClient(loginClient.RpcClient);
+
                     _client.OnMessageReceived += msg => CallDeferred(nameof(AppendMessageDeferred), msg.SenderName, msg.Text);
-                    _client.OnUserJoined += member => CallDeferred(nameof(AppendSystemMessageDeferred), $"{member.Name} joined.");
-                    _client.OnUserLeft += memberName => CallDeferred(nameof(AppendSystemMessageDeferred), $"{memberName} left.");
-                    _client.OnDisconnected += () => CallDeferred(nameof(AppendSystemMessageDeferred), "Disconnected from server.");
+                    loginClient.OnUserJoined += member => CallDeferred(nameof(AppendSystemMessageDeferred), $"{member.Name} joined.");
+                    loginClient.OnUserLeft += memberName => CallDeferred(nameof(AppendSystemMessageDeferred), $"{memberName} left.");
+                    loginClient.OnDisconnected += () => CallDeferred(nameof(AppendSystemMessageDeferred), "Disconnected from server.");
 
-                    if (joinReply != null)
+                    if (loginReply != null)
                     {
-                        AppendSystemMessage($"Connected. {joinReply.Members.Count} online.");
-                        SetOnlineCount(joinReply.Members.Count);
+                        AppendSystemMessage($"Connected. {loginReply.Members.Count} online.");
+                        SetOnlineCount(loginReply.Members.Count);
 
-                        foreach (var msg in joinReply.RecentMessages)
+                        foreach (var msg in loginReply.RecentMessages)
                         {
                             AppendMessageText(msg.SenderName, msg.Text);
                         }
@@ -726,7 +753,7 @@ internal static class ChatClientTemplates
                         return;
                     }
 
-                    if (_client == null || !_client.IsConnected)
+                    if (_loginClient == null || !_loginClient.IsConnected)
                     {
                         AppendSystemMessage("Not connected.");
                         return;
@@ -803,9 +830,10 @@ internal static class ChatClientTemplates
                 public override void _ExitTree()
                 {
                     _cts.Cancel();
-                    if (_client is not null)
+                    var session = GetNode<ChatSession>("/root/ChatSession");
+                    if (session?.LoginClient is not null)
                     {
-                        _ = _client.DisposeAsync();
+                        _ = session.LoginClient.DisposeAsync();
                     }
                     _cts.Dispose();
                 }
@@ -851,6 +879,7 @@ internal static class ChatClientTemplates
             {
                 private readonly CancellationTokenSource _cts = new();
                 private readonly ConcurrentQueue<Action> _mainThreadActions = new();
+                private LoginClient? _loginClient;
                 private ChatClient? _client;
                 private TextField? _inputField;
                 private ScrollView? _messageList;
@@ -880,27 +909,30 @@ internal static class ChatClientTemplates
                         }
                     });
 
-                    _client = ChatSession.Client;
-                    var joinReply = ChatSession.JoinReply;
+                    var loginClient = ChatSession.LoginClient;
+                    var loginReply = ChatSession.LoginReply;
 
-                    if (_client == null)
+                    if (loginClient == null)
                     {
                         AppendSystemMessage("Session expired. Please return to login.");
                         SetSendBusy(true);
                         return;
                     }
 
+                    _loginClient = loginClient;
+                    _client = new ChatClient(loginClient.RpcClient);
+
                     _client.OnMessageReceived += msg => EnqueueMainThread(() => AppendMessage(msg));
-                    _client.OnUserJoined += member => EnqueueMainThread(() => OnUserJoinedHandler(member));
-                    _client.OnUserLeft += memberName => EnqueueMainThread(() => OnUserLeftHandler(memberName));
-                    _client.OnDisconnected += () => EnqueueMainThread(() => AppendSystemMessage("Disconnected from server."));
+                    loginClient.OnUserJoined += member => EnqueueMainThread(() => OnUserJoinedHandler(member));
+                    loginClient.OnUserLeft += memberName => EnqueueMainThread(() => OnUserLeftHandler(memberName));
+                    loginClient.OnDisconnected += () => EnqueueMainThread(() => AppendSystemMessage("Disconnected from server."));
 
-                    if (joinReply != null)
+                    if (loginReply != null)
                     {
-                        AppendSystemMessage($"Connected. {joinReply.Members.Count} online.");
-                        SetOnlineCount(joinReply.Members.Count);
+                        AppendSystemMessage($"Connected. {loginReply.Members.Count} online.");
+                        SetOnlineCount(loginReply.Members.Count);
 
-                        foreach (var msg in joinReply.RecentMessages)
+                        foreach (var msg in loginReply.RecentMessages)
                         {
                             AppendMessage(msg);
                         }
@@ -916,7 +948,7 @@ internal static class ChatClientTemplates
                         return;
                     }
 
-                    if (_client == null || !_client.IsConnected)
+                    if (_loginClient == null || !_loginClient.IsConnected)
                     {
                         AppendSystemMessage("Not connected.");
                         return;
@@ -1011,9 +1043,9 @@ internal static class ChatClientTemplates
                 private void OnDestroy()
                 {
                     _cts.Cancel();
-                    if (_client is not null)
+                    if (ChatSession.LoginClient is not null)
                     {
-                        _ = _client.DisposeAsync();
+                        _ = ChatSession.LoginClient.DisposeAsync();
                     }
                     _cts.Dispose();
                 }
