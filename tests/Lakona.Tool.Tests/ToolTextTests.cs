@@ -543,6 +543,7 @@ public sealed class ToolTextTests
             Assert.DoesNotContain("new JsonRpcSerializer()", chatSceneScript, StringComparison.Ordinal);
             Assert.Contains("CallDeferred(nameof(AppendMessageDeferred), msg.SenderName, msg.Text);", chatSceneScript, StringComparison.Ordinal);
             Assert.Contains("public partial class LoginScene : Control", loginSceneScript, StringComparison.Ordinal);
+            Assert.DoesNotContain("ConnectionId", loginSceneScript, StringComparison.Ordinal);
             Assert.Contains("new WsTransport($\"ws://{_serverHost}:{_serverPort}{NormalizePath(_serverPath)}\")", loginSceneScript, StringComparison.Ordinal);
             Assert.Contains("[ext_resource type=\"Script\" path=\"res://Scripts/Chat/ChatScene.cs\" id=\"1\"]", chatTscn, StringComparison.Ordinal);
             Assert.Contains("[node name=\"ChatScene\" type=\"Control\"]", chatTscn, StringComparison.Ordinal);
