@@ -678,8 +678,8 @@ public sealed class ToolTemplateTests
     {
         var source = ToolTemplates.RenderClientChatUss();
 
-        Assert.Contains("color: rgb(230, 230, 230);", source, StringComparison.Ordinal);
-        Assert.Contains("color: rgb(245, 245, 245);", source, StringComparison.Ordinal);
+        Assert.Contains("var(--lakona-text-body)", source, StringComparison.Ordinal);
+        Assert.Contains("var(--lakona-accent)", source, StringComparison.Ordinal);
         Assert.DoesNotContain(".join-button", source, StringComparison.Ordinal);
         Assert.Contains(".send-button:disabled", source, StringComparison.Ordinal);
     }
@@ -745,7 +745,7 @@ public sealed class ToolTemplateTests
     {
         var source = ToolTemplates.RenderUnityDefaultRuntimeTheme();
 
-        Assert.Equal("@import url(\"unity-theme://default\");", source.Trim());
+        Assert.Equal("@import url(\"Theme/LakonaTheme.tss\");", source.Trim());
     }
 
     [Fact]
