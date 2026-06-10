@@ -245,26 +245,26 @@ internal static class ServerProjectTemplates
             internal sealed class ChatRoomActor : Actor
             {
                 private const int MaxRecentMessages = 100;
-                private readonly Dictionary<string, (string Name, IChatCallback Callback)> _members = new();
+                private readonly Dictionary<IChatCallback, (string Name, ILoginCallback LoginCallback)> _members = new();
                 private readonly Queue<ChatMessage> _recentMessages = new();
 
-                public ValueTask<ChatJoinReply> JoinAsync(string connectionId, string playerName, IChatCallback callback)
+                public ValueTask<LoginReply> LoginAsync(ILoginCallback loginCallback, IChatCallback chatCallback, string playerName)
                 {
                     var member = new ChatMember { Name = playerName };
-                    _members[connectionId] = (playerName, callback);
+                    _members[chatCallback] = (playerName, loginCallback);
 
-                    Broadcast(cb => cb.OnUserJoined(member), excludeConnectionId: null);
+                    BroadcastLogin(cb => cb.OnUserJoined(member));
 
-                    return new ValueTask<ChatJoinReply>(new ChatJoinReply
+                    return new ValueTask<LoginReply>(new LoginReply
                     {
                         Members = _members.Values.Select(v => new ChatMember { Name = v.Name }).ToList(),
                         RecentMessages = _recentMessages.ToList()
                     });
                 }
 
-                public ValueTask SendAsync(string connectionId, string text)
+                public ValueTask SendAsync(IChatCallback chatCallback, string text)
                 {
-                    if (!_members.TryGetValue(connectionId, out var entry))
+                    if (!_members.TryGetValue(chatCallback, out var entry))
                     {
                         return ValueTask.CompletedTask;
                     }
@@ -282,38 +282,71 @@ internal static class ServerProjectTemplates
                         _recentMessages.Dequeue();
                     }
 
-                    Broadcast(cb => cb.OnMessageReceived(msg), excludeConnectionId: null);
+                    BroadcastChat(cb => cb.OnMessageReceived(msg));
                     return ValueTask.CompletedTask;
                 }
 
-                public ValueTask LeaveAsync(string connectionId)
+                public ValueTask LeaveAsync(IChatCallback chatCallback)
                 {
-                    if (!_members.Remove(connectionId, out var entry))
+                    if (!_members.Remove(chatCallback, out var entry))
                     {
                         return ValueTask.CompletedTask;
                     }
 
-                    Broadcast(cb => cb.OnUserLeft(new ChatUserLeft { Name = entry.Name }), excludeConnectionId: null);
+                    BroadcastLogin(cb => cb.OnUserLeft(new ChatUserLeft { Name = entry.Name }));
                     return ValueTask.CompletedTask;
                 }
 
-                private void Broadcast(Action<IChatCallback> action, string? excludeConnectionId)
+                private void BroadcastLogin(Action<ILoginCallback> action)
                 {
-                    foreach (var (connId, (_, callback)) in _members)
+                    foreach (var entry in _members.Values)
                     {
-                        if (connId == excludeConnectionId)
-                        {
-                            continue;
-                        }
-
-                        try
-                        {
-                            action(callback);
-                        }
-                        catch
-                        {
-                        }
+                        try { action(entry.LoginCallback); } catch { }
                     }
+                }
+
+                private void BroadcastChat(Action<IChatCallback> action)
+                {
+                    foreach (var key in _members.Keys)
+                    {
+                        try { action(key); } catch { }
+                    }
+                }
+            }
+        }
+        """;
+    }
+
+    public static string RenderHotfixLoginService()
+    {
+        return """
+        using System;
+        using Server.App.Chat;
+        using Shared.Contracts.Chat;
+        using Lakona.Game.Server.Actors;
+
+        namespace Server.Hotfix.Login
+        {
+            internal sealed class LoginService : ILoginService
+            {
+                private static readonly ActorId RoomId = ActorId.From("chat:global");
+
+                private readonly ILoginCallback _loginCallback;
+                private readonly IChatCallback _chatCallback;
+                private readonly IActorRuntime _actors;
+
+                public LoginService(ILoginCallback loginCallback, IChatCallback chatCallback, IActorRuntime actors)
+                {
+                    _loginCallback = loginCallback;
+                    _chatCallback = chatCallback;
+                    _actors = actors;
+                }
+
+                public ValueTask<LoginReply> LoginAsync(LoginRequest req)
+                {
+                    return _actors.AskAsync<ChatRoomActor, LoginReply>(
+                        RoomId,
+                        (room, ct) => room.LoginAsync(_loginCallback, _chatCallback, req.PlayerName));
                 }
             }
         }
@@ -330,26 +363,17 @@ internal static class ServerProjectTemplates
 
         namespace Server.Hotfix.Chat
         {
-            internal sealed class ChatServiceImpl : IChatService
+            internal sealed class ChatService : IChatService
             {
                 private static readonly ActorId RoomId = ActorId.From("chat:global");
 
                 private readonly IChatCallback _callback;
                 private readonly IActorRuntime _actors;
-                private readonly string _connectionId;
 
-                public ChatServiceImpl(IChatCallback callback, IActorRuntime actors)
+                public ChatService(IChatCallback callback, IActorRuntime actors)
                 {
                     _callback = callback;
                     _actors = actors;
-                    _connectionId = Guid.NewGuid().ToString("N");
-                }
-
-                public ValueTask<ChatJoinReply> JoinAsync(ChatJoinRequest req)
-                {
-                    return _actors.AskAsync<ChatRoomActor, ChatJoinReply>(
-                        RoomId,
-                        (room, ct) => room.JoinAsync(_connectionId, req.PlayerName, _callback));
                 }
 
                 public async ValueTask SendAsync(ChatSendRequest req)
@@ -359,18 +383,7 @@ internal static class ServerProjectTemplates
                         RoomId,
                         async (room, ct) =>
                         {
-                            await room.SendAsync(_connectionId, text);
-                            return true;
-                        });
-                }
-
-                public async ValueTask LeaveAsync(ChatLeaveRequest req)
-                {
-                    await _actors.AskAsync<ChatRoomActor, bool>(
-                        RoomId,
-                        async (room, ct) =>
-                        {
-                            await room.LeaveAsync(_connectionId);
+                            await room.SendAsync(_callback, text);
                             return true;
                         });
                 }
@@ -412,21 +425,27 @@ namespace Server.App.Hosting;
 
 internal static class ServiceBindingConfigurator
 {
-    private static readonly Type ChatServiceImplType = LoadChatServiceImplType();
+    private static readonly Type LoginServiceType = LoadHotfixType(""Server.Hotfix.Login.LoginService"");
+    private static readonly Type ChatServiceType = LoadHotfixType(""Server.Hotfix.Chat.ChatService"");
 
-    private static Type LoadChatServiceImplType()
+    private static Type LoadHotfixType(string typeName)
     {
         var hotfixDir = System.IO.Path.Combine(AppContext.BaseDirectory, ""hotfix"");
         var hotfixPath = System.IO.Path.Combine(hotfixDir, ""Server.Hotfix.dll"");
         var assembly = Assembly.LoadFrom(hotfixPath);
-        return assembly.GetType(""Server.Hotfix.Chat.ChatServiceImpl"", throwOnError: true)!;
+        return assembly.GetType(typeName, throwOnError: true)!;
     }
 
     public static void Bind(RpcServiceRegistry registry, IServiceProvider services)
     {
+        LoginServiceBinder.Bind(
+            registry,
+            (loginCallback, chatCallback) =>
+                (ILoginService)ActivatorUtilities.CreateInstance(services, LoginServiceType, loginCallback, chatCallback));
+
         ChatServiceBinder.Bind(
             registry,
-            callback => (IChatService)ActivatorUtilities.CreateInstance(services, ChatServiceImplType, callback));
+            callback => (IChatService)ActivatorUtilities.CreateInstance(services, ChatServiceType, callback));
     }
 }";
     }
