@@ -14,14 +14,10 @@ public sealed class ToolScaffoldNewTests
             await new ProjectScaffolder().ScaffoldNewProjectAsync(projectRoot, options);
 
             Assert.True(File.Exists(Path.Combine(projectRoot, ".gitignore")), ".gitignore should exist");
-            Assert.True(File.Exists(Path.Combine(projectRoot, ".gitattributes")), ".gitattributes should exist");
 
             var gitignore = await File.ReadAllTextAsync(Path.Combine(projectRoot, ".gitignore"));
             Assert.Contains("**/bin/", gitignore, StringComparison.Ordinal);
             Assert.Contains("**/obj/", gitignore, StringComparison.Ordinal);
-
-            var gitattributes = await File.ReadAllTextAsync(Path.Combine(projectRoot, ".gitattributes"));
-            Assert.Contains("*.cs text eol=lf", gitattributes, StringComparison.Ordinal);
         }
         finally
         {

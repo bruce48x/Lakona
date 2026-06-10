@@ -1,3 +1,5 @@
+using Lakona.Tool.RpcStarter;
+
 internal sealed class ProjectScaffolder
 {
     private const string UnityChatUiScriptGuid = "462a8730535800d4a801000623f4450e";
@@ -8,6 +10,87 @@ internal sealed class ProjectScaffolder
     private const string UnityLoginUiScriptGuid = "5a1b8c3d2e4f6a7b8c9d0e1f2a3b4c5d";
     private const string UnityLoginSceneUxmlGuid = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6";
     private const string UnityLoginSceneUssGuid = "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7";
+
+    public async Task ScaffoldNewProjectAsync(string projectRoot, NewCommandOptions options)
+    {
+        var context = CreateStarterContext(projectRoot, options);
+
+        await WriteGitInfrastructureAsync(context).ConfigureAwait(false);
+        StarterSharedTemplate.Generate(context);
+        GenerateClientTemplate(context);
+
+        await AugmentProjectWithLakonaGameAsync(projectRoot, options).ConfigureAwait(false);
+    }
+
+    private static StarterTemplateContext CreateStarterContext(string projectRoot, NewCommandOptions options)
+    {
+        var projectName = string.IsNullOrWhiteSpace(options.Name) ? ProjectConventions.DefaultProjectName : options.Name;
+        var clientEngine = ToolOptionValues.ParseClientEngine(options.ClientEngine);
+        var transport = ToolOptionValues.ParseTransport(options.Transport);
+        var serializer = ToolOptionValues.ParseSerializer(options.Serializer);
+        var nuGetSource = ToolOptionValues.ParseNuGetForUnitySource(options.NuGetForUnitySource);
+        var versions = NuGetVersionResolver.ResolveVersions(transport, serializer);
+
+        var paths = new StarterPaths(
+            projectRoot,
+            Path.Combine(projectRoot, "Shared"),
+            Path.Combine(projectRoot, "Server"),
+            Path.Combine(projectRoot, "Server", "App"),
+            Path.Combine(projectRoot, "Client"));
+
+        return new StarterTemplateContext(
+            projectName,
+            MakeCompanyId(projectName),
+            clientEngine,
+            transport,
+            serializer,
+            nuGetSource,
+            versions,
+            paths);
+    }
+
+    private static async Task WriteGitInfrastructureAsync(StarterTemplateContext context)
+    {
+        var isUnity = context.ClientEngine.IsUnityCompatible();
+        var isGodotOrConsole = context.ClientEngine == ClientEngineKind.Godot
+            || context.ClientEngine == ClientEngineKind.Console;
+
+        await WriteAsync(
+            Path.Combine(context.Paths.RootPath, ".gitignore"),
+            GitTemplates.RenderGitIgnore(isUnity)).ConfigureAwait(false);
+
+        var gitAttributes = GitTemplates.RenderGitAttributes(isGodotOrConsole);
+        if (!string.IsNullOrEmpty(gitAttributes))
+        {
+            await WriteAsync(
+                Path.Combine(context.Paths.RootPath, ".gitattributes"),
+                gitAttributes).ConfigureAwait(false);
+        }
+    }
+
+    private static void GenerateClientTemplate(StarterTemplateContext context)
+    {
+        switch (context.ClientEngine)
+        {
+            case ClientEngineKind.Unity:
+            case ClientEngineKind.UnityCn:
+            case ClientEngineKind.Tuanjie:
+                StarterUnityTemplate.Generate(context);
+                return;
+            case ClientEngineKind.Godot:
+                StarterGodotTemplate.Generate(context);
+                return;
+            case ClientEngineKind.Console:
+                StarterConsoleTemplate.Generate(context);
+                return;
+        }
+    }
+
+    private static string MakeCompanyId(string projectName)
+    {
+        var filtered = new string(projectName.Where(char.IsLetterOrDigit).ToArray());
+        return string.IsNullOrWhiteSpace(filtered) ? "lakona-rpc.sample" : $"lakona-rpc.{filtered.ToLowerInvariant()}";
+    }
 
     public async Task AugmentProjectWithLakonaGameAsync(string projectRoot, NewCommandOptions options)
     {

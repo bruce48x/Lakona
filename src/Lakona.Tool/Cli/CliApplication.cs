@@ -1,8 +1,6 @@
 using System.Text.Json;
-using Lakona.Tool.RpcStarter;
 
 internal sealed class CliApplication(
-    RpcStarterGenerator rpcStarterGenerator,
     ProjectScaffolder projectScaffolder,
     ToolConfigStore configStore,
     ToolText? text = null,
@@ -60,7 +58,7 @@ internal sealed class CliApplication(
         var projectName = string.IsNullOrWhiteSpace(options.Name) ? ProjectConventions.DefaultProjectName : options.Name;
         var projectRoot = Path.Combine(outputDirectory, projectName);
 
-        rpcStarterGenerator.Generate(ToRpcStarterOptions(projectName, outputDirectory, options));
+        await projectScaffolder.ScaffoldNewProjectAsync(projectRoot, options).ConfigureAwait(false);
 
         if (!Directory.Exists(projectRoot))
         {
@@ -98,19 +96,6 @@ internal sealed class CliApplication(
         Console.WriteLine(text.OpenClientStep(options.ClientEngine));
     }
 
-    private static RpcStarterNewOptions ToRpcStarterOptions(
-        string projectName,
-        string outputDirectory,
-        NewCommandOptions options)
-    {
-        return new RpcStarterNewOptions(
-            projectName,
-            outputDirectory,
-            ToolOptionValues.ParseClientEngine(options.ClientEngine),
-            ToolOptionValues.ParseTransport(options.Transport),
-            ToolOptionValues.ParseSerializer(options.Serializer),
-            ToolOptionValues.ParseNuGetForUnitySource(options.NuGetForUnitySource));
-    }
 }
 
 internal sealed class ToolConfigStore

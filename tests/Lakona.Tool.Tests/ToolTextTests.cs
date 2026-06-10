@@ -54,7 +54,7 @@ public sealed class ToolTextTests
     public void NewProjectReadyOutput_IncludesClientOpenStep()
     {
         var text = ToolText.ForCulture(CultureInfo.GetCultureInfo("zh-CN"));
-        var app = new CliApplication(new RpcStarterGenerator(), new ProjectScaffolder(), new ToolConfigStore(), text);
+        var app = new CliApplication(new ProjectScaffolder(), new ToolConfigStore(), text);
         using var writer = new StringWriter(CultureInfo.InvariantCulture);
         var originalOut = Console.Out;
 
@@ -698,7 +698,6 @@ public sealed class ToolTextTests
         var text = ToolText.ForCulture(CultureInfo.GetCultureInfo("en-US"));
         var terminal = new FakeCliTerminal([], isInputRedirected: true);
         var app = new CliApplication(
-            new RpcStarterGenerator(),
             new ProjectScaffolder(),
             new ToolConfigStore(),
             text,
