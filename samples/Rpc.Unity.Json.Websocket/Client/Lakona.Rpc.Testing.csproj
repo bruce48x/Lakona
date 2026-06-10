@@ -256,7 +256,7 @@
       <HintPath>C:\Program Files\Unity\Hub\Editor\2022.3.62f3c1\Editor\Data\PlaybackEngines\WindowsStandaloneSupport\UnityEditor.WindowsStandalone.Extensions.dll</HintPath>
     </Reference>
     <Reference Include="Lakona.Rpc.Transport.WebSocket">
-      <HintPath>D:\Lakona\samples\Rpc.Unity.Json.Websocket\Client\Assets\Packages\Lakona.Rpc.Transport.WebSocket.0.11.6\lib\netstandard2.1\Lakona.Rpc.Transport.WebSocket.dll</HintPath>
+      <HintPath>D:\Lakona\samples\Rpc.Unity.Json.Websocket\Client\Assets\Packages\Lakona.Rpc.Transport.WebSocket.0.11.7\lib\netstandard2.1\Lakona.Rpc.Transport.WebSocket.dll</HintPath>
     </Reference>
     <Reference Include="Lakona.Rpc.Core">
       <HintPath>D:\Lakona\samples\Rpc.Unity.Json.Websocket\Client\Assets\Packages\Lakona.Rpc.Core.0.12.0\lib\netstandard2.1\Lakona.Rpc.Core.dll</HintPath>

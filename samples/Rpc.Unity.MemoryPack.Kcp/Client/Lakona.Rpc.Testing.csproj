@@ -259,7 +259,7 @@
       <HintPath>D:\Lakona\samples\Rpc.Unity.MemoryPack.Kcp\Client\Assets\Packages\Lakona.Rpc.Client.0.12.0\lib\netstandard2.1\Lakona.Rpc.Client.dll</HintPath>
     </Reference>
     <Reference Include="Lakona.Rpc.Transport.Kcp">
-      <HintPath>D:\Lakona\samples\Rpc.Unity.MemoryPack.Kcp\Client\Assets\Packages\Lakona.Rpc.Transport.Kcp.0.11.13\lib\netstandard2.1\Lakona.Rpc.Transport.Kcp.dll</HintPath>
+      <HintPath>D:\Lakona\samples\Rpc.Unity.MemoryPack.Kcp\Client\Assets\Packages\Lakona.Rpc.Transport.Kcp.0.11.14\lib\netstandard2.1\Lakona.Rpc.Transport.Kcp.dll</HintPath>
     </Reference>
     <Reference Include="System.Collections.Immutable">
       <HintPath>D:\Lakona\samples\Rpc.Unity.MemoryPack.Kcp\Client\Assets\Packages\System.Collections.Immutable.6.0.0\lib\netstandard2.0\System.Collections.Immutable.dll</HintPath>

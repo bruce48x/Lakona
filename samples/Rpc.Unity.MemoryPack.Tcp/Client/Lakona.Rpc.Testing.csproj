@@ -249,7 +249,7 @@
       <HintPath>D:\Lakona\samples\Rpc.Unity.MemoryPack.Tcp\Client\Assets\Packages\System.IO.Pipelines.10.0.3\lib\netstandard2.0\System.IO.Pipelines.dll</HintPath>
     </Reference>
     <Reference Include="Lakona.Rpc.Transport.Tcp">
-      <HintPath>D:\Lakona\samples\Rpc.Unity.MemoryPack.Tcp\Client\Assets\Packages\Lakona.Rpc.Transport.Tcp.0.11.4\lib\netstandard2.1\Lakona.Rpc.Transport.Tcp.dll</HintPath>
+      <HintPath>D:\Lakona\samples\Rpc.Unity.MemoryPack.Tcp\Client\Assets\Packages\Lakona.Rpc.Transport.Tcp.0.11.5\lib\netstandard2.1\Lakona.Rpc.Transport.Tcp.dll</HintPath>
     </Reference>
     <Reference Include="System.Threading.Channels">
       <HintPath>D:\Lakona\samples\Rpc.Unity.MemoryPack.Tcp\Client\Assets\Packages\System.Threading.Channels.10.0.0\lib\netstandard2.1\System.Threading.Channels.dll</HintPath>
