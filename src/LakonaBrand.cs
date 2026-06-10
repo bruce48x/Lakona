@@ -3,9 +3,9 @@ using System.Text;
 internal static class LakonaBrand
 {
     private static readonly string[] Text = {
-        @" /\_/\",
-        @"( oᴥo )  Lakona",
-        @" U___U",
+        @" /\_/\   L A K O N A",
+        @"( oᴥo )",
+        @" U_⌨_U",
     };
 
     private const int Width = 30;
@@ -31,7 +31,7 @@ internal static class LakonaBrand
         // Content lines with side borders
         foreach (var line in Text)
         {
-            var contentWidth = 8 + line.Length;
+            var contentWidth = 6 + line.Length;
             var rightPadding = Width - contentWidth;
 
             Console.Write(PurpleFg);
@@ -39,7 +39,7 @@ internal static class LakonaBrand
             Console.Write(Reset);
 
             Console.Write(GoldFg);
-            Console.Write(new string(' ', 8));
+            Console.Write(new string(' ', 6));
             Console.Write(line);
             if (rightPadding > 0)
                 Console.Write(new string(' ', rightPadding));
