@@ -38,6 +38,35 @@ internal static class SharedContractTemplates
         """;
     }
 
+    public static string RenderSharedLoginProtocols()
+    {
+        return """
+        using System.Threading.Tasks;
+        using Shared.Contracts;
+        using Lakona.Rpc.Core;
+
+        namespace Shared.Contracts.Chat
+        {
+            [RpcService(RpcContractIds.Services.Login, NotificationContract = typeof(ILoginCallback))]
+            public interface ILoginService
+            {
+                [RpcMethod(RpcContractIds.LoginServiceMethods.LoginAsync)]
+                ValueTask<LoginReply> LoginAsync(LoginRequest req);
+            }
+
+            [RpcNotificationContract(typeof(ILoginService))]
+            public interface ILoginCallback
+            {
+                [RpcNotification(RpcContractIds.LoginNotifications.UserJoined)]
+                void OnUserJoined(ChatMember member);
+
+                [RpcNotification(RpcContractIds.LoginNotifications.UserLeft)]
+                void OnUserLeft(ChatUserLeft evt);
+            }
+        }
+        """;
+    }
+
     public static string RenderSharedChatProtocols()
     {
         return """
@@ -50,17 +79,15 @@ internal static class SharedContractTemplates
             [RpcService(RpcContractIds.Services.Chat, NotificationContract = typeof(IChatCallback))]
             public interface IChatService
             {
-                [RpcMethod(RpcContractIds.ChatServiceMethods.JoinAsync)] ValueTask<ChatJoinReply> JoinAsync(ChatJoinRequest req);
-                [RpcMethod(RpcContractIds.ChatServiceMethods.SendAsync)] ValueTask SendAsync(ChatSendRequest req);
-                [RpcMethod(RpcContractIds.ChatServiceMethods.LeaveAsync)] ValueTask LeaveAsync(ChatLeaveRequest req);
+                [RpcMethod(RpcContractIds.ChatServiceMethods.SendAsync)]
+                ValueTask SendAsync(ChatSendRequest req);
             }
 
             [RpcNotificationContract(typeof(IChatService))]
             public interface IChatCallback
             {
-                [RpcNotification(RpcContractIds.ChatNotifications.MessageReceived)] void OnMessageReceived(ChatMessage msg);
-                [RpcNotification(RpcContractIds.ChatNotifications.UserJoined)] void OnUserJoined(ChatMember member);
-                [RpcNotification(RpcContractIds.ChatNotifications.UserLeft)] void OnUserLeft(ChatUserLeft evt);
+                [RpcNotification(RpcContractIds.ChatNotifications.MessageReceived)]
+                void OnMessageReceived(ChatMessage msg);
             }
         }
         """;
