@@ -497,8 +497,8 @@ internal static class ServiceBindingConfigurator
     public static string RenderServerChatConnectionLifecycle()
     {
         return """
+        using System;
         using System.Collections.Concurrent;
-        using Server.App.Chat;
         using Lakona.Game.Server.Actors;
         using Lakona.Rpc.Server;
 
@@ -522,7 +522,7 @@ internal static class ServiceBindingConfigurator
                         return;
                     }
 
-                    session.Disconnected += _ => LeaveAsync(session.ContextId);
+                    session.Disconnected += ex => { _ = LeaveAsync(session.ContextId); };
                 }
 
                 private async Task LeaveAsync(string connectionId)
@@ -536,6 +536,10 @@ internal static class ServiceBindingConfigurator
                                 await room.LeaveAsync(connectionId);
                                 return true;
                             });
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine($"Chat disconnect cleanup failed: {ex}");
                     }
                     finally
                     {
