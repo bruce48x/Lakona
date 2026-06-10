@@ -120,6 +120,53 @@ public sealed class ToolTemplateTests
     }
 
     [Fact]
+    public void RenderServerProgram_AcceptorFactory_PassesHost()
+    {
+        var wsSource = ToolTemplates.RenderServerProgram(new NewCommandOptions(
+            Name: "MyGame",
+            OutputPath: null,
+            ClientEngine: "godot",
+            Transport: "websocket",
+            NetworkProfile: "cluster",
+            Serializer: "json",
+            Persistence: "none",
+            NuGetForUnitySource: "embedded",
+            DeployProfile: "none"));
+
+        var tcpSource = ToolTemplates.RenderServerProgram(new NewCommandOptions(
+            Name: "MyGame",
+            OutputPath: null,
+            ClientEngine: "godot",
+            Transport: "tcp",
+            NetworkProfile: "cluster",
+            Serializer: "json",
+            Persistence: "none",
+            NuGetForUnitySource: "embedded",
+            DeployProfile: "none"));
+
+        var kcpSource = ToolTemplates.RenderServerProgram(new NewCommandOptions(
+            Name: "MyGame",
+            OutputPath: null,
+            ClientEngine: "godot",
+            Transport: "kcp",
+            NetworkProfile: "cluster",
+            Serializer: "json",
+            Persistence: "none",
+            NuGetForUnitySource: "embedded",
+            DeployProfile: "none"));
+
+        // All three transports must pass opts.Host to the acceptor
+        Assert.Contains("opts.Host", wsSource, StringComparison.Ordinal);
+        Assert.Contains("opts.Host", tcpSource, StringComparison.Ordinal);
+        Assert.Contains("opts.Host", kcpSource, StringComparison.Ordinal);
+
+        // No hardcoded 0.0.0.0 in acceptor construction
+        Assert.DoesNotContain("0.0.0.0", wsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("0.0.0.0", tcpSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("0.0.0.0", kcpSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RenderServerProgram_TcpProject_UsesSelectedTransport()
     {
         var options = new NewCommandOptions(
@@ -136,7 +183,7 @@ public sealed class ToolTemplateTests
         var source = ToolTemplates.RenderServerProgram(options);
 
         Assert.Contains(".UseTransport(\"tcp\")", source, StringComparison.Ordinal);
-        Assert.Contains(".UseAcceptor(async opts => new TcpConnectionAcceptor(opts.Port))", source, StringComparison.Ordinal);
+        Assert.Contains(".UseAcceptor(async opts => new TcpConnectionAcceptor(opts.Port, opts.Host))", source, StringComparison.Ordinal);
         Assert.DoesNotContain(".UseTransport(\"websocket\")", source, StringComparison.Ordinal);
     }
 
@@ -157,7 +204,7 @@ public sealed class ToolTemplateTests
         var source = ToolTemplates.RenderServerProgram(options);
 
         Assert.Contains(".UseTransport(\"kcp\")", source, StringComparison.Ordinal);
-        Assert.Contains(".UseAcceptor(async opts => new KcpConnectionAcceptor(opts.Port, 100))", source, StringComparison.Ordinal);
+        Assert.Contains(".UseAcceptor(async opts => new KcpConnectionAcceptor(opts.Port, opts.Host, 100))", source, StringComparison.Ordinal);
     }
 
     [Fact]
