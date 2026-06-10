@@ -337,7 +337,7 @@ internal static class ChatClientTemplates
                     if (_connectButton != null)
                     {
                         _connectButton.SetEnabled(!isBusy);
-                        _connectButton.text = isBusy ? "Connecting..." : "Connect";
+                        _connectButton.text = isBusy ? "CONNECTING..." : "CONNECT";
                     }
                 }
 
@@ -1250,7 +1250,7 @@ internal static class ChatClientTemplates
                 {
                     if (_onlineCount != null)
                     {
-                        _onlineCount.text = $"Online: {count}";
+                        _onlineCount.text = $"ONLINE: {count}";
                     }
                 }
 
@@ -1260,7 +1260,7 @@ internal static class ChatClientTemplates
                     if (_sendButton != null)
                     {
                         _sendButton.SetEnabled(!isBusy);
-                        _sendButton.text = isBusy ? "Sending..." : "Send";
+                        _sendButton.text = isBusy ? "SENDING..." : "SEND";
                     }
                 }
 
