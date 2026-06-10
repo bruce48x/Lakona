@@ -18,3 +18,4 @@ UserSettings/
 *.nupkg
 *.snupkg
 docs/superpowers/
+.superpowers/
