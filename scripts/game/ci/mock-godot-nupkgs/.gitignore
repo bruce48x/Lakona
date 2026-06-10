@@ -1,0 +1,2 @@
+# Allow mock Godot SDK nupkg (parent .gitignore has *.nupkg)
+!Godot.NET.Sdk.*.nupkg

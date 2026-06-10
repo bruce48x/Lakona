@@ -21,61 +21,61 @@ Verify scaffolded Lakona projects work with real network round-trips: scaffold �
 
 ## Quick Reference
 
+The script `scripts/game/ci/test-lakona-tool-matrix.ps1` automates the full
+scaffold → build → start → verify → stop lifecycle for any combination of
+engine, transport, and serializer.
+
+```powershell
+# Run all 12 combinations with full E2E verification
+.\scripts\game\ci\test-lakona-tool-matrix.ps1
+
+# Fast smoke test: only Godot + websocket, scaffold + build only
+.\scripts\game\ci\test-lakona-tool-matrix.ps1 -Engine godot -Transport websocket -Quick
+
+# Single transport + serializer, full E2E
+.\scripts\game\ci\test-lakona-tool-matrix.ps1 -Transport kcp -Serializer memorypack
+
+# CI-like mode using packed local NuGet feed
+.\scripts\game\ci\test-lakona-tool-matrix.ps1 -DependencyMode NuGetFeed
+
+# Keep scaffolded projects after test
+.\scripts\game\ci\test-lakona-tool-matrix.ps1 -KeepScaffolds
+```
+
+Run `Get-Help .\scripts\game\ci\test-lakona-tool-matrix.ps1` or read the
+parameter block at the top of the file for full options.
+
+### Manual Steps (when you need hands-on control)
+
 | Step | Command |
 |------|---------|
-| Scaffold | `dotnet run --project src/Lakona.Tool -- new --name <Name> --client-engine godot --transport websocket --network-profile cluster --serializer json --persistence none --nugetforunity-source embedded --deploy-profile none --output .tmp/<dir>` |
+| Scaffold | `dotnet run --project src/Lakona.Tool -- new --name <Name> --client-engine <engine> --transport <transport> --network-profile cluster --serializer <serializer> --persistence none --nugetforunity-source embedded --deploy-profile none --output .tmp/<dir>` |
 | Build | `dotnet build .tmp/<dir>/<Name>/Server/Server.slnx` |
 | Start | `$proc = Start-Process -FilePath "dotnet" -ArgumentList "run", "--project", ".tmp/<dir>/<Name>/Server/App/Server.App.csproj", "--no-build" -NoNewWindow -PassThru -RedirectStandardOutput ".tmp/server-out.txt" -RedirectStandardError ".tmp/server-err.txt"` |
 | Stop | `Stop-Process -Id $proc.Id -Force` |
-| Check | `Get-Content .tmp/server-out.txt` — look for `RPC server listening on ws://0.0.0.0:20000/ws` |
+| Check | `Get-Content .tmp/server-out.txt` — look for `Application started` |
 
-## E2E Verification Client Pattern
+## E2E Verification Client
 
-Create `.tmp/e2e-test/E2EVerification.csproj` and `Program.cs`:
+The matrix script (`scripts/game/ci/test-lakona-tool-matrix.ps1`) automatically
+generates a temporary E2E verification `.csproj` and `Program.cs` for each
+combination, referencing the scaffolded Shared project and the appropriate
+transport and serializer assemblies from the repo. The generated client:
 
-**csproj** — reference Lakona RPC assemblies AND the scaffolded Shared project:
-```xml
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="../../src/Lakona.Rpc.Core/Lakona.Rpc.Core.csproj" />
-    <ProjectReference Include="../../src/Lakona.Rpc.Client/Lakona.Rpc.Client.csproj" />
-    <ProjectReference Include="../../src/Lakona.Rpc.Transport.WebSocket/Lakona.Rpc.Transport.WebSocket.csproj" />
-    <ProjectReference Include="../../src/Lakona.Rpc.Serializer.Json/Lakona.Rpc.Serializer.Json.csproj" />
-    <ProjectReference Include="../<scaffold-dir>/<Name>/Shared/Shared.csproj" />
-  </ItemGroup>
-</Project>
-```
+1. Constructs the transport and serializer for the combination under test
+2. Connects to the server at the test port (default 20000)
+3. Calls `LoginAsync` (ServiceId=1, MethodId=1) with `LoginRequest { PlayerName = "E2ETest" }`
+4. Asserts `reply.Members.Count == 1` and `reply.Members[0].Name == "E2ETest"`
+5. Exits 0 on success, 1 on failure
 
-**Program.cs** — use typed request/response, let RpcClientRuntime handle serialization:
-```csharp
-using Shared.Contracts.Chat;
-using Lakona.Rpc.Client;
-using Lakona.Rpc.Core;
-using Lakona.Rpc.Serializer.Json;
-using Lakona.Rpc.Transport.WebSocket;
+See the `$programContent` heredoc in the script for the exact C# template.
 
-var transport = new WsTransport("ws://127.0.0.1:20000/ws");
-var serializer = new JsonRpcSerializer();
-var client = new RpcClientRuntime(transport, serializer);
+**Key:** use `await using` (not `using`) — `RpcClientRuntime` implements
+`IAsyncDisposable`.
 
-await client.StartAsync();
-
-// Login: ServiceId=1, MethodId=1
-var reply = await client.CallAsync(
-    new RpcMethod<LoginRequest, LoginReply>(1, 1),
-    new LoginRequest { PlayerName = "E2ETest" });
-
-Console.WriteLine($"Members={reply.Members.Count}, RecentMessages={reply.RecentMessages.Count}");
-await client.DisposeAsync();
-```
-
-**Run:** `dotnet run --project .tmp/e2e-test/E2EVerification.csproj`
+The E2E client always uses **ProjectReferences** to the local source for
+transport, serializer, RPC Core, and RPC Client assemblies — it never uses
+NuGet packages, ensuring it tests the current source.
 
 ## Service and Method IDs
 
@@ -102,6 +102,7 @@ Scaffolded chat projects use fixed contract IDs (from `Shared/Contracts/RpcContr
 | **Not referencing scaffolded Shared.csproj** — E2E client can't find `LoginRequest`/`LoginReply` types | Add `<ProjectReference>` to scaffolded `Shared/Shared.csproj` |
 | **Server port conflict** — another process on 20000 | Change port in `appsettings.json` or kill conflicting process |
 | **HandlerError: RPC handler failed** — check server stderr for the real exception | Read `.tmp/server-err.txt` — often a JSON deserialization mismatch or DI resolution failure |
+| **Scaffolded NuGet versions are stale** — scaffolded `.csproj` references old NuGet packages that don't have the latest source changes | Default mode uses ProjectReference patching to replace NuGet refs with local source refs. Use `-DependencyMode NuGetFeed` for full CI-like resolution from locally-packed packages |
 
 ## RPC Wire Format (for raw debugging)
 
