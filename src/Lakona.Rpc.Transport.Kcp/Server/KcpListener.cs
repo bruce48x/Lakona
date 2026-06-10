@@ -74,7 +74,7 @@ namespace Lakona.Rpc.Transport.Kcp
                 SingleWriter = true,
                 FullMode = BoundedChannelFullMode.Wait
             });
-            _socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            _socket = new Socket(endPoint.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
             _socket.Bind(endPoint);
             _receiveLoop = Task.Run(ReceiveLoopAsync);
         }
@@ -84,9 +84,29 @@ namespace Lakona.Rpc.Transport.Kcp
             if (string.IsNullOrWhiteSpace(host))
                 throw new ArgumentException("Host is required.", nameof(host));
 
-            var address = IPAddress.TryParse(host, out var parsed)
-                ? parsed
-                : IPAddress.Parse(host);
+            // Literal IP addresses parse directly without touching DNS.
+            if (IPAddress.TryParse(host, out var parsed))
+                return new IPEndPoint(parsed, port);
+
+            // Resolve DNS hostnames. Prefer IPv4 because the socket is
+            // AddressFamily.InterNetwork (UDP socket for KCP).
+            IPAddress[] addresses;
+            try
+            {
+                addresses = Dns.GetHostAddresses(host);
+            }
+            catch (SocketException ex)
+            {
+                throw new InvalidOperationException(
+                    $"Failed to resolve host '{host}': {ex.Message}", ex);
+            }
+
+            if (addresses.Length == 0)
+                throw new InvalidOperationException(
+                    $"No IP addresses found for host '{host}'.");
+
+            var address = addresses.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork)
+                          ?? addresses[0];
             return new IPEndPoint(address, port);
         }
 
@@ -136,7 +156,8 @@ namespace Lakona.Rpc.Transport.Kcp
         private async Task ReceiveLoopAsync()
         {
             var buffer = new byte[2048];
-            EndPoint any = new IPEndPoint(IPAddress.Any, 0);
+            EndPoint any = new IPEndPoint(
+                _socket.AddressFamily == AddressFamily.InterNetworkV6 ? IPAddress.IPv6Any : IPAddress.Any, 0);
             var localPort = ((IPEndPoint)_socket.LocalEndPoint!).Port;
 
             while (!_cts.IsCancellationRequested)

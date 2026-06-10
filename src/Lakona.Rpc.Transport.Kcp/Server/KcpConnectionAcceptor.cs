@@ -7,6 +7,7 @@ namespace Lakona.Rpc.Transport.Kcp;
 public sealed class KcpConnectionAcceptor : IRpcConnectionAcceptor
 {
     private readonly KcpListener _listener;
+    private readonly string _listenAddress;
 
     public KcpConnectionAcceptor(int port)
         : this(port, "127.0.0.1")
@@ -41,16 +42,16 @@ public sealed class KcpConnectionAcceptor : IRpcConnectionAcceptor
     public KcpConnectionAcceptor(int port, string host, int maxPendingAcceptedConnections, KcpHandshakeAdmission? admission)
     {
         _listener = new KcpListener(port, host, maxPendingAcceptedConnections, admission);
+        _listenAddress = FormatListenAddress();
     }
 
-    public string ListenAddress
+    public string ListenAddress => _listenAddress;
+
+    private string FormatListenAddress()
     {
-        get
-        {
-            var endPoint = (IPEndPoint?)_listener.LocalEndPoint;
-            var host = endPoint?.Address?.ToString() ?? "0.0.0.0";
-            return $"udp://{host}:{endPoint?.Port ?? 0}";
-        }
+        var endPoint = (IPEndPoint?)_listener.LocalEndPoint;
+        var host = endPoint?.Address?.ToString() ?? "0.0.0.0";
+        return $"udp://{host}:{endPoint?.Port ?? 0}";
     }
 
     public async ValueTask<RpcAcceptedConnection> AcceptAsync(CancellationToken ct = default)

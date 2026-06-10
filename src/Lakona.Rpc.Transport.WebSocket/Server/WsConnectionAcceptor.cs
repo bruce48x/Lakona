@@ -1,5 +1,6 @@
 #if NET10_0_OR_GREATER
 using System.Net;
+using System.Net.Sockets;
 using System.Threading.Channels;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -58,9 +59,7 @@ public sealed class WsConnectionAcceptor : IRpcConnectionAcceptor
         if (string.IsNullOrWhiteSpace(host))
             throw new ArgumentException("Host is required.", nameof(host));
 
-        var bindHost = IPAddress.TryParse(host, out var parsed)
-            ? parsed.ToString()
-            : host;
+        var bindHost = ResolveBindHost(host);
 
         ValidatePendingAcceptedConnectionLimit(maxPendingAcceptedConnections);
         var normalizedPath = NormalizePath(path);
@@ -214,6 +213,20 @@ public sealed class WsConnectionAcceptor : IRpcConnectionAcceptor
     private void ReleasePendingSlot()
     {
         Interlocked.Decrement(ref _pendingAcceptedConnections);
+    }
+
+    private static string ResolveBindHost(string host)
+    {
+        if (IPAddress.TryParse(host, out var parsed))
+        {
+            // IPv6 addresses must be bracketed in URIs: http://[::1]:port
+            return parsed.AddressFamily == AddressFamily.InterNetworkV6
+                ? $"[{parsed}]"
+                : parsed.ToString();
+        }
+
+        // DNS hostnames pass through as-is.
+        return host;
     }
 
     private static string NormalizePath(string path)

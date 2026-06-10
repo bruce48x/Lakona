@@ -14,6 +14,18 @@ namespace Lakona.Rpc.Transport.Tests;
 public class WebSocketTransportTests
 {
     [Fact]
+    public async Task CreateAsync_IPv6_BracketsAddressInUrl()
+    {
+        var port = GetFreePort();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+        await using var acceptor = await WsConnectionAcceptor.CreateAsync(
+            port, "/ws", "::1", 2, cts.Token);
+
+        // IPv6 addresses must be bracketed in URIs: ws://[::1]:port/ws
+        Assert.Contains($"[::1]:{port}", acceptor.ListenAddress, StringComparison.Ordinal);
+    }
+    [Fact]
     public async Task WebSocketTransport_Roundtrip()
     {
         var port = GetFreePort();
