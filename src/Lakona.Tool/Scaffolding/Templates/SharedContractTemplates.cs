@@ -125,11 +125,13 @@ internal static class SharedContractTemplates
             {
                 {{order0}}public List<ChatMember> Members { get; set; } = new();
                 {{order1}}public List<ChatMessage> RecentMessages { get; set; } = new();
+                {{order2}}public string ConnectionId { get; set; } = "";
             }
 
             {{memoryPackable}}public partial class ChatSendRequest
             {
                 {{order0}}public string Text { get; set; } = "";
+                {{order1}}public string ConnectionId { get; set; } = "";
             }
 
             {{memoryPackable}}public partial class ChatUserLeft

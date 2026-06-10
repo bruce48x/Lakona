@@ -248,8 +248,9 @@ internal static class ServerProjectTemplates
                 private readonly Dictionary<string, (string Name, ILoginCallback LoginCallback, IChatCallback ChatCallback)> _members = new();
                 private readonly Queue<ChatMessage> _recentMessages = new();
 
-                public ValueTask<LoginReply> LoginAsync(string connectionId, string playerName, ILoginCallback loginCallback)
+                public ValueTask<LoginReply> LoginAsync(string playerName, ILoginCallback loginCallback)
                 {
+                    var connectionId = Guid.NewGuid().ToString("N");
                     var member = new ChatMember { Name = playerName };
                     _members[connectionId] = (playerName, loginCallback, null!);
 
@@ -258,7 +259,8 @@ internal static class ServerProjectTemplates
                     return new ValueTask<LoginReply>(new LoginReply
                     {
                         Members = _members.Values.Select(v => new ChatMember { Name = v.Name }).ToList(),
-                        RecentMessages = _recentMessages.ToList()
+                        RecentMessages = _recentMessages.ToList(),
+                        ConnectionId = connectionId
                     });
                 }
 
@@ -272,7 +274,7 @@ internal static class ServerProjectTemplates
 
                 public ValueTask SendAsync(string connectionId, string text)
                 {
-                    if (!_members.TryGetValue(connectionId, out var entry) || entry.ChatCallback == null)
+                    if (!_members.TryGetValue(connectionId, out var entry))
                     {
                         return ValueTask.CompletedTask;
                     }
@@ -317,10 +319,7 @@ internal static class ServerProjectTemplates
                 {
                     foreach (var entry in _members.Values)
                     {
-                        if (entry.ChatCallback != null)
-                        {
-                            try { action(entry.ChatCallback); } catch { }
-                        }
+                        try { action(entry.ChatCallback); } catch { }
                     }
                 }
             }
@@ -344,20 +343,18 @@ internal static class ServerProjectTemplates
 
                 private readonly ILoginCallback _callback;
                 private readonly IActorRuntime _actors;
-                private readonly string _connectionId;
 
                 public LoginService(ILoginCallback callback, IActorRuntime actors)
                 {
                     _callback = callback;
                     _actors = actors;
-                    _connectionId = Guid.NewGuid().ToString("N");
                 }
 
                 public ValueTask<LoginReply> LoginAsync(LoginRequest req)
                 {
                     return _actors.AskAsync<ChatRoomActor, LoginReply>(
                         RoomId,
-                        (room, ct) => room.LoginAsync(_connectionId, req.PlayerName, _callback));
+                        (room, ct) => room.LoginAsync(req.PlayerName, _callback));
                 }
             }
         }
@@ -380,13 +377,11 @@ internal static class ServerProjectTemplates
 
                 private readonly IChatCallback _callback;
                 private readonly IActorRuntime _actors;
-                private readonly string _connectionId;
 
                 public ChatService(IChatCallback callback, IActorRuntime actors)
                 {
                     _callback = callback;
                     _actors = actors;
-                    _connectionId = Guid.NewGuid().ToString("N");
                 }
 
                 public async ValueTask SendAsync(ChatSendRequest req)
@@ -396,7 +391,8 @@ internal static class ServerProjectTemplates
                         RoomId,
                         async (room, ct) =>
                         {
-                            await room.SendAsync(_connectionId, text);
+                            room.BindChatCallback(req.ConnectionId, _callback);
+                            await room.SendAsync(req.ConnectionId, text);
                             return true;
                         });
                 }

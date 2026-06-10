@@ -447,7 +447,7 @@ public sealed class ToolTemplateTests
         Assert.Contains("class ChatService : IChatService", source, StringComparison.Ordinal);
         Assert.Contains("private readonly IActorRuntime _actors;", source, StringComparison.Ordinal);
         Assert.Contains("public ChatService(IChatCallback callback, IActorRuntime actors)", source, StringComparison.Ordinal);
-        Assert.Contains("Guid.NewGuid()", source, StringComparison.Ordinal);
+        Assert.Contains("req.ConnectionId", source, StringComparison.Ordinal);
         Assert.Contains("ActorId.From(\"chat:global\")", source, StringComparison.Ordinal);
         Assert.Contains("_actors.AskAsync<ChatRoomActor", source, StringComparison.Ordinal);
         Assert.DoesNotContain("static readonly ChatRoom", source, StringComparison.Ordinal);
@@ -803,7 +803,7 @@ public sealed class ToolTemplateTests
 
             Assert.Contains("class LoginService : ILoginService", loginService, StringComparison.Ordinal);
             Assert.Contains("AskAsync<ChatRoomActor", loginService, StringComparison.Ordinal);
-            Assert.Contains("Guid.NewGuid()", loginService, StringComparison.Ordinal);
+            Assert.Contains("ILoginCallback", loginService, StringComparison.Ordinal);
             Assert.Contains("IActorRuntime", service, StringComparison.Ordinal);
             Assert.Contains("AskAsync<ChatRoomActor", service, StringComparison.Ordinal);
             Assert.Contains("FilterMessage", service, StringComparison.Ordinal);

@@ -85,19 +85,21 @@ internal static class ChatClientTemplates
             public sealed class ChatClient : IChatCallback
             {
                 private readonly IChatService _chatService;
+                private readonly string _connectionId;
 
                 public event Action<ChatMessage>? OnMessageReceived;
 
-                public ChatClient(RpcClient rpcClient)
+                public ChatClient(RpcClient rpcClient, string connectionId)
                 {
                     var callbacks = new RpcClient.RpcNotificationBindings();
                     callbacks.Add(this);
                     _chatService = rpcClient.Api.Shared.Chat;
+                    _connectionId = connectionId;
                 }
 
                 public async Task SendAsync(string text)
                 {
-                    await _chatService.SendAsync(new ChatSendRequest { Text = text });
+                    await _chatService.SendAsync(new ChatSendRequest { Text = text, ConnectionId = _connectionId });
                 }
 
                 void IChatCallback.OnMessageReceived(ChatMessage msg)
@@ -121,6 +123,7 @@ internal static class ChatClientTemplates
             {
                 public static LoginClient? LoginClient { get; set; }
                 public static LoginReply? LoginReply { get; set; }
+                public static string? ConnectionId { get; set; }
             }
         }
         """;
@@ -139,6 +142,7 @@ internal static class ChatClientTemplates
             {
                 public LoginClient? LoginClient { get; set; }
                 public LoginReply? LoginReply { get; set; }
+                public string? ConnectionId { get; set; }
             }
         }
         """;
@@ -250,6 +254,7 @@ internal static class ChatClientTemplates
                         var reply = await client.LoginAsync(name);
                         ChatSession.LoginClient = client;
                         ChatSession.LoginReply = reply;
+                        ChatSession.ConnectionId = reply.ConnectionId;
                         SceneManager.LoadScene("ChatScene");
                     }
                     catch (Exception ex)
@@ -529,6 +534,7 @@ internal static class ChatClientTemplates
                         var session = GetNode<ChatSession>("/root/ChatSession");
                         session.LoginClient = client;
                         session.LoginReply = reply;
+                        session.ConnectionId = reply.ConnectionId;
                         GetTree().ChangeSceneToFile("res://Chat.tscn");
                     }
                     catch (Exception ex)
@@ -653,7 +659,7 @@ internal static class ChatClientTemplates
                     }
 
                     _loginClient = loginClient;
-                    _client = new ChatClient(loginClient.RpcClient);
+                    _client = new ChatClient(loginClient.RpcClient, session.ConnectionId!);
 
                     _client.OnMessageReceived += msg => CallDeferred(nameof(AppendMessageDeferred), msg.SenderName, msg.Text);
                     loginClient.OnUserJoined += member => CallDeferred(nameof(AppendSystemMessageDeferred), $"{member.Name} joined.");
@@ -920,7 +926,7 @@ internal static class ChatClientTemplates
                     }
 
                     _loginClient = loginClient;
-                    _client = new ChatClient(loginClient.RpcClient);
+                    _client = new ChatClient(loginClient.RpcClient, session.ConnectionId!);
 
                     _client.OnMessageReceived += msg => EnqueueMainThread(() => AppendMessage(msg));
                     loginClient.OnUserJoined += member => EnqueueMainThread(() => OnUserJoinedHandler(member));

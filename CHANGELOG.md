@@ -8,6 +8,15 @@ that consolidation.
 
 ### Released
 
+- `Lakona.Tool` `0.8.15`
+
+### Fix shared connection identity across Login and Chat services
+
+Actor generates connection ID at login, returns it in `LoginReply.ConnectionId`,
+client passes it back in `ChatSendRequest.ConnectionId`. This fixes a bug where
+`LoginService` and `ChatService` each generated independent connection IDs,
+causing `SendAsync` to fail to find the member in `ChatRoomActor`.
+
 - `Lakona.Tool` `0.8.14`
 
 ### Fix circular ProjectReference in generated server project
