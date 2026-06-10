@@ -245,13 +245,13 @@ internal static class ServerProjectTemplates
             internal sealed class ChatRoomActor : Actor
             {
                 private const int MaxRecentMessages = 100;
-                private readonly Dictionary<IChatCallback, (string Name, ILoginCallback LoginCallback)> _members = new();
+                private readonly Dictionary<string, (string Name, ILoginCallback LoginCallback, IChatCallback ChatCallback)> _members = new();
                 private readonly Queue<ChatMessage> _recentMessages = new();
 
-                public ValueTask<LoginReply> LoginAsync(ILoginCallback loginCallback, IChatCallback chatCallback, string playerName)
+                public ValueTask<LoginReply> LoginAsync(string connectionId, string playerName, ILoginCallback loginCallback)
                 {
                     var member = new ChatMember { Name = playerName };
-                    _members[chatCallback] = (playerName, loginCallback);
+                    _members[connectionId] = (playerName, loginCallback, null!);
 
                     BroadcastLogin(cb => cb.OnUserJoined(member));
 
@@ -262,9 +262,17 @@ internal static class ServerProjectTemplates
                     });
                 }
 
-                public ValueTask SendAsync(IChatCallback chatCallback, string text)
+                public void BindChatCallback(string connectionId, IChatCallback chatCallback)
                 {
-                    if (!_members.TryGetValue(chatCallback, out var entry))
+                    if (_members.TryGetValue(connectionId, out var entry))
+                    {
+                        _members[connectionId] = (entry.Name, entry.LoginCallback, chatCallback);
+                    }
+                }
+
+                public ValueTask SendAsync(string connectionId, string text)
+                {
+                    if (!_members.TryGetValue(connectionId, out var entry) || entry.ChatCallback == null)
                     {
                         return ValueTask.CompletedTask;
                     }
@@ -286,9 +294,9 @@ internal static class ServerProjectTemplates
                     return ValueTask.CompletedTask;
                 }
 
-                public ValueTask LeaveAsync(IChatCallback chatCallback)
+                public ValueTask LeaveAsync(string connectionId)
                 {
-                    if (!_members.Remove(chatCallback, out var entry))
+                    if (!_members.Remove(connectionId, out var entry))
                     {
                         return ValueTask.CompletedTask;
                     }
@@ -307,9 +315,12 @@ internal static class ServerProjectTemplates
 
                 private void BroadcastChat(Action<IChatCallback> action)
                 {
-                    foreach (var key in _members.Keys)
+                    foreach (var entry in _members.Values)
                     {
-                        try { action(key); } catch { }
+                        if (entry.ChatCallback != null)
+                        {
+                            try { action(entry.ChatCallback); } catch { }
+                        }
                     }
                 }
             }
@@ -331,22 +342,22 @@ internal static class ServerProjectTemplates
             {
                 private static readonly ActorId RoomId = ActorId.From("chat:global");
 
-                private readonly ILoginCallback _loginCallback;
-                private readonly IChatCallback _chatCallback;
+                private readonly ILoginCallback _callback;
                 private readonly IActorRuntime _actors;
+                private readonly string _connectionId;
 
-                public LoginService(ILoginCallback loginCallback, IChatCallback chatCallback, IActorRuntime actors)
+                public LoginService(ILoginCallback callback, IActorRuntime actors)
                 {
-                    _loginCallback = loginCallback;
-                    _chatCallback = chatCallback;
+                    _callback = callback;
                     _actors = actors;
+                    _connectionId = Guid.NewGuid().ToString("N");
                 }
 
                 public ValueTask<LoginReply> LoginAsync(LoginRequest req)
                 {
                     return _actors.AskAsync<ChatRoomActor, LoginReply>(
                         RoomId,
-                        (room, ct) => room.LoginAsync(_loginCallback, _chatCallback, req.PlayerName));
+                        (room, ct) => room.LoginAsync(_connectionId, req.PlayerName, _callback));
                 }
             }
         }
@@ -369,11 +380,13 @@ internal static class ServerProjectTemplates
 
                 private readonly IChatCallback _callback;
                 private readonly IActorRuntime _actors;
+                private readonly string _connectionId;
 
                 public ChatService(IChatCallback callback, IActorRuntime actors)
                 {
                     _callback = callback;
                     _actors = actors;
+                    _connectionId = Guid.NewGuid().ToString("N");
                 }
 
                 public async ValueTask SendAsync(ChatSendRequest req)
@@ -383,7 +396,7 @@ internal static class ServerProjectTemplates
                         RoomId,
                         async (room, ct) =>
                         {
-                            await room.SendAsync(_callback, text);
+                            await room.SendAsync(_connectionId, text);
                             return true;
                         });
                 }
@@ -440,8 +453,7 @@ internal static class ServiceBindingConfigurator
     {
         LoginServiceBinder.Bind(
             registry,
-            (loginCallback, chatCallback) =>
-                (ILoginService)ActivatorUtilities.CreateInstance(services, LoginServiceType, loginCallback, chatCallback));
+            callback => (ILoginService)ActivatorUtilities.CreateInstance(services, LoginServiceType, callback));
 
         ChatServiceBinder.Bind(
             registry,
