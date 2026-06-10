@@ -466,6 +466,8 @@ Get-ChildItem src -Filter *.csproj -Recurse | ForEach-Object {
 ## Assistant And Maintainer Guardrails
 
 - Follow all rules above.
+- For end-to-end validation of generated Lakona projects, use the
+  `lakona-e2e-testing` skill when it is available.
 - Preserve package ownership and assembly boundaries.
 - Fix Unity / IL2CPP violations before committing.
 - Do not solve source-generation failures by committing generated RPC glue.
