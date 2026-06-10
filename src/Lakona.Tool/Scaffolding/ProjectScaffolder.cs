@@ -998,7 +998,6 @@ internal sealed class ProjectScaffolder
         ProjectXmlMutator.SetProperty(project, "LakonaRpcServerGeneratedNamespace", ProjectConventions.StarterServerGeneratedNamespace);
 
         ProjectXmlMutator.EnsureProjectReference(project, @"..\..\Shared\Shared.csproj", "net10.0");
-        ProjectXmlMutator.EnsureProjectReferenceWithoutOutput(project, @"..\Hotfix\Server.Hotfix.csproj");
         foreach (var reference in GameDependencyPlanner.CreateServerPlan(options).PackageReferences)
         {
             var attributes = new List<(string Name, string Value)>();

@@ -8,6 +8,15 @@ that consolidation.
 
 ### Released
 
+- `Lakona.Tool` `0.8.14`
+
+### Fix circular ProjectReference in generated server project
+
+Removed `EnsureProjectReferenceWithoutOutput` that added a circular `ProjectReference`
+from `Server.App.csproj` to `Server.Hotfix.csproj`. The build ordering is already
+handled by `Server.slnx`. This fixes `MSB4006` on `_GenerateRestoreProjectPathWalk`
+in .NET 10 SDK.
+
 - `Lakona.Tool` `0.8.13`
 
 ### Split RPC services into ILoginService + IChatService
