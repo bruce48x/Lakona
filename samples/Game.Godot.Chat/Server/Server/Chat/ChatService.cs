@@ -3,12 +3,12 @@ using Lakona.Game.Server.Actors;
 
 namespace Server.Chat;
 
-public sealed class ChatServiceImpl : IChatService
+public sealed class ChatService : IChatService
 {
     private static readonly ActorId GlobalChatRoomId = ActorId.From("chat:global");
     private readonly IActorRuntime actorRuntime;
 
-    public ChatServiceImpl(IActorRuntime actorRuntime)
+    public ChatService(IActorRuntime actorRuntime)
     {
         this.actorRuntime = actorRuntime;
     }

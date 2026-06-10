@@ -6,7 +6,7 @@
 
 - One WebSocket RPC endpoint for normal client/server traffic.
 - Chat contracts in `Shared/Contracts/Chat`.
-- RPC adapter code in `Server/Server/Chat/ChatServiceImpl.cs`.
+- RPC adapter code in `Server/Server/Chat/ChatService.cs`.
 - Actor-owned Chat state in `Server/Server/Chat/ChatRoomActor.cs`.
 - Hotfix message filtering through `Server/Server/Chat/ChatRules.cs` and `Server/Hotfix/Chat/ChatRulesSystem.cs`.
 

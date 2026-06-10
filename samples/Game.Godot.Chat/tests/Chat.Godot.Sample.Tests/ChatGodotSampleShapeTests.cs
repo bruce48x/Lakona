@@ -32,7 +32,7 @@ public sealed class ChatGodotSampleShapeTests
     [Fact]
     public void ChatSendPathUsesActorAndHotfix()
     {
-        string service = File.ReadAllText(Path.Combine(SampleRoot, "Server", "Server", "Chat", "ChatServiceImpl.cs"));
+        string service = File.ReadAllText(Path.Combine(SampleRoot, "Server", "Server", "Chat", "ChatService.cs"));
         string actor = File.ReadAllText(Path.Combine(SampleRoot, "Server", "Server", "Chat", "ChatRoomActor.cs"));
         string rules = File.ReadAllText(Path.Combine(SampleRoot, "Server", "Server", "Chat", "ChatRules.cs"));
         string hotfix = File.ReadAllText(Path.Combine(SampleRoot, "Server", "Hotfix", "Chat", "ChatRulesSystem.cs"));
