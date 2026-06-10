@@ -8,17 +8,20 @@ internal static class ToolTemplates
     public static string RenderServerAppSettings(NewCommandOptions options) => ServerProjectTemplates.RenderServerAppSettings(options);
     public static string RenderHotfixProject() => ServerProjectTemplates.RenderHotfixProject();
     public static string RenderServerChatRoomActor() => ServerProjectTemplates.RenderServerChatRoomActor();
+    public static string RenderHotfixLoginService() => ServerProjectTemplates.RenderHotfixLoginService();
     public static string RenderHotfixChatService() => ServerProjectTemplates.RenderHotfixChatService();
     public static string RenderServerAppAssemblyInfo() => ServerProjectTemplates.RenderServerAppAssemblyInfo();
     public static string RenderServiceBindingConfigurator() => ServerProjectTemplates.RenderServiceBindingConfigurator();
 
     // Shared contract templates
     public static string RenderSharedRpcContractIds() => SharedContractTemplates.RenderSharedRpcContractIds();
+    public static string RenderSharedLoginProtocols() => SharedContractTemplates.RenderSharedLoginProtocols();
     public static string RenderSharedChatProtocols() => SharedContractTemplates.RenderSharedChatProtocols();
     public static string RenderSharedChatMessages() => SharedContractTemplates.RenderSharedChatMessages();
     public static string RenderSharedChatMessages(NewCommandOptions options) => SharedContractTemplates.RenderSharedChatMessages(options);
 
     // Client chat templates
+    public static string RenderClientLoginClient() => ChatClientTemplates.RenderClientLoginClient();
     public static string RenderClientChatClient() => ChatClientTemplates.RenderClientChatClient();
     public static string RenderChatSession() => ChatClientTemplates.RenderChatSession();
     public static string RenderGodotChatSession() => ChatClientTemplates.RenderGodotChatSession();

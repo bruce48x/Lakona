@@ -69,6 +69,9 @@ internal sealed class ProjectScaffolder
                 Path.Combine(projectRoot, "Shared", "Contracts", "RpcContractIds.cs"),
                 ToolTemplates.RenderSharedRpcContractIds()),
             WriteIfMissingAsync(
+                Path.Combine(projectRoot, "Shared", "Contracts", "Login.cs"),
+                ToolTemplates.RenderSharedLoginProtocols()),
+            WriteIfMissingAsync(
                 Path.Combine(projectRoot, "Shared", "Contracts", "Chat", "ChatProtocols.cs"),
                 ToolTemplates.RenderSharedChatProtocols()),
             WriteIfMissingAsync(
@@ -125,6 +128,9 @@ internal sealed class ProjectScaffolder
                     Path.Combine(projectRoot, "Client", "Scripts", "Chat", "ChatSession.cs"),
                     ToolTemplates.RenderGodotChatSession()),
                 WriteIfMissingAsync(
+                    Path.Combine(projectRoot, "Client", "Scripts", "Login", "LoginClient.cs"),
+                    ToolTemplates.RenderClientLoginClient()),
+                WriteIfMissingAsync(
                     Path.Combine(projectRoot, "Client", "Scripts", "Login", "LoginScene.cs"),
                     ToolTemplates.RenderGodotLoginScene(options)),
                 WriteIfMissingAsync(
@@ -165,6 +171,9 @@ internal sealed class ProjectScaffolder
             WriteIfMissingAsync(
                 chatSessionPath,
                 ToolTemplates.RenderChatSession()),
+            WriteIfMissingAsync(
+                Path.Combine(projectRoot, "Client", "Assets", "Scripts", "Login", "LoginClient.cs"),
+                ToolTemplates.RenderClientLoginClient()),
             WriteIfMissingAsync(
                 loginUiPath,
                 ToolTemplates.RenderUnityLoginUI(options)),
@@ -945,9 +954,13 @@ internal sealed class ProjectScaffolder
 
     private static Task WriteHotfixBoundaryFilesAsync(string projectRoot)
     {
-        return WriteIfMissingAsync(
-            Path.Combine(projectRoot, "Server", "Hotfix", "Chat", "ChatServiceImpl.cs"),
-            ToolTemplates.RenderHotfixChatService());
+        return Task.WhenAll(
+            WriteIfMissingAsync(
+                Path.Combine(projectRoot, "Server", "Hotfix", "Login", "LoginService.cs"),
+                ToolTemplates.RenderHotfixLoginService()),
+            WriteIfMissingAsync(
+                Path.Combine(projectRoot, "Server", "Hotfix", "Chat", "ChatService.cs"),
+                ToolTemplates.RenderHotfixChatService()));
     }
 
     private static Task WriteServerConfiguratorsAsync(string projectRoot, NewCommandOptions options)
