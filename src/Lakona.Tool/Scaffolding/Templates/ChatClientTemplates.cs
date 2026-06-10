@@ -671,7 +671,6 @@ internal static class ChatClientTemplates
                         var session = GetNode<ChatSession>("/root/ChatSession");
                         session.LoginClient = client;
                         session.LoginReply = reply;
-                        session.ConnectionId = reply.ConnectionId;
                         GetTree().ChangeSceneToFile("res://Chat.tscn");
                     }
                     catch (Exception ex)
