@@ -10,8 +10,20 @@ public sealed class TcpConnectionAcceptor : IRpcConnectionAcceptor
     private readonly TcpListener _listener;
 
     public TcpConnectionAcceptor(int port)
+        : this(port, "127.0.0.1")
     {
-        _listener = new TcpListener(IPAddress.Any, port);
+    }
+
+    public TcpConnectionAcceptor(int port, string host)
+    {
+        if (string.IsNullOrWhiteSpace(host))
+            throw new ArgumentException("Host is required.", nameof(host));
+
+        var bindAddress = IPAddress.TryParse(host, out var parsed)
+            ? parsed
+            : IPAddress.Parse(host);
+
+        _listener = new TcpListener(bindAddress, port);
         _listener.Start();
     }
 
@@ -20,7 +32,7 @@ public sealed class TcpConnectionAcceptor : IRpcConnectionAcceptor
         get
         {
             var endPoint = (IPEndPoint)_listener.LocalEndpoint;
-            return $"tcp://0.0.0.0:{endPoint.Port}";
+            return $"tcp://{endPoint.Address}:{endPoint.Port}";
         }
     }
 
