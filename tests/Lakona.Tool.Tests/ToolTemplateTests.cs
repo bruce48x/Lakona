@@ -541,6 +541,17 @@ public sealed class ToolTemplateTests
     }
 
     [Fact]
+    public void RenderServerChatConnectionLifecycle_ObservesDisconnectCleanupTask()
+    {
+        var source = ToolTemplates.RenderServerChatConnectionLifecycle();
+
+        Assert.Contains("_ = LeaveAsync(session.ContextId);", source, StringComparison.Ordinal);
+        Assert.Contains("catch (Exception ex)", source, StringComparison.Ordinal);
+        Assert.Contains("Console.Error.WriteLine", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("session.Disconnected += _ => LeaveAsync(session.ContextId);", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RenderClientChatClient_WrapsLoginClientNotRpcClient()
     {
         var source = ToolTemplates.RenderClientChatClient();
