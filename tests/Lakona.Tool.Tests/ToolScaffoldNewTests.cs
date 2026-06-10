@@ -109,6 +109,7 @@ public sealed class ToolScaffoldNewTests
             Assert.True(File.Exists(Path.Combine(projectRoot, "Server", "Hotfix", "Server.Hotfix.csproj")));
             Assert.True(File.Exists(Path.Combine(projectRoot, "Server", "Hotfix", "Login", "LoginService.cs")));
             Assert.True(File.Exists(Path.Combine(projectRoot, "Server", "Hotfix", "Chat", "ChatService.cs")));
+            Assert.True(File.Exists(Path.Combine(projectRoot, "Server", "App", "Chat", "ChatConnectionLifecycle.cs")));
         }
         finally
         {
@@ -131,6 +132,25 @@ public sealed class ToolScaffoldNewTests
             Assert.True(File.Exists(Path.Combine(projectRoot, "Client", "Assets", "NuGet.config")));
             Assert.True(File.Exists(Path.Combine(projectRoot, "Client", "Assets", "Scripts", "Login", "LoginClient.cs")));
             Assert.True(File.Exists(Path.Combine(projectRoot, "Client", "Assets", "Scripts", "Chat", "ChatClient.cs")));
+
+            var sharedMessages = await File.ReadAllTextAsync(Path.Combine(projectRoot, "Shared", "Contracts", "Chat", "ChatMessages.cs"));
+            var unityChatUi = await File.ReadAllTextAsync(Path.Combine(projectRoot, "Client", "Assets", "Scripts", "Chat", "ChatUI.cs"));
+            var chatClient = await File.ReadAllTextAsync(Path.Combine(projectRoot, "Client", "Assets", "Scripts", "Chat", "ChatClient.cs"));
+
+            Assert.DoesNotContain("ConnectionId", sharedMessages, StringComparison.Ordinal);
+            Assert.DoesNotContain("session.ConnectionId", unityChatUi, StringComparison.Ordinal);
+            Assert.DoesNotContain("new RpcClient.RpcNotificationBindings()", chatClient, StringComparison.Ordinal);
+
+            var loginClient = await File.ReadAllTextAsync(Path.Combine(projectRoot, "Client", "Assets", "Scripts", "Login", "LoginClient.cs"));
+            var serviceBinding = await File.ReadAllTextAsync(Path.Combine(projectRoot, "Server", "App", "Hosting", "ServiceBindingConfigurator.cs"));
+
+            Assert.Contains("callbacks.Add((ILoginCallback)this);", loginClient, StringComparison.Ordinal);
+            Assert.Contains("callbacks.Add((IChatCallback)this);", loginClient, StringComparison.Ordinal);
+            Assert.Contains("public ChatClient(LoginClient loginClient)", chatClient, StringComparison.Ordinal);
+            Assert.Contains("await _chatService.BindAsync(new ChatBindRequest());", chatClient, StringComparison.Ordinal);
+            Assert.Contains("session.ContextId", serviceBinding, StringComparison.Ordinal);
+            Assert.Contains("new LoginCallbackProxy(session)", serviceBinding, StringComparison.Ordinal);
+            Assert.Contains("new ChatCallbackProxy(session)", serviceBinding, StringComparison.Ordinal);
         }
         finally
         {

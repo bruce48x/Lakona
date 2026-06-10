@@ -294,6 +294,8 @@ public sealed class ToolTemplateTests
         var source = ToolTemplates.RenderSharedChatProtocols();
 
         Assert.Contains("[RpcService(RpcContractIds.Services.Chat, NotificationContract = typeof(IChatCallback))]", source, StringComparison.Ordinal);
+        Assert.Contains("[RpcMethod(RpcContractIds.ChatServiceMethods.BindAsync)]", source, StringComparison.Ordinal);
+        Assert.Contains("ValueTask BindAsync(ChatBindRequest req);", source, StringComparison.Ordinal);
         Assert.Contains("[RpcMethod(RpcContractIds.ChatServiceMethods.SendAsync)]", source, StringComparison.Ordinal);
         Assert.Contains("[RpcNotification(RpcContractIds.ChatNotifications.MessageReceived)]", source, StringComparison.Ordinal);
         Assert.Contains("OnMessageReceived", source, StringComparison.Ordinal);
@@ -315,10 +317,20 @@ public sealed class ToolTemplateTests
         Assert.Contains("public const int Login = 1;", source, StringComparison.Ordinal);
         Assert.Contains("public const int Chat = 2;", source, StringComparison.Ordinal);
         Assert.Contains("public const int LoginAsync = 1;", source, StringComparison.Ordinal);
-        Assert.Contains("public const int SendAsync = 1;", source, StringComparison.Ordinal);
+        Assert.Contains("public const int BindAsync = 1;", source, StringComparison.Ordinal);
+        Assert.Contains("public const int SendAsync = 2;", source, StringComparison.Ordinal);
         Assert.Contains("public const int MessageReceived = 1;", source, StringComparison.Ordinal);
         Assert.Contains("public const int UserJoined = 1;", source, StringComparison.Ordinal);
         Assert.Contains("public const int UserLeft = 2;", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderSharedChatMessages_DoesNotExposeConnectionId()
+    {
+        var source = ToolTemplates.RenderSharedChatMessages();
+
+        Assert.DoesNotContain("ConnectionId", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("public string ConnectionId", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -379,6 +391,7 @@ public sealed class ToolTemplateTests
             ("Shared/Contracts/RpcContractIds.cs", ToolTemplates.RenderSharedRpcContractIds()),
             ("Shared/Contracts/Chat/ChatProtocols.cs", ToolTemplates.RenderSharedChatProtocols()),
             ("Shared/Contracts/Chat/ChatMessages.cs", ToolTemplates.RenderSharedChatMessages()),
+            ("Client/Assets/Scripts/Login/LoginClient.cs", ToolTemplates.RenderClientLoginClient()),
             ("Client/Assets/Scripts/Chat/ChatClient.cs", ToolTemplates.RenderClientChatClient()),
             ("Client/Assets/Scripts/Chat/ChatUI.cs", ToolTemplates.RenderClientChatUI())
         };
@@ -392,7 +405,9 @@ public sealed class ToolTemplateTests
         var sources = new (string, string)[]
         {
             ("Server/App/Chat/ChatRoomActor.cs", ToolTemplates.RenderServerChatRoomActor()),
+            ("Server/App/Chat/ChatConnectionLifecycle.cs", ToolTemplates.RenderServerChatConnectionLifecycle()),
             ("Server/Hotfix/Chat/ChatService.cs", ToolTemplates.RenderHotfixChatService()),
+            ("Server/Hotfix/Login/LoginService.cs", ToolTemplates.RenderHotfixLoginService()),
         };
 
         AssertGeneratedSourcesParseAsCurrentCSharp(sources);
@@ -446,12 +461,49 @@ public sealed class ToolTemplateTests
 
         Assert.Contains("class ChatService : IChatService", source, StringComparison.Ordinal);
         Assert.Contains("private readonly IActorRuntime _actors;", source, StringComparison.Ordinal);
-        Assert.Contains("public ChatService(IChatCallback callback, IActorRuntime actors)", source, StringComparison.Ordinal);
-        Assert.Contains("req.ConnectionId", source, StringComparison.Ordinal);
+        Assert.Contains("private readonly string _connectionId;", source, StringComparison.Ordinal);
+        Assert.Contains("public ChatService(IChatCallback callback, IActorRuntime actors, string connectionId)", source, StringComparison.Ordinal);
+        Assert.Contains("await BindAsync(new ChatBindRequest());", source, StringComparison.Ordinal);
+        Assert.Contains("_connectionId", source, StringComparison.Ordinal);
         Assert.Contains("ActorId.From(\"chat:global\")", source, StringComparison.Ordinal);
         Assert.Contains("_actors.AskAsync<ChatRoomActor", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("req.ConnectionId", source, StringComparison.Ordinal);
         Assert.DoesNotContain("static readonly ChatRoom", source, StringComparison.Ordinal);
         Assert.DoesNotContain("new ChatRoom", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderHotfixLoginService_UsesInjectedConnectionId()
+    {
+        var source = ToolTemplates.RenderHotfixLoginService();
+
+        Assert.Contains("public LoginService(ILoginCallback callback, IActorRuntime actors, string connectionId)", source, StringComparison.Ordinal);
+        Assert.Contains("_connectionId = connectionId;", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Guid.NewGuid()", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderHotfixChatService_BindsCallbackBeforeSending()
+    {
+        var source = ToolTemplates.RenderHotfixChatService();
+
+        Assert.Contains("public ChatService(IChatCallback callback, IActorRuntime actors, string connectionId)", source, StringComparison.Ordinal);
+        Assert.Contains("public async ValueTask BindAsync(ChatBindRequest req)", source, StringComparison.Ordinal);
+        Assert.Contains("room.BindChatCallback(_connectionId, _callback);", source, StringComparison.Ordinal);
+        Assert.Contains("await BindAsync(new ChatBindRequest());", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Guid.NewGuid()", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderHotfixChatService_DoesNotTrustClientSuppliedConnectionId()
+    {
+        var source = ToolTemplates.RenderHotfixChatService();
+
+        Assert.DoesNotContain("req.ConnectionId", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ChatSendRequest { Text = text, ConnectionId", source, StringComparison.Ordinal);
+        Assert.Contains("_connectionId", source, StringComparison.Ordinal);
+        Assert.Contains("room.BindChatCallback(_connectionId, _callback);", source, StringComparison.Ordinal);
+        Assert.Contains("await room.SendAsync(_connectionId, text);", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -473,18 +525,64 @@ public sealed class ToolTemplateTests
     }
 
     [Fact]
-    public void RenderClientChatClient_ImplementsIChatCallback()
+    public void RenderServiceBindingConfigurator_UsesRpcSessionContextForLoginAndChatServices()
+    {
+        var source = ToolTemplates.RenderServiceBindingConfigurator();
+
+        Assert.Contains("using Lakona.Rpc.Server;", source, StringComparison.Ordinal);
+        Assert.Contains("using Server.App.Chat;", source, StringComparison.Ordinal);
+        Assert.Contains("LoginServiceBinder.BindFactory", source, StringComparison.Ordinal);
+        Assert.Contains("ChatServiceBinder.BindFactory", source, StringComparison.Ordinal);
+        Assert.Contains("new LoginCallbackProxy(session)", source, StringComparison.Ordinal);
+        Assert.Contains("new ChatCallbackProxy(session)", source, StringComparison.Ordinal);
+        Assert.Contains("session.ContextId", source, StringComparison.Ordinal);
+        Assert.Contains("GetRequiredService<ChatConnectionLifecycle>().Track(session)", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("callback =>", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderClientChatClient_WrapsLoginClientNotRpcClient()
     {
         var source = ToolTemplates.RenderClientChatClient();
 
-        Assert.Contains("class ChatClient : IChatCallback", source, StringComparison.Ordinal);
+        Assert.Contains("class ChatClient", source, StringComparison.Ordinal);
         Assert.Contains("using System.Threading.Tasks;", source, StringComparison.Ordinal);
-        Assert.Contains("using Rpc.Generated;", source, StringComparison.Ordinal);
-        Assert.Contains("rpcClient.Api.Shared.Chat", source, StringComparison.Ordinal);
-        Assert.Contains("OnMessageReceived?.Invoke", source, StringComparison.Ordinal);
+        Assert.Contains("using Client.Login;", source, StringComparison.Ordinal);
+        Assert.Contains("private readonly LoginClient _loginClient;", source, StringComparison.Ordinal);
+        Assert.Contains("loginClient.RpcClient.Api.Shared.Chat", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("using Rpc.Generated;", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("using Lakona.Rpc.Client;", source, StringComparison.Ordinal);
         Assert.DoesNotContain("ConnectAsync", source, StringComparison.Ordinal);
         Assert.DoesNotContain("JoinAsync", source, StringComparison.Ordinal);
         Assert.DoesNotContain("LeaveAsync", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderClientLoginClient_RegistersLoginAndChatCallbacksBeforeConnect()
+    {
+        var source = ToolTemplates.RenderClientLoginClient();
+
+        Assert.Contains("public sealed class LoginClient : ILoginCallback, IChatCallback, IAsyncDisposable", source, StringComparison.Ordinal);
+        Assert.Contains("callbacks.Add((ILoginCallback)this);", source, StringComparison.Ordinal);
+        Assert.Contains("callbacks.Add((IChatCallback)this);", source, StringComparison.Ordinal);
+        Assert.Contains("public event Action<ChatMessage>? OnMessageReceived;", source, StringComparison.Ordinal);
+        Assert.Contains("void IChatCallback.OnMessageReceived(ChatMessage msg)", source, StringComparison.Ordinal);
+        Assert.Contains("OnMessageReceived?.Invoke(msg);", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderClientChatClient_UsesExistingLoginClientAndBindAsync()
+    {
+        var source = ToolTemplates.RenderClientChatClient();
+
+        Assert.Contains("private readonly LoginClient _loginClient;", source, StringComparison.Ordinal);
+        Assert.Contains("public ChatClient(LoginClient loginClient)", source, StringComparison.Ordinal);
+        Assert.Contains("_chatService = loginClient.RpcClient.Api.Shared.Chat;", source, StringComparison.Ordinal);
+        Assert.Contains("public async Task BindAsync()", source, StringComparison.Ordinal);
+        Assert.Contains("await _chatService.BindAsync(new ChatBindRequest());", source, StringComparison.Ordinal);
+        Assert.Contains("public event Action<ChatMessage>? OnMessageReceived", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("new RpcClient.RpcNotificationBindings()", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("callbacks.Add(this)", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -525,6 +623,22 @@ public sealed class ToolTemplateTests
         Assert.Contains("chat-input", source, StringComparison.Ordinal);
         Assert.Contains("message-list", source, StringComparison.Ordinal);
         Assert.Contains("send-button", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderClientChatTemplates_DoNotUseSessionConnectionId()
+    {
+        var chatClient = ToolTemplates.RenderClientChatClient();
+        var unityUi = ToolTemplates.RenderClientChatUI();
+        var godotScene = ToolTemplates.RenderGodotChatScene();
+        var session = ToolTemplates.RenderChatSession();
+        var godotSession = ToolTemplates.RenderGodotChatSession();
+
+        var combined = string.Concat(chatClient, unityUi, godotScene, session, godotSession);
+
+        Assert.DoesNotContain("session.ConnectionId", combined, StringComparison.Ordinal);
+        Assert.DoesNotContain("ChatSession.ConnectionId", combined, StringComparison.Ordinal);
+        Assert.DoesNotContain("ConnectionId", combined, StringComparison.Ordinal);
     }
 
     [Fact]
