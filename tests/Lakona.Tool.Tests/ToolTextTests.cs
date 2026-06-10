@@ -358,13 +358,13 @@ public sealed class ToolTextTests
         Assert.Contains("[RpcService(RpcContractIds.Services.Chat, NotificationContract = typeof(IChatCallback))]", sharedProtocols, StringComparison.Ordinal);
         Assert.Contains("interface IChatService", sharedProtocols, StringComparison.Ordinal);
         Assert.Contains("interface IChatCallback", sharedProtocols, StringComparison.Ordinal);
-        Assert.Contains("ChatJoinRequest", sharedMessages, StringComparison.Ordinal);
+        Assert.Contains("LoginRequest", sharedMessages, StringComparison.Ordinal);
         Assert.Contains("ChatMessage", sharedMessages, StringComparison.Ordinal);
         Assert.Contains(@"ProjectReference Include=""..\..\Shared\Shared.csproj""", hotfixProject, StringComparison.Ordinal);
         Assert.Contains(@"ProjectReference Include=""..\App\Server.App.csproj""", hotfixProject, StringComparison.Ordinal);
         Assert.Contains("class ChatRoomActor : Actor", chatRoomActor, StringComparison.Ordinal);
         Assert.Contains("IActorRuntime", chatService, StringComparison.Ordinal);
-        Assert.Contains("class ChatServiceImpl", chatService, StringComparison.Ordinal);
+        Assert.Contains("class ChatService", chatService, StringComparison.Ordinal);
         Assert.Contains("IChatService", chatService, StringComparison.Ordinal);
         Assert.Contains("FilterMessage", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("static readonly ChatRoom", generatedText, StringComparison.Ordinal);
@@ -455,7 +455,7 @@ public sealed class ToolTextTests
             Assert.DoesNotContain("MemoryPack", chatMessages, StringComparison.Ordinal);
             Assert.DoesNotContain("MemoryPackable", chatMessages, StringComparison.Ordinal);
             Assert.DoesNotContain("MemoryPackOrder", chatMessages, StringComparison.Ordinal);
-            Assert.Contains("public partial class ChatJoinRequest", chatMessages, StringComparison.Ordinal);
+            Assert.Contains("public partial class LoginRequest", chatMessages, StringComparison.Ordinal);
             Assert.Contains("public string PlayerName { get; set; }", chatMessages, StringComparison.Ordinal);
         }
         finally

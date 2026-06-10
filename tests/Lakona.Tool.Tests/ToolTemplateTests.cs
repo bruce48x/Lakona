@@ -182,13 +182,13 @@ public sealed class ToolTemplateTests
         Assert.Contains("[RpcService(RpcContractIds.Services.Chat, NotificationContract = typeof(IChatCallback))]", sharedProtocols, StringComparison.Ordinal);
         Assert.Contains("interface IChatService", sharedProtocols, StringComparison.Ordinal);
         Assert.Contains("interface IChatCallback", sharedProtocols, StringComparison.Ordinal);
-        Assert.Contains("ChatJoinRequest", sharedMessages, StringComparison.Ordinal);
+        Assert.Contains("LoginRequest", sharedMessages, StringComparison.Ordinal);
         Assert.Contains("ChatMessage", sharedMessages, StringComparison.Ordinal);
         Assert.Contains(@"ProjectReference Include=""..\..\Shared\Shared.csproj""", hotfixProject, StringComparison.Ordinal);
         Assert.Contains(@"ProjectReference Include=""..\App\Server.App.csproj""", hotfixProject, StringComparison.Ordinal);
         Assert.Contains("class ChatRoomActor : Actor", chatRoomActor, StringComparison.Ordinal);
         Assert.Contains("IActorRuntime", chatService, StringComparison.Ordinal);
-        Assert.Contains("class ChatServiceImpl", chatService, StringComparison.Ordinal);
+        Assert.Contains("class ChatService", chatService, StringComparison.Ordinal);
         Assert.Contains("IChatService", chatService, StringComparison.Ordinal);
         Assert.Contains("FilterMessage", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("static readonly ChatRoom", generatedText, StringComparison.Ordinal);
@@ -236,7 +236,8 @@ public sealed class ToolTemplateTests
             Assert.DoesNotContain("PingServiceBinder.BindFactory", serviceBindingConfigurator, StringComparison.Ordinal);
             Assert.DoesNotContain("Server.Hotfix.Services.PingService", serviceBindingConfigurator, StringComparison.Ordinal);
             Assert.Contains("ChatServiceBinder.Bind", serviceBindingConfigurator, StringComparison.Ordinal);
-            Assert.Contains("assembly.GetType(\"Server.Hotfix.Chat.ChatServiceImpl\"", serviceBindingConfigurator, StringComparison.Ordinal);
+            Assert.Contains("""LoadHotfixType("Server.Hotfix.Chat.ChatService")""", serviceBindingConfigurator, StringComparison.Ordinal);
+        Assert.Contains("""LoadHotfixType("Server.Hotfix.Login.LoginService")""", serviceBindingConfigurator, StringComparison.Ordinal);
             Assert.DoesNotContain("AllServicesBinder.BindAll", serviceBindingConfigurator, StringComparison.Ordinal);
             Assert.False(File.Exists(Path.Combine(serverDirectory, "Hosting", "Advanced", "LakonaGameGeneratedApplication.cs")));
         }
@@ -293,15 +294,13 @@ public sealed class ToolTemplateTests
         var source = ToolTemplates.RenderSharedChatProtocols();
 
         Assert.Contains("[RpcService(RpcContractIds.Services.Chat, NotificationContract = typeof(IChatCallback))]", source, StringComparison.Ordinal);
-        Assert.Contains("[RpcMethod(RpcContractIds.ChatServiceMethods.JoinAsync)]", source, StringComparison.Ordinal);
         Assert.Contains("[RpcMethod(RpcContractIds.ChatServiceMethods.SendAsync)]", source, StringComparison.Ordinal);
-        Assert.Contains("[RpcMethod(RpcContractIds.ChatServiceMethods.LeaveAsync)]", source, StringComparison.Ordinal);
         Assert.Contains("[RpcNotification(RpcContractIds.ChatNotifications.MessageReceived)]", source, StringComparison.Ordinal);
-        Assert.Contains("[RpcNotification(RpcContractIds.ChatNotifications.UserJoined)]", source, StringComparison.Ordinal);
-        Assert.Contains("[RpcNotification(RpcContractIds.ChatNotifications.UserLeft)]", source, StringComparison.Ordinal);
         Assert.Contains("OnMessageReceived", source, StringComparison.Ordinal);
-        Assert.Contains("OnUserJoined", source, StringComparison.Ordinal);
-        Assert.Contains("OnUserLeft", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("JoinAsync", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("LeaveAsync", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("OnUserJoined", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("OnUserLeft", source, StringComparison.Ordinal);
         Assert.DoesNotContain("[RpcService(2", source, StringComparison.Ordinal);
         Assert.DoesNotContain("[RpcMethod(1)]", source, StringComparison.Ordinal);
         Assert.DoesNotContain("[RpcNotification(1)]", source, StringComparison.Ordinal);
@@ -313,13 +312,13 @@ public sealed class ToolTemplateTests
         var source = ToolTemplates.RenderSharedRpcContractIds();
 
         Assert.Contains("namespace Shared.Contracts", source, StringComparison.Ordinal);
+        Assert.Contains("public const int Login = 1;", source, StringComparison.Ordinal);
         Assert.Contains("public const int Chat = 2;", source, StringComparison.Ordinal);
-        Assert.Contains("public const int JoinAsync = 1;", source, StringComparison.Ordinal);
-        Assert.Contains("public const int SendAsync = 2;", source, StringComparison.Ordinal);
-        Assert.Contains("public const int LeaveAsync = 3;", source, StringComparison.Ordinal);
+        Assert.Contains("public const int LoginAsync = 1;", source, StringComparison.Ordinal);
+        Assert.Contains("public const int SendAsync = 1;", source, StringComparison.Ordinal);
         Assert.Contains("public const int MessageReceived = 1;", source, StringComparison.Ordinal);
-        Assert.Contains("public const int UserJoined = 2;", source, StringComparison.Ordinal);
-        Assert.Contains("public const int UserLeft = 3;", source, StringComparison.Ordinal);
+        Assert.Contains("public const int UserJoined = 1;", source, StringComparison.Ordinal);
+        Assert.Contains("public const int UserLeft = 2;", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -393,7 +392,7 @@ public sealed class ToolTemplateTests
         var sources = new (string, string)[]
         {
             ("Server/App/Chat/ChatRoomActor.cs", ToolTemplates.RenderServerChatRoomActor()),
-            ("Server/Hotfix/Chat/ChatServiceImpl.cs", ToolTemplates.RenderHotfixChatService()),
+            ("Server/Hotfix/Chat/ChatService.cs", ToolTemplates.RenderHotfixChatService()),
         };
 
         AssertGeneratedSourcesParseAsCurrentCSharp(sources);
@@ -432,9 +431,9 @@ public sealed class ToolTemplateTests
 
         Assert.Contains("class ChatRoomActor : Actor", source, StringComparison.Ordinal);
         Assert.Contains("using Lakona.Game.Server.Actors;", source, StringComparison.Ordinal);
-        Assert.Contains("private readonly Dictionary<string,", source, StringComparison.Ordinal);
+        Assert.Contains("private readonly Dictionary<IChatCallback,", source, StringComparison.Ordinal);
         Assert.Contains("private readonly Queue<ChatMessage>", source, StringComparison.Ordinal);
-        Assert.Contains("Broadcast(cb => cb.OnMessageReceived", source, StringComparison.Ordinal);
+        Assert.Contains("BroadcastChat(cb => cb.OnMessageReceived", source, StringComparison.Ordinal);
         Assert.DoesNotContain("ConcurrentDictionary", source, StringComparison.Ordinal);
         Assert.DoesNotContain("ConcurrentQueue", source, StringComparison.Ordinal);
         Assert.DoesNotContain("lock (", source, StringComparison.Ordinal);
@@ -445,9 +444,9 @@ public sealed class ToolTemplateTests
     {
         var source = ToolTemplates.RenderHotfixChatService();
 
-        Assert.Contains("class ChatServiceImpl : IChatService", source, StringComparison.Ordinal);
+        Assert.Contains("class ChatService : IChatService", source, StringComparison.Ordinal);
         Assert.Contains("private readonly IActorRuntime _actors;", source, StringComparison.Ordinal);
-        Assert.Contains("public ChatServiceImpl(IChatCallback callback, IActorRuntime actors)", source, StringComparison.Ordinal);
+        Assert.Contains("public ChatService(IChatCallback callback, IActorRuntime actors)", source, StringComparison.Ordinal);
         Assert.Contains("ActorId.From(\"chat:global\")", source, StringComparison.Ordinal);
         Assert.Contains("_actors.AskAsync<ChatRoomActor", source, StringComparison.Ordinal);
         Assert.DoesNotContain("static readonly ChatRoom", source, StringComparison.Ordinal);
@@ -465,8 +464,10 @@ public sealed class ToolTemplateTests
         Assert.Contains("public static void Bind(RpcServiceRegistry registry, IServiceProvider services)", source, StringComparison.Ordinal);
         Assert.DoesNotContain("PingServiceBinder.BindFactory", source, StringComparison.Ordinal);
         Assert.DoesNotContain("Server.Hotfix.Services.PingService", source, StringComparison.Ordinal);
+        Assert.Contains("LoginServiceBinder.Bind", source, StringComparison.Ordinal);
         Assert.Contains("ChatServiceBinder.Bind", source, StringComparison.Ordinal);
-        Assert.Contains("assembly.GetType(\"Server.Hotfix.Chat.ChatServiceImpl\"", source, StringComparison.Ordinal);
+        Assert.Contains("""LoadHotfixType("Server.Hotfix.Chat.ChatService")""", source, StringComparison.Ordinal);
+        Assert.Contains("""LoadHotfixType("Server.Hotfix.Login.LoginService")""", source, StringComparison.Ordinal);
         Assert.DoesNotContain("AllServicesBinder.BindAll", source, StringComparison.Ordinal);
     }
 
@@ -478,9 +479,11 @@ public sealed class ToolTemplateTests
         Assert.Contains("class ChatClient : IChatCallback", source, StringComparison.Ordinal);
         Assert.Contains("using System.Threading.Tasks;", source, StringComparison.Ordinal);
         Assert.Contains("using Rpc.Generated;", source, StringComparison.Ordinal);
-        Assert.Contains("new RpcClient(options, callbacks)", source, StringComparison.Ordinal);
-        Assert.Contains("_rpcClient.Api.Shared.Chat", source, StringComparison.Ordinal);
+        Assert.Contains("rpcClient.Api.Shared.Chat", source, StringComparison.Ordinal);
         Assert.Contains("OnMessageReceived?.Invoke", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ConnectAsync", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("JoinAsync", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("LeaveAsync", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -792,15 +795,21 @@ public sealed class ToolTemplateTests
 
             await new ProjectScaffolder().AugmentProjectWithLakonaGameAsync(projectRoot, CliParser.ParseNewOptions([]));
 
-            var service = await File.ReadAllTextAsync(Path.Combine(projectRoot, "Server", "Hotfix", "Chat", "ChatServiceImpl.cs"), TestContext.Current.CancellationToken);
+            var loginService = await File.ReadAllTextAsync(Path.Combine(projectRoot, "Server", "Hotfix", "Login", "LoginService.cs"), TestContext.Current.CancellationToken);
+            var service = await File.ReadAllTextAsync(Path.Combine(projectRoot, "Server", "Hotfix", "Chat", "ChatService.cs"), TestContext.Current.CancellationToken);
             var binding = await File.ReadAllTextAsync(Path.Combine(projectRoot, "Server", "App", "Hosting", "ServiceBindingConfigurator.cs"), TestContext.Current.CancellationToken);
             var actor = await File.ReadAllTextAsync(Path.Combine(projectRoot, "Server", "App", "Chat", "ChatRoomActor.cs"), TestContext.Current.CancellationToken);
 
+            Assert.Contains("class LoginService : ILoginService", loginService, StringComparison.Ordinal);
+            Assert.Contains("AskAsync<ChatRoomActor", loginService, StringComparison.Ordinal);
             Assert.Contains("IActorRuntime", service, StringComparison.Ordinal);
             Assert.Contains("AskAsync<ChatRoomActor", service, StringComparison.Ordinal);
             Assert.Contains("FilterMessage", service, StringComparison.Ordinal);
             Assert.Contains("class ChatRoomActor : Actor", actor, StringComparison.Ordinal);
-            Assert.Contains("assembly.GetType(\"Server.Hotfix.Chat.ChatServiceImpl\"", binding, StringComparison.Ordinal);
+            Assert.Contains("""LoadHotfixType("Server.Hotfix.Chat.ChatService")""", binding, StringComparison.Ordinal);
+            Assert.Contains("""LoadHotfixType("Server.Hotfix.Login.LoginService")""", binding, StringComparison.Ordinal);
+            Assert.Contains("LoginServiceBinder.Bind", binding, StringComparison.Ordinal);
+            Assert.Contains("ChatServiceBinder.Bind", binding, StringComparison.Ordinal);
             Assert.DoesNotContain("AllServicesBinder.BindAll", binding, StringComparison.Ordinal);
             Assert.DoesNotContain("static readonly ChatRoom", service + actor, StringComparison.Ordinal);
             Assert.DoesNotContain("ConcurrentDictionary", actor, StringComparison.Ordinal);
