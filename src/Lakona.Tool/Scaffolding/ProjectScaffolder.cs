@@ -303,9 +303,7 @@ internal sealed class ProjectScaffolder
 
         var defaultPath = string.Equals(options.Transport, "websocket", StringComparison.OrdinalIgnoreCase) ? "/ws" : "";
 
-        var sceneContent = $$"""
-        %YAML 1.1
-        %TAG !u! tag:unity3d.com,2011:
+        var sceneContent = ToolTemplates.RenderUnitySceneHeader() + $$"""
         --- !u!1 &217437972
         GameObject:
           m_ObjectHideFlags: 0
@@ -603,7 +601,7 @@ internal sealed class ProjectScaffolder
             uxmlGuid,
             panelSettingsGuid);
 
-        var sceneContent = chatSceneObjects + $$"""
+        var sceneContent = ToolTemplates.RenderUnitySceneHeader() + chatSceneObjects + $$"""
 
         --- !u!1 &256380733
         GameObject:

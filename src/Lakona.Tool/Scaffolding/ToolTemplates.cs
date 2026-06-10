@@ -40,6 +40,7 @@ internal static class ToolTemplates
     public static string RenderUnityTssMeta(string guid) => UnityAssetTemplates.RenderUnityTssMeta(guid);
     public static string RenderUnityNativeAssetMeta(string guid) => UnityAssetTemplates.RenderUnityNativeAssetMeta(guid);
     public static string RenderUnityDefaultRuntimeTheme() => UnityAssetTemplates.RenderUnityDefaultRuntimeTheme();
+    public static string RenderUnitySceneHeader() => UnityAssetTemplates.RenderUnitySceneHeader();
     public static string RenderUnityPanelSettingsAsset(string defaultRuntimeThemeGuid) => UnityAssetTemplates.RenderUnityPanelSettingsAsset(defaultRuntimeThemeGuid);
     public static string RenderUnityChatSceneObjects(
         long gameObjectId,
