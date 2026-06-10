@@ -712,6 +712,27 @@ public sealed class ToolTemplateTests
     }
 
     [Fact]
+    public void RenderGodotLoginScene_DoesNotUseSessionConnectionId()
+    {
+        var source = ToolTemplates.RenderGodotLoginScene(new NewCommandOptions(
+            Name: "MyGame",
+            OutputPath: null,
+            ClientEngine: "godot",
+            Transport: "websocket",
+            NetworkProfile: "cluster",
+            Serializer: "json",
+            Persistence: "none",
+            NuGetForUnitySource: "embedded",
+            DeployProfile: "none"));
+
+        Assert.Contains("session.LoginClient = client;", source, StringComparison.Ordinal);
+        Assert.Contains("session.LoginReply = reply;", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("session.ConnectionId", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("reply.ConnectionId", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ConnectionId", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RenderUnityLoginUi_UsesSelectedTransportAndSerializer()
     {
         var source = ToolTemplates.RenderUnityLoginUI(new NewCommandOptions(
