@@ -81,10 +81,50 @@ internal static class UnityAssetTemplates
         """;
     }
 
+    public static string RenderLakonaThemeTss()
+    {
+        return """
+        :root {
+            /* Backgrounds */
+            --lakona-bg-base: #0A0F0A;
+            --lakona-bg-panel: #0F1A0F;
+            --lakona-bg-input: #050A0A;
+            --lakona-bg-hover: #152015;
+
+            /* Accent greens */
+            --lakona-accent: #00FF66;
+            --lakona-accent-dim: #00AA44;
+            --lakona-accent-glow: #33FF88;
+
+            /* Text */
+            --lakona-text-primary: #00FF66;
+            --lakona-text-body: #88CC99;
+            --lakona-text-dim: #448855;
+            --lakona-text-system: #66AA77;
+
+            /* Feedback */
+            --lakona-warning: #FFFF00;
+            --lakona-error: #FF4444;
+
+            /* Typography */
+            --lakona-font: Consolas, "Courier New", monospace;
+            --lakona-font-size: 14px;
+            --lakona-font-size-title: 22px;
+            --lakona-font-size-header: 18px;
+            --lakona-font-size-system: 12px;
+
+            /* Borders */
+            --lakona-border-width: 2px;
+            --lakona-border: var(--lakona-border-width) solid var(--lakona-accent);
+            --lakona-border-dim: var(--lakona-border-width) solid var(--lakona-accent-dim);
+        }
+        """;
+    }
+
     public static string RenderUnityDefaultRuntimeTheme()
     {
         return """
-        @import url("unity-theme://default");
+        @import url("Theme/LakonaTheme.tss");
         """;
     }
 
