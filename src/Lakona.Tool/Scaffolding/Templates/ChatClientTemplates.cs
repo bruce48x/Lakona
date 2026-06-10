@@ -1302,16 +1302,19 @@ internal static class ChatClientTemplates
     {
         return """
         <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements">
+            <Style src="Theme/LakonaTheme.tss" />
             <Style src="ChatScene.uss" />
             <ui:VisualElement class="chat-container">
+                <ui:VisualElement class="scanline-overlay" />
                 <ui:VisualElement class="chat-header">
-                    <ui:Label text="Chat Room" class="header-title" />
-                    <ui:Label text="Online: --" name="online-count" class="header-count" />
+                    <ui:Label text="CHAT ROOM" class="header-title" />
+                    <ui:Label text="ONLINE: --" name="online-count" class="header-count" />
                 </ui:VisualElement>
                 <ui:ScrollView name="message-list" class="message-list" />
                 <ui:VisualElement class="chat-footer">
-                    <ui:TextField name="chat-input" label="Message" max-length="500" class="chat-input" />
-                    <ui:Button text="Send" name="send-button" class="send-button" />
+                    <ui:Label text="MESSAGE:" class="message-label" />
+                    <ui:TextField name="chat-input" max-length="500" class="chat-input" />
+                    <ui:Button text="SEND" name="send-button" class="send-button" />
                 </ui:VisualElement>
             </ui:VisualElement>
         </ui:UXML>
@@ -1325,81 +1328,118 @@ internal static class ChatClientTemplates
             width: 100%;
             height: 100%;
             flex-grow: 1;
-            background-color: rgb(30, 30, 30);
-            color: rgb(230, 230, 230);
+            background-color: var(--lakona-bg-base);
+        }
+        .scanline-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0);
+            pointer-events: none;
         }
         .chat-header {
             flex-direction: row;
+            align-items: center;
             padding: 8px 16px;
-            background-color: rgb(40, 40, 40);
-            border-bottom-width: 1px;
-            border-bottom-color: rgb(60, 60, 60);
+            background-color: var(--lakona-bg-panel);
+            border-bottom-width: var(--lakona-border-width);
+            border-bottom-color: var(--lakona-accent);
         }
         .header-title {
-            font-size: 18px;
-            color: rgb(200, 200, 200);
+            font-size: var(--lakona-font-size-header);
+            -unity-font: var(--lakona-font);
+            color: var(--lakona-accent);
+            flex-grow: 1;
         }
         .header-count {
-            font-size: 14px;
-            color: rgb(120, 180, 120);
-            margin-left: auto;
+            font-size: var(--lakona-font-size);
+            -unity-font: var(--lakona-font);
+            color: var(--lakona-warning);
         }
         .message-list {
             flex-grow: 1;
-            padding: 8px;
-        }
-        .unity-label {
-            color: rgb(230, 230, 230);
+            padding: 8px 16px;
         }
         .chat-message {
-            font-size: 14px;
-            color: rgb(220, 220, 220);
+            font-size: var(--lakona-font-size);
+            -unity-font: var(--lakona-font);
+            color: var(--lakona-text-body);
             margin-bottom: 4px;
+            white-space: normal;
         }
         .chat-system {
-            font-size: 13px;
-            color: rgb(140, 140, 140);
+            font-size: var(--lakona-font-size-system);
+            -unity-font: var(--lakona-font);
+            color: var(--lakona-text-system);
             -unity-font-style: italic;
             margin-bottom: 4px;
+            white-space: normal;
         }
         .chat-footer {
             flex-direction: row;
-            padding: 8px;
-            background-color: rgb(40, 40, 40);
-            border-top-width: 1px;
-            border-top-color: rgb(60, 60, 60);
+            align-items: center;
+            padding: 8px 16px;
+            background-color: var(--lakona-bg-panel);
+            border-top-width: var(--lakona-border-width);
+            border-top-color: var(--lakona-accent);
+        }
+        .message-label {
+            font-size: var(--lakona-font-size);
+            -unity-font: var(--lakona-font);
+            color: var(--lakona-accent-dim);
+            margin-right: 8px;
         }
         .chat-input {
             flex-grow: 1;
             margin-right: 8px;
         }
         .chat-input .unity-text-field__label {
-            color: rgb(210, 210, 210);
+            display: none;
         }
         .chat-input .unity-text-field__input {
-            color: rgb(245, 245, 245);
-            background-color: rgb(24, 24, 24);
-            border-top-color: rgb(80, 80, 80);
-            border-right-color: rgb(80, 80, 80);
-            border-bottom-color: rgb(80, 80, 80);
-            border-left-color: rgb(80, 80, 80);
+            color: var(--lakona-accent);
+            -unity-font: var(--lakona-font);
+            font-size: var(--lakona-font-size);
+            background-color: var(--lakona-bg-input);
+            border-top-width: var(--lakona-border-width);
+            border-right-width: var(--lakona-border-width);
+            border-bottom-width: var(--lakona-border-width);
+            border-left-width: var(--lakona-border-width);
+            border-top-color: var(--lakona-accent-dim);
+            border-right-color: var(--lakona-accent-dim);
+            border-bottom-color: var(--lakona-accent-dim);
+            border-left-color: var(--lakona-accent-dim);
+        }
+        .chat-input .unity-text-field__input:focus {
+            border-top-color: var(--lakona-accent);
+            border-right-color: var(--lakona-accent);
+            border-bottom-color: var(--lakona-accent);
+            border-left-color: var(--lakona-accent);
         }
         .send-button {
-            width: 80px;
-            color: rgb(245, 245, 245);
-            background-color: rgb(54, 94, 160);
-            border-top-color: rgb(86, 132, 210);
-            border-right-color: rgb(86, 132, 210);
-            border-bottom-color: rgb(86, 132, 210);
-            border-left-color: rgb(86, 132, 210);
+            width: 96px;
+            font-size: var(--lakona-font-size);
+            -unity-font: var(--lakona-font);
+            color: var(--lakona-bg-base);
+            background-color: var(--lakona-accent);
+            border-top-width: var(--lakona-border-width);
+            border-right-width: var(--lakona-border-width);
+            border-bottom-width: var(--lakona-border-width);
+            border-left-width: var(--lakona-border-width);
+            border-top-color: var(--lakona-accent);
+            border-right-color: var(--lakona-accent);
+            border-bottom-color: var(--lakona-accent);
+            border-left-color: var(--lakona-accent);
         }
         .send-button:disabled {
-            color: rgb(190, 190, 190);
-            background-color: rgb(66, 66, 66);
-            border-top-color: rgb(90, 90, 90);
-            border-right-color: rgb(90, 90, 90);
-            border-bottom-color: rgb(90, 90, 90);
-            border-left-color: rgb(90, 90, 90);
+            color: var(--lakona-accent-dim);
+            background-color: var(--lakona-bg-panel);
+            border-top-color: var(--lakona-accent-dim);
+            border-right-color: var(--lakona-accent-dim);
+            border-bottom-color: var(--lakona-accent-dim);
+            border-left-color: var(--lakona-accent-dim);
         }
         """;
     }
