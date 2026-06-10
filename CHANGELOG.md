@@ -4,6 +4,33 @@ Lakona was created on 2026-06-07 by merging the former ULinkGame, ULinkActor,
 and ULinkRpc repositories into a single monorepo. This changelog starts from
 that consolidation.
 
+## 2026-06-10
+
+### Released
+
+- `Lakona.Tool` `0.8.13`
+
+### Split RPC services into ILoginService + IChatService
+
+The generated `Shared` project now defines two RPC services instead of one:
+- `ILoginService` (service ID 1) — session establishment, auto-joins chat room
+- `IChatService` (service ID 2) — messaging only (no Join/Leave)
+
+Login implicitly joins the chat room; disconnect implicitly leaves. Generated
+`Server.Hotfix` now contains `Login/LoginService.cs` and `Chat/ChatService.cs`.
+
+### Merge RPC starter into Game scaffolding
+
+`lakona new` now uses a single-phase project generation. RPC starter logic (git
+infrastructure, Shared project, client project) is merged into the Game
+scaffolder. The stale `Server/Server/` directory is no longer created — all
+server code goes directly into `Server/App/`.
+
+### Rename ChatServiceImpl → ChatService
+
+The `Impl` suffix was an undocumented legacy artifact. The documented convention
+`{Domain}Service` is now followed consistently.
+
 ## 2026-06-09
 
 ### Released
