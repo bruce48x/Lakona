@@ -219,6 +219,7 @@ internal sealed class ProjectScaffolder
 
         await InstallUnityLoginSceneAsync(projectRoot, loginUiPath, loginUxmlPath, panelSettingsPath, options).ConfigureAwait(false);
         await InstallUnityChatSceneAsync(projectRoot, chatUiPath, chatUxmlPath, panelSettingsPath, options).ConfigureAwait(false);
+        await WriteUnityEditorBuildSettingsIfNeededAsync(projectRoot).ConfigureAwait(false);
     }
 
     private static async Task PatchGodotProjectForAutoloadAsync(string projectRoot)
@@ -708,6 +709,87 @@ internal sealed class ProjectScaffolder
           assetBundleVariant:
         """;
         await File.WriteAllTextAsync(scenePath + ".meta", sceneMeta).ConfigureAwait(false);
+    }
+
+    private static async Task WriteUnityEditorBuildSettingsIfNeededAsync(string projectRoot)
+    {
+        var settingsPath = Path.Combine(projectRoot, "Client", "ProjectSettings", "EditorBuildSettings.asset");
+        var loginMetaPath = Path.Combine(projectRoot, "Client", "Assets", "Scenes", "LoginScene.unity.meta");
+        var chatMetaPath = Path.Combine(projectRoot, "Client", "Assets", "Scenes", "ChatScene.unity.meta");
+
+        if (!File.Exists(loginMetaPath) || !File.Exists(chatMetaPath))
+        {
+            return;
+        }
+
+        var loginGuid = await ReadUnityMetaGuidAsync(loginMetaPath, string.Empty).ConfigureAwait(false);
+        var chatGuid = await ReadUnityMetaGuidAsync(chatMetaPath, string.Empty).ConfigureAwait(false);
+
+        if (string.IsNullOrEmpty(loginGuid) || string.IsNullOrEmpty(chatGuid))
+        {
+            return;
+        }
+
+        var loginEntry = $"  - enabled: 1\n    path: Assets/Scenes/LoginScene.unity\n    guid: {loginGuid}";
+        var chatEntry = $"  - enabled: 1\n    path: Assets/Scenes/ChatScene.unity\n    guid: {chatGuid}";
+        var scenesBlock = $"  m_Scenes:\n{loginEntry}\n{chatEntry}";
+
+        if (File.Exists(settingsPath))
+        {
+            var existing = await File.ReadAllTextAsync(settingsPath).ConfigureAwait(false);
+
+            if (existing.Contains("Assets/Scenes/LoginScene.unity", StringComparison.Ordinal)
+                && existing.Contains("Assets/Scenes/ChatScene.unity", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            if (existing.Contains("m_Scenes: []", StringComparison.Ordinal))
+            {
+                existing = existing.Replace("m_Scenes: []", scenesBlock, StringComparison.Ordinal);
+            }
+            else
+            {
+                // Append entries to existing scenes list, before m_configObjects.
+                var marker = "\n  m_configObjects:";
+                var insertIndex = existing.IndexOf(marker, StringComparison.Ordinal);
+                if (insertIndex >= 0)
+                {
+                    var toAppend = "";
+                    if (!existing.Contains("Assets/Scenes/LoginScene.unity", StringComparison.Ordinal))
+                    {
+                        toAppend += "\n" + loginEntry;
+                    }
+
+                    if (!existing.Contains("Assets/Scenes/ChatScene.unity", StringComparison.Ordinal))
+                    {
+                        toAppend += "\n" + chatEntry;
+                    }
+
+                    if (toAppend.Length > 0)
+                    {
+                        existing = existing.Insert(insertIndex, toAppend);
+                    }
+                }
+            }
+
+            await File.WriteAllTextAsync(settingsPath, existing).ConfigureAwait(false);
+            return;
+        }
+
+        var content = $$"""
+            %YAML 1.1
+            %TAG !u! tag:unity3d.com,2011:
+            --- !u!1045 &1
+            EditorBuildSettings:
+              m_ObjectHideFlags: 0
+              serializedVersion: 2
+            {{scenesBlock}}
+              m_configObjects: {}
+            """;
+
+        Directory.CreateDirectory(Path.GetDirectoryName(settingsPath) ?? projectRoot);
+        await File.WriteAllTextAsync(settingsPath, content).ConfigureAwait(false);
     }
 
     private static async Task<string> ReadUnityMetaGuidAsync(string path, string fallback)
