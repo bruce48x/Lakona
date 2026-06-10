@@ -81,9 +81,10 @@ internal static class UnityAssetTemplates
         """;
     }
 
-    public static string RenderLakonaThemeTss()
+    public static string RenderUnityDefaultRuntimeTheme()
     {
         return """
+        @import url("unity-theme://default");
         :root {
             /* Backgrounds */
             --lakona-bg-base: #0A0F0A;
@@ -115,16 +116,7 @@ internal static class UnityAssetTemplates
 
             /* Borders */
             --lakona-border-width: 2px;
-            --lakona-border: var(--lakona-border-width) solid var(--lakona-accent);
-            --lakona-border-dim: var(--lakona-border-width) solid var(--lakona-accent-dim);
         }
-        """;
-    }
-
-    public static string RenderUnityDefaultRuntimeTheme()
-    {
-        return """
-        @import url("Theme/LakonaTheme.tss");
         """;
     }
 

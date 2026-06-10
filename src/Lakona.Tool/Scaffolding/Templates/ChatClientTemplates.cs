@@ -381,10 +381,8 @@ internal static class ChatClientTemplates
     {
         return """
         <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements">
-            <Style src="Theme/LakonaTheme.tss" />
             <Style src="LoginScene.uss" />
             <ui:VisualElement class="login-container">
-                <ui:VisualElement class="scanline-overlay" />
                 <ui:VisualElement class="login-panel">
                     <ui:Label text="LAKONA" class="login-title" />
                     <ui:Label text="NAME:" class="name-label" />
@@ -407,15 +405,6 @@ internal static class ChatClientTemplates
             background-color: var(--lakona-bg-base);
             align-items: center;
             justify-content: center;
-        }
-        .scanline-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: rgba(0, 0, 0, 0);
-            pointer-events: none;
         }
         .login-panel {
             width: 360px;
@@ -1303,10 +1292,8 @@ internal static class ChatClientTemplates
     {
         return """
         <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements">
-            <Style src="Theme/LakonaTheme.tss" />
             <Style src="ChatScene.uss" />
             <ui:VisualElement class="chat-container">
-                <ui:VisualElement class="scanline-overlay" />
                 <ui:VisualElement class="chat-header">
                     <ui:Label text="CHAT ROOM" class="header-title" />
                     <ui:Label text="ONLINE: --" name="online-count" class="header-count" />
@@ -1330,15 +1317,6 @@ internal static class ChatClientTemplates
             height: 100%;
             flex-grow: 1;
             background-color: var(--lakona-bg-base);
-        }
-        .scanline-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: rgba(0, 0, 0, 0);
-            pointer-events: none;
         }
         .chat-header {
             flex-direction: row;

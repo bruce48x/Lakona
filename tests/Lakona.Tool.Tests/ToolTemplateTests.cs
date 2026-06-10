@@ -825,7 +825,9 @@ public sealed class ToolTemplateTests
     {
         var source = ToolTemplates.RenderUnityDefaultRuntimeTheme();
 
-        Assert.Equal("@import url(\"Theme/LakonaTheme.tss\");", source.Trim());
+        Assert.Contains("@import url(\"unity-theme://default\");", source, StringComparison.Ordinal);
+        Assert.Contains("--lakona-bg-base: #0A0F0A;", source, StringComparison.Ordinal);
+        Assert.Contains("--lakona-accent: #00FF66;", source, StringComparison.Ordinal);
     }
 
     [Fact]
