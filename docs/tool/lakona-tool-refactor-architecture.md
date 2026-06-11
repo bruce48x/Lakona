@@ -1,133 +1,75 @@
-# Lakona.Tool Refactor Architecture
+# Lakona.Tool Generation Architecture
 
-Status: accepted direction
+Status: implemented maintenance reference
 Date: 2026-06-11
-Audience: implementation agent
+Audience: maintainers and contributors
 
 ## Purpose
 
-`src/Lakona.Tool` was mechanically merged from `ULinkRPC.Starter` and
-`ULinkGame.Tool`. The merged tool still behaves like two products wired
-together: create an RPC starter workspace, then patch it into a Lakona.Game
-project. This document defines the target architecture for a breaking refactor.
-
-The goal is a single, coherent Lakona project generator:
+`src/Lakona.Tool` owns generated Lakona.Game project creation. The implemented
+architecture is a single generation pipeline:
 
 ```txt
-CLI options -> Lakona project spec -> generation plan -> transactional write
+CLI options -> LakonaProjectSpec -> GenerationPlan -> transactional write
 ```
 
-The default product remains `lakona-tool new`: a runnable Lakona.Game project
-with Shared contracts, Server/App, Server/Hotfix, a client project, compact
-configuration, cluster defaults, hotfix defaults, reliable push defaults, and
-the generated check command.
+This document preserves the durable maintenance rules behind that pipeline. It
+is not a migration plan. Historical starter-refactor steps, file disposition
+lists, and implementation sequencing have been intentionally removed.
+
+The default product remains:
+
+```powershell
+lakona-tool new
+```
+
+It generates a runnable Lakona.Game project with Shared contracts, Server/App,
+Server/Hotfix, a client project, compact configuration, cluster defaults,
+hotfix defaults, reliable push defaults, and generated project docs.
 
 ## Architecture Decision
 
-Refactor `Lakona.Tool` as one generation pipeline. Do not keep a hidden RPC
-starter layer. Do not implement a thin wrapper around the current two-phase
-flow. Do not preserve augment behavior for early-stage compatibility.
+`Lakona.Tool` is one coherent project generator. It must not contain a hidden
+standalone RPC starter layer or a two-phase `Starter -> Augment` flow.
 
-The tool should answer one question:
+The tool answers one question:
 
 ```txt
 Given a Lakona project specification, what complete project tree should exist?
 ```
 
-It should not answer:
+It must not answer:
 
 ```txt
 Given an old RPC starter tree, what patches turn it into a Game tree?
 ```
 
-This distinction is the point of the refactor. The final architecture should
-make it difficult to reintroduce the historical `Starter -> Augment` seam.
-
-## Non-Goals
-
-Do not preserve compatibility with these internal or historical surfaces:
-
-- `Lakona.Tool.RpcStarter` namespace
-- `Starter*` types, `StarterTemplateContext`, `StarterPaths`, and standalone
-  starter tests
-- `ProjectScaffolder.AugmentProjectWithLakonaGameAsync`
-- pure standalone `ULinkRPC.Starter` command behavior
-- `--network-profile`, `single`, and `realtime` generation paths
-- console client generation, unless a new Lakona.Game console client goal is
-  explicitly designed in a separate document
-- `Server/Server/` generated layout
-
-The refactor should preserve the intended user-facing project experience, not
-the current internal API shape.
-
-## Current Problems
-
-The current implementation has four architectural problems.
-
-1. Two generation models are interleaved. `ProjectScaffolder` calls RPC starter
-   templates for Shared and Client, then writes or mutates Game server, hotfix,
-   and client files afterward.
-2. Option models are duplicated. CLI options are stringly typed, then mapped
-   through `ToolOptionValues` into `RpcStarter` enums.
-3. Dependency ownership is split between `StarterDependencyPlanner` and
-   `GameDependencyPlanner`, which makes package ownership hard to reason about.
-4. Rendering is file-oriented and imperative. Large static classes such as
-   `ProjectScaffolder`, `ChatClientTemplates`, and `ServerProjectTemplates`
-   mix project planning, file paths, template strings, engine-specific assets,
-   XML mutation, and overwrite policy.
-
-The result is fragile: a generated path can be created by one phase and patched
-by another phase, tests mirror source-project history, and historical concepts
-still leak through names and docs.
+Shared RPC concerns are part of the Lakona project recipe. They are not a
+separate internal product that the Game generator wraps.
 
 ## Required Invariants
 
-The new design must enforce these invariants in code, not only by convention:
+These invariants are regression boundaries:
 
-- One command builds one `LakonaProjectSpec`.
+- One `new` command builds one `LakonaProjectSpec`.
 - One `LakonaProjectSpec` builds one `GenerationPlan`.
 - The `new` command writes only from a validated plan.
 - No renderer writes to disk directly.
 - No renderer reads or mutates files created by another renderer.
 - No `new` path performs in-place project XML mutation.
-- No generated path contains `Server/Server`.
+- No generated path contains a `Server/Server/` directory.
 - No production code references `Lakona.Tool.RpcStarter`.
-- No production code has `Starter*` model names.
+- No production code has `Starter*` model names for the generation pipeline.
 - No generated user file contains `ULinkRPC`, `ULinkGame`, or `RpcStarter`.
 - Runtime package boundaries remain visible in generated projects.
 - Generated RPC glue remains source-generator output, never committed files.
 
 `MergeXml` style operations may exist only for future maintenance commands such
-as `sync` or `upgrade`. The first refactor should keep `lakona-tool new`
-create-from-plan only.
+as `sync` or `upgrade`. The `new` command stays create-from-plan only.
 
-## Rejected Approaches
+## Module Layout
 
-### Approach A: Rename and Flatten
-
-Rename `RpcStarter` types, move files into `Scaffolding`, and keep the two-phase
-generation flow.
-
-This is low risk but not enough. It hides merge artifacts without removing the
-starter/augment boundary that causes most complexity.
-
-### Approach B: Keep RPC Starter as an Internal Module
-
-Keep a private `RpcWorkspaceGenerator` and let `GameProjectGenerator` build on
-top of it.
-
-This is better than the current tree, but still optimizes for a standalone RPC
-starter that is not the default Lakona.Tool product. It keeps duplicate
-dependency planning and makes the Game project look like an afterthought.
-
-The accepted approach is not a third option among these. It is the constraint
-for this refactor: one project recipe graph, one plan, one transactional write.
-Shared RPC concerns are part of the Lakona project recipe rather than a
-separate starter product.
-
-## Target Module Layout
-
-Use this shape under `src/Lakona.Tool`:
+The implemented source tree is organized by responsibility:
 
 ```txt
 Cli/
@@ -159,11 +101,13 @@ Domain/
   PackageCatalog.cs
 
 Planning/
+  LakonaProjectGenerator.cs
   LakonaProjectPlanBuilder.cs
   GenerationPlan.cs
   GenerationPlanBuilder.cs
   GeneratedFile.cs
   GeneratedDirectory.cs
+  GeneratedArchive.cs
   GeneratedFileKind.cs
   FileWriteMode.cs
   DependencyPlanner.cs
@@ -172,30 +116,12 @@ Planning/
 
 Rendering/
   Common/
-    GitRenderer.cs
-    PackageReferenceRenderer.cs
-    ProjectXmlRenderer.cs
-    TemplateRenderer.cs
   Project/
-    ProjectConfigRenderer.cs
   Shared/
-    SharedProjectRenderer.cs
-    SharedContractsRenderer.cs
   Server/
-    ServerAppRenderer.cs
-    HotfixRenderer.cs
-    ServiceBindingRenderer.cs
-    CheckCommandRenderer.cs
   Client/
-    IClientRenderer.cs
-    UnityClientRenderer.cs
-    GodotClientRenderer.cs
-    UnityAssetRenderer.cs
-    GodotSceneRenderer.cs
   Operations/
-    OperationsRenderer.cs
   Docs/
-    GeneratedProjectDocsRenderer.cs
 
 Execution/
   GenerationExecutor.cs
@@ -203,12 +129,13 @@ Execution/
   ToolFileSystem.cs
 ```
 
-Delete `src/Lakona.Tool/RpcStarter/**`. Move only the durable ideas forward:
-transactional output from `StarterOutputManager`, embedded asset extraction from
-the file writer, Unity/Godot package matrices, and source-generator based RPC
-project configuration.
+`CliApplication` routes commands and translates CLI usage failures. It should
+not know project layout, package references, Unity, Godot, or file rendering.
 
-## Pipeline Diagram
+`LakonaProjectGenerator` is the high-level generation facade. It builds and
+validates a plan, then executes it transactionally.
+
+## Pipeline
 
 ```mermaid
 flowchart TD
@@ -225,171 +152,47 @@ flowchart TD
     K --> L["Complete generated project tree"]
 ```
 
-Renderer contribution flow:
+Renderers implement `IPlanContributor` and contribute `GeneratedFile`,
+`GeneratedDirectory`, and when needed `GeneratedArchive` entries. A renderer
+does not call `File.WriteAllText`, `Directory.CreateDirectory`, or
+`XDocument.Load`.
 
-```mermaid
-flowchart LR
-    Spec["LakonaProjectSpec"] --> PlanBuilder["LakonaProjectPlanBuilder"]
-    PlanBuilder --> Git["GitRenderer"]
-    PlanBuilder --> Shared["SharedProjectRenderer"]
-    PlanBuilder --> Server["ServerAppRenderer"]
-    PlanBuilder --> Hotfix["HotfixRenderer"]
-    PlanBuilder --> ClientSelector["Client renderer selector"]
-    ClientSelector --> Unity["UnityClientRenderer"]
-    ClientSelector --> Godot["GodotClientRenderer"]
-    PlanBuilder --> Operations["OperationsRenderer"]
-    PlanBuilder --> Docs["GeneratedProjectDocsRenderer"]
-    Git --> Plan["GenerationPlan"]
-    Shared --> Plan
-    Server --> Plan
-    Hotfix --> Plan
-    Unity --> Plan
-    Godot --> Plan
-    Operations --> Plan
-    Docs --> Plan
-```
-
-Only the selected client renderer contributes files. For example, a Godot plan
-must not include Unity `Assets/` files, Unity `.meta` files, or NuGetForUnity
-files.
-
-## Public Internal API Shape
-
-These types are internal to `Lakona.Tool`, but they are the architectural API
-between modules. The implementation should keep this shape close unless code
-review finds a concrete defect.
-
-```csharp
-internal sealed class NewProjectCommand(
-    NewProjectOptionParser parser,
-    NewProjectPrompter prompter,
-    LakonaProjectSpecFactory specFactory,
-    LakonaProjectPlanBuilder planBuilder,
-    PlanValidator validator,
-    GenerationExecutor executor,
-    ToolText text,
-    ICliTerminal terminal)
-{
-    public Task<int> RunAsync(string[] args, CancellationToken cancellationToken);
-}
-```
-
-`CliApplication` should only route commands and translate `CliUsageException`
-to exit code `1`. It should not know project layout, package references, Unity,
-Godot, or file rendering.
-
-```csharp
-internal sealed class LakonaProjectGenerator(
-    LakonaProjectPlanBuilder planBuilder,
-    PlanValidator validator,
-    GenerationExecutor executor)
-{
-    public Task GenerateAsync(LakonaProjectSpec spec, CancellationToken cancellationToken);
-}
-```
-
-`LakonaProjectGenerator` is the only high-level generation facade. It replaces
-`ProjectScaffolder`.
-
-`LakonaProjectSpecFactory` lives in
-`src/Lakona.Tool/Domain/LakonaProjectSpecFactory.cs`. It belongs with the domain
-model because it converts validated command intent into the canonical project
-specification, including defaults, naming, layout, and default feature
-selection.
-
-```csharp
-internal interface IPlanContributor
-{
-    void AddFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder);
-}
-```
-
-Renderers should implement `IPlanContributor`. A renderer returns files to the
-plan builder; it does not call `File.WriteAllText`, `Directory.CreateDirectory`,
-or `XDocument.Load`.
-
-```csharp
-internal interface IClientRenderer : IPlanContributor
-{
-    ClientEngine Engine { get; }
-}
-```
-
-The plan builder selects exactly one client renderer based on
-`LakonaProjectSpec.ClientEngine`.
+Only the selected client renderer contributes client files. A Godot plan must
+not include Unity `Assets/` files, Unity `.meta` files, or NuGetForUnity files.
 
 ## Core Data Flow
 
-### 1. Parse Options
+### Parse Options
 
-`NewProjectOptionParser` returns typed values:
+`NewProjectOptionParser` returns typed options. Aliases and strings are
+normalized at the CLI edge only; downstream code uses enums.
 
-```csharp
-internal sealed record NewProjectOptions(
-    string ProjectName,
-    string OutputPath,
-    ClientEngine ClientEngine,
-    TransportKind Transport,
-    SerializerKind Serializer,
-    PersistenceKind Persistence,
-    NuGetForUnitySource NuGetForUnitySource,
-    DeploymentProfile DeploymentProfile,
-    NewProjectOptionPresence Presence);
-```
+Supported user-facing options:
 
-`--network-profile` should be removed. The generated project is always a
-single-node local cluster by default. Future topology choices should be modeled
-as `DeploymentProfile` or a new explicit topology option after a separate design.
+- `--name`
+- `--output`
+- `--client-engine unity|unity-cn|tuanjie|godot`
+- `--transport tcp|websocket|kcp`
+- `--serializer json|memorypack`
+- `--persistence none|mysql|postgres`
+- `--nugetforunity-source embedded|openupm`
+- `--deploy-profile none|compose`
 
-Use enums at the parser boundary:
+Do not reintroduce `--network-profile`, `single`, or `realtime` generation
+paths. Unsupported historical options should fail with normal
+unsupported-option diagnostics.
 
-```csharp
-internal enum ClientEngine
-{
-    Unity,
-    UnityCn,
-    Tuanjie,
-    Godot
-}
+Interactive prompting asks only for values needed to form a project spec:
 
-internal enum TransportKind
-{
-    Tcp,
-    WebSocket,
-    Kcp
-}
+1. project name
+2. client engine
+3. transport
+4. serializer
 
-internal enum SerializerKind
-{
-    Json,
-    MemoryPack
-}
+Persistence, NuGetForUnity source, deployment profile, and output path keep
+documented defaults unless explicitly provided.
 
-internal enum PersistenceKind
-{
-    None,
-    MySql,
-    Postgres
-}
-
-internal enum DeploymentProfile
-{
-    None,
-    Compose
-}
-
-internal enum NuGetForUnitySource
-{
-    Embedded,
-    OpenUpm
-}
-```
-
-The parser should normalize aliases only at the CLI edge. For example,
-`websocket` maps to `TransportKind.WebSocket`, and no downstream code compares
-transport strings.
-
-### 2. Build Project Spec
+### Build Project Spec
 
 `LakonaProjectSpec` is the single source of generation intent:
 
@@ -406,7 +209,10 @@ internal sealed record LakonaProjectSpec(
     IReadOnlyList<ProjectFeature> Features);
 ```
 
-Default `Features` should include:
+`LakonaProjectSpecFactory` owns defaulting, naming, layout, and default feature
+selection. Keep name sanitation here rather than spreading it across renderers.
+
+Default generation-time features include:
 
 - `ClusterLocal`
 - `Hotfix`
@@ -414,43 +220,10 @@ Default `Features` should include:
 - `LoginSlice`
 - `ChatSlice`
 
-These are generation-time features. They do not become runtime `Enabled` flags
-in `appsettings.json`.
+These are generation choices. They do not become runtime `Enabled` flags in
+`appsettings.json`.
 
-`LakonaProjectSpecFactory` owns defaulting:
-
-```csharp
-internal sealed class LakonaProjectSpecFactory
-{
-    public LakonaProjectSpec Create(NewProjectOptions options)
-    {
-        var layout = ProjectLayout.Create(options.ProjectName, options.OutputPath);
-        return new LakonaProjectSpec(
-            options.ProjectName,
-            layout,
-            options.ClientEngine,
-            options.Transport,
-            options.Serializer,
-            options.Persistence,
-            ResolveNuGetForUnitySource(options),
-            options.DeploymentProfile,
-            ProjectFeatureCatalog.DefaultFeatures);
-    }
-}
-```
-
-Keep project naming decisions here:
-
-- sanitized Unity package/company id
-- root namespace names
-- server project name
-- shared project name
-- Godot assembly name
-- generated docs title
-
-Do not spread name sanitation across renderers.
-
-### 3. Build Generation Plan
+### Build Generation Plan
 
 `LakonaProjectPlanBuilder` creates a complete immutable plan:
 
@@ -459,106 +232,44 @@ internal sealed record GenerationPlan(
     string RootPath,
     IReadOnlyList<GeneratedFile> Files,
     IReadOnlyList<GeneratedDirectory> Directories,
-    IReadOnlyList<PlanDiagnostic> Diagnostics);
-
-internal sealed record GeneratedDirectory(
-    string RelativePath);
-
-internal sealed record GeneratedFile(
-    string RelativePath,
-    string Content,
-    FileWriteMode WriteMode,
-    GeneratedFileKind Kind);
-
-internal enum GeneratedFileKind
-{
-    Text,
-    Project,
-    Solution,
-    Json,
-    Xml,
-    UnityAsset,
-    GodotScene,
-    GodotTheme,
-    Markdown,
-    EmbeddedAsset
-}
-
-internal enum FileWriteMode
-{
-    CreateOnly,
-    Replace
-}
+    IReadOnlyList<PlanDiagnostic> Diagnostics,
+    IReadOnlyList<GeneratedArchive>? Archives = null);
 ```
 
-`FileWriteMode.Replace` is safe during `new` because writes happen inside a new
-staging tree. `CreateOnly` is for files that should fail if a renderer produces
-the same path twice through future composition. Do not use in-place merge in the
-`new` command.
+Plan validation must catch:
 
-The plan builder must validate:
+- duplicate relative paths
+- writes outside the output root
+- generated RPC glue directories
+- `Server/Server/` paths
+- `RpcStarter`, `ULinkRPC`, or `ULinkGame` strings in generated user files
+- `Cluster.Enabled`, `Hotfix.Enabled`, or `ReliablePush.Enabled` config keys
 
-- no duplicate relative paths
-- no writes outside the output root
-- no generated RPC glue directories
-- no `Server/Server/` paths
-- no `RpcStarter`, `ULinkRPC`, or `ULinkGame` strings in generated user files
-- no `Cluster.Enabled`, `Hotfix.Enabled`, or `ReliablePush.Enabled` config keys
+Validation errors fail generation before a staging directory is created.
 
-Recommended diagnostic shape:
+### Execute Transactionally
 
-```csharp
-internal sealed record PlanDiagnostic(
-    PlanDiagnosticSeverity Severity,
-    string Code,
-    string Message,
-    string? Path = null);
+`GenerationExecutor` and `TransactionalOutputWriter` know paths, write modes,
+text normalization, embedded archive extraction, and rollback. They should not
+understand Unity, Godot, RPC, Game, hotfix, or package rules.
 
-internal enum PlanDiagnosticSeverity
-{
-    Error,
-    Warning
-}
-```
-
-Validation errors should fail generation before a staging directory is created.
-
-### 4. Execute Transactionally
-
-`GenerationExecutor` writes to a staging directory and moves it into place only
-after every renderer succeeds. Keep the current rollback behavior from
-`StarterOutputManager`, but make it generic and test it outside any recipe.
-
-The executor should not understand Unity, Godot, RPC, Game, hotfix, or package
-rules. It only knows paths, write modes, text normalization, embedded asset
-extraction, and rollback.
-
-Transactional execution should be:
+Transactional execution is:
 
 1. Resolve target root.
 2. Fail if target root exists and is not empty.
-3. Create sibling staging root named `.<ProjectName>.tmp-<random>`.
+3. Create a sibling staging root named `.<ProjectName>.tmp-<random>`.
 4. Write all directories and files into staging.
-5. Extract embedded assets into staging only.
+5. Extract embedded archives into staging only.
 6. Move staging root to final target root.
-7. On any failure before the move, delete staging.
-8. On move failure, keep the original target untouched and report both the
-   generation failure and cleanup failure if cleanup also fails.
+7. On failure before the move, delete staging.
+8. On move failure, keep the original target untouched and report cleanup
+   failure if cleanup also fails.
 
-The executor must reject path traversal before writing:
-
-```csharp
-var fullPath = Path.GetFullPath(Path.Combine(stagingRoot, file.RelativePath));
-if (!fullPath.StartsWith(stagingRootFullPath, StringComparison.OrdinalIgnoreCase))
-{
-    throw new InvalidOperationException($"Generated file escapes project root: {file.RelativePath}");
-}
-```
+The writer must reject path traversal before writing or extracting archives.
 
 ## Dependency Planning
 
-Replace `StarterDependencyPlanner` and `GameDependencyPlanner` with one
-`DependencyPlanner` over target roles:
+`DependencyPlanner` is the single package planner for generated targets:
 
 ```csharp
 internal enum ProjectTarget
@@ -571,24 +282,8 @@ internal enum ProjectTarget
 }
 ```
 
-Use one package reference model:
-
-```csharp
-internal sealed record PackageReferenceSpec(
-    string Id,
-    string Version,
-    PackageReferenceStyle Style,
-    bool ManuallyInstalled = false,
-    string? PrivateAssets = null,
-    string? IncludeAssets = null,
-    string? OutputItemType = null);
-```
-
-`PackageCatalog` owns all versions. It should keep MSBuild-generated Lakona
-package versions, but expose them as a typed catalog rather than scattered
-partial constants. External runtime dependency versions such as MemoryPack,
-Godot SDK helper packages, Roslyn packages, and Unity KCP dependencies should
-also live here.
+`PackageCatalog` owns package versions. It keeps MSBuild-generated Lakona
+package versions and external dependency versions in one typed catalog.
 
 Rules:
 
@@ -605,13 +300,6 @@ Rules:
 - Godot clients use SDK-style package references and do not repeat MemoryPack
   runtime packages already owned by Shared.
 
-Package rendering should be pure and shared:
-
-- SDK `.csproj` package references
-- NuGetForUnity `packages.config`
-- analyzer metadata
-- project references with target framework metadata
-
 ### Target Dependency Matrix
 
 `DependencyPlanner` should have direct tests for this matrix.
@@ -624,14 +312,6 @@ Package rendering should be pure and shared:
 | UnityClient | `Lakona.Rpc.Core`, `Lakona.Rpc.Client`, selected transport, selected serializer, `Lakona.Rpc.Analyzers`, `Lakona.Game.Client`, `Lakona.Game.Abstractions`, `System.Threading.Channels` | Unity KCP dependencies, JSON dependencies, MemoryPack/Roslyn dependencies |
 | GodotClient | `Lakona.Rpc.Core`, `Lakona.Rpc.Client`, selected transport, `Lakona.Rpc.Analyzers`, `Lakona.Game.Client` | JSON serializer for JSON projects, local Godot SDK NuGet source if detected |
 
-Godot MemoryPack projects should not duplicate Shared-owned MemoryPack package
-references as long as generated Godot client source does not directly reference
-MemoryPack attributes or runtime types. If a future Godot renderer introduces
-direct MemoryPack symbols in the client assembly, either move that usage back
-into Shared or update `DependencyPlanner` and tests to add the exact required
-client package references. The acceptance check is a generated Godot KCP
-MemoryPack project build, not an assumption about transitive package behavior.
-
 Analyzer references must keep private metadata:
 
 ```xml
@@ -642,46 +322,58 @@ Analyzer references must keep private metadata:
 ```
 
 Server generator references should keep `OutputItemType="Analyzer"` and
-`PrivateAssets="all"` when rendered as attributes, matching current generated
-server project behavior.
+`PrivateAssets="all"` when rendered as attributes.
 
 ## Rendering Boundaries
 
-Renderers should be small and target-oriented.
+Renderers are target-oriented:
 
-Each renderer should have three constraints:
+- They receive `LakonaProjectSpec` and pure helpers.
+- They emit plan entries with relative paths.
+- They own every path they emit.
 
-- It receives only `LakonaProjectSpec` and shared pure helpers.
-- It emits `GeneratedFile` entries with relative paths.
-- It owns every path it emits.
+If two renderers need to affect one file, the file owner should expose a typed
+input model instead of allowing both renderers to emit or mutate the same path.
 
-`SharedProjectRenderer` owns:
+### Path Ownership Table
+
+| Path Prefix | Owner |
+| --- | --- |
+| `.gitignore`, `.gitattributes` | `GitRenderer` |
+| `lakona-game.tool.json` | `ProjectConfigRenderer` |
+| `Shared/**` | `SharedProjectRenderer` and `SharedContractsRenderer` |
+| `Server/Server.slnx` | `ServerAppRenderer` |
+| `Server/App/**` | `ServerAppRenderer` |
+| `Server/Hotfix/**` | `HotfixRenderer` |
+| `Client/**` for Unity/Tuanjie | `UnityClientRenderer` |
+| `Client/**` for Godot | `GodotClientRenderer` |
+| `docker-compose.cluster.yml`, `.env.cluster.example`, `ops/**`, `Server/Dockerfile` | `OperationsRenderer` |
+| `docs/GETTING_STARTED.md`, `docs/EDITING_GUIDE.md`, `docs/OPERATIONS.md` | `GeneratedProjectDocsRenderer` |
+
+### Shared Renderer
+
+Shared owns contracts and cross-side project metadata:
 
 - `Shared/Shared.csproj`
 - `Shared/Directory.Build.props`
 - `Shared/Shared.asmdef`
 - `Shared/package.json`
-- shared contract files
+- `Shared/Contracts/**`
 
-It should preserve Unity-facing shared source rules:
+Unity-facing shared source stays C# 9 compatible. MemoryPack source generation
+stays in Shared, not duplicated in server or Godot clients.
 
-- Unity-compatible projects target `netstandard2.1;net10.0`.
-- Godot projects target the Godot-compatible framework pair used today.
-- Shared contracts remain C# 9 compatible for Unity-facing code.
-- MemoryPack source generation stays in Shared, not duplicated in server or
-  Godot clients.
+### Server Renderers
 
-`ServerAppRenderer` owns:
+`ServerAppRenderer` owns the stable server app:
 
 - `Server/Server.slnx`
 - `Server/App/Server.App.csproj`
 - `Server/App/Program.cs`
 - `Server/App/appsettings.json`
 - stable server orchestration files
-- generated check command integration
 
-It must render a thin `Program.cs` that delegates to `LakonaGameServer.RunAsync`
-and a generated binding/configuration area under `Server/App/Hosting`. It must
+`Program.cs` should stay thin and delegate to `LakonaGameServer.RunAsync`. Do
 not render the old low-level `RpcServerHostBuilder` starter program.
 
 `HotfixRenderer` owns:
@@ -691,10 +383,11 @@ not render the old low-level `RpcServerHostBuilder` starter program.
 - hotfix copy target model
 
 The hotfix project may reference `Server.App.csproj`, but `Server.App.csproj`
-must not reference the hotfix project as a normal compile dependency. The
-runtime relationship is stable host plus replaceable hotfix assembly.
+must not reference the hotfix project as a normal compile dependency.
 
-`UnityClientRenderer` owns Unity/Tuanjie files:
+### Client Renderers
+
+`UnityClientRenderer` owns Unity and Tuanjie files:
 
 - `Client/Packages/manifest.json`
 - `Client/ProjectSettings/ProjectVersion.txt`
@@ -704,15 +397,14 @@ runtime relationship is stable host plus replaceable hotfix assembly.
 - UXML, USS, PanelSettings, scene files, meta files
 - NuGet package import guard
 
-Unity/Tuanjie generated scripts must obey the repository Unity rules:
+Unity and Tuanjie generated scripts must obey the repository Unity rules:
 
-- C# 9 compatible syntax only.
+- C# 9 compatible syntax only
 - no `System.Reflection.Emit`
 - no runtime code generation
 - no checked-in RPC generated client source
-- NUnit Unity test conventions when generated tests are added
 
-`GodotClientRenderer` owns:
+`GodotClientRenderer` owns Godot files:
 
 - `Client/project.godot`
 - `Client/Client.csproj`
@@ -722,52 +414,26 @@ Unity/Tuanjie generated scripts must obey the repository Unity rules:
 - `Client/Theme/LakonaTheme.tres`
 - login and chat scripts
 
-Godot UI should be file-backed:
+Godot UI should be file-backed. Do not reintroduce C# `BuildUi` methods for
+the default scenes.
 
-- `.tscn` scenes contain the node tree.
-- `.tres` contains the theme.
-- C# scene scripts use `GetNode` and unique node names.
-- Do not reintroduce C# `BuildUi` methods for the default scenes.
+### Project, Operations, And Docs Renderers
+
+`ProjectConfigRenderer` owns `lakona-game.tool.json`. This is tool metadata, not
+server runtime configuration.
 
 `OperationsRenderer` owns compose output only when
 `DeploymentProfile.Compose` is selected.
 
-`ProjectConfigRenderer` owns `lakona-game.tool.json`. This file describes the
-tool-generated project choices and is not server runtime configuration, so it
-should not be owned by `ServerAppRenderer`.
-
-`GeneratedProjectDocsRenderer` should add generated project docs described by
-`docs/game/lakona-tool-default-experience.md`:
+`GeneratedProjectDocsRenderer` owns generated project docs:
 
 - `docs/GETTING_STARTED.md`
 - `docs/EDITING_GUIDE.md`
 - `docs/OPERATIONS.md`
 
-Large static assets should move out of giant C# string classes into resource
-templates where possible. C# renderers should compose small, named templates
-from typed inputs instead of exposing one catch-all `ToolTemplates` facade.
-
-### Path Ownership Table
-
-| Path Prefix | Owner |
-| --- | --- |
-| `.gitignore`, `.gitattributes` | `GitRenderer` |
-| `lakona-game.tool.json` | `ProjectConfigRenderer` |
-| `Shared/**` | `SharedProjectRenderer` |
-| `Server/Server.slnx` | `ServerAppRenderer` |
-| `Server/App/**` | `ServerAppRenderer` except app docs |
-| `Server/Hotfix/**` | `HotfixRenderer` |
-| `Client/**` for Unity/Tuanjie | `UnityClientRenderer` |
-| `Client/**` for Godot | `GodotClientRenderer` |
-| `docker-compose.cluster.yml`, `.env.cluster.example`, `ops/**`, `Server/Dockerfile` | `OperationsRenderer` |
-| `docs/GETTING_STARTED.md`, `docs/EDITING_GUIDE.md`, `docs/OPERATIONS.md` | `GeneratedProjectDocsRenderer` |
-
-If two renderers need to affect one file, the file owner should expose a typed
-input model instead of allowing both renderers to emit or mutate the same path.
-
 ## Generated Project Layout
 
-The generated project layout should be:
+The generated project layout is:
 
 ```txt
 MyGame/
@@ -803,12 +469,11 @@ MyGame/
     ...
 ```
 
-There should be no `Server/Server/` directory in newly generated projects.
+There must be no `Server/Server/` directory in newly generated projects.
 
 ## Generated Runtime Story
 
-The default generated project should demonstrate Lakona.Game as one vertical
-slice rather than disconnected framework examples:
+The default generated project demonstrates Lakona.Game as one vertical slice:
 
 ```txt
 client login RPC
@@ -823,7 +488,7 @@ client login RPC
 ```
 
 The generated server must not use static mutable process state for chat room
-concurrency. The room state belongs in an actor. Stable server code owns actor
+concurrency. Room state belongs in an actor. Stable server code owns actor
 runtime access and hotfix dispatch wrappers. Hotfix code owns replaceable
 business rule behavior only.
 
@@ -835,63 +500,9 @@ Generated docs should point users to three edit zones:
   integration.
 - `Server/Hotfix/` for replaceable rules and services.
 
-## CLI Contract
-
-Keep the default command:
-
-```powershell
-lakona-tool new
-```
-
-Non-interactive use should require:
-
-```powershell
-lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack
-```
-
-Supported user-facing options:
-
-- `--name`
-- `--output`
-- `--client-engine unity|unity-cn|tuanjie|godot`
-- `--transport tcp|websocket|kcp`
-- `--serializer json|memorypack`
-- `--persistence none|mysql|postgres`
-- `--nugetforunity-source embedded|openupm`
-- `--deploy-profile none|compose`
-
-Remove `--network-profile` from help, parser, option presence tracking, tests,
-and README. Do not add flags that disable cluster, hotfix, or reliable push.
-
-Unsupported historical options should fail with normal unsupported-option
-diagnostics. Do not silently ignore `--network-profile`; that would hide stale
-automation.
-
-Interactive prompting should ask only for values needed to form
-`LakonaProjectSpec`:
-
-1. project name
-2. client engine
-3. transport
-4. serializer
-
-Persistence, NuGetForUnity source, deployment profile, and output path keep
-documented defaults unless explicitly provided.
-
-The target layout intentionally moves CLI support files into subdirectories:
-
-- `Cli/Text/ToolText.cs`
-- `Cli/Terminal/ICliTerminal.cs`
-- `Cli/Terminal/ConsoleCliTerminal.cs`
-
-This is a physical move, not only a conceptual grouping. The refactor has no
-internal compatibility requirement, and the directory layout should make command
-routing, text, terminal abstraction, and option parsing easy to scan.
-
 ## Configuration Contract
 
-Generated `Server/App/appsettings.json` must contain only the compact source
-values:
+Generated `Server/App/appsettings.json` contains only compact source values:
 
 ```json
 {
@@ -927,256 +538,40 @@ Do not generate these keys:
 Derived runtime state belongs in generated server code and check output, not
 default JSON.
 
-## Test Architecture
+## Regression Checks
 
-Restructure tests around the new pipeline:
-
-```txt
-tests/Lakona.Tool.Tests/
-  Cli/
-    NewProjectOptionParserTests.cs
-    NewProjectPrompterTests.cs
-    ToolTextTests.cs
-  Domain/
-    ProjectSpecFactoryTests.cs
-  Planning/
-    DependencyPlannerTests.cs
-    GenerationPlanTests.cs
-    PlanValidatorTests.cs
-  Rendering/
-    SharedProjectRendererTests.cs
-    ServerAppRendererTests.cs
-    UnityClientRendererTests.cs
-    GodotClientRendererTests.cs
-    OperationsRendererTests.cs
-  Execution/
-    TransactionalOutputWriterTests.cs
-  Integration/
-    NewProjectGenerationTests.cs
-  Golden/
-    GodotKcpMemoryPack/
-    UnityWebSocketJson/
-```
-
-Delete `tests/Lakona.Tool.Tests/RpcStarter/**`.
-
-Required coverage:
+Tool changes should keep or update focused tests under `tests/Lakona.Tool.Tests`
+for:
 
 - option parsing and interactive prompting
 - project spec defaults
 - package matrix for every target role
-- plan validation rejects duplicate paths and legacy paths
+- plan validation rejecting duplicate paths, legacy paths, and forbidden content
 - generated compact `appsettings.json`
-- server program uses `LakonaGameServer.RunAsync`
+- server program delegating to `LakonaGameServer.RunAsync`
 - no project-local generated RPC glue
 - Unity/Tuanjie package metadata and import guard
-- Godot `.tscn` and `.tres` files are generated as files, not C# UI builders
-- compose files use `Server/App/Server.App.csproj`, not `Server/Server`
-- transactional rollback leaves no target directory after renderer failure
-- generated project source scan contains no `ULinkRPC`, `ULinkGame`,
-  `RpcStarter`, or `Server/Server`
+- Godot `.tscn` and `.tres` files generated as files, not C# UI builders
+- compose files using `Server/App/Server.App.csproj`, not `Server/Server/`
+- transactional rollback leaving no target directory after renderer failure
+- generated project scans containing no legacy starter brand text
 
-For end-to-end validation, generate at least:
+Useful source scans:
 
-- Unity, KCP, MemoryPack, OpenUPM
-- Unity CN, TCP, JSON, embedded NuGetForUnity
-- Tuanjie, TCP, JSON, embedded NuGetForUnity
-- Godot, WebSocket, JSON
-- Godot, KCP, MemoryPack
-- Compose deployment profile
-
-Build generated .NET server projects for representative cases. Unity editor
-validation can remain focused and should follow the repository Unity rules when
-available.
-
-### Critical Test Examples
-
-Add a source-scan test that fails if the old architecture returns:
-
-```csharp
-[Fact]
-public void ToolSource_DoesNotContainStarterPipelineArtifacts()
-{
-    var source = ReadAllToolSource();
-
-    Assert.DoesNotContain("namespace Lakona.Tool.RpcStarter", source);
-    Assert.DoesNotContain("StarterTemplateContext", source);
-    Assert.DoesNotContain("StarterPaths", source);
-    Assert.DoesNotContain("AugmentProjectWithLakonaGameAsync", source);
-    Assert.DoesNotContain("ToolOptionValues", source);
-}
+```powershell
+rg "RpcStarter|StarterTemplate|StarterPaths|AugmentProjectWithLakonaGame|ULinkRPC|ULinkGame" src/Lakona.Tool tests/Lakona.Tool.Tests
+rg "Server/Server/|Server\\\\Server\\\\|network-profile|realtime|single" src/Lakona.Tool tests/Lakona.Tool.Tests
 ```
 
-Add a generated-project scan:
+`Server/Server.slnx` is valid and should not be treated as a legacy nested
+server directory.
 
-```csharp
-[Fact]
-public async Task NewProject_DoesNotGenerateLegacyStarterLayout()
-{
-    var root = await GenerateAsync("MyGame", ClientEngine.Unity, TransportKind.Kcp, SerializerKind.MemoryPack);
+For normal validation, follow `CONTRIBUTING.md`:
 
-    Assert.False(Directory.Exists(Path.Combine(root, "Server", "Server")));
-    Assert.True(File.Exists(Path.Combine(root, "Server", "App", "Server.App.csproj")));
-    Assert.False(Directory.Exists(Path.Combine(root, "Client", "Assets", "Scripts", "Rpc", "Generated")));
-
-    var generatedText = ReadAllGeneratedText(root);
-    Assert.DoesNotContain("ULinkRPC", generatedText);
-    Assert.DoesNotContain("ULinkGame", generatedText);
-    Assert.DoesNotContain("RpcStarter", generatedText);
-}
+```powershell
+dotnet build Lakona.slnx
+dotnet test Lakona.slnx --no-build
 ```
 
-Add a plan validator test:
-
-```csharp
-[Fact]
-public void PlanValidator_RejectsDuplicatePaths()
-{
-    var plan = new GenerationPlan(
-        "Root",
-        [
-            new GeneratedFile("Shared/Shared.csproj", "a", FileWriteMode.Replace, GeneratedFileKind.Project),
-            new GeneratedFile("Shared/Shared.csproj", "b", FileWriteMode.Replace, GeneratedFileKind.Project)
-        ],
-        [],
-        []);
-
-    var result = PlanValidator.Validate(plan);
-
-    Assert.Contains(result.Diagnostics, d => d.Code == "LTPLAN001");
-}
-```
-
-The exact helper names can differ, but the tests should enforce the same
-contracts.
-
-## Implementation Sequence
-
-1. Add typed domain enums, `NewProjectOptions`, and parser tests. Remove
-   `--network-profile` at this step.
-2. Add `LakonaProjectSpec`, `ProjectLayout`, `ProjectFeature`, and
-   `LakonaProjectSpecFactory`. Test default features and path layout.
-3. Add `PackageCatalog`, `PackageReferenceSpec`, and unified
-   `DependencyPlanner`. Port package matrix tests from both old planners.
-4. Add `GeneratedFile`, `GenerationPlan`, `GenerationPlanBuilder`,
-   `PlanValidator`, and diagnostics. Test duplicate paths, legacy paths, and
-   forbidden generated content.
-5. Add `TransactionalOutputWriter` and `GenerationExecutor`. Port rollback
-   tests from `StarterOutputManager`.
-6. Add renderers one target at a time: git, shared, server app, hotfix, one
-   client renderer, operations, docs.
-7. Wire `NewProjectCommand` to `LakonaProjectGenerator`.
-8. Move integration tests from `ProjectScaffolder` to full `lakona-tool new`
-   generation tests.
-9. Delete `ProjectScaffolder.AugmentProjectWithLakonaGameAsync`; do not keep an
-   obsolete method that calls the new generator.
-10. Delete `src/Lakona.Tool/RpcStarter/**`, `ToolOptionValues`, standalone
-    starter tests, and old docs that describe standalone starter internals.
-11. Update `src/Lakona.Tool/README.md`, `docs/rpc/starter/**`, and any tests
-    that refer to `Server/Server` or `RpcStarter`.
-12. Bump `src/Lakona.Tool/Lakona.Tool.csproj` version because this changes a
-    shippable tool package.
-
-Each step should leave `tests/Lakona.Tool.Tests` either passing or with only
-known tests being deleted/replaced in that same step. Avoid a long-lived state
-where old starter tests fail while the new pipeline is half-built.
-
-## Migration Map From Current Code
-
-| Current File | Target |
-| --- | --- |
-| `Cli/CliApplication.cs` | keep as router; move `new` handling into `Cli/Commands/NewProjectCommand.cs` |
-| `Cli/CliParser.cs` | replace with `Cli/Options/NewProjectOptionParser.cs` returning typed options |
-| `Cli/NewCommandPrompter.cs` | move to `Cli/Options/NewProjectPrompter.cs` and prompt typed options |
-| `Cli/ToolText.cs` | move physically to `Cli/Text/ToolText.cs` |
-| `Cli/CliTerminal.cs` | split and move physically to `Cli/Terminal/ICliTerminal.cs` and `Cli/Terminal/ConsoleCliTerminal.cs` |
-| `Scaffolding/ToolModels.cs` | split into `Domain/*` and CLI option records |
-| `Scaffolding/ToolOptionValues.cs` | delete |
-| `Scaffolding/GameDependencyPlanner.cs` | replace with `Planning/DependencyPlanner.cs` |
-| `RpcStarter/Generation/StarterDependencyPlanner.cs` | delete after porting package matrix |
-| `RpcStarter/Generation/StarterModels.cs` | delete after porting enums and version constants |
-| `RpcStarter/Infrastructure/StarterOutputManager.cs` | port behavior to `Execution/TransactionalOutputWriter.cs` |
-| `RpcStarter/Infrastructure/StarterTemplateRenderer.cs` | port generic resource rendering to `Rendering/Common/TemplateRenderer.cs` |
-| `Scaffolding/ProjectScaffolder.cs` | replace with `LakonaProjectGenerator` plus plan contributors |
-| `Scaffolding/Templates/ToolTemplates.cs` | delete facade after callers move to renderers |
-| `Scaffolding/Templates/ServerProjectTemplates.cs` | split into `ServerAppRenderer`, `HotfixRenderer`, `ServiceBindingRenderer`, `CheckCommandRenderer` |
-| `Scaffolding/Templates/ChatClientTemplates.cs` | split into Unity and Godot client renderers |
-| `Scaffolding/Templates/UnityAssetTemplates.cs` | move to `Rendering/Client/UnityAssetRenderer.cs` or resource templates |
-| `Scaffolding/Templates/OperationsTemplates.cs` | move to `Rendering/Operations/OperationsRenderer.cs` |
-| current config save logic in `CliApplication` | move to `Rendering/Project/ProjectConfigRenderer.cs` |
-| `Infrastructure/ToolFileWriter.cs` | keep as low-level text/asset helper used by executor only |
-| `Infrastructure/ProjectXmlMutator.cs` | keep only for future maintenance commands or remove from `new` path |
-| `Infrastructure/PackageReferenceText.cs` | replace or adapt as `Rendering/Common/PackageReferenceRenderer.cs` |
-
-## Documentation Cleanup
-
-The current `docs/rpc/starter/**` documents standalone RPC starter internals.
-After the refactor:
-
-- Move historical standalone starter decisions to `docs/rpc/archive/starter/`
-  if they remain useful.
-- Rewrite active RPC starter docs so they describe source-generator constraints
-  that still apply to Lakona.Tool generated projects.
-- Remove active instructions that point maintainers at
-  `src/Lakona.Tool/RpcStarter/**`.
-- Keep `docs/game/lakona-tool-default-experience.md` as the user-experience
-  authority for generated Game projects.
-- Keep this document as the implementation architecture authority for the tool
-  refactor.
-
-The Definition of Done source scans intentionally cover
-`src/Lakona.Tool` and `tests/Lakona.Tool.Tests`. The wider documentation cleanup
-does not require all historical mentions of `ULinkRPC` or `ULinkGame` to
-disappear from the repository; archive docs may keep historical names when they
-are clearly archival. Active tool docs must not instruct contributors to edit
-`src/Lakona.Tool/RpcStarter/**` or preserve the old starter pipeline.
-
-## Source File Disposition
-
-Delete:
-
-- `src/Lakona.Tool/RpcStarter/**`
-- `src/Lakona.Tool/Scaffolding/ToolOptionValues.cs`
-- `tests/Lakona.Tool.Tests/RpcStarter/**`
-
-Replace:
-
-- `src/Lakona.Tool/Scaffolding/ProjectScaffolder.cs`
-- `src/Lakona.Tool/Scaffolding/ToolModels.cs`
-- `src/Lakona.Tool/Scaffolding/GameDependencyPlanner.cs`
-- `src/Lakona.Tool/Scaffolding/ToolTemplates.cs`
-- `src/Lakona.Tool/Cli/CliParser.cs`
-- `src/Lakona.Tool/Cli/NewCommandPrompter.cs`
-
-Split:
-
-- `src/Lakona.Tool/Scaffolding/Templates/ChatClientTemplates.cs`
-- `src/Lakona.Tool/Scaffolding/Templates/ServerProjectTemplates.cs`
-- `src/Lakona.Tool/Scaffolding/Templates/UnityAssetTemplates.cs`
-- `src/Lakona.Tool/Scaffolding/Templates/OperationsTemplates.cs`
-
-Keep and adapt:
-
-- `src/Lakona.Tool/Infrastructure/ToolFileWriter.cs`
-- `src/Lakona.Tool/Infrastructure/ProjectXmlMutator.cs`
-- `src/Lakona.Tool/Infrastructure/PackageReferenceText.cs`
-- `src/Lakona.Tool/Cli/Text/ToolText.cs`
-- `src/Lakona.Tool/Cli/Terminal/ICliTerminal.cs`
-- `src/Lakona.Tool/Cli/Terminal/ConsoleCliTerminal.cs`
-- `src/Lakona.Tool/Cli/Program.cs`
-
-## Definition of Done
-
-The refactor is done when all of these are true:
-
-- `rg "RpcStarter|StarterTemplate|StarterPaths|AugmentProjectWithLakonaGame|ULinkRPC|ULinkGame" src/Lakona.Tool tests/Lakona.Tool.Tests` returns no production references except intentional archive docs or comments explaining deletion history.
-- `rg "Server/Server|Server\\\\Server|network-profile|realtime|single" src/Lakona.Tool tests/Lakona.Tool.Tests` returns no active generation paths.
-- `lakona-tool new` generates the target layout in one pass from a single
-  generation plan.
-- No generated project contains committed RPC glue under `Generated/`.
-- Generated `appsettings.json` stays compact and matches
-  `docs/game/lakona-tool-default-experience.md`.
-- `dotnet build Lakona.slnx` passes.
-- `dotnet test Lakona.slnx --no-build` passes, or tool-related tests pass and
-  any unrelated solution failures are recorded with exact failure output.
-- `src/Lakona.Tool/Lakona.Tool.csproj` has a version bump.
+For tool-focused changes, `dotnet test tests/Lakona.Tool.Tests/Lakona.Tool.Tests.csproj`
+is the minimum targeted check.

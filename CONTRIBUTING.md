@@ -24,7 +24,7 @@ Supporting documents provide deeper rationale or user-facing context:
 | [docs/game/lakona-game-configuration-startup.md](./docs/game/lakona-game-configuration-startup.md) | Game configuration schema, feature catalog startup, and validation boundary |
 | [docs/game/lakona-game-runtime-guardrails.md](./docs/game/lakona-game-runtime-guardrails.md) | Runtime validation model for cluster, hotfix, endpoints, and production profile |
 | [docs/game/lakona-tool-default-experience.md](./docs/game/lakona-tool-default-experience.md) | Project tool generated experience and default configuration surface |
-| [docs/tool/lakona-tool-refactor-architecture.md](./docs/tool/lakona-tool-refactor-architecture.md) | Target architecture for refactoring Lakona.Tool into a single project generation pipeline |
+| [docs/tool/lakona-tool-refactor-architecture.md](./docs/tool/lakona-tool-refactor-architecture.md) | Implemented Lakona.Tool project generation architecture and regression boundaries |
 | [docs/lakona-monorepo.md](./docs/lakona-monorepo.md) | Monorepo structure, naming, and migration policy |
 | [docs/rpc/overview.md](./docs/rpc/overview.md) | RPC user-facing overview retained from the former RPC repository |
 | [docs/rpc/README.md](./docs/rpc/README.md) | RPC design notes and maintainer-facing decisions |
