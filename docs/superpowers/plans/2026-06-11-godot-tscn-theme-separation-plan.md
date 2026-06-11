@@ -1002,3 +1002,102 @@ Expected: all tests PASS
 git add tests/Lakona.Tool.Tests/ToolTemplateTests.cs
 git commit -m "test: add E2E integration test for Godot scaffold theme+tscn output"
 ```
+
+## 2026-06-11 Review Handoff Issues
+
+These issues were found during a review of the 2026-06-11 commits. Address them
+before considering the branch complete.
+
+### Issue 1: Godot Theme type variations are missing base type declarations
+
+Severity: Warning
+
+Current generated scenes use custom `theme_type_variation` values such as:
+
+- `LoginPanel`
+- `PanelVBox`
+- `TitleLabel`
+- `NameLabel`
+- `StatusLabel`
+- `PageMargin`
+- `ChatVBox`
+- `ChatHeader`
+- `HeaderRow`
+- `HeaderLabel`
+- `OnlineCount`
+- `ChatFooter`
+- `SendRow`
+
+Affected source:
+
+- `src/Lakona.Tool/Scaffolding/Templates/ChatClientTemplates.cs`
+- `RenderGodotTheme()`
+- `RenderGodotLoginTscn()`
+- `RenderGodotChatTscn()`
+
+Problem:
+
+`RenderGodotTheme()` writes entries like `TitleLabel/colors/font_color` and
+`LoginPanel/styles/panel`, while the `.tscn` files apply those names through
+`theme_type_variation = TitleLabel` and similar lines. Godot theme type
+variations should be associated with their base control type. Without base type
+declarations, Godot may not resolve the variation as a `Label`,
+`PanelContainer`, `VBoxContainer`, `HBoxContainer`, or `MarginContainer`
+variation.
+
+Expected fix direction:
+
+- Add base type declarations to `RenderGodotTheme()` for every custom
+  variation.
+- Map each variation to the actual control type used in the generated scene:
+  - `LoginPanel`, `ChatHeader`, `ChatFooter` -> `PanelContainer`
+  - `PanelVBox`, `ChatVBox` -> `VBoxContainer`
+  - `HeaderRow`, `SendRow` -> `HBoxContainer`
+  - `TitleLabel`, `HeaderLabel`, `NameLabel`, `StatusLabel`, `OnlineCount` -> `Label`
+  - `PageMargin` -> `MarginContainer`
+- Add tests that assert the generated `.tres` contains these base type
+  declarations, not only color/style entries.
+
+Suggested verification:
+
+```powershell
+dotnet test tests\Lakona.Tool.Tests\Lakona.Tool.Tests.csproj --no-build
+git diff --check 454cb4b89d0f811201e2e9a5f0080b8eedc349ce..HEAD
+```
+
+If the local Godot executable is stable, also generate a temporary Godot project
+and verify that Godot can import or open the generated `Client/` project without
+resource parse or theme warnings.
+
+### Issue 2: Temporary docs/superpowers files must not remain in the finished branch
+
+Severity: Warning
+
+Affected files:
+
+- `docs/superpowers/plans/2026-06-11-godot-tscn-theme-separation-plan.md`
+- `docs/superpowers/specs/2026-06-11-godot-tscn-theme-separation-design.md`
+
+Problem:
+
+`CONTRIBUTING.md` says `docs/superpowers/**` is a temporary working directory.
+Before finishing the development branch, move any durable design material into
+permanent documentation under `docs/**`, then delete the entire
+`docs/superpowers` directory.
+
+Expected fix direction:
+
+- Preserve any durable decisions in the appropriate permanent doc, likely under
+  `docs/rpc/starter/**` or another existing contributor-facing doc.
+- Delete `docs/superpowers/**` before the final commit/PR.
+- Do this after the implementation issue above is resolved, so this handoff
+  note is not removed before the next worker has used it.
+
+Review notes:
+
+- `dotnet test tests\Lakona.Tool.Tests\Lakona.Tool.Tests.csproj --no-build`
+  passed locally: 175/175.
+- `git diff --check 454cb4b89d0f811201e2e9a5f0080b8eedc349ce..HEAD` passed.
+- A temporary Godot project was generated under `.tmp`, but Godot 4.6.1 Mono
+  crashed in this environment during headless startup, so real Godot import/load
+  validation was not completed.

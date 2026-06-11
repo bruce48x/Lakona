@@ -280,33 +280,46 @@ internal static class ChatClientTemplates
         RichTextLabel/colors/default_color = Color(0.533, 0.8, 0.6, 1)
         RichTextLabel/font_sizes/normal_font_size = 14
 
+        TitleLabel/type = "Label"
         TitleLabel/colors/font_color = Color(0, 1, 0.4, 1)
         TitleLabel/font_sizes/font_size = 22
 
+        HeaderLabel/type = "Label"
         HeaderLabel/colors/font_color = Color(0, 1, 0.4, 1)
         HeaderLabel/font_sizes/font_size = 18
 
+        NameLabel/type = "Label"
         NameLabel/colors/font_color = Color(0, 0.667, 0.267, 1)
         NameLabel/font_sizes/font_size = 14
 
+        StatusLabel/type = "Label"
         StatusLabel/colors/font_color = Color(1, 0.267, 0.267, 1)
         StatusLabel/font_sizes/font_size = 14
 
+        OnlineCount/type = "Label"
         OnlineCount/colors/font_color = Color(1, 1, 0, 1)
         OnlineCount/font_sizes/font_size = 14
 
+        PanelVBox/type = "VBoxContainer"
         PanelVBox/constants/separation = 12
+        ChatVBox/type = "VBoxContainer"
         ChatVBox/constants/separation = 0
+        HeaderRow/type = "HBoxContainer"
         HeaderRow/constants/separation = 12
+        SendRow/type = "HBoxContainer"
         SendRow/constants/separation = 8
 
+        PageMargin/type = "MarginContainer"
         PageMargin/constants/margin_left = 16
         PageMargin/constants/margin_right = 16
         PageMargin/constants/margin_top = 16
         PageMargin/constants/margin_bottom = 16
 
+        LoginPanel/type = "PanelContainer"
         LoginPanel/styles/panel = SubResource("5")
+        ChatHeader/type = "PanelContainer"
         ChatHeader/styles/panel = SubResource("6")
+        ChatFooter/type = "PanelContainer"
         ChatFooter/styles/panel = SubResource("7")
         """;
     }

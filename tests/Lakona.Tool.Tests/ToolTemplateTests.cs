@@ -1562,6 +1562,29 @@ public sealed class ToolTemplateTests
     }
 
     [Fact]
+    public void RenderGodotTheme_VariationsDeclareBaseType()
+    {
+        var tres = ChatClientTemplates.RenderGodotTheme();
+
+        // Label derivatives
+        Assert.Contains("TitleLabel/type = \"Label\"", tres, StringComparison.Ordinal);
+        Assert.Contains("HeaderLabel/type = \"Label\"", tres, StringComparison.Ordinal);
+        Assert.Contains("NameLabel/type = \"Label\"", tres, StringComparison.Ordinal);
+        Assert.Contains("StatusLabel/type = \"Label\"", tres, StringComparison.Ordinal);
+        Assert.Contains("OnlineCount/type = \"Label\"", tres, StringComparison.Ordinal);
+
+        // Container derivatives
+        Assert.Contains("PanelVBox/type = \"VBoxContainer\"", tres, StringComparison.Ordinal);
+        Assert.Contains("ChatVBox/type = \"VBoxContainer\"", tres, StringComparison.Ordinal);
+        Assert.Contains("HeaderRow/type = \"HBoxContainer\"", tres, StringComparison.Ordinal);
+        Assert.Contains("SendRow/type = \"HBoxContainer\"", tres, StringComparison.Ordinal);
+        Assert.Contains("PageMargin/type = \"MarginContainer\"", tres, StringComparison.Ordinal);
+        Assert.Contains("LoginPanel/type = \"PanelContainer\"", tres, StringComparison.Ordinal);
+        Assert.Contains("ChatHeader/type = \"PanelContainer\"", tres, StringComparison.Ordinal);
+        Assert.Contains("ChatFooter/type = \"PanelContainer\"", tres, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RenderGodotTheme_ContainsAllColorConstants()
     {
         var tres = ChatClientTemplates.RenderGodotTheme();
