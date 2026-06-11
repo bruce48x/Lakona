@@ -1709,6 +1709,7 @@ public sealed class ToolTemplateTests
         Assert.Contains("theme_type_variation = ChatVBox", tscn, StringComparison.Ordinal);
         Assert.Contains("theme_type_variation = HeaderLabel", tscn, StringComparison.Ordinal);
         Assert.Contains("theme_type_variation = OnlineCount", tscn, StringComparison.Ordinal);
+        Assert.Contains("theme_type_variation = NameLabel", tscn, StringComparison.Ordinal);
     }
 
     [Fact]
