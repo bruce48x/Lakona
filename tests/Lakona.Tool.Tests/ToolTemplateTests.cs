@@ -1463,6 +1463,108 @@ public sealed class ToolTemplateTests
     }
 
     [Fact]
+    public void RenderGodotLoginTscn_ContainsFullNodeTree()
+    {
+        var tscn = ChatClientTemplates.RenderGodotLoginTscn();
+
+        // load_steps=3 (script + theme + scene)
+        Assert.Contains("[gd_scene load_steps=3 format=3]", tscn, StringComparison.Ordinal);
+
+        // Two ext_resources
+        Assert.Contains("[ext_resource type=\"Script\" path=\"res://Scripts/Login/LoginScene.cs\" id=\"1\"]", tscn, StringComparison.Ordinal);
+        Assert.Contains("[ext_resource type=\"Theme\" path=\"res://Themes/LakonaTheme.tres\" id=\"2\"]", tscn, StringComparison.Ordinal);
+
+        // Root: LoginScene (Control)
+        Assert.Contains("[node name=\"LoginScene\" type=\"Control\"]", tscn, StringComparison.Ordinal);
+        Assert.Contains("theme = ExtResource(\"2\")", tscn, StringComparison.Ordinal);
+        Assert.Contains("script = ExtResource(\"1\")", tscn, StringComparison.Ordinal);
+
+        // Background (ColorRect, parent=".")
+        Assert.Contains("[node name=\"Background\" type=\"ColorRect\" parent=\".\"]", tscn, StringComparison.Ordinal);
+
+        // Scanlines (ColorRect, parent=".")
+        Assert.Contains("[node name=\"Scanlines\" type=\"ColorRect\" parent=\".\"]", tscn, StringComparison.Ordinal);
+        Assert.Contains("mouse_filter = 2", tscn, StringComparison.Ordinal);
+
+        // Center (CenterContainer, parent=".")
+        Assert.Contains("[node name=\"Center\" type=\"CenterContainer\" parent=\".\"]", tscn, StringComparison.Ordinal);
+
+        // LoginPanel (PanelContainer, parent="Center")
+        Assert.Contains("[node name=\"LoginPanel\" type=\"PanelContainer\" parent=\"Center\"]", tscn, StringComparison.Ordinal);
+
+        // PanelContent (VBoxContainer, parent="Center/LoginPanel")
+        Assert.Contains("[node name=\"PanelContent\" type=\"VBoxContainer\" parent=\"Center/LoginPanel\"]", tscn, StringComparison.Ordinal);
+
+        // Title (Label)
+        Assert.Contains("[node name=\"Title\" type=\"Label\" parent=\"Center/LoginPanel/PanelContent\"]", tscn, StringComparison.Ordinal);
+        Assert.Contains("text = \"LAKONA\"", tscn, StringComparison.Ordinal);
+
+        // NameLabel (Label)
+        Assert.Contains("[node name=\"NameLabel\" type=\"Label\" parent=\"Center/LoginPanel/PanelContent\"]", tscn, StringComparison.Ordinal);
+        Assert.Contains("text = \"NAME:\"", tscn, StringComparison.Ordinal);
+
+        // NameField (LineEdit)
+        Assert.Contains("[node name=\"NameField\" type=\"LineEdit\" parent=\"Center/LoginPanel/PanelContent\"]", tscn, StringComparison.Ordinal);
+        Assert.Contains("max_length = 20", tscn, StringComparison.Ordinal);
+
+        // ConnectButton (Button)
+        Assert.Contains("[node name=\"ConnectButton\" type=\"Button\" parent=\"Center/LoginPanel/PanelContent\"]", tscn, StringComparison.Ordinal);
+        Assert.Contains("text = \"CONNECT\"", tscn, StringComparison.Ordinal);
+
+        // StatusLabel (Label)
+        Assert.Contains("[node name=\"StatusLabel\" type=\"Label\" parent=\"Center/LoginPanel/PanelContent\"]", tscn, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderGodotLoginTscn_InteractiveNodesHaveUniqueNames()
+    {
+        var tscn = ChatClientTemplates.RenderGodotLoginTscn();
+
+        // Extract the sections that follow each interactive node header
+        // NameField should have unique_name_in_owner = true
+        var nameFieldIndex = tscn.IndexOf("[node name=\"NameField\"", StringComparison.Ordinal);
+        Assert.True(nameFieldIndex >= 0, "NameField node missing");
+        var afterNameField = tscn[(nameFieldIndex + "[node name=\"NameField\" type=\"LineEdit\" parent=\"Center/LoginPanel/PanelContent\"]".Length)..];
+        var nextNodeAfterNameField = afterNameField.IndexOf("[node name=", StringComparison.Ordinal);
+        var nameFieldSection = nextNodeAfterNameField >= 0 ? afterNameField[..nextNodeAfterNameField] : afterNameField;
+        Assert.Contains("unique_name_in_owner = true", nameFieldSection, StringComparison.Ordinal);
+
+        // ConnectButton should have unique_name_in_owner = true
+        var connectIndex = tscn.IndexOf("[node name=\"ConnectButton\"", StringComparison.Ordinal);
+        Assert.True(connectIndex >= 0, "ConnectButton node missing");
+        var afterConnect = tscn[(connectIndex + "[node name=\"ConnectButton\" type=\"Button\" parent=\"Center/LoginPanel/PanelContent\"]".Length)..];
+        var nextNodeAfterConnect = afterConnect.IndexOf("[node name=", StringComparison.Ordinal);
+        var connectSection = nextNodeAfterConnect >= 0 ? afterConnect[..nextNodeAfterConnect] : afterConnect;
+        Assert.Contains("unique_name_in_owner = true", connectSection, StringComparison.Ordinal);
+
+        // StatusLabel should have unique_name_in_owner = true
+        var statusIndex = tscn.IndexOf("[node name=\"StatusLabel\"", StringComparison.Ordinal);
+        Assert.True(statusIndex >= 0, "StatusLabel node missing");
+        var afterStatus = tscn[(statusIndex + "[node name=\"StatusLabel\" type=\"Label\" parent=\"Center/LoginPanel/PanelContent\"]".Length)..];
+        var nextNodeAfterStatus = afterStatus.IndexOf("[node name=", StringComparison.Ordinal);
+        var statusSection = nextNodeAfterStatus >= 0 ? afterStatus[..nextNodeAfterStatus] : afterStatus;
+        Assert.Contains("unique_name_in_owner = true", statusSection, StringComparison.Ordinal);
+
+        // Nodes that should NOT have unique_name_in_owner — check the LoginScene root section
+        var loginSceneEnd = tscn.IndexOf("[node name=\"Background\"", StringComparison.Ordinal);
+        Assert.True(loginSceneEnd >= 0, "Background node missing — cannot find LoginScene section boundary");
+        var loginSceneSection = tscn[..loginSceneEnd];
+        Assert.DoesNotContain("unique_name_in_owner", loginSceneSection, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderGodotLoginTscn_NodesUseThemeTypeVariations()
+    {
+        var tscn = ChatClientTemplates.RenderGodotLoginTscn();
+
+        Assert.Contains("theme_type_variation = LoginPanel", tscn, StringComparison.Ordinal);
+        Assert.Contains("theme_type_variation = PanelVBox", tscn, StringComparison.Ordinal);
+        Assert.Contains("theme_type_variation = TitleLabel", tscn, StringComparison.Ordinal);
+        Assert.Contains("theme_type_variation = NameLabel", tscn, StringComparison.Ordinal);
+        Assert.Contains("theme_type_variation = StatusLabel", tscn, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AugmentProjectWithLakonaGame_GeneratedLoginSceneIncludesUnityStandardHeaderSections()
     {
         var projectRoot = Path.Combine(Path.GetTempPath(), "lakona-tests", Guid.NewGuid().ToString("N"));

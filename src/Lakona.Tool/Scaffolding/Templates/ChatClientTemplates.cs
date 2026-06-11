@@ -911,9 +911,10 @@ internal static class ChatClientTemplates
     public static string RenderGodotLoginTscn()
     {
         return """
-        [gd_scene load_steps=2 format=3]
+        [gd_scene load_steps=3 format=3]
 
         [ext_resource type="Script" path="res://Scripts/Login/LoginScene.cs" id="1"]
+        [ext_resource type="Theme" path="res://Themes/LakonaTheme.tres" id="2"]
 
         [node name="LoginScene" type="Control"]
         layout_mode = 3
@@ -922,7 +923,71 @@ internal static class ChatClientTemplates
         anchor_bottom = 1.0
         grow_horizontal = 2
         grow_vertical = 2
+        theme = ExtResource("2")
         script = ExtResource("1")
+
+        [node name="Background" type="ColorRect" parent="."]
+        layout_mode = 1
+        anchors_preset = 15
+        anchor_right = 1.0
+        anchor_bottom = 1.0
+        grow_horizontal = 2
+        grow_vertical = 2
+        color = Color(0.039, 0.059, 0.039, 1)
+
+        [node name="Scanlines" type="ColorRect" parent="."]
+        layout_mode = 1
+        anchors_preset = 15
+        anchor_right = 1.0
+        anchor_bottom = 1.0
+        grow_horizontal = 2
+        grow_vertical = 2
+        color = Color(0, 0, 0, 0.08)
+        mouse_filter = 2
+
+        [node name="Center" type="CenterContainer" parent="."]
+        layout_mode = 1
+        anchors_preset = 15
+        anchor_right = 1.0
+        anchor_bottom = 1.0
+        grow_horizontal = 2
+        grow_vertical = 2
+
+        [node name="LoginPanel" type="PanelContainer" parent="Center"]
+        layout_mode = 0
+        theme_type_variation = LoginPanel
+        custom_minimum_size = Vector2(360, 0)
+
+        [node name="PanelContent" type="VBoxContainer" parent="Center/LoginPanel"]
+        layout_mode = 0
+        theme_type_variation = PanelVBox
+
+        [node name="Title" type="Label" parent="Center/LoginPanel/PanelContent"]
+        layout_mode = 0
+        theme_type_variation = TitleLabel
+        text = "LAKONA"
+
+        [node name="NameLabel" type="Label" parent="Center/LoginPanel/PanelContent"]
+        layout_mode = 0
+        theme_type_variation = NameLabel
+        text = "NAME:"
+
+        [node name="NameField" type="LineEdit" parent="Center/LoginPanel/PanelContent"]
+        layout_mode = 0
+        max_length = 20
+        custom_minimum_size = Vector2(0, 36)
+        unique_name_in_owner = true
+
+        [node name="ConnectButton" type="Button" parent="Center/LoginPanel/PanelContent"]
+        layout_mode = 0
+        text = "CONNECT"
+        custom_minimum_size = Vector2(0, 36)
+        unique_name_in_owner = true
+
+        [node name="StatusLabel" type="Label" parent="Center/LoginPanel/PanelContent"]
+        layout_mode = 0
+        theme_type_variation = StatusLabel
+        unique_name_in_owner = true
         """;
     }
 
