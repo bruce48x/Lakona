@@ -4,6 +4,13 @@ Status: implemented as the only starter generation route
 
 Date: 2026-05-23
 
+Scope: contributor-facing decision record for the RPC starter generation path
+and the RPC source-generator contract. This is not a user quick start.
+
+Current use: keep this record when changing `Lakona.Rpc.Analyzers`, generated
+RPC glue policy, or any `Lakona.Tool` scaffold that opts into compiler-generated
+RPC bindings.
+
 ## Decision
 
 Lakona.Rpc uses Roslyn source generators as the RPC glue generation route for starter-generated projects.

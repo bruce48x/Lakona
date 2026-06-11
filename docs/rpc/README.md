@@ -5,9 +5,13 @@ repository.
 
 These documents are contributor-facing. Public user documentation and blog content live in `blog/`, which is the Hugo site deployed to GitHub Pages.
 
-## Starter
+## Overview
 
-- [Overview](overview.md)
+- [RPC Overview](overview.md)
+
+## RPC Starter Decision Records
+
+- [Decision Record Index](starter/README.md)
 - [Source Generation](starter/source-generation.md)
 - [Dependency Planning](starter/dependency-planning.md)
 - [Unity Shared Source Link](starter/unity-shared-source-link.md)

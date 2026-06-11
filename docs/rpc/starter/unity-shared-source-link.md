@@ -4,6 +4,13 @@ Status: accepted
 
 Date: 2026-04-21
 
+Scope: contributor-facing decision record for Unity RPC starter shared-code
+consumption. This is not a user quick start.
+
+Current use: keep this record when changing Unity/Tuanjie generated package
+layout, `Shared` consumption, MemoryPack compatibility handling, or proposals to
+replace the local UPM source link with a precompiled shared assembly.
+
 ## Context
 
 `Lakona.Tool`'s RPC starter module generates three project areas:

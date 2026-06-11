@@ -6,6 +6,15 @@ Date: 2026-05-09
 
 Updated: 2026-05-25
 
+Scope: contributor-facing decision record for standalone RPC starter dependency
+ownership. This is not a user quick start.
+
+Current use: keep this record when changing `StarterDependencyPlanner`, rendered
+starter package references, or dependency matrix tests. The standalone RPC
+starter layout is `Shared/`, `Server/Server/`, and `Client/`; newer game
+scaffolding uses `Server/App/` and should apply only the shared package-planning
+rules that still match its generated shape.
+
 ## Decision
 
 `Lakona.Tool`'s RPC starter module centralizes package ownership in `StarterDependencyPlanner`.
