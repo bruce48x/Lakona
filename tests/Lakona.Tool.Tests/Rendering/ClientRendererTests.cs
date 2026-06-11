@@ -187,10 +187,12 @@ public sealed class ClientRendererTests
         Assert.Contains("[node name=\"LoginScene\" type=\"Control\"]", loginTscn, StringComparison.Ordinal);
         Assert.Contains("theme = ExtResource(\"2\")", loginTscn, StringComparison.Ordinal);
         Assert.Contains("[node name=\"LoginPanel\" type=\"PanelContainer\" parent=\"Center\"]", loginTscn, StringComparison.Ordinal);
-        Assert.Contains("theme_type_variation = LoginPanel", loginTscn, StringComparison.Ordinal);
+        Assert.Contains("theme_type_variation = &\"LoginPanel\"", loginTscn, StringComparison.Ordinal);
+        Assert.DoesNotContain("theme_type_variation = LoginPanel", loginTscn, StringComparison.Ordinal);
         Assert.Contains("[node name=\"NameField\" type=\"LineEdit\" parent=\"Center/LoginPanel/PanelContent\"]", loginTscn, StringComparison.Ordinal);
         Assert.Contains("[node name=\"ConnectButton\" type=\"Button\" parent=\"Center/LoginPanel/PanelContent\"]", loginTscn, StringComparison.Ordinal);
         Assert.Contains("[node name=\"StatusLabel\" type=\"Label\" parent=\"Center/LoginPanel/PanelContent\"]", loginTscn, StringComparison.Ordinal);
+        Assert.Equal(5, CountOccurrences(loginTscn, "theme_type_variation = &\""));
         Assert.Equal(3, CountOccurrences(loginTscn, "unique_name_in_owner = true"));
 
         var chatTscn = AssertPath(plan, "Client/Chat.tscn").Content;
@@ -202,8 +204,11 @@ public sealed class ClientRendererTests
         Assert.Contains("[node name=\"MessageLog\" type=\"RichTextLabel\" parent=\"Layout/ChatLayout\"]", chatTscn, StringComparison.Ordinal);
         Assert.Contains("[node name=\"MessageField\" type=\"LineEdit\" parent=\"Layout/ChatLayout/Footer/SendRow\"]", chatTscn, StringComparison.Ordinal);
         Assert.Contains("[node name=\"SendButton\" type=\"Button\" parent=\"Layout/ChatLayout/Footer/SendRow\"]", chatTscn, StringComparison.Ordinal);
-        Assert.Contains("theme_type_variation = ChatHeader", chatTscn, StringComparison.Ordinal);
-        Assert.Contains("theme_type_variation = ChatFooter", chatTscn, StringComparison.Ordinal);
+        Assert.Contains("theme_type_variation = &\"ChatHeader\"", chatTscn, StringComparison.Ordinal);
+        Assert.Contains("theme_type_variation = &\"ChatFooter\"", chatTscn, StringComparison.Ordinal);
+        Assert.DoesNotContain("theme_type_variation = ChatHeader", chatTscn, StringComparison.Ordinal);
+        Assert.DoesNotContain("theme_type_variation = ChatFooter", chatTscn, StringComparison.Ordinal);
+        Assert.Equal(9, CountOccurrences(chatTscn, "theme_type_variation = &\""));
         Assert.Equal(4, CountOccurrences(chatTscn, "unique_name_in_owner = true"));
 
         AssertPath(plan, "Client/Scripts/Login/LoginClient.cs.uid");

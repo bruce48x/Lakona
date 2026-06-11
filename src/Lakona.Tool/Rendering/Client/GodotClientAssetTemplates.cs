@@ -227,21 +227,21 @@ internal static class GodotClientAssetTemplates
 
         [node name="LoginPanel" type="PanelContainer" parent="Center"]
         layout_mode = 0
-        theme_type_variation = LoginPanel
+        theme_type_variation = &"LoginPanel"
         custom_minimum_size = Vector2(360, 0)
 
         [node name="PanelContent" type="VBoxContainer" parent="Center/LoginPanel"]
         layout_mode = 0
-        theme_type_variation = PanelVBox
+        theme_type_variation = &"PanelVBox"
 
         [node name="Title" type="Label" parent="Center/LoginPanel/PanelContent"]
         layout_mode = 0
-        theme_type_variation = TitleLabel
+        theme_type_variation = &"TitleLabel"
         text = "LAKONA"
 
         [node name="NameLabel" type="Label" parent="Center/LoginPanel/PanelContent"]
         layout_mode = 0
-        theme_type_variation = NameLabel
+        theme_type_variation = &"NameLabel"
         text = "NAME:"
 
         [node name="NameField" type="LineEdit" parent="Center/LoginPanel/PanelContent"]
@@ -258,7 +258,7 @@ internal static class GodotClientAssetTemplates
 
         [node name="StatusLabel" type="Label" parent="Center/LoginPanel/PanelContent"]
         layout_mode = 0
-        theme_type_variation = StatusLabel
+        theme_type_variation = &"StatusLabel"
         unique_name_in_owner = true
         """;
     }
@@ -307,29 +307,29 @@ internal static class GodotClientAssetTemplates
         anchor_bottom = 1.0
         grow_horizontal = 2
         grow_vertical = 2
-        theme_type_variation = PageMargin
+        theme_type_variation = &"PageMargin"
 
         [node name="ChatLayout" type="VBoxContainer" parent="Layout"]
         layout_mode = 0
-        theme_type_variation = ChatVBox
+        theme_type_variation = &"ChatVBox"
 
         [node name="Header" type="PanelContainer" parent="Layout/ChatLayout"]
         layout_mode = 0
-        theme_type_variation = ChatHeader
+        theme_type_variation = &"ChatHeader"
 
         [node name="HeaderRow" type="HBoxContainer" parent="Layout/ChatLayout/Header"]
         layout_mode = 0
-        theme_type_variation = HeaderRow
+        theme_type_variation = &"HeaderRow"
 
         [node name="Title" type="Label" parent="Layout/ChatLayout/Header/HeaderRow"]
         layout_mode = 0
-        theme_type_variation = HeaderLabel
+        theme_type_variation = &"HeaderLabel"
         text = "CHAT ROOM"
         size_flags_horizontal = 3
 
         [node name="OnlineCount" type="Label" parent="Layout/ChatLayout/Header/HeaderRow"]
         layout_mode = 0
-        theme_type_variation = OnlineCount
+        theme_type_variation = &"OnlineCount"
         text = "ONLINE: --"
         unique_name_in_owner = true
 
@@ -342,15 +342,15 @@ internal static class GodotClientAssetTemplates
 
         [node name="Footer" type="PanelContainer" parent="Layout/ChatLayout"]
         layout_mode = 0
-        theme_type_variation = ChatFooter
+        theme_type_variation = &"ChatFooter"
 
         [node name="SendRow" type="HBoxContainer" parent="Layout/ChatLayout/Footer"]
         layout_mode = 0
-        theme_type_variation = SendRow
+        theme_type_variation = &"SendRow"
 
         [node name="MessageLabel" type="Label" parent="Layout/ChatLayout/Footer/SendRow"]
         layout_mode = 0
-        theme_type_variation = NameLabel
+        theme_type_variation = &"NameLabel"
         text = "MESSAGE:"
 
         [node name="MessageField" type="LineEdit" parent="Layout/ChatLayout/Footer/SendRow"]

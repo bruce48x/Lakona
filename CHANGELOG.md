@@ -8,6 +8,7 @@ that consolidation.
 
 ### Fixed
 
+- `Lakona.Tool` `0.9.2`: fixed generated Godot `.tscn` scenes to emit `theme_type_variation` as Godot `StringName` literals, so `Login.tscn` and `Chat.tscn` parse correctly on startup.
 - `Lakona.Tool` `0.9.1`: restored the generated Unity, Godot, Server, and Hotfix chat starter slices after the single-pipeline refactor, including full client scripts, Unity UI assets, Godot static `.tscn` scenes with `LakonaTheme.tres`, server chat actor/lifecycle binding, and Godot MemoryPack client serializer references.
 - `Lakona.Tool` `0.9.0`: restored Unity CN and Tuanjie scaffolding to use the Unity renderer, force embedded NuGetForUnity, preserve OpenUPM metadata for standard Unity, extract the embedded NuGetForUnity package, and generate compose files that use the published `Server.App.dll` entrypoint.
 - `Lakona.Tool` `0.8.22`: generated Godot LoginScene and ChatScene buttons now have `StyleBoxFlat` backgrounds (accent green normal, dark panel disabled) matching the Unity cyber-green theme.
