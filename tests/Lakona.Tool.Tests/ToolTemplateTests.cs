@@ -780,6 +780,85 @@ public sealed class ToolTemplateTests
     }
 
     [Fact]
+    public void RenderGodotLoginScene_DoesNotContainBuildUi()
+    {
+        var source = ToolTemplates.RenderGodotLoginScene(new NewCommandOptions(
+            Name: "MyGame",
+            OutputPath: null,
+            ClientEngine: "godot",
+            Transport: "websocket",
+            NetworkProfile: "cluster",
+            Serializer: "json",
+            Persistence: "none",
+            NuGetForUnitySource: "embedded",
+            DeployProfile: "none"));
+
+        Assert.DoesNotContain("private void BuildUi()", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("new ColorRect", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("new CenterContainer", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("new StyleBoxFlat", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("AddTheme", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetAnchorsPreset", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(".AddChild(", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderGodotLoginScene_UsesGetNodeWithUniqueNames()
+    {
+        var source = ToolTemplates.RenderGodotLoginScene(new NewCommandOptions(
+            Name: "MyGame",
+            OutputPath: null,
+            ClientEngine: "godot",
+            Transport: "websocket",
+            NetworkProfile: "cluster",
+            Serializer: "json",
+            Persistence: "none",
+            NuGetForUnitySource: "embedded",
+            DeployProfile: "none"));
+
+        Assert.Contains("GetNode<LineEdit>(\"%NameField\")", source, StringComparison.Ordinal);
+        Assert.Contains("GetNode<Button>(\"%ConnectButton\")", source, StringComparison.Ordinal);
+        Assert.Contains("GetNode<Label>(\"%StatusLabel\")", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderGodotLoginScene_UsesSelectedTransportAndSerializer()
+    {
+        var source = ToolTemplates.RenderGodotLoginScene(new NewCommandOptions(
+            Name: "MyGame",
+            OutputPath: null,
+            ClientEngine: "godot",
+            Transport: "websocket",
+            NetworkProfile: "cluster",
+            Serializer: "json",
+            Persistence: "none",
+            NuGetForUnitySource: "embedded",
+            DeployProfile: "none"));
+
+        Assert.Contains("using Lakona.Rpc.Transport.WebSocket;", source, StringComparison.Ordinal);
+        Assert.Contains("using Lakona.Rpc.Serializer.Json;", source, StringComparison.Ordinal);
+        Assert.Contains("new WsTransport($\"ws://{_serverHost}:{_serverPort}{NormalizePath(_serverPath)}\")", source, StringComparison.Ordinal);
+        Assert.Contains("new JsonRpcSerializer()", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderGodotLoginScene_DoesNotUseThemeNamespaceInUsings()
+    {
+        var source = ToolTemplates.RenderGodotLoginScene(new NewCommandOptions(
+            Name: "MyGame",
+            OutputPath: null,
+            ClientEngine: "godot",
+            Transport: "websocket",
+            NetworkProfile: "cluster",
+            Serializer: "json",
+            Persistence: "none",
+            NuGetForUnitySource: "embedded",
+            DeployProfile: "none"));
+
+        Assert.DoesNotContain("using Client.Theme;", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RenderUnityLoginUi_UsesSelectedTransportAndSerializer()
     {
         var source = ToolTemplates.RenderUnityLoginUI(new NewCommandOptions(
