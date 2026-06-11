@@ -1565,6 +1565,153 @@ public sealed class ToolTemplateTests
     }
 
     [Fact]
+    public void RenderGodotChatTscn_ContainsFullNodeTree()
+    {
+        var tscn = ChatClientTemplates.RenderGodotChatTscn();
+
+        // load_steps=3 (script + theme + scene)
+        Assert.Contains("[gd_scene load_steps=3 format=3]", tscn, StringComparison.Ordinal);
+
+        // Two ext_resources
+        Assert.Contains("[ext_resource type=\"Script\" path=\"res://Scripts/Chat/ChatScene.cs\" id=\"1\"]", tscn, StringComparison.Ordinal);
+        Assert.Contains("[ext_resource type=\"Theme\" path=\"res://Theme/LakonaTheme.tres\" id=\"2\"]", tscn, StringComparison.Ordinal);
+
+        // Root: ChatScene (Control) — full-rect with layout_mode=3
+        Assert.Contains("[node name=\"ChatScene\" type=\"Control\"]", tscn, StringComparison.Ordinal);
+        Assert.Contains("layout_mode = 3", tscn, StringComparison.Ordinal);
+        Assert.Contains("anchors_preset = 15", tscn, StringComparison.Ordinal);
+        Assert.Contains("grow_horizontal = 2", tscn, StringComparison.Ordinal);
+        Assert.Contains("grow_vertical = 2", tscn, StringComparison.Ordinal);
+        Assert.Contains("theme = ExtResource(\"2\")", tscn, StringComparison.Ordinal);
+        Assert.Contains("script = ExtResource(\"1\")", tscn, StringComparison.Ordinal);
+
+        // Background (ColorRect, parent=".")
+        Assert.Contains("[node name=\"Background\" type=\"ColorRect\" parent=\".\"]", tscn, StringComparison.Ordinal);
+        Assert.Contains("color = Color(0.039, 0.059, 0.039, 1)", tscn, StringComparison.Ordinal);
+
+        // Scanlines (ColorRect, parent=".")
+        Assert.Contains("[node name=\"Scanlines\" type=\"ColorRect\" parent=\".\"]", tscn, StringComparison.Ordinal);
+        Assert.Contains("color = Color(0, 0, 0, 0.08)", tscn, StringComparison.Ordinal);
+        Assert.Contains("mouse_filter = 2", tscn, StringComparison.Ordinal);
+
+        // Layout (MarginContainer, parent=".")
+        Assert.Contains("[node name=\"Layout\" type=\"MarginContainer\" parent=\".\"]", tscn, StringComparison.Ordinal);
+
+        // ChatLayout (VBoxContainer, parent="Layout")
+        Assert.Contains("[node name=\"ChatLayout\" type=\"VBoxContainer\" parent=\"Layout\"]", tscn, StringComparison.Ordinal);
+
+        // Header (PanelContainer, parent="Layout/ChatLayout")
+        Assert.Contains("[node name=\"Header\" type=\"PanelContainer\" parent=\"Layout/ChatLayout\"]", tscn, StringComparison.Ordinal);
+
+        // HeaderRow (HBoxContainer, parent="Layout/ChatLayout/Header")
+        Assert.Contains("[node name=\"HeaderRow\" type=\"HBoxContainer\" parent=\"Layout/ChatLayout/Header\"]", tscn, StringComparison.Ordinal);
+
+        // Title (Label)
+        Assert.Contains("[node name=\"Title\" type=\"Label\" parent=\"Layout/ChatLayout/Header/HeaderRow\"]", tscn, StringComparison.Ordinal);
+        Assert.Contains("text = \"CHAT ROOM\"", tscn, StringComparison.Ordinal);
+        Assert.Contains("size_flags_horizontal = 3", tscn, StringComparison.Ordinal);
+
+        // OnlineCount (Label)
+        Assert.Contains("[node name=\"OnlineCount\" type=\"Label\" parent=\"Layout/ChatLayout/Header/HeaderRow\"]", tscn, StringComparison.Ordinal);
+        Assert.Contains("text = \"ONLINE: --\"", tscn, StringComparison.Ordinal);
+
+        // MessageLog (RichTextLabel, parent="Layout/ChatLayout")
+        Assert.Contains("[node name=\"MessageLog\" type=\"RichTextLabel\" parent=\"Layout/ChatLayout\"]", tscn, StringComparison.Ordinal);
+        Assert.Contains("bbcode_enabled = false", tscn, StringComparison.Ordinal);
+        Assert.Contains("scroll_following = true", tscn, StringComparison.Ordinal);
+        Assert.Contains("size_flags_vertical = 3", tscn, StringComparison.Ordinal);
+
+        // Footer (PanelContainer, parent="Layout/ChatLayout")
+        Assert.Contains("[node name=\"Footer\" type=\"PanelContainer\" parent=\"Layout/ChatLayout\"]", tscn, StringComparison.Ordinal);
+
+        // SendRow (HBoxContainer, parent="Layout/ChatLayout/Footer")
+        Assert.Contains("[node name=\"SendRow\" type=\"HBoxContainer\" parent=\"Layout/ChatLayout/Footer\"]", tscn, StringComparison.Ordinal);
+
+        // MessageLabel (Label)
+        Assert.Contains("[node name=\"MessageLabel\" type=\"Label\" parent=\"Layout/ChatLayout/Footer/SendRow\"]", tscn, StringComparison.Ordinal);
+        Assert.Contains("text = \"MESSAGE:\"", tscn, StringComparison.Ordinal);
+
+        // MessageField (LineEdit)
+        Assert.Contains("[node name=\"MessageField\" type=\"LineEdit\" parent=\"Layout/ChatLayout/Footer/SendRow\"]", tscn, StringComparison.Ordinal);
+        Assert.Contains("max_length = 500", tscn, StringComparison.Ordinal);
+        Assert.Contains("size_flags_horizontal = 3", tscn, StringComparison.Ordinal);
+
+        // SendButton (Button)
+        Assert.Contains("[node name=\"SendButton\" type=\"Button\" parent=\"Layout/ChatLayout/Footer/SendRow\"]", tscn, StringComparison.Ordinal);
+        Assert.Contains("text = \"SEND\"", tscn, StringComparison.Ordinal);
+
+        // Full-rect children use layout_mode=1 with anchors
+        Assert.Contains("layout_mode = 1\nanchors_preset = 15\nanchor_right = 1.0\nanchor_bottom = 1.0\ngrow_horizontal = 2\ngrow_vertical = 2", tscn, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderGodotChatTscn_InteractiveNodesHaveUniqueNames()
+    {
+        var tscn = ChatClientTemplates.RenderGodotChatTscn();
+
+        // Helper: find start of the content section right after the given node header line
+        int AfterHeader(string nodeHeader)
+        {
+            var idx = tscn.IndexOf(nodeHeader, StringComparison.Ordinal);
+            Assert.True(idx >= 0, $"Node header not found: {nodeHeader}");
+            return idx + nodeHeader.Length;
+        }
+
+        // Helper: extract content section for the given node (after header, before next node or EOF)
+        string NodeSection(string nodeHeader)
+        {
+            var start = AfterHeader(nodeHeader);
+            var remaining = tscn[start..];
+            var nextNode = remaining.IndexOf("\n[node name=", StringComparison.Ordinal);
+            return nextNode >= 0 ? remaining[..nextNode] : remaining;
+        }
+
+        // Only 4 nodes should have unique_name_in_owner = true
+        var messageFieldSection = NodeSection("[node name=\"MessageField\" type=\"LineEdit\" parent=\"Layout/ChatLayout/Footer/SendRow\"]");
+        Assert.Contains("unique_name_in_owner = true", messageFieldSection, StringComparison.Ordinal);
+
+        var sendButtonSection = NodeSection("[node name=\"SendButton\" type=\"Button\" parent=\"Layout/ChatLayout/Footer/SendRow\"]");
+        Assert.Contains("unique_name_in_owner = true", sendButtonSection, StringComparison.Ordinal);
+
+        var messageLogSection = NodeSection("[node name=\"MessageLog\" type=\"RichTextLabel\" parent=\"Layout/ChatLayout\"]");
+        Assert.Contains("unique_name_in_owner = true", messageLogSection, StringComparison.Ordinal);
+
+        var onlineCountSection = NodeSection("[node name=\"OnlineCount\" type=\"Label\" parent=\"Layout/ChatLayout/Header/HeaderRow\"]");
+        Assert.Contains("unique_name_in_owner = true", onlineCountSection, StringComparison.Ordinal);
+
+        // Root ChatScene section should NOT have unique_name_in_owner
+        var chatSceneEnd = tscn.IndexOf("[node name=\"Background\"", StringComparison.Ordinal);
+        Assert.True(chatSceneEnd >= 0, "Background node missing");
+        var chatSceneSection = tscn[..chatSceneEnd];
+        Assert.DoesNotContain("unique_name_in_owner", chatSceneSection, StringComparison.Ordinal);
+
+        // Count total unique_name_in_owner occurrences — should be exactly 4
+        var uniqueCount = 0;
+        var searchPos = 0;
+        while ((searchPos = tscn.IndexOf("unique_name_in_owner = true", searchPos, StringComparison.Ordinal)) >= 0)
+        {
+            uniqueCount++;
+            searchPos += "unique_name_in_owner = true".Length;
+        }
+        Assert.Equal(4, uniqueCount);
+    }
+
+    [Fact]
+    public void RenderGodotChatTscn_NodesUseThemeTypeVariations()
+    {
+        var tscn = ChatClientTemplates.RenderGodotChatTscn();
+
+        Assert.Contains("theme_type_variation = ChatHeader", tscn, StringComparison.Ordinal);
+        Assert.Contains("theme_type_variation = ChatFooter", tscn, StringComparison.Ordinal);
+        Assert.Contains("theme_type_variation = HeaderRow", tscn, StringComparison.Ordinal);
+        Assert.Contains("theme_type_variation = SendRow", tscn, StringComparison.Ordinal);
+        Assert.Contains("theme_type_variation = PageMargin", tscn, StringComparison.Ordinal);
+        Assert.Contains("theme_type_variation = ChatVBox", tscn, StringComparison.Ordinal);
+        Assert.Contains("theme_type_variation = HeaderLabel", tscn, StringComparison.Ordinal);
+        Assert.Contains("theme_type_variation = OnlineCount", tscn, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AugmentProjectWithLakonaGame_GeneratedLoginSceneIncludesUnityStandardHeaderSections()
     {
         var projectRoot = Path.Combine(Path.GetTempPath(), "lakona-tests", Guid.NewGuid().ToString("N"));
