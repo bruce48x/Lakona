@@ -34,6 +34,10 @@ internal sealed class UnityClientRenderer : IClientRenderer
         {
           "dependencies": {
         {{RenderNuGetForUnityDependencyLine(spec)}}
+            "com.unity.modules.audio": "1.0.0",
+            "com.unity.modules.physics": "1.0.0",
+            "com.unity.modules.physics2d": "1.0.0",
+            "com.unity.modules.uielements": "1.0.0",
             "{{spec.Layout.UnityPackageId}}.shared": "file:../../Shared"
           }{{RenderScopedRegistriesBlock(spec)}}
         }
@@ -96,8 +100,20 @@ internal sealed class UnityClientRenderer : IClientRenderer
         <?xml version="1.0" encoding="utf-8"?>
         <configuration>
           <packageSources>
+            <clear />
             <add key="nuget.org" value="{{source}}" enableCredentialProvider="false" />
           </packageSources>
+          <disabledPackageSources />
+          <activePackageSource>
+            <add key="All" value="(Aggregate source)" />
+          </activePackageSource>
+          <config>
+            <add key="packageInstallLocation" value="CustomWithinAssets" />
+            <add key="repositoryPath" value="./Packages" />
+            <add key="PackagesConfigDirectoryPath" value="." />
+            <add key="slimRestore" value="true" />
+            <add key="PreferNetStandardOverNetFramework" value="true" />
+          </config>
         </configuration>
         """;
     }
