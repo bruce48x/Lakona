@@ -23,20 +23,39 @@ internal sealed class UnityClientRenderer : IClientRenderer
 
     private static string RenderManifest(LakonaProjectSpec spec)
     {
-        var nugetForUnity = spec.NuGetForUnitySource == NuGetForUnitySource.OpenUpm
-            ? """
-            "com.github-glitchenzo.nugetforunity": "4.5.0",
-        """
-            : "";
         return $$"""
         {
-          "scopedRegistries": [],
           "dependencies": {
-            {{nugetForUnity}}
+        {{RenderNuGetForUnityDependencyLine(spec)}}
             "{{spec.Layout.UnityPackageId}}.shared": "file:../../Shared"
-          }
+          }{{RenderScopedRegistriesBlock(spec)}}
         }
         """;
+    }
+
+    private static string RenderNuGetForUnityDependencyLine(LakonaProjectSpec spec)
+    {
+        return spec.NuGetForUnitySource == NuGetForUnitySource.OpenUpm
+            ? "    \"com.github-glitchenzo.nugetforunity\": \"4.5.0\",\n"
+            : string.Empty;
+    }
+
+    private static string RenderScopedRegistriesBlock(LakonaProjectSpec spec)
+    {
+        return spec.NuGetForUnitySource == NuGetForUnitySource.OpenUpm
+            ? """
+        ,
+          "scopedRegistries": [
+            {
+              "name": "OpenUPM",
+              "url": "https://package.openupm.com",
+              "scopes": [
+                "com.github-glitchenzo.nugetforunity"
+              ]
+            }
+          ]
+        """
+            : string.Empty;
     }
 
     private static string RenderProjectVersion(ClientEngine engine)

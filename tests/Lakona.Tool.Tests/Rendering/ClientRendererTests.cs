@@ -34,6 +34,34 @@ public sealed class ClientRendererTests
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("BuildUi", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void UnityClientRenderer_OpenUpmManifest_IncludesNuGetForUnityRegistry()
+    {
+        var plan = Render(new UnityClientRenderer(), Spec(ClientEngine.Unity, NuGetForUnitySource.OpenUpm));
+        var manifest = Assert.Single(plan.Files, file => file.RelativePath == "Client/Packages/manifest.json").Content;
+
+        Assert.Contains("\"com.github-glitchenzo.nugetforunity\": \"4.5.0\"", manifest, StringComparison.Ordinal);
+        Assert.Contains("\"scopedRegistries\"", manifest, StringComparison.Ordinal);
+        Assert.Contains("\"name\": \"OpenUPM\"", manifest, StringComparison.Ordinal);
+        Assert.Contains("\"url\": \"https://package.openupm.com\"", manifest, StringComparison.Ordinal);
+        Assert.Contains("\"com.github-glitchenzo.nugetforunity\"", manifest, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("UnityCn")]
+    [InlineData("Tuanjie")]
+    public void UnityClientRenderer_EmbeddedManifest_DoesNotReferenceOpenUpmOrNuGetForUnityPackage(string engineName)
+    {
+        var engine = Enum.Parse<ClientEngine>(engineName);
+        var plan = Render(new UnityClientRenderer(), Spec(engine, NuGetForUnitySource.Embedded));
+        var manifest = Assert.Single(plan.Files, file => file.RelativePath == "Client/Packages/manifest.json").Content;
+
+        Assert.DoesNotContain("package.openupm.com", manifest, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"com.github-glitchenzo.nugetforunity\": \"4.5.0\"", manifest, StringComparison.Ordinal);
+        Assert.Contains("\"dependencies\"", manifest, StringComparison.Ordinal);
+        Assert.Contains("\"com.lakona.mygame.shared\": \"file:../../Shared\"", manifest, StringComparison.Ordinal);
+    }
+
     private static GenerationPlan Render(IClientRenderer renderer, LakonaProjectSpec spec)
     {
         var builder = new GenerationPlanBuilder("Root");
@@ -41,7 +69,7 @@ public sealed class ClientRendererTests
         return builder.Build();
     }
 
-    private static LakonaProjectSpec Spec(ClientEngine engine)
+    private static LakonaProjectSpec Spec(ClientEngine engine, NuGetForUnitySource source = NuGetForUnitySource.OpenUpm)
     {
         return new LakonaProjectSpecFactory().Create(new NewProjectOptions(
             "MyGame",
@@ -50,7 +78,7 @@ public sealed class ClientRendererTests
             TransportKind.Kcp,
             SerializerKind.MemoryPack,
             PersistenceKind.None,
-            NuGetForUnitySource.OpenUpm,
+            source,
             DeploymentProfile.None));
     }
 }
