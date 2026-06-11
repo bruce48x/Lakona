@@ -4,6 +4,13 @@ Lakona was created on 2026-06-07 by merging the former ULinkGame, ULinkActor,
 and ULinkRpc repositories into a single monorepo. This changelog starts from
 that consolidation.
 
+## 2026-06-11
+
+### Fixed
+
+- `Lakona.Tool` `0.8.22`: generated Godot LoginScene and ChatScene buttons now have `StyleBoxFlat` backgrounds (accent green normal, dark panel disabled) matching the Unity cyber-green theme.
+- `Lakona.Tool` `0.8.22`: generated Unity `.connect-button:disabled` and `.send-button:disabled` USS rules now use `--lakona-bg-input` instead of `--lakona-bg-panel` to prevent buttons from visually disappearing into the footer/panel when disabled at scene start.
+
 ## 2026-06-10
 
 ### Fixed

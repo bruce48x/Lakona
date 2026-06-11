@@ -476,7 +476,7 @@ internal static class ChatClientTemplates
         }
         .connect-button:disabled {
             color: var(--lakona-accent-dim);
-            background-color: var(--lakona-bg-panel);
+            background-color: var(--lakona-bg-input);
             border-top-color: var(--lakona-accent-dim);
             border-right-color: var(--lakona-accent-dim);
             border-bottom-color: var(--lakona-accent-dim);
@@ -623,6 +623,40 @@ internal static class ChatClientTemplates
                     _connectButton.CustomMinimumSize = LakonaTheme.ButtonMinSize;
                     _connectButton.AddThemeColorOverride("font_color", LakonaTheme.BgBase);
                     _connectButton.AddThemeColorOverride("font_disabled_color", LakonaTheme.AccentDim);
+
+                    var connectNormalBg = new StyleBoxFlat
+                    {
+                        BgColor = LakonaTheme.Accent,
+                        CornerRadiusTopLeft = 0,
+                        CornerRadiusTopRight = 0,
+                        CornerRadiusBottomLeft = 0,
+                        CornerRadiusBottomRight = 0,
+                        ContentMarginLeft = 8,
+                        ContentMarginRight = 8,
+                        ContentMarginTop = 4,
+                        ContentMarginBottom = 4
+                    };
+                    _connectButton.AddThemeStyleboxOverride("normal", connectNormalBg);
+
+                    var connectDisabledBg = new StyleBoxFlat
+                    {
+                        BgColor = LakonaTheme.BgPanel,
+                        BorderColor = LakonaTheme.AccentDim,
+                        BorderWidthLeft = 2,
+                        BorderWidthRight = 2,
+                        BorderWidthTop = 2,
+                        BorderWidthBottom = 2,
+                        CornerRadiusTopLeft = 0,
+                        CornerRadiusTopRight = 0,
+                        CornerRadiusBottomLeft = 0,
+                        CornerRadiusBottomRight = 0,
+                        ContentMarginLeft = 8,
+                        ContentMarginRight = 8,
+                        ContentMarginTop = 4,
+                        ContentMarginBottom = 4
+                    };
+                    _connectButton.AddThemeStyleboxOverride("disabled", connectDisabledBg);
+
                     _connectButton.Pressed += OnConnectPressed;
                     content.AddChild(_connectButton);
 
@@ -933,6 +967,40 @@ internal static class ChatClientTemplates
                     _sendButton.CustomMinimumSize = LakonaTheme.SendButtonMinSize;
                     _sendButton.AddThemeColorOverride("font_color", LakonaTheme.BgBase);
                     _sendButton.AddThemeColorOverride("font_disabled_color", LakonaTheme.AccentDim);
+
+                    var sendNormalBg = new StyleBoxFlat
+                    {
+                        BgColor = LakonaTheme.Accent,
+                        CornerRadiusTopLeft = 0,
+                        CornerRadiusTopRight = 0,
+                        CornerRadiusBottomLeft = 0,
+                        CornerRadiusBottomRight = 0,
+                        ContentMarginLeft = 8,
+                        ContentMarginRight = 8,
+                        ContentMarginTop = 4,
+                        ContentMarginBottom = 4
+                    };
+                    _sendButton.AddThemeStyleboxOverride("normal", sendNormalBg);
+
+                    var sendDisabledBg = new StyleBoxFlat
+                    {
+                        BgColor = LakonaTheme.BgPanel,
+                        BorderColor = LakonaTheme.AccentDim,
+                        BorderWidthLeft = 2,
+                        BorderWidthRight = 2,
+                        BorderWidthTop = 2,
+                        BorderWidthBottom = 2,
+                        CornerRadiusTopLeft = 0,
+                        CornerRadiusTopRight = 0,
+                        CornerRadiusBottomLeft = 0,
+                        CornerRadiusBottomRight = 0,
+                        ContentMarginLeft = 8,
+                        ContentMarginRight = 8,
+                        ContentMarginTop = 4,
+                        ContentMarginBottom = 4
+                    };
+                    _sendButton.AddThemeStyleboxOverride("disabled", sendDisabledBg);
+
                     _sendButton.Pressed += OnSendPressed;
                     sendRow.AddChild(_sendButton);
                 }
@@ -1414,7 +1482,7 @@ internal static class ChatClientTemplates
         }
         .send-button:disabled {
             color: var(--lakona-accent-dim);
-            background-color: var(--lakona-bg-panel);
+            background-color: var(--lakona-bg-input);
             border-top-color: var(--lakona-accent-dim);
             border-right-color: var(--lakona-accent-dim);
             border-bottom-color: var(--lakona-accent-dim);
