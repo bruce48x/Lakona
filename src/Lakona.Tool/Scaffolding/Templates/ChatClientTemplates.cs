@@ -232,22 +232,32 @@ internal static class ChatClientTemplates
         [sub_resource type="StyleBoxFlat" id="6"]
         bg_color = Color(0.059, 0.102, 0.059, 1)
         border_width_bottom = 2
+        border_width_left = 0
+        border_width_right = 0
+        border_width_top = 0
         border_color = Color(0, 1, 0.4, 1)
         corner_radius_top_left = 0
         corner_radius_top_right = 0
         corner_radius_bottom_left = 0
         corner_radius_bottom_right = 0
+        content_margin_left = 0.0
+        content_margin_right = 0.0
         content_margin_top = 8.0
         content_margin_bottom = 8.0
 
         [sub_resource type="StyleBoxFlat" id="7"]
         bg_color = Color(0.059, 0.102, 0.059, 1)
         border_width_top = 2
+        border_width_left = 0
+        border_width_right = 0
+        border_width_bottom = 0
         border_color = Color(0, 1, 0.4, 1)
         corner_radius_top_left = 0
         corner_radius_top_right = 0
         corner_radius_bottom_left = 0
         corner_radius_bottom_right = 0
+        content_margin_left = 0.0
+        content_margin_right = 0.0
         content_margin_top = 8.0
         content_margin_bottom = 8.0
 
