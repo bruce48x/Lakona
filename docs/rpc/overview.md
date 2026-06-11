@@ -21,7 +21,7 @@ Typical stack:
 
 ## Two-Minute Start
 
-Install the starter, generate a runnable project, and start the server:
+Install the tool, generate a runnable project, and start the server:
 
 Requires .NET SDK 10.0 or later.
 
@@ -29,17 +29,17 @@ Requires .NET SDK 10.0 or later.
 dotnet tool install -g Lakona.Tool
 lakona-tool new --name MyGame --client-engine unity --transport websocket --serializer json
 cd MyGame
-dotnet run --project Server/Server/Server.csproj
+dotnet run --project Server/App/Server.App.csproj
 ```
 
-Then open `MyGame/Client` with Unity 2022 LTS and run `NuGet -> Restore Packages`, open `Assets/Scenes/ConnectionTest.unity`, and click Play.
+Then open `MyGame/Client` with Unity 2022 LTS and run `NuGet -> Restore Packages`, open the generated scene, and click Play.
 
 For Godot:
 
 ```bash
 lakona-tool new --name MyGame --client-engine godot --transport websocket --serializer json
 cd MyGame
-dotnet run --project Server/Server/Server.csproj
+dotnet run --project Server/App/Server.App.csproj
 ```
 
 Open `MyGame/Client` with Godot 4.x, wait for the C# project restore, open `Main.tscn`, and click Play.
@@ -242,7 +242,7 @@ Code generation:
 
 ## Repository Layout
 
-- `src/Lakona.Rpc.*`: runtime, transports, serializers, starter, and analyzer/source-generator package
+- `src/Lakona.Rpc.*`: runtime, transports, serializers, and analyzer/source-generator package
 - `samples/`: runnable client + .NET samples
 - `blog/`: Hugo documentation/blog site for GitHub Pages
 - `design/`: internal design notes and decision records

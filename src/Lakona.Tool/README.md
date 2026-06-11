@@ -1,8 +1,9 @@
 # Lakona.Tool
 
-`Lakona.Tool` is the single command-line project tool for Lakona. It generates
-the base Lakona.Rpc shared/server/client workspace and then adds Lakona.Game
-server, client, actor, hotfix, cluster, and configuration scaffolding.
+`Lakona.Tool` is the command-line project tool for Lakona. It generates
+a complete Lakona.Game workspace from one project specification: shared
+contracts, server app, hotfix project, selected client, operations files, and
+generated project docs.
 
 ## Install
 
@@ -26,7 +27,7 @@ After generation, run the printed check command before starting the server:
 
 ```bash
 cd MyGame
-dotnet run --project "Server/Server/Server.csproj" -- --lakona-game-check
+dotnet run --project "Server/App/Server.App.csproj" -- --lakona-game-check
 ```
 
 Supported values:
@@ -96,7 +97,7 @@ For WebSocket projects, the endpoint entry also includes `"Path": "/ws"`.
 Validate the derived project state with:
 
 ```bash
-dotnet run --project "Server/Server/Server.csproj" -- --lakona-game-check
+dotnet run --project "Server/App/Server.App.csproj" -- --lakona-game-check
 ```
 
 The check prints the generated Cluster, Hotfix, Reliable Push, and RPC state so the default `appsettings.json` does not need to expose every derived setting.
@@ -104,7 +105,7 @@ The check prints the generated Cluster, Hotfix, Reliable Push, and RPC state so 
 Use JSON output when CI or deployment scripts need machine-readable validation results:
 
 ```bash
-dotnet run --project "Server/Server/Server.csproj" -- --lakona-game-check --json
+dotnet run --project "Server/App/Server.App.csproj" -- --lakona-game-check --json
 ```
 
 ## Cluster Configuration

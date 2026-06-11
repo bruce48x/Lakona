@@ -9,12 +9,9 @@ These documents are contributor-facing. Public user documentation and blog conte
 
 - [RPC Overview](overview.md)
 
-## RPC Starter Decision Records
+## Source Generation
 
-- [Decision Record Index](starter/README.md)
-- [Source Generation](starter/source-generation.md)
-- [Dependency Planning](starter/dependency-planning.md)
-- [Unity Shared Source Link](starter/unity-shared-source-link.md)
+- [RPC Source Generation](source-generation.md)
 
 ## Protocol
 
@@ -24,3 +21,4 @@ These documents are contributor-facing. Public user documentation and blog conte
 ## Archive
 
 - [Lakona.Rpc.CodeGen Removal Roadmap](archive/starter/codegen-removal-roadmap.md)
+- [Archived starter decision index](archive/starter/starter-decision-index.md)

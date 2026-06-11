@@ -1,10 +1,7 @@
 LakonaBrand.Print();
 
 var text = ToolText.Current;
-var exitCode = await new CliApplication(
-        new ProjectScaffolder(),
-        new ToolConfigStore(),
-        text)
+var exitCode = await new CliApplication(text)
     .RunAsync(args)
     .ConfigureAwait(false);
 

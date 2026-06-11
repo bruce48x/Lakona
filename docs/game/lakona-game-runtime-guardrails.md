@@ -313,7 +313,7 @@ When Hotfix build output is missing, the check command should print the repair c
 The check command should also support machine-readable output:
 
 ```bash
-dotnet run --project Server/Server/Server.csproj -- --lakona-game-check --json
+dotnet run --project Server/App/Server.App.csproj -- --lakona-game-check --json
 ```
 
 Suggested JSON shape:

@@ -982,7 +982,7 @@ Expected: `VerifyOut\VerifyGuardrails` is created.
 Run:
 
 ```powershell
-dotnet run --project VerifyOut\VerifyGuardrails\Server\Server\Server.csproj -- --lakona-game-check
+dotnet run --project VerifyOut\VerifyGuardrails\Server\App\Server.App.csproj -- --lakona-game-check
 ```
 
 Expected output includes:
@@ -1001,7 +1001,7 @@ rpc: ok kcp://127.0.0.1:20000
 Run:
 
 ```powershell
-dotnet run --project VerifyOut\VerifyGuardrails\Server\Server\Server.csproj -- --lakona-game-check --json
+dotnet run --project VerifyOut\VerifyGuardrails\Server\App\Server.App.csproj -- --lakona-game-check --json
 ```
 
 Expected output includes:
@@ -1022,7 +1022,7 @@ $dll = Resolve-Path 'VerifyOut\VerifyGuardrails\Server\Hotfix\bin\Debug\net10.0\
 $bak = "$dll.bak"
 Move-Item -LiteralPath $dll.Path -Destination $bak
 try {
-    dotnet "VerifyOut\VerifyGuardrails\Server\Server\bin\Debug\net10.0\Server.dll" --lakona-game-check
+    dotnet "VerifyOut\VerifyGuardrails\Server\App\bin\Debug\net10.0\Server.App.dll" --lakona-game-check
     $code = $LASTEXITCODE
 } finally {
     Move-Item -LiteralPath $bak -Destination $dll.Path

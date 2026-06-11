@@ -4,7 +4,7 @@ Status: complete
 
 Date: 2026-05-25
 
-Archive note: this is a completed removal record, not current implementation guidance. Current generation rules live in [Source Generation](../../starter/source-generation.md).
+Archive note: this is a completed removal record, not current implementation guidance. Current generation rules live in [Source Generation](../../source-generation.md).
 
 Progress:
 

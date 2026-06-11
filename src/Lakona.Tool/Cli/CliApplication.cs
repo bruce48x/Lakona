@@ -1,13 +1,26 @@
-using System.Text.Json;
+using Lakona.Tool.Cli.Commands;
+using Lakona.Tool.Cli.Options;
+using Lakona.Tool.Domain;
+using Lakona.Tool.Execution;
+using Lakona.Tool.Planning;
+using Lakona.Tool.Rendering.Client;
+using Lakona.Tool.Rendering.Common;
+using Lakona.Tool.Rendering.Docs;
+using Lakona.Tool.Rendering.Operations;
+using Lakona.Tool.Rendering.Project;
+using Lakona.Tool.Rendering.Server;
+using Lakona.Tool.Rendering.Shared;
 
-internal sealed class CliApplication(
-    ProjectScaffolder projectScaffolder,
-    ToolConfigStore configStore,
-    ToolText? text = null,
-    ICliTerminal? terminal = null)
+internal sealed class CliApplication
 {
-    private readonly ToolText text = text ?? ToolText.Current;
-    private readonly ICliTerminal terminal = terminal ?? new ConsoleCliTerminal();
+    private readonly ToolText text;
+    private readonly ICliTerminal terminal;
+
+    public CliApplication(ToolText? text = null, ICliTerminal? terminal = null)
+    {
+        this.text = text ?? ToolText.Current;
+        this.terminal = terminal ?? new ConsoleCliTerminal();
+    }
 
     public async Task<int> RunAsync(string[] args)
     {
@@ -50,35 +63,29 @@ internal sealed class CliApplication(
 
     private async Task<int> NewAsync(string[] args)
     {
-        var options = new NewCommandPrompter(text, terminal)
-            .Complete(CliParser.ParseNewOptions(args, text));
-        var outputDirectory = Path.GetFullPath(options.OutputPath ?? Directory.GetCurrentDirectory());
-        Directory.CreateDirectory(outputDirectory);
+        return await CreateNewProjectCommand().RunAsync(args, CancellationToken.None).ConfigureAwait(false);
+    }
 
-        var projectName = string.IsNullOrWhiteSpace(options.Name) ? ProjectConventions.DefaultProjectName : options.Name;
-        var projectRoot = Path.Combine(outputDirectory, projectName);
-
-        await projectScaffolder.ScaffoldNewProjectAsync(projectRoot, options).ConfigureAwait(false);
-
-        if (!Directory.Exists(projectRoot))
-        {
-            terminal.WriteErrorLine(text.GeneratedProjectRootNotFound(projectRoot));
-            return 1;
-        }
-
-        await projectScaffolder.AugmentProjectWithLakonaGameAsync(projectRoot, options).ConfigureAwait(false);
-
-        var configPath = Path.Combine(projectRoot, ProjectConventions.ConfigFileName);
-        if (File.Exists(configPath))
-        {
-            terminal.WriteErrorLine(text.ConfigAlreadyExists(configPath));
-            return 1;
-        }
-
-        await configStore.SaveAsync(configPath, ToolConfig.CreateDefault(projectName, options)).ConfigureAwait(false);
-        Console.WriteLine(text.CreatedToolConfig(configPath));
-        PrintNewProjectNextSteps(projectRoot, options);
-        return 0;
+    private NewProjectCommand CreateNewProjectCommand()
+    {
+        return new NewProjectCommand(
+            new NewProjectPrompter(text, terminal),
+            new LakonaProjectSpecFactory(),
+            new LakonaProjectGenerator(
+                new LakonaProjectPlanBuilder(
+                    [
+                        new GitRenderer(),
+                        new ProjectConfigRenderer(),
+                        new SharedProjectRenderer(),
+                        new ServerAppRenderer(),
+                        new HotfixRenderer(),
+                        new OperationsRenderer(),
+                        new GeneratedProjectDocsRenderer()
+                    ],
+                    [new UnityClientRenderer(), new GodotClientRenderer()]),
+                new GenerationExecutor(new TransactionalOutputWriter())),
+            text,
+            terminal);
     }
 
     private void PrintHelp()
@@ -86,36 +93,4 @@ internal sealed class CliApplication(
         Console.WriteLine(text.HelpText);
     }
 
-    private void PrintNewProjectNextSteps(string projectRoot, NewCommandOptions options)
-    {
-        Console.WriteLine(text.NewProjectReadyHeader);
-        Console.WriteLine($"  1) cd \"{projectRoot}\"");
-        Console.WriteLine(text.CheckProjectStep);
-        Console.WriteLine(text.BuildSolutionStep);
-        Console.WriteLine(text.StartServerStep);
-        Console.WriteLine(text.OpenClientStep(options.ClientEngine));
-    }
-
-}
-
-internal sealed class ToolConfigStore
-{
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
-
-    public Task SaveAsync(string configPath, ToolConfig config)
-    {
-        var json = JsonSerializer.Serialize(config, JsonOptions);
-        return File.WriteAllTextAsync(configPath, json);
-    }
-
-    public async Task<ToolConfig> LoadAsync(string configPath)
-    {
-        await using var stream = File.OpenRead(configPath);
-        var config = await JsonSerializer.DeserializeAsync<ToolConfig>(stream, JsonOptions).ConfigureAwait(false);
-        return config ?? throw new InvalidOperationException($"Failed to parse tool config: {configPath}");
-    }
 }

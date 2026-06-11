@@ -120,7 +120,7 @@ Generated projects should guide users toward three editing areas:
 
 ```txt
 Shared/Contracts/      RPC and reliable push DTOs
-Server/Server/Game/    stable business orchestration
+Server/App/            stable business orchestration
 Server/Hotfix/         hotfixable business rules
 ```
 
@@ -144,7 +144,7 @@ The user should see Lakona.Game's core capabilities through a working game-serve
 Generated projects should include a check command:
 
 ```bash
-dotnet run --project Server/Server/Server.csproj -- --lakona-game-check
+dotnet run --project Server/App/Server.App.csproj -- --lakona-game-check
 ```
 
 The command should print derived runtime state in stable, readable lines:
@@ -239,8 +239,8 @@ A new user should be able to run:
 ```bash
 lakona-tool new --name MyGame
 dotnet build Server/Server.slnx
-dotnet run --project Server/Server/Server.csproj -- --lakona-game-check
-dotnet run --project Server/Server/Server.csproj
+dotnet run --project Server/App/Server.App.csproj -- --lakona-game-check
+dotnet run --project Server/App/Server.App.csproj
 ```
 
 without editing `appsettings.json`.

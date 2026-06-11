@@ -8,7 +8,7 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>lakona-tool</ToolCommandName>
     <PackageId>Lakona.Tool</PackageId>
-    <Version>0.8.22</Version>
+    <Version>0.8.23</Version>
     <Description>Command-line project management tool for Lakona.Game project scaffolding and source-generator based RPC workflows.</Description>
     <PackageTags>game-server;game-client;cli;scaffold;source-generator</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -20,15 +20,6 @@
 
   <ItemGroup>
     <Compile Include="..\LakonaBrand.cs" Link="LakonaBrand.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="RpcStarter\TemplateAssets\NuGetForUnity.4.5.0.zip" LogicalName="Lakona.Tool.RpcStarter.TemplateAssets.NuGetForUnity.4.5.0.zip" />
-
-    <EmbeddedResource Include="RpcStarter\Templates\Godot\project.godot.template" LogicalName="Lakona.Tool.RpcStarter.Templates.Godot.project.godot.template" />
-    <EmbeddedResource Include="RpcStarter\Templates\Godot\Main.tscn.template" LogicalName="Lakona.Tool.RpcStarter.Templates.Godot.Main.tscn.template" />
-    <EmbeddedResource Include="RpcStarter\Templates\Unity\EditorBuildSettings.asset.template" LogicalName="Lakona.Tool.RpcStarter.Templates.Unity.EditorBuildSettings.asset.template" />
-    <EmbeddedResource Include="RpcStarter\Templates\Unity\AutoOpenConnectionScene.template" LogicalName="Lakona.Tool.RpcStarter.Templates.Unity.AutoOpenConnectionScene.template" />
   </ItemGroup>
 
   <PropertyGroup>

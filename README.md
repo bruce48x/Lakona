@@ -23,8 +23,7 @@ server, and hot-reload it without restarting the process.
 
 Lakona brings the former RPC, Actor, and Game layers into one repository:
 
-- `Lakona.Rpc.*` for communication, transports, serializers, analyzers, and
-  starter tooling.
+- `Lakona.Rpc.*` for communication, transports, serializers, and analyzers.
 - `Lakona.Game.Server.Actors` for game-facing actor execution backed by an internal mailbox kernel.
 - `Lakona.Game.*` for game server hosting, sessions, cluster routing, hotfix,
   client helpers, generators, and guardrails.
@@ -36,7 +35,7 @@ Lakona brings the former RPC, Actor, and Game layers into one repository:
 dotnet tool install -g Lakona.Tool
 lakona-tool new --name MyGame --client-engine unity --transport tcp --serializer memorypack
 cd MyGame
-dotnet run --project "Server/Server/Server.csproj"
+dotnet run --project "Server/App/Server.App.csproj"
 ```
 
 One command creates a project with hot-reloadable game logic, shared contracts,
@@ -227,7 +226,7 @@ builder.Services.AddLakonaGame(builder.Configuration, game =>
 Validate configuration before starting:
 
 ```bash
-dotnet run --project "Server/Server/Server.csproj" -- --lakona-check
+dotnet run --project "Server/App/Server.App.csproj" -- --lakona-game-check
 ```
 
 Guardrails catch missing endpoints, invalid cluster topology, production profile
@@ -269,7 +268,7 @@ The repository publishes small packages under `src/`. Stable entry points are:
   and generated actor APIs
 - `Lakona.Game.Server` for game-facing actor runtime
 - `Lakona.Rpc.*` for RPC core, client/server runtime, transports, serializers,
-  analyzers, and starter tooling
+  and analyzers
 
 Use the package README under each `src/<PackageName>/` directory for
 package-specific usage.
