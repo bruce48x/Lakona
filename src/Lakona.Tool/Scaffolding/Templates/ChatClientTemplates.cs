@@ -914,7 +914,7 @@ internal static class ChatClientTemplates
         [gd_scene load_steps=3 format=3]
 
         [ext_resource type="Script" path="res://Scripts/Login/LoginScene.cs" id="1"]
-        [ext_resource type="Theme" path="res://Themes/LakonaTheme.tres" id="2"]
+        [ext_resource type="Theme" path="res://Theme/LakonaTheme.tres" id="2"]
 
         [node name="LoginScene" type="Control"]
         layout_mode = 3

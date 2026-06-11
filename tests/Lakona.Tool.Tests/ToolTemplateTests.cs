@@ -1472,7 +1472,7 @@ public sealed class ToolTemplateTests
 
         // Two ext_resources
         Assert.Contains("[ext_resource type=\"Script\" path=\"res://Scripts/Login/LoginScene.cs\" id=\"1\"]", tscn, StringComparison.Ordinal);
-        Assert.Contains("[ext_resource type=\"Theme\" path=\"res://Themes/LakonaTheme.tres\" id=\"2\"]", tscn, StringComparison.Ordinal);
+        Assert.Contains("[ext_resource type=\"Theme\" path=\"res://Theme/LakonaTheme.tres\" id=\"2\"]", tscn, StringComparison.Ordinal);
 
         // Root: LoginScene (Control)
         Assert.Contains("[node name=\"LoginScene\" type=\"Control\"]", tscn, StringComparison.Ordinal);
