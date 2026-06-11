@@ -210,9 +210,9 @@ internal sealed class ProjectScaffolder
                 WriteIfMissingAsync(
                     Path.Combine(projectRoot, "Client", "Scripts", "Chat", "ChatSession.cs"),
                     ToolTemplates.RenderGodotChatSession()),
-                WriteIfMissingAsync(
-                    Path.Combine(projectRoot, "Client", "Scripts", "Theme", "LakonaTheme.cs"),
-                    ToolTemplates.RenderGodotThemeClass()),
+                WriteAsync(
+                    Path.Combine(projectRoot, "Client", "Theme", "LakonaTheme.tres"),
+                    ToolTemplates.RenderGodotTheme()),
                 WriteIfMissingAsync(
                     Path.Combine(projectRoot, "Client", "Scripts", "Login", "LoginClient.cs"),
                     ToolTemplates.RenderClientLoginClient()),

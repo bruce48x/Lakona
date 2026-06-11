@@ -301,56 +301,6 @@ internal static class ChatClientTemplates
         """;
     }
 
-    public static string RenderGodotThemeClass()
-    {
-        return """
-        using Godot;
-
-        namespace Client.Theme
-        {
-            public static class LakonaTheme
-            {
-                // Backgrounds
-                public static Color BgBase => new(0.039f, 0.059f, 0.039f);      // #0A0F0A
-                public static Color BgPanel => new(0.059f, 0.102f, 0.059f);       // #0F1A0F
-                public static Color BgInput => new(0.020f, 0.039f, 0.039f);       // #050A0A
-                public static Color BgHover => new(0.082f, 0.125f, 0.082f);       // #152015
-
-                // Accent greens
-                public static Color Accent => new(0f, 1f, 0.4f);                  // #00FF66
-                public static Color AccentDim => new(0f, 0.667f, 0.267f);         // #00AA44
-                public static Color AccentGlow => new(0.2f, 1f, 0.533f);          // #33FF88
-
-                // Text
-                public static Color TextPrimary => new(0f, 1f, 0.4f);            // #00FF66
-                public static Color TextBody => new(0.533f, 0.8f, 0.6f);         // #88CC99
-                public static Color TextDim => new(0.267f, 0.533f, 0.333f);      // #448855
-                public static Color TextSystem => new(0.4f, 0.667f, 0.467f);     // #66AA77
-
-                // Feedback
-                public static Color Warning => new(1f, 1f, 0f);                  // #FFFF00
-                public static Color Error => new(1f, 0.267f, 0.267f);            // #FF4444
-
-                // Typography
-                public const int FontSize = 14;
-                public const int FontSizeTitle = 22;
-                public const int FontSizeHeader = 18;
-                public const int FontSizeSystem = 12;
-
-                // Layout
-                public static Vector2 ButtonMinSize => new(0, 36);
-                public static Vector2 SendButtonMinSize => new(96, 36);
-                public static Vector2 PanelMinSize => new(360, 0);
-                public const int PanelSeparation = 12;
-                public const int HeaderSeparation = 12;
-                public const int FooterSeparation = 8;
-                public const int SendRowSeparation = 8;
-                public const int PageMargin = 16;
-            }
-        }
-        """;
-    }
-
     public static string RenderUnityLoginUI(NewCommandOptions options)
     {
         var defaultPath = string.Equals(options.Transport, "websocket", StringComparison.OrdinalIgnoreCase) ? "/ws" : "";

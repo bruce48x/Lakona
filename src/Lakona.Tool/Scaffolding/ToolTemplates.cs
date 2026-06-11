@@ -27,7 +27,7 @@ internal static class ToolTemplates
     public static string RenderChatSession() => ChatClientTemplates.RenderChatSession();
     public static string RenderGodotChatSession() => ChatClientTemplates.RenderGodotChatSession();
     public static string RenderGodotTheme() => ChatClientTemplates.RenderGodotTheme();
-    public static string RenderGodotThemeClass() => ChatClientTemplates.RenderGodotThemeClass();
+
     public static string RenderUnityLoginUI(NewCommandOptions options) => ChatClientTemplates.RenderUnityLoginUI(options);
     public static string RenderUnityLoginUxml() => ChatClientTemplates.RenderUnityLoginUxml();
     public static string RenderUnityLoginUss() => ChatClientTemplates.RenderUnityLoginUss();
