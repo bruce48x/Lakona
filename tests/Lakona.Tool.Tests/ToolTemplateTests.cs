@@ -1405,6 +1405,64 @@ public sealed class ToolTemplateTests
     }
 
     [Fact]
+    public void RenderGodotTheme_ContainsExpectedStyleBoxes()
+    {
+        var tres = ChatClientTemplates.RenderGodotTheme();
+
+        Assert.Contains("[sub_resource type=\"StyleBoxFlat\" id=\"1\"]", tres, StringComparison.Ordinal);
+        Assert.Contains("[sub_resource type=\"StyleBoxFlat\" id=\"2\"]", tres, StringComparison.Ordinal);
+        Assert.Contains("[sub_resource type=\"StyleBoxFlat\" id=\"3\"]", tres, StringComparison.Ordinal);
+        Assert.Contains("[sub_resource type=\"StyleBoxFlat\" id=\"4\"]", tres, StringComparison.Ordinal);
+        Assert.Contains("[sub_resource type=\"StyleBoxFlat\" id=\"5\"]", tres, StringComparison.Ordinal);
+        Assert.Contains("[sub_resource type=\"StyleBoxFlat\" id=\"6\"]", tres, StringComparison.Ordinal);
+        Assert.Contains("[sub_resource type=\"StyleBoxFlat\" id=\"7\"]", tres, StringComparison.Ordinal);
+        Assert.Contains("load_steps=8", tres, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderGodotTheme_ContainsDefaultTypeStyles()
+    {
+        var tres = ChatClientTemplates.RenderGodotTheme();
+
+        Assert.Contains("Button/colors/font_color", tres, StringComparison.Ordinal);
+        Assert.Contains("Button/styles/normal", tres, StringComparison.Ordinal);
+        Assert.Contains("LineEdit/colors/font_color", tres, StringComparison.Ordinal);
+        Assert.Contains("default_font_size", tres, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderGodotTheme_ContainsTypeVariations()
+    {
+        var tres = ChatClientTemplates.RenderGodotTheme();
+
+        Assert.Contains("TitleLabel/font_sizes/font_size", tres, StringComparison.Ordinal);
+        Assert.Contains("LoginPanel/styles/panel", tres, StringComparison.Ordinal);
+        Assert.Contains("PanelVBox/constants/separation", tres, StringComparison.Ordinal);
+        Assert.Contains("ChatHeader/styles/panel", tres, StringComparison.Ordinal);
+        Assert.Contains("ChatFooter/styles/panel", tres, StringComparison.Ordinal);
+        Assert.Contains("SendRow/constants/separation", tres, StringComparison.Ordinal);
+        Assert.Contains("PageMargin/constants/margin_left", tres, StringComparison.Ordinal);
+        Assert.Contains("StatusLabel/colors/font_color", tres, StringComparison.Ordinal);
+        Assert.Contains("OnlineCount/colors/font_color", tres, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderGodotTheme_ContainsAllColorConstants()
+    {
+        var tres = ChatClientTemplates.RenderGodotTheme();
+
+        Assert.Contains("0, 1, 0.4", tres, StringComparison.Ordinal);        // Accent
+        Assert.Contains("0, 0.667, 0.267", tres, StringComparison.Ordinal);  // AccentDim
+        Assert.Contains("0.533, 0.8, 0.6", tres, StringComparison.Ordinal);  // TextBody
+        Assert.Contains("0.267, 0.533, 0.333", tres, StringComparison.Ordinal); // TextDim
+        Assert.Contains("1, 0.267, 0.267", tres, StringComparison.Ordinal);  // Error
+        Assert.Contains("1, 1, 0", tres, StringComparison.Ordinal);           // Warning
+        Assert.Contains("0.059, 0.102, 0.059", tres, StringComparison.Ordinal); // BgPanel
+        Assert.Contains("0.02, 0.039, 0.039", tres, StringComparison.Ordinal);  // BgInput
+        Assert.Contains("0.039, 0.059, 0.039", tres, StringComparison.Ordinal); // BgBase
+    }
+
+    [Fact]
     public async Task AugmentProjectWithLakonaGame_GeneratedLoginSceneIncludesUnityStandardHeaderSections()
     {
         var projectRoot = Path.Combine(Path.GetTempPath(), "lakona-tests", Guid.NewGuid().ToString("N"));

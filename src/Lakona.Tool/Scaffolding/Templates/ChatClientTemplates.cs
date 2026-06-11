@@ -154,6 +154,153 @@ internal static class ChatClientTemplates
         """;
     }
 
+    public static string RenderGodotTheme()
+    {
+        return """
+        [gd_resource type="Theme" load_steps=8 format=3]
+
+        [sub_resource type="StyleBoxFlat" id="1"]
+        bg_color = Color(0.02, 0.039, 0.039, 1)
+        border_width_left = 2
+        border_width_right = 2
+        border_width_top = 2
+        border_width_bottom = 2
+        border_color = Color(0, 0.667, 0.267, 1)
+        corner_radius_top_left = 0
+        corner_radius_top_right = 0
+        corner_radius_bottom_left = 0
+        corner_radius_bottom_right = 0
+        content_margin_left = 8.0
+        content_margin_right = 8.0
+        content_margin_top = 4.0
+        content_margin_bottom = 4.0
+
+        [sub_resource type="StyleBoxFlat" id="2"]
+        bg_color = Color(0, 1, 0.4, 1)
+        corner_radius_top_left = 0
+        corner_radius_top_right = 0
+        corner_radius_bottom_left = 0
+        corner_radius_bottom_right = 0
+        content_margin_left = 8.0
+        content_margin_right = 8.0
+        content_margin_top = 4.0
+        content_margin_bottom = 4.0
+
+        [sub_resource type="StyleBoxFlat" id="3"]
+        bg_color = Color(0.059, 0.102, 0.059, 1)
+        border_width_left = 2
+        border_width_right = 2
+        border_width_top = 2
+        border_width_bottom = 2
+        border_color = Color(0, 0.667, 0.267, 1)
+        corner_radius_top_left = 0
+        corner_radius_top_right = 0
+        corner_radius_bottom_left = 0
+        corner_radius_bottom_right = 0
+        content_margin_left = 8.0
+        content_margin_right = 8.0
+        content_margin_top = 4.0
+        content_margin_bottom = 4.0
+
+        [sub_resource type="StyleBoxFlat" id="4"]
+        bg_color = Color(0.2, 1, 0.533, 1)
+        corner_radius_top_left = 0
+        corner_radius_top_right = 0
+        corner_radius_bottom_left = 0
+        corner_radius_bottom_right = 0
+        content_margin_left = 8.0
+        content_margin_right = 8.0
+        content_margin_top = 4.0
+        content_margin_bottom = 4.0
+
+        [sub_resource type="StyleBoxFlat" id="5"]
+        bg_color = Color(0.059, 0.102, 0.059, 1)
+        border_width_left = 2
+        border_width_right = 2
+        border_width_top = 2
+        border_width_bottom = 2
+        border_color = Color(0, 1, 0.4, 1)
+        corner_radius_top_left = 0
+        corner_radius_top_right = 0
+        corner_radius_bottom_left = 0
+        corner_radius_bottom_right = 0
+        content_margin_left = 24.0
+        content_margin_right = 24.0
+        content_margin_top = 32.0
+        content_margin_bottom = 32.0
+
+        [sub_resource type="StyleBoxFlat" id="6"]
+        bg_color = Color(0.059, 0.102, 0.059, 1)
+        border_width_bottom = 2
+        border_color = Color(0, 1, 0.4, 1)
+        corner_radius_top_left = 0
+        corner_radius_top_right = 0
+        corner_radius_bottom_left = 0
+        corner_radius_bottom_right = 0
+        content_margin_top = 8.0
+        content_margin_bottom = 8.0
+
+        [sub_resource type="StyleBoxFlat" id="7"]
+        bg_color = Color(0.059, 0.102, 0.059, 1)
+        border_width_top = 2
+        border_color = Color(0, 1, 0.4, 1)
+        corner_radius_top_left = 0
+        corner_radius_top_right = 0
+        corner_radius_bottom_left = 0
+        corner_radius_bottom_right = 0
+        content_margin_top = 8.0
+        content_margin_bottom = 8.0
+
+        [resource]
+        default_font_size = 14
+
+        Button/colors/font_color = Color(0.039, 0.059, 0.039, 1)
+        Button/colors/font_disabled_color = Color(0, 0.667, 0.267, 1)
+        Button/styles/normal = SubResource("2")
+        Button/styles/disabled = SubResource("3")
+        Button/styles/hover = SubResource("4")
+
+        LineEdit/colors/font_color = Color(0, 1, 0.4, 1)
+        LineEdit/colors/font_placeholder_color = Color(0.267, 0.533, 0.333, 1)
+        LineEdit/styles/normal = SubResource("1")
+
+        Label/colors/font_color = Color(0.533, 0.8, 0.6, 1)
+        Label/font_sizes/font_size = 14
+
+        RichTextLabel/colors/default_color = Color(0.533, 0.8, 0.6, 1)
+        RichTextLabel/font_sizes/normal_font_size = 14
+
+        TitleLabel/colors/font_color = Color(0, 1, 0.4, 1)
+        TitleLabel/font_sizes/font_size = 22
+
+        HeaderLabel/colors/font_color = Color(0, 1, 0.4, 1)
+        HeaderLabel/font_sizes/font_size = 18
+
+        NameLabel/colors/font_color = Color(0, 0.667, 0.267, 1)
+        NameLabel/font_sizes/font_size = 14
+
+        StatusLabel/colors/font_color = Color(1, 0.267, 0.267, 1)
+        StatusLabel/font_sizes/font_size = 14
+
+        OnlineCount/colors/font_color = Color(1, 1, 0, 1)
+        OnlineCount/font_sizes/font_size = 14
+
+        PanelVBox/constants/separation = 12
+        ChatVBox/constants/separation = 0
+        HeaderRow/constants/separation = 12
+        SendRow/constants/separation = 8
+
+        PageMargin/constants/margin_left = 16
+        PageMargin/constants/margin_right = 16
+        PageMargin/constants/margin_top = 16
+        PageMargin/constants/margin_bottom = 16
+
+        LoginPanel/styles/panel = SubResource("5")
+        ChatHeader/styles/panel = SubResource("6")
+        ChatFooter/styles/panel = SubResource("7")
+        """;
+    }
+
     public static string RenderGodotThemeClass()
     {
         return """
