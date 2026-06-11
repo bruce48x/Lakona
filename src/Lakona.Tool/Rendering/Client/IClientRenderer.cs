@@ -5,5 +5,5 @@ namespace Lakona.Tool.Rendering.Client;
 
 internal interface IClientRenderer : IPlanContributor
 {
-    ClientEngine Engine { get; }
+    bool Supports(ClientEngine engine);
 }

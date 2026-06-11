@@ -6,7 +6,10 @@ namespace Lakona.Tool.Rendering.Client;
 
 internal sealed class GodotClientRenderer : IClientRenderer
 {
-    public ClientEngine Engine => ClientEngine.Godot;
+    public bool Supports(ClientEngine engine)
+    {
+        return engine == ClientEngine.Godot;
+    }
 
     public void AddFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {

@@ -8,6 +8,9 @@ internal sealed class LakonaProjectSpecFactory
     {
         var projectName = string.IsNullOrWhiteSpace(options.ProjectName) ? "MyGame" : options.ProjectName;
         var layout = ProjectLayout.Create(projectName, options.OutputPath);
+        var nuGetForUnitySource = ClientEnginePolicy.GetEffectiveNuGetForUnitySource(
+            options.ClientEngine,
+            options.NuGetForUnitySource);
 
         return new LakonaProjectSpec(
             projectName,
@@ -16,7 +19,7 @@ internal sealed class LakonaProjectSpecFactory
             options.Transport,
             options.Serializer,
             options.Persistence,
-            options.NuGetForUnitySource,
+            nuGetForUnitySource,
             options.DeploymentProfile,
             ProjectFeatureCatalog.DefaultFeatures);
     }

@@ -15,7 +15,7 @@ internal sealed class LakonaProjectPlanBuilder(
             contributor.AddFiles(spec, builder);
         }
 
-        var selectedClientRenderer = clientRenderers?.SingleOrDefault(renderer => renderer.Engine == spec.ClientEngine);
+        var selectedClientRenderer = clientRenderers?.SingleOrDefault(renderer => renderer.Supports(spec.ClientEngine));
         selectedClientRenderer?.AddFiles(spec, builder);
 
         return PlanValidator.Validate(builder.Build());

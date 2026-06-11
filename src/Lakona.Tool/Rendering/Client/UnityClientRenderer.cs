@@ -6,7 +6,10 @@ namespace Lakona.Tool.Rendering.Client;
 
 internal sealed class UnityClientRenderer : IClientRenderer
 {
-    public ClientEngine Engine => ClientEngine.Unity;
+    public bool Supports(ClientEngine engine)
+    {
+        return ClientEnginePolicy.IsUnityCompatible(engine);
+    }
 
     public void AddFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {

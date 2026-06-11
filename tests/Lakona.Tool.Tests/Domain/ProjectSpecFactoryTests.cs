@@ -64,4 +64,45 @@ public sealed class ProjectSpecFactoryTests
         Assert.Equal("com.lakona.99arena", spec.Layout.UnityPackageId);
         Assert.Equal("Lakona 99 Arena", spec.Layout.GeneratedDocsTitle);
     }
+
+    [Theory]
+    [InlineData("UnityCn")]
+    [InlineData("Tuanjie")]
+    public void Create_ForcesEmbeddedNuGetForUnitySource_ForChinaFriendlyUnityEngines(string engineName)
+    {
+        var engine = Enum.Parse<ClientEngine>(engineName);
+        var options = new NewProjectOptions(
+            ProjectName: "ChinaNet",
+            OutputPath: ".",
+            ClientEngine: engine,
+            Transport: TransportKind.Kcp,
+            Serializer: SerializerKind.MemoryPack,
+            Persistence: PersistenceKind.None,
+            NuGetForUnitySource: NuGetForUnitySource.OpenUpm,
+            DeploymentProfile: DeploymentProfile.None,
+            Presence: NewProjectOptionPresence.NuGetForUnitySource);
+
+        var spec = new LakonaProjectSpecFactory().Create(options);
+
+        Assert.Equal(NuGetForUnitySource.Embedded, spec.NuGetForUnitySource);
+    }
+
+    [Fact]
+    public void Create_KeepsExplicitEmbeddedSource_ForStandardUnity()
+    {
+        var options = new NewProjectOptions(
+            ProjectName: "OfflineUnity",
+            OutputPath: ".",
+            ClientEngine: ClientEngine.Unity,
+            Transport: TransportKind.Kcp,
+            Serializer: SerializerKind.MemoryPack,
+            Persistence: PersistenceKind.None,
+            NuGetForUnitySource: NuGetForUnitySource.Embedded,
+            DeploymentProfile: DeploymentProfile.None,
+            Presence: NewProjectOptionPresence.NuGetForUnitySource);
+
+        var spec = new LakonaProjectSpecFactory().Create(options);
+
+        Assert.Equal(NuGetForUnitySource.Embedded, spec.NuGetForUnitySource);
+    }
 }

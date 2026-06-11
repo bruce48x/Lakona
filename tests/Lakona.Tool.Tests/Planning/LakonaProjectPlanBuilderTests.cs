@@ -78,6 +78,31 @@ public sealed class LakonaProjectPlanBuilderTests
         Assert.DoesNotContain(plan.Files, file => file.RelativePath.StartsWith("Client/Assets/", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData("Unity")]
+    [InlineData("UnityCn")]
+    [InlineData("Tuanjie")]
+    public void Build_SelectsUnityRenderer_ForUnityCompatibleEngines(string engineName)
+    {
+        var engine = Enum.Parse<ClientEngine>(engineName);
+        var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+            "MyGame",
+            ".",
+            engine,
+            TransportKind.Kcp,
+            SerializerKind.MemoryPack,
+            PersistenceKind.None,
+            NuGetForUnitySource.OpenUpm,
+            DeploymentProfile.None));
+        var planBuilder = new LakonaProjectPlanBuilder([], [new UnityClientRenderer(), new GodotClientRenderer()]);
+
+        var plan = planBuilder.Build(spec);
+
+        Assert.Contains(plan.Files, file => file.RelativePath == "Client/Packages/manifest.json");
+        Assert.Contains(plan.Files, file => file.RelativePath == "Client/Assets/packages.config");
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Client/project.godot");
+    }
+
     private sealed class DuplicateContributor : IPlanContributor
     {
         public void AddFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
