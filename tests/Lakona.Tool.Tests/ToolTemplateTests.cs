@@ -743,6 +743,42 @@ public sealed class ToolTemplateTests
     }
 
     [Fact]
+    public void RenderGodotChatScene_DoesNotContainBuildUi()
+    {
+        var source = ToolTemplates.RenderGodotChatScene();
+
+        Assert.DoesNotContain("private void BuildUi()", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("new ColorRect", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("new PanelContainer", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("new VBoxContainer", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("new HBoxContainer", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("new MarginContainer", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("new StyleBoxFlat", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("AddTheme", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetAnchorsPreset", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(".AddChild(", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderGodotChatScene_UsesGetNodeWithUniqueNames()
+    {
+        var source = ToolTemplates.RenderGodotChatScene();
+
+        Assert.Contains("GetNode<LineEdit>(\"%MessageField\")", source, StringComparison.Ordinal);
+        Assert.Contains("GetNode<Button>(\"%SendButton\")", source, StringComparison.Ordinal);
+        Assert.Contains("GetNode<RichTextLabel>(\"%MessageLog\")", source, StringComparison.Ordinal);
+        Assert.Contains("GetNode<Label>(\"%OnlineCount\")", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderGodotChatScene_DoesNotUseThemeNamespaceInUsings()
+    {
+        var source = ToolTemplates.RenderGodotChatScene();
+
+        Assert.DoesNotContain("using Client.Theme;", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RenderClientChatTemplates_DoNotUseSessionConnectionId()
     {
         var chatClient = ToolTemplates.RenderClientChatClient();
