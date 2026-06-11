@@ -41,7 +41,6 @@ internal sealed class OperationsRenderer : IPlanContributor
             build:
               context: .
               dockerfile: Server/Dockerfile
-            command: ["dotnet", "run", "--project", "Server/App/Server.App.csproj", "--no-build"]
             env_file:
               - .env.cluster.example
             ports:
