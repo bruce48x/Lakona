@@ -35,6 +35,11 @@ internal static class PlanValidator
             ValidatePath(directory.RelativePath, diagnostics);
         }
 
+        foreach (var archive in plan.Archives ?? [])
+        {
+            ValidatePath(archive.RelativeDestinationPath, diagnostics);
+        }
+
         return plan with { Diagnostics = diagnostics };
     }
 
@@ -45,6 +50,15 @@ internal static class PlanValidator
             if (group.Count() > 1)
             {
                 diagnostics.Add(Error("LTPLAN001", $"Duplicate generated path: {group.First().RelativePath}", group.First().RelativePath));
+            }
+        }
+
+        foreach (var group in (plan.Archives ?? [])
+            .GroupBy(archive => NormalizePath(archive.RelativeDestinationPath), StringComparer.OrdinalIgnoreCase))
+        {
+            if (group.Count() > 1)
+            {
+                diagnostics.Add(Error("LTPLAN007", $"Duplicate generated archive destination: {group.First().RelativeDestinationPath}", group.First().RelativeDestinationPath));
             }
         }
     }

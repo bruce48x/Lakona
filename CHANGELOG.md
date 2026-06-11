@@ -8,6 +8,7 @@ that consolidation.
 
 ### Fixed
 
+- `Lakona.Tool` `0.8.24`: restored Unity CN and Tuanjie scaffolding to use the Unity renderer, force embedded NuGetForUnity, preserve OpenUPM metadata for standard Unity, and extract the embedded NuGetForUnity package.
 - `Lakona.Tool` `0.8.22`: generated Godot LoginScene and ChatScene buttons now have `StyleBoxFlat` backgrounds (accent green normal, dark panel disabled) matching the Unity cyber-green theme.
 - `Lakona.Tool` `0.8.22`: generated Unity `.connect-button:disabled` and `.send-button:disabled` USS rules now use `--lakona-bg-input` instead of `--lakona-bg-panel` to prevent buttons from visually disappearing into the footer/panel when disabled at scene start.
 

@@ -62,6 +62,19 @@ public sealed class ClientRendererTests
         Assert.Contains("\"com.lakona.mygame.shared\": \"file:../../Shared\"", manifest, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("UnityCn")]
+    [InlineData("Tuanjie")]
+    public void UnityClientRenderer_EmbeddedSource_RequestsNuGetForUnityArchiveExtraction(string engineName)
+    {
+        var engine = Enum.Parse<ClientEngine>(engineName);
+        var plan = Render(new UnityClientRenderer(), Spec(engine, NuGetForUnitySource.OpenUpm));
+
+        var archive = Assert.Single(plan.Archives ?? []);
+        Assert.Equal("Lakona.Tool.Rendering.Client.TemplateAssets.NuGetForUnity.4.5.0.zip", archive.ResourceName);
+        Assert.Equal("Client/Packages", archive.RelativeDestinationPath);
+    }
+
     private static GenerationPlan Render(IClientRenderer renderer, LakonaProjectSpec spec)
     {
         var builder = new GenerationPlanBuilder("Root");

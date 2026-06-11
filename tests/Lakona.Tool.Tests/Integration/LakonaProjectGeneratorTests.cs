@@ -59,4 +59,58 @@ public sealed class LakonaProjectGeneratorTests
             Directory.Delete(parentRoot, recursive: true);
         }
     }
+
+    [Theory]
+    [InlineData("UnityCn")]
+    [InlineData("Tuanjie")]
+    public async Task GenerateAsync_UnityChinaFriendlyEngines_WriteEmbeddedNuGetForUnity(string engineName)
+    {
+        var engine = Enum.Parse<ClientEngine>(engineName);
+        var parentRoot = Path.Combine(Path.GetTempPath(), "lakona-project-generator-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(parentRoot);
+        try
+        {
+            var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+                "MyGame",
+                parentRoot,
+                engine,
+                TransportKind.Kcp,
+                SerializerKind.MemoryPack,
+                PersistenceKind.None,
+                NuGetForUnitySource.OpenUpm,
+                DeploymentProfile.None,
+                Presence: NewProjectOptionPresence.NuGetForUnitySource));
+            var generator = new LakonaProjectGenerator(
+                new LakonaProjectPlanBuilder(
+                    [
+                        new GitRenderer(),
+                        new ProjectConfigRenderer(),
+                        new SharedProjectRenderer(),
+                        new ServerAppRenderer(),
+                        new HotfixRenderer(),
+                        new OperationsRenderer(),
+                        new GeneratedProjectDocsRenderer()
+                    ],
+                    [new UnityClientRenderer(), new GodotClientRenderer()]),
+                new GenerationExecutor(new TransactionalOutputWriter()));
+
+            await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
+
+            Assert.True(File.Exists(Path.Combine(
+                spec.Layout.RootPath,
+                "Client",
+                "Packages",
+                "com.github-glitchenzo.nugetforunity",
+                "package.json")));
+            var manifest = await File.ReadAllTextAsync(
+                Path.Combine(spec.Layout.RootPath, "Client", "Packages", "manifest.json"),
+                TestContext.Current.CancellationToken);
+            Assert.DoesNotContain("package.openupm.com", manifest, StringComparison.Ordinal);
+            Assert.DoesNotContain("\"com.github-glitchenzo.nugetforunity\": \"4.5.0\"", manifest, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(parentRoot, recursive: true);
+        }
+    }
 }

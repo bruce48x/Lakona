@@ -6,6 +6,8 @@ namespace Lakona.Tool.Rendering.Client;
 
 internal sealed class UnityClientRenderer : IClientRenderer
 {
+    private const string NuGetForUnityAssetResourceName = "Lakona.Tool.Rendering.Client.TemplateAssets.NuGetForUnity.4.5.0.zip";
+
     public bool Supports(ClientEngine engine)
     {
         return ClientEnginePolicy.IsUnityCompatible(engine);
@@ -13,6 +15,11 @@ internal sealed class UnityClientRenderer : IClientRenderer
 
     public void AddFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
+        if (spec.NuGetForUnitySource == NuGetForUnitySource.Embedded)
+        {
+            builder.AddArchive(NuGetForUnityAssetResourceName, "Client/Packages");
+        }
+
         builder.AddFile("Client/Packages/manifest.json", RenderManifest(spec), FileWriteMode.Replace, GeneratedFileKind.Json);
         builder.AddFile("Client/ProjectSettings/ProjectVersion.txt", RenderProjectVersion(spec.ClientEngine), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Client/Assets/packages.config", RenderPackagesConfig(spec), FileWriteMode.Replace, GeneratedFileKind.Xml);

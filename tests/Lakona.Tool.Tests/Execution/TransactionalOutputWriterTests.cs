@@ -58,6 +58,37 @@ public sealed class TransactionalOutputWriterTests
     }
 
     [Fact]
+    public async Task WriteAsync_ExtractsEmbeddedArchiveIntoTargetDirectory()
+    {
+        var parentRoot = CreateTempRoot();
+        var targetRoot = Path.Combine(parentRoot, "Sample");
+        try
+        {
+            var plan = new GenerationPlan(
+                targetRoot,
+                [],
+                [],
+                [],
+                [new GeneratedArchive(
+                    "Lakona.Tool.Rendering.Client.TemplateAssets.NuGetForUnity.4.5.0.zip",
+                    "Client/Packages")]);
+
+            await new TransactionalOutputWriter().WriteAsync(plan, TestContext.Current.CancellationToken);
+
+            Assert.True(File.Exists(Path.Combine(
+                targetRoot,
+                "Client",
+                "Packages",
+                "com.github-glitchenzo.nugetforunity",
+                "package.json")));
+        }
+        finally
+        {
+            Directory.Delete(parentRoot, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task WriteAsync_RollsBackStagingDirectory_WhenWriteFails()
     {
         var parentRoot = CreateTempRoot();
