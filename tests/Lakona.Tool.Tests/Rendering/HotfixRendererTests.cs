@@ -28,8 +28,22 @@ public sealed class HotfixRendererTests
         var project = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Server.Hotfix.csproj").Content;
         Assert.Contains("Server.Hotfix", project, StringComparison.Ordinal);
         Assert.Contains("..\\App\\Server.App.csproj", project, StringComparison.Ordinal);
-        Assert.Contains(plan.Files, file => file.RelativePath == "Server/Hotfix/Login/LoginService.cs");
-        Assert.Contains(plan.Files, file => file.RelativePath == "Server/Hotfix/Chat/ChatService.cs");
+
+        var loginService = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Login/LoginService.cs").Content;
+        Assert.Contains("internal sealed class LoginService : ILoginService", loginService, StringComparison.Ordinal);
+        Assert.Contains("private readonly ILoginCallback _callback;", loginService, StringComparison.Ordinal);
+        Assert.Contains("private readonly IActorRuntime _actors;", loginService, StringComparison.Ordinal);
+        Assert.Contains("return _actors.AskAsync<ChatRoomActor, LoginReply>", loginService, StringComparison.Ordinal);
+
+        var chatService = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Chat/ChatService.cs").Content;
+        Assert.Contains("internal sealed class ChatService : IChatService", chatService, StringComparison.Ordinal);
+        Assert.Contains("private readonly IChatCallback _callback;", chatService, StringComparison.Ordinal);
+        Assert.Contains("private readonly IActorRuntime _actors;", chatService, StringComparison.Ordinal);
+        Assert.Contains("public async ValueTask BindAsync(ChatBindRequest req)", chatService, StringComparison.Ordinal);
+        Assert.Contains("public async ValueTask SendAsync(ChatSendRequest req)", chatService, StringComparison.Ordinal);
+        Assert.Contains("AskAsync<ChatRoomActor", chatService, StringComparison.Ordinal);
+        Assert.Contains("badword", chatService, StringComparison.Ordinal);
+
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("static event", StringComparison.OrdinalIgnoreCase));
     }
 }

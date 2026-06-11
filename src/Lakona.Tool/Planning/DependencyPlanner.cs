@@ -113,14 +113,10 @@ internal static class DependencyPlanner
             Sdk("Lakona.Rpc.Core", catalog.LakonaRpcCore),
             Sdk("Lakona.Rpc.Client", catalog.LakonaRpcClient),
             Sdk(GetTransportPackage(spec.Transport), GetTransportVersion(spec.Transport, catalog)),
+            Sdk(GetSerializerPackage(spec.Serializer), GetSerializerVersion(spec.Serializer, catalog)),
             Sdk("Lakona.Rpc.Analyzers", catalog.LakonaRpcAnalyzers, privateAssets: "all", includeAssets: AnalyzerIncludeAssets),
             Sdk("Lakona.Game.Client", catalog.LakonaGameClient)
         };
-
-        if (spec.Serializer == SerializerKind.Json)
-        {
-            references.Add(Sdk("Lakona.Rpc.Serializer.Json", catalog.LakonaRpcSerializerJson));
-        }
 
         return references;
     }

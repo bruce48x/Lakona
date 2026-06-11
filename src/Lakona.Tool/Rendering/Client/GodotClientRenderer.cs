@@ -13,13 +13,12 @@ internal sealed class GodotClientRenderer : IClientRenderer
 
     public void AddFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
-        builder.AddFile("Client/project.godot", RenderProjectGodot(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/project.godot", RenderProjectGodot(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Client/Client.csproj", RenderClientProject(spec), FileWriteMode.Replace, GeneratedFileKind.Project);
-        builder.AddFile("Client/Login.tscn", RenderLoginScene(), FileWriteMode.Replace, GeneratedFileKind.GodotScene);
-        builder.AddFile("Client/Chat.tscn", RenderChatScene(), FileWriteMode.Replace, GeneratedFileKind.GodotScene);
-        builder.AddFile("Client/Theme/LakonaTheme.tres", RenderTheme(), FileWriteMode.Replace, GeneratedFileKind.GodotTheme);
-        builder.AddFile("Client/Scripts/Login/LoginScene.cs", RenderLoginScript(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Scripts/Chat/ChatScene.cs", RenderChatScript(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Theme/LakonaTheme.tres", GodotClientAssetTemplates.RenderTheme(), FileWriteMode.Replace, GeneratedFileKind.GodotTheme);
+        builder.AddFile("Client/Login.tscn", GodotClientAssetTemplates.RenderLoginScene(), FileWriteMode.Replace, GeneratedFileKind.GodotScene);
+        builder.AddFile("Client/Chat.tscn", GodotClientAssetTemplates.RenderChatScene(), FileWriteMode.Replace, GeneratedFileKind.GodotScene);
+        AddClientCodeFiles(spec, builder);
     }
 
     private static string RenderClientProject(LakonaProjectSpec spec)
@@ -28,13 +27,17 @@ internal sealed class GodotClientRenderer : IClientRenderer
             DependencyPlanner.Create(ProjectTarget.GodotClient, spec).PackageReferences);
 
         return $$"""
-        <Project Sdk="Godot.NET.Sdk/4.4.1">
+        <Project Sdk="Godot.NET.Sdk/4.6.1">
           <PropertyGroup>
             <TargetFramework>net8.0</TargetFramework>
             <EnableDynamicLoading>true</EnableDynamicLoading>
+            <Nullable>enable</Nullable>
+            <ImplicitUsings>enable</ImplicitUsings>
             <RootNamespace>Client</RootNamespace>
+            <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+            <NuGetAudit>false</NuGetAudit>
             <LakonaRpcGenerateClient>true</LakonaRpcGenerateClient>
-            <LakonaRpcGeneratedNamespace>Client.Generated</LakonaRpcGeneratedNamespace>
+            <LakonaRpcGeneratedNamespace>Rpc.Generated</LakonaRpcGeneratedNamespace>
           </PropertyGroup>
 
           <ItemGroup>
@@ -48,94 +51,43 @@ internal sealed class GodotClientRenderer : IClientRenderer
         """;
     }
 
-    private static string RenderProjectGodot()
+    private static string RenderProjectGodot(LakonaProjectSpec spec)
     {
-        return """
+        return $$"""
         ; Engine configuration file.
+        ; It's best edited using the editor UI and not directly,
+        ; since the parameters that go here are not all obvious.
+
+        config_version=5
 
         [application]
-        config/name="Lakona Client"
+
+        config/name="{{spec.Name}}"
         run/main_scene="res://Login.tscn"
+        config/features=PackedStringArray("4.6", "C#")
+
+        [autoload]
+
+        ChatSession="*res://Scripts/Chat/ChatSession.cs"
+
+        [dotnet]
+
+        project/assembly_name="Client"
         """;
     }
 
-    private static string RenderLoginScene()
+    private static void AddClientCodeFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
-        return """
-        [gd_scene load_steps=2 format=3]
+        builder.AddFile("Client/Scripts/Login/LoginClient.cs", GodotClientCodeTemplates.RenderLoginClient(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Scripts/Login/LoginClient.cs.uid", GodotClientAssetTemplates.RenderUid(GodotClientAssetTemplates.LoginClientUid), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Scripts/Login/LoginScene.cs", GodotClientCodeTemplates.RenderLoginScene(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Scripts/Login/LoginScene.cs.uid", GodotClientAssetTemplates.RenderUid(GodotClientAssetTemplates.LoginSceneUid), FileWriteMode.Replace, GeneratedFileKind.Text);
 
-        [ext_resource type="Script" path="res://Scripts/Login/LoginScene.cs" id="1"]
-
-        [node name="Login" type="Control"]
-        script = ExtResource("1")
-
-        [node name="PlayerName" type="LineEdit" parent="."]
-        unique_name_in_owner = true
-
-        [node name="LoginButton" type="Button" parent="."]
-        unique_name_in_owner = true
-        text = "Login"
-        """;
-    }
-
-    private static string RenderChatScene()
-    {
-        return """
-        [gd_scene load_steps=2 format=3]
-
-        [ext_resource type="Script" path="res://Scripts/Chat/ChatScene.cs" id="1"]
-
-        [node name="Chat" type="Control"]
-        script = ExtResource("1")
-
-        [node name="Messages" type="RichTextLabel" parent="."]
-        unique_name_in_owner = true
-
-        [node name="MessageText" type="LineEdit" parent="."]
-        unique_name_in_owner = true
-        """;
-    }
-
-    private static string RenderTheme()
-    {
-        return """
-        [gd_resource type="Theme" format=3]
-        """;
-    }
-
-    private static string RenderLoginScript()
-    {
-        return """
-        using Godot;
-
-        namespace Client.Login;
-
-        public partial class LoginScene : Control
-        {
-            public override void _Ready()
-            {
-                _ = GetNode<LineEdit>("%PlayerName");
-                _ = GetNode<Button>("%LoginButton");
-            }
-        }
-        """;
-    }
-
-    private static string RenderChatScript()
-    {
-        return """
-        using Godot;
-
-        namespace Client.Chat;
-
-        public partial class ChatScene : Control
-        {
-            public override void _Ready()
-            {
-                _ = GetNode<RichTextLabel>("%Messages");
-                _ = GetNode<LineEdit>("%MessageText");
-            }
-        }
-        """;
+        builder.AddFile("Client/Scripts/Chat/ChatClient.cs", GodotClientCodeTemplates.RenderChatClient(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Scripts/Chat/ChatClient.cs.uid", GodotClientAssetTemplates.RenderUid(GodotClientAssetTemplates.ChatClientUid), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Scripts/Chat/ChatSession.cs", GodotClientCodeTemplates.RenderChatSession(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Scripts/Chat/ChatSession.cs.uid", GodotClientAssetTemplates.RenderUid(GodotClientAssetTemplates.ChatSessionUid), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Scripts/Chat/ChatScene.cs", GodotClientCodeTemplates.RenderChatScene(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Scripts/Chat/ChatScene.cs.uid", GodotClientAssetTemplates.RenderUid(GodotClientAssetTemplates.ChatSceneUid), FileWriteMode.Replace, GeneratedFileKind.Text);
     }
 }

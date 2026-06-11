@@ -21,6 +21,79 @@ public sealed class ClientRendererTests
     }
 
     [Fact]
+    public void UnityClientRenderer_EmitsPlayableChatClientSlice()
+    {
+        var plan = Render(new UnityClientRenderer(), Spec(ClientEngine.Unity));
+
+        var rpcMarker = AssertPath(plan, "Client/Assets/Scripts/Rpc/LakonaRpcGeneration.cs").Content;
+        Assert.Contains("[assembly: LakonaRpcGenerateClient(\"Rpc.Generated\")]", rpcMarker, StringComparison.Ordinal);
+
+        var loginClient = AssertPath(plan, "Client/Assets/Scripts/Login/LoginClient.cs").Content;
+        Assert.Contains("public sealed class LoginClient : ILoginCallback, IChatCallback, IAsyncDisposable", loginClient, StringComparison.Ordinal);
+        Assert.Contains("callbacks.Add((ILoginCallback)this);", loginClient, StringComparison.Ordinal);
+        Assert.Contains("callbacks.Add((IChatCallback)this);", loginClient, StringComparison.Ordinal);
+        Assert.Contains("_loginService = _rpcClient.Api.Shared.Login;", loginClient, StringComparison.Ordinal);
+        Assert.Contains("public async Task<LoginReply> LoginAsync(string playerName)", loginClient, StringComparison.Ordinal);
+        Assert.DoesNotContain("public sealed class LoginClient\r\n    {\r\n    }", loginClient, StringComparison.Ordinal);
+
+        var chatClient = AssertPath(plan, "Client/Assets/Scripts/Chat/ChatClient.cs").Content;
+        Assert.Contains("private readonly IChatService _chatService;", chatClient, StringComparison.Ordinal);
+        Assert.Contains("_chatService = loginClient.RpcClient.Api.Shared.Chat;", chatClient, StringComparison.Ordinal);
+        Assert.Contains("public async Task BindAsync()", chatClient, StringComparison.Ordinal);
+        Assert.Contains("public async Task SendAsync(string text)", chatClient, StringComparison.Ordinal);
+
+        var loginUi = AssertPath(plan, "Client/Assets/Scripts/Login/LoginUI.cs").Content;
+        Assert.Contains("using Lakona.Rpc.Transport.Kcp;", loginUi, StringComparison.Ordinal);
+        Assert.Contains("using Lakona.Rpc.Serializer.MemoryPack;", loginUi, StringComparison.Ordinal);
+        Assert.Contains("new KcpTransport(_serverHost, _serverPort)", loginUi, StringComparison.Ordinal);
+        Assert.Contains("new MemoryPackRpcSerializer()", loginUi, StringComparison.Ordinal);
+        Assert.Contains("ChatSession.LoginClient = client;", loginUi, StringComparison.Ordinal);
+
+        var chatUi = AssertPath(plan, "Client/Assets/Scripts/Chat/ChatUI.cs").Content;
+        Assert.Contains("private LoginClient? _loginClient;", chatUi, StringComparison.Ordinal);
+        Assert.Contains("_client = new ChatClient(loginClient);", chatUi, StringComparison.Ordinal);
+        Assert.Contains("await _client.BindAsync();", chatUi, StringComparison.Ordinal);
+        Assert.Contains("await _client.SendAsync(text);", chatUi, StringComparison.Ordinal);
+
+        AssertPath(plan, "Client/Assets/Scripts/Chat/ChatSession.cs");
+        AssertPath(plan, "Client/Assets/Scripts/Rpc/LakonaRpcGeneration.cs.meta");
+        AssertPath(plan, "Client/Assets/Scripts/Login/LoginUI.cs.meta");
+        AssertPath(plan, "Client/Assets/Scripts/Chat/ChatUI.cs.meta");
+        AssertPath(plan, "Client/Assets/UI/LoginScene.uxml");
+        AssertPath(plan, "Client/Assets/UI/LoginScene.uss");
+        AssertPath(plan, "Client/Assets/UI/ChatScene.uxml");
+        AssertPath(plan, "Client/Assets/UI/ChatScene.uss");
+        AssertPath(plan, "Client/Assets/UI/LakonaGameChatPanelSettings.asset");
+        AssertPath(plan, "Client/Assets/UI Toolkit/UnityThemes/UnityDefaultRuntimeTheme.tss");
+        AssertPath(plan, "Client/Assets/Scenes/LoginScene.unity");
+        AssertPath(plan, "Client/Assets/Scenes/ChatScene.unity");
+        AssertPath(plan, "Client/Assets/Editor/LakonaGameNuGetPackageImportGuard.cs");
+    }
+
+    [Theory]
+    [InlineData("Tcp", "Json", "using Lakona.Rpc.Transport.Tcp;", "using Lakona.Rpc.Serializer.Json;", "new TcpTransport(_serverHost, _serverPort)", "new JsonRpcSerializer()")]
+    [InlineData("WebSocket", "Json", "using Lakona.Rpc.Transport.WebSocket;", "using Lakona.Rpc.Serializer.Json;", "new WsTransport($\"ws://{_serverHost}:{_serverPort}{NormalizePath(_serverPath)}\")", "new JsonRpcSerializer()")]
+    [InlineData("Kcp", "MemoryPack", "using Lakona.Rpc.Transport.Kcp;", "using Lakona.Rpc.Serializer.MemoryPack;", "new KcpTransport(_serverHost, _serverPort)", "new MemoryPackRpcSerializer()")]
+    public void UnityClientRenderer_LoginUiUsesSelectedTransportAndSerializer(
+        string transportName,
+        string serializerName,
+        string transportUsing,
+        string serializerUsing,
+        string transportExpression,
+        string serializerExpression)
+    {
+        var transport = Enum.Parse<TransportKind>(transportName);
+        var serializer = Enum.Parse<SerializerKind>(serializerName);
+        var plan = Render(new UnityClientRenderer(), Spec(ClientEngine.Unity, serializer: serializer, transport: transport));
+        var loginUi = AssertPath(plan, "Client/Assets/Scripts/Login/LoginUI.cs").Content;
+
+        Assert.Contains(transportUsing, loginUi, StringComparison.Ordinal);
+        Assert.Contains(serializerUsing, loginUi, StringComparison.Ordinal);
+        Assert.Contains(transportExpression, loginUi, StringComparison.Ordinal);
+        Assert.Contains(serializerExpression, loginUi, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void GodotClientRenderer_EmitsGodotFilesAndNoUnityFiles()
     {
         var plan = Render(new GodotClientRenderer(), Spec(ClientEngine.Godot));
@@ -29,9 +102,137 @@ public sealed class ClientRendererTests
         Assert.Contains(plan.Files, file => file.RelativePath == "Client/Client.csproj");
         Assert.Contains(plan.Files, file => file.RelativePath == "Client/Login.tscn");
         Assert.Contains(plan.Files, file => file.RelativePath == "Client/Chat.tscn");
+        Assert.Contains(plan.Files, file => file.RelativePath == "Client/Scripts/Login/LoginClient.cs");
+        Assert.Contains(plan.Files, file => file.RelativePath == "Client/Scripts/Chat/ChatClient.cs");
+        Assert.Contains(plan.Files, file => file.RelativePath == "Client/Scripts/Chat/ChatSession.cs");
         Assert.Contains(plan.Files, file => file.RelativePath == "Client/Theme/LakonaTheme.tres");
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Client/Scripts/Theme/LakonaTheme.cs");
         Assert.DoesNotContain(plan.Files, file => file.RelativePath.StartsWith("Client/Assets/", StringComparison.Ordinal));
-        Assert.DoesNotContain(plan.Files, file => file.Content.Contains("BuildUi", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void GodotClientRenderer_EmitsPlayableChatClientSlice()
+    {
+        var plan = Render(new GodotClientRenderer(), Spec(ClientEngine.Godot, serializer: SerializerKind.Json, transport: TransportKind.WebSocket));
+
+        var project = AssertPath(plan, "Client/Client.csproj").Content;
+        Assert.Contains("<Nullable>enable</Nullable>", project, StringComparison.Ordinal);
+        Assert.Contains("<ImplicitUsings>enable</ImplicitUsings>", project, StringComparison.Ordinal);
+        Assert.Contains("<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>", project, StringComparison.Ordinal);
+        Assert.Contains("<LakonaRpcGeneratedNamespace>Rpc.Generated</LakonaRpcGeneratedNamespace>", project, StringComparison.Ordinal);
+        Assert.Contains("<PackageReference Include=\"Lakona.Rpc.Serializer.Json\"", project, StringComparison.Ordinal);
+
+        var projectGodot = AssertPath(plan, "Client/project.godot").Content;
+        Assert.Contains("config/features=PackedStringArray(\"4.6\", \"C#\")", projectGodot, StringComparison.Ordinal);
+        Assert.Contains("[autoload]", projectGodot, StringComparison.Ordinal);
+        Assert.Contains("ChatSession=\"*res://Scripts/Chat/ChatSession.cs\"", projectGodot, StringComparison.Ordinal);
+        Assert.Contains("[dotnet]", projectGodot, StringComparison.Ordinal);
+        Assert.Contains("project/assembly_name=\"Client\"", projectGodot, StringComparison.Ordinal);
+
+        var loginClient = AssertPath(plan, "Client/Scripts/Login/LoginClient.cs").Content;
+        Assert.Contains("using Rpc.Generated;", loginClient, StringComparison.Ordinal);
+        Assert.Contains("public sealed class LoginClient : ILoginCallback, IChatCallback, IAsyncDisposable", loginClient, StringComparison.Ordinal);
+        Assert.Contains("callbacks.Add((ILoginCallback)this);", loginClient, StringComparison.Ordinal);
+        Assert.Contains("callbacks.Add((IChatCallback)this);", loginClient, StringComparison.Ordinal);
+        Assert.Contains("_loginService = _rpcClient.Api.Shared.Login;", loginClient, StringComparison.Ordinal);
+
+        var chatClient = AssertPath(plan, "Client/Scripts/Chat/ChatClient.cs").Content;
+        Assert.Contains("private readonly IChatService _chatService;", chatClient, StringComparison.Ordinal);
+        Assert.Contains("_chatService = loginClient.RpcClient.Api.Shared.Chat;", chatClient, StringComparison.Ordinal);
+        Assert.Contains("public async Task BindAsync()", chatClient, StringComparison.Ordinal);
+        Assert.Contains("public async Task SendAsync(string text)", chatClient, StringComparison.Ordinal);
+
+        var session = AssertPath(plan, "Client/Scripts/Chat/ChatSession.cs").Content;
+        Assert.Contains("public partial class ChatSession : Node", session, StringComparison.Ordinal);
+        Assert.Contains("public LoginClient? LoginClient { get; set; }", session, StringComparison.Ordinal);
+        Assert.Contains("public LoginReply? LoginReply { get; set; }", session, StringComparison.Ordinal);
+
+        var loginScene = AssertPath(plan, "Client/Scripts/Login/LoginScene.cs").Content;
+        Assert.DoesNotContain("private void BuildUi()", loginScene, StringComparison.Ordinal);
+        Assert.DoesNotContain("using Client.Theme;", loginScene, StringComparison.Ordinal);
+        Assert.DoesNotContain("new ColorRect", loginScene, StringComparison.Ordinal);
+        Assert.Contains("GetNode<LineEdit>(\"%NameField\")", loginScene, StringComparison.Ordinal);
+        Assert.Contains("GetNode<Button>(\"%ConnectButton\")", loginScene, StringComparison.Ordinal);
+        Assert.Contains("GetNode<Label>(\"%StatusLabel\")", loginScene, StringComparison.Ordinal);
+        Assert.Contains("new WsTransport($\"ws://{_serverHost}:{_serverPort}{NormalizePath(_serverPath)}\")", loginScene, StringComparison.Ordinal);
+        Assert.Contains("new JsonRpcSerializer()", loginScene, StringComparison.Ordinal);
+        Assert.Contains("var session = GetNode<ChatSession>(\"/root/ChatSession\");", loginScene, StringComparison.Ordinal);
+        Assert.Contains("GetTree().ChangeSceneToFile(\"res://Chat.tscn\");", loginScene, StringComparison.Ordinal);
+
+        var chatScene = AssertPath(plan, "Client/Scripts/Chat/ChatScene.cs").Content;
+        Assert.DoesNotContain("private void BuildUi()", chatScene, StringComparison.Ordinal);
+        Assert.DoesNotContain("using Client.Theme;", chatScene, StringComparison.Ordinal);
+        Assert.DoesNotContain("new PanelContainer", chatScene, StringComparison.Ordinal);
+        Assert.Contains("GetNode<LineEdit>(\"%MessageField\")", chatScene, StringComparison.Ordinal);
+        Assert.Contains("GetNode<Button>(\"%SendButton\")", chatScene, StringComparison.Ordinal);
+        Assert.Contains("GetNode<RichTextLabel>(\"%MessageLog\")", chatScene, StringComparison.Ordinal);
+        Assert.Contains("GetNode<Label>(\"%OnlineCount\")", chatScene, StringComparison.Ordinal);
+        Assert.Contains("_client = new ChatClient(loginClient);", chatScene, StringComparison.Ordinal);
+        Assert.Contains("if (_client == null)", chatScene, StringComparison.Ordinal);
+        Assert.Contains("await _client.BindAsync();", chatScene, StringComparison.Ordinal);
+        Assert.Contains("await _client.SendAsync(text);", chatScene, StringComparison.Ordinal);
+        Assert.Contains("System.Environment.NewLine", chatScene, StringComparison.Ordinal);
+
+        var theme = AssertPath(plan, "Client/Theme/LakonaTheme.tres").Content;
+        Assert.Contains("[gd_resource type=\"Theme\" load_steps=8 format=3]", theme, StringComparison.Ordinal);
+        Assert.Contains("Button/styles/disabled = SubResource(\"3\")", theme, StringComparison.Ordinal);
+        Assert.Contains("TitleLabel/type = \"Label\"", theme, StringComparison.Ordinal);
+        Assert.Contains("NameLabel/type = \"Label\"", theme, StringComparison.Ordinal);
+        Assert.Contains("ChatHeader/type = \"PanelContainer\"", theme, StringComparison.Ordinal);
+        Assert.Contains("ChatFooter/type = \"PanelContainer\"", theme, StringComparison.Ordinal);
+
+        var loginTscn = AssertPath(plan, "Client/Login.tscn").Content;
+        Assert.Contains("[gd_scene load_steps=3 format=3]", loginTscn, StringComparison.Ordinal);
+        Assert.Contains("[ext_resource type=\"Theme\" path=\"res://Theme/LakonaTheme.tres\" id=\"2\"]", loginTscn, StringComparison.Ordinal);
+        Assert.Contains("[node name=\"LoginScene\" type=\"Control\"]", loginTscn, StringComparison.Ordinal);
+        Assert.Contains("theme = ExtResource(\"2\")", loginTscn, StringComparison.Ordinal);
+        Assert.Contains("[node name=\"LoginPanel\" type=\"PanelContainer\" parent=\"Center\"]", loginTscn, StringComparison.Ordinal);
+        Assert.Contains("theme_type_variation = LoginPanel", loginTscn, StringComparison.Ordinal);
+        Assert.Contains("[node name=\"NameField\" type=\"LineEdit\" parent=\"Center/LoginPanel/PanelContent\"]", loginTscn, StringComparison.Ordinal);
+        Assert.Contains("[node name=\"ConnectButton\" type=\"Button\" parent=\"Center/LoginPanel/PanelContent\"]", loginTscn, StringComparison.Ordinal);
+        Assert.Contains("[node name=\"StatusLabel\" type=\"Label\" parent=\"Center/LoginPanel/PanelContent\"]", loginTscn, StringComparison.Ordinal);
+        Assert.Equal(3, CountOccurrences(loginTscn, "unique_name_in_owner = true"));
+
+        var chatTscn = AssertPath(plan, "Client/Chat.tscn").Content;
+        Assert.Contains("[gd_scene load_steps=3 format=3]", chatTscn, StringComparison.Ordinal);
+        Assert.Contains("[ext_resource type=\"Theme\" path=\"res://Theme/LakonaTheme.tres\" id=\"2\"]", chatTscn, StringComparison.Ordinal);
+        Assert.Contains("[node name=\"ChatScene\" type=\"Control\"]", chatTscn, StringComparison.Ordinal);
+        Assert.Contains("theme = ExtResource(\"2\")", chatTscn, StringComparison.Ordinal);
+        Assert.Contains("[node name=\"Header\" type=\"PanelContainer\" parent=\"Layout/ChatLayout\"]", chatTscn, StringComparison.Ordinal);
+        Assert.Contains("[node name=\"MessageLog\" type=\"RichTextLabel\" parent=\"Layout/ChatLayout\"]", chatTscn, StringComparison.Ordinal);
+        Assert.Contains("[node name=\"MessageField\" type=\"LineEdit\" parent=\"Layout/ChatLayout/Footer/SendRow\"]", chatTscn, StringComparison.Ordinal);
+        Assert.Contains("[node name=\"SendButton\" type=\"Button\" parent=\"Layout/ChatLayout/Footer/SendRow\"]", chatTscn, StringComparison.Ordinal);
+        Assert.Contains("theme_type_variation = ChatHeader", chatTscn, StringComparison.Ordinal);
+        Assert.Contains("theme_type_variation = ChatFooter", chatTscn, StringComparison.Ordinal);
+        Assert.Equal(4, CountOccurrences(chatTscn, "unique_name_in_owner = true"));
+
+        AssertPath(plan, "Client/Scripts/Login/LoginClient.cs.uid");
+        AssertPath(plan, "Client/Scripts/Chat/ChatClient.cs.uid");
+        AssertPath(plan, "Client/Scripts/Chat/ChatSession.cs.uid");
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Client/Scripts/Theme/LakonaTheme.cs.uid");
+    }
+
+    [Theory]
+    [InlineData("Tcp", "Json", "using Lakona.Rpc.Transport.Tcp;", "using Lakona.Rpc.Serializer.Json;", "new TcpTransport(_serverHost, _serverPort)", "new JsonRpcSerializer()")]
+    [InlineData("WebSocket", "Json", "using Lakona.Rpc.Transport.WebSocket;", "using Lakona.Rpc.Serializer.Json;", "new WsTransport($\"ws://{_serverHost}:{_serverPort}{NormalizePath(_serverPath)}\")", "new JsonRpcSerializer()")]
+    [InlineData("Kcp", "MemoryPack", "using Lakona.Rpc.Transport.Kcp;", "using Lakona.Rpc.Serializer.MemoryPack;", "new KcpTransport(_serverHost, _serverPort)", "new MemoryPackRpcSerializer()")]
+    public void GodotClientRenderer_LoginSceneUsesSelectedTransportAndSerializer(
+        string transportName,
+        string serializerName,
+        string transportUsing,
+        string serializerUsing,
+        string transportExpression,
+        string serializerExpression)
+    {
+        var transport = Enum.Parse<TransportKind>(transportName);
+        var serializer = Enum.Parse<SerializerKind>(serializerName);
+        var plan = Render(new GodotClientRenderer(), Spec(ClientEngine.Godot, serializer: serializer, transport: transport));
+        var loginScene = AssertPath(plan, "Client/Scripts/Login/LoginScene.cs").Content;
+
+        Assert.Contains(transportUsing, loginScene, StringComparison.Ordinal);
+        Assert.Contains(serializerUsing, loginScene, StringComparison.Ordinal);
+        Assert.Contains(transportExpression, loginScene, StringComparison.Ordinal);
+        Assert.Contains(serializerExpression, loginScene, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -82,16 +283,38 @@ public sealed class ClientRendererTests
         return builder.Build();
     }
 
-    private static LakonaProjectSpec Spec(ClientEngine engine, NuGetForUnitySource source = NuGetForUnitySource.OpenUpm)
+    private static LakonaProjectSpec Spec(
+        ClientEngine engine,
+        NuGetForUnitySource source = NuGetForUnitySource.OpenUpm,
+        SerializerKind serializer = SerializerKind.MemoryPack,
+        TransportKind transport = TransportKind.Kcp)
     {
         return new LakonaProjectSpecFactory().Create(new NewProjectOptions(
             "MyGame",
             ".",
             engine,
-            TransportKind.Kcp,
-            SerializerKind.MemoryPack,
+            transport,
+            serializer,
             PersistenceKind.None,
             source,
             DeploymentProfile.None));
+    }
+
+    private static GeneratedFile AssertPath(GenerationPlan plan, string relativePath)
+    {
+        return Assert.Single(plan.Files, file => file.RelativePath == relativePath);
+    }
+
+    private static int CountOccurrences(string text, string value)
+    {
+        var count = 0;
+        var offset = 0;
+        while ((offset = text.IndexOf(value, offset, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            offset += value.Length;
+        }
+
+        return count;
     }
 }

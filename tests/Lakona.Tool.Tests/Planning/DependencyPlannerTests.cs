@@ -59,16 +59,17 @@ public sealed class DependencyPlannerTests
     }
 
     [Fact]
-    public void Create_GodotMemoryPack_DoesNotDuplicateSharedOwnedMemoryPackPackages()
+    public void Create_GodotMemoryPack_IncludesSelectedSerializerButDoesNotDuplicateSharedOwnedMemoryPackPackages()
     {
         var references = DependencyPlanner.Create(ProjectTarget.GodotClient, Spec()).PackageReferences;
 
         AssertPackage(references, "Lakona.Rpc.Core");
         AssertPackage(references, "Lakona.Rpc.Client");
         AssertPackage(references, "Lakona.Rpc.Transport.Kcp");
+        AssertPackage(references, "Lakona.Rpc.Serializer.MemoryPack");
         AssertPackage(references, "Lakona.Rpc.Analyzers", privateAssets: "all", includeAssets: AnalyzerIncludeAssets);
         AssertPackage(references, "Lakona.Game.Client");
-        Assert.DoesNotContain(references, reference => reference.Id is "Lakona.Rpc.Serializer.MemoryPack" or "MemoryPack" or "MemoryPack.Generator");
+        Assert.DoesNotContain(references, reference => reference.Id is "MemoryPack" or "MemoryPack.Generator");
     }
 
     private const string AnalyzerIncludeAssets = "runtime; build; native; contentfiles; analyzers; buildtransitive";

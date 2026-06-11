@@ -26,8 +26,41 @@ public sealed class ServerAppRendererTests
 
         var program = AssertPath(plan, "Server/App/Program.cs").Content;
         Assert.Contains("using Lakona.Game.Server.Hosting;", program, StringComparison.Ordinal);
-        Assert.Contains("await LakonaGameServer.RunAsync(args);", program, StringComparison.Ordinal);
+        Assert.Contains("using Microsoft.Extensions.DependencyInjection;", program, StringComparison.Ordinal);
+        Assert.Contains("using Server.App.Chat;", program, StringComparison.Ordinal);
+        Assert.Contains("using Server.App.Hosting;", program, StringComparison.Ordinal);
+        Assert.Contains("using Lakona.Rpc.Serializer.MemoryPack;", program, StringComparison.Ordinal);
+        Assert.Contains("using Lakona.Rpc.Transport.Kcp;", program, StringComparison.Ordinal);
+        Assert.Contains("return await LakonaGameServer.RunAsync(args, server => server", program, StringComparison.Ordinal);
+        Assert.Contains(".UseTransport(\"kcp\")", program, StringComparison.Ordinal);
+        Assert.Contains(".UseSerializer(() => new MemoryPackRpcSerializer())", program, StringComparison.Ordinal);
+        Assert.Contains("new KcpConnectionAcceptor(opts.Port, opts.Host)", program, StringComparison.Ordinal);
+        Assert.Contains(".AddServices(services => services.AddSingleton<ChatConnectionLifecycle>())", program, StringComparison.Ordinal);
+        Assert.Contains(".BindServices(ServiceBindingConfigurator.Bind));", program, StringComparison.Ordinal);
         Assert.DoesNotContain("RpcServerHostBuilder", program, StringComparison.Ordinal);
+
+        var chatRoomActor = AssertPath(plan, "Server/App/Chat/ChatRoomActor.cs").Content;
+        Assert.Contains("internal sealed class ChatRoomActor : Actor", chatRoomActor, StringComparison.Ordinal);
+        Assert.Contains("ValueTask<LoginReply> LoginAsync", chatRoomActor, StringComparison.Ordinal);
+        Assert.Contains("void BindChatCallback", chatRoomActor, StringComparison.Ordinal);
+        Assert.Contains("ValueTask SendAsync", chatRoomActor, StringComparison.Ordinal);
+        Assert.DoesNotContain("ValueTask.CompletedTask", chatRoomActor, StringComparison.Ordinal);
+        Assert.DoesNotContain("ValueTask.FromResult", chatRoomActor, StringComparison.Ordinal);
+
+        var lifecycle = AssertPath(plan, "Server/App/Chat/ChatConnectionLifecycle.cs").Content;
+        Assert.Contains("internal sealed class ChatConnectionLifecycle", lifecycle, StringComparison.Ordinal);
+        Assert.Contains("session.Disconnected", lifecycle, StringComparison.Ordinal);
+        Assert.Contains("session.Disconnected += ex =>", lifecycle, StringComparison.Ordinal);
+        Assert.DoesNotContain("session.Disconnected += _ =>", lifecycle, StringComparison.Ordinal);
+        Assert.Contains("AskAsync<ChatRoomActor", lifecycle, StringComparison.Ordinal);
+
+        var binding = AssertPath(plan, "Server/App/Hosting/ServiceBindingConfigurator.cs").Content;
+        Assert.Contains("LoginServiceBinder.BindFactory", binding, StringComparison.Ordinal);
+        Assert.Contains("ChatServiceBinder.BindFactory", binding, StringComparison.Ordinal);
+        Assert.Contains("new LoginCallbackProxy(session)", binding, StringComparison.Ordinal);
+        Assert.Contains("new ChatCallbackProxy(session)", binding, StringComparison.Ordinal);
+
+        AssertPath(plan, "Server/App/Properties/AssemblyInfo.cs");
 
         var appsettings = AssertPath(plan, "Server/App/appsettings.json").Content;
         using var document = JsonDocument.Parse(appsettings);
@@ -42,12 +75,20 @@ public sealed class ServerAppRendererTests
     [Fact]
     public void AddFiles_WebSocketSettingsIncludeOnlyPathExtension()
     {
-        var appsettings = AssertPath(Render(Spec(TransportKind.WebSocket, SerializerKind.Json)), "Server/App/appsettings.json").Content;
+        var plan = Render(Spec(TransportKind.WebSocket, SerializerKind.Json));
+        var appsettings = AssertPath(plan, "Server/App/appsettings.json").Content;
 
         using var document = JsonDocument.Parse(appsettings);
         var endpoint = document.RootElement.GetProperty("Lakona.Game").GetProperty("Endpoints")[0];
         Assert.Equal("websocket", endpoint.GetProperty("Transport").GetString());
         Assert.Equal("/ws", endpoint.GetProperty("Path").GetString());
+
+        var program = AssertPath(plan, "Server/App/Program.cs").Content;
+        Assert.Contains("using Lakona.Rpc.Serializer.Json;", program, StringComparison.Ordinal);
+        Assert.Contains("using Lakona.Rpc.Transport.WebSocket;", program, StringComparison.Ordinal);
+        Assert.Contains(".UseTransport(\"websocket\")", program, StringComparison.Ordinal);
+        Assert.Contains(".UseSerializer(() => new JsonRpcSerializer())", program, StringComparison.Ordinal);
+        Assert.Contains("WsConnectionAcceptor.CreateAsync(opts.Port, opts.Path, opts.Host)", program, StringComparison.Ordinal);
     }
 
     private static GenerationPlan Render(LakonaProjectSpec spec)

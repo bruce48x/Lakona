@@ -24,8 +24,8 @@ internal sealed class UnityClientRenderer : IClientRenderer
         builder.AddFile("Client/ProjectSettings/ProjectVersion.txt", RenderProjectVersion(spec.ClientEngine), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Client/Assets/packages.config", RenderPackagesConfig(spec), FileWriteMode.Replace, GeneratedFileKind.Xml);
         builder.AddFile("Client/Assets/NuGet.config", RenderNuGetConfig(spec.ClientEngine), FileWriteMode.Replace, GeneratedFileKind.Xml);
-        builder.AddFile("Client/Assets/Scripts/Login/LoginClient.cs", RenderLoginClient(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Assets/Scripts/Chat/ChatClient.cs", RenderChatClient(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        AddClientCodeFiles(spec, builder);
+        AddUnityAssetFiles(spec, builder);
     }
 
     private static string RenderManifest(LakonaProjectSpec spec)
@@ -102,27 +102,48 @@ internal sealed class UnityClientRenderer : IClientRenderer
         """;
     }
 
-    private static string RenderLoginClient()
+    private static void AddClientCodeFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
-        return """
-        namespace Client.Login
-        {
-            public sealed class LoginClient
-            {
-            }
-        }
-        """;
+        builder.AddFile("Client/Assets/Scripts/Rpc/LakonaRpcGeneration.cs", UnityClientCodeTemplates.RenderRpcGeneration(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/Scripts/Rpc/LakonaRpcGeneration.cs.meta", UnityClientAssetTemplates.RenderMonoScriptMeta(UnityClientAssetTemplates.RpcGenerationGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
+
+        builder.AddFile("Client/Assets/Scripts/Login/LoginClient.cs", UnityClientCodeTemplates.RenderLoginClient(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/Scripts/Login/LoginClient.cs.meta", UnityClientAssetTemplates.RenderMonoScriptMeta(UnityClientAssetTemplates.LoginClientGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/Scripts/Login/LoginUI.cs", UnityClientCodeTemplates.RenderLoginUI(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/Scripts/Login/LoginUI.cs.meta", UnityClientAssetTemplates.RenderMonoScriptMeta(UnityClientAssetTemplates.LoginUiGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
+
+        builder.AddFile("Client/Assets/Scripts/Chat/ChatClient.cs", UnityClientCodeTemplates.RenderChatClient(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/Scripts/Chat/ChatClient.cs.meta", UnityClientAssetTemplates.RenderMonoScriptMeta(UnityClientAssetTemplates.ChatClientGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/Scripts/Chat/ChatSession.cs", UnityClientCodeTemplates.RenderChatSession(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/Scripts/Chat/ChatSession.cs.meta", UnityClientAssetTemplates.RenderMonoScriptMeta(UnityClientAssetTemplates.ChatSessionGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/Scripts/Chat/ChatUI.cs", UnityClientCodeTemplates.RenderChatUI(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/Scripts/Chat/ChatUI.cs.meta", UnityClientAssetTemplates.RenderMonoScriptMeta(UnityClientAssetTemplates.ChatUiGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
+
+        builder.AddFile("Client/Assets/Editor/LakonaGameNuGetPackageImportGuard.cs", UnityClientCodeTemplates.RenderNuGetPackageImportGuard(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/Editor/LakonaGameNuGetPackageImportGuard.cs.meta", UnityClientAssetTemplates.RenderMonoScriptMeta(UnityClientAssetTemplates.ImportGuardGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
     }
 
-    private static string RenderChatClient()
+    private static void AddUnityAssetFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
-        return """
-        namespace Client.Chat
-        {
-            public sealed class ChatClient
-            {
-            }
-        }
-        """;
+        builder.AddFile("Client/Assets/UI/LoginScene.uxml", UnityClientAssetTemplates.RenderLoginUxml(), FileWriteMode.Replace, GeneratedFileKind.Xml);
+        builder.AddFile("Client/Assets/UI/LoginScene.uxml.meta", UnityClientAssetTemplates.RenderUxmlMeta(UnityClientAssetTemplates.LoginSceneUxmlGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/UI/LoginScene.uss", UnityClientAssetTemplates.RenderLoginUss(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/UI/LoginScene.uss.meta", UnityClientAssetTemplates.RenderUssMeta(UnityClientAssetTemplates.LoginSceneUssGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
+
+        builder.AddFile("Client/Assets/UI/ChatScene.uxml", UnityClientAssetTemplates.RenderChatUxml(), FileWriteMode.Replace, GeneratedFileKind.Xml);
+        builder.AddFile("Client/Assets/UI/ChatScene.uxml.meta", UnityClientAssetTemplates.RenderUxmlMeta(UnityClientAssetTemplates.ChatSceneUxmlGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/UI/ChatScene.uss", UnityClientAssetTemplates.RenderChatUss(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/UI/ChatScene.uss.meta", UnityClientAssetTemplates.RenderUssMeta(UnityClientAssetTemplates.ChatSceneUssGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
+
+        builder.AddFile("Client/Assets/UI/LakonaGameChatPanelSettings.asset", UnityClientAssetTemplates.RenderPanelSettingsAsset(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/UI/LakonaGameChatPanelSettings.asset.meta", UnityClientAssetTemplates.RenderNativeAssetMeta(UnityClientAssetTemplates.PanelSettingsGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/UI Toolkit/UnityThemes/UnityDefaultRuntimeTheme.tss", UnityClientAssetTemplates.RenderDefaultRuntimeTheme(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/UI Toolkit/UnityThemes/UnityDefaultRuntimeTheme.tss.meta", UnityClientAssetTemplates.RenderTssMeta(UnityClientAssetTemplates.RuntimeThemeGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
+
+        builder.AddFile("Client/Assets/Scenes/LoginScene.unity", UnityClientAssetTemplates.RenderLoginScene(spec.Transport), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/Scenes/LoginScene.unity.meta", UnityClientAssetTemplates.RenderSceneMeta(UnityClientAssetTemplates.LoginSceneGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/Scenes/ChatScene.unity", UnityClientAssetTemplates.RenderChatScene(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/Scenes/ChatScene.unity.meta", UnityClientAssetTemplates.RenderSceneMeta(UnityClientAssetTemplates.ChatSceneGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/ProjectSettings/EditorBuildSettings.asset", UnityClientAssetTemplates.RenderEditorBuildSettings(), FileWriteMode.Replace, GeneratedFileKind.Text);
     }
 }
