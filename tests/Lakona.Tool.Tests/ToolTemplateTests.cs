@@ -1867,4 +1867,83 @@ public sealed class ToolTemplateTests
             }
         }
     }
+
+    [Fact]
+    public async Task GodotScaffold_GeneratesThemeAndFullTscnFiles()
+    {
+        var projectRoot = Path.Combine(Path.GetTempPath(), "lakona-tests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var serverDirectory = Path.Combine(projectRoot, "Server", "App");
+            Directory.CreateDirectory(serverDirectory);
+            Directory.CreateDirectory(Path.Combine(projectRoot, "Shared"));
+            await File.WriteAllTextAsync(
+                Path.Combine(serverDirectory, "Server.App.csproj"),
+                """
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <TargetFramework>net10.0</TargetFramework>
+                  </PropertyGroup>
+                </Project>
+                """,
+                TestContext.Current.CancellationToken);
+
+            await new ProjectScaffolder().AugmentProjectWithLakonaGameAsync(
+                projectRoot,
+                new NewCommandOptions(
+                    Name: "MyGame",
+                    OutputPath: null,
+                    ClientEngine: "godot",
+                    Transport: "kcp",
+                    NetworkProfile: "cluster",
+                    Serializer: "memorypack",
+                    Persistence: "none",
+                    NuGetForUnitySource: "embedded",
+                    DeployProfile: "none"));
+
+            // 1. Verify .tres exists, not .cs theme
+            Assert.True(File.Exists(Path.Combine(projectRoot, "Client", "Theme", "LakonaTheme.tres")));
+            Assert.False(File.Exists(Path.Combine(projectRoot, "Client", "Scripts", "Theme", "LakonaTheme.cs")));
+
+            var tresContent = await File.ReadAllTextAsync(
+                Path.Combine(projectRoot, "Client", "Theme", "LakonaTheme.tres"),
+                TestContext.Current.CancellationToken);
+            Assert.Contains("[gd_resource type=\"Theme\"", tresContent, StringComparison.Ordinal);
+
+            // 2. Login.tscn has full node tree
+            var loginTscn = await File.ReadAllTextAsync(
+                Path.Combine(projectRoot, "Client", "Login.tscn"),
+                TestContext.Current.CancellationToken);
+            Assert.Contains("unique_name_in_owner = true", loginTscn, StringComparison.Ordinal);
+            Assert.Contains("theme = ExtResource(\"2\")", loginTscn, StringComparison.Ordinal);
+
+            // 3. Chat.tscn has full node tree
+            var chatTscn = await File.ReadAllTextAsync(
+                Path.Combine(projectRoot, "Client", "Chat.tscn"),
+                TestContext.Current.CancellationToken);
+            Assert.Contains("unique_name_in_owner = true", chatTscn, StringComparison.Ordinal);
+            Assert.Contains("theme = ExtResource(\"2\")", chatTscn, StringComparison.Ordinal);
+
+            // 4. LoginScene.cs has no BuildUi, has GetNode
+            var loginCs = await File.ReadAllTextAsync(
+                Path.Combine(projectRoot, "Client", "Scripts", "Login", "LoginScene.cs"),
+                TestContext.Current.CancellationToken);
+            Assert.DoesNotContain("BuildUi", loginCs, StringComparison.Ordinal);
+            Assert.Contains("GetNode<LineEdit>(\"%NameField\")", loginCs, StringComparison.Ordinal);
+
+            // 5. ChatScene.cs has no BuildUi, has GetNode
+            var chatCs = await File.ReadAllTextAsync(
+                Path.Combine(projectRoot, "Client", "Scripts", "Chat", "ChatScene.cs"),
+                TestContext.Current.CancellationToken);
+            Assert.DoesNotContain("BuildUi", chatCs, StringComparison.Ordinal);
+            Assert.Contains("GetNode<LineEdit>(\"%MessageField\")", chatCs, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(projectRoot))
+            {
+                Directory.Delete(projectRoot, recursive: true);
+            }
+        }
+    }
 }
