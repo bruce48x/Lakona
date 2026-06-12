@@ -1,21 +1,98 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vs/
+*.suo
+*.user
+*.userprefs
+*.DotSettings.user
+**/.claude/settings.local.json
+
+# .NET build outputs and local package caches
 bin/
 obj/
+**/bin/
+**/obj/
 artifacts/
+**/artifacts/
+*.nupkg
+*.snupkg
+/.dotnet/
+/.dotnetcli/
+/.nuget/
+
+# Local verification and agent workspaces
 .tmp/
 temp/
 _verify/
 _verify_fresh/
-.dotnet/
-.nuget/
+/.buildtmp/
+/.superpowers/
+/docs/superpowers/
+/.worktrees/
+
+# Unity generated folders
 Library/
 Temp/
 Logs/
 UserSettings/
+Obj/
+Build/
+Builds/
+MemoryCaptures/
+Recordings/
+/samples/*/Client/[Ll]ibrary/
+/samples/*/Client/[Tt]emp/
+/samples/*/Client/[Ll]ogs/
+/samples/*/Client/[Uu]ser[Ss]ettings/
+/samples/*/Client/[Oo]bj/
+/samples/*/Client/[Bb]uild/
+/samples/*/Client/[Bb]uilds/
+/samples/*/Client/[Mm]emory[Cc]aptures/
+/samples/*/Client/[Rr]ecordings/
+
+# Unity generated project and IDE files
+/samples/*/Client/*.csproj
+/samples/*/Client/*.sln
+/samples/*/Client/*.slnx
+/samples/*/Client/*.unityproj
+/samples/*/Client/*.pidb
+/samples/*/Client/*.booproj
+/samples/*/Client/*.svd
+/samples/*/Client/*.pdb
+/samples/*/Client/*.mdb
+/samples/*/Client/*.opendb
+/samples/*/Client/*.VC.db
+
+# Keep intentional Godot sample project files trackable.
+!/samples/*.Godot*/Client/*.csproj
+
+# NuGetForUnity restored packages in samples
+/samples/*/Client/Assets/Packages/
+
+# Generated RPC glue should not be committed.
+/samples/*/Server/*/Generated/
+/samples/*/Client/Assets/Scripts/Rpc/Generated/
+/samples/*/Client/Scripts/Rpc/Generated/
+
+# Godot generated folders and imported assets
 .godot/
 .import/
-*.user
-*.suo
-*.nupkg
-*.snupkg
-docs/superpowers/
-.superpowers/
+/samples/*/.godot/
+/samples/*/.import/
+/samples/*/Client/.godot/
+/samples/*/Client/.import/
+/samples/*/export_presets.cfg
+/samples/*/Client/export_presets.cfg
+*.import
+
+# Logs
+*.log
+
+# Terraform local state
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
