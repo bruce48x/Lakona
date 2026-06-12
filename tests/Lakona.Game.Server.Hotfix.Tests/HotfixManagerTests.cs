@@ -317,6 +317,68 @@ public sealed class HotfixManagerTests
     }
 
     [Fact]
+    public async Task Reload_fails_when_service_return_type_is_defined_in_hotfix_assembly()
+    {
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var manager = new HotfixManager(
+            new FixedAssemblySource(compiled.HotfixOwnedServiceReturnAssemblyPath),
+            [stableAssembly.GetName().Name!]);
+
+        var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Contains("must resolve from a shared AssemblyLoadContext", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Reload_fails_when_service_argument_type_is_defined_in_hotfix_assembly()
+    {
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var manager = new HotfixManager(
+            new FixedAssemblySource(compiled.HotfixOwnedServiceArgumentAssemblyPath),
+            [stableAssembly.GetName().Name!]);
+
+        var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Contains("must resolve from a shared AssemblyLoadContext", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Reload_publishes_valid_service_using_stable_boundary_types()
+    {
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var requestType = stableAssembly.GetType("StableContracts.ServiceRequest", throwOnError: true)!;
+        var replyType = stableAssembly.GetType("StableContracts.ServiceReply", throwOnError: true)!;
+        var contractType = stableAssembly.GetType("StableContracts.IManagerService", throwOnError: true)!;
+        var request = Activator.CreateInstance(requestType, 41)!;
+        var manager = new HotfixManager(
+            new FixedAssemblySource(compiled.ValidServiceHotfixAssemblyPath),
+            [stableAssembly.GetName().Name!]);
+
+        var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
+        var invoke = typeof(HotfixDispatchTable)
+            .GetMethods()
+            .Single(method => method.Name == nameof(HotfixDispatchTable.InvokeServiceAsync)
+                && method.GetGenericArguments().Length == 3)
+            .MakeGenericMethod(contractType, requestType, replyType);
+        var task = invoke.Invoke(HotfixDispatch.Current, ["LoginAsync", request])!;
+        var reply = await ((ValueTask<object>)typeof(HotfixManagerTests)
+            .GetMethod(nameof(AwaitValueTaskAsync), BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(replyType)
+            .Invoke(null, [task])!);
+        var value = (int)replyType.GetProperty("Value")!.GetValue(reply)!;
+        Assert.Equal(42, value);
+    }
+
+    [Fact]
     public async Task AddLakonaGameHotfix_second_call_rebuilds_manager_with_latest_source_and_shared_policy()
     {
         using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
@@ -473,7 +535,10 @@ public sealed class HotfixManagerTests
             string hotfixOwnedArgumentAssemblyPath,
             string managerTestHotfixAssemblyPath,
             string privateDependencyAssemblyPath,
-            string hotfixWithPrivateDependencyAssemblyPath)
+            string hotfixWithPrivateDependencyAssemblyPath,
+            string hotfixOwnedServiceReturnAssemblyPath,
+            string hotfixOwnedServiceArgumentAssemblyPath,
+            string validServiceHotfixAssemblyPath)
         {
             RootDirectory = rootDirectory;
             StableAssemblyPath = stableAssemblyPath;
@@ -486,6 +551,9 @@ public sealed class HotfixManagerTests
             ManagerTestHotfixAssemblyPath = managerTestHotfixAssemblyPath;
             PrivateDependencyAssemblyPath = privateDependencyAssemblyPath;
             HotfixWithPrivateDependencyAssemblyPath = hotfixWithPrivateDependencyAssemblyPath;
+            HotfixOwnedServiceReturnAssemblyPath = hotfixOwnedServiceReturnAssemblyPath;
+            HotfixOwnedServiceArgumentAssemblyPath = hotfixOwnedServiceArgumentAssemblyPath;
+            ValidServiceHotfixAssemblyPath = validServiceHotfixAssemblyPath;
         }
 
         public string RootDirectory { get; }
@@ -509,6 +577,12 @@ public sealed class HotfixManagerTests
         public string PrivateDependencyAssemblyPath { get; }
 
         public string HotfixWithPrivateDependencyAssemblyPath { get; }
+
+        public string HotfixOwnedServiceReturnAssemblyPath { get; }
+
+        public string HotfixOwnedServiceArgumentAssemblyPath { get; }
+
+        public string ValidServiceHotfixAssemblyPath { get; }
 
         public static async Task<CompiledHotfixFixture> CreateAsync(CancellationToken cancellationToken)
         {
@@ -534,6 +608,12 @@ public sealed class HotfixManagerTests
             var hotfixWithPrivateDependencyAssemblyName = $"HotfixWithPrivateDep_{suffix}";
             var privateDependencyAssemblyPath = Path.Combine(root, "private-dep", $"{privateDependencyAssemblyName}.dll");
             var hotfixWithPrivateDependencyAssemblyPath = Path.Combine(root, "hotfix-with-dep", $"{hotfixWithPrivateDependencyAssemblyName}.dll");
+            var hotfixOwnedServiceReturnAssemblyName = $"HotfixOwnedServiceReturn_{suffix}";
+            var hotfixOwnedServiceArgumentAssemblyName = $"HotfixOwnedServiceArgument_{suffix}";
+            var validServiceHotfixAssemblyName = $"ValidServiceHotfix_{suffix}";
+            var hotfixOwnedServiceReturnAssemblyPath = Path.Combine(root, "hotfix-owned-service-return", $"{hotfixOwnedServiceReturnAssemblyName}.dll");
+            var hotfixOwnedServiceArgumentAssemblyPath = Path.Combine(root, "hotfix-owned-service-argument", $"{hotfixOwnedServiceArgumentAssemblyName}.dll");
+            var validServiceHotfixAssemblyPath = Path.Combine(root, "valid-service-hotfix", $"{validServiceHotfixAssemblyName}.dll");
 
             Directory.CreateDirectory(Path.GetDirectoryName(stableAssemblyPath)!);
             Directory.CreateDirectory(Path.GetDirectoryName(hotfixAssemblyPath)!);
@@ -545,6 +625,9 @@ public sealed class HotfixManagerTests
             Directory.CreateDirectory(Path.GetDirectoryName(managerTestHotfixAssemblyPath)!);
             Directory.CreateDirectory(Path.GetDirectoryName(privateDependencyAssemblyPath)!);
             Directory.CreateDirectory(Path.GetDirectoryName(hotfixWithPrivateDependencyAssemblyPath)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(hotfixOwnedServiceReturnAssemblyPath)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(hotfixOwnedServiceArgumentAssemblyPath)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(validServiceHotfixAssemblyPath)!);
 
             await EmitAssemblyAsync(
                 stableAssemblyName,
@@ -552,12 +635,23 @@ public sealed class HotfixManagerTests
                 """
                 namespace StableContracts;
 
+                using System.Threading.Tasks;
+
                 public sealed class ArenaSimulation
                 {
                 }
 
                 public sealed class ManagerTestState
                 {
+                }
+
+                public sealed record ServiceRequest(int Value);
+
+                public sealed record ServiceReply(int Value);
+
+                public interface IManagerService
+                {
+                    ValueTask<ServiceReply> LoginAsync(ServiceRequest request);
                 }
                 """,
                 [],
@@ -766,6 +860,76 @@ public sealed class HotfixManagerTests
                 [stableReference, abstractionsReference, privateDepReference],
                 cancellationToken);
 
+            await EmitAssemblyAsync(
+                hotfixOwnedServiceReturnAssemblyName,
+                hotfixOwnedServiceReturnAssemblyPath,
+                """
+                using System.Threading.Tasks;
+                using StableContracts;
+                using Lakona.Game.Server.Hotfix.Abstractions;
+
+                namespace HotfixOwnedServiceReturn;
+
+                public sealed record OwnedReply(int Value);
+
+                [HotfixService(typeof(IManagerService))]
+                public sealed class ManagerService
+                {
+                    public ValueTask<OwnedReply> LoginAsync(ServiceRequest request)
+                    {
+                        return new ValueTask<OwnedReply>(new OwnedReply(request.Value));
+                    }
+                }
+                """,
+                [stableReference, abstractionsReference],
+                cancellationToken);
+
+            await EmitAssemblyAsync(
+                hotfixOwnedServiceArgumentAssemblyName,
+                hotfixOwnedServiceArgumentAssemblyPath,
+                """
+                using System.Threading.Tasks;
+                using StableContracts;
+                using Lakona.Game.Server.Hotfix.Abstractions;
+
+                namespace HotfixOwnedServiceArgument;
+
+                public sealed record OwnedRequest(int Value);
+
+                [HotfixService(typeof(IManagerService))]
+                public sealed class ManagerService
+                {
+                    public ValueTask<ServiceReply> LoginAsync(OwnedRequest request)
+                    {
+                        return new ValueTask<ServiceReply>(new ServiceReply(request.Value));
+                    }
+                }
+                """,
+                [stableReference, abstractionsReference],
+                cancellationToken);
+
+            await EmitAssemblyAsync(
+                validServiceHotfixAssemblyName,
+                validServiceHotfixAssemblyPath,
+                """
+                using System.Threading.Tasks;
+                using StableContracts;
+                using Lakona.Game.Server.Hotfix.Abstractions;
+
+                namespace ValidServiceHotfix;
+
+                [HotfixService(typeof(IManagerService))]
+                public sealed class ManagerService
+                {
+                    public ValueTask<ServiceReply> LoginAsync(ServiceRequest request)
+                    {
+                        return new ValueTask<ServiceReply>(new ServiceReply(request.Value + 1));
+                    }
+                }
+                """,
+                [stableReference, abstractionsReference],
+                cancellationToken);
+
             // Copy private dependency next to the hotfix assembly so AssemblyDependencyResolver finds it.
             var privateDepNextToHotfix = Path.Combine(Path.GetDirectoryName(hotfixWithPrivateDependencyAssemblyPath)!, Path.GetFileName(privateDependencyAssemblyPath));
             File.Copy(privateDependencyAssemblyPath, privateDepNextToHotfix, overwrite: true);
@@ -781,7 +945,10 @@ public sealed class HotfixManagerTests
                 hotfixOwnedArgumentAssemblyPath,
                 managerTestHotfixAssemblyPath,
                 privateDependencyAssemblyPath,
-                hotfixWithPrivateDependencyAssemblyPath);
+                hotfixWithPrivateDependencyAssemblyPath,
+                hotfixOwnedServiceReturnAssemblyPath,
+                hotfixOwnedServiceArgumentAssemblyPath,
+                validServiceHotfixAssemblyPath);
         }
 
         public void Dispose()
@@ -842,5 +1009,10 @@ public sealed class HotfixManagerTests
                 .Split(Path.PathSeparator)
                 .Select(static path => MetadataReference.CreateFromFile(path));
         }
+    }
+
+    private static async ValueTask<object> AwaitValueTaskAsync<T>(object valueTask)
+    {
+        return await (ValueTask<T>)valueTask!;
     }
 }

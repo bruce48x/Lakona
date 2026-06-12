@@ -9,6 +9,24 @@ namespace Agar.Unity.Tests;
 public sealed class AgarHotfixTests
 {
     [Fact]
+    public void Hotfix_behavior_sources_do_not_use_system_class_names()
+    {
+        var root = Path.Combine(FindRepositoryRoot(), "samples", "Game.Unity.Agar");
+        var hotfixRoots = new[]
+        {
+            Path.Combine(root, "Server", "Hotfix"),
+            Path.Combine(root, "Server", "HotfixV2")
+        };
+
+        foreach (var file in hotfixRoots.SelectMany(static path => Directory.GetFiles(path, "*.cs", SearchOption.AllDirectories)))
+        {
+            var text = File.ReadAllText(file);
+            Assert.DoesNotContain("System.cs", file, StringComparison.Ordinal);
+            Assert.DoesNotMatch("""\bclass\s+\w*System\b""", text);
+        }
+    }
+
+    [Fact]
     public async Task SettleMatch_uses_hotfix_rule_to_award_winner_points()
     {
         var hotfixAssemblyPath = FindHotfixAssemblyPath();

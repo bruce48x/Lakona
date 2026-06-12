@@ -1,4 +1,5 @@
 using Lakona.Game.Server.Hotfix;
+using Lakona.Game.Server.Hotfix.Loading;
 
 namespace Lakona.Game.Server.HotfixAdmin;
 
@@ -96,23 +97,31 @@ public sealed class HotfixAdminController
             throw new InvalidOperationException("Hotfix package BuildTag does not match the running server BuildTag.");
         }
 
-        await _store.WritePointerAsync("current.txt", version, cancellationToken).ConfigureAwait(false);
-        var validation = await _manager.ValidateAsync(cancellationToken).ConfigureAwait(false);
+        var validationSource = new CurrentDirectoryHotfixAssemblySource(
+            _store.VersionDirectory(version),
+            manifest.Assembly);
+        var validation = await _manager.ValidateAsync(validationSource, cancellationToken).ConfigureAwait(false);
         if (!validation.Succeeded)
         {
-            await _store.WritePointerAsync("current.txt", oldCurrent, cancellationToken).ConfigureAwait(false);
             throw new InvalidOperationException(validation.ErrorMessage ?? "Hotfix validation failed.");
         }
 
-        await _store.WritePointerAsync("previous.txt", oldCurrent, cancellationToken).ConfigureAwait(false);
-        await _store.WritePointerAsync("current.txt", version, cancellationToken).ConfigureAwait(false);
-
-        var result = await _manager.ReloadAsync(cancellationToken).ConfigureAwait(false);
-        if (!result.Succeeded)
+        try
         {
-            await _store.WritePointerAsync("current.txt", oldCurrent, cancellationToken).ConfigureAwait(false);
-            await _store.WritePointerAsync("previous.txt", oldPrevious, cancellationToken).ConfigureAwait(false);
-            throw new InvalidOperationException(result.ErrorMessage ?? "Hotfix reload failed.");
+            await _store.WritePointerAsync("previous.txt", oldCurrent, cancellationToken).ConfigureAwait(false);
+            await _store.WritePointerAsync("current.txt", version, cancellationToken).ConfigureAwait(false);
+
+            var result = await _manager.ReloadAsync(cancellationToken).ConfigureAwait(false);
+            if (!result.Succeeded)
+            {
+                throw new InvalidOperationException(result.ErrorMessage ?? "Hotfix reload failed.");
+            }
+        }
+        catch
+        {
+            await _store.WritePointerAsync("current.txt", oldCurrent, CancellationToken.None).ConfigureAwait(false);
+            await _store.WritePointerAsync("previous.txt", oldPrevious, CancellationToken.None).ConfigureAwait(false);
+            throw;
         }
 
         return await GetStatusAsync(cancellationToken).ConfigureAwait(false);

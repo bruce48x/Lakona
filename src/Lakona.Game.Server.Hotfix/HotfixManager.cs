@@ -27,10 +27,19 @@ public sealed class HotfixManager : IHotfixManager
 
     public async ValueTask<HotfixReloadResult> ValidateAsync(CancellationToken cancellationToken = default)
     {
+        return await ValidateAsync(_source, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask<HotfixReloadResult> ValidateAsync(
+        IHotfixAssemblySource source,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
         await _reloadLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            return await LoadCoreAsync(publish: false, cancellationToken).ConfigureAwait(false);
+            return await LoadCoreAsync(source, publish: false, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -43,7 +52,7 @@ public sealed class HotfixManager : IHotfixManager
         await _reloadLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            return await LoadCoreAsync(publish: true, cancellationToken).ConfigureAwait(false);
+            return await LoadCoreAsync(_source, publish: true, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -51,13 +60,16 @@ public sealed class HotfixManager : IHotfixManager
         }
     }
 
-    private async ValueTask<HotfixReloadResult> LoadCoreAsync(bool publish, CancellationToken cancellationToken)
+    private async ValueTask<HotfixReloadResult> LoadCoreAsync(
+        IHotfixAssemblySource source,
+        bool publish,
+        CancellationToken cancellationToken)
     {
         HotfixAssemblySourceResult? resolved = null;
         HotfixAssemblyLoadContext? pendingContext = null;
         try
         {
-            resolved = await _source.ResolveAsync(cancellationToken).ConfigureAwait(false);
+            resolved = await source.ResolveAsync(cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
 
             if (!File.Exists(resolved.AssemblyPath))
@@ -75,7 +87,7 @@ public sealed class HotfixManager : IHotfixManager
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            var boundaryDiagnostics = HotfixDispatchBoundaryValidator.Validate(pendingContext, scan.Methods);
+            var boundaryDiagnostics = HotfixDispatchBoundaryValidator.Validate(pendingContext, scan.Methods, scan.Services);
             if (boundaryDiagnostics.Count != 0)
             {
                 throw new InvalidOperationException(string.Join(Environment.NewLine, boundaryDiagnostics));

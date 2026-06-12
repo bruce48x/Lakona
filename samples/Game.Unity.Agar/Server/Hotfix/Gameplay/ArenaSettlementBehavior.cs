@@ -2,11 +2,11 @@ using Shared.Gameplay;
 using Shared.Interfaces;
 using Lakona.Game.Server.Hotfix.Abstractions;
 
-namespace Agar.Sample.Hotfix.V2.Gameplay;
+namespace Agar.Sample.Hotfix.Gameplay;
 
 [FriendOf(typeof(ArenaSimulation))]
 [HotfixBehaviorOf(typeof(ArenaSimulation))]
-public static class ArenaSettlementSystem
+public static class ArenaSettlementBehavior
 {
     public static MatchSettlementResult SettleMatch(this ArenaSimulation self, WorldState worldState)
     {
@@ -26,14 +26,15 @@ public static class ArenaSettlementSystem
         {
             var player = rankedPlayers[index];
             var rank = index + 1;
+            var isBot = VictoryPointAwards.IsBotPlayer(player.PlayerId);
             result.Entries.Add(new MatchSettlementEntry
             {
                 PlayerId = player.PlayerId,
                 Rank = rank,
                 Mass = NormalizeRankingMass(player.Mass),
                 IsWinner = string.Equals(player.PlayerId, winner, StringComparison.Ordinal),
-                IsBot = false,
-                VictoryPoints = rank == 1 ? 20 : Math.Max(1, 8 - rank)
+                IsBot = isBot,
+                VictoryPoints = isBot ? 0 : VictoryPointAwards.GetPointsForRank(rank)
             });
         }
 

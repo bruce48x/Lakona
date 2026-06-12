@@ -147,6 +147,92 @@ public sealed class HotfixPackageWriterTests
         }
     }
 
+    [Fact]
+    public async Task InstallAsync_rejects_empty_checksum_file()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var zip = await WritePackageWithChecksumLinesAsync(root, []);
+            var installRoot = Path.Combine(root, "hotfix");
+
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+                async () => await new HotfixPackageInstaller().InstallAsync(zip, installRoot, TestContext.Current.CancellationToken));
+
+            Assert.Contains("empty", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task InstallAsync_rejects_checksum_file_that_omits_manifest_assembly()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var staging = await CreatePackageStagingAsync(root, "v20260612-153045Z");
+            var hotfixHash = await Sha256Async(Path.Combine(staging, "hotfix.json"));
+            var zip = await ZipPackageAsync(root, staging, [$"{hotfixHash} hotfix.json"]);
+            var installRoot = Path.Combine(root, "hotfix");
+
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+                async () => await new HotfixPackageInstaller().InstallAsync(zip, installRoot, TestContext.Current.CancellationToken));
+
+            Assert.Contains("Server.Hotfix.dll", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData("aabbcc ..\\outside.dll")]
+    [InlineData("aabbcc ../outside.dll")]
+    public async Task InstallAsync_rejects_checksum_paths_outside_package_directory(string line)
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var zip = await WritePackageWithChecksumLinesAsync(root, [line]);
+            var installRoot = Path.Combine(root, "hotfix");
+
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+                async () => await new HotfixPackageInstaller().InstallAsync(zip, installRoot, TestContext.Current.CancellationToken));
+
+            Assert.Contains("path", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task InstallAsync_rejects_duplicate_checksum_entries()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var staging = await CreatePackageStagingAsync(root, "v20260612-153045Z");
+            var dllHash = await Sha256Async(Path.Combine(staging, "Server.Hotfix.dll"));
+            var zip = await ZipPackageAsync(root, staging, [$"{dllHash} Server.Hotfix.dll", $"{dllHash} Server.Hotfix.dll"]);
+            var installRoot = Path.Combine(root, "hotfix");
+
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+                async () => await new HotfixPackageInstaller().InstallAsync(zip, installRoot, TestContext.Current.CancellationToken));
+
+            Assert.Contains("Duplicate", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private static string CreateTempRoot()
     {
         var root = Path.Combine(Path.GetTempPath(), "LakonaHotfixPackageWriterTests", Guid.NewGuid().ToString("N"));
@@ -156,10 +242,28 @@ public sealed class HotfixPackageWriterTests
 
     private static async Task<string> WritePackageWithVersionAsync(string root, string version)
     {
+        var staging = await CreatePackageStagingAsync(root, version);
+
+        var lines = new List<string>();
+        foreach (var file in Directory.GetFiles(staging).OrderBy(Path.GetFileName, StringComparer.Ordinal))
+        {
+            var hash = await Sha256Async(file);
+            lines.Add($"{hash} {Path.GetFileName(file)}");
+        }
+
+        return await ZipPackageAsync(root, staging, lines);
+    }
+
+    private static async Task<string> WritePackageWithChecksumLinesAsync(string root, IReadOnlyList<string> checksumLines)
+    {
+        var staging = await CreatePackageStagingAsync(root, "v20260612-153045Z");
+        return await ZipPackageAsync(root, staging, checksumLines);
+    }
+
+    private static async Task<string> CreatePackageStagingAsync(string root, string version)
+    {
         var staging = Path.Combine(root, "staging-" + Guid.NewGuid().ToString("N"));
-        var packages = Path.Combine(root, "packages");
         Directory.CreateDirectory(staging);
-        Directory.CreateDirectory(packages);
 
         var manifest = new HotfixPackageManifest(
             version,
@@ -173,20 +277,29 @@ public sealed class HotfixPackageWriterTests
             JsonSerializer.Serialize(manifest, HotfixJson.Options),
             TestContext.Current.CancellationToken);
         await File.WriteAllTextAsync(Path.Combine(staging, "Server.Hotfix.dll"), "dll", TestContext.Current.CancellationToken);
+        return staging;
+    }
 
-        var lines = new List<string>();
-        foreach (var file in Directory.GetFiles(staging).OrderBy(Path.GetFileName, StringComparer.Ordinal))
-        {
-            await using var stream = File.OpenRead(file);
-            var hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, TestContext.Current.CancellationToken)).ToLowerInvariant();
-            lines.Add($"{hash} {Path.GetFileName(file)}");
-        }
-
-        await File.WriteAllLinesAsync(Path.Combine(staging, "checksums.sha256"), lines, TestContext.Current.CancellationToken);
+    private static async Task<string> ZipPackageAsync(string root, string staging, IReadOnlyList<string> checksumLines)
+    {
+        var packages = Path.Combine(root, "packages");
+        Directory.CreateDirectory(packages);
+        await File.WriteAllLinesAsync(Path.Combine(staging, "checksums.sha256"), checksumLines, TestContext.Current.CancellationToken);
 
         var zip = Path.Combine(packages, "package.zip");
+        if (File.Exists(zip))
+        {
+            File.Delete(zip);
+        }
+
         ZipFile.CreateFromDirectory(staging, zip);
         Directory.Delete(staging, recursive: true);
         return zip;
+    }
+
+    private static async Task<string> Sha256Async(string path)
+    {
+        await using var stream = File.OpenRead(path);
+        return Convert.ToHexString(await SHA256.HashDataAsync(stream, TestContext.Current.CancellationToken)).ToLowerInvariant();
     }
 }

@@ -73,6 +73,13 @@ internal sealed class ServerAppRenderer : IPlanContributor
           <ItemGroup>
             <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
           </ItemGroup>
+
+          <ItemGroup>
+            <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+              <_Parameter1>LakonaHotfixBuildTag</_Parameter1>
+              <_Parameter2>$(LakonaHotfixBuildTag)</_Parameter2>
+            </AssemblyAttribute>
+          </ItemGroup>
         </Project>
         """;
     }
@@ -332,7 +339,6 @@ internal sealed class ServerAppRenderer : IPlanContributor
         using System.Runtime.CompilerServices;
 
         [assembly: InternalsVisibleTo("Server.Hotfix")]
-        [assembly: System.Reflection.AssemblyMetadata("LakonaHotfixBuildTag", "20260612.001")]
         """;
     }
 

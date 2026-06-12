@@ -9,7 +9,8 @@ internal static class HotfixDispatchBoundaryValidator
 {
     public static IReadOnlyList<string> Validate(
         HotfixAssemblyLoadContext hotfixContext,
-        IEnumerable<HotfixMethodBinding> methods)
+        IEnumerable<HotfixMethodBinding> methods,
+        IEnumerable<HotfixServiceMethodBinding> services)
     {
         var diagnostics = new List<string>();
         foreach (var binding in methods)
@@ -19,6 +20,16 @@ internal static class HotfixDispatchBoundaryValidator
             foreach (var parameterType in binding.ParameterTypes)
             {
                 ValidateType(hotfixContext, parameterType, binding.Key.ToString(), diagnostics);
+            }
+        }
+
+        foreach (var binding in services)
+        {
+            ValidateType(hotfixContext, binding.ContractType, binding.Key, diagnostics);
+            ValidateType(hotfixContext, binding.ReturnType, binding.Key, diagnostics);
+            foreach (var parameterType in binding.ParameterTypes)
+            {
+                ValidateType(hotfixContext, parameterType, binding.Key, diagnostics);
             }
         }
 

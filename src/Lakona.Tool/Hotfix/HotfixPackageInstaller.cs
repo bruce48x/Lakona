@@ -27,7 +27,7 @@ internal sealed class HotfixPackageInstaller
                 ?? throw new InvalidOperationException("Hotfix package manifest is invalid.");
             ValidateVersionName(manifest.Version);
 
-            await VerifyChecksumsAsync(staging, cancellationToken).ConfigureAwait(false);
+            await VerifyChecksumsAsync(staging, manifest.Assembly, cancellationToken).ConfigureAwait(false);
             var target = Path.Combine(root, "versions", manifest.Version);
             if (Directory.Exists(target))
             {
@@ -66,7 +66,10 @@ internal sealed class HotfixPackageInstaller
         }
     }
 
-    private static async Task VerifyChecksumsAsync(string directory, CancellationToken cancellationToken)
+    private static async Task VerifyChecksumsAsync(
+        string directory,
+        string assemblyFileName,
+        CancellationToken cancellationToken)
     {
         var checksumPath = Path.Combine(directory, "checksums.sha256");
         if (!File.Exists(checksumPath))
@@ -75,20 +78,22 @@ internal sealed class HotfixPackageInstaller
         }
 
         var lines = await File.ReadAllLinesAsync(checksumPath, cancellationToken).ConfigureAwait(false);
-        foreach (var line in lines.Where(static line => !string.IsNullOrWhiteSpace(line)))
+        var checksums = ParseChecksums(directory, lines);
+        RequireChecksum(checksums, "hotfix.json");
+        RequireChecksum(checksums, assemblyFileName);
+
+        foreach (var item in checksums.Values)
         {
-            var parts = line.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length != 2)
+            if (!File.Exists(item.FullPath))
             {
-                throw new InvalidOperationException("Hotfix checksum file is invalid.");
+                throw new InvalidOperationException($"Hotfix package is missing '{item.RelativePath}'.");
             }
 
-            var path = Path.Combine(directory, parts[1]);
-            await using var stream = File.OpenRead(path);
+            await using var stream = File.OpenRead(item.FullPath);
             var actual = Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false)).ToLowerInvariant();
-            if (!StringComparer.OrdinalIgnoreCase.Equals(parts[0], actual))
+            if (!StringComparer.OrdinalIgnoreCase.Equals(item.Hash, actual))
             {
-                throw new InvalidOperationException($"Checksum mismatch for '{parts[1]}'.");
+                throw new InvalidOperationException($"Checksum mismatch for '{item.RelativePath}'.");
             }
         }
     }
@@ -127,4 +132,79 @@ internal sealed class HotfixPackageInstaller
             throw new ArgumentException("Invalid hotfix package version.", nameof(version));
         }
     }
+
+    private static Dictionary<string, ChecksumEntry> ParseChecksums(
+        string directory,
+        IReadOnlyList<string> lines)
+    {
+        var entries = new Dictionary<string, ChecksumEntry>(PathComparer);
+        foreach (var line in lines.Where(static line => !string.IsNullOrWhiteSpace(line)))
+        {
+            var parts = line.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 2)
+            {
+                throw new InvalidOperationException("Hotfix checksum file is invalid.");
+            }
+
+            var relativePath = parts[1].Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+            if (Path.IsPathRooted(relativePath))
+            {
+                throw new InvalidOperationException("Hotfix checksum path is invalid.");
+            }
+
+            var fullPath = Path.GetFullPath(Path.Combine(directory, relativePath));
+            if (!IsUnderDirectory(directory, fullPath))
+            {
+                throw new InvalidOperationException("Hotfix checksum path is invalid.");
+            }
+
+            var normalized = NormalizeRelativePath(relativePath);
+            if (!entries.TryAdd(normalized, new ChecksumEntry(parts[0], normalized, fullPath)))
+            {
+                throw new InvalidOperationException($"Duplicate checksum entry '{normalized}'.");
+            }
+        }
+
+        if (entries.Count == 0)
+        {
+            throw new InvalidOperationException("Hotfix checksum file is empty.");
+        }
+
+        return entries;
+    }
+
+    private static void RequireChecksum(
+        IReadOnlyDictionary<string, ChecksumEntry> checksums,
+        string relativePath)
+    {
+        var normalized = NormalizeRelativePath(relativePath);
+        if (!checksums.ContainsKey(normalized))
+        {
+            throw new InvalidOperationException($"Hotfix checksum file is missing '{normalized}'.");
+        }
+    }
+
+    private static bool IsUnderDirectory(string directory, string path)
+    {
+        var root = Path.GetFullPath(directory);
+        var rootWithSeparator = Path.EndsInDirectorySeparator(root) ? root : root + Path.DirectorySeparatorChar;
+        return path.StartsWith(rootWithSeparator, PathComparison);
+    }
+
+    private static string NormalizeRelativePath(string relativePath)
+    {
+        return relativePath.Replace(Path.DirectorySeparatorChar, '/');
+    }
+
+    private static StringComparison PathComparison =>
+        OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+    private static StringComparer PathComparer =>
+        OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
+
+    private sealed record ChecksumEntry(string Hash, string RelativePath, string FullPath);
 }

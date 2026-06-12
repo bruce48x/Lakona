@@ -5,7 +5,7 @@ namespace Agar.Sample.Hotfix.Gameplay;
 
 [FriendOf(typeof(ArenaSimulation))]
 [HotfixBehaviorOf(typeof(ArenaSimulation))]
-public static class ArenaSimulationSystem
+public static class ArenaSimulationBehavior
 {
     public static ArenaStepResult Tick(this ArenaSimulation self, float deltaTime)
     {

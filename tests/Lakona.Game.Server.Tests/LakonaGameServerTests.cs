@@ -418,6 +418,13 @@ public sealed class LakonaGameServerTests
             return ReloadAsync(cancellationToken);
         }
 
+        public ValueTask<HotfixReloadResult> ValidateAsync(
+            Lakona.Game.Server.Hotfix.Loading.IHotfixAssemblySource source,
+            CancellationToken cancellationToken = default)
+        {
+            return ValidateAsync(cancellationToken);
+        }
+
         public ValueTask<HotfixReloadResult> ReloadAsync(CancellationToken cancellationToken = default)
         {
             var result = new HotfixReloadResult(

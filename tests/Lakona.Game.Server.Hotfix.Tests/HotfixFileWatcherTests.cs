@@ -205,6 +205,13 @@ public sealed class HotfixFileWatcherTests
             return ValueTask.FromResult(_result);
         }
 
+        public ValueTask<HotfixReloadResult> ValidateAsync(
+            IHotfixAssemblySource source,
+            CancellationToken cancellationToken = default)
+        {
+            return ValidateAsync(cancellationToken);
+        }
+
         public ValueTask<HotfixReloadResult> ReloadAsync(CancellationToken cancellationToken = default)
         {
             _reloadCalled.TrySetResult();
