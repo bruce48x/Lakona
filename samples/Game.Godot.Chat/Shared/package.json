@@ -1,0 +1,10 @@
+{
+  "name": "com.lakona.gamegodotchat2.shared",
+  "version": "1.0.0",
+  "displayName": "Shared",
+  "description": "Shared DTO and utility code",
+  "unity": "2022.3",
+  "author": {
+    "name": "Shared"
+  }
+}

@@ -1,0 +1,99 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Chat/ChatScene.cs" id="1"]
+[ext_resource type="Theme" path="res://Theme/LakonaTheme.tres" id="2"]
+
+[node name="ChatScene" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2")
+script = ExtResource("1")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.039, 0.059, 0.039, 1)
+
+[node name="Scanlines" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.08)
+mouse_filter = 2
+
+[node name="Layout" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"PageMargin"
+
+[node name="ChatLayout" type="VBoxContainer" parent="Layout"]
+layout_mode = 0
+theme_type_variation = &"ChatVBox"
+
+[node name="Header" type="PanelContainer" parent="Layout/ChatLayout"]
+layout_mode = 0
+theme_type_variation = &"ChatHeader"
+
+[node name="HeaderRow" type="HBoxContainer" parent="Layout/ChatLayout/Header"]
+layout_mode = 0
+theme_type_variation = &"HeaderRow"
+
+[node name="Title" type="Label" parent="Layout/ChatLayout/Header/HeaderRow"]
+layout_mode = 0
+theme_type_variation = &"HeaderLabel"
+text = "CHAT ROOM"
+size_flags_horizontal = 3
+
+[node name="OnlineCount" type="Label" parent="Layout/ChatLayout/Header/HeaderRow"]
+layout_mode = 0
+theme_type_variation = &"OnlineCount"
+text = "ONLINE: --"
+unique_name_in_owner = true
+
+[node name="MessageLog" type="RichTextLabel" parent="Layout/ChatLayout"]
+layout_mode = 0
+bbcode_enabled = false
+scroll_following = true
+size_flags_vertical = 3
+unique_name_in_owner = true
+
+[node name="Footer" type="PanelContainer" parent="Layout/ChatLayout"]
+layout_mode = 0
+theme_type_variation = &"ChatFooter"
+
+[node name="SendRow" type="HBoxContainer" parent="Layout/ChatLayout/Footer"]
+layout_mode = 0
+theme_type_variation = &"SendRow"
+
+[node name="MessageLabel" type="Label" parent="Layout/ChatLayout/Footer/SendRow"]
+layout_mode = 0
+theme_type_variation = &"NameLabel"
+text = "MESSAGE:"
+
+[node name="MessageField" type="LineEdit" parent="Layout/ChatLayout/Footer/SendRow"]
+layout_mode = 0
+max_length = 500
+custom_minimum_size = Vector2(0, 36)
+size_flags_horizontal = 3
+unique_name_in_owner = true
+
+[node name="SendButton" type="Button" parent="Layout/ChatLayout/Footer/SendRow"]
+layout_mode = 0
+text = "SEND"
+custom_minimum_size = Vector2(96, 36)
+unique_name_in_owner = true

@@ -1,0 +1,11 @@
+{
+  "project": {
+    "name": "Game.Godot.Chat",
+    "clientEngine": "godot",
+    "transport": "websocket",
+    "serializer": "memorypack",
+    "persistence": "none",
+    "nuGetForUnitySource": "openupm",
+    "deployProfile": "none"
+  }
+}

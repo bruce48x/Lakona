@@ -1,13 +1,23 @@
-namespace Shared.Contracts.Chat;
+using System.Threading.Tasks;
+using Shared.Contracts;
+using Lakona.Rpc.Core;
 
-public sealed record JoinChatRequest(string UserName);
+namespace Shared.Contracts.Chat
+{
+    [RpcService(RpcContractIds.Services.Chat, NotificationContract = typeof(IChatCallback))]
+    public interface IChatService
+    {
+        [RpcMethod(RpcContractIds.ChatServiceMethods.BindAsync)]
+        ValueTask BindAsync(ChatBindRequest req);
 
-public sealed record JoinChatResponse(string UserId, IReadOnlyList<ChatMessageDto> RecentMessages);
+        [RpcMethod(RpcContractIds.ChatServiceMethods.SendAsync)]
+        ValueTask SendAsync(ChatSendRequest req);
+    }
 
-public sealed record SendChatRequest(string UserId, string Message);
-
-public sealed record SendChatResponse(ChatMessageDto Message);
-
-public sealed record ChatMessageDto(string UserId, string UserName, string Message, DateTimeOffset SentAt);
-
-public sealed record ChatMessagePushed(ChatMessageDto Message);
+    [RpcNotificationContract(typeof(IChatService))]
+    public interface IChatCallback
+    {
+        [RpcNotification(RpcContractIds.ChatNotifications.MessageReceived)]
+        void OnMessageReceived(ChatMessage msg);
+    }
+}

@@ -1,7 +1,0 @@
-{
-  "projectName": "Game.Godot.Chat",
-  "transport": "websocket",
-  "networkProfile": "single",
-  "client": "godot",
-  "sample": "chat"
-}
