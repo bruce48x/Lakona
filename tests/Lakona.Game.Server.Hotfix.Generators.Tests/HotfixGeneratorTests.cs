@@ -172,6 +172,148 @@ public sealed class HotfixGeneratorTests
     }
 
     [Fact]
+    public void Generator_emits_namespace_safe_bindings_for_markers_in_different_namespaces()
+    {
+        var source = """
+            using System;
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            using Lakona.Rpc.Core;
+            using Lakona.Rpc.Server;
+
+            namespace Shared.Contracts
+            {
+                public sealed class Request
+                {
+                }
+
+                public interface IControlCallback
+                {
+                }
+
+                public interface IRealtimeCallback
+                {
+                }
+
+                [RpcService(1, NotificationContract = typeof(IControlCallback))]
+                public interface IControlService
+                {
+                    [RpcMethod(1)]
+                    ValueTask PingAsync(Request request);
+                }
+
+                [RpcService(2, NotificationContract = typeof(IRealtimeCallback))]
+                public interface IRealtimeService
+                {
+                    [RpcMethod(1)]
+                    ValueTask TickAsync(Request request);
+                }
+            }
+
+            namespace Server.App.Control.Services
+            {
+                using Shared.Contracts;
+
+                [HotfixRpcService(typeof(IControlService), EndpointName = "control")]
+                internal static partial class ControlServiceEndpoint;
+            }
+
+            namespace Server.App.Realtime.Services
+            {
+                using Shared.Contracts;
+
+                [HotfixRpcService(typeof(IRealtimeService), BindingSetName = "realtime", EndpointName = "realtime")]
+                internal static partial class RealtimeServiceEndpoint;
+            }
+
+            namespace Server.App.Control.Generated
+            {
+                using Shared.Contracts;
+
+                public sealed class ControlCallbackProxy : IControlCallback
+                {
+                    public ControlCallbackProxy(RpcSession session)
+                    {
+                    }
+                }
+
+                public static class ControlServiceBinder
+                {
+                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcSession, IControlService> implFactory)
+                    {
+                    }
+                }
+            }
+
+            namespace Server.App.Realtime.Generated
+            {
+                using Shared.Contracts;
+
+                public sealed class RealtimeCallbackProxy : IRealtimeCallback
+                {
+                    public RealtimeCallbackProxy(RpcSession session)
+                    {
+                    }
+                }
+
+                public static class RealtimeServiceBinder
+                {
+                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcSession, IRealtimeService> implFactory)
+                    {
+                    }
+                }
+            }
+            """;
+
+        var result = GeneratorTestHost.Run(source);
+
+        Assert.Empty(result.ErrorDiagnostics);
+        Assert.Contains("new global::Server.App.Control.Services.ControlServiceEndpointProxy(", result.GeneratedSource);
+        Assert.Contains("new global::Server.App.Realtime.Services.RealtimeServiceEndpointProxy(", result.GeneratedSource);
+    }
+
+    [Theory]
+    [InlineData("public sealed class NotAService { }", "typeof(NotAService)", "ULGHOTFIX006")]
+    [InlineData("public interface IMissingRpcService { [RpcMethod(1)] ValueTask PingAsync(Request request); }", "typeof(IMissingRpcService)", "ULGHOTFIX006")]
+    [InlineData("[RpcService(1)] public interface IMissingRpcMethod { ValueTask PingAsync(Request request); }", "typeof(IMissingRpcMethod)", "ULGHOTFIX007")]
+    [InlineData("[RpcService(1)] public interface ITwoParameters { [RpcMethod(1)] ValueTask PingAsync(Request request, Request other); }", "typeof(ITwoParameters)", "ULGHOTFIX008")]
+    [InlineData("[RpcService(1)] public interface IUnsupportedReturn { [RpcMethod(1)] Task PingAsync(Request request); }", "typeof(IUnsupportedReturn)", "ULGHOTFIX009")]
+    [InlineData("[RpcService(1, NotificationContract = typeof(BadCallback))] public interface IBadCallbackService { [RpcMethod(1)] ValueTask PingAsync(Request request); } public sealed class BadCallback { }", "typeof(IBadCallbackService)", "ULGHOTFIX010")]
+    public void Generator_reports_diagnostics_for_unsupported_hotfix_rpc_service_shapes(
+        string contractSource,
+        string markerContract,
+        string diagnosticId)
+    {
+        var source = $$"""
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            using Lakona.Rpc.Core;
+
+            namespace Shared.Contracts
+            {
+                public sealed class Request
+                {
+                }
+
+                {{contractSource}}
+            }
+
+            namespace Server.App.Services
+            {
+                using Shared.Contracts;
+
+                [HotfixRpcService({{markerContract}}, EndpointName = "control")]
+                internal static partial class UnsupportedServiceEndpoint;
+            }
+            """;
+
+        var result = GeneratorTestHost.Run(source);
+
+        Assert.Contains(result.GeneratorDiagnostics, diagnostic => diagnostic.Id == diagnosticId);
+        Assert.DoesNotContain("UnsupportedServiceEndpointProxy", result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Generator_emits_accessor_for_private_field()
     {
         var source = """

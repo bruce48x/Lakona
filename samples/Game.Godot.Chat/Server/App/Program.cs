@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Server.App.Lifecycle;
@@ -14,6 +15,10 @@ return await LakonaGameServer.RunAsync(args, server => server
     .UseAcceptor(async opts => await WsConnectionAcceptor.CreateAsync(opts.Port, opts.Path, opts.Host))
     .AddServices(services =>
     {
+        services.AddLakonaGameServerSessionCleanup(options =>
+        {
+            options.DisconnectedEndpointRetention = TimeSpan.FromSeconds(30);
+        });
         services.AddSingleton<IGameSessionLifecycleHandler, ChatPresenceLifecycleHandler>();
     })
     .UseGeneratedHotfixServices());

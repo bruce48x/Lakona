@@ -20,6 +20,7 @@ Supporting documents provide deeper rationale or user-facing context:
 | [CHANGELOG.md](./CHANGELOG.md) | Consolidated Lakona release history |
 | [docs/game/design-philosophy.md](./docs/game/design-philosophy.md) | Game framework design principles and roadmap |
 | [docs/game/hotfix-architecture.md](./docs/game/hotfix-architecture.md) | Hotfix architecture, Actor vs ECS naming, and HotfixDispatch design rationale |
+| [docs/game/generated-hotfix-services-and-session-lifecycle.md](./docs/game/generated-hotfix-services-and-session-lifecycle.md) | Target architecture for generated hotfix service bindings and framework-owned connection/session lifecycle |
 | [docs/game/actor-kernel-boundary.md](./docs/game/actor-kernel-boundary.md) | Responsibility split between actor kernel and game framework |
 | [docs/game/lakona-game-configuration-startup.md](./docs/game/lakona-game-configuration-startup.md) | Game configuration schema, feature catalog startup, and validation boundary |
 | [docs/game/lakona-game-runtime-guardrails.md](./docs/game/lakona-game-runtime-guardrails.md) | Runtime validation model for cluster, hotfix, endpoints, and production profile |

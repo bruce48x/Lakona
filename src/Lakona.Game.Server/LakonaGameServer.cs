@@ -1,6 +1,8 @@
 using Lakona.Game.Abstractions;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Lakona.Game.Server;
 
@@ -11,19 +13,43 @@ public sealed class LakonaGameServer : ILakonaGameServer
     private readonly IReliablePushOutbox _reliablePush;
     private readonly IReliablePushAckService _reliablePushAcks;
     private readonly IGameSessionEndpointCloser _endpointCloser;
+    private readonly IReadOnlyList<IGameSessionLifecycleHandler> _lifecycleHandlers;
+    private readonly ILogger<LakonaGameServer> _logger;
 
     public LakonaGameServer(
         IGameSessionDirectory sessions,
         IGameSessionResumeService resume,
         IReliablePushOutbox reliablePush,
         IReliablePushAckService reliablePushAcks,
-        IGameSessionEndpointCloser endpointCloser)
+        IGameSessionEndpointCloser endpointCloser,
+        IEnumerable<IGameSessionLifecycleHandler> lifecycleHandlers)
+        : this(
+            sessions,
+            resume,
+            reliablePush,
+            reliablePushAcks,
+            endpointCloser,
+            lifecycleHandlers,
+            NullLogger<LakonaGameServer>.Instance)
+    {
+    }
+
+    public LakonaGameServer(
+        IGameSessionDirectory sessions,
+        IGameSessionResumeService resume,
+        IReliablePushOutbox reliablePush,
+        IReliablePushAckService reliablePushAcks,
+        IGameSessionEndpointCloser endpointCloser,
+        IEnumerable<IGameSessionLifecycleHandler> lifecycleHandlers,
+        ILogger<LakonaGameServer> logger)
     {
         _sessions = sessions;
         _resume = resume;
         _reliablePush = reliablePush;
         _reliablePushAcks = reliablePushAcks;
         _endpointCloser = endpointCloser;
+        _lifecycleHandlers = lifecycleHandlers?.ToArray() ?? throw new ArgumentNullException(nameof(lifecycleHandlers));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public ValueTask<GameSessionKey> StartSessionAsync(
@@ -66,7 +92,7 @@ public sealed class LakonaGameServer : ILakonaGameServer
         return decision;
     }
 
-    public ValueTask BindEndpointAsync<TCallback>(
+    public async ValueTask BindEndpointAsync<TCallback>(
         GameSessionKey session,
         GameEndpointName endpointName,
         string connectionId,
@@ -74,11 +100,16 @@ public sealed class LakonaGameServer : ILakonaGameServer
         CancellationToken cancellationToken = default)
         where TCallback : class
     {
-        return _sessions.BindEndpointAsync(
+        var result = await _sessions.BindEndpointAsync(
             new SessionEndpointKey(session, endpointName),
             connectionId,
             callback,
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
+
+        if (result.EndpointBecameActive is { } snapshot)
+        {
+            await PublishEndpointBoundAsync(snapshot, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     public ValueTask MarkEndpointDisconnectedAsync(
@@ -144,6 +175,8 @@ public sealed class LakonaGameServer : ILakonaGameServer
                 options.KeepTerminalStateForResume,
                 cancellationToken)
             .ConfigureAwait(false);
+
+        await PublishSessionTerminatedAsync(notice, cancellationToken).ConfigureAwait(false);
 
         if (binding is null)
         {
@@ -260,6 +293,59 @@ public sealed class LakonaGameServer : ILakonaGameServer
             ReliablePushSequence.From(record.Sequence),
             payload,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask PublishEndpointBoundAsync(
+        GameSessionEndpointSnapshot snapshot,
+        CancellationToken cancellationToken)
+    {
+        var context = new GameEndpointBindingContext(
+            snapshot.Endpoint,
+            snapshot.ConnectionId,
+            snapshot.CallbackContractTypes);
+        foreach (var handler in _lifecycleHandlers)
+        {
+            try
+            {
+                await handler.OnEndpointBoundAsync(context, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Game session endpoint-bound lifecycle handler failed for {ConnectionId}.",
+                    snapshot.ConnectionId);
+            }
+        }
+    }
+
+    private async ValueTask PublishSessionTerminatedAsync(
+        SessionTerminationNotice notice,
+        CancellationToken cancellationToken)
+    {
+        var context = new GameSessionTerminationContext(notice);
+        foreach (var handler in _lifecycleHandlers)
+        {
+            try
+            {
+                await handler.OnSessionTerminatedAsync(context, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Game session terminated lifecycle handler failed for owner {OwnerKey}.",
+                    notice.Session.OwnerKey);
+            }
+        }
     }
 
     private static async ValueTask TryNotifySessionTerminatedAsync(

@@ -54,7 +54,7 @@ public sealed class InMemoryGameSessionDirectory : IGameSessionDirectory
         }
     }
 
-    public ValueTask BindEndpointAsync<TCallback>(
+    public ValueTask<GameSessionEndpointBindResult> BindEndpointAsync<TCallback>(
         SessionEndpointKey endpoint,
         string connectionId,
         TCallback callback,
@@ -75,15 +75,25 @@ public sealed class InMemoryGameSessionDirectory : IGameSessionDirectory
             }
 
             var aggregate = state.GetOrAddEndpoint(endpoint.EndpointName.Value);
+            var wasActive = aggregate.HasActiveBinding;
             aggregate.Bindings[typeof(TCallback)] = new EndpointBinding(
                 connectionId,
                 callback,
                 typeof(TCallback),
                 DateTimeOffset.UtcNow);
             state.LastSeenAt = DateTimeOffset.UtcNow;
+            if (!wasActive)
+            {
+                var callbackTypes = aggregate.GetActiveCallbackTypes(connectionId);
+                return new ValueTask<GameSessionEndpointBindResult>(
+                    new GameSessionEndpointBindResult(new GameSessionEndpointSnapshot(
+                        endpoint,
+                        connectionId,
+                        callbackTypes)));
+            }
         }
 
-        return default;
+        return new ValueTask<GameSessionEndpointBindResult>(new GameSessionEndpointBindResult(null));
     }
 
     public ValueTask MarkSessionTerminatedAsync(
@@ -327,6 +337,23 @@ public sealed class InMemoryGameSessionDirectory : IGameSessionDirectory
     private sealed class EndpointAggregate
     {
         public Dictionary<Type, EndpointBinding> Bindings { get; } = new();
+
+        public bool HasActiveBinding
+        {
+            get
+            {
+                return Bindings.Values.Any(static binding => binding.DisconnectedAt is null);
+            }
+        }
+
+        public IReadOnlyList<Type> GetActiveCallbackTypes(string connectionId)
+        {
+            return Bindings.Values
+                .Where(binding => binding.DisconnectedAt is null &&
+                    string.Equals(binding.ConnectionId, connectionId, StringComparison.Ordinal))
+                .Select(static binding => binding.CallbackType)
+                .ToArray();
+        }
 
         public IReadOnlyList<Type> Disconnect(string? connectionId, DateTimeOffset disconnectedAt)
         {

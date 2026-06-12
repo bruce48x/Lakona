@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 using Lakona.Game.Abstractions;
 using Lakona.Game.Server.Sessions;
 using Lakona.Rpc.Server;
@@ -8,6 +9,75 @@ namespace Lakona.Game.Server.Tests;
 
 public sealed class GameSessionLifecycleBridgeTests
 {
+    [Fact]
+    public async Task StartSessionPublishesEndpointBoundOnceForActiveEndpointAggregate()
+    {
+        var handler = new RecordingLifecycleHandler();
+        var services = new ServiceCollection();
+        services.AddSingleton<IGameSessionLifecycleHandler>(handler);
+        services.AddLakonaGameServer();
+        using var provider = services.BuildServiceProvider();
+        var server = provider.GetRequiredService<ILakonaGameServer>();
+
+        var session = await server.StartSessionAsync(
+            "player-a",
+            GameEndpointName.Control,
+            "connection-a",
+            new LoginCallback(),
+            TestContext.Current.CancellationToken);
+        await server.BindEndpointAsync(
+            session,
+            GameEndpointName.Control,
+            "connection-a",
+            new ChatCallback(),
+            TestContext.Current.CancellationToken);
+        await server.BindEndpointAsync(
+            session,
+            GameEndpointName.Control,
+            "connection-b",
+            new LoginCallback(),
+            TestContext.Current.CancellationToken);
+
+        var bound = Assert.Single(handler.EndpointBound);
+        Assert.Equal(new SessionEndpointKey(session, GameEndpointName.Control), bound.Endpoint);
+        Assert.Equal("connection-a", bound.ConnectionId);
+    }
+
+    [Fact]
+    public async Task ResumeSessionPublishesEndpointBoundWhenDisconnectedAggregateBecomesActive()
+    {
+        var handler = new RecordingLifecycleHandler();
+        var services = new ServiceCollection();
+        services.AddSingleton<IGameSessionLifecycleHandler>(handler);
+        services.AddLakonaGameServer();
+        using var provider = services.BuildServiceProvider();
+        var server = provider.GetRequiredService<ILakonaGameServer>();
+
+        var session = await server.StartSessionAsync(
+            "player-a",
+            GameEndpointName.Control,
+            "connection-a",
+            new LoginCallback(),
+            TestContext.Current.CancellationToken);
+        await server.MarkEndpointDisconnectedAsync(
+            session,
+            GameEndpointName.Control,
+            "connection-a",
+            TestContext.Current.CancellationToken);
+
+        var decision = await server.ResumeSessionAsync(
+            new GameSessionResumeRequest(session),
+            GameEndpointName.Control,
+            "connection-b",
+            new LoginCallback(),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(SessionResumeStatus.Resumed, decision.Status);
+        Assert.Equal(2, handler.EndpointBound.Count);
+        Assert.Equal("connection-a", handler.EndpointBound[0].ConnectionId);
+        Assert.Equal("connection-b", handler.EndpointBound[1].ConnectionId);
+    }
+
     [Fact]
     public async Task RpcDisconnectMarksEndpointAggregateDisconnectedAndPublishesOnce()
     {
@@ -37,6 +107,8 @@ public sealed class GameSessionLifecycleBridgeTests
 
     private sealed class RecordingLifecycleHandler : IGameSessionLifecycleHandler
     {
+        public List<GameEndpointBindingContext> EndpointBound { get; } = [];
+
         public List<GameEndpointBindingContext> EndpointDisconnected { get; } = [];
 
         public ValueTask OnConnectionOpenedAsync(
@@ -50,6 +122,7 @@ public sealed class GameSessionLifecycleBridgeTests
             GameEndpointBindingContext context,
             CancellationToken cancellationToken = default)
         {
+            EndpointBound.Add(context);
             return default;
         }
 

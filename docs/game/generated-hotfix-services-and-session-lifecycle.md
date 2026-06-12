@@ -670,6 +670,69 @@ Each phase should leave the solution buildable. Prefer adding tests before
 changing runtime behavior because this design touches shared hosting,
 generation, and hotfix boundaries.
 
+## Post-Implementation Review Follow-Ups
+
+The first implementation is close to the target shape, but review found several
+implementation gaps that should be fixed before treating this design as done.
+These are not open design choices; they are corrections needed to satisfy the
+contracts described above.
+
+1. Publish every declared game lifecycle hook.
+
+   `IGameSessionLifecycleHandler` declares `OnEndpointBoundAsync` and
+   `OnSessionTerminatedAsync`, but the current runtime paths must publish them
+   explicitly. A successful endpoint aggregate bind should publish
+   `OnEndpointBoundAsync` at most once for
+   `GameSessionKey + GameEndpointName + connection id`, even when multiple
+   callback contracts are added to that same aggregate. `TerminateSessionAsync`
+   should publish `OnSessionTerminatedAsync` after terminal session state is
+   recorded, regardless of whether a client callback is currently available.
+   Handler failures should be logged or captured without rolling back the
+   already-committed session state transition.
+
+   Add tests for initial bind, resume bind, same-callback rebinding,
+   multi-callback binding on one endpoint, termination with a live callback, and
+   termination with no live callback.
+
+2. Ensure default generated hosts actually run endpoint expiration cleanup.
+
+   The default generated chat lifecycle handler puts business cleanup in
+   `OnEndpointExpiredAsync`. That hook will never run unless
+   `GameSessionCleanupHostedService` is registered. The default hosted game
+   server path or the generated `Program.cs` template must register session
+   cleanup when generated lifecycle handlers depend on endpoint expiration.
+   Do not leave generated projects with cleanup handlers that are registered but
+   unreachable.
+
+   Add a tool or sample test that builds a generated project service collection
+   and verifies both the lifecycle handler and `GameSessionCleanupHostedService`
+   are registered. Keep the retention policy explicit through
+   `SessionCleanupOptions`.
+
+3. Make generated hotfix service bindings namespace-safe.
+
+   `GeneratedHotfixServicesExtensions` may be generated in the namespace of the
+   first marker type, while each generated proxy is emitted next to its own
+   marker type. Binding code must therefore instantiate proxy types with fully
+   qualified names, or the generator must place all proxies and the extension in
+   one known generated namespace. Otherwise, adding a service marker in a
+   different namespace can produce uncompilable generated source.
+
+   Add generator tests with service markers in different namespaces, including
+   markers in different binding sets, and assert the generated source compiles.
+
+4. Report diagnostics for unsupported hotfix service contract shapes.
+
+   Unsupported service shapes must not be silently skipped and must not produce
+   invalid generated source. The generator should emit diagnostics when the
+   contract is not an interface marked `[RpcService]`, an RPC method lacks
+   `[RpcMethod]`, a method has anything other than one request DTO parameter, a
+   method returns anything other than `ValueTask` or `ValueTask<TResult>`, or
+   callback metadata cannot be mapped to a generated callback proxy.
+
+   Add generator tests that assert diagnostics for each unsupported shape and
+   assert no partial proxy implementation is emitted for the invalid contract.
+
 ## Open Implementation Choices
 
 These choices should be resolved during implementation with small tests:

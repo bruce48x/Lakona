@@ -12,7 +12,7 @@ public interface IGameSessionDirectory
         GameSessionKey session,
         CancellationToken cancellationToken = default);
 
-    ValueTask BindEndpointAsync<TCallback>(
+    ValueTask<GameSessionEndpointBindResult> BindEndpointAsync<TCallback>(
         SessionEndpointKey endpoint,
         string connectionId,
         TCallback callback,

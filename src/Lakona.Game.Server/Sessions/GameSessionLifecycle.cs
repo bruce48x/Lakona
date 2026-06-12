@@ -34,6 +34,16 @@ public sealed class GameEndpointBindingContext
     public IReadOnlyList<Type> CallbackContractTypes { get; }
 }
 
+public sealed class GameSessionEndpointBindResult
+{
+    public GameSessionEndpointBindResult(GameSessionEndpointSnapshot? endpointBecameActive)
+    {
+        EndpointBecameActive = endpointBecameActive;
+    }
+
+    public GameSessionEndpointSnapshot? EndpointBecameActive { get; }
+}
+
 public sealed class GameSessionTerminationContext
 {
     public GameSessionTerminationContext(SessionTerminationNotice notice)

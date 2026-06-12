@@ -354,6 +354,62 @@ public sealed class LakonaGameServerTests
         Assert.Same(callback.Notice, closed.Notice);
     }
 
+    [Fact]
+    public async Task TerminateSessionPublishesLifecycleHookWithLiveCallbackAndContainsHandlerFailures()
+    {
+        var services = new ServiceCollection();
+        var closer = new RecordingEndpointCloser();
+        var throwingHandler = new ThrowingLifecycleHandler();
+        var recordingHandler = new RecordingLifecycleHandler();
+        services.AddSingleton<IGameSessionEndpointCloser>(closer);
+        services.AddSingleton<IGameSessionLifecycleHandler>(throwingHandler);
+        services.AddSingleton<IGameSessionLifecycleHandler>(recordingHandler);
+        services.AddLakonaGameServer();
+        using var provider = services.BuildServiceProvider();
+        var server = provider.GetRequiredService<ILakonaGameServer>();
+        var callback = new TerminationCallback();
+        var session = await server.StartSessionAsync(
+            "player-a",
+            GameEndpointName.Control,
+            "connection-a",
+            callback,
+            TestContext.Current.CancellationToken);
+
+        await server.TerminateSessionAsync(
+            session,
+            SessionTerminationReason.Policy,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(throwingHandler.WasCalled);
+        Assert.Single(recordingHandler.Terminated);
+        Assert.Equal(session, recordingHandler.Terminated[0].Notice.Session);
+        Assert.NotNull(callback.Notice);
+        Assert.Single(closer.Closed);
+    }
+
+    [Fact]
+    public async Task TerminateSessionPublishesLifecycleHookWithoutLiveCallback()
+    {
+        var services = new ServiceCollection();
+        var recordingHandler = new RecordingLifecycleHandler();
+        services.AddSingleton<IGameSessionLifecycleHandler>(recordingHandler);
+        services.AddLakonaGameServer();
+        using var provider = services.BuildServiceProvider();
+        var server = provider.GetRequiredService<ILakonaGameServer>();
+        var session = await server.StartSessionAsync(
+            "player-a",
+            TestContext.Current.CancellationToken);
+
+        await server.TerminateSessionAsync(
+            session,
+            SessionTerminationReason.Policy,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        var context = Assert.Single(recordingHandler.Terminated);
+        Assert.Equal(session, context.Notice.Session);
+        Assert.Equal(SessionTerminationReason.Policy, context.Notice.Reason);
+    }
+
     private sealed class TestCallback
     {
         public List<(long Sequence, string Payload)> Delivered { get; } = new();
@@ -397,6 +453,68 @@ public sealed class LakonaGameServerTests
         {
             Closed.Add((endpoint, connectionId, notice));
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class ThrowingLifecycleHandler : IGameSessionLifecycleHandler
+    {
+        public bool WasCalled { get; private set; }
+
+        public ValueTask OnConnectionOpenedAsync(GameConnectionContext context, CancellationToken cancellationToken = default)
+        {
+            return default;
+        }
+
+        public ValueTask OnEndpointBoundAsync(GameEndpointBindingContext context, CancellationToken cancellationToken = default)
+        {
+            return default;
+        }
+
+        public ValueTask OnEndpointDisconnectedAsync(GameEndpointBindingContext context, CancellationToken cancellationToken = default)
+        {
+            return default;
+        }
+
+        public ValueTask OnEndpointExpiredAsync(GameEndpointBindingContext context, CancellationToken cancellationToken = default)
+        {
+            return default;
+        }
+
+        public ValueTask OnSessionTerminatedAsync(GameSessionTerminationContext context, CancellationToken cancellationToken = default)
+        {
+            WasCalled = true;
+            throw new InvalidOperationException("boom");
+        }
+    }
+
+    private sealed class RecordingLifecycleHandler : IGameSessionLifecycleHandler
+    {
+        public List<GameSessionTerminationContext> Terminated { get; } = [];
+
+        public ValueTask OnConnectionOpenedAsync(GameConnectionContext context, CancellationToken cancellationToken = default)
+        {
+            return default;
+        }
+
+        public ValueTask OnEndpointBoundAsync(GameEndpointBindingContext context, CancellationToken cancellationToken = default)
+        {
+            return default;
+        }
+
+        public ValueTask OnEndpointDisconnectedAsync(GameEndpointBindingContext context, CancellationToken cancellationToken = default)
+        {
+            return default;
+        }
+
+        public ValueTask OnEndpointExpiredAsync(GameEndpointBindingContext context, CancellationToken cancellationToken = default)
+        {
+            return default;
+        }
+
+        public ValueTask OnSessionTerminatedAsync(GameSessionTerminationContext context, CancellationToken cancellationToken = default)
+        {
+            Terminated.Add(context);
+            return default;
         }
     }
 

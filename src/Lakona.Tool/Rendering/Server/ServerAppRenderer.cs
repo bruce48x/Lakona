@@ -102,6 +102,7 @@ internal sealed class ServerAppRenderer : IPlanContributor
         var acceptorExpression = RenderAcceptorExpression(spec.Transport);
 
         return $$"""
+        using System;
         using System.Threading.Tasks;
         using Microsoft.Extensions.DependencyInjection;
         using Server.App.Lifecycle;
@@ -118,6 +119,10 @@ internal sealed class ServerAppRenderer : IPlanContributor
             .UseAcceptor({{acceptorExpression}})
             .AddServices(services =>
             {
+                services.AddLakonaGameServerSessionCleanup(options =>
+                {
+                    options.DisconnectedEndpointRetention = TimeSpan.FromSeconds(30);
+                });
                 services.AddSingleton<IGameSessionLifecycleHandler, ChatPresenceLifecycleHandler>();
             })
             .UseGeneratedHotfixServices());

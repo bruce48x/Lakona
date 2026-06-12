@@ -37,6 +37,8 @@ public sealed class ServerAppRendererTests
         Assert.Contains(".UseSerializer(() => new MemoryPackRpcSerializer())", program, StringComparison.Ordinal);
         Assert.Contains("new KcpConnectionAcceptor(opts.Port, opts.Host)", program, StringComparison.Ordinal);
         Assert.Contains("services.AddSingleton<IGameSessionLifecycleHandler, ChatPresenceLifecycleHandler>();", program, StringComparison.Ordinal);
+        Assert.Contains("services.AddLakonaGameServerSessionCleanup(options =>", program, StringComparison.Ordinal);
+        Assert.Contains("options.DisconnectedEndpointRetention = TimeSpan.FromSeconds(30);", program, StringComparison.Ordinal);
         Assert.Contains(".UseGeneratedHotfixServices());", program, StringComparison.Ordinal);
         Assert.DoesNotContain("RpcServerHostBuilder", program, StringComparison.Ordinal);
 
