@@ -146,8 +146,8 @@ internal sealed class HotfixPackageInstaller
                 throw new InvalidOperationException("Hotfix checksum file is invalid.");
             }
 
-            var relativePath = parts[1].Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
-            if (Path.IsPathRooted(relativePath))
+            var relativePath = NormalizeSeparators(parts[1]);
+            if (Path.IsPathRooted(relativePath) || IsRootedWithAnySeparator(relativePath))
             {
                 throw new InvalidOperationException("Hotfix checksum path is invalid.");
             }
@@ -193,7 +193,26 @@ internal sealed class HotfixPackageInstaller
 
     private static string NormalizeRelativePath(string relativePath)
     {
-        return relativePath.Replace(Path.DirectorySeparatorChar, '/');
+        return NormalizeSeparators(relativePath).Replace(Path.DirectorySeparatorChar, '/');
+    }
+
+    private static string NormalizeSeparators(string path)
+    {
+        return path
+            .Replace('\\', Path.DirectorySeparatorChar)
+            .Replace('/', Path.DirectorySeparatorChar);
+    }
+
+    private static bool IsRootedWithAnySeparator(string path)
+    {
+        return path.StartsWith(Path.DirectorySeparatorChar)
+            || path.StartsWith($"{Path.DirectorySeparatorChar}{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+            || path.Length >= 3 && char.IsLetter(path[0]) && path[1] == ':' && IsAnySeparator(path[2]);
+    }
+
+    private static bool IsAnySeparator(char value)
+    {
+        return value is '/' or '\\';
     }
 
     private static StringComparison PathComparison =>
