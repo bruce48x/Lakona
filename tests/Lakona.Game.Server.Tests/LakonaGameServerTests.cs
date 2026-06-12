@@ -10,6 +10,7 @@ using Lakona.Game.Abstractions;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.Hotfix.Loading;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Xunit;
@@ -109,6 +110,39 @@ public sealed class LakonaGameServerTests
         Assert.Contains("Shared", names);
         Assert.Contains("Server.App", names);
         Assert.Contains("State.Contracts", names);
+    }
+
+    [Fact]
+    public async Task Default_hotfix_source_resolves_current_version_pointer()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "LakonaDefaultHotfixSourceTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var hotfixRoot = Path.Combine(root, "hotfix");
+            var versionRoot = Path.Combine(hotfixRoot, "versions", "v2");
+            Directory.CreateDirectory(versionRoot);
+            var assemblyPath = Path.Combine(versionRoot, "Server.Hotfix.dll");
+            await File.WriteAllTextAsync(Path.Combine(hotfixRoot, "current.txt"), "v2", TestContext.Current.CancellationToken);
+            await File.WriteAllTextAsync(assemblyPath, "dll", TestContext.Current.CancellationToken);
+
+            var services = new ServiceCollection();
+            Lakona.Game.Server.Hosting.LakonaGameServer.ConfigureDefaultHotfixForTesting(
+                services,
+                root,
+                buildTag: "test");
+            using var provider = services.BuildServiceProvider();
+
+            var source = Assert.IsType<VersionPointerHotfixAssemblySource>(
+                provider.GetRequiredService<IHotfixAssemblySource>());
+            var resolved = await source.ResolveAsync(TestContext.Current.CancellationToken);
+
+            Assert.Equal(assemblyPath, resolved.AssemblyPath);
+            Assert.Equal("v2", resolved.Version);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     [Fact]

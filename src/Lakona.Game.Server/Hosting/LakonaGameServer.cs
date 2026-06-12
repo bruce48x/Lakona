@@ -109,16 +109,10 @@ public static class LakonaGameServer
         }
 
         // Hotfix
-        var hotfixDirectory = Path.Combine(AppContext.BaseDirectory, "hotfix");
-        builder.Services.AddLakonaGameHotfix(
-            new CurrentDirectoryHotfixAssemblySource(hotfixDirectory, "Server.Hotfix.dll"),
-            sharedAssemblyNames: GetDefaultHotfixSharedAssemblyNames());
-        builder.Services.AddLakonaGameHotfixAdmin(options =>
-        {
-            builder.Configuration.GetSection("Lakona.Game:Hotfix:Admin").Bind(options);
-            options.HotfixRoot = Path.Combine(AppContext.BaseDirectory, "hotfix");
-            options.BuildTag = HotfixBuildTag.Get(Assembly.GetEntryAssembly() ?? typeof(LakonaGameServer).Assembly);
-        });
+        var hotfixBuildTag = HotfixBuildTag.Get(Assembly.GetEntryAssembly() ?? typeof(LakonaGameServer).Assembly);
+        var hotfixAdminOptions = CreateDefaultHotfixAdminOptions(builder.Configuration, AppContext.BaseDirectory, hotfixBuildTag);
+        ConfigureDefaultHotfix(builder.Services, AppContext.BaseDirectory, hotfixAdminOptions);
+        builder.Services.AddLakonaGameHotfixAdmin(options => CopyHotfixAdminOptions(hotfixAdminOptions, options));
 
         // Gateway (registers RpcServersHostedService)
         builder.Services.AddLakonaGameServerGateway();
@@ -235,5 +229,56 @@ public static class LakonaGameServer
         }
 
         return names.OrderBy(static name => name, StringComparer.Ordinal).ToArray();
+    }
+
+    internal static void ConfigureDefaultHotfixForTesting(
+        IServiceCollection services,
+        string baseDirectory,
+        string buildTag)
+    {
+        ConfigureDefaultHotfix(
+            services,
+            baseDirectory,
+            new HotfixAdminOptions
+            {
+                Enabled = true,
+                Mode = "production",
+                HotfixRoot = Path.Combine(baseDirectory, "hotfix"),
+                BuildTag = buildTag
+            });
+    }
+
+    private static void ConfigureDefaultHotfix(
+        IServiceCollection services,
+        string baseDirectory,
+        HotfixAdminOptions adminOptions)
+    {
+        var hotfixDirectory = Path.Combine(baseDirectory, "hotfix");
+        IHotfixAssemblySource source = adminOptions.Enabled && adminOptions.Mode.Equals("production", StringComparison.OrdinalIgnoreCase)
+            ? new VersionPointerHotfixAssemblySource(hotfixDirectory, "current.txt", "Server.Hotfix.dll")
+            : new CurrentDirectoryHotfixAssemblySource(hotfixDirectory, "Server.Hotfix.dll");
+        services.AddLakonaGameHotfix(source, sharedAssemblyNames: GetDefaultHotfixSharedAssemblyNames());
+    }
+
+    private static HotfixAdminOptions CreateDefaultHotfixAdminOptions(
+        IConfiguration configuration,
+        string baseDirectory,
+        string buildTag)
+    {
+        var options = new HotfixAdminOptions();
+        configuration.GetSection("Lakona.Game:Hotfix:Admin").Bind(options);
+        options.HotfixRoot = Path.Combine(baseDirectory, "hotfix");
+        options.BuildTag = buildTag;
+        return options;
+    }
+
+    private static void CopyHotfixAdminOptions(HotfixAdminOptions source, HotfixAdminOptions target)
+    {
+        target.Enabled = source.Enabled;
+        target.Host = source.Host;
+        target.Port = source.Port;
+        target.HotfixRoot = source.HotfixRoot;
+        target.BuildTag = source.BuildTag;
+        target.Mode = source.Mode;
     }
 }

@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Text.Json;
 using Lakona.Tool.Hotfix;
 using Xunit;
@@ -101,10 +102,91 @@ public sealed class HotfixPackageWriterTests
         }
     }
 
+    [Theory]
+    [InlineData(@"..\outside")]
+    [InlineData("nested/version")]
+    public async Task InstallAsync_rejects_manifest_version_that_escapes_hotfix_root(string version)
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var zip = await WritePackageWithVersionAsync(root, version);
+            var installRoot = Path.Combine(root, "hotfix");
+
+            var exception = await Assert.ThrowsAsync<ArgumentException>(
+                async () => await new HotfixPackageInstaller().InstallAsync(zip, installRoot, TestContext.Current.CancellationToken));
+
+            Assert.Contains("version", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.False(Directory.Exists(Path.Combine(root, "outside")));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task InstallAsync_rejects_absolute_manifest_version()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var absoluteVersion = Path.Combine(Path.GetTempPath(), "LakonaHotfixOutside", Guid.NewGuid().ToString("N"));
+            var zip = await WritePackageWithVersionAsync(root, absoluteVersion);
+            var installRoot = Path.Combine(root, "hotfix");
+
+            var exception = await Assert.ThrowsAsync<ArgumentException>(
+                async () => await new HotfixPackageInstaller().InstallAsync(zip, installRoot, TestContext.Current.CancellationToken));
+
+            Assert.Contains("version", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.False(Directory.Exists(absoluteVersion));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private static string CreateTempRoot()
     {
         var root = Path.Combine(Path.GetTempPath(), "LakonaHotfixPackageWriterTests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         return root;
+    }
+
+    private static async Task<string> WritePackageWithVersionAsync(string root, string version)
+    {
+        var staging = Path.Combine(root, "staging-" + Guid.NewGuid().ToString("N"));
+        var packages = Path.Combine(root, "packages");
+        Directory.CreateDirectory(staging);
+        Directory.CreateDirectory(packages);
+
+        var manifest = new HotfixPackageManifest(
+            version,
+            DateTimeOffset.UtcNow,
+            "Server.Hotfix.dll",
+            "net10.0",
+            "tag",
+            "test");
+        await File.WriteAllTextAsync(
+            Path.Combine(staging, "hotfix.json"),
+            JsonSerializer.Serialize(manifest, HotfixJson.Options),
+            TestContext.Current.CancellationToken);
+        await File.WriteAllTextAsync(Path.Combine(staging, "Server.Hotfix.dll"), "dll", TestContext.Current.CancellationToken);
+
+        var lines = new List<string>();
+        foreach (var file in Directory.GetFiles(staging).OrderBy(Path.GetFileName, StringComparer.Ordinal))
+        {
+            await using var stream = File.OpenRead(file);
+            var hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, TestContext.Current.CancellationToken)).ToLowerInvariant();
+            lines.Add($"{hash} {Path.GetFileName(file)}");
+        }
+
+        await File.WriteAllLinesAsync(Path.Combine(staging, "checksums.sha256"), lines, TestContext.Current.CancellationToken);
+
+        var zip = Path.Combine(packages, "package.zip");
+        ZipFile.CreateFromDirectory(staging, zip);
+        Directory.Delete(staging, recursive: true);
+        return zip;
     }
 }

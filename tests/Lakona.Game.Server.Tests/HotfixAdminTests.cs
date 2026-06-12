@@ -73,6 +73,7 @@ public sealed class HotfixAdminTests
     {
         using var fixture = HotfixAdminFixture.Create();
         await fixture.Store.WritePointerAsync("current.txt", "old", TestContext.Current.CancellationToken);
+        await fixture.Store.WritePointerAsync("previous.txt", "older", TestContext.Current.CancellationToken);
         await fixture.WriteVersionAsync("next", buildTag: HotfixBuildTag.Get(typeof(HotfixAdminTests).Assembly));
         var admin = fixture.CreateAdmin(new RecordingHotfixManager(HotfixReloadStatus.Failed, "old"));
 
@@ -83,6 +84,7 @@ public sealed class HotfixAdminTests
 
         Assert.Contains("reload failed", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("old", await fixture.Store.ReadPointerAsync("current.txt", TestContext.Current.CancellationToken));
+        Assert.Equal("older", await fixture.Store.ReadPointerAsync("previous.txt", TestContext.Current.CancellationToken));
     }
 
     [Fact]

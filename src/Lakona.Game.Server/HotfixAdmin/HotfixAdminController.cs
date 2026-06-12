@@ -83,6 +83,7 @@ public sealed class HotfixAdminController
         CancellationToken cancellationToken)
     {
         var oldCurrent = await _store.ReadPointerAsync("current.txt", cancellationToken).ConfigureAwait(false);
+        var oldPrevious = await _store.ReadPointerAsync("previous.txt", cancellationToken).ConfigureAwait(false);
         if (expectedCurrentVersion is not null && !StringComparer.Ordinal.Equals(oldCurrent, expectedCurrentVersion))
         {
             throw new InvalidOperationException("Hotfix current version changed before activation.");
@@ -110,6 +111,7 @@ public sealed class HotfixAdminController
         if (!result.Succeeded)
         {
             await _store.WritePointerAsync("current.txt", oldCurrent, cancellationToken).ConfigureAwait(false);
+            await _store.WritePointerAsync("previous.txt", oldPrevious, cancellationToken).ConfigureAwait(false);
             throw new InvalidOperationException(result.ErrorMessage ?? "Hotfix reload failed.");
         }
 

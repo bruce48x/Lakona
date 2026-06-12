@@ -23,14 +23,15 @@ internal sealed class HotfixAdminClient
     public async Task<string> GetAsync(string server, string path, CancellationToken cancellationToken)
     {
         var uri = CreateLoopbackUri(server, path);
-        return await http.GetStringAsync(uri, cancellationToken).ConfigureAwait(false);
+        using var response = await http.GetAsync(uri, cancellationToken).ConfigureAwait(false);
+        return await ReadSuccessBodyAsync(response, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<string> PostAsync(string server, string path, object body, CancellationToken cancellationToken)
     {
         var uri = CreateLoopbackUri(server, path);
         using var response = await http.PostAsJsonAsync(uri, body, HotfixJson.Options, cancellationToken).ConfigureAwait(false);
-        return await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        return await ReadSuccessBodyAsync(response, cancellationToken).ConfigureAwait(false);
     }
 
     private static Uri CreateLoopbackUri(string server, string path)
@@ -41,5 +42,17 @@ internal sealed class HotfixAdminClient
         }
 
         return new Uri(new Uri(server.TrimEnd('/') + "/"), path.TrimStart('/'));
+    }
+
+    private static async Task<string> ReadSuccessBodyAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        if (response.IsSuccessStatusCode)
+        {
+            return body;
+        }
+
+        throw new InvalidOperationException(
+            $"Hotfix admin request failed with HTTP {(int)response.StatusCode} ({response.StatusCode}): {body}");
     }
 }
