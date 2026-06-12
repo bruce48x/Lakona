@@ -21,6 +21,22 @@ public sealed class ClientRendererTests
     }
 
     [Fact]
+    public void UnityClientRenderer_NuGetConfig_EmitsNuGetForUnityRestoreSettings()
+    {
+        var plan = Render(new UnityClientRenderer(), Spec(ClientEngine.Unity));
+        var config = AssertPath(plan, "Client/Assets/NuGet.config").Content;
+
+        Assert.Contains("<disabledPackageSources />", config, StringComparison.Ordinal);
+        Assert.Contains("<activePackageSource>", config, StringComparison.Ordinal);
+        Assert.Contains("<add key=\"All\" value=\"(Aggregate source)\" />", config, StringComparison.Ordinal);
+        Assert.Contains("<add key=\"packageInstallLocation\" value=\"CustomWithinAssets\" />", config, StringComparison.Ordinal);
+        Assert.Contains("<add key=\"repositoryPath\" value=\"./Packages\" />", config, StringComparison.Ordinal);
+        Assert.Contains("<add key=\"PackagesConfigDirectoryPath\" value=\".\" />", config, StringComparison.Ordinal);
+        Assert.Contains("<add key=\"slimRestore\" value=\"true\" />", config, StringComparison.Ordinal);
+        Assert.Contains("<add key=\"PreferNetStandardOverNetFramework\" value=\"true\" />", config, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void UnityClientRenderer_EmitsPlayableChatClientSlice()
     {
         var plan = Render(new UnityClientRenderer(), Spec(ClientEngine.Unity));
@@ -263,6 +279,10 @@ public sealed class ClientRendererTests
         var manifest = Assert.Single(plan.Files, file => file.RelativePath == "Client/Packages/manifest.json").Content;
 
         Assert.Contains("\"com.github-glitchenzo.nugetforunity\": \"4.5.0\"", manifest, StringComparison.Ordinal);
+        Assert.Contains("\"com.unity.modules.uielements\": \"1.0.0\"", manifest, StringComparison.Ordinal);
+        Assert.Contains("\"com.unity.modules.audio\": \"1.0.0\"", manifest, StringComparison.Ordinal);
+        Assert.Contains("\"com.unity.modules.physics\": \"1.0.0\"", manifest, StringComparison.Ordinal);
+        Assert.Contains("\"com.unity.modules.physics2d\": \"1.0.0\"", manifest, StringComparison.Ordinal);
         Assert.Contains("\"scopedRegistries\"", manifest, StringComparison.Ordinal);
         Assert.Contains("\"name\": \"OpenUPM\"", manifest, StringComparison.Ordinal);
         Assert.Contains("\"url\": \"https://package.openupm.com\"", manifest, StringComparison.Ordinal);
