@@ -1,6 +1,7 @@
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Scanning;
+using Lakona.Game.Server.Hotfix;
 using Lakona.Rpc.Core;
 using Xunit;
 
@@ -74,6 +75,22 @@ public sealed class HotfixDispatchTests
         Assert.Throws<HotfixMethodNotLoadedException>(() => table.Resolve(key));
     }
 
+    [Fact]
+    public void Scanner_accepts_service_method_with_hotfix_call_wrapper()
+    {
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(WrappedLoginService).Assembly,
+            [typeof(WrappedLoginService)]);
+
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        var binding = Assert.Single(scan.Services);
+        Assert.Equal(
+            HotfixDispatch.CreateServiceKey<IWrappedLoginService, WrappedLoginReply>(
+                9,
+                typeof(HotfixServiceCall<WrappedLoginRequest, IWrappedLoginCallback>)),
+            binding.Key);
+    }
+
     private static void ReplaceDispatchWith(long version, Type serviceType)
     {
         var scan = HotfixBehaviorScanner.Scan(serviceType.Assembly, [serviceType]);
@@ -120,6 +137,35 @@ public sealed class ChatServiceV2
     public ValueTask<string> EchoAsync(string text)
     {
         return new ValueTask<string>("v2:" + text);
+    }
+}
+
+[RpcService(101, NotificationContract = typeof(IWrappedLoginCallback))]
+public interface IWrappedLoginService
+{
+    [RpcMethod(9)]
+    ValueTask<WrappedLoginReply> LoginAsync(WrappedLoginRequest request);
+}
+
+public interface IWrappedLoginCallback
+{
+}
+
+public sealed class WrappedLoginRequest
+{
+}
+
+public sealed class WrappedLoginReply
+{
+}
+
+[HotfixService(typeof(IWrappedLoginService))]
+public sealed class WrappedLoginService
+{
+    public static ValueTask<WrappedLoginReply> LoginAsync(
+        HotfixServiceCall<WrappedLoginRequest, IWrappedLoginCallback> call)
+    {
+        return new ValueTask<WrappedLoginReply>(new WrappedLoginReply());
     }
 }
 

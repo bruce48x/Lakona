@@ -181,7 +181,8 @@ public static class HotfixBehaviorScanner
                 ? typeof(ValueTask)
                 : method.ReturnType.GetGenericArguments()[0];
             var parameterTypes = parameters.Select(static parameter => parameter.ParameterType).ToArray();
-            var contractMethod = ResolveContractMethod(contractType, method, parameterTypes, diagnostics);
+            var contractParameterTypes = parameterTypes.Select(GetContractParameterType).ToArray();
+            var contractMethod = ResolveContractMethod(contractType, method, contractParameterTypes, diagnostics);
             if (contractMethod is null)
             {
                 continue;
@@ -208,6 +209,20 @@ public static class HotfixBehaviorScanner
     private static bool IsValueTaskResult(Type type)
     {
         return type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ValueTask<>);
+    }
+
+    private static Type GetContractParameterType(Type parameterType)
+    {
+        if (!parameterType.IsGenericType)
+        {
+            return parameterType;
+        }
+
+        var genericDefinition = parameterType.GetGenericTypeDefinition();
+        return genericDefinition.Namespace == "Lakona.Game.Server.Hotfix" &&
+            genericDefinition.Name is "HotfixServiceCall`1" or "HotfixServiceCall`2"
+            ? parameterType.GetGenericArguments()[0]
+            : parameterType;
     }
 
     private static MethodInfo? ResolveContractMethod(

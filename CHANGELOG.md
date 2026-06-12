@@ -9,7 +9,9 @@ that consolidation.
 ### Fixed
 
 - `Lakona.Game.Server` `0.5.2`: session endpoint binding now reports first-bind versus resume transitions and publishes framework lifecycle hooks for endpoint bind and session termination.
+- `Lakona.Game.Server.Hotfix` `0.2.2`: hotfix service scanning now matches generated `HotfixServiceCall<TRequest>` wrappers to their underlying RPC contract request types, fixing initial hotfix load failures in generated game projects.
 - `Lakona.Game.Server.Hotfix.Generators` `0.1.3`: generated hotfix service binding now handles cross-namespace marker types and reports unsupported service contract shapes as diagnostics.
+- `Lakona.Tool` `0.10.3`: generated game server projects now reference the hotfix runtime with wrapped service-call contract matching.
 - `Lakona.Tool` `0.10.2`: generated game server projects now register session cleanup when generated lifecycle handlers rely on endpoint expiration.
 
 ## 2026-06-11
