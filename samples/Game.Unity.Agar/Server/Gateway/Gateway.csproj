@@ -5,8 +5,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>Gateway</RootNamespace>
-    <LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>
-    <LakonaRpcServerGeneratedNamespace>Gateway.Generated</LakonaRpcServerGeneratedNamespace>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Shared\Shared.csproj" />
@@ -18,7 +16,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Server\Lakona.Rpc.Server.csproj" />
-    <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Analyzers\Lakona.Rpc.Analyzers.csproj" />
     <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj" />
     <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Transport.Kcp\Lakona.Rpc.Transport.Kcp.csproj" />
     <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Transport.WebSocket\Lakona.Rpc.Transport.WebSocket.csproj" />

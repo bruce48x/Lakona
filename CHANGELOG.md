@@ -4,6 +4,14 @@ Lakona was created on 2026-06-07 by merging the former ULinkGame, ULinkActor,
 and ULinkRpc repositories into a single monorepo. This changelog starts from
 that consolidation.
 
+## 2026-06-12
+
+### Fixed
+
+- `Lakona.Game.Server` `0.5.2`: session endpoint binding now reports first-bind versus resume transitions and publishes framework lifecycle hooks for endpoint bind and session termination.
+- `Lakona.Game.Server.Hotfix.Generators` `0.1.3`: generated hotfix service binding now handles cross-namespace marker types and reports unsupported service contract shapes as diagnostics.
+- `Lakona.Tool` `0.10.2`: generated game server projects now register session cleanup when generated lifecycle handlers rely on endpoint expiration.
+
 ## 2026-06-11
 
 ### Fixed

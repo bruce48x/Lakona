@@ -733,6 +733,74 @@ contracts described above.
    Add generator tests that assert diagnostics for each unsupported shape and
    assert no partial proxy implementation is emitted for the invalid contract.
 
+As of commit `94cb5ce703482f208eca8a0d8622bb411cf8feff`, the four items above
+have implementation and focused test coverage. Keep them documented as the
+acceptance criteria for this feature family.
+
+## Second-Pass Review Follow-Ups
+
+Review of commit `94cb5ce703482f208eca8a0d8622bb411cf8feff` found these
+remaining issues before the work should be considered complete.
+
+1. Update all `IGameSessionDirectory.BindEndpointAsync` call sites after the
+   return type change.
+
+   `IGameSessionDirectory.BindEndpointAsync` now returns
+   `ValueTask<GameSessionEndpointBindResult>`. Direct `await` call sites can
+   discard the result, but forwarding methods returning plain `ValueTask` must
+   be updated. The current Unity Agar gateway sample still has
+   `SessionDirectory.BindControlAsync` returning `ValueTask` while returning the
+   directory call directly. That shape is incompatible with the new interface.
+
+   Fix by either making the forwarding method `async` and awaiting the directory
+   call, or by changing the forwarding method to return the new result type if
+   callers need the bind transition. Add a focused compile or unit test for this
+   gateway service path.
+
+2. Add sample-server validation for `Game.Unity.Agar`.
+
+   `dotnet build samples/Game.Unity.Agar/Server/Gateway/Gateway.csproj
+   --no-restore` currently fails before reaching the bind-return mismatch
+   because `Gateway.Generated` is not available to the gateway project. This
+   sample is not covered by the root `Lakona.slnx` build, so regressions in the
+   larger multiplayer sample can survive the normal repository validation loop.
+
+   Restore the gateway generated RPC binding setup or update the sample to the
+   current generated-binding pattern, then add this project or an equivalent
+   sample E2E check to the validation list used before release.
+
+3. Bump package versions for shippable package changes.
+
+   This commit changes shippable source under `src/Lakona.Game.Server`,
+   `src/Lakona.Game.Server.Hotfix.Generators`, and `src/Lakona.Tool`, but the
+   package versions remain unchanged from the previous commit. Before release,
+   bump the affected `.csproj` versions according to `CONTRIBUTING.md`, and
+   update any tool template version constants, sample package references, and
+   changelog entries that are tied to those package versions.
+
+## Third-Pass Review Follow-Up
+
+Review of the follow-up changes after
+`94cb5ce703482f208eca8a0d8622bb411cf8feff` found one remaining validation
+issue.
+
+1. Make Unity Agar gateway build validation independent of pre-existing restore
+   artifacts.
+
+   `UnityAgarGatewayBuildTests` shells out to `dotnet build
+   samples/Game.Unity.Agar/Server/Gateway/Gateway.csproj --no-restore`, but
+   that gateway project is not part of the root `Lakona.slnx`. A clean checkout
+   that restores and builds only the root solution will not necessarily have
+   `samples/Game.Unity.Agar/Server/Gateway/obj/project.assets.json`, so the
+   test can pass on a developer machine that previously restored the sample and
+   fail on a fresh CI agent.
+
+   Fix by either adding the Unity Agar gateway project to the normal
+   restore/build validation path, running an explicit restore for that sample
+   before the `--no-restore` build, or letting this specific E2E test run
+   `dotnet build` without `--no-restore`. The important property is that the
+   test must not depend on stale `obj` contents from a previous local build.
+
 ## Open Implementation Choices
 
 These choices should be resolved during implementation with small tests:

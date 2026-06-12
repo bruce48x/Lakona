@@ -401,16 +401,16 @@ internal sealed class SessionDirectory
         }
     }
 
-    private ValueTask BindControlAsync(
+    private async ValueTask BindControlAsync(
         GameSessionKey session,
         string connectionId,
         IPlayerCallback callback,
         CancellationToken cancellationToken = default)
     {
-        return _gameSessions.BindEndpointAsync(
+        await _gameSessions.BindEndpointAsync(
             new SessionEndpointKey(session, SessionRegistration.ControlEndpointName),
             connectionId,
             callback,
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
     }
 }
