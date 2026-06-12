@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
+using Lakona.Rpc.Core;
 
 namespace Lakona.Game.Server.Hotfix.Scanning;
 
@@ -180,7 +181,20 @@ public static class HotfixBehaviorScanner
                 ? typeof(ValueTask)
                 : method.ReturnType.GetGenericArguments()[0];
             var parameterTypes = parameters.Select(static parameter => parameter.ParameterType).ToArray();
-            var key = HotfixDispatch.CreateServiceKey(contractType, method.Name, returnType, parameterTypes);
+            var contractMethod = ResolveContractMethod(contractType, method, parameterTypes, diagnostics);
+            if (contractMethod is null)
+            {
+                continue;
+            }
+
+            var rpcMethod = contractMethod.GetCustomAttribute<RpcMethodAttribute>();
+            if (rpcMethod is null)
+            {
+                diagnostics.Add($"Hotfix service method '{serviceType.FullName}.{method.Name}' maps to contract method '{contractType.FullName}.{contractMethod.Name}' without [RpcMethod].");
+                continue;
+            }
+
+            var key = HotfixDispatch.CreateServiceKey(contractType, rpcMethod.MethodId, returnType, parameterTypes);
             if (!serviceKeys.Add(key))
             {
                 diagnostics.Add($"Duplicate hotfix service method key '{key}'.");
@@ -194,5 +208,32 @@ public static class HotfixBehaviorScanner
     private static bool IsValueTaskResult(Type type)
     {
         return type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ValueTask<>);
+    }
+
+    private static MethodInfo? ResolveContractMethod(
+        Type contractType,
+        MethodInfo serviceMethod,
+        IReadOnlyList<Type> parameterTypes,
+        List<string> diagnostics)
+    {
+        var matches = contractType.GetMethods()
+            .Where(method => string.Equals(method.Name, serviceMethod.Name, StringComparison.Ordinal))
+            .Where(method =>
+            {
+                var parameters = method.GetParameters();
+                return parameters.Length == parameterTypes.Count &&
+                       parameters.Zip(parameterTypes).All(pair => pair.First.ParameterType == pair.Second);
+            })
+            .ToArray();
+
+        if (matches.Length == 1)
+        {
+            return matches[0];
+        }
+
+        diagnostics.Add(matches.Length == 0
+            ? $"Hotfix service method '{serviceMethod.DeclaringType?.FullName}.{serviceMethod.Name}' does not match a method on contract '{contractType.FullName}'."
+            : $"Hotfix service method '{serviceMethod.DeclaringType?.FullName}.{serviceMethod.Name}' matches more than one method on contract '{contractType.FullName}'.");
+        return null;
     }
 }

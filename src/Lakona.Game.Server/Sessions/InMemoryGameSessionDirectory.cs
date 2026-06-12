@@ -22,7 +22,7 @@ public sealed class InMemoryGameSessionDirectory : IGameSessionDirectory
 
             var session = new GameSessionKey(ownerKey, Guid.NewGuid().ToString("N"), generation);
             _owners[ownerKey] = new OwnerSessionState(session);
-            return ValueTask.FromResult(session);
+            return new ValueTask<GameSessionKey>(session);
         }
     }
 
@@ -38,18 +38,19 @@ public sealed class InMemoryGameSessionDirectory : IGameSessionDirectory
             if (!_owners.TryGetValue(session.OwnerKey, out var state) ||
                 !state.Session.Equals(session))
             {
-                return ValueTask.FromResult(SessionResumeDecision.StateLost("Session was not found or generation changed."));
+                return new ValueTask<SessionResumeDecision>(
+                    SessionResumeDecision.StateLost("Session was not found or generation changed."));
             }
 
             if (state.IsTerminated)
             {
-                return ValueTask.FromResult(state.Termination is null
+                return new ValueTask<SessionResumeDecision>(state.Termination is null
                     ? SessionResumeDecision.StateLost("Session was terminated.")
                     : SessionResumeDecision.Terminated(state.Termination));
             }
 
             state.LastSeenAt = DateTimeOffset.UtcNow;
-            return ValueTask.FromResult(SessionResumeDecision.Resumed(state.Session));
+            return new ValueTask<SessionResumeDecision>(SessionResumeDecision.Resumed(state.Session));
         }
     }
 
@@ -73,7 +74,8 @@ public sealed class InMemoryGameSessionDirectory : IGameSessionDirectory
                 throw new InvalidOperationException("Session is terminated.");
             }
 
-            state.Endpoints[endpoint.EndpointName.Value] = new EndpointBinding(
+            var aggregate = state.GetOrAddEndpoint(endpoint.EndpointName.Value);
+            aggregate.Bindings[typeof(TCallback)] = new EndpointBinding(
                 connectionId,
                 callback,
                 typeof(TCallback),
@@ -81,7 +83,7 @@ public sealed class InMemoryGameSessionDirectory : IGameSessionDirectory
             state.LastSeenAt = DateTimeOffset.UtcNow;
         }
 
-        return ValueTask.CompletedTask;
+        return default;
     }
 
     public ValueTask MarkSessionTerminatedAsync(
@@ -102,7 +104,41 @@ public sealed class InMemoryGameSessionDirectory : IGameSessionDirectory
             state.LastSeenAt = DateTimeOffset.UtcNow;
         }
 
-        return ValueTask.CompletedTask;
+        return default;
+    }
+
+    public ValueTask<IReadOnlyList<GameSessionEndpointSnapshot>> MarkConnectionDisconnectedAsync(
+        string connectionId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_gate)
+        {
+            var disconnectedAt = DateTimeOffset.UtcNow;
+            var snapshots = new List<GameSessionEndpointSnapshot>();
+
+            foreach (var state in _owners.Values)
+            {
+                foreach (var endpoint in state.Endpoints)
+                {
+                    var matched = endpoint.Value.Disconnect(connectionId, disconnectedAt);
+                    if (matched.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    snapshots.Add(new GameSessionEndpointSnapshot(
+                        new SessionEndpointKey(state.Session, endpoint.Key),
+                        connectionId,
+                        matched));
+                    state.LastSeenAt = disconnectedAt;
+                }
+            }
+
+            return new ValueTask<IReadOnlyList<GameSessionEndpointSnapshot>>(snapshots);
+        }
     }
 
     public ValueTask MarkEndpointDisconnectedAsync(
@@ -117,22 +153,17 @@ public sealed class InMemoryGameSessionDirectory : IGameSessionDirectory
         {
             if (!_owners.TryGetValue(endpoint.Session.OwnerKey, out var state) ||
                 !state.Session.Equals(endpoint.Session) ||
-                !state.Endpoints.TryGetValue(endpoint.EndpointName.Value, out var binding))
+                !state.Endpoints.TryGetValue(endpoint.EndpointName.Value, out var aggregate))
             {
-                return ValueTask.CompletedTask;
+                return default;
             }
 
-            if (connectionId is not null &&
-                !string.Equals(binding.ConnectionId, connectionId, StringComparison.Ordinal))
-            {
-                return ValueTask.CompletedTask;
-            }
-
-            state.Endpoints[endpoint.EndpointName.Value] = binding.Disconnect(DateTimeOffset.UtcNow);
-            state.LastSeenAt = DateTimeOffset.UtcNow;
+            var matched = aggregate.Disconnect(connectionId, DateTimeOffset.UtcNow);
+            if (matched.Count != 0)
+                state.LastSeenAt = DateTimeOffset.UtcNow;
         }
 
-        return ValueTask.CompletedTask;
+        return default;
     }
 
     public ValueTask<TCallback?> GetCallbackAsync<TCallback>(
@@ -147,13 +178,13 @@ public sealed class InMemoryGameSessionDirectory : IGameSessionDirectory
         {
             if (!_owners.TryGetValue(endpoint.Session.OwnerKey, out var state) ||
                 !state.Session.Equals(endpoint.Session) ||
-                !state.Endpoints.TryGetValue(endpoint.EndpointName.Value, out var binding) ||
-                binding.DisconnectedAt is not null)
+                !state.Endpoints.TryGetValue(endpoint.EndpointName.Value, out var aggregate) ||
+                !aggregate.TryGetActiveBinding<TCallback>(out var binding))
             {
-                return ValueTask.FromResult<TCallback?>(null);
+                return new ValueTask<TCallback?>((TCallback?)null);
             }
 
-            return ValueTask.FromResult(binding.Callback as TCallback);
+            return new ValueTask<TCallback?>(binding.Callback as TCallback);
         }
     }
 
@@ -169,14 +200,15 @@ public sealed class InMemoryGameSessionDirectory : IGameSessionDirectory
         {
             if (!_owners.TryGetValue(endpoint.Session.OwnerKey, out var state) ||
                 !state.Session.Equals(endpoint.Session) ||
-                !state.Endpoints.TryGetValue(endpoint.EndpointName.Value, out var binding) ||
-                binding.DisconnectedAt is not null ||
+                !state.Endpoints.TryGetValue(endpoint.EndpointName.Value, out var aggregate) ||
+                !aggregate.TryGetActiveBinding<TCallback>(out var binding) ||
                 binding.Callback is not TCallback callback)
             {
-                return ValueTask.FromResult<GameSessionEndpointBinding<TCallback>?>(null);
+                return new ValueTask<GameSessionEndpointBinding<TCallback>?>(
+                    (GameSessionEndpointBinding<TCallback>?)null);
             }
 
-            return ValueTask.FromResult<GameSessionEndpointBinding<TCallback>?>(
+            return new ValueTask<GameSessionEndpointBinding<TCallback>?>(
                 new GameSessionEndpointBinding<TCallback>(
                     endpoint,
                     binding.ConnectionId,
@@ -184,7 +216,7 @@ public sealed class InMemoryGameSessionDirectory : IGameSessionDirectory
         }
     }
 
-    public ValueTask ExpireDisconnectedEndpointsAsync(
+    public ValueTask<IReadOnlyList<GameSessionEndpointSnapshot>> ExpireDisconnectedEndpointsAsync(
         DateTimeOffset disconnectedBefore,
         CancellationToken cancellationToken = default)
     {
@@ -192,15 +224,29 @@ public sealed class InMemoryGameSessionDirectory : IGameSessionDirectory
 
         lock (_gate)
         {
+            var snapshots = new List<GameSessionEndpointSnapshot>();
             var expiredOwners = new List<string>();
             foreach (var owner in _owners)
             {
-                var endpoints = owner.Value.Endpoints
-                    .Where(endpoint => endpoint.Value.DisconnectedAt < disconnectedBefore)
-                    .Select(endpoint => endpoint.Key)
-                    .ToArray();
+                var expiredEndpoints = new List<string>();
+                foreach (var endpoint in owner.Value.Endpoints)
+                {
+                    var expired = endpoint.Value.Expire(disconnectedBefore);
+                    foreach (var group in expired.GroupBy(binding => binding.ConnectionId, StringComparer.Ordinal))
+                    {
+                        snapshots.Add(new GameSessionEndpointSnapshot(
+                            new SessionEndpointKey(owner.Value.Session, endpoint.Key),
+                            group.Key,
+                            group.Select(binding => binding.CallbackType).ToArray()));
+                    }
 
-                foreach (var endpointName in endpoints)
+                    if (endpoint.Value.Bindings.Count == 0)
+                    {
+                        expiredEndpoints.Add(endpoint.Key);
+                    }
+                }
+
+                foreach (var endpointName in expiredEndpoints)
                 {
                     owner.Value.Endpoints.Remove(endpointName);
                 }
@@ -216,9 +262,9 @@ public sealed class InMemoryGameSessionDirectory : IGameSessionDirectory
             {
                 _owners.Remove(ownerKey);
             }
-        }
 
-        return ValueTask.CompletedTask;
+            return new ValueTask<IReadOnlyList<GameSessionEndpointSnapshot>>(snapshots);
+        }
     }
 
     private OwnerSessionState GetCurrentSessionState(GameSessionKey session)
@@ -264,7 +310,83 @@ public sealed class InMemoryGameSessionDirectory : IGameSessionDirectory
 
         public SessionTerminationNotice? Termination { get; set; }
 
-        public Dictionary<string, EndpointBinding> Endpoints { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, EndpointAggregate> Endpoints { get; } = new(StringComparer.Ordinal);
+
+        public EndpointAggregate GetOrAddEndpoint(string endpointName)
+        {
+            if (!Endpoints.TryGetValue(endpointName, out var aggregate))
+            {
+                aggregate = new EndpointAggregate();
+                Endpoints.Add(endpointName, aggregate);
+            }
+
+            return aggregate;
+        }
+    }
+
+    private sealed class EndpointAggregate
+    {
+        public Dictionary<Type, EndpointBinding> Bindings { get; } = new();
+
+        public IReadOnlyList<Type> Disconnect(string? connectionId, DateTimeOffset disconnectedAt)
+        {
+            var matched = new List<Type>();
+            foreach (var binding in Bindings.ToArray())
+            {
+                if (connectionId is not null &&
+                    !string.Equals(binding.Value.ConnectionId, connectionId, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (binding.Value.DisconnectedAt is null)
+                {
+                    matched.Add(binding.Value.CallbackType);
+                }
+
+                Bindings[binding.Key] = binding.Value.Disconnect(disconnectedAt);
+            }
+
+            return matched;
+        }
+
+        public IReadOnlyList<EndpointBinding> Expire(DateTimeOffset disconnectedBefore)
+        {
+            var expired = Bindings
+                .Where(binding => binding.Value.DisconnectedAt < disconnectedBefore)
+                .Select(binding => binding.Value)
+                .ToArray();
+
+            foreach (var binding in expired)
+            {
+                Bindings.Remove(binding.CallbackType);
+            }
+
+            return expired;
+        }
+
+        public bool TryGetActiveBinding<TCallback>(out EndpointBinding binding)
+            where TCallback : class
+        {
+            if (Bindings.TryGetValue(typeof(TCallback), out binding!) &&
+                binding.DisconnectedAt is null)
+            {
+                return true;
+            }
+
+            foreach (var candidate in Bindings.Values)
+            {
+                if (candidate.DisconnectedAt is null &&
+                    candidate.Callback is TCallback)
+                {
+                    binding = candidate;
+                    return true;
+                }
+            }
+
+            binding = null!;
+            return false;
+        }
     }
 
     private sealed record EndpointBinding(

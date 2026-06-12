@@ -104,6 +104,34 @@ public class RpcServerHostBuilderTests
     }
 
     [Fact]
+    public async Task RunAsync_NotifiesSessionLifecycleObserverOncePerConnection()
+    {
+        var observer = new RecordingSessionLifecycleObserver();
+        var acceptor = new SingleConnectionAcceptor(new EmptyFrameTransport(), "client-a");
+        using var cts = new CancellationTokenSource();
+
+        var host = RpcServerHostBuilder.Create()
+            .UseSerializer(new JsonRpcSerializer())
+            .UseAcceptor(_ => ValueTask.FromResult<IRpcConnectionAcceptor>(acceptor))
+            .UseSessionLifecycleObserver(observer)
+            .ConfigureServices(_ => { })
+            .Build();
+
+        var runTask = host.RunAsync(cts.Token).AsTask();
+
+        await observer.Disconnected.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        cts.Cancel();
+        await runTask.WaitAsync(TimeSpan.FromSeconds(2));
+
+        var started = Assert.Single(observer.StartedContexts);
+        var disconnected = Assert.Single(observer.DisconnectedContexts);
+        Assert.Equal("client-a", started.ConnectionId);
+        Assert.Equal("client-a", started.DisplayName);
+        Assert.Equal(started.ConnectionId, disconnected.Context.ConnectionId);
+        Assert.Null(disconnected.Error);
+    }
+
+    [Fact]
     public void BindFromAssembly_UsesAssemblyLevelGeneratedBinderAttribute()
     {
         var registry = new RpcServiceRegistry();
@@ -147,6 +175,87 @@ public class RpcServerHostBuilderTests
         {
             _onDispose();
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingSessionLifecycleObserver : IRpcSessionLifecycleObserver
+    {
+        public List<RpcSessionLifecycleContext> StartedContexts { get; } = [];
+
+        public List<(RpcSessionLifecycleContext Context, Exception? Error)> DisconnectedContexts { get; } = [];
+
+        public TaskCompletionSource Disconnected { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ValueTask OnSessionStartedAsync(
+            RpcSessionLifecycleContext context,
+            CancellationToken cancellationToken = default)
+        {
+            StartedContexts.Add(context);
+            return default;
+        }
+
+        public ValueTask OnSessionDisconnectedAsync(
+            RpcSessionLifecycleContext context,
+            Exception? error,
+            CancellationToken cancellationToken = default)
+        {
+            DisconnectedContexts.Add((context, error));
+            Disconnected.TrySetResult();
+            return default;
+        }
+    }
+
+    private sealed class SingleConnectionAcceptor : IRpcConnectionAcceptor
+    {
+        private readonly RpcAcceptedConnection _connection;
+        private int _accepted;
+
+        public SingleConnectionAcceptor(ITransport transport, string displayName)
+        {
+            _connection = new RpcAcceptedConnection(transport, displayName);
+        }
+
+        public string ListenAddress => "test://single";
+
+        public ValueTask<RpcAcceptedConnection> AcceptAsync(CancellationToken ct = default)
+        {
+            if (Interlocked.Exchange(ref _accepted, 1) == 0)
+                return ValueTask.FromResult(_connection);
+
+            return ValueTask.FromCanceled<RpcAcceptedConnection>(ct.IsCancellationRequested ? ct : new CancellationToken(true));
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            return default;
+        }
+    }
+
+    private sealed class EmptyFrameTransport : ITransport
+    {
+        public bool IsConnected { get; private set; } = true;
+
+        public ValueTask ConnectAsync(CancellationToken ct = default)
+        {
+            IsConnected = true;
+            return default;
+        }
+
+        public ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken ct = default)
+        {
+            return default;
+        }
+
+        public ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
+        {
+            IsConnected = false;
+            return ValueTask.FromResult(TransportFrame.Empty);
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            IsConnected = false;
+            return default;
         }
     }
 }

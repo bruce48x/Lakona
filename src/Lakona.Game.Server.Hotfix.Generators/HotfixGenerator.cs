@@ -12,6 +12,9 @@ namespace Lakona.Game.Server.Hotfix.Generators
     public sealed class HotfixGenerator : IIncrementalGenerator
     {
         private const string HotfixStateAttributeName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixStateAttribute";
+        private const string HotfixRpcServiceAttributeName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixRpcServiceAttribute";
+        private const string RpcServiceAttributeName = "Lakona.Rpc.Core.RpcServiceAttribute";
+        private const string RpcMethodAttributeName = "Lakona.Rpc.Core.RpcMethodAttribute";
 
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
@@ -23,6 +26,15 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
             context.RegisterSourceOutput(states, GenerateState);
             context.RegisterSourceOutput(states, GenerateStateCaller);
+
+            var services = context.SyntaxProvider
+                .CreateSyntaxProvider(
+                    IsStateCandidate,
+                    GetRpcService)
+                .Where(IsRpcServiceNotNull);
+
+            context.RegisterSourceOutput(services, GenerateRpcService);
+            context.RegisterSourceOutput(services.Collect(), GenerateRpcServiceExtension);
         }
 
         private static bool IsStateCandidate(SyntaxNode node, CancellationToken cancellationToken)
@@ -49,6 +61,329 @@ namespace Lakona.Game.Server.Hotfix.Generators
         private static bool IsNotNull(HotfixStateInfo? state)
         {
             return state != null;
+        }
+
+        private static bool IsRpcServiceNotNull(HotfixRpcServiceInfo? service)
+        {
+            return service != null;
+        }
+
+        private static HotfixRpcServiceInfo? GetRpcService(GeneratorSyntaxContext context, CancellationToken cancellationToken)
+        {
+            var declaration = (TypeDeclarationSyntax)context.Node;
+            var symbol = context.SemanticModel.GetDeclaredSymbol(declaration, cancellationToken);
+            if (symbol == null)
+            {
+                return null;
+            }
+
+            foreach (var attribute in symbol.GetAttributes())
+            {
+                if (attribute.AttributeClass?.ToDisplayString() != HotfixRpcServiceAttributeName)
+                {
+                    continue;
+                }
+
+                if (attribute.ConstructorArguments.Length == 0 ||
+                    attribute.ConstructorArguments[0].Value is not INamedTypeSymbol contract)
+                {
+                    return null;
+                }
+
+                var endpointName = "default";
+                var bindingSetName = "default";
+                foreach (var named in attribute.NamedArguments)
+                {
+                    if (named.Key == "EndpointName" && named.Value.Value is string endpoint)
+                    {
+                        endpointName = endpoint;
+                    }
+                    else if (named.Key == "BindingSetName" && named.Value.Value is string bindingSet)
+                    {
+                        bindingSetName = bindingSet;
+                    }
+                }
+
+                return new HotfixRpcServiceInfo(symbol, declaration, contract, endpointName, bindingSetName);
+            }
+
+            return null;
+        }
+
+        private static void GenerateRpcService(SourceProductionContext context, HotfixRpcServiceInfo? service)
+        {
+            if (service == null)
+            {
+                return;
+            }
+
+            if (!IsPartial(service.Declaration))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    HotfixGeneratorDiagnostics.ServiceMarkerMustBePartial,
+                    service.Declaration.Identifier.GetLocation(),
+                    service.Symbol.ToDisplayString()));
+                return;
+            }
+
+            context.AddSource(
+                CreateRpcServiceHintName(service.Symbol),
+                SourceText.From(GenerateRpcServiceSource(service), Encoding.UTF8));
+        }
+
+        private static void GenerateRpcServiceExtension(SourceProductionContext context, System.Collections.Immutable.ImmutableArray<HotfixRpcServiceInfo?> services)
+        {
+            var concrete = services.OfType<HotfixRpcServiceInfo>().ToArray();
+            if (concrete.Length == 0)
+            {
+                return;
+            }
+
+            foreach (var duplicate in concrete
+                .GroupBy(service => service.BindingSetName + "\u001f" + service.ContractType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
+                .Where(group => group.Count() > 1)
+                .SelectMany(group => group.Skip(1)))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    HotfixGeneratorDiagnostics.DuplicateServiceMarker,
+                    duplicate.Declaration.Identifier.GetLocation(),
+                    duplicate.Symbol.ToDisplayString(),
+                    duplicate.ContractType.ToDisplayString(),
+                    duplicate.BindingSetName));
+            }
+
+            foreach (var bindingSet in concrete.GroupBy(service => service.BindingSetName))
+            {
+                if (bindingSet.Select(service => service.EndpointName).Distinct().Count() <= 1)
+                {
+                    continue;
+                }
+
+                var first = bindingSet.First();
+                context.ReportDiagnostic(Diagnostic.Create(
+                    HotfixGeneratorDiagnostics.BindingSetEndpointMismatch,
+                    first.Declaration.Identifier.GetLocation(),
+                    bindingSet.Key));
+            }
+
+            context.AddSource("GeneratedHotfixServices.g.cs", SourceText.From(GenerateRpcServiceExtensionSource(concrete), Encoding.UTF8));
+        }
+
+        private static string GenerateRpcServiceExtensionSource(HotfixRpcServiceInfo[] services)
+        {
+            var firstService = services[0];
+            var namespaceName = firstService.Symbol.ContainingNamespace.IsGlobalNamespace
+                ? null
+                : firstService.Symbol.ContainingNamespace.ToDisplayString();
+            var generatedNamespace = CreateGeneratedNamespace(firstService.Symbol);
+            var builder = new StringBuilder();
+            builder.AppendLine("// <auto-generated />");
+            if (namespaceName != null)
+            {
+                builder.Append("namespace ").Append(namespaceName).AppendLine(";");
+                builder.AppendLine();
+            }
+
+            builder.AppendLine("internal static class GeneratedHotfixServicesExtensions");
+            builder.AppendLine("{");
+            builder.AppendLine("    public static global::Lakona.Game.Server.Hosting.LakonaGameServerBuilder UseGeneratedHotfixServices(");
+            builder.AppendLine("        this global::Lakona.Game.Server.Hosting.LakonaGameServerBuilder builder)");
+            builder.AppendLine("    {");
+            builder.AppendLine("        return builder.BindServices(BindGeneratedHotfixServices);");
+            builder.AppendLine("    }");
+            builder.AppendLine();
+            builder.AppendLine("    public static void BindGeneratedHotfixServices(");
+            builder.AppendLine("        global::Lakona.Rpc.Server.RpcServiceRegistry registry,");
+            builder.AppendLine("        global::System.IServiceProvider services)");
+            builder.AppendLine("    {");
+            builder.AppendLine("        BindGeneratedHotfixServices(registry, services, \"default\");");
+            builder.AppendLine("    }");
+            builder.AppendLine();
+            builder.AppendLine("    public static void BindGeneratedHotfixServices(");
+            builder.AppendLine("        global::Lakona.Rpc.Server.RpcServiceRegistry registry,");
+            builder.AppendLine("        global::System.IServiceProvider services,");
+            builder.AppendLine("        string bindingSetName)");
+            builder.AppendLine("    {");
+            builder.AppendLine("        if (bindingSetName is null)");
+            builder.AppendLine("        {");
+            builder.AppendLine("            throw new global::System.ArgumentNullException(nameof(bindingSetName));");
+            builder.AppendLine("        }");
+            builder.AppendLine();
+            builder.AppendLine("        switch (bindingSetName)");
+            builder.AppendLine("        {");
+            foreach (var bindingSet in services.GroupBy(service => service.BindingSetName).OrderBy(group => group.Key))
+            {
+                builder.Append("            case \"").Append(EscapeStringLiteral(bindingSet.Key)).AppendLine("\":");
+                AppendRpcServiceBindingSet(builder, bindingSet);
+                builder.AppendLine("                break;");
+            }
+
+            builder.AppendLine("            default:");
+            builder.AppendLine("                throw new global::System.InvalidOperationException($\"Unknown generated hotfix service binding set '{bindingSetName}'.\");");
+            builder.AppendLine("        }");
+            builder.AppendLine("    }");
+            builder.AppendLine("}");
+            return builder.ToString();
+        }
+
+        private static void AppendRpcServiceBindingSet(StringBuilder builder, IEnumerable<HotfixRpcServiceInfo> services)
+        {
+            builder.AppendLine("                {");
+            foreach (var service in services)
+            {
+                AppendRpcServiceBinding(builder, service);
+            }
+
+            builder.AppendLine("                }");
+        }
+
+        private static void AppendRpcServiceBinding(StringBuilder builder, HotfixRpcServiceInfo service)
+        {
+            var generatedNamespace = CreateGeneratedNamespace(service.Symbol);
+            var rpcServiceAttribute = service.ContractType.GetAttributes()
+                .FirstOrDefault(attribute => attribute.AttributeClass?.ToDisplayString() == RpcServiceAttributeName);
+            var callbackType = GetNamedTypeArgument(rpcServiceAttribute, "NotificationContract");
+            var proxyName = service.Symbol.Name + "Proxy";
+            var binderName = generatedNamespace + "." + GetBinderTypeName(service.ContractType.Name);
+            var endpointName = EscapeStringLiteral(service.EndpointName);
+
+            builder.Append("                    global::").Append(binderName).AppendLine(".BindFactory(");
+            builder.AppendLine("                        registry,");
+            builder.AppendLine("                        session => new " + proxyName + "(");
+            builder.AppendLine("                            global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Lakona.Game.Server.Hotfix.Abstractions.IHotfixServiceInvoker>(services),");
+            builder.AppendLine("                            services,");
+            builder.AppendLine("                            global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Lakona.Game.Server.Actors.IActorRuntime>(services),");
+            builder.AppendLine("                            global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Lakona.Game.Server.ILakonaGameServer>(services),");
+            if (callbackType != null)
+            {
+                var callbackProxyName = generatedNamespace + "." + GetNotificationProxyTypeName(callbackType.Name);
+                builder.Append("                            new global::").Append(callbackProxyName).AppendLine("(session),");
+            }
+
+            builder.AppendLine("                            session.ContextId,");
+            builder.Append("                            new global::Lakona.Game.Abstractions.GameEndpointName(\"").Append(endpointName).AppendLine("\")));");
+            builder.AppendLine();
+        }
+
+        private static string GenerateRpcServiceSource(HotfixRpcServiceInfo service)
+        {
+            var namespaceName = service.Symbol.ContainingNamespace.IsGlobalNamespace
+                ? null
+                : service.Symbol.ContainingNamespace.ToDisplayString();
+            var contractDisplay = service.ContractType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            var proxyName = service.Symbol.Name + "Proxy";
+            var rpcServiceAttribute = service.ContractType.GetAttributes()
+                .FirstOrDefault(attribute => attribute.AttributeClass?.ToDisplayString() == RpcServiceAttributeName);
+            var callbackType = GetNamedTypeArgument(rpcServiceAttribute, "NotificationContract");
+            var callbackDisplay = callbackType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
+            var builder = new StringBuilder();
+            builder.AppendLine("// <auto-generated />");
+            if (namespaceName != null)
+            {
+                builder.Append("namespace ").Append(namespaceName).AppendLine(";");
+                builder.AppendLine();
+            }
+
+            builder.Append("internal sealed class ").Append(proxyName).Append(" : ").Append(contractDisplay).AppendLine();
+            builder.AppendLine("{");
+            builder.AppendLine("    private readonly global::Lakona.Game.Server.Hotfix.Abstractions.IHotfixServiceInvoker _hotfix;");
+            builder.AppendLine("    private readonly global::System.IServiceProvider _services;");
+            builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorRuntime _actors;");
+            builder.AppendLine("    private readonly global::Lakona.Game.Server.ILakonaGameServer _gameServer;");
+            builder.AppendLine("    private readonly string _connectionId;");
+            builder.AppendLine("    private readonly global::Lakona.Game.Abstractions.GameEndpointName _endpointName;");
+            if (callbackDisplay != null)
+            {
+                builder.Append("    private readonly ").Append(callbackDisplay).AppendLine(" _callback;");
+            }
+
+            builder.AppendLine();
+            builder.Append("    public ").Append(proxyName).AppendLine("(");
+            builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.IHotfixServiceInvoker hotfix,");
+            builder.AppendLine("        global::System.IServiceProvider services,");
+            builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorRuntime actors,");
+            builder.AppendLine("        global::Lakona.Game.Server.ILakonaGameServer gameServer,");
+            if (callbackDisplay != null)
+            {
+                builder.Append("        ").Append(callbackDisplay).AppendLine(" callback,");
+            }
+
+            builder.AppendLine("        string connectionId,");
+            builder.AppendLine("        global::Lakona.Game.Abstractions.GameEndpointName endpointName)");
+            builder.AppendLine("    {");
+            builder.AppendLine("        _hotfix = hotfix;");
+            builder.AppendLine("        _services = services;");
+            builder.AppendLine("        _actors = actors;");
+            builder.AppendLine("        _gameServer = gameServer;");
+            if (callbackDisplay != null)
+            {
+                builder.AppendLine("        _callback = callback;");
+            }
+
+            builder.AppendLine("        _connectionId = connectionId;");
+            builder.AppendLine("        _endpointName = endpointName;");
+            builder.AppendLine("    }");
+
+            foreach (var method in service.ContractType.GetMembers().OfType<IMethodSymbol>().Where(method => method.MethodKind == MethodKind.Ordinary))
+            {
+                AppendRpcProxyMethod(builder, contractDisplay, method, callbackDisplay);
+            }
+
+            builder.AppendLine("}");
+            return builder.ToString();
+        }
+
+        private static void AppendRpcProxyMethod(StringBuilder builder, string contractDisplay, IMethodSymbol method, string? callbackDisplay)
+        {
+            var rpcMethod = method.GetAttributes()
+                .FirstOrDefault(attribute => attribute.AttributeClass?.ToDisplayString() == RpcMethodAttributeName);
+            if (rpcMethod == null || method.Parameters.Length != 1)
+            {
+                return;
+            }
+
+            var requestDisplay = method.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            var returnDisplay = method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            var methodId = rpcMethod.ConstructorArguments.Length > 0
+                ? rpcMethod.ConstructorArguments[0].Value?.ToString() ?? "0"
+                : "0";
+            var returnsResult = method.ReturnType is INamedTypeSymbol namedReturn &&
+                namedReturn.IsGenericType &&
+                namedReturn.Name == "ValueTask" &&
+                namedReturn.TypeArguments.Length == 1;
+            var resultDisplay = returnsResult && method.ReturnType is INamedTypeSymbol valueTask
+                ? valueTask.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                : null;
+            var callType = callbackDisplay == null
+                ? "global::Lakona.Game.Server.Hotfix.HotfixServiceCall<" + requestDisplay + ">"
+                : "global::Lakona.Game.Server.Hotfix.HotfixServiceCall<" + requestDisplay + ", " + callbackDisplay + ">";
+
+            builder.AppendLine();
+            builder.Append("    public ").Append(returnDisplay).Append(' ').Append(method.Name).Append('(')
+                .Append(requestDisplay).Append(' ').Append(method.Parameters[0].Name).AppendLine(")");
+            builder.AppendLine("    {");
+            builder.Append("        return _hotfix.InvokeAsync<").Append(contractDisplay).Append(", ").Append(callType);
+            if (returnsResult)
+            {
+                builder.Append(", ").Append(resultDisplay);
+            }
+
+            builder.AppendLine(">(");
+            builder.Append("            ").Append(methodId).AppendLine(",");
+            builder.Append("            new ").Append(callType).AppendLine("(");
+            builder.Append("                ").Append(method.Parameters[0].Name).AppendLine(",");
+            builder.AppendLine("                _connectionId,");
+            builder.AppendLine("                _endpointName,");
+            if (callbackDisplay != null)
+            {
+                builder.AppendLine("                _callback,");
+            }
+
+            builder.AppendLine("                _services,");
+            builder.AppendLine("                _actors,");
+            builder.AppendLine("                _gameServer));");
+            builder.AppendLine("    }");
         }
 
         private static void GenerateState(SourceProductionContext context, HotfixStateInfo? state)
@@ -339,6 +674,73 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 .Replace(' ', '_') + ".HotfixCaller.g.cs";
         }
 
+        private static string CreateRpcServiceHintName(INamedTypeSymbol symbol)
+        {
+            return symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                .Replace("global::", string.Empty)
+                .Replace('.', '_')
+                .Replace('<', '_')
+                .Replace('>', '_')
+                .Replace(',', '_')
+                .Replace(' ', '_') + ".HotfixRpcService.g.cs";
+        }
+
+        private static INamedTypeSymbol? GetNamedTypeArgument(AttributeData? attribute, string name)
+        {
+            if (attribute == null)
+            {
+                return null;
+            }
+
+            foreach (var namedArgument in attribute.NamedArguments)
+            {
+                if (namedArgument.Key == name && namedArgument.Value.Value is INamedTypeSymbol namedType)
+                {
+                    return namedType;
+                }
+            }
+
+            return null;
+        }
+
+        private static string CreateGeneratedNamespace(INamedTypeSymbol symbol)
+        {
+            var containingNamespace = symbol.ContainingNamespace.IsGlobalNamespace
+                ? string.Empty
+                : symbol.ContainingNamespace.ToDisplayString();
+            const string servicesSuffix = ".Services";
+            if (containingNamespace.EndsWith(servicesSuffix, System.StringComparison.Ordinal))
+            {
+                return containingNamespace.Substring(0, containingNamespace.Length - servicesSuffix.Length) + ".Generated";
+            }
+
+            return string.IsNullOrEmpty(containingNamespace)
+                ? "Generated"
+                : containingNamespace + ".Generated";
+        }
+
+        private static string GetServiceTypeName(string interfaceName)
+        {
+            return interfaceName.Length > 1 && interfaceName[0] == 'I' && char.IsUpper(interfaceName[1])
+                ? interfaceName.Substring(1)
+                : interfaceName;
+        }
+
+        private static string GetBinderTypeName(string interfaceName)
+        {
+            return GetServiceTypeName(interfaceName) + "Binder";
+        }
+
+        private static string GetNotificationProxyTypeName(string notificationContractInterfaceName)
+        {
+            return GetServiceTypeName(notificationContractInterfaceName) + "Proxy";
+        }
+
+        private static string EscapeStringLiteral(string value)
+        {
+            return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+        }
+
         private sealed class HotfixStateInfo
         {
             public HotfixStateInfo(INamedTypeSymbol symbol, TypeDeclarationSyntax declaration)
@@ -392,6 +794,33 @@ namespace Lakona.Game.Server.Hotfix.Generators
             public INamedTypeSymbol Symbol { get; }
 
             public TypeDeclarationSyntax Declaration { get; }
+        }
+
+        private sealed class HotfixRpcServiceInfo
+        {
+            public HotfixRpcServiceInfo(
+                INamedTypeSymbol symbol,
+                TypeDeclarationSyntax declaration,
+                INamedTypeSymbol contractType,
+                string endpointName,
+                string bindingSetName)
+            {
+                Symbol = symbol;
+                Declaration = declaration;
+                ContractType = contractType;
+                EndpointName = endpointName;
+                BindingSetName = bindingSetName;
+            }
+
+            public INamedTypeSymbol Symbol { get; }
+
+            public TypeDeclarationSyntax Declaration { get; }
+
+            public INamedTypeSymbol ContractType { get; }
+
+            public string EndpointName { get; }
+
+            public string BindingSetName { get; }
         }
     }
 }

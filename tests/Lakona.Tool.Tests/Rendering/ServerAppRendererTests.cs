@@ -26,17 +26,18 @@ public sealed class ServerAppRendererTests
 
         var program = AssertPath(plan, "Server/App/Program.cs").Content;
         Assert.Contains("using Lakona.Game.Server.Hosting;", program, StringComparison.Ordinal);
+        Assert.Contains("using Lakona.Game.Server.Sessions;", program, StringComparison.Ordinal);
         Assert.Contains("using Microsoft.Extensions.DependencyInjection;", program, StringComparison.Ordinal);
-        Assert.Contains("using Server.App.Chat;", program, StringComparison.Ordinal);
-        Assert.Contains("using Server.App.Hosting;", program, StringComparison.Ordinal);
+        Assert.Contains("using Server.App.Lifecycle;", program, StringComparison.Ordinal);
+        Assert.Contains("using Server.App.Services;", program, StringComparison.Ordinal);
         Assert.Contains("using Lakona.Rpc.Serializer.MemoryPack;", program, StringComparison.Ordinal);
         Assert.Contains("using Lakona.Rpc.Transport.Kcp;", program, StringComparison.Ordinal);
         Assert.Contains("return await LakonaGameServer.RunAsync(args, server => server", program, StringComparison.Ordinal);
         Assert.Contains(".UseTransport(\"kcp\")", program, StringComparison.Ordinal);
         Assert.Contains(".UseSerializer(() => new MemoryPackRpcSerializer())", program, StringComparison.Ordinal);
         Assert.Contains("new KcpConnectionAcceptor(opts.Port, opts.Host)", program, StringComparison.Ordinal);
-        Assert.Contains(".AddServices(services => services.AddSingleton<ChatConnectionLifecycle>())", program, StringComparison.Ordinal);
-        Assert.Contains(".BindServices(ServiceBindingConfigurator.Bind));", program, StringComparison.Ordinal);
+        Assert.Contains("services.AddSingleton<IGameSessionLifecycleHandler, ChatPresenceLifecycleHandler>();", program, StringComparison.Ordinal);
+        Assert.Contains(".UseGeneratedHotfixServices());", program, StringComparison.Ordinal);
         Assert.DoesNotContain("RpcServerHostBuilder", program, StringComparison.Ordinal);
 
         var chatRoomActor = AssertPath(plan, "Server/App/Chat/ChatRoomActor.cs").Content;
@@ -49,27 +50,26 @@ public sealed class ServerAppRendererTests
         Assert.DoesNotContain("ValueTask.CompletedTask", chatRoomActor, StringComparison.Ordinal);
         Assert.DoesNotContain("ValueTask.FromResult", chatRoomActor, StringComparison.Ordinal);
 
-        var loginProxy = AssertPath(plan, "Server/App/Chat/LoginServiceProxy.cs").Content;
-        Assert.Contains("internal sealed class LoginServiceProxy : ILoginService", loginProxy, StringComparison.Ordinal);
-        Assert.Contains("IHotfixServiceInvoker", loginProxy, StringComparison.Ordinal);
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Chat/LoginServiceProxy.cs");
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Chat/ChatServiceProxy.cs");
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Hosting/ServiceBindingConfigurator.cs");
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Chat/ChatConnectionLifecycle.cs");
 
-        var chatProxy = AssertPath(plan, "Server/App/Chat/ChatServiceProxy.cs").Content;
-        Assert.Contains("internal sealed class ChatServiceProxy : IChatService", chatProxy, StringComparison.Ordinal);
-        Assert.Contains("IHotfixServiceInvoker", chatProxy, StringComparison.Ordinal);
+        var endpoints = AssertPath(plan, "Server/App/Services/GeneratedServiceEndpoints.cs").Content;
+        Assert.Contains("[HotfixRpcService(typeof(ILoginService), EndpointName = \"control\")]", endpoints, StringComparison.Ordinal);
+        Assert.Contains("[HotfixRpcService(typeof(IChatService), EndpointName = \"control\")]", endpoints, StringComparison.Ordinal);
+        Assert.DoesNotContain("BindFactory", endpoints, StringComparison.Ordinal);
 
-        var lifecycle = AssertPath(plan, "Server/App/Chat/ChatConnectionLifecycle.cs").Content;
-        Assert.Contains("internal sealed class ChatConnectionLifecycle", lifecycle, StringComparison.Ordinal);
-        Assert.Contains("session.Disconnected", lifecycle, StringComparison.Ordinal);
-        Assert.Contains("session.Disconnected += ex =>", lifecycle, StringComparison.Ordinal);
-        Assert.DoesNotContain("session.Disconnected += _ =>", lifecycle, StringComparison.Ordinal);
-        Assert.Contains("AskAsync<ChatRoomActor", lifecycle, StringComparison.Ordinal);
+        var lifecycle = AssertPath(plan, "Server/App/Lifecycle/ChatPresenceLifecycleHandler.cs").Content;
+        Assert.Contains("internal sealed class ChatPresenceLifecycleHandler : IGameSessionLifecycleHandler", lifecycle, StringComparison.Ordinal);
+        Assert.Contains("OnEndpointExpiredAsync", lifecycle, StringComparison.Ordinal);
+        Assert.DoesNotContain("RpcSession", lifecycle, StringComparison.Ordinal);
+        Assert.DoesNotContain("Disconnected +=", lifecycle, StringComparison.Ordinal);
 
-        var binding = AssertPath(plan, "Server/App/Hosting/ServiceBindingConfigurator.cs").Content;
-        Assert.Contains("LoginServiceBinder.BindFactory", binding, StringComparison.Ordinal);
-        Assert.Contains("ChatServiceBinder.BindFactory", binding, StringComparison.Ordinal);
-        Assert.Contains("new LoginCallbackProxy(session)", binding, StringComparison.Ordinal);
-        Assert.Contains("new ChatCallbackProxy(session)", binding, StringComparison.Ordinal);
-        Assert.DoesNotContain("Assembly.LoadFrom", binding, StringComparison.Ordinal);
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains("class LoginServiceProxy", StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains("class ChatServiceProxy", StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains("ServiceBindingConfigurator", StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains("RpcSession.Disconnected +=", StringComparison.Ordinal));
 
         AssertPath(plan, "Server/App/Properties/AssemblyInfo.cs");
 

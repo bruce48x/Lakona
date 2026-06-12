@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Lakona.Rpc.Server;
 
 namespace Lakona.Game.Server.Sessions;
 
@@ -10,6 +11,7 @@ public static class SessionServiceCollectionExtensions
         services.TryAddSingleton<IGameSessionDirectory, InMemoryGameSessionDirectory>();
         services.TryAddSingleton<IGameSessionResumeService, GameSessionResumeService>();
         services.TryAddSingleton<IGameSessionEndpointCloser, NoopGameSessionEndpointCloser>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IRpcSessionLifecycleObserver, GameSessionRpcLifecycleObserver>());
         return services;
     }
 

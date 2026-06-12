@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using System.Threading.Channels;
 using Lakona.Rpc.Core;
 
 namespace Lakona.Rpc.Server;
@@ -10,6 +11,7 @@ public sealed class RpcServerHost
     private readonly RpcKeepAliveOptions _keepAlive;
     private readonly RpcServerLimits _limits;
     private readonly RpcServiceRegistry _registry;
+    private readonly IReadOnlyList<IRpcSessionLifecycleObserver> _sessionLifecycleObservers;
     private readonly TransportSecurityConfig _security;
     private readonly IRpcSerializer _serializer;
     internal RpcServerHost(
@@ -19,7 +21,8 @@ public sealed class RpcServerHost
         RpcKeepAliveOptions keepAlive,
         Func<CancellationToken, ValueTask<IRpcConnectionAcceptor>> acceptorFactory,
         ILogger logger,
-        RpcServerLimits limits)
+        RpcServerLimits limits,
+        IReadOnlyList<IRpcSessionLifecycleObserver>? sessionLifecycleObservers = null)
     {
         _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
@@ -28,6 +31,7 @@ public sealed class RpcServerHost
         _acceptorFactory = acceptorFactory ?? throw new ArgumentNullException(nameof(acceptorFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _limits = limits ?? throw new ArgumentNullException(nameof(limits));
+        _sessionLifecycleObservers = sessionLifecycleObservers ?? Array.Empty<IRpcSessionLifecycleObserver>();
     }
 
     public async ValueTask RunAsync(CancellationToken ct = default)
@@ -67,6 +71,10 @@ public sealed class RpcServerHost
                 {
                     break;
                 }
+                catch (ChannelClosedException)
+                {
+                    break;
+                }
 
                 _logger.LogInformation("[{DisplayName}] accepted.", connection.DisplayName);
 
@@ -96,9 +104,13 @@ public sealed class RpcServerHost
             keepAlive: _keepAlive,
             logger: _logger,
             limits: _limits);
+        var lifecycleContext = new RpcSessionLifecycleContext(session.ContextId, connection.DisplayName);
+        Exception? disconnectError = null;
+        session.Disconnected += ex => disconnectError = ex;
 
         try
         {
+            await NotifySessionStartedAsync(lifecycleContext, hostCt).ConfigureAwait(false);
             await session.RunAsync(hostCt).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (hostCt.IsCancellationRequested)
@@ -110,7 +122,51 @@ public sealed class RpcServerHost
         }
         finally
         {
+            await NotifySessionDisconnectedAsync(lifecycleContext, disconnectError, hostCt).ConfigureAwait(false);
             _logger.LogInformation("[{DisplayName}] disconnected.", connection.DisplayName);
+        }
+    }
+
+    private async ValueTask NotifySessionStartedAsync(
+        RpcSessionLifecycleContext context,
+        CancellationToken cancellationToken)
+    {
+        foreach (var observer in _sessionLifecycleObservers)
+        {
+            try
+            {
+                await observer.OnSessionStartedAsync(context, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[{DisplayName}] RPC session lifecycle start observer failed.", context.DisplayName);
+            }
+        }
+    }
+
+    private async ValueTask NotifySessionDisconnectedAsync(
+        RpcSessionLifecycleContext context,
+        Exception? error,
+        CancellationToken cancellationToken)
+    {
+        foreach (var observer in _sessionLifecycleObservers)
+        {
+            try
+            {
+                await observer.OnSessionDisconnectedAsync(context, error, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[{DisplayName}] RPC session lifecycle disconnect observer failed.", context.DisplayName);
+            }
         }
     }
 

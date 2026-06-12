@@ -19,6 +19,10 @@ public interface IGameSessionDirectory
         CancellationToken cancellationToken = default)
         where TCallback : class;
 
+    ValueTask<IReadOnlyList<GameSessionEndpointSnapshot>> MarkConnectionDisconnectedAsync(
+        string connectionId,
+        CancellationToken cancellationToken = default);
+
     ValueTask MarkEndpointDisconnectedAsync(
         SessionEndpointKey endpoint,
         string? connectionId = null,
@@ -40,7 +44,7 @@ public interface IGameSessionDirectory
         CancellationToken cancellationToken = default)
         where TCallback : class;
 
-    ValueTask ExpireDisconnectedEndpointsAsync(
+    ValueTask<IReadOnlyList<GameSessionEndpointSnapshot>> ExpireDisconnectedEndpointsAsync(
         DateTimeOffset disconnectedBefore,
         CancellationToken cancellationToken = default);
 }

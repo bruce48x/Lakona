@@ -64,6 +64,29 @@ public sealed class HotfixDispatchTable
     public ValueTask<TResult> InvokeServiceAsync<TContract, TArg, TResult>(string methodName, TArg arg)
     {
         var key = HotfixDispatch.CreateServiceKey<TContract, TResult>(methodName, typeof(TArg));
+        return InvokeServiceByKeyAsync<TArg, TResult>(key, arg);
+    }
+
+    public ValueTask<TResult> InvokeServiceAsync<TContract, TArg, TResult>(int methodId, TArg arg)
+    {
+        var key = HotfixDispatch.CreateServiceKey<TContract, TResult>(methodId, typeof(TArg));
+        return InvokeServiceByKeyAsync<TArg, TResult>(key, arg);
+    }
+
+    public ValueTask InvokeServiceAsync<TContract, TArg>(string methodName, TArg arg)
+    {
+        var key = HotfixDispatch.CreateServiceKey(typeof(TContract), methodName, typeof(ValueTask), [typeof(TArg)]);
+        return InvokeServiceByKeyAsync(key, arg);
+    }
+
+    public ValueTask InvokeServiceAsync<TContract, TArg>(int methodId, TArg arg)
+    {
+        var key = HotfixDispatch.CreateServiceKey(typeof(TContract), methodId, typeof(ValueTask), [typeof(TArg)]);
+        return InvokeServiceByKeyAsync(key, arg);
+    }
+
+    private ValueTask<TResult> InvokeServiceByKeyAsync<TArg, TResult>(string key, TArg arg)
+    {
         if (!serviceBindings.TryGetValue(key, out var binding))
         {
             throw new HotfixMethodNotLoadedException($"Hotfix service method '{key}' is not loaded.");
@@ -89,9 +112,8 @@ public sealed class HotfixDispatchTable
         throw new InvalidOperationException($"Hotfix service method '{key}' returned an invalid result.");
     }
 
-    public ValueTask InvokeServiceAsync<TContract, TArg>(string methodName, TArg arg)
+    private ValueTask InvokeServiceByKeyAsync<TArg>(string key, TArg arg)
     {
-        var key = HotfixDispatch.CreateServiceKey(typeof(TContract), methodName, typeof(ValueTask), [typeof(TArg)]);
         if (!serviceBindings.TryGetValue(key, out var binding))
         {
             throw new HotfixMethodNotLoadedException($"Hotfix service method '{key}' is not loaded.");

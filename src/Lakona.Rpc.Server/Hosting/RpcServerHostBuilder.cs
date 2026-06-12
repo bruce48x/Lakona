@@ -19,6 +19,7 @@ public sealed class RpcServerHostBuilder
     private RpcKeepAliveOptions _keepAlive = RpcKeepAliveOptions.Disabled;
     private readonly RpcServerLimits _limits = new();
     private ILogger _logger = DefaultRpcLogging.CreateLogger<RpcServerHost>();
+    private readonly List<IRpcSessionLifecycleObserver> _sessionLifecycleObservers = [];
     private bool _servicesConfigured;
     private IRpcSerializer? _serializer;
 
@@ -148,6 +149,13 @@ public sealed class RpcServerHostBuilder
         return this;
     }
 
+    public RpcServerHostBuilder UseSessionLifecycleObserver(IRpcSessionLifecycleObserver observer)
+    {
+        ArgumentNullException.ThrowIfNull(observer);
+        _sessionLifecycleObservers.Add(observer);
+        return this;
+    }
+
     /// <summary>
     ///     Sets keepalive options for accepted sessions.
     /// </summary>
@@ -274,7 +282,15 @@ public sealed class RpcServerHostBuilder
         if (!_servicesConfigured && ServiceRegistry.IsEmpty)
             BindGeneratedServicesFromEntryAssembly();
 
-        return new RpcServerHost(_serializer, ServiceRegistry, Security, _keepAlive, _acceptorFactory, _logger, _limits.Clone());
+        return new RpcServerHost(
+            _serializer,
+            ServiceRegistry,
+            Security,
+            _keepAlive,
+            _acceptorFactory,
+            _logger,
+            _limits.Clone(),
+            _sessionLifecycleObservers.ToArray());
     }
 
     /// <summary>

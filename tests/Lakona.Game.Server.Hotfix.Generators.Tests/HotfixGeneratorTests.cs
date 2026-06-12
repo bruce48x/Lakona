@@ -6,6 +6,172 @@ namespace Lakona.Game.Server.Hotfix.Generators.Tests;
 public sealed class HotfixGeneratorTests
 {
     [Fact]
+    public void Generator_emits_hotfix_rpc_service_proxy_and_binding_extension()
+    {
+        var source = """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            using Lakona.Rpc.Core;
+
+            namespace Shared.Contracts.Chat
+            {
+                public static class RpcContractIds
+                {
+                    public const int ChatService = 1;
+                    public const int Bind = 7;
+                }
+
+                public sealed class ChatBindRequest
+                {
+                }
+
+                public interface IChatCallback
+                {
+                }
+
+                [RpcService(RpcContractIds.ChatService, NotificationContract = typeof(IChatCallback))]
+                public interface IChatService
+                {
+                    [RpcMethod(RpcContractIds.Bind)]
+                    ValueTask BindAsync(ChatBindRequest req);
+                }
+            }
+
+            namespace Server.App.Services
+            {
+                using Shared.Contracts.Chat;
+
+                [HotfixRpcService(typeof(IChatService), EndpointName = "control")]
+                internal static partial class ChatServiceEndpoint;
+            }
+
+            namespace Server.App.Generated
+            {
+                using System;
+                using Lakona.Rpc.Server;
+                using Shared.Contracts.Chat;
+
+                public sealed class ChatCallbackProxy : IChatCallback
+                {
+                    public ChatCallbackProxy(RpcSession session)
+                    {
+                    }
+                }
+
+                public static class ChatServiceBinder
+                {
+                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcSession, IChatService> implFactory)
+                    {
+                    }
+                }
+            }
+            """;
+
+        var result = GeneratorTestHost.Run(source);
+
+        Assert.Empty(result.ErrorDiagnostics);
+        Assert.Contains("internal sealed class ChatServiceEndpointProxy : global::Shared.Contracts.Chat.IChatService", result.GeneratedSource);
+        Assert.Contains("HotfixServiceCall<global::Shared.Contracts.Chat.ChatBindRequest, global::Shared.Contracts.Chat.IChatCallback>", result.GeneratedSource);
+        Assert.Contains("            7,", result.GeneratedSource);
+        Assert.Contains("global::Server.App.Generated.ChatServiceBinder.BindFactory", result.GeneratedSource);
+        Assert.Contains("UseGeneratedHotfixServices", result.GeneratedSource);
+    }
+
+    [Fact]
+    public void Generator_emits_named_binding_set_dispatch()
+    {
+        var source = """
+            using System;
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            using Lakona.Rpc.Core;
+            using Lakona.Rpc.Server;
+
+            namespace Shared.Contracts
+            {
+                public sealed class Request
+                {
+                }
+
+                public interface IControlCallback
+                {
+                }
+
+                public interface IRealtimeCallback
+                {
+                }
+
+                [RpcService(1, NotificationContract = typeof(IControlCallback))]
+                public interface IControlService
+                {
+                    [RpcMethod(1)]
+                    ValueTask PingAsync(Request request);
+                }
+
+                [RpcService(2, NotificationContract = typeof(IRealtimeCallback))]
+                public interface IRealtimeService
+                {
+                    [RpcMethod(1)]
+                    ValueTask TickAsync(Request request);
+                }
+            }
+
+            namespace Server.App.Services
+            {
+                using Shared.Contracts;
+
+                [HotfixRpcService(typeof(IControlService), EndpointName = "control")]
+                internal static partial class ControlServiceEndpoint;
+
+                [HotfixRpcService(typeof(IRealtimeService), BindingSetName = "realtime", EndpointName = "realtime")]
+                internal static partial class RealtimeServiceEndpoint;
+            }
+
+            namespace Server.App.Generated
+            {
+                using Shared.Contracts;
+
+                public sealed class ControlCallbackProxy : IControlCallback
+                {
+                    public ControlCallbackProxy(RpcSession session)
+                    {
+                    }
+                }
+
+                public sealed class RealtimeCallbackProxy : IRealtimeCallback
+                {
+                    public RealtimeCallbackProxy(RpcSession session)
+                    {
+                    }
+                }
+
+                public static class ControlServiceBinder
+                {
+                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcSession, IControlService> implFactory)
+                    {
+                    }
+                }
+
+                public static class RealtimeServiceBinder
+                {
+                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcSession, IRealtimeService> implFactory)
+                    {
+                    }
+                }
+            }
+            """;
+
+        var result = GeneratorTestHost.Run(source);
+
+        Assert.Empty(result.ErrorDiagnostics);
+        Assert.Contains("BindGeneratedHotfixServices(registry, services, \"default\")", result.GeneratedSource);
+        Assert.Contains("case \"default\":", result.GeneratedSource);
+        Assert.Contains("global::Server.App.Generated.ControlServiceBinder.BindFactory", result.GeneratedSource);
+        Assert.Contains("case \"realtime\":", result.GeneratedSource);
+        Assert.Contains("global::Server.App.Generated.RealtimeServiceBinder.BindFactory", result.GeneratedSource);
+    }
+
+    [Fact]
     public void Generator_emits_accessor_for_private_field()
     {
         var source = """

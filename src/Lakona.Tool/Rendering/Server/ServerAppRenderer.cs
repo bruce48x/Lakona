@@ -20,10 +20,8 @@ internal sealed class ServerAppRenderer : IPlanContributor
         builder.AddFile("Server/App/Program.cs", RenderProgram(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/App/appsettings.json", RenderAppSettings(spec), FileWriteMode.Replace, GeneratedFileKind.Json);
         builder.AddFile("Server/App/Chat/ChatRoomActor.cs", RenderChatRoomActor(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Server/App/Chat/LoginServiceProxy.cs", RenderLoginServiceProxy(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Server/App/Chat/ChatServiceProxy.cs", RenderChatServiceProxy(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Server/App/Chat/ChatConnectionLifecycle.cs", RenderChatConnectionLifecycle(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Server/App/Hosting/ServiceBindingConfigurator.cs", RenderServiceBindingConfigurator(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Server/App/Services/GeneratedServiceEndpoints.cs", RenderGeneratedServiceEndpoints(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Server/App/Lifecycle/ChatPresenceLifecycleHandler.cs", RenderChatPresenceLifecycleHandler(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/App/Properties/AssemblyInfo.cs", RenderAssemblyInfo(), FileWriteMode.Replace, GeneratedFileKind.Text);
     }
 
@@ -106,9 +104,10 @@ internal sealed class ServerAppRenderer : IPlanContributor
         return $$"""
         using System.Threading.Tasks;
         using Microsoft.Extensions.DependencyInjection;
-        using Server.App.Chat;
-        using Server.App.Hosting;
+        using Server.App.Lifecycle;
+        using Server.App.Services;
         using Lakona.Game.Server.Hosting;
+        using Lakona.Game.Server.Sessions;
         using Lakona.Rpc.Core;
         {{serializerUsing}}
         {{transportUsing}}
@@ -117,8 +116,11 @@ internal sealed class ServerAppRenderer : IPlanContributor
             .UseTransport("{{transportValue}}")
             .UseSerializer(() => {{serializerExpression}})
             .UseAcceptor({{acceptorExpression}})
-            .AddServices(services => services.AddSingleton<ChatConnectionLifecycle>())
-            .BindServices(ServiceBindingConfigurator.Bind));
+            .AddServices(services =>
+            {
+                services.AddSingleton<IGameSessionLifecycleHandler, ChatPresenceLifecycleHandler>();
+            })
+            .UseGeneratedHotfixServices());
         """;
     }
 
@@ -140,124 +142,63 @@ internal sealed class ServerAppRenderer : IPlanContributor
             }
 
             internal sealed record ChatRoomMember(string Name, ILoginCallback LoginCallback, IChatCallback? ChatCallback);
-
-            internal sealed record LoginServiceCall(IActorRuntime Actors, string ConnectionId, ILoginCallback Callback, LoginRequest Request);
-
-            internal sealed record ChatServiceCall(IActorRuntime Actors, string ConnectionId, IChatCallback Callback, ChatBindRequest? BindRequest, ChatSendRequest? SendRequest);
         }
         """;
     }
 
-    private static string RenderLoginServiceProxy()
+    private static string RenderGeneratedServiceEndpoints()
     {
         return """
         using Shared.Contracts.Chat;
-        using Lakona.Game.Server.Actors;
         using Lakona.Game.Server.Hotfix.Abstractions;
 
-        namespace Server.App.Chat
-        {
-            internal sealed class LoginServiceProxy : ILoginService
-            {
-                private readonly IHotfixServiceInvoker _hotfix;
-                private readonly IActorRuntime _actors;
-                private readonly ILoginCallback _callback;
-                private readonly string _connectionId;
+        namespace Server.App.Services;
 
-                public LoginServiceProxy(IHotfixServiceInvoker hotfix, IActorRuntime actors, ILoginCallback callback, string connectionId)
-                {
-                    _hotfix = hotfix;
-                    _actors = actors;
-                    _callback = callback;
-                    _connectionId = connectionId;
-                }
+        [HotfixRpcService(typeof(ILoginService), EndpointName = "control")]
+        internal static partial class LoginServiceEndpoint;
 
-                public ValueTask<LoginReply> LoginAsync(LoginRequest req)
-                {
-                    return _hotfix.InvokeAsync<ILoginService, LoginServiceCall, LoginReply>(
-                        nameof(LoginAsync),
-                        new LoginServiceCall(_actors, _connectionId, _callback, req));
-                }
-            }
-        }
+        [HotfixRpcService(typeof(IChatService), EndpointName = "control")]
+        internal static partial class ChatServiceEndpoint;
         """;
     }
 
-    private static string RenderChatServiceProxy()
-    {
-        return """
-        using Shared.Contracts.Chat;
-        using Lakona.Game.Server.Actors;
-        using Lakona.Game.Server.Hotfix.Abstractions;
-
-        namespace Server.App.Chat
-        {
-            internal sealed class ChatServiceProxy : IChatService
-            {
-                private readonly IHotfixServiceInvoker _hotfix;
-                private readonly IActorRuntime _actors;
-                private readonly IChatCallback _callback;
-                private readonly string _connectionId;
-
-                public ChatServiceProxy(IHotfixServiceInvoker hotfix, IActorRuntime actors, IChatCallback callback, string connectionId)
-                {
-                    _hotfix = hotfix;
-                    _actors = actors;
-                    _callback = callback;
-                    _connectionId = connectionId;
-                }
-
-                public ValueTask BindAsync(ChatBindRequest req)
-                {
-                    return _hotfix.InvokeAsync<IChatService, ChatServiceCall>(
-                        nameof(BindAsync),
-                        new ChatServiceCall(_actors, _connectionId, _callback, req, null));
-                }
-
-                public ValueTask SendAsync(ChatSendRequest req)
-                {
-                    return _hotfix.InvokeAsync<IChatService, ChatServiceCall>(
-                        nameof(SendAsync),
-                        new ChatServiceCall(_actors, _connectionId, _callback, null, req));
-                }
-            }
-        }
-        """;
-    }
-
-    private static string RenderChatConnectionLifecycle()
+    private static string RenderChatPresenceLifecycleHandler()
     {
         return """
         using System;
-        using System.Collections.Concurrent;
+        using Server.App.Chat;
         using Lakona.Game.Server.Actors;
         using Lakona.Game.Server.Hotfix.Dispatch;
-        using Lakona.Rpc.Server;
+        using Lakona.Game.Server.Sessions;
 
-        namespace Server.App.Chat
+        namespace Server.App.Lifecycle
         {
-            internal sealed class ChatConnectionLifecycle
+            internal sealed class ChatPresenceLifecycleHandler : IGameSessionLifecycleHandler
             {
                 private static readonly ActorId RoomId = ActorId.From("chat:global");
-                private readonly ConcurrentDictionary<string, byte> _tracked = new();
                 private readonly IActorRuntime _actors;
 
-                public ChatConnectionLifecycle(IActorRuntime actors)
+                public ChatPresenceLifecycleHandler(IActorRuntime actors)
                 {
                     _actors = actors;
                 }
 
-                public void Track(RpcSession session)
+                public ValueTask OnConnectionOpenedAsync(GameConnectionContext context, CancellationToken cancellationToken = default)
                 {
-                    if (!_tracked.TryAdd(session.ContextId, 0))
-                    {
-                        return;
-                    }
-
-                    session.Disconnected += ex => { _ = LeaveAsync(session.ContextId); };
+                    return default;
                 }
 
-                private async Task LeaveAsync(string connectionId)
+                public ValueTask OnEndpointBoundAsync(GameEndpointBindingContext context, CancellationToken cancellationToken = default)
+                {
+                    return default;
+                }
+
+                public ValueTask OnEndpointDisconnectedAsync(GameEndpointBindingContext context, CancellationToken cancellationToken = default)
+                {
+                    return default;
+                }
+
+                public async ValueTask OnEndpointExpiredAsync(GameEndpointBindingContext context, CancellationToken cancellationToken = default)
                 {
                     try
                     {
@@ -269,65 +210,20 @@ internal sealed class ServerAppRenderer : IPlanContributor
                                     "LeaveAsync",
                                     room,
                                     [typeof(string)],
-                                    [connectionId]);
+                                    [context.ConnectionId]);
                                 return true;
                             });
                     }
                     catch (Exception ex)
                     {
-                        Console.Error.WriteLine($"Chat disconnect cleanup failed: {ex}");
-                    }
-                    finally
-                    {
-                        _tracked.TryRemove(connectionId, out _);
+                        Console.Error.WriteLine($"Chat presence cleanup failed: {ex}");
                     }
                 }
-            }
-        }
-        """;
-    }
 
-    private static string RenderServiceBindingConfigurator()
-    {
-        return """
-        using System;
-        using Microsoft.Extensions.DependencyInjection;
-        using Server.App.Chat;
-        using Server.App.Generated;
-        using Shared.Contracts.Chat;
-        using Lakona.Game.Server.Actors;
-        using Lakona.Game.Server.Hotfix.Abstractions;
-        using Lakona.Rpc.Server;
-
-        namespace Server.App.Hosting;
-
-        internal static class ServiceBindingConfigurator
-        {
-            public static void Bind(RpcServiceRegistry registry, IServiceProvider services)
-            {
-                LoginServiceBinder.BindFactory(
-                    registry,
-                    session =>
-                    {
-                        services.GetRequiredService<ChatConnectionLifecycle>().Track(session);
-                        return new LoginServiceProxy(
-                            services.GetRequiredService<IHotfixServiceInvoker>(),
-                            services.GetRequiredService<IActorRuntime>(),
-                            new LoginCallbackProxy(session),
-                            session.ContextId);
-                    });
-
-                ChatServiceBinder.BindFactory(
-                    registry,
-                    session =>
-                    {
-                        services.GetRequiredService<ChatConnectionLifecycle>().Track(session);
-                        return new ChatServiceProxy(
-                            services.GetRequiredService<IHotfixServiceInvoker>(),
-                            services.GetRequiredService<IActorRuntime>(),
-                            new ChatCallbackProxy(session),
-                            session.ContextId);
-                    });
+                public ValueTask OnSessionTerminatedAsync(GameSessionTerminationContext context, CancellationToken cancellationToken = default)
+                {
+                    return default;
+                }
             }
         }
         """;

@@ -13,8 +13,4 @@ namespace Server.App.Chat
     }
 
     internal sealed record ChatRoomMember(string Name, ILoginCallback LoginCallback, IChatCallback? ChatCallback);
-
-    internal sealed record LoginServiceCall(IActorRuntime Actors, string ConnectionId, ILoginCallback Callback, LoginRequest Request);
-
-    internal sealed record ChatServiceCall(IActorRuntime Actors, string ConnectionId, IChatCallback Callback, ChatBindRequest? BindRequest, ChatSendRequest? SendRequest);
 }

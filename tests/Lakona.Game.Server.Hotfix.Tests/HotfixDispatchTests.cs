@@ -1,6 +1,7 @@
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Scanning;
+using Lakona.Rpc.Core;
 using Xunit;
 
 namespace Lakona.Game.Server.Hotfix.Tests;
@@ -83,6 +84,7 @@ public sealed class HotfixDispatchTests
 
 public interface IChatService
 {
+    [RpcMethod(7)]
     ValueTask<string> EchoAsync(string text);
 }
 
@@ -98,7 +100,7 @@ public sealed class ChatServiceProxy : IChatService
     public ValueTask<string> EchoAsync(string text)
     {
         return _hotfix.InvokeAsync<IChatService, string, string>(
-            nameof(EchoAsync),
+            7,
             text);
     }
 }

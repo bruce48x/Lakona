@@ -14,7 +14,12 @@ internal static class GeneratorTestHost
             .Concat(new[]
             {
                 MetadataReference.CreateFromFile(typeof(Lakona.Game.Server.Hotfix.Abstractions.HotfixStateAttribute).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch).Assembly.Location)
+                MetadataReference.CreateFromFile(typeof(Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Lakona.Rpc.Core.RpcServiceAttribute).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Lakona.Game.Server.Hotfix.HotfixServiceCall<>).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(IServiceProvider).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Lakona.Rpc.Server.RpcSession).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions).Assembly.Location)
             })
             .Distinct(MetadataReferencePathComparer.Instance)
             .ToArray();

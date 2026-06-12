@@ -1,4 +1,5 @@
 using Lakona.Game.Server.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
 
@@ -30,6 +31,11 @@ internal sealed class LakonaGameRpcConfigurator : IRpcServerConfigurator
         var builder = context.Builder;
         builder.UseSerializer(_serializerFactory());
         builder.UseAcceptor(async ct => await _acceptorFactory(_options));
+        foreach (var observer in context.Services.GetServices<IRpcSessionLifecycleObserver>())
+        {
+            builder.UseSessionLifecycleObserver(observer);
+        }
+
         _bindServices?.Invoke(builder.ServiceRegistry, context.Services);
     }
 }

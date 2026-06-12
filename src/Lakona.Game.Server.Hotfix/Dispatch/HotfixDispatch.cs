@@ -24,6 +24,11 @@ public static class HotfixDispatch
         return CreateServiceKey(typeof(TContract), methodName, typeof(TResult), parameterTypes);
     }
 
+    public static string CreateServiceKey<TContract, TResult>(int methodId, params Type[] parameterTypes)
+    {
+        return CreateServiceKey(typeof(TContract), methodId, typeof(TResult), parameterTypes);
+    }
+
     public static TResult Invoke<TState, TResult>(string methodName, TState state)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -159,6 +164,29 @@ public static class HotfixDispatch
         }
 
         return $"{contractType.FullName ?? contractType.Name}.{methodName}({string.Join(", ", parameterTypes.Select(static type => type.FullName ?? type.Name))}) -> {returnType.FullName ?? returnType.Name}";
+    }
+
+    internal static string CreateServiceKey(
+        Type contractType,
+        int methodId,
+        Type returnType,
+        Type[] parameterTypes)
+    {
+        ArgumentNullException.ThrowIfNull(contractType);
+        if (methodId <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(methodId), "RPC method id must be positive.");
+        }
+
+        ArgumentNullException.ThrowIfNull(returnType);
+        ArgumentNullException.ThrowIfNull(parameterTypes);
+
+        if (parameterTypes.Any(static type => type is null))
+        {
+            throw new ArgumentException("Parameter types cannot contain null.", nameof(parameterTypes));
+        }
+
+        return $"{contractType.FullName ?? contractType.Name}#{methodId}({string.Join(", ", parameterTypes.Select(static type => type.FullName ?? type.Name))}) -> {returnType.FullName ?? returnType.Name}";
     }
 
     private sealed record PreparedInvocation(

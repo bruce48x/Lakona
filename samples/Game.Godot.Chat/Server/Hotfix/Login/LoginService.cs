@@ -3,6 +3,7 @@ using Server.App.Chat;
 using Server.Hotfix.Chat;
 using Shared.Contracts.Chat;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 
 namespace Server.Hotfix.Login
@@ -12,7 +13,7 @@ namespace Server.Hotfix.Login
     {
         private static readonly ActorId RoomId = ActorId.From("chat:global");
 
-        public static ValueTask<LoginReply> LoginAsync(LoginServiceCall call)
+        public static ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, ILoginCallback> call)
         {
             var playerName = string.IsNullOrWhiteSpace(call.Request.PlayerName)
                 ? "Player"

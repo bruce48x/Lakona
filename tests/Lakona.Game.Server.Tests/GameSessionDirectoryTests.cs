@@ -27,6 +27,86 @@ public sealed class GameSessionDirectoryTests
     }
 
     [Fact]
+    public async Task MultipleCallbackContractsShareOneEndpointWithoutOverwritingEachOther()
+    {
+        var directory = new InMemoryGameSessionDirectory();
+        var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
+        var endpoint = new SessionEndpointKey(session, "control");
+        var login = new LoginCallback("login");
+        var chat = new ChatCallback("chat");
+
+        await directory.BindEndpointAsync(endpoint, "connection-a", login, TestContext.Current.CancellationToken);
+        await directory.BindEndpointAsync(endpoint, "connection-a", chat, TestContext.Current.CancellationToken);
+
+        Assert.Same(login, await directory.GetCallbackAsync<LoginCallback>(endpoint, TestContext.Current.CancellationToken));
+        Assert.Same(chat, await directory.GetCallbackAsync<ChatCallback>(endpoint, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task RebindingSameCallbackContractReplacesOnlyThatContract()
+    {
+        var directory = new InMemoryGameSessionDirectory();
+        var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
+        var endpoint = new SessionEndpointKey(session, "control");
+        var firstLogin = new LoginCallback("first-login");
+        var secondLogin = new LoginCallback("second-login");
+        var chat = new ChatCallback("chat");
+
+        await directory.BindEndpointAsync(endpoint, "connection-a", firstLogin, TestContext.Current.CancellationToken);
+        await directory.BindEndpointAsync(endpoint, "connection-a", chat, TestContext.Current.CancellationToken);
+        await directory.BindEndpointAsync(endpoint, "connection-b", secondLogin, TestContext.Current.CancellationToken);
+
+        Assert.Same(secondLogin, await directory.GetCallbackAsync<LoginCallback>(endpoint, TestContext.Current.CancellationToken));
+        Assert.Same(chat, await directory.GetCallbackAsync<ChatCallback>(endpoint, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task MarkConnectionDisconnectedReturnsEachEndpointAggregateOnce()
+    {
+        var directory = new InMemoryGameSessionDirectory();
+        var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
+        var control = new SessionEndpointKey(session, "control");
+        var realtime = new SessionEndpointKey(session, "realtime");
+
+        await directory.BindEndpointAsync(control, "connection-a", new LoginCallback("login"), TestContext.Current.CancellationToken);
+        await directory.BindEndpointAsync(control, "connection-a", new ChatCallback("chat"), TestContext.Current.CancellationToken);
+        await directory.BindEndpointAsync(realtime, "connection-b", new RealtimeCallback("realtime"), TestContext.Current.CancellationToken);
+
+        var disconnected = await directory.MarkConnectionDisconnectedAsync("connection-a", TestContext.Current.CancellationToken);
+
+        var snapshot = Assert.Single(disconnected);
+        Assert.Equal(control, snapshot.Endpoint);
+        Assert.Equal("connection-a", snapshot.ConnectionId);
+        Assert.Equal(2, snapshot.CallbackContractTypes.Count);
+        Assert.Contains(typeof(LoginCallback), snapshot.CallbackContractTypes);
+        Assert.Contains(typeof(ChatCallback), snapshot.CallbackContractTypes);
+        Assert.Null(await directory.GetCallbackAsync<LoginCallback>(control, TestContext.Current.CancellationToken));
+        Assert.Null(await directory.GetCallbackAsync<ChatCallback>(control, TestContext.Current.CancellationToken));
+        Assert.NotNull(await directory.GetCallbackAsync<RealtimeCallback>(realtime, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task ExpireDisconnectedEndpointsReturnsEachEndpointAggregateOnce()
+    {
+        var directory = new InMemoryGameSessionDirectory();
+        var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
+        var endpoint = new SessionEndpointKey(session, "control");
+
+        await directory.BindEndpointAsync(endpoint, "connection-a", new LoginCallback("login"), TestContext.Current.CancellationToken);
+        await directory.BindEndpointAsync(endpoint, "connection-a", new ChatCallback("chat"), TestContext.Current.CancellationToken);
+        await directory.MarkConnectionDisconnectedAsync("connection-a", TestContext.Current.CancellationToken);
+
+        var expired = await directory.ExpireDisconnectedEndpointsAsync(DateTimeOffset.UtcNow.AddSeconds(1), TestContext.Current.CancellationToken);
+
+        var snapshot = Assert.Single(expired);
+        Assert.Equal(endpoint, snapshot.Endpoint);
+        Assert.Equal("connection-a", snapshot.ConnectionId);
+        Assert.Equal(2, snapshot.CallbackContractTypes.Count);
+        Assert.Null(await directory.GetCallbackAsync<LoginCallback>(endpoint, TestContext.Current.CancellationToken));
+        Assert.Null(await directory.GetCallbackAsync<ChatCallback>(endpoint, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task StaleConnectionIdCannotDetachNewerBinding()
     {
         var directory = new InMemoryGameSessionDirectory();
@@ -127,6 +207,36 @@ public sealed class GameSessionDirectoryTests
     private sealed class Callback
     {
         public Callback(string name)
+        {
+            Name = name;
+        }
+
+        public string Name { get; }
+    }
+
+    private sealed class LoginCallback
+    {
+        public LoginCallback(string name)
+        {
+            Name = name;
+        }
+
+        public string Name { get; }
+    }
+
+    private sealed class ChatCallback
+    {
+        public ChatCallback(string name)
+        {
+            Name = name;
+        }
+
+        public string Name { get; }
+    }
+
+    private sealed class RealtimeCallback
+    {
+        public RealtimeCallback(string name)
         {
             Name = name;
         }

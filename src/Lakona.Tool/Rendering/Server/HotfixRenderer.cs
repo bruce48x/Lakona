@@ -67,6 +67,7 @@ internal sealed class HotfixRenderer : IPlanContributor
         using Server.Hotfix.Chat;
         using Shared.Contracts.Chat;
         using Lakona.Game.Server.Actors;
+        using Lakona.Game.Server.Hotfix;
         using Lakona.Game.Server.Hotfix.Abstractions;
 
         namespace Server.Hotfix.Login
@@ -76,7 +77,7 @@ internal sealed class HotfixRenderer : IPlanContributor
             {
                 private static readonly ActorId RoomId = ActorId.From("chat:global");
 
-                public static ValueTask<LoginReply> LoginAsync(LoginServiceCall call)
+                public static ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, ILoginCallback> call)
                 {
                     var playerName = string.IsNullOrWhiteSpace(call.Request.PlayerName)
                         ? "Player"
@@ -98,6 +99,7 @@ internal sealed class HotfixRenderer : IPlanContributor
         using Server.App.Chat;
         using Shared.Contracts.Chat;
         using Lakona.Game.Server.Actors;
+        using Lakona.Game.Server.Hotfix;
         using Lakona.Game.Server.Hotfix.Abstractions;
 
         namespace Server.Hotfix.Chat
@@ -107,7 +109,7 @@ internal sealed class HotfixRenderer : IPlanContributor
             {
                 private static readonly ActorId RoomId = ActorId.From("chat:global");
 
-                public static async ValueTask BindAsync(ChatServiceCall call)
+                public static async ValueTask BindAsync(HotfixServiceCall<ChatBindRequest, IChatCallback> call)
                 {
                     await call.Actors.AskAsync<ChatRoomActor, bool>(
                         RoomId,
@@ -118,10 +120,16 @@ internal sealed class HotfixRenderer : IPlanContributor
                         });
                 }
 
-                public static async ValueTask SendAsync(ChatServiceCall call)
+                public static async ValueTask SendAsync(HotfixServiceCall<ChatSendRequest, IChatCallback> call)
                 {
-                    await BindAsync(call);
-                    var text = FilterMessage(call.SendRequest?.Text ?? "");
+                    await call.Actors.AskAsync<ChatRoomActor, bool>(
+                        RoomId,
+                        (room, ct) =>
+                        {
+                            room.BindChatCallback(call.ConnectionId, call.Callback);
+                            return new ValueTask<bool>(true);
+                        });
+                    var text = FilterMessage(call.Request.Text ?? "");
                     await call.Actors.AskAsync<ChatRoomActor, bool>(
                         RoomId,
                         async (room, ct) =>

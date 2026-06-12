@@ -21,12 +21,12 @@
     <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server\Lakona.Game.Server.csproj" />
     <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Hotfix\Lakona.Game.Server.Hotfix.csproj" />
     <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Hotfix.Abstractions\Lakona.Game.Server.Hotfix.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Hotfix.Generators\Lakona.Game.Server.Hotfix.Generators.csproj" PrivateAssets="all" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
     <PackageReference Include="Lakona.Game.Server.Generators" Version="0.1.4" PrivateAssets="all" OutputItemType="Analyzer" />
-    <PackageReference Include="Lakona.Game.Server.Hotfix.Generators" Version="0.1.1" PrivateAssets="all" OutputItemType="Analyzer" />
     <PackageReference Include="Lakona.Rpc.Server" Version="0.12.1" />
     <PackageReference Include="Lakona.Rpc.Transport.WebSocket" Version="0.11.8" />
     <PackageReference Include="Lakona.Rpc.Analyzers" Version="0.2.0">

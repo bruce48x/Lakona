@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
+using Lakona.Rpc.Core;
 using Xunit;
 
 namespace Lakona.Game.Server.Hotfix.Tests;
@@ -345,7 +346,7 @@ public sealed class HotfixManagerTests
 
         Assert.False(result.Succeeded);
         Assert.Contains(result.Diagnostics, diagnostic =>
-            diagnostic.Contains("must resolve from a shared AssemblyLoadContext", StringComparison.Ordinal));
+            diagnostic.Contains("does not match a method on contract", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -367,9 +368,10 @@ public sealed class HotfixManagerTests
         var invoke = typeof(HotfixDispatchTable)
             .GetMethods()
             .Single(method => method.Name == nameof(HotfixDispatchTable.InvokeServiceAsync)
-                && method.GetGenericArguments().Length == 3)
+                && method.GetGenericArguments().Length == 3
+                && method.GetParameters()[0].ParameterType == typeof(int))
             .MakeGenericMethod(contractType, requestType, replyType);
-        var task = invoke.Invoke(HotfixDispatch.Current, ["LoginAsync", request])!;
+        var task = invoke.Invoke(HotfixDispatch.Current, [7, request])!;
         var reply = await ((ValueTask<object>)typeof(HotfixManagerTests)
             .GetMethod(nameof(AwaitValueTaskAsync), BindingFlags.NonPublic | BindingFlags.Static)!
             .MakeGenericMethod(replyType)
@@ -636,6 +638,7 @@ public sealed class HotfixManagerTests
                 namespace StableContracts;
 
                 using System.Threading.Tasks;
+                using Lakona.Rpc.Core;
 
                 public sealed class ArenaSimulation
                 {
@@ -651,10 +654,11 @@ public sealed class HotfixManagerTests
 
                 public interface IManagerService
                 {
+                    [RpcMethod(7)]
                     ValueTask<ServiceReply> LoginAsync(ServiceRequest request);
                 }
                 """,
-                [],
+                [MetadataReference.CreateFromFile(typeof(RpcMethodAttribute).Assembly.Location)],
                 cancellationToken);
 
             var stableReference = MetadataReference.CreateFromFile(stableAssemblyPath);

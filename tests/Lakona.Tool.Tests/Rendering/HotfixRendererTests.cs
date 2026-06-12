@@ -33,16 +33,18 @@ public sealed class HotfixRendererTests
         var loginService = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Login/LoginService.cs").Content;
         Assert.Contains("[HotfixService(typeof(ILoginService))]", loginService, StringComparison.Ordinal);
         Assert.Contains("internal sealed class LoginService", loginService, StringComparison.Ordinal);
-        Assert.Contains("public static ValueTask<LoginReply> LoginAsync(LoginServiceCall call)", loginService, StringComparison.Ordinal);
+        Assert.Contains("public static ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, ILoginCallback> call)", loginService, StringComparison.Ordinal);
         Assert.Contains("return call.Actors.AskAsync<ChatRoomActor, LoginReply>", loginService, StringComparison.Ordinal);
+        Assert.DoesNotContain("LoginServiceCall", loginService, StringComparison.Ordinal);
 
         var chatService = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Chat/ChatService.cs").Content;
         Assert.Contains("[HotfixService(typeof(IChatService))]", chatService, StringComparison.Ordinal);
         Assert.Contains("internal sealed class ChatService", chatService, StringComparison.Ordinal);
-        Assert.Contains("public static async ValueTask BindAsync(ChatServiceCall call)", chatService, StringComparison.Ordinal);
-        Assert.Contains("public static async ValueTask SendAsync(ChatServiceCall call)", chatService, StringComparison.Ordinal);
+        Assert.Contains("public static async ValueTask BindAsync(HotfixServiceCall<ChatBindRequest, IChatCallback> call)", chatService, StringComparison.Ordinal);
+        Assert.Contains("public static async ValueTask SendAsync(HotfixServiceCall<ChatSendRequest, IChatCallback> call)", chatService, StringComparison.Ordinal);
         Assert.Contains("AskAsync<ChatRoomActor", chatService, StringComparison.Ordinal);
         Assert.Contains("badword", chatService, StringComparison.Ordinal);
+        Assert.DoesNotContain("ChatServiceCall", chatService, StringComparison.Ordinal);
 
         var behavior = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Chat/ChatRoomBehavior.cs").Content;
         Assert.Contains("[HotfixBehaviorOf(typeof(ChatRoomActor))]", behavior, StringComparison.Ordinal);
