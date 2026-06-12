@@ -309,9 +309,12 @@ internal static class UnityClientAssetTemplates
             -unity-font: var(--lakona-font);
             color: var(--lakona-accent-dim);
             margin-right: 8px;
+            flex-shrink: 0;
         }
         .chat-input {
             flex-grow: 1;
+            flex-shrink: 1;
+            min-width: 0;
             margin-right: 8px;
         }
         .chat-input .unity-text-field__label {
@@ -339,6 +342,8 @@ internal static class UnityClientAssetTemplates
         }
         .send-button {
             width: 96px;
+            min-width: 96px;
+            flex-shrink: 0;
             font-size: var(--lakona-font-size);
             -unity-font: var(--lakona-font);
             color: var(--lakona-bg-base);
@@ -495,11 +500,13 @@ internal static class UnityClientAssetTemplates
           m_Children: []
           m_Father: {fileID: 0}
           m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+        {{RenderMainCamera(217438972, 217438973, 217438974, 217438975)}}
         --- !u!1660057539 &9223372036854775807
         SceneRoots:
           m_ObjectHideFlags: 0
           m_Roots:
           - {fileID: 217437974}
+          - {fileID: 217438973}
         """;
     }
 
@@ -567,11 +574,13 @@ internal static class UnityClientAssetTemplates
           m_Children: []
           m_Father: {fileID: 0}
           m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+        {{RenderMainCamera(317338972, 317338973, 317338974, 317338975)}}
         --- !u!1660057539 &9223372036854775807
         SceneRoots:
           m_ObjectHideFlags: 0
           m_Roots:
           - {fileID: 317337975}
+          - {fileID: 317338973}
         """;
     }
 
@@ -660,6 +669,104 @@ internal static class UnityClientAssetTemplates
           m_ObjectHideFlags: 0
           m_NavMeshData: {fileID: 0}
 
+        """;
+    }
+
+    private static string RenderMainCamera(int gameObjectId, int transformId, int cameraId, int audioListenerId)
+    {
+        return $$"""
+        --- !u!1 &{{gameObjectId}}
+        GameObject:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          serializedVersion: 6
+          m_Component:
+          - component: {fileID: {{transformId}}}
+          - component: {fileID: {{cameraId}}}
+          - component: {fileID: {{audioListenerId}}}
+          m_Layer: 0
+          m_Name: Main Camera
+          m_TagString: MainCamera
+          m_Icon: {fileID: 0}
+          m_NavMeshLayer: 0
+          m_StaticEditorFlags: 0
+          m_IsActive: 1
+        --- !u!4 &{{transformId}}
+        Transform:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          m_GameObject: {fileID: {{gameObjectId}}}
+          serializedVersion: 2
+          m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+          m_LocalPosition: {x: 0, y: 1, z: -10}
+          m_LocalScale: {x: 1, y: 1, z: 1}
+          m_ConstrainProportionsScale: 0
+          m_Children: []
+          m_Father: {fileID: 0}
+          m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+        --- !u!20 &{{cameraId}}
+        Camera:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          m_GameObject: {fileID: {{gameObjectId}}}
+          m_Enabled: 1
+          serializedVersion: 2
+          m_ClearFlags: 1
+          m_BackGroundColor: {r: 0.039215688, g: 0.05882353, b: 0.039215688, a: 0}
+          m_projectionMatrixMode: 1
+          m_GateFitMode: 2
+          m_FOVAxisMode: 0
+          m_Iso: 200
+          m_ShutterSpeed: 0.005
+          m_Aperture: 16
+          m_FocusDistance: 10
+          m_FocalLength: 50
+          m_BladeCount: 5
+          m_Curvature: {x: 2, y: 11}
+          m_BarrelClipping: 0.25
+          m_Anamorphism: 0
+          m_SensorSize: {x: 36, y: 24}
+          m_LensShift: {x: 0, y: 0}
+          m_NormalizedViewPortRect:
+            serializedVersion: 2
+            x: 0
+            y: 0
+            width: 1
+            height: 1
+          near clip plane: 0.3
+          far clip plane: 1000
+          field of view: 60
+          orthographic: 0
+          orthographic size: 5
+          m_Depth: -1
+          m_CullingMask:
+            serializedVersion: 2
+            m_Bits: 4294967295
+          m_RenderingPath: -1
+          m_TargetTexture: {fileID: 0}
+          m_TargetDisplay: 0
+          m_TargetEye: 3
+          m_HDR: 1
+          m_AllowMSAA: 1
+          m_AllowDynamicResolution: 0
+          m_ForceIntoRT: 0
+          m_OcclusionCulling: 1
+          m_StereoConvergence: 10
+          m_StereoSeparation: 0.022
+        --- !u!81 &{{audioListenerId}}
+        AudioListener:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          m_GameObject: {fileID: {{gameObjectId}}}
+          m_Enabled: 1
         """;
     }
 }

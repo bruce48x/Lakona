@@ -25,6 +25,11 @@ public sealed class ClientRendererTests
     {
         var plan = Render(new UnityClientRenderer(), Spec(ClientEngine.Unity));
 
+        var manifest = AssertPath(plan, "Client/Packages/manifest.json").Content;
+        Assert.Contains("\"com.unity.modules.uielements\": \"1.0.0\"", manifest, StringComparison.Ordinal);
+        Assert.Contains("\"com.unity.modules.ui\": \"1.0.0\"", manifest, StringComparison.Ordinal);
+        Assert.Contains("\"com.unity.modules.audio\": \"1.0.0\"", manifest, StringComparison.Ordinal);
+
         var rpcMarker = AssertPath(plan, "Client/Assets/Scripts/Rpc/LakonaRpcGeneration.cs").Content;
         Assert.Contains("[assembly: LakonaRpcGenerateClient(\"Rpc.Generated\")]", rpcMarker, StringComparison.Ordinal);
 
@@ -55,6 +60,15 @@ public sealed class ClientRendererTests
         Assert.Contains("await _client.BindAsync();", chatUi, StringComparison.Ordinal);
         Assert.Contains("await _client.SendAsync(text);", chatUi, StringComparison.Ordinal);
 
+        var chatUss = AssertPath(plan, "Client/Assets/UI/ChatScene.uss").Content;
+        Assert.Contains("flex-shrink: 0;", ExtractCssRule(chatUss, ".message-label"), StringComparison.Ordinal);
+        Assert.Contains("flex-grow: 1;", ExtractCssRule(chatUss, ".chat-input"), StringComparison.Ordinal);
+        Assert.Contains("flex-shrink: 1;", ExtractCssRule(chatUss, ".chat-input"), StringComparison.Ordinal);
+        Assert.Contains("min-width: 0;", ExtractCssRule(chatUss, ".chat-input"), StringComparison.Ordinal);
+        Assert.Contains("width: 96px;", ExtractCssRule(chatUss, ".send-button"), StringComparison.Ordinal);
+        Assert.Contains("min-width: 96px;", ExtractCssRule(chatUss, ".send-button"), StringComparison.Ordinal);
+        Assert.Contains("flex-shrink: 0;", ExtractCssRule(chatUss, ".send-button"), StringComparison.Ordinal);
+
         AssertPath(plan, "Client/Assets/Scripts/Chat/ChatSession.cs");
         AssertPath(plan, "Client/Assets/Scripts/Rpc/LakonaRpcGeneration.cs.meta");
         AssertPath(plan, "Client/Assets/Scripts/Login/LoginUI.cs.meta");
@@ -65,8 +79,10 @@ public sealed class ClientRendererTests
         AssertPath(plan, "Client/Assets/UI/ChatScene.uss");
         AssertPath(plan, "Client/Assets/UI/LakonaGameChatPanelSettings.asset");
         AssertPath(plan, "Client/Assets/UI Toolkit/UnityThemes/UnityDefaultRuntimeTheme.tss");
-        AssertPath(plan, "Client/Assets/Scenes/LoginScene.unity");
-        AssertPath(plan, "Client/Assets/Scenes/ChatScene.unity");
+        var loginScene = AssertPath(plan, "Client/Assets/Scenes/LoginScene.unity").Content;
+        AssertUnitySceneHasMainCamera(loginScene);
+        var chatScene = AssertPath(plan, "Client/Assets/Scenes/ChatScene.unity").Content;
+        AssertUnitySceneHasMainCamera(chatScene);
         AssertPath(plan, "Client/Assets/Editor/LakonaGameNuGetPackageImportGuard.cs");
     }
 
@@ -321,5 +337,25 @@ public sealed class ClientRendererTests
         }
 
         return count;
+    }
+
+    private static void AssertUnitySceneHasMainCamera(string scene)
+    {
+        Assert.Contains("m_Name: Main Camera", scene, StringComparison.Ordinal);
+        Assert.Contains("m_TagString: MainCamera", scene, StringComparison.Ordinal);
+        Assert.Contains("--- !u!20 ", scene, StringComparison.Ordinal);
+        Assert.Contains("Camera:", scene, StringComparison.Ordinal);
+        Assert.Contains("--- !u!81 ", scene, StringComparison.Ordinal);
+        Assert.Contains("AudioListener:", scene, StringComparison.Ordinal);
+        Assert.Contains("m_LocalPosition: {x: 0, y: 1, z: -10}", scene, StringComparison.Ordinal);
+    }
+
+    private static string ExtractCssRule(string css, string selector)
+    {
+        var start = css.IndexOf(selector + " {", StringComparison.Ordinal);
+        Assert.True(start >= 0, $"Missing CSS rule for {selector}.");
+        var end = css.IndexOf('}', start);
+        Assert.True(end >= 0, $"CSS rule for {selector} is not closed.");
+        return css[start..(end + 1)];
     }
 }

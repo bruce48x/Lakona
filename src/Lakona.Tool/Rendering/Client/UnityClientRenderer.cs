@@ -34,7 +34,12 @@ internal sealed class UnityClientRenderer : IClientRenderer
         {
           "dependencies": {
         {{RenderNuGetForUnityDependencyLine(spec)}}
-            "{{spec.Layout.UnityPackageId}}.shared": "file:../../Shared"
+            "{{spec.Layout.UnityPackageId}}.shared": "file:../../Shared",
+            "com.unity.modules.audio": "1.0.0",
+            "com.unity.modules.imgui": "1.0.0",
+            "com.unity.modules.jsonserialize": "1.0.0",
+            "com.unity.modules.ui": "1.0.0",
+            "com.unity.modules.uielements": "1.0.0"
           }{{RenderScopedRegistriesBlock(spec)}}
         }
         """;
