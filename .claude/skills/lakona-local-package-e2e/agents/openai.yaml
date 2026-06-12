@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lakona Local Package E2E"
+  short_description: "Validate Lakona with local NuGet packages"
+  default_prompt: "Use $lakona-local-package-e2e to validate the latest local Lakona packages before release."

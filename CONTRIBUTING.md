@@ -25,6 +25,7 @@ Supporting documents provide deeper rationale or user-facing context:
 | [docs/game/lakona-game-runtime-guardrails.md](./docs/game/lakona-game-runtime-guardrails.md) | Runtime validation model for cluster, hotfix, endpoints, and production profile |
 | [docs/game/lakona-tool-default-experience.md](./docs/game/lakona-tool-default-experience.md) | Project tool generated experience and default configuration surface |
 | [docs/tool/lakona-tool-refactor-architecture.md](./docs/tool/lakona-tool-refactor-architecture.md) | Implemented Lakona.Tool project generation architecture and regression boundaries |
+| [.claude/skills/lakona-local-package-e2e/SKILL.md](./.claude/skills/lakona-local-package-e2e/SKILL.md) | Maintainer skill for validating generated projects against locally packed Lakona NuGet packages before publish |
 | [docs/lakona-monorepo.md](./docs/lakona-monorepo.md) | Monorepo structure, naming, and migration policy |
 | [docs/rpc/overview.md](./docs/rpc/overview.md) | RPC user-facing overview retained from the former RPC repository |
 | [docs/rpc/README.md](./docs/rpc/README.md) | RPC design notes and maintainer-facing decisions |
@@ -469,6 +470,9 @@ Get-ChildItem src -Filter *.csproj -Recurse | ForEach-Object {
 - Follow all rules above.
 - For end-to-end validation of generated Lakona projects, use the
   `lakona-e2e-testing` skill when it is available.
+- For validation against unpublished local package contents, use the
+  `lakona-local-package-e2e` skill and its wrapper script instead of waiting for
+  nuget.org propagation.
 - Preserve package ownership and assembly boundaries.
 - Fix Unity / IL2CPP violations before committing.
 - Do not solve source-generation failures by committing generated RPC glue.
