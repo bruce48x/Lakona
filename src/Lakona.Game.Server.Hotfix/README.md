@@ -9,7 +9,7 @@ This package keeps reload mechanics separate from actor runtime, sessions, trans
 Lakona.Game hotfix separates stable state from replaceable logic:
 
 ```txt
-stable actor or state object + reloadable static system methods
+stable actor or state object + reloadable static behavior methods
 ```
 
 Actors, room loops, timers, persistence, RPC contracts, transports, and long-lived mutable state stay in stable assemblies. Hotfix assemblies contain stateless business rules that operate on stable state objects. A reload replaces the runtime dispatch table; it does not replace existing actor or state instances.
@@ -36,7 +36,7 @@ Hotfix code owns behavior:
 ```csharp
 [FriendOf(typeof(PlayerActor))]
 [HotfixBehaviorOf(typeof(PlayerActor))]
-public static class PlayerActorSystem
+public static class PlayerActorBehavior
 {
     public static void AddExp(this PlayerActor self, int amount)
     {
