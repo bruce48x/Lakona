@@ -1,34 +1,26 @@
 using System;
 using Server.App.Chat;
+using Server.Hotfix.Chat;
 using Shared.Contracts.Chat;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Hotfix.Abstractions;
 
 namespace Server.Hotfix.Login
 {
-    internal sealed class LoginService : ILoginService
+    [HotfixService(typeof(ILoginService))]
+    internal sealed class LoginService
     {
         private static readonly ActorId RoomId = ActorId.From("chat:global");
 
-        private readonly ILoginCallback _callback;
-        private readonly IActorRuntime _actors;
-        private readonly string _connectionId;
-
-        public LoginService(ILoginCallback callback, IActorRuntime actors, string connectionId)
+        public static ValueTask<LoginReply> LoginAsync(LoginServiceCall call)
         {
-            _callback = callback;
-            _actors = actors;
-            _connectionId = connectionId;
-        }
-
-        public ValueTask<LoginReply> LoginAsync(LoginRequest req)
-        {
-            var playerName = string.IsNullOrWhiteSpace(req.PlayerName)
+            var playerName = string.IsNullOrWhiteSpace(call.Request.PlayerName)
                 ? "Player"
-                : req.PlayerName.Trim();
+                : call.Request.PlayerName.Trim();
 
-            return _actors.AskAsync<ChatRoomActor, LoginReply>(
+            return call.Actors.AskAsync<ChatRoomActor, LoginReply>(
                 RoomId,
-                (room, ct) => room.LoginAsync(_connectionId, playerName, _callback));
+                (room, ct) => room.LoginAsync(call.ConnectionId, playerName, call.Callback));
         }
     }
 }

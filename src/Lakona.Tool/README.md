@@ -108,6 +108,28 @@ Use JSON output when CI or deployment scripts need machine-readable validation r
 dotnet run --project "Server/App/Server.App.csproj" -- --lakona-game-check --json
 ```
 
+## Hotfix Operations
+
+Package the current hotfix project:
+
+```bash
+lakona-tool hotfix pack
+```
+
+Install a package into the node-local hotfix root:
+
+```bash
+lakona-tool hotfix install artifacts/hotfix/Server.Hotfix-v20260612-153045Z.zip --root hotfix
+```
+
+Activate, inspect, or roll back the loopback-only admin endpoint:
+
+```bash
+lakona-tool hotfix activate v20260612-153045Z --server http://127.0.0.1:20090
+lakona-tool hotfix status --server http://127.0.0.1:20090
+lakona-tool hotfix rollback --server http://127.0.0.1:20090
+```
+
 ## Cluster Configuration
 
 The generated server derives a node-local service model. A node is one .NET server process; generated defaults include gateway, node-directory, and route-directory services inside that node.

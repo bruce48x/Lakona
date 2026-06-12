@@ -27,6 +27,9 @@ It generates a runnable Lakona.Game project with Shared contracts, Server/App,
 Server/Hotfix, a client project, compact configuration, cluster defaults,
 hotfix defaults, reliable push defaults, and generated project docs.
 
+`Lakona.Tool` also owns the v1 production hotfix package format and local node
+operations. It does not own remote deployment or multi-node orchestration.
+
 ## Architecture Decision
 
 `Lakona.Tool` is one coherent project generator. It must not contain a hidden
@@ -131,9 +134,60 @@ Execution/
 
 `CliApplication` routes commands and translates CLI usage failures. It should
 not know project layout, package references, Unity, Godot, or file rendering.
+For hotfix operations it should route to focused command classes under
+`Cli/Commands/Hotfix/`.
 
 `LakonaProjectGenerator` is the high-level generation facade. It builds and
 validates a plan, then executes it transactionally.
+
+## Hotfix Operations
+
+V1 hotfix commands are node-local except for `pack`, which runs in a build or CI
+workspace:
+
+```txt
+lakona-tool hotfix pack
+lakona-tool hotfix install <zip> --root <hotfix-root>
+lakona-tool hotfix activate <version> --server http://127.0.0.1:<admin-port>
+lakona-tool hotfix status --server http://127.0.0.1:<admin-port>
+lakona-tool hotfix rollback --server http://127.0.0.1:<admin-port>
+```
+
+The tool must reject non-loopback `--server` URLs in v1. It is a local control
+plane client, not a remote deploy client.
+
+`hotfix pack`:
+
+- locates `Server/Hotfix/Server.Hotfix.csproj` by default
+- builds or publishes the hotfix project for Release
+- reads the shared `BuildTag`
+- creates a UTC timestamp version accurate to seconds, such as
+  `v20260612-153045Z`
+- writes `hotfix.json`
+- writes `checksums.sha256`
+- emits `artifacts/hotfix/Server.Hotfix-v20260612-153045Z.zip`
+
+`hotfix install`:
+
+- runs on a target node after an external deployment system copies the package
+- extracts into `hotfix/staging/<operationId>/`
+- validates `hotfix.json` and `checksums.sha256`
+- moves the verified directory to `hotfix/versions/<version>/`
+- writes `READY` last
+- succeeds idempotently if the same version already exists with identical
+  checksums
+- fails if the same version exists with different content
+
+`hotfix activate`, `status`, and `rollback` call the running node's loopback
+HTTP JSON admin endpoint. `activate` performs authoritative validation inside
+the running server process before publishing new dispatch tables.
+
+V1 deliberately excludes:
+
+- uploading packages to remote nodes
+- rolling over multiple nodes
+- public admin endpoint authentication
+- production file watchers
 
 ## Pipeline
 
@@ -477,28 +531,31 @@ The default generated project demonstrates Lakona.Game as one vertical slice:
 
 ```txt
 client login RPC
-  -> stable Server/App binding
-  -> session identity and endpoint binding
-  -> route registration
-  -> reliable welcome notification
-  -> chat bind RPC
+  -> stable Server/App service proxy
+  -> current Server.Hotfix ChatService
   -> ChatRoomActor through IActorRuntime
-  -> hotfix ChatService filters message text
-  -> reliable chat notification
+  -> current Server.Hotfix ChatRoomBehavior inside the actor turn
+  -> reliable chat callback or notification
 ```
 
 The generated server must not use static mutable process state for chat room
-concurrency. Room state belongs in an actor. Stable server code owns actor
-runtime access and hotfix dispatch wrappers. Hotfix code owns replaceable
-business rule behavior only.
+concurrency. Room state belongs in an actor. A hotfix-enabled actor should keep
+fields and mailbox ownership only. Replaceable request logic belongs in
+`Server.Hotfix` Service classes, and actor state behavior belongs in
+one-to-one `Server.Hotfix` Behavior classes.
+
+Generated RPC bindings must hold stable service proxy instances. They must not
+hold instances of types loaded from `Server.Hotfix`, because already-connected
+clients must use new Service logic on their next RPC call after a successful
+reload.
 
 Generated docs should point users to three edit zones:
 
 - `Shared/Contracts/` for RPC contracts, callback contracts, reliable push DTOs,
   and named contract ids.
-- `Server/App/` for stable orchestration, actor state, host binding, and runtime
-  integration.
-- `Server/Hotfix/` for replaceable rules and services.
+- `Server/App/` for stable orchestration, actor fields, service proxies, host
+  binding, runtime integration, `BuildTag`, and local admin endpoint wiring.
+- `Server/Hotfix/` for replaceable Services and Actor Behaviors.
 
 ## Configuration Contract
 

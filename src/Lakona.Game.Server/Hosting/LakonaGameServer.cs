@@ -7,6 +7,8 @@ using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Health;
 using Lakona.Game.Server.Hotfix;
+using Lakona.Game.Server.Hotfix.BuildTag;
+using Lakona.Game.Server.HotfixAdmin;
 using Lakona.Game.Server.Hotfix.Loading;
 
 namespace Lakona.Game.Server.Hosting;
@@ -111,6 +113,12 @@ public static class LakonaGameServer
         builder.Services.AddLakonaGameHotfix(
             new CurrentDirectoryHotfixAssemblySource(hotfixDirectory, "Server.Hotfix.dll"),
             sharedAssemblyNames: GetDefaultHotfixSharedAssemblyNames());
+        builder.Services.AddLakonaGameHotfixAdmin(options =>
+        {
+            builder.Configuration.GetSection("Lakona.Game:Hotfix:Admin").Bind(options);
+            options.HotfixRoot = Path.Combine(AppContext.BaseDirectory, "hotfix");
+            options.BuildTag = HotfixBuildTag.Get(Assembly.GetEntryAssembly() ?? typeof(LakonaGameServer).Assembly);
+        });
 
         // Gateway (registers RpcServersHostedService)
         builder.Services.AddLakonaGameServerGateway();

@@ -16,8 +16,8 @@ public sealed class HotfixFileWatcherTests
     {
         var options = new HotfixFileWatcherOptions();
 
-        Assert.Equal("hotfix/current", options.Directory);
-        Assert.Equal("*.dll", options.Filter);
+        Assert.Equal("hotfix", options.Directory);
+        Assert.Equal("reload.signal", options.Filter);
         Assert.Equal(TimeSpan.FromSeconds(1), options.Debounce);
     }
 
@@ -56,7 +56,7 @@ public sealed class HotfixFileWatcherTests
     }
 
     [Fact]
-    public async Task Hosted_service_reloads_after_matching_file_change()
+    public async Task Hosted_service_reloads_after_reload_signal_change()
     {
         var directory = CreateTemporaryDirectory();
         try
@@ -67,6 +67,10 @@ public sealed class HotfixFileWatcherTests
             await service.StartAsync(TestContext.Current.CancellationToken);
             await File.WriteAllTextAsync(
                 Path.Combine(directory, "Game.Hotfix.dll"),
+                "fake build output",
+                TestContext.Current.CancellationToken);
+            await File.WriteAllTextAsync(
+                Path.Combine(directory, "reload.signal"),
                 "changed",
                 TestContext.Current.CancellationToken);
 
@@ -90,7 +94,7 @@ public sealed class HotfixFileWatcherTests
 
             await service.StartAsync(TestContext.Current.CancellationToken);
             await File.WriteAllTextAsync(
-                Path.Combine(directory, "Game.Hotfix.dll"),
+                Path.Combine(directory, "reload.signal"),
                 "changed",
                 TestContext.Current.CancellationToken);
 
@@ -116,7 +120,7 @@ public sealed class HotfixFileWatcherTests
             Options.Create(new HotfixFileWatcherOptions
             {
                 Directory = directory,
-                Filter = "*.dll",
+                Filter = "reload.signal",
                 Debounce = TimeSpan.FromMilliseconds(50)
             }),
             logger);
@@ -195,6 +199,11 @@ public sealed class HotfixFileWatcherTests
         }
 
         public HotfixSnapshot Current { get; }
+
+        public ValueTask<HotfixReloadResult> ValidateAsync(CancellationToken cancellationToken = default)
+        {
+            return ValueTask.FromResult(_result);
+        }
 
         public ValueTask<HotfixReloadResult> ReloadAsync(CancellationToken cancellationToken = default)
         {

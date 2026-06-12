@@ -7,24 +7,43 @@ using Xunit;
 
 namespace Lakona.Game.Server.Hotfix.Tests;
 
-public sealed class HotfixSystemScannerTests
+public sealed class HotfixBehaviorScannerTests
 {
     [Fact]
-    public void Scan_discovers_public_static_extension_methods()
+    public void Scan_discovers_hotfix_behavior_methods()
     {
-        var assembly = CreateAssembly(nameof(Scan_discovers_public_static_extension_methods), module =>
+        var assembly = CreateAssembly(nameof(Scan_discovers_hotfix_behavior_methods), module =>
         {
-            CreateHotfixSystemType(module, "ValidStateSystem", typeof(ValidState), methodName: "Add");
+            CreateHotfixBehaviorType(module, "ChatRoomBehavior", typeof(ChatRoomActor), methodName: "JoinAsync");
         });
 
-        var result = HotfixSystemScanner.Scan(assembly);
+        var result = HotfixBehaviorScanner.Scan(assembly);
 
         Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
         var method = Assert.Single(result.Methods);
-        Assert.Equal(typeof(ValidState).FullName, method.Key.StateTypeName);
-        Assert.Equal("Add", method.Key.MethodName);
+        Assert.Equal(typeof(ChatRoomActor).FullName, method.Key.StateTypeName);
+        Assert.Equal("JoinAsync", method.Key.MethodName);
         Assert.Equal(typeof(int).FullName, method.Key.ReturnTypeName);
         Assert.Equal([typeof(int).FullName!], method.Key.ParameterTypeNames);
+    }
+
+    [Fact]
+    public void Scan_reports_behavior_name_for_non_static_behavior_type()
+    {
+        var assembly = CreateAssembly(nameof(Scan_reports_behavior_name_for_non_static_behavior_type), module =>
+        {
+            DefineBehaviorType(
+                    module,
+                    "InvalidChatRoomBehavior",
+                    typeof(ChatRoomActor),
+                    TypeAttributes.Public | TypeAttributes.Class)
+                .CreateType();
+        });
+
+        var result = HotfixBehaviorScanner.Scan(assembly);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Contains("Hotfix behavior", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -32,11 +51,11 @@ public sealed class HotfixSystemScannerTests
     {
         var assembly = CreateAssembly(nameof(Scan_rejects_duplicate_method_keys), module =>
         {
-            CreateHotfixSystemType(module, "DuplicateStateSystemA", typeof(DuplicateState), methodName: "Add");
-            CreateHotfixSystemType(module, "DuplicateStateSystemB", typeof(DuplicateState), methodName: "Add");
+            CreateHotfixBehaviorType(module, "DuplicateStateBehaviorA", typeof(DuplicateState), methodName: "Add");
+            CreateHotfixBehaviorType(module, "DuplicateStateBehaviorB", typeof(DuplicateState), methodName: "Add");
         });
 
-        var result = HotfixSystemScanner.Scan(assembly);
+        var result = HotfixBehaviorScanner.Scan(assembly);
 
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Contains("Duplicate hotfix method key", StringComparison.Ordinal));
     }
@@ -46,10 +65,10 @@ public sealed class HotfixSystemScannerTests
     {
         var assembly = CreateAssembly(nameof(Scan_rejects_generic_extension_methods), module =>
         {
-            CreateGenericHotfixSystemType(module, typeof(GenericState));
+            CreateGenericHotfixBehaviorType(module, typeof(GenericState));
         });
 
-        var result = HotfixSystemScanner.Scan(assembly);
+        var result = HotfixBehaviorScanner.Scan(assembly);
 
         Assert.Empty(result.Methods);
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Contains("must not be generic", StringComparison.Ordinal));
@@ -60,10 +79,10 @@ public sealed class HotfixSystemScannerTests
     {
         var assembly = CreateAssembly(nameof(Scan_rejects_out_parameter_extension_methods), module =>
         {
-            CreateOutParameterHotfixSystemType(module, typeof(OutParameterState));
+            CreateOutParameterHotfixBehaviorType(module, typeof(OutParameterState));
         });
 
-        var result = HotfixSystemScanner.Scan(assembly);
+        var result = HotfixBehaviorScanner.Scan(assembly);
 
         Assert.Empty(result.Methods);
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Contains("must not use by-ref, out, or pointer parameter types", StringComparison.Ordinal));
@@ -97,21 +116,21 @@ public sealed class HotfixSystemScannerTests
         return assembly;
     }
 
-    private static Type CreateHotfixSystemType(ModuleBuilder module, string typeName, Type stateType, string methodName)
+    private static Type CreateHotfixBehaviorType(ModuleBuilder module, string typeName, Type stateType, string methodName)
     {
-        var systemType = DefineSystemType(module, typeName, stateType);
-        var method = DefineExtensionMethod(systemType, methodName, typeof(int), [stateType, typeof(int)]);
+        var behaviorType = DefineBehaviorType(module, typeName, stateType);
+        var method = DefineExtensionMethod(behaviorType, methodName, typeof(int), [stateType, typeof(int)]);
         var il = method.GetILGenerator();
         il.Emit(OpCodes.Ldarg_1);
         il.Emit(OpCodes.Ret);
 
-        return systemType.CreateType();
+        return behaviorType.CreateType();
     }
 
-    private static Type CreateGenericHotfixSystemType(ModuleBuilder module, Type stateType)
+    private static Type CreateGenericHotfixBehaviorType(ModuleBuilder module, Type stateType)
     {
-        var systemType = DefineSystemType(module, "GenericStateSystem", stateType);
-        var method = systemType.DefineMethod(
+        var behaviorType = DefineBehaviorType(module, "GenericStateBehavior", stateType);
+        var method = behaviorType.DefineMethod(
             "Generic",
             MethodAttributes.Public | MethodAttributes.Static);
         var genericParameter = method.DefineGenericParameters("T")[0];
@@ -123,13 +142,13 @@ public sealed class HotfixSystemScannerTests
         il.Emit(OpCodes.Ldarg_1);
         il.Emit(OpCodes.Ret);
 
-        return systemType.CreateType();
+        return behaviorType.CreateType();
     }
 
-    private static Type CreateOutParameterHotfixSystemType(ModuleBuilder module, Type stateType)
+    private static Type CreateOutParameterHotfixBehaviorType(ModuleBuilder module, Type stateType)
     {
-        var systemType = DefineSystemType(module, "OutParameterStateSystem", stateType);
-        var method = DefineExtensionMethod(systemType, "TryRead", typeof(bool), [stateType, typeof(int).MakeByRefType()]);
+        var behaviorType = DefineBehaviorType(module, "OutParameterStateBehavior", stateType);
+        var method = DefineExtensionMethod(behaviorType, "TryRead", typeof(bool), [stateType, typeof(int).MakeByRefType()]);
         method.DefineParameter(2, ParameterAttributes.Out, "value");
 
         var il = method.GetILGenerator();
@@ -139,24 +158,28 @@ public sealed class HotfixSystemScannerTests
         il.Emit(OpCodes.Ldc_I4_1);
         il.Emit(OpCodes.Ret);
 
-        return systemType.CreateType();
+        return behaviorType.CreateType();
     }
 
-    private static TypeBuilder DefineSystemType(ModuleBuilder module, string typeName, Type stateType)
+    private static TypeBuilder DefineBehaviorType(
+        ModuleBuilder module,
+        string typeName,
+        Type stateType,
+        TypeAttributes attributes = TypeAttributes.Public | TypeAttributes.Abstract | TypeAttributes.Sealed | TypeAttributes.Class)
     {
-        var systemType = module.DefineType(
+        var behaviorType = module.DefineType(
             typeName,
-            TypeAttributes.Public | TypeAttributes.Abstract | TypeAttributes.Sealed | TypeAttributes.Class);
+            attributes);
 
-        var attributeConstructor = typeof(HotfixSystemOfAttribute).GetConstructor([typeof(Type)])!;
-        systemType.SetCustomAttribute(new CustomAttributeBuilder(attributeConstructor, [stateType]));
+        var attributeConstructor = typeof(HotfixBehaviorOfAttribute).GetConstructor([typeof(Type)])!;
+        behaviorType.SetCustomAttribute(new CustomAttributeBuilder(attributeConstructor, [stateType]));
 
-        return systemType;
+        return behaviorType;
     }
 
-    private static MethodBuilder DefineExtensionMethod(TypeBuilder systemType, string name, Type returnType, Type[] parameterTypes)
+    private static MethodBuilder DefineExtensionMethod(TypeBuilder behaviorType, string name, Type returnType, Type[] parameterTypes)
     {
-        var method = systemType.DefineMethod(
+        var method = behaviorType.DefineMethod(
             name,
             MethodAttributes.Public | MethodAttributes.Static,
             returnType,
@@ -172,7 +195,7 @@ public sealed class HotfixSystemScannerTests
         method.SetCustomAttribute(new CustomAttributeBuilder(attributeConstructor, []));
     }
 
-    public sealed class ValidState
+    public sealed class ChatRoomActor
     {
     }
 

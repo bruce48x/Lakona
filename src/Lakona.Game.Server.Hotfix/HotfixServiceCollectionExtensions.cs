@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
 
 namespace Lakona.Game.Server.Hotfix;
@@ -18,6 +20,7 @@ public static class HotfixServiceCollectionExtensions
         services.RemoveAll<IHotfixAssemblySource>();
         services.RemoveAll<IHotfixManager>();
         services.AddSingleton(source);
+        services.TryAddSingleton<IHotfixServiceInvoker, HotfixServiceInvoker>();
         services.AddSingleton<IHotfixManager>(provider =>
             new HotfixManager(provider.GetRequiredService<IHotfixAssemblySource>(), sharedNames));
         return services;

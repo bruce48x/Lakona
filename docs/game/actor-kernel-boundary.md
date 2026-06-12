@@ -5,6 +5,37 @@ runtime uses an internal actor kernel under `Lakona.Game.Server.Internal`, but
 that kernel is not a package, not a public API, and not something generated
 projects should reference directly.
 
+## Hotfix-Enabled Actor Shape
+
+For hotfix-enabled game code, an actor is the stable mailbox and state owner.
+The actor class should contain fields and narrow framework lifecycle hooks only.
+Request logic and state behavior belong outside the actor:
+
+- `Server.Hotfix` Service classes implement request business logic for
+  `Shared` service contracts.
+- `Server.Hotfix` Behavior classes correspond one-to-one with Actor classes and
+  read or write actor fields inside actor turns.
+- `Server.App` stable service proxies bind RPC sessions and forward each call
+  to the currently loaded hotfix Service.
+
+This keeps the actor runtime responsible for sequential execution while making
+business behavior replaceable. It also prevents RPC sessions from holding
+instances of hotfix assembly types after a reload.
+
+Hotfix-enabled samples and templates should prefer this shape:
+
+```txt
+Shared.IChatService
+  -> Server.App.ChatServiceProxy
+  -> Server.Hotfix.ChatService
+  -> Server.App.ChatRoomActor
+  -> Server.Hotfix.ChatRoomBehavior
+```
+
+`ChatRoomActor` owns fields and mailbox execution. `ChatRoomBehavior` owns the
+rules that mutate those fields. `ChatService` is not a Behavior; it is the
+request-level service corresponding to the Shared RPC contract.
+
 ## Responsibility Split
 
 ```

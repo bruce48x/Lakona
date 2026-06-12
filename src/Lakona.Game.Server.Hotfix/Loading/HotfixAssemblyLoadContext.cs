@@ -6,7 +6,7 @@ namespace Lakona.Game.Server.Hotfix.Loading;
 
 internal sealed class HotfixAssemblyLoadContext : AssemblyLoadContext
 {
-    private static readonly string AbstractionsAssemblyName = typeof(HotfixSystemOfAttribute).Assembly.GetName().Name!;
+    private static readonly string AbstractionsAssemblyName = typeof(HotfixBehaviorOfAttribute).Assembly.GetName().Name!;
 
     private readonly AssemblyDependencyResolver _resolver;
     private readonly IReadOnlySet<string> _sharedAssemblyNames;

@@ -1,4 +1,5 @@
 using Lakona.Tool.Cli.Commands;
+using Lakona.Tool.Cli.Commands.Hotfix;
 using Lakona.Tool.Cli.Options;
 using Lakona.Tool.Domain;
 using Lakona.Tool.Execution;
@@ -36,6 +37,7 @@ internal sealed class CliApplication
             {
                 "help" or "--help" or "-h" => HelpResult(),
                 "new" or "init" => await NewAsync(args.Skip(1).ToArray()).ConfigureAwait(false),
+                "hotfix" => await new HotfixCommand(terminal).RunAsync(args.Skip(1).ToArray(), CancellationToken.None).ConfigureAwait(false),
                 _ => UnknownCommand(args[0])
             };
         }

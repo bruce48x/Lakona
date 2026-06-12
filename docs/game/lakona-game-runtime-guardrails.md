@@ -264,6 +264,46 @@ ULINK091 error Reliable Push requires a session identity resolver.
 ULINK111 error Production profile cannot advertise 127.0.0.1.
 ```
 
+## Hotfix Operational Guardrails
+
+Hotfix validation must distinguish development and production modes.
+
+Development mode is optimized for iteration:
+
+- `dotnet build Server/Hotfix/Server.Hotfix.csproj` may overwrite the local
+  hotfix output directory.
+- The server may watch a completed `reload.signal` file and then call
+  `ReloadAsync()`.
+- Reload failure keeps the previous dispatch table and is reported as a local
+  diagnostic.
+
+Production mode is optimized for reliable operations:
+
+- Hotfix packages must be installed into immutable version directories under
+  `hotfix/versions/<version>/`.
+- A version directory is valid only after `READY` exists.
+- Production must not use file watchers to trigger reload.
+- Activation must be explicit through the loopback admin endpoint.
+- The admin endpoint must bind only to `127.0.0.1` or `::1`.
+- Activation must reject non-loopback requests.
+- Activation must reject packages whose `BuildTag` differs from the running
+  server `BuildTag`.
+- Activation failure must leave the previously loaded dispatch table active and
+  restore `current.txt` to the old version.
+
+`BuildTag` mismatch is a production error. It protects against installing a
+hotfix package built against a different stable `Server.App` or `Shared`
+boundary than the one currently running.
+
+Suggested diagnostic additions:
+
+```txt
+ULINK072 error Hotfix version directory is missing READY.
+ULINK073 error Hotfix package BuildTag does not match the running server BuildTag.
+ULINK074 error Hotfix admin endpoint must bind to loopback in production.
+ULINK075 error Production hotfix reload cannot be triggered by file watcher.
+```
+
 ## Startup Behavior
 
 Server startup should run runtime validation after configuration has been bound and derived, but before the server starts accepting traffic.

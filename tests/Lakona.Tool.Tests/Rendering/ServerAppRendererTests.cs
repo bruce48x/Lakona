@@ -41,11 +41,21 @@ public sealed class ServerAppRendererTests
 
         var chatRoomActor = AssertPath(plan, "Server/App/Chat/ChatRoomActor.cs").Content;
         Assert.Contains("internal sealed class ChatRoomActor : Actor", chatRoomActor, StringComparison.Ordinal);
-        Assert.Contains("ValueTask<LoginReply> LoginAsync", chatRoomActor, StringComparison.Ordinal);
-        Assert.Contains("void BindChatCallback", chatRoomActor, StringComparison.Ordinal);
-        Assert.Contains("ValueTask SendAsync", chatRoomActor, StringComparison.Ordinal);
+        Assert.Contains("internal readonly Dictionary<string, ChatRoomMember> Members", chatRoomActor, StringComparison.Ordinal);
+        Assert.Contains("internal readonly Queue<ChatMessage> RecentMessages", chatRoomActor, StringComparison.Ordinal);
+        Assert.DoesNotContain("ValueTask<LoginReply> LoginAsync", chatRoomActor, StringComparison.Ordinal);
+        Assert.DoesNotContain("void BindChatCallback", chatRoomActor, StringComparison.Ordinal);
+        Assert.DoesNotContain("ValueTask SendAsync", chatRoomActor, StringComparison.Ordinal);
         Assert.DoesNotContain("ValueTask.CompletedTask", chatRoomActor, StringComparison.Ordinal);
         Assert.DoesNotContain("ValueTask.FromResult", chatRoomActor, StringComparison.Ordinal);
+
+        var loginProxy = AssertPath(plan, "Server/App/Chat/LoginServiceProxy.cs").Content;
+        Assert.Contains("internal sealed class LoginServiceProxy : ILoginService", loginProxy, StringComparison.Ordinal);
+        Assert.Contains("IHotfixServiceInvoker", loginProxy, StringComparison.Ordinal);
+
+        var chatProxy = AssertPath(plan, "Server/App/Chat/ChatServiceProxy.cs").Content;
+        Assert.Contains("internal sealed class ChatServiceProxy : IChatService", chatProxy, StringComparison.Ordinal);
+        Assert.Contains("IHotfixServiceInvoker", chatProxy, StringComparison.Ordinal);
 
         var lifecycle = AssertPath(plan, "Server/App/Chat/ChatConnectionLifecycle.cs").Content;
         Assert.Contains("internal sealed class ChatConnectionLifecycle", lifecycle, StringComparison.Ordinal);
@@ -59,6 +69,7 @@ public sealed class ServerAppRendererTests
         Assert.Contains("ChatServiceBinder.BindFactory", binding, StringComparison.Ordinal);
         Assert.Contains("new LoginCallbackProxy(session)", binding, StringComparison.Ordinal);
         Assert.Contains("new ChatCallbackProxy(session)", binding, StringComparison.Ordinal);
+        Assert.DoesNotContain("Assembly.LoadFrom", binding, StringComparison.Ordinal);
 
         AssertPath(plan, "Server/App/Properties/AssemblyInfo.cs");
 
@@ -89,6 +100,19 @@ public sealed class ServerAppRendererTests
         Assert.Contains(".UseTransport(\"websocket\")", program, StringComparison.Ordinal);
         Assert.Contains(".UseSerializer(() => new JsonRpcSerializer())", program, StringComparison.Ordinal);
         Assert.Contains("WsConnectionAcceptor.CreateAsync(opts.Port, opts.Path, opts.Host)", program, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AddFiles_EmitsHotfixBuildTagPropsAndImportsIt()
+    {
+        var plan = Render(Spec(TransportKind.Kcp, SerializerKind.MemoryPack));
+
+        var buildTag = AssertPath(plan, "Server/App/BuildTag.props").Content;
+        Assert.Contains("<LakonaHotfixBuildTag>20260612.001</LakonaHotfixBuildTag>", buildTag, StringComparison.Ordinal);
+
+        var project = AssertPath(plan, "Server/App/Server.App.csproj").Content;
+        Assert.Contains("<Import Project=\"BuildTag.props\" />", project, StringComparison.Ordinal);
+        Assert.Contains("LakonaHotfixBuildTag", AssertPath(plan, "Server/App/Properties/AssemblyInfo.cs").Content, StringComparison.Ordinal);
     }
 
     private static GenerationPlan Render(LakonaProjectSpec spec)

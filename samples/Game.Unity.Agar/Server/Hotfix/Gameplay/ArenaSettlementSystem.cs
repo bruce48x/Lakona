@@ -5,7 +5,7 @@ using Lakona.Game.Server.Hotfix.Abstractions;
 namespace Agar.Sample.Hotfix.Gameplay;
 
 [FriendOf(typeof(ArenaSimulation))]
-[HotfixSystemOf(typeof(ArenaSimulation))]
+[HotfixBehaviorOf(typeof(ArenaSimulation))]
 public static class ArenaSettlementSystem
 {
     public static MatchSettlementResult SettleMatch(this ArenaSimulation self, WorldState worldState)

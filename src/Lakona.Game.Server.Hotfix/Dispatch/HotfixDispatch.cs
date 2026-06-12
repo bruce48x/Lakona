@@ -19,6 +19,11 @@ public static class HotfixDispatch
         return CreateKey(typeof(TState), methodName, typeof(TResult), parameterTypes);
     }
 
+    public static string CreateServiceKey<TContract, TResult>(string methodName, params Type[] parameterTypes)
+    {
+        return CreateServiceKey(typeof(TContract), methodName, typeof(TResult), parameterTypes);
+    }
+
     public static TResult Invoke<TState, TResult>(string methodName, TState state)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -135,6 +140,25 @@ public static class HotfixDispatch
             methodName,
             returnType.FullName ?? returnType.Name,
             parameterTypes.Select(static type => type.FullName ?? type.Name).ToArray());
+    }
+
+    internal static string CreateServiceKey(
+        Type contractType,
+        string methodName,
+        Type returnType,
+        Type[] parameterTypes)
+    {
+        ArgumentNullException.ThrowIfNull(contractType);
+        ArgumentException.ThrowIfNullOrWhiteSpace(methodName);
+        ArgumentNullException.ThrowIfNull(returnType);
+        ArgumentNullException.ThrowIfNull(parameterTypes);
+
+        if (parameterTypes.Any(static type => type is null))
+        {
+            throw new ArgumentException("Parameter types cannot contain null.", nameof(parameterTypes));
+        }
+
+        return $"{contractType.FullName ?? contractType.Name}.{methodName}({string.Join(", ", parameterTypes.Select(static type => type.FullName ?? type.Name))}) -> {returnType.FullName ?? returnType.Name}";
     }
 
     private sealed record PreparedInvocation(

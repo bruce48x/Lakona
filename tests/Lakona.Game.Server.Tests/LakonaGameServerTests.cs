@@ -379,6 +379,11 @@ public sealed class LakonaGameServerTests
             LastFailureMessage: null,
             LastFailureExceptionType: null);
 
+        public ValueTask<HotfixReloadResult> ValidateAsync(CancellationToken cancellationToken = default)
+        {
+            return ReloadAsync(cancellationToken);
+        }
+
         public ValueTask<HotfixReloadResult> ReloadAsync(CancellationToken cancellationToken = default)
         {
             var result = new HotfixReloadResult(

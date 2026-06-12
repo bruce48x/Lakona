@@ -25,12 +25,12 @@ public sealed class HotfixManager : IHotfixManager
 
     public HotfixSnapshot Current => Volatile.Read(ref _current);
 
-    public async ValueTask<HotfixReloadResult> ReloadAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<HotfixReloadResult> ValidateAsync(CancellationToken cancellationToken = default)
     {
         await _reloadLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            return await ReloadCoreAsync(cancellationToken).ConfigureAwait(false);
+            return await LoadCoreAsync(publish: false, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -38,7 +38,20 @@ public sealed class HotfixManager : IHotfixManager
         }
     }
 
-    private async ValueTask<HotfixReloadResult> ReloadCoreAsync(CancellationToken cancellationToken)
+    public async ValueTask<HotfixReloadResult> ReloadAsync(CancellationToken cancellationToken = default)
+    {
+        await _reloadLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await LoadCoreAsync(publish: true, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _reloadLock.Release();
+        }
+    }
+
+    private async ValueTask<HotfixReloadResult> LoadCoreAsync(bool publish, CancellationToken cancellationToken)
     {
         HotfixAssemblySourceResult? resolved = null;
         HotfixAssemblyLoadContext? pendingContext = null;
@@ -54,7 +67,7 @@ public sealed class HotfixManager : IHotfixManager
 
             pendingContext = new HotfixAssemblyLoadContext(resolved.AssemblyPath, _sharedAssemblyNames);
             var assembly = pendingContext.LoadMainAssemblyFromBytes(resolved.AssemblyPath);
-            var scan = HotfixSystemScanner.Scan(assembly);
+            var scan = HotfixBehaviorScanner.Scan(assembly);
             if (!scan.Succeeded)
             {
                 throw new InvalidOperationException(string.Join(Environment.NewLine, scan.Diagnostics));
@@ -70,8 +83,8 @@ public sealed class HotfixManager : IHotfixManager
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            var tableVersion = Interlocked.Increment(ref _nextVersion);
-            var table = new HotfixDispatchTable(tableVersion, scan.Methods);
+            var tableVersion = publish ? Interlocked.Increment(ref _nextVersion) : Current.DispatchTableVersion;
+            var table = new HotfixDispatchTable(tableVersion, scan.Methods, scan.Services);
             table.ValidateMethodShapes();
             table.ValidateTypedDispatchDelegates();
             var snapshot = new HotfixSnapshot(
@@ -84,6 +97,13 @@ public sealed class HotfixManager : IHotfixManager
                 HotfixReloadStatus.Succeeded,
                 null,
                 null);
+
+            if (!publish)
+            {
+                pendingContext.Unload();
+                pendingContext = null;
+                return new HotfixReloadResult(HotfixReloadStatus.Succeeded, snapshot, resolved.Version, resolved.AssemblyPath, Array.Empty<string>());
+            }
 
             HotfixDispatch.Replace(table);
             var oldContext = Interlocked.Exchange(ref _loadContext, pendingContext);
@@ -113,7 +133,11 @@ public sealed class HotfixManager : IHotfixManager
                 HotfixReloadStatus.Failed,
                 ex.Message,
                 ex.GetType().FullName);
-            Volatile.Write(ref _current, snapshot);
+            if (publish)
+            {
+                Volatile.Write(ref _current, snapshot);
+            }
+
             return new HotfixReloadResult(
                 HotfixReloadStatus.Failed,
                 snapshot,

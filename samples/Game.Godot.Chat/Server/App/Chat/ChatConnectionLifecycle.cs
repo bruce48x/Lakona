@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Rpc.Server;
 
 namespace Server.App.Chat
@@ -30,13 +31,17 @@ namespace Server.App.Chat
         {
             try
             {
-                await _actors.AskAsync<ChatRoomActor, bool>(
-                    RoomId,
-                    async (room, ct) =>
-                    {
-                        await room.LeaveAsync(connectionId);
-                        return true;
-                    });
+                        await _actors.AskAsync<ChatRoomActor, bool>(
+                            RoomId,
+                            async (room, ct) =>
+                            {
+                                await HotfixDispatch.Invoke<ChatRoomActor, ValueTask>(
+                                    nameof(ChatRoomBehaviorNames.LeaveAsync),
+                                    room,
+                                    [typeof(string)],
+                                    [connectionId]);
+                                return true;
+                            });
             }
             catch (Exception ex)
             {
@@ -47,5 +52,10 @@ namespace Server.App.Chat
                 _tracked.TryRemove(connectionId, out _);
             }
         }
+    }
+
+    internal static class ChatRoomBehaviorNames
+    {
+        public const string LeaveAsync = "LeaveAsync";
     }
 }

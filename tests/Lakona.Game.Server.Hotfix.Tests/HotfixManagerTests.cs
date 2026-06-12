@@ -564,7 +564,7 @@ public sealed class HotfixManagerTests
                 cancellationToken);
 
             var stableReference = MetadataReference.CreateFromFile(stableAssemblyPath);
-            var abstractionsReference = MetadataReference.CreateFromFile(typeof(HotfixSystemOfAttribute).Assembly.Location);
+            var abstractionsReference = MetadataReference.CreateFromFile(typeof(HotfixBehaviorOfAttribute).Assembly.Location);
 
             await EmitAssemblyAsync(
                 hotfixAssemblyName,
@@ -575,7 +575,7 @@ public sealed class HotfixManagerTests
 
                 namespace HotfixLogic;
 
-                [HotfixSystemOf(typeof(ArenaSimulation))]
+                [HotfixBehaviorOf(typeof(ArenaSimulation))]
                 public static class ArenaSimulationSystem
                 {
                     public static int Tick(this ArenaSimulation self, int delta)
@@ -596,7 +596,7 @@ public sealed class HotfixManagerTests
 
                 namespace HotfixLogicV2;
 
-                [HotfixSystemOf(typeof(ArenaSimulation))]
+                [HotfixBehaviorOf(typeof(ArenaSimulation))]
                 public static class ArenaSimulationSystem
                 {
                     public static int Tick(this ArenaSimulation self, int delta)
@@ -617,7 +617,7 @@ public sealed class HotfixManagerTests
 
                 namespace InvalidHotfixLogic;
 
-                [HotfixSystemOf(typeof(ArenaSimulation))]
+                [HotfixBehaviorOf(typeof(ArenaSimulation))]
                 public static class ArenaSimulationSystem
                 {
                     public static bool TryRead(this ArenaSimulation self, out int value)
@@ -642,7 +642,7 @@ public sealed class HotfixManagerTests
                 {
                 }
 
-                [HotfixSystemOf(typeof(OwnedState))]
+                [HotfixBehaviorOf(typeof(OwnedState))]
                 public static class OwnedStateSystem
                 {
                     public static int Tick(this OwnedState self)
@@ -667,7 +667,7 @@ public sealed class HotfixManagerTests
                 {
                 }
 
-                [HotfixSystemOf(typeof(ArenaSimulation))]
+                [HotfixBehaviorOf(typeof(ArenaSimulation))]
                 public static class ArenaSimulationSystem
                 {
                     public static OwnedResult Tick(this ArenaSimulation self)
@@ -692,7 +692,7 @@ public sealed class HotfixManagerTests
                 {
                 }
 
-                [HotfixSystemOf(typeof(ArenaSimulation))]
+                [HotfixBehaviorOf(typeof(ArenaSimulation))]
                 public static class ArenaSimulationSystem
                 {
                     public static int Tick(this ArenaSimulation self, OwnedCommand command)
@@ -713,7 +713,7 @@ public sealed class HotfixManagerTests
 
                 namespace HotfixLogic;
 
-                [HotfixSystemOf(typeof(ManagerTestState))]
+                [HotfixBehaviorOf(typeof(ManagerTestState))]
                 public static class ManagerTestStateSystem
                 {
                     public static int Add(this ManagerTestState state, int value)
@@ -754,7 +754,7 @@ public sealed class HotfixManagerTests
 
                 namespace HotfixWithPrivateDep;
 
-                [HotfixSystemOf(typeof(ArenaSimulation))]
+                [HotfixBehaviorOf(typeof(ArenaSimulation))]
                 public static class ArenaSimulationSystem
                 {
                     public static int Tick(this ArenaSimulation self, int delta)

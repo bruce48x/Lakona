@@ -1,4 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\App\BuildTag.props" />
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -13,11 +15,27 @@
       <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
     </ProjectReference>
     <ProjectReference Include="..\App\Server.App.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Hotfix.Abstractions\Lakona.Game.Server.Hotfix.Abstractions.csproj" />
   </ItemGroup>
 
   <Target Name="CopyHotfixOutput" AfterTargets="Build">
+    <PropertyGroup>
+      <LakonaHotfixOutputDir>$(ProjectDir)..\App\bin\$(Configuration)\$(TargetFramework)\hotfix\</LakonaHotfixOutputDir>
+    </PropertyGroup>
     <Copy
       SourceFiles="$(TargetPath)"
-      DestinationFolder="$(ProjectDir)..\App\bin\$(Configuration)\$(TargetFramework)\hotfix\" />
+      DestinationFolder="$(LakonaHotfixOutputDir)" />
+    <Copy
+      SourceFiles="$(TargetDir)$(AssemblyName).pdb"
+      DestinationFolder="$(LakonaHotfixOutputDir)"
+      Condition="Exists('$(TargetDir)$(AssemblyName).pdb')" />
+    <Copy
+      SourceFiles="$(ProjectDepsFilePath)"
+      DestinationFolder="$(LakonaHotfixOutputDir)"
+      Condition="Exists('$(ProjectDepsFilePath)')" />
+    <WriteLinesToFile
+      File="$(LakonaHotfixOutputDir)reload.signal"
+      Lines="{ &quot;assembly&quot;: &quot;$(TargetFileName)&quot;, &quot;builtAtUtc&quot;: &quot;$([System.DateTime]::UtcNow.ToString('O'))&quot; }"
+      Overwrite="true" />
   </Target>
 </Project>

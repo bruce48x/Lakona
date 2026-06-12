@@ -1,4 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="BuildTag.props" />
+
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -16,13 +18,14 @@
     <ProjectReference Include="..\..\Shared\Shared.csproj" TargetFramework="net10.0">
       <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
     </ProjectReference>
+    <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server\Lakona.Game.Server.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Hotfix\Lakona.Game.Server.Hotfix.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Hotfix.Abstractions\Lakona.Game.Server.Hotfix.Abstractions.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
-    <PackageReference Include="Lakona.Game.Server" Version="0.4.9" />
     <PackageReference Include="Lakona.Game.Server.Generators" Version="0.1.4" PrivateAssets="all" OutputItemType="Analyzer" />
-    <PackageReference Include="Lakona.Game.Server.Hotfix" Version="0.1.4" />
     <PackageReference Include="Lakona.Game.Server.Hotfix.Generators" Version="0.1.1" PrivateAssets="all" OutputItemType="Analyzer" />
     <PackageReference Include="Lakona.Rpc.Server" Version="0.12.1" />
     <PackageReference Include="Lakona.Rpc.Transport.WebSocket" Version="0.11.8" />
