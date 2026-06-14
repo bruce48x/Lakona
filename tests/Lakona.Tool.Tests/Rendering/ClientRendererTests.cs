@@ -144,6 +144,40 @@ public sealed class ClientRendererTests
     }
 
     [Fact]
+    public void ConsoleClientRenderer_EmitsConsoleFilesAndNoUnityOrGodotFiles()
+    {
+        var plan = Render(new ConsoleClientRenderer(), Spec(ClientEngine.Console));
+
+        Assert.Contains(plan.Files, file => file.RelativePath == "Client/Client.csproj");
+        Assert.Contains(plan.Files, file => file.RelativePath == "Client/Program.cs");
+        Assert.Contains(plan.Files, file => file.RelativePath == "Client/ClientRuntime/ConsoleClientSettings.cs");
+        Assert.Contains(plan.Files, file => file.RelativePath == "Client/ClientRuntime/RpcClientFactory.cs");
+        Assert.Contains(plan.Files, file => file.RelativePath == "Client/LoadScenarios/LoginChatLoadScenario.cs");
+        Assert.Contains(plan.Files, file => file.RelativePath == "Client/LoadScenarios/LoginChatLoadScenarioOptions.cs");
+
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath.StartsWith("Client/Assets/", StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath.EndsWith(".tscn", StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath.EndsWith(".tres", StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath.Contains("NuGet.config", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ConsoleClientRenderer_Project_IncludesSdkReferencesAndRpcGeneration()
+    {
+        var plan = Render(new ConsoleClientRenderer(), Spec(ClientEngine.Console));
+        var project = AssertPath(plan, "Client/Client.csproj").Content;
+
+        Assert.Contains("<OutputType>Exe</OutputType>", project, StringComparison.Ordinal);
+        Assert.Contains("<TargetFramework>net10.0</TargetFramework>", project, StringComparison.Ordinal);
+        Assert.Contains("<LakonaRpcGenerateClient>true</LakonaRpcGenerateClient>", project, StringComparison.Ordinal);
+        Assert.Contains("<LakonaRpcGeneratedNamespace>Rpc.Generated</LakonaRpcGeneratedNamespace>", project, StringComparison.Ordinal);
+        Assert.Contains("<ProjectReference Include=\"..\\Shared\\Shared.csproj\" />", project, StringComparison.Ordinal);
+        Assert.Contains("<PackageReference Include=\"Lakona.Game.LoadTesting\"", project, StringComparison.Ordinal);
+        Assert.Contains("<PackageReference Include=\"Lakona.Rpc.Analyzers\"", project, StringComparison.Ordinal);
+        Assert.Contains("<PrivateAssets>all</PrivateAssets>", project, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void GodotClientRenderer_EmitsPlayableChatClientSlice()
     {
         var plan = Render(new GodotClientRenderer(), Spec(ClientEngine.Godot, serializer: SerializerKind.Json, transport: TransportKind.WebSocket));
