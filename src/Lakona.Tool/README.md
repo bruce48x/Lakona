@@ -23,6 +23,12 @@ For scripts and CI, provide the required options explicitly (--output, --persist
 lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack
 ```
 
+For a lightweight headless client for smoke and load checks:
+
+```bash
+lakona-tool new --name MyGame --client-engine console --transport kcp --serializer memorypack
+```
+
 After generation, run the printed check command before starting the server:
 
 ```bash
@@ -32,7 +38,7 @@ dotnet run --project "Server/App/Server.App.csproj" -- --lakona-game-check
 
 Supported values:
 
-- `--client-engine`: `unity`, `unity-cn`, `tuanjie`, `godot`
+- `--client-engine`: `unity`, `unity-cn`, `tuanjie`, `godot`, `console`
 - `--transport`: `websocket`, `tcp`, `kcp`
 - `--serializer`: `json`, `memorypack`
 - `--persistence`: `none`, `postgres`, `mysql`
@@ -44,7 +50,7 @@ Supported values:
 By default, the generated project includes:
 
 - a server project
-- a Unity, Tuanjie, or Godot client project
+- a Unity, Tuanjie, Godot, or Console client project
 - a shared contract project
 - Lakona.Game server and client dependencies
 - Cluster infrastructure

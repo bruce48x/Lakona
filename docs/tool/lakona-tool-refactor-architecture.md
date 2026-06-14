@@ -225,7 +225,7 @@ Supported user-facing options:
 
 - `--name`
 - `--output`
-- `--client-engine unity|unity-cn|tuanjie|godot`
+- `--client-engine unity|unity-cn|tuanjie|godot|console`
 - `--transport tcp|websocket|kcp`
 - `--serializer json|memorypack`
 - `--persistence none|mysql|postgres`
@@ -332,7 +332,8 @@ internal enum ProjectTarget
     ServerApp,
     ServerHotfix,
     UnityClient,
-    GodotClient
+    GodotClient,
+    ConsoleClient
 }
 ```
 
@@ -353,6 +354,9 @@ Rules:
   package dependencies needed by Unity and Tuanjie.
 - Godot clients use SDK-style package references and do not repeat MemoryPack
   runtime packages already owned by Shared.
+- Console clients use SDK-style package references and keep load-test
+  orchestration in `Lakona.Game.LoadTesting`, while generated project code owns
+  business-specific smoke and load flows.
 
 ### Target Dependency Matrix
 
@@ -365,6 +369,7 @@ Rules:
 | ServerHotfix | project references to Shared and ServerApp | no direct runtime package duplication unless hotfix APIs require it |
 | UnityClient | `Lakona.Rpc.Core`, `Lakona.Rpc.Client`, selected transport, selected serializer, `Lakona.Rpc.Analyzers`, `Lakona.Game.Client`, `Lakona.Game.Abstractions`, `System.Threading.Channels` | Unity KCP dependencies, JSON dependencies, MemoryPack/Roslyn dependencies |
 | GodotClient | `Lakona.Rpc.Core`, `Lakona.Rpc.Client`, selected transport, `Lakona.Rpc.Analyzers`, `Lakona.Game.Client` | JSON serializer for JSON projects, local Godot SDK NuGet source if detected |
+| ConsoleClient | `Lakona.Rpc.Core`, `Lakona.Rpc.Client`, selected transport, selected serializer, `Lakona.Rpc.Analyzers`, `Lakona.Game.Client`, `Lakona.Game.LoadTesting` | none |
 
 Analyzer references must keep private metadata:
 
@@ -401,6 +406,7 @@ input model instead of allowing both renderers to emit or mutate the same path.
 | `Server/Hotfix/**` | `HotfixRenderer` |
 | `Client/**` for Unity/Tuanjie | `UnityClientRenderer` |
 | `Client/**` for Godot | `GodotClientRenderer` |
+| `Client/**` for Console | `ConsoleClientRenderer` |
 | `docker-compose.cluster.yml`, `.env.cluster.example`, `ops/**`, `Server/Dockerfile` | `OperationsRenderer` |
 | `docs/GETTING_STARTED.md`, `docs/EDITING_GUIDE.md`, `docs/OPERATIONS.md` | `GeneratedProjectDocsRenderer` |
 
@@ -470,6 +476,16 @@ Unity and Tuanjie generated scripts must obey the repository Unity rules:
 
 Godot UI should be file-backed. Do not reintroduce C# `BuildUi` methods for
 the default scenes.
+
+`ConsoleClientRenderer` owns a lightweight SDK-style .NET client:
+
+- `Client/Client.csproj`
+- `Client/Program.cs`
+- `Client/ClientRuntime/**`
+- `Client/LoadScenarios/**`
+
+The generated Console client is a headless operations and load-test client. It
+must not emit Unity assets, Godot scenes, or NuGetForUnity files.
 
 ### Project, Operations, And Docs Renderers
 
