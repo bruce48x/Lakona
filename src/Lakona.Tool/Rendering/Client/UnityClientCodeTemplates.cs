@@ -346,6 +346,7 @@ internal static class UnityClientCodeTemplates
                     _messageList = root.Q<ScrollView>("message-list");
                     _onlineCount = root.Q<Label>("online-count");
                     _sendButton = root.Q<Button>("send-button");
+                    root.Q<Label>("chat-empty-state")?.RemoveFromHierarchy();
 
                     if (_sendButton != null)
                     {

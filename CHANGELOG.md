@@ -9,6 +9,7 @@ that consolidation.
 ### Fixed
 
 - `Lakona.Game.LoadTesting` `0.1.1`: unmeasured virtual-user exceptions are now reported as user failures, and operation recording uses bounded per-operation latency/error aggregation instead of retaining every sample.
+- `Lakona.Tool` `0.10.9`: generated Unity chat scenes now include a visible empty state and stronger layout constraints so opening `ChatScene.unity` directly no longer renders as a black Game view.
 - `Lakona.Tool` `0.10.8`: generated Console load clients now return a failure exit code when a load run reports unhandled user failures.
 
 ## 2026-06-12

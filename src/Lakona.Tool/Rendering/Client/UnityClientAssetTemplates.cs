@@ -142,7 +142,9 @@ internal static class UnityClientAssetTemplates
                     <ui:Label text="CHAT ROOM" class="header-title" />
                     <ui:Label text="ONLINE: --" name="online-count" class="header-count" />
                 </ui:VisualElement>
-                <ui:ScrollView name="message-list" class="message-list" />
+                <ui:ScrollView name="message-list" class="message-list">
+                    <ui:Label text="Open this scene from LoginScene after connecting." name="chat-empty-state" class="chat-empty-state" />
+                </ui:ScrollView>
                 <ui:VisualElement class="chat-footer">
                     <ui:Label text="MESSAGE:" class="message-label" />
                     <ui:TextField name="chat-input" max-length="500" class="chat-input" />
@@ -255,6 +257,7 @@ internal static class UnityClientAssetTemplates
         .chat-header {
             flex-direction: row;
             align-items: center;
+            flex-shrink: 0;
             padding: 8px 16px;
             background-color: #0F1A0F;
             border-bottom-width: 2px;
@@ -271,7 +274,13 @@ internal static class UnityClientAssetTemplates
         }
         .message-list {
             flex-grow: 1;
+            min-height: 160px;
             padding: 8px 16px;
+        }
+        .chat-empty-state {
+            font-size: 14px;
+            color: #66AA77;
+            white-space: normal;
         }
         .chat-message {
             font-size: 14px;
@@ -289,6 +298,7 @@ internal static class UnityClientAssetTemplates
         .chat-footer {
             flex-direction: row;
             align-items: center;
+            flex-shrink: 0;
             padding: 8px 16px;
             background-color: #0F1A0F;
             border-top-width: 2px;
