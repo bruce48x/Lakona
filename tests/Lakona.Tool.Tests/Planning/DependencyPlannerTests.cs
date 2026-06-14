@@ -72,6 +72,21 @@ public sealed class DependencyPlannerTests
         Assert.DoesNotContain(references, reference => reference.Id is "MemoryPack" or "MemoryPack.Generator");
     }
 
+    [Fact]
+    public void Create_ConsoleMemoryPack_IncludesSdkClientLoadTestingAndAnalyzerPackages()
+    {
+        var references = DependencyPlanner.Create(ProjectTarget.ConsoleClient, Spec()).PackageReferences;
+
+        AssertPackage(references, "Lakona.Rpc.Core");
+        AssertPackage(references, "Lakona.Rpc.Client");
+        AssertPackage(references, "Lakona.Rpc.Transport.Kcp");
+        AssertPackage(references, "Lakona.Rpc.Serializer.MemoryPack");
+        AssertPackage(references, "Lakona.Rpc.Analyzers", privateAssets: "all", includeAssets: AnalyzerIncludeAssets);
+        AssertPackage(references, "Lakona.Game.Client");
+        AssertPackage(references, "Lakona.Game.LoadTesting");
+        Assert.DoesNotContain(references, reference => reference.ManuallyInstalled);
+    }
+
     private const string AnalyzerIncludeAssets = "runtime; build; native; contentfiles; analyzers; buildtransitive";
 
     private static LakonaProjectSpec Spec(

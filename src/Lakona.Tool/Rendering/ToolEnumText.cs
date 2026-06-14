@@ -10,6 +10,7 @@ internal static class ToolEnumText
         ClientEngine.UnityCn => "unity-cn",
         ClientEngine.Tuanjie => "tuanjie",
         ClientEngine.Godot => "godot",
+        ClientEngine.Console => "console",
         _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
     };
 

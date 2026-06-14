@@ -84,7 +84,7 @@ internal sealed class CliApplication
                         new OperationsRenderer(),
                         new GeneratedProjectDocsRenderer()
                     ],
-                    [new UnityClientRenderer(), new GodotClientRenderer()]),
+                    [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
                 new GenerationExecutor(new TransactionalOutputWriter())),
             text,
             terminal);

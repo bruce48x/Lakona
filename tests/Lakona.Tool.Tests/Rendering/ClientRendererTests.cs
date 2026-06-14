@@ -78,6 +78,11 @@ public sealed class ClientRendererTests
         Assert.Contains("await _client.SendAsync(text);", chatUi, StringComparison.Ordinal);
 
         var chatUss = AssertPath(plan, "Client/Assets/UI/ChatScene.uss").Content;
+        var loginUss = AssertPath(plan, "Client/Assets/UI/LoginScene.uss").Content;
+        var runtimeTheme = AssertPath(plan, "Client/Assets/UI Toolkit/UnityThemes/UnityDefaultRuntimeTheme.tss").Content;
+        Assert.DoesNotContain("var(--", loginUss, StringComparison.Ordinal);
+        Assert.DoesNotContain("var(--", chatUss, StringComparison.Ordinal);
+        Assert.DoesNotContain("--lakona-", runtimeTheme, StringComparison.Ordinal);
         Assert.Contains("flex-shrink: 0;", ExtractCssRule(chatUss, ".message-label"), StringComparison.Ordinal);
         Assert.Contains("flex-grow: 1;", ExtractCssRule(chatUss, ".chat-input"), StringComparison.Ordinal);
         Assert.Contains("flex-shrink: 1;", ExtractCssRule(chatUss, ".chat-input"), StringComparison.Ordinal);
@@ -141,6 +146,106 @@ public sealed class ClientRendererTests
         Assert.Contains(plan.Files, file => file.RelativePath == "Client/Theme/LakonaTheme.tres");
         Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Client/Scripts/Theme/LakonaTheme.cs");
         Assert.DoesNotContain(plan.Files, file => file.RelativePath.StartsWith("Client/Assets/", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ConsoleClientRenderer_EmitsConsoleFilesAndNoUnityOrGodotFiles()
+    {
+        var plan = Render(new ConsoleClientRenderer(), Spec(ClientEngine.Console));
+
+        Assert.Contains(plan.Files, file => file.RelativePath == "Client/Client.csproj");
+        Assert.Contains(plan.Files, file => file.RelativePath == "Client/Program.cs");
+        Assert.Contains(plan.Files, file => file.RelativePath == "Client/ClientRuntime/ConsoleClientSettings.cs");
+        Assert.Contains(plan.Files, file => file.RelativePath == "Client/ClientRuntime/RpcClientFactory.cs");
+        Assert.Contains(plan.Files, file => file.RelativePath == "Client/LoadScenarios/LoginChatLoadScenario.cs");
+        Assert.Contains(plan.Files, file => file.RelativePath == "Client/LoadScenarios/LoginChatLoadScenarioOptions.cs");
+
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath.StartsWith("Client/Assets/", StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath.EndsWith(".tscn", StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath.EndsWith(".tres", StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath.Contains("NuGet.config", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ConsoleClientRenderer_Project_IncludesSdkReferencesAndRpcGeneration()
+    {
+        var plan = Render(new ConsoleClientRenderer(), Spec(ClientEngine.Console));
+        var project = AssertPath(plan, "Client/Client.csproj").Content;
+
+        Assert.Contains("<OutputType>Exe</OutputType>", project, StringComparison.Ordinal);
+        Assert.Contains("<TargetFramework>net10.0</TargetFramework>", project, StringComparison.Ordinal);
+        Assert.Contains("<LakonaRpcGenerateClient>true</LakonaRpcGenerateClient>", project, StringComparison.Ordinal);
+        Assert.Contains("<LakonaRpcGeneratedNamespace>Rpc.Generated</LakonaRpcGeneratedNamespace>", project, StringComparison.Ordinal);
+        Assert.Contains("<ProjectReference Include=\"..\\Shared\\Shared.csproj\" />", project, StringComparison.Ordinal);
+        Assert.Contains("<PackageReference Include=\"Lakona.Game.LoadTesting\"", project, StringComparison.Ordinal);
+        Assert.Contains("<PackageReference Include=\"Lakona.Rpc.Analyzers\"", project, StringComparison.Ordinal);
+        Assert.Contains("<PrivateAssets>all</PrivateAssets>", project, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Tcp", "Json", "using Lakona.Rpc.Transport.Tcp;", "using Lakona.Rpc.Serializer.Json;", "new TcpTransport(settings.Host, settings.Port)", "new JsonRpcSerializer()")]
+    [InlineData("WebSocket", "Json", "using Lakona.Rpc.Transport.WebSocket;", "using Lakona.Rpc.Serializer.Json;", "new WsTransport($\"ws://{settings.Host}:{settings.Port}{NormalizePath(settings.Path)}\")", "new JsonRpcSerializer()")]
+    [InlineData("Kcp", "MemoryPack", "using Lakona.Rpc.Transport.Kcp;", "using Lakona.Rpc.Serializer.MemoryPack;", "new KcpTransport(settings.Host, settings.Port)", "new MemoryPackRpcSerializer()")]
+    public void ConsoleClientRenderer_RpcClientFactoryUsesSelectedTransportAndSerializer(
+        string transportName,
+        string serializerName,
+        string transportUsing,
+        string serializerUsing,
+        string transportExpression,
+        string serializerExpression)
+    {
+        var transport = Enum.Parse<TransportKind>(transportName);
+        var serializer = Enum.Parse<SerializerKind>(serializerName);
+        var plan = Render(new ConsoleClientRenderer(), Spec(ClientEngine.Console, serializer: serializer, transport: transport));
+        var factory = AssertPath(plan, "Client/ClientRuntime/RpcClientFactory.cs").Content;
+
+        Assert.Contains(transportUsing, factory, StringComparison.Ordinal);
+        Assert.Contains(serializerUsing, factory, StringComparison.Ordinal);
+        Assert.Contains(transportExpression, factory, StringComparison.Ordinal);
+        Assert.Contains(serializerExpression, factory, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ConsoleClientRenderer_ProgramContainsSmokeAndLoadCommands()
+    {
+        var plan = Render(new ConsoleClientRenderer(), Spec(ClientEngine.Console));
+        var program = AssertPath(plan, "Client/Program.cs").Content;
+
+        Assert.Contains("case \"smoke\":", program, StringComparison.Ordinal);
+        Assert.Contains("case \"load\":", program, StringComparison.Ordinal);
+        Assert.Contains("return 1;", program, StringComparison.Ordinal);
+        Assert.Contains("return 2;", program, StringComparison.Ordinal);
+        Assert.Contains("return 3;", program, StringComparison.Ordinal);
+        Assert.Contains("Lakona.Game.LoadTesting.LoadRunSummaryFormatter.Format(summary)", program, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ConsoleClientRenderer_SmokeDoesNotReferenceLoadTesting()
+    {
+        var plan = Render(new ConsoleClientRenderer(), Spec(ClientEngine.Console));
+        var program = AssertPath(plan, "Client/Program.cs").Content;
+        var smokeStart = program.IndexOf("static async Task<int> RunSmokeAsync", StringComparison.Ordinal);
+        var loadStart = program.IndexOf("static async Task<int> RunLoadAsync", StringComparison.Ordinal);
+        Assert.True(smokeStart >= 0);
+        Assert.True(loadStart > smokeStart);
+        var smokeSection = program[smokeStart..loadStart];
+
+        Assert.DoesNotContain("Lakona.Game.LoadTesting", smokeSection, StringComparison.Ordinal);
+        Assert.DoesNotContain("LoadRunner", smokeSection, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ConsoleClientRenderer_LoadScenarioMeasuresLoginChatOperations()
+    {
+        var plan = Render(new ConsoleClientRenderer(), Spec(ClientEngine.Console));
+        var scenario = AssertPath(plan, "Client/LoadScenarios/LoginChatLoadScenario.cs").Content;
+
+        Assert.Contains("public sealed class LoginChatLoadScenario : ILoadScenario", scenario, StringComparison.Ordinal);
+        Assert.Contains("context.MeasureAsync(\"connect\"", scenario, StringComparison.Ordinal);
+        Assert.Contains("context.MeasureAsync(\"login\"", scenario, StringComparison.Ordinal);
+        Assert.Contains("context.MeasureAsync(\"bind\"", scenario, StringComparison.Ordinal);
+        Assert.Contains("context.MeasureAsync(\"send\"", scenario, StringComparison.Ordinal);
+        Assert.Contains("MessageRatePerUser", scenario, StringComparison.Ordinal);
     }
 
     [Fact]

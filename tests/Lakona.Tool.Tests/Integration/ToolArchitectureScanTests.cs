@@ -79,7 +79,7 @@ public sealed class ToolArchitectureScanTests
                     new OperationsRenderer(),
                     new GeneratedProjectDocsRenderer()
                 ],
-                [new UnityClientRenderer(), new GodotClientRenderer()]),
+                [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
             new GenerationExecutor(new TransactionalOutputWriter()));
     }
 

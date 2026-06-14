@@ -58,6 +58,36 @@ public sealed class NewProjectCommandTests
         Assert.Contains(terminal.Errors, line => line.Contains("Missing required options", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task RunAsync_ConsoleClient_PrintsConsoleSmokeStep()
+    {
+        var outputRoot = Path.Combine(Path.GetTempPath(), "lakona-new-command-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(outputRoot);
+        try
+        {
+            var terminal = new FakeTerminal([], isInputRedirected: true);
+            var command = CreateCommand(terminal);
+
+            var exitCode = await command.RunAsync(
+                [
+                    "--name", "MyGame",
+                    "--output", outputRoot,
+                    "--client-engine", "console",
+                    "--transport", "kcp",
+                    "--serializer", "memorypack"
+                ],
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(0, exitCode);
+            Assert.Contains(terminal.Output, line => line.Contains("dotnet run --project \"Client/Client.csproj\" -- smoke", StringComparison.Ordinal));
+            Assert.DoesNotContain(terminal.Output, line => line.Contains("Unity Hub", StringComparison.Ordinal));
+        }
+        finally
+        {
+            Directory.Delete(outputRoot, recursive: true);
+        }
+    }
+
     private static NewProjectCommand CreateCommand(ICliTerminal terminal)
     {
         return new NewProjectCommand(
@@ -74,7 +104,7 @@ public sealed class NewProjectCommandTests
                         new OperationsRenderer(),
                         new GeneratedProjectDocsRenderer()
                     ],
-                    [new UnityClientRenderer(), new GodotClientRenderer()]),
+                    [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
                 new GenerationExecutor(new TransactionalOutputWriter())),
             ToolText.ForCulture(System.Globalization.CultureInfo.InvariantCulture),
             terminal);
@@ -92,16 +122,19 @@ public sealed class NewProjectCommandTests
 
         public bool IsInputRedirected { get; }
         public bool IsOutputRedirected => false;
+        public List<string> Output { get; } = [];
         public List<string> Errors { get; } = [];
 
         public string? ReadLine() => input.Count > 0 ? input.Dequeue() : null;
 
         public void Write(string value)
         {
+            Output.Add(value);
         }
 
         public void WriteLine(string value)
         {
+            Output.Add(value);
         }
 
         public void WriteErrorLine(string value)

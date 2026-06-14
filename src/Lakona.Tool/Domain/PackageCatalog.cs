@@ -10,6 +10,7 @@ internal sealed class PackageCatalog
     public string MemoryPackCore => "1.21.4";
     public string LakonaGameAbstractions => global::ToolPackageVersions.LakonaGameAbstractions;
     public string LakonaGameClient => global::ToolPackageVersions.LakonaGameClient;
+    public string LakonaGameLoadTesting => global::ToolPackageVersions.LakonaGameLoadTesting;
     public string LakonaGameServer => global::ToolPackageVersions.LakonaGameServer;
     public string LakonaGameServerGenerators => global::ToolPackageVersions.LakonaGameServerGenerators;
     public string LakonaGameCluster => global::ToolPackageVersions.LakonaGameCluster;

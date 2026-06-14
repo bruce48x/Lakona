@@ -70,7 +70,7 @@ public sealed class LakonaProjectPlanBuilderTests
             PersistenceKind.None,
             NuGetForUnitySource.OpenUpm,
             DeploymentProfile.None));
-        var planBuilder = new LakonaProjectPlanBuilder([], [new UnityClientRenderer(), new GodotClientRenderer()]);
+        var planBuilder = new LakonaProjectPlanBuilder([], [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]);
 
         var plan = planBuilder.Build(spec);
 
@@ -94,7 +94,7 @@ public sealed class LakonaProjectPlanBuilderTests
             PersistenceKind.None,
             NuGetForUnitySource.OpenUpm,
             DeploymentProfile.None));
-        var planBuilder = new LakonaProjectPlanBuilder([], [new UnityClientRenderer(), new GodotClientRenderer()]);
+        var planBuilder = new LakonaProjectPlanBuilder([], [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]);
 
         var plan = planBuilder.Build(spec);
 

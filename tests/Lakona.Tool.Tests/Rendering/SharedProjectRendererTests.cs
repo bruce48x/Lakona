@@ -51,6 +51,15 @@ public sealed class SharedProjectRendererTests
         Assert.DoesNotContain("MemoryPack", messages, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void AddFiles_ConsoleMemoryPack_UsesNetStandardAndNet10()
+    {
+        var plan = Render(Spec(ClientEngine.Console, SerializerKind.MemoryPack));
+
+        var csproj = AssertPath(plan, "Shared/Shared.csproj").Content;
+        Assert.Contains("<TargetFrameworks>netstandard2.1;net10.0</TargetFrameworks>", csproj, StringComparison.Ordinal);
+    }
+
     private static GenerationPlan Render(LakonaProjectSpec spec)
     {
         var builder = new GenerationPlanBuilder("Root");

@@ -8,7 +8,7 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>lakona-tool</ToolCommandName>
     <PackageId>Lakona.Tool</PackageId>
-    <Version>0.10.5</Version>
+    <Version>0.10.7</Version>
     <Description>Command-line project management tool for Lakona.Game project scaffolding and source-generator based RPC workflows.</Description>
     <PackageTags>game-server;game-client;cli;scaffold;source-generator</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -40,6 +40,11 @@
       XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Game.Client\Lakona.Game.Client.csproj"
       Query="/Project/PropertyGroup/Version/text()">
       <Output TaskParameter="Result" PropertyName="LakonaGameClientPackageVersion" />
+    </XmlPeek>
+    <XmlPeek
+      XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Game.LoadTesting\Lakona.Game.LoadTesting.csproj"
+      Query="/Project/PropertyGroup/Version/text()">
+      <Output TaskParameter="Result" PropertyName="LakonaGameLoadTestingPackageVersion" />
     </XmlPeek>
     <XmlPeek
       XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Game.Server\Lakona.Game.Server.csproj"
@@ -130,6 +135,7 @@
       <GeneratedToolPackageVersionsLine Include="{" />
       <GeneratedToolPackageVersionsLine Include="    public const string LakonaGameAbstractions = &quot;$(LakonaGameAbstractionsPackageVersion)&quot;%3B" />
       <GeneratedToolPackageVersionsLine Include="    public const string LakonaGameClient = &quot;$(LakonaGameClientPackageVersion)&quot;%3B" />
+      <GeneratedToolPackageVersionsLine Include="    public const string LakonaGameLoadTesting = &quot;$(LakonaGameLoadTestingPackageVersion)&quot;%3B" />
       <GeneratedToolPackageVersionsLine Include="    public const string LakonaGameServer = &quot;$(LakonaGameServerPackageVersion)&quot;%3B" />
       <GeneratedToolPackageVersionsLine Include="    public const string LakonaGameServerGenerators = &quot;$(LakonaGameServerGeneratorsPackageVersion)&quot;%3B" />
       <GeneratedToolPackageVersionsLine Include="    public const string LakonaGameCluster = &quot;$(LakonaGameClusterPackageVersion)&quot;%3B" />

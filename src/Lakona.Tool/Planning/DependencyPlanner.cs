@@ -9,7 +9,8 @@ internal enum ProjectTarget
     ServerApp,
     ServerHotfix,
     UnityClient,
-    GodotClient
+    GodotClient,
+    ConsoleClient
 }
 
 internal static class DependencyPlanner
@@ -26,6 +27,7 @@ internal static class DependencyPlanner
             ProjectTarget.ServerHotfix => [],
             ProjectTarget.UnityClient => CreateUnityClientPlan(spec, catalog),
             ProjectTarget.GodotClient => CreateGodotClientPlan(spec, catalog),
+            ProjectTarget.ConsoleClient => CreateConsoleClientPlan(spec, catalog),
             _ => throw new ArgumentOutOfRangeException(nameof(target), target, null)
         };
 
@@ -119,6 +121,20 @@ internal static class DependencyPlanner
         };
 
         return references;
+    }
+
+    private static IReadOnlyList<PackageReferenceSpec> CreateConsoleClientPlan(LakonaProjectSpec spec, DomainPackageCatalog catalog)
+    {
+        return
+        [
+            Sdk("Lakona.Rpc.Core", catalog.LakonaRpcCore),
+            Sdk("Lakona.Rpc.Client", catalog.LakonaRpcClient),
+            Sdk(GetTransportPackage(spec.Transport), GetTransportVersion(spec.Transport, catalog)),
+            Sdk(GetSerializerPackage(spec.Serializer), GetSerializerVersion(spec.Serializer, catalog)),
+            Sdk("Lakona.Rpc.Analyzers", catalog.LakonaRpcAnalyzers, privateAssets: "all", includeAssets: AnalyzerIncludeAssets),
+            Sdk("Lakona.Game.Client", catalog.LakonaGameClient),
+            Sdk("Lakona.Game.LoadTesting", catalog.LakonaGameLoadTesting)
+        ];
     }
 
     private static void AddUnitySerializerDependencies(

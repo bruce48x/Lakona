@@ -5,5 +5,6 @@ internal enum ClientEngine
     Unity,
     UnityCn,
     Tuanjie,
-    Godot
+    Godot,
+    Console
 }

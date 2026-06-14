@@ -19,13 +19,13 @@ public sealed class NewProjectPrompterTests
     [Fact]
     public void Complete_PromptsOnlyRequiredValues()
     {
-        var terminal = new FakeTerminal(["Arena", "4", "2", "1"]);
+        var terminal = new FakeTerminal(["Arena", "5", "2", "1"]);
         var prompter = new NewProjectPrompter(ToolText.ForCulture(System.Globalization.CultureInfo.InvariantCulture), terminal);
 
         var options = prompter.Complete(NewProjectOptionParser.Parse([]));
 
         Assert.Equal("Arena", options.ProjectName);
-        Assert.Equal(ClientEngine.Godot, options.ClientEngine);
+        Assert.Equal(ClientEngine.Console, options.ClientEngine);
         Assert.Equal(TransportKind.WebSocket, options.Transport);
         Assert.Equal(SerializerKind.Json, options.Serializer);
         Assert.Equal(PersistenceKind.None, options.Persistence);
@@ -33,9 +33,21 @@ public sealed class NewProjectPrompterTests
         Assert.Equal(DeploymentProfile.None, options.DeploymentProfile);
     }
 
+    [Fact]
+    public void Complete_ClientEnginePromptListsConsole()
+    {
+        var terminal = new FakeTerminal(["Arena", "1", "1", "1"]);
+        var prompter = new NewProjectPrompter(ToolText.ForCulture(System.Globalization.CultureInfo.InvariantCulture), terminal);
+
+        _ = prompter.Complete(NewProjectOptionParser.Parse([]));
+
+        Assert.Contains(terminal.Output, line => line.Contains("console", StringComparison.Ordinal));
+    }
+
     private sealed class FakeTerminal : ICliTerminal
     {
         private readonly Queue<string?> input;
+        private readonly List<string> output = [];
 
         public FakeTerminal(IEnumerable<string?> input, bool isInputRedirected = false)
         {
@@ -45,15 +57,18 @@ public sealed class NewProjectPrompterTests
 
         public bool IsInputRedirected { get; }
         public bool IsOutputRedirected => false;
+        public IReadOnlyList<string> Output => output;
 
         public string? ReadLine() => input.Count > 0 ? input.Dequeue() : null;
 
         public void Write(string value)
         {
+            output.Add(value);
         }
 
         public void WriteLine(string value)
         {
+            output.Add(value);
         }
 
         public void WriteErrorLine(string value)

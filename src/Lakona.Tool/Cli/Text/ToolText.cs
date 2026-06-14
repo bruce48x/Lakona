@@ -256,15 +256,22 @@ internal sealed class ToolText
     public string OpenClientStep(string clientEngine)
     {
         var isGodot = string.Equals(clientEngine, "godot", StringComparison.OrdinalIgnoreCase);
+        var isConsole = string.Equals(clientEngine, "console", StringComparison.OrdinalIgnoreCase);
         return Language switch
         {
-            ToolLanguage.SimplifiedChinese => isGodot
+            ToolLanguage.SimplifiedChinese => isConsole
+                ? "  5) dotnet run --project \"Client/Client.csproj\" -- smoke"
+                : isGodot
                 ? "  5) 在 Godot Engine 中打开 Client/"
                 : "  5) 在 Unity Hub 中打开 Client/（Unity 2022 LTS）",
-            ToolLanguage.TraditionalChinese => isGodot
+            ToolLanguage.TraditionalChinese => isConsole
+                ? "  5) dotnet run --project \"Client/Client.csproj\" -- smoke"
+                : isGodot
                 ? "  5) 在 Godot Engine 中開啟 Client/"
                 : "  5) 在 Unity Hub 中開啟 Client/（Unity 2022 LTS）",
-            _ => isGodot
+            _ => isConsole
+                ? "  5) dotnet run --project \"Client/Client.csproj\" -- smoke"
+                : isGodot
                 ? "  5) Open Client/ in Godot Engine"
                 : "  5) Open Client/ in Unity Hub (Unity 2022 LTS)"
         };
