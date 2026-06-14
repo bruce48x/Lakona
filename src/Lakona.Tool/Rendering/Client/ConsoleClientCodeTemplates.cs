@@ -236,6 +236,7 @@ internal static class ConsoleClientCodeTemplates
         return $$"""
         using Lakona.Rpc.Client;
         using Lakona.Rpc.Core;
+        using Rpc.Generated;
         {{RenderSerializerUsing(spec.Serializer)}}
         {{RenderTransportUsing(spec.Transport)}}
 
@@ -295,7 +296,7 @@ internal static class ConsoleClientCodeTemplates
             public async ValueTask RunUserAsync(LoadUserContext context, CancellationToken cancellationToken)
             {
                 await using var client = RpcClientFactory.Create(options.ClientSettings);
-                await context.MeasureAsync("connect", token => new ValueTask(client.ConnectAsync(token)), cancellationToken);
+                await context.MeasureAsync("connect", token => client.ConnectAsync(token), cancellationToken);
                 var login = client.Api.Shared.Login;
                 var chat = client.Api.Shared.Chat;
                 await context.MeasureAsync("login", async token =>
