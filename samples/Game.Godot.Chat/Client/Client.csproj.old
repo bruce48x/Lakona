@@ -1,4 +1,4 @@
-<Project Sdk="Godot.NET.Sdk/4.6.2">
+<Project Sdk="Godot.NET.Sdk/4.6.1">
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <EnableDynamicLoading>true</EnableDynamicLoading>
@@ -26,6 +26,9 @@
     <ProjectReference Include="..\..\..\src\Lakona.Rpc.Transport.WebSocket\Lakona.Rpc.Transport.WebSocket.csproj" />
     <ProjectReference Include="..\..\..\src\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj" />
     <ProjectReference Include="..\..\..\src\Lakona.Game.Client\Lakona.Game.Client.csproj" />
-    <ProjectReference Include="..\..\..\src\Lakona.Rpc.Analyzers\Lakona.Rpc.Analyzers.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" PrivateAssets="all" />
+    <ProjectReference Include="..\..\..\src\Lakona.Rpc.Analyzers\Lakona.Rpc.Analyzers.csproj"
+                      ReferenceOutputAssembly="false"
+                      OutputItemType="Analyzer"
+                      PrivateAssets="all" />
   </ItemGroup>
 </Project>
