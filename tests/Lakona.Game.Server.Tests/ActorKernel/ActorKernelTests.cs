@@ -709,7 +709,9 @@ public sealed class ActorSystemTests
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
             ActivityStopped = activity =>
             {
-                if (activity.OperationName == "Lakona.Actor.Actor.Dispatch")
+                if (activity.OperationName == "Lakona.Actor.Actor.Dispatch" &&
+                    string.Equals(activity.GetTagItem("lakona-actor.message.type")?.ToString(), typeof(string).FullName, StringComparison.Ordinal) &&
+                    string.Equals(activity.GetTagItem("lakona-actor.message.kind")?.ToString(), "call", StringComparison.Ordinal))
                 {
                     stopped.TrySetResult(activity);
                 }
