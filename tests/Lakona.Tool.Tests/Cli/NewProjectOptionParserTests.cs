@@ -50,4 +50,29 @@ public sealed class NewProjectOptionParserTests
         Assert.Contains(optionName, exception.Message, StringComparison.Ordinal);
         Assert.Contains("Unsupported option", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public void Parse_AcceptsConsoleClientEngine()
+    {
+        var options = NewProjectOptionParser.Parse(
+            [
+                "--name", "Arena",
+                "--client-engine", "console",
+                "--transport", "kcp",
+                "--serializer", "memorypack"
+            ]);
+
+        Assert.Equal(ClientEngine.Console, options.ClientEngine);
+    }
+
+    [Fact]
+    public void Parse_RejectsMisspelledConsoleClientEngineWithUnsupportedValueDiagnostic()
+    {
+        var exception = Assert.Throws<CliUsageException>(() =>
+            NewProjectOptionParser.Parse(["--client-engine", "consol"], ToolText.ForCulture(CultureInfo.InvariantCulture)));
+
+        Assert.Contains("consol", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("--client-engine", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("console", exception.Message, StringComparison.Ordinal);
+    }
 }

@@ -81,7 +81,8 @@ internal static class NewProjectOptionParser
             ["unity"] = ClientEngine.Unity,
             ["unity-cn"] = ClientEngine.UnityCn,
             ["tuanjie"] = ClientEngine.Tuanjie,
-            ["godot"] = ClientEngine.Godot
+            ["godot"] = ClientEngine.Godot,
+            ["console"] = ClientEngine.Console
         }, text);
     }
 
