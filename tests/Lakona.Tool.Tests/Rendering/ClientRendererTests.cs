@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Lakona.Tool.Cli.Options;
 using Lakona.Tool.Domain;
 using Lakona.Tool.Planning;
@@ -287,6 +288,23 @@ public sealed class ClientRendererTests
         Assert.Contains("\"name\": \"OpenUPM\"", manifest, StringComparison.Ordinal);
         Assert.Contains("\"url\": \"https://package.openupm.com\"", manifest, StringComparison.Ordinal);
         Assert.Contains("\"com.github-glitchenzo.nugetforunity\"", manifest, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Unity", "OpenUpm")]
+    [InlineData("UnityCn", "Embedded")]
+    [InlineData("Tuanjie", "Embedded")]
+    public void UnityClientRenderer_Manifest_IsValidJson(string engineName, string sourceName)
+    {
+        var engine = Enum.Parse<ClientEngine>(engineName);
+        var source = Enum.Parse<NuGetForUnitySource>(sourceName);
+        var plan = Render(new UnityClientRenderer(), Spec(engine, source));
+        var manifest = Assert.Single(plan.Files, file => file.RelativePath == "Client/Packages/manifest.json").Content;
+
+        using var document = JsonDocument.Parse(manifest);
+
+        Assert.True(document.RootElement.TryGetProperty("dependencies", out var dependencies));
+        Assert.True(dependencies.TryGetProperty("com.unity.modules.uielements", out _));
     }
 
     [Theory]

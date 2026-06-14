@@ -40,7 +40,7 @@ internal sealed class UnityClientRenderer : IClientRenderer
             "com.unity.modules.ui": "1.0.0",
             "com.unity.modules.physics": "1.0.0",
             "com.unity.modules.physics2d": "1.0.0",
-            "com.unity.modules.uielements": "1.0.0",
+            "com.unity.modules.uielements": "1.0.0"
           }{{RenderScopedRegistriesBlock(spec)}}
         }
         """;
