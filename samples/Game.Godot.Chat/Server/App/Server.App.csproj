@@ -15,6 +15,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <CompilerVisibleProperty Include="LakonaRpcGenerateServer" />
+    <CompilerVisibleProperty Include="LakonaRpcServerGeneratedNamespace" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\Shared\Shared.csproj" TargetFramework="net10.0">
       <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
     </ProjectReference>
@@ -22,19 +27,19 @@
     <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Hotfix\Lakona.Game.Server.Hotfix.csproj" />
     <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Hotfix.Abstractions\Lakona.Game.Server.Hotfix.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Hotfix.Generators\Lakona.Game.Server.Hotfix.Generators.csproj" PrivateAssets="all" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Generators\Lakona.Game.Server.Generators.csproj" PrivateAssets="all" OutputItemType="Analyzer" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Server\Lakona.Rpc.Server.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Transport.WebSocket\Lakona.Rpc.Transport.WebSocket.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Game.Cluster\Lakona.Game.Cluster.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Game.Cluster.Rpc\Lakona.Game.Cluster.Rpc.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Analyzers\Lakona.Rpc.Analyzers.csproj"
+                      ReferenceOutputAssembly="false"
+                      OutputItemType="Analyzer"
+                      PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
-    <PackageReference Include="Lakona.Game.Server.Generators" Version="0.1.4" PrivateAssets="all" OutputItemType="Analyzer" />
-    <PackageReference Include="Lakona.Rpc.Server" Version="0.12.1" />
-    <PackageReference Include="Lakona.Rpc.Transport.WebSocket" Version="0.11.8" />
-    <PackageReference Include="Lakona.Rpc.Analyzers" Version="0.2.0">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-    <PackageReference Include="Lakona.Game.Cluster" Version="0.1.4" />
-    <PackageReference Include="Lakona.Game.Cluster.Rpc" Version="0.1.3" />
   </ItemGroup>
 
   <ItemGroup>
