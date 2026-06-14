@@ -160,90 +160,84 @@ internal static class UnityClientAssetTemplates
             width: 100%;
             height: 100%;
             flex-grow: 1;
-            background-color: var(--lakona-bg-base);
+            background-color: #0A0F0A;
             align-items: center;
             justify-content: center;
         }
         .login-panel {
             width: 360px;
             padding: 32px 24px;
-            background-color: var(--lakona-bg-panel);
-            border-left-width: var(--lakona-border-width);
-            border-right-width: var(--lakona-border-width);
-            border-top-width: var(--lakona-border-width);
-            border-bottom-width: var(--lakona-border-width);
-            border-left-color: var(--lakona-accent);
-            border-right-color: var(--lakona-accent);
-            border-top-color: var(--lakona-accent);
-            border-bottom-color: var(--lakona-accent);
+            background-color: #0F1A0F;
+            border-left-width: 2px;
+            border-right-width: 2px;
+            border-top-width: 2px;
+            border-bottom-width: 2px;
+            border-left-color: #00FF66;
+            border-right-color: #00FF66;
+            border-top-color: #00FF66;
+            border-bottom-color: #00FF66;
         }
         .login-title {
-            font-size: var(--lakona-font-size-title);
-            -unity-font: var(--lakona-font);
-            color: var(--lakona-accent);
+            font-size: 22px;
+            color: #00FF66;
             margin-bottom: 20px;
         }
         .name-label {
-            font-size: var(--lakona-font-size);
-            -unity-font: var(--lakona-font);
-            color: var(--lakona-accent-dim);
+            font-size: 14px;
+            color: #00AA44;
             margin-bottom: 4px;
         }
         .name-field {
             margin-bottom: 16px;
         }
         .name-field .unity-text-field__label {
-            color: var(--lakona-accent-dim);
-            -unity-font: var(--lakona-font);
+            color: #00AA44;
         }
         .name-field .unity-text-field__input {
-            color: var(--lakona-accent);
-            -unity-font: var(--lakona-font);
-            font-size: var(--lakona-font-size);
-            background-color: var(--lakona-bg-input);
-            border-top-width: var(--lakona-border-width);
-            border-right-width: var(--lakona-border-width);
-            border-bottom-width: var(--lakona-border-width);
-            border-left-width: var(--lakona-border-width);
-            border-top-color: var(--lakona-accent-dim);
-            border-right-color: var(--lakona-accent-dim);
-            border-bottom-color: var(--lakona-accent-dim);
-            border-left-color: var(--lakona-accent-dim);
+            color: #00FF66;
+            font-size: 14px;
+            background-color: #050A0A;
+            border-top-width: 2px;
+            border-right-width: 2px;
+            border-bottom-width: 2px;
+            border-left-width: 2px;
+            border-top-color: #00AA44;
+            border-right-color: #00AA44;
+            border-bottom-color: #00AA44;
+            border-left-color: #00AA44;
         }
         .name-field .unity-text-field__input:focus {
-            border-top-color: var(--lakona-accent);
-            border-right-color: var(--lakona-accent);
-            border-bottom-color: var(--lakona-accent);
-            border-left-color: var(--lakona-accent);
+            border-top-color: #00FF66;
+            border-right-color: #00FF66;
+            border-bottom-color: #00FF66;
+            border-left-color: #00FF66;
         }
         .connect-button {
             width: 100%;
-            font-size: var(--lakona-font-size);
-            -unity-font: var(--lakona-font);
-            color: var(--lakona-bg-base);
-            background-color: var(--lakona-accent);
-            border-top-width: var(--lakona-border-width);
-            border-right-width: var(--lakona-border-width);
-            border-bottom-width: var(--lakona-border-width);
-            border-left-width: var(--lakona-border-width);
-            border-top-color: var(--lakona-accent);
-            border-right-color: var(--lakona-accent);
-            border-bottom-color: var(--lakona-accent);
-            border-left-color: var(--lakona-accent);
+            font-size: 14px;
+            color: #0A0F0A;
+            background-color: #00FF66;
+            border-top-width: 2px;
+            border-right-width: 2px;
+            border-bottom-width: 2px;
+            border-left-width: 2px;
+            border-top-color: #00FF66;
+            border-right-color: #00FF66;
+            border-bottom-color: #00FF66;
+            border-left-color: #00FF66;
             margin-bottom: 12px;
         }
         .connect-button:disabled {
-            color: var(--lakona-accent-dim);
-            background-color: var(--lakona-bg-input);
-            border-top-color: var(--lakona-accent-dim);
-            border-right-color: var(--lakona-accent-dim);
-            border-bottom-color: var(--lakona-accent-dim);
-            border-left-color: var(--lakona-accent-dim);
+            color: #00AA44;
+            background-color: #050A0A;
+            border-top-color: #00AA44;
+            border-right-color: #00AA44;
+            border-bottom-color: #00AA44;
+            border-left-color: #00AA44;
         }
         .status-label {
-            font-size: var(--lakona-font-size);
-            -unity-font: var(--lakona-font);
-            color: var(--lakona-error);
+            font-size: 14px;
+            color: #FF4444;
             white-space: normal;
         }
         """;
@@ -256,42 +250,38 @@ internal static class UnityClientAssetTemplates
             width: 100%;
             height: 100%;
             flex-grow: 1;
-            background-color: var(--lakona-bg-base);
+            background-color: #0A0F0A;
         }
         .chat-header {
             flex-direction: row;
             align-items: center;
             padding: 8px 16px;
-            background-color: var(--lakona-bg-panel);
-            border-bottom-width: var(--lakona-border-width);
-            border-bottom-color: var(--lakona-accent);
+            background-color: #0F1A0F;
+            border-bottom-width: 2px;
+            border-bottom-color: #00FF66;
         }
         .header-title {
-            font-size: var(--lakona-font-size-header);
-            -unity-font: var(--lakona-font);
-            color: var(--lakona-accent);
+            font-size: 18px;
+            color: #00FF66;
             flex-grow: 1;
         }
         .header-count {
-            font-size: var(--lakona-font-size);
-            -unity-font: var(--lakona-font);
-            color: var(--lakona-warning);
+            font-size: 14px;
+            color: #FFFF00;
         }
         .message-list {
             flex-grow: 1;
             padding: 8px 16px;
         }
         .chat-message {
-            font-size: var(--lakona-font-size);
-            -unity-font: var(--lakona-font);
-            color: var(--lakona-text-body);
+            font-size: 14px;
+            color: #88CC99;
             margin-bottom: 4px;
             white-space: normal;
         }
         .chat-system {
-            font-size: var(--lakona-font-size-system);
-            -unity-font: var(--lakona-font);
-            color: var(--lakona-text-system);
+            font-size: 12px;
+            color: #66AA77;
             -unity-font-style: italic;
             margin-bottom: 4px;
             white-space: normal;
@@ -300,14 +290,13 @@ internal static class UnityClientAssetTemplates
             flex-direction: row;
             align-items: center;
             padding: 8px 16px;
-            background-color: var(--lakona-bg-panel);
-            border-top-width: var(--lakona-border-width);
-            border-top-color: var(--lakona-accent);
+            background-color: #0F1A0F;
+            border-top-width: 2px;
+            border-top-color: #00FF66;
         }
         .message-label {
-            font-size: var(--lakona-font-size);
-            -unity-font: var(--lakona-font);
-            color: var(--lakona-accent-dim);
+            font-size: 14px;
+            color: #00AA44;
             margin-right: 8px;
             flex-shrink: 0;
         }
@@ -321,49 +310,47 @@ internal static class UnityClientAssetTemplates
             display: none;
         }
         .chat-input .unity-text-field__input {
-            color: var(--lakona-accent);
-            -unity-font: var(--lakona-font);
-            font-size: var(--lakona-font-size);
-            background-color: var(--lakona-bg-input);
-            border-top-width: var(--lakona-border-width);
-            border-right-width: var(--lakona-border-width);
-            border-bottom-width: var(--lakona-border-width);
-            border-left-width: var(--lakona-border-width);
-            border-top-color: var(--lakona-accent-dim);
-            border-right-color: var(--lakona-accent-dim);
-            border-bottom-color: var(--lakona-accent-dim);
-            border-left-color: var(--lakona-accent-dim);
+            color: #00FF66;
+            font-size: 14px;
+            background-color: #050A0A;
+            border-top-width: 2px;
+            border-right-width: 2px;
+            border-bottom-width: 2px;
+            border-left-width: 2px;
+            border-top-color: #00AA44;
+            border-right-color: #00AA44;
+            border-bottom-color: #00AA44;
+            border-left-color: #00AA44;
         }
         .chat-input .unity-text-field__input:focus {
-            border-top-color: var(--lakona-accent);
-            border-right-color: var(--lakona-accent);
-            border-bottom-color: var(--lakona-accent);
-            border-left-color: var(--lakona-accent);
+            border-top-color: #00FF66;
+            border-right-color: #00FF66;
+            border-bottom-color: #00FF66;
+            border-left-color: #00FF66;
         }
         .send-button {
             width: 96px;
             min-width: 96px;
             flex-shrink: 0;
-            font-size: var(--lakona-font-size);
-            -unity-font: var(--lakona-font);
-            color: var(--lakona-bg-base);
-            background-color: var(--lakona-accent);
-            border-top-width: var(--lakona-border-width);
-            border-right-width: var(--lakona-border-width);
-            border-bottom-width: var(--lakona-border-width);
-            border-left-width: var(--lakona-border-width);
-            border-top-color: var(--lakona-accent);
-            border-right-color: var(--lakona-accent);
-            border-bottom-color: var(--lakona-accent);
-            border-left-color: var(--lakona-accent);
+            font-size: 14px;
+            color: #0A0F0A;
+            background-color: #00FF66;
+            border-top-width: 2px;
+            border-right-width: 2px;
+            border-bottom-width: 2px;
+            border-left-width: 2px;
+            border-top-color: #00FF66;
+            border-right-color: #00FF66;
+            border-bottom-color: #00FF66;
+            border-left-color: #00FF66;
         }
         .send-button:disabled {
-            color: var(--lakona-accent-dim);
-            background-color: var(--lakona-bg-input);
-            border-top-color: var(--lakona-accent-dim);
-            border-right-color: var(--lakona-accent-dim);
-            border-bottom-color: var(--lakona-accent-dim);
-            border-left-color: var(--lakona-accent-dim);
+            color: #00AA44;
+            background-color: #050A0A;
+            border-top-color: #00AA44;
+            border-right-color: #00AA44;
+            border-bottom-color: #00AA44;
+            border-left-color: #00AA44;
         }
         """;
     }
@@ -372,27 +359,6 @@ internal static class UnityClientAssetTemplates
     {
         return """
         @import url("unity-theme://default");
-        :root {
-            --lakona-bg-base: #0A0F0A;
-            --lakona-bg-panel: #0F1A0F;
-            --lakona-bg-input: #050A0A;
-            --lakona-bg-hover: #152015;
-            --lakona-accent: #00FF66;
-            --lakona-accent-dim: #00AA44;
-            --lakona-accent-glow: #33FF88;
-            --lakona-text-primary: #00FF66;
-            --lakona-text-body: #88CC99;
-            --lakona-text-dim: #448855;
-            --lakona-text-system: #66AA77;
-            --lakona-warning: #FFFF00;
-            --lakona-error: #FF4444;
-            --lakona-font: Consolas, "Courier New", monospace;
-            --lakona-font-size: 14px;
-            --lakona-font-size-title: 22px;
-            --lakona-font-size-header: 18px;
-            --lakona-font-size-system: 12px;
-            --lakona-border-width: 2px;
-        }
         """;
     }
 
