@@ -51,5 +51,8 @@
       <_Parameter1>LakonaHotfixBuildTag</_Parameter1>
       <_Parameter2>$(LakonaHotfixBuildTag)</_Parameter2>
     </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Server.Hotfix</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 </Project>

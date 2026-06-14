@@ -26,4 +26,9 @@
     <CompilerVisibleProperty Include="LakonaRpcGenerateServer" />
     <CompilerVisibleProperty Include="LakonaRpcServerGeneratedNamespace" />
   </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Agar.Sample.Hotfix</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
 </Project>

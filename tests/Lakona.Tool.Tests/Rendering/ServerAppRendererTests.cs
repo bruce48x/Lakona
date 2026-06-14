@@ -73,7 +73,7 @@ public sealed class ServerAppRendererTests
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("ServiceBindingConfigurator", StringComparison.Ordinal));
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("RpcSession.Disconnected +=", StringComparison.Ordinal));
 
-        AssertPath(plan, "Server/App/Properties/AssemblyInfo.cs");
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Properties/AssemblyInfo.cs");
 
         var appsettings = AssertPath(plan, "Server/App/appsettings.json").Content;
         using var document = JsonDocument.Parse(appsettings);
@@ -117,10 +117,9 @@ public sealed class ServerAppRendererTests
         Assert.Contains("<AssemblyAttribute Include=\"System.Reflection.AssemblyMetadataAttribute\">", project, StringComparison.Ordinal);
         Assert.Contains("<_Parameter1>LakonaHotfixBuildTag</_Parameter1>", project, StringComparison.Ordinal);
         Assert.Contains("<_Parameter2>$(LakonaHotfixBuildTag)</_Parameter2>", project, StringComparison.Ordinal);
-        var assemblyInfo = AssertPath(plan, "Server/App/Properties/AssemblyInfo.cs").Content;
-        Assert.Contains("InternalsVisibleTo(\"Server.Hotfix\")", assemblyInfo, StringComparison.Ordinal);
-        Assert.DoesNotContain("AssemblyMetadata", assemblyInfo, StringComparison.Ordinal);
-        Assert.DoesNotContain("20260612.001", assemblyInfo, StringComparison.Ordinal);
+        Assert.Contains("<AssemblyAttribute Include=\"System.Runtime.CompilerServices.InternalsVisibleToAttribute\">", project, StringComparison.Ordinal);
+        Assert.Contains("<_Parameter1>Server.Hotfix</_Parameter1>", project, StringComparison.Ordinal);
+        Assert.DoesNotContain("Server/App/Properties/AssemblyInfo.cs", string.Join('\n', plan.Files.Select(file => file.RelativePath)), StringComparison.Ordinal);
     }
 
     private static GenerationPlan Render(LakonaProjectSpec spec)

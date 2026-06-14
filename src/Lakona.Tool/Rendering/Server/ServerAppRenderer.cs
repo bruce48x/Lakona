@@ -22,7 +22,6 @@ internal sealed class ServerAppRenderer : IPlanContributor
         builder.AddFile("Server/App/Chat/ChatRoomActor.cs", RenderChatRoomActor(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/App/Services/GeneratedServiceEndpoints.cs", RenderGeneratedServiceEndpoints(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/App/Lifecycle/ChatPresenceLifecycleHandler.cs", RenderChatPresenceLifecycleHandler(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Server/App/Properties/AssemblyInfo.cs", RenderAssemblyInfo(), FileWriteMode.Replace, GeneratedFileKind.Text);
     }
 
     private static string RenderSolution()
@@ -76,6 +75,9 @@ internal sealed class ServerAppRenderer : IPlanContributor
             <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
               <_Parameter1>LakonaHotfixBuildTag</_Parameter1>
               <_Parameter2>$(LakonaHotfixBuildTag)</_Parameter2>
+            </AssemblyAttribute>
+            <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+              <_Parameter1>Server.Hotfix</_Parameter1>
             </AssemblyAttribute>
           </ItemGroup>
         </Project>
@@ -231,15 +233,6 @@ internal sealed class ServerAppRenderer : IPlanContributor
                 }
             }
         }
-        """;
-    }
-
-    private static string RenderAssemblyInfo()
-    {
-        return """
-        using System.Runtime.CompilerServices;
-
-        [assembly: InternalsVisibleTo("Server.Hotfix")]
         """;
     }
 
