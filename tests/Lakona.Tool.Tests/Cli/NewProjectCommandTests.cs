@@ -74,7 +74,7 @@ public sealed class NewProjectCommandTests
                         new OperationsRenderer(),
                         new GeneratedProjectDocsRenderer()
                     ],
-                    [new UnityClientRenderer(), new GodotClientRenderer()]),
+                    [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
                 new GenerationExecutor(new TransactionalOutputWriter())),
             ToolText.ForCulture(System.Globalization.CultureInfo.InvariantCulture),
             terminal);

@@ -78,6 +78,11 @@ public sealed class ClientRendererTests
         Assert.Contains("await _client.SendAsync(text);", chatUi, StringComparison.Ordinal);
 
         var chatUss = AssertPath(plan, "Client/Assets/UI/ChatScene.uss").Content;
+        var loginUss = AssertPath(plan, "Client/Assets/UI/LoginScene.uss").Content;
+        var runtimeTheme = AssertPath(plan, "Client/Assets/UI Toolkit/UnityThemes/UnityDefaultRuntimeTheme.tss").Content;
+        Assert.DoesNotContain("var(--", loginUss, StringComparison.Ordinal);
+        Assert.DoesNotContain("var(--", chatUss, StringComparison.Ordinal);
+        Assert.DoesNotContain("--lakona-", runtimeTheme, StringComparison.Ordinal);
         Assert.Contains("flex-shrink: 0;", ExtractCssRule(chatUss, ".message-label"), StringComparison.Ordinal);
         Assert.Contains("flex-grow: 1;", ExtractCssRule(chatUss, ".chat-input"), StringComparison.Ordinal);
         Assert.Contains("flex-shrink: 1;", ExtractCssRule(chatUss, ".chat-input"), StringComparison.Ordinal);

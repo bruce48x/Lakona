@@ -42,7 +42,7 @@ public sealed class LakonaProjectGeneratorTests
                         new OperationsRenderer(),
                         new GeneratedProjectDocsRenderer()
                     ],
-                    [new UnityClientRenderer(), new GodotClientRenderer()]),
+                    [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
                 new GenerationExecutor(new TransactionalOutputWriter()));
 
             await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
@@ -91,7 +91,7 @@ public sealed class LakonaProjectGeneratorTests
                         new OperationsRenderer(),
                         new GeneratedProjectDocsRenderer()
                     ],
-                    [new UnityClientRenderer(), new GodotClientRenderer()]),
+                    [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
                 new GenerationExecutor(new TransactionalOutputWriter()));
 
             await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
@@ -107,6 +107,50 @@ public sealed class LakonaProjectGeneratorTests
                 TestContext.Current.CancellationToken);
             Assert.DoesNotContain("package.openupm.com", manifest, StringComparison.Ordinal);
             Assert.DoesNotContain("\"com.github-glitchenzo.nugetforunity\": \"4.5.0\"", manifest, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(parentRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task GenerateAsync_ConsoleClient_CreatesConsoleClientOnly()
+    {
+        var parentRoot = Path.Combine(Path.GetTempPath(), "lakona-project-generator-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(parentRoot);
+        try
+        {
+            var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+                "MyGame",
+                parentRoot,
+                ClientEngine.Console,
+                TransportKind.Kcp,
+                SerializerKind.MemoryPack,
+                PersistenceKind.None,
+                NuGetForUnitySource.OpenUpm,
+                DeploymentProfile.None));
+            var generator = new LakonaProjectGenerator(
+                new LakonaProjectPlanBuilder(
+                    [
+                        new GitRenderer(),
+                        new ProjectConfigRenderer(),
+                        new SharedProjectRenderer(),
+                        new ServerAppRenderer(),
+                        new HotfixRenderer(),
+                        new OperationsRenderer(),
+                        new GeneratedProjectDocsRenderer()
+                    ],
+                    [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
+                new GenerationExecutor(new TransactionalOutputWriter()));
+
+            await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
+
+            Assert.True(File.Exists(Path.Combine(spec.Layout.RootPath, "Client", "Client.csproj")));
+            Assert.True(File.Exists(Path.Combine(spec.Layout.RootPath, "Client", "Program.cs")));
+            Assert.True(File.Exists(Path.Combine(spec.Layout.RootPath, "Client", "LoadScenarios", "LoginChatLoadScenario.cs")));
+            Assert.False(Directory.Exists(Path.Combine(spec.Layout.RootPath, "Client", "Assets")));
+            Assert.False(File.Exists(Path.Combine(spec.Layout.RootPath, "Client", "project.godot")));
         }
         finally
         {
