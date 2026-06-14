@@ -14,6 +14,7 @@
     <Project Path="src/Lakona.Game.Cluster.Rpc/Lakona.Game.Cluster.Rpc.csproj" />
     <Project Path="src/Lakona.Game.Cluster.Sql/Lakona.Game.Cluster.Sql.csproj" />
     <Project Path="src/Lakona.Game.Cluster/Lakona.Game.Cluster.csproj" />
+    <Project Path="src/Lakona.Game.LoadTesting/Lakona.Game.LoadTesting.csproj" />
     <Project Path="src/Lakona.Game.Server.Generators/Lakona.Game.Server.Generators.csproj" />
     <Project Path="src/Lakona.Game.Server.Hotfix.Abstractions/Lakona.Game.Server.Hotfix.Abstractions.csproj" />
     <Project Path="src/Lakona.Game.Server.Hotfix.Generators/Lakona.Game.Server.Hotfix.Generators.csproj" />
@@ -36,6 +37,7 @@
     <Project Path="tests/Lakona.Game.Cluster.Rpc.Tests/Lakona.Game.Cluster.Rpc.Tests.csproj" />
     <Project Path="tests/Lakona.Game.Cluster.Sql.Tests/Lakona.Game.Cluster.Sql.Tests.csproj" />
     <Project Path="tests/Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj" />
+    <Project Path="tests/Lakona.Game.LoadTesting.Tests/Lakona.Game.LoadTesting.Tests.csproj" />
     <Project Path="tests/Lakona.Game.Server.Generators.Tests/Lakona.Game.Server.Generators.Tests.csproj" />
     <Project Path="tests/Lakona.Game.Server.Hotfix.Generators.Tests/Lakona.Game.Server.Hotfix.Generators.Tests.csproj" />
     <Project Path="tests/Lakona.Game.Server.Hotfix.Tests/Lakona.Game.Server.Hotfix.Tests.csproj" />
