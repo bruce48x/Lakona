@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Lakona.Game.LoadTesting</RootNamespace>
     <PackageId>Lakona.Game.LoadTesting</PackageId>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <Description>Headless load testing primitives for Lakona.Game clients and generated Console load runners.</Description>
     <PackageTags>lakona-game;load-testing;game-client;console;rpc</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

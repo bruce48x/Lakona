@@ -73,6 +73,24 @@ public sealed class LoadRunnerTests
         Assert.Equal(nameof(InvalidOperationException), error.ExceptionType);
     }
 
+    [Fact]
+    public async Task RunAsync_UnmeasuredScenarioFailureAppearsInSummary()
+    {
+        var runner = new LoadRunner();
+
+        var summary = await runner.RunAsync(
+            new SetupFailingScenario(),
+            new LoadRunOptions(Users: 1, RampUp: TimeSpan.Zero, Duration: TimeSpan.FromMilliseconds(20)),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, summary.FailedOperations);
+        Assert.Equal(1, summary.FailedUsers);
+        var error = Assert.Single(summary.Errors);
+        Assert.Equal("user", error.OperationName);
+        Assert.Equal(nameof(InvalidOperationException), error.ExceptionType);
+        Assert.Equal("setup failed", error.Message);
+    }
+
     private sealed class RecordingScenario : ILoadScenario
     {
         private readonly long createdAt = Environment.TickCount64;
@@ -111,6 +129,16 @@ public sealed class LoadRunnerTests
         public async ValueTask RunUserAsync(LoadUserContext context, CancellationToken cancellationToken)
         {
             await context.MeasureAsync("login", _ => throw new InvalidOperationException("login rejected"), cancellationToken);
+        }
+    }
+
+    private sealed class SetupFailingScenario : ILoadScenario
+    {
+        public string Name => "setup-failing";
+
+        public ValueTask RunUserAsync(LoadUserContext context, CancellationToken cancellationToken)
+        {
+            throw new InvalidOperationException("setup failed");
         }
     }
 }

@@ -4,6 +4,13 @@ Lakona was created on 2026-06-07 by merging the former ULinkGame, ULinkActor,
 and ULinkRpc repositories into a single monorepo. This changelog starts from
 that consolidation.
 
+## 2026-06-14
+
+### Fixed
+
+- `Lakona.Game.LoadTesting` `0.1.1`: unmeasured virtual-user exceptions are now reported as user failures, and operation recording uses bounded per-operation latency/error aggregation instead of retaining every sample.
+- `Lakona.Tool` `0.10.8`: generated Console load clients now return a failure exit code when a load run reports unhandled user failures.
+
 ## 2026-06-12
 
 ### Added

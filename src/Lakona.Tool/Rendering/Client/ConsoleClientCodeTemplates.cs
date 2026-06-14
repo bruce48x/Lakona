@@ -64,7 +64,7 @@ internal static class ConsoleClientCodeTemplates
             var runner = new Lakona.Game.LoadTesting.LoadRunner();
             var summary = await runner.RunAsync(scenario, new Lakona.Game.LoadTesting.LoadRunOptions(options.Users, options.RampUp, options.Duration));
             Console.WriteLine(Lakona.Game.LoadTesting.LoadRunSummaryFormatter.Format(summary));
-            if (summary.FailedOperations > 0)
+            if (summary.FailedOperations > 0 || summary.FailedUsers > 0)
             {
                 return 2;
             }

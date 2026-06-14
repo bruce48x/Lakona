@@ -6,6 +6,7 @@ namespace Lakona.Game.LoadTesting;
 public sealed class LoadUserContext
 {
     private readonly LoadRunRecorder recorder;
+    private Exception? recordedException;
 
     internal LoadUserContext(int userIndex, string userName)
         : this(userIndex, userName, new LoadRunRecorder("default", 1))
@@ -39,13 +40,20 @@ public sealed class LoadUserContext
         }
         catch (OperationCanceledException ex)
         {
+            recordedException = ex;
             recorder.RecordCanceledOperation(operationName, Stopwatch.GetElapsedTime(startedAt), ex);
             throw;
         }
         catch (Exception ex)
         {
+            recordedException = ex;
             recorder.RecordFailedOperation(operationName, Stopwatch.GetElapsedTime(startedAt), ex);
             throw;
         }
+    }
+
+    internal bool IsRecordedException(Exception exception)
+    {
+        return ReferenceEquals(recordedException, exception);
     }
 }

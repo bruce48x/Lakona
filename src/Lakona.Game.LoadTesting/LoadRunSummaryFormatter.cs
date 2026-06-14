@@ -13,6 +13,7 @@ public static class LoadRunSummaryFormatter
         builder.AppendLine(CultureInfo.InvariantCulture, $"Scenario: {summary.ScenarioName}");
         builder.AppendLine(CultureInfo.InvariantCulture, $"Users: {summary.ConfiguredUsers} configured, {summary.StartedUsers} started, {summary.CompletedUsers} completed");
         builder.AppendLine(CultureInfo.InvariantCulture, $"Operations: {summary.TotalOperations} total, {summary.SucceededOperations} succeeded, {summary.FailedOperations} failed, {summary.CanceledOperations} canceled");
+        builder.AppendLine(CultureInfo.InvariantCulture, $"User failures: {summary.FailedUsers}");
         builder.AppendLine(CultureInfo.InvariantCulture, $"Elapsed: {summary.Elapsed:c}");
 
         if (summary.Latencies.Count > 0)

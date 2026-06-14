@@ -4,9 +4,16 @@ namespace Lakona.Game.LoadTesting.Internal;
 
 public sealed class LoadRunRecorder
 {
-    private readonly ConcurrentBag<OperationSample> samples = [];
+    internal const int MaxLatencySamplesPerOperation = 1024;
+    internal const int MaxTrackedErrorMessagesPerOperationAndType = 64;
+    private const int MaxErrorSummariesPerOperationAndType = 5;
+    private const string UserFailureOperationName = "user";
+
+    private readonly ConcurrentDictionary<string, OperationAggregate> operations = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<ErrorBucketKey, ErrorBucket> errors = [];
     private int startedUsers;
     private int completedUsers;
+    private int failedUsers;
 
     public LoadRunRecorder(string scenarioName, int configuredUsers)
     {
@@ -26,6 +33,8 @@ public sealed class LoadRunRecorder
 
     public int CompletedUsers => Volatile.Read(ref completedUsers);
 
+    internal int BufferedLatencySampleCount => operations.Values.Sum(static operation => operation.BufferedLatencySampleCount);
+
     public void RecordStartedUser()
     {
         Interlocked.Increment(ref startedUsers);
@@ -38,47 +47,38 @@ public sealed class LoadRunRecorder
 
     public void RecordSucceededOperation(string operationName, TimeSpan elapsed)
     {
-        samples.Add(new OperationSample(operationName, elapsed, OperationOutcome.Succeeded, null));
+        GetOperation(operationName).RecordSucceeded(elapsed);
     }
 
     public void RecordFailedOperation(string operationName, TimeSpan elapsed, Exception exception)
     {
-        samples.Add(new OperationSample(operationName, elapsed, OperationOutcome.Failed, exception));
+        GetOperation(operationName).RecordFailed();
+        RecordError(operationName, exception);
     }
 
     public void RecordCanceledOperation(string operationName, TimeSpan elapsed, OperationCanceledException exception)
     {
-        samples.Add(new OperationSample(operationName, elapsed, OperationOutcome.Canceled, exception));
+        GetOperation(operationName).RecordCanceled();
+    }
+
+    public void RecordFailedUser(Exception exception)
+    {
+        Interlocked.Increment(ref failedUsers);
+        RecordError(UserFailureOperationName, exception);
     }
 
     public LoadRunSummary CreateSummary(TimeSpan elapsed)
     {
-        var snapshot = samples.ToArray();
-        var latencies = snapshot
-            .Where(sample => sample.Outcome == OperationOutcome.Succeeded)
-            .GroupBy(sample => sample.OperationName, StringComparer.Ordinal)
-            .Select(group => CreateLatencySummary(group.Key, group.Select(sample => sample.Elapsed).ToArray()))
-            .OrderBy(summary => summary.OperationName, StringComparer.Ordinal)
+        var operationSnapshots = operations
+            .Select(pair => pair.Value.CreateSnapshot(pair.Key))
+            .OrderBy(snapshot => snapshot.OperationName, StringComparer.Ordinal)
             .ToArray();
-        var errors = snapshot
-            .Where(sample => sample.Outcome == OperationOutcome.Failed && sample.Exception is not null)
-            .GroupBy(
-                sample => new
-                {
-                    sample.OperationName,
-                    ExceptionType = sample.Exception!.GetType().Name,
-                    Message = sample.Exception.Message
-                })
-            .Select(group => new LoadErrorSummary(
-                group.Key.OperationName,
-                group.Key.ExceptionType,
-                group.Key.Message,
-                group.Count()))
-            .GroupBy(error => new { error.OperationName, error.ExceptionType })
-            .SelectMany(group => group
-                .OrderByDescending(error => error.Count)
-                .ThenBy(error => error.Message, StringComparer.Ordinal)
-                .Take(5))
+        var latencies = operationSnapshots
+            .Where(snapshot => snapshot.Succeeded > 0)
+            .Select(CreateLatencySummary)
+            .ToArray();
+        var errorSummaries = errors
+            .SelectMany(pair => pair.Value.CreateSummaries(pair.Key.OperationName, pair.Key.ExceptionType))
             .OrderBy(error => error.OperationName, StringComparer.Ordinal)
             .ThenBy(error => error.ExceptionType, StringComparer.Ordinal)
             .ThenBy(error => error.Message, StringComparer.Ordinal)
@@ -89,23 +89,36 @@ public sealed class LoadRunRecorder
             ConfiguredUsers,
             StartedUsers,
             CompletedUsers,
-            snapshot.Length,
-            snapshot.Count(sample => sample.Outcome == OperationOutcome.Succeeded),
-            snapshot.Count(sample => sample.Outcome == OperationOutcome.Failed),
-            snapshot.Count(sample => sample.Outcome == OperationOutcome.Canceled),
+            operationSnapshots.Sum(static snapshot => snapshot.Total),
+            operationSnapshots.Sum(static snapshot => snapshot.Succeeded),
+            operationSnapshots.Sum(static snapshot => snapshot.Failed),
+            operationSnapshots.Sum(static snapshot => snapshot.Canceled),
+            Volatile.Read(ref failedUsers),
             elapsed,
             latencies,
-            errors);
+            errorSummaries);
     }
 
-    private static LoadOperationLatencySummary CreateLatencySummary(string operationName, TimeSpan[] values)
+    private OperationAggregate GetOperation(string operationName)
     {
+        return operations.GetOrAdd(operationName, static _ => new OperationAggregate());
+    }
+
+    private void RecordError(string operationName, Exception exception)
+    {
+        var key = new ErrorBucketKey(operationName, exception.GetType().Name);
+        var bucket = errors.GetOrAdd(key, static _ => new ErrorBucket());
+        bucket.Record(exception.Message);
+    }
+
+    private static LoadOperationLatencySummary CreateLatencySummary(OperationSnapshot snapshot)
+    {
+        var values = snapshot.LatencySamples;
         Array.Sort(values);
-        var ticks = values.Sum(value => value.Ticks) / values.Length;
         return new LoadOperationLatencySummary(
-            operationName,
-            values.Length,
-            TimeSpan.FromTicks(ticks),
+            snapshot.OperationName,
+            snapshot.Succeeded,
+            snapshot.Average,
             Percentile(values, 0.50),
             Percentile(values, 0.95),
             Percentile(values, 0.99));
@@ -123,16 +136,115 @@ public sealed class LoadRunRecorder
         return sortedValues[index];
     }
 
-    private sealed record OperationSample(
-        string OperationName,
-        TimeSpan Elapsed,
-        OperationOutcome Outcome,
-        Exception? Exception);
-
-    private enum OperationOutcome
+    private sealed class OperationAggregate
     {
-        Succeeded,
-        Failed,
-        Canceled
+        private readonly TimeSpan[] latencySamples = new TimeSpan[MaxLatencySamplesPerOperation];
+        private readonly object gate = new();
+        private long total;
+        private long succeeded;
+        private long failed;
+        private long canceled;
+        private long succeededTicks;
+        private int latencySampleCount;
+
+        public int BufferedLatencySampleCount => Volatile.Read(ref latencySampleCount);
+
+        public void RecordSucceeded(TimeSpan elapsed)
+        {
+            Interlocked.Increment(ref total);
+            Interlocked.Increment(ref succeeded);
+            Interlocked.Add(ref succeededTicks, elapsed.Ticks);
+            lock (gate)
+            {
+                if (latencySampleCount < latencySamples.Length)
+                {
+                    latencySamples[latencySampleCount] = elapsed;
+                    latencySampleCount++;
+                }
+            }
+        }
+
+        public void RecordFailed()
+        {
+            Interlocked.Increment(ref total);
+            Interlocked.Increment(ref failed);
+        }
+
+        public void RecordCanceled()
+        {
+            Interlocked.Increment(ref total);
+            Interlocked.Increment(ref canceled);
+        }
+
+        public OperationSnapshot CreateSnapshot(string operationName)
+        {
+            TimeSpan[] samples;
+            lock (gate)
+            {
+                samples = latencySamples[..latencySampleCount];
+            }
+
+            var succeededCount = (int)Volatile.Read(ref succeeded);
+            var totalTicks = Volatile.Read(ref succeededTicks);
+            var average = succeededCount == 0 ? TimeSpan.Zero : TimeSpan.FromTicks(totalTicks / succeededCount);
+            return new OperationSnapshot(
+                operationName,
+                (int)Volatile.Read(ref total),
+                succeededCount,
+                (int)Volatile.Read(ref failed),
+                (int)Volatile.Read(ref canceled),
+                average,
+                samples);
+        }
     }
+
+    private sealed class ErrorBucket
+    {
+        private readonly Dictionary<string, int> messages = new(StringComparer.Ordinal);
+        private readonly object gate = new();
+
+        public void Record(string message)
+        {
+            lock (gate)
+            {
+                if (messages.TryGetValue(message, out var count))
+                {
+                    messages[message] = count + 1;
+                    return;
+                }
+
+                if (messages.Count < MaxTrackedErrorMessagesPerOperationAndType)
+                {
+                    messages.Add(message, 1);
+                }
+            }
+        }
+
+        public IReadOnlyList<LoadErrorSummary> CreateSummaries(string operationName, string exceptionType)
+        {
+            KeyValuePair<string, int>[] snapshot;
+            lock (gate)
+            {
+                snapshot = messages.ToArray();
+            }
+
+            return snapshot
+                .OrderByDescending(pair => pair.Value)
+                .ThenBy(pair => pair.Key, StringComparer.Ordinal)
+                .Take(MaxErrorSummariesPerOperationAndType)
+                .Select(pair => new LoadErrorSummary(operationName, exceptionType, pair.Key, pair.Value))
+                .ToArray();
+        }
+    }
+
+    private sealed record OperationSnapshot(
+        string OperationName,
+        int Total,
+        int Succeeded,
+        int Failed,
+        int Canceled,
+        TimeSpan Average,
+        TimeSpan[] LatencySamples);
+
+    private readonly record struct ErrorBucketKey(string OperationName, string ExceptionType);
 }

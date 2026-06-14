@@ -217,6 +217,7 @@ public sealed class ClientRendererTests
         Assert.Contains("return 2;", program, StringComparison.Ordinal);
         Assert.Contains("return 3;", program, StringComparison.Ordinal);
         Assert.Contains("Lakona.Game.LoadTesting.LoadRunSummaryFormatter.Format(summary)", program, StringComparison.Ordinal);
+        Assert.Contains("summary.FailedOperations > 0 || summary.FailedUsers > 0", program, StringComparison.Ordinal);
     }
 
     [Fact]

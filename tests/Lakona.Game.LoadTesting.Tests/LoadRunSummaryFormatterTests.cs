@@ -17,6 +17,7 @@ public sealed class LoadRunSummaryFormatterTests
             SucceededOperations: 3,
             FailedOperations: 1,
             CanceledOperations: 0,
+            FailedUsers: 1,
             Elapsed: TimeSpan.FromSeconds(3),
             Latencies:
             [
@@ -32,6 +33,7 @@ public sealed class LoadRunSummaryFormatterTests
         Assert.Contains("Scenario: chat", text, StringComparison.Ordinal);
         Assert.Contains("Users: 2 configured, 2 started, 2 completed", text, StringComparison.Ordinal);
         Assert.Contains("Operations: 4 total, 3 succeeded, 1 failed, 0 canceled", text, StringComparison.Ordinal);
+        Assert.Contains("User failures: 1", text, StringComparison.Ordinal);
         Assert.Contains("Elapsed: 00:00:03", text, StringComparison.Ordinal);
         Assert.Contains("login", text, StringComparison.Ordinal);
         Assert.Contains("p95=11 ms", text, StringComparison.Ordinal);

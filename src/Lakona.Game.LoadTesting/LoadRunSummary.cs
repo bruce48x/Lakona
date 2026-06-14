@@ -9,6 +9,7 @@ public sealed record LoadRunSummary(
     int SucceededOperations,
     int FailedOperations,
     int CanceledOperations,
+    int FailedUsers,
     TimeSpan Elapsed,
     IReadOnlyList<LoadOperationLatencySummary> Latencies,
     IReadOnlyList<LoadErrorSummary> Errors);

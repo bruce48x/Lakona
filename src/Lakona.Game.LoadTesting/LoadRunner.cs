@@ -61,8 +61,12 @@ public sealed class LoadRunner
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            if (!context.IsRecordedException(ex))
+            {
+                recorder.RecordFailedUser(ex);
+            }
         }
         finally
         {
