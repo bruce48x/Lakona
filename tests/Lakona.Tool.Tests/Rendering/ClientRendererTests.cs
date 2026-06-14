@@ -177,6 +177,72 @@ public sealed class ClientRendererTests
         Assert.Contains("<PrivateAssets>all</PrivateAssets>", project, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("Tcp", "Json", "using Lakona.Rpc.Transport.Tcp;", "using Lakona.Rpc.Serializer.Json;", "new TcpTransport(settings.Host, settings.Port)", "new JsonRpcSerializer()")]
+    [InlineData("WebSocket", "Json", "using Lakona.Rpc.Transport.WebSocket;", "using Lakona.Rpc.Serializer.Json;", "new WsTransport($\"ws://{settings.Host}:{settings.Port}{NormalizePath(settings.Path)}\")", "new JsonRpcSerializer()")]
+    [InlineData("Kcp", "MemoryPack", "using Lakona.Rpc.Transport.Kcp;", "using Lakona.Rpc.Serializer.MemoryPack;", "new KcpTransport(settings.Host, settings.Port)", "new MemoryPackRpcSerializer()")]
+    public void ConsoleClientRenderer_RpcClientFactoryUsesSelectedTransportAndSerializer(
+        string transportName,
+        string serializerName,
+        string transportUsing,
+        string serializerUsing,
+        string transportExpression,
+        string serializerExpression)
+    {
+        var transport = Enum.Parse<TransportKind>(transportName);
+        var serializer = Enum.Parse<SerializerKind>(serializerName);
+        var plan = Render(new ConsoleClientRenderer(), Spec(ClientEngine.Console, serializer: serializer, transport: transport));
+        var factory = AssertPath(plan, "Client/ClientRuntime/RpcClientFactory.cs").Content;
+
+        Assert.Contains(transportUsing, factory, StringComparison.Ordinal);
+        Assert.Contains(serializerUsing, factory, StringComparison.Ordinal);
+        Assert.Contains(transportExpression, factory, StringComparison.Ordinal);
+        Assert.Contains(serializerExpression, factory, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ConsoleClientRenderer_ProgramContainsSmokeAndLoadCommands()
+    {
+        var plan = Render(new ConsoleClientRenderer(), Spec(ClientEngine.Console));
+        var program = AssertPath(plan, "Client/Program.cs").Content;
+
+        Assert.Contains("case \"smoke\":", program, StringComparison.Ordinal);
+        Assert.Contains("case \"load\":", program, StringComparison.Ordinal);
+        Assert.Contains("return 1;", program, StringComparison.Ordinal);
+        Assert.Contains("return 2;", program, StringComparison.Ordinal);
+        Assert.Contains("return 3;", program, StringComparison.Ordinal);
+        Assert.Contains("Lakona.Game.LoadTesting.LoadRunSummaryFormatter.Format(summary)", program, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ConsoleClientRenderer_SmokeDoesNotReferenceLoadTesting()
+    {
+        var plan = Render(new ConsoleClientRenderer(), Spec(ClientEngine.Console));
+        var program = AssertPath(plan, "Client/Program.cs").Content;
+        var smokeStart = program.IndexOf("static async Task<int> RunSmokeAsync", StringComparison.Ordinal);
+        var loadStart = program.IndexOf("static async Task<int> RunLoadAsync", StringComparison.Ordinal);
+        Assert.True(smokeStart >= 0);
+        Assert.True(loadStart > smokeStart);
+        var smokeSection = program[smokeStart..loadStart];
+
+        Assert.DoesNotContain("Lakona.Game.LoadTesting", smokeSection, StringComparison.Ordinal);
+        Assert.DoesNotContain("LoadRunner", smokeSection, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ConsoleClientRenderer_LoadScenarioMeasuresLoginChatOperations()
+    {
+        var plan = Render(new ConsoleClientRenderer(), Spec(ClientEngine.Console));
+        var scenario = AssertPath(plan, "Client/LoadScenarios/LoginChatLoadScenario.cs").Content;
+
+        Assert.Contains("public sealed class LoginChatLoadScenario : ILoadScenario", scenario, StringComparison.Ordinal);
+        Assert.Contains("context.MeasureAsync(\"connect\"", scenario, StringComparison.Ordinal);
+        Assert.Contains("context.MeasureAsync(\"login\"", scenario, StringComparison.Ordinal);
+        Assert.Contains("context.MeasureAsync(\"bind\"", scenario, StringComparison.Ordinal);
+        Assert.Contains("context.MeasureAsync(\"send\"", scenario, StringComparison.Ordinal);
+        Assert.Contains("MessageRatePerUser", scenario, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void GodotClientRenderer_EmitsPlayableChatClientSlice()
     {
