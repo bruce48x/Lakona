@@ -203,36 +203,7 @@ Generated projects should include short, task-oriented documentation:
 
 These documents should explain that Cluster, Hotfix, and Reliable Push are defaults. They should not ask the user to enable them.
 
-## Implementation Phases
-
-### Phase 1: Reduce Default Configuration
-
-- Generate the smaller `Lakona.Game` configuration shape.
-- Move Hotfix, Reliable Push, and Cluster defaults into generated server code.
-- Add a runtime options type that derives full endpoint, cluster, hotfix, and reliable push settings from the small configuration shape.
-- Register project Features through the `AddLakonaGame` Feature Catalog so startup order and transport requirements are explicit in code.
-
-### Phase 2: Add Check Output
-
-- Add `--lakona-game-check`.
-- Print the derived cluster, node, hotfix, reliable push, and RPC endpoint state.
-- Return non-zero on failed checks.
-- Include repair guidance for common local-development failures.
-
-### Phase 3: Generate A Business Vertical Slice
-
-- Generate project-level services for sessions, notifications, and hotfix rules.
-- Wrap reliable push behind a `GameNotificationService`.
-- Generate a stable `GameRulesService` and hotfix rule system.
-- Add login and reconnect examples that exercise the defaults.
-
-### Phase 4: Improve Generated Documentation
-
-- Generate task-oriented project docs.
-- Update tool completion output to point to the check command and the first editing locations.
-- Keep package README files focused on package-level usage and the generated project docs focused on application editing.
-
-## Success Criteria
+## Current Contract
 
 A new user should be able to run:
 
@@ -244,6 +215,10 @@ dotnet run --project Server/App/Server.App.csproj
 ```
 
 without editing `appsettings.json`.
+
+Generated projects should start with minimal required configuration, make
+derived runtime state visible through checks, and avoid asking new users to
+understand optional infrastructure before the first working slice runs.
 
 The user should understand where to write:
 

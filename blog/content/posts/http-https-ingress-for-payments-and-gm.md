@@ -108,7 +108,7 @@ app.MapPost("/admin/gm/{command}", async (
 await app.RunAsync();
 ```
 
-This does not replace Lakona.Rpc. Your existing `IULinkRpcServerConfigurator` registrations still choose WebSocket, KCP, TCP, serializer, and generated RPC binders.
+This does not replace Lakona.Rpc. Your existing `IRpcServerConfigurator` registrations still choose WebSocket, KCP, TCP, serializer, and generated RPC binders.
 
 ## Payment Webhook Flow
 

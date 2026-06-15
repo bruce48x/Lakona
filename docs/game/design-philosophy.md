@@ -147,32 +147,3 @@ This is the approach used by TCP (sequence numbers + retransmission) and Kafka (
 .NET's `AssemblyLoadContext` provides collectible assembly loading with full access to the C# type system. Hotfix assemblies can reference stable game types directly, with source-generated friend accessors for private state. This preserves type safety and debugging while enabling zero-downtime logic updates.
 
 The tradeoff is that hotfix assemblies cannot modify state layout — only behavior operating on existing state. This is intentional: stable state + replaceable logic is a cleaner separation than "everything is hot-swappable."
-
-## Roadmap
-
-### Phase 1: Foundation hardening (mostly complete)
-
-- [x] Internal ActorKernel: execution timeout, state machine, interceptor hooks, circular call fast-fail
-- [x] Lakona.Game exposes actor kernel features through `ExecutionTimeout`, `GetState()`, and `ActorState`
-- [x] Message recording/replay via `IMessageLogStore` and `ActorCell.DispatchAsync` hook
-
-### Phase 2: Developer experience (complete)
-
-- [x] Feature Catalog startup (`LakonaGameFeature`, `AddLakonaGame`, compact `Lakona.Game:Feature`, transport requirements)
-- [x] Managed distributed actor messaging (typed `Get(id)` / `Local(id)` / `Remote(nodeId, id)` refs + typed actor call exceptions)
-- [x] Gate/Watchdog/Agent pattern documented (see `docs/gate-watchdog-agent.md`)
-
-### Phase 3: Deferred
-
-These are not currently needed. Existing infrastructure or external tools handle them:
-
-- Cross-server event bus — Redis pub-sub is sufficient for most deployments
-- Gate auto-routing — actor placement uses `ActorDirectory`; client-transparent backend routing can be added later
-- Service discovery with leader election — static config + `INodeDirectory` suffices for most topologies
-- Full-link test framework — no pressing need; revisit when concrete requirements emerge
-- Soft routing anti-DDoS — can use an external reverse proxy / load balancer
-
-### Phase 4: Future
-
-- [ ] Distributed tracing export (OTLP) — `TraceId` and `Activity` propagation exist; export is plumbing
-- [ ] Systematic resource boundary documentation — list all configurable limits in one place

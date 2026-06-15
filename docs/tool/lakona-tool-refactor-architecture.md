@@ -63,7 +63,8 @@ These invariants are regression boundaries:
 - No generated path contains a `Server/Server/` directory.
 - No production code references `Lakona.Tool.RpcStarter`.
 - No production code has `Starter*` model names for the generation pipeline.
-- No generated user file contains `ULinkRPC`, `ULinkGame`, or `RpcStarter`.
+- No generated user file contains removed framework branding or old starter
+  brand text.
 - Runtime package boundaries remain visible in generated projects.
 - Generated RPC glue remains source-generator output, never committed files.
 
@@ -296,7 +297,7 @@ Plan validation must catch:
 - writes outside the output root
 - generated RPC glue directories
 - `Server/Server/` paths
-- `RpcStarter`, `ULinkRPC`, or `ULinkGame` strings in generated user files
+- removed framework branding or old starter brand text in generated user files
 - `Cluster.Enabled`, `Hotfix.Enabled`, or `ReliablePush.Enabled` config keys
 
 Validation errors fail generation before a staging directory is created.
@@ -632,7 +633,7 @@ for:
 Useful source scans:
 
 ```powershell
-rg "RpcStarter|StarterTemplate|StarterPaths|AugmentProjectWithLakonaGame|ULinkRPC|ULinkGame" src/Lakona.Tool tests/Lakona.Tool.Tests
+rg "RpcStarter|StarterTemplate|StarterPaths|AugmentProjectWithLakonaGame" src/Lakona.Tool tests/Lakona.Tool.Tests
 rg "Server/Server/|Server\\\\Server\\\\|network-profile|realtime|single" src/Lakona.Tool tests/Lakona.Tool.Tests
 ```
 

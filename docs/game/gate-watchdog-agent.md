@@ -35,7 +35,7 @@ Lakona.Game provides all the mechanisms. The pattern is just composition:
 
 | What you need | Lakona.Game mechanism |
 |---------------|-------------------|
-| Gate: TCP/WS listener | `IULinkRpcServerConfigurator` with TCP or WebSocket transport |
+| Gate: TCP/WS listener | `IRpcServerConfigurator` with TCP or WebSocket transport |
 | Gate → Agent routing | `IClusterRouter` + `IRouteDirectory` |
 | Watchdog: auth + agent creation | user auth + `ILakonaGameServer.StartSessionAsync` |
 | Agent: per-player service | `IActorRuntime` with per-player `ActorId` |

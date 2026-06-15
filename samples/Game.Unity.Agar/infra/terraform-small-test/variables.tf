@@ -117,17 +117,17 @@ variable "cluster_id" {
 variable "service_id" {
   description = "Service id for the Game.Unity.Agar sample."
   type        = string
-  default     = "ULinkGame-AgarUnity"
+  default     = "Lakona-AgarUnity"
 }
 
 variable "postgres_db" {
   description = "PostgreSQL database name."
   type        = string
-  default     = "ulinkgame"
+  default     = "lakona_agar"
 }
 
 variable "postgres_user" {
   description = "PostgreSQL user name."
   type        = string
-  default     = "ulinkgame"
+  default     = "lakona_agar"
 }

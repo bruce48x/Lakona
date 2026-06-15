@@ -2,33 +2,34 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace Agar.Sample.State.Contracts.Leaderboard;
-
-public interface ILeaderboardActor
+namespace Agar.Sample.State.Contracts.Leaderboard
 {
-    Task<LeaderboardSnapshot> GetLeaderboardAsync(int topN);
-    Task ResetWeeklyIfNeededAsync();
-    Task RecordVictoryPointsAsync(string playerId, int victoryPoints, int winCount);
-}
+    public interface ILeaderboardActor
+    {
+        Task<LeaderboardSnapshot> GetLeaderboardAsync(int topN);
+        Task ResetWeeklyIfNeededAsync();
+        Task RecordVictoryPointsAsync(string playerId, int victoryPoints, int winCount);
+    }
 
-public sealed class LeaderboardSnapshot
-{
-    public string PeriodStartUtc { get; set; } = "";
+    public sealed class LeaderboardSnapshot
+    {
+        public string PeriodStartUtc { get; set; } = "";
 
-    public int SecondsUntilReset { get; set; }
+        public int SecondsUntilReset { get; set; }
 
-    public List<LeaderboardEntrySnapshot> Entries { get; set; } = new();
+        public List<LeaderboardEntrySnapshot> Entries { get; set; } = new();
 
-    public string PeriodStartLocalDate { get; set; } = "";
-}
+        public string PeriodStartLocalDate { get; set; } = "";
+    }
 
-public sealed class LeaderboardEntrySnapshot
-{
-    public string PlayerId { get; set; } = "";
+    public sealed class LeaderboardEntrySnapshot
+    {
+        public string PlayerId { get; set; } = "";
 
-    public int VictoryPoints { get; set; }
+        public int VictoryPoints { get; set; }
 
-    public int WinCount { get; set; }
+        public int WinCount { get; set; }
 
-    public int Rank { get; set; }
+        public int Rank { get; set; }
+    }
 }

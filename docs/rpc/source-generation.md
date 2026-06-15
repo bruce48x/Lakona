@@ -38,6 +38,3 @@ generation property or Unity-compatible analyzer configuration.
 - `Lakona.Rpc.Analyzers` owns compile-time diagnostics and source generation.
 - `Lakona.Tool` owns generated project files and package references, but does
   not write generated RPC glue as source files.
-
-Historical standalone starter decisions are archived under
-`docs/rpc/archive/starter/`.

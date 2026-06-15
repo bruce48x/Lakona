@@ -4,8 +4,10 @@
 !Directory.Build.props
 
 !src/
-!src/ULinkGame.Server/
-!src/ULinkGame.Server/**
+!src/Lakona.Game.Abstractions/
+!src/Lakona.Game.Abstractions/**
+!src/Lakona.Game.Server/
+!src/Lakona.Game.Server/**
 
 !samples/
 !samples/Game.Unity.Agar/

@@ -450,40 +450,13 @@ Avoid user-facing defaults for:
 - derived bootstrap endpoints
 - derived service lists for the default local topology
 
-## Implementation Phases
+## Validation Contract
 
-### Phase 1: Foundation
+Runtime guardrails must fail closed for invalid production configuration, warn
+for local-only defaults, and expose enough diagnostic detail for generated
+projects and CI checks to explain the fix.
 
-- Add diagnostic result types.
-- Add a resolved runtime model with value provenance.
-- Add validators for node id, endpoint transport/path, duplicate service names, and hotfix assembly availability.
-- Add unit tests for each diagnostic.
-
-### Phase 2: Check Command Integration
-
-- Make generated `--lakona-game-check` call the framework validation pipeline.
-- Keep current readable output shape.
-- Add `--json` output for automation and CI.
-- Ensure missing Hotfix build output returns a clear repair command.
-
-### Phase 3: Profile-Aware Validation
-
-- Add development and production validation profiles.
-- Promote loopback advertised endpoints and in-memory directory storage to production errors.
-- Keep local-only development defaults warning-only when they do not violate core runtime invariants.
-
-### Phase 4: Reliable Push And Cluster Readiness
-
-- Validate Reliable Push session identity and resume identity dependencies.
-- Validate gateway dependencies on route-directory and node-directory capabilities.
-- Validate advertised endpoint reachability rules that can be checked without opening sockets.
-
-## Success Criteria
-
-A generated development project should still run with minimal configuration and no manual edits.
-
-Common local mistakes should fail with specific repair guidance.
-
-Production-oriented configuration should not silently accept local-only defaults.
-
-Tooling and framework startup should use the same validation rules, so a project that passes `--lakona-game-check` has the same basic runtime invariants that server startup expects.
+A generated development project should still run with minimal configuration and
+no manual edits. Tooling and framework startup should use the same validation
+rules, so a project that passes `--lakona-game-check` has the same basic runtime
+invariants that server startup expects.

@@ -1,14 +1,11 @@
 # Generated Hotfix Services And Session Lifecycle
 
-Status: target design update
+Status: current architecture reference
 Date: 2026-06-15
-Audience: maintainers and implementation agents
+Audience: maintainers and contributors
 
-Implementation plan: [One-RPC-Session Lifecycle And Generated Hotfix Services Implementation Plan](./generated-hotfix-services-and-session-lifecycle-implementation-plan.md).
-
-This document supersedes the earlier endpoint-name based design. The new model
-keeps Lakona.Game responsible for one RPC session at a time and leaves
-multi-session aggregation to user code.
+This document describes the current model for generated hotfix service bindings
+and framework-owned single RPC session lifecycle.
 
 ## Purpose
 
