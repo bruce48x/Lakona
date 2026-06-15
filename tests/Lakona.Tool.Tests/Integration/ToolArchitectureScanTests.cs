@@ -74,7 +74,9 @@ public sealed class ToolArchitectureScanTests
         var script = File.ReadAllText(scriptPath);
 
         Assert.Contains("Server/App/Server.App.csproj", script, StringComparison.Ordinal);
+        Assert.Contains("Server/Server.slnx", script, StringComparison.Ordinal);
         Assert.DoesNotContain("Server/Server/Server.csproj", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("dotnet build \"$SERVER_PROJECT\"", script, StringComparison.Ordinal);
     }
 
     private static LakonaProjectGenerator CreateGenerator()

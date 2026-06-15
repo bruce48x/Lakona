@@ -17,6 +17,7 @@ PROJECT_NAME="LakonaGodot${TRANSPORT_LABEL}${SERIALIZER_LABEL}"
 PROJECT_DIR="$GENERATED_ROOT/$PROJECT_NAME"
 CLIENT_DIR="$PROJECT_DIR/Client"
 CLIENT_PROJECT=""
+SERVER_SOLUTION="$PROJECT_DIR/Server/Server.slnx"
 SERVER_PROJECT="$PROJECT_DIR/Server/App/Server.App.csproj"
 SERVER_LOG="$LOG_DIR/server.log"
 CLIENT_LOG="$LOG_DIR/client.log"
@@ -247,9 +248,9 @@ GODOT_MAIN_SCENE="$(resolve_godot_main_scene)"
 echo "Using generated Godot client project: $CLIENT_PROJECT"
 echo "Using generated Godot main scene: $GODOT_MAIN_SCENE"
 
-echo "Restoring and building generated server project"
-dotnet restore "$SERVER_PROJECT" --configfile "$CI_NUGET_CONFIG"
-dotnet build "$SERVER_PROJECT" -c Release --no-restore
+echo "Restoring and building generated server solution"
+dotnet restore "$SERVER_SOLUTION" --configfile "$CI_NUGET_CONFIG"
+dotnet build "$SERVER_SOLUTION" -c Release --no-restore
 
 echo "Restoring and building generated Godot client"
 dotnet restore "$CLIENT_PROJECT" --configfile "$CI_NUGET_CONFIG"
