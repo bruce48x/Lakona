@@ -258,7 +258,7 @@ internal static class GodotClientCodeTemplates
 
                 private async Task RunHeadlessSmokeAsync()
                 {
-                    var name = Environment.GetEnvironmentVariable("LAKONA_GODOT_SMOKE_NAME");
+                    var name = System.Environment.GetEnvironmentVariable("LAKONA_GODOT_SMOKE_NAME");
                     if (string.IsNullOrWhiteSpace(name))
                     {
                         name = "godot-smoke";
@@ -283,7 +283,7 @@ internal static class GodotClientCodeTemplates
 
                 private static bool IsHeadlessSmokeEnabled()
                 {
-                    var value = Environment.GetEnvironmentVariable("LAKONA_GODOT_SMOKE");
+                    var value = System.Environment.GetEnvironmentVariable("LAKONA_GODOT_SMOKE");
                     return string.Equals(value, "1", StringComparison.Ordinal)
                         || string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
                 }

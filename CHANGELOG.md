@@ -8,6 +8,7 @@ that consolidation.
 
 ### Fixed
 
+- `Lakona.Tool` `0.10.11`: generated Godot headless smoke login code now qualifies `System.Environment`, fixing Godot client compilation when `Godot.Environment` is also in scope.
 - `Lakona.Tool` `0.10.10`: generated Godot login scenes now support an opt-in headless smoke login for CI, so automated Godot checks exercise the generated client instead of waiting for manual UI input.
 
 ## 2026-06-14

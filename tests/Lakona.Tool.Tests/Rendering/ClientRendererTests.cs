@@ -391,7 +391,8 @@ public sealed class ClientRendererTests
         var plan = Render(new GodotClientRenderer(), Spec(ClientEngine.Godot));
         var loginScene = AssertPath(plan, "Client/Scripts/Login/LoginScene.cs").Content;
 
-        Assert.Contains("Environment.GetEnvironmentVariable(\"LAKONA_GODOT_SMOKE\")", loginScene, StringComparison.Ordinal);
+        Assert.Contains("System.Environment.GetEnvironmentVariable(\"LAKONA_GODOT_SMOKE\")", loginScene, StringComparison.Ordinal);
+        Assert.DoesNotContain("= Environment.GetEnvironmentVariable", loginScene, StringComparison.Ordinal);
         Assert.Contains("_ = RunHeadlessSmokeAsync();", loginScene, StringComparison.Ordinal);
         Assert.Contains("await client.ConnectAsync(_cts.Token);", loginScene, StringComparison.Ordinal);
         Assert.Contains("await client.LoginAsync(name);", loginScene, StringComparison.Ordinal);
