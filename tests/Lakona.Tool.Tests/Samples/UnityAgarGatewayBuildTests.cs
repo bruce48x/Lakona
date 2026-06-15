@@ -14,8 +14,8 @@ public sealed class UnityAgarGatewayBuildTests
             "samples",
             "Game.Unity.Agar",
             "Server",
-            "Gateway",
-            "Gateway.csproj");
+            "App",
+            "Server.App.csproj");
         var startInfo = new ProcessStartInfo
         {
             FileName = "dotnet",

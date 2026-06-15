@@ -7,14 +7,6 @@ using Agar.Sample.State.Contracts.Rooms;
 
 namespace Agar.Sample.State.Contracts.Matchmaking
 {
-    public interface IMatchmakingActor
-    {
-        Task<MatchmakingEnqueueResult> EnqueueAsync(MatchmakingEnqueueRequest request);
-        Task<MatchmakingCancelResult> CancelAsync(MatchmakingCancelRequest request);
-        Task TickAsync(MatchmakingTickRequest request);
-        Task<MatchmakingStatusSnapshot> GetStatusAsync();
-    }
-
     public sealed class MatchmakingEnqueueRequest
     {
         public string UserId { get; set; } = "";

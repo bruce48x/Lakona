@@ -745,7 +745,12 @@ public sealed class ActorSystemTests
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
             ActivityStopped = activity =>
             {
-                if (activity.OperationName == "Lakona.Actor.Actor.Dispatch")
+                string? messageType = activity.GetTagItem("lakona-actor.message.type")?.ToString();
+
+                if (activity.OperationName == "Lakona.Actor.Actor.Dispatch" &&
+                    messageType is not null &&
+                    (messageType == typeof(ParentTraceSend).FullName ||
+                     messageType == typeof(ParentTraceCall).FullName))
                 {
                     stopped.Enqueue(activity);
                 }
@@ -760,12 +765,14 @@ public sealed class ActorSystemTests
         using Activity? parent = testSource.StartActivity("parent");
         Assert.NotNull(parent);
 
-        await actorRef.Send("trace-send");
-        string response = await actorRef.Call<string>("trace-call", DefaultCallOptions);
+        await actorRef.Send(new ParentTraceSend());
+        ParentTraceCall response = await actorRef.Call<ParentTraceCall>(new ParentTraceCall(), DefaultCallOptions);
         await Eventually(() => stopped.Count >= 2);
 
-        Assert.Equal("trace-call", response);
-        Assert.All(stopped.ToArray(), activity => Assert.Equal(parent!.SpanId, activity.ParentSpanId));
+        Assert.Equal(new ParentTraceCall(), response);
+        Activity[] activities = stopped.ToArray();
+        Assert.Equal(2, activities.Length);
+        Assert.All(activities, activity => Assert.Equal(parent!.SpanId, activity.ParentSpanId));
     }
 
     [Fact]
@@ -1856,6 +1863,10 @@ public sealed class ActorSystemTests
     private readonly record struct StartedMessage;
 
     private readonly record struct GetLifecycleEvents;
+
+    private readonly record struct ParentTraceSend;
+
+    private readonly record struct ParentTraceCall;
 
     private abstract record CounterMessage;
 

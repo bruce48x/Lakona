@@ -4,13 +4,6 @@ using System.Threading.Tasks;
 
 namespace Agar.Sample.State.Contracts.Leaderboard
 {
-    public interface ILeaderboardActor
-    {
-        Task<LeaderboardSnapshot> GetLeaderboardAsync(int topN);
-        Task ResetWeeklyIfNeededAsync();
-        Task RecordVictoryPointsAsync(string playerId, int victoryPoints, int winCount);
-    }
-
     public sealed class LeaderboardSnapshot
     {
         public string PeriodStartUtc { get; set; } = "";
