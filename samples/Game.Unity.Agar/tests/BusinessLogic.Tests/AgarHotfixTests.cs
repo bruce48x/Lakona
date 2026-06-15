@@ -14,8 +14,7 @@ public sealed class AgarHotfixTests
         var root = Path.Combine(FindRepositoryRoot(), "samples", "Game.Unity.Agar");
         var hotfixRoots = new[]
         {
-            Path.Combine(root, "Server", "Hotfix"),
-            Path.Combine(root, "Server", "HotfixV2")
+            Path.Combine(root, "Server", "Hotfix")
         };
 
         foreach (var file in hotfixRoots.SelectMany(static path => Directory.GetFiles(path, "*.cs", SearchOption.AllDirectories)))
@@ -33,7 +32,7 @@ public sealed class AgarHotfixTests
         var source = new CurrentDirectoryHotfixAssemblySource(
             Path.GetDirectoryName(hotfixAssemblyPath)!,
             Path.GetFileName(hotfixAssemblyPath));
-        var manager = new HotfixManager(source, [typeof(ArenaSimulation).Assembly.GetName().Name!]);
+        var manager = new HotfixManager(source, HotfixSharedAssemblyNames());
 
         var reload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
 
@@ -66,7 +65,7 @@ public sealed class AgarHotfixTests
         var source = new CurrentDirectoryHotfixAssemblySource(
             Path.GetDirectoryName(hotfixAssemblyPath)!,
             Path.GetFileName(hotfixAssemblyPath));
-        var manager = new HotfixManager(source, [typeof(ArenaSimulation).Assembly.GetName().Name!]);
+        var manager = new HotfixManager(source, HotfixSharedAssemblyNames());
 
         var firstReload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
         Assert.True(firstReload.Succeeded, BuildReloadDiagnostics(firstReload));
@@ -94,49 +93,11 @@ public sealed class AgarHotfixTests
     }
 
     [Fact]
-    public async Task Hotfix_reload_applies_v2_arena_rules_to_existing_state()
-    {
-        var hotfixAssemblyPath = FindHotfixAssemblyPath();
-        var hotfixV2AssemblyPath = FindHotfixAssemblyPath("Agar.Sample.Hotfix.V2.dll", "HotfixV2");
-        var source = new SwitchableHotfixAssemblySource(hotfixAssemblyPath);
-        var manager = new HotfixManager(source, [typeof(ArenaSimulation).Assembly.GetName().Name!]);
-
-        var firstReload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
-        Assert.True(firstReload.Succeeded, BuildReloadDiagnostics(firstReload));
-
-        var simulation = new ArenaSimulation(new ArenaSimulationOptions
-        {
-            EnableBots = false,
-            FoodTargetCount = 0
-        });
-        simulation.UpsertPlayer(new ArenaPlayerRegistration { PlayerId = "p1", Mass = 50 });
-        simulation.UpsertPlayer(new ArenaPlayerRegistration { PlayerId = "p2", Mass = 25 });
-
-        var v1Settlement = simulation.SettleMatch(simulation.CreateWorldState());
-        Assert.Equal(10, v1Settlement.Entries.Single(entry => entry.PlayerId == "p1").VictoryPoints);
-        Assert.True(simulation.TryGetPlayerSnapshot("p1", out var snapshotBeforeReload));
-        Assert.Equal(50, snapshotBeforeReload.Mass);
-
-        source.Path = hotfixV2AssemblyPath;
-
-        var secondReload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
-        Assert.True(secondReload.Succeeded, BuildReloadDiagnostics(secondReload));
-
-        Assert.True(simulation.TryGetPlayerSnapshot("p1", out var snapshotAfterReload));
-        Assert.Equal(50, snapshotAfterReload.Mass);
-
-        var v2Settlement = simulation.SettleMatch(simulation.CreateWorldState());
-
-        Assert.Equal("p1", v2Settlement.WinnerPlayerId);
-        Assert.Equal(20, v2Settlement.Entries.Single(entry => entry.PlayerId == "p1").VictoryPoints);
-    }
-
-    [Fact]
     public async Task Hotfix_failed_reload_keeps_previous_arena_rules_and_state()
     {
         var hotfixAssemblyPath = FindHotfixAssemblyPath();
         var source = new SwitchableHotfixAssemblySource(hotfixAssemblyPath);
-        var manager = new HotfixManager(source, [typeof(ArenaSimulation).Assembly.GetName().Name!]);
+        var manager = new HotfixManager(source, HotfixSharedAssemblyNames());
 
         var firstReload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
         Assert.True(firstReload.Succeeded, BuildReloadDiagnostics(firstReload));
@@ -154,7 +115,7 @@ public sealed class AgarHotfixTests
         simulation.UpsertPlayer(new ArenaPlayerRegistration { PlayerId = "p1", Mass = 50 });
         simulation.UpsertPlayer(new ArenaPlayerRegistration { PlayerId = "p2", Mass = 25 });
 
-        source.Path = Path.Combine(Path.GetTempPath(), "LakonaGameMissingHotfix", "Agar.Sample.Hotfix.dll");
+        source.Path = Path.Combine(Path.GetTempPath(), "LakonaGameMissingHotfix", "Server.Hotfix.dll");
 
         var failedReload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
 
@@ -172,7 +133,7 @@ public sealed class AgarHotfixTests
     }
 
     private static string FindHotfixAssemblyPath(
-        string assemblyFileName = "Agar.Sample.Hotfix.dll",
+        string assemblyFileName = "Server.Hotfix.dll",
         string hotfixProjectDirectoryName = "Hotfix")
     {
         var directCandidate = Path.Combine(AppContext.BaseDirectory, assemblyFileName);
@@ -201,6 +162,15 @@ public sealed class AgarHotfixTests
         throw new FileNotFoundException(
             $"Could not locate {assemblyFileName}. Checked:{Environment.NewLine}{string.Join(Environment.NewLine, candidates.Prepend(directCandidate))}",
             assemblyFileName);
+    }
+
+    private static string[] HotfixSharedAssemblyNames()
+    {
+        return
+        [
+            typeof(ArenaSimulation).Assembly.GetName().Name!,
+            typeof(Lakona.Game.Server.ILakonaGameServer).Assembly.GetName().Name!
+        ];
     }
 
     private static string FindRepositoryRoot()

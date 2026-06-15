@@ -20,7 +20,7 @@
   </ItemGroup>
   <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
     <LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>
-    <LakonaRpcServerGeneratedNamespace>Gateway.Generated</LakonaRpcServerGeneratedNamespace>
+    <LakonaRpcServerGeneratedNamespace>Server.App.Generated</LakonaRpcServerGeneratedNamespace>
   </PropertyGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
     <CompilerVisibleProperty Include="LakonaRpcGenerateServer" />
@@ -28,7 +28,7 @@
   </ItemGroup>
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
-      <_Parameter1>Agar.Sample.Hotfix</_Parameter1>
+      <_Parameter1>Server.Hotfix</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
 </Project>

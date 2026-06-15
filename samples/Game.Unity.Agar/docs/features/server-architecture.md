@@ -4,7 +4,7 @@
 
 ## 服务端边界
 
-`samples/Game.Unity.Agar/Server/Gateway` 是 RPC 网关和房间运行时宿主。
+`samples/Game.Unity.Agar/Server/App` 是 RPC 网关和房间运行时宿主。
 
 当前职责：
 
@@ -15,7 +15,7 @@
 - 推送世界状态、死亡事件、结算事件和匹配状态。
 - 对局结束时按排名发放胜利积分到用户状态服务。
 
-`samples/Game.Unity.Agar/Server/State` 承载状态服务。
+`samples/Game.Unity.Agar/Server/App/State` 承载 App 内稳定 actor 和状态服务 facade。
 
 当前职责：
 
@@ -42,8 +42,8 @@ PostgreSQL 是状态持久化后端，状态服务通过 sample-local Dapper sto
 
 生产 Docker 拓扑的目标形态：
 
-- `state` 容器运行 `Server/State/State.csproj` 的发布产物，承载状态服务。
-- `gateway` 容器运行 `Server/Gateway/Gateway.csproj` 的发布产物，承载控制面 RPC、实时 RPC 和房间运行时。
+- `state` 容器运行 `Server/App/Server.App.csproj` 的发布产物，承载状态服务。
+- `gateway` 容器运行 `Server/App/Server.App.csproj` 的发布产物，承载控制面 RPC、实时 RPC 和房间运行时。
 - `postgres` 容器或托管 PostgreSQL 保存持久化状态，必须使用持久化 volume 或外部数据库。
 - `redis` 容器或托管 Redis 用于胜利积分排行榜 sorted set；后续也可承载跨网关路由或在线状态，必须启用密码和持久化策略。
 - 可选反向代理或负载均衡负责 WebSocket/TLS 入口；KCP 实时端口需要按传输要求单独暴露。

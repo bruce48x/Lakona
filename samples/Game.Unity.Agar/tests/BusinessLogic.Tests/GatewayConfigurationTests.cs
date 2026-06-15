@@ -14,7 +14,7 @@ public sealed class GatewayConfigurationTests
             "samples",
             "Game.Unity.Agar",
             "Server",
-            "Gateway",
+            "App",
             "appsettings.json");
 
         using var document = JsonDocument.Parse(File.ReadAllText(path));

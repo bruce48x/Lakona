@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Server.App</RootNamespace>
+    <AssemblyName>Server.App</AssemblyName>
+    <BuildInParallel>false</BuildInParallel>
+    <RestoreBuildInParallel>false</RestoreBuildInParallel>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shared\Shared.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server\Lakona.Game.Server.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Hotfix\Lakona.Game.Server.Hotfix.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Hotfix.Abstractions\Lakona.Game.Server.Hotfix.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Hotfix.Generators\Lakona.Game.Server.Hotfix.Generators.csproj" PrivateAssets="all" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Server\Lakona.Rpc.Server.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Transport.Kcp\Lakona.Rpc.Transport.Kcp.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Transport.WebSocket\Lakona.Rpc.Transport.WebSocket.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>LakonaHotfixBuildTag</_Parameter1>
+      <_Parameter2>dev</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Server.Hotfix</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+</Project>

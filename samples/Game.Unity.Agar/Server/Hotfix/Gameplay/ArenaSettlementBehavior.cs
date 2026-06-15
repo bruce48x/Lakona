@@ -2,7 +2,7 @@ using Shared.Gameplay;
 using Shared.Interfaces;
 using Lakona.Game.Server.Hotfix.Abstractions;
 
-namespace Agar.Sample.Hotfix.Gameplay;
+namespace Server.Hotfix.Gameplay;
 
 [FriendOf(typeof(ArenaSimulation))]
 [HotfixBehaviorOf(typeof(ArenaSimulation))]

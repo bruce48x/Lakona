@@ -16,15 +16,15 @@
 共享协议变更时，先改 `Shared` 合同，再从 `samples/Game.Unity.Agar` 目录重新生成 RPC 代码：
 
 ```powershell
-dotnet build Server/Gateway/Gateway.csproj
+dotnet build Server/App/Server.App.csproj
 ```
 
 常规验证基线：
 
 ```powershell
 dotnet build Shared/Shared.csproj -f net10.0
-dotnet build Server/State/State.csproj
-dotnet build Server/Gateway/Gateway.csproj
+dotnet build Server/App/Server.App.csproj
+dotnet build Server/App/Server.App.csproj
 dotnet test tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj
 ```
 
@@ -314,7 +314,7 @@ dotnet test tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj
 
 待办：
 
-- 每轮触碰服务端或共享协议后，构建 `Shared/Shared.csproj`、`Server/State/State.csproj`、`Server/Gateway/Gateway.csproj`。
+- 每轮触碰服务端或共享协议后，构建 `Shared/Shared.csproj`、`Server/App/Server.App.csproj`、`Server/App/Server.App.csproj`。
 - 每轮触碰业务逻辑后，运行已有自动化测试和新增测试。
 - 每轮触碰 Unity 客户端脚本或资源后，触发 Unity 资源刷新/脚本编译并检查控制台错误。
 - 每轮发布前，手动冒烟测试单机和联机流程。
@@ -747,8 +747,8 @@ dotnet test tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj
 具体任务：
 
 - P15.1：运行 `dotnet build Shared/Shared.csproj -f net10.0`。
-- P15.2：运行 `dotnet build Server/State/State.csproj`。
-- P15.3：运行 `dotnet build Server/Gateway/Gateway.csproj`。
+- P15.2：运行 `dotnet build Server/App/Server.App.csproj`。
+- P15.3：运行 `dotnet build Server/App/Server.App.csproj`。
 - P15.4：运行 `dotnet test tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj`。
 - P15.5：执行 Unity 脚本编译检查。
 - P15.6：完成单机完整一局人工回归。
@@ -856,7 +856,7 @@ dotnet test tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj
 - Agar Unity 的 `SessionDirectory` / `PlayerService` 已迁移到框架会话目录：控制端点和实时端点以 endpoint name 绑定 opaque callback，reconnect 通过 framework resume decision 判断 state lost。
 - Agar Unity 的可靠匹配推送已按 `GameSessionKey` 隔离 publish/replay/ack；ack 请求携带 session id/generation，old generation 或未知 sequence 会映射为 state lost / session mismatch。
 - Unity 客户端 reconnect、state-lost 和 reliable push cursor 已接入 `ClientSessionController` / `ReliablePushInbox`，新会话会隔离旧可靠推送序列。
-- 本轮验证通过：`dotnet test Tests/tests.slnx --no-restore`、`dotnet test samples/Game.Unity.Agar/tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj --no-restore`、`dotnet build samples/Game.Unity.Agar/Server/Gateway/Gateway.csproj --no-restore`、`dotnet build samples/Game.Unity.Agar/Client/SampleClient.Gameplay.csproj --no-restore`。
+- 本轮验证通过：`dotnet test Tests/tests.slnx --no-restore`、`dotnet test samples/Game.Unity.Agar/tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj --no-restore`、`dotnet build samples/Game.Unity.Agar/Server/App/Server.App.csproj --no-restore`、`dotnet build samples/Game.Unity.Agar/Client/SampleClient.Gameplay.csproj --no-restore`。
 - 剩余工作不是重新实现会话可靠性，而是补充 `PlayerService`、`RoomRuntime`、`DotArenaNetworkSession` 和端到端断线/重启路径的生产回归覆盖。
 
 ### 阶段 8：胜利积分与排行榜
@@ -885,8 +885,8 @@ dotnet test tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj
 ### 阶段 12：验证与打包
 
 - 本轮已通过 `Shared/Shared.csproj` 构建。
-- 本轮已通过 `Server/State/State.csproj` 构建。
-- 本轮已通过 `Server/Gateway/Gateway.csproj` 构建。
+- 本轮已通过 `Server/App/Server.App.csproj` 构建。
+- 本轮已通过 `Server/App/Server.App.csproj` 构建。
 - 本轮已通过已有自动化测试，31/31。
 - Unity 脚本刷新和控制台错误检查已通过；完整手动游玩仍需按待办执行。
 - README 已同步到当时的命令、端口和架构事实。

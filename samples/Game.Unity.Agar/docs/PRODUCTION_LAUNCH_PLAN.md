@@ -152,8 +152,8 @@
 上线候选版本的硬门槛：
 
 - `dotnet build Shared/Shared.csproj -f net10.0` 通过。
-- `dotnet build Server/State/State.csproj` 通过。
-- `dotnet build Server/Gateway/Gateway.csproj` 通过。
+- `dotnet build Server/App/Server.App.csproj` 通过。
+- `dotnet build Server/App/Server.App.csproj` 通过。
 - `dotnet test tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj` 通过。
 - Unity 脚本编译无错误。
 - 单机和联机主链路人工回归通过。

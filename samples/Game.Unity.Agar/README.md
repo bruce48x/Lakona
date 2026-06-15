@@ -32,22 +32,28 @@ samples/Game.Unity.Agar
  │  │  ├─ ArenaConfig.cs
  │  │  ├─ ArenaSimulation.cs
  │  │  └─ VictoryPointAwards.cs
- │  └─ Interfaces
- │     └─ IPlayerService.cs
+ │  ├─ Interfaces
+ │  │  └─ IPlayerService.cs
+ │  └─ State
+ │     ├─ Leaderboard
+ │     ├─ Users
+ │     └─ MatchmakingContracts.cs
  ├─ Server
- │  ├─ State.Contracts
- │  │  └─ Leaderboard
- │  ├─ State
- │  │  ├─ Leaderboard
- │  │  ├─ Matchmaking
- │  │  ├─ Rooms
- │  │  ├─ Sessions
- │  │  └─ Users
- │  ├─ Gateway
+ │  ├─ App
  │  │  ├─ Realtime
  │  │  │  └─ RoomRuntime.cs
- │  │  └─ Services
- │  │     └─ PlayerService.cs
+ │  │  ├─ Services
+ │  │  │  └─ SessionDirectory.cs
+ │  │  └─ State
+ │  │     ├─ Leaderboard
+ │  │     ├─ Matchmaking
+ │  │     ├─ Rooms
+ │  │     ├─ Sessions
+ │  │     └─ Users
+ │  └─ Hotfix
+ │     ├─ Gameplay
+ │     └─ Services
+ │        └─ PlayerService.cs
  ├─ Client
  │  └─ Assets
  │     └─ Scripts
@@ -63,11 +69,11 @@ samples/Game.Unity.Agar
 
 - `Shared/Gameplay/ArenaSimulation.cs`：玩法规则内核，单机和联机共用。
 - `Shared/Interfaces/IPlayerService.cs`：客户端和服务端共用的 RPC 协议。
-- `Server/Gateway/Services/PlayerService.cs`：控制面 RPC 网关服务。
-- `Server/Gateway/Realtime/RoomRuntime.cs`：服务端房间模拟和世界状态广播。
-- `Server/State/StateStores.cs`：把 sample 业务状态接入 Lakona.Game.Server.Actors facade。
-- `Server/State/Users/UserActor.cs`：用户登录、资料和胜利积分状态。
-- `Server/State/Leaderboard/LeaderboardActor.cs`：胜利积分排行榜周期、排序和归档。
+- `Server/Hotfix/Services/PlayerService.cs`：可热更的控制面和实时面 RPC 业务服务。
+- `Server/App/Realtime/RoomRuntime.cs`：服务端房间模拟和世界状态广播。
+- `Server/App/State/StateStores.cs`：把 sample 业务状态接入 Lakona.Game.Server.Actors facade。
+- `Server/App/State/Users/UserActor.cs`：用户登录、资料和胜利积分状态。
+- `Server/App/State/Leaderboard/LeaderboardActor.cs`：胜利积分排行榜周期、排序和归档。
 - `Client/Assets/Scripts/Gameplay/DotArenaGame.cs`：客户端主流程、输入、渲染、模式切换和网络会话编排。
 - `Client/Assets/Scripts/Gameplay/DotArenaNetworkSession.cs`：客户端控制连接、实时连接和重连参数封装。
 
@@ -78,7 +84,7 @@ samples/Game.Unity.Agar
 启动网关服务即可。用户、会话、匹配、房间和排行榜状态当前都在同一个 Gateway 进程内通过 Lakona.Game.Server.Actors 串行执行。
 
 ```powershell
-dotnet run --project Server/Gateway/Gateway.csproj
+dotnet run --project Server/App/Server.App.csproj
 ```
 
 然后用 Unity 打开 `Client` 目录，运行游戏场景。
@@ -91,16 +97,16 @@ dotnet run --project Server/Gateway/Gateway.csproj
 
 ```powershell
 dotnet build Shared/Shared.csproj -f net10.0
-dotnet build Server/State/State.csproj
-dotnet build Server/Gateway/Gateway.csproj
+dotnet build Server/App/Server.App.csproj
+dotnet build Server/App/Server.App.csproj
 dotnet test tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj
 ```
 
 ### Core Runtime Model
 
-- Actor state: `Server/State/*/*Actor.cs` owns user, session, room, matchmaking, and leaderboard state behind the Lakona.Game actor facade.
+- Actor state: `Server/App/State/*/*Actor.cs` owns user, session, room, matchmaking, and leaderboard state behind the Lakona.Game actor facade.
 - Hotfix rules: `Server/Hotfix/Gameplay/*Behavior.cs` contains reloadable gameplay behavior invoked through stable wrappers.
-- RPC services in `Server/Gateway/Services` are adapters; they should not own long-lived mutable game state directly.
+- RPC business services live in `Server/Hotfix/Services`; App-side RPC configurators bind generated stable proxies to hotfix dispatch.
 
 ## 当前状态
 

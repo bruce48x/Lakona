@@ -1,7 +1,6 @@
 <Solution>
   <Project Path="../Shared/Shared.csproj" />
   <Project Path="../../../src/Lakona.Game.Server/Lakona.Game.Server.csproj" />
-  <Project Path="Gateway/Gateway.csproj" />
-  <Project Path="State.Contracts/State.Contracts.csproj" />
-  <Project Path="State/State.csproj" />
+  <Project Path="App/Server.App.csproj" />
+  <Project Path="Hotfix/Server.Hotfix.csproj" />
 </Solution>
