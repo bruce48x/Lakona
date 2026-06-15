@@ -266,6 +266,8 @@ if ! wait_for_server_ready; then
 fi
 
 echo "Running generated Godot client headless"
+export LAKONA_GODOT_SMOKE=1
+export LAKONA_GODOT_SMOKE_NAME="godot-smoke-${TRANSPORT}-${SERIALIZER}"
 "$GODOT_BIN" \
   --headless \
   --path "$CLIENT_DIR" \

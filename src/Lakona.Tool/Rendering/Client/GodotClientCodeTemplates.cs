@@ -190,6 +190,11 @@ internal static class GodotClientCodeTemplates
                     _statusLabel = GetNode<Label>("%StatusLabel");
 
                     SetBusy(false);
+
+                    if (IsHeadlessSmokeEnabled())
+                    {
+                        _ = RunHeadlessSmokeAsync();
+                    }
                 }
 
                 private async void OnConnectPressed()
@@ -249,6 +254,38 @@ internal static class GodotClientCodeTemplates
                         _connectButton.Disabled = isBusy;
                         _connectButton.Text = isBusy ? "CONNECTING..." : "CONNECT";
                     }
+                }
+
+                private async Task RunHeadlessSmokeAsync()
+                {
+                    var name = Environment.GetEnvironmentVariable("LAKONA_GODOT_SMOKE_NAME");
+                    if (string.IsNullOrWhiteSpace(name))
+                    {
+                        name = "godot-smoke";
+                    }
+
+                    var client = new LoginClient(CreateRpcClientOptions());
+                    try
+                    {
+                        await client.ConnectAsync(_cts.Token);
+                        var reply = await client.LoginAsync(name);
+                        GD.Print($"Ping ok: {reply.Members.Count} online.");
+                        await client.DisposeAsync();
+                        GetTree().Quit(0);
+                    }
+                    catch (Exception ex)
+                    {
+                        GD.PrintErr($"Connect failed: {ex.Message}");
+                        await client.DisposeAsync();
+                        GetTree().Quit(1);
+                    }
+                }
+
+                private static bool IsHeadlessSmokeEnabled()
+                {
+                    var value = Environment.GetEnvironmentVariable("LAKONA_GODOT_SMOKE");
+                    return string.Equals(value, "1", StringComparison.Ordinal)
+                        || string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
                 }
 
                 private RpcClientOptions CreateRpcClientOptions()

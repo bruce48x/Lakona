@@ -4,6 +4,12 @@ Lakona was created on 2026-06-07 by merging the former ULinkGame, ULinkActor,
 and ULinkRpc repositories into a single monorepo. This changelog starts from
 that consolidation.
 
+## 2026-06-15
+
+### Fixed
+
+- `Lakona.Tool` `0.10.10`: generated Godot login scenes now support an opt-in headless smoke login for CI, so automated Godot checks exercise the generated client instead of waiting for manual UI input.
+
 ## 2026-06-14
 
 ### Fixed
@@ -11,6 +17,12 @@ that consolidation.
 - `Lakona.Game.LoadTesting` `0.1.1`: unmeasured virtual-user exceptions are now reported as user failures, and operation recording uses bounded per-operation latency/error aggregation instead of retaining every sample.
 - `Lakona.Tool` `0.10.9`: generated Unity chat scenes now include a visible empty state and stronger layout constraints so opening `ChatScene.unity` directly no longer renders as a black Game view.
 - `Lakona.Tool` `0.10.8`: generated Console load clients now return a failure exit code when a load run reports unhandled user failures.
+
+## 2026-06-13
+
+### Fixed
+
+- `Lakona.Tool` `0.10.4`: generated Godot chat server projects now put hotfix friend-assembly metadata in the project file instead of a standalone `AssemblyInfo.cs`.
 
 ## 2026-06-12
 
@@ -25,7 +37,6 @@ that consolidation.
 - `Lakona.Game.Server.Hotfix.Generators` `0.1.3`: generated hotfix service binding now handles cross-namespace marker types and reports unsupported service contract shapes as diagnostics.
 - `Lakona.Tool` `0.10.7`: generated Unity chat UI styles now use explicit USS values instead of custom properties, fixing black ChatScene rendering after login in Unity 2022.
 - `Lakona.Tool` `0.10.5`: generated Unity client manifests now emit valid JSON without trailing dependency commas.
-- `Lakona.Tool` `0.10.4`: generated Godot chat server projects now put hotfix friend-assembly metadata in the project file instead of a standalone `AssemblyInfo.cs`.
 - `Lakona.Tool` `0.10.3`: generated game server projects now reference the hotfix runtime with wrapped service-call contract matching.
 - `Lakona.Tool` `0.10.2`: generated game server projects now register session cleanup when generated lifecycle handlers rely on endpoint expiration.
 

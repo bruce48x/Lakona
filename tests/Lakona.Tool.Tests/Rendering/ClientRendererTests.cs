@@ -386,6 +386,22 @@ public sealed class ClientRendererTests
     }
 
     [Fact]
+    public void GodotClientRenderer_LoginSceneSupportsHeadlessSmokeLogin()
+    {
+        var plan = Render(new GodotClientRenderer(), Spec(ClientEngine.Godot));
+        var loginScene = AssertPath(plan, "Client/Scripts/Login/LoginScene.cs").Content;
+
+        Assert.Contains("Environment.GetEnvironmentVariable(\"LAKONA_GODOT_SMOKE\")", loginScene, StringComparison.Ordinal);
+        Assert.Contains("_ = RunHeadlessSmokeAsync();", loginScene, StringComparison.Ordinal);
+        Assert.Contains("await client.ConnectAsync(_cts.Token);", loginScene, StringComparison.Ordinal);
+        Assert.Contains("await client.LoginAsync(name);", loginScene, StringComparison.Ordinal);
+        Assert.Contains("GD.Print($\"Ping ok:", loginScene, StringComparison.Ordinal);
+        Assert.Contains("GD.PrintErr($\"Connect failed:", loginScene, StringComparison.Ordinal);
+        Assert.Contains("GetTree().Quit(0);", loginScene, StringComparison.Ordinal);
+        Assert.Contains("GetTree().Quit(1);", loginScene, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void UnityClientRenderer_OpenUpmManifest_IncludesNuGetForUnityRegistry()
     {
         var plan = Render(new UnityClientRenderer(), Spec(ClientEngine.Unity, NuGetForUnitySource.OpenUpm));
