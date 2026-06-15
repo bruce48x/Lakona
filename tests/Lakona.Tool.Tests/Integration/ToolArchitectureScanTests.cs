@@ -66,6 +66,17 @@ public sealed class ToolArchitectureScanTests
         }
     }
 
+    [Fact]
+    public void GodotDailyScript_UsesGeneratedServerAppProjectLayout()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var scriptPath = Path.Combine(repositoryRoot, "scripts", "game", "ci", "verify-lakona-tool-godot.sh");
+        var script = File.ReadAllText(scriptPath);
+
+        Assert.Contains("Server/App/Server.App.csproj", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("Server/Server/Server.csproj", script, StringComparison.Ordinal);
+    }
+
     private static LakonaProjectGenerator CreateGenerator()
     {
         return new LakonaProjectGenerator(
