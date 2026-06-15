@@ -40,6 +40,48 @@ function Write-Banner {
     Write-Host ("=" * 72) -ForegroundColor Cyan
 }
 
+function Format-ReportCell {
+    param([string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return ""
+    }
+
+    return ($Value -replace "`r?`n", "<br>" -replace "\|", "\|")
+}
+
+function Invoke-LoggedNativeCommand {
+    param(
+        [string]$LogPath,
+        [string]$FilePath,
+        [string[]]$ArgumentList
+    )
+
+    $logDir = Split-Path -Parent $LogPath
+    if (-not [string]::IsNullOrWhiteSpace($logDir)) {
+        New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+    }
+
+    $output = & $FilePath @ArgumentList 2>&1
+    $exitCode = $LASTEXITCODE
+    $text = ($output | Out-String).TrimEnd()
+    Set-Content -LiteralPath $LogPath -Value $text -Encoding UTF8
+
+    if (-not [string]::IsNullOrWhiteSpace($text)) {
+        Write-Host $text
+    }
+
+    $lines = $text -split "`r?`n"
+    $tail = ($lines | Select-Object -Last 40) -join "`n"
+
+    return [pscustomobject]@{
+        ExitCode = $exitCode
+        Output = $text
+        Tail = $tail
+        LogPath = $LogPath
+    }
+}
+
 function Resolve-RepoRoot {
     $current = Resolve-Path "."
     while ($current) {
@@ -294,10 +336,11 @@ $workRoot = Join-Path $repoRoot $WorkDir
 $feedDir = Join-Path $workRoot "feed"
 $packageCache = Join-Path $workRoot "packages"
 $scaffoldRoot = Join-Path $workRoot "scaffolds"
+$logRoot = Join-Path $workRoot "logs"
 $reportPath = Join-Path $workRoot "report.md"
 $summaryPath = Join-Path $workRoot "summary.json"
 
-New-Item -ItemType Directory -Force -Path $feedDir, $packageCache, $scaffoldRoot | Out-Null
+New-Item -ItemType Directory -Force -Path $feedDir, $packageCache, $scaffoldRoot, $logRoot | Out-Null
 
 $env:DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER = "1"
 $env:NUGET_PACKAGES = $packageCache
@@ -348,6 +391,8 @@ foreach ($engineValue in $engines) {
                 Runtime = if ($Runtime) { "FAIL" } else { "SKIP" }
                 ProjectDir = $projectDir
                 Error = ""
+                ErrorDetail = ""
+                LogPath = ""
             }
 
             $serverProc = $null
@@ -357,19 +402,29 @@ foreach ($engineValue in $engines) {
                     Remove-Item -LiteralPath $projectDir -Recurse -Force
                 }
 
-                dotnet run --project (Join-Path $repoRoot "src/Lakona.Tool") --no-build -- `
-                    new `
-                    --name $projectName `
-                    --client-engine $engineValue `
-                    --transport $transportValue `
-                    --serializer $serializerValue `
-                    --persistence none `
-                    --nugetforunity-source embedded `
-                    --deploy-profile none `
-                    --output $scaffoldRoot
+                $caseLogPrefix = Join-Path $logRoot $projectName
+                $scaffoldResult = Invoke-LoggedNativeCommand `
+                    -LogPath "$caseLogPrefix.scaffold.log" `
+                    -FilePath "dotnet" `
+                    -ArgumentList @(
+                        "run",
+                        "--project", (Join-Path $repoRoot "src/Lakona.Tool"),
+                        "--no-build",
+                        "--",
+                        "new",
+                        "--name", $projectName,
+                        "--client-engine", $engineValue,
+                        "--transport", $transportValue,
+                        "--serializer", $serializerValue,
+                        "--persistence", "none",
+                        "--nugetforunity-source", "embedded",
+                        "--deploy-profile", "none",
+                        "--output", $scaffoldRoot)
 
-                if ($LASTEXITCODE -ne 0) {
+                if ($scaffoldResult.ExitCode -ne 0) {
                     $result.Error = "Scaffold failed."
+                    $result.ErrorDetail = $scaffoldResult.Tail
+                    $result.LogPath = $scaffoldResult.LogPath
                     $results.Add([pscustomobject]$result)
                     continue
                 }
@@ -379,9 +434,14 @@ foreach ($engineValue in $engines) {
                 Set-GeneratedServerPort $projectDir $Port
 
                 $serverSln = Join-Path $projectDir "Server/Server.slnx"
-                dotnet build $serverSln --nologo -v q
-                if ($LASTEXITCODE -ne 0) {
+                $buildResult = Invoke-LoggedNativeCommand `
+                    -LogPath "$caseLogPrefix.server-build.log" `
+                    -FilePath "dotnet" `
+                    -ArgumentList @("build", $serverSln, "--nologo", "-v", "q")
+                if ($buildResult.ExitCode -ne 0) {
                     $result.Error = "Generated server build failed."
+                    $result.ErrorDetail = $buildResult.Tail
+                    $result.LogPath = $buildResult.LogPath
                     $results.Add([pscustomobject]$result)
                     continue
                 }
@@ -394,9 +454,14 @@ foreach ($engineValue in $engines) {
                     }
 
                     $e2eDir = New-E2EClient $projectDir $feedDir $transportValue $serializerValue $Port
-                    dotnet build (Join-Path $e2eDir "E2EVerification.csproj") --nologo -v q
-                    if ($LASTEXITCODE -ne 0) {
+                    $clientBuildResult = Invoke-LoggedNativeCommand `
+                        -LogPath "$caseLogPrefix.e2e-client-build.log" `
+                        -FilePath "dotnet" `
+                        -ArgumentList @("build", (Join-Path $e2eDir "E2EVerification.csproj"), "--nologo", "-v", "q")
+                    if ($clientBuildResult.ExitCode -ne 0) {
                         $result.Error = "E2E client build failed."
+                        $result.ErrorDetail = $clientBuildResult.Tail
+                        $result.LogPath = $clientBuildResult.LogPath
                         $results.Add([pscustomobject]$result)
                         continue
                     }
@@ -430,13 +495,20 @@ foreach ($engineValue in $engines) {
 
                     if (-not $ready) {
                         $result.Error = "Server did not become ready. See $serverOut and $serverErr."
+                        $result.ErrorDetail = "Server stdout: $serverOut`nServer stderr: $serverErr"
+                        $result.LogPath = $serverErr
                         $results.Add([pscustomobject]$result)
                         continue
                     }
 
-                    dotnet run --project (Join-Path $e2eDir "E2EVerification.csproj") --no-build
-                    if ($LASTEXITCODE -ne 0) {
+                    $clientRunResult = Invoke-LoggedNativeCommand `
+                        -LogPath "$caseLogPrefix.e2e-client-run.log" `
+                        -FilePath "dotnet" `
+                        -ArgumentList @("run", "--project", (Join-Path $e2eDir "E2EVerification.csproj"), "--no-build")
+                    if ($clientRunResult.ExitCode -ne 0) {
                         $result.Error = "Runtime E2E client failed."
+                        $result.ErrorDetail = $clientRunResult.Tail
+                        $result.LogPath = $clientRunResult.LogPath
                         $results.Add([pscustomobject]$result)
                         continue
                     }
@@ -447,6 +519,7 @@ foreach ($engineValue in $engines) {
                 $results.Add([pscustomobject]$result)
             } catch {
                 $result.Error = $_.Exception.Message
+                $result.ErrorDetail = $_.Exception.ToString()
                 $results.Add([pscustomobject]$result)
             } finally {
                 if ($serverProc -and -not $serverProc.HasExited) {
@@ -471,14 +544,17 @@ $report.Add("- Generated at: $([DateTimeOffset]::UtcNow.ToString("u"))")
 $report.Add("- Runtime verification: $([bool]$Runtime)")
 $report.Add("- Local feed: $feedDir")
 $report.Add("- Isolated package cache: $packageCache")
+$report.Add("- Logs: $logRoot")
 $report.Add("- Passed: $passCount")
 $report.Add("- Failed: $failCount")
 $report.Add("")
-$report.Add("| Engine | Transport | Serializer | Scaffold | Build | Runtime | Error |")
-$report.Add("| --- | --- | --- | --- | --- | --- | --- |")
+$report.Add("| Engine | Transport | Serializer | Scaffold | Build | Runtime | Error | Details | Log |")
+$report.Add("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
 foreach ($item in $results) {
-    $errorText = if ($item.Error) { $item.Error.Replace("|", "\|") } else { "" }
-    $report.Add("| $($item.Engine) | $($item.Transport) | $($item.Serializer) | $($item.Scaffold) | $($item.Build) | $($item.Runtime) | $errorText |")
+    $errorText = Format-ReportCell $item.Error
+    $detailText = Format-ReportCell $item.ErrorDetail
+    $logText = Format-ReportCell $item.LogPath
+    $report.Add("| $($item.Engine) | $($item.Transport) | $($item.Serializer) | $($item.Scaffold) | $($item.Build) | $($item.Runtime) | $errorText | $detailText | $logText |")
 }
 
 $report | Set-Content -LiteralPath $reportPath -Encoding UTF8
