@@ -38,8 +38,7 @@ internal static class DependencyPlanner
     {
         var references = new List<PackageReferenceSpec>
         {
-            Sdk("Lakona.Rpc.Core", catalog.LakonaRpcCore),
-            Sdk("Lakona.Game.Abstractions", catalog.LakonaGameAbstractions)
+            Sdk("Lakona.Rpc.Core", catalog.LakonaRpcCore)
         };
 
         if (spec.Serializer == SerializerKind.MemoryPack)

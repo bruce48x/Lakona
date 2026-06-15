@@ -1,27 +1,25 @@
-using Lakona.Game.Abstractions;
-
 namespace Lakona.Game.Client.Sessions
 {
     public readonly struct ClientSessionSnapshot
     {
         public ClientSessionSnapshot(
             ClientSessionPhase phase,
-            GameSessionKey? session,
+            string? sessionId,
             long lastReliableSequence,
-            SessionTerminationNotice? termination = null)
+            Lakona.Game.Abstractions.SessionTerminationNotice? termination = null)
         {
             Phase = phase;
-            Session = session;
+            SessionId = sessionId;
             LastReliableSequence = lastReliableSequence;
             Termination = termination;
         }
 
         public ClientSessionPhase Phase { get; }
 
-        public GameSessionKey? Session { get; }
+        public string? SessionId { get; }
 
         public long LastReliableSequence { get; }
 
-        public SessionTerminationNotice? Termination { get; }
+        public Lakona.Game.Abstractions.SessionTerminationNotice? Termination { get; }
     }
 }

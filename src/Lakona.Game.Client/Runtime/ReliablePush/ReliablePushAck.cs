@@ -1,17 +1,15 @@
-using Lakona.Game.Abstractions;
-
 namespace Lakona.Game.Client.ReliablePush
 {
     public readonly struct ReliablePushAck
     {
-        public ReliablePushAck(GameSessionKey session, ReliablePushSequence sequence)
+        public ReliablePushAck(string sessionId, Lakona.Game.Abstractions.ReliablePushSequence sequence)
         {
-            Session = session;
+            SessionId = sessionId;
             Sequence = sequence;
         }
 
-        public GameSessionKey Session { get; }
+        public string SessionId { get; }
 
-        public ReliablePushSequence Sequence { get; }
+        public Lakona.Game.Abstractions.ReliablePushSequence Sequence { get; }
     }
 }

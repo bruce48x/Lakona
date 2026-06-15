@@ -51,7 +51,7 @@ internal static class ConsoleClientCodeTemplates
             var chat = client.Api.Shared.Chat;
             var name = "smoke-user";
             var reply = await login.LoginAsync(new Shared.Contracts.Chat.LoginRequest { PlayerName = name });
-            await chat.BindAsync(new Shared.Contracts.Chat.ChatBindRequest { Session = reply.Session });
+            await chat.BindAsync(new Shared.Contracts.Chat.ChatBindRequest());
             await chat.SendAsync(new Shared.Contracts.Chat.ChatSendRequest { Text = "smoke" });
             Console.WriteLine("Smoke succeeded.");
             return 0;
@@ -306,12 +306,12 @@ internal static class ConsoleClientCodeTemplates
                 }, cancellationToken);
                 if (reply == null)
                 {
-                    throw new InvalidOperationException("Login did not return a session.");
+                    throw new InvalidOperationException("Login did not return a reply.");
                 }
 
                 await context.MeasureAsync("bind", async token =>
                 {
-                    await chat.BindAsync(new ChatBindRequest { Session = reply.Session });
+                    await chat.BindAsync(new ChatBindRequest());
                 }, cancellationToken);
 
                 if (options.MessageRatePerUser == 0)

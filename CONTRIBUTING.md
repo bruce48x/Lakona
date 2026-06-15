@@ -87,7 +87,7 @@ src/
   Lakona.Game.Server/Internal/ActorKernel/  Internal mailbox execution kernel merged into the game server
   Lakona.Game.Server.Generators/     Game-facing typed actor spawn and accessor generation
 
-  Lakona.Game.Abstractions/        Cross-side session and reliable-push primitives
+  Lakona.Game.Abstractions/        Cross-side reliable-push primitives and deliberately shared game contracts
   Lakona.Game.Client/              Engine-neutral client helpers and reliable-push tracking
   Lakona.Game.Server/              Server-side hosting, sessions, reliable push, guardrails, health, actor integration
   Lakona.Game.Cluster/             Transport-neutral node, route, messaging, and in-memory cluster primitives
@@ -286,9 +286,12 @@ Bad candidates:
 
 Package responsibilities:
 
-- `Lakona.Game.Abstractions` owns framework-owned cross-side primitives such as
-  session identity and reliable-push acknowledgement outcomes. User-owned
-  business DTOs still belong in the game's own shared project.
+- `Lakona.Game.Abstractions` owns framework primitives that genuinely need to
+  cross the client/server boundary, such as reliable-push acknowledgement
+  statuses and outcomes. Server-only game session identity, including
+  `GameSessionKey`, belongs in `Lakona.Game.Server`, not in shared RPC DTOs or
+  client-visible contracts. User-owned business DTOs still belong in the game's
+  own shared project.
 - `Lakona.Game.Client` owns engine-neutral client helpers. It must not own Unity
   scene state, UI text, gameplay-specific callbacks, or transport creation
   details unless they can be expressed through small interfaces.

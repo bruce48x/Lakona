@@ -19,6 +19,9 @@ Repository rules come from [CONTRIBUTING.md](../../CONTRIBUTING.md). Do not plac
 ## Non-Negotiable Outcomes
 
 - `GameSessionKey` identifies exactly one game RPC session.
+- `GameSessionKey` is a server/framework identity. Generated shared RPC DTOs,
+  generated client code, sample `Shared` projects, and MemoryPack formatters
+  must not expose, store, serialize, or echo it.
 - One active RPC connection maps to at most one `GameSessionKey`.
 - One game RPC session has at most one active RPC connection.
 - Multiple game RPC sessions for one account, player, character, room, or match are user-owned business state.
@@ -64,7 +67,10 @@ reader. Treat them as binding decisions for this plan.
 
 ## Target Public Shape
 
-Use these names consistently unless an existing package-local convention forces a narrower rename.
+Use these names consistently unless an existing package-local convention forces
+a narrower rename. These are server-side runtime shapes. `GameSessionKey`
+appears here because `Lakona.Game.Server` owns game session identity; do not
+copy it into generated `Shared` contracts or client-visible generated code.
 
 ```csharp
 public sealed class GameSessionBindResult
@@ -190,6 +196,12 @@ public interface ILakonaGameServer
         CancellationToken cancellationToken = default)
         where TCallback : class;
 
+    ValueTask BindCurrentSessionAsync<TCallback>(
+        string connectionId,
+        TCallback callback,
+        CancellationToken cancellationToken = default)
+        where TCallback : class;
+
     ValueTask MarkSessionDisconnectedAsync(
         GameSessionKey session,
         string? connectionId = null,
@@ -221,6 +233,15 @@ public interface ILakonaGameServer
 
 ### Runtime APIs
 
+- Move or refactor: `src/Lakona.Game.Abstractions/Sessions/GameSessionKey.cs`
+  into `src/Lakona.Game.Server/Sessions/GameSessionKey.cs` or an equivalent
+  server-side session identity type.
+- Move or refactor any `Lakona.Game.Abstractions` session, resume, termination,
+  or reliable-push DTO that exposes `GameSessionKey`; cross-side DTOs may carry
+  opaque tokens, stream ids, status enums, or request data, but not
+  `GameSessionKey`.
+- Modify: `src/Lakona.Game.Client/**` where public APIs require callers to
+  construct, store, serialize, or echo `GameSessionKey`.
 - Delete: `src/Lakona.Game.Abstractions/Sessions/GameEndpointName.cs`
 - Delete: `src/Lakona.Game.Server/Sessions/SessionEndpointKey.cs`
 - Rename or replace: `src/Lakona.Game.Server/Sessions/GameSessionEndpointBinding.cs`
@@ -254,10 +275,12 @@ public interface ILakonaGameServer
 
 - Modify: `src/Lakona.Tool/Rendering/Server/ServerAppRenderer.cs`
 - Modify: `src/Lakona.Tool/Rendering/Server/HotfixRenderer.cs`
+- Modify: `src/Lakona.Tool/Rendering/Shared/SharedContractsRenderer.cs`
 - Delete from generated output: `Server/App/Services/GeneratedServiceEndpoints.cs`
 - Delete from sample: `samples/Game.Godot.Chat/Server/App/Services/GeneratedServiceEndpoints.cs`
 - Modify: `samples/Game.Godot.Chat/Server/App/Program.cs`
 - Modify: `samples/Game.Godot.Chat/Server/App/Lifecycle/ChatPresenceLifecycleHandler.cs`
+- Modify: `samples/Game.Godot.Chat/Shared/Contracts/Chat/ChatMessages.cs`
 - Modify: `samples/Game.Godot.Chat/Server/Hotfix/Login/LoginService.cs`
 - Modify: `samples/Game.Godot.Chat/Server/Hotfix/Chat/ChatService.cs`
 - Modify Unity Agar server files that reference `SessionEndpointKey` after source scan lists exact paths.
@@ -272,6 +295,8 @@ public interface ILakonaGameServer
 - Modify: `tests/Lakona.Game.Server.Hotfix.Tests/HotfixDispatchTests.cs`
 - Modify: `tests/Lakona.Game.Server.Hotfix.Tests/HotfixBehaviorScannerTests.cs`
 - Modify: `tests/Lakona.Tool.Tests/Rendering/ServerAppRendererTests.cs`
+- Modify: `tests/Lakona.Tool.Tests/Rendering/HotfixRendererTests.cs`
+- Modify: `tests/Lakona.Tool.Tests/Rendering/SharedProjectRendererTests.cs`
 - Modify: `tests/Lakona.Tool.Tests/Integration/ToolArchitectureScanTests.cs`
 
 ## Task 1: Add Failing Tool Output Guardrails
@@ -571,8 +596,6 @@ test project compile and pass.
 `GameSessionBinding.cs` must contain:
 
 ```csharp
-using Lakona.Game.Abstractions;
-
 namespace Lakona.Game.Server.Sessions;
 
 public sealed class GameSessionBinding<TCallback>
@@ -599,8 +622,6 @@ public sealed class GameSessionBinding<TCallback>
 `GameSessionSnapshot.cs` must contain:
 
 ```csharp
-using Lakona.Game.Abstractions;
-
 namespace Lakona.Game.Server.Sessions;
 
 public sealed class GameSessionSnapshot
@@ -1852,7 +1873,7 @@ public async ValueTask OnSessionExpiredAsync(GameSessionBindingContext context, 
 Generated `LoginService` must call:
 
 ```csharp
-var session = await call.GameServer.StartSessionAsync(
+await call.GameServer.StartSessionAsync(
     ownerKey,
     call.ConnectionId,
     call.Callback,
@@ -1862,14 +1883,15 @@ var session = await call.GameServer.StartSessionAsync(
 Generated `ChatService` must call:
 
 ```csharp
-await call.GameServer.BindSessionAsync(
-    call.Request.Session,
+await call.GameServer.BindCurrentSessionAsync(
     call.ConnectionId,
     call.Callback,
     cancellationToken);
 ```
 
-No generated hotfix service may reference `call.EndpointName`.
+No generated hotfix service may reference `call.EndpointName`. No generated
+shared contract may expose `GameSessionKey`; the framework must resolve the
+current `GameSessionKey` from the RPC `connectionId` on the server side.
 
 - [ ] **Step 5: Apply the same edits to `samples/Game.Godot.Chat`**
 
@@ -1951,25 +1973,39 @@ dotnet test tests\Lakona.Tool.Tests\Lakona.Tool.Tests.csproj --no-restore
 
 Expected: PASS.
 
-### Follow-Up 2: Carry GameSessionKey From Login To Chat Callback Binding
+### Follow-Up 2: Bind Chat Callback Without Exposing GameSessionKey
 
 **Problem:** The generated chat template and `samples/Game.Godot.Chat` start a
-game session during login, but they discard the returned `GameSessionKey`.
-`LoginReply` does not expose the session key, `ChatBindRequest` does not carry
-it back from the client, and `ChatService.BindAsync` only binds the chat
-callback inside `ChatRoomActor`. It never calls `ILakonaGameServer.BindSessionAsync`.
+game session during login, then need to bind `IChatCallback` during
+`ChatService.BindAsync`. The first review follow-up incorrectly suggested
+putting `GameSessionKey` into `LoginReply` and `ChatBindRequest` so the client
+could return it during chat bind. That direction is wrong and is superseded by
+this follow-up.
 
-That means the default project teaches a model where the session directory only
-knows about `ILoginCallback`; it never records the `IChatCallback` binding for
-the same `GameSessionKey`. Reliable push, resume, lifecycle snapshots, and
-cleanup logic cannot observe the intended multi-callback-contract session
-shape:
+`GameSessionKey` is a server/framework session identity. It must not appear in
+user shared RPC contracts, generated client code, or sample client code. The
+client should not learn it and should not echo it back. Because the target model
+allows one active `GameSessionKey` per RPC connection, the server can resolve the
+current session from `call.ConnectionId` and attach the new callback contract to
+that current session.
+
+Commit `094cd43c2e7c9da1319a62fec12c3d2e4b821dba` implemented the superseded
+direction by adding `GameSessionKey` to shared DTOs and by adding a MemoryPack
+formatter for it. That creates two problems:
+
+- It leaks backend framework identity into `Shared` user contracts.
+- The formatter uses C# 11-only `scoped ref` syntax, violating the repository
+  rule that Unity-facing shared contracts compile with C# 9.0.
+
+The desired session directory shape is still:
 
 ```txt
 GameSessionKey
   -> ILoginCallback
   -> IChatCallback
 ```
+
+but only the server framework owns and stores the `GameSessionKey`.
 
 **Required fix:**
 
@@ -1978,31 +2014,43 @@ same contract and hotfix-service shape.
 
 Shared contracts:
 
-- Add a `GameSessionKey Session` property to `LoginReply`.
-- Add a `GameSessionKey Session` property to `ChatBindRequest`.
-- Add the required `using Lakona.Game.Abstractions;` and project/package
-  reference so shared contracts compile for both server and client target
-  frameworks.
-- Preserve serializer attributes and ordering. For MemoryPack contracts, assign
-  stable orders so the new session field does not collide with existing fields.
+- Keep `LoginReply` limited to business response data such as members and recent
+  messages.
+- Keep `ChatBindRequest` empty for the default chat starter.
+- Do not add `using Lakona.Game.Abstractions;` to generated shared contracts.
+- Do not add any `Lakona.Game.*` session identity dependency to generated
+  `Shared` projects just for chat bind.
+- Delete any generated or sample `GameSessionKeyMemoryPackFormatter` code.
+
+Package boundaries:
+
+- Treat `GameSessionKey` as a `Lakona.Game.Server` session identity, not as a
+  shared contract primitive.
+- Do not use `Lakona.Game.Abstractions` as an escape hatch to make
+  `GameSessionKey` available to generated `Shared` projects or client-visible
+  APIs.
+- Move or refactor any public `Lakona.Game.Abstractions` or
+  `Lakona.Game.Client` API that requires clients to construct, store, serialize,
+  or echo `GameSessionKey`.
+- If reconnect, resume, or reliable-push acknowledgement needs client-held
+  state, expose a separate opaque token, stream id, or request DTO. That
+  client-facing value must not be accepted as authoritative proof of the server
+  `GameSessionKey`.
 
 Generated and sample `LoginService`:
 
 ```csharp
-var session = await call.GameServer.StartSessionAsync(
+await call.GameServer.StartSessionAsync(
     playerName,
     call.ConnectionId,
     call.Callback);
-
-reply.Session = session;
 return reply;
 ```
 
 Generated and sample `ChatService.BindAsync`:
 
 ```csharp
-await call.GameServer.BindSessionAsync(
-    call.Request.Session,
+await call.GameServer.BindCurrentSessionAsync(
     call.ConnectionId,
     call.Callback);
 ```
@@ -2011,31 +2059,60 @@ The actor-level `BindChatCallback` may remain for the sample room presence
 implementation, but it must not be the only binding. The framework-owned
 session directory must also receive the `IChatCallback`.
 
+Framework API:
+
+- Add a server-side API such as
+  `ILakonaGameServer.BindCurrentSessionAsync<TCallback>(string connectionId, TCallback callback, CancellationToken cancellationToken = default)`.
+- Implement it by resolving the active `GameSessionKey` from the current
+  `connectionId`, then binding or replacing only the requested callback contract.
+- If the connection has no active session, throw a clear `InvalidOperationException`.
+
 Generated and sample clients:
 
-- Store the `GameSessionKey` returned by `LoginAsync`.
-- Send that key in `new ChatBindRequest { Session = session }`.
-- Do not infer the session from the RPC connection id.
+- Continue calling `chat.BindAsync(new ChatBindRequest())`.
+- Do not store, serialize, or send `GameSessionKey`.
+- If future reconnect support needs client-held state, use an opaque,
+  framework-issued resume token/ticket, not `GameSessionKey`.
 
 **Required tests:**
 
+- Add or update `Lakona.Game.Server.Tests` coverage for
+  `BindCurrentSessionAsync`:
+  binding a second callback contract by active `connectionId` attaches it to the
+  current `GameSessionKey`;
+  an unbound `connectionId` is rejected;
+  rebinding the same callback contract replaces only that callback contract.
 - Update `tests/Lakona.Tool.Tests/Rendering/HotfixRendererTests.cs` to assert
-  that generated `ChatService.BindAsync` calls `call.GameServer.BindSessionAsync`.
+  that generated `ChatService.BindAsync` calls
+  `BindCurrentSessionAsync` with `call.ConnectionId` and `call.Callback`.
 - Update `tests/Lakona.Tool.Tests/Rendering/HotfixRendererTests.cs` or
-  shared-contract renderer tests to assert that `LoginReply` and
-  `ChatBindRequest` include `GameSessionKey Session`.
+  shared-contract renderer tests to assert that generated `LoginReply` and
+  `ChatBindRequest` do not include `GameSessionKey Session`.
 - Add or update sample/source-scan coverage so
   `samples/Game.Godot.Chat/Server/Hotfix/Chat/ChatService.cs` cannot regress to
   actor-only callback binding.
+- Add source-scan coverage so generated shared contracts and
+  `samples/Game.Godot.Chat/Shared/**` do not contain
+  `GameSessionKeyMemoryPackFormatter`.
+- Add source-scan coverage so `GameSessionKey` does not appear under generated
+  `Shared` projects, `samples/Game.Godot.Chat/Shared/**`, or
+  `src/Lakona.Tool/Rendering/Shared/**`.
+- Add package-boundary coverage so no public `Lakona.Game.Abstractions` or
+  `Lakona.Game.Client` API exposes `GameSessionKey`. Internal server tests may
+  keep using `GameSessionKey`.
+- Add a Unity-facing shared-contract language check, or an equivalent source
+  scan, to prevent C# 10+ syntax such as `scoped ref` in generated shared
+  contracts.
 
 **Required validation:**
 
 ```powershell
+dotnet test tests\Lakona.Game.Server.Tests\Lakona.Game.Server.Tests.csproj --no-restore
 dotnet test tests\Lakona.Tool.Tests\Lakona.Tool.Tests.csproj --no-restore
 dotnet build samples\Game.Godot.Chat\Server\Server.slnx --no-restore
 ```
 
-Expected: PASS for both commands.
+Expected: PASS for every command.
 
 ## Task 10: Migrate Unity Agar Session Usage
 
@@ -2139,6 +2216,20 @@ Expected allowed hits:
 
 - [ ] **Step 2: Delete obsolete hotfix service marker attribute**
 
+- [ ] **Step 2: Scan for forbidden client-side `GameSessionKey` exposure**
+
+Run:
+
+```powershell
+rg -n "GameSessionKey" src/Lakona.Game.Abstractions src/Lakona.Game.Client src/Lakona.Tool/Rendering/Shared samples/Game.Godot.Chat/Shared
+```
+
+Expected: no hits. If a client-facing reconnect, resume, or reliable-push path
+still needs client-held state, introduce an opaque client-facing token or stream
+identifier instead of exposing the server `GameSessionKey`.
+
+- [ ] **Step 3: Delete obsolete hotfix service marker attribute**
+
 After Step 1 shows no source references outside historical documentation, delete:
 
 ```txt
@@ -2148,7 +2239,7 @@ src/Lakona.Game.Server.Hotfix.Abstractions/Attributes/HotfixRpcServiceAttribute.
 Run the same scan again. Expected: no `HotfixRpcServiceAttribute` or
 `HotfixRpcService(` hits under `src`, `tests`, or `samples`.
 
-- [ ] **Step 3: Scan generated project output for forbidden text**
+- [ ] **Step 4: Scan generated project output for forbidden text**
 
 Run:
 
@@ -2158,7 +2249,7 @@ dotnet test tests\Lakona.Tool.Tests\Lakona.Tool.Tests.csproj --no-restore --filt
 
 Expected: PASS.
 
-- [ ] **Step 4: Update READMEs**
+- [ ] **Step 5: Update READMEs**
 
 Update these files if they still mention endpoint binding as session identity:
 
@@ -2172,7 +2263,7 @@ src/Lakona.Tool/README.md
 
 The correct wording is "session callback binding", "transport endpoint hosting", and "multiple sessions for one account are user-owned business state".
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 Run:
 
@@ -2202,6 +2293,7 @@ At minimum, expect version bumps for:
 
 ```txt
 src/Lakona.Game.Abstractions/Lakona.Game.Abstractions.csproj
+src/Lakona.Game.Client/Lakona.Game.Client.csproj
 src/Lakona.Game.Server/Lakona.Game.Server.csproj
 src/Lakona.Game.Server.Hotfix/Lakona.Game.Server.Hotfix.csproj
 src/Lakona.Game.Server.Hotfix.Abstractions/Lakona.Game.Server.Hotfix.Abstractions.csproj
@@ -2318,9 +2410,11 @@ Expected: `git diff --check` has no output. `git status --short` contains only i
 - [ ] Generated `Server/App/Server.App.csproj` exposes
       `LakonaRpcGenerateServer` and `LakonaRpcServerGeneratedNamespace` through
       `CompilerVisibleProperty`.
-- [ ] Generated chat contracts carry `GameSessionKey` from `LoginReply` into
-      `ChatBindRequest`.
+- [ ] Generated shared contracts and sample shared contracts do not expose
+      `GameSessionKey`, `GameSessionKeyMemoryPackFormatter`, or
+      `Lakona.Game.Abstractions` just for chat binding.
 - [ ] Generated and sample `ChatService.BindAsync` call
-      `ILakonaGameServer.BindSessionAsync` for `IChatCallback`.
+      `ILakonaGameServer.BindCurrentSessionAsync` for `IChatCallback`.
+- [ ] Unity-facing shared contract code remains C# 9 compatible.
 - [ ] Cluster endpoint names remain untouched.
 - [ ] Package versions are bumped for every changed shippable package.

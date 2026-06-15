@@ -4,19 +4,15 @@ namespace Lakona.Game.Abstractions
     {
         public ReliablePushAckOutcome(
             ReliablePushAckStatus status,
-            GameSessionKey? session = null,
             long sequence = 0,
             string? reason = null)
         {
             Status = status;
-            Session = session;
             Sequence = sequence;
             Reason = reason;
         }
 
         public ReliablePushAckStatus Status { get; }
-
-        public GameSessionKey? Session { get; }
 
         public long Sequence { get; }
 
@@ -27,19 +23,9 @@ namespace Lakona.Game.Abstractions
             return new ReliablePushAckOutcome(ReliablePushAckStatus.Accepted);
         }
 
-        public static ReliablePushAckOutcome Accepted(GameSessionKey session, long sequence)
-        {
-            return new ReliablePushAckOutcome(ReliablePushAckStatus.Accepted, session, sequence);
-        }
-
         public static ReliablePushAckOutcome Duplicate()
         {
             return new ReliablePushAckOutcome(ReliablePushAckStatus.Duplicate);
-        }
-
-        public static ReliablePushAckOutcome Duplicate(GameSessionKey session, long sequence)
-        {
-            return new ReliablePushAckOutcome(ReliablePushAckStatus.Duplicate, session, sequence);
         }
 
         public static ReliablePushAckOutcome StateRefreshRequired(string? reason = null)

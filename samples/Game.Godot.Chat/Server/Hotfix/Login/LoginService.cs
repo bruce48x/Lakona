@@ -22,11 +22,10 @@ namespace Server.Hotfix.Login
             var reply = await call.Actors.AskAsync<ChatRoomActor, LoginReply>(
                 RoomId,
                 (room, ct) => room.LoginAsync(call.ConnectionId, playerName, call.Callback));
-            var session = await call.GameServer.StartSessionAsync(
+            await call.GameServer.StartSessionAsync(
                 playerName,
                 call.ConnectionId,
                 call.Callback);
-            reply.Session = session;
             return reply;
         }
     }

@@ -15,26 +15,31 @@ namespace Lakona.Game.Client.ReliablePush
             _cursorStore = cursorStore ?? new InMemoryReliablePushCursorStore();
         }
 
-        public GameSessionKey? CurrentSession { get; private set; }
+        public string? CurrentSessionId { get; private set; }
 
         public long LastAppliedSequence
         {
             get { return _tracker.LastAppliedSequence; }
         }
 
-        public void StartSession(GameSessionKey session, long lastAppliedSequence = 0)
+        public void StartSession(string sessionId, long lastAppliedSequence = 0)
         {
-            CurrentSession = session;
+            if (string.IsNullOrWhiteSpace(sessionId))
+            {
+                throw new ArgumentException("Session id is required.", nameof(sessionId));
+            }
+
+            CurrentSessionId = sessionId;
             _tracker.Reset();
             _tracker.MarkApplied(lastAppliedSequence);
         }
 
         public async ValueTask StartSessionAsync(
-            GameSessionKey session,
+            string sessionId,
             CancellationToken cancellationToken = default)
         {
-            var lastAppliedSequence = await _cursorStore.LoadAsync(session, cancellationToken).ConfigureAwait(false);
-            StartSession(session, lastAppliedSequence);
+            var lastAppliedSequence = await _cursorStore.LoadAsync(sessionId, cancellationToken).ConfigureAwait(false);
+            StartSession(sessionId, lastAppliedSequence);
         }
 
         public ReliablePushApplyDecision Decide(ReliablePushSequence sequence)
@@ -50,7 +55,7 @@ namespace Lakona.Game.Client.ReliablePush
             Func<ReliablePushAck, CancellationToken, ValueTask<ReliablePushAckOutcome>> acknowledgeAsync,
             CancellationToken cancellationToken = default)
         {
-            var session = EnsureStarted();
+            var sessionId = EnsureStarted();
             if (applyAsync is null)
             {
                 throw new ArgumentNullException(nameof(applyAsync));
@@ -66,14 +71,14 @@ namespace Lakona.Game.Client.ReliablePush
             {
                 await applyAsync(payload, cancellationToken).ConfigureAwait(false);
                 _tracker.MarkApplied(sequence.Value);
-                await _cursorStore.SaveAsync(session, _tracker.LastAppliedSequence, cancellationToken).ConfigureAwait(false);
+                await _cursorStore.SaveAsync(sessionId, _tracker.LastAppliedSequence, cancellationToken).ConfigureAwait(false);
             }
 
             ReliablePushAckOutcome? acknowledgement = null;
             if (decision.ShouldAck)
             {
                 acknowledgement = await acknowledgeAsync(
-                    new ReliablePushAck(session, sequence),
+                    new ReliablePushAck(sessionId, sequence),
                     cancellationToken).ConfigureAwait(false);
             }
 
@@ -82,29 +87,29 @@ namespace Lakona.Game.Client.ReliablePush
 
         public async ValueTask ResetAsync(CancellationToken cancellationToken = default)
         {
-            var session = CurrentSession;
+            var sessionId = CurrentSessionId;
             Reset();
 
-            if (session.HasValue)
+            if (sessionId is not null)
             {
-                await _cursorStore.ClearAsync(session.Value, cancellationToken).ConfigureAwait(false);
+                await _cursorStore.ClearAsync(sessionId, cancellationToken).ConfigureAwait(false);
             }
         }
 
         public void Reset()
         {
-            CurrentSession = null;
+            CurrentSessionId = null;
             _tracker.Reset();
         }
 
-        private GameSessionKey EnsureStarted()
+        private string EnsureStarted()
         {
-            if (!CurrentSession.HasValue)
+            if (CurrentSessionId is null)
             {
                 throw new InvalidOperationException("Reliable push session has not started.");
             }
 
-            return CurrentSession.Value;
+            return CurrentSessionId;
         }
     }
 }

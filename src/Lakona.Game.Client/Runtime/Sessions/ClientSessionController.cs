@@ -24,12 +24,12 @@ namespace Lakona.Game.Client.Sessions
             }
         }
 
-        public void StartSession(GameSessionKey session, long lastReliableSequence = 0)
+        public void StartSession(string sessionId, long lastReliableSequence = 0)
         {
-            _reliablePushInbox.StartSession(session, lastReliableSequence);
+            _reliablePushInbox.StartSession(sessionId, lastReliableSequence);
             Snapshot = new ClientSessionSnapshot(
                 ClientSessionPhase.Active,
-                session,
+                sessionId,
                 _reliablePushInbox.LastAppliedSequence);
         }
 
@@ -70,8 +70,7 @@ namespace Lakona.Game.Client.Sessions
                 throw new ArgumentNullException(nameof(notice));
             }
 
-            if (Snapshot.Session is not { } session ||
-                !session.Equals(notice.Session))
+            if (Snapshot.SessionId is null)
             {
                 return;
             }
@@ -96,7 +95,7 @@ namespace Lakona.Game.Client.Sessions
         {
             Snapshot = new ClientSessionSnapshot(
                 phase,
-                Snapshot.Session,
+                Snapshot.SessionId,
                 _reliablePushInbox.LastAppliedSequence,
                 Snapshot.Termination);
         }

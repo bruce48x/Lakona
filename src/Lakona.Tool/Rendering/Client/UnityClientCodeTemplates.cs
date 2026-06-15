@@ -126,7 +126,8 @@ internal static class UnityClientCodeTemplates
 
                 public async Task BindAsync(LoginReply reply)
                 {
-                    await _chatService.BindAsync(new ChatBindRequest { Session = reply.Session });
+                    _ = reply;
+                    await _chatService.BindAsync(new ChatBindRequest());
                 }
 
                 public async Task SendAsync(string text)

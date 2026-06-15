@@ -21,7 +21,7 @@ using Lakona.Game.Client.ReliablePush;
 using Lakona.Game.Client.Sessions;
 
 var client = new LakonaGameClient();
-client.StartSession(new GameSessionKey(playerId, sessionId, generation), lastReliableSequence: 0);
+client.StartSession(sessionId, lastReliableSequence: 0);
 
 await client.ProcessReliablePushAsync(
     ReliablePushSequence.From(update.ReliableSequence),
@@ -33,8 +33,9 @@ await client.ProcessReliablePushAsync(
     },
     acknowledgeAsync: async (ack, ct) =>
     {
-        // Send ack.Session.SessionId, ack.Session.Generation, and ack.Sequence.Value through the game's RPC API.
-        await playerService.AckReliablePushAsync(ack.Session.SessionId, ack.Session.Generation, ack.Sequence.Value, ct);
+        // Send ack.Sequence.Value through the game's RPC API. Use your own client-facing
+        // session token or stream id if the server requires one for acknowledgement.
+        await playerService.AckReliablePushAsync(sessionId, ack.Sequence.Value, ct);
         return ReliablePushAckOutcome.Accepted();
     },
     cancellationToken);
@@ -52,15 +53,14 @@ if (client.Snapshot.Phase == ClientSessionPhase.StateLost)
 
 ## Lower-level reliable push inbox
 
-Use `ReliablePushInbox` directly only when you want to manage session phase separately. Session identity comes from `Lakona.Game.Abstractions.GameSessionKey`.
+Use `ReliablePushInbox` directly only when you want to manage session phase separately. The session id is an opaque client-side key chosen by your game protocol, not `Lakona.Game.Server.Sessions.GameSessionKey`.
 
 ```csharp
 using Lakona.Game.Abstractions;
 using Lakona.Game.Client.ReliablePush;
 
-var session = new GameSessionKey(ownerKey: playerId, sessionId: sessionId, generation: generation);
 var inbox = new ReliablePushInbox();
-inbox.StartSession(session, lastAppliedSequence);
+inbox.StartSession(sessionId, lastAppliedSequence);
 
 await inbox.ProcessAsync(
     ReliablePushSequence.From(update.ReliableSequence),
@@ -72,8 +72,8 @@ await inbox.ProcessAsync(
     },
     acknowledgeAsync: async (ack, ct) =>
     {
-        // Send ack.Session and ack.Sequence.Value through the game's RPC API.
-        await playerService.AckReliablePushAsync(ack.Session.SessionId, ack.Session.Generation, ack.Sequence.Value, ct);
+        // Send ack.SessionId and ack.Sequence.Value through the game's RPC API.
+        await playerService.AckReliablePushAsync(ack.SessionId, ack.Sequence.Value, ct);
         return ReliablePushAckOutcome.Accepted();
     },
     cancellationToken);
@@ -89,7 +89,7 @@ using Lakona.Game.Client.ReliablePush;
 using Lakona.Game.Client.Sessions;
 
 var controller = new ClientSessionController();
-controller.StartSession(new GameSessionKey(playerId, sessionId, generation));
+controller.StartSession(sessionId);
 controller.MarkReconnecting();
 
 controller.ApplyAckOutcome(ReliablePushAckOutcome.StateRefreshRequired());

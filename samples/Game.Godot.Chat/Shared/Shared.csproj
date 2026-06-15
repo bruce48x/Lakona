@@ -10,7 +10,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Lakona.Rpc.Core\Lakona.Rpc.Core.csproj" />
-    <ProjectReference Include="..\..\..\src\Lakona.Game.Abstractions\Lakona.Game.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj" />
   </ItemGroup>
 

@@ -11,7 +11,7 @@ public sealed class LakonaGameClientTests
     public async Task MainEntryProcessesReliablePushAndAppliesAckOutcome()
     {
         var client = new LakonaGameClient();
-        var session = new GameSessionKey("player-a", "session-a", 1);
+        var session = "session-a";
         var applied = new List<string>();
         client.StartSession(session);
 
@@ -29,7 +29,7 @@ public sealed class LakonaGameClientTests
         Assert.True(result.Decision.ShouldApply);
         Assert.Equal("matched", Assert.Single(applied));
         Assert.Equal(ClientSessionPhase.RefreshRequired, client.Snapshot.Phase);
-        Assert.Equal(session, client.Snapshot.Session);
+        Assert.Equal(session, client.Snapshot.SessionId);
         Assert.Equal(1, client.Snapshot.LastReliableSequence);
     }
 
@@ -37,7 +37,7 @@ public sealed class LakonaGameClientTests
     public async Task MainEntryMakesStateLostTerminalUntilNewSession()
     {
         var client = new LakonaGameClient();
-        var session = new GameSessionKey("player-a", "session-a", 1);
+        var session = "session-a";
         client.StartSession(session);
 
         await client.ProcessReliablePushAsync(
@@ -49,30 +49,26 @@ public sealed class LakonaGameClientTests
         client.MarkReconnecting();
 
         Assert.Equal(ClientSessionPhase.StateLost, client.Snapshot.Phase);
-        Assert.Null(client.Snapshot.Session);
+        Assert.Null(client.Snapshot.SessionId);
 
-        var next = new GameSessionKey("player-a", "session-b", 2);
+        var next = "session-b";
         client.StartSession(next);
 
         Assert.Equal(ClientSessionPhase.Active, client.Snapshot.Phase);
-        Assert.Equal(next, client.Snapshot.Session);
+        Assert.Equal(next, client.Snapshot.SessionId);
     }
 
     [Fact]
     public void MainEntryAppliesSessionTerminationNotice()
     {
         var client = new LakonaGameClient();
-        var session = new GameSessionKey("player-a", "session-a", 1);
-        var notice = new SessionTerminationNotice(
-            session,
-            SessionTerminationReason.Policy,
-            "Removed.");
-        client.StartSession(session, lastReliableSequence: 7);
+        var notice = new SessionTerminationNotice(SessionTerminationReason.Policy, "Removed.");
+        client.StartSession("session-a", lastReliableSequence: 7);
 
         client.ApplySessionTerminationNotice(notice);
 
         Assert.Equal(ClientSessionPhase.Terminated, client.Snapshot.Phase);
-        Assert.Null(client.Snapshot.Session);
+        Assert.Null(client.Snapshot.SessionId);
         Assert.Equal(0, client.Snapshot.LastReliableSequence);
         Assert.Same(notice, client.Snapshot.Termination);
     }

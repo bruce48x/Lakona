@@ -28,17 +28,17 @@ namespace Lakona.Game.Client
             _sessions.MarkConnecting();
         }
 
-        public void StartSession(GameSessionKey session, long lastReliableSequence = 0)
+        public void StartSession(string sessionId, long lastReliableSequence = 0)
         {
-            _sessions.StartSession(session, lastReliableSequence);
+            _sessions.StartSession(sessionId, lastReliableSequence);
         }
 
         public async ValueTask StartSessionAsync(
-            GameSessionKey session,
+            string sessionId,
             CancellationToken cancellationToken = default)
         {
-            await _reliablePush.StartSessionAsync(session, cancellationToken).ConfigureAwait(false);
-            _sessions.StartSession(session, _reliablePush.LastAppliedSequence);
+            await _reliablePush.StartSessionAsync(sessionId, cancellationToken).ConfigureAwait(false);
+            _sessions.StartSession(sessionId, _reliablePush.LastAppliedSequence);
         }
 
         public void MarkReconnecting()

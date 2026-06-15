@@ -18,7 +18,7 @@ public static class ReliablePushAckDecider
 
         if (sequence <= 0)
         {
-            return ReliablePushAckOutcome.Duplicate(currentSession, sequence);
+            return new ReliablePushAckOutcome(ReliablePushAckStatus.Duplicate, sequence);
         }
 
         if (sequence > lastKnownSequence)
@@ -26,6 +26,6 @@ public static class ReliablePushAckDecider
             return ReliablePushAckOutcome.StateLost("Acknowledgement sequence is ahead of server state.");
         }
 
-        return ReliablePushAckOutcome.Accepted(currentSession, sequence);
+        return new ReliablePushAckOutcome(ReliablePushAckStatus.Accepted, sequence);
     }
 }

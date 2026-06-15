@@ -74,11 +74,18 @@ public sealed class GameSessionTerminationContext
     /// <summary>
     /// Initializes a new session termination lifecycle context.
     /// </summary>
+    /// <param name="session">The session affected by the termination.</param>
     /// <param name="notice">The termination notice emitted for the session.</param>
-    public GameSessionTerminationContext(SessionTerminationNotice notice)
+    public GameSessionTerminationContext(GameSessionKey session, SessionTerminationNotice notice)
     {
+        Session = session;
         Notice = notice ?? throw new ArgumentNullException(nameof(notice));
     }
+
+    /// <summary>
+    /// Gets the session affected by the termination.
+    /// </summary>
+    public GameSessionKey Session { get; }
 
     /// <summary>
     /// Gets the termination notice emitted for the session.

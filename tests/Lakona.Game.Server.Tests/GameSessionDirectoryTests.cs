@@ -140,7 +140,7 @@ public sealed class GameSessionDirectoryTests
     {
         var directory = new InMemoryGameSessionDirectory();
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
-        var notice = new SessionTerminationNotice(session, SessionTerminationReason.Policy, "Removed.");
+        var notice = new SessionTerminationNotice(SessionTerminationReason.Policy, "Removed.");
 
         await directory.MarkSessionTerminatedAsync(
             session,
@@ -159,7 +159,7 @@ public sealed class GameSessionDirectoryTests
     {
         var directory = new InMemoryGameSessionDirectory();
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
-        var notice = new SessionTerminationNotice(session, SessionTerminationReason.Policy);
+        var notice = new SessionTerminationNotice(SessionTerminationReason.Policy);
 
         await directory.MarkSessionTerminatedAsync(
             session,

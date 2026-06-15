@@ -31,6 +31,12 @@ public interface ILakonaGameServer
         CancellationToken cancellationToken = default)
         where TCallback : class;
 
+    ValueTask BindCurrentSessionAsync<TCallback>(
+        string connectionId,
+        TCallback callback,
+        CancellationToken cancellationToken = default)
+        where TCallback : class;
+
     ValueTask MarkSessionDisconnectedAsync(
         GameSessionKey session,
         string? connectionId = null,

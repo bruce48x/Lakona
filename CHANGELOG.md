@@ -8,7 +8,8 @@ that consolidation.
 
 ### Fixed
 
-- `Lakona.Tool` `0.10.13`: generated chat starters now expose `GameSessionKey` in login replies, pass it through chat bind requests, bind chat callbacks to the framework session, and emit server analyzer `CompilerVisibleProperty` entries in `Server.App.csproj`.
+- `Lakona.Game.Abstractions` `0.1.5`, `Lakona.Game.Client` `0.1.7`, `Lakona.Game.Server` `0.5.4`, and `Lakona.Tool` `0.10.14`: server-owned `GameSessionKey` no longer appears in generated or sample shared contracts, generated chat bind now resolves the active framework session from `call.ConnectionId`, and client-facing session helpers use opaque client session ids instead of requiring clients to store or echo server session identity.
+- `Lakona.Tool` `0.10.13`: generated chat starters bind chat callbacks to the framework session and emit server analyzer `CompilerVisibleProperty` entries in `Server.App.csproj`.
 - `Lakona.Game.Abstractions` `0.1.4`, `Lakona.Game.Server` `0.5.3`, `Lakona.Game.Server.Hotfix` `0.2.3`, `Lakona.Game.Server.Hotfix.Abstractions` `0.1.4`, `Lakona.Game.Server.Hotfix.Generators` `0.1.4`, and `Lakona.Tool` `0.10.12`: generated game projects now discover `[RpcService]` hotfix service contracts at build time, remove `GeneratedServiceEndpoints.cs` and `[HotfixRpcService(...)]` marker files, and use a single framework-owned RPC session lifecycle without endpoint-name session APIs.
 - `Lakona.Tool` `0.10.11`: generated Godot headless smoke login code now qualifies `System.Environment`, fixing Godot client compilation when `Godot.Environment` is also in scope.
 - `Lakona.Tool` `0.10.10`: generated Godot login scenes now support an opt-in headless smoke login for CI, so automated Godot checks exercise the generated client instead of waiting for manual UI input.

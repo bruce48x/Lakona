@@ -46,7 +46,7 @@ public sealed class InMemoryGameSessionDirectory : IGameSessionDirectory
             if (state.Termination is not null)
             {
                 return new ValueTask<SessionResumeDecision>(state.KeepTerminationForResume
-                    ? SessionResumeDecision.Terminated(state.Termination)
+                    ? SessionResumeDecision.Terminated(state.Session, state.Termination)
                     : SessionResumeDecision.StateLost("Session was terminated."));
             }
 
@@ -68,43 +68,30 @@ public sealed class InMemoryGameSessionDirectory : IGameSessionDirectory
 
         lock (_gate)
         {
-            if (!_sessions.TryGetValue(session, out var state))
+            return new ValueTask<GameSessionBindResult>(BindSessionCore(session, connectionId, callback));
+        }
+    }
+
+    public ValueTask<GameSessionBindResult> BindCurrentSessionAsync<TCallback>(
+        string connectionId,
+        TCallback callback,
+        CancellationToken cancellationToken = default)
+        where TCallback : class
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
+        ArgumentNullException.ThrowIfNull(callback);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_gate)
+        {
+            if (!_connectionToSession.TryGetValue(connectionId, out var session) ||
+                !_sessions.ContainsKey(session))
             {
-                throw new InvalidOperationException($"Game session '{session}' does not exist.");
+                throw new InvalidOperationException(
+                    $"RPC connection '{connectionId}' does not have an active game session.");
             }
 
-            if (state.Termination is not null)
-            {
-                throw new InvalidOperationException($"Game session '{session}' is terminated.");
-            }
-
-            if (_connectionToSession.TryGetValue(connectionId, out var boundSession)
-                && boundSession != session)
-            {
-                throw new InvalidOperationException($"RPC connection '{connectionId}' is already bound to game session '{boundSession}'.");
-            }
-
-            var previousConnectionId = state.ConnectionId;
-            var sessionBecameActive = previousConnectionId is null;
-            if (!string.Equals(previousConnectionId, connectionId, StringComparison.Ordinal))
-            {
-                if (previousConnectionId is not null)
-                {
-                    _connectionToSession.Remove(previousConnectionId);
-                    state.Callbacks.Clear();
-                }
-
-                state.ConnectionId = connectionId;
-                _connectionToSession[connectionId] = session;
-            }
-
-            state.LastDisconnectedConnectionId = null;
-            state.DisconnectedAt = null;
-            state.Callbacks[typeof(TCallback)] = callback;
-
-            return new ValueTask<GameSessionBindResult>(new GameSessionBindResult(sessionBecameActive
-                ? CreateSnapshot(state, connectionId)
-                : null));
+            return new ValueTask<GameSessionBindResult>(BindSessionCore(session, connectionId, callback));
         }
     }
 
@@ -314,6 +301,51 @@ public sealed class InMemoryGameSessionDirectory : IGameSessionDirectory
 
         callback = null;
         return false;
+    }
+
+    private GameSessionBindResult BindSessionCore<TCallback>(
+        GameSessionKey session,
+        string connectionId,
+        TCallback callback)
+        where TCallback : class
+    {
+        if (!_sessions.TryGetValue(session, out var state))
+        {
+            throw new InvalidOperationException($"Game session '{session}' does not exist.");
+        }
+
+        if (state.Termination is not null)
+        {
+            throw new InvalidOperationException($"Game session '{session}' is terminated.");
+        }
+
+        if (_connectionToSession.TryGetValue(connectionId, out var boundSession)
+            && boundSession != session)
+        {
+            throw new InvalidOperationException($"RPC connection '{connectionId}' is already bound to game session '{boundSession}'.");
+        }
+
+        var previousConnectionId = state.ConnectionId;
+        var sessionBecameActive = previousConnectionId is null;
+        if (!string.Equals(previousConnectionId, connectionId, StringComparison.Ordinal))
+        {
+            if (previousConnectionId is not null)
+            {
+                _connectionToSession.Remove(previousConnectionId);
+                state.Callbacks.Clear();
+            }
+
+            state.ConnectionId = connectionId;
+            _connectionToSession[connectionId] = session;
+        }
+
+        state.LastDisconnectedConnectionId = null;
+        state.DisconnectedAt = null;
+        state.Callbacks[typeof(TCallback)] = callback;
+
+        return new GameSessionBindResult(sessionBecameActive
+            ? CreateSnapshot(state, connectionId)
+            : null);
     }
 
     private static void ValidateSession(GameSessionKey session)

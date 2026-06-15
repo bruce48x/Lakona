@@ -109,6 +109,23 @@ public sealed class LakonaGameServer : ILakonaGameServer
         }
     }
 
+    public async ValueTask BindCurrentSessionAsync<TCallback>(
+        string connectionId,
+        TCallback callback,
+        CancellationToken cancellationToken = default)
+        where TCallback : class
+    {
+        var result = await _sessions.BindCurrentSessionAsync(
+            connectionId,
+            callback,
+            cancellationToken).ConfigureAwait(false);
+
+        if (result.SessionBecameActive is { } snapshot)
+        {
+            await PublishSessionBoundAsync(snapshot, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
     public ValueTask MarkSessionDisconnectedAsync(
         GameSessionKey session,
         string? connectionId = null,
@@ -138,7 +155,7 @@ public sealed class LakonaGameServer : ILakonaGameServer
         var binding = await _sessions
             .GetSessionBindingAsync<ILakonaGameSessionCallback>(session, cancellationToken)
             .ConfigureAwait(false);
-        var notice = new SessionTerminationNotice(session, reason, message);
+        var notice = new SessionTerminationNotice(reason, message);
 
         await _sessions
             .MarkSessionTerminatedAsync(
@@ -148,7 +165,7 @@ public sealed class LakonaGameServer : ILakonaGameServer
                 cancellationToken)
             .ConfigureAwait(false);
 
-        await PublishSessionTerminatedAsync(notice, cancellationToken).ConfigureAwait(false);
+        await PublishSessionTerminatedAsync(session, notice, cancellationToken).ConfigureAwait(false);
 
         if (binding is null)
         {
@@ -293,10 +310,11 @@ public sealed class LakonaGameServer : ILakonaGameServer
     }
 
     private async ValueTask PublishSessionTerminatedAsync(
+        GameSessionKey session,
         SessionTerminationNotice notice,
         CancellationToken cancellationToken)
     {
-        var context = new GameSessionTerminationContext(notice);
+        var context = new GameSessionTerminationContext(session, notice);
         foreach (var handler in _lifecycleHandlers)
         {
             try
@@ -312,9 +330,9 @@ public sealed class LakonaGameServer : ILakonaGameServer
                 _logger.LogError(
                     ex,
                     "Game session terminated lifecycle handler failed for owner {OwnerKey}.",
-                    notice.Session.OwnerKey);
-            }
+                    session.OwnerKey);
         }
+    }
     }
 
     private static async ValueTask TryNotifySessionTerminatedAsync(

@@ -20,6 +20,9 @@ public sealed class ToolArchitectureScanTests
     private static readonly string ForbiddenHotfixMarkerCall = string.Concat("Hotfix", "Rpc", "Service", "(");
     private static readonly string ForbiddenGameEndpointType = string.Concat("Game", "Endpoint", "Name");
     private static readonly string ForbiddenSessionEndpointType = string.Concat("Session", "Endpoint", "Key");
+    private static readonly string ForbiddenGameSessionKeyType = string.Concat("Game", "Session", "Key");
+    private static readonly string ForbiddenGameSessionContractField = string.Concat("Game", "Session", "Key", " Session");
+    private static readonly string ForbiddenGameSessionFormatter = string.Concat("Game", "Session", "Key", "Memory", "Pack", "Formatter");
     private static readonly string ForbiddenBoundHook = string.Concat("On", "Endpoint", "Bound");
     private static readonly string ForbiddenDisconnectedHook = string.Concat("On", "Endpoint", "Disconnected");
     private static readonly string ForbiddenExpiredHook = string.Concat("On", "Endpoint", "Expired");
@@ -97,10 +100,14 @@ public sealed class ToolArchitectureScanTests
             Assert.False(File.Exists(Path.Combine(spec.Layout.RootPath, "Server", "App", "Services", $"{ForbiddenGeneratedGlueFile}.cs")));
 
             var generatedText = ReadAllTextFiles(spec.Layout.RootPath);
+            var generatedSharedText = ReadAllTextFiles(Path.Combine(spec.Layout.RootPath, "Shared"));
             Assert.Contains("<CompilerVisibleProperty Include=\"LakonaRpcGenerateServer\" />", generatedText, StringComparison.Ordinal);
             Assert.Contains("<CompilerVisibleProperty Include=\"LakonaRpcServerGeneratedNamespace\" />", generatedText, StringComparison.Ordinal);
-            Assert.Contains("GameSessionKey Session", generatedText, StringComparison.Ordinal);
-            Assert.Contains("await call.GameServer.BindSessionAsync", generatedText, StringComparison.Ordinal);
+            Assert.Contains("await call.GameServer.BindCurrentSessionAsync", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain(ForbiddenGameSessionKeyType, generatedSharedText, StringComparison.Ordinal);
+            Assert.DoesNotContain(ForbiddenGameSessionContractField, generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain(ForbiddenGameSessionFormatter, generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain("scoped ref", generatedSharedText, StringComparison.Ordinal);
             Assert.DoesNotContain(ForbiddenGeneratedGlueFile, generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(ForbiddenHotfixMarkerCall, generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(ForbiddenGameEndpointType, generatedText, StringComparison.Ordinal);
@@ -114,6 +121,44 @@ public sealed class ToolArchitectureScanTests
         {
             Directory.Delete(parentRoot, recursive: true);
         }
+    }
+
+    [Fact]
+    public void GodotChatSample_BindsChatCallbackThroughFrameworkSessionDirectory()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var sampleText = ReadAllTextFiles(Path.Combine(repositoryRoot, "samples", "Game.Godot.Chat"));
+        var chatService = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "samples",
+            "Game.Godot.Chat",
+            "Server",
+            "Hotfix",
+            "Chat",
+            "ChatService.cs"));
+
+        Assert.Contains("await call.GameServer.BindCurrentSessionAsync", chatService, StringComparison.Ordinal);
+        Assert.Contains("call.ConnectionId", chatService, StringComparison.Ordinal);
+        Assert.Contains("call.Callback", chatService, StringComparison.Ordinal);
+        Assert.DoesNotContain("call.Request.Session", chatService, StringComparison.Ordinal);
+        Assert.DoesNotContain(ForbiddenGameSessionKeyType, ReadAllTextFiles(Path.Combine(repositoryRoot, "samples", "Game.Godot.Chat", "Shared")), StringComparison.Ordinal);
+        Assert.DoesNotContain(ForbiddenGameSessionContractField, sampleText, StringComparison.Ordinal);
+        Assert.DoesNotContain(ForbiddenGameSessionFormatter, sampleText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SharedContractSources_DoNotExposeServerSessionIdentityOrCSharp10Syntax()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var rendererText = ReadAllTextFiles(Path.Combine(repositoryRoot, "src", "Lakona.Tool", "Rendering", "Shared"));
+        var sampleSharedText = ReadAllTextFiles(Path.Combine(repositoryRoot, "samples", "Game.Godot.Chat", "Shared"));
+
+        Assert.DoesNotContain(ForbiddenGameSessionKeyType, rendererText, StringComparison.Ordinal);
+        Assert.DoesNotContain(ForbiddenGameSessionKeyType, sampleSharedText, StringComparison.Ordinal);
+        Assert.DoesNotContain(ForbiddenGameSessionFormatter, rendererText, StringComparison.Ordinal);
+        Assert.DoesNotContain(ForbiddenGameSessionFormatter, sampleSharedText, StringComparison.Ordinal);
+        Assert.DoesNotContain("scoped ref", rendererText, StringComparison.Ordinal);
+        Assert.DoesNotContain("scoped ref", sampleSharedText, StringComparison.Ordinal);
     }
 
     [Fact]

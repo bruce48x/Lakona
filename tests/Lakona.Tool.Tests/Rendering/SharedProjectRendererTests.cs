@@ -17,21 +17,22 @@ public sealed class SharedProjectRendererTests
         var csproj = AssertPath(plan, "Shared/Shared.csproj").Content;
         Assert.Contains("<TargetFrameworks>netstandard2.1;net10.0</TargetFrameworks>", csproj, StringComparison.Ordinal);
         Assert.Contains("<PackageReference Include=\"Lakona.Rpc.Core\"", csproj, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona.Game.Abstractions", csproj, StringComparison.Ordinal);
         Assert.Contains("<PackageReference Include=\"Lakona.Rpc.Serializer.MemoryPack\"", csproj, StringComparison.Ordinal);
         Assert.Contains("<PackageReference Include=\"MemoryPack\"", csproj, StringComparison.Ordinal);
         Assert.Contains("<PackageReference Include=\"MemoryPack.Generator\"", csproj, StringComparison.Ordinal);
 
         var asmdef = AssertPath(plan, "Shared/Shared.asmdef").Content;
         Assert.Contains("\"MemoryPack.Core.dll\"", asmdef, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona.Game.Abstractions.dll", asmdef, StringComparison.Ordinal);
         Assert.Contains("\"allowUnsafeCode\": true", asmdef, StringComparison.Ordinal);
 
         var messages = AssertPath(plan, "Shared/Contracts/Chat/ChatMessages.cs").Content;
         Assert.Contains("[MemoryPackable(GenerateType.VersionTolerant)]", messages, StringComparison.Ordinal);
-        Assert.Contains("using Lakona.Game.Abstractions;", messages, StringComparison.Ordinal);
-        Assert.Contains("[MemoryPackOrder(2)] [MemoryPackAllowSerialize] [GameSessionKeyMemoryPackFormatter] public GameSessionKey Session { get; set; }", messages, StringComparison.Ordinal);
-        Assert.Contains("[MemoryPackOrder(0)] [MemoryPackAllowSerialize] [GameSessionKeyMemoryPackFormatter] public GameSessionKey Session { get; set; }", messages, StringComparison.Ordinal);
-        Assert.Contains("internal sealed class GameSessionKeyMemoryPackFormatterAttribute : MemoryPackCustomFormatterAttribute<GameSessionKeyMemoryPackFormatter, GameSessionKey>", messages, StringComparison.Ordinal);
-        Assert.Contains("internal sealed class GameSessionKeyMemoryPackFormatter : MemoryPackFormatter<GameSessionKey>", messages, StringComparison.Ordinal);
+        Assert.DoesNotContain("using Lakona.Game.Abstractions;", messages, StringComparison.Ordinal);
+        Assert.DoesNotContain("GameSessionKey Session", messages, StringComparison.Ordinal);
+        Assert.DoesNotContain("GameSessionKeyMemoryPackFormatter", messages, StringComparison.Ordinal);
+        Assert.Contains("public partial class ChatBindRequest", messages, StringComparison.Ordinal);
         Assert.Contains("public partial class ChatMessage", messages, StringComparison.Ordinal);
         AssertPath(plan, "Shared/Contracts/RpcContractIds.cs");
         AssertPath(plan, "Shared/Contracts/Login.cs");

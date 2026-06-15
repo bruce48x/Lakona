@@ -14,8 +14,7 @@ namespace Server.Hotfix.Chat
 
         public static async ValueTask BindAsync(HotfixServiceCall<ChatBindRequest, IChatCallback> call)
         {
-            await call.GameServer.BindSessionAsync(
-                call.Request.Session,
+            await call.GameServer.BindCurrentSessionAsync(
                 call.ConnectionId,
                 call.Callback);
             await call.Actors.AskAsync<ChatRoomActor, bool>(

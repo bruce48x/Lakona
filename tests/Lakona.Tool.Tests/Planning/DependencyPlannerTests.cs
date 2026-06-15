@@ -12,7 +12,7 @@ public sealed class DependencyPlannerTests
         var references = DependencyPlanner.Create(ProjectTarget.Shared, Spec(serializer: SerializerKind.MemoryPack)).PackageReferences;
 
         AssertPackage(references, "Lakona.Rpc.Core");
-        AssertPackage(references, "Lakona.Game.Abstractions");
+        Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Abstractions");
         AssertPackage(references, "Lakona.Rpc.Serializer.MemoryPack");
         AssertPackage(references, "MemoryPack");
         AssertPackage(references, "MemoryPack.Generator", privateAssets: "all", includeAssets: AnalyzerIncludeAssets);

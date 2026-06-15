@@ -46,6 +46,9 @@ shape over compatibility with the current sample code.
    `default` for session bookkeeping.
 8. Source generators must remove the need for
    `Server/App/Services/GeneratedServiceEndpoints.cs`.
+9. `GameSessionKey` is a server/framework identity. Generated shared RPC DTOs,
+   generated client code, sample `Shared` projects, and MemoryPack formatters
+   must not expose, store, serialize, or echo it.
 
 ## Current Problem
 
@@ -85,8 +88,8 @@ wrong abstraction.
 | --- | --- |
 | RPC connection | One accepted transport connection owned by `Lakona.Rpc.Server`. |
 | Connection id | Stable id for the RPC connection, currently aligned with `RpcSession.ContextId`. |
-| Game session | One framework-owned logical RPC session, identified by `GameSessionKey`. |
-| Session callback binding | A `GameSessionKey + callback contract type -> connection id + callback` record. |
+| Game session | One framework-owned logical RPC session, identified by server-side `GameSessionKey`. |
+| Session callback binding | A server-side `GameSessionKey + callback contract type -> connection id + callback` record. |
 | Business session group | User-owned mapping such as `PlayerId -> control session + realtime session`. |
 | Transport endpoint | A configured listener in `Lakona.Game:Endpoints[]`, identified by transport in the current schema. |
 | Business presence | Product-specific state such as room membership, lobby presence, or character online state. |
@@ -221,13 +224,20 @@ internal sealed class LoginService
             call.ConnectionId,
             call.Callback);
 
-        return new LoginReply(session);
+        return new LoginReply();
     }
 }
 ```
 
 The call context exposes stable runtime dependencies and the current RPC
 connection id. It must not expose `EndpointName` or `GameEndpointName`:
+
+`GameSessionKey` is a server/framework identity. Do not put it in shared RPC
+DTOs such as `LoginReply` or `ChatBindRequest`, and do not require clients to
+echo it back. When a later service method needs to attach another callback
+contract to the login-created session, the server must resolve the current
+session from `call.ConnectionId`. If future reconnect support needs client-held
+state, expose an opaque resume token or ticket instead of `GameSessionKey`.
 
 ```csharp
 public class HotfixServiceCall<TRequest>
@@ -308,9 +318,10 @@ public ValueTask<LoginReply> LoginAsync(LoginRequest req)
 
 ## Game Session Semantics
 
-`GameSessionKey` identifies one framework-owned game RPC session. It is not the
-same thing as an account, player, character, room member, device, or transport
-channel group.
+`GameSessionKey` identifies one framework-owned game RPC session. It is a
+server-side value, not a shared RPC contract field or client-visible session
+handle. It is not the same thing as an account, player, character, room member,
+device, or transport channel group.
 
 Starting a new session for an owner must not automatically invalidate other
 sessions for the same owner. `OwnerKey` is a user-provided ownership label for
@@ -324,10 +335,10 @@ resume validation, but they must not use it to reject other live sessions with
 the same `OwnerKey`.
 
 If a game wants only one active session per account, it must implement that
-policy explicitly in user code, for example by storing
+policy explicitly in server-side user code, for example by storing
 `AccountId -> GameSessionKey` and terminating or rejecting older sessions. If a
 game wants both a WebSocket control session and a KCP realtime session for one
-character, it stores that grouping itself:
+character, server-side user code stores that grouping itself:
 
 ```txt
 CharacterId
@@ -422,6 +433,12 @@ public interface ILakonaGameServer
 
     ValueTask BindSessionAsync<TCallback>(
         GameSessionKey session,
+        string connectionId,
+        TCallback callback,
+        CancellationToken cancellationToken = default)
+        where TCallback : class;
+
+    ValueTask BindCurrentSessionAsync<TCallback>(
         string connectionId,
         TCallback callback,
         CancellationToken cancellationToken = default)

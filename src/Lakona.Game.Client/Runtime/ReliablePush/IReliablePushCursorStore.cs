@@ -1,22 +1,21 @@
 using System.Threading;
 using System.Threading.Tasks;
-using Lakona.Game.Abstractions;
 
 namespace Lakona.Game.Client.ReliablePush
 {
     public interface IReliablePushCursorStore
     {
         ValueTask<long> LoadAsync(
-            GameSessionKey session,
+            string sessionId,
             CancellationToken cancellationToken = default);
 
         ValueTask SaveAsync(
-            GameSessionKey session,
+            string sessionId,
             long sequence,
             CancellationToken cancellationToken = default);
 
         ValueTask ClearAsync(
-            GameSessionKey session,
+            string sessionId,
             CancellationToken cancellationToken = default);
     }
 }

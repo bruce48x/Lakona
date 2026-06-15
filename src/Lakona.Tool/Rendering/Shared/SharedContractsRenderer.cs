@@ -117,56 +117,9 @@ internal sealed class SharedContractsRenderer : IPlanContributor
         var order0 = spec.Serializer == SerializerKind.MemoryPack ? "[MemoryPackOrder(0)] " : "";
         var order1 = spec.Serializer == SerializerKind.MemoryPack ? "[MemoryPackOrder(1)] " : "";
         var order2 = spec.Serializer == SerializerKind.MemoryPack ? "[MemoryPackOrder(2)] " : "";
-        var gameSessionKeyFormatterAttribute = spec.Serializer == SerializerKind.MemoryPack
-            ? "[MemoryPackAllowSerialize] [GameSessionKeyMemoryPackFormatter] "
-            : "";
-        var gameSessionKeyFormatter = spec.Serializer == SerializerKind.MemoryPack
-            ? """
-
-            internal sealed class GameSessionKeyMemoryPackFormatterAttribute : MemoryPackCustomFormatterAttribute<GameSessionKeyMemoryPackFormatter, GameSessionKey>
-            {
-                public override GameSessionKeyMemoryPackFormatter GetFormatter()
-                {
-                    return new GameSessionKeyMemoryPackFormatter();
-                }
-            }
-
-            internal sealed class GameSessionKeyMemoryPackFormatter : MemoryPackFormatter<GameSessionKey>
-            {
-                public override void Serialize<TBufferWriter>(ref MemoryPackWriter<TBufferWriter> writer, scoped ref GameSessionKey value)
-                {
-                    writer.WriteObjectHeader(3);
-                    writer.WriteString(value.OwnerKey);
-                    writer.WriteString(value.SessionId);
-                    var generation = value.Generation;
-                    writer.WriteUnmanaged(in generation);
-                }
-
-                public override void Deserialize(ref MemoryPackReader reader, scoped ref GameSessionKey value)
-                {
-                    if (!reader.TryReadObjectHeader(out var count))
-                    {
-                        value = default;
-                        return;
-                    }
-
-                    if (count != 3)
-                    {
-                        throw new MemoryPackSerializationException("GameSessionKey requires three fields.");
-                    }
-
-                    var ownerKey = reader.ReadString() ?? "";
-                    var sessionId = reader.ReadString() ?? "";
-                    var generation = reader.ReadUnmanaged<long>();
-                    value = new GameSessionKey(ownerKey, sessionId, generation);
-                }
-            }
-        """
-            : "";
 
         return $$"""
         using System.Collections.Generic;
-        using Lakona.Game.Abstractions;
         {{memoryPackUsing}}
         namespace Shared.Contracts.Chat
         {
@@ -179,7 +132,6 @@ internal sealed class SharedContractsRenderer : IPlanContributor
             {
                 {{order0}}public List<ChatMember> Members { get; set; } = new();
                 {{order1}}public List<ChatMessage> RecentMessages { get; set; } = new();
-                {{order2}}{{gameSessionKeyFormatterAttribute}}public GameSessionKey Session { get; set; }
             }
 
             {{memoryPackable}}public partial class ChatSendRequest
@@ -189,7 +141,6 @@ internal sealed class SharedContractsRenderer : IPlanContributor
 
             {{memoryPackable}}public partial class ChatBindRequest
             {
-                {{order0}}{{gameSessionKeyFormatterAttribute}}public GameSessionKey Session { get; set; }
             }
 
             {{memoryPackable}}public partial class ChatUserLeft
@@ -208,7 +159,6 @@ internal sealed class SharedContractsRenderer : IPlanContributor
                 {{order1}}public string Text { get; set; } = "";
                 {{order2}}public long Timestamp { get; set; }
             }
-        {{gameSessionKeyFormatter}}
         }
         """;
     }

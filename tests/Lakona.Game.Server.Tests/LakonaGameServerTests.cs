@@ -168,6 +168,79 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public async Task BindCurrentSessionBindsSecondCallbackContractByConnectionId()
+    {
+        var services = new ServiceCollection();
+        services.AddLakonaGameServer();
+        using var provider = services.BuildServiceProvider();
+        var server = provider.GetRequiredService<ILakonaGameServer>();
+        var login = new TestCallback();
+        var chat = new ChatCallback();
+
+        var session = await server.StartSessionAsync(
+            "player-a",
+            "connection-a",
+            login,
+            TestContext.Current.CancellationToken);
+
+        await server.BindCurrentSessionAsync(
+            "connection-a",
+            chat,
+            TestContext.Current.CancellationToken);
+
+        Assert.Same(login, await server.GetCallbackAsync<TestCallback>(session, TestContext.Current.CancellationToken));
+        Assert.Same(chat, await server.GetCallbackAsync<ChatCallback>(session, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task BindCurrentSessionRejectsUnboundConnectionId()
+    {
+        var services = new ServiceCollection();
+        services.AddLakonaGameServer();
+        using var provider = services.BuildServiceProvider();
+        var server = provider.GetRequiredService<ILakonaGameServer>();
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => server
+            .BindCurrentSessionAsync(
+                "missing-connection",
+                new ChatCallback(),
+                TestContext.Current.CancellationToken)
+            .AsTask());
+
+        Assert.Contains("missing-connection", error.Message, StringComparison.Ordinal);
+        Assert.Contains("active game session", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task BindCurrentSessionReplacesOnlyRequestedCallbackContract()
+    {
+        var services = new ServiceCollection();
+        services.AddLakonaGameServer();
+        using var provider = services.BuildServiceProvider();
+        var server = provider.GetRequiredService<ILakonaGameServer>();
+        var login = new TestCallback();
+        var firstChat = new ChatCallback();
+        var secondChat = new ChatCallback();
+
+        var session = await server.StartSessionAsync(
+            "player-a",
+            "connection-a",
+            login,
+            TestContext.Current.CancellationToken);
+        await server.BindCurrentSessionAsync(
+            "connection-a",
+            firstChat,
+            TestContext.Current.CancellationToken);
+        await server.BindCurrentSessionAsync(
+            "connection-a",
+            secondChat,
+            TestContext.Current.CancellationToken);
+
+        Assert.Same(login, await server.GetCallbackAsync<TestCallback>(session, TestContext.Current.CancellationToken));
+        Assert.Same(secondChat, await server.GetCallbackAsync<ChatCallback>(session, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task MainEntryPublishesReplaysAndAcknowledgesReliablePush()
     {
         var services = new ServiceCollection();
@@ -258,18 +331,15 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public void SessionTerminationNoticeCarriesFixedFrameworkReason()
+    public void SessionTerminationNoticeCarriesFixedFrameworkReasonWithoutSessionIdentity()
     {
-        var session = new GameSessionKey("player-a", "session-a", 1);
         var issuedAt = new DateTimeOffset(2026, 6, 4, 1, 2, 3, TimeSpan.Zero);
 
         var notice = new SessionTerminationNotice(
-            session,
             SessionTerminationReason.ReplacedByNewLogin,
             "This account logged in elsewhere.",
             issuedAt);
 
-        Assert.Equal(session, notice.Session);
         Assert.Equal(SessionTerminationReason.ReplacedByNewLogin, notice.Reason);
         Assert.Equal("This account logged in elsewhere.", notice.Message);
         Assert.Equal(issuedAt, notice.IssuedAt);
@@ -303,7 +373,6 @@ public sealed class LakonaGameServerTests
             TestContext.Current.CancellationToken);
 
         Assert.NotNull(callback.Notice);
-        Assert.Equal(session, callback.Notice.Session);
         Assert.Equal(SessionTerminationReason.ReplacedByNewLogin, callback.Notice.Reason);
         Assert.Equal("Duplicate login.", callback.Notice.Message);
         var closed = Assert.Single(closer.Closed);
@@ -373,7 +442,7 @@ public sealed class LakonaGameServerTests
 
         Assert.True(throwingHandler.WasCalled);
         Assert.Single(recordingHandler.Terminated);
-        Assert.Equal(session, recordingHandler.Terminated[0].Notice.Session);
+        Assert.Equal(session, recordingHandler.Terminated[0].Session);
         Assert.NotNull(callback.Notice);
         Assert.Single(closer.Closed);
     }
@@ -397,13 +466,17 @@ public sealed class LakonaGameServerTests
             cancellationToken: TestContext.Current.CancellationToken);
 
         var context = Assert.Single(recordingHandler.Terminated);
-        Assert.Equal(session, context.Notice.Session);
+        Assert.Equal(session, context.Session);
         Assert.Equal(SessionTerminationReason.Policy, context.Notice.Reason);
     }
 
     private sealed class TestCallback
     {
         public List<(long Sequence, string Payload)> Delivered { get; } = new();
+    }
+
+    private sealed class ChatCallback
+    {
     }
 
     private sealed class TerminationCallback : ILakonaGameSessionCallback

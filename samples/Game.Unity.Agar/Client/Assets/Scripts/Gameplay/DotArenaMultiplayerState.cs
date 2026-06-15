@@ -1,7 +1,6 @@
 #nullable enable
 
 using Shared.Interfaces;
-using Lakona.Game.Abstractions;
 using Lakona.Game.Client.ReliablePush;
 using Lakona.Game.Client.Sessions;
 
@@ -110,7 +109,7 @@ namespace SampleClient.Gameplay
                 ? string.IsNullOrWhiteSpace(sessionToken) ? playerId : sessionToken
                 : sessionId;
             var generation = sessionGeneration <= 0 ? 1 : sessionGeneration;
-            SessionController.StartSession(new GameSessionKey(playerId, reliableSessionId, generation));
+            SessionController.StartSession($"{reliableSessionId}:{generation}");
         }
     }
 

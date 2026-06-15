@@ -59,13 +59,11 @@ internal sealed class SharedProjectRenderer : IPlanContributor
         var references = spec.Serializer == SerializerKind.MemoryPack
             ? """
             "Lakona.Rpc.Core.dll",
-            "Lakona.Game.Abstractions.dll",
             "MemoryPack.Core.dll",
             "System.Runtime.CompilerServices.Unsafe.dll"
         """
             : """
-            "Lakona.Rpc.Core.dll",
-            "Lakona.Game.Abstractions.dll"
+            "Lakona.Rpc.Core.dll"
         """;
         var allowUnsafeCode = spec.Serializer == SerializerKind.MemoryPack ? "true" : "false";
 
