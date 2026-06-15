@@ -30,9 +30,9 @@ public sealed class GameConnectionContext
 }
 
 /// <summary>
-/// Describes a game session endpoint that is associated with an RPC connection.
+/// Describes a game session that is associated with an RPC connection.
 /// </summary>
-public sealed class GameEndpointBindingContext
+public sealed class GameSessionBindingContext
 {
     /// <summary>
     /// Initializes a new endpoint binding lifecycle context.
@@ -40,20 +40,20 @@ public sealed class GameEndpointBindingContext
     /// <param name="endpoint">The session endpoint affected by the lifecycle event.</param>
     /// <param name="connectionId">The RPC connection currently associated with the endpoint.</param>
     /// <param name="callbackContractTypes">The callback contracts exposed by the bound client endpoint.</param>
-    public GameEndpointBindingContext(
-        SessionEndpointKey endpoint,
+    public GameSessionBindingContext(
+        GameSessionKey session,
         string connectionId,
         IReadOnlyList<Type> callbackContractTypes)
     {
-        Endpoint = endpoint;
+        Session = session;
         ConnectionId = connectionId ?? throw new ArgumentNullException(nameof(connectionId));
         CallbackContractTypes = callbackContractTypes ?? throw new ArgumentNullException(nameof(callbackContractTypes));
     }
 
     /// <summary>
-    /// Gets the session endpoint affected by the lifecycle event.
+    /// Gets the session affected by the lifecycle event.
     /// </summary>
-    public SessionEndpointKey Endpoint { get; }
+    public GameSessionKey Session { get; }
 
     /// <summary>
     /// Gets the RPC connection currently associated with the endpoint.
@@ -64,28 +64,6 @@ public sealed class GameEndpointBindingContext
     /// Gets the callback contracts exposed by the bound client endpoint.
     /// </summary>
     public IReadOnlyList<Type> CallbackContractTypes { get; }
-}
-
-/// <summary>
-/// Describes the result of binding a connection to a game session endpoint.
-/// </summary>
-public sealed class GameSessionEndpointBindResult
-{
-    /// <summary>
-    /// Initializes a new endpoint bind result.
-    /// </summary>
-    /// <param name="endpointBecameActive">
-    /// The endpoint snapshot when the bind made the endpoint active; otherwise <see langword="null"/>.
-    /// </param>
-    public GameSessionEndpointBindResult(GameSessionEndpointSnapshot? endpointBecameActive)
-    {
-        EndpointBecameActive = endpointBecameActive;
-    }
-
-    /// <summary>
-    /// Gets the endpoint snapshot when the bind made the endpoint active, or <see langword="null"/> when no endpoint became active.
-    /// </summary>
-    public GameSessionEndpointSnapshot? EndpointBecameActive { get; }
 }
 
 /// <summary>
@@ -109,7 +87,7 @@ public sealed class GameSessionTerminationContext
 }
 
 /// <summary>
-/// Receives framework-owned connection, endpoint, and session lifecycle notifications.
+/// Receives framework-owned connection and session lifecycle notifications.
 /// </summary>
 /// <remarks>
 /// Register implementations in dependency injection to observe lifecycle events for presence,
@@ -120,7 +98,7 @@ public sealed class GameSessionTerminationContext
 public interface IGameSessionLifecycleHandler
 {
     /// <summary>
-    /// Called after a game RPC connection is opened and before it is bound to a session endpoint.
+    /// Called after a game RPC connection is opened and before it is bound to a game session.
     /// </summary>
     /// <param name="context">Information about the opened connection.</param>
     /// <param name="cancellationToken">A token that is canceled when the connection startup notification should stop.</param>
@@ -129,30 +107,30 @@ public interface IGameSessionLifecycleHandler
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Called after a connection is bound to a game session endpoint and the endpoint becomes active.
+    /// Called after a connection is bound to a game session and the session becomes active.
     /// </summary>
     /// <param name="context">Information about the endpoint, connection, and callback contracts.</param>
     /// <param name="cancellationToken">A token that is canceled when the endpoint binding notification should stop.</param>
-    ValueTask OnEndpointBoundAsync(
-        GameEndpointBindingContext context,
+    ValueTask OnSessionBoundAsync(
+        GameSessionBindingContext context,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Called when a bound endpoint is marked disconnected but remains eligible for later cleanup or resume.
+    /// Called when a bound session is marked disconnected but remains eligible for later cleanup or resume.
     /// </summary>
     /// <param name="context">Information about the disconnected endpoint and its last known connection.</param>
     /// <param name="cancellationToken">A token that is canceled when the disconnect notification should stop.</param>
-    ValueTask OnEndpointDisconnectedAsync(
-        GameEndpointBindingContext context,
+    ValueTask OnSessionDisconnectedAsync(
+        GameSessionBindingContext context,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Called when a previously disconnected endpoint expires and should no longer be treated as resumable.
+    /// Called when a previously disconnected session expires and should no longer be treated as resumable.
     /// </summary>
     /// <param name="context">Information about the expired endpoint and its last known connection.</param>
     /// <param name="cancellationToken">A token that is canceled when the endpoint expiration notification should stop.</param>
-    ValueTask OnEndpointExpiredAsync(
-        GameEndpointBindingContext context,
+    ValueTask OnSessionExpiredAsync(
+        GameSessionBindingContext context,
         CancellationToken cancellationToken = default);
 
     /// <summary>

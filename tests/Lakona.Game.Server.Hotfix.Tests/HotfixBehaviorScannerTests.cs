@@ -3,6 +3,7 @@ using System.Reflection.Emit;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Scanning;
+using Lakona.Rpc.Core;
 using Xunit;
 
 namespace Lakona.Game.Server.Hotfix.Tests;
@@ -102,6 +103,34 @@ public sealed class HotfixBehaviorScannerTests
         var exception = Assert.Throws<ArgumentException>(() => new HotfixDispatchTable(1, [null!]));
 
         Assert.Equal("methods", exception.ParamName);
+    }
+
+    [Fact]
+    public void Scanner_requires_one_hotfix_service_for_declared_rpc_contract()
+    {
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(MissingHotfixContract).Assembly,
+            [typeof(UnrelatedHotfixService)],
+            requiredServiceContracts: [typeof(MissingHotfixContract)]);
+
+        Assert.False(scan.Succeeded);
+        Assert.Contains(scan.Diagnostics, diagnostic =>
+            diagnostic.Contains("MissingHotfixContract", StringComparison.Ordinal) &&
+            diagnostic.Contains("exactly one", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Scanner_rejects_duplicate_hotfix_services_for_declared_rpc_contract()
+    {
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(DuplicateHotfixContract).Assembly,
+            [typeof(DuplicateHotfixServiceA), typeof(DuplicateHotfixServiceB)],
+            requiredServiceContracts: [typeof(DuplicateHotfixContract)]);
+
+        Assert.False(scan.Succeeded);
+        Assert.Contains(scan.Diagnostics, diagnostic =>
+            diagnostic.Contains("DuplicateHotfixContract", StringComparison.Ordinal) &&
+            diagnostic.Contains("2", StringComparison.Ordinal));
     }
 
     private static Assembly CreateAssembly(string name, Action<ModuleBuilder> build)
@@ -209,5 +238,49 @@ public sealed class HotfixBehaviorScannerTests
 
     public sealed class OutParameterState
     {
+    }
+
+    [RpcService(201)]
+    public interface MissingHotfixContract
+    {
+        [RpcMethod(1)]
+        ValueTask PingAsync(MissingHotfixRequest request);
+    }
+
+    public sealed class MissingHotfixRequest
+    {
+    }
+
+    public sealed class UnrelatedHotfixService
+    {
+    }
+
+    [RpcService(202)]
+    public interface DuplicateHotfixContract
+    {
+        [RpcMethod(1)]
+        ValueTask PingAsync(DuplicateHotfixRequest request);
+    }
+
+    public sealed class DuplicateHotfixRequest
+    {
+    }
+
+    [HotfixService(typeof(DuplicateHotfixContract))]
+    public sealed class DuplicateHotfixServiceA
+    {
+        public static ValueTask PingAsync(HotfixServiceCall<DuplicateHotfixRequest> call)
+        {
+            return default;
+        }
+    }
+
+    [HotfixService(typeof(DuplicateHotfixContract))]
+    public sealed class DuplicateHotfixServiceB
+    {
+        public static ValueTask PingAsync(HotfixServiceCall<DuplicateHotfixRequest> call)
+        {
+            return default;
+        }
     }
 }

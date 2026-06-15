@@ -12,7 +12,7 @@ public sealed class LakonaGameServer : ILakonaGameServer
     private readonly IGameSessionResumeService _resume;
     private readonly IReliablePushOutbox _reliablePush;
     private readonly IReliablePushAckService _reliablePushAcks;
-    private readonly IGameSessionEndpointCloser _endpointCloser;
+    private readonly IGameSessionConnectionCloser _connectionCloser;
     private readonly IReadOnlyList<IGameSessionLifecycleHandler> _lifecycleHandlers;
     private readonly ILogger<LakonaGameServer> _logger;
 
@@ -21,14 +21,14 @@ public sealed class LakonaGameServer : ILakonaGameServer
         IGameSessionResumeService resume,
         IReliablePushOutbox reliablePush,
         IReliablePushAckService reliablePushAcks,
-        IGameSessionEndpointCloser endpointCloser,
+        IGameSessionConnectionCloser connectionCloser,
         IEnumerable<IGameSessionLifecycleHandler> lifecycleHandlers)
         : this(
             sessions,
             resume,
             reliablePush,
             reliablePushAcks,
-            endpointCloser,
+            connectionCloser,
             lifecycleHandlers,
             NullLogger<LakonaGameServer>.Instance)
     {
@@ -39,7 +39,7 @@ public sealed class LakonaGameServer : ILakonaGameServer
         IGameSessionResumeService resume,
         IReliablePushOutbox reliablePush,
         IReliablePushAckService reliablePushAcks,
-        IGameSessionEndpointCloser endpointCloser,
+        IGameSessionConnectionCloser connectionCloser,
         IEnumerable<IGameSessionLifecycleHandler> lifecycleHandlers,
         ILogger<LakonaGameServer> logger)
     {
@@ -47,7 +47,7 @@ public sealed class LakonaGameServer : ILakonaGameServer
         _resume = resume;
         _reliablePush = reliablePush;
         _reliablePushAcks = reliablePushAcks;
-        _endpointCloser = endpointCloser;
+        _connectionCloser = connectionCloser;
         _lifecycleHandlers = lifecycleHandlers?.ToArray() ?? throw new ArgumentNullException(nameof(lifecycleHandlers));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -61,21 +61,19 @@ public sealed class LakonaGameServer : ILakonaGameServer
 
     public async ValueTask<GameSessionKey> StartSessionAsync<TCallback>(
         string ownerKey,
-        GameEndpointName endpointName,
         string connectionId,
         TCallback callback,
         CancellationToken cancellationToken = default)
         where TCallback : class
     {
         var session = await StartSessionAsync(ownerKey, cancellationToken).ConfigureAwait(false);
-        await BindEndpointAsync(session, endpointName, connectionId, callback, cancellationToken)
+        await BindSessionAsync(session, connectionId, callback, cancellationToken)
             .ConfigureAwait(false);
         return session;
     }
 
     public async ValueTask<SessionResumeDecision> ResumeSessionAsync<TCallback>(
         GameSessionResumeRequest request,
-        GameEndpointName endpointName,
         string connectionId,
         TCallback callback,
         CancellationToken cancellationToken = default)
@@ -85,75 +83,50 @@ public sealed class LakonaGameServer : ILakonaGameServer
         if (decision.Session is { } session &&
             decision.Status is SessionResumeStatus.Resumed or SessionResumeStatus.StateRefreshRequired)
         {
-            await BindEndpointAsync(session, endpointName, connectionId, callback, cancellationToken)
+            await BindSessionAsync(session, connectionId, callback, cancellationToken)
                 .ConfigureAwait(false);
         }
 
         return decision;
     }
 
-    public async ValueTask BindEndpointAsync<TCallback>(
+    public async ValueTask BindSessionAsync<TCallback>(
         GameSessionKey session,
-        GameEndpointName endpointName,
         string connectionId,
         TCallback callback,
         CancellationToken cancellationToken = default)
         where TCallback : class
     {
-        var result = await _sessions.BindEndpointAsync(
-            new SessionEndpointKey(session, endpointName),
+        var result = await _sessions.BindSessionAsync(
+            session,
             connectionId,
             callback,
             cancellationToken).ConfigureAwait(false);
 
-        if (result.EndpointBecameActive is { } snapshot)
+        if (result.SessionBecameActive is { } snapshot)
         {
-            await PublishEndpointBoundAsync(snapshot, cancellationToken).ConfigureAwait(false);
+            await PublishSessionBoundAsync(snapshot, cancellationToken).ConfigureAwait(false);
         }
     }
 
-    public ValueTask MarkEndpointDisconnectedAsync(
+    public ValueTask MarkSessionDisconnectedAsync(
         GameSessionKey session,
-        GameEndpointName endpointName,
         string? connectionId = null,
         CancellationToken cancellationToken = default)
     {
-        return _sessions.MarkEndpointDisconnectedAsync(
-            new SessionEndpointKey(session, endpointName),
-            connectionId,
-            cancellationToken);
+        return _sessions.MarkSessionDisconnectedAsync(session, connectionId, cancellationToken);
     }
 
     public ValueTask<TCallback?> GetCallbackAsync<TCallback>(
         GameSessionKey session,
-        GameEndpointName endpointName,
         CancellationToken cancellationToken = default)
         where TCallback : class
     {
-        return _sessions.GetCallbackAsync<TCallback>(
-            new SessionEndpointKey(session, endpointName),
-            cancellationToken);
-    }
-
-    public ValueTask TerminateSessionAsync(
-        GameSessionKey session,
-        SessionTerminationReason reason,
-        string? message = null,
-        SessionTerminationOptions? options = null,
-        CancellationToken cancellationToken = default)
-    {
-        return TerminateSessionAsync(
-            session,
-            GameEndpointName.Control,
-            reason,
-            message,
-            options,
-            cancellationToken);
+        return _sessions.GetCallbackAsync<TCallback>(session, cancellationToken);
     }
 
     public async ValueTask TerminateSessionAsync(
         GameSessionKey session,
-        GameEndpointName endpointName,
         SessionTerminationReason reason,
         string? message = null,
         SessionTerminationOptions? options = null,
@@ -162,9 +135,8 @@ public sealed class LakonaGameServer : ILakonaGameServer
         options ??= new SessionTerminationOptions();
         cancellationToken.ThrowIfCancellationRequested();
 
-        var endpoint = new SessionEndpointKey(session, endpointName);
         var binding = await _sessions
-            .GetEndpointBindingAsync<ILakonaGameSessionCallback>(endpoint, cancellationToken)
+            .GetSessionBindingAsync<ILakonaGameSessionCallback>(session, cancellationToken)
             .ConfigureAwait(false);
         var notice = new SessionTerminationNotice(session, reason, message);
 
@@ -190,14 +162,13 @@ public sealed class LakonaGameServer : ILakonaGameServer
                 cancellationToken)
             .ConfigureAwait(false);
 
-        await _endpointCloser
-            .CloseEndpointAsync(endpoint, binding.ConnectionId, notice, cancellationToken)
+        await _connectionCloser
+            .CloseConnectionAsync(session, binding.ConnectionId, notice, cancellationToken)
             .ConfigureAwait(false);
     }
 
     public ValueTask<long> PublishReliablePushAsync<TCallback, TPayload>(
         GameSessionKey session,
-        GameEndpointName endpointName,
         string kind,
         TPayload payload,
         ReliablePushDeliver<TCallback, TPayload> deliver,
@@ -210,7 +181,7 @@ public sealed class LakonaGameServer : ILakonaGameServer
             session,
             kind,
             payload ?? throw new ArgumentNullException(nameof(payload)),
-            record => DeliverReliablePushRecordAsync(session, endpointName, kind, record, deliver, cancellationToken),
+            record => DeliverReliablePushRecordAsync(session, kind, record, deliver, cancellationToken),
             cancellationToken);
     }
 
@@ -234,7 +205,6 @@ public sealed class LakonaGameServer : ILakonaGameServer
 
     public ValueTask ReplayReliablePushAsync<TCallback, TPayload>(
         GameSessionKey session,
-        GameEndpointName endpointName,
         string kind,
         ReliablePushDeliver<TCallback, TPayload> deliver,
         CancellationToken cancellationToken = default)
@@ -244,7 +214,7 @@ public sealed class LakonaGameServer : ILakonaGameServer
 
         return _reliablePush.ReplayPendingAsync(
             session,
-            record => DeliverReliablePushRecordAsync(session, endpointName, kind, record, deliver, cancellationToken),
+            record => DeliverReliablePushRecordAsync(session, kind, record, deliver, cancellationToken),
             cancellationToken);
     }
 
@@ -263,7 +233,6 @@ public sealed class LakonaGameServer : ILakonaGameServer
 
     private async ValueTask DeliverReliablePushRecordAsync<TCallback, TPayload>(
         GameSessionKey session,
-        GameEndpointName endpointName,
         string kind,
         ReliablePushRecord record,
         ReliablePushDeliver<TCallback, TPayload> deliver,
@@ -281,7 +250,7 @@ public sealed class LakonaGameServer : ILakonaGameServer
                 $"Reliable push record '{record.Kind}' payload is not assignable to '{typeof(TPayload).FullName}'.");
         }
 
-        var callback = await GetCallbackAsync<TCallback>(session, endpointName, cancellationToken)
+        var callback = await GetCallbackAsync<TCallback>(session, cancellationToken)
             .ConfigureAwait(false);
         if (callback is null)
         {
@@ -295,19 +264,19 @@ public sealed class LakonaGameServer : ILakonaGameServer
             cancellationToken).ConfigureAwait(false);
     }
 
-    private async ValueTask PublishEndpointBoundAsync(
-        GameSessionEndpointSnapshot snapshot,
+    private async ValueTask PublishSessionBoundAsync(
+        GameSessionSnapshot snapshot,
         CancellationToken cancellationToken)
     {
-        var context = new GameEndpointBindingContext(
-            snapshot.Endpoint,
+        var context = new GameSessionBindingContext(
+            snapshot.Session,
             snapshot.ConnectionId,
             snapshot.CallbackContractTypes);
         foreach (var handler in _lifecycleHandlers)
         {
             try
             {
-                await handler.OnEndpointBoundAsync(context, cancellationToken).ConfigureAwait(false);
+                await handler.OnSessionBoundAsync(context, cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -317,7 +286,7 @@ public sealed class LakonaGameServer : ILakonaGameServer
             {
                 _logger.LogError(
                     ex,
-                    "Game session endpoint-bound lifecycle handler failed for {ConnectionId}.",
+                    "Game session-bound lifecycle handler failed for {ConnectionId}.",
                     snapshot.ConnectionId);
             }
         }

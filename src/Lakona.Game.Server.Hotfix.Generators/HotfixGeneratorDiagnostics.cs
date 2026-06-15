@@ -20,34 +20,10 @@ namespace Lakona.Game.Server.Hotfix.Generators
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
-        public static readonly DiagnosticDescriptor ServiceMarkerMustBePartial = new DiagnosticDescriptor(
-            "ULGHOTFIX003",
-            "Hotfix RPC service marker must be partial",
-            "Hotfix RPC service marker '{0}' must be partial so generated service bindings can be attached",
-            "Lakona.Game.Hotfix",
-            DiagnosticSeverity.Error,
-            isEnabledByDefault: true);
-
-        public static readonly DiagnosticDescriptor DuplicateServiceMarker = new DiagnosticDescriptor(
-            "ULGHOTFIX004",
-            "Duplicate hotfix RPC service marker",
-            "Hotfix RPC service marker '{0}' duplicates contract '{1}' in binding set '{2}'",
-            "Lakona.Game.Hotfix",
-            DiagnosticSeverity.Error,
-            isEnabledByDefault: true);
-
-        public static readonly DiagnosticDescriptor BindingSetEndpointMismatch = new DiagnosticDescriptor(
-            "ULGHOTFIX005",
-            "Hotfix RPC binding set has multiple endpoints",
-            "Hotfix RPC binding set '{0}' declares multiple endpoint names; give each endpoint an explicit binding set name",
-            "Lakona.Game.Hotfix",
-            DiagnosticSeverity.Error,
-            isEnabledByDefault: true);
-
         public static readonly DiagnosticDescriptor UnsupportedServiceContract = new DiagnosticDescriptor(
             "ULGHOTFIX006",
             "Unsupported hotfix RPC service contract",
-            "Hotfix RPC service marker '{0}' must target an interface marked with [RpcService]",
+            "Hotfix RPC service contract '{0}' must be an interface marked with [RpcService]",
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
@@ -79,7 +55,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
         public static readonly DiagnosticDescriptor UnsupportedNotificationContract = new DiagnosticDescriptor(
             "ULGHOTFIX010",
             "Unsupported hotfix RPC notification contract",
-            "Hotfix RPC service marker '{0}' has a notification contract that cannot be mapped to a generated callback proxy",
+            "Hotfix RPC service contract '{0}' has a notification contract that cannot be mapped to a generated callback proxy",
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);

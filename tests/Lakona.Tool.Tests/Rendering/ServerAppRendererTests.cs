@@ -9,6 +9,13 @@ namespace Lakona.Tool.Tests.Rendering;
 
 public sealed class ServerAppRendererTests
 {
+    private static readonly string ForbiddenGeneratedGlueFile = string.Concat("Generated", "Service", "Endpoints");
+    private static readonly string ForbiddenHotfixMarker = string.Concat("Hotfix", "Rpc", "Service");
+    private static readonly string ForbiddenGameEndpointType = string.Concat("Game", "Endpoint", "Name");
+    private static readonly string ForbiddenSessionEndpointType = string.Concat("Session", "Endpoint", "Key");
+    private static readonly string ForbiddenCleanupOption = string.Concat("Disconnected", "Endpoint", "Retention");
+    private static readonly string ForbiddenEndpointHookPrefix = string.Concat("On", "Endpoint");
+
     [Fact]
     public void AddFiles_EmitsServerAppProjectProgramAndCompactSettings()
     {
@@ -29,7 +36,6 @@ public sealed class ServerAppRendererTests
         Assert.Contains("using Lakona.Game.Server.Sessions;", program, StringComparison.Ordinal);
         Assert.Contains("using Microsoft.Extensions.DependencyInjection;", program, StringComparison.Ordinal);
         Assert.Contains("using Server.App.Lifecycle;", program, StringComparison.Ordinal);
-        Assert.Contains("using Server.App.Services;", program, StringComparison.Ordinal);
         Assert.Contains("using Lakona.Rpc.Serializer.MemoryPack;", program, StringComparison.Ordinal);
         Assert.Contains("using Lakona.Rpc.Transport.Kcp;", program, StringComparison.Ordinal);
         Assert.Contains("return await LakonaGameServer.RunAsync(args, server => server", program, StringComparison.Ordinal);
@@ -38,7 +44,8 @@ public sealed class ServerAppRendererTests
         Assert.Contains("new KcpConnectionAcceptor(opts.Port, opts.Host)", program, StringComparison.Ordinal);
         Assert.Contains("services.AddSingleton<IGameSessionLifecycleHandler, ChatPresenceLifecycleHandler>();", program, StringComparison.Ordinal);
         Assert.Contains("services.AddLakonaGameServerSessionCleanup(options =>", program, StringComparison.Ordinal);
-        Assert.Contains("options.DisconnectedEndpointRetention = TimeSpan.FromSeconds(30);", program, StringComparison.Ordinal);
+        Assert.Contains("options.DisconnectedSessionRetention = TimeSpan.FromSeconds(30);", program, StringComparison.Ordinal);
+        Assert.DoesNotContain(ForbiddenCleanupOption, program, StringComparison.Ordinal);
         Assert.Contains(".UseGeneratedHotfixServices());", program, StringComparison.Ordinal);
         Assert.DoesNotContain("RpcServerHostBuilder", program, StringComparison.Ordinal);
 
@@ -57,14 +64,17 @@ public sealed class ServerAppRendererTests
         Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Hosting/ServiceBindingConfigurator.cs");
         Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Chat/ChatConnectionLifecycle.cs");
 
-        var endpoints = AssertPath(plan, "Server/App/Services/GeneratedServiceEndpoints.cs").Content;
-        Assert.Contains("[HotfixRpcService(typeof(ILoginService), EndpointName = \"control\")]", endpoints, StringComparison.Ordinal);
-        Assert.Contains("[HotfixRpcService(typeof(IChatService), EndpointName = \"control\")]", endpoints, StringComparison.Ordinal);
-        Assert.DoesNotContain("BindFactory", endpoints, StringComparison.Ordinal);
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath == $"Server/App/Services/{ForbiddenGeneratedGlueFile}.cs");
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains(ForbiddenGeneratedGlueFile, StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains(ForbiddenHotfixMarker, StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains("EndpointName", StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains(ForbiddenGameEndpointType, StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains(ForbiddenSessionEndpointType, StringComparison.Ordinal));
 
         var lifecycle = AssertPath(plan, "Server/App/Lifecycle/ChatPresenceLifecycleHandler.cs").Content;
         Assert.Contains("internal sealed class ChatPresenceLifecycleHandler : IGameSessionLifecycleHandler", lifecycle, StringComparison.Ordinal);
-        Assert.Contains("OnEndpointExpiredAsync", lifecycle, StringComparison.Ordinal);
+        Assert.Contains("OnSessionExpiredAsync", lifecycle, StringComparison.Ordinal);
+        Assert.DoesNotContain(ForbiddenEndpointHookPrefix, lifecycle, StringComparison.Ordinal);
         Assert.DoesNotContain("RpcSession", lifecycle, StringComparison.Ordinal);
         Assert.DoesNotContain("Disconnected +=", lifecycle, StringComparison.Ordinal);
 

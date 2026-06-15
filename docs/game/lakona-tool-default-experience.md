@@ -129,7 +129,7 @@ The framework still allows user-owned RPC contracts to live in any compiled shar
 The generated application should include a small vertical slice that demonstrates:
 
 - login creating a session
-- endpoint binding
+- session callback binding
 - cluster route registration
 - reliable welcome notification
 - reconnect with pending reliable push replay

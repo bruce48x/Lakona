@@ -160,6 +160,13 @@ Omitting `Feature` means all registered project Features are enabled. Omitting `
 
 Endpoint names are not part of the schema. The framework distinguishes endpoints by `Transport`, and the first version disallows duplicate transports in the same process.
 
+Endpoint transport entries are listener configuration only. They do not create
+framework game-session sub-identities. A WebSocket listener and a KCP listener
+produce separate RPC connections, and each connection may become its own
+`GameSessionKey` after user login or resume logic accepts it. If a game wants
+to treat those sessions as one player, character, room member, or device group,
+that grouping belongs in user business state.
+
 Required endpoint fields:
 
 - `Transport`
@@ -393,6 +400,11 @@ The tool should generate:
 
 `samples/Game.Unity.Agar` should move its control WebSocket and realtime KCP listeners into `Lakona.Game:Endpoints`. `control` and `realtime` remain business concepts in Agar code, not endpoint names in the framework schema. Agar Features can declare transport requirements, for example battle requiring `kcp` and login/control requiring `websocket`.
 
+Generated projects should not emit service endpoint marker files or hidden
+`control` / `realtime` endpoint names. Hotfix service binding is generated from
+shared `[RpcService]` contracts, while transport selection stays in host
+composition and Feature requirements.
+
 Because the framework is early, legacy shapes do not need to be supported:
 
 - no top-level `ControlPlane`
@@ -417,3 +429,5 @@ Keeping deployment-level validation out of scope limits what the framework can c
 - Users declare Feature order and dependencies in code, not by writing manual `if` branches over raw configuration.
 - Endpoint transport hosting is framework-owned.
 - A sample with WebSocket control traffic and KCP realtime traffic can be represented without endpoint names in JSON.
+- Multiple game sessions for one account, player, or character are represented
+  by user-owned business state, not by framework endpoint names.

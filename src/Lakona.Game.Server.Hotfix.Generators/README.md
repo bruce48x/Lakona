@@ -1,6 +1,6 @@
 # Lakona.Game.Server.Hotfix.Generators
 
-Source generators for Lakona.Game server Hotfix behaviors.
+Source generators for Lakona.Game server Hotfix behaviors and generated RPC service proxies.
 
 The first generator slice discovers `[HotfixState]` partial classes and emits generated friend accessors for private fields.
 
@@ -25,4 +25,4 @@ Types marked `[HotfixState]` must be partial. Nested hotfix state also requires 
 
 Generated accessors are public by necessity: they live in the stable assembly and must be callable from the separate hotfix assembly. They are hidden from normal IntelliSense but are not a security boundary. `[FriendOf]` identifies the intended Hotfix behavior relationship; it does not prevent other code with a stable-state reference from calling generated `__hotfix_` members.
 
-Full wrapper discovery from hotfix project method declarations is intentionally staged after the first runtime integration. Current samples use explicit stable wrappers while the generator supplies friend accessors.
+For server app projects, the generator also discovers referenced user `[RpcService]` contracts and emits stable service proxies plus a `UseGeneratedHotfixServices()` extension. Generated proxies construct `HotfixServiceCall<TRequest>` wrappers, pass the active RPC connection id, and route calls through the hotfix dispatcher. Hand-written service marker files are no longer part of generated projects.

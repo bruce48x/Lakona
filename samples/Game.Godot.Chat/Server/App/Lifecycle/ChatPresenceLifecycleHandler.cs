@@ -21,17 +21,17 @@ namespace Server.App.Lifecycle
             return default;
         }
 
-        public ValueTask OnEndpointBoundAsync(GameEndpointBindingContext context, CancellationToken cancellationToken = default)
+        public ValueTask OnSessionBoundAsync(GameSessionBindingContext context, CancellationToken cancellationToken = default)
         {
             return default;
         }
 
-        public ValueTask OnEndpointDisconnectedAsync(GameEndpointBindingContext context, CancellationToken cancellationToken = default)
+        public ValueTask OnSessionDisconnectedAsync(GameSessionBindingContext context, CancellationToken cancellationToken = default)
         {
             return default;
         }
 
-        public async ValueTask OnEndpointExpiredAsync(GameEndpointBindingContext context, CancellationToken cancellationToken = default)
+        public async ValueTask OnSessionExpiredAsync(GameSessionBindingContext context, CancellationToken cancellationToken = default)
         {
             try
             {

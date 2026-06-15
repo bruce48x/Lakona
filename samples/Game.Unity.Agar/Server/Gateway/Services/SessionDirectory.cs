@@ -92,14 +92,19 @@ internal sealed class SessionDirectory
     public async ValueTask<IPlayerCallback?> GetControlCallbackAsync(SessionRegistration registration, CancellationToken cancellationToken = default)
     {
         return await _gameSessions.GetCallbackAsync<IPlayerCallback>(
-            new SessionEndpointKey(registration.SessionKey, SessionRegistration.ControlEndpointName),
+            registration.ControlSessionKey,
             cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<IPlayerCallback?> GetRealtimePreferredCallbackAsync(SessionRegistration registration, CancellationToken cancellationToken = default)
     {
+        if (registration.RealtimeSessionKey is not { } realtimeSession)
+        {
+            return await GetControlCallbackAsync(registration, cancellationToken).ConfigureAwait(false);
+        }
+
         var realtime = await _gameSessions.GetCallbackAsync<IPlayerCallback>(
-            new SessionEndpointKey(registration.SessionKey, SessionRegistration.RealtimeEndpointName),
+            realtimeSession,
             cancellationToken).ConfigureAwait(false);
 
         return realtime ?? await GetControlCallbackAsync(registration, cancellationToken).ConfigureAwait(false);
@@ -148,6 +153,7 @@ internal sealed class SessionDirectory
             {
                 registration.RealtimeConnectionId = null;
                 registration.RealtimeCallback = null;
+                registration.RealtimeSessionKey = null;
                 registration.RoomId = null;
                 registration.MatchId = null;
                 registration.SeatIndex = -1;
@@ -177,8 +183,8 @@ internal sealed class SessionDirectory
             registration.ControlDisconnectedAtUtc = disconnectedAtUtc;
         }
 
-        await _gameSessions.MarkEndpointDisconnectedAsync(
-            new SessionEndpointKey(registration.SessionKey, SessionRegistration.ControlEndpointName),
+        await _gameSessions.MarkSessionDisconnectedAsync(
+            registration.ControlSessionKey,
             connectionId,
             cancellationToken).ConfigureAwait(false);
     }
@@ -241,7 +247,9 @@ internal sealed class SessionDirectory
             }
             else
             {
-                session = registration.SessionKey;
+                session = registration.RealtimeSessionKey ?? _gameSessions.StartNewSessionAsync(playerId, cancellationToken)
+                    .GetAwaiter()
+                    .GetResult();
             }
 
             if (!string.Equals(registration.SessionToken, sessionToken, StringComparison.Ordinal))
@@ -251,12 +259,13 @@ internal sealed class SessionDirectory
 
             registration.RoomId = roomId;
             registration.MatchId = matchId;
+            registration.RealtimeSessionKey = session;
             registration.RealtimeConnectionId = connectionId;
             registration.RealtimeCallback = callback;
         }
 
-        await _gameSessions.BindEndpointAsync(
-            new SessionEndpointKey(session, SessionRegistration.RealtimeEndpointName),
+        await _gameSessions.BindSessionAsync(
+            session,
             connectionId,
             callback,
             cancellationToken).ConfigureAwait(false);
@@ -267,6 +276,7 @@ internal sealed class SessionDirectory
     public async ValueTask DetachRealtimeAsync(string playerId, string? connectionId = null, CancellationToken cancellationToken = default)
     {
         SessionRegistration? registration;
+        GameSessionKey? realtimeSession = null;
         lock (_gate)
         {
             if (!_byPlayerId.TryGetValue(playerId, out registration))
@@ -282,16 +292,21 @@ internal sealed class SessionDirectory
 
             registration.RealtimeConnectionId = null;
             registration.RealtimeCallback = null;
+            realtimeSession = registration.RealtimeSessionKey;
+            registration.RealtimeSessionKey = null;
             if (registration.ControlCallback is null)
             {
                 _byPlayerId.Remove(playerId);
             }
         }
 
-        await _gameSessions.MarkEndpointDisconnectedAsync(
-            new SessionEndpointKey(registration.SessionKey, SessionRegistration.RealtimeEndpointName),
-            connectionId,
-            cancellationToken).ConfigureAwait(false);
+        if (realtimeSession is { } session)
+        {
+            await _gameSessions.MarkSessionDisconnectedAsync(
+                session,
+                connectionId,
+                cancellationToken).ConfigureAwait(false);
+        }
     }
 
     public void DetachRealtime(string playerId, string? connectionId = null)
@@ -303,6 +318,7 @@ internal sealed class SessionDirectory
     {
         SessionRegistration? detachedRegistration = null;
         string? realtimeConnectionId = null;
+        GameSessionKey? realtimeSession = null;
         lock (_gate)
         {
             if (!_byPlayerId.TryGetValue(playerId, out var registration))
@@ -321,8 +337,10 @@ internal sealed class SessionDirectory
             registration.SeatIndex = -1;
             detachedRegistration = registration;
             realtimeConnectionId = registration.RealtimeConnectionId;
+            realtimeSession = registration.RealtimeSessionKey;
             registration.RealtimeConnectionId = null;
             registration.RealtimeCallback = null;
+            registration.RealtimeSessionKey = null;
             if (registration.ControlCallback is null)
             {
                 _byPlayerId.Remove(playerId);
@@ -331,11 +349,14 @@ internal sealed class SessionDirectory
 
         if (detachedRegistration is not null)
         {
-            _gameSessions.MarkEndpointDisconnectedAsync(
-                new SessionEndpointKey(detachedRegistration.SessionKey, SessionRegistration.RealtimeEndpointName),
-                realtimeConnectionId)
-                .GetAwaiter()
-                .GetResult();
+            if (realtimeSession is { } session)
+            {
+                _gameSessions.MarkSessionDisconnectedAsync(
+                    session,
+                    realtimeConnectionId)
+                    .GetAwaiter()
+                    .GetResult();
+            }
         }
     }
 
@@ -407,8 +428,8 @@ internal sealed class SessionDirectory
         IPlayerCallback callback,
         CancellationToken cancellationToken = default)
     {
-        await _gameSessions.BindEndpointAsync(
-            new SessionEndpointKey(session, SessionRegistration.ControlEndpointName),
+        await _gameSessions.BindSessionAsync(
+            session,
             connectionId,
             callback,
             cancellationToken).ConfigureAwait(false);

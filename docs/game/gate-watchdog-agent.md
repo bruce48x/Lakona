@@ -27,7 +27,7 @@ Client ──┬──────────┤
          └─── KCP direct ─── Room (realtime, 30fps)
 ```
 
-The control channel handles login, matchmaking, reconnect. The realtime channel handles frame input and state snapshots. They are independent — losing one doesn't impact the other.
+The control channel handles login, matchmaking, reconnect. The realtime channel handles frame input and state snapshots. They are independent RPC sessions. Losing one does not directly change the other unless user business code links them and applies that policy.
 
 ## How to implement with Lakona.Game
 
@@ -37,10 +37,10 @@ Lakona.Game provides all the mechanisms. The pattern is just composition:
 |---------------|-------------------|
 | Gate: TCP/WS listener | `IULinkRpcServerConfigurator` with TCP or WebSocket transport |
 | Gate → Agent routing | `IClusterRouter` + `IRouteDirectory` |
-| Watchdog: auth + agent creation | `IGameSessionTokenValidator` + `ILakonaGameServer.StartSessionAsync` |
+| Watchdog: auth + agent creation | user auth + `ILakonaGameServer.StartSessionAsync` |
 | Agent: per-player service | `IActorRuntime` with per-player `ActorId` |
 | Reconnect to another Gate | `GameSessionResumeService` with resume token |
-| Realtime channel | `IULinkRpcServerConfigurator` with KCP transport, separate endpoint |
+| Realtime channel | KCP transport listener plus a separate `GameSessionKey` |
 | Reliable delivery | `IReliablePushOutbox` + `IReliablePushInbox` |
 | Server-initiated disconnect | `ILakonaGameServer.TerminateSessionAsync` + `ILakonaGameSessionCallback` |
 
@@ -51,8 +51,8 @@ When the server must remove a player from an active session, treat it as a termi
 1. The Agent or server policy decides the current session must end.
 2. Server code calls `ILakonaGameServer.TerminateSessionAsync`.
 3. Lakona.Game marks the session terminal before notifying the client, so new business work for that session is rejected deterministically.
-4. Lakona.Game sends a fixed `SessionTerminationNotice` through `ILakonaGameSessionCallback.OnSessionTerminatedAsync` on `GameEndpointName.Control` by default.
-5. Lakona.Game waits only up to `SessionTerminationOptions.NotifyTimeout`, then asks the configured endpoint closer to close the stored connection id.
+4. Lakona.Game sends a fixed `SessionTerminationNotice` through the `ILakonaGameSessionCallback` bound to that `GameSessionKey`.
+5. Lakona.Game waits only up to `SessionTerminationOptions.NotifyTimeout`, then asks the configured session closer to close the stored connection id.
 6. Later resume attempts return the terminal outcome when `KeepTerminalStateForResume` is enabled.
 
 The common server call should stay short:
@@ -64,7 +64,12 @@ await gameServer.TerminateSessionAsync(
     message: "This account logged in elsewhere.");
 ```
 
-Games with multiple client-facing endpoints may use the overload that accepts `GameEndpointName`. Most games should keep termination notices on the control endpoint; realtime channels should be closed as a consequence of session termination rather than defining their own kick protocol.
+Games with multiple client-facing transports should treat each transport
+connection as its own game session. If a player has both a control session and
+a realtime session, the mapping between those sessions belongs to user business
+state, such as `PlayerId -> control session + realtime session`. Terminating
+one `GameSessionKey` does not implicitly terminate another; user code should
+apply cross-session policy when that is the desired product behavior.
 
 The client callback endpoint implements the fixed framework callback:
 

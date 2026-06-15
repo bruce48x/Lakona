@@ -5,7 +5,6 @@
 Current shared types include:
 
 - `GameSessionKey`
-- `GameEndpointName`
 - `ReliablePushSequence`
 - `ReliablePushAckStatus`
 - `ReliablePushAckOutcome`

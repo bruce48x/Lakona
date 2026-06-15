@@ -1,8 +1,8 @@
 using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
+using Server.App.Generated;
 using Server.App.Lifecycle;
-using Server.App.Services;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Sessions;
 using Lakona.Rpc.Core;
@@ -17,7 +17,7 @@ return await LakonaGameServer.RunAsync(args, server => server
     {
         services.AddLakonaGameServerSessionCleanup(options =>
         {
-            options.DisconnectedEndpointRetention = TimeSpan.FromSeconds(30);
+            options.DisconnectedSessionRetention = TimeSpan.FromSeconds(30);
         });
         services.AddSingleton<IGameSessionLifecycleHandler, ChatPresenceLifecycleHandler>();
     })

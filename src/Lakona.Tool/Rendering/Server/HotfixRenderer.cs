@@ -77,15 +77,20 @@ internal sealed class HotfixRenderer : IPlanContributor
             {
                 private static readonly ActorId RoomId = ActorId.From("chat:global");
 
-                public static ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, ILoginCallback> call)
+                public static async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, ILoginCallback> call)
                 {
                     var playerName = string.IsNullOrWhiteSpace(call.Request.PlayerName)
                         ? "Player"
                         : call.Request.PlayerName.Trim();
 
-                    return call.Actors.AskAsync<ChatRoomActor, LoginReply>(
+                    var reply = await call.Actors.AskAsync<ChatRoomActor, LoginReply>(
                         RoomId,
                         (room, ct) => room.LoginAsync(call.ConnectionId, playerName, call.Callback));
+                    await call.GameServer.StartSessionAsync(
+                        playerName,
+                        call.ConnectionId,
+                        call.Callback);
+                    return reply;
                 }
             }
         }

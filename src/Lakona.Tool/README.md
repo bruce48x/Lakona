@@ -62,7 +62,9 @@ Generated server projects reference `Lakona.Game.Server.Generators` as an analyz
 
 For Unity and Tuanjie clients, the tool pins `Lakona.Game.Client` and `Lakona.Game.Abstractions` in `Assets/packages.config` and generates an editor import guard that prevents NuGet analyzer DLLs from being loaded as Unity runtime plugins.
 
-The generated `appsettings.json` intentionally stays small. It contains only the local node identity and client endpoint binding under `Lakona.Game`; cluster services, hotfix defaults, reliable push defaults, and RPC check output are derived by generated server helper code.
+The generated `appsettings.json` intentionally stays small. It contains only the local node identity and client transport endpoint configuration under `Lakona.Game`; cluster services, hotfix defaults, reliable push defaults, and RPC check output are derived by generated server helper code.
+
+Generated server apps use build-time hotfix service discovery. RPC contracts marked with `[RpcService]` in referenced user contract assemblies produce stable server proxies automatically; new projects no longer need hand-written service marker files.
 
 For a local Docker Compose rehearsal:
 

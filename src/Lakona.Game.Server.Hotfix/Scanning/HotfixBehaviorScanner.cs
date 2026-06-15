@@ -12,24 +12,30 @@ public static class HotfixBehaviorScanner
     {
         ArgumentNullException.ThrowIfNull(assemblies);
 
-        return Scan(assemblies, includedTypes: null);
+        return Scan(assemblies, includedTypes: null, requiredServiceContracts: null);
     }
 
-    public static HotfixBehaviorScanResult Scan(Assembly assembly, IReadOnlyList<Type> includedTypes)
+    public static HotfixBehaviorScanResult Scan(
+        Assembly assembly,
+        IReadOnlyList<Type>? candidateTypes = null,
+        IReadOnlyList<Type>? requiredServiceContracts = null)
     {
         ArgumentNullException.ThrowIfNull(assembly);
-        ArgumentNullException.ThrowIfNull(includedTypes);
 
-        return Scan([assembly], includedTypes);
+        return Scan([assembly], candidateTypes, requiredServiceContracts);
     }
 
-    private static HotfixBehaviorScanResult Scan(IReadOnlyList<Assembly> assemblies, IReadOnlyList<Type>? includedTypes)
+    private static HotfixBehaviorScanResult Scan(
+        IReadOnlyList<Assembly> assemblies,
+        IReadOnlyList<Type>? includedTypes,
+        IReadOnlyList<Type>? requiredServiceContracts)
     {
         var methods = new List<HotfixMethodBinding>();
         var services = new List<HotfixServiceMethodBinding>();
         var diagnostics = new List<string>();
         var keys = new HashSet<HotfixMethodKey>();
         var serviceKeys = new HashSet<string>(StringComparer.Ordinal);
+        var serviceImplementations = new Dictionary<Type, HashSet<Type>>();
         var included = includedTypes is null ? null : new HashSet<Type>(includedTypes);
 
         foreach (var assembly in assemblies)
@@ -72,8 +78,25 @@ public static class HotfixBehaviorScanner
                 var service = type.GetCustomAttribute<HotfixServiceAttribute>();
                 if (service is not null)
                 {
+                    if (!serviceImplementations.TryGetValue(service.ContractType, out var implementations))
+                    {
+                        implementations = [];
+                        serviceImplementations.Add(service.ContractType, implementations);
+                    }
+
+                    implementations.Add(type);
                     ScanServiceType(type, service.ContractType, services, diagnostics, serviceKeys);
                 }
+            }
+        }
+
+        foreach (var contract in requiredServiceContracts ?? Array.Empty<Type>())
+        {
+            serviceImplementations.TryGetValue(contract, out var implementations);
+            var count = implementations?.Count ?? 0;
+            if (count != 1)
+            {
+                diagnostics.Add($"Hotfix service contract '{contract.FullName}' requires exactly one [HotfixService] implementation; found {count}.");
             }
         }
 

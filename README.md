@@ -154,18 +154,18 @@ messages can go over WebSocket while realtime state goes over KCP. JSON is easy
 to inspect; MemoryPack is compact and fast. The RPC contracts stay the same.
 
 ```csharp
-// Server binds two channels per session.
-await server.BindEndpointAsync<IControlCallback>(
-    session, GameEndpointName.Control, controlConnectionId, controlCallback, ct);
+// Business state can explicitly remember the sessions that belong together.
+var controlSession = await server.StartSessionAsync(
+    playerId, controlConnectionId, controlCallback, ct);
 
-await server.BindEndpointAsync<IRealtimeCallback>(
-    session, GameEndpointName.Realtime, realtimeConnectionId, realtimeCallback, ct);
+var realtimeSession = await server.StartSessionAsync(
+    playerId, realtimeConnectionId, realtimeCallback, ct);
 ```
 
-Your game gets a reliable channel for login, matchmaking, and leaderboard, plus
-a low-latency channel for input and state sync, with the same session identity
-across both. Transport and serializer choices remain infrastructure decisions,
-not gameplay architecture decisions.
+Your game can keep a reliable session for login, matchmaking, and leaderboard,
+plus a low-latency session for input and state sync. Grouping those sessions by
+player, character, or room is application state; transport and serializer
+choices remain infrastructure decisions, not gameplay architecture decisions.
 
 ## Reliable Push
 
@@ -178,10 +178,13 @@ Server:
 ```csharp
 await server.PublishReliablePushAsync<IPlayerCallback, MatchFound>(
     session,
-    GameEndpointName.Control,
     "match_found",
     new MatchFound { RoomId = roomId },
-    (callback, payload) => callback.OnMatchFound(payload));
+    (callback, sequence, payload, ct) =>
+    {
+        payload.ReliableSequence = sequence.Value;
+        return callback.OnMatchFound(payload);
+    });
 ```
 
 Client:

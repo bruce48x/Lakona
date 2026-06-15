@@ -5,12 +5,13 @@ namespace Lakona.Game.Server.Hotfix.Generators.Tests;
 
 public sealed class HotfixGeneratorTests
 {
+    private static readonly string ForbiddenGameEndpointType = string.Concat("Game", "Endpoint", "Name");
+
     [Fact]
-    public void Generator_emits_hotfix_rpc_service_proxy_and_binding_extension()
+    public void Generator_discovers_shared_rpc_service_contract_without_marker()
     {
         var source = """
             using System.Threading.Tasks;
-            using Lakona.Game.Server.Hotfix.Abstractions;
             using Lakona.Rpc.Core;
 
             namespace Shared.Contracts.Chat
@@ -36,15 +37,6 @@ public sealed class HotfixGeneratorTests
                     ValueTask BindAsync(ChatBindRequest req);
                 }
             }
-
-            namespace Server.App.Services
-            {
-                using Shared.Contracts.Chat;
-
-                [HotfixRpcService(typeof(IChatService), EndpointName = "control")]
-                internal static partial class ChatServiceEndpoint;
-            }
-
             namespace Server.App.Generated
             {
                 using System;
@@ -70,91 +62,59 @@ public sealed class HotfixGeneratorTests
         var result = GeneratorTestHost.Run(source);
 
         Assert.Empty(result.ErrorDiagnostics);
-        Assert.Contains("internal sealed class ChatServiceEndpointProxy : global::Shared.Contracts.Chat.IChatService", result.GeneratedSource);
+        Assert.Contains("internal sealed class ChatServiceProxy : global::Shared.Contracts.Chat.IChatService", result.GeneratedSource);
         Assert.Contains("HotfixServiceCall<global::Shared.Contracts.Chat.ChatBindRequest, global::Shared.Contracts.Chat.IChatCallback>", result.GeneratedSource);
-        Assert.Contains("            7,", result.GeneratedSource);
         Assert.Contains("global::Server.App.Generated.ChatServiceBinder.BindFactory", result.GeneratedSource);
         Assert.Contains("UseGeneratedHotfixServices", result.GeneratedSource);
+        Assert.DoesNotContain("HotfixRpcService", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain(ForbiddenGameEndpointType, result.GeneratedSource, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Generator_emits_named_binding_set_dispatch()
+    public void Generator_uses_rpc_method_id_for_result_returning_hotfix_call()
     {
         var source = """
-            using System;
             using System.Threading.Tasks;
-            using Lakona.Game.Server.Hotfix.Abstractions;
             using Lakona.Rpc.Core;
-            using Lakona.Rpc.Server;
 
-            namespace Shared.Contracts
+            namespace Shared.Contracts.Login
             {
-                public sealed class Request
+                public sealed class LoginRequest
                 {
                 }
 
-                public interface IControlCallback
+                public sealed class LoginReply
                 {
                 }
 
-                public interface IRealtimeCallback
+                public interface ILoginCallback
                 {
                 }
 
-                [RpcService(1, NotificationContract = typeof(IControlCallback))]
-                public interface IControlService
+                [RpcService(10, NotificationContract = typeof(ILoginCallback))]
+                public interface ILoginService
                 {
-                    [RpcMethod(1)]
-                    ValueTask PingAsync(Request request);
+                    [RpcMethod(9)]
+                    ValueTask<LoginReply> LoginAsync(LoginRequest request);
                 }
-
-                [RpcService(2, NotificationContract = typeof(IRealtimeCallback))]
-                public interface IRealtimeService
-                {
-                    [RpcMethod(1)]
-                    ValueTask TickAsync(Request request);
-                }
-            }
-
-            namespace Server.App.Services
-            {
-                using Shared.Contracts;
-
-                [HotfixRpcService(typeof(IControlService), EndpointName = "control")]
-                internal static partial class ControlServiceEndpoint;
-
-                [HotfixRpcService(typeof(IRealtimeService), BindingSetName = "realtime", EndpointName = "realtime")]
-                internal static partial class RealtimeServiceEndpoint;
             }
 
             namespace Server.App.Generated
             {
-                using Shared.Contracts;
+                using System;
+                using Lakona.Rpc.Server;
+                using Shared.Contracts.Login;
 
-                public sealed class ControlCallbackProxy : IControlCallback
+                public sealed class LoginCallbackProxy : ILoginCallback
                 {
-                    public ControlCallbackProxy(RpcSession session)
+                    public LoginCallbackProxy(RpcSession session)
                     {
                     }
                 }
 
-                public sealed class RealtimeCallbackProxy : IRealtimeCallback
+                public static class LoginServiceBinder
                 {
-                    public RealtimeCallbackProxy(RpcSession session)
-                    {
-                    }
-                }
-
-                public static class ControlServiceBinder
-                {
-                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcSession, IControlService> implFactory)
-                    {
-                    }
-                }
-
-                public static class RealtimeServiceBinder
-                {
-                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcSession, IRealtimeService> implFactory)
+                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcSession, ILoginService> implFactory)
                     {
                     }
                 }
@@ -164,129 +124,80 @@ public sealed class HotfixGeneratorTests
         var result = GeneratorTestHost.Run(source);
 
         Assert.Empty(result.ErrorDiagnostics);
-        Assert.Contains("BindGeneratedHotfixServices(registry, services, \"default\")", result.GeneratedSource);
-        Assert.Contains("case \"default\":", result.GeneratedSource);
-        Assert.Contains("global::Server.App.Generated.ControlServiceBinder.BindFactory", result.GeneratedSource);
-        Assert.Contains("case \"realtime\":", result.GeneratedSource);
-        Assert.Contains("global::Server.App.Generated.RealtimeServiceBinder.BindFactory", result.GeneratedSource);
+        Assert.Contains("InvokeAsync<global::Shared.Contracts.Login.ILoginService", result.GeneratedSource);
+        Assert.Contains("9,", result.GeneratedSource);
+        Assert.Contains("global::Shared.Contracts.Login.LoginReply", result.GeneratedSource);
+        Assert.DoesNotContain("nameof(LoginAsync)", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"LoginAsync\"", result.GeneratedSource, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Generator_emits_namespace_safe_bindings_for_markers_in_different_namespaces()
+    public void Generator_discovers_shared_rpc_service_contract_from_metadata_reference()
     {
-        var source = """
-            using System;
+        var sharedSource = """
             using System.Threading.Tasks;
-            using Lakona.Game.Server.Hotfix.Abstractions;
             using Lakona.Rpc.Core;
-            using Lakona.Rpc.Server;
 
-            namespace Shared.Contracts
+            namespace Shared.Contracts.Login
             {
-                public sealed class Request
+                public sealed class LoginRequest
                 {
                 }
 
-                public interface IControlCallback
+                public interface ILoginCallback
                 {
                 }
 
-                public interface IRealtimeCallback
+                [RpcService(10, NotificationContract = typeof(ILoginCallback))]
+                public interface ILoginService
                 {
-                }
-
-                [RpcService(1, NotificationContract = typeof(IControlCallback))]
-                public interface IControlService
-                {
-                    [RpcMethod(1)]
-                    ValueTask PingAsync(Request request);
-                }
-
-                [RpcService(2, NotificationContract = typeof(IRealtimeCallback))]
-                public interface IRealtimeService
-                {
-                    [RpcMethod(1)]
-                    ValueTask TickAsync(Request request);
+                    [RpcMethod(9)]
+                    ValueTask LoginAsync(LoginRequest request);
                 }
             }
+            """;
 
-            namespace Server.App.Control.Services
+        var appSource = """
+            namespace Server.App.Generated
             {
-                using Shared.Contracts;
+                using System;
+                using Lakona.Rpc.Server;
+                using Shared.Contracts.Login;
 
-                [HotfixRpcService(typeof(IControlService), EndpointName = "control")]
-                internal static partial class ControlServiceEndpoint;
-            }
-
-            namespace Server.App.Realtime.Services
-            {
-                using Shared.Contracts;
-
-                [HotfixRpcService(typeof(IRealtimeService), BindingSetName = "realtime", EndpointName = "realtime")]
-                internal static partial class RealtimeServiceEndpoint;
-            }
-
-            namespace Server.App.Control.Generated
-            {
-                using Shared.Contracts;
-
-                public sealed class ControlCallbackProxy : IControlCallback
+                public sealed class LoginCallbackProxy : ILoginCallback
                 {
-                    public ControlCallbackProxy(RpcSession session)
+                    public LoginCallbackProxy(RpcSession session)
                     {
                     }
                 }
 
-                public static class ControlServiceBinder
+                public static class LoginServiceBinder
                 {
-                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcSession, IControlService> implFactory)
-                    {
-                    }
-                }
-            }
-
-            namespace Server.App.Realtime.Generated
-            {
-                using Shared.Contracts;
-
-                public sealed class RealtimeCallbackProxy : IRealtimeCallback
-                {
-                    public RealtimeCallbackProxy(RpcSession session)
-                    {
-                    }
-                }
-
-                public static class RealtimeServiceBinder
-                {
-                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcSession, IRealtimeService> implFactory)
+                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcSession, ILoginService> implFactory)
                     {
                     }
                 }
             }
             """;
 
-        var result = GeneratorTestHost.Run(source);
+        var result = GeneratorTestHost.RunWithReference(appSource, sharedSource);
 
         Assert.Empty(result.ErrorDiagnostics);
-        Assert.Contains("new global::Server.App.Control.Services.ControlServiceEndpointProxy(", result.GeneratedSource);
-        Assert.Contains("new global::Server.App.Realtime.Services.RealtimeServiceEndpointProxy(", result.GeneratedSource);
+        Assert.Contains("ILoginService", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("LoginServiceProxy", result.GeneratedSource, StringComparison.Ordinal);
     }
 
     [Theory]
-    [InlineData("public sealed class NotAService { }", "typeof(NotAService)", "ULGHOTFIX006")]
-    [InlineData("public interface IMissingRpcService { [RpcMethod(1)] ValueTask PingAsync(Request request); }", "typeof(IMissingRpcService)", "ULGHOTFIX006")]
-    [InlineData("[RpcService(1)] public interface IMissingRpcMethod { ValueTask PingAsync(Request request); }", "typeof(IMissingRpcMethod)", "ULGHOTFIX007")]
-    [InlineData("[RpcService(1)] public interface ITwoParameters { [RpcMethod(1)] ValueTask PingAsync(Request request, Request other); }", "typeof(ITwoParameters)", "ULGHOTFIX008")]
-    [InlineData("[RpcService(1)] public interface IUnsupportedReturn { [RpcMethod(1)] Task PingAsync(Request request); }", "typeof(IUnsupportedReturn)", "ULGHOTFIX009")]
-    [InlineData("[RpcService(1, NotificationContract = typeof(BadCallback))] public interface IBadCallbackService { [RpcMethod(1)] ValueTask PingAsync(Request request); } public sealed class BadCallback { }", "typeof(IBadCallbackService)", "ULGHOTFIX010")]
+    [InlineData("[RpcService(1)] public interface IMissingRpcMethod { ValueTask PingAsync(Request request); }", "ULGHOTFIX007")]
+    [InlineData("[RpcService(1)] public interface ITwoParameters { [RpcMethod(1)] ValueTask PingAsync(Request request, Request other); }", "ULGHOTFIX008")]
+    [InlineData("[RpcService(1)] public interface IUnsupportedReturn { [RpcMethod(1)] Task PingAsync(Request request); }", "ULGHOTFIX009")]
+    [InlineData("[RpcService(1, NotificationContract = typeof(BadCallback))] public interface IBadCallbackService { [RpcMethod(1)] ValueTask PingAsync(Request request); } public sealed class BadCallback { }", "ULGHOTFIX010")]
     public void Generator_reports_diagnostics_for_unsupported_hotfix_rpc_service_shapes(
         string contractSource,
-        string markerContract,
         string diagnosticId)
     {
         var source = $$"""
             using System.Threading.Tasks;
-            using Lakona.Game.Server.Hotfix.Abstractions;
             using Lakona.Rpc.Core;
 
             namespace Shared.Contracts
@@ -297,20 +208,12 @@ public sealed class HotfixGeneratorTests
 
                 {{contractSource}}
             }
-
-            namespace Server.App.Services
-            {
-                using Shared.Contracts;
-
-                [HotfixRpcService({{markerContract}}, EndpointName = "control")]
-                internal static partial class UnsupportedServiceEndpoint;
-            }
             """;
 
         var result = GeneratorTestHost.Run(source);
 
         Assert.Contains(result.GeneratorDiagnostics, diagnostic => diagnostic.Id == diagnosticId);
-        Assert.DoesNotContain("UnsupportedServiceEndpointProxy", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("UnsupportedServiceProxy", result.GeneratedSource, StringComparison.Ordinal);
     }
 
     [Fact]

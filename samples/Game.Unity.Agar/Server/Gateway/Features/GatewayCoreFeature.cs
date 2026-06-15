@@ -25,7 +25,7 @@ public sealed class GatewayCoreFeature : LakonaGameFeature
         services.AddLakonaGameServerSessionCleanup(options =>
         {
             options.Interval = TimeSpan.FromSeconds(30);
-            options.DisconnectedEndpointRetention = TimeSpan.FromMinutes(2);
+            options.DisconnectedSessionRetention = TimeSpan.FromMinutes(2);
         });
         services.AddMessageRecording();
         services.AddLakonaGameRuntimeValidation();

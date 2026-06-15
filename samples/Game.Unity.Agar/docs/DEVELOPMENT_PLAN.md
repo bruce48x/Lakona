@@ -850,7 +850,7 @@ dotnet test tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj
 
 ### 阶段 7：网关清理语义与框架迁移
 
-- `Lakona.Game.Server.Sessions` 已提供 `GameSessionKey`、`SessionEndpointKey`、`IGameSessionDirectory`、in-memory directory、resume decision、token validator hook、authoritative state probe 和 cleanup hosted service。
+- `Lakona.Game.Server.Sessions` 已提供 `GameSessionKey`、`IGameSessionDirectory`、in-memory directory、resume decision、token validator hook、authoritative state probe 和 cleanup hosted service；control/realtime 由样例业务状态显式维护多个 session。
 - `Lakona.Game.Server.ReliablePush` 已提供 session/generation-aware ack outcome、`IReliablePushAckService` 和 `GameSessionKey` owner key 扩展。
 - `Lakona.Game.Client` 已提供 `ReliablePushSession`、`ReliablePushInbox`、cursor store、`ClientSessionController` 和 deterministic transition tests。
 - Agar Unity 的 `SessionDirectory` / `PlayerService` 已迁移到框架会话目录：控制端点和实时端点以 endpoint name 绑定 opaque callback，reconnect 通过 framework resume decision 判断 state lost。

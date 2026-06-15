@@ -10,7 +10,7 @@ namespace Lakona.Game.Server.Tests;
 public sealed class GameSessionLifecycleBridgeTests
 {
     [Fact]
-    public async Task StartSessionPublishesEndpointBoundOnceForActiveEndpointAggregate()
+    public async Task StartSessionPublishesSessionBoundOnceForActiveSession()
     {
         var handler = new RecordingLifecycleHandler();
         var services = new ServiceCollection();
@@ -21,30 +21,27 @@ public sealed class GameSessionLifecycleBridgeTests
 
         var session = await server.StartSessionAsync(
             "player-a",
-            GameEndpointName.Control,
             "connection-a",
             new LoginCallback(),
             TestContext.Current.CancellationToken);
-        await server.BindEndpointAsync(
+        await server.BindSessionAsync(
             session,
-            GameEndpointName.Control,
             "connection-a",
             new ChatCallback(),
             TestContext.Current.CancellationToken);
-        await server.BindEndpointAsync(
+        await server.BindSessionAsync(
             session,
-            GameEndpointName.Control,
             "connection-b",
             new LoginCallback(),
             TestContext.Current.CancellationToken);
 
-        var bound = Assert.Single(handler.EndpointBound);
-        Assert.Equal(new SessionEndpointKey(session, GameEndpointName.Control), bound.Endpoint);
+        var bound = Assert.Single(handler.SessionBound);
+        Assert.Equal(session, bound.Session);
         Assert.Equal("connection-a", bound.ConnectionId);
     }
 
     [Fact]
-    public async Task ResumeSessionPublishesEndpointBoundWhenDisconnectedAggregateBecomesActive()
+    public async Task ResumeSessionPublishesSessionBoundWhenDisconnectedSessionBecomesActive()
     {
         var handler = new RecordingLifecycleHandler();
         var services = new ServiceCollection();
@@ -55,31 +52,28 @@ public sealed class GameSessionLifecycleBridgeTests
 
         var session = await server.StartSessionAsync(
             "player-a",
-            GameEndpointName.Control,
             "connection-a",
             new LoginCallback(),
             TestContext.Current.CancellationToken);
-        await server.MarkEndpointDisconnectedAsync(
+        await server.MarkSessionDisconnectedAsync(
             session,
-            GameEndpointName.Control,
             "connection-a",
             TestContext.Current.CancellationToken);
 
         var decision = await server.ResumeSessionAsync(
             new GameSessionResumeRequest(session),
-            GameEndpointName.Control,
             "connection-b",
             new LoginCallback(),
             TestContext.Current.CancellationToken);
 
         Assert.Equal(SessionResumeStatus.Resumed, decision.Status);
-        Assert.Equal(2, handler.EndpointBound.Count);
-        Assert.Equal("connection-a", handler.EndpointBound[0].ConnectionId);
-        Assert.Equal("connection-b", handler.EndpointBound[1].ConnectionId);
+        Assert.Equal(2, handler.SessionBound.Count);
+        Assert.Equal("connection-a", handler.SessionBound[0].ConnectionId);
+        Assert.Equal("connection-b", handler.SessionBound[1].ConnectionId);
     }
 
     [Fact]
-    public async Task RpcDisconnectMarksEndpointAggregateDisconnectedAndPublishesOnce()
+    public async Task RpcDisconnectMarksSessionDisconnectedAndPublishesOnce()
     {
         var directory = new InMemoryGameSessionDirectory();
         var handler = new RecordingLifecycleHandler();
@@ -88,28 +82,27 @@ public sealed class GameSessionLifecycleBridgeTests
             [handler],
             NullLogger<GameSessionRpcLifecycleObserver>.Instance);
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
-        var endpoint = new SessionEndpointKey(session, "control");
 
-        await directory.BindEndpointAsync(endpoint, "connection-a", new LoginCallback(), TestContext.Current.CancellationToken);
-        await directory.BindEndpointAsync(endpoint, "connection-a", new ChatCallback(), TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "connection-a", new LoginCallback(), TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "connection-a", new ChatCallback(), TestContext.Current.CancellationToken);
 
         await observer.OnSessionDisconnectedAsync(
             new RpcSessionLifecycleContext("connection-a", "connection-a"),
             error: null,
             TestContext.Current.CancellationToken);
 
-        var disconnected = Assert.Single(handler.EndpointDisconnected);
-        Assert.Equal(endpoint, disconnected.Endpoint);
+        var disconnected = Assert.Single(handler.SessionDisconnected);
+        Assert.Equal(session, disconnected.Session);
         Assert.Equal("connection-a", disconnected.ConnectionId);
-        Assert.Null(await directory.GetCallbackAsync<LoginCallback>(endpoint, TestContext.Current.CancellationToken));
-        Assert.Null(await directory.GetCallbackAsync<ChatCallback>(endpoint, TestContext.Current.CancellationToken));
+        Assert.Null(await directory.GetCallbackAsync<LoginCallback>(session, TestContext.Current.CancellationToken));
+        Assert.Null(await directory.GetCallbackAsync<ChatCallback>(session, TestContext.Current.CancellationToken));
     }
 
     private sealed class RecordingLifecycleHandler : IGameSessionLifecycleHandler
     {
-        public List<GameEndpointBindingContext> EndpointBound { get; } = [];
+        public List<GameSessionBindingContext> SessionBound { get; } = [];
 
-        public List<GameEndpointBindingContext> EndpointDisconnected { get; } = [];
+        public List<GameSessionBindingContext> SessionDisconnected { get; } = [];
 
         public ValueTask OnConnectionOpenedAsync(
             GameConnectionContext context,
@@ -118,24 +111,24 @@ public sealed class GameSessionLifecycleBridgeTests
             return default;
         }
 
-        public ValueTask OnEndpointBoundAsync(
-            GameEndpointBindingContext context,
+        public ValueTask OnSessionBoundAsync(
+            GameSessionBindingContext context,
             CancellationToken cancellationToken = default)
         {
-            EndpointBound.Add(context);
+            SessionBound.Add(context);
             return default;
         }
 
-        public ValueTask OnEndpointDisconnectedAsync(
-            GameEndpointBindingContext context,
+        public ValueTask OnSessionDisconnectedAsync(
+            GameSessionBindingContext context,
             CancellationToken cancellationToken = default)
         {
-            EndpointDisconnected.Add(context);
+            SessionDisconnected.Add(context);
             return default;
         }
 
-        public ValueTask OnEndpointExpiredAsync(
-            GameEndpointBindingContext context,
+        public ValueTask OnSessionExpiredAsync(
+            GameSessionBindingContext context,
             CancellationToken cancellationToken = default)
         {
             return default;

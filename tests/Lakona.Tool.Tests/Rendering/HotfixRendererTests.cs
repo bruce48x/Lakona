@@ -33,8 +33,9 @@ public sealed class HotfixRendererTests
         var loginService = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Login/LoginService.cs").Content;
         Assert.Contains("[HotfixService(typeof(ILoginService))]", loginService, StringComparison.Ordinal);
         Assert.Contains("internal sealed class LoginService", loginService, StringComparison.Ordinal);
-        Assert.Contains("public static ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, ILoginCallback> call)", loginService, StringComparison.Ordinal);
-        Assert.Contains("return call.Actors.AskAsync<ChatRoomActor, LoginReply>", loginService, StringComparison.Ordinal);
+        Assert.Contains("public static async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, ILoginCallback> call)", loginService, StringComparison.Ordinal);
+        Assert.Contains("await call.Actors.AskAsync<ChatRoomActor, LoginReply>", loginService, StringComparison.Ordinal);
+        Assert.Contains("await call.GameServer.StartSessionAsync", loginService, StringComparison.Ordinal);
         Assert.DoesNotContain("LoginServiceCall", loginService, StringComparison.Ordinal);
 
         var chatService = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Chat/ChatService.cs").Content;

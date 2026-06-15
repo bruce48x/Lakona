@@ -2,10 +2,10 @@ using Lakona.Game.Abstractions;
 
 namespace Lakona.Game.Server.Sessions;
 
-public interface IGameSessionEndpointCloser
+public interface IGameSessionConnectionCloser
 {
-    ValueTask CloseEndpointAsync(
-        SessionEndpointKey endpoint,
+    ValueTask CloseConnectionAsync(
+        GameSessionKey session,
         string connectionId,
         SessionTerminationNotice notice,
         CancellationToken cancellationToken = default);

@@ -46,34 +46,35 @@ internal sealed class GameSessionRpcLifecycleObserver : IRpcSessionLifecycleObse
         Exception? error,
         CancellationToken cancellationToken = default)
     {
-        var snapshots = await _directory
+        var snapshot = await _directory
             .MarkConnectionDisconnectedAsync(context.ConnectionId, cancellationToken)
             .ConfigureAwait(false);
-
-        foreach (var snapshot in snapshots)
+        if (snapshot is null)
         {
-            var endpointContext = new GameEndpointBindingContext(
-                snapshot.Endpoint,
-                snapshot.ConnectionId,
-                snapshot.CallbackContractTypes);
-            foreach (var handler in _handlers)
+            return;
+        }
+
+        var sessionContext = new GameSessionBindingContext(
+            snapshot.Session,
+            snapshot.ConnectionId,
+            snapshot.CallbackContractTypes);
+        foreach (var handler in _handlers)
+        {
+            try
             {
-                try
-                {
-                    await handler.OnEndpointDisconnectedAsync(endpointContext, cancellationToken)
-                        .ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(
-                        ex,
-                        "Game session endpoint-disconnected lifecycle handler failed for {ConnectionId}.",
-                        context.ConnectionId);
-                }
+                await handler.OnSessionDisconnectedAsync(sessionContext, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Game session-disconnected lifecycle handler failed for {ConnectionId}.",
+                    context.ConnectionId);
             }
         }
     }

@@ -21,6 +21,7 @@ Supporting documents provide deeper rationale or user-facing context:
 | [docs/game/design-philosophy.md](./docs/game/design-philosophy.md) | Game framework design principles and roadmap |
 | [docs/game/hotfix-architecture.md](./docs/game/hotfix-architecture.md) | Hotfix architecture, Actor vs ECS naming, and HotfixDispatch design rationale |
 | [docs/game/generated-hotfix-services-and-session-lifecycle.md](./docs/game/generated-hotfix-services-and-session-lifecycle.md) | Target architecture for generated hotfix service bindings and framework-owned connection/session lifecycle |
+| [docs/game/generated-hotfix-services-and-session-lifecycle-implementation-plan.md](./docs/game/generated-hotfix-services-and-session-lifecycle-implementation-plan.md) | Step-by-step implementation plan for generated hotfix service bindings and the one-RPC-session lifecycle model |
 | [docs/game/actor-kernel-boundary.md](./docs/game/actor-kernel-boundary.md) | Responsibility split between actor kernel and game framework |
 | [docs/game/lakona-game-configuration-startup.md](./docs/game/lakona-game-configuration-startup.md) | Game configuration schema, feature catalog startup, and validation boundary |
 | [docs/game/lakona-game-runtime-guardrails.md](./docs/game/lakona-game-runtime-guardrails.md) | Runtime validation model for cluster, hotfix, endpoints, and production profile |
@@ -123,7 +124,7 @@ Lakona has three layers:
 - `Lakona.Game.Server.Actors`: game-facing actor API backed by an internal mailbox kernel.
   The internal kernel handles mailbox execution, timers, backpressure, and diagnostics.
 - `Lakona.Game`: game-session infrastructure that integrates RPC, actor
-  execution, reconnect, named endpoint hosting, reliable push, cluster routing,
+  execution, reconnect, transport endpoint hosting, reliable push, cluster routing,
   hotfix, and runtime guardrails.
 
 User game code owns matchmaking, room rules, gameplay state, account schemas,
@@ -265,9 +266,9 @@ expose failure, backpressure, and state mismatch explicitly.
 
 Good candidates:
 
-- session identity and endpoint binding
+- session identity and session callback binding
 - reliable business push
-- named RPC endpoint hosting
+- transport RPC endpoint hosting
 - cluster node identity and route location
 - route directory and node messenger abstractions
 - diagnostics, health checks, and metrics
@@ -426,7 +427,7 @@ Tests should protect runtime contracts rather than mirror implementation details
 | Transports | Cancellation, disconnect, backpressure, framing, transport security |
 | Serializers | Roundtrips, payload compatibility, failure behavior |
 | Starter/tooling | CLI parsing, dependency planning, generated file layout, template output |
-| Game sessions | Resume, cleanup, endpoint binding, token validation, reliable push |
+| Game sessions | Resume, cleanup, session callback binding, token validation, reliable push |
 | Cluster | Route lookup, expiration, local dispatch, remote dispatch, stale registration, node restart |
 | Hotfix | Dispatch, reload, unload, file watching, generated accessors, failure fallback |
 | Unity samples | EditMode or PlayMode tests for Unity-facing runtime behavior and sample shape |

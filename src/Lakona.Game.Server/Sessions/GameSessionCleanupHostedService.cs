@@ -41,21 +41,21 @@ public sealed class GameSessionCleanupHostedService : BackgroundService
 
     public async ValueTask CleanupOnceAsync(CancellationToken cancellationToken = default)
     {
-        var disconnectedBefore = DateTimeOffset.UtcNow - GetDisconnectedEndpointRetention();
-        var snapshots = await _directory.ExpireDisconnectedEndpointsAsync(disconnectedBefore, cancellationToken)
+        var disconnectedBefore = DateTimeOffset.UtcNow - GetDisconnectedSessionRetention();
+        var snapshots = await _directory.ExpireDisconnectedSessionsAsync(disconnectedBefore, cancellationToken)
             .ConfigureAwait(false);
 
         foreach (var snapshot in snapshots)
         {
-            var context = new GameEndpointBindingContext(
-                snapshot.Endpoint,
+            var context = new GameSessionBindingContext(
+                snapshot.Session,
                 snapshot.ConnectionId,
                 snapshot.CallbackContractTypes);
             foreach (var handler in _handlers)
             {
                 try
                 {
-                    await handler.OnEndpointExpiredAsync(context, cancellationToken).ConfigureAwait(false);
+                    await handler.OnSessionExpiredAsync(context, cancellationToken).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
@@ -65,7 +65,7 @@ public sealed class GameSessionCleanupHostedService : BackgroundService
                 {
                     _logger.LogError(
                         ex,
-                        "Game session endpoint-expired lifecycle handler failed for {ConnectionId}.",
+                        "Game session-expired lifecycle handler failed for {ConnectionId}.",
                         snapshot.ConnectionId);
                 }
             }
@@ -77,10 +77,10 @@ public sealed class GameSessionCleanupHostedService : BackgroundService
         return _options.Interval <= TimeSpan.Zero ? TimeSpan.FromSeconds(30) : _options.Interval;
     }
 
-    private TimeSpan GetDisconnectedEndpointRetention()
+    private TimeSpan GetDisconnectedSessionRetention()
     {
-        return _options.DisconnectedEndpointRetention <= TimeSpan.Zero
+        return _options.DisconnectedSessionRetention <= TimeSpan.Zero
             ? TimeSpan.FromMinutes(2)
-            : _options.DisconnectedEndpointRetention;
+            : _options.DisconnectedSessionRetention;
     }
 }

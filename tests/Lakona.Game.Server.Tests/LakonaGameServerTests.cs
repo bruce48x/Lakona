@@ -146,7 +146,7 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public async Task MainEntryStartsSessionBindsEndpointAndReturnsCallback()
+    public async Task MainEntryStartsSessionBindsCallbackAndReturnsCallback()
     {
         var services = new ServiceCollection();
         services.AddLakonaGameServer();
@@ -156,14 +156,12 @@ public sealed class LakonaGameServerTests
 
         var session = await server.StartSessionAsync(
             "player-a",
-            "control",
             "connection-a",
             callback,
             TestContext.Current.CancellationToken);
 
         var resolved = await server.GetCallbackAsync<TestCallback>(
             session,
-            "control",
             TestContext.Current.CancellationToken);
 
         Assert.Same(callback, resolved);
@@ -222,7 +220,7 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public async Task MainEntryPublishesTypedReliablePushThroughEndpointCallback()
+    public async Task MainEntryPublishesTypedReliablePushThroughSessionCallback()
     {
         var services = new ServiceCollection();
         services.AddLakonaGameServer();
@@ -231,14 +229,12 @@ public sealed class LakonaGameServerTests
         var callback = new TestCallback();
         var session = await server.StartSessionAsync(
             "player-a",
-            GameEndpointName.Control,
             "connection-a",
             callback,
             TestContext.Current.CancellationToken);
 
         var sequence = await server.PublishReliablePushAsync<TestCallback, string>(
             session,
-            GameEndpointName.Control,
             "matched",
             "payload",
             static (target, reliableSequence, payload, _) =>
@@ -249,7 +245,6 @@ public sealed class LakonaGameServerTests
             TestContext.Current.CancellationToken);
         await server.ReplayReliablePushAsync<TestCallback, string>(
             session,
-            GameEndpointName.Control,
             "matched",
             static (target, reliableSequence, payload, _) =>
             {
@@ -281,18 +276,17 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public async Task TerminateSessionUsesControlEndpointByDefaultAndPreservesResumeOutcome()
+    public async Task TerminateSessionClosesConnectionAndPreservesResumeOutcome()
     {
         var services = new ServiceCollection();
-        var closer = new RecordingEndpointCloser();
-        services.AddSingleton<IGameSessionEndpointCloser>(closer);
+        var closer = new RecordingConnectionCloser();
+        services.AddSingleton<IGameSessionConnectionCloser>(closer);
         services.AddLakonaGameServer();
         using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
         var callback = new TerminationCallback();
         var session = await server.StartSessionAsync(
             "player-a",
-            GameEndpointName.Control,
             "connection-a",
             callback,
             TestContext.Current.CancellationToken);
@@ -304,7 +298,6 @@ public sealed class LakonaGameServerTests
             cancellationToken: TestContext.Current.CancellationToken);
         var resume = await server.ResumeSessionAsync(
             new GameSessionResumeRequest(session),
-            GameEndpointName.Control,
             "connection-b",
             callback,
             TestContext.Current.CancellationToken);
@@ -314,7 +307,7 @@ public sealed class LakonaGameServerTests
         Assert.Equal(SessionTerminationReason.ReplacedByNewLogin, callback.Notice.Reason);
         Assert.Equal("Duplicate login.", callback.Notice.Message);
         var closed = Assert.Single(closer.Closed);
-        Assert.Equal(new SessionEndpointKey(session, GameEndpointName.Control), closed.Endpoint);
+        Assert.Equal(session, closed.Session);
         Assert.Equal("connection-a", closed.ConnectionId);
         Assert.Same(callback.Notice, closed.Notice);
         Assert.Equal(SessionResumeStatus.Terminated, resume.Status);
@@ -322,18 +315,17 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public async Task TerminateSessionClosesEndpointWhenNotificationTimesOut()
+    public async Task TerminateSessionClosesConnectionWhenNotificationTimesOut()
     {
         var services = new ServiceCollection();
-        var closer = new RecordingEndpointCloser();
-        services.AddSingleton<IGameSessionEndpointCloser>(closer);
+        var closer = new RecordingConnectionCloser();
+        services.AddSingleton<IGameSessionConnectionCloser>(closer);
         services.AddLakonaGameServer();
         using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
         var callback = new HangingTerminationCallback();
         var session = await server.StartSessionAsync(
             "player-a",
-            GameEndpointName.Control,
             "connection-a",
             callback,
             TestContext.Current.CancellationToken);
@@ -348,7 +340,7 @@ public sealed class LakonaGameServerTests
             cancellationToken: TestContext.Current.CancellationToken);
 
         var closed = Assert.Single(closer.Closed);
-        Assert.Equal(new SessionEndpointKey(session, GameEndpointName.Control), closed.Endpoint);
+        Assert.Equal(session, closed.Session);
         Assert.Equal("connection-a", closed.ConnectionId);
         Assert.NotNull(callback.Notice);
         Assert.Same(callback.Notice, closed.Notice);
@@ -358,10 +350,10 @@ public sealed class LakonaGameServerTests
     public async Task TerminateSessionPublishesLifecycleHookWithLiveCallbackAndContainsHandlerFailures()
     {
         var services = new ServiceCollection();
-        var closer = new RecordingEndpointCloser();
+        var closer = new RecordingConnectionCloser();
         var throwingHandler = new ThrowingLifecycleHandler();
         var recordingHandler = new RecordingLifecycleHandler();
-        services.AddSingleton<IGameSessionEndpointCloser>(closer);
+        services.AddSingleton<IGameSessionConnectionCloser>(closer);
         services.AddSingleton<IGameSessionLifecycleHandler>(throwingHandler);
         services.AddSingleton<IGameSessionLifecycleHandler>(recordingHandler);
         services.AddLakonaGameServer();
@@ -370,7 +362,6 @@ public sealed class LakonaGameServerTests
         var callback = new TerminationCallback();
         var session = await server.StartSessionAsync(
             "player-a",
-            GameEndpointName.Control,
             "connection-a",
             callback,
             TestContext.Current.CancellationToken);
@@ -441,17 +432,17 @@ public sealed class LakonaGameServerTests
         }
     }
 
-    private sealed class RecordingEndpointCloser : IGameSessionEndpointCloser
+    private sealed class RecordingConnectionCloser : IGameSessionConnectionCloser
     {
-        public List<(SessionEndpointKey Endpoint, string ConnectionId, SessionTerminationNotice Notice)> Closed { get; } = new();
+        public List<(GameSessionKey Session, string ConnectionId, SessionTerminationNotice Notice)> Closed { get; } = new();
 
-        public ValueTask CloseEndpointAsync(
-            SessionEndpointKey endpoint,
+        public ValueTask CloseConnectionAsync(
+            GameSessionKey session,
             string connectionId,
             SessionTerminationNotice notice,
             CancellationToken cancellationToken = default)
         {
-            Closed.Add((endpoint, connectionId, notice));
+            Closed.Add((session, connectionId, notice));
             return ValueTask.CompletedTask;
         }
     }
@@ -465,17 +456,17 @@ public sealed class LakonaGameServerTests
             return default;
         }
 
-        public ValueTask OnEndpointBoundAsync(GameEndpointBindingContext context, CancellationToken cancellationToken = default)
+        public ValueTask OnSessionBoundAsync(GameSessionBindingContext context, CancellationToken cancellationToken = default)
         {
             return default;
         }
 
-        public ValueTask OnEndpointDisconnectedAsync(GameEndpointBindingContext context, CancellationToken cancellationToken = default)
+        public ValueTask OnSessionDisconnectedAsync(GameSessionBindingContext context, CancellationToken cancellationToken = default)
         {
             return default;
         }
 
-        public ValueTask OnEndpointExpiredAsync(GameEndpointBindingContext context, CancellationToken cancellationToken = default)
+        public ValueTask OnSessionExpiredAsync(GameSessionBindingContext context, CancellationToken cancellationToken = default)
         {
             return default;
         }
@@ -496,17 +487,17 @@ public sealed class LakonaGameServerTests
             return default;
         }
 
-        public ValueTask OnEndpointBoundAsync(GameEndpointBindingContext context, CancellationToken cancellationToken = default)
+        public ValueTask OnSessionBoundAsync(GameSessionBindingContext context, CancellationToken cancellationToken = default)
         {
             return default;
         }
 
-        public ValueTask OnEndpointDisconnectedAsync(GameEndpointBindingContext context, CancellationToken cancellationToken = default)
+        public ValueTask OnSessionDisconnectedAsync(GameSessionBindingContext context, CancellationToken cancellationToken = default)
         {
             return default;
         }
 
-        public ValueTask OnEndpointExpiredAsync(GameEndpointBindingContext context, CancellationToken cancellationToken = default)
+        public ValueTask OnSessionExpiredAsync(GameSessionBindingContext context, CancellationToken cancellationToken = default)
         {
             return default;
         }

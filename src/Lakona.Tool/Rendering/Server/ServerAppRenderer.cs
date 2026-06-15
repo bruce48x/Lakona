@@ -20,7 +20,6 @@ internal sealed class ServerAppRenderer : IPlanContributor
         builder.AddFile("Server/App/Program.cs", RenderProgram(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/App/appsettings.json", RenderAppSettings(spec), FileWriteMode.Replace, GeneratedFileKind.Json);
         builder.AddFile("Server/App/Chat/ChatRoomActor.cs", RenderChatRoomActor(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Server/App/Services/GeneratedServiceEndpoints.cs", RenderGeneratedServiceEndpoints(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/App/Lifecycle/ChatPresenceLifecycleHandler.cs", RenderChatPresenceLifecycleHandler(), FileWriteMode.Replace, GeneratedFileKind.Text);
     }
 
@@ -107,8 +106,8 @@ internal sealed class ServerAppRenderer : IPlanContributor
         using System;
         using System.Threading.Tasks;
         using Microsoft.Extensions.DependencyInjection;
+        using Server.App.Generated;
         using Server.App.Lifecycle;
-        using Server.App.Services;
         using Lakona.Game.Server.Hosting;
         using Lakona.Game.Server.Sessions;
         using Lakona.Rpc.Core;
@@ -123,7 +122,7 @@ internal sealed class ServerAppRenderer : IPlanContributor
             {
                 services.AddLakonaGameServerSessionCleanup(options =>
                 {
-                    options.DisconnectedEndpointRetention = TimeSpan.FromSeconds(30);
+                    options.DisconnectedSessionRetention = TimeSpan.FromSeconds(30);
                 });
                 services.AddSingleton<IGameSessionLifecycleHandler, ChatPresenceLifecycleHandler>();
             })
@@ -153,22 +152,6 @@ internal sealed class ServerAppRenderer : IPlanContributor
         """;
     }
 
-    private static string RenderGeneratedServiceEndpoints()
-    {
-        return """
-        using Shared.Contracts.Chat;
-        using Lakona.Game.Server.Hotfix.Abstractions;
-
-        namespace Server.App.Services;
-
-        [HotfixRpcService(typeof(ILoginService), EndpointName = "control")]
-        internal static partial class LoginServiceEndpoint;
-
-        [HotfixRpcService(typeof(IChatService), EndpointName = "control")]
-        internal static partial class ChatServiceEndpoint;
-        """;
-    }
-
     private static string RenderChatPresenceLifecycleHandler()
     {
         return """
@@ -195,17 +178,17 @@ internal sealed class ServerAppRenderer : IPlanContributor
                     return default;
                 }
 
-                public ValueTask OnEndpointBoundAsync(GameEndpointBindingContext context, CancellationToken cancellationToken = default)
+                public ValueTask OnSessionBoundAsync(GameSessionBindingContext context, CancellationToken cancellationToken = default)
                 {
                     return default;
                 }
 
-                public ValueTask OnEndpointDisconnectedAsync(GameEndpointBindingContext context, CancellationToken cancellationToken = default)
+                public ValueTask OnSessionDisconnectedAsync(GameSessionBindingContext context, CancellationToken cancellationToken = default)
                 {
                     return default;
                 }
 
-                public async ValueTask OnEndpointExpiredAsync(GameEndpointBindingContext context, CancellationToken cancellationToken = default)
+                public async ValueTask OnSessionExpiredAsync(GameSessionBindingContext context, CancellationToken cancellationToken = default)
                 {
                     try
                     {

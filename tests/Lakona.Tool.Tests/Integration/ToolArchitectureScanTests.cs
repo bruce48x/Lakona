@@ -16,6 +16,14 @@ namespace Lakona.Tool.Tests.Integration;
 
 public sealed class ToolArchitectureScanTests
 {
+    private static readonly string ForbiddenGeneratedGlueFile = string.Concat("Generated", "Service", "Endpoints");
+    private static readonly string ForbiddenHotfixMarkerCall = string.Concat("Hotfix", "Rpc", "Service", "(");
+    private static readonly string ForbiddenGameEndpointType = string.Concat("Game", "Endpoint", "Name");
+    private static readonly string ForbiddenSessionEndpointType = string.Concat("Session", "Endpoint", "Key");
+    private static readonly string ForbiddenBoundHook = string.Concat("On", "Endpoint", "Bound");
+    private static readonly string ForbiddenDisconnectedHook = string.Concat("On", "Endpoint", "Disconnected");
+    private static readonly string ForbiddenExpiredHook = string.Concat("On", "Endpoint", "Expired");
+
     [Fact]
     public void ToolSource_DoesNotContainStarterPipelineArtifacts()
     {
@@ -59,6 +67,44 @@ public sealed class ToolArchitectureScanTests
             Assert.DoesNotContain(string.Concat("ULink", "RPC"), generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(string.Concat("ULink", "Game"), generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(string.Concat("Rpc", "Starter"), generatedText, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(parentRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task NewProject_DoesNotGenerateManualHotfixServiceGlueOrEndpointSessionNames()
+    {
+        var parentRoot = Path.Combine(Path.GetTempPath(), "lakona-tool-session-shape-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(parentRoot);
+        try
+        {
+            var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+                "MyGame",
+                parentRoot,
+                ClientEngine.Godot,
+                TransportKind.WebSocket,
+                SerializerKind.Json,
+                PersistenceKind.None,
+                NuGetForUnitySource.OpenUpm,
+                DeploymentProfile.None));
+            var generator = CreateGenerator();
+
+            await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
+
+            Assert.False(File.Exists(Path.Combine(spec.Layout.RootPath, "Server", "App", "Services", $"{ForbiddenGeneratedGlueFile}.cs")));
+
+            var generatedText = ReadAllTextFiles(spec.Layout.RootPath);
+            Assert.DoesNotContain(ForbiddenGeneratedGlueFile, generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain(ForbiddenHotfixMarkerCall, generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain(ForbiddenGameEndpointType, generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain(ForbiddenSessionEndpointType, generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain(ForbiddenBoundHook, generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain(ForbiddenDisconnectedHook, generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain(ForbiddenExpiredHook, generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain("RpcSession.Disconnected +=", generatedText, StringComparison.Ordinal);
         }
         finally
         {

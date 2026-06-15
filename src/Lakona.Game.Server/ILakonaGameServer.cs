@@ -12,7 +12,6 @@ public interface ILakonaGameServer
 
     ValueTask<GameSessionKey> StartSessionAsync<TCallback>(
         string ownerKey,
-        GameEndpointName endpointName,
         string connectionId,
         TCallback callback,
         CancellationToken cancellationToken = default)
@@ -20,42 +19,30 @@ public interface ILakonaGameServer
 
     ValueTask<SessionResumeDecision> ResumeSessionAsync<TCallback>(
         GameSessionResumeRequest request,
-        GameEndpointName endpointName,
         string connectionId,
         TCallback callback,
         CancellationToken cancellationToken = default)
         where TCallback : class;
 
-    ValueTask BindEndpointAsync<TCallback>(
+    ValueTask BindSessionAsync<TCallback>(
         GameSessionKey session,
-        GameEndpointName endpointName,
         string connectionId,
         TCallback callback,
         CancellationToken cancellationToken = default)
         where TCallback : class;
 
-    ValueTask MarkEndpointDisconnectedAsync(
+    ValueTask MarkSessionDisconnectedAsync(
         GameSessionKey session,
-        GameEndpointName endpointName,
         string? connectionId = null,
         CancellationToken cancellationToken = default);
 
     ValueTask<TCallback?> GetCallbackAsync<TCallback>(
         GameSessionKey session,
-        GameEndpointName endpointName,
         CancellationToken cancellationToken = default)
         where TCallback : class;
 
     ValueTask TerminateSessionAsync(
         GameSessionKey session,
-        SessionTerminationReason reason,
-        string? message = null,
-        SessionTerminationOptions? options = null,
-        CancellationToken cancellationToken = default);
-
-    ValueTask TerminateSessionAsync(
-        GameSessionKey session,
-        GameEndpointName endpointName,
         SessionTerminationReason reason,
         string? message = null,
         SessionTerminationOptions? options = null,
@@ -63,7 +50,6 @@ public interface ILakonaGameServer
 
     ValueTask<long> PublishReliablePushAsync<TCallback, TPayload>(
         GameSessionKey session,
-        GameEndpointName endpointName,
         string kind,
         TPayload payload,
         ReliablePushDeliver<TCallback, TPayload> deliver,
@@ -84,7 +70,6 @@ public interface ILakonaGameServer
 
     ValueTask ReplayReliablePushAsync<TCallback, TPayload>(
         GameSessionKey session,
-        GameEndpointName endpointName,
         string kind,
         ReliablePushDeliver<TCallback, TPayload> deliver,
         CancellationToken cancellationToken = default)

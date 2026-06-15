@@ -69,6 +69,6 @@ The first implementation uses one process-global dispatch table. Treat it as one
 
 Generated friend accessors are public members on `[HotfixState]` partial types because the hotfix assembly must be able to call them across an assembly boundary. `[FriendOf]` is metadata and convention for Hotfix behaviors, not a CLR security boundary. Only mark stable state types where exposing generated `__hotfix_` accessors is acceptable, and keep sensitive runtime internals outside those state types.
 
-Full generated call wrappers are staged. The current runtime supports generated accessors and `HotfixDispatch.Invoke(...)`; stable code should provide explicit wrapper methods such as `TickWithHotfix(...)` or `SettleMatch(...)` at hotfix entry points.
+Generated server apps discover `[RpcService]` contracts at build time and emit stable service proxies that call hotfix methods through `HotfixServiceCall<TRequest>` or `HotfixServiceCall<TRequest, TCallback>`. Hotfix assemblies implement those contracts with exactly one `[HotfixService(typeof(IMyService))]` static class per generated service contract. Reload validation rejects missing or duplicate required service implementations before publishing a new dispatch table.
 
 State shape changes, protocol changes, serializer changes, persistent schema changes, and actor runtime changes are not hotfixes. Deploy or migrate stable assemblies for those changes.

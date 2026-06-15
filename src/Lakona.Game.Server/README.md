@@ -1,6 +1,6 @@
 # Lakona.Game.Server
 
-`Lakona.Game.Server` provides .NET server hosting helpers for Lakona.Rpc, actor-kernel-backed game-state execution, session lifecycle, endpoint callback binding, and reliable business push.
+`Lakona.Game.Server` provides .NET server hosting helpers for Lakona.Rpc, actor-kernel-backed game-state execution, session lifecycle, session callback binding, and reliable business push.
 
 It exposes `Lakona.Game.Server.Actors` so room, battle, and service state can run with predictable process-local mailbox behavior on the gateway process.
 
@@ -28,7 +28,7 @@ var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.AddSingleton<PlayerService>();
 builder.Services.AddLakonaGameServer();
-builder.Services.AddRpcServer<ControlPlaneRpcServerConfigurator>();
+builder.Services.AddRpcServer<ClientRpcServerConfigurator>();
 builder.Services.AddLakonaGameServerGateway();
 
 await builder.Build().RunAsync();
@@ -42,9 +42,9 @@ using Lakona.Game.Server.Hosting;
 using Lakona.Rpc.Serializer.MemoryPack;
 using Lakona.Rpc.Transport.WebSocket;
 
-public sealed class ControlPlaneRpcServerConfigurator : IRpcServerConfigurator
+public sealed class ClientRpcServerConfigurator : IRpcServerConfigurator
 {
-    public string Name => "control";
+    public string Name => "websocket";
 
     public void Configure(LakonaGameServerRpcContext context)
     {
@@ -123,7 +123,7 @@ The facade also supports explicit actor stop/drain, mailbox metrics, mailbox-del
 - `Actor.Context.RegisterTimer(...)` and `IActorRuntime.RegisterTimer(...)` schedule timer ticks through the actor mailbox.
 - Override `OnActivateAsync` and `OnDeactivateAsync` for explicit startup and stop cleanup.
 
-The internal actor kernel is the foundation for actor/mailbox runtime concerns. Lakona.Game.Server exposes it only through its facade and keeps the game-session layer focused on session identity, endpoint binding, reconnect, and reliable push integration.
+The internal actor kernel is the foundation for actor/mailbox runtime concerns. Lakona.Game.Server exposes it only through its facade and keeps the game-session layer focused on session identity, session callback binding, reconnect, and reliable push integration.
 
 `ClusterActorDispatcher<TActor>` can adapt an explicit `Lakona.Game.Cluster` actor envelope into the local `IActorRuntime` mailbox and wait for a handler result. `ClusterActorTellDispatcher<TActor>` is the one-way variant that uses `TryTell` and maps local mailbox pressure to `ClusterSendStatus.Backpressure`. Both adapters are intentionally typed and require application-provided handler delegates; they do not expose transparent remote actor references or generated remote actor proxies.
 
@@ -137,7 +137,7 @@ using Lakona.Game.Server;
 builder.Services.AddLakonaGameServer();
 ```
 
-Use `ILakonaGameServer` as the main entry point for sessions, endpoint callback bindings, and reliable push:
+Use `ILakonaGameServer` as the main entry point for sessions, session callback bindings, and reliable push:
 
 ```csharp
 using Lakona.Game.Abstractions;
@@ -158,7 +158,7 @@ public sealed class MatchPushService
         IPlayerCallback callback,
         CancellationToken ct)
     {
-        return _server.StartSessionAsync(playerId, GameEndpointName.Control, connectionId, callback, ct);
+        return _server.StartSessionAsync(playerId, connectionId, callback, ct);
     }
 
     public ValueTask<long> PublishMatchedAsync(
@@ -168,7 +168,6 @@ public sealed class MatchPushService
     {
         return _server.PublishReliablePushAsync<IPlayerCallback, MatchmakingStatusUpdate>(
             session,
-            GameEndpointName.Control,
             "matched",
             payload,
             static (callback, sequence, update, _) =>
@@ -183,7 +182,6 @@ public sealed class MatchPushService
     {
         return _server.ReplayReliablePushAsync<IPlayerCallback, MatchmakingStatusUpdate>(
             session,
-            GameEndpointName.Control,
             "matched",
             static (callback, sequence, update, _) =>
             {
@@ -218,7 +216,7 @@ using Lakona.Game.Server.Sessions;
 builder.Services.AddLakonaGameServerSessions();
 ```
 
-`IGameSessionDirectory` stores session identity, endpoint bindings, and opaque typed callbacks. Endpoint names are application data, so `"control"` and `"realtime"` are sample conventions rather than framework requirements.
+`IGameSessionDirectory` stores session identity and opaque typed callback bindings. A `GameSessionKey` represents one game RPC session. If a game wants to group several sessions for one account, player, character, or room, that grouping belongs in user business state.
 
 For reconnect, use `IGameSessionResumeService` so token validation and authoritative state checks stay in one place:
 

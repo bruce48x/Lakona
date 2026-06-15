@@ -22,7 +22,18 @@ public static class HotfixServiceCollectionExtensions
         services.AddSingleton(source);
         services.TryAddSingleton<IHotfixServiceInvoker, HotfixServiceInvoker>();
         services.AddSingleton<IHotfixManager>(provider =>
-            new HotfixManager(provider.GetRequiredService<IHotfixAssemblySource>(), sharedNames));
+        {
+            var requiredContracts = provider
+                .GetServices<IHotfixRequiredServiceContracts>()
+                .SelectMany(static item => item.ServiceContracts)
+                .Distinct()
+                .ToArray();
+
+            return new HotfixManager(
+                provider.GetRequiredService<IHotfixAssemblySource>(),
+                sharedNames,
+                requiredContracts);
+        });
         return services;
     }
 

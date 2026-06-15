@@ -9,17 +9,24 @@ public sealed class HotfixManager : IHotfixManager
 {
     private readonly IHotfixAssemblySource _source;
     private readonly IReadOnlyList<string> _sharedAssemblyNames;
+    private readonly IReadOnlyList<Type> _requiredServiceContracts;
     private readonly SemaphoreSlim _reloadLock = new(1, 1);
     private long _nextVersion;
     private HotfixSnapshot _current = new(null, null, null, null, 0, Array.Empty<HotfixMethodKey>(), null, null, null);
     private HotfixAssemblyLoadContext? _loadContext;
 
-    public HotfixManager(IHotfixAssemblySource source, IEnumerable<string>? sharedAssemblyNames = null)
+    public HotfixManager(
+        IHotfixAssemblySource source,
+        IEnumerable<string>? sharedAssemblyNames = null,
+        IEnumerable<Type>? requiredServiceContracts = null)
     {
         _source = source ?? throw new ArgumentNullException(nameof(source));
         _sharedAssemblyNames = (sharedAssemblyNames ?? Array.Empty<string>())
             .Where(static name => !string.IsNullOrWhiteSpace(name))
             .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        _requiredServiceContracts = (requiredServiceContracts ?? Array.Empty<Type>())
+            .Distinct()
             .ToArray();
     }
 
@@ -79,7 +86,9 @@ public sealed class HotfixManager : IHotfixManager
 
             pendingContext = new HotfixAssemblyLoadContext(resolved.AssemblyPath, _sharedAssemblyNames);
             var assembly = pendingContext.LoadMainAssemblyFromBytes(resolved.AssemblyPath);
-            var scan = HotfixBehaviorScanner.Scan(assembly);
+            var scan = HotfixBehaviorScanner.Scan(
+                assembly,
+                requiredServiceContracts: _requiredServiceContracts);
             if (!scan.Succeeded)
             {
                 throw new InvalidOperationException(string.Join(Environment.NewLine, scan.Diagnostics));

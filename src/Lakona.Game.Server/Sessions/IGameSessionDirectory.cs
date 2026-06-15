@@ -12,19 +12,19 @@ public interface IGameSessionDirectory
         GameSessionKey session,
         CancellationToken cancellationToken = default);
 
-    ValueTask<GameSessionEndpointBindResult> BindEndpointAsync<TCallback>(
-        SessionEndpointKey endpoint,
+    ValueTask<GameSessionBindResult> BindSessionAsync<TCallback>(
+        GameSessionKey session,
         string connectionId,
         TCallback callback,
         CancellationToken cancellationToken = default)
         where TCallback : class;
 
-    ValueTask<IReadOnlyList<GameSessionEndpointSnapshot>> MarkConnectionDisconnectedAsync(
+    ValueTask<GameSessionSnapshot?> MarkConnectionDisconnectedAsync(
         string connectionId,
         CancellationToken cancellationToken = default);
 
-    ValueTask MarkEndpointDisconnectedAsync(
-        SessionEndpointKey endpoint,
+    ValueTask MarkSessionDisconnectedAsync(
+        GameSessionKey session,
         string? connectionId = null,
         CancellationToken cancellationToken = default);
 
@@ -35,16 +35,16 @@ public interface IGameSessionDirectory
         CancellationToken cancellationToken = default);
 
     ValueTask<TCallback?> GetCallbackAsync<TCallback>(
-        SessionEndpointKey endpoint,
+        GameSessionKey session,
         CancellationToken cancellationToken = default)
         where TCallback : class;
 
-    ValueTask<GameSessionEndpointBinding<TCallback>?> GetEndpointBindingAsync<TCallback>(
-        SessionEndpointKey endpoint,
+    ValueTask<GameSessionBinding<TCallback>?> GetSessionBindingAsync<TCallback>(
+        GameSessionKey session,
         CancellationToken cancellationToken = default)
         where TCallback : class;
 
-    ValueTask<IReadOnlyList<GameSessionEndpointSnapshot>> ExpireDisconnectedEndpointsAsync(
+    ValueTask<IReadOnlyList<GameSessionSnapshot>> ExpireDisconnectedSessionsAsync(
         DateTimeOffset disconnectedBefore,
         CancellationToken cancellationToken = default);
 }

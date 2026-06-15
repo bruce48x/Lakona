@@ -2,14 +2,14 @@ using Lakona.Game.Abstractions;
 
 namespace Lakona.Game.Server.Sessions;
 
-internal sealed class NoopGameSessionEndpointCloser : IGameSessionEndpointCloser
+internal sealed class NoopGameSessionConnectionCloser : IGameSessionConnectionCloser
 {
-    public ValueTask CloseEndpointAsync(
-        SessionEndpointKey endpoint,
+    public ValueTask CloseConnectionAsync(
+        GameSessionKey session,
         string connectionId,
         SessionTerminationNotice notice,
         CancellationToken cancellationToken = default)
     {
-        return ValueTask.CompletedTask;
+        return default;
     }
 }
