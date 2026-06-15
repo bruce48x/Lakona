@@ -1,35 +1,58 @@
 # Lakona
 
-A C# game server framework. Shared code, C# hot reload, actor execution, typed
-RPC, reliable push, runtime guardrails, and project scaffolding in one monorepo.
+Build realtime game servers in C#, share code with Unity or Godot clients, and
+ship live logic updates without throwing away player state.
 
-## What Is Lakona
+Lakona is a C# full-stack game server framework: shared contracts, hotfixable
+business logic, actor-based state execution, typed RPC, reliable push, cluster
+routing, runtime guardrails, and project scaffolding in one product line.
 
-Lakona is an actor-based distributed game framework for C#. Define your network
-contracts and state types in one `Shared` project, write your game logic on the
-server, and hot-reload it without restarting the process.
+## Why Lakona
 
-- **Shared contracts.** RPC interfaces, DTOs, session types, and state
-  definitions live in one `Shared` project. Server and Unity/Godot clients
-  compile the same source with no duplication or drift.
-- **Hot reload.** Edit game logic, save, and the server picks it up
-  automatically. It uses `AssemblyLoadContext`: pure C#, no Lua, no JS, no DSL.
-- **Typed RPC.** Source generators produce client facades, callback binders, and
-  server binders without runtime reflection dispatch.
-- **Actor execution.** Gameplay state runs through process-local actor mailboxes:
-  sequential, bounded, observable, and lock-light.
-- **Easy to start.** One CLI command scaffolds a complete project with server,
-  hotfix, shared contracts, and client integration.
+Online games need more than a socket library. They need one model for client and
+server contracts, one runtime for mutable gameplay state, and one deployment
+path that can fix live logic without disconnecting everyone.
 
-Lakona brings the former RPC, Actor, and Game layers into one repository:
+Lakona is built around that workflow:
 
-- `Lakona.Rpc.*` for communication, transports, serializers, and analyzers.
-- `Lakona.Game.Server.Actors` for game-facing actor execution backed by an internal mailbox kernel.
-- `Lakona.Game.*` for game server hosting, sessions, cluster routing, hotfix,
-  client helpers, generators, and guardrails.
-- `Lakona.Tool` for `lakona-tool`, the single project scaffolding and maintenance command.
+1. **🧩 Share C# between frontend and backend.** Put RPC interfaces, DTOs,
+   session types, and stable state definitions in one `Shared` project. The
+   server and Unity/Godot clients compile the same source, so protocol drift is
+   not a normal part of development.
+2. **🔥 Hot-update game logic without losing state.** Keep long-lived mutable state
+   in stable runtime-owned types, move replaceable behavior into a hotfix
+   assembly, and reload that assembly while the server process keeps running.
+   It is pure C# through `AssemblyLoadContext`: no Lua bridge, no JS runtime, no
+   custom DSL.
+3. **🎭 Model gameplay state with actors.** Rooms, players, matches, lobbies, and
+   schedulers can run behind typed actor mailboxes. Each actor owns its state,
+   processes messages sequentially, and avoids most lock-heavy shared-memory
+   code.
+4. **⚡ Start simple.** One CLI command creates a server, hotfix project, shared
+   contracts, and Unity or Godot client integration. You can run everything in
+   one development process before splitting services for production.
+5. **🌐 Scale out deliberately.** Cluster routing lets actors and sessions be
+   addressed across nodes through explicit route directories and node
+   messaging, without hiding network cost behind magical remote objects.
+6. **🔌 Swap protocols when the game needs it.** Transports and serializers are
+   pluggable. Use TCP, WebSocket, KCP, loopback, JSON, or MemoryPack without
+   binding gameplay code to one wire format or transport stack.
 
-## Quick Start
+## Product Layers
+
+Lakona brings RPC, actor execution, and game-server infrastructure into one
+repository with clear package boundaries:
+
+- `Lakona.Rpc.*` provides typed RPC, protocol primitives, transports,
+  serializers, and analyzers.
+- `Lakona.Game.Server.Actors` provides game-facing actor execution backed by an
+  internal mailbox kernel.
+- `Lakona.Game.*` provides game server hosting, sessions, cluster routing,
+  hotfix, client helpers, generators, reliable push, and guardrails.
+- `Lakona.Tool` provides `lakona-tool`, the project scaffolding and maintenance
+  command.
+
+## Quick Start ⚡
 
 ```bash
 dotnet tool install -g Lakona.Tool
@@ -38,10 +61,11 @@ cd MyGame
 dotnet run --project "Server/App/Server.App.csproj"
 ```
 
-One command creates a project with hot-reloadable game logic, shared contracts,
-and a Unity or Godot client ready to connect. No manual wiring.
+One command creates a project with shared C# contracts, hotfixable server logic,
+and a Unity or Godot client ready to connect. Start with one process, then grow
+into multi-service and multi-node deployments when the game needs it.
 
-## Shared Contracts: Define Once
+## Shared C#: Define Once 🧩
 
 Server and client share the same network contracts, DTOs, and state types.
 Define them in the `Shared` project; both sides compile from the same source.
@@ -94,11 +118,16 @@ public static class GameRulesSystem
 Change `GameRulesSystem.Evaluate`, rebuild the hotfix project, and the server
 reloads it. No restart. No downtime. Clients never see the hotfix code.
 
-## Hot Reload
+## Hotfix: Reload Logic, Keep State 🔥
 
 Lakona loads hotfix assemblies into a collectible `AssemblyLoadContext`. The
 file watcher detects changes, loads the new DLL, rebuilds the dispatch table,
 and unloads the old assembly atomically.
+
+The design separates **stable runtime state** from **replaceable business
+logic**. A live room, player session, or gameplay state object can stay owned by
+the running server while the C# code that evaluates rules, rewards, matchmaking
+decisions, or event behavior is replaced.
 
 ```csharp
 // In Program.cs: register hotfix and file watching.
@@ -115,13 +144,14 @@ builder.Services.AddLakonaGameHotfixFileWatcher();
 | --- | --- | --- |
 | Language | Lua, JS, or custom DSL | C#, same language as the rest of the server |
 | Debugging | Separate debugger, type mismatches at runtime | Same IDE, same debugger, compile-time safety |
-| Deploy | Restart server or reload an entire VM | Save file, auto reload |
+| Deploy | Restart server or reload an entire VM | Save file, auto reload while state remains owned by the runtime |
 | Registration | Manual dispatch wiring | `[HotfixSystemOf]` attribute plus source generator |
 
-## Dual-Channel Networking
+## Flexible Networking 🔌
 
-Control messages over WebSocket, realtime state over KCP. Built in, not bolted
-on.
+Use one transport, or combine channels for different parts of the game. Control
+messages can go over WebSocket while realtime state goes over KCP. JSON is easy
+to inspect; MemoryPack is compact and fast. The RPC contracts stay the same.
 
 ```csharp
 // Server binds two channels per session.
@@ -134,7 +164,8 @@ await server.BindEndpointAsync<IRealtimeCallback>(
 
 Your game gets a reliable channel for login, matchmaking, and leaderboard, plus
 a low-latency channel for input and state sync, with the same session identity
-across both.
+across both. Transport and serializer choices remain infrastructure decisions,
+not gameplay architecture decisions.
 
 ## Reliable Push
 
@@ -170,10 +201,12 @@ await client.ProcessReliablePushAsync(
 The inbox tracks the highest acknowledged sequence, detects gaps, and requests
 replay automatically.
 
-## Actor Model
+## Actor Model 🎭
 
 Gameplay state runs inside actors: single-threaded, mailbox-ordered execution.
-No locks, no races inside the actor turn.
+Inside an actor turn, state is local and sequential. That makes room logic,
+player state, match state, timers, and scheduler workflows easier to reason
+about than shared mutable objects spread across threads.
 
 ```csharp
 [ActorName("room")]
@@ -232,10 +265,10 @@ dotnet run --project "Server/App/Server.App.csproj" -- --lakona-game-check
 Guardrails catch missing endpoints, invalid cluster topology, production profile
 violations, and hotfix source misconfiguration before they reach production.
 
-## Cluster
+## Cluster 🌐
 
-Scale beyond a single process. Actors are addressable across nodes through a
-directory service.
+Scale beyond a single process when the game is ready. Actors are addressable
+across nodes through explicit route directories and node messaging.
 
 ```csharp
 // Same API, single node or cluster: the directory handles routing.
@@ -243,7 +276,9 @@ await rooms.Get(roomId).JoinAsync(request, ct);
 ```
 
 Lakona provides in-memory directories for development and SQL-backed node
-directory storage for production-oriented deployments.
+directory storage for production-oriented deployments. The cluster model keeps
+remote routing explicit, so latency, backpressure, route ownership, and node
+failure remain visible engineering decisions.
 
 ## What It Does Not Do
 
@@ -304,7 +339,6 @@ RPC-focused samples:
 ## Further Reading
 
 - [Design Philosophy](docs/game/design-philosophy.md)
-- [Actor Overview](docs/actor/overview.md)
 - [Feature Catalog Startup](docs/game/feature-role.md)
 - [Runtime Guardrails](docs/game/lakona-game-runtime-guardrails.md)
 - [Actor Kernel Boundary](docs/game/actor-kernel-boundary.md)
