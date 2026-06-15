@@ -27,6 +27,8 @@ public sealed class ServerAppRendererTests
         var project = AssertPath(plan, "Server/App/Server.App.csproj").Content;
         Assert.Contains("<OutputType>Exe</OutputType>", project, StringComparison.Ordinal);
         Assert.Contains("<LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>", project, StringComparison.Ordinal);
+        Assert.Contains("<CompilerVisibleProperty Include=\"LakonaRpcGenerateServer\" />", project, StringComparison.Ordinal);
+        Assert.Contains("<CompilerVisibleProperty Include=\"LakonaRpcServerGeneratedNamespace\" />", project, StringComparison.Ordinal);
         Assert.Contains("<PackageReference Include=\"Lakona.Game.Server\"", project, StringComparison.Ordinal);
         Assert.Contains("<PackageReference Include=\"Lakona.Rpc.Transport.Kcp\"", project, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona.Rpc.Serializer.MemoryPack", project, StringComparison.Ordinal);

@@ -1896,6 +1896,147 @@ git add src/Lakona.Tool tests/Lakona.Tool.Tests samples/Game.Godot.Chat/Server
 git commit -m "feat: generate game hotfix bindings without marker files"
 ```
 
+## Review Follow-Up: a0c8c2b Template Closure
+
+These issues were found during manual review of commit
+`a0c8c2b31441d8cbc357c11fb4357160c6bbbf5c`. Treat them as required follow-up
+work before considering the generated hotfix service lifecycle complete.
+
+### Follow-Up 1: Make Generated Server RPC Properties Visible To Analyzers
+
+**Problem:** `src/Lakona.Tool/Rendering/Server/ServerAppRenderer.cs` renders
+`LakonaRpcGenerateServer` and `LakonaRpcServerGeneratedNamespace` as ordinary
+MSBuild properties, but it does not render matching `CompilerVisibleProperty`
+items. `Lakona.Rpc.Analyzers.SourceGeneration.LakonaRpcSourceGenerator` reads
+these settings through analyzer config keys:
+
+```txt
+build_property.LakonaRpcGenerateServer
+build_property.LakonaRpcServerGeneratedNamespace
+```
+
+Without `CompilerVisibleProperty`, a newly generated `Server/App` project can
+fail to generate server RPC glue or can generate it under the fallback
+`Server.Generated` namespace while `Program.cs` imports `Server.App.Generated`.
+The manually updated `samples/Game.Godot.Chat/Server/App/Server.App.csproj`
+already has the correct shape; the tool renderer must produce the same shape.
+
+**Required fix:**
+
+In the generated `Server/App/Server.App.csproj`, render:
+
+```xml
+<ItemGroup>
+  <CompilerVisibleProperty Include="LakonaRpcGenerateServer" />
+  <CompilerVisibleProperty Include="LakonaRpcServerGeneratedNamespace" />
+</ItemGroup>
+```
+
+Keep these entries close to the property group that declares the corresponding
+properties.
+
+**Required tests:**
+
+- Update `tests/Lakona.Tool.Tests/Rendering/ServerAppRendererTests.cs` to assert
+  that generated `Server/App/Server.App.csproj` contains both
+  `CompilerVisibleProperty` entries.
+- Keep the existing `LakonaRpcGenerateServer` and
+  `LakonaRpcServerGeneratedNamespace` property assertions.
+
+**Required validation:**
+
+```powershell
+dotnet test tests\Lakona.Tool.Tests\Lakona.Tool.Tests.csproj --no-restore
+```
+
+Expected: PASS.
+
+### Follow-Up 2: Carry GameSessionKey From Login To Chat Callback Binding
+
+**Problem:** The generated chat template and `samples/Game.Godot.Chat` start a
+game session during login, but they discard the returned `GameSessionKey`.
+`LoginReply` does not expose the session key, `ChatBindRequest` does not carry
+it back from the client, and `ChatService.BindAsync` only binds the chat
+callback inside `ChatRoomActor`. It never calls `ILakonaGameServer.BindSessionAsync`.
+
+That means the default project teaches a model where the session directory only
+knows about `ILoginCallback`; it never records the `IChatCallback` binding for
+the same `GameSessionKey`. Reliable push, resume, lifecycle snapshots, and
+cleanup logic cannot observe the intended multi-callback-contract session
+shape:
+
+```txt
+GameSessionKey
+  -> ILoginCallback
+  -> IChatCallback
+```
+
+**Required fix:**
+
+Update both `src/Lakona.Tool` renderers and `samples/Game.Godot.Chat` with the
+same contract and hotfix-service shape.
+
+Shared contracts:
+
+- Add a `GameSessionKey Session` property to `LoginReply`.
+- Add a `GameSessionKey Session` property to `ChatBindRequest`.
+- Add the required `using Lakona.Game.Abstractions;` and project/package
+  reference so shared contracts compile for both server and client target
+  frameworks.
+- Preserve serializer attributes and ordering. For MemoryPack contracts, assign
+  stable orders so the new session field does not collide with existing fields.
+
+Generated and sample `LoginService`:
+
+```csharp
+var session = await call.GameServer.StartSessionAsync(
+    playerName,
+    call.ConnectionId,
+    call.Callback);
+
+reply.Session = session;
+return reply;
+```
+
+Generated and sample `ChatService.BindAsync`:
+
+```csharp
+await call.GameServer.BindSessionAsync(
+    call.Request.Session,
+    call.ConnectionId,
+    call.Callback);
+```
+
+The actor-level `BindChatCallback` may remain for the sample room presence
+implementation, but it must not be the only binding. The framework-owned
+session directory must also receive the `IChatCallback`.
+
+Generated and sample clients:
+
+- Store the `GameSessionKey` returned by `LoginAsync`.
+- Send that key in `new ChatBindRequest { Session = session }`.
+- Do not infer the session from the RPC connection id.
+
+**Required tests:**
+
+- Update `tests/Lakona.Tool.Tests/Rendering/HotfixRendererTests.cs` to assert
+  that generated `ChatService.BindAsync` calls `call.GameServer.BindSessionAsync`.
+- Update `tests/Lakona.Tool.Tests/Rendering/HotfixRendererTests.cs` or
+  shared-contract renderer tests to assert that `LoginReply` and
+  `ChatBindRequest` include `GameSessionKey Session`.
+- Add or update sample/source-scan coverage so
+  `samples/Game.Godot.Chat/Server/Hotfix/Chat/ChatService.cs` cannot regress to
+  actor-only callback binding.
+
+**Required validation:**
+
+```powershell
+dotnet test tests\Lakona.Tool.Tests\Lakona.Tool.Tests.csproj --no-restore
+dotnet build samples\Game.Godot.Chat\Server\Server.slnx --no-restore
+```
+
+Expected: PASS for both commands.
+
 ## Task 10: Migrate Unity Agar Session Usage
 
 **Files:**
@@ -2174,5 +2315,12 @@ Expected: `git diff --check` has no output. `git status --short` contains only i
 - [ ] Generated hotfix proxies use numeric `[RpcMethod]` ids.
 - [ ] Generated hotfix proxies construct `HotfixServiceCall` without endpoint arguments.
 - [ ] Generated projects do not contain endpoint marker files.
+- [ ] Generated `Server/App/Server.App.csproj` exposes
+      `LakonaRpcGenerateServer` and `LakonaRpcServerGeneratedNamespace` through
+      `CompilerVisibleProperty`.
+- [ ] Generated chat contracts carry `GameSessionKey` from `LoginReply` into
+      `ChatBindRequest`.
+- [ ] Generated and sample `ChatService.BindAsync` call
+      `ILakonaGameServer.BindSessionAsync` for `IChatCallback`.
 - [ ] Cluster endpoint names remain untouched.
 - [ ] Package versions are bumped for every changed shippable package.

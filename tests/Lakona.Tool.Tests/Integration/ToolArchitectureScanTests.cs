@@ -97,6 +97,10 @@ public sealed class ToolArchitectureScanTests
             Assert.False(File.Exists(Path.Combine(spec.Layout.RootPath, "Server", "App", "Services", $"{ForbiddenGeneratedGlueFile}.cs")));
 
             var generatedText = ReadAllTextFiles(spec.Layout.RootPath);
+            Assert.Contains("<CompilerVisibleProperty Include=\"LakonaRpcGenerateServer\" />", generatedText, StringComparison.Ordinal);
+            Assert.Contains("<CompilerVisibleProperty Include=\"LakonaRpcServerGeneratedNamespace\" />", generatedText, StringComparison.Ordinal);
+            Assert.Contains("GameSessionKey Session", generatedText, StringComparison.Ordinal);
+            Assert.Contains("await call.GameServer.BindSessionAsync", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(ForbiddenGeneratedGlueFile, generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(ForbiddenHotfixMarkerCall, generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(ForbiddenGameEndpointType, generatedText, StringComparison.Ordinal);

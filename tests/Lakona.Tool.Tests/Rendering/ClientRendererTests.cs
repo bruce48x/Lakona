@@ -61,7 +61,8 @@ public sealed class ClientRendererTests
         var chatClient = AssertPath(plan, "Client/Assets/Scripts/Chat/ChatClient.cs").Content;
         Assert.Contains("private readonly IChatService _chatService;", chatClient, StringComparison.Ordinal);
         Assert.Contains("_chatService = loginClient.RpcClient.Api.Shared.Chat;", chatClient, StringComparison.Ordinal);
-        Assert.Contains("public async Task BindAsync()", chatClient, StringComparison.Ordinal);
+        Assert.Contains("public async Task BindAsync(LoginReply reply)", chatClient, StringComparison.Ordinal);
+        Assert.Contains("await _chatService.BindAsync(new ChatBindRequest { Session = reply.Session });", chatClient, StringComparison.Ordinal);
         Assert.Contains("public async Task SendAsync(string text)", chatClient, StringComparison.Ordinal);
 
         var loginUi = AssertPath(plan, "Client/Assets/Scripts/Login/LoginUI.cs").Content;
@@ -74,7 +75,7 @@ public sealed class ClientRendererTests
         var chatUi = AssertPath(plan, "Client/Assets/Scripts/Chat/ChatUI.cs").Content;
         Assert.Contains("private LoginClient? _loginClient;", chatUi, StringComparison.Ordinal);
         Assert.Contains("_client = new ChatClient(loginClient);", chatUi, StringComparison.Ordinal);
-        Assert.Contains("await _client.BindAsync();", chatUi, StringComparison.Ordinal);
+        Assert.Contains("await _client.BindAsync(loginReply);", chatUi, StringComparison.Ordinal);
         Assert.Contains("await _client.SendAsync(text);", chatUi, StringComparison.Ordinal);
         Assert.Contains("root.Q<Label>(\"chat-empty-state\")?.RemoveFromHierarchy();", chatUi, StringComparison.Ordinal);
 
@@ -284,7 +285,8 @@ public sealed class ClientRendererTests
         var chatClient = AssertPath(plan, "Client/Scripts/Chat/ChatClient.cs").Content;
         Assert.Contains("private readonly IChatService _chatService;", chatClient, StringComparison.Ordinal);
         Assert.Contains("_chatService = loginClient.RpcClient.Api.Shared.Chat;", chatClient, StringComparison.Ordinal);
-        Assert.Contains("public async Task BindAsync()", chatClient, StringComparison.Ordinal);
+        Assert.Contains("public async Task BindAsync(LoginReply reply)", chatClient, StringComparison.Ordinal);
+        Assert.Contains("await _chatService.BindAsync(new ChatBindRequest { Session = reply.Session });", chatClient, StringComparison.Ordinal);
         Assert.Contains("public async Task SendAsync(string text)", chatClient, StringComparison.Ordinal);
 
         var session = AssertPath(plan, "Client/Scripts/Chat/ChatSession.cs").Content;
@@ -314,7 +316,7 @@ public sealed class ClientRendererTests
         Assert.Contains("GetNode<Label>(\"%OnlineCount\")", chatScene, StringComparison.Ordinal);
         Assert.Contains("_client = new ChatClient(loginClient);", chatScene, StringComparison.Ordinal);
         Assert.Contains("if (_client == null)", chatScene, StringComparison.Ordinal);
-        Assert.Contains("await _client.BindAsync();", chatScene, StringComparison.Ordinal);
+        Assert.Contains("await _client.BindAsync(loginReply);", chatScene, StringComparison.Ordinal);
         Assert.Contains("await _client.SendAsync(text);", chatScene, StringComparison.Ordinal);
         Assert.Contains("System.Environment.NewLine", chatScene, StringComparison.Ordinal);
 

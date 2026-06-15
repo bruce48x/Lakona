@@ -7,7 +7,7 @@ description: Use when validating Lakona.Tool generated projects against the late
 
 Validate generated Lakona projects with NuGet packages packed from the current repository instead of waiting for published packages.
 
-Use this skill to answer: "Do the latest local packages create, restore, build, and optionally run a generated project correctly?"
+Use this skill to answer: "Do the latest local packages create, restore, build, and run a generated project correctly?"
 
 ## Required Context
 
@@ -28,20 +28,20 @@ Use the bundled script as the default entry point:
 Common runs:
 
 ```powershell
-# Fast default smoke: Godot + websocket + memorypack, scaffold and server build.
+# Default smoke: Godot + websocket + memorypack, scaffold, server build, and runtime RPC verification.
 .\.claude\skills\lakona-local-package-e2e\scripts\run-local-package-e2e.ps1
-
-# Same smoke with runtime RPC verification.
-.\.claude\skills\lakona-local-package-e2e\scripts\run-local-package-e2e.ps1 -Runtime
 
 # One Unity-facing generated project build.
 .\.claude\skills\lakona-local-package-e2e\scripts\run-local-package-e2e.ps1 -Engine unity -Transport kcp -Serializer memorypack
 
+# Explicit build-only smoke when investigating scaffold/build failures.
+.\.claude\skills\lakona-local-package-e2e\scripts\run-local-package-e2e.ps1 -SkipRuntime
+
 # Full matrix. Use only when the user asks for release-grade confidence or the change has broad blast radius.
-.\.claude\skills\lakona-local-package-e2e\scripts\run-local-package-e2e.ps1 -Engine all -Transport all -Serializer all -Runtime
+.\.claude\skills\lakona-local-package-e2e\scripts\run-local-package-e2e.ps1 -Engine all -Transport all -Serializer all
 
 # Keep generated scaffolds for inspection.
-.\.claude\skills\lakona-local-package-e2e\scripts\run-local-package-e2e.ps1 -KeepScaffolds -Runtime
+.\.claude\skills\lakona-local-package-e2e\scripts\run-local-package-e2e.ps1 -KeepScaffolds
 ```
 
 The wrapper:
@@ -51,19 +51,20 @@ The wrapper:
 - Runs `dotnet run --project src/Lakona.Tool -- new` without deprecated options.
 - Writes `NuGet.config` into each generated project so local packages resolve before nuget.org.
 - Builds the generated server solution.
-- Optionally starts the generated server and runs a temporary RPC verification client.
+- Starts the generated server and runs a temporary RPC verification client by default.
+- Supports `-SkipRuntime` only for explicit build-only investigations.
 - Writes a Markdown report and JSON summary under `.tmp/lakona-local-package-e2e`.
 
 ## Validation Strategy
 
 Choose the smallest run that can answer the question:
 
-- Default smoke: `godot + websocket + memorypack`.
+- Default smoke: `godot + websocket + memorypack` with runtime verification.
 - Tool template or generated layout change: run the affected engine plus the affected transport/serializer.
 - Transport change: run the changed transport with both serializers.
 - Serializer change: run the changed serializer across at least websocket and one socket transport.
-- Source generator or shared contract shape change: run `godot + websocket + memorypack -Runtime` first, then expand if it fails or passes but risk remains.
-- Pre-release confidence: run the full matrix with `-Runtime`.
+- Source generator or shared contract shape change: run default runtime verification first, then expand if it fails or passes but risk remains.
+- Pre-release confidence: run the full matrix; runtime verification remains enabled unless `-SkipRuntime` is explicitly requested.
 
 Do not claim package-level confidence from repository tests alone. The point of this skill is to validate the package restore surface that generated users experience.
 

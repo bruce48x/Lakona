@@ -50,8 +50,8 @@ internal static class ConsoleClientCodeTemplates
             var login = client.Api.Shared.Login;
             var chat = client.Api.Shared.Chat;
             var name = "smoke-user";
-            await login.LoginAsync(new Shared.Contracts.Chat.LoginRequest { PlayerName = name });
-            await chat.BindAsync(new Shared.Contracts.Chat.ChatBindRequest());
+            var reply = await login.LoginAsync(new Shared.Contracts.Chat.LoginRequest { PlayerName = name });
+            await chat.BindAsync(new Shared.Contracts.Chat.ChatBindRequest { Session = reply.Session });
             await chat.SendAsync(new Shared.Contracts.Chat.ChatSendRequest { Text = "smoke" });
             Console.WriteLine("Smoke succeeded.");
             return 0;
@@ -299,13 +299,19 @@ internal static class ConsoleClientCodeTemplates
                 await context.MeasureAsync("connect", token => client.ConnectAsync(token), cancellationToken);
                 var login = client.Api.Shared.Login;
                 var chat = client.Api.Shared.Chat;
+                LoginReply? reply = null;
                 await context.MeasureAsync("login", async token =>
                 {
-                    await login.LoginAsync(new LoginRequest { PlayerName = context.UserName });
+                    reply = await login.LoginAsync(new LoginRequest { PlayerName = context.UserName });
                 }, cancellationToken);
+                if (reply == null)
+                {
+                    throw new InvalidOperationException("Login did not return a session.");
+                }
+
                 await context.MeasureAsync("bind", async token =>
                 {
-                    await chat.BindAsync(new ChatBindRequest());
+                    await chat.BindAsync(new ChatBindRequest { Session = reply.Session });
                 }, cancellationToken);
 
                 if (options.MessageRatePerUser == 0)

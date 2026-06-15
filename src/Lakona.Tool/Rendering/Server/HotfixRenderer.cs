@@ -86,10 +86,11 @@ internal sealed class HotfixRenderer : IPlanContributor
                     var reply = await call.Actors.AskAsync<ChatRoomActor, LoginReply>(
                         RoomId,
                         (room, ct) => room.LoginAsync(call.ConnectionId, playerName, call.Callback));
-                    await call.GameServer.StartSessionAsync(
+                    var session = await call.GameServer.StartSessionAsync(
                         playerName,
                         call.ConnectionId,
                         call.Callback);
+                    reply.Session = session;
                     return reply;
                 }
             }
@@ -116,6 +117,10 @@ internal sealed class HotfixRenderer : IPlanContributor
 
                 public static async ValueTask BindAsync(HotfixServiceCall<ChatBindRequest, IChatCallback> call)
                 {
+                    await call.GameServer.BindSessionAsync(
+                        call.Request.Session,
+                        call.ConnectionId,
+                        call.Callback);
                     await call.Actors.AskAsync<ChatRoomActor, bool>(
                         RoomId,
                         (room, ct) =>

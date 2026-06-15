@@ -113,9 +113,9 @@ internal static class GodotClientCodeTemplates
                     _chatService = loginClient.RpcClient.Api.Shared.Chat;
                 }
 
-                public async Task BindAsync()
+                public async Task BindAsync(LoginReply reply)
                 {
-                    await _chatService.BindAsync(new ChatBindRequest());
+                    await _chatService.BindAsync(new ChatBindRequest { Session = reply.Session });
                 }
 
                 public async Task SendAsync(string text)
@@ -362,7 +362,7 @@ internal static class GodotClientCodeTemplates
                     var loginClient = session.LoginClient;
                     var loginReply = session.LoginReply;
 
-                    if (loginClient == null)
+                    if (loginClient == null || loginReply == null)
                     {
                         AppendSystemMessage("Session expired. Please return to login.");
                         SetSendBusy(true);
@@ -377,19 +377,16 @@ internal static class GodotClientCodeTemplates
                     loginClient.OnUserLeft += memberName => CallDeferred(nameof(AppendSystemMessageDeferred), $"{memberName} left.");
                     loginClient.OnDisconnected += () => CallDeferred(nameof(AppendSystemMessageDeferred), "Disconnected from server.");
 
-                    if (loginReply != null)
-                    {
-                        AppendSystemMessage($"Connected. {loginReply.Members.Count} online.");
-                        SetOnlineCount(loginReply.Members.Count);
+                    AppendSystemMessage($"Connected. {loginReply.Members.Count} online.");
+                    SetOnlineCount(loginReply.Members.Count);
 
-                        foreach (var msg in loginReply.RecentMessages)
-                        {
-                            AppendMessageText(msg.SenderName, msg.Text);
-                        }
+                    foreach (var msg in loginReply.RecentMessages)
+                    {
+                        AppendMessageText(msg.SenderName, msg.Text);
                     }
 
                     SetSendBusy(true);
-                    _ = BindChatAsync();
+                    _ = BindChatAsync(loginReply);
                 }
 
                 private async void OnSendPressed()
@@ -479,7 +476,7 @@ internal static class GodotClientCodeTemplates
                     }
                 }
 
-                private async Task BindChatAsync()
+                private async Task BindChatAsync(LoginReply loginReply)
                 {
                     if (_client == null)
                     {
@@ -488,7 +485,7 @@ internal static class GodotClientCodeTemplates
 
                     try
                     {
-                        await _client.BindAsync();
+                        await _client.BindAsync(loginReply);
                         CallDeferred(nameof(SetSendBusyDeferred), false);
                     }
                     catch (Exception ex)

@@ -35,13 +35,16 @@ public sealed class HotfixRendererTests
         Assert.Contains("internal sealed class LoginService", loginService, StringComparison.Ordinal);
         Assert.Contains("public static async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, ILoginCallback> call)", loginService, StringComparison.Ordinal);
         Assert.Contains("await call.Actors.AskAsync<ChatRoomActor, LoginReply>", loginService, StringComparison.Ordinal);
-        Assert.Contains("await call.GameServer.StartSessionAsync", loginService, StringComparison.Ordinal);
+        Assert.Contains("var session = await call.GameServer.StartSessionAsync", loginService, StringComparison.Ordinal);
+        Assert.Contains("reply.Session = session;", loginService, StringComparison.Ordinal);
         Assert.DoesNotContain("LoginServiceCall", loginService, StringComparison.Ordinal);
 
         var chatService = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Chat/ChatService.cs").Content;
         Assert.Contains("[HotfixService(typeof(IChatService))]", chatService, StringComparison.Ordinal);
         Assert.Contains("internal sealed class ChatService", chatService, StringComparison.Ordinal);
         Assert.Contains("public static async ValueTask BindAsync(HotfixServiceCall<ChatBindRequest, IChatCallback> call)", chatService, StringComparison.Ordinal);
+        Assert.Contains("await call.GameServer.BindSessionAsync", chatService, StringComparison.Ordinal);
+        Assert.Contains("call.Request.Session", chatService, StringComparison.Ordinal);
         Assert.Contains("public static async ValueTask SendAsync(HotfixServiceCall<ChatSendRequest, IChatCallback> call)", chatService, StringComparison.Ordinal);
         Assert.Contains("AskAsync<ChatRoomActor", chatService, StringComparison.Ordinal);
         Assert.Contains("badword", chatService, StringComparison.Ordinal);

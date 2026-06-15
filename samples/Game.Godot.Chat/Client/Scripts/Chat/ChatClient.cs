@@ -22,9 +22,9 @@ namespace Client.Chat
             _chatService = loginClient.RpcClient.Api.Shared.Chat;
         }
 
-        public async Task BindAsync()
+        public async Task BindAsync(LoginReply reply)
         {
-            await _chatService.BindAsync(new ChatBindRequest());
+            await _chatService.BindAsync(new ChatBindRequest { Session = reply.Session });
         }
 
         public async Task SendAsync(string text)

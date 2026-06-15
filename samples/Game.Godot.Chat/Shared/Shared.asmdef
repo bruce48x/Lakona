@@ -8,6 +8,7 @@
   "overrideReferences": true,
   "precompiledReferences": [
     "Lakona.Rpc.Core.dll",
+    "Lakona.Game.Abstractions.dll",
     "MemoryPack.Core.dll",
     "System.Runtime.CompilerServices.Unsafe.dll"
   ],

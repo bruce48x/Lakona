@@ -5,8 +5,8 @@
 
 .DESCRIPTION
     Packs current src/Lakona.* projects into a local feed, scaffolds generated
-    projects with Lakona.Tool, builds the generated server, and optionally runs
-    a runtime RPC verification client.
+    projects with Lakona.Tool, builds the generated server, and runs a runtime
+    RPC verification client by default.
 #>
 
 [CmdletBinding()]
@@ -22,6 +22,8 @@ param(
 
     [switch]$Runtime,
 
+    [switch]$SkipRuntime,
+
     [switch]$KeepScaffolds,
 
     [int]$Port = 20000,
@@ -30,6 +32,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$runRuntime = -not $SkipRuntime
+if ($Runtime) {
+    $runRuntime = $true
+}
 
 function Write-Banner {
     param([string]$Text)
@@ -388,7 +394,7 @@ foreach ($engineValue in $engines) {
                 Serializer = $serializerValue
                 Scaffold = "FAIL"
                 Build = "FAIL"
-                Runtime = if ($Runtime) { "FAIL" } else { "SKIP" }
+                Runtime = if ($runRuntime) { "FAIL" } else { "SKIP" }
                 ProjectDir = $projectDir
                 Error = ""
                 ErrorDetail = ""
@@ -448,7 +454,7 @@ foreach ($engineValue in $engines) {
 
                 $result.Build = "PASS"
 
-                if ($Runtime) {
+                if ($runRuntime) {
                     if (-not (Test-PortFree $Port)) {
                         throw "Port $Port is already in use. Re-run with -Port <free-port>."
                     }
@@ -541,7 +547,7 @@ $report = New-Object System.Collections.Generic.List[string]
 $report.Add("# Lakona Local Package E2E Report")
 $report.Add("")
 $report.Add("- Generated at: $([DateTimeOffset]::UtcNow.ToString("u"))")
-$report.Add("- Runtime verification: $([bool]$Runtime)")
+$report.Add("- Runtime verification: $([bool]$runRuntime)")
 $report.Add("- Local feed: $feedDir")
 $report.Add("- Isolated package cache: $packageCache")
 $report.Add("- Logs: $logRoot")

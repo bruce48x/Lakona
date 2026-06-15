@@ -124,9 +124,9 @@ internal static class UnityClientCodeTemplates
                     _chatService = loginClient.RpcClient.Api.Shared.Chat;
                 }
 
-                public async Task BindAsync()
+                public async Task BindAsync(LoginReply reply)
                 {
-                    await _chatService.BindAsync(new ChatBindRequest());
+                    await _chatService.BindAsync(new ChatBindRequest { Session = reply.Session });
                 }
 
                 public async Task SendAsync(string text)
@@ -364,7 +364,7 @@ internal static class UnityClientCodeTemplates
                     var loginClient = ChatSession.LoginClient;
                     var loginReply = ChatSession.LoginReply;
 
-                    if (loginClient == null)
+                    if (loginClient == null || loginReply == null)
                     {
                         AppendSystemMessage("Session expired. Please return to login.");
                         SetSendBusy(true);
@@ -379,19 +379,16 @@ internal static class UnityClientCodeTemplates
                     loginClient.OnUserLeft += memberName => EnqueueMainThread(() => OnUserLeftHandler(memberName));
                     loginClient.OnDisconnected += () => EnqueueMainThread(() => AppendSystemMessage("Disconnected from server."));
 
-                    if (loginReply != null)
-                    {
-                        AppendSystemMessage($"Connected. {loginReply.Members.Count} online.");
-                        SetOnlineCount(loginReply.Members.Count);
+                    AppendSystemMessage($"Connected. {loginReply.Members.Count} online.");
+                    SetOnlineCount(loginReply.Members.Count);
 
-                        foreach (var msg in loginReply.RecentMessages)
-                        {
-                            AppendMessage(msg);
-                        }
+                    foreach (var msg in loginReply.RecentMessages)
+                    {
+                        AppendMessage(msg);
                     }
 
                     SetSendBusy(true);
-                    _ = BindChatAsync();
+                    _ = BindChatAsync(loginReply);
                 }
 
                 private async void OnSendClicked()
@@ -449,7 +446,7 @@ internal static class UnityClientCodeTemplates
                     _mainThreadActions.Enqueue(action);
                 }
 
-                private async Task BindChatAsync()
+                private async Task BindChatAsync(LoginReply loginReply)
                 {
                     if (_client == null)
                     {
@@ -458,7 +455,7 @@ internal static class UnityClientCodeTemplates
 
                     try
                     {
-                        await _client.BindAsync();
+                        await _client.BindAsync(loginReply);
                         EnqueueMainThread(() => SetSendBusy(false));
                     }
                     catch (Exception ex)

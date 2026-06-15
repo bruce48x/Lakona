@@ -33,7 +33,7 @@ namespace Client.Chat
             var loginClient = session.LoginClient;
             var loginReply = session.LoginReply;
 
-            if (loginClient == null)
+            if (loginClient == null || loginReply == null)
             {
                 AppendSystemMessage("Session expired. Please return to login.");
                 SetSendBusy(true);
@@ -48,19 +48,16 @@ namespace Client.Chat
             loginClient.OnUserLeft += memberName => CallDeferred(nameof(AppendSystemMessageDeferred), $"{memberName} left.");
             loginClient.OnDisconnected += () => CallDeferred(nameof(AppendSystemMessageDeferred), "Disconnected from server.");
 
-            if (loginReply != null)
-            {
-                AppendSystemMessage($"Connected. {loginReply.Members.Count} online.");
-                SetOnlineCount(loginReply.Members.Count);
+            AppendSystemMessage($"Connected. {loginReply.Members.Count} online.");
+            SetOnlineCount(loginReply.Members.Count);
 
-                foreach (var msg in loginReply.RecentMessages)
-                {
-                    AppendMessageText(msg.SenderName, msg.Text);
-                }
+            foreach (var msg in loginReply.RecentMessages)
+            {
+                AppendMessageText(msg.SenderName, msg.Text);
             }
 
             SetSendBusy(true);
-            _ = BindChatAsync();
+            _ = BindChatAsync(loginReply);
         }
 
         private async void OnSendPressed()
@@ -150,7 +147,7 @@ namespace Client.Chat
             }
         }
 
-        private async Task BindChatAsync()
+        private async Task BindChatAsync(LoginReply loginReply)
         {
             if (_client == null)
             {
@@ -159,7 +156,7 @@ namespace Client.Chat
 
             try
             {
-                await _client.BindAsync();
+                await _client.BindAsync(loginReply);
                 CallDeferred(nameof(SetSendBusyDeferred), false);
             }
             catch (Exception ex)

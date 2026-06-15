@@ -27,6 +27,11 @@ public sealed class SharedProjectRendererTests
 
         var messages = AssertPath(plan, "Shared/Contracts/Chat/ChatMessages.cs").Content;
         Assert.Contains("[MemoryPackable(GenerateType.VersionTolerant)]", messages, StringComparison.Ordinal);
+        Assert.Contains("using Lakona.Game.Abstractions;", messages, StringComparison.Ordinal);
+        Assert.Contains("[MemoryPackOrder(2)] [MemoryPackAllowSerialize] [GameSessionKeyMemoryPackFormatter] public GameSessionKey Session { get; set; }", messages, StringComparison.Ordinal);
+        Assert.Contains("[MemoryPackOrder(0)] [MemoryPackAllowSerialize] [GameSessionKeyMemoryPackFormatter] public GameSessionKey Session { get; set; }", messages, StringComparison.Ordinal);
+        Assert.Contains("internal sealed class GameSessionKeyMemoryPackFormatterAttribute : MemoryPackCustomFormatterAttribute<GameSessionKeyMemoryPackFormatter, GameSessionKey>", messages, StringComparison.Ordinal);
+        Assert.Contains("internal sealed class GameSessionKeyMemoryPackFormatter : MemoryPackFormatter<GameSessionKey>", messages, StringComparison.Ordinal);
         Assert.Contains("public partial class ChatMessage", messages, StringComparison.Ordinal);
         AssertPath(plan, "Shared/Contracts/RpcContractIds.cs");
         AssertPath(plan, "Shared/Contracts/Login.cs");
