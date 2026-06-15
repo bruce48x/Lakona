@@ -359,7 +359,7 @@ public sealed class TypedActorGeneratorTests
 
         var result = GeneratorTestHost.Run(source);
 
-        Assert.Contains(result.GeneratorDiagnostics, diagnostic => diagnostic.Id == "ULINKACTOR001");
+        Assert.Contains(result.GeneratorDiagnostics, diagnostic => diagnostic.Id == "LAKONA001");
         Assert.Contains("public async global::System.Threading.Tasks.ValueTask DestroyAsync(RoomId id, global::System.Threading.CancellationToken cancellationToken = default)", result.GeneratedSource);
         Assert.DoesNotContain("DestroyRoomRequest request", result.GeneratedSource);
         Assert.DoesNotContain("actor.CloseAsync(request", result.GeneratedSource);
@@ -419,6 +419,6 @@ public sealed class TypedActorGeneratorTests
 
         var result = GeneratorTestHost.Run(source);
 
-        Assert.Contains(result.GeneratorDiagnostics, diagnostic => diagnostic.Id == "ULINKACTOR001");
+        Assert.Contains(result.GeneratorDiagnostics, diagnostic => diagnostic.Id == "LAKONA001");
     }
 }

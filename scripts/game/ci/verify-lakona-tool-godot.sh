@@ -9,8 +9,8 @@ LOG_DIR="$WORK_DIR/logs"
 LOCAL_FEED="$ROOT_DIR/artifacts/ci-nuget"
 CI_NUGET_CONFIG="$WORK_DIR/NuGet.config"
 
-TRANSPORT="${LAKONA_TOOL_TRANSPORT:-${ULINKGAME_TOOL_TRANSPORT:-kcp}}"
-SERIALIZER="${LAKONA_TOOL_SERIALIZER:-${ULINKGAME_TOOL_SERIALIZER:-memorypack}}"
+TRANSPORT="${LAKONA_TOOL_TRANSPORT:-kcp}"
+SERIALIZER="${LAKONA_TOOL_SERIALIZER:-memorypack}"
 TRANSPORT_LABEL="$(tr '[:lower:]' '[:upper:]' <<< "${TRANSPORT:0:1}")${TRANSPORT:1}"
 SERIALIZER_LABEL="$(tr '[:lower:]' '[:upper:]' <<< "${SERIALIZER:0:1}")${SERIALIZER:1}"
 PROJECT_NAME="LakonaGodot${TRANSPORT_LABEL}${SERIALIZER_LABEL}"
@@ -231,8 +231,6 @@ pack_local_package "$ROOT_DIR/src/Lakona.Game.Server.Hotfix.Generators/Lakona.Ga
 pack_local_package "$ROOT_DIR/src/Lakona.Game.Cluster/Lakona.Game.Cluster.csproj"
 pack_local_package "$ROOT_DIR/src/Lakona.Game.Cluster.Rpc/Lakona.Game.Cluster.Rpc.csproj"
 pack_local_package "$ROOT_DIR/src/Lakona.Tool/Lakona.Tool.csproj"
-
-export ULINKRPC_GODOT_NUPKGS="$GODOT_NUPKGS"
 
 echo "Generating Lakona Godot project at $PROJECT_DIR ($TRANSPORT + $SERIALIZER)"
 dotnet run --project "$ROOT_DIR/src/Lakona.Tool/Lakona.Tool.csproj" -- \
