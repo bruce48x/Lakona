@@ -96,6 +96,7 @@ public static class FeatureServiceCollectionExtensions
         services.AddSingleton(endpointCatalog);
         services.AddSingleton(context);
         services.AddSingleton<IHostedService, LakonaGameFeatureHostedService>();
+        services.AddSingleton<IHostedService, LakonaGameClusterRegistrationHostedService>();
 
         foreach (var feature in features)
         {

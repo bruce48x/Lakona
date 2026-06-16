@@ -100,11 +100,12 @@ public sealed class ActorDirectoryClient : IActorDirectory
             ActorDirectoryFeatures.ActorDirectory,
             cancellationToken).ConfigureAwait(false);
 
-        if (discovered is not { } node)
+        if (discovered is not { } descriptor)
         {
             throw new ActorDirectoryUnavailableException("Actor directory host was not found.");
         }
 
+        var node = descriptor.Node;
         lock (_gate)
         {
             _directoryNode = node;

@@ -85,6 +85,7 @@ public sealed class LakonaGameFeatureDiscoveryTests
 
         using var provider = services.BuildServiceProvider();
         var hosted = provider.GetServices<IHostedService>().OfType<LakonaGameFeatureHostedService>().Single();
+        Assert.Single(provider.GetServices<IHostedService>().OfType<LakonaGameClusterRegistrationHostedService>());
 
         await hosted.StartAsync(TestContext.Current.CancellationToken);
         await hosted.StopAsync(TestContext.Current.CancellationToken);

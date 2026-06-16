@@ -4,5 +4,5 @@ namespace Lakona.Game.Server.Actors;
 
 public static class ActorDirectoryFeatures
 {
-    public static readonly ClusterFeature ActorDirectory = new("actor-directory");
+    public static readonly FeatureName ActorDirectory = new("actor-directory");
 }
