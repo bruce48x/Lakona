@@ -52,7 +52,7 @@ Currently implemented:
 - Session resume and token validation
 - Reliable push outbox/inbox
 - Hotfix assembly loading and dispatch table swap
-- Feature Catalog server assembly (`LakonaGameFeature`, `AddLakonaGame`, compact `Lakona.Game:Feature`)
+- Feature startup assembly (`LakonaGameFeature`, `AddLakonaGame`, compact `Lakona:Feature`)
 - Remote actor messaging (typed `Local(id)` / `Remote(nodeId, id)` refs over lower-level `AskRemoteAsync` / `TellRemoteAsync` plumbing)
 - Message recording storage and replay (`IMessageLogStore`)
 - Game-specific ActorId scheme (string with generation)

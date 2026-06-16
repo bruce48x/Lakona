@@ -36,11 +36,11 @@ public sealed class LakonaGameRuntimeValidatorTests
         var value = new LakonaGameResolvedValue<string>(
             "dev-1",
             LakonaGameValueSource.Configuration,
-            "Lakona.Game:Node:Id");
+            "Lakona:Node:Id");
 
         Assert.Equal("dev-1", value.Value);
         Assert.Equal(LakonaGameValueSource.Configuration, value.Source);
-        Assert.Equal("Lakona.Game:Node:Id", value.Path);
+        Assert.Equal("Lakona:Node:Id", value.Path);
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     {
         var runtime = TestRuntime() with
         {
-            NodeId = new LakonaGameResolvedValue<string>("", LakonaGameValueSource.Configuration, "Lakona.Game:Node:Id")
+            NodeId = new LakonaGameResolvedValue<string>("", LakonaGameValueSource.Configuration, "Lakona:Node:Id")
         };
         var result = Validate(runtime);
 
@@ -240,7 +240,7 @@ public sealed class LakonaGameRuntimeValidatorTests
         var runtime = TestRuntime() with
         {
             ClusterEndpoint = new LakonaGameResolvedClusterEndpoint(
-                Endpoint: new LakonaGameResolvedValue<string>("", LakonaGameValueSource.Configuration, "Lakona.Game:Cluster:Endpoint"),
+                Endpoint: new LakonaGameResolvedValue<string>("", LakonaGameValueSource.Configuration, "Lakona:Cluster:Endpoint"),
                 Seeds: [])
         };
 
@@ -296,7 +296,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     private static LakonaGameResolvedRuntime TestRuntime()
     {
         return new LakonaGameResolvedRuntime(
-            NodeId: new LakonaGameResolvedValue<string>("dev-1", LakonaGameValueSource.Configuration, "Lakona.Game:Node:Id"),
+            NodeId: new LakonaGameResolvedValue<string>("dev-1", LakonaGameValueSource.Configuration, "Lakona:Node:Id"),
             Endpoints: [TestEndpoint("kcp", "127.0.0.1", 20000)],
             Cluster: new LakonaGameResolvedCluster(
                 AdvertisedEndpoints: new Dictionary<string, string> { ["client"] = "kcp://127.0.0.1:20000" }),
@@ -337,7 +337,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     private static LakonaGameResolvedClusterEndpoint TestClusterEndpoint(string endpoint)
     {
         return new LakonaGameResolvedClusterEndpoint(
-            Endpoint: new LakonaGameResolvedValue<string>(endpoint, LakonaGameValueSource.Configuration, "Lakona.Game:Cluster:Endpoint"),
+            Endpoint: new LakonaGameResolvedValue<string>(endpoint, LakonaGameValueSource.Configuration, "Lakona:Cluster:Endpoint"),
             Seeds: []);
     }
 

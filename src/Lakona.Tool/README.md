@@ -62,7 +62,7 @@ Generated server projects reference `Lakona.Game.Server.Generators` as an analyz
 
 For Unity and Tuanjie clients, the tool pins `Lakona.Game.Client` and `Lakona.Game.Abstractions` in `Assets/packages.config` and generates an editor import guard that prevents NuGet analyzer DLLs from being loaded as Unity runtime plugins.
 
-The generated `appsettings.json` intentionally stays small. It contains only the local node identity and client transport endpoint configuration under `Lakona.Game`; cluster services, hotfix defaults, reliable push defaults, and RPC check output are derived by generated server helper code.
+The generated `appsettings.json` intentionally stays small. It contains only the local node identity and endpoint-local RPC service exposure under `Lakona`; cluster discovery, hotfix defaults, reliable push defaults, and RPC check output are derived by generated server helper code.
 
 Generated server apps use build-time hotfix service discovery. RPC contracts marked with `[RpcService]` in referenced user contract assemblies produce stable server proxies automatically; new projects no longer need hand-written service marker files.
 
@@ -85,7 +85,7 @@ The default development appsettings file has this shape:
 
 ```json
 {
-  "Lakona.Game": {
+  "Lakona": {
     "Node": {
       "Id": "dev-1"
     },
@@ -93,7 +93,8 @@ The default development appsettings file has this shape:
       {
         "Transport": "kcp",
         "Host": "127.0.0.1",
-        "Port": 20000
+        "Port": 20000,
+        "RpcServices": [ "login", "chat" ]
       }
     ]
   }
@@ -138,8 +139,8 @@ lakona-tool hotfix status --server http://127.0.0.1:20090
 lakona-tool hotfix rollback --server http://127.0.0.1:20090
 ```
 
-## Cluster Configuration
+## Distributed Configuration
 
-The generated server derives a node-local service model. A node is one .NET server process; generated defaults include gateway, node-directory, and route-directory services inside that node.
+The generated server derives a node-local feature model. A node is one .NET server process; generated defaults include gateway, node-directory, and route-directory infrastructure inside that node.
 
-The default `appsettings.json` does not expose that full derived topology. Use `--lakona-game-check` to inspect it. When a generated project is intentionally split across processes, use the canonical `Lakona.Game:Feature`, `Lakona.Game:Endpoints[]`, and minimal `Lakona.Game:Cluster` shape described in `../../docs/lakona-game-configuration-startup.md`; do not add `Cluster.Directory`, `Services`, or deployment-shaped sections to appsettings until the framework owns and validates those settings.
+The default `appsettings.json` does not expose that full derived topology. Use `--lakona-game-check` to inspect it. When a generated project is intentionally split across processes, use the canonical `Lakona:Feature`, `Lakona:Endpoints[]`, endpoint `RpcServices`, and minimal `Lakona:Cluster` shape described in `../../docs/game/distributed-feature-cluster-model.md`; do not add `Cluster.Directory`, `Services`, endpoint `Name`, or deployment-shaped sections to appsettings until the framework owns and validates those settings.

@@ -99,18 +99,18 @@ public sealed class LakonaGameRuntimeOptionsTests
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>
         {
-            ["Lakona.Game:Node:Id"] = "game-c",
-            ["Lakona.Game:Endpoints:0:Transport"] = "websocket",
-            ["Lakona.Game:Endpoints:0:Host"] = "0.0.0.0",
-            ["Lakona.Game:Endpoints:0:Port"] = "20000",
-            ["Lakona.Game:Endpoints:0:Path"] = "/ws",
-            ["Lakona.Game:Endpoints:1:Transport"] = "kcp",
-            ["Lakona.Game:Endpoints:1:Host"] = "0.0.0.0",
-            ["Lakona.Game:Endpoints:1:Port"] = "20001",
-            ["Lakona.Game:Feature:0"] = "battle",
-            ["Lakona.Game:Feature:1"] = "battle-settlement",
-            ["Lakona.Game:Cluster:Endpoint"] = "tcp://10.0.0.3:21003",
-            ["Lakona.Game:Cluster:Seeds:0"] = "tcp://10.0.0.1:21001"
+            ["Lakona:Node:Id"] = "game-c",
+            ["Lakona:Endpoints:0:Transport"] = "websocket",
+            ["Lakona:Endpoints:0:Host"] = "0.0.0.0",
+            ["Lakona:Endpoints:0:Port"] = "20000",
+            ["Lakona:Endpoints:0:Path"] = "/ws",
+            ["Lakona:Endpoints:1:Transport"] = "kcp",
+            ["Lakona:Endpoints:1:Host"] = "0.0.0.0",
+            ["Lakona:Endpoints:1:Port"] = "20001",
+            ["Lakona:Feature:0"] = "battle",
+            ["Lakona:Feature:1"] = "battle-settlement",
+            ["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.3:21003",
+            ["Lakona:Cluster:Seeds:0"] = "tcp://10.0.0.1:21001"
         });
 
         var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
@@ -143,7 +143,7 @@ public sealed class LakonaGameRuntimeOptionsTests
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>
         {
-            ["Lakona.Game:Node:Id"] = "dev-1"
+            ["Lakona:Node:Id"] = "dev-1"
         });
 
         var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);

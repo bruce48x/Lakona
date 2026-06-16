@@ -18,7 +18,8 @@ public static class FeatureServiceCollectionExtensions
 
         var builder = new FeatureBuilder();
 
-        var filter = config.GetSection("Lakona.Game:Features").Get<FeatureFilter>();
+        var filter = config.GetSection("Lakona:Features").Get<FeatureFilter>()
+            ?? config.GetSection("Lakona.Game:Features").Get<FeatureFilter>();
         if (filter is not null)
         {
             builder.UseFilter(filter);

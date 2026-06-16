@@ -253,7 +253,7 @@ Projects can register `IGameSessionTokenValidator` and `IAuthoritativeSessionSta
 
 ## Feature Catalog Assembly
 
-Compose servers from ordered `LakonaGameFeature` startup units. Develop with every registered Feature in one process, or select a compact Feature set per process with `Lakona.Game:Feature`.
+Compose servers from ordered `LakonaGameFeature` startup units. Develop with every discovered Feature in one process, or select a compact Feature set per process with `Lakona:Feature`.
 
 ```csharp
 public sealed class AuthFeature : LakonaGameFeature
@@ -266,24 +266,25 @@ public sealed class AuthFeature : LakonaGameFeature
 
 builder.Services.AddLakonaGame(builder.Configuration, game =>
 {
-    game.Feature<ClusterFeature>("cluster");
     game.Feature<AuthFeature>("auth")
-        .After("cluster")
-        .RequiresFeature("cluster")
         .RequiresTransport("websocket");
 });
 ```
 
 ```json
 {
-  "Lakona.Game": {
-    "Feature": ["cluster", "auth"],
+  "Lakona": {
+    "Node": {
+      "Id": "gateway-1"
+    },
+    "Feature": ["auth"],
     "Endpoints": [
       {
         "Transport": "websocket",
         "Host": "0.0.0.0",
         "Port": 20000,
-        "Path": "/ws"
+        "Path": "/ws",
+        "RpcServices": ["login"]
       }
     ]
   }
@@ -292,7 +293,7 @@ builder.Services.AddLakonaGame(builder.Configuration, game =>
 
 `RequiresTransport(...)` validates against the framework-resolved endpoint catalog. Endpoint transport hosting remains framework-owned.
 
-See `../../docs/feature-role.md` and `../../docs/lakona-game-configuration-startup.md` for details.
+See `../../docs/game/feature-role.md` and `../../docs/game/lakona-game-configuration-startup.md` for details.
 
 ## Remote Actor Messaging
 

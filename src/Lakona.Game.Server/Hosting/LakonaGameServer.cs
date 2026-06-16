@@ -115,7 +115,7 @@ public static class LakonaGameServer
             var catalog = catalogBuilder.Build(runtimeOptions);
             builder.Services.AddSingleton(catalog);
         }
-        else
+        else if (!builder.Services.Any(static service => service.ServiceType == typeof(LakonaGameFeatureCatalog)))
         {
             DiscoverAndRegisterFeatures(builder.Services, builder.Configuration, AppContext.BaseDirectory);
         }
@@ -348,7 +348,13 @@ public static class LakonaGameServer
         string buildTag)
     {
         var options = new HotfixAdminOptions();
-        configuration.GetSection("Lakona.Game:Hotfix:Admin").Bind(options);
+        var section = configuration.GetSection("Lakona:Hotfix:Admin");
+        if (!section.Exists())
+        {
+            section = configuration.GetSection("Lakona.Game:Hotfix:Admin");
+        }
+
+        section.Bind(options);
         options.HotfixRoot = Path.Combine(baseDirectory, "hotfix");
         options.BuildTag = buildTag;
         return options;

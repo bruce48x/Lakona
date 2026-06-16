@@ -24,11 +24,11 @@ Every generated project includes:
 - reliable push services
 - a default health/check command that explains the derived runtime state
 
-The default local topology is a single process with generated defaults for the node-directory, route-directory, and gateway. This is still a cluster topology; it is simply collapsed into one process for local development. Project/game services can be added by project configuration or future templates, and production deployments can split services across nodes without changing the user-facing game code structure.
+The default local topology is a single process with generated defaults for the node-directory, route-directory, and gateway. This is still a cluster topology; it is simply collapsed into one process for local development. Project/game features can be added by project code and selected with configuration when needed, and production deployments can split features across nodes without changing the user-facing game code structure.
 
 ## Configuration Principle
 
-The canonical configuration and startup model is defined in [Lakona.Game Configuration And Startup Model](lakona-game-configuration-startup.md). Generated projects should use `Lakona.Game:Node:Id`, `Lakona.Game:Endpoints[]`, compact `Lakona.Game:Feature` selection when needed, and `AddLakonaGame` Feature Catalog startup.
+The canonical configuration and startup model is defined in [Lakona.Game Configuration And Startup Model](lakona-game-configuration-startup.md). Generated projects should use `Lakona:Node:Id`, `Lakona:Endpoints[]` with endpoint-local `RpcServices`, compact `Lakona:Feature` selection when needed, and convention-based `services.AddLakonaGame(configuration)` startup inside the `LakonaGameServer` service-registration callback.
 
 The generated `appsettings.json` should contain only source values the user can understand and may reasonably change.
 
@@ -38,13 +38,13 @@ It should not contain:
 - implementation paths such as `Hotfix.Directory`
 - internal storage selectors such as `ReliablePush.Outbox`
 - topology abstractions such as `Node.Profile`
-- derived cluster values such as advertised endpoints, bootstrap endpoints, service lists, route lease seconds, or send timeout milliseconds
+- derived cluster values such as advertised endpoints, bootstrap endpoints, feature descriptors, route lease seconds, or send timeout milliseconds
 
 The default configuration should be:
 
 ```json
 {
-  "Lakona.Game": {
+  "Lakona": {
     "Node": {
       "Id": "dev-1"
     },
@@ -52,7 +52,8 @@ The default configuration should be:
       {
         "Transport": "kcp",
         "Host": "127.0.0.1",
-        "Port": 20000
+        "Port": 20000,
+        "RpcServices": [ "login", "chat" ]
       }
     ]
   }
@@ -63,7 +64,7 @@ For WebSocket transport, the generated endpoint includes the path:
 
 ```json
 {
-  "Lakona.Game": {
+  "Lakona": {
     "Node": {
       "Id": "dev-1"
     },
@@ -72,7 +73,8 @@ For WebSocket transport, the generated endpoint includes the path:
         "Transport": "websocket",
         "Host": "127.0.0.1",
         "Port": 20000,
-        "Path": "/ws"
+        "Path": "/ws",
+        "RpcServices": [ "login", "chat" ]
       }
     ]
   }
@@ -83,13 +85,14 @@ For WebSocket transport, the generated endpoint includes the path:
 
 Generated server code should derive the full runtime model from the small configuration surface and project conventions.
 
-From `Lakona.Game:Node:Id`, it derives the local node identity.
+From `Lakona:Node:Id`, it derives the local node identity.
 
-From `Lakona.Game:Endpoints[]`, it derives:
+From `Lakona:Endpoints[]`, it derives:
 
 - the RPC listener addresses
 - the advertised client endpoints
 - framework-owned endpoint transport wiring
+- endpoint-local RPC service exposure
 
 From the generated project structure, it derives the local hotfix source:
 
@@ -152,7 +155,7 @@ The command should print derived runtime state in stable, readable lines:
 ```txt
 cluster: ok single-node
 node: ok dev-1
-services: ok node-directory, route-directory, gateway
+features: ok local generated defaults
 hotfix: ok local-build Server.Hotfix.dll
 reliable-push: ok pending limit 256, replay window 120s
 rpc: ok kcp://127.0.0.1:20000

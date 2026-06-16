@@ -50,6 +50,10 @@ public sealed class ServerAppRendererTests
         Assert.DoesNotContain(ForbiddenCleanupOption, program, StringComparison.Ordinal);
         Assert.Contains(".UseGeneratedHotfixServices());", program, StringComparison.Ordinal);
         Assert.DoesNotContain("RpcServerHostBuilder", program, StringComparison.Ordinal);
+        Assert.Contains(".AddServices((services, configuration) =>", program, StringComparison.Ordinal);
+        Assert.Contains("services.AddLakonaGame(configuration)", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("ConfigureFeatures(", program, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Feature<", program, StringComparison.Ordinal);
 
         var chatRoomActor = AssertPath(plan, "Server/App/Chat/ChatRoomActor.cs").Content;
         Assert.Contains("internal sealed class ChatRoomActor : Actor", chatRoomActor, StringComparison.Ordinal);
@@ -89,10 +93,18 @@ public sealed class ServerAppRendererTests
 
         var appsettings = AssertPath(plan, "Server/App/appsettings.json").Content;
         using var document = JsonDocument.Parse(appsettings);
-        var endpoint = document.RootElement.GetProperty("Lakona.Game").GetProperty("Endpoints")[0];
+        Assert.Contains("\"Lakona\"", appsettings, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"Lakona.Game\"", appsettings, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona:Cluster:Services", appsettings, StringComparison.Ordinal);
+        Assert.Contains("\"RpcServices\"", appsettings, StringComparison.Ordinal);
+
+        var endpoint = document.RootElement.GetProperty("Lakona").GetProperty("Endpoints")[0];
         Assert.Equal("kcp", endpoint.GetProperty("Transport").GetString());
         Assert.Equal("127.0.0.1", endpoint.GetProperty("Host").GetString());
         Assert.Equal(20000, endpoint.GetProperty("Port").GetInt32());
+        Assert.Equal(new[] { "login", "chat" }, endpoint.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
+        Assert.False(endpoint.TryGetProperty("Name", out _));
+        Assert.False(endpoint.TryGetProperty("Path", out _));
         Assert.DoesNotContain("Enabled", appsettings, StringComparison.Ordinal);
         Assert.DoesNotContain("Bootstrap", appsettings, StringComparison.Ordinal);
     }
@@ -104,9 +116,10 @@ public sealed class ServerAppRendererTests
         var appsettings = AssertPath(plan, "Server/App/appsettings.json").Content;
 
         using var document = JsonDocument.Parse(appsettings);
-        var endpoint = document.RootElement.GetProperty("Lakona.Game").GetProperty("Endpoints")[0];
+        var endpoint = document.RootElement.GetProperty("Lakona").GetProperty("Endpoints")[0];
         Assert.Equal("websocket", endpoint.GetProperty("Transport").GetString());
         Assert.Equal("/ws", endpoint.GetProperty("Path").GetString());
+        Assert.Equal(new[] { "login", "chat" }, endpoint.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
 
         var program = AssertPath(plan, "Server/App/Program.cs").Content;
         Assert.Contains("using Lakona.Rpc.Serializer.Json;", program, StringComparison.Ordinal);

@@ -15,7 +15,7 @@ public sealed class LakonaGameServerBuilder
     private Action<RpcServiceRegistry, IServiceProvider>? _serviceBinder;
     private string _transport = "websocket";
     private Action<LakonaGameFeatureCatalogBuilder>? _configureFeatures;
-    private readonly List<Action<IServiceCollection>> _serviceRegistrations = new();
+    private readonly List<Action<IServiceCollection, IConfiguration>> _serviceRegistrations = new();
     private readonly List<Action<IConfigurationBuilder>> _configActions = new();
     private readonly List<RpcEndpointRegistration> _additionalEndpoints = new();
 
@@ -27,6 +27,13 @@ public sealed class LakonaGameServerBuilder
     }
 
     public LakonaGameServerBuilder AddServices(Action<IServiceCollection> register)
+    {
+        ArgumentNullException.ThrowIfNull(register);
+        _serviceRegistrations.Add((services, _) => register(services));
+        return this;
+    }
+
+    public LakonaGameServerBuilder AddServices(Action<IServiceCollection, IConfiguration> register)
     {
         ArgumentNullException.ThrowIfNull(register);
         _serviceRegistrations.Add(register);
@@ -138,9 +145,14 @@ public sealed class LakonaGameServerBuilder
 
     internal void ApplyToHostBuilder()
     {
+        foreach (var configure in _configActions)
+        {
+            configure(HostBuilder.Configuration);
+        }
+
         foreach (var register in _serviceRegistrations)
         {
-            register(HostBuilder.Services);
+            register(HostBuilder.Services, HostBuilder.Configuration);
         }
     }
 

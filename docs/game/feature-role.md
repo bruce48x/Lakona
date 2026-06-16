@@ -1,23 +1,25 @@
-# Feature Catalog Startup
+# Feature Startup
 
-Lakona.Game startup is assembled through the Feature Catalog. The canonical configuration and startup model is documented in [Lakona.Game Configuration And Startup Model](lakona-game-configuration-startup.md).
-
-Features are ordered startup units. They register game services, declare ordering and feature dependencies, and state which endpoint transports they require. Endpoint transport hosting remains framework-owned and is resolved from `Lakona.Game:Endpoints[]`.
+Lakona.Game startup is assembled from `LakonaGameFeature` types. The current
+configuration, discovery, and cluster publication model is documented in
+[Distributed Feature And Cluster Model](distributed-feature-cluster-model.md).
 
 ## Concepts
 
 | Concept | Responsibility |
 |---------|---------------|
 | `LakonaGameFeature` | A startup unit that registers services through `ConfigureServices(LakonaGameFeatureContext)`. |
-| Feature Catalog | The `Program.cs` declaration of known project features, their order, dependencies, and transport requirements. |
-| `Lakona.Game:Feature` | Optional compact configuration selection for which catalog features run in this process. If omitted, all registered features run. |
+| Feature name | The conventional kebab-case name derived from the type name, such as `BattleRuntimeFeature` -> `battle-runtime`. |
+| `Lakona:Feature` | Optional compact configuration selection for which discovered features run in this process. |
 
-The previous role/filter startup model is superseded. Do not use role-shaped configuration for new Lakona.Game startup code.
+The previous role/filter model and the older hand-written fluent catalog are
+superseded for generated projects and new samples. Do not use
+role-shaped configuration or endpoint names for new Lakona.Game startup code.
 
 ## Define Features
 
 ```csharp
-public sealed class RealtimeFeature : LakonaGameFeature
+public sealed class BattleRuntimeFeature : LakonaGameFeature
 {
     public override void ConfigureServices(LakonaGameFeatureContext context)
     {
@@ -26,58 +28,49 @@ public sealed class RealtimeFeature : LakonaGameFeature
 }
 ```
 
-```csharp
-public sealed class MatchmakingFeature : LakonaGameFeature
-{
-    public override void ConfigureServices(LakonaGameFeatureContext context)
-    {
-        context.Services.AddSingleton<MatchmakingService>();
-    }
-}
-```
-
 ## Wire Program.cs
 
+Generated projects should use convention-based discovery:
+
 ```csharp
-builder.Services.AddLakonaGame(builder.Configuration, game =>
-{
-    game.Feature<ClusterFeature>("cluster");
-
-    game.Feature<MatchmakingFeature>("matchmaking")
-        .After("cluster")
-        .RequiresFeature("cluster")
-        .RequiresTransport("websocket");
-
-    game.Feature<RealtimeFeature>("realtime")
-        .After("matchmaking")
-        .RequiresFeature("matchmaking")
-        .RequiresTransport("kcp");
-});
+builder.Services.AddLakonaGame(builder.Configuration);
 ```
 
-`After(...)` controls startup order. `RequiresFeature(...)` fails fast when a selected feature is missing a dependency. `RequiresTransport(...)` fails fast when `Lakona.Game:Endpoints[]` does not provide the required transport.
+Samples that need a bounded explicit set may pass feature types while still
+using conventional names:
+
+```csharp
+builder.Services.AddLakonaGame(builder.Configuration, [
+    typeof(DatabaseFeature),
+    typeof(StateStoreFeature),
+    typeof(BattleRuntimeFeature)
+]);
+```
 
 ## Select Features
 
-Local development can omit `Lakona.Game:Feature` and run every registered feature. Split processes can select a compact feature set:
+Local development can omit `Lakona:Feature` and run every discovered feature.
+Split processes can select a compact feature set:
 
 ```json
 {
-  "Lakona.Game": {
+  "Lakona": {
     "Node": {
-      "Id": "gateway-1"
+      "Id": "battle-1"
     },
-    "Feature": ["cluster", "matchmaking"],
+    "Feature": [ "battle-runtime" ],
     "Endpoints": [
       {
-        "Transport": "websocket",
+        "Transport": "kcp",
         "Host": "0.0.0.0",
-        "Port": 20000,
-        "Path": "/ws"
+        "Port": 20001,
+        "RpcServices": [ "battle" ]
       }
     ]
   }
 }
 ```
 
-Business concepts such as `matchmaking` or `realtime` are feature names, not endpoint names. Endpoint routing is selected by transport requirements and the resolved endpoint catalog.
+Business concepts such as `matchmaking` or `battle-runtime` are feature names,
+not endpoint names. RPC service exposure is configured per endpoint through
+`RpcServices`.
