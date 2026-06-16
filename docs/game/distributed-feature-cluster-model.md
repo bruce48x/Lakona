@@ -198,31 +198,37 @@ V1 binder rules:
   names are normalized to lower-case.
 - A binder is bound once per endpoint that lists its service name.
 - The framework does not infer a binder name from the C# type name in V1.
+- `LakonaRpcServiceBinder.Bind` receives `LakonaGameServerRpcContext`.
+- Binder implementations use `context.Builder.ServiceRegistry`; V1 must not
+  introduce another `RpcServiceRegistry` abstraction.
+- `IRpcServerConfigurator` remains an endpoint-scoped transport-server
+  configurator. It must identify the endpoint by transport, not by endpoint
+  name.
 
 ## Feature Lifecycle
 
 Features support both dependency registration and runtime lifecycle hooks.
 
 ```csharp
-public abstract class LakonaFeature
+public abstract class LakonaGameFeature
 {
     public virtual string Name => FeatureNameConventions.FromType(GetType());
 
     public virtual bool Discoverable => true;
 
-    public virtual void ConfigureServices(LakonaFeatureContext context)
+    public virtual void ConfigureServices(LakonaGameFeatureContext context)
     {
     }
 
     public virtual ValueTask StartAsync(
-        LakonaFeatureRuntimeContext context,
+        LakonaGameFeatureContext context,
         CancellationToken cancellationToken = default)
     {
         return default;
     }
 
     public virtual ValueTask StopAsync(
-        LakonaFeatureRuntimeContext context,
+        LakonaGameFeatureContext context,
         CancellationToken cancellationToken = default)
     {
         return default;
@@ -248,11 +254,16 @@ Features that are startup dependencies but must not be cluster-discoverable
 can opt out:
 
 ```csharp
-public sealed class DatabaseFeature : LakonaFeature
+public sealed class DatabaseFeature : LakonaGameFeature
 {
     public override bool Discoverable => false;
 }
 ```
+
+The V1 public base class remains `LakonaGameFeature`. The configuration root is
+`Lakona`, but the runtime package and game-server API names keep the
+`LakonaGame` prefix unless a separate API-renaming design explicitly changes
+them.
 
 `database` is a good example: it creates local connection factories and
 repository dependencies for the data node, but other nodes must not discover
@@ -341,6 +352,10 @@ public interface IClusterNodeDiscovery
 `ClusterFeature` must be renamed to `FeatureName` so discovery terminology
 matches startup terminology.
 
+`ClusterNodeDescriptor` must include the selected node id, state, endpoint map,
+features, and labels. Feature-addressed message bus implementations use
+`ClusterNodeDescriptor.Endpoints["cluster"]` to reach the selected node.
+
 The implementation must not keep `ClusterFeature` as a public type. If an
 internal compatibility shim is temporarily required, it must not appear in
 public docs, generated code, or new APIs.
@@ -359,8 +374,15 @@ actor:room/room-123 -> node battle-1
 
 ## Message Bus And Remote Actors
 
-Cross-node communication has two layers over the same `ClusterMessage`
-delivery semantics.
+Cross-node communication has two separate delivery families:
+
+- Route-addressed sends use the existing send-only `ClusterMessage`,
+  `IClusterRouter`, `INodeMessenger`, and `IClusterMessageHandler` path.
+- Feature-addressed request/reply uses a new low-level request/reply transport
+  over the selected node's `cluster` endpoint.
+
+V1 must not force request/reply payloads into the existing send-only route
+interfaces.
 
 Feature-addressed message bus:
 
@@ -379,9 +401,10 @@ V1 feature-addressed delivery:
 
 1. Resolve candidate nodes with `IClusterNodeDiscovery.AnyAsync(feature)`.
 2. Use the candidate node's `cluster` endpoint.
-3. Send a `ClusterMessage` to the selected node.
+3. Send a `FeatureMessageRequest` to the selected node through the new
+   request/reply transport.
 4. Dispatch the message to a registered local feature message handler.
-5. Return a reply or a structured failure.
+5. Return a `FeatureMessageReply` or a structured failure.
 
 Selection policy is intentionally small in V1. `AnyAsync` must return a ready
 node with a non-expired lease. Project-owned code may layer its own capacity or
@@ -762,10 +785,14 @@ The implementation agent must work in this order:
 5. Replace cluster service types with feature types in public cluster contracts.
 6. Register node endpoint maps with `cluster` plus transport keys.
 7. Implement feature discovery with `FeatureName`.
-8. Implement feature-addressed request/reply message bus.
+8. Implement feature-addressed request/reply message bus through the separate
+   request/reply transport.
 9. Implement client-session route registration and gateway notification relay.
 10. Update Agar to the three-node acceptance topology and add the remote player
     notification example.
+11. Update `Lakona.Tool` generated project templates and template regression
+    tests.
+12. Bump affected package versions according to `CONTRIBUTING.md`.
 
 The implementation agent must not:
 
@@ -776,6 +803,8 @@ The implementation agent must not:
 - make `RpcService` depend on `Feature` in configuration
 - pass callback objects across nodes
 - connect the gateway node directly to the database in the Agar acceptance path
+- leave generated templates on `Lakona.Game` configuration
+- change shippable `src/**` packages without the required version bumps
 
 ## Migration Direction
 

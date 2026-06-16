@@ -14,6 +14,59 @@
 
 Implement exactly the V1 contract in `docs/game/distributed-feature-cluster-model.md`.
 
+## Resolved Decisions From Open Questions
+
+These decisions supersede any conflicting wording elsewhere in this plan.
+
+1. **Execution order:** Follow the `Execution Order` section below. The task
+   sections are grouped by implementation area; their numeric headings are not
+   the execution order.
+2. **Feature base class:** Keep the public API name `LakonaGameFeature`. Do not
+   rename it to `LakonaFeature` in V1.
+3. **Tooling scope:** Include `src/Lakona.Tool`, `tests/Lakona.Tool.Tests`,
+   and tool-generation docs in this implementation. Generated project
+   templates must use the `Lakona` root and must not require fluent feature
+   declarations in generated `Program.cs`.
+4. **RPC binder boundary:** `LakonaRpcServiceBinder.Bind` receives
+   `LakonaGameServerRpcContext` and uses `context.Builder.ServiceRegistry`.
+   Do not introduce another `RpcServiceRegistry` abstraction.
+5. **RPC endpoint boundary:** `IRpcServerConfigurator` remains an
+   endpoint-scoped transport-server configurator. It identifies endpoints by
+   transport, not by endpoint name.
+6. **Feature message bus transport:** Keep the existing send-only
+   `ClusterMessage`, `IClusterRouter`, `INodeMessenger`, and
+   `IClusterMessageHandler` route path unchanged. Add a separate low-level
+   request/reply transport for feature-addressed messages.
+7. **Client notification relay:** Task 6 owns both local callback relay and
+   framework-owned `client-session:<owner>/<session>/<generation>` route
+   registration and cleanup. Agar only demonstrates the framework API.
+8. **Version bumps:** Bump affected shippable package versions in the same
+   implementation branch:
+   `Lakona.Game.Cluster` `0.1.4` -> `0.1.5`,
+   `Lakona.Game.Cluster.Rpc` `0.1.3` -> `0.1.4`,
+   `Lakona.Game.Cluster.Sql` `0.1.0` -> `0.1.1`, and
+   `Lakona.Game.Server` `0.5.4` -> `0.5.5`.
+
+## Execution Order
+
+Implement in this exact order:
+
+1. Runtime configuration root, endpoint `RpcServices`, endpoint validation, and
+   `Lakona.Game` compatibility tests.
+2. Convention-based `LakonaGameFeature` discovery and lifecycle.
+3. Endpoint-scoped RPC service binder discovery.
+4. Cluster public contract replacement from service terminology to feature
+   terminology, including `FeatureName` and `NodeFeatureDescriptor`.
+5. Endpoint map registration and feature discovery returning ready,
+   non-expired nodes with endpoint data.
+6. Feature-addressed request/reply message bus using the separate request/reply
+   transport.
+7. Gateway-owned client notification route registration, cleanup, and local
+   callback relay.
+8. Agar three-node acceptance sample.
+9. Lakona.Tool generated template and docs cleanup.
+10. Package version bumps, final scans, and solution validation.
+
 Do not reintroduce or preserve these concepts in new APIs, config, diagnostics, generated templates, or sample code:
 
 - `Lakona:Cluster:Services`
@@ -91,23 +144,30 @@ RPC service binder discovery:
 Feature-addressed request/reply message bus:
 
 - Modify: `src/Lakona.Game.Cluster/Messaging/ClusterSendStatus.cs`
-- Modify: `src/Lakona.Game.Cluster/Messaging/ClusterMessage.cs`
-- Modify: `src/Lakona.Game.Cluster/Messaging/IClusterMessageHandler.cs`
-- Modify: `src/Lakona.Game.Cluster/Messaging/ClusterNodeSender.cs`
-- Create: `src/Lakona.Game.Cluster/Messaging/ClusterReply.cs`
-- Create: `src/Lakona.Game.Cluster/Messaging/ClusterRequest.cs`
+- Create: `src/Lakona.Game.Cluster/Messaging/FeatureMessageReply.cs`
+- Create: `src/Lakona.Game.Cluster/Messaging/FeatureMessageRequest.cs`
+- Create: `src/Lakona.Game.Cluster/Messaging/IFeatureMessageTransport.cs`
 - Create: `src/Lakona.Game.Cluster/Messaging/IFeatureMessageBus.cs`
 - Create: `src/Lakona.Game.Cluster/Messaging/IFeatureMessageHandler.cs`
 - Create: `src/Lakona.Game.Cluster/Messaging/FeatureMessageBus.cs`
+- Create: `src/Lakona.Game.Cluster.Rpc/Messaging/FeatureMessageBinder.cs`
+- Create: `src/Lakona.Game.Cluster.Rpc/Messaging/RpcFeatureMessageTransport.cs`
 - Create tests: `tests/Lakona.Game.Cluster.Tests/FeatureMessageBusTests.cs`
+- Create tests: `tests/Lakona.Game.Cluster.Rpc.Tests/FeatureMessageTransportTests.cs`
 
 Client notification relay:
 
+- Modify: `src/Lakona.Game.Cluster/Routes/IRouteDirectory.cs`
+- Create: `src/Lakona.Game.Cluster/Routes/RouteUnregisterStatus.cs`
+- Modify route directory implementations and route directory tests under
+  `src/Lakona.Game.Cluster*` and `tests/Lakona.Game.Cluster*`
 - Modify: `src/Lakona.Game.Server/Sessions/IGameSessionDirectory.cs`
 - Modify: `src/Lakona.Game.Server/Sessions/InMemoryGameSessionDirectory.cs`
 - Create: `src/Lakona.Game.Server/Sessions/IClientNotificationRelay.cs`
 - Create: `src/Lakona.Game.Server/Sessions/ClientNotificationRelay.cs`
 - Create: `src/Lakona.Game.Server/Sessions/ClientNotificationRouteKey.cs`
+- Create: `src/Lakona.Game.Server/Sessions/IClientSessionRouteRegistrar.cs`
+- Create: `src/Lakona.Game.Server/Sessions/ClientSessionRouteRegistrar.cs`
 - Create: `src/Lakona.Game.Server/Sessions/ClientNotificationStatus.cs`
 - Create tests: `tests/Lakona.Game.Server.Tests/ClientNotificationRelayTests.cs`
 
@@ -131,6 +191,21 @@ Agar acceptance sample:
 - Modify: `samples/Game.Unity.Agar/tests/BusinessLogic.Tests/GatewayConfigurationTests.cs`
 - Create tests: `samples/Game.Unity.Agar/tests/BusinessLogic.Tests/DistributedTopologyConfigurationTests.cs`
 - Create tests: `samples/Game.Unity.Agar/tests/BusinessLogic.Tests/RemoteNotificationRelayExampleTests.cs`
+
+Tooling and generated template updates:
+
+- Modify: `src/Lakona.Tool/**`
+- Modify: `tests/Lakona.Tool.Tests/**`
+- Modify: `docs/tool/lakona-tool-generation-architecture.md`
+- Modify current docs that still describe new runtime config as `Lakona.Game`
+  or cluster capability as service terminology.
+
+Package version updates:
+
+- Modify: `src/Lakona.Game.Cluster/Lakona.Game.Cluster.csproj`
+- Modify: `src/Lakona.Game.Cluster.Rpc/Lakona.Game.Cluster.Rpc.csproj`
+- Modify: `src/Lakona.Game.Cluster.Sql/Lakona.Game.Cluster.Sql.csproj`
+- Modify: `src/Lakona.Game.Server/Lakona.Game.Server.csproj`
 
 ## Task 1: Replace Cluster Service Public Model With Feature Public Model
 
@@ -385,6 +460,19 @@ ValueTask<ClusterNodeDescriptor?> AnyAsync(
     CancellationToken cancellationToken = default);
 ```
 
+`ClusterNodeDescriptor` must include:
+
+```csharp
+public NodeId Node { get; }
+public NodeState State { get; }
+public IReadOnlyDictionary<string, NodeEndpoint> Endpoints { get; }
+public IReadOnlyList<NodeFeatureDescriptor> Features { get; }
+public IReadOnlyDictionary<string, string> Labels { get; }
+```
+
+The descriptor must copy the endpoint map from `NodeRecord.Endpoints` so the
+feature message bus can read `Endpoints["cluster"]`.
+
 - [ ] **Step 7: Update node directory implementations and converters**
 
 Update all references in:
@@ -395,7 +483,9 @@ src/Lakona.Game.Cluster.Rpc/Nodes/NodeDirectoryMessages.cs
 src/Lakona.Game.Cluster.Rpc/Nodes/NodeDirectoryRecordConverter.cs
 src/Lakona.Game.Cluster.Rpc/Nodes/NodeDirectoryClient.cs
 src/Lakona.Game.Cluster.Rpc/Nodes/NodeDirectoryBinder.cs
-src/Lakona.Game.Cluster.Sql/**
+src/Lakona.Game.Cluster.Sql/SqlNodeDirectory.cs
+src/Lakona.Game.Cluster.Sql/SqlNodeDirectoryOptions.cs
+src/Lakona.Game.Cluster.Sql/SqlNodeDirectorySchema.cs
 ```
 
 Wire format field names must become `Features`. Do not leave serialized `Services` in request or reply DTOs.
@@ -885,6 +975,8 @@ git commit -m "Discover game features by convention"
 - Create: `src/Lakona.Game.Server/Hosting/LakonaRpcServiceCatalog.cs`
 - Create: `src/Lakona.Game.Server/Hosting/LakonaEndpointRpcServerConfigurator.cs`
 - Modify: `src/Lakona.Game.Server/Hosting/RpcServersHostedService.cs`
+- Modify: `src/Lakona.Game.Server/Hosting/IRpcServerConfigurator.cs`
+- Modify: `src/Lakona.Game.Server/Hosting/LakonaGameServerBuilder.cs`
 - Modify: `src/Lakona.Game.Server/Hosting/LakonaGameServerGatewayExtensions.cs`
 - Create: `tests/Lakona.Game.Server.Tests/Hosting/LakonaRpcServiceCatalogTests.cs`
 
@@ -931,7 +1023,7 @@ public sealed class LakonaRpcServiceCatalogTests
     [LakonaRpcService("login")]
     private sealed class LoginBinder : LakonaRpcServiceBinder
     {
-        public override void Bind(RpcServiceRegistry registry, IServiceProvider services)
+        public override void Bind(LakonaGameServerRpcContext context)
         {
         }
     }
@@ -939,14 +1031,14 @@ public sealed class LakonaRpcServiceCatalogTests
     [LakonaRpcService("login")]
     private sealed class DuplicateLoginBinder : LakonaRpcServiceBinder
     {
-        public override void Bind(RpcServiceRegistry registry, IServiceProvider services)
+        public override void Bind(LakonaGameServerRpcContext context)
         {
         }
     }
 
     private sealed class MissingAttributeBinder : LakonaRpcServiceBinder
     {
-        public override void Bind(RpcServiceRegistry registry, IServiceProvider services)
+        public override void Bind(LakonaGameServerRpcContext context)
         {
         }
     }
@@ -990,9 +1082,12 @@ Add:
 ```csharp
 public abstract class LakonaRpcServiceBinder
 {
-    public abstract void Bind(RpcServiceRegistry registry, IServiceProvider services);
+    public abstract void Bind(LakonaGameServerRpcContext context);
 }
 ```
+
+Binder implementations must call generated binders through
+`context.Builder.ServiceRegistry`. Do not create another registry abstraction.
 
 - [ ] **Step 4: Implement catalog rules**
 
@@ -1018,6 +1113,25 @@ public abstract class LakonaRpcServiceBinder
 
 Do not use endpoint `Name`.
 
+`IRpcServerConfigurator` remains endpoint-scoped. Replace the public `Name`
+property with a transport-based property:
+
+```csharp
+public interface IRpcServerConfigurator
+{
+    string Transport { get; }
+
+    void Configure(LakonaGameServerRpcContext context);
+}
+```
+
+`LakonaGameServerRpcContext` must expose the endpoint options used to start the
+server:
+
+```csharp
+public LakonaGameEndpointOptions Endpoint { get; }
+```
+
 - [ ] **Step 6: Run hosting tests**
 
 Run:
@@ -1041,14 +1155,16 @@ git commit -m "Bind RPC services by endpoint configuration"
 
 **Files:**
 - Modify: `src/Lakona.Game.Cluster/Messaging/ClusterSendStatus.cs`
-- Modify: `src/Lakona.Game.Cluster/Messaging/ClusterMessage.cs`
-- Modify: `src/Lakona.Game.Cluster/Messaging/IClusterMessageHandler.cs`
-- Create: `src/Lakona.Game.Cluster/Messaging/ClusterRequest.cs`
-- Create: `src/Lakona.Game.Cluster/Messaging/ClusterReply.cs`
+- Create: `src/Lakona.Game.Cluster/Messaging/FeatureMessageRequest.cs`
+- Create: `src/Lakona.Game.Cluster/Messaging/FeatureMessageReply.cs`
+- Create: `src/Lakona.Game.Cluster/Messaging/IFeatureMessageTransport.cs`
 - Create: `src/Lakona.Game.Cluster/Messaging/IFeatureMessageBus.cs`
 - Create: `src/Lakona.Game.Cluster/Messaging/IFeatureMessageHandler.cs`
 - Create: `src/Lakona.Game.Cluster/Messaging/FeatureMessageBus.cs`
+- Create: `src/Lakona.Game.Cluster.Rpc/Messaging/FeatureMessageBinder.cs`
+- Create: `src/Lakona.Game.Cluster.Rpc/Messaging/RpcFeatureMessageTransport.cs`
 - Create: `tests/Lakona.Game.Cluster.Tests/FeatureMessageBusTests.cs`
+- Create: `tests/Lakona.Game.Cluster.Rpc.Tests/FeatureMessageTransportTests.cs`
 
 - [ ] **Step 1: Write failing message bus tests**
 
@@ -1066,7 +1182,7 @@ public sealed class FeatureMessageBusTests
     {
         var bus = new FeatureMessageBus(
             new EmptyDiscovery(),
-            new ThrowingSender(),
+            new ThrowingTransport(),
             new TestSerializer());
 
         var reply = await bus.SendToFeatureAsync<string, string>(
@@ -1080,7 +1196,7 @@ public sealed class FeatureMessageBusTests
     [Fact]
     public async Task SendToFeatureUsesClusterEndpointOfSelectedNode()
     {
-        var sender = new CapturingSender();
+        var transport = new CapturingTransport();
         var bus = new FeatureMessageBus(
             new SingleNodeDiscovery(new ClusterNodeDescriptor(
                 new NodeId("data-1"),
@@ -1090,7 +1206,7 @@ public sealed class FeatureMessageBusTests
                 {
                     ["cluster"] = new NodeEndpoint("tcp://10.0.0.1:21001")
                 })),
-            sender,
+            transport,
             new TestSerializer());
 
         await bus.SendToFeatureAsync<string, string>(
@@ -1098,8 +1214,8 @@ public sealed class FeatureMessageBusTests
             "join",
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(new NodeId("data-1"), sender.LastNode);
-        Assert.Equal("tcp://10.0.0.1:21001", sender.LastEndpoint);
+        Assert.Equal(new NodeId("data-1"), transport.LastNode);
+        Assert.Equal("tcp://10.0.0.1:21001", transport.LastEndpoint);
     }
 }
 ```
@@ -1140,12 +1256,12 @@ Expired
 
 - [ ] **Step 4: Add request/reply payload contracts**
 
-`ClusterRequest` must include:
+`FeatureMessageRequest` must include:
 
 ```csharp
-public sealed class ClusterRequest
+public sealed class FeatureMessageRequest
 {
-    public ClusterRequest(
+    public FeatureMessageRequest(
         FeatureName feature,
         string kind,
         ReadOnlyMemory<byte> payload,
@@ -1155,16 +1271,31 @@ public sealed class ClusterRequest
 }
 ```
 
-`ClusterReply` must include:
+`FeatureMessageReply` must include:
 
 ```csharp
-public sealed class ClusterReply
+public sealed class FeatureMessageReply
 {
     public ClusterSendStatus Status { get; }
     public ReadOnlyMemory<byte> Payload { get; }
     public string? ErrorMessage { get; }
 }
 ```
+
+Add the low-level transport interface:
+
+```csharp
+public interface IFeatureMessageTransport
+{
+    ValueTask<FeatureMessageReply> SendAsync(
+        ClusterNodeDescriptor target,
+        FeatureMessageRequest request,
+        CancellationToken cancellationToken = default);
+}
+```
+
+Do not change `ClusterMessage`, `IClusterRouter`, `INodeMessenger`,
+`IClusterNodeSender`, or `IClusterMessageHandler` for request/reply payloads.
 
 - [ ] **Step 5: Add feature message bus**
 
@@ -1174,7 +1305,7 @@ public sealed class ClusterReply
 2. Return `FeatureNotFound` when no node is found.
 3. Require the selected node to expose endpoint key `cluster`.
 4. Serialize the request.
-5. Send to the selected node.
+5. Send to the selected node with `IFeatureMessageTransport`.
 6. Return reply payload or structured failure.
 
 Generated business-facing APIs can throw typed exceptions later; this task only implements low-level status-returning calls.
@@ -1185,6 +1316,7 @@ Run:
 
 ```powershell
 dotnet test tests/Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj --filter "FullyQualifiedName~FeatureMessageBusTests|FullyQualifiedName~ClusterRouterTests|FullyQualifiedName~ClusterNodeSenderTests"
+dotnet test tests/Lakona.Game.Cluster.Rpc.Tests/Lakona.Game.Cluster.Rpc.Tests.csproj --filter "FullyQualifiedName~FeatureMessageTransportTests"
 ```
 
 Expected: all selected tests pass.
@@ -1194,17 +1326,25 @@ Expected: all selected tests pass.
 Run:
 
 ```powershell
-git add src/Lakona.Game.Cluster/Messaging tests/Lakona.Game.Cluster.Tests
+git add src/Lakona.Game.Cluster/Messaging src/Lakona.Game.Cluster.Rpc/Messaging tests/Lakona.Game.Cluster.Tests tests/Lakona.Game.Cluster.Rpc.Tests
 git commit -m "Add feature addressed cluster message bus"
 ```
 
 ## Task 6: Implement Gateway-Owned Client Notification Relay
 
 **Files:**
+- Modify: `src/Lakona.Game.Cluster/Routes/IRouteDirectory.cs`
+- Create: `src/Lakona.Game.Cluster/Routes/RouteUnregisterStatus.cs`
+- Modify: `src/Lakona.Game.Cluster/Routes/InMemoryRouteDirectory.cs`
+- Modify: `src/Lakona.Game.Cluster.Rpc/Routes/RouteDirectoryMessages.cs`
+- Modify: `src/Lakona.Game.Cluster.Rpc/Routes/RouteDirectoryClient.cs`
+- Modify: `src/Lakona.Game.Cluster.Rpc/Routes/RouteDirectoryBinder.cs`
 - Create: `src/Lakona.Game.Server/Sessions/ClientNotificationRouteKey.cs`
 - Create: `src/Lakona.Game.Server/Sessions/ClientNotificationStatus.cs`
 - Create: `src/Lakona.Game.Server/Sessions/IClientNotificationRelay.cs`
 - Create: `src/Lakona.Game.Server/Sessions/ClientNotificationRelay.cs`
+- Create: `src/Lakona.Game.Server/Sessions/IClientSessionRouteRegistrar.cs`
+- Create: `src/Lakona.Game.Server/Sessions/ClientSessionRouteRegistrar.cs`
 - Modify: `src/Lakona.Game.Server/Sessions/IGameSessionDirectory.cs`
 - Modify: `src/Lakona.Game.Server/Sessions/InMemoryGameSessionDirectory.cs`
 - Create: `tests/Lakona.Game.Server.Tests/ClientNotificationRelayTests.cs`
@@ -1214,6 +1354,7 @@ git commit -m "Add feature addressed cluster message bus"
 Create `tests/Lakona.Game.Server.Tests/ClientNotificationRelayTests.cs`:
 
 ```csharp
+using Lakona.Game.Cluster;
 using Lakona.Game.Server.Sessions;
 using Xunit;
 
@@ -1265,6 +1406,23 @@ public sealed class ClientNotificationRelayTests
         Assert.Equal(ClientNotificationStatus.RouteNotFound, status);
     }
 
+    [Fact]
+    public async Task RegistrarRegistersGatewayOwnedClientSessionRoute()
+    {
+        var routes = new CapturingRouteDirectory();
+        var registrar = new ClientSessionRouteRegistrar(
+            routes,
+            new NodeId("gateway-1"),
+            new NodeEndpoint("tcp://10.0.0.2:21002"));
+        var session = new GameSessionKey("player-1", "session-a", 7);
+
+        await registrar.RegisterAsync(session, TestContext.Current.CancellationToken);
+
+        Assert.Equal("client-session:player-1/session-a/7", routes.LastRoute);
+        Assert.Equal(new NodeId("gateway-1"), routes.LastNode);
+        Assert.Equal("tcp://10.0.0.2:21002", routes.LastEndpoint);
+    }
+
     private sealed class TestPlayerCallback
     {
         public string LastMessage { get; private set; } = "";
@@ -1272,6 +1430,69 @@ public sealed class ClientNotificationRelayTests
         public void Notify(string message)
         {
             LastMessage = message;
+        }
+    }
+
+    private sealed class CapturingRouteDirectory : IRouteDirectory
+    {
+        public string LastRoute { get; private set; } = "";
+        public NodeId LastNode { get; private set; }
+        public string LastEndpoint { get; private set; } = "";
+
+        public ValueTask<RouteRegistrationStatus> RegisterAsync(
+            RouteLocation location,
+            CancellationToken cancellationToken = default)
+        {
+            LastRoute = location.Route.Value;
+            LastNode = location.Node;
+            LastEndpoint = location.Endpoint.Address;
+            return new ValueTask<RouteRegistrationStatus>(RouteRegistrationStatus.Registered);
+        }
+
+        public ValueTask<RouteUnregisterStatus> UnregisterAsync(
+            RouteKey route,
+            CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<RouteUnregisterStatus>(RouteUnregisterStatus.Removed);
+        }
+
+        public ValueTask<RouteLocation?> ResolveAsync(
+            RouteKey route,
+            DateTimeOffset now,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask<RouteLeaseRefreshStatus> RefreshLeaseAsync(
+            RouteLocation expectedLocation,
+            DateTimeOffset expiresAt,
+            DateTimeOffset now,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask<int> ExpireAsync(
+            DateTimeOffset now,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask<int> ClearByNodeAsync(
+            NodeId node,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask<int> ClearByNodeEpochAsync(
+            NodeId node,
+            long nodeEpoch,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
         }
     }
 }
@@ -1314,21 +1535,63 @@ public interface IClientNotificationRelay
 
 `ClientNotificationRelay` must use `IGameSessionDirectory.GetCallbackAsync<TCallback>`. It must not serialize or store callback objects.
 
-- [ ] **Step 5: Register route on login and remove on disconnect**
+- [ ] **Step 5: Add framework route registration and cleanup**
 
-After Task 7 wires Agar login to this framework API, gateway login must register a route in the cluster route directory:
+Add `IClientSessionRouteRegistrar`:
+
+Before adding the registrar, extend `IRouteDirectory` with route-specific
+unregistration:
+
+```csharp
+ValueTask<RouteUnregisterStatus> UnregisterAsync(
+    RouteKey route,
+    CancellationToken cancellationToken = default);
+```
+
+`RouteUnregisterStatus` must contain:
+
+```csharp
+public enum RouteUnregisterStatus
+{
+    Removed = 0,
+    NotFound = 1
+}
+```
+
+```csharp
+public interface IClientSessionRouteRegistrar
+{
+    ValueTask RegisterAsync(
+        GameSessionKey session,
+        CancellationToken cancellationToken = default);
+
+    ValueTask RemoveAsync(
+        GameSessionKey session,
+        CancellationToken cancellationToken = default);
+}
+```
+
+`ClientSessionRouteRegistrar` must use the existing `IRouteDirectory`. It must
+register this route after login/session bind:
 
 ```txt
 client-session:<playerId>/<sessionId>/<generation> -> gateway-1 cluster endpoint
 ```
 
-Disconnect cleanup must remove or expire that route through the existing route lease model.
+It must remove the route on explicit logout/session termination. On unexpected
+disconnect, the route may expire through the existing route lease model, but the
+framework must not leave a permanent route.
+
+Task 7 Agar code must call this framework registrar. Agar must not implement
+route-directory writes directly in sample business code.
 
 - [ ] **Step 6: Run session tests**
 
 Run:
 
 ```powershell
+dotnet test tests/Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj --filter "FullyQualifiedName~Route"
+dotnet test tests/Lakona.Game.Cluster.Rpc.Tests/Lakona.Game.Cluster.Rpc.Tests.csproj --filter "FullyQualifiedName~RouteDirectory"
 dotnet test tests/Lakona.Game.Server.Tests/Lakona.Game.Server.Tests.csproj --filter "FullyQualifiedName~Session|FullyQualifiedName~ClientNotificationRelay"
 ```
 
@@ -1339,7 +1602,7 @@ Expected: all selected tests pass.
 Run:
 
 ```powershell
-git add src/Lakona.Game.Server/Sessions tests/Lakona.Game.Server.Tests
+git add src/Lakona.Game.Cluster src/Lakona.Game.Cluster.Rpc src/Lakona.Game.Cluster.Sql src/Lakona.Game.Server/Sessions tests/Lakona.Game.Cluster.Tests tests/Lakona.Game.Cluster.Rpc.Tests tests/Lakona.Game.Cluster.Sql.Tests tests/Lakona.Game.Server.Tests
 git commit -m "Add gateway client notification relay"
 ```
 
@@ -1574,7 +1837,121 @@ git add samples/Game.Unity.Agar
 git commit -m "Update Agar sample for distributed feature topology"
 ```
 
-## Task 8: Final Contract Scans And Solution Validation
+## Task 8: Update Lakona.Tool Templates And Package Versions
+
+**Files:**
+- Modify: `src/Lakona.Tool/**`
+- Modify: `tests/Lakona.Tool.Tests/**`
+- Modify: `docs/tool/lakona-tool-generation-architecture.md`
+- Modify current docs that still describe new runtime config as `Lakona.Game`
+  or cluster capability as service terminology.
+- Modify: `src/Lakona.Game.Cluster/Lakona.Game.Cluster.csproj`
+- Modify: `src/Lakona.Game.Cluster.Rpc/Lakona.Game.Cluster.Rpc.csproj`
+- Modify: `src/Lakona.Game.Cluster.Sql/Lakona.Game.Cluster.Sql.csproj`
+- Modify: `src/Lakona.Game.Server/Lakona.Game.Server.csproj`
+
+- [ ] **Step 1: Write failing tool template regression tests**
+
+Add or update tests in `tests/Lakona.Tool.Tests` so generated server projects
+must satisfy these assertions:
+
+```csharp
+Assert.Contains("\"Lakona\"", generatedAppsettings);
+Assert.DoesNotContain("\"Lakona.Game\"", generatedAppsettings);
+Assert.DoesNotContain("Lakona:Cluster:Services", generatedAppsettings);
+Assert.DoesNotContain("ConfigureFeatures(", generatedProgram);
+Assert.DoesNotContain(".Feature<", generatedProgram);
+```
+
+The test must also assert that generated endpoint config uses `RpcServices`:
+
+```csharp
+Assert.Contains("\"RpcServices\"", generatedAppsettings);
+```
+
+- [ ] **Step 2: Run failing tool tests**
+
+Run:
+
+```powershell
+dotnet test tests/Lakona.Tool.Tests/Lakona.Tool.Tests.csproj --filter "FullyQualifiedName~UnityAgar|FullyQualifiedName~Template|FullyQualifiedName~Generated"
+```
+
+Expected: at least one test fails before template changes because generated
+config or `Program.cs` still uses old root or fluent feature declaration.
+
+- [ ] **Step 3: Update Lakona.Tool generated templates**
+
+Update `src/Lakona.Tool` template generation so new projects:
+
+- Use `Lakona` as the configuration root.
+- Configure endpoints with `Transport`, `Host`, `Port`, `Path` only for
+  WebSocket, and endpoint-local `RpcServices`.
+- Do not emit endpoint `Name`.
+- Do not emit `Lakona:Cluster:Services`.
+- Do not require a fluent feature catalog in generated `Program.cs`.
+- Call the convention-based `AddLakonaGame(builder.Configuration)` path.
+
+- [ ] **Step 4: Update tool generation docs**
+
+Update `docs/tool/lakona-tool-generation-architecture.md` so its generated
+runtime config examples use `Lakona`, feature discovery by convention, and
+endpoint `RpcServices`.
+
+- [ ] **Step 5: Update current docs scan findings**
+
+Run:
+
+```powershell
+rg -n "Lakona\\.Game|ClusterService|Cluster:Services|NodeServiceDescriptor|ClusterFeature|endpoint Name|ConfigureFeatures\\(|\\.Feature<" docs src/Lakona.Tool tests/Lakona.Tool.Tests
+```
+
+Every remaining hit must be one of these cases:
+
+- compatibility tests that explicitly assert old `Lakona.Game` fallback;
+- migration instructions that explicitly say old names must be removed;
+- package names or namespaces, not configuration roots.
+
+Update docs when a hit describes current behavior incorrectly.
+
+- [ ] **Step 6: Bump affected package versions**
+
+Apply these exact version changes:
+
+```xml
+<!-- src/Lakona.Game.Cluster/Lakona.Game.Cluster.csproj -->
+<Version>0.1.5</Version>
+
+<!-- src/Lakona.Game.Cluster.Rpc/Lakona.Game.Cluster.Rpc.csproj -->
+<Version>0.1.4</Version>
+
+<!-- src/Lakona.Game.Cluster.Sql/Lakona.Game.Cluster.Sql.csproj -->
+<Version>0.1.1</Version>
+
+<!-- src/Lakona.Game.Server/Lakona.Game.Server.csproj -->
+<Version>0.5.5</Version>
+```
+
+- [ ] **Step 7: Run tool tests**
+
+Run:
+
+```powershell
+dotnet test tests/Lakona.Tool.Tests/Lakona.Tool.Tests.csproj
+```
+
+Expected: all tool tests pass.
+
+- [ ] **Step 8: Commit**
+
+Run:
+
+```powershell
+git add src/Lakona.Tool tests/Lakona.Tool.Tests docs/tool src/Lakona.Game.Cluster/Lakona.Game.Cluster.csproj src/Lakona.Game.Cluster.Rpc/Lakona.Game.Cluster.Rpc.csproj src/Lakona.Game.Cluster.Sql/Lakona.Game.Cluster.Sql.csproj src/Lakona.Game.Server/Lakona.Game.Server.csproj
+git commit -m "Update generated templates for distributed features"
+```
+
+## Task 9: Final Contract Scans And Solution Validation
 
 **Files:**
 - Modify only files required by previous tasks.
@@ -1586,7 +1963,7 @@ git commit -m "Update Agar sample for distributed feature topology"
 Run:
 
 ```powershell
-rg -n "ClusterService|NodeServiceDescriptor|NodeRegistration\\.Services|NodeRecord\\.Services|ClusterFeature|Lakona:Cluster:Services|Lakona\\.Game:|\"Lakona\\.Game\"" src tests samples/Game.Unity.Agar docs/game
+rg -n "ClusterService|NodeServiceDescriptor|NodeRegistration\\.Services|NodeRecord\\.Services|ClusterFeature|Lakona:Cluster:Services|Lakona\\.Game:|\"Lakona\\.Game\"" src tests samples/Game.Unity.Agar docs/game docs/tool
 ```
 
 Expected:
@@ -1616,6 +1993,7 @@ dotnet test tests/Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj
 dotnet test tests/Lakona.Game.Cluster.Rpc.Tests/Lakona.Game.Cluster.Rpc.Tests.csproj
 dotnet test tests/Lakona.Game.Cluster.Sql.Tests/Lakona.Game.Cluster.Sql.Tests.csproj
 dotnet test tests/Lakona.Game.Server.Tests/Lakona.Game.Server.Tests.csproj
+dotnet test tests/Lakona.Tool.Tests/Lakona.Tool.Tests.csproj
 dotnet test samples/Game.Unity.Agar/tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj
 ```
 
@@ -1662,3 +2040,10 @@ Only create this commit if there are final cleanup changes after Task 7. If ther
 - [ ] Agar gateway owns WebSocket callbacks and no database connection.
 - [ ] Agar battle node owns KCP battle runtime.
 - [ ] Remote notification example demonstrates data-node intent reaching gateway-owned callback.
+- [ ] Lakona.Tool generated projects use `Lakona` config, endpoint `RpcServices`,
+  and convention-based feature discovery.
+- [ ] Affected package versions are bumped to
+  `Lakona.Game.Cluster` `0.1.5`,
+  `Lakona.Game.Cluster.Rpc` `0.1.4`,
+  `Lakona.Game.Cluster.Sql` `0.1.1`, and
+  `Lakona.Game.Server` `0.5.5`.
