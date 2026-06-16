@@ -11,16 +11,14 @@ Lakona.Game adds what games need on top: sessions, reliable message delivery, cl
 
 ## Influences
 
-Lakona.Game's design is informed by four reference frameworks:
+Lakona.Game's design is informed by skynet:
 
 | Framework | Language | Key strength |
 |-----------|----------|-------------|
 | [skynet](https://github.com/cloudwu/skynet) | C/Lua | Pragmatic simplicity, fault isolation, decade of production use |
-| [ET](https://github.com/egametang/ET) | C# | Component-based assembly, location-directory patterns, AI-native architecture |
-| [Fantasy](https://github.com/qq362946/Fantasy) | C# | Zero-reflection source generation, roaming route system |
-| [GeekServer](https://github.com/leeveel/GeekServer) | C# | Compile-time enforcement, TPL Dataflow actor model |
 
-**skynet is the primary influence.** Its philosophy of "simple core, explicit boundaries, fail fast" directly shapes Lakona.Game's architecture. The other three C# frameworks provide inspiration for developer experience and tooling, but their design choices are evaluated against skynet's principles before adoption.
+skynet's philosophy of "simple core, explicit boundaries, fail fast" directly
+shapes Lakona.Game's architecture.
 
 ## Core Principles
 
@@ -28,7 +26,7 @@ Lakona.Game's design is informed by four reference frameworks:
 
 Every design decision is evaluated against this question: **"Would skynet's author agree with this?"**
 
-If a feature from ET, Fantasy, or GeekServer conflicts with skynet's philosophy, skynet wins. Specifically:
+Specifically:
 
 - **Visible target selection over unqualified transparency.** Actor business calls use generated selectors: `Get(id)` for default distributed access, `Local(id)` for current-process access, and `Remote(nodeId, id)` for specified-node access.
 - **Fail fast over silent recovery.** Design errors (circular calls, lost state) throw immediately rather than retrying or degrading.
@@ -50,8 +48,6 @@ Each layer has a well-defined responsibility. Lower layers do not know about hig
 ### 3. Node is the deployment unit
 
 A node is one OS process. Services (gateway, lobby, room) are composed inside a node through configuration. In development, all services run in one process. In production, they are split across multiple processes — but the code is identical. Only the configuration changes.
-
-This is the "N → 1, 1 → N" pattern observed in ET: develop with everything in one process for easy debugging, deploy with services split for scale.
 
 ### 4. At-least-once with idempotent receivers
 
@@ -82,12 +78,6 @@ These belong to game projects. The framework provides infrastructure; the game p
 | Hot-reloadable business logic | skynet (Lua hotswap) | Done (`Lakona.Game.Server.Hotfix`) | Zero-downtime logic updates |
 | Explicit cluster routing | skynet (harbor) | Done (Lakona.Game.Cluster) | Cross-node messaging with visible boundaries |
 | Session lifecycle + reconnect | skynet (gate/watchdog/agent) | Done (Lakona.Game.Server) | Connection management |
-| Component-based assembly (N→1, 1→N) | ET | Planned | Single-process dev, multi-process prod |
-| Cross-server event bus | Fantasy (SphereEvent) | Planned | Pub-sub for announcements, leaderboards |
-| Managed distributed actor messaging | ET | Done | Typed `Get(id)` / `Local(id)` / `Remote(nodeId, id)` actor refs with typed exception failures |
-| Gate auto-routing (Roaming) | Fantasy | Planned | Client-transparent backend routing |
-| Service discovery + leader election | ET | Planned | Automatic failover |
-| Deadlock detection → immediate failure | GeekServer (adapted) | Done (internal ActorKernel) | Circular calls throw synchronously |
 | Execution timeout | skynet (monitor + signal) | Done (internal ActorKernel) | Stuck actor recovery |
 | Message recording hooks | skynet (message log replay) | Done (internal ActorKernel) | Interceptor for recording/replay |
 | Actor state machine | skynet (service lifecycle) | Done (internal ActorKernel) | Explicit Active→Draining→Dead |
@@ -96,12 +86,10 @@ These belong to game projects. The framework provides infrastructure; the game p
 
 | Feature | Source | Why rejected |
 |---------|--------|-------------|
-| Unqualified transparent distributed actors | ET | Hides target selection, placement, and failure modes behind local-looking APIs |
-| Actor = Entity (ECS merged with Actor) | ET, Fantasy | Conflates concurrency unit with data container, leads to overly fine-grained remote calls |
-| One-click network calls (network disguised as local method) | Fantasy | Makes remote cost invisible; violates "remote boundaries are visible" |
-| Kestrel as network layer | GeekServer | Lakona.Rpc already provides transport abstraction |
-| TPL Dataflow as sole actor backend | GeekServer | The internal actor kernel already owns mailbox execution |
-| Transparent persistence | GeekServer | Persistence is a game-layer concern, not a framework concern |
+| Unqualified transparent distributed actors | skynet boundary principle | Hides target selection, placement, and failure modes behind local-looking APIs |
+| Actor = Entity | skynet service boundary principle | Conflates concurrency unit with data container, leads to overly fine-grained remote calls |
+| One-click network calls | skynet explicit-boundary principle | Makes remote cost invisible; violates "remote boundaries are visible" |
+| Transparent persistence | skynet narrow-core principle | Persistence is a game-layer concern, not a framework concern |
 
 ### Not applicable (different language or domain)
 
@@ -110,9 +98,6 @@ These belong to game projects. The framework provides infrastructure; the game p
 | Lua VM per service | skynet | C# uses AssemblyLoadContext for isolation |
 | Coroutine pool | skynet | .NET has ValueTask pooling built in |
 | Cross-VM proto sharing | skynet | C# type system provides equivalent sharing |
-| Behavior tree / Buff system | ET | Game content, not framework infrastructure |
-| Excel config export toolchain | GeekServer | Game tooling, not framework concern |
-| AI Skill for framework | Fantasy, ET | Can be added later as CLAUDE.md enhancements |
 
 ## Design Decisions Log
 
