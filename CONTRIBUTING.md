@@ -16,15 +16,14 @@ rules. Supporting documents hold current architecture details:
 
 | Document | Purpose |
 | --- | --- |
-| [docs/rpc/README.md](./docs/rpc/README.md) | RPC maintainer documentation index |
-| [docs/rpc/overview.md](./docs/rpc/overview.md) | RPC concepts, package map, and contributor notes |
 | [docs/game/design-philosophy.md](./docs/game/design-philosophy.md) | Current game framework principles and scope boundaries |
 | [docs/game/hotfix-architecture.md](./docs/game/hotfix-architecture.md) | Current hotfix architecture and operational boundary |
-| [docs/game/generated-hotfix-services-and-session-lifecycle.md](./docs/game/generated-hotfix-services-and-session-lifecycle.md) | Current generated hotfix service and game session lifecycle model |
+| [docs/game/session-lifecycle.md](./docs/game/session-lifecycle.md) | Current game session identity, binding, disconnect, resume, and termination model |
+| [docs/game/generated-session-services.md](./docs/game/generated-session-services.md) | Current generated service binding model for shared RPC contracts and hotfix services |
 | [docs/game/actor-kernel-boundary.md](./docs/game/actor-kernel-boundary.md) | Actor kernel and game framework responsibility split |
 | [docs/game/lakona-game-configuration-startup.md](./docs/game/lakona-game-configuration-startup.md) | Game configuration schema and startup validation boundary |
 | [docs/game/lakona-game-runtime-guardrails.md](./docs/game/lakona-game-runtime-guardrails.md) | Runtime validation model for cluster, hotfix, endpoints, and production profile |
-| [docs/tool/lakona-tool-refactor-architecture.md](./docs/tool/lakona-tool-refactor-architecture.md) | Current Lakona.Tool generation architecture and regression boundaries |
+| [docs/tool/lakona-tool-generation-architecture.md](./docs/tool/lakona-tool-generation-architecture.md) | Current Lakona.Tool generation architecture and regression boundaries |
 
 Durable design notes belong under `docs/**` when they describe current
 behavior or active contributor policy. Delete completed plans, obsolete

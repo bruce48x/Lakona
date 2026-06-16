@@ -2,6 +2,9 @@
 
 This is a recommended architecture pattern, not a framework class. It describes how to compose Lakona.Game's existing infrastructure into a proven connection management model. The pattern originates from [skynet](https://github.com/cloudwu/skynet).
 
+For the framework-owned session identity, disconnect, resume, and termination
+semantics used by this pattern, see [Session Lifecycle](session-lifecycle.md).
+
 ## The pattern
 
 ```
@@ -46,7 +49,10 @@ Lakona.Game provides all the mechanisms. The pattern is just composition:
 
 ## Server-initiated session termination
 
-When the server must remove a player from an active session, treat it as a terminal session lifecycle transition, not as a raw transport close. The recommended flow is:
+When the server must remove a player from an active session, treat it as a
+terminal session lifecycle transition, not as a raw transport close. The
+canonical lifecycle semantics are defined in
+[Session Lifecycle](session-lifecycle.md). The recommended flow is:
 
 1. The Agent or server policy decides the current session must end.
 2. Server code calls `ILakonaGameServer.TerminateSessionAsync`.

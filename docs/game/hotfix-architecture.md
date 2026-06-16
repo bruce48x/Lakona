@@ -131,6 +131,70 @@ This prevents RPC registries and existing sessions from holding instances of
 types loaded from the hotfix assembly. It is required for old connections to use
 new service logic after reload and for old hotfix load contexts to unload.
 
+## Generated Hotfix Services
+
+`Lakona.Game.Server.Hotfix.Generators` owns stable hotfix service proxy
+generation for `Server.App`.
+
+Generated projects should use shared `[RpcService]` contracts as the source of
+truth. When a user adds a supported shared service contract and implements a
+matching hotfix `[HotfixService]`, the stable server app should not require a
+hand-written proxy file, binder configurator, or service endpoint marker.
+
+For each supported shared service contract, generated stable code provides:
+
+- a proxy implementing the shared RPC service interface
+- one method implementation per `[RpcMethod]`
+- callback proxy construction when the shared contract declares a notification
+  contract
+- service binding through generated RPC binders
+- a generated host extension such as `UseGeneratedHotfixServices`
+
+Generated projects must not contain user-authored endpoint marker files such as
+`GeneratedServiceEndpoints.cs`, and generated hotfix binding must not introduce
+`EndpointName` or `GameEndpointName` as session identity.
+
+The hotfix project validates the replaceable side of the contract. For every
+generated hotfix-backed shared RPC service, there must be exactly one matching
+`[HotfixService(typeof(TContract))]` implementation in the hotfix assembly. A
+missing or duplicate hotfix service is a build or check failure.
+
+## Hotfix Call Context
+
+Hotfix service code accepts a framework call context rather than a project-local
+call record.
+
+The call context exposes stable runtime dependencies and the current RPC
+connection id. It must not expose endpoint names:
+
+```csharp
+public class HotfixServiceCall<TRequest>
+{
+    public TRequest Request { get; }
+    public string ConnectionId { get; }
+    public IServiceProvider Services { get; }
+    public IActorRuntime Actors { get; }
+    public ILakonaGameServer GameServer { get; }
+}
+
+public sealed class HotfixServiceCall<TRequest, TCallback> :
+    HotfixServiceCall<TRequest>
+    where TCallback : class
+{
+    public TCallback Callback { get; }
+}
+```
+
+Return mapping stays one-to-one with the shared RPC contract:
+
+- A contract method returning `ValueTask<TResult>` maps to a hotfix method
+  returning `ValueTask<TResult>`.
+- A contract method returning `ValueTask` maps to a hotfix method returning
+  `ValueTask`.
+
+The hotfix dispatch key must use the stable RPC method id from `[RpcMethod]`,
+not the C# method name.
+
 ## BuildTag
 
 `BuildTag` is the stable hotfix compatibility tag. It proves a hotfix package

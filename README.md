@@ -353,8 +353,6 @@ RPC-focused samples:
 - [Feature Catalog Startup](docs/game/feature-role.md)
 - [Runtime Guardrails](docs/game/lakona-game-runtime-guardrails.md)
 - [Actor Kernel Boundary](docs/game/actor-kernel-boundary.md)
-- [RPC Overview](docs/rpc/overview.md)
-- [RPC Design Notes](docs/rpc/README.md)
 - [Changelog](CHANGELOG.md)
 
 ## Contributing
