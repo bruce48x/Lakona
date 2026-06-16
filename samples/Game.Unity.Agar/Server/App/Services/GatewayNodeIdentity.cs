@@ -9,7 +9,9 @@ internal sealed class GatewayNodeIdentity
 {
     public GatewayNodeIdentity(IConfiguration configuration, ServerRpcServerOptions realtimeOptions)
     {
-        InstanceId = configuration["Lakona.Game:Node:Id"] ?? string.Empty;
+        InstanceId = configuration["Lakona:Node:Id"]
+            ?? configuration["Lakona.Game:Node:Id"]
+            ?? string.Empty;
         if (string.IsNullOrWhiteSpace(InstanceId))
         {
             InstanceId = $"{Environment.MachineName}-{Environment.ProcessId}";

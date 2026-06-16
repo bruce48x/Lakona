@@ -1,4 +1,58 @@
 services:
+  data-1:
+    build:
+      context: ../..
+      dockerfile: samples/Game.Unity.Agar/Server/Dockerfile
+      target: gateway
+    container_name: lakona-agar-data-1
+    restart: unless-stopped
+    environment:
+      DOTNET_ENVIRONMENT: data-1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      agar-cluster:
+        ipv4_address: 10.0.0.1
+
+  gateway-1:
+    build:
+      context: ../..
+      dockerfile: samples/Game.Unity.Agar/Server/Dockerfile
+      target: gateway
+    container_name: lakona-agar-gateway-1
+    restart: unless-stopped
+    environment:
+      DOTNET_ENVIRONMENT: gateway-1
+    depends_on:
+      data-1:
+        condition: service_started
+    ports:
+      - "${AGAR_GATEWAY_PORT:-20000}:20000"
+    networks:
+      agar-cluster:
+        ipv4_address: 10.0.0.2
+
+  battle-1:
+    build:
+      context: ../..
+      dockerfile: samples/Game.Unity.Agar/Server/Dockerfile
+      target: gateway
+    container_name: lakona-agar-battle-1
+    restart: unless-stopped
+    environment:
+      DOTNET_ENVIRONMENT: battle-1
+    depends_on:
+      data-1:
+        condition: service_started
+    ports:
+      - "${AGAR_BATTLE_PORT:-20001}:20001/udp"
+    networks:
+      agar-cluster:
+        ipv4_address: 10.0.0.3
+
   postgres:
     image: postgres:18-alpine
     container_name: lakona-game-postgres
@@ -17,6 +71,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    networks:
+      - agar-cluster
 
   redis:
     image: redis:7-alpine
@@ -35,7 +91,16 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    networks:
+      - agar-cluster
 
 volumes:
   postgres-data:
   redis-data:
+
+networks:
+  agar-cluster:
+    ipam:
+      config:
+        - subnet: 10.0.0.0/24
+          gateway: 10.0.0.254

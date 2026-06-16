@@ -7,7 +7,7 @@ namespace Agar.Unity.Tests;
 public sealed class GatewayConfigurationTests
 {
     [Fact]
-    public void AppsettingsUsesCanonicalLakonaGameEndpointConfiguration()
+    public void AppsettingsUsesCanonicalLakonaEndpointConfiguration()
     {
         var path = Path.Combine(
             FindRepositoryRoot(),
@@ -27,24 +27,19 @@ public sealed class GatewayConfigurationTests
         Assert.False(root.TryGetProperty("Deployment", out _));
         Assert.False(root.TryGetProperty("Services", out _));
         Assert.False(root.TryGetProperty("Cluster", out _));
+        Assert.False(root.TryGetProperty("Lakona.Game", out _));
 
-        var lakonaGame = root.GetProperty("Lakona.Game");
-        Assert.Equal("gateway-dev-1", lakonaGame.GetProperty("Node").GetProperty("Id").GetString());
+        var lakona = root.GetProperty("Lakona");
+        Assert.Equal("gateway-1", lakona.GetProperty("Node").GetProperty("Id").GetString());
+        Assert.Empty(lakona.GetProperty("Feature").EnumerateArray());
 
-        var endpoints = lakonaGame.GetProperty("Endpoints").EnumerateArray().ToArray();
-        Assert.Equal(2, endpoints.Length);
+        var endpoint = Assert.Single(lakona.GetProperty("Endpoints").EnumerateArray());
 
-        var control = Assert.Single(endpoints, endpoint =>
-            string.Equals(endpoint.GetProperty("Transport").GetString(), "websocket", StringComparison.OrdinalIgnoreCase));
-        Assert.Equal("127.0.0.1", control.GetProperty("Host").GetString());
-        Assert.Equal(20000, control.GetProperty("Port").GetInt32());
-        Assert.Equal("/ws", control.GetProperty("Path").GetString());
-
-        var realtime = Assert.Single(endpoints, endpoint =>
-            string.Equals(endpoint.GetProperty("Transport").GetString(), "kcp", StringComparison.OrdinalIgnoreCase));
-        Assert.Equal("127.0.0.1", realtime.GetProperty("Host").GetString());
-        Assert.Equal(20001, realtime.GetProperty("Port").GetInt32());
-        Assert.Equal("", realtime.GetProperty("Path").GetString());
+        Assert.Equal("websocket", endpoint.GetProperty("Transport").GetString());
+        Assert.Equal("127.0.0.1", endpoint.GetProperty("Host").GetString());
+        Assert.Equal(20000, endpoint.GetProperty("Port").GetInt32());
+        Assert.Equal("/ws", endpoint.GetProperty("Path").GetString());
+        Assert.Equal(new[] { "login", "player" }, endpoint.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
     }
 
     [Fact]
