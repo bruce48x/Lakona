@@ -30,7 +30,6 @@ public static class LakonaGameReadinessProbe
         if (clusterOptions is not null)
         {
             rules.Add(new ClusterEndpointRule());
-            rules.Add(new ClusterServiceGraphRule());
         }
 
         var resolved = ToResolvedRuntime(runtime, clusterOptions);
@@ -64,16 +63,33 @@ public static class LakonaGameReadinessProbe
         LakonaGameValidationResult result)
     {
         var nodeId = clusterOptions?.NodeId ?? runtime.Node.Id;
-        var serviceNames = clusterOptions?.Services.Select(service => service.Name) ?? Array.Empty<string>();
-        var rpcEndpoint = clusterOptions?.AdvertisedEndpoints.TryGetValue("client", out var clientEndpoint) == true
-            ? clientEndpoint
-            : runtime.Endpoints.FirstOrDefault()?.ToAdvertisedEndpoint() ?? "not configured";
+        var rpcEndpoint = runtime.Endpoints.FirstOrDefault()?.ToAdvertisedEndpoint() ?? "not configured";
+        if (clusterOptions?.AdvertisedEndpoints.TryGetValue("websocket", out var websocketEndpoint) == true)
+        {
+            rpcEndpoint = websocketEndpoint;
+        }
+        else if (clusterOptions?.AdvertisedEndpoints.TryGetValue("kcp", out var kcpEndpoint) == true)
+        {
+            rpcEndpoint = kcpEndpoint;
+        }
+        else if (clusterOptions?.AdvertisedEndpoints.TryGetValue("tcp", out var tcpEndpoint) == true)
+        {
+            rpcEndpoint = tcpEndpoint;
+        }
+
+        var clusterEndpoint = clusterOptions?.AdvertisedEndpoints.TryGetValue("cluster", out var clusterEndpointValue) == true
+            ? clusterEndpointValue
+            : runtime.Cluster?.Endpoint;
+
+        var featureNames = runtime.Feature ?? Array.Empty<string>();
+
+        _ = clusterEndpoint;
 
         Console.WriteLine("cluster: ok single-node");
         Console.WriteLine($"node: ok {nodeId}");
-        if (serviceNames.Any())
+        if (featureNames.Count > 0)
         {
-            Console.WriteLine($"services: ok {string.Join(", ", serviceNames)}");
+            Console.WriteLine($"features: ok {string.Join(", ", featureNames)}");
         }
 
         var hotfixFailure = result.Diagnostics.FirstOrDefault(diagnostic => diagnostic.Code == "ULINK071");
@@ -109,33 +125,29 @@ public static class LakonaGameReadinessProbe
             "hotfix",
             "Server.Hotfix.dll");
 
-        var clusterServices = clusterOptions?.Services
-            .Select(service => new LakonaGameResolvedClusterService(service.Kind, service.Name))
-            .ToArray() ?? Array.Empty<LakonaGameResolvedClusterService>();
-
         return new LakonaGameResolvedRuntime(
             NodeId: new LakonaGameResolvedValue<string>(
                 clusterOptions?.NodeId ?? runtime.Node.Id,
                 LakonaGameValueSource.Configuration,
-                "Lakona.Game:Node:Id"),
+                "Lakona:Node:Id"),
             Endpoints: runtime.Endpoints.Select((endpoint, endpointIndex) =>
                 new LakonaGameResolvedEndpoint(
-                    Transport: new LakonaGameResolvedValue<string>(endpoint.Transport, LakonaGameValueSource.Configuration, $"Lakona.Game:Endpoints:{endpointIndex}:Transport"),
-                    Host: new LakonaGameResolvedValue<string>(endpoint.Host, LakonaGameValueSource.Configuration, $"Lakona.Game:Endpoints:{endpointIndex}:Host"),
-                    Port: new LakonaGameResolvedValue<int>(endpoint.Port, LakonaGameValueSource.Configuration, $"Lakona.Game:Endpoints:{endpointIndex}:Port"),
-                    Path: new LakonaGameResolvedValue<string>(endpoint.Path, LakonaGameValueSource.Configuration, $"Lakona.Game:Endpoints:{endpointIndex}:Path"),
-                    AdvertisedHost: new LakonaGameResolvedValue<string>(endpoint.AdvertisedHost, LakonaGameValueSource.Configuration, $"Lakona.Game:Endpoints:{endpointIndex}:AdvertisedHost"),
-                    AdvertisedEndpoint: new LakonaGameResolvedValue<string>(endpoint.ToAdvertisedEndpoint(), LakonaGameValueSource.GeneratedConvention)))
+                    Transport: new LakonaGameResolvedValue<string>(endpoint.Transport, LakonaGameValueSource.Configuration, $"Lakona:Endpoints:{endpointIndex}:Transport"),
+                    Host: new LakonaGameResolvedValue<string>(endpoint.Host, LakonaGameValueSource.Configuration, $"Lakona:Endpoints:{endpointIndex}:Host"),
+                    Port: new LakonaGameResolvedValue<int>(endpoint.Port, LakonaGameValueSource.Configuration, $"Lakona:Endpoints:{endpointIndex}:Port"),
+                    Path: new LakonaGameResolvedValue<string>(endpoint.Path, LakonaGameValueSource.Configuration, $"Lakona:Endpoints:{endpointIndex}:Path"),
+                    AdvertisedHost: new LakonaGameResolvedValue<string>(endpoint.AdvertisedHost, LakonaGameValueSource.Configuration, $"Lakona:Endpoints:{endpointIndex}:AdvertisedHost"),
+                    AdvertisedEndpoint: new LakonaGameResolvedValue<string>(endpoint.ToAdvertisedEndpoint(), LakonaGameValueSource.GeneratedConvention),
+                    RpcServices: endpoint.RpcServices))
                 .ToArray(),
             Cluster: new LakonaGameResolvedCluster(
-                Services: clusterServices,
                 AdvertisedEndpoints: clusterOptions?.AdvertisedEndpoints ?? new Dictionary<string, string>()),
             ClusterEndpoint: new LakonaGameResolvedClusterEndpoint(
                 new LakonaGameResolvedValue<string>(
-                    runtime.ClusterEndpoint,
-                    LakonaGameValueSource.GeneratedConvention,
-                    "Lakona.Game:Cluster:Endpoint"),
-                new[] { runtime.ClusterEndpoint }),
+                    runtime.Cluster?.Endpoint ?? "",
+                    LakonaGameValueSource.Configuration,
+                    "Lakona:Cluster:Endpoint"),
+                runtime.Cluster?.Seeds ?? Array.Empty<string>()),
             Feature: new LakonaGameResolvedFeature(
                 Configured: null,
                 Active: Array.Empty<string>(),

@@ -6,4 +6,5 @@ public sealed record LakonaGameResolvedEndpoint(
     LakonaGameResolvedValue<int> Port,
     LakonaGameResolvedValue<string> Path,
     LakonaGameResolvedValue<string> AdvertisedHost,
-    LakonaGameResolvedValue<string> AdvertisedEndpoint);
+    LakonaGameResolvedValue<string> AdvertisedEndpoint,
+    IReadOnlyList<string> RpcServices);

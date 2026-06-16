@@ -12,7 +12,7 @@ public sealed class LakonaGameRuntimeOptions
 
     public static LakonaGameRuntimeOptions FromConfiguration(IConfiguration configuration)
     {
-        var section = configuration.GetSection("Lakona.Game");
+        var section = GetRuntimeSection(configuration);
 
         return new LakonaGameRuntimeOptions
         {
@@ -37,22 +37,44 @@ public sealed class LakonaGameRuntimeOptions
 
     public ClusterOptions ToClusterOptions(string transport)
     {
-        var endpoint = FindEndpoint(transport);
+        return ToClusterOptions();
+    }
+
+    public ClusterOptions ToClusterOptions()
+    {
+        var advertisedEndpoints = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        if (Cluster is not null && !string.IsNullOrWhiteSpace(Cluster.Endpoint))
+        {
+            advertisedEndpoints["cluster"] = Cluster.Endpoint;
+        }
+
+        foreach (var endpoint in Endpoints)
+        {
+            var transport = endpoint.Transport.ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(transport))
+            {
+                continue;
+            }
+
+            if (!advertisedEndpoints.TryAdd(transport, endpoint.ToAdvertisedEndpoint()))
+            {
+                throw new InvalidOperationException(
+                    $"Endpoint transport '{endpoint.Transport}' is configured more than once.");
+            }
+        }
+
         return new ClusterOptions
         {
             NodeId = Node.Id,
-            AdvertisedEndpoints = new Dictionary<string, string>
-            {
-                [transport] = endpoint.ToAdvertisedEndpoint(),
-                ["cluster"] = ClusterEndpoint
-            }
+            AdvertisedEndpoints = advertisedEndpoints
         };
     }
 
     public ClusterOptions ToClusterOptions(IConfiguration configuration, string transport)
     {
-        var defaults = ToClusterOptions(transport);
-        var section = configuration.GetSection("Lakona.Game:Cluster");
+        var defaults = ToClusterOptions();
+        var section = GetRuntimeSection(configuration).GetSection("Cluster");
 
         return new ClusterOptions
         {
@@ -63,10 +85,20 @@ public sealed class LakonaGameRuntimeOptions
                 section.GetSection("Bootstrap"), defaults.Bootstrap),
             NodeDirectory = ClusterNodeDirectoryOptions.FromConfiguration(
                 section.GetSection("NodeDirectory"), defaults.NodeDirectory),
-            Services = ReadServices(section.GetSection("Services"), defaults.Services),
             RouteLeaseSeconds = ReadInt(section, "RouteLeaseSeconds", defaults.RouteLeaseSeconds),
             SendTimeoutMilliseconds = ReadInt(section, "SendTimeoutMilliseconds", defaults.SendTimeoutMilliseconds)
         };
+    }
+
+    private static IConfigurationSection GetRuntimeSection(IConfiguration configuration)
+    {
+        var lakona = configuration.GetSection("Lakona");
+        if (lakona.GetChildren().Any() || lakona.Value is not null)
+        {
+            return lakona;
+        }
+
+        return configuration.GetSection("Lakona.Game");
     }
 
     private LakonaGameEndpointOptions FindEndpoint(string transport)
@@ -92,19 +124,25 @@ public sealed class LakonaGameRuntimeOptions
                 Host = endpoint["Host"] ?? "",
                 Port = ReadInt(endpoint["Port"]),
                 Path = endpoint["Path"] ?? "",
-                AdvertisedHost = endpoint["AdvertisedHost"] ?? ""
+                AdvertisedHost = endpoint["AdvertisedHost"] ?? "",
+                RpcServices = BindStringArray(endpoint.GetSection("RpcServices"))
             })
             .ToArray();
     }
 
-    private static IReadOnlyList<string>? BindOptionalStringArray(IConfiguration section)
+    private static IReadOnlyList<string>? BindOptionalStringArray(IConfigurationSection section)
     {
         var values = section
             .GetChildren()
             .Select(child => child.Value ?? "")
             .ToArray();
 
-        return values.Length == 0 ? null : values;
+        if (values.Length > 0)
+        {
+            return values;
+        }
+
+        return section.Value is null ? null : Array.Empty<string>();
     }
 
     private static LakonaGameClusterOptions? BindCluster(IConfiguration section)
@@ -158,22 +196,6 @@ public sealed class LakonaGameRuntimeOptions
         return children.ToDictionary(child => child.Key, child => child.Value ?? "");
     }
 
-    private static IReadOnlyList<ClusterServiceOptions> ReadServices(
-        IConfigurationSection section,
-        IReadOnlyList<ClusterServiceOptions> fallback)
-    {
-        var children = section.GetChildren().ToList();
-        if (children.Count == 0)
-        {
-            return fallback;
-        }
-
-        return children.Select(child => new ClusterServiceOptions
-        {
-            Kind = child["Kind"] ?? "",
-            Name = child["Name"] ?? ""
-        }).ToArray();
-    }
 }
 
 public sealed class LakonaGameNodeOptions

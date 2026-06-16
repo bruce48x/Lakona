@@ -16,6 +16,7 @@ public sealed class EndpointRule : ILakonaGameValidationRule
 
         foreach (var endpoint in runtime.Endpoints)
         {
+            var rpcServices = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var transport = endpoint.Transport.Value;
             if (string.IsNullOrWhiteSpace(transport))
             {
@@ -62,6 +63,17 @@ public sealed class EndpointRule : ILakonaGameValidationRule
                 && !bindAddresses.Add(bind))
             {
                 yield return Error("ULINK026", $"Endpoint bind address '{bind}' is configured more than once.", endpoint.Port.Path);
+            }
+
+            foreach (var rpcService in endpoint.RpcServices)
+            {
+                if (!rpcServices.Add(rpcService))
+                {
+                    yield return Error(
+                        "ULINK027",
+                        $"Endpoint RPC service '{rpcService}' is configured more than once.",
+                        endpoint.Transport.Path);
+                }
             }
         }
     }

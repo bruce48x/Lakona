@@ -7,6 +7,7 @@ public sealed class LakonaGameEndpointOptions
     public int Port { get; init; }
     public string Path { get; init; } = "";
     public string AdvertisedHost { get; init; } = "";
+    public IReadOnlyList<string> RpcServices { get; init; } = Array.Empty<string>();
 
     public string ToAdvertisedEndpoint()
     {
