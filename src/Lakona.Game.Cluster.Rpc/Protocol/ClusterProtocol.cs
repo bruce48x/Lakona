@@ -8,6 +8,8 @@ namespace Lakona.Game.Cluster.Rpc
 
         public const int SendMethodId = 1;
 
+        public const int FeatureMessageMethodId = 2;
+
         public const int RegisterRouteMethodId = 10;
 
         public const int ResolveRouteMethodId = 11;
@@ -34,6 +36,9 @@ namespace Lakona.Game.Cluster.Rpc
 
         public static readonly RpcMethod<ClusterSendRequest, ClusterSendReply> SendMethod =
             new RpcMethod<ClusterSendRequest, ClusterSendReply>(ServiceId, SendMethodId);
+
+        public static readonly RpcMethod<FeatureSendRequest, FeatureSendReply> FeatureMessageMethod =
+            new RpcMethod<FeatureSendRequest, FeatureSendReply>(ServiceId, FeatureMessageMethodId);
 
         public static readonly RpcMethod<RouteRegisterRequest, RouteRegisterReply> RegisterRouteMethod =
             new RpcMethod<RouteRegisterRequest, RouteRegisterReply>(ServiceId, RegisterRouteMethodId);
