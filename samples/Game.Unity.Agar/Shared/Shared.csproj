@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="MemoryPack.UnityShims" Version="1.21.4" />
+    <PackageReference Include="MemoryPack.Generator" Version="1.21.4" PrivateAssets="all" />
     <ProjectReference Include="..\..\..\src\Lakona.Rpc.Core\Lakona.Rpc.Core.csproj" />
     <ProjectReference Include="..\..\..\src\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj" />
   </ItemGroup>
