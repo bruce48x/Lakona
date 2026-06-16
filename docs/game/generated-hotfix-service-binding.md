@@ -1,4 +1,4 @@
-# Generated Session Services
+# Generated Hotfix Service Binding
 
 Status: current architecture reference
 Date: 2026-06-16
@@ -16,28 +16,32 @@ termination semantics, see [Session Lifecycle](session-lifecycle.md).
 
 Generated Lakona.Game projects should not require users to hand-write stable
 RPC service proxies, binder configuration, service endpoint marker files, or raw
-`RpcSession` disconnect tracking when they add a new service.
+`RpcSession` lifecycle subscriptions when they add a new service.
 
 The default model is:
 
 ```txt
 Shared RPC contract
-  -> generated stable Server.App proxy and binding
+  -> generated stable Server.App binding
   -> current Server.Hotfix service method
-  -> framework-owned session lifecycle APIs
+  -> framework-owned session lifecycle APIs when needed
 ```
 
 ## Decisions
 
-- `EndpointName` and `GameEndpointName` are not user-facing concepts in
-  generated service binding.
 - Shared contracts remain the source of truth for service, callback, and DTO
   shape.
-- Generated stable server code should bind hotfix-backed service
-  implementations without requiring user-authored service proxies, endpoint
-  marker files, or binder configuration.
-- Generated shared RPC DTOs, generated client code, and MemoryPack formatters
-  must not expose, serialize, store, or echo framework session identity.
+- Generated stable server code binds hotfix-backed service implementations
+  without requiring user-authored service proxies, endpoint marker files, or
+  binder configuration.
+- `EndpointName` and `GameEndpointName` are not user-facing concepts in
+  generated service binding.
+- Framework session identity stays server-side. Generated shared RPC DTOs,
+  generated client code, and MemoryPack formatters must not expose, serialize,
+  store, or echo it.
+- Raw `RpcSession` lifecycle subscriptions are not part of generated service
+  binding. Session lifecycle behavior belongs to the framework APIs and hooks
+  described in [Session Lifecycle](session-lifecycle.md).
 
 ## Generated Binding
 
@@ -83,43 +87,19 @@ When a user adds a new shared `[RpcService]` interface and implements a matching
 hotfix `[HotfixService]`, no stable proxy file, binding configurator, endpoint
 marker, or endpoint name should be written by hand.
 
-## Session Lifecycle Integration
+## Session Lifecycle Boundary
 
-Generated stable proxies call session-oriented game server APIs when they need
-to start a session, bind callbacks, look up callbacks, or terminate a session:
+Generated binding code may call session-oriented game server APIs when a
+service needs to start a game session, bind callbacks, look up callbacks, or
+terminate a session. This document does not define those lifecycle contracts.
 
-```csharp
-public interface ILakonaGameServer
-{
-    ValueTask<GameSessionKey> StartSessionAsync<TCallback>(
-        string ownerKey,
-        string connectionId,
-        TCallback callback,
-        CancellationToken cancellationToken = default)
-        where TCallback : class;
+The boundary is:
 
-    ValueTask BindCurrentSessionAsync<TCallback>(
-        string connectionId,
-        TCallback callback,
-        CancellationToken cancellationToken = default)
-        where TCallback : class;
-
-    ValueTask<TCallback?> GetCallbackAsync<TCallback>(
-        GameSessionKey session,
-        CancellationToken cancellationToken = default)
-        where TCallback : class;
-
-    ValueTask TerminateSessionAsync(
-        GameSessionKey session,
-        SessionTerminationReason reason,
-        string? message = null,
-        SessionTerminationOptions? options = null,
-        CancellationToken cancellationToken = default);
-}
-```
-
-Exact method names can evolve, but generated hotfix proxies must not pass
-endpoint names or expose `GameSessionKey` through shared DTOs.
+- Generated binding code may depend on framework-owned session APIs.
+- Generated binding code must not require endpoint names.
+- Generated shared contracts must not expose `GameSessionKey`.
+- Session disconnect, expiration, termination, and resume semantics belong in
+  [Session Lifecycle](session-lifecycle.md).
 
 ## Generated Project Shape
 
@@ -145,6 +125,7 @@ GeneratedServiceEndpoints
 HotfixRpcService(
 EndpointName
 GameEndpointName
+RpcSession.Disconnected +=
 ```
 
 Allow those names only in tests that intentionally cover removed API behavior

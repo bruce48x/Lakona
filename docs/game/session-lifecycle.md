@@ -8,7 +8,7 @@ Lakona.Game owns one framework game session per accepted game RPC session. It
 does not own account, player, character, room, or device aggregation.
 
 For generated service binding, see
-[Generated Session Services](generated-session-services.md).
+[Generated Hotfix Service Binding](generated-hotfix-service-binding.md).
 For server-initiated disconnect composition, see
 [Gate / Watchdog / Agent](gate-watchdog-agent.md).
 

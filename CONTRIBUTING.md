@@ -19,7 +19,7 @@ rules. Supporting documents hold current architecture details:
 | [docs/game/design-philosophy.md](./docs/game/design-philosophy.md) | Current game framework principles and scope boundaries |
 | [docs/game/hotfix-architecture.md](./docs/game/hotfix-architecture.md) | Current hotfix architecture and operational boundary |
 | [docs/game/session-lifecycle.md](./docs/game/session-lifecycle.md) | Current game session identity, binding, disconnect, resume, and termination model |
-| [docs/game/generated-session-services.md](./docs/game/generated-session-services.md) | Current generated service binding model for shared RPC contracts and hotfix services |
+| [docs/game/generated-hotfix-service-binding.md](./docs/game/generated-hotfix-service-binding.md) | Current generated service binding model for shared RPC contracts and hotfix services |
 | [docs/game/actor-kernel-boundary.md](./docs/game/actor-kernel-boundary.md) | Actor kernel and game framework responsibility split |
 | [docs/game/lakona-game-configuration-startup.md](./docs/game/lakona-game-configuration-startup.md) | Game configuration schema and startup validation boundary |
 | [docs/game/lakona-game-runtime-guardrails.md](./docs/game/lakona-game-runtime-guardrails.md) | Runtime validation model for cluster, hotfix, endpoints, and production profile |
