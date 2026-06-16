@@ -29,7 +29,7 @@ namespace Agar.Sample.State.Contracts.Rooms
 
         public int MaxPlayers { get; set; } = 10;
 
-        public List<PlayerRoomAssignment> Players { get; set; } = [];
+        public List<PlayerRoomAssignment> Players { get; set; } = new();
 
         public GatewayEndpointDescriptor RuntimeGateway { get; set; } = new();
     }
@@ -77,7 +77,7 @@ namespace Agar.Sample.State.Contracts.Rooms
 
         public string Reason { get; set; } = "";
 
-        public List<RoomSettlementEntry> Results { get; set; } = [];
+        public List<RoomSettlementEntry> Results { get; set; } = new();
     }
 
     public sealed class RoomSettlementEntry
@@ -128,7 +128,7 @@ namespace Agar.Sample.State.Contracts.Rooms
 
         public long Revision { get; set; }
 
-        public List<RoomPlayerSnapshot> Players { get; set; } = [];
+        public List<RoomPlayerSnapshot> Players { get; set; } = new();
 
         public string WinnerUserId { get; set; } = "";
 
@@ -192,7 +192,7 @@ namespace Agar.Sample.State.Contracts.Rooms
 
         public long Revision { get; set; }
 
-        public List<RoomPlayerState> Players { get; set; } = [];
+        public List<RoomPlayerState> Players { get; set; } = new();
 
         public string WinnerUserId { get; set; } = "";
 

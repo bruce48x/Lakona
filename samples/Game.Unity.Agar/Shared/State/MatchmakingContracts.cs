@@ -82,7 +82,7 @@ namespace Agar.Sample.State.Contracts.Matchmaking
 
         public DateTime LastUpdatedAtUtc { get; set; }
 
-        public List<MatchmakingQueueTicket> PendingTickets { get; set; } = [];
+        public List<MatchmakingQueueTicket> PendingTickets { get; set; } = new();
     }
 
     public sealed class MatchmakingQueueTicket
@@ -106,7 +106,7 @@ namespace Agar.Sample.State.Contracts.Matchmaking
 
         public int DefaultRoomSize { get; set; } = 10;
 
-        public List<MatchmakingQueueTicket> PendingTickets { get; set; } = [];
+        public List<MatchmakingQueueTicket> PendingTickets { get; set; } = new();
 
         public string LastMatchId { get; set; } = "";
 
@@ -123,7 +123,7 @@ namespace Agar.Sample.State.Contracts.Matchmaking
 
         public DateTime AssignedAtUtc { get; set; }
 
-        public List<PlayerRoomAssignment> Players { get; set; } = [];
+        public List<PlayerRoomAssignment> Players { get; set; } = new();
 
         public GatewayEndpointDescriptor RuntimeGateway { get; set; } = new();
     }
