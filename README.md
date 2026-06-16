@@ -1,5 +1,13 @@
 # Lakona
 
+[![Tests](https://github.com/bruce48x/Lakona/actions/workflows/tests-linux.yml/badge.svg)](https://github.com/bruce48x/Lakona/actions/workflows/tests-linux.yml)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![NuGet](https://img.shields.io/nuget/v/Lakona.Tool.svg?label=NuGet)](https://www.nuget.org/packages/Lakona.Tool)
+[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4.svg)](https://dotnet.microsoft.com)
+[![.NET Standard](https://img.shields.io/badge/netstandard-2.1-512BD4.svg)](https://dotnet.microsoft.com)
+[![Unity](https://img.shields.io/badge/Unity-2021.3+-000000.svg?logo=unity)](https://unity.com)
+[![Godot](https://img.shields.io/badge/Godot-4.x-478CBF.svg?logo=godot-engine)](https://godotengine.org)
+
 Build realtime game servers in C#, share code with Unity or Godot clients, and
 ship live logic updates without throwing away player state.
 
