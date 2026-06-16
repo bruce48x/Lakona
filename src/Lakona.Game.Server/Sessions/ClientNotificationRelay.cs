@@ -81,8 +81,14 @@ public sealed class ClientNotificationRelay : IClientNotificationRelay
 
         try
         {
+            var command = ClientNotificationCommandFactory.Create(session, notify);
+            if (command is null)
+            {
+                return ClientNotificationStatus.Failed;
+            }
+
             return await _remoteDispatcher
-                .DispatchAsync(route, session, notify, cancellationToken)
+                .DispatchAsync(route, command, cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

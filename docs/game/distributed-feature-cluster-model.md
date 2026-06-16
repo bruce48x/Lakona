@@ -150,6 +150,12 @@ cluster RPC server on that endpoint. The server binds node-directory,
 route-directory, and feature-message RPC handlers only when the corresponding
 local services exist in DI.
 
+`Lakona:Cluster:Seeds` is the public bootstrap input for directory access. If
+a node has seeds but no local `INodeDirectory` or `IRouteDirectory`
+registration, the framework creates remote directory clients that call the
+seed node over the cluster RPC endpoint. Local directory registrations, such as
+the data node's durable database-backed directory, take precedence.
+
 ### RpcService
 
 `RpcService` describes which client-facing RPC protocol surfaces an endpoint
@@ -464,6 +470,12 @@ state. The callback remains process-local gateway state. A remote notification
 starts by resolving the `client-session` route, dispatches a command to the
 gateway node's cluster endpoint, and only the gateway process performs local
 callback lookup.
+
+The remote command contains the target session key and generation, callback
+contract identity, callback method identity, and serialized argument payloads.
+The remote dispatcher API must not require passing `Action<TCallback>` across
+the cluster boundary; that delegate is only a local capture shape used before
+the command is sent.
 
 V1 API shape:
 

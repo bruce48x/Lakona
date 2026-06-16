@@ -135,6 +135,12 @@ other project code.
 The cluster endpoint is not listed in `Endpoints`; it is advertised separately
 as the `cluster` endpoint for node-to-node traffic.
 
+`Seeds` is the public bootstrap list for shared cluster directories. A data
+node can register local node-directory and route-directory implementations,
+while gateway and battle nodes use the seed endpoint to register node leases,
+write client-session routes, and resolve those routes through remote directory
+clients.
+
 Do not generate or document `Lakona:Cluster:Services`. Cluster discovery uses
 node features (`NodeFeatureDescriptor`) and advertised endpoints.
 

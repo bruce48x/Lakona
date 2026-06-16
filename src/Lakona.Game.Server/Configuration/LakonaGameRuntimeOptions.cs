@@ -67,7 +67,13 @@ public sealed class LakonaGameRuntimeOptions
         return new ClusterOptions
         {
             NodeId = Node.Id,
-            AdvertisedEndpoints = advertisedEndpoints
+            AdvertisedEndpoints = advertisedEndpoints,
+            Bootstrap = new ClusterBootstrapOptions
+            {
+                NodeDirectoryEndpoints = Cluster?.Seeds.Count > 0
+                    ? Cluster.Seeds
+                    : new ClusterBootstrapOptions().NodeDirectoryEndpoints
+            }
         };
     }
 

@@ -4,6 +4,7 @@ using Lakona.Game.Server.Configuration;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Serializer.Json;
 using Lakona.Rpc.Transport.Tcp;
+using Lakona.Game.Server.Sessions;
 
 namespace Lakona.Game.Server.Hosting;
 
@@ -49,6 +50,12 @@ public sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurator
         if (context.Services.GetService(typeof(IFeatureMessageHandler)) is IFeatureMessageHandler featureHandler)
         {
             FeatureMessageBinder.Bind(context.Builder.ServiceRegistry, featureHandler);
+        }
+
+        if (context.Services.GetService(typeof(LocalClientNotificationCommandDispatcher)) is
+            LocalClientNotificationCommandDispatcher notificationDispatcher)
+        {
+            ClientNotificationCommandBinder.Bind(context.Builder.ServiceRegistry, notificationDispatcher);
         }
     }
 }

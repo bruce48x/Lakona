@@ -4,10 +4,8 @@ namespace Lakona.Game.Server.Sessions;
 
 public interface IClientNotificationRemoteDispatcher
 {
-    ValueTask<ClientNotificationStatus> DispatchAsync<TCallback>(
+    ValueTask<ClientNotificationStatus> DispatchAsync(
         RouteLocation target,
-        GameSessionKey session,
-        Action<TCallback> notify,
-        CancellationToken cancellationToken = default)
-        where TCallback : class;
+        ClientNotificationCommand command,
+        CancellationToken cancellationToken = default);
 }

@@ -17,60 +17,53 @@ The package stays outside `Lakona.Game.Cluster` so core route contracts remain t
 
 It does not provide durable route directory storage, external platform discovery bindings, durable queues, gameplay DTOs, actor migration, or transparent remote actor clients. A route directory service can expose `InMemoryRouteDirectory` for smoke tests, or a project-owned durable implementation for production-specific policy.
 
-## Node-Directory Hosting
+## Directory Hosting And Bootstrap
 
-The node-directory service is configured like any other node-local service. The Lakona.Rpc adapter makes that service reachable over the node's advertised cluster endpoint; it does not decide whether the service runs in an all-in-one development node, a dedicated control node, or a co-located production node.
+The shared node and route directories are ordinary node-local implementations exposed over the node's advertised cluster endpoint. A data node can own durable directory storage while gateway and battle nodes use `Lakona:Cluster:Seeds` to create remote directory clients.
 
-Example all-in-one development node:
+Example data node that owns the shared directories and business features:
 
 ```json
 {
-  "Cluster": {
-    "NodeId": "dev-1",
-    "AdvertisedEndpoints": {
-      "cluster": "tcp://127.0.0.1:21000"
+  "Lakona": {
+    "Node": {
+      "Id": "data-1"
     },
-    "NodeDirectory": {
-      "Enabled": true,
-      "Storage": {
-        "Mode": "InMemory"
-      }
-    },
-    "Services": [
-      { "Kind": "node-directory", "Name": "node-directory" },
-      { "Kind": "route-directory", "Name": "route-directory" },
-      { "Kind": "gateway", "Name": "gateway" },
-      { "Kind": "room", "Name": "room" }
-    ]
+    "Feature": [ "database", "state-store", "matchmaking", "leaderboard" ],
+    "Cluster": {
+      "Endpoint": "tcp://10.0.0.1:21001",
+      "Seeds": [ "tcp://10.0.0.1:21001" ]
+    }
   }
 }
 ```
 
-Example production control node:
+Example gateway node with only endpoint-local client RPC exposure:
 
 ```json
 {
-  "Cluster": {
-    "NodeId": "control-1",
-    "AdvertisedEndpoints": {
-      "cluster": "tcp://10.0.0.10:21000"
+  "Lakona": {
+    "Node": {
+      "Id": "gateway-1"
     },
-    "NodeDirectory": {
-      "Enabled": true,
-      "Storage": {
-        "Mode": "Persistent",
-        "Provider": "postgres",
-        "ConnectionStringName": "ClusterDirectory"
+    "Feature": [],
+    "Endpoints": [
+      {
+        "Transport": "websocket",
+        "Host": "0.0.0.0",
+        "Port": 20000,
+        "Path": "/ws",
+        "RpcServices": [ "login", "player" ]
       }
-    },
-    "Services": [
-      { "Kind": "node-directory", "Name": "node-directory" },
-      { "Kind": "route-directory", "Name": "route-directory" }
-    ]
+    ],
+    "Cluster": {
+      "Endpoint": "tcp://10.0.0.2:21002",
+      "Seeds": [ "tcp://10.0.0.1:21001" ]
+    }
   }
 }
 ```
 
-Other nodes should use `Cluster:Bootstrap:NodeDirectoryEndpoints` to find one or more configured directory nodes, then register their own `NodeId`, advertised endpoints, service descriptors, and lease.
+`Feature` declares cluster-discoverable node capability. `RpcServices` declares services exposed only on that client endpoint. Nodes that do not register a local `INodeDirectory` or `IRouteDirectory` use `Lakona:Cluster:Seeds` as the public bootstrap input and register themselves, client-session routes, and lease refreshes through the remote directory node.
 
 Additional concrete transport factories should be added only with passing cross-process smoke tests. The package exposes `IClusterTransportFactory` so consuming projects can wire custom Lakona.Rpc transport policy while the package keeps the node messaging protocol and status mapping centralized.

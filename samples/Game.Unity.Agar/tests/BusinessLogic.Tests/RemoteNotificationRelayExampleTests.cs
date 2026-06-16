@@ -15,7 +15,7 @@ public sealed class RemoteNotificationRelayExampleTests
         var callback = new CapturingPlayerCallback();
         await gatewaySessions.BindSessionAsync(session, "control-1", callback, TestContext.Current.CancellationToken);
         var routes = new InMemoryRouteDirectory();
-        var gatewayRelay = new ClientNotificationRelay(gatewaySessions);
+        var gatewayDispatcher = new LocalClientNotificationCommandDispatcher(gatewaySessions);
         var registrar = new ClientSessionRouteRegistrar(
             routes,
             new NodeId("gateway-1"),
@@ -24,7 +24,7 @@ public sealed class RemoteNotificationRelayExampleTests
         var remoteRelay = new ClientNotificationRelay(
             new InMemoryGameSessionDirectory(),
             routes,
-            new GatewayProcessNotificationDispatcher(gatewayRelay),
+            new GatewayProcessNotificationDispatcher(gatewayDispatcher),
             new NodeId("battle-1"));
 
         var update = new MatchmakingStatusUpdate
@@ -41,31 +41,30 @@ public sealed class RemoteNotificationRelayExampleTests
             TestContext.Current.CancellationToken);
 
         Assert.Equal(ClientNotificationStatus.Delivered, status);
-        Assert.Same(update, callback.LastMatchmakingStatus);
         Assert.Equal(MatchmakingState.Matched, callback.LastMatchmakingStatus?.State);
         Assert.Equal("room-1", callback.LastMatchmakingStatus?.RoomId);
+        Assert.Equal(2, callback.LastMatchmakingStatus?.MatchedPlayerCount);
+        Assert.Equal("Matched into room room-1", callback.LastMatchmakingStatus?.Message);
     }
 
     private sealed class GatewayProcessNotificationDispatcher : IClientNotificationRemoteDispatcher
     {
-        private readonly ClientNotificationRelay _gatewayRelay;
+        private readonly LocalClientNotificationCommandDispatcher _gatewayDispatcher;
 
-        public GatewayProcessNotificationDispatcher(ClientNotificationRelay gatewayRelay)
+        public GatewayProcessNotificationDispatcher(LocalClientNotificationCommandDispatcher gatewayDispatcher)
         {
-            _gatewayRelay = gatewayRelay;
+            _gatewayDispatcher = gatewayDispatcher;
         }
 
-        public ValueTask<ClientNotificationStatus> DispatchAsync<TCallback>(
+        public ValueTask<ClientNotificationStatus> DispatchAsync(
             RouteLocation target,
-            GameSessionKey session,
-            Action<TCallback> notify,
+            ClientNotificationCommand command,
             CancellationToken cancellationToken = default)
-            where TCallback : class
         {
             Assert.Equal(new NodeId("gateway-1"), target.Node);
             Assert.Equal("tcp://gateway-1:21002", target.Endpoint.Address);
             Assert.Empty(target.Metadata);
-            return _gatewayRelay.NotifyAsync(session, notify, cancellationToken);
+            return _gatewayDispatcher.DispatchAsync(command, cancellationToken);
         }
     }
 

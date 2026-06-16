@@ -4,12 +4,10 @@ namespace Lakona.Game.Server.Sessions;
 
 internal sealed class NoopClientNotificationRemoteDispatcher : IClientNotificationRemoteDispatcher
 {
-    public ValueTask<ClientNotificationStatus> DispatchAsync<TCallback>(
+    public ValueTask<ClientNotificationStatus> DispatchAsync(
         RouteLocation target,
-        GameSessionKey session,
-        Action<TCallback> notify,
+        ClientNotificationCommand command,
         CancellationToken cancellationToken = default)
-        where TCallback : class
     {
         cancellationToken.ThrowIfCancellationRequested();
         return new ValueTask<ClientNotificationStatus>(ClientNotificationStatus.Failed);

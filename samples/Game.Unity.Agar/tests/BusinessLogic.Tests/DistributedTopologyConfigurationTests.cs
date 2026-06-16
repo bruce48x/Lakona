@@ -2,6 +2,8 @@ using System.Text.Json;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Sql;
 using Lakona.Game.Server.Features;
+using Lakona.Game.Server.Hosting;
+using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Server.App.Features;
@@ -80,31 +82,35 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
-    public void GatewayNodeDoesNotRegisterDatabaseServicesOrApplicationFeatures()
+    public async Task GatewayNodeDoesNotRegisterDatabaseServicesOrApplicationFeatures()
     {
         var services = BuildFeatureServices("appsettings.gateway-1.json");
 
         Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(AgarDatabaseOptions));
-        Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(INodeDirectory));
 
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
         var catalog = provider.GetRequiredService<LakonaGameFeatureCatalog>();
 
         Assert.Empty(catalog.ActiveNames);
+        Assert.IsAssignableFrom<INodeDirectory>(provider.GetRequiredService<INodeDirectory>());
+        Assert.IsAssignableFrom<IRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
+        Assert.IsType<SeededNodeDirectoryClient>(provider.GetRequiredService<INodeDirectory>());
+        Assert.IsType<SeededRouteDirectoryClient>(provider.GetRequiredService<IRouteDirectory>());
     }
 
     [Fact]
-    public void BattleNodeDoesNotRegisterDatabaseServices()
+    public async Task BattleNodeDoesNotRegisterDatabaseServices()
     {
         var services = BuildFeatureServices("appsettings.battle-1.json");
 
         Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(AgarDatabaseOptions));
-        Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(INodeDirectory));
 
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
         var catalog = provider.GetRequiredService<LakonaGameFeatureCatalog>();
 
         Assert.Equal(new[] { "battle-runtime" }, catalog.ActiveNames);
+        Assert.IsType<SeededNodeDirectoryClient>(provider.GetRequiredService<INodeDirectory>());
+        Assert.IsType<SeededRouteDirectoryClient>(provider.GetRequiredService<IRouteDirectory>());
     }
 
     private static void AssertFeatureSet(JsonElement lakona, params string[] expected)

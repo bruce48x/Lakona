@@ -98,7 +98,11 @@ public sealed class LakonaGameRuntimeOptionsTests
         var options = new LakonaGameRuntimeOptions
         {
             Node = new LakonaGameNodeOptions { Id = "gateway-1" },
-            Cluster = new LakonaGameClusterOptions { Endpoint = "tcp://10.0.0.2:21002" },
+            Cluster = new LakonaGameClusterOptions
+            {
+                Endpoint = "tcp://10.0.0.2:21002",
+                Seeds = ["tcp://10.0.0.1:21001"]
+            },
             Endpoints =
             [
                 new LakonaGameEndpointOptions
@@ -117,6 +121,7 @@ public sealed class LakonaGameRuntimeOptionsTests
         Assert.Equal("gateway-1", cluster.NodeId);
         Assert.Equal("tcp://10.0.0.2:21002", cluster.AdvertisedEndpoints["cluster"]);
         Assert.Equal("ws://game.example.com:20000/ws", cluster.AdvertisedEndpoints["websocket"]);
+        Assert.Equal(["tcp://10.0.0.1:21001"], cluster.Bootstrap.NodeDirectoryEndpoints);
         Assert.False(cluster.AdvertisedEndpoints.ContainsKey("client"));
     }
 

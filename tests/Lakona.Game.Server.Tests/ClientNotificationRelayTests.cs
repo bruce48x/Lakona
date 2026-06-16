@@ -3,6 +3,7 @@ using Lakona.Game.Abstractions;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
+using System.Reflection;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests;
@@ -58,9 +59,8 @@ public sealed class ClientNotificationRelayTests
     {
         var gatewaySessions = new InMemoryGameSessionDirectory();
         var session = await gatewaySessions.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
-        var callback = new TestPlayerCallback();
+        var callback = new TestPlayerCallbackContract();
         await gatewaySessions.BindSessionAsync(session, "gateway-conn-1", callback, TestContext.Current.CancellationToken);
-        var gatewayRelay = new ClientNotificationRelay(gatewaySessions);
         var route = new RouteLocation(
             ClientNotificationRouteKey.FromSession(session),
             new NodeId("gateway-1"),
@@ -68,13 +68,15 @@ public sealed class ClientNotificationRelayTests
             DateTimeOffset.UtcNow.AddMinutes(1),
             generation: session.Generation);
         var routes = new ResolvingRouteDirectory(route);
+        var dispatcher = new DelegatingRemoteNotificationDispatcher(
+            new LocalClientNotificationCommandDispatcher(gatewaySessions));
         var remoteRelay = new ClientNotificationRelay(
             new InMemoryGameSessionDirectory(),
             routes,
-            new DelegatingRemoteNotificationDispatcher(gatewayRelay),
+            dispatcher,
             new NodeId("battle-1"));
 
-        var status = await remoteRelay.NotifyAsync<TestPlayerCallback>(
+        var status = await remoteRelay.NotifyAsync<ITestPlayerCallback>(
             session,
             cb => cb.Notify("remote"),
             TestContext.Current.CancellationToken);
@@ -83,6 +85,42 @@ public sealed class ClientNotificationRelayTests
         Assert.Equal("remote", callback.LastMessage);
         Assert.Equal("client-session:player-1/" + session.SessionId + "/1", routes.LastResolvedRoute);
         Assert.Empty(route.Metadata);
+        Assert.Equal(new NodeId("gateway-1"), dispatcher.LastTarget?.Node);
+        Assert.Equal("tcp://10.0.0.2:21002", dispatcher.LastTarget?.Endpoint.Address);
+        Assert.Equal(
+            typeof(ITestPlayerCallback).AssemblyQualifiedName,
+            dispatcher.LastCommand?.CallbackContractType);
+        Assert.Equal(nameof(ITestPlayerCallback.Notify), dispatcher.LastCommand?.MethodName);
+    }
+
+    [Fact]
+    public void RemoteDispatcherPublicApiDoesNotRequireProcessLocalActionDelegate()
+    {
+        var methods = typeof(IClientNotificationRemoteDispatcher).GetMethods();
+
+        Assert.DoesNotContain(methods, method => method
+            .GetParameters()
+            .Any(parameter => parameter.ParameterType.IsGenericType
+                && parameter.ParameterType.GetGenericTypeDefinition() == typeof(Action<>)));
+    }
+
+    [Fact]
+    public void CommandFactoryCapturesCallbackMethodAndPayload()
+    {
+        var session = new GameSessionKey("player-1", "session-a", 7);
+
+        var command = ClientNotificationCommandFactory.Create<ITestPlayerCallback>(
+            session,
+            callback => callback.Notify("remote"));
+
+        Assert.NotNull(command);
+        Assert.Equal("player-1", command.OwnerKey);
+        Assert.Equal("session-a", command.SessionId);
+        Assert.Equal(7, command.Generation);
+        Assert.Equal(typeof(ITestPlayerCallback).AssemblyQualifiedName, command.CallbackContractType);
+        Assert.Equal(nameof(ITestPlayerCallback.Notify), command.MethodName);
+        var argument = Assert.Single(command.Arguments);
+        Assert.Equal(typeof(string).AssemblyQualifiedName, argument.TypeName);
     }
 
     [Fact]
@@ -138,6 +176,21 @@ public sealed class ClientNotificationRelayTests
     }
 
     private sealed class TestPlayerCallback
+    {
+        public string LastMessage { get; private set; } = "";
+
+        public void Notify(string message)
+        {
+            LastMessage = message;
+        }
+    }
+
+    private interface ITestPlayerCallback
+    {
+        void Notify(string message);
+    }
+
+    private sealed class TestPlayerCallbackContract : ITestPlayerCallback
     {
         public string LastMessage { get; private set; } = "";
 
@@ -283,21 +336,25 @@ public sealed class ClientNotificationRelayTests
 
     private sealed class DelegatingRemoteNotificationDispatcher : IClientNotificationRemoteDispatcher
     {
-        private readonly ClientNotificationRelay _gatewayRelay;
+        private readonly LocalClientNotificationCommandDispatcher _gatewayDispatcher;
 
-        public DelegatingRemoteNotificationDispatcher(ClientNotificationRelay gatewayRelay)
+        public DelegatingRemoteNotificationDispatcher(LocalClientNotificationCommandDispatcher gatewayDispatcher)
         {
-            _gatewayRelay = gatewayRelay;
+            _gatewayDispatcher = gatewayDispatcher;
         }
 
-        public ValueTask<ClientNotificationStatus> DispatchAsync<TCallback>(
+        public RouteLocation? LastTarget { get; private set; }
+
+        public ClientNotificationCommand? LastCommand { get; private set; }
+
+        public ValueTask<ClientNotificationStatus> DispatchAsync(
             RouteLocation target,
-            GameSessionKey session,
-            Action<TCallback> notify,
+            ClientNotificationCommand command,
             CancellationToken cancellationToken = default)
-            where TCallback : class
         {
-            return _gatewayRelay.NotifyAsync(session, notify, cancellationToken);
+            LastTarget = target;
+            LastCommand = command;
+            return _gatewayDispatcher.DispatchAsync(command, cancellationToken);
         }
     }
 }
