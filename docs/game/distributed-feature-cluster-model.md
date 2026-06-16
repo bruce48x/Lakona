@@ -2,14 +2,22 @@
 
 ## Purpose
 
-Lakona.Game needs one long-term distributed runtime model that is simple enough
-for generated projects, explicit enough for production deployment, and concrete
-enough to be validated by `samples/Game.Unity.Agar`.
+Lakona's game framework needs one distributed runtime model that is simple
+enough for generated projects, explicit enough for production deployment, and
+concrete enough to be validated by `samples/Game.Unity.Agar`.
 
 This model uses Agar as the first end-to-end acceptance sample, but the
 framework only absorbs generic runtime concepts. Game projects still own
 account policy, matchmaking policy, room rules, gameplay simulation, persistence
 schema, and product DTOs.
+
+This document is the V1 implementation contract. Implementations must follow
+the rules here unless a later documentation change explicitly supersedes them.
+
+Normative words have their usual meaning:
+
+- **Must** and **must not** are required behavior.
+- **May** means permitted behavior, not required behavior.
 
 ## Core Concepts
 
@@ -28,6 +36,13 @@ Cluster is the framework-owned node-to-node substrate. It provides node
 membership, endpoint discovery, feature discovery, route lookup, message
 routing, and remote actor plumbing. Cluster is not a separate user-facing
 service list.
+
+There is no public or internal `ClusterService` concept in the V1 model. Code,
+configuration, diagnostics, generated templates, and docs must use Feature for
+cluster-discoverable node capability.
+
+No public or internal type, interface, options class, configuration section, or
+diagnostic field may be named `ClusterService` in the V1 implementation.
 
 ## Configuration Shape
 
@@ -95,6 +110,23 @@ Feature types are discovered by convention from server assemblies. A
 `DatabaseFeature` type resolves to `database`, `StateStoreFeature` resolves to
 `state-store`, and `BattleRuntimeFeature` resolves to `battle-runtime`.
 
+The V1 feature name convention is:
+
+1. The type name must end with `Feature`.
+2. Remove the `Feature` suffix.
+3. Convert PascalCase or acronym words to lower-case kebab-case.
+4. Reject empty names.
+5. Reject generated names that collide case-insensitively.
+
+Examples:
+
+| Type | Feature name |
+| --- | --- |
+| `DatabaseFeature` | `database` |
+| `StateStoreFeature` | `state-store` |
+| `BattleRuntimeFeature` | `battle-runtime` |
+| `HTTPGatewayFeature` | `http-gateway` |
+
 Feature is also the cluster discovery unit. A discoverable feature on a ready
 node is registered in the node directory so other nodes can find nodes with that
 capability.
@@ -140,7 +172,7 @@ Example:
 }
 ```
 
-An RPC service binder is discovered by name:
+An RPC service binder is discovered by an explicit attribute:
 
 ```csharp
 [LakonaRpcService("login")]
@@ -155,6 +187,17 @@ public sealed class LoginRpcServiceBinder : LakonaRpcServiceBinder
 
 If `login` is not listed under an endpoint, the binder can exist in the
 assembly but is not exposed on that endpoint.
+
+V1 binder rules:
+
+- Every RPC service binder must inherit `LakonaRpcServiceBinder`.
+- Every RPC service binder must have exactly one `LakonaRpcServiceAttribute`.
+- `LakonaRpcServiceAttribute.Name` must be lower-case kebab-case.
+- Duplicate RPC service names fail startup.
+- Configured RPC service names are matched case-insensitively, but resolved
+  names are normalized to lower-case.
+- A binder is bound once per endpoint that lists its service name.
+- The framework does not infer a binder name from the C# type name in V1.
 
 ## Feature Lifecycle
 
@@ -189,7 +232,7 @@ public abstract class LakonaFeature
 
 Lifecycle semantics:
 
-- `ConfigureServices` only registers services. It should not perform network or
+- `ConfigureServices` only registers services. It must not perform network or
   database I/O.
 - `StartAsync` runs after the host is built and before client listeners begin
   accepting traffic.
@@ -201,7 +244,7 @@ Lifecycle semantics:
 - If a feature fails during `StopAsync`, the failure is logged and shutdown
   continues.
 
-Features that are startup dependencies but should not be cluster-discoverable
+Features that are startup dependencies but must not be cluster-discoverable
 can opt out:
 
 ```csharp
@@ -212,8 +255,20 @@ public sealed class DatabaseFeature : LakonaFeature
 ```
 
 `database` is a good example: it creates local connection factories and
-repository dependencies for the data node, but other nodes should not discover
+repository dependencies for the data node, but other nodes must not discover
 it as a business command target.
+
+V1 feature metadata rules:
+
+- `Discoverable == true` means the feature is included in node registration
+  after `StartAsync` succeeds.
+- `Discoverable == false` means the feature affects only local startup and is
+  not visible through cluster discovery.
+- A feature is never discoverable before its `StartAsync` completes.
+- When a feature provides metadata, it is copied as a string dictionary into
+  `NodeFeatureDescriptor.Metadata`.
+- Feature metadata must not contain high-cardinality per-player or per-room
+  values.
 
 ## Cluster Registration
 
@@ -250,13 +305,25 @@ must be visible internally, for example `lakona.node-directory`,
 `lakona.route-directory`, and `lakona.message-bus`. Ordinary application
 configuration does not list framework system features.
 
+Endpoint registration uses a normalized endpoint map:
+
+| Key | Source |
+| --- | --- |
+| `cluster` | `Lakona:Cluster:Endpoint` |
+| `websocket` | The advertised WebSocket endpoint from `Lakona:Endpoints[]` |
+| `kcp` | The advertised KCP endpoint from `Lakona:Endpoints[]` |
+| `tcp` | The advertised TCP endpoint from `Lakona:Endpoints[]`, when present |
+
+Endpoint keys are lower-case transport names, except the reserved `cluster`
+key. Endpoint values are externally reachable advertised endpoint URIs.
+
 ## Feature Discovery
 
 Feature discovery answers:
 
 > Which ready nodes currently provide this feature, and how can they be reached?
 
-Suggested API shape:
+V1 API shape:
 
 ```csharp
 public interface IClusterNodeDiscovery
@@ -271,8 +338,12 @@ public interface IClusterNodeDiscovery
 }
 ```
 
-`ClusterFeature` should be renamed to `FeatureName` so discovery terminology
+`ClusterFeature` must be renamed to `FeatureName` so discovery terminology
 matches startup terminology.
+
+The implementation must not keep `ClusterFeature` as a public type. If an
+internal compatibility shim is temporarily required, it must not appear in
+public docs, generated code, or new APIs.
 
 Feature discovery is not actor placement. It finds nodes by capability:
 
@@ -300,9 +371,21 @@ await messageBus.SendToFeatureAsync(
     cancellationToken);
 ```
 
-This finds a node by feature, then sends a request or command to that node. It
-is appropriate for service-level commands such as allocating a battle room,
-enqueueing matchmaking, or recording a match settlement.
+This finds a node by feature, then sends a request or command to that node. Use
+feature-addressed messages for service-level commands such as allocating a
+battle room, enqueueing matchmaking, or recording a match settlement.
+
+V1 feature-addressed delivery:
+
+1. Resolve candidate nodes with `IClusterNodeDiscovery.AnyAsync(feature)`.
+2. Use the candidate node's `cluster` endpoint.
+3. Send a `ClusterMessage` to the selected node.
+4. Dispatch the message to a registered local feature message handler.
+5. Return a reply or a structured failure.
+
+Selection policy is intentionally small in V1. `AnyAsync` must return a ready
+node with a non-expired lease. Project-owned code may layer its own capacity or
+region policy on top of `ListAsync`.
 
 Actor-addressed remote actor calls:
 
@@ -313,8 +396,8 @@ await rooms.Get(roomId).SubmitInputAsync(input, cancellationToken);
 ```
 
 This finds a concrete actor route and dispatches through a
-`ClusterActorEnvelope`. It is appropriate for addressable state units such as
-rooms, player sessions, and leaderboard actors.
+`ClusterActorEnvelope`. Use actor-addressed calls for addressable state units
+such as rooms, player sessions, and leaderboard actors.
 
 Boundary:
 
@@ -345,7 +428,7 @@ feature on another node sends a notification to the session route. The gateway
 receives the cluster message, looks up the local connection and callback, and
 invokes the callback in its own process.
 
-Recommended API shape:
+V1 API shape:
 
 ```csharp
 await clientNotifications
@@ -357,9 +440,9 @@ The caller expresses business intent: notify this session. The framework owns
 route lookup, gateway delivery, local callback lookup, timeout handling, and
 transport failure mapping.
 
-Session routes should include session generation rather than only player id.
-This avoids delivering messages to a stale connection after reconnect or
-multi-device login.
+Session routes must include session generation rather than only player id. This
+avoids delivering messages to a stale connection after reconnect or multi-device
+login.
 
 For reliable notifications, the business owner creates the durable or
 replayable notification record and the gateway acts as the transport relay:
@@ -401,8 +484,9 @@ Initial statuses:
 - `DeserializationFailed`
 - `Rejected`
 
-Business-facing generated APIs should normally throw typed exceptions instead
-of requiring every caller to switch over status codes.
+Business-facing generated APIs must throw typed exceptions instead of requiring
+every caller to switch over status codes. Lower-level framework APIs may expose
+status-returning calls for routing, diagnostics, and retry policy.
 
 ## Startup Order
 
@@ -445,6 +529,31 @@ endpoints:
 The data node owns database connections, persistent state access, matchmaking
 policy, room assignment state, and leaderboard updates.
 
+Configuration:
+
+```json
+{
+  "Lakona": {
+    "Node": {
+      "Id": "data-1"
+    },
+    "Feature": [
+      "database",
+      "state-store",
+      "matchmaking",
+      "leaderboard"
+    ],
+    "Cluster": {
+      "Endpoint": "tcp://10.0.0.1:21001",
+      "Seeds": [ "tcp://10.0.0.1:21001" ]
+    }
+  }
+}
+```
+
+`database` must be first because it registers and validates database access for
+later data-node features. `database` is not discoverable.
+
 ### Gateway Node
 
 ```txt
@@ -464,6 +573,36 @@ The gateway node owns WebSocket connections, client callback bindings, and
 transport admission. It does not connect to the database and does not own
 matchmaking policy. Its RPC handlers decide how to call data-node features.
 
+Configuration:
+
+```json
+{
+  "Lakona": {
+    "Node": {
+      "Id": "gateway-1"
+    },
+    "Feature": [],
+    "Endpoints": [
+      {
+        "Transport": "websocket",
+        "Host": "0.0.0.0",
+        "Port": 20000,
+        "Path": "/ws",
+        "AdvertisedHost": "game.example.com",
+        "RpcServices": [ "login", "player" ]
+      }
+    ],
+    "Cluster": {
+      "Endpoint": "tcp://10.0.0.2:21002",
+      "Seeds": [ "tcp://10.0.0.1:21001" ]
+    }
+  }
+}
+```
+
+`Feature: []` is valid. It means the node exposes transport endpoints and RPC
+services but starts no application features.
+
 ### Battle Node
 
 ```txt
@@ -481,6 +620,32 @@ cluster:
 The battle node owns KCP realtime connections, active room simulation, local
 realtime callback bindings, world-state push, and match settlement publication.
 
+Configuration:
+
+```json
+{
+  "Lakona": {
+    "Node": {
+      "Id": "battle-1"
+    },
+    "Feature": [ "battle-runtime" ],
+    "Endpoints": [
+      {
+        "Transport": "kcp",
+        "Host": "0.0.0.0",
+        "Port": 20001,
+        "AdvertisedHost": "battle.example.com",
+        "RpcServices": [ "battle" ]
+      }
+    ],
+    "Cluster": {
+      "Endpoint": "tcp://10.0.0.3:21003",
+      "Seeds": [ "tcp://10.0.0.1:21001" ]
+    }
+  }
+}
+```
+
 ## Agar Data Flow
 
 Login:
@@ -488,8 +653,9 @@ Login:
 ```txt
 Unity client
   -> gateway-1 websocket login RPC
-  -> gateway handler calls data-1 state-store through project-owned composition
+  -> gateway handler calls data-1 state-store through message bus or remote actor
   -> gateway stores control callback locally
+  -> gateway registers client-session route for GameSessionKey
   -> login reply returns over websocket
 ```
 
@@ -554,11 +720,13 @@ battle-1
 
 - Three independent processes start with `Lakona` configuration.
 - Node directory can see `data-1`, `gateway-1`, and `battle-1`.
-- Node directory can discover `state-store`, `matchmaking`, `leaderboard`, and
-  `battle-runtime` features where appropriate.
+- Node directory can discover `state-store`, `matchmaking`, and `leaderboard`
+  on `data-1`.
+- Node directory can discover `battle-runtime` on `battle-1`.
 - `gateway-1` exposes only WebSocket `login` and `player` RPC services.
 - `battle-1` exposes only KCP `battle` RPC service.
 - A Unity client logs in through `gateway-1`.
+- Login registers a client-session route owned by `gateway-1`.
 - Matchmaking allocates a room on `battle-1`.
 - The client receives the battle KCP endpoint and attaches to `battle-1`.
 - A player actor on `data-1` can send a notification through the client-session
@@ -579,10 +747,40 @@ battle-1
 - Complex feature dependency graphs.
 - Framework-owned matchmaking, account, room, or persistence policy.
 
+## Implementation Handoff Checklist
+
+The implementation agent must work in this order:
+
+1. Add `Lakona` configuration binding while preserving old `Lakona.Game`
+   compatibility only where explicitly needed for migration tests.
+2. Implement feature discovery, name normalization, configured ordering, empty
+   feature arrays, and lifecycle hooks.
+3. Implement RPC service binder discovery through `LakonaRpcServiceAttribute`
+   and endpoint `RpcServices`.
+4. Enforce one endpoint per transport and remove endpoint `Name` from new
+   configuration paths.
+5. Replace cluster service types with feature types in public cluster contracts.
+6. Register node endpoint maps with `cluster` plus transport keys.
+7. Implement feature discovery with `FeatureName`.
+8. Implement feature-addressed request/reply message bus.
+9. Implement client-session route registration and gateway notification relay.
+10. Update Agar to the three-node acceptance topology and add the remote player
+    notification example.
+
+The implementation agent must not:
+
+- add `Lakona:Cluster:Services`
+- keep `ClusterService` in public API
+- add endpoint `Name`
+- require a fluent `Program.cs` feature catalog for generated projects
+- make `RpcService` depend on `Feature` in configuration
+- pass callback objects across nodes
+- connect the gateway node directly to the database in the Agar acceptance path
+
 ## Migration Direction
 
-Current configuration and APIs still use `Lakona.Game` in places. The long-term
-runtime root is `Lakona`. Migration should update:
+Current configuration and APIs still use `Lakona.Game` in places. The V1
+runtime root is `Lakona`. Migration must update:
 
 - configuration binding paths
 - diagnostics paths
@@ -591,15 +789,15 @@ runtime root is `Lakona`. Migration should update:
 - samples
 - docs
 
-Current cluster code also uses service terminology. Migration should remove the
+Current cluster code also uses service terminology. Migration must remove the
 public cluster service concept:
 
 - replace `NodeServiceDescriptor` with `NodeFeatureDescriptor`
 - replace `NodeRegistration.Services` with `NodeRegistration.Features`
 - replace `NodeRecord.Services` with `NodeRecord.Features`
 - replace service graph diagnostics with feature diagnostics
-- remove `Lakona:Cluster:Services` from user-facing configuration
+- remove `Lakona:Cluster:Services` from all new configuration paths
 - rename `ClusterFeature` to `FeatureName`
 
-DI services remain DI services. Only cluster membership and discovery should
-avoid the service terminology.
+DI services remain DI services. Cluster membership and discovery must avoid the
+service terminology.
