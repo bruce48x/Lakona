@@ -183,6 +183,27 @@ public sealed class InMemoryRouteDirectoryTests
     }
 
     [Fact]
+    public async Task UnregisterRemovesOnlyMatchingRoute()
+    {
+        var directory = new InMemoryRouteDirectory();
+        var now = DateTimeOffset.UtcNow;
+        await directory.RegisterAsync(
+            new RouteLocation("room/1", "node-a", new NodeEndpoint("in-memory://node-a"), now.AddMinutes(1)),
+            TestContext.Current.CancellationToken);
+        await directory.RegisterAsync(
+            new RouteLocation("room/2", "node-a", new NodeEndpoint("in-memory://node-a"), now.AddMinutes(1)),
+            TestContext.Current.CancellationToken);
+
+        var removed = await directory.UnregisterAsync("room/1", TestContext.Current.CancellationToken);
+        var missing = await directory.UnregisterAsync("room/missing", TestContext.Current.CancellationToken);
+
+        Assert.Equal(RouteUnregisterStatus.Removed, removed);
+        Assert.Equal(RouteUnregisterStatus.NotFound, missing);
+        Assert.Null(await directory.ResolveAsync("room/1", now, TestContext.Current.CancellationToken));
+        Assert.NotNull(await directory.ResolveAsync("room/2", now, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public void RouteLocationContainsOnlySerializableLocationState()
     {
         var propertyTypes = typeof(RouteLocation)

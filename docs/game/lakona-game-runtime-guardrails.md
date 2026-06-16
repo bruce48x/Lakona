@@ -38,14 +38,10 @@ Generated projects should call framework APIs for default derivation when possib
 Suggested generated host shape:
 
 ```csharp
-builder.Services.AddLakonaGame(builder.Configuration, game =>
-{
-    game.Feature<LoginFeature>("login").RequiresTransport("websocket");
-    game.Feature<BattleFeature>("battle").RequiresTransport("kcp");
-});
+builder.Services.AddLakonaGame(builder.Configuration);
 ```
 
-This keeps generated projects aligned with the Feature Catalog startup model in [Lakona.Game Configuration And Startup Model](lakona-game-configuration-startup.md). When a default rule improves in the framework, projects should benefit by updating package versions rather than by regenerating their server host.
+This keeps generated projects aligned with convention-based Feature discovery in [Lakona.Game Configuration And Startup Model](lakona-game-configuration-startup.md). When a default rule improves in the framework, projects should benefit by updating package versions rather than by regenerating their server host.
 
 ## Validation Levels
 
@@ -62,7 +58,7 @@ Use errors for framework invariants:
 - endpoint scheme, transport, and path are inconsistent
 - WebSocket transport cannot derive a listener path
 - endpoint transport names are duplicated where the framework needs one endpoint per transport
-- cluster service names are duplicated
+- endpoint `RpcServices` are duplicated or unknown
 - cluster service kind is unknown
 - gateway service is configured without reachable route-directory or node-directory support
 - advertised endpoint cannot be parsed
@@ -215,7 +211,7 @@ Suggested validator groups:
 
 - `NodeIdentityRules`
 - `EndpointRules`
-- `ClusterServiceGraphRules`
+- `ClusterNodeDiscoveryRules`
 - `HotfixSourceRules`
 - `ReliablePushIdentityRules`
 - `ProductionReadinessRules`
@@ -245,7 +241,7 @@ Initial code families:
 
 - `ULINK001-ULINK019`: node identity and profile
 - `ULINK020-ULINK039`: endpoint and advertised addresses
-- `ULINK040-ULINK069`: cluster services, node directory, route directory
+- `ULINK040-ULINK069`: cluster feature discovery, node directory, route directory
 - `ULINK070-ULINK089`: hotfix loading and dispatch
 - `ULINK090-ULINK109`: Reliable Push and session identity
 - `ULINK110-ULINK129`: production readiness
@@ -332,7 +328,7 @@ Generated readiness checks should call the same runtime validation pipeline used
 
 Liveness failure must imply readiness failure. Readiness failure does not necessarily imply liveness failure; for example, a missing hotfix assembly means the process is alive but not ready.
 
-Cluster profile liveness validates node id, advertised endpoints, configured cluster services, and non-empty endpoint keys/values. Standalone liveness validates node id and configured business endpoints, and skips cluster service graph requirements.
+Cluster profile liveness validates node id, advertised endpoints, configured feature descriptors, and non-empty endpoint keys/values. Standalone liveness validates node id and configured business endpoints, and skips cluster feature discovery requirements.
 
 Readiness output should format diagnostics for humans:
 
@@ -380,7 +376,7 @@ Default generated configuration should remain compact:
 
 ```json
 {
-  "Lakona.Game": {
+  "Lakona": {
     "Node": {
       "Id": "dev-1"
     },
@@ -388,7 +384,8 @@ Default generated configuration should remain compact:
       {
         "Transport": "kcp",
         "Host": "127.0.0.1",
-        "Port": 20000
+        "Port": 20000,
+        "RpcServices": [ "login", "chat" ]
       }
     ]
   }
@@ -401,32 +398,35 @@ Acceptable advanced values:
 
 - node id
 - endpoint transports, hosts, ports, paths, and advertised addresses
-- compact `Lakona.Game:Feature` selection for process-local startup composition
+- endpoint-local `RpcServices`
+- compact `Lakona:Feature` selection for process-local startup composition
 - topology or operational profile selected outside the framework schema
 - persistent storage provider and connection string names
 
-Advanced configuration should still use user-facing Lakona.Game concepts:
+Advanced configuration should still use user-facing Lakona concepts:
 
 ```json
 {
-  "Lakona.Game": {
+  "Lakona": {
     "Node": {
       "Id": "gateway-1"
     },
-    "Feature": ["login", "battle"],
+    "Feature": ["login", "battle-runtime"],
     "Endpoints": [
       {
         "Transport": "websocket",
         "Host": "0.0.0.0",
         "Port": 20000,
         "Path": "/ws",
-        "AdvertisedHost": "game.example.com"
+        "AdvertisedHost": "game.example.com",
+        "RpcServices": [ "login", "player" ]
       },
       {
         "Transport": "kcp",
         "Host": "0.0.0.0",
         "Port": 20001,
-        "AdvertisedHost": "game.example.com"
+        "AdvertisedHost": "game.example.com",
+        "RpcServices": [ "battle" ]
       }
     ]
   }
@@ -448,7 +448,7 @@ Avoid user-facing defaults for:
 - `Cluster.Directory`
 - top-level business endpoint sections such as `ControlPlane` or `Realtime`
 - derived bootstrap endpoints
-- derived service lists for the default local topology
+- derived feature lists for the default local topology
 
 ## Validation Contract
 

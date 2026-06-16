@@ -16,7 +16,7 @@ public sealed class ClusterNodeDiscoveryTests
         await RegisterAsync(directory, "node-starting", "room", NodeState.Starting, now);
         var discovery = new ClusterNodeDiscovery(directory);
 
-        var nodes = await discovery.ListAsync(new ClusterFeature("room"), TestContext.Current.CancellationToken);
+        var nodes = await discovery.ListAsync(new FeatureName("room"), TestContext.Current.CancellationToken);
 
         Assert.Collection(
             nodes,
@@ -24,13 +24,15 @@ public sealed class ClusterNodeDiscoveryTests
             {
                 Assert.Equal(new NodeId("node-room-a"), node.Node);
                 Assert.Equal(NodeState.Ready, node.State);
-                Assert.Contains(node.Services, service => service.Kind == "room");
+                Assert.Contains(node.Features, feature => feature.Name == "room");
+                Assert.Equal("tcp://node-room-a:21000", node.Endpoints["cluster"].Address);
             },
             node =>
             {
                 Assert.Equal(new NodeId("node-room-b"), node.Node);
                 Assert.Equal(NodeState.Ready, node.State);
-                Assert.Contains(node.Services, service => service.Kind == "room");
+                Assert.Contains(node.Features, feature => feature.Name == "room");
+                Assert.Equal("tcp://node-room-b:21000", node.Endpoints["cluster"].Address);
             });
     }
 
@@ -43,9 +45,10 @@ public sealed class ClusterNodeDiscoveryTests
         await RegisterAsync(directory, "node-a", "room", NodeState.Ready, now);
         var discovery = new ClusterNodeDiscovery(directory);
 
-        var node = await discovery.AnyAsync(new ClusterFeature("room"), TestContext.Current.CancellationToken);
+        var node = await discovery.AnyAsync(new FeatureName("room"), TestContext.Current.CancellationToken);
 
-        Assert.Equal(new NodeId("node-a"), node);
+        Assert.NotNull(node);
+        Assert.Equal(new NodeId("node-a"), node!.Node);
     }
 
     [Fact]
@@ -56,7 +59,7 @@ public sealed class ClusterNodeDiscoveryTests
         await RegisterAsync(directory, "node-chat", "chat", NodeState.Ready, now);
         var discovery = new ClusterNodeDiscovery(directory);
 
-        var node = await discovery.AnyAsync(new ClusterFeature("room"), TestContext.Current.CancellationToken);
+        var node = await discovery.AnyAsync(new FeatureName("room"), TestContext.Current.CancellationToken);
 
         Assert.Null(node);
     }
@@ -76,7 +79,7 @@ public sealed class ClusterNodeDiscoveryTests
                 {
                     ["cluster"] = new NodeEndpoint($"tcp://{node}:21000")
                 },
-                [new NodeServiceDescriptor(feature)],
+                [new NodeFeatureDescriptor(feature)],
                 now.AddMinutes(5),
                 state),
             now);

@@ -36,11 +36,11 @@ public sealed class LakonaGameRuntimeValidatorTests
         var value = new LakonaGameResolvedValue<string>(
             "dev-1",
             LakonaGameValueSource.Configuration,
-            "Lakona.Game:Node:Id");
+            "Lakona:Node:Id");
 
         Assert.Equal("dev-1", value.Value);
         Assert.Equal(LakonaGameValueSource.Configuration, value.Source);
-        Assert.Equal("Lakona.Game:Node:Id", value.Path);
+        Assert.Equal("Lakona:Node:Id", value.Path);
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     {
         var runtime = TestRuntime() with
         {
-            NodeId = new LakonaGameResolvedValue<string>("", LakonaGameValueSource.Configuration, "Lakona.Game:Node:Id")
+            NodeId = new LakonaGameResolvedValue<string>("", LakonaGameValueSource.Configuration, "Lakona:Node:Id")
         };
         var result = Validate(runtime);
 
@@ -97,26 +97,6 @@ public sealed class LakonaGameRuntimeValidatorTests
         var diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "ULINK071");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Equal("dotnet build Server/Hotfix/Server.Hotfix.csproj", diagnostic.Repair);
-    }
-
-    [Fact]
-    public void RuntimeValidator_Fails_WhenClusterServiceNameIsDuplicated()
-    {
-        var runtime = TestRuntime() with
-        {
-            Cluster = TestRuntime().Cluster with
-            {
-                Services =
-                [
-                    new LakonaGameResolvedClusterService("gateway", "gateway"),
-                    new LakonaGameResolvedClusterService("gateway", "gateway")
-                ]
-            }
-        };
-        var result = Validate(runtime);
-
-        Assert.False(result.Succeeded);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "ULINK041");
     }
 
     [Fact]
@@ -234,12 +214,33 @@ public sealed class LakonaGameRuntimeValidatorTests
     }
 
     [Fact]
+    public void EndpointRule_rejects_duplicate_rpc_services_within_endpoint()
+    {
+        var runtime = TestRuntime() with
+        {
+            Endpoints =
+            [
+                TestEndpoint(
+                    "websocket",
+                    "127.0.0.1",
+                    20000,
+                    path: "/ws",
+                    rpcServices: ["login", "Login"])
+            ]
+        };
+
+        var result = Validate(runtime);
+
+        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK027");
+    }
+
+    [Fact]
     public void ClusterEndpointRule_rejects_missing_endpoint_when_cluster_is_configured()
     {
         var runtime = TestRuntime() with
         {
             ClusterEndpoint = new LakonaGameResolvedClusterEndpoint(
-                Endpoint: new LakonaGameResolvedValue<string>("", LakonaGameValueSource.Configuration, "Lakona.Game:Cluster:Endpoint"),
+                Endpoint: new LakonaGameResolvedValue<string>("", LakonaGameValueSource.Configuration, "Lakona:Cluster:Endpoint"),
                 Seeds: [])
         };
 
@@ -295,10 +296,9 @@ public sealed class LakonaGameRuntimeValidatorTests
     private static LakonaGameResolvedRuntime TestRuntime()
     {
         return new LakonaGameResolvedRuntime(
-            NodeId: new LakonaGameResolvedValue<string>("dev-1", LakonaGameValueSource.Configuration, "Lakona.Game:Node:Id"),
+            NodeId: new LakonaGameResolvedValue<string>("dev-1", LakonaGameValueSource.Configuration, "Lakona:Node:Id"),
             Endpoints: [TestEndpoint("kcp", "127.0.0.1", 20000)],
             Cluster: new LakonaGameResolvedCluster(
-                Services: [new LakonaGameResolvedClusterService("gateway", "gateway")],
                 AdvertisedEndpoints: new Dictionary<string, string> { ["client"] = "kcp://127.0.0.1:20000" }),
             ClusterEndpoint: null,
             Feature: new LakonaGameResolvedFeature(
@@ -321,7 +321,8 @@ public sealed class LakonaGameRuntimeValidatorTests
         string host,
         int port,
         string path = "",
-        string advertisedHost = "")
+        string advertisedHost = "",
+        IReadOnlyList<string>? rpcServices = null)
     {
         return new LakonaGameResolvedEndpoint(
             Transport: new LakonaGameResolvedValue<string>(transport, LakonaGameValueSource.Configuration),
@@ -329,13 +330,14 @@ public sealed class LakonaGameRuntimeValidatorTests
             Port: new LakonaGameResolvedValue<int>(port, LakonaGameValueSource.Configuration),
             Path: new LakonaGameResolvedValue<string>(path, LakonaGameValueSource.Configuration),
             AdvertisedHost: new LakonaGameResolvedValue<string>(advertisedHost, LakonaGameValueSource.Configuration),
-            AdvertisedEndpoint: new LakonaGameResolvedValue<string>($"{transport}://{host}:{port}{path}", LakonaGameValueSource.GeneratedConvention));
+            AdvertisedEndpoint: new LakonaGameResolvedValue<string>($"{transport}://{host}:{port}{path}", LakonaGameValueSource.GeneratedConvention),
+            RpcServices: rpcServices ?? []);
     }
 
     private static LakonaGameResolvedClusterEndpoint TestClusterEndpoint(string endpoint)
     {
         return new LakonaGameResolvedClusterEndpoint(
-            Endpoint: new LakonaGameResolvedValue<string>(endpoint, LakonaGameValueSource.Configuration, "Lakona.Game:Cluster:Endpoint"),
+            Endpoint: new LakonaGameResolvedValue<string>(endpoint, LakonaGameValueSource.Configuration, "Lakona:Cluster:Endpoint"),
             Seeds: []);
     }
 
@@ -346,8 +348,7 @@ public sealed class LakonaGameRuntimeValidatorTests
                 new NodeIdentityRule(),
                 new EndpointRule(),
                 new ClusterEndpointRule(),
-                new HotfixSourceRule(),
-                new ClusterServiceGraphRule()
+                new HotfixSourceRule()
             ]);
 
         return validator.Validate(runtime);

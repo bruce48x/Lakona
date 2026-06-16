@@ -13,7 +13,7 @@ namespace Lakona.Game.Cluster
             string clusterName,
             NodeId nodeId,
             IReadOnlyDictionary<string, NodeEndpoint> endpoints,
-            IReadOnlyList<NodeServiceDescriptor> services,
+            IReadOnlyList<NodeFeatureDescriptor> features,
             DateTimeOffset leaseExpiresAt,
             NodeState state = NodeState.Starting,
             IReadOnlyDictionary<string, string>? labels = null)
@@ -26,7 +26,7 @@ namespace Lakona.Game.Cluster
             ClusterName = clusterName;
             NodeId = nodeId;
             Endpoints = CopyEndpoints(endpoints);
-            Services = CopyServices(services);
+            Features = CopyFeatures(features);
             Labels = CopyStringDictionary(labels, nameof(labels));
             State = state;
             LeaseExpiresAt = leaseExpiresAt;
@@ -38,7 +38,7 @@ namespace Lakona.Game.Cluster
 
         public IReadOnlyDictionary<string, NodeEndpoint> Endpoints { get; }
 
-        public IReadOnlyList<NodeServiceDescriptor> Services { get; }
+        public IReadOnlyList<NodeFeatureDescriptor> Features { get; }
 
         public IReadOnlyDictionary<string, string> Labels { get; }
 
@@ -73,26 +73,21 @@ namespace Lakona.Game.Cluster
             return new ReadOnlyDictionary<string, NodeEndpoint>(copy);
         }
 
-        private static IReadOnlyList<NodeServiceDescriptor> CopyServices(
-            IReadOnlyList<NodeServiceDescriptor> services)
+        private static IReadOnlyList<NodeFeatureDescriptor> CopyFeatures(
+            IReadOnlyList<NodeFeatureDescriptor> features)
         {
-            if (services is null)
+            if (features is null)
             {
-                throw new ArgumentNullException(nameof(services));
+                throw new ArgumentNullException(nameof(features));
             }
 
-            if (services.Count == 0)
+            var copy = new List<NodeFeatureDescriptor>(features.Count);
+            for (var i = 0; i < features.Count; i++)
             {
-                throw new ArgumentException("Node registration requires at least one service.", nameof(services));
+                copy.Add(features[i] ?? throw new ArgumentException("Node feature cannot be null.", nameof(features)));
             }
 
-            var copy = new List<NodeServiceDescriptor>(services.Count);
-            for (var i = 0; i < services.Count; i++)
-            {
-                copy.Add(services[i] ?? throw new ArgumentException("Node service cannot be null.", nameof(services)));
-            }
-
-            return new ReadOnlyCollection<NodeServiceDescriptor>(copy);
+            return new ReadOnlyCollection<NodeFeatureDescriptor>(copy);
         }
 
         private static IReadOnlyDictionary<string, string> CopyStringDictionary(

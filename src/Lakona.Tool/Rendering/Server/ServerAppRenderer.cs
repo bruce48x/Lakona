@@ -113,6 +113,7 @@ internal sealed class ServerAppRenderer : IPlanContributor
         using Microsoft.Extensions.DependencyInjection;
         using Server.App.Generated;
         using Server.App.Lifecycle;
+        using Lakona.Game.Server.Features;
         using Lakona.Game.Server.Hosting;
         using Lakona.Game.Server.Sessions;
         using Lakona.Rpc.Core;
@@ -123,8 +124,9 @@ internal sealed class ServerAppRenderer : IPlanContributor
             .UseTransport("{{transportValue}}")
             .UseSerializer(() => {{serializerExpression}})
             .UseAcceptor({{acceptorExpression}})
-            .AddServices(services =>
+            .AddServices((services, configuration) =>
             {
+                services.AddLakonaGame(configuration);
                 services.AddLakonaGameServerSessionCleanup(options =>
                 {
                     options.DisconnectedSessionRetention = TimeSpan.FromSeconds(30);
@@ -260,7 +262,8 @@ internal sealed class ServerAppRenderer : IPlanContributor
         {
             ["Transport"] = ToolEnumText.ToCliValue(spec.Transport),
             ["Host"] = "127.0.0.1",
-            ["Port"] = 20000
+            ["Port"] = 20000,
+            ["RpcServices"] = new[] { "login", "chat" }
         };
         if (spec.Transport == TransportKind.WebSocket)
         {
@@ -269,7 +272,7 @@ internal sealed class ServerAppRenderer : IPlanContributor
 
         var settings = new Dictionary<string, object?>
         {
-            ["Lakona.Game"] = new Dictionary<string, object?>
+            ["Lakona"] = new Dictionary<string, object?>
             {
                 ["Node"] = new Dictionary<string, object?>
                 {

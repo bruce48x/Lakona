@@ -68,7 +68,7 @@ public sealed class SqlNodeDirectoryTests
     }
 
     [Fact]
-    public async Task QueryFiltersByPersistedServiceKind()
+    public async Task QueryFiltersByPersistedFeatureName()
     {
         await using var database = await OpenSharedDatabaseAsync();
         await SqlNodeDirectorySchema.EnsureCreatedAsync(
@@ -87,7 +87,7 @@ public sealed class SqlNodeDirectoryTests
             TestContext.Current.CancellationToken);
 
         var rooms = await directory.QueryAsync(
-            new NodeDirectoryQuery("local", serviceKind: "room"),
+            new NodeDirectoryQuery("local", featureName: "room"),
             now,
             TestContext.Current.CancellationToken);
 
@@ -430,7 +430,7 @@ public sealed class SqlNodeDirectoryTests
         string clusterName,
         string nodeId,
         DateTimeOffset now,
-        string serviceKind = "gateway",
+        string featureName = "gateway",
         DateTimeOffset? leaseExpiresAt = null)
     {
         return new NodeRegistration(
@@ -447,11 +447,11 @@ public sealed class SqlNodeDirectoryTests
             },
             new[]
             {
-                new NodeServiceDescriptor(
-                    serviceKind,
+                new NodeFeatureDescriptor(
+                    featureName,
                     metadata: new Dictionary<string, string>
                     {
-                        ["role"] = serviceKind
+                        ["role"] = featureName
                     })
             },
             leaseExpiresAt ?? now.AddSeconds(30),

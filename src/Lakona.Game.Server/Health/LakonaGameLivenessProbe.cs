@@ -28,12 +28,6 @@ public static class LakonaGameLivenessProbe
             return 1;
         }
 
-        if (options.Services.Count == 0)
-        {
-            Console.Error.WriteLine("Cluster liveness check failed: at least one cluster service is required.");
-            return 1;
-        }
-
         foreach (var endpoint in options.AdvertisedEndpoints)
         {
             if (string.IsNullOrWhiteSpace(endpoint.Key) ||

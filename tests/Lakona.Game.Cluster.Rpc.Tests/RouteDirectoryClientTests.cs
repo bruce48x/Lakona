@@ -29,6 +29,10 @@ public sealed class RouteDirectoryClientTests
         {
             Status = (int)RouteLeaseRefreshStatus.Refreshed
         });
+        client.Enqueue(new RouteUnregisterReply
+        {
+            Status = (int)RouteUnregisterStatus.Removed
+        });
         client.Enqueue(new RouteExpireReply
         {
             Removed = 1
@@ -45,12 +49,14 @@ public sealed class RouteDirectoryClientTests
         var register = await directory.RegisterAsync(location, TestContext.Current.CancellationToken);
         var resolved = await directory.ResolveAsync(location.Route, now, TestContext.Current.CancellationToken);
         var refresh = await directory.RefreshLeaseAsync(location, now.AddMinutes(2), now, TestContext.Current.CancellationToken);
+        var unregister = await directory.UnregisterAsync(location.Route, TestContext.Current.CancellationToken);
         var expired = await directory.ExpireAsync(now.AddMinutes(3), TestContext.Current.CancellationToken);
         var clearedByNode = await directory.ClearByNodeAsync(location.Node, TestContext.Current.CancellationToken);
         var clearedByEpoch = await directory.ClearByNodeEpochAsync(location.Node, location.NodeEpoch, TestContext.Current.CancellationToken);
 
         Assert.Equal(RouteRegistrationStatus.Registered, register);
         Assert.Equal(RouteLeaseRefreshStatus.Refreshed, refresh);
+        Assert.Equal(RouteUnregisterStatus.Removed, unregister);
         Assert.Equal(1, expired);
         Assert.Equal(2, clearedByNode);
         Assert.Equal(3, clearedByEpoch);
@@ -65,6 +71,7 @@ public sealed class RouteDirectoryClientTests
             ClusterProtocol.RegisterRouteMethodId,
             ClusterProtocol.ResolveRouteMethodId,
             ClusterProtocol.RefreshRouteLeaseMethodId,
+            ClusterProtocol.UnregisterRouteMethodId,
             ClusterProtocol.ExpireRoutesMethodId,
             ClusterProtocol.ClearRoutesByNodeMethodId,
             ClusterProtocol.ClearRoutesByNodeEpochMethodId
@@ -109,6 +116,22 @@ public sealed class RouteDirectoryClientTests
                 ExpiresAt = now.AddMinutes(2),
                 Now = now
             });
+        var unregister = await InvokeAsync<RouteUnregisterRequest, RouteUnregisterReply>(
+            registry,
+            session,
+            ClusterProtocol.UnregisterRouteMethodId,
+            new RouteUnregisterRequest
+            {
+                Route = location.Route.Value
+            });
+        await InvokeAsync<RouteRegisterRequest, RouteRegisterReply>(
+            registry,
+            session,
+            ClusterProtocol.RegisterRouteMethodId,
+            new RouteRegisterRequest
+            {
+                Location = RouteLocationConverter.ToDto(location)
+            });
         var clear = await InvokeAsync<RouteClearByNodeEpochRequest, RouteClearReply>(
             registry,
             session,
@@ -123,6 +146,7 @@ public sealed class RouteDirectoryClientTests
         Assert.NotNull(resolve.Location);
         Assert.Equal(location.Route.Value, resolve.Location.Route);
         Assert.Equal(RouteLeaseRefreshStatus.Refreshed, (RouteLeaseRefreshStatus)refresh.Status);
+        Assert.Equal(RouteUnregisterStatus.Removed, (RouteUnregisterStatus)unregister.Status);
         Assert.Equal(1, clear.Removed);
     }
 

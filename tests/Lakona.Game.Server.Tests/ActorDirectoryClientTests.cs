@@ -128,14 +128,14 @@ public sealed class ActorDirectoryClientTests
         public int AnyCallCount { get; private set; }
 
         public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> ListAsync(
-            ClusterFeature feature,
+            FeatureName feature,
             CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
 
-        public ValueTask<NodeId?> AnyAsync(
-            ClusterFeature feature,
+        public ValueTask<ClusterNodeDescriptor?> AnyAsync(
+            FeatureName feature,
             CancellationToken cancellationToken = default)
         {
             Assert.Equal(ActorDirectoryFeatures.ActorDirectory, feature);
@@ -143,10 +143,19 @@ public sealed class ActorDirectoryClientTests
 
             if (_nextNode >= Nodes.Count)
             {
-                return ValueTask.FromResult<NodeId?>(null);
+                return ValueTask.FromResult<ClusterNodeDescriptor?>(null);
             }
 
-            return ValueTask.FromResult<NodeId?>(Nodes[_nextNode++]);
+            var node = Nodes[_nextNode++];
+            var descriptor = new ClusterNodeDescriptor(
+                node,
+                NodeState.Ready,
+                new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal)
+                {
+                    ["cluster"] = new NodeEndpoint($"tcp://{node.Value}:21000")
+                },
+                [new NodeFeatureDescriptor(feature.Value)]);
+            return ValueTask.FromResult<ClusterNodeDescriptor?>(descriptor);
         }
     }
 

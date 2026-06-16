@@ -8,18 +8,10 @@ public sealed class ClusterOptions
     public IReadOnlyDictionary<string, string> AdvertisedEndpoints { get; init; } =
         new Dictionary<string, string>
         {
-            ["cluster"] = "tcp://127.0.0.1:21000",
-            ["client"] = "tcp://127.0.0.1:20000"
+            ["cluster"] = "tcp://127.0.0.1:21000"
         };
     public ClusterBootstrapOptions Bootstrap { get; init; } = new();
     public ClusterNodeDirectoryOptions NodeDirectory { get; init; } = new();
-    public IReadOnlyList<ClusterServiceOptions> Services { get; init; } =
-        new[]
-        {
-            new ClusterServiceOptions { Kind = "node-directory", Name = "node-directory" },
-            new ClusterServiceOptions { Kind = "route-directory", Name = "route-directory" },
-            new ClusterServiceOptions { Kind = "gateway", Name = "gateway" }
-        };
     public int RouteLeaseSeconds { get; init; } = 30;
     public int SendTimeoutMilliseconds { get; init; } = 2000;
 }
@@ -100,10 +92,4 @@ public sealed class ClusterNodeDirectoryStorageOptions
         var value = section[name];
         return string.IsNullOrWhiteSpace(value) ? fallback : value;
     }
-}
-
-public sealed class ClusterServiceOptions
-{
-    public string Kind { get; init; } = "";
-    public string Name { get; init; } = "";
 }

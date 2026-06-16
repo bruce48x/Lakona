@@ -580,7 +580,7 @@ Generated `Server/App/appsettings.json` contains only compact source values:
 
 ```json
 {
-  "Lakona.Game": {
+  "Lakona": {
     "Node": {
       "Id": "dev-1"
     },
@@ -588,7 +588,8 @@ Generated `Server/App/appsettings.json` contains only compact source values:
       {
         "Transport": "kcp",
         "Host": "127.0.0.1",
-        "Port": 20000
+        "Port": 20000,
+        "RpcServices": [ "login", "chat" ]
       }
     ]
   }
@@ -596,6 +597,16 @@ Generated `Server/App/appsettings.json` contains only compact source values:
 ```
 
 For WebSocket transport, include only `"Path": "/ws"` in the endpoint entry.
+Feature activation is convention-based by default: generated `Program.cs`
+registers `services.AddLakonaGame(configuration)` inside the `LakonaGameServer`
+service-registration callback and does not emit a fluent feature catalog. If a
+generated project later splits into multiple processes,
+use `Lakona:Feature` to select discovered `LakonaGameFeature` types by their
+conventional names.
+
+RPC service exposure is endpoint-local. Put generated service names in the
+endpoint's `RpcServices` array; do not generate endpoint `Name` or
+`Lakona:Cluster:Services`.
 
 Do not generate these keys:
 
@@ -608,6 +619,7 @@ Do not generate these keys:
 - `Cluster.Directory`
 - `Services`
 - `Bootstrap`
+- endpoint `Name`
 
 Derived runtime state belongs in generated server code and check output, not
 default JSON.

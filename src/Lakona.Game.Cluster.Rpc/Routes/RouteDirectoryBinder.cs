@@ -25,6 +25,7 @@ namespace Lakona.Game.Cluster.Rpc
 
             registry.Register(ClusterProtocol.ServiceId, ClusterProtocol.RegisterRouteMethodId, RegisterAsync);
             registry.Register(ClusterProtocol.ServiceId, ClusterProtocol.ResolveRouteMethodId, ResolveAsync);
+            registry.Register(ClusterProtocol.ServiceId, ClusterProtocol.UnregisterRouteMethodId, UnregisterAsync);
             registry.Register(ClusterProtocol.ServiceId, ClusterProtocol.RefreshRouteLeaseMethodId, RefreshLeaseAsync);
             registry.Register(ClusterProtocol.ServiceId, ClusterProtocol.ExpireRoutesMethodId, ExpireAsync);
             registry.Register(ClusterProtocol.ServiceId, ClusterProtocol.ClearRoutesByNodeMethodId, ClearByNodeAsync);
@@ -71,6 +72,20 @@ namespace Lakona.Game.Cluster.Rpc
             return EncodeReply(session, request, new RouteResolveReply
             {
                 Location = location is null ? null : RouteLocationConverter.ToDto(location)
+            });
+        }
+
+        private async ValueTask<TransportFrame> UnregisterAsync(
+            RpcSession session,
+            RpcRequestFrame request,
+            CancellationToken cancellationToken)
+        {
+            var dto = session.Serializer.Deserialize<RouteUnregisterRequest>(request.Payload.Memory);
+            var status = await _directory.UnregisterAsync(dto.Route, cancellationToken).ConfigureAwait(false);
+
+            return EncodeReply(session, request, new RouteUnregisterReply
+            {
+                Status = (int)status
             });
         }
 

@@ -10,6 +10,10 @@ namespace Lakona.Game.Cluster
             RouteLocation location,
             CancellationToken cancellationToken = default);
 
+        ValueTask<RouteUnregisterStatus> UnregisterAsync(
+            RouteKey route,
+            CancellationToken cancellationToken = default);
+
         ValueTask<RouteLocation?> ResolveAsync(
             RouteKey route,
             DateTimeOffset now,

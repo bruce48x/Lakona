@@ -23,6 +23,27 @@ public sealed class LakonaGameFeatureCatalogBuilder
         return definition;
     }
 
+    internal LakonaGameFeatureDefinition Feature(string name, Type implementationType)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(implementationType);
+
+        if (!typeof(LakonaGameFeature).IsAssignableFrom(implementationType))
+        {
+            throw new ArgumentException("Implementation type must inherit LakonaGameFeature.", nameof(implementationType));
+        }
+
+        if (_byName.ContainsKey(name))
+        {
+            throw new InvalidOperationException($"Lakona.Game feature '{name}' is already registered.");
+        }
+
+        var definition = new LakonaGameFeatureDefinition(name, implementationType);
+        _definitions.Add(definition);
+        _byName.Add(name, definition);
+        return definition;
+    }
+
     internal LakonaGameFeatureCatalog Build(LakonaGameRuntimeOptions options)
     {
         var active = ResolveActiveDefinitions(options.Feature);
@@ -38,8 +59,14 @@ public sealed class LakonaGameFeatureCatalogBuilder
         }
 
         var active = new List<LakonaGameFeatureDefinition>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var featureName in configuredFeatures)
         {
+            if (!seen.Add(featureName))
+            {
+                throw new InvalidOperationException($"Lakona.Game feature '{featureName}' is configured more than once.");
+            }
+
             if (!_byName.TryGetValue(featureName, out var definition))
             {
                 var available = string.Join(", ", _definitions.Select(candidate => candidate.Name));

@@ -10,7 +10,7 @@ public sealed class NodeIdentityRule : ILakonaGameValidationRule
                 "ULINK001",
                 LakonaGameDiagnosticSeverity.Error,
                 "Node id is required.",
-                "Set Lakona.Game:Node:Id to a stable node id.");
+                "Set Lakona:Node:Id to a stable node id.");
         }
     }
 }

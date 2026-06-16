@@ -29,7 +29,7 @@ business lifecycle hooks.
 - `EndpointName` and `GameEndpointName` are not user-facing concepts in
   generated service binding, `ILakonaGameServer`, reliable push APIs, hotfix
   call contexts, or session directory storage.
-- `Lakona.Game:Endpoints[]` remains transport listener configuration. It does
+- `Lakona:Endpoints[]` remains transport listener configuration. It does
   not define framework session sub-identities.
 - `GameSessionKey` is server/framework identity. Generated shared RPC DTOs,
   generated client code, and MemoryPack formatters must not expose, serialize,
@@ -44,7 +44,7 @@ business lifecycle hooks.
 | Game session | One framework-owned game session identified by `GameSessionKey`. |
 | Session callback binding | A callback contract instance bound to a game session and connection id. |
 | Business session group | User-owned grouping such as account, player, character, room member, or device. |
-| Transport endpoint | Listener configuration from `Lakona.Game:Endpoints[]`. It is not part of session identity. |
+| Transport endpoint | Listener configuration from `Lakona:Endpoints[]`. It is not part of session identity. |
 | Business presence | User-owned online/offline policy derived from session lifecycle hooks. |
 
 ## Session Semantics

@@ -15,7 +15,7 @@ namespace Lakona.Game.Cluster
             NodeId nodeId,
             long nodeEpoch,
             IReadOnlyDictionary<string, NodeEndpoint> endpoints,
-            IReadOnlyList<NodeServiceDescriptor> services,
+            IReadOnlyList<NodeFeatureDescriptor> features,
             IReadOnlyDictionary<string, string>? labels,
             NodeState state,
             DateTimeOffset leaseExpiresAt,
@@ -35,7 +35,7 @@ namespace Lakona.Game.Cluster
             NodeId = nodeId;
             NodeEpoch = nodeEpoch;
             Endpoints = CopyEndpoints(endpoints);
-            Services = CopyServices(services);
+            Features = CopyFeatures(features);
             Labels = CopyStringDictionary(labels, nameof(labels));
             State = state;
             LeaseExpiresAt = leaseExpiresAt;
@@ -50,7 +50,7 @@ namespace Lakona.Game.Cluster
 
         public IReadOnlyDictionary<string, NodeEndpoint> Endpoints { get; }
 
-        public IReadOnlyList<NodeServiceDescriptor> Services { get; }
+        public IReadOnlyList<NodeFeatureDescriptor> Features { get; }
 
         public IReadOnlyDictionary<string, string> Labels { get; }
 
@@ -65,21 +65,14 @@ namespace Lakona.Game.Cluster
             return now >= LeaseExpiresAt;
         }
 
-        public bool HasService(string kind, string? name = null)
+        public bool HasFeature(string name)
         {
-            if (string.IsNullOrWhiteSpace(kind))
+            if (string.IsNullOrWhiteSpace(name))
             {
-                throw new ArgumentException("Node service kind is required.", nameof(kind));
+                throw new ArgumentException("Feature name is required.", nameof(name));
             }
 
-            if (name is not null && string.IsNullOrWhiteSpace(name))
-            {
-                throw new ArgumentException("Node service name cannot be empty.", nameof(name));
-            }
-
-            return Services.Any(service =>
-                string.Equals(service.Kind, kind, StringComparison.Ordinal)
-                && (name is null || string.Equals(service.Name, name, StringComparison.Ordinal)));
+            return Features.Any(feature => string.Equals(feature.Name, name, StringComparison.Ordinal));
         }
 
         private static IReadOnlyDictionary<string, NodeEndpoint> CopyEndpoints(
@@ -109,26 +102,21 @@ namespace Lakona.Game.Cluster
             return new ReadOnlyDictionary<string, NodeEndpoint>(copy);
         }
 
-        private static IReadOnlyList<NodeServiceDescriptor> CopyServices(
-            IReadOnlyList<NodeServiceDescriptor> services)
+        private static IReadOnlyList<NodeFeatureDescriptor> CopyFeatures(
+            IReadOnlyList<NodeFeatureDescriptor> features)
         {
-            if (services is null)
+            if (features is null)
             {
-                throw new ArgumentNullException(nameof(services));
+                throw new ArgumentNullException(nameof(features));
             }
 
-            if (services.Count == 0)
+            var copy = new List<NodeFeatureDescriptor>(features.Count);
+            for (var i = 0; i < features.Count; i++)
             {
-                throw new ArgumentException("Node record requires at least one service.", nameof(services));
+                copy.Add(features[i] ?? throw new ArgumentException("Node feature cannot be null.", nameof(features)));
             }
 
-            var copy = new List<NodeServiceDescriptor>(services.Count);
-            for (var i = 0; i < services.Count; i++)
-            {
-                copy.Add(services[i] ?? throw new ArgumentException("Node service cannot be null.", nameof(services)));
-            }
-
-            return new ReadOnlyCollection<NodeServiceDescriptor>(copy);
+            return new ReadOnlyCollection<NodeFeatureDescriptor>(copy);
         }
 
         private static IReadOnlyDictionary<string, string> CopyStringDictionary(

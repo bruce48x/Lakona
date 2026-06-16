@@ -8,6 +8,8 @@ namespace Lakona.Game.Cluster.Rpc
 
         public const int SendMethodId = 1;
 
+        public const int FeatureMessageMethodId = 2;
+
         public const int RegisterRouteMethodId = 10;
 
         public const int ResolveRouteMethodId = 11;
@@ -19,6 +21,8 @@ namespace Lakona.Game.Cluster.Rpc
         public const int ClearRoutesByNodeMethodId = 14;
 
         public const int ClearRoutesByNodeEpochMethodId = 15;
+
+        public const int UnregisterRouteMethodId = 16;
 
         public const int RegisterNodeMethodId = 20;
 
@@ -35,11 +39,17 @@ namespace Lakona.Game.Cluster.Rpc
         public static readonly RpcMethod<ClusterSendRequest, ClusterSendReply> SendMethod =
             new RpcMethod<ClusterSendRequest, ClusterSendReply>(ServiceId, SendMethodId);
 
+        public static readonly RpcMethod<FeatureSendRequest, FeatureSendReply> FeatureMessageMethod =
+            new RpcMethod<FeatureSendRequest, FeatureSendReply>(ServiceId, FeatureMessageMethodId);
+
         public static readonly RpcMethod<RouteRegisterRequest, RouteRegisterReply> RegisterRouteMethod =
             new RpcMethod<RouteRegisterRequest, RouteRegisterReply>(ServiceId, RegisterRouteMethodId);
 
         public static readonly RpcMethod<RouteResolveRequest, RouteResolveReply> ResolveRouteMethod =
             new RpcMethod<RouteResolveRequest, RouteResolveReply>(ServiceId, ResolveRouteMethodId);
+
+        public static readonly RpcMethod<RouteUnregisterRequest, RouteUnregisterReply> UnregisterRouteMethod =
+            new RpcMethod<RouteUnregisterRequest, RouteUnregisterReply>(ServiceId, UnregisterRouteMethodId);
 
         public static readonly RpcMethod<RouteRefreshLeaseRequest, RouteRefreshLeaseReply> RefreshRouteLeaseMethod =
             new RpcMethod<RouteRefreshLeaseRequest, RouteRefreshLeaseReply>(ServiceId, RefreshRouteLeaseMethodId);

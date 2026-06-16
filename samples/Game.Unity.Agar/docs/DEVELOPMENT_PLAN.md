@@ -476,7 +476,7 @@ dotnet test tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj
 具体任务：
 
 - P3.1：梳理状态服务必填配置：PostgreSQL 连接串、ServiceId、AdvertisedIPAddress、服务端口。
-- P3.2：梳理 gateway 必填配置：ServiceId、`Lakona.Game:Node:Id`、`Lakona.Game:Endpoints` 中的 websocket 控制端点和 kcp realtime 端点。
+- P3.2：梳理 gateway 必填配置：ServiceId、`Lakona:Node:Id`、`Lakona:Endpoints` 中的 websocket 控制端点和 kcp realtime 端点。
 - P3.3：梳理业务配置：房间容量、匹配超时、断线保留时间、可靠 push 保留时间、排行榜时区、排行榜归档周期。
 - P3.4：新增或更新 `.env.example`，仅保留开发默认值。
 - P3.5：新增生产 env 模板，所有密码、token secret、公网 host、连接串都要求显式填写。

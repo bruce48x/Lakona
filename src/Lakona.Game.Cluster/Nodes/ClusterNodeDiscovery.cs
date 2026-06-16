@@ -21,13 +21,13 @@ namespace Lakona.Game.Cluster
         }
 
         public async ValueTask<IReadOnlyList<ClusterNodeDescriptor>> ListAsync(
-            ClusterFeature feature,
+            FeatureName feature,
             CancellationToken cancellationToken = default)
         {
             var records = await _nodeDirectory.QueryAsync(
                 new NodeDirectoryQuery(
                     _options.ClusterName,
-                    serviceKind: feature.Value,
+                    featureName: feature.Value,
                     state: NodeState.Ready),
                 DateTimeOffset.UtcNow,
                 cancellationToken).ConfigureAwait(false);
@@ -37,12 +37,12 @@ namespace Lakona.Game.Cluster
                 .ToArray();
         }
 
-        public async ValueTask<NodeId?> AnyAsync(
-            ClusterFeature feature,
+        public async ValueTask<ClusterNodeDescriptor?> AnyAsync(
+            FeatureName feature,
             CancellationToken cancellationToken = default)
         {
             var nodes = await ListAsync(feature, cancellationToken).ConfigureAwait(false);
-            return nodes.Count == 0 ? (NodeId?)null : nodes[0].Node;
+            return nodes.Count == 0 ? null : nodes[0];
         }
     }
 }

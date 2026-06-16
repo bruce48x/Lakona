@@ -10,6 +10,11 @@ namespace Lakona.Game.Cluster
         Timeout = 5,
         Failed = 6,
         StaleRoute = 7,
-        NodeEpochMismatch = 8
+        NodeEpochMismatch = 8,
+        FeatureNotFound = 9,
+        NodeUnavailable = 10,
+        SerializationFailed = 11,
+        DeserializationFailed = 12,
+        Rejected = 13
     }
 }

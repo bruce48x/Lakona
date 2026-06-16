@@ -20,6 +20,26 @@ namespace Lakona.Game.Server.Tests;
 public sealed class LakonaGameServerTests
 {
     [Fact]
+    public void AddServices_CanUseHostConfiguration()
+    {
+        var hostBuilder = Host.CreateApplicationBuilder([]);
+        hostBuilder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Marker"] = "configured"
+        });
+        var serverBuilder = new LakonaGameServerBuilder(hostBuilder);
+
+        serverBuilder.AddServices((services, configuration) =>
+            services.AddSingleton(new ConfiguredValue(configuration["Marker"] ?? "")));
+        serverBuilder.ApplyToHostBuilder();
+
+        using var provider = hostBuilder.Services.BuildServiceProvider();
+        var value = provider.GetRequiredService<ConfiguredValue>();
+
+        Assert.Equal("configured", value.Value);
+    }
+
+    [Fact]
     public async Task InitialHotfixLoad_Throws_WhenReloadFails()
     {
         var services = new ServiceCollection();
@@ -478,6 +498,8 @@ public sealed class LakonaGameServerTests
     private sealed class ChatCallback
     {
     }
+
+    private sealed record ConfiguredValue(string Value);
 
     private sealed class TerminationCallback : ILakonaGameSessionCallback
     {

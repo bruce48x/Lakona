@@ -98,7 +98,7 @@ public sealed class FeatureBuilderTests
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Lakona.Game:Features:Roles:0"] = "alpha"
+                ["Lakona:Features:Roles:0"] = "alpha"
             })
             .Build();
 
@@ -155,7 +155,7 @@ public sealed class FeatureBuilderTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Lakona.Game:Node:Id"] = "dev-1"
+                ["Lakona:Node:Id"] = "dev-1"
             })
             .Build();
 
@@ -178,8 +178,8 @@ public sealed class FeatureBuilderTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Lakona.Game:Node:Id"] = "dev-1",
-                ["Lakona.Game:Feature:0"] = "missing"
+                ["Lakona:Node:Id"] = "dev-1",
+                ["Lakona:Feature:0"] = "missing"
             })
             .Build();
 
@@ -196,9 +196,9 @@ public sealed class FeatureBuilderTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Lakona.Game:Node:Id"] = "dev-1",
-                ["Lakona.Game:Feature:0"] = "battle",
-                ["Lakona.Game:Feature:1"] = "settlement"
+                ["Lakona:Node:Id"] = "dev-1",
+                ["Lakona:Feature:0"] = "battle",
+                ["Lakona:Feature:1"] = "settlement"
             })
             .Build();
 
@@ -221,8 +221,8 @@ public sealed class FeatureBuilderTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Lakona.Game:Node:Id"] = "dev-1",
-                ["Lakona.Game:Feature:0"] = "settlement"
+                ["Lakona:Node:Id"] = "dev-1",
+                ["Lakona:Feature:0"] = "settlement"
             })
             .Build();
 
@@ -244,8 +244,8 @@ public sealed class FeatureBuilderTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Lakona.Game:Node:Id"] = "game-c",
-                ["Lakona.Game:Feature:0"] = "battle"
+                ["Lakona:Node:Id"] = "game-c",
+                ["Lakona:Feature:0"] = "battle"
             })
             .Build();
 
@@ -265,8 +265,8 @@ public sealed class FeatureBuilderTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Lakona.Game:Node:Id"] = "game-b",
-                ["Lakona.Game:Feature:0"] = "chat"
+                ["Lakona:Node:Id"] = "game-b",
+                ["Lakona:Feature:0"] = "chat"
             })
             .Build();
 
@@ -286,7 +286,7 @@ public sealed class FeatureBuilderTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Lakona.Game:Node:Id"] = "dev-1"
+                ["Lakona:Node:Id"] = "dev-1"
             })
             .Build();
 

@@ -10,10 +10,8 @@ namespace Lakona.Game.Cluster.Rpc
         public Dictionary<string, string>? Metadata { get; set; }
     }
 
-    public sealed class NodeServiceDto
+    public sealed class NodeFeatureDto
     {
-        public string Kind { get; set; } = string.Empty;
-
         public string Name { get; set; } = string.Empty;
 
         public Dictionary<string, string>? Metadata { get; set; }
@@ -27,7 +25,7 @@ namespace Lakona.Game.Cluster.Rpc
 
         public Dictionary<string, NodeEndpointDto>? Endpoints { get; set; }
 
-        public List<NodeServiceDto>? Services { get; set; }
+        public List<NodeFeatureDto>? Features { get; set; }
 
         public Dictionary<string, string>? Labels { get; set; }
 
@@ -46,7 +44,7 @@ namespace Lakona.Game.Cluster.Rpc
 
         public Dictionary<string, NodeEndpointDto>? Endpoints { get; set; }
 
-        public List<NodeServiceDto>? Services { get; set; }
+        public List<NodeFeatureDto>? Features { get; set; }
 
         public Dictionary<string, string>? Labels { get; set; }
 
@@ -61,9 +59,7 @@ namespace Lakona.Game.Cluster.Rpc
     {
         public string ClusterName { get; set; } = string.Empty;
 
-        public string? ServiceKind { get; set; }
-
-        public string? ServiceName { get; set; }
+        public string? FeatureName { get; set; }
 
         public int? State { get; set; }
 

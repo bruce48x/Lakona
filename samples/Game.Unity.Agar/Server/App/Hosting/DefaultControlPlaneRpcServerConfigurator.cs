@@ -20,7 +20,7 @@ internal sealed class DefaultControlPlaneRpcServerConfigurator : IRpcServerConfi
         _options = options;
     }
 
-    public string Name => "control";
+    public string Transport => _options.Transport;
 
     public void Configure(LakonaGameServerRpcContext context)
     {

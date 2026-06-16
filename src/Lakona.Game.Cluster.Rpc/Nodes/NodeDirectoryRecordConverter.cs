@@ -18,7 +18,7 @@ namespace Lakona.Game.Cluster.Rpc
                 ClusterName = registration.ClusterName,
                 Node = registration.NodeId.Value,
                 Endpoints = CopyEndpoints(registration.Endpoints),
-                Services = CopyServices(registration.Services),
+                Features = CopyFeatures(registration.Features),
                 Labels = CopyDictionary(registration.Labels),
                 State = (int)registration.State,
                 LeaseExpiresAt = registration.LeaseExpiresAt
@@ -36,7 +36,7 @@ namespace Lakona.Game.Cluster.Rpc
                 dto.ClusterName,
                 dto.Node,
                 ToEndpoints(dto.Endpoints),
-                ToServices(dto.Services),
+                ToFeatures(dto.Features),
                 dto.LeaseExpiresAt,
                 ToNodeState(dto.State),
                 CopyDictionary(dto.Labels));
@@ -55,7 +55,7 @@ namespace Lakona.Game.Cluster.Rpc
                 Node = record.NodeId.Value,
                 NodeEpoch = record.NodeEpoch,
                 Endpoints = CopyEndpoints(record.Endpoints),
-                Services = CopyServices(record.Services),
+                Features = CopyFeatures(record.Features),
                 Labels = CopyDictionary(record.Labels),
                 State = (int)record.State,
                 LeaseExpiresAt = record.LeaseExpiresAt,
@@ -75,7 +75,7 @@ namespace Lakona.Game.Cluster.Rpc
                 dto.Node,
                 dto.NodeEpoch,
                 ToEndpoints(dto.Endpoints),
-                ToServices(dto.Services),
+                ToFeatures(dto.Features),
                 CopyDictionary(dto.Labels),
                 ToNodeState(dto.State),
                 dto.LeaseExpiresAt,
@@ -92,8 +92,7 @@ namespace Lakona.Game.Cluster.Rpc
             return new NodeDirectoryClientQueryDto
             {
                 ClusterName = query.ClusterName,
-                ServiceKind = query.ServiceKind,
-                ServiceName = query.ServiceName,
+                FeatureName = query.FeatureName,
                 State = query.State.HasValue ? (int)query.State.Value : (int?)null,
                 Labels = CopyDictionary(query.Labels),
                 IncludeExpired = query.IncludeExpired
@@ -109,8 +108,7 @@ namespace Lakona.Game.Cluster.Rpc
 
             return new NodeDirectoryQuery(
                 dto.ClusterName,
-                dto.ServiceKind,
-                dto.ServiceName,
+                dto.FeatureName,
                 dto.State.HasValue ? ToNodeState(dto.State.Value) : (NodeState?)null,
                 CopyDictionary(dto.Labels),
                 dto.IncludeExpired);
@@ -156,10 +154,10 @@ namespace Lakona.Game.Cluster.Rpc
             return copy;
         }
 
-        private static List<NodeServiceDto> CopyServices(
-            IReadOnlyList<NodeServiceDescriptor>? source)
+        private static List<NodeFeatureDto> CopyFeatures(
+            IReadOnlyList<NodeFeatureDescriptor>? source)
         {
-            var copy = new List<NodeServiceDto>();
+            var copy = new List<NodeFeatureDto>();
             if (source is null)
             {
                 return copy;
@@ -167,9 +165,8 @@ namespace Lakona.Game.Cluster.Rpc
 
             for (var i = 0; i < source.Count; i++)
             {
-                copy.Add(new NodeServiceDto
+                copy.Add(new NodeFeatureDto
                 {
-                    Kind = source[i].Kind,
                     Name = source[i].Name,
                     Metadata = CopyDictionary(source[i].Metadata)
                 });
@@ -178,10 +175,10 @@ namespace Lakona.Game.Cluster.Rpc
             return copy;
         }
 
-        private static List<NodeServiceDescriptor> ToServices(
-            IReadOnlyList<NodeServiceDto>? source)
+        private static List<NodeFeatureDescriptor> ToFeatures(
+            IReadOnlyList<NodeFeatureDto>? source)
         {
-            var copy = new List<NodeServiceDescriptor>();
+            var copy = new List<NodeFeatureDescriptor>();
             if (source is null)
             {
                 return copy;
@@ -189,8 +186,7 @@ namespace Lakona.Game.Cluster.Rpc
 
             for (var i = 0; i < source.Count; i++)
             {
-                copy.Add(new NodeServiceDescriptor(
-                    source[i].Kind,
+                copy.Add(new NodeFeatureDescriptor(
                     source[i].Name,
                     CopyDictionary(source[i].Metadata)));
             }

@@ -11,6 +11,7 @@ public static class SessionServiceCollectionExtensions
         services.TryAddSingleton<IGameSessionDirectory, InMemoryGameSessionDirectory>();
         services.TryAddSingleton<IGameSessionResumeService, GameSessionResumeService>();
         services.TryAddSingleton<IGameSessionConnectionCloser, NoopGameSessionConnectionCloser>();
+        services.TryAddSingleton<IClientNotificationRelay, ClientNotificationRelay>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IRpcSessionLifecycleObserver, GameSessionRpcLifecycleObserver>());
         return services;
     }
