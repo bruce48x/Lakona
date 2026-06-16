@@ -13,7 +13,8 @@
     "com.unity.modules.physics": "1.0.0",
     "com.unity.modules.physics2d": "1.0.0",
     "com.unity.modules.screencapture": "1.0.0",
-    "com.unity.modules.uielements": "1.0.0"
+    "com.unity.modules.uielements": "1.0.0",
+    "com.yasirkula.assetusagedetector": "2.6.2"
   },
   "scopedRegistries": [
     {
@@ -21,7 +22,8 @@
       "url": "https://package.openupm.com",
       "scopes": [
         "com.coplaydev.unity-mcp",
-        "com.github-glitchenzo.nugetforunity"
+        "com.github-glitchenzo.nugetforunity",
+        "com.yasirkula.assetusagedetector"
       ]
     }
   ]
