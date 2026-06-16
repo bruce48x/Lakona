@@ -19,6 +19,7 @@
     <ProjectReference Include="../../../../src/Lakona.Game.Server.Hotfix.Abstractions/Lakona.Game.Server.Hotfix.Abstractions.csproj" />
     <ProjectReference Include="../../../../src/Lakona.Game.Server.Hotfix/Lakona.Game.Server.Hotfix.csproj" />
     <ProjectReference Include="../../../../src/Lakona.Game.Server.Hotfix.Generators/Lakona.Game.Server.Hotfix.Generators.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
+    <ProjectReference Include="../../../../src/Lakona.Game.Cluster.Sql/Lakona.Game.Cluster.Sql.csproj" />
     <ProjectReference Include="../../../../src/Lakona.Game.Server/Lakona.Game.Server.csproj" />
     <ProjectReference Include="../../Server/App/Server.App.csproj" />
   </ItemGroup>

@@ -1,4 +1,10 @@
 using System.Text.Json;
+using Lakona.Game.Cluster;
+using Lakona.Game.Cluster.Sql;
+using Lakona.Game.Server.Features;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Server.App.Features;
 using Xunit;
 
 namespace Agar.Unity.Tests;
@@ -15,6 +21,8 @@ public sealed class DistributedTopologyConfigurationTests
         AssertFeatureSet(lakona, "database", "state-store", "matchmaking", "leaderboard");
         Assert.False(lakona.TryGetProperty("Endpoints", out _));
         Assert.Equal("tcp://10.0.0.1:21001", lakona.GetProperty("Cluster").GetProperty("Endpoint").GetString());
+        Assert.True(document.RootElement.GetProperty("ConnectionStrings").TryGetProperty("AgarPostgres", out _));
+        Assert.True(document.RootElement.GetProperty("ConnectionStrings").TryGetProperty("AgarRedis", out _));
     }
 
     [Fact]
@@ -47,6 +55,58 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Equal(new[] { "battle" }, endpoint.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
     }
 
+    [Fact]
+    public void DataNodeRegistersDatabaseServicesAndSqlNodeDirectory()
+    {
+        var services = BuildFeatureServices("appsettings.data-1.json");
+
+        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(AgarDatabaseOptions));
+        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(AgarDatabaseConnectionFactory));
+        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(SqlNodeDirectoryOptions));
+        Assert.Contains(services, descriptor =>
+            descriptor.ServiceType == typeof(INodeDirectory)
+            && descriptor.ImplementationType == typeof(SqlNodeDirectory));
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<AgarDatabaseOptions>();
+        var sqlOptions = provider.GetRequiredService<SqlNodeDirectoryOptions>();
+        var catalog = provider.GetRequiredService<LakonaGameFeatureCatalog>();
+
+        Assert.Contains("Host=postgres", options.PostgresConnectionString);
+        Assert.Contains("redis:6379", options.RedisConnectionString);
+        Assert.Equal("lakona_game_cluster_nodes", options.NodeDirectoryTable);
+        Assert.Equal(SqlNodeDirectoryDialect.Postgres, sqlOptions.Dialect);
+        Assert.Equal(new[] { "database", "state-store", "matchmaking", "leaderboard" }, catalog.ActiveNames);
+    }
+
+    [Fact]
+    public void GatewayNodeDoesNotRegisterDatabaseServicesOrApplicationFeatures()
+    {
+        var services = BuildFeatureServices("appsettings.gateway-1.json");
+
+        Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(AgarDatabaseOptions));
+        Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(INodeDirectory));
+
+        using var provider = services.BuildServiceProvider();
+        var catalog = provider.GetRequiredService<LakonaGameFeatureCatalog>();
+
+        Assert.Empty(catalog.ActiveNames);
+    }
+
+    [Fact]
+    public void BattleNodeDoesNotRegisterDatabaseServices()
+    {
+        var services = BuildFeatureServices("appsettings.battle-1.json");
+
+        Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(AgarDatabaseOptions));
+        Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(INodeDirectory));
+
+        using var provider = services.BuildServiceProvider();
+        var catalog = provider.GetRequiredService<LakonaGameFeatureCatalog>();
+
+        Assert.Equal(new[] { "battle-runtime" }, catalog.ActiveNames);
+    }
+
     private static void AssertFeatureSet(JsonElement lakona, params string[] expected)
     {
         Assert.Equal(expected, lakona.GetProperty("Feature").EnumerateArray().Select(item => item.GetString()).ToArray());
@@ -63,6 +123,25 @@ public sealed class DistributedTopologyConfigurationTests
             fileName);
 
         return JsonDocument.Parse(File.ReadAllText(path));
+    }
+
+    private static IServiceCollection BuildFeatureServices(string fileName)
+    {
+        var configuration = new ConfigurationBuilder()
+            .SetBasePath(Path.Combine(FindRepositoryRoot(), "samples", "Game.Unity.Agar", "Server", "App"))
+            .AddJsonFile(fileName)
+            .Build();
+        var services = new ServiceCollection();
+
+        services.AddLakonaGame(configuration, [
+            typeof(DatabaseFeature),
+            typeof(StateStoreFeature),
+            typeof(MatchmakingFeature),
+            typeof(LeaderboardFeature),
+            typeof(BattleRuntimeFeature)
+        ]);
+
+        return services;
     }
 
     private static string FindRepositoryRoot()

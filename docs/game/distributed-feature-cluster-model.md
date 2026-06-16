@@ -37,12 +37,9 @@ membership, endpoint discovery, feature discovery, route lookup, message
 routing, and remote actor plumbing. Cluster is not a separate user-facing
 service list.
 
-There is no public or internal `ClusterService` concept in the V1 model. Code,
-configuration, diagnostics, generated templates, and docs must use Feature for
-cluster-discoverable node capability.
-
-No public or internal type, interface, options class, configuration section, or
-diagnostic field may be named `ClusterService` in the V1 implementation.
+Code, configuration, diagnostics, generated templates, and docs must use
+Feature for cluster-discoverable node capability. Cluster membership and
+discovery must not expose a separate service list.
 
 ## Configuration Shape
 
@@ -148,7 +145,10 @@ Endpoint rules:
 
 The cluster endpoint is not listed in `Endpoints`; it is configured as
 `Lakona:Cluster:Endpoint` because it is a node-to-node channel, not a
-client-facing business endpoint.
+client-facing business endpoint. When configured, the framework starts a
+cluster RPC server on that endpoint. The server binds node-directory,
+route-directory, and feature-message RPC handlers only when the corresponding
+local services exist in DI.
 
 ### RpcService
 
@@ -328,6 +328,14 @@ Endpoint registration uses a normalized endpoint map:
 Endpoint keys are lower-case transport names, except the reserved `cluster`
 key. Endpoint values are externally reachable advertised endpoint URIs.
 
+Nodes with a cluster configuration must keep their node registration alive.
+After startup registration, the framework refreshes the node lease before it
+expires. `Refreshed` heartbeats update the local lease, `NodeNotFound` and
+`Expired` heartbeats re-register the node, and `EpochMismatch` stops the
+heartbeat loop because another process owns the node identity. Graceful
+shutdown marks the registered node epoch dead and clears route ownership for
+that node epoch when a route directory is available.
+
 ## Feature Discovery
 
 Feature discovery answers:
@@ -450,6 +458,12 @@ client-session route for that `GameSessionKey`. A player actor, room actor, or
 feature on another node sends a notification to the session route. The gateway
 receives the cluster message, looks up the local connection and callback, and
 invokes the callback in its own process.
+
+The route metadata must not contain callback objects or serialized callback
+state. The callback remains process-local gateway state. A remote notification
+starts by resolving the `client-session` route, dispatches a command to the
+gateway node's cluster endpoint, and only the gateway process performs local
+callback lookup.
 
 V1 API shape:
 
@@ -574,8 +588,14 @@ Configuration:
 }
 ```
 
-`database` must be first because it registers and validates database access for
-later data-node features. `database` is not discoverable.
+`database` must be first because it registers database connection factories and
+cluster directory storage for later data-node features. In the current Agar
+sample, the database feature wires the cluster node directory to Postgres
+through `Lakona.Game.Cluster.Sql` and records Redis connection configuration
+for later data-node features. Full durable gameplay-state persistence remains
+project-owned sample work; the current sample user, matchmaking, room, and
+leaderboard stores still run through the sample actor-backed state facade.
+`database` is not discoverable.
 
 ### Gateway Node
 
@@ -796,8 +816,8 @@ The implementation agent must work in this order:
 
 The implementation agent must not:
 
-- add `Lakona:Cluster:Services`
-- keep `ClusterService` in public API
+- add cluster capability lists outside `Lakona:Feature`
+- expose a separate cluster service concept
 - add endpoint `Name`
 - require a fluent `Program.cs` feature catalog for generated projects
 - make `RpcService` depend on `Feature` in configuration
@@ -805,28 +825,3 @@ The implementation agent must not:
 - connect the gateway node directly to the database in the Agar acceptance path
 - leave generated templates on `Lakona.Game` configuration
 - change shippable `src/**` packages without the required version bumps
-
-## Migration Direction
-
-Current configuration and APIs still use `Lakona.Game` in places. The V1
-runtime root is `Lakona`. Migration must update:
-
-- configuration binding paths
-- diagnostics paths
-- check output
-- generated project templates
-- samples
-- docs
-
-Current cluster code also uses service terminology. Migration must remove the
-public cluster service concept:
-
-- replace `NodeServiceDescriptor` with `NodeFeatureDescriptor`
-- replace `NodeRegistration.Services` with `NodeRegistration.Features`
-- replace `NodeRecord.Services` with `NodeRecord.Features`
-- replace service graph diagnostics with feature diagnostics
-- remove `Lakona:Cluster:Services` from all new configuration paths
-- rename `ClusterFeature` to `FeatureName`
-
-DI services remain DI services. Cluster membership and discovery must avoid the
-service terminology.

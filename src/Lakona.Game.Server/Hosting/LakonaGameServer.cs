@@ -100,6 +100,7 @@ public static class LakonaGameServer
         {
             builder.Services.AddSingleton(
                 runtimeOptions.ToClusterOptions(builder.Configuration, serverBuilder.GetTransport()));
+            builder.Services.AddLakonaGameClusterEndpoint();
         }
         catch (InvalidOperationException)
         {

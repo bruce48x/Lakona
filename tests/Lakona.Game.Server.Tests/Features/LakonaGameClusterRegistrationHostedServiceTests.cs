@@ -49,6 +49,101 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
     }
 
     [Fact]
+    public async Task StartAsyncRefreshesLeaseBeforeItExpires()
+    {
+        var directory = new RecordingNodeDirectory();
+        var services = CreateRegistrationServices(directory, routeLeaseSeconds: 1);
+        services.AddSingleton(new LakonaGameClusterRegistrationOptions
+        {
+            HeartbeatInterval = TimeSpan.FromMilliseconds(10)
+        });
+        await using var provider = services.BuildServiceProvider();
+        var hosted = provider.GetRequiredService<IHostedService>();
+
+        await hosted.StartAsync(TestContext.Current.CancellationToken);
+        await WaitUntilAsync(
+            () => directory.Heartbeats.Count > 0,
+            TestContext.Current.CancellationToken);
+        await hosted.StopAsync(TestContext.Current.CancellationToken);
+
+        var heartbeat = Assert.Single(directory.Heartbeats.Take(1));
+        var registration = Assert.Single(directory.Registrations);
+        Assert.Equal("local", heartbeat.ClusterName);
+        Assert.Equal(new NodeId("battle-1"), heartbeat.Node);
+        Assert.Equal(1, heartbeat.NodeEpoch);
+        Assert.True(heartbeat.LeaseExpiresAt > registration.LeaseExpiresAt);
+    }
+
+    [Fact]
+    public async Task StopAsyncMarksRegisteredNodeDead()
+    {
+        var directory = new RecordingNodeDirectory();
+        var services = CreateRegistrationServices(directory);
+        await using var provider = services.BuildServiceProvider();
+        var hosted = provider.GetRequiredService<IHostedService>();
+
+        await hosted.StartAsync(TestContext.Current.CancellationToken);
+        await hosted.StopAsync(TestContext.Current.CancellationToken);
+
+        var update = Assert.Single(directory.StateUpdates);
+        Assert.Equal("local", update.ClusterName);
+        Assert.Equal(new NodeId("battle-1"), update.Node);
+        Assert.Equal(1, update.NodeEpoch);
+        Assert.Equal(NodeState.Dead, update.State);
+    }
+
+    [Fact]
+    public async Task ExpiredHeartbeatReRegistersNode()
+    {
+        var directory = new RecordingNodeDirectory
+        {
+            HeartbeatStatus = NodeHeartbeatStatus.Expired
+        };
+        var services = CreateRegistrationServices(directory, routeLeaseSeconds: 1);
+        services.AddSingleton(new LakonaGameClusterRegistrationOptions
+        {
+            HeartbeatInterval = TimeSpan.FromMilliseconds(10)
+        });
+        await using var provider = services.BuildServiceProvider();
+        var hosted = provider.GetRequiredService<IHostedService>();
+
+        await hosted.StartAsync(TestContext.Current.CancellationToken);
+        await WaitUntilAsync(
+            () => directory.Registrations.Count > 1,
+            TestContext.Current.CancellationToken);
+        await hosted.StopAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(directory.HeartbeatFailures.Count > 0);
+        Assert.True(directory.Registrations.Count >= 2);
+    }
+
+    [Fact]
+    public async Task EpochMismatchHeartbeatStopsHeartbeatLoop()
+    {
+        var directory = new RecordingNodeDirectory
+        {
+            HeartbeatStatus = NodeHeartbeatStatus.EpochMismatch
+        };
+        var services = CreateRegistrationServices(directory, routeLeaseSeconds: 1);
+        services.AddSingleton(new LakonaGameClusterRegistrationOptions
+        {
+            HeartbeatInterval = TimeSpan.FromMilliseconds(10)
+        });
+        await using var provider = services.BuildServiceProvider();
+        var hosted = provider.GetRequiredService<IHostedService>();
+
+        await hosted.StartAsync(TestContext.Current.CancellationToken);
+        await WaitUntilAsync(
+            () => directory.HeartbeatFailures.Count > 0,
+            TestContext.Current.CancellationToken);
+        await Task.Delay(TimeSpan.FromMilliseconds(50), TestContext.Current.CancellationToken);
+        await hosted.StopAsync(TestContext.Current.CancellationToken);
+
+        Assert.Single(directory.Registrations);
+        Assert.Single(directory.HeartbeatFailures);
+    }
+
+    [Fact]
     public async Task StartAsyncNoOpsWhenNodeDirectoryIsNotRegistered()
     {
         var services = new ServiceCollection();
@@ -59,6 +154,48 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
 
         await provider.GetRequiredService<IHostedService>()
             .StartAsync(TestContext.Current.CancellationToken);
+    }
+
+    private static ServiceCollection CreateRegistrationServices(
+        RecordingNodeDirectory directory,
+        int routeLeaseSeconds = 45)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<INodeDirectory>(directory);
+        services.AddSingleton(new ClusterOptions
+        {
+            NodeId = "battle-1",
+            AdvertisedEndpoints = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["cluster"] = "tcp://10.0.0.1:21001",
+                ["kcp"] = "kcp://10.0.0.1:20001"
+            },
+            RouteLeaseSeconds = routeLeaseSeconds
+        });
+        services.AddSingleton(new LakonaGameFeatureCatalog(
+            [
+                new LakonaGameFeatureDefinition("battle-runtime", typeof(BattleRuntimeFeature)),
+                new LakonaGameFeatureDefinition("database", typeof(DatabaseFeature))
+            ],
+            [new BattleRuntimeFeature(), new DatabaseFeature()]));
+        services.AddSingleton<IHostedService, LakonaGameClusterRegistrationHostedService>();
+        return services;
+    }
+
+    private static async Task WaitUntilAsync(
+        Func<bool> condition,
+        CancellationToken cancellationToken)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(2);
+        while (!condition())
+        {
+            if (DateTimeOffset.UtcNow > deadline)
+            {
+                throw new TimeoutException("Condition was not met.");
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(10), cancellationToken);
+        }
     }
 
     private sealed class BattleRuntimeFeature : LakonaGameFeature
@@ -78,6 +215,10 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
     private sealed class RecordingNodeDirectory : INodeDirectory
     {
         public List<NodeRegistration> Registrations { get; } = [];
+        public List<HeartbeatCall> Heartbeats { get; } = [];
+        public List<HeartbeatCall> HeartbeatFailures { get; } = [];
+        public List<StateUpdateCall> StateUpdates { get; } = [];
+        public NodeHeartbeatStatus HeartbeatStatus { get; init; } = NodeHeartbeatStatus.Refreshed;
 
         public ValueTask<NodeRegistrationResult> RegisterAsync(
             NodeRegistration registration,
@@ -106,7 +247,17 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
             DateTimeOffset now,
             CancellationToken cancellationToken = default)
         {
-            throw new NotSupportedException();
+            var call = new HeartbeatCall(clusterName, node, nodeEpoch, leaseExpiresAt);
+            if (HeartbeatStatus == NodeHeartbeatStatus.Refreshed)
+            {
+                Heartbeats.Add(call);
+            }
+            else
+            {
+                HeartbeatFailures.Add(call);
+            }
+
+            return ValueTask.FromResult(HeartbeatStatus);
         }
 
         public ValueTask<NodeStateUpdateStatus> UpdateStateAsync(
@@ -117,7 +268,8 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
             DateTimeOffset now,
             CancellationToken cancellationToken = default)
         {
-            throw new NotSupportedException();
+            StateUpdates.Add(new StateUpdateCall(clusterName, node, nodeEpoch, state));
+            return ValueTask.FromResult(NodeStateUpdateStatus.Updated);
         }
 
         public ValueTask<NodeRecord?> ResolveAsync(
@@ -145,4 +297,16 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
             throw new NotSupportedException();
         }
     }
+
+    private sealed record HeartbeatCall(
+        string ClusterName,
+        NodeId Node,
+        long NodeEpoch,
+        DateTimeOffset LeaseExpiresAt);
+
+    private sealed record StateUpdateCall(
+        string ClusterName,
+        NodeId Node,
+        long NodeEpoch,
+        NodeState State);
 }

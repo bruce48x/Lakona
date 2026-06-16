@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Hosting;
 
 namespace Lakona.Game.Server.Features;
 
@@ -96,13 +97,15 @@ public static class FeatureServiceCollectionExtensions
         services.AddSingleton(catalog);
         services.AddSingleton(endpointCatalog);
         services.AddSingleton(context);
-        services.AddSingleton<IHostedService, LakonaGameFeatureHostedService>();
-        services.AddSingleton<IHostedService, LakonaGameClusterRegistrationHostedService>();
+        services.AddLakonaGameClusterEndpoint();
 
         foreach (var feature in features)
         {
             feature.ConfigureServices(context);
         }
+
+        services.AddSingleton<IHostedService, LakonaGameFeatureHostedService>();
+        services.AddSingleton<IHostedService, LakonaGameClusterRegistrationHostedService>();
     }
 
     private static void ValidateFeatureDependencies(

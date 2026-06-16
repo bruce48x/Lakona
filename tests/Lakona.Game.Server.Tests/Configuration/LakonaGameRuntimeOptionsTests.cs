@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Lakona.Game.Server.Configuration;
+using System.Text;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests.Configuration;
@@ -45,6 +46,50 @@ public sealed class LakonaGameRuntimeOptionsTests
 
         Assert.NotNull(options.Feature);
         Assert.Empty(options.Feature);
+    }
+
+    [Fact]
+    public void FromConfiguration_preserves_json_empty_feature_array()
+    {
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(
+            """
+            {
+              "Lakona": {
+                "Node": {
+                  "Id": "gateway-1"
+                },
+                "Feature": []
+              }
+            }
+            """));
+        var configuration = new ConfigurationBuilder()
+            .AddJsonStream(stream)
+            .Build();
+
+        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
+
+        Assert.NotNull(options.Feature);
+        Assert.Empty(options.Feature);
+    }
+
+    [Fact]
+    public void FromConfiguration_preserves_json_feature_values()
+    {
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(
+            """
+            {
+              "Lakona": {
+                "Feature": [ "database" ]
+              }
+            }
+            """));
+        var configuration = new ConfigurationBuilder()
+            .AddJsonStream(stream)
+            .Build();
+
+        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
+
+        Assert.Equal(["database"], options.Feature);
     }
 
     [Fact]

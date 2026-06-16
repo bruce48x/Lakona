@@ -1,6 +1,6 @@
 # Lakona.Game 游戏样例
 
-这个样例用于验证 Lakona.Game 在轻量多人对战游戏中的接入方式。它同时包含本地单机、RPC 联机、控制连接、实时连接、可靠业务推送，以及基于 Lakona.Game.Server.Actors 的进程内状态执行路径。
+这个样例用于验证 Lakona.Game 在轻量多人对战游戏中的接入方式。它同时包含本地单机、RPC 联机、控制连接、实时连接、可靠业务推送、三节点 Feature/Cluster 拓扑，以及基于 Lakona.Game.Server.Actors 的样例状态执行路径。
 
 ## 文档入口
 
@@ -70,6 +70,7 @@ samples/Game.Unity.Agar
 - `Shared/Gameplay/ArenaSimulation.cs`：玩法规则内核，单机和联机共用。
 - `Shared/Interfaces/IPlayerService.cs`：客户端和服务端共用的 RPC 协议。
 - `Server/Hotfix/Services/PlayerService.cs`：可热更的控制面和实时面 RPC 业务服务。
+- `Server/App/Features/DatabaseFeature.cs`：data 节点的数据库特性，注册 Postgres 连接工厂和 SQL-backed cluster node directory。
 - `Server/App/Realtime/RoomRuntime.cs`：服务端房间模拟和世界状态广播。
 - `Server/App/State/StateStores.cs`：把 sample 业务状态接入 Lakona.Game.Server.Actors facade。
 - `Server/App/State/Users/UserActor.cs`：用户登录、资料和胜利积分状态。
@@ -81,13 +82,15 @@ samples/Game.Unity.Agar
 
 ## 运行方式
 
-启动网关服务即可。用户、会话、匹配、房间和排行榜状态当前都在同一个 Gateway 进程内通过 Lakona.Game.Server.Actors 串行执行。
+单进程开发时启动默认网关服务即可。用户、会话、匹配、房间和排行榜状态当前仍通过 sample 的 Lakona.Game.Server.Actors facade 串行执行。
 
 ```powershell
 dotnet run --project Server/App/Server.App.csproj
 ```
 
 然后用 Unity 打开 `Client` 目录，运行游戏场景。
+
+三节点 sample 拓扑可通过 `docker-compose.yml` 启动 `data-1`、`gateway-1`、`battle-1`、Postgres 和 Redis。`data-1` 的 `database` feature 会读取 `ConnectionStrings:AgarPostgres` 和 `ConnectionStrings:AgarRedis`，并把 cluster node directory 接到 Postgres。当前阶段 Postgres 用于 cluster membership；完整 gameplay state 持久化和 Redis 排行榜索引仍是后续 sample 工作，不应把回调对象或会话 callback 状态写入 Postgres/Redis。
 
 ## 开发命令
 

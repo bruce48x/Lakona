@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.Loader;
 using Microsoft.CodeAnalysis;
@@ -7,12 +9,17 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Lakona.Game.Abstractions;
+using Lakona.Game.Cluster;
+using Lakona.Game.Cluster.Rpc;
+using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Loading;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
+using Lakona.Rpc.Serializer.Json;
+using Lakona.Rpc.Server;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests;
@@ -37,6 +44,94 @@ public sealed class LakonaGameServerTests
         var value = provider.GetRequiredService<ConfiguredValue>();
 
         Assert.Equal("configured", value.Value);
+    }
+
+    [Fact]
+    public void ClusterEndpointConfigurationRegistersClusterRpcServer()
+    {
+        var services = new ServiceCollection();
+        var runtime = new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "data-1" },
+            Cluster = new LakonaGameClusterOptions
+            {
+                Endpoint = "tcp://127.0.0.1:21001"
+            }
+        };
+        services.AddSingleton(runtime);
+        services.AddSingleton(runtime.ToClusterOptions());
+        services.AddSingleton<INodeDirectory, InMemoryNodeDirectory>();
+
+        services.AddLakonaGameClusterEndpoint();
+
+        var configurator = Assert.Single(services, service =>
+            service.ServiceType == typeof(IRpcServerConfigurator));
+        var instance = Assert.IsType<LakonaClusterRpcServerConfigurator>(
+            configurator.ImplementationInstance);
+        Assert.Equal("cluster", instance.Transport);
+    }
+
+    [Fact]
+    public async Task ClusterEndpointRpcServerAcceptsFeatureMessageTransport()
+    {
+        var port = GetFreePort();
+        var runtime = new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "data-1" },
+            Cluster = new LakonaGameClusterOptions
+            {
+                Endpoint = $"tcp://127.0.0.1:{port}"
+            }
+        };
+        var handler = new RecordingFeatureMessageHandler();
+        var services = new ServiceCollection();
+        services.AddSingleton<IFeatureMessageHandler>(handler);
+        using var provider = services.BuildServiceProvider();
+        var rpcBuilder = RpcServerHostBuilder.Create();
+        var configurator = new LakonaClusterRpcServerConfigurator(runtime);
+        configurator.Configure(new LakonaGameServerRpcContext(
+            "cluster",
+            new LakonaGameEndpointOptions { Transport = "cluster" },
+            rpcBuilder,
+            provider,
+            [],
+            TestContext.Current.CancellationToken));
+        using var stopServer = new CancellationTokenSource();
+        var serverTask = rpcBuilder.RunAsync(stopServer.Token).AsTask();
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+
+        await using var clientFactory = new ClusterClientFactory(
+            new TcpClusterTransportFactory(),
+            new JsonRpcSerializer());
+        var transport = new RpcFeatureMessageTransport(clientFactory);
+        var reply = await transport.SendAsync(
+            new ClusterNodeDescriptor(
+                new NodeId("data-1"),
+                NodeState.Ready,
+                new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal)
+                {
+                    ["cluster"] = new NodeEndpoint($"tcp://127.0.0.1:{port}")
+                },
+                [new NodeFeatureDescriptor("matchmaking")]),
+            new FeatureMessageRequest(
+                new FeatureName("matchmaking"),
+                "join",
+                new byte[] { 1, 2, 3 },
+                DateTimeOffset.UtcNow.AddMinutes(1),
+                new NodeId("gateway-1"),
+                "corr-1"),
+            TestContext.Current.CancellationToken);
+
+        stopServer.Cancel();
+        await Task.WhenAny(serverTask, Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
+
+        Assert.Equal(ClusterSendStatus.Accepted, reply.Status);
+        Assert.Equal(new byte[] { 9 }, reply.Payload.ToArray());
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal("matchmaking", request.Feature.Value);
+        Assert.Equal("join", request.Kind);
+        Assert.Equal(new byte[] { 1, 2, 3 }, request.Payload.ToArray());
+        Assert.Equal(new NodeId("gateway-1"), request.SourceNode);
     }
 
     [Fact]
@@ -499,7 +594,36 @@ public sealed class LakonaGameServerTests
     {
     }
 
+    private static int GetFreePort()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        try
+        {
+            return ((IPEndPoint)listener.LocalEndpoint).Port;
+        }
+        finally
+        {
+            listener.Stop();
+        }
+    }
+
     private sealed record ConfiguredValue(string Value);
+
+    private sealed class RecordingFeatureMessageHandler : IFeatureMessageHandler
+    {
+        public List<FeatureMessageRequest> Requests { get; } = [];
+
+        public ValueTask<FeatureMessageReply> HandleAsync(
+            FeatureMessageRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Requests.Add(request);
+            return new ValueTask<FeatureMessageReply>(
+                new FeatureMessageReply(ClusterSendStatus.Accepted, new byte[] { 9 }));
+        }
+    }
 
     private sealed class TerminationCallback : ILakonaGameSessionCallback
     {
