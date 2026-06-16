@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Hosting;
 using Lakona.Rpc.Server;
+using Lakona.Game.Server.Configuration;
 
 namespace Lakona.Game.Server.Hosting;
 
@@ -35,15 +36,27 @@ internal sealed class RpcServersHostedService : BackgroundService
     private async Task RunServerAsync(IRpcServerConfigurator configurator, CancellationToken stoppingToken)
     {
         var args = Environment.GetCommandLineArgs().Skip(1).ToArray();
+        var runtimeOptions = (LakonaGameRuntimeOptions?)_services.GetService(typeof(LakonaGameRuntimeOptions));
+        var endpoint = ResolveEndpoint(runtimeOptions, configurator.Transport);
         var builder = RpcServerHostBuilder.Create()
             .UseCommandLine(args);
         configurator.Configure(new LakonaGameServerRpcContext(
-            configurator.Name,
+            configurator.Transport,
+            endpoint,
             builder,
             _services,
             args,
             stoppingToken));
 
         await builder.RunAsync(stoppingToken).ConfigureAwait(false);
+    }
+
+    private static LakonaGameEndpointOptions ResolveEndpoint(
+        LakonaGameRuntimeOptions? runtimeOptions,
+        string transport)
+    {
+        return runtimeOptions?.Endpoints.FirstOrDefault(endpoint =>
+            string.Equals(endpoint.Transport, transport, StringComparison.OrdinalIgnoreCase))
+            ?? new LakonaGameEndpointOptions { Transport = transport };
     }
 }

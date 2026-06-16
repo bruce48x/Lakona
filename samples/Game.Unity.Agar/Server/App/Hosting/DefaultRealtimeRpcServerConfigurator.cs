@@ -21,7 +21,7 @@ internal sealed class DefaultRealtimeRpcServerConfigurator : IRpcServerConfigura
         _options = options;
     }
 
-    public string Name => "realtime";
+    public string Transport => _options.Transport;
 
     public void Configure(LakonaGameServerRpcContext context)
     {

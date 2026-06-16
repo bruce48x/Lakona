@@ -80,19 +80,16 @@ public sealed class LakonaGameServerBuilder
     }
 
     public LakonaGameServerBuilder AddRpcEndpoint(
-        string name,
         string transport,
         Func<IRpcSerializer> serializerFactory,
         Func<ServerRpcServerOptions, Task<IRpcConnectionAcceptor>> acceptorFactory,
         Action<RpcServiceRegistry>? serviceBinder = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentException.ThrowIfNullOrWhiteSpace(transport);
         ArgumentNullException.ThrowIfNull(serializerFactory);
         ArgumentNullException.ThrowIfNull(acceptorFactory);
 
         _additionalEndpoints.Add(new RpcEndpointRegistration(
-            name,
             transport,
             serializerFactory,
             acceptorFactory,
@@ -100,6 +97,34 @@ public sealed class LakonaGameServerBuilder
         return this;
     }
 
+    [Obsolete("Endpoint names are no longer used. Call AddRpcEndpoint(transport, serializerFactory, acceptorFactory, serviceBinder) instead.")]
+    public LakonaGameServerBuilder AddRpcEndpoint(
+        string name,
+        string transport,
+        Func<IRpcSerializer> serializerFactory,
+        Func<ServerRpcServerOptions, Task<IRpcConnectionAcceptor>> acceptorFactory,
+        Action<RpcServiceRegistry>? serviceBinder = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        return AddRpcEndpoint(transport, serializerFactory, acceptorFactory, serviceBinder);
+    }
+
+    public LakonaGameServerBuilder AddRpcEndpoint(
+        string transport,
+        Func<IRpcSerializer> serializerFactory,
+        Func<ServerRpcServerOptions, Task<IRpcConnectionAcceptor>> acceptorFactory,
+        Action<RpcServiceRegistry, IServiceProvider>? serviceBinder)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(transport);
+        ArgumentNullException.ThrowIfNull(serializerFactory);
+        ArgumentNullException.ThrowIfNull(acceptorFactory);
+
+        _additionalEndpoints.Add(new RpcEndpointRegistration(
+            transport, serializerFactory, acceptorFactory, serviceBinder));
+        return this;
+    }
+
+    [Obsolete("Endpoint names are no longer used. Call AddRpcEndpoint(transport, serializerFactory, acceptorFactory, serviceBinder) instead.")]
     public LakonaGameServerBuilder AddRpcEndpoint(
         string name,
         string transport,
@@ -108,13 +133,7 @@ public sealed class LakonaGameServerBuilder
         Action<RpcServiceRegistry, IServiceProvider>? serviceBinder)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        ArgumentException.ThrowIfNullOrWhiteSpace(transport);
-        ArgumentNullException.ThrowIfNull(serializerFactory);
-        ArgumentNullException.ThrowIfNull(acceptorFactory);
-
-        _additionalEndpoints.Add(new RpcEndpointRegistration(
-            name, transport, serializerFactory, acceptorFactory, serviceBinder));
-        return this;
+        return AddRpcEndpoint(transport, serializerFactory, acceptorFactory, serviceBinder);
     }
 
     internal void ApplyToHostBuilder()
@@ -146,7 +165,6 @@ public sealed class LakonaGameServerBuilder
     internal IReadOnlyList<RpcEndpointRegistration> GetAdditionalEndpoints() => _additionalEndpoints;
 
     internal sealed record RpcEndpointRegistration(
-        string Name,
         string Transport,
         Func<IRpcSerializer> SerializerFactory,
         Func<ServerRpcServerOptions, Task<IRpcConnectionAcceptor>> AcceptorFactory,

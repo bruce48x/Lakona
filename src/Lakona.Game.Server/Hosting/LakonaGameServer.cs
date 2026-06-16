@@ -61,17 +61,30 @@ public static class LakonaGameServer
         builder.Services.AddLakonaGameServer();
         builder.Services.AddSingleton(runtimeOptions);
         builder.Services.AddSingleton(_ => runtimeOptions.ToServerRpcServerOptions(serverBuilder.GetTransport()));
+        builder.Services.AddSingleton(DiscoverRpcServiceCatalog());
 
-        // Register primary RPC configurator
-        builder.Services.AddSingleton<IRpcServerConfigurator>(sp =>
-            new LakonaGameRpcConfigurator(
-                runtimeOptions.ToServerRpcServerOptions(serverBuilder.GetTransport()),
-                serverBuilder.GetSerializerFactory(),
-                serverBuilder.GetAcceptorFactory(),
-                serverBuilder.GetServiceBinder())
-            { Name = "default" });
+        var legacyServiceBinder = serverBuilder.GetServiceBinder();
+        if (legacyServiceBinder is null)
+        {
+            foreach (var endpoint in runtimeOptions.Endpoints)
+            {
+                builder.Services.AddSingleton<IRpcServerConfigurator>(sp =>
+                    new LakonaEndpointRpcServerConfigurator(
+                        endpoint,
+                        serverBuilder.GetSerializerFactory(),
+                        serverBuilder.GetAcceptorFactory()));
+            }
+        }
+        else
+        {
+            builder.Services.AddSingleton<IRpcServerConfigurator>(sp =>
+                new LakonaGameRpcConfigurator(
+                    runtimeOptions.ToServerRpcServerOptions(serverBuilder.GetTransport()),
+                    serverBuilder.GetSerializerFactory(),
+                    serverBuilder.GetAcceptorFactory(),
+                    legacyServiceBinder));
+        }
 
-        // Register additional RPC endpoints
         foreach (var endpoint in serverBuilder.GetAdditionalEndpoints())
         {
             builder.Services.AddSingleton<IRpcServerConfigurator>(sp =>
@@ -79,8 +92,7 @@ public static class LakonaGameServer
                     runtimeOptions.ToServerRpcServerOptions(endpoint.Transport),
                     endpoint.SerializerFactory,
                     endpoint.AcceptorFactory,
-                    endpoint.ServiceBinder)
-                { Name = endpoint.Name });
+                    endpoint.ServiceBinder));
         }
 
         // Cluster options (may throw for standalone — wrap gracefully)
@@ -162,6 +174,76 @@ public static class LakonaGameServer
         var message = $"Initial hotfix load failed for '{result.RequestedPath}': {result.ErrorMessage}{diagnostics}";
         logger.LogError("{Message}", message);
         throw new InvalidOperationException(message);
+    }
+
+    internal static LakonaRpcServiceCatalog DiscoverRpcServiceCatalogForTesting(IReadOnlyList<Type> binderTypes)
+    {
+        return LakonaRpcServiceCatalog.FromTypes(binderTypes);
+    }
+
+    internal static LakonaRpcServiceCatalog DiscoverRpcServiceCatalog()
+    {
+        var binderTypes = DiscoverApplicationAssemblies()
+            .SelectMany(GetLoadableTypes)
+            .Where(static type => typeof(LakonaRpcServiceBinder).IsAssignableFrom(type)
+                && !type.IsAbstract
+                && !type.IsInterface)
+            .OrderBy(static type => type.FullName, StringComparer.Ordinal)
+            .ToArray();
+
+        return LakonaRpcServiceCatalog.FromTypes(binderTypes);
+    }
+
+    private static IReadOnlyList<Assembly> DiscoverApplicationAssemblies()
+    {
+        var assemblies = new List<Assembly>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var entryAssembly = Assembly.GetEntryAssembly();
+
+        if (entryAssembly is not null)
+        {
+            AddAssembly(entryAssembly);
+        }
+
+        var entryName = entryAssembly?.GetName().Name ?? "";
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            var name = assembly.GetName().Name;
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                continue;
+            }
+
+            if (assembly == typeof(LakonaGameServer).Assembly
+                || (!string.IsNullOrWhiteSpace(entryName)
+                    && name.StartsWith(entryName, StringComparison.OrdinalIgnoreCase)))
+            {
+                AddAssembly(assembly);
+            }
+        }
+
+        return assemblies;
+
+        void AddAssembly(Assembly assembly)
+        {
+            var name = assembly.GetName().Name;
+            if (!string.IsNullOrWhiteSpace(name) && seen.Add(name))
+            {
+                assemblies.Add(assembly);
+            }
+        }
+    }
+
+    private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            return ex.Types.Where(static type => type is not null)!;
+        }
     }
 
     internal static void DiscoverStableFeaturesForTesting(

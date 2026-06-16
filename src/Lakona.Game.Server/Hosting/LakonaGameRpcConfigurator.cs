@@ -24,7 +24,7 @@ internal sealed class LakonaGameRpcConfigurator : IRpcServerConfigurator
         _bindServices = bindServices;
     }
 
-    public string Name { get; init; } = "default";
+    public string Transport => _options.Transport;
 
     public void Configure(LakonaGameServerRpcContext context)
     {
