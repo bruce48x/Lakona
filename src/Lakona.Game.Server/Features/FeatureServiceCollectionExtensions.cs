@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Lakona.Game.Server.Configuration;
 
 namespace Lakona.Game.Server.Features;
@@ -46,23 +47,60 @@ public static class FeatureServiceCollectionExtensions
         var builder = new LakonaGameFeatureCatalogBuilder();
         configure(builder);
 
-        var catalog = builder.Build(options);
-        ValidateFeatureDependencies(catalog.ActiveDefinitions, options);
+        RegisterLakonaGameFeatures(services, config, options, builder);
 
+        return services;
+    }
+
+    public static IServiceCollection AddLakonaGame(
+        this IServiceCollection services,
+        IConfiguration config,
+        IReadOnlyList<Type>? featureTypes = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(config);
+
+        var options = LakonaGameRuntimeOptions.FromConfiguration(config);
+        var builder = new LakonaGameFeatureCatalogBuilder();
+        var definitions = featureTypes is null
+            ? LakonaGameFeatureDiscovery.DiscoverLoadedAssemblies()
+            : LakonaGameFeatureDiscovery.Discover(typeof(LakonaGameFeature).Assembly, featureTypes);
+
+        foreach (var definition in definitions.OrderBy(definition => definition.Name, StringComparer.Ordinal))
+        {
+            builder.Feature(definition.Name, definition.ImplementationType);
+        }
+
+        RegisterLakonaGameFeatures(services, config, options, builder);
+
+        return services;
+    }
+
+    private static void RegisterLakonaGameFeatures(
+        IServiceCollection services,
+        IConfiguration config,
+        LakonaGameRuntimeOptions options,
+        LakonaGameFeatureCatalogBuilder builder)
+    {
+        var builtCatalog = builder.Build(options);
+        ValidateFeatureDependencies(builtCatalog.ActiveDefinitions, options);
         var endpointCatalog = new LakonaGameEndpointCatalog(options.Endpoints);
         var context = new LakonaGameFeatureContext(services, config, endpointCatalog);
+        var features = builtCatalog.ActiveDefinitions
+            .Select(CreateFeature)
+            .ToArray();
+        var catalog = new LakonaGameFeatureCatalog(builtCatalog.ActiveDefinitions, features);
 
         services.AddSingleton(options);
         services.AddSingleton(catalog);
         services.AddSingleton(endpointCatalog);
+        services.AddSingleton(context);
+        services.AddSingleton<IHostedService, LakonaGameFeatureHostedService>();
 
-        foreach (var definition in catalog.ActiveDefinitions)
+        foreach (var feature in features)
         {
-            var feature = CreateFeature(definition);
             feature.ConfigureServices(context);
         }
-
-        return services;
     }
 
     private static void ValidateFeatureDependencies(
