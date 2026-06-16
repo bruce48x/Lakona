@@ -242,6 +242,13 @@ public sealed class ClusterRouterTests
             return new ValueTask<RouteLocation?>((RouteLocation?)null);
         }
 
+        public ValueTask<RouteUnregisterStatus> UnregisterAsync(
+            RouteKey route,
+            CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<RouteUnregisterStatus>(RouteUnregisterStatus.NotFound);
+        }
+
         public ValueTask<int> ExpireAsync(
             DateTimeOffset now,
             CancellationToken cancellationToken = default)

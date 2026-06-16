@@ -22,6 +22,8 @@ namespace Lakona.Game.Cluster.Rpc
 
         public const int ClearRoutesByNodeEpochMethodId = 15;
 
+        public const int UnregisterRouteMethodId = 16;
+
         public const int RegisterNodeMethodId = 20;
 
         public const int HeartbeatNodeMethodId = 21;
@@ -45,6 +47,9 @@ namespace Lakona.Game.Cluster.Rpc
 
         public static readonly RpcMethod<RouteResolveRequest, RouteResolveReply> ResolveRouteMethod =
             new RpcMethod<RouteResolveRequest, RouteResolveReply>(ServiceId, ResolveRouteMethodId);
+
+        public static readonly RpcMethod<RouteUnregisterRequest, RouteUnregisterReply> UnregisterRouteMethod =
+            new RpcMethod<RouteUnregisterRequest, RouteUnregisterReply>(ServiceId, UnregisterRouteMethodId);
 
         public static readonly RpcMethod<RouteRefreshLeaseRequest, RouteRefreshLeaseReply> RefreshRouteLeaseMethod =
             new RpcMethod<RouteRefreshLeaseRequest, RouteRefreshLeaseReply>(ServiceId, RefreshRouteLeaseMethodId);

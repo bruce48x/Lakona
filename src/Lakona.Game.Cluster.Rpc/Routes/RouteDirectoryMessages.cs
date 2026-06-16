@@ -44,6 +44,16 @@ namespace Lakona.Game.Cluster.Rpc
         public RouteLocationDto? Location { get; set; }
     }
 
+    public sealed class RouteUnregisterRequest
+    {
+        public string Route { get; set; } = string.Empty;
+    }
+
+    public sealed class RouteUnregisterReply
+    {
+        public int Status { get; set; }
+    }
+
     public sealed class RouteRefreshLeaseRequest
     {
         public RouteLocationDto? ExpectedLocation { get; set; }

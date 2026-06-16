@@ -56,6 +56,23 @@ namespace Lakona.Game.Cluster.Rpc
                 : RouteLocationConverter.ToRouteLocation(reply.Location);
         }
 
+        public async ValueTask<RouteUnregisterStatus> UnregisterAsync(
+            RouteKey route,
+            CancellationToken cancellationToken = default)
+        {
+            var reply = await _client.CallAsync(
+                ClusterProtocol.UnregisterRouteMethod,
+                new RouteUnregisterRequest
+                {
+                    Route = route.Value
+                },
+                cancellationToken).ConfigureAwait(false);
+
+            return Enum.IsDefined(typeof(RouteUnregisterStatus), reply.Status)
+                ? (RouteUnregisterStatus)reply.Status
+                : RouteUnregisterStatus.NotFound;
+        }
+
         public async ValueTask<RouteLeaseRefreshStatus> RefreshLeaseAsync(
             RouteLocation expectedLocation,
             DateTimeOffset expiresAt,

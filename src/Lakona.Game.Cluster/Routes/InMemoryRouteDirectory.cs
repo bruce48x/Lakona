@@ -37,6 +37,20 @@ namespace Lakona.Game.Cluster
             return new ValueTask<RouteRegistrationStatus>(RouteRegistrationStatus.Registered);
         }
 
+        public ValueTask<RouteUnregisterStatus> UnregisterAsync(
+            RouteKey route,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            lock (_gate)
+            {
+                return new ValueTask<RouteUnregisterStatus>(_routes.Remove(route)
+                    ? RouteUnregisterStatus.Removed
+                    : RouteUnregisterStatus.NotFound);
+            }
+        }
+
         public ValueTask<RouteLocation?> ResolveAsync(
             RouteKey route,
             DateTimeOffset now,
