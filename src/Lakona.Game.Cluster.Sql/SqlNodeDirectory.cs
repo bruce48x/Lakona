@@ -57,7 +57,7 @@ namespace Lakona.Game.Cluster.Sql
                         registration.NodeId,
                         epoch,
                         registration.Endpoints,
-                        registration.Services,
+                        registration.Features,
                         registration.Labels,
                         registration.State,
                         registration.LeaseExpiresAt,
@@ -212,7 +212,7 @@ namespace Lakona.Game.Cluster.Sql
             await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
             using var command = connection.CreateCommand();
             command.CommandText =
-                "SELECT cluster_name, node_id, node_epoch, state, endpoints_json, services_json, labels_json, lease_expires_at, updated_at " +
+                "SELECT cluster_name, node_id, node_epoch, state, endpoints_json, features_json, labels_json, lease_expires_at, updated_at " +
                 "FROM " + _options.TableName + " WHERE cluster_name = @cluster_name";
             AddParameter(command, "@cluster_name", query.ClusterName);
 
@@ -311,7 +311,7 @@ namespace Lakona.Game.Cluster.Sql
             using var command = connection.CreateCommand();
             command.Transaction = transaction;
             command.CommandText =
-                "SELECT cluster_name, node_id, node_epoch, state, endpoints_json, services_json, labels_json, lease_expires_at, updated_at " +
+                "SELECT cluster_name, node_id, node_epoch, state, endpoints_json, features_json, labels_json, lease_expires_at, updated_at " +
                 "FROM " + _options.TableName + " " +
                 "WHERE cluster_name = @cluster_name AND node_id = @node_id";
             AddParameter(command, "@cluster_name", clusterName);
@@ -369,8 +369,8 @@ namespace Lakona.Game.Cluster.Sql
             command.Transaction = transaction;
             command.CommandText =
                 "INSERT INTO " + _options.TableName + " " +
-                "(cluster_name, node_id, node_epoch, state, endpoints_json, services_json, labels_json, lease_expires_at, updated_at) " +
-                "VALUES (@cluster_name, @node_id, @node_epoch, @state, @endpoints_json, @services_json, @labels_json, @lease_expires_at, @updated_at)";
+                "(cluster_name, node_id, node_epoch, state, endpoints_json, features_json, labels_json, lease_expires_at, updated_at) " +
+                "VALUES (@cluster_name, @node_id, @node_epoch, @state, @endpoints_json, @features_json, @labels_json, @lease_expires_at, @updated_at)";
             AddRecordParameters(command, record);
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -386,7 +386,7 @@ namespace Lakona.Game.Cluster.Sql
             command.CommandText =
                 "UPDATE " + _options.TableName + " " +
                 "SET node_epoch = @node_epoch, state = @state, endpoints_json = @endpoints_json, " +
-                "services_json = @services_json, labels_json = @labels_json, lease_expires_at = @lease_expires_at, updated_at = @updated_at " +
+                "features_json = @features_json, labels_json = @labels_json, lease_expires_at = @lease_expires_at, updated_at = @updated_at " +
                 "WHERE cluster_name = @cluster_name AND node_id = @node_id";
             AddRecordParameters(command, record);
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -399,7 +399,7 @@ namespace Lakona.Game.Cluster.Sql
             AddParameter(command, "@node_epoch", record.NodeEpoch);
             AddParameter(command, "@state", (int)record.State);
             AddParameter(command, "@endpoints_json", SerializeEndpoints(record.Endpoints));
-            AddParameter(command, "@services_json", SerializeServices(record.Services));
+            AddParameter(command, "@features_json", SerializeFeatures(record.Features));
             AddParameter(command, "@labels_json", SerializeStringDictionary(record.Labels));
             AddParameter(command, "@lease_expires_at", ToUtcTicks(record.LeaseExpiresAt));
             AddParameter(command, "@updated_at", ToUtcTicks(record.UpdatedAt));
@@ -420,7 +420,7 @@ namespace Lakona.Game.Cluster.Sql
                 new NodeId(reader.GetString(1)),
                 reader.GetInt64(2),
                 DeserializeEndpoints(reader.GetString(4)),
-                DeserializeServices(reader.GetString(5)),
+                DeserializeFeatures(reader.GetString(5)),
                 DeserializeStringDictionary(reader.GetString(6)),
                 (NodeState)reader.GetInt32(3),
                 FromUtcTicks(reader.GetInt64(7)),
@@ -439,13 +439,7 @@ namespace Lakona.Game.Cluster.Sql
                 return false;
             }
 
-            if (query.ServiceKind is not null && !record.HasService(query.ServiceKind, query.ServiceName))
-            {
-                return false;
-            }
-
-            if (query.ServiceKind is null && query.ServiceName is not null
-                && !record.Services.Any(service => string.Equals(service.Name, query.ServiceName, StringComparison.Ordinal)))
+            if (query.FeatureName is not null && !record.HasFeature(query.FeatureName))
             {
                 return false;
             }
@@ -491,27 +485,26 @@ namespace Lakona.Game.Cluster.Sql
             return new ReadOnlyDictionary<string, NodeEndpoint>(endpoints);
         }
 
-        private static string SerializeServices(IReadOnlyList<NodeServiceDescriptor> services)
+        private static string SerializeFeatures(IReadOnlyList<NodeFeatureDescriptor> features)
         {
-            var dto = services
-                .Select(service => new ServiceDto(service.Kind, service.Name, service.Metadata))
+            var dto = features
+                .Select(feature => new FeatureDto(feature.Name, feature.Metadata))
                 .ToArray();
             return JsonSerializer.Serialize(dto, JsonOptions);
         }
 
-        private static IReadOnlyList<NodeServiceDescriptor> DeserializeServices(string json)
+        private static IReadOnlyList<NodeFeatureDescriptor> DeserializeFeatures(string json)
         {
-            var dto = JsonSerializer.Deserialize<ServiceDto[]>(json, JsonOptions) ?? Array.Empty<ServiceDto>();
-            var services = new List<NodeServiceDescriptor>(dto.Length);
-            foreach (var service in dto)
+            var dto = JsonSerializer.Deserialize<FeatureDto[]>(json, JsonOptions) ?? Array.Empty<FeatureDto>();
+            var features = new List<NodeFeatureDescriptor>(dto.Length);
+            foreach (var feature in dto)
             {
-                services.Add(new NodeServiceDescriptor(
-                    service.Kind,
-                    service.Name,
-                    ToOrdinalDictionary(service.Metadata)));
+                features.Add(new NodeFeatureDescriptor(
+                    feature.Name,
+                    ToOrdinalDictionary(feature.Metadata)));
             }
 
-            return new ReadOnlyCollection<NodeServiceDescriptor>(services);
+            return new ReadOnlyCollection<NodeFeatureDescriptor>(features);
         }
 
         private static string SerializeStringDictionary(IReadOnlyDictionary<string, string> values)
@@ -627,23 +620,19 @@ namespace Lakona.Game.Cluster.Sql
             public Dictionary<string, string> Metadata { get; set; }
         }
 
-        private sealed class ServiceDto
+        private sealed class FeatureDto
         {
-            public ServiceDto()
+            public FeatureDto()
             {
-                Kind = string.Empty;
                 Name = string.Empty;
                 Metadata = new Dictionary<string, string>(StringComparer.Ordinal);
             }
 
-            public ServiceDto(string kind, string name, IReadOnlyDictionary<string, string> metadata)
+            public FeatureDto(string name, IReadOnlyDictionary<string, string> metadata)
             {
-                Kind = kind;
                 Name = name;
                 Metadata = ToOrdinalDictionary(metadata);
             }
-
-            public string Kind { get; set; }
 
             public string Name { get; set; }
 

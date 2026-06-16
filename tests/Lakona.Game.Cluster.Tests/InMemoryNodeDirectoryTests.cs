@@ -66,7 +66,7 @@ public sealed class InMemoryNodeDirectoryTests
     }
 
     [Fact]
-    public async Task QueryFiltersByServiceKind()
+    public async Task QueryFiltersByFeatureName()
     {
         var directory = new InMemoryNodeDirectory();
         var now = DateTimeOffset.UtcNow;
@@ -80,7 +80,7 @@ public sealed class InMemoryNodeDirectoryTests
             TestContext.Current.CancellationToken);
 
         var records = await directory.QueryAsync(
-            new NodeDirectoryQuery("local", serviceKind: "room"),
+            new NodeDirectoryQuery("local", featureName: "room"),
             now,
             TestContext.Current.CancellationToken);
 
@@ -234,7 +234,7 @@ public sealed class InMemoryNodeDirectoryTests
         string clusterName,
         string nodeId,
         DateTimeOffset now,
-        string serviceKind = "gateway")
+        string featureName = "gateway")
     {
         return new NodeRegistration(
             clusterName,
@@ -245,7 +245,7 @@ public sealed class InMemoryNodeDirectoryTests
             },
             new[]
             {
-                new NodeServiceDescriptor(serviceKind)
+                new NodeFeatureDescriptor(featureName)
             },
             now.AddSeconds(30),
             NodeState.Ready);

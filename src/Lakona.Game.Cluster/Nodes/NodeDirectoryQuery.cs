@@ -11,8 +11,7 @@ namespace Lakona.Game.Cluster
 
         public NodeDirectoryQuery(
             string clusterName,
-            string? serviceKind = null,
-            string? serviceName = null,
+            string? featureName = null,
             NodeState? state = null,
             IReadOnlyDictionary<string, string>? labels = null,
             bool includeExpired = false)
@@ -22,19 +21,13 @@ namespace Lakona.Game.Cluster
                 throw new ArgumentException("Cluster name is required.", nameof(clusterName));
             }
 
-            if (serviceKind is not null && string.IsNullOrWhiteSpace(serviceKind))
+            if (featureName is not null && string.IsNullOrWhiteSpace(featureName))
             {
-                throw new ArgumentException("Service kind cannot be empty.", nameof(serviceKind));
-            }
-
-            if (serviceName is not null && string.IsNullOrWhiteSpace(serviceName))
-            {
-                throw new ArgumentException("Service name cannot be empty.", nameof(serviceName));
+                throw new ArgumentException("Feature name cannot be empty.", nameof(featureName));
             }
 
             ClusterName = clusterName;
-            ServiceKind = serviceKind;
-            ServiceName = serviceName;
+            FeatureName = featureName;
             State = state;
             Labels = CopyStringDictionary(labels, nameof(labels));
             IncludeExpired = includeExpired;
@@ -42,9 +35,7 @@ namespace Lakona.Game.Cluster
 
         public string ClusterName { get; }
 
-        public string? ServiceKind { get; }
-
-        public string? ServiceName { get; }
+        public string? FeatureName { get; }
 
         public NodeState? State { get; }
 

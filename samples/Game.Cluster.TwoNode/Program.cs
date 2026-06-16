@@ -421,8 +421,7 @@ static NodeRegistration WorkerRegistration(int port)
         },
         new[]
         {
-            new NodeServiceDescriptor(
-                "room",
+            new NodeFeatureDescriptor(
                 "worker-room",
                 new Dictionary<string, string>
                 {

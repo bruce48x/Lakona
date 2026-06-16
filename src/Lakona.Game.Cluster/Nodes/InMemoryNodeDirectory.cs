@@ -35,7 +35,7 @@ namespace Lakona.Game.Cluster
                     registration.NodeId,
                     epoch,
                     registration.Endpoints,
-                    registration.Services,
+                    registration.Features,
                     registration.Labels,
                     registration.State,
                     registration.LeaseExpiresAt,
@@ -216,13 +216,7 @@ namespace Lakona.Game.Cluster
                 return false;
             }
 
-            if (query.ServiceKind is not null && !record.HasService(query.ServiceKind, query.ServiceName))
-            {
-                return false;
-            }
-
-            if (query.ServiceKind is null && query.ServiceName is not null
-                && !record.Services.Any(service => string.Equals(service.Name, query.ServiceName, StringComparison.Ordinal)))
+            if (query.FeatureName is not null && !record.HasFeature(query.FeatureName))
             {
                 return false;
             }
@@ -254,7 +248,7 @@ namespace Lakona.Game.Cluster
                 record.NodeId,
                 record.NodeEpoch,
                 record.Endpoints,
-                record.Services,
+                record.Features,
                 record.Labels,
                 record.State,
                 leaseExpiresAt,
@@ -271,7 +265,7 @@ namespace Lakona.Game.Cluster
                 record.NodeId,
                 record.NodeEpoch,
                 record.Endpoints,
-                record.Services,
+                record.Features,
                 record.Labels,
                 state,
                 record.LeaseExpiresAt,

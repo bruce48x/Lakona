@@ -12,12 +12,14 @@ namespace Lakona.Game.Cluster
         public ClusterNodeDescriptor(
             NodeId node,
             NodeState state,
-            IReadOnlyList<NodeServiceDescriptor> services,
+            IReadOnlyDictionary<string, NodeEndpoint> endpoints,
+            IReadOnlyList<NodeFeatureDescriptor> features,
             IReadOnlyDictionary<string, string>? labels = null)
         {
             Node = node;
             State = state;
-            Services = CopyServices(services);
+            Endpoints = CopyEndpoints(endpoints);
+            Features = CopyFeatures(features);
             Labels = CopyStringDictionary(labels, nameof(labels));
         }
 
@@ -25,7 +27,9 @@ namespace Lakona.Game.Cluster
 
         public NodeState State { get; }
 
-        public IReadOnlyList<NodeServiceDescriptor> Services { get; }
+        public IReadOnlyDictionary<string, NodeEndpoint> Endpoints { get; }
+
+        public IReadOnlyList<NodeFeatureDescriptor> Features { get; }
 
         public IReadOnlyDictionary<string, string> Labels { get; }
 
@@ -34,18 +38,44 @@ namespace Lakona.Game.Cluster
             return new ClusterNodeDescriptor(
                 record.NodeId,
                 record.State,
-                record.Services,
+                record.Endpoints,
+                record.Features,
                 record.Labels);
         }
 
-        private static IReadOnlyList<NodeServiceDescriptor> CopyServices(IReadOnlyList<NodeServiceDescriptor> services)
+        private static IReadOnlyDictionary<string, NodeEndpoint> CopyEndpoints(
+            IReadOnlyDictionary<string, NodeEndpoint> endpoints)
         {
-            if (services is null)
+            if (endpoints is null)
             {
-                throw new ArgumentNullException(nameof(services));
+                throw new ArgumentNullException(nameof(endpoints));
             }
 
-            return new ReadOnlyCollection<NodeServiceDescriptor>(new List<NodeServiceDescriptor>(services));
+            var copy = new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal);
+            foreach (var endpoint in endpoints)
+            {
+                if (string.IsNullOrWhiteSpace(endpoint.Key))
+                {
+                    throw new ArgumentException("Node endpoint names cannot be empty.", nameof(endpoints));
+                }
+
+                copy[endpoint.Key] = endpoint.Value ?? throw new ArgumentException(
+                    "Node endpoint cannot be null.",
+                    nameof(endpoints));
+            }
+
+            return new ReadOnlyDictionary<string, NodeEndpoint>(copy);
+        }
+
+        private static IReadOnlyList<NodeFeatureDescriptor> CopyFeatures(
+            IReadOnlyList<NodeFeatureDescriptor> features)
+        {
+            if (features is null)
+            {
+                throw new ArgumentNullException(nameof(features));
+            }
+
+            return new ReadOnlyCollection<NodeFeatureDescriptor>(new List<NodeFeatureDescriptor>(features));
         }
 
         private static IReadOnlyDictionary<string, string> CopyStringDictionary(
