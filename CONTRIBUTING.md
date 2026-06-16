@@ -16,7 +16,6 @@ rules. Supporting documents hold current architecture details:
 
 | Document | Purpose |
 | --- | --- |
-| [docs/lakona-monorepo.md](./docs/lakona-monorepo.md) | Repository structure, package ownership, and documentation placement |
 | [docs/rpc/README.md](./docs/rpc/README.md) | RPC maintainer documentation index |
 | [docs/rpc/overview.md](./docs/rpc/overview.md) | RPC concepts, package map, and contributor notes |
 | [docs/game/design-philosophy.md](./docs/game/design-philosophy.md) | Current game framework principles and scope boundaries |
@@ -91,7 +90,6 @@ docs/
   game/                            Current game framework design docs
   rpc/                             Current RPC maintainer docs
   tool/                            Current Lakona.Tool design docs
-  lakona-monorepo.md               Repository structure and naming policy
 
 blog/
   game/, rpc/                      Hugo article sources
