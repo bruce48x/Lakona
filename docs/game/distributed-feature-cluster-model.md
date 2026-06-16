@@ -326,6 +326,63 @@ Remote actor: where is this concrete object currently owned?
 The first version is request/reply and point-to-point. It does not introduce
 durable pub/sub, topics, consumer groups, offsets, or room migration.
 
+## Client Notification Relay
+
+Client callbacks and transport sessions are process-local objects. A remote
+actor or feature must not hold or invoke a WebSocket or KCP callback object that
+lives on another node.
+
+Client-directed notifications cross nodes through a gateway-owned route:
+
+```txt
+client session route
+  client-session:<playerId>/<sessionId>/<generation> -> gateway node
+```
+
+When a client logs in through a WebSocket gateway, the gateway registers a
+client-session route for that `GameSessionKey`. A player actor, room actor, or
+feature on another node sends a notification to the session route. The gateway
+receives the cluster message, looks up the local connection and callback, and
+invokes the callback in its own process.
+
+Recommended API shape:
+
+```csharp
+await clientNotifications
+    .ForSession(sessionKey)
+    .NotifyAsync(notification, cancellationToken);
+```
+
+The caller expresses business intent: notify this session. The framework owns
+route lookup, gateway delivery, local callback lookup, timeout handling, and
+transport failure mapping.
+
+Session routes should include session generation rather than only player id.
+This avoids delivering messages to a stale connection after reconnect or
+multi-device login.
+
+For reliable notifications, the business owner creates the durable or
+replayable notification record and the gateway acts as the transport relay:
+
+```txt
+business owner
+  -> creates notification with sequence
+  -> sends to client-session route
+gateway node
+  -> delivers to local callback
+client
+  -> acknowledges through gateway
+gateway node
+  -> forwards ack to notification owner or outbox owner
+```
+
+This keeps ownership explicit:
+
+- The gateway owns transport sessions and callback objects.
+- The business node owns the decision to notify and any durable notification
+  state.
+- The cluster owns delivery between the business node and the gateway node.
+
 ## Failure Model
 
 Cluster delivery uses structured statuses at low levels and typed exceptions at
@@ -450,6 +507,21 @@ Unity client
   -> gateway reliable-pushes matched update to client
 ```
 
+Remote player notification:
+
+```txt
+PlayerActor on data-1
+  -> creates a profile or reward notification
+  -> sends notification to client-session:<playerId>/<sessionId>/<generation>
+  -> cluster routes message to gateway-1
+  -> gateway-1 looks up the local WebSocket callback
+  -> gateway-1 invokes callback.OnPlayerNotification(...)
+```
+
+This is the teaching example for notifications from remote business state to a
+client connected through a pure WebSocket gateway. The player actor never holds
+the gateway callback object and does not know the WebSocket endpoint address.
+
 Realtime attach:
 
 ```txt
@@ -489,6 +561,8 @@ battle-1
 - A Unity client logs in through `gateway-1`.
 - Matchmaking allocates a room on `battle-1`.
 - The client receives the battle KCP endpoint and attaches to `battle-1`.
+- A player actor on `data-1` can send a notification through the client-session
+  route and have `gateway-1` deliver it over the local WebSocket callback.
 - `battle-1` pushes world state.
 - `battle-1` settles a match and writes results through `data-1`.
 - If `battle-1` stops, new matches are not assigned to its expired node record.
