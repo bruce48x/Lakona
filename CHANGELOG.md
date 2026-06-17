@@ -4,6 +4,25 @@ Lakona was created on 2026-06-07 by merging the former ULinkGame, ULinkActor,
 and ULinkRpc repositories into a single monorepo. This changelog starts from
 that consolidation.
 
+## 2026-06-17
+
+### Changed
+
+- `Lakona.Tool` `0.12.0`: `lakona-tool new` now generates root `README.md`,
+  `AGENTS.md`, and `CLAUDE.md` instead of thin `docs/GETTING_STARTED.md`,
+  `docs/EDITING_GUIDE.md`, and `docs/OPERATIONS.md`. The root README adapts to
+  the selected client engine, transport, serializer, and deployment profile.
+- `Lakona.Tool` `0.12.0`: strengthened `.gitignore` for generated projects —
+  added `.idea/`, `*.user`, `*.suo` to common ignores, `/Client/[Ll]ogs/`,
+  `/Client/[Uu]ser[Ss]ettings/`, and `/Client/[Bb]uilds/` to Unity-family
+  ignores, and fixed Console projects incorrectly receiving Godot-specific
+  ignores.
+- `Lakona.Tool` `0.12.0`: `lakona-tool new` now attempts safe automatic
+  `git init` and initial commit (`"Initial Lakona project"`) after
+  transactional file write. The initializer skips when Git is unavailable,
+  inside a parent worktree, the root already has commits, or user identity
+  is not configured. Git status is reported in the CLI completion output.
+
 ## 2026-06-15
 
 ### Fixed
