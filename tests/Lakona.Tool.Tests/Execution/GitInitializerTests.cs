@@ -187,7 +187,7 @@ public sealed class GitInitializerTests
     }
 
     [Fact]
-    public void InitializeAsync_CancellationDuringVersionCheck_PropagatesException()
+    public async Task InitializeAsync_CancellationDuringVersionCheck_PropagatesException()
     {
         var fake = new CancellationGitCommandRunner();
 
@@ -195,10 +195,8 @@ public sealed class GitInitializerTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var ex = Assert.ThrowsAsync<OperationCanceledException>(
+        await Assert.ThrowsAsync<OperationCanceledException>(
             () => initializer.InitializeAsync("/tmp/project", cts.Token));
-
-        Assert.NotNull(ex);
     }
 
     [Fact]
