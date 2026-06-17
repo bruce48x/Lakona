@@ -86,7 +86,7 @@ internal sealed class CliApplication
                         new GeneratedProjectGuideRenderer()
                     ],
                     [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
-                new GenerationExecutor(new TransactionalOutputWriter()),
+                new GenerationExecutor(new TransactionalOutputWriter(text)),
                 new GitInitializer(new GitCommandRunner())),
             text,
             terminal);

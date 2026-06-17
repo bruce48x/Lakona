@@ -354,6 +354,27 @@ internal sealed class ToolText
         _ => $"git: commit failed: {reason}"
     };
 
+    public string TargetDirectoryNotEmpty(string path) => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => $"目标目录已存在且不为空: {path}",
+        ToolLanguage.TraditionalChinese => $"目標目錄已存在且不為空: {path}",
+        _ => $"Target directory already exists and is not empty: {path}"
+    };
+
+    public string UnableToDetermineParentDirectory(string path) => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => $"无法确定目标路径的父目录: {path}",
+        ToolLanguage.TraditionalChinese => $"無法確定目標路徑的父目錄: {path}",
+        _ => $"Unable to determine parent directory for target path: {path}"
+    };
+
+    public string GenerationFailedWithCleanupError(string error, string stagingPath, string cleanupError) => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => $"项目生成失败: {error}{Environment.NewLine}清理临时目录 '{stagingPath}' 也失败: {cleanupError}",
+        ToolLanguage.TraditionalChinese => $"專案生成失敗: {error}{Environment.NewLine}清理暫存目錄 '{stagingPath}' 也失敗: {cleanupError}",
+        _ => $"Project generation failed: {error}{Environment.NewLine}Cleanup of staging directory '{stagingPath}' also failed: {cleanupError}"
+    };
+
     private string DidYouMeanValue(string suggestion) => Language switch
     {
         ToolLanguage.SimplifiedChinese => $"你是否想输入 '{suggestion}'?",

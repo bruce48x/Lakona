@@ -188,7 +188,7 @@ public sealed class ToolArchitectureScanTests
                     new GeneratedProjectGuideRenderer()
                 ],
                 [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
-            new GenerationExecutor(new TransactionalOutputWriter()),
+            new GenerationExecutor(new TransactionalOutputWriter(ToolText.ForCulture(System.Globalization.CultureInfo.InvariantCulture))),
             new GitInitializer(new GitUnavailableRunner()));
     }
 

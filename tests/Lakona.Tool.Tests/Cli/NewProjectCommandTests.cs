@@ -105,7 +105,7 @@ public sealed class NewProjectCommandTests
                         new GeneratedProjectGuideRenderer()
                     ],
                     [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
-                new GenerationExecutor(new TransactionalOutputWriter()),
+                new GenerationExecutor(new TransactionalOutputWriter(ToolText.ForCulture(System.Globalization.CultureInfo.InvariantCulture))),
                 new GitInitializer(new GitUnavailableRunner())),
             ToolText.ForCulture(System.Globalization.CultureInfo.InvariantCulture),
             terminal);

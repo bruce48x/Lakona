@@ -15,6 +15,7 @@ namespace Lakona.Tool.Tests.Integration;
 
 public sealed class LakonaProjectGeneratorTests
 {
+    private static ToolText Text => ToolText.ForCulture(System.Globalization.CultureInfo.InvariantCulture);
     [Fact]
     public async Task GenerateAsync_WritesPlanTransactionally()
     {
@@ -43,7 +44,7 @@ public sealed class LakonaProjectGeneratorTests
                         new GeneratedProjectGuideRenderer()
                     ],
                     [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
-                new GenerationExecutor(new TransactionalOutputWriter()),
+                new GenerationExecutor(new TransactionalOutputWriter(Text)),
                 new GitInitializer(new GitUnavailableRunner()));
 
             var result = await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
@@ -100,7 +101,7 @@ public sealed class LakonaProjectGeneratorTests
                         new GeneratedProjectGuideRenderer()
                     ],
                     [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
-                new GenerationExecutor(new TransactionalOutputWriter()),
+                new GenerationExecutor(new TransactionalOutputWriter(Text)),
                 new GitInitializer(new GitUnavailableRunner()));
 
             var result = await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
@@ -152,7 +153,7 @@ public sealed class LakonaProjectGeneratorTests
                         new GeneratedProjectGuideRenderer()
                     ],
                     [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
-                new GenerationExecutor(new TransactionalOutputWriter()),
+                new GenerationExecutor(new TransactionalOutputWriter(Text)),
                 new GitInitializer(new GitUnavailableRunner()));
 
             var result = await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
@@ -202,10 +203,10 @@ public sealed class LakonaProjectGeneratorTests
                         new GeneratedProjectGuideRenderer()
                     ],
                     [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
-                new GenerationExecutor(new TransactionalOutputWriter()),
+                new GenerationExecutor(new TransactionalOutputWriter(Text)),
                 new GitInitializer(recordingRunner));
 
-            await Assert.ThrowsAsync<InvalidOperationException>(
+            await Assert.ThrowsAsync<CliUsageException>(
                 () => generator.GenerateAsync(spec, TestContext.Current.CancellationToken));
 
             Assert.Equal(0, recordingRunner.CallCount);

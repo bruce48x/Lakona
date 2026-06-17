@@ -23,6 +23,12 @@ that consolidation.
   inside a parent worktree, the root already has commits, or user identity
   is not configured. Git status is reported in the CLI completion output.
 
+### Fixed
+
+- `Lakona.Tool` `0.12.1`: `lakona-tool new` now surfaces a localized
+  user-friendly error message when the target directory already exists,
+  instead of crashing with an unhandled exception and full stack trace.
+
 ## 2026-06-15
 
 ### Fixed
