@@ -18,7 +18,8 @@ namespace SampleClient.Gameplay
             _menuBackground = FindSceneUiObject("SceneUI/MenuBackground");
             if (_menuBackground == null)
             {
-                _menuBackground = DotArenaUiFactory.CreatePanel(_sceneUiRoot.transform, "MenuBackground");
+                WarnMissingAuthoredSceneUi("SceneUI/MenuBackground");
+                return;
             }
 
             _menuBackground.transform.SetAsFirstSibling();
@@ -124,12 +125,7 @@ namespace SampleClient.Gameplay
             var button = FindSceneUiButton($"SceneUI/EntryPanel/ModeSelectPanel/{name}");
             if (button == null)
             {
-                CreateSettlementButton(_modeSelectPanel!.transform, name, anchoredPosition, new Vector2(260f, 38f), label);
-                button = FindSceneUiButton($"SceneUI/EntryPanel/ModeSelectPanel/{name}");
-            }
-
-            if (button == null)
-            {
+                WarnMissingAuthoredSceneUi($"SceneUI/EntryPanel/ModeSelectPanel/{name}");
                 return;
             }
 
@@ -203,23 +199,31 @@ namespace SampleClient.Gameplay
 
         private void EnsureMultiplayerInputLayout(string name, Vector2 anchoredPosition, Vector2 size)
         {
-            var input = FindSceneUiInputField($"SceneUI/EntryPanel/MultiplayerPanel/{name}");
-            if (input == null)
+            var path = $"SceneUI/EntryPanel/MultiplayerPanel/{name}";
+            var rect = FindSceneUiRect(path);
+            if (rect == null)
             {
+                WarnMissingAuthoredSceneUi(path);
                 return;
             }
 
-            var rect = input.GetComponent<RectTransform>();
             rect.anchorMin = new Vector2(0.5f, 1f);
             rect.anchorMax = new Vector2(0.5f, 1f);
             rect.pivot = new Vector2(0.5f, 1f);
             rect.anchoredPosition = anchoredPosition;
             rect.sizeDelta = size;
 
-            if (input.textViewport != null)
+            var input = FindSceneUiInputField(path);
+            if (input?.textViewport != null)
             {
                 input.textViewport.offsetMin = new Vector2(12f, 5f);
                 input.textViewport.offsetMax = new Vector2(-12f, -5f);
+            }
+
+            var legacyInput = FindSceneUiLegacyInputField(path);
+            if (legacyInput?.textComponent != null)
+            {
+                EnsureLegacyInputFieldViewport(legacyInput);
             }
         }
 
@@ -228,12 +232,7 @@ namespace SampleClient.Gameplay
             var button = FindSceneUiButton($"SceneUI/EntryPanel/MultiplayerPanel/{name}");
             if (button == null)
             {
-                CreateSettlementButton(_multiplayerPanel!.transform, name, anchoredPosition, size, label);
-                button = FindSceneUiButton($"SceneUI/EntryPanel/MultiplayerPanel/{name}");
-            }
-
-            if (button == null)
-            {
+                WarnMissingAuthoredSceneUi($"SceneUI/EntryPanel/MultiplayerPanel/{name}");
                 return;
             }
 
@@ -268,8 +267,7 @@ namespace SampleClient.Gameplay
                 return;
             }
 
-            CreateLobbyText(_lobbyPanel.transform, "QuickActionsText", new Vector2(-18f, -150f), new Vector2(380f, 40f), 12f, FontStyles.Bold, TextAlignmentOptions.TopLeft);
-            _lobbyQuickActionsText = FindSceneUiText("SceneUI/LobbyPanel/QuickActionsText");
+            WarnMissingAuthoredSceneUi("SceneUI/LobbyPanel/QuickActionsText");
         }
 
         private void EnsureLobbyQuickActionButtons()
@@ -292,21 +290,7 @@ namespace SampleClient.Gameplay
                 return;
             }
 
-            CreateLobbyButton(_lobbyPanel!.transform, name, anchoredPosition, new Vector2(132f, 34f), "Action");
-        }
-
-        private void CreateLobbyText(Transform parent, string name, Vector2 anchoredPosition, Vector2 size, float fontSize, FontStyles fontStyles, TextAlignmentOptions alignment)
-        {
-            UiFactory.CreateText(
-                parent,
-                name,
-                DotArenaUiRect.TopCenter(anchoredPosition, size),
-                DotArenaUiStyleCatalog.LobbyText(fontSize, fontStyles, alignment));
-        }
-
-        private void CreateLobbyButton(Transform parent, string name, Vector2 anchoredPosition, Vector2 size, string label)
-        {
-            UiFactory.CreateButton(parent, name, DotArenaUiRect.TopCenter(anchoredPosition, size), label);
+            WarnMissingAuthoredSceneUi($"SceneUI/LobbyPanel/{name}");
         }
 
         private void EnsureSettlementPanel()
@@ -320,17 +304,11 @@ namespace SampleClient.Gameplay
             if (_settlementPanel != null)
             {
                 EnsureSettlementPanelContents();
+                _settlementPanel.SetActive(false);
                 return;
             }
 
-            _settlementPanel = DotArenaUiFactory.CreatePanel(_sceneUiRoot.transform, "SettlementPanel");
-            var panelRect = (RectTransform)_settlementPanel.transform;
-            panelRect.anchorMin = new Vector2(0.5f, 0.5f);
-            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
-            panelRect.pivot = new Vector2(0.5f, 0.5f);
-            panelRect.sizeDelta = new Vector2(460f, 430f);
-            EnsureSettlementPanelContents();
-            _settlementPanel.SetActive(false);
+            WarnMissingAuthoredSceneUi("SceneUI/SettlementPanel");
         }
 
         private void EnsureSettlementPanelContents()
@@ -351,12 +329,12 @@ namespace SampleClient.Gameplay
 
             if (FindSceneUiButton("SceneUI/SettlementPanel/PrimaryButton") == null)
             {
-                CreateSettlementButton(_settlementPanel.transform, "PrimaryButton", new Vector2(0f, -330f), new Vector2(260f, 32f), "再来一局");
+                WarnMissingAuthoredSceneUi("SceneUI/SettlementPanel/PrimaryButton");
             }
 
             if (FindSceneUiButton("SceneUI/SettlementPanel/SecondaryButton") == null)
             {
-                CreateSettlementButton(_settlementPanel.transform, "SecondaryButton", new Vector2(0f, -372f), new Vector2(260f, 32f), "返回大厅");
+                WarnMissingAuthoredSceneUi("SceneUI/SettlementPanel/SecondaryButton");
             }
 
             LayoutSettlementButton("PrimaryButton", new Vector2(0f, -330f), new Vector2(260f, 32f), "再来一局");
@@ -368,12 +346,7 @@ namespace SampleClient.Gameplay
             var text = FindSceneUiText($"SceneUI/SettlementPanel/{name}");
             if (text == null)
             {
-                CreateSettlementText(_settlementPanel!.transform, name, anchoredPosition, size, fontSize, fontStyles);
-                text = FindSceneUiText($"SceneUI/SettlementPanel/{name}");
-            }
-
-            if (text == null)
-            {
+                WarnMissingAuthoredSceneUi($"SceneUI/SettlementPanel/{name}");
                 return;
             }
 
@@ -424,34 +397,11 @@ namespace SampleClient.Gameplay
             _matchmakingPanel = FindSceneUiObject("SceneUI/MatchmakingPanel");
             if (_matchmakingPanel != null)
             {
+                _matchmakingPanel.SetActive(false);
                 return;
             }
 
-            _matchmakingPanel = DotArenaUiFactory.CreatePanel(_sceneUiRoot.transform, "MatchmakingPanel");
-            var panelRect = (RectTransform)_matchmakingPanel.transform;
-            panelRect.anchorMin = new Vector2(0.5f, 0.5f);
-            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
-            panelRect.pivot = new Vector2(0.5f, 0.5f);
-            panelRect.sizeDelta = new Vector2(420f, 240f);
-
-            CreateSettlementText(_matchmakingPanel.transform, "TitleText", new Vector2(0f, -18f), new Vector2(340f, 32f), 22f, FontStyles.Bold);
-            CreateSettlementText(_matchmakingPanel.transform, "DetailText", new Vector2(0f, -62f), new Vector2(340f, 100f), 13f, FontStyles.Normal);
-            CreateSettlementButton(_matchmakingPanel.transform, "CancelButton", new Vector2(0f, -188f), new Vector2(260f, 32f), "取消匹配");
-            _matchmakingPanel.SetActive(false);
-        }
-
-        private void CreateSettlementText(Transform parent, string name, Vector2 anchoredPosition, Vector2 size, float fontSize, FontStyles fontStyles)
-        {
-            UiFactory.CreateText(
-                parent,
-                name,
-                DotArenaUiRect.TopCenter(anchoredPosition, size),
-                DotArenaUiStyleCatalog.CenterPanelText(fontSize, fontStyles));
-        }
-
-        private void CreateSettlementButton(Transform parent, string name, Vector2 anchoredPosition, Vector2 size, string label)
-        {
-            UiFactory.CreateButton(parent, name, DotArenaUiRect.TopCenter(anchoredPosition, size), label);
+            WarnMissingAuthoredSceneUi("SceneUI/MatchmakingPanel");
         }
     }
 }

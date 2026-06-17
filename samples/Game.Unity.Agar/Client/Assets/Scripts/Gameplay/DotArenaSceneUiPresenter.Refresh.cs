@@ -118,6 +118,8 @@ namespace SampleClient.Gameplay
             if (_lobbyQuickActionButton4 != null) _lobbyQuickActionButton4.interactable = !snapshot.IsBusy;
             if (_accountInputField != null) _accountInputField.interactable = !snapshot.IsBusy;
             if (_passwordInputField != null) _passwordInputField.interactable = !snapshot.IsBusy;
+            if (_accountLegacyInputField != null) _accountLegacyInputField.interactable = !snapshot.IsBusy;
+            if (_passwordLegacyInputField != null) _passwordLegacyInputField.interactable = !snapshot.IsBusy;
 
             SyncSceneUiInputs(snapshot.Account, snapshot.Password);
             SetText(_settlementTitleText, snapshot.SessionMode == SessionMode.Multiplayer ? "联机结算" : "单机结算");
@@ -172,6 +174,16 @@ namespace SampleClient.Gameplay
             if (_passwordInputField != null && !_passwordInputField.isFocused && _passwordInputField.text != password)
             {
                 _passwordInputField.SetTextWithoutNotify(password);
+            }
+
+            if (_accountLegacyInputField != null && !_accountLegacyInputField.isFocused && _accountLegacyInputField.text != account)
+            {
+                _accountLegacyInputField.SetTextWithoutNotify(account);
+            }
+
+            if (_passwordLegacyInputField != null && !_passwordLegacyInputField.isFocused && _passwordLegacyInputField.text != password)
+            {
+                _passwordLegacyInputField.SetTextWithoutNotify(password);
             }
         }
     }

@@ -158,6 +158,8 @@ namespace SampleClient.Gameplay
         private TMP_Text? _backButtonText;
         private TMP_InputField? _accountInputField;
         private TMP_InputField? _passwordInputField;
+        private InputField? _accountLegacyInputField;
+        private InputField? _passwordLegacyInputField;
         private TMP_FontAsset? _tmpFontAsset;
         private Sprite? _uiPanelSprite;
         private Sprite? _uiButtonNormalSprite;
@@ -293,10 +295,26 @@ namespace SampleClient.Gameplay
             _guestLoginButtonText = FindSceneUiText("SceneUI/EntryPanel/MultiplayerPanel/GuestLoginButton/Label");
             _backButtonText = FindSceneUiText("SceneUI/EntryPanel/MultiplayerPanel/BackButton/Label");
 
-            _accountInputField = FindSceneUiInputField("SceneUI/EntryPanel/MultiplayerPanel/AccountInput");
-            _passwordInputField = FindSceneUiInputField("SceneUI/EntryPanel/MultiplayerPanel/PasswordInput");
+            _accountInputField = FindOrCreateSceneUiInputField(
+                "SceneUI/EntryPanel/MultiplayerPanel/AccountInput",
+                TMP_InputField.ContentType.Standard);
+            _passwordInputField = FindOrCreateSceneUiInputField(
+                "SceneUI/EntryPanel/MultiplayerPanel/PasswordInput",
+                TMP_InputField.ContentType.Password);
+            _accountLegacyInputField = _accountInputField == null
+                ? FindOrCreateSceneUiLegacyInputField(
+                    "SceneUI/EntryPanel/MultiplayerPanel/AccountInput",
+                    InputField.ContentType.Standard)
+                : null;
+            _passwordLegacyInputField = _passwordInputField == null
+                ? FindOrCreateSceneUiLegacyInputField(
+                    "SceneUI/EntryPanel/MultiplayerPanel/PasswordInput",
+                    InputField.ContentType.Password)
+                : null;
             EnsureInputFieldViewport(_accountInputField);
             EnsureInputFieldViewport(_passwordInputField);
+            EnsureLegacyInputFieldViewport(_accountLegacyInputField);
+            EnsureLegacyInputFieldViewport(_passwordLegacyInputField);
             _settlementTitleText = FindSceneUiText("SceneUI/SettlementPanel/TitleText");
             _settlementDetailText = FindSceneUiText("SceneUI/SettlementPanel/DetailText");
             _settlementRewardText = FindSceneUiText("SceneUI/SettlementPanel/RewardText");
@@ -372,6 +390,18 @@ namespace SampleClient.Gameplay
             {
                 _passwordInputField.onValueChanged.RemoveAllListeners();
                 _passwordInputField.onValueChanged.AddListener(value => onPasswordChanged(value));
+            }
+
+            if (_accountLegacyInputField != null)
+            {
+                _accountLegacyInputField.onValueChanged.RemoveAllListeners();
+                _accountLegacyInputField.onValueChanged.AddListener(value => onAccountChanged(value));
+            }
+
+            if (_passwordLegacyInputField != null)
+            {
+                _passwordLegacyInputField.onValueChanged.RemoveAllListeners();
+                _passwordLegacyInputField.onValueChanged.AddListener(value => onPasswordChanged(value));
             }
 
             if (_settlementPrimaryButton != null)

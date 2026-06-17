@@ -19,7 +19,8 @@ namespace SampleClient.Gameplay
             _matchRankingPanel = FindSceneUiObject("SceneUI/MatchRankingPanel");
             if (_matchRankingPanel == null)
             {
-                _matchRankingPanel = DotArenaUiFactory.CreatePanel(_sceneUiRoot.transform, "MatchRankingPanel");
+                WarnMissingAuthoredSceneUi("SceneUI/MatchRankingPanel");
+                return;
             }
 
             EnsureMatchRankingPanelContents();
@@ -60,11 +61,15 @@ namespace SampleClient.Gameplay
             _matchRankingRows.Clear();
             for (var i = 0; i < MatchRankingMaxRows; i++)
             {
-                _matchRankingRows.Add(EnsureMatchRankingRow(i));
+                var row = EnsureMatchRankingRow(i);
+                if (row != null)
+                {
+                    _matchRankingRows.Add(row);
+                }
             }
         }
 
-        private TMP_Text EnsureMatchRankingText(
+        private TMP_Text? EnsureMatchRankingText(
             Transform parent,
             string name,
             Vector2 anchoredPosition,
@@ -73,27 +78,29 @@ namespace SampleClient.Gameplay
             FontStyles fontStyles,
             TextAlignmentOptions alignment)
         {
-            return UiFactory.EnsureText(
-                parent,
-                name,
-                DotArenaUiRect.TopCenter(anchoredPosition, size),
-                DotArenaUiStyleCatalog.RankingText(fontSize, fontStyles, alignment));
+            var target = parent.Find(name);
+            if (target == null || !target.TryGetComponent<TMP_Text>(out var text))
+            {
+                WarnMissingAuthoredSceneUi($"{BuildSceneUiPath(parent)}/{name}");
+                return null;
+            }
+
+            DotArenaUiRect.TopCenter(anchoredPosition, size).Apply(text.rectTransform);
+            DotArenaUiStyleCatalog.ApplyText(text, DotArenaUiStyleCatalog.RankingText(fontSize, fontStyles, alignment));
+            return text;
         }
 
-        private MatchRankingRowUi EnsureMatchRankingRow(int index)
+        private MatchRankingRowUi? EnsureMatchRankingRow(int index)
         {
             var rowName = $"Row{index + 1}";
             var rowTransform = _matchRankingPanel!.transform.Find(rowName);
-            GameObject rowObject;
             if (rowTransform == null)
             {
-                rowObject = DotArenaUiFactory.CreatePanel(_matchRankingPanel.transform, rowName);
-            }
-            else
-            {
-                rowObject = rowTransform.gameObject;
+                WarnMissingAuthoredSceneUi($"SceneUI/MatchRankingPanel/{rowName}");
+                return null;
             }
 
+            var rowObject = rowTransform.gameObject;
             var rect = (RectTransform)rowObject.transform;
             rect.anchorMin = new Vector2(0.5f, 1f);
             rect.anchorMax = new Vector2(0.5f, 1f);
@@ -104,7 +111,8 @@ namespace SampleClient.Gameplay
             var background = rowObject.GetComponent<Image>();
             if (background == null)
             {
-                background = rowObject.AddComponent<Image>();
+                WarnMissingAuthoredSceneUi($"SceneUI/MatchRankingPanel/{rowName} Image");
+                return null;
             }
 
             background.raycastTarget = false;
@@ -112,16 +120,26 @@ namespace SampleClient.Gameplay
             var rankText = EnsureMatchRankingRowText(rowObject.transform, "RankText", 0f, 34f, TextAlignmentOptions.Left);
             var nameText = EnsureMatchRankingRowText(rowObject.transform, "NameText", 36f, 118f, TextAlignmentOptions.Left);
             var massText = EnsureMatchRankingRowText(rowObject.transform, "MassText", 164f, 56f, TextAlignmentOptions.Right);
+            if (rankText == null || nameText == null || massText == null)
+            {
+                return null;
+            }
+
             return new MatchRankingRowUi(rowObject, background, rankText, nameText, massText);
         }
 
-        private TMP_Text EnsureMatchRankingRowText(Transform parent, string name, float x, float width, TextAlignmentOptions alignment)
+        private TMP_Text? EnsureMatchRankingRowText(Transform parent, string name, float x, float width, TextAlignmentOptions alignment)
         {
-            return UiFactory.EnsureText(
-                parent,
-                name,
-                DotArenaUiRect.LeftMiddle(new Vector2(x, 0f), new Vector2(width, 20f)),
-                DotArenaUiStyleCatalog.RankingText(12f, FontStyles.Bold, alignment));
+            var target = parent.Find(name);
+            if (target == null || !target.TryGetComponent<TMP_Text>(out var text))
+            {
+                WarnMissingAuthoredSceneUi($"{BuildSceneUiPath(parent)}/{name}");
+                return null;
+            }
+
+            DotArenaUiRect.LeftMiddle(new Vector2(x, 0f), new Vector2(width, 20f)).Apply(text.rectTransform);
+            DotArenaUiStyleCatalog.ApplyText(text, DotArenaUiStyleCatalog.RankingText(12f, FontStyles.Bold, alignment));
+            return text;
         }
 
         private void EnsureHudCountdownText()
@@ -151,12 +169,7 @@ namespace SampleClient.Gameplay
                 return;
             }
 
-            _hudCountdownText = UiFactory.CreateText(
-                parent,
-                "CountdownText",
-                DotArenaUiRect.TopCenter(new Vector2(0f, -10f), new Vector2(220f, 28f)),
-                DotArenaUiStyleCatalog.RankingText(14f, FontStyles.Bold, TextAlignmentOptions.Center));
-            _hudCountdownText.color = UiAccentTextColor;
+            WarnMissingAuthoredSceneUi($"{BuildSceneUiPath(parent)}/CountdownText");
         }
 
         private void EnsureDebugPanel()
@@ -170,18 +183,11 @@ namespace SampleClient.Gameplay
             if (_debugPanel != null)
             {
                 EnsureDebugPanelContents();
+                _debugPanel.SetActive(false);
                 return;
             }
 
-            _debugPanel = DotArenaUiFactory.CreatePanel(_sceneUiRoot.transform, "DebugPanel");
-            var panelRect = (RectTransform)_debugPanel.transform;
-            panelRect.anchorMin = new Vector2(1f, 1f);
-            panelRect.anchorMax = new Vector2(1f, 1f);
-            panelRect.pivot = new Vector2(1f, 1f);
-            panelRect.anchoredPosition = new Vector2(-16f, -68f);
-            panelRect.sizeDelta = new Vector2(300f, 170f);
-            EnsureDebugPanelContents();
-            _debugPanel.SetActive(false);
+            WarnMissingAuthoredSceneUi("SceneUI/DebugPanel");
         }
 
         private void EnsureDebugPanelContents()
@@ -196,12 +202,12 @@ namespace SampleClient.Gameplay
 
             if (FindSceneUiText("SceneUI/DebugPanel/TitleText") == null)
             {
-                CreateSettlementText(_debugPanel.transform, "TitleText", new Vector2(-110f, -14f), new Vector2(220f, 26f), 16f, FontStyles.Bold);
+                WarnMissingAuthoredSceneUi("SceneUI/DebugPanel/TitleText");
             }
 
             if (FindSceneUiText("SceneUI/DebugPanel/DetailText") == null)
             {
-                CreateSettlementText(_debugPanel.transform, "DetailText", new Vector2(0f, -34f), new Vector2(260f, 120f), 12f, FontStyles.Normal);
+                WarnMissingAuthoredSceneUi("SceneUI/DebugPanel/DetailText");
             }
         }
 
@@ -242,12 +248,11 @@ namespace SampleClient.Gameplay
             if (_lobbyPanel != null)
             {
                 EnsureLobbyPanelContents();
+                _lobbyPanel.SetActive(false);
                 return;
             }
 
-            _lobbyPanel = DotArenaUiFactory.CreatePanel(_sceneUiRoot.transform, "LobbyPanel");
-            EnsureLobbyPanelContents();
-            _lobbyPanel.SetActive(false);
+            WarnMissingAuthoredSceneUi("SceneUI/LobbyPanel");
         }
 
         private void EnsureLobbyPanelContents()
@@ -294,12 +299,7 @@ namespace SampleClient.Gameplay
             var text = FindSceneUiText($"SceneUI/LobbyPanel/{name}");
             if (text == null)
             {
-                CreateLobbyText(_lobbyPanel.transform, name, anchoredPosition, size, fontSize, fontStyles, alignment);
-                text = FindSceneUiText($"SceneUI/LobbyPanel/{name}");
-            }
-
-            if (text == null)
-            {
+                WarnMissingAuthoredSceneUi($"SceneUI/LobbyPanel/{name}");
                 return;
             }
 
@@ -324,12 +324,7 @@ namespace SampleClient.Gameplay
             var button = FindSceneUiButton($"SceneUI/LobbyPanel/{name}");
             if (button == null)
             {
-                CreateLobbyButton(_lobbyPanel.transform, name, anchoredPosition, size, label);
-                button = FindSceneUiButton($"SceneUI/LobbyPanel/{name}");
-            }
-
-            if (button == null)
-            {
+                WarnMissingAuthoredSceneUi($"SceneUI/LobbyPanel/{name}");
                 return;
             }
 

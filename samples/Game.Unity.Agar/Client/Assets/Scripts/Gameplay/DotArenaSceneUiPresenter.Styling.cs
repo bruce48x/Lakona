@@ -130,6 +130,8 @@ namespace SampleClient.Gameplay
 
             StyleInputField(_accountInputField);
             StyleInputField(_passwordInputField);
+            StyleLegacyInputField(_accountLegacyInputField);
+            StyleLegacyInputField(_passwordLegacyInputField);
             ApplyButtonIcon(_lobbyLeaderboardButton, _leaderboardIconSprite);
         }
 
@@ -153,6 +155,47 @@ namespace SampleClient.Gameplay
             DotArenaUiStyleCatalog.ApplyInputField(inputField);
         }
 
+        private static void StyleLegacyInputField(InputField? inputField)
+        {
+            if (inputField == null)
+            {
+                return;
+            }
+
+            if (inputField.targetGraphic is Image image)
+            {
+                image.color = UiInputBackgroundColor;
+                image.raycastTarget = true;
+            }
+
+            if (inputField.textComponent != null)
+            {
+                inputField.textComponent.color = UiPrimaryTextColor;
+                inputField.textComponent.fontSize = 13;
+                inputField.textComponent.alignment = TextAnchor.MiddleLeft;
+                inputField.textComponent.horizontalOverflow = HorizontalWrapMode.Overflow;
+                inputField.textComponent.verticalOverflow = VerticalWrapMode.Truncate;
+            }
+
+            if (inputField.placeholder is Text placeholder)
+            {
+                placeholder.color = UiMutedTextColor;
+                placeholder.fontSize = 13;
+                placeholder.alignment = TextAnchor.MiddleLeft;
+                placeholder.horizontalOverflow = HorizontalWrapMode.Overflow;
+                placeholder.verticalOverflow = VerticalWrapMode.Truncate;
+            }
+
+            var colors = inputField.colors;
+            colors.normalColor = new Color(0.2f, 0.29f, 0.38f, 1f);
+            colors.highlightedColor = new Color(0.27f, 0.39f, 0.5f, 1f);
+            colors.pressedColor = new Color(0.14f, 0.22f, 0.3f, 1f);
+            colors.disabledColor = new Color(0.2f, 0.2f, 0.22f, 0.7f);
+            colors.selectedColor = colors.highlightedColor;
+            colors.colorMultiplier = 1f;
+            inputField.colors = colors;
+        }
+
         private static void EnsureInputFieldViewport(TMP_InputField? inputField)
         {
             if (inputField?.textViewport == null)
@@ -168,6 +211,31 @@ namespace SampleClient.Gameplay
 
             rect.offsetMin = new Vector2(10f, 4f);
             rect.offsetMax = new Vector2(-10f, -4f);
+        }
+
+        private static void EnsureLegacyInputFieldViewport(InputField? inputField)
+        {
+            if (inputField?.textComponent == null)
+            {
+                return;
+            }
+
+            var rect = inputField.textComponent.rectTransform;
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.offsetMin = new Vector2(12f, 5f);
+            rect.offsetMax = new Vector2(-12f, -5f);
+
+            if (inputField.placeholder is Graphic placeholder)
+            {
+                var placeholderRect = placeholder.rectTransform;
+                placeholderRect.anchorMin = Vector2.zero;
+                placeholderRect.anchorMax = Vector2.one;
+                placeholderRect.pivot = new Vector2(0.5f, 0.5f);
+                placeholderRect.offsetMin = new Vector2(12f, 5f);
+                placeholderRect.offsetMax = new Vector2(-12f, -5f);
+            }
         }
 
         private static TMP_FontAsset? LoadTmpFontAsset()
@@ -300,6 +368,86 @@ namespace SampleClient.Gameplay
             return target != null ? target.GetComponent<TMP_InputField>() : null;
         }
 
+        private TMP_InputField? FindOrCreateSceneUiInputField(string path, TMP_InputField.ContentType contentType)
+        {
+            if (_owner == null)
+            {
+                return null;
+            }
+
+            var target = _owner.Find(path);
+            if (target == null)
+            {
+                WarnMissingAuthoredSceneUi(path);
+                return null;
+            }
+
+            var inputField = target.GetComponent<TMP_InputField>();
+            if (inputField == null)
+            {
+                inputField = target.gameObject.AddComponent<TMP_InputField>();
+            }
+
+            inputField.contentType = contentType;
+            inputField.targetGraphic = target.GetComponent<Image>();
+            inputField.textViewport = target.Find("Text Area") as RectTransform;
+            inputField.textComponent = target.Find("Text Area/Text")?.GetComponent<TMP_Text>();
+            inputField.placeholder = target.Find("Text Area/Placeholder")?.GetComponent<TMP_Text>();
+
+            if (inputField.textViewport == null || inputField.textComponent == null || inputField.placeholder == null)
+            {
+                WarnMissingAuthoredSceneUi($"{path}/Text Area/Text or Placeholder");
+                return null;
+            }
+
+            return inputField;
+        }
+
+        private InputField? FindSceneUiLegacyInputField(string path)
+        {
+            if (_owner == null)
+            {
+                return null;
+            }
+
+            var target = _owner.Find(path);
+            return target != null ? target.GetComponent<InputField>() : null;
+        }
+
+        private InputField? FindOrCreateSceneUiLegacyInputField(string path, InputField.ContentType contentType)
+        {
+            if (_owner == null)
+            {
+                return null;
+            }
+
+            var target = _owner.Find(path);
+            if (target == null)
+            {
+                WarnMissingAuthoredSceneUi(path);
+                return null;
+            }
+
+            var inputField = target.GetComponent<InputField>();
+            if (inputField == null)
+            {
+                inputField = target.gameObject.AddComponent<InputField>();
+            }
+
+            inputField.contentType = contentType;
+            inputField.targetGraphic = target.GetComponent<Image>();
+            inputField.textComponent = target.Find("Text Area/Text")?.GetComponent<Text>();
+            inputField.placeholder = target.Find("Text Area/Placeholder")?.GetComponent<Text>();
+
+            if (inputField.textComponent == null || inputField.placeholder == null)
+            {
+                WarnMissingAuthoredSceneUi($"{path}/Text Area/Text or Placeholder");
+                return null;
+            }
+
+            return inputField;
+        }
+
         private RectTransform? FindSceneUiRect(string path)
         {
             if (_owner == null)
@@ -309,6 +457,24 @@ namespace SampleClient.Gameplay
 
             var target = _owner.Find(path);
             return target != null ? target.GetComponent<RectTransform>() : null;
+        }
+
+        private static string BuildSceneUiPath(Transform transform)
+        {
+            var path = transform.name;
+            var current = transform.parent;
+            while (current != null && current.name != "DotArenaGame")
+            {
+                path = current.name + "/" + path;
+                current = current.parent;
+            }
+
+            return path;
+        }
+
+        private static void WarnMissingAuthoredSceneUi(string path)
+        {
+            Debug.LogWarning($"[DotArena] SceneUI prefab is missing required object or component: {path}");
         }
 
         private static void SetText(TMP_Text? label, string value)
