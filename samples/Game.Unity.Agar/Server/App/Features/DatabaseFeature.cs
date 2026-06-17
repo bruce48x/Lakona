@@ -25,6 +25,7 @@ public sealed class DatabaseFeature : LakonaGameFeature
                 options.NodeDirectoryTable);
         });
         context.Services.AddSingleton<INodeDirectory, SqlNodeDirectory>();
+        context.Services.AddSingleton<IRouteDirectory, InMemoryRouteDirectory>();
         context.Services.AddHostedService<AgarDatabaseSchemaHostedService>();
     }
 

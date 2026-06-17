@@ -70,7 +70,7 @@ samples/Game.Unity.Agar
 - `Shared/Gameplay/ArenaSimulation.cs`：玩法规则内核，单机和联机共用。
 - `Shared/Interfaces/IPlayerService.cs`：客户端和服务端共用的 RPC 协议。
 - `Server/Hotfix/Services/PlayerService.cs`：可热更的控制面和实时面 RPC 业务服务。
-- `Server/App/Features/DatabaseFeature.cs`：data 节点的数据库特性，注册 Postgres 连接工厂和 SQL-backed cluster node directory。
+- `Server/App/Features/DatabaseFeature.cs`：data 节点的数据库特性，注册 Postgres 连接工厂、SQL-backed cluster node directory 和 data 节点本地 route directory。
 - `Server/App/Realtime/RoomRuntime.cs`：服务端房间模拟和世界状态广播。
 - `Server/App/State/StateStores.cs`：把 sample 业务状态接入 Lakona.Game.Server.Actors facade。
 - `Server/App/State/Users/UserActor.cs`：用户登录、资料和胜利积分状态。
@@ -90,7 +90,7 @@ dotnet run --project Server/App/Server.App.csproj
 
 然后用 Unity 打开 `Client` 目录，运行游戏场景。
 
-三节点 sample 拓扑可通过 `docker-compose.yml` 启动 `data-1`、`gateway-1`、`battle-1`、Postgres 和 Redis。`data-1` 的 `database` feature 会读取 `ConnectionStrings:AgarPostgres` 和 `ConnectionStrings:AgarRedis`，并把 cluster node directory 接到 Postgres。当前阶段 Postgres 用于 cluster membership；完整 gameplay state 持久化和 Redis 排行榜索引仍是后续 sample 工作，不应把回调对象或会话 callback 状态写入 Postgres/Redis。
+三节点 sample 拓扑可通过 `docker-compose.yml` 启动 `data-1`、`gateway-1`、`battle-1`、Postgres 和 Redis。`data-1` 的 `database` feature 会读取 `ConnectionStrings:AgarPostgres` 和 `ConnectionStrings:AgarRedis`，把 cluster node directory 接到 Postgres，并在 data 进程内提供共享 route directory；`gateway-1` 和 `battle-1` 通过 `Lakona:Cluster:Seeds` 使用 seeded directory clients 访问 data 节点。远程客户端通知通过 battle/data 侧的 `ClusterClientNotificationDispatcher` 调用 gateway cluster endpoint 上的 binder，再由 gateway 的本地 session callback 发给客户端。当前阶段 Postgres 用于 cluster membership；route directory 是 sample V1 的 data-local in-memory 实现；完整 gameplay state 持久化和 Redis 排行榜索引仍是后续 sample 工作，不应把回调对象或会话 callback 状态写入 Postgres/Redis。
 
 ## 开发命令
 

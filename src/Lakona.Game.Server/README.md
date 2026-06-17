@@ -4,6 +4,12 @@
 
 It exposes `Lakona.Game.Server.Actors` so room, battle, and service state can run with predictable process-local mailbox behavior on the gateway process.
 
+In a distributed deployment, one node can own local cluster directories while
+other nodes use `Lakona:Cluster:Seeds` to create seeded directory clients. A
+seed that points at the current node's own cluster endpoint is ignored for
+remote directory registration, so directory-owner nodes must register local
+`INodeDirectory` and `IRouteDirectory` implementations.
+
 ## Install
 
 ```powershell
@@ -204,6 +210,14 @@ public sealed class MatchPushService
 ```
 
 The built-in outbox is process-local and in-memory. Replace `IReliablePushOutbox` with a project-specific implementation when pending pushes must survive process restarts. Use `IGameSessionDirectory`, `IReliablePushOutbox`, `ReliablePushRecord`, and `IReliablePushAckService` directly only when you need lower-level control.
+
+For cross-node client notifications, register the gateway's local
+`IGameSessionDirectory` with `ClientNotificationCommandBinder` on the gateway
+cluster endpoint. Business nodes use `ClientNotificationRelay` with an
+`IRouteDirectory` and `ClusterClientNotificationDispatcher`; the relay resolves
+the `client-session:<owner>/<session>/<generation>` route and sends a
+serializable command to the gateway, where only the gateway process invokes the
+local callback.
 
 ## Use Session Lifecycle Helpers
 

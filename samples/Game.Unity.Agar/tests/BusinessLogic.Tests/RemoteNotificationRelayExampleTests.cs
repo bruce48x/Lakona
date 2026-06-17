@@ -1,6 +1,12 @@
 using Lakona.Game.Cluster;
+using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.Sessions;
+using Lakona.Rpc.Serializer.Json;
+using Lakona.Rpc.Server;
+using Lakona.Rpc.Transport.Tcp;
 using Shared.Interfaces;
+using System.Net;
+using System.Net.Sockets;
 using Xunit;
 
 namespace Agar.Unity.Tests;
@@ -10,21 +16,34 @@ public sealed class RemoteNotificationRelayExampleTests
     [Fact]
     public async Task RemoteMatchmakingNotificationCanRelayToGatewayCallback()
     {
+        var gatewayPort = GetFreePort();
         var gatewaySessions = new InMemoryGameSessionDirectory();
         var session = await gatewaySessions.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
         var callback = new CapturingPlayerCallback();
         await gatewaySessions.BindSessionAsync(session, "control-1", callback, TestContext.Current.CancellationToken);
+        using var stopGateway = new CancellationTokenSource();
+        var builder = RpcServerHostBuilder.Create()
+            .UseSerializer(new JsonRpcSerializer())
+            .UseAcceptor(new TcpConnectionAcceptor(gatewayPort, "127.0.0.1"));
+        ClientNotificationCommandBinder.Bind(
+            builder.ServiceRegistry,
+            new LocalClientNotificationCommandDispatcher(gatewaySessions));
+        var gatewayTask = builder.RunAsync(stopGateway.Token).AsTask();
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+
         var routes = new InMemoryRouteDirectory();
-        var gatewayDispatcher = new LocalClientNotificationCommandDispatcher(gatewaySessions);
         var registrar = new ClientSessionRouteRegistrar(
             routes,
             new NodeId("gateway-1"),
-            new NodeEndpoint("tcp://gateway-1:21002"));
+            new NodeEndpoint($"tcp://127.0.0.1:{gatewayPort}"));
         await registrar.RegisterAsync(session, TestContext.Current.CancellationToken);
+        await using var clientFactory = new ClusterClientFactory(
+            new TcpClusterTransportFactory(),
+            new JsonRpcSerializer());
         var remoteRelay = new ClientNotificationRelay(
             new InMemoryGameSessionDirectory(),
             routes,
-            new GatewayProcessNotificationDispatcher(gatewayDispatcher),
+            new ClusterClientNotificationDispatcher(clientFactory),
             new NodeId("battle-1"));
 
         var update = new MatchmakingStatusUpdate
@@ -40,6 +59,9 @@ public sealed class RemoteNotificationRelayExampleTests
             target => target.OnMatchmakingStatus(update),
             TestContext.Current.CancellationToken);
 
+        stopGateway.Cancel();
+        await Task.WhenAny(gatewayTask, Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
+
         Assert.Equal(ClientNotificationStatus.Delivered, status);
         Assert.Equal(MatchmakingState.Matched, callback.LastMatchmakingStatus?.State);
         Assert.Equal("room-1", callback.LastMatchmakingStatus?.RoomId);
@@ -47,25 +69,125 @@ public sealed class RemoteNotificationRelayExampleTests
         Assert.Equal("Matched into room room-1", callback.LastMatchmakingStatus?.Message);
     }
 
-    private sealed class GatewayProcessNotificationDispatcher : IClientNotificationRemoteDispatcher
+    [Fact]
+    public async Task MissingRouteReturnsRouteNotFound()
     {
-        private readonly LocalClientNotificationCommandDispatcher _gatewayDispatcher;
+        await using var clientFactory = new ClusterClientFactory(
+            new TcpClusterTransportFactory(),
+            new JsonRpcSerializer());
+        var session = new GameSessionKey("player-1", "session-a", 1);
+        var relay = new ClientNotificationRelay(
+            new InMemoryGameSessionDirectory(),
+            new InMemoryRouteDirectory(),
+            new ClusterClientNotificationDispatcher(clientFactory),
+            new NodeId("battle-1"));
 
-        public GatewayProcessNotificationDispatcher(LocalClientNotificationCommandDispatcher gatewayDispatcher)
-        {
-            _gatewayDispatcher = gatewayDispatcher;
-        }
+        var status = await relay.NotifyAsync<IPlayerCallback>(
+            session,
+            callback => callback.OnMatchmakingStatus(new MatchmakingStatusUpdate()),
+            TestContext.Current.CancellationToken);
 
-        public ValueTask<ClientNotificationStatus> DispatchAsync(
-            RouteLocation target,
-            ClientNotificationCommand command,
-            CancellationToken cancellationToken = default)
-        {
-            Assert.Equal(new NodeId("gateway-1"), target.Node);
-            Assert.Equal("tcp://gateway-1:21002", target.Endpoint.Address);
-            Assert.Empty(target.Metadata);
-            return _gatewayDispatcher.DispatchAsync(command, cancellationToken);
-        }
+        Assert.Equal(ClientNotificationStatus.RouteNotFound, status);
+    }
+
+    [Fact]
+    public async Task StaleRouteGenerationReturnsRouteNotFound()
+    {
+        await using var clientFactory = new ClusterClientFactory(
+            new TcpClusterTransportFactory(),
+            new JsonRpcSerializer());
+        var routes = new InMemoryRouteDirectory();
+        var session = new GameSessionKey("player-1", "session-a", 2);
+        await routes.RegisterAsync(
+            new RouteLocation(
+                ClientNotificationRouteKey.FromSession(new GameSessionKey("player-1", "session-a", 1)),
+                new NodeId("gateway-1"),
+                new NodeEndpoint("tcp://127.0.0.1:1"),
+                DateTimeOffset.UtcNow.AddMinutes(1),
+                generation: 1),
+            TestContext.Current.CancellationToken);
+        var relay = new ClientNotificationRelay(
+            new InMemoryGameSessionDirectory(),
+            routes,
+            new ClusterClientNotificationDispatcher(clientFactory),
+            new NodeId("battle-1"));
+
+        var status = await relay.NotifyAsync<IPlayerCallback>(
+            session,
+            callback => callback.OnMatchmakingStatus(new MatchmakingStatusUpdate()),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientNotificationStatus.RouteNotFound, status);
+    }
+
+    [Fact]
+    public async Task MissingGatewayCallbackReturnsCallbackUnavailable()
+    {
+        var gatewayPort = GetFreePort();
+        using var stopGateway = new CancellationTokenSource();
+        var builder = RpcServerHostBuilder.Create()
+            .UseSerializer(new JsonRpcSerializer())
+            .UseAcceptor(new TcpConnectionAcceptor(gatewayPort, "127.0.0.1"));
+        ClientNotificationCommandBinder.Bind(
+            builder.ServiceRegistry,
+            new LocalClientNotificationCommandDispatcher(new InMemoryGameSessionDirectory()));
+        var gatewayTask = builder.RunAsync(stopGateway.Token).AsTask();
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+
+        await using var clientFactory = new ClusterClientFactory(
+            new TcpClusterTransportFactory(),
+            new JsonRpcSerializer());
+        var routes = new InMemoryRouteDirectory();
+        var session = new GameSessionKey("player-1", "session-a", 1);
+        await routes.RegisterAsync(
+            new RouteLocation(
+                ClientNotificationRouteKey.FromSession(session),
+                new NodeId("gateway-1"),
+                new NodeEndpoint($"tcp://127.0.0.1:{gatewayPort}"),
+                DateTimeOffset.UtcNow.AddMinutes(1),
+                generation: session.Generation),
+            TestContext.Current.CancellationToken);
+        var relay = new ClientNotificationRelay(
+            new InMemoryGameSessionDirectory(),
+            routes,
+            new ClusterClientNotificationDispatcher(clientFactory),
+            new NodeId("battle-1"));
+
+        var status = await relay.NotifyAsync<IPlayerCallback>(
+            session,
+            callback => callback.OnMatchmakingStatus(new MatchmakingStatusUpdate()),
+            TestContext.Current.CancellationToken);
+
+        stopGateway.Cancel();
+        await Task.WhenAny(gatewayTask, Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
+
+        Assert.Equal(ClientNotificationStatus.CallbackUnavailable, status);
+    }
+
+    [Fact]
+    public async Task RpcTransportFailureReturnsFailed()
+    {
+        var port = GetFreePort();
+        await using var clientFactory = new ClusterClientFactory(
+            new TcpClusterTransportFactory(),
+            new JsonRpcSerializer());
+        var dispatcher = new ClusterClientNotificationDispatcher(clientFactory);
+        var session = new GameSessionKey("player-1", "session-a", 1);
+        var command = ClientNotificationCommandFactory.Create<IPlayerCallback>(
+            session,
+            callback => callback.OnMatchmakingStatus(new MatchmakingStatusUpdate()));
+
+        var status = await dispatcher.DispatchAsync(
+            new RouteLocation(
+                ClientNotificationRouteKey.FromSession(session),
+                new NodeId("gateway-1"),
+                new NodeEndpoint($"tcp://127.0.0.1:{port}"),
+                DateTimeOffset.UtcNow.AddMinutes(1),
+                generation: session.Generation),
+            command!,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientNotificationStatus.Failed, status);
     }
 
     private sealed class CapturingPlayerCallback : IPlayerCallback
@@ -87,6 +209,20 @@ public sealed class RemoteNotificationRelayExampleTests
         public void OnMatchmakingStatus(MatchmakingStatusUpdate matchmakingStatus)
         {
             LastMatchmakingStatus = matchmakingStatus;
+        }
+    }
+
+    private static int GetFreePort()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        try
+        {
+            return ((IPEndPoint)listener.LocalEndpoint).Port;
+        }
+        finally
+        {
+            listener.Stop();
         }
     }
 }

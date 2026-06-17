@@ -154,7 +154,11 @@ local services exist in DI.
 a node has seeds but no local `INodeDirectory` or `IRouteDirectory`
 registration, the framework creates remote directory clients that call the
 seed node over the cluster RPC endpoint. Local directory registrations, such as
-the data node's durable database-backed directory, take precedence.
+the data node's durable database-backed directory, take precedence. A seed that
+resolves to the current node's own `Lakona:Cluster:Endpoint` is not used to
+create remote directory clients; directory-owner nodes must provide local
+directory implementations instead of recursively calling their own cluster RPC
+endpoint.
 
 ### RpcService
 
@@ -477,6 +481,13 @@ The remote dispatcher API must not require passing `Action<TCallback>` across
 the cluster boundary; that delegate is only a local capture shape used before
 the command is sent.
 
+The production path is `ClientNotificationRelay` on the business node,
+`ClusterClientNotificationDispatcher` over the route's cluster endpoint, and
+`ClientNotificationCommandBinder` plus `LocalClientNotificationCommandDispatcher`
+inside the gateway process. Missing routes and stale generations return
+`RouteNotFound`, missing gateway callbacks return `CallbackUnavailable`, and
+transport failures return `Failed`.
+
 V1 API shape:
 
 ```csharp
@@ -576,7 +587,10 @@ endpoints:
 ```
 
 The data node owns database connections, persistent state access, matchmaking
-policy, room assignment state, and leaderboard updates.
+policy, room assignment state, leaderboard updates, and the shared cluster
+directories. In the current Agar sample, `database` registers a local
+SQL-backed `INodeDirectory` and an explicit local in-memory `IRouteDirectory`;
+gateway and battle nodes use seeded clients to reach those directories.
 
 Configuration:
 
@@ -604,7 +618,9 @@ Configuration:
 cluster directory storage for later data-node features. In the current Agar
 sample, the database feature wires the cluster node directory to Postgres
 through `Lakona.Game.Cluster.Sql` and records Redis connection configuration
-for later data-node features. Full durable gameplay-state persistence remains
+for later data-node features. The route directory is intentionally in-memory
+for sample V1 but is process-local to `data-1`, not a seeded client pointing
+back to `data-1`. Full durable gameplay-state persistence remains
 project-owned sample work; the current sample user, matchmaking, room, and
 leaderboard stores still run through the sample actor-backed state facade.
 `database` is not discoverable.

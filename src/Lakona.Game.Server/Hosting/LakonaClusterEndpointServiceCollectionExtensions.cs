@@ -29,20 +29,55 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
         services.TryAddSingleton<LocalClientNotificationCommandDispatcher>();
         services.TryAddSingleton<IClientNotificationRemoteDispatcher, ClusterClientNotificationDispatcher>();
 
-        if (runtimeOptions.Cluster.Seeds.Count > 0)
+        var directorySeed = SelectRemoteDirectorySeed(runtimeOptions.Cluster);
+        if (directorySeed is not null)
         {
-            var seed = runtimeOptions.Cluster.Seeds[0];
             services.TryAddSingleton<INodeDirectory>(provider => new SeededNodeDirectoryClient(
                 provider.GetRequiredService<IClusterClientFactory>(),
-                seed));
+                directorySeed));
             services.TryAddSingleton<IRouteDirectory>(provider => new SeededRouteDirectoryClient(
                 provider.GetRequiredService<IClusterClientFactory>(),
-                seed));
+                directorySeed));
         }
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IRpcServerConfigurator>(
             new LakonaClusterRpcServerConfigurator(runtimeOptions)));
         return services;
+    }
+
+    private static string? SelectRemoteDirectorySeed(LakonaGameClusterOptions cluster)
+    {
+        if (cluster.Seeds.Count == 0)
+        {
+            return null;
+        }
+
+        foreach (var seed in cluster.Seeds)
+        {
+            if (!EndpointEquals(cluster.Endpoint, seed))
+            {
+                return seed;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool EndpointEquals(string left, string right)
+    {
+        try
+        {
+            var leftEndpoint = ClusterEndpoint.Parse(left);
+            var rightEndpoint = ClusterEndpoint.Parse(right);
+            return string.Equals(leftEndpoint.Scheme, rightEndpoint.Scheme, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(leftEndpoint.Host, rightEndpoint.Host, StringComparison.OrdinalIgnoreCase)
+                && leftEndpoint.Port == rightEndpoint.Port
+                && string.Equals(leftEndpoint.Path, rightEndpoint.Path, StringComparison.Ordinal);
+        }
+        catch (FormatException)
+        {
+            return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     private static LakonaGameRuntimeOptions? FindRuntimeOptions(IServiceCollection services)

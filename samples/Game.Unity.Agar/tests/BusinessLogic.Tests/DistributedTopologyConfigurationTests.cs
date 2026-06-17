@@ -1,12 +1,18 @@
 using System.Text.Json;
 using Lakona.Game.Cluster;
+using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Cluster.Sql;
 using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Sessions;
+using Lakona.Rpc.Serializer.Json;
+using Lakona.Rpc.Server;
+using Lakona.Rpc.Transport.Tcp;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Server.App.Features;
+using System.Net;
+using System.Net.Sockets;
 using Xunit;
 
 namespace Agar.Unity.Tests;
@@ -68,17 +74,23 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Contains(services, descriptor =>
             descriptor.ServiceType == typeof(INodeDirectory)
             && descriptor.ImplementationType == typeof(SqlNodeDirectory));
+        Assert.Contains(services, descriptor =>
+            descriptor.ServiceType == typeof(IRouteDirectory)
+            && descriptor.ImplementationType == typeof(InMemoryRouteDirectory));
 
         using var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<AgarDatabaseOptions>();
         var sqlOptions = provider.GetRequiredService<SqlNodeDirectoryOptions>();
         var catalog = provider.GetRequiredService<LakonaGameFeatureCatalog>();
+        var routeDirectory = provider.GetRequiredService<IRouteDirectory>();
 
         Assert.Contains("Host=postgres", options.PostgresConnectionString);
         Assert.Contains("redis:6379", options.RedisConnectionString);
         Assert.Equal("lakona_game_cluster_nodes", options.NodeDirectoryTable);
         Assert.Equal(SqlNodeDirectoryDialect.Postgres, sqlOptions.Dialect);
         Assert.Equal(new[] { "database", "state-store", "matchmaking", "leaderboard" }, catalog.ActiveNames);
+        Assert.IsType<InMemoryRouteDirectory>(routeDirectory);
+        Assert.IsNotType<SeededRouteDirectoryClient>(routeDirectory);
     }
 
     [Fact]
@@ -111,6 +123,92 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Equal(new[] { "battle-runtime" }, catalog.ActiveNames);
         Assert.IsType<SeededNodeDirectoryClient>(provider.GetRequiredService<INodeDirectory>());
         Assert.IsType<SeededRouteDirectoryClient>(provider.GetRequiredService<IRouteDirectory>());
+    }
+
+    [Fact]
+    public async Task GatewayRegistrationAndBattleLookupUseDataNodeLocalRouteDirectory()
+    {
+        var port = GetFreePort();
+        var dataRoutes = new InMemoryRouteDirectory();
+        using var stopServer = new CancellationTokenSource();
+        var builder = RpcServerHostBuilder.Create()
+            .UseSerializer(new JsonRpcSerializer())
+            .UseAcceptor(new TcpConnectionAcceptor(port, "127.0.0.1"));
+        RouteDirectoryBinder.Bind(builder.ServiceRegistry, dataRoutes);
+        var serverTask = builder.RunAsync(stopServer.Token).AsTask();
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+
+        await using var clientFactory = new ClusterClientFactory(
+            new TcpClusterTransportFactory(),
+            new JsonRpcSerializer());
+        var seed = $"tcp://127.0.0.1:{port}";
+        var gatewayRoutes = new SeededRouteDirectoryClient(clientFactory, seed);
+        var battleRoutes = new SeededRouteDirectoryClient(clientFactory, seed);
+        var session = new GameSessionKey("player-1", "session-a", 3);
+        var registrar = new ClientSessionRouteRegistrar(
+            gatewayRoutes,
+            new NodeId("gateway-1"),
+            new NodeEndpoint("tcp://127.0.0.1:21002"));
+
+        await registrar.RegisterAsync(session, TestContext.Current.CancellationToken);
+        var resolvedByData = await dataRoutes.ResolveAsync(
+            ClientNotificationRouteKey.FromSession(session),
+            DateTimeOffset.UtcNow,
+            TestContext.Current.CancellationToken);
+        var resolvedByBattle = await battleRoutes.ResolveAsync(
+            ClientNotificationRouteKey.FromSession(session),
+            DateTimeOffset.UtcNow,
+            TestContext.Current.CancellationToken);
+
+        stopServer.Cancel();
+        await Task.WhenAny(serverTask, Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
+
+        Assert.NotNull(resolvedByData);
+        Assert.NotNull(resolvedByBattle);
+        Assert.Equal(new NodeId("gateway-1"), resolvedByData.Node);
+        Assert.Equal(resolvedByData.Route, resolvedByBattle.Route);
+        Assert.Equal(resolvedByData.Node, resolvedByBattle.Node);
+        Assert.Equal(resolvedByData.Endpoint.Address, resolvedByBattle.Endpoint.Address);
+        Assert.Empty(resolvedByBattle.Endpoint.Metadata);
+    }
+
+    [Fact]
+    public void ClusterEndpointDoesNotRegisterSeededDirectoriesForSelfSeed()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(new Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions
+        {
+            Cluster = new Lakona.Game.Server.Configuration.LakonaGameClusterOptions
+            {
+                Endpoint = "tcp://127.0.0.1:21001",
+                Seeds = ["tcp://127.0.0.1:21001"]
+            }
+        });
+
+        services.AddLakonaGameClusterEndpoint();
+
+        Assert.DoesNotContain(services, descriptor =>
+            descriptor.ServiceType == typeof(INodeDirectory)
+            && descriptor.ImplementationFactory is not null);
+        Assert.DoesNotContain(services, descriptor =>
+            descriptor.ServiceType == typeof(IRouteDirectory)
+            && descriptor.ImplementationFactory is not null);
+    }
+
+    [Fact]
+    public void RemoteNotificationExampleUsesClusterDispatcher()
+    {
+        var path = Path.Combine(
+            FindRepositoryRoot(),
+            "samples",
+            "Game.Unity.Agar",
+            "tests",
+            "BusinessLogic.Tests",
+            "RemoteNotificationRelayExampleTests.cs");
+        var source = File.ReadAllText(path);
+
+        Assert.Contains(nameof(ClusterClientNotificationDispatcher), source, StringComparison.Ordinal);
+        Assert.DoesNotContain("GatewayProcess" + "NotificationDispatcher", source, StringComparison.Ordinal);
     }
 
     private static void AssertFeatureSet(JsonElement lakona, params string[] expected)
@@ -164,5 +262,19 @@ public sealed class DistributedTopologyConfigurationTests
         }
 
         throw new DirectoryNotFoundException($"Could not find repository root from '{AppContext.BaseDirectory}'.");
+    }
+
+    private static int GetFreePort()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        try
+        {
+            return ((IPEndPoint)listener.LocalEndpoint).Port;
+        }
+        finally
+        {
+            listener.Stop();
+        }
     }
 }
