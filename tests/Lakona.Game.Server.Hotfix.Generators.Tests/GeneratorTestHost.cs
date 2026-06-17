@@ -67,7 +67,6 @@ internal static class GeneratorTestHost
                 MetadataReference.CreateFromFile(typeof(Lakona.Game.Server.Hotfix.HotfixServiceCall<>).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(IServiceProvider).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(Lakona.Rpc.Server.RpcSession).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Microsoft.Extensions.Configuration.IConfiguration).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions).Assembly.Location)
             })
             .Distinct(MetadataReferencePathComparer.Instance)
