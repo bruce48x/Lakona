@@ -7,18 +7,23 @@ internal sealed class GitRenderer : IPlanContributor
 {
     public void AddFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
-        builder.AddFile(".gitignore", RenderGitIgnore(spec.ClientEngine is ClientEngine.Unity or ClientEngine.UnityCn or ClientEngine.Tuanjie), FileWriteMode.Replace, GeneratedFileKind.Text);
+        var isUnity = spec.ClientEngine is ClientEngine.Unity or ClientEngine.UnityCn or ClientEngine.Tuanjie;
+        var isGodot = spec.ClientEngine is ClientEngine.Godot;
+        builder.AddFile(".gitignore", RenderGitIgnore(isUnity, isGodot), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile(".gitattributes", RenderGitAttributes(), FileWriteMode.Replace, GeneratedFileKind.Text);
     }
 
-    private static string RenderGitIgnore(bool isUnity)
+    private static string RenderGitIgnore(bool isUnity, bool isGodot)
     {
         var lines = new List<string>
         {
             "**/bin/",
             "**/obj/",
             "/_artifacts/",
-            ".vs/"
+            ".vs/",
+            ".idea/",
+            "*.user",
+            "*.suo"
         };
 
         if (isUnity)
@@ -27,9 +32,12 @@ internal sealed class GitRenderer : IPlanContributor
             lines.Add("/Client/[Tt]emp/");
             lines.Add("/Client/[Oo]bj/");
             lines.Add("/Client/[Bb]uild/");
+            lines.Add("/Client/[Bb]uilds/");
+            lines.Add("/Client/[Ll]ogs/");
+            lines.Add("/Client/[Uu]ser[Ss]ettings/");
             lines.Add("/Client/Assets/Packages/");
         }
-        else
+        else if (isGodot)
         {
             lines.Add("/Client/.godot/");
             lines.Add("/Client/.import/");
