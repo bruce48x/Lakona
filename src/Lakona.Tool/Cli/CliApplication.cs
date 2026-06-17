@@ -82,7 +82,7 @@ internal sealed class CliApplication
                         new ServerAppRenderer(),
                         new HotfixRenderer(),
                         new OperationsRenderer(),
-                        new GeneratedProjectDocsRenderer()
+                        new GeneratedProjectGuideRenderer()
                     ],
                     [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
                 new GenerationExecutor(new TransactionalOutputWriter())),
