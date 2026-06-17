@@ -10,8 +10,6 @@ dotnet add package Lakona.Rpc.Serializer.MemoryPack
 
 ## Documentation
 
-API reference: https://bruce48x.github.io/Lakona.Rpc/reference/api/
-
 Design boundary: https://bruce48x.github.io/Lakona.Rpc/concepts/design-boundary/
 
 ## Usage

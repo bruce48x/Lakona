@@ -10,10 +10,6 @@ dotnet add package Lakona.Rpc.Client
 
 ## Documentation
 
-API reference: https://bruce48x.github.io/Lakona.Rpc/reference/api/
-
-Generated RpcClient reference: https://bruce48x.github.io/Lakona.Rpc/reference/generated-client/
-
 Design boundary: https://bruce48x.github.io/Lakona.Rpc/concepts/design-boundary/
 
 ## Dependencies
