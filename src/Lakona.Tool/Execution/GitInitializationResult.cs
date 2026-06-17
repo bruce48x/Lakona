@@ -3,7 +3,8 @@ namespace Lakona.Tool.Execution;
 internal enum GitInitializationStatus
 {
     InitializedAndCommitted,
-    InitializedNoCommit,
+    InitializedNoCommitMissingIdentity,
+    InitializedNoCommitNoFiles,
     SkippedParentWorktree,
     SkippedAlreadyCommitted,
     SkippedGitUnavailable,

@@ -41,10 +41,8 @@ internal sealed class NewProjectCommand(
         return git.Status switch
         {
             GitInitializationStatus.InitializedAndCommitted => text.GitStatusInitializedAndCommitted,
-            GitInitializationStatus.InitializedNoCommit =>
-                git.Reason is not null
-                    ? $"{text.GitStatusInitializedNoCommit} ({git.Reason})"
-                    : text.GitStatusInitializedNoCommit,
+            GitInitializationStatus.InitializedNoCommitMissingIdentity => text.GitStatusInitializedNoCommitMissingIdentity,
+            GitInitializationStatus.InitializedNoCommitNoFiles => text.GitStatusInitializedNoCommitNoFiles,
             GitInitializationStatus.SkippedParentWorktree => text.GitStatusSkippedParentWorktree,
             GitInitializationStatus.SkippedAlreadyCommitted => text.GitStatusSkippedAlreadyCommitted,
             GitInitializationStatus.SkippedGitUnavailable => text.GitStatusSkippedGitUnavailable,

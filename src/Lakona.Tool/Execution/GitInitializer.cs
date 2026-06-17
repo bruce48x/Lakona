@@ -15,6 +15,10 @@ internal sealed class GitInitializer(IGitCommandRunner runner)
             versionResult = await runner.RunAsync(projectRoot, ["--version"], cancellationToken)
                 .ConfigureAwait(false);
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception)
         {
             return new GitInitializationResult(GitInitializationStatus.SkippedGitUnavailable);
@@ -95,7 +99,7 @@ internal sealed class GitInitializer(IGitCommandRunner runner)
         if (string.IsNullOrWhiteSpace(userNameResult.StdOut) ||
             string.IsNullOrWhiteSpace(userEmailResult.StdOut))
         {
-            return new GitInitializationResult(GitInitializationStatus.InitializedNoCommit);
+            return new GitInitializationResult(GitInitializationStatus.InitializedNoCommitMissingIdentity);
         }
 
         // Step 4: Add and commit
@@ -110,11 +114,16 @@ internal sealed class GitInitializer(IGitCommandRunner runner)
 
         var statusResult = await runner.RunAsync(projectRoot, ["status", "--porcelain"], cancellationToken)
             .ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(statusResult.StdOut))
+        if (statusResult.ExitCode != 0)
         {
             return new GitInitializationResult(
-                GitInitializationStatus.InitializedNoCommit,
-                "no files to commit");
+                GitInitializationStatus.CommitFailed,
+                statusResult.StdErr.Length > 0 ? statusResult.StdErr : "git status failed");
+        }
+
+        if (string.IsNullOrWhiteSpace(statusResult.StdOut))
+        {
+            return new GitInitializationResult(GitInitializationStatus.InitializedNoCommitNoFiles);
         }
 
         var commitResult = await runner.RunAsync(

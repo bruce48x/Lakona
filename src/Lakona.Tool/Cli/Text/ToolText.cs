@@ -305,11 +305,18 @@ internal sealed class ToolText
         _ => "git: initialized repository and created initial commit"
     };
 
-    public string GitStatusInitializedNoCommit => Language switch
+    public string GitStatusInitializedNoCommitMissingIdentity => Language switch
     {
         ToolLanguage.SimplifiedChinese => "git: 已初始化仓库；由于 user.name 或 user.email 未配置，跳过初始提交",
         ToolLanguage.TraditionalChinese => "git: 已初始化儲存庫；由於 user.name 或 user.email 未設定，跳過初始提交",
         _ => "git: initialized repository; initial commit skipped because user.name or user.email is not configured"
+    };
+
+    public string GitStatusInitializedNoCommitNoFiles => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => "git: 已初始化仓库；由于没有要提交的文件，跳过初始提交",
+        ToolLanguage.TraditionalChinese => "git: 已初始化儲存庫；由於沒有要提交的檔案，跳過初始提交",
+        _ => "git: initialized repository; initial commit skipped because there are no files to commit"
     };
 
     public string GitStatusSkippedParentWorktree => Language switch

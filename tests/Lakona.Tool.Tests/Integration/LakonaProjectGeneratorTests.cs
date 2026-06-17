@@ -170,6 +170,55 @@ public sealed class LakonaProjectGeneratorTests
         }
     }
 
+    [Fact]
+    public async Task GenerateAsync_NonEmptyTarget_DoesNotInvokeGit()
+    {
+        var parentRoot = Path.Combine(Path.GetTempPath(), "lakona-project-generator-tests", Guid.NewGuid().ToString("N"));
+        var targetRoot = Path.Combine(parentRoot, "MyGame");
+        Directory.CreateDirectory(targetRoot);
+        // Create a file to make the directory non-empty
+        File.WriteAllText(Path.Combine(targetRoot, "existing.txt"), "pre-existing content");
+        try
+        {
+            var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+                "MyGame",
+                parentRoot,
+                ClientEngine.Console,
+                TransportKind.Kcp,
+                SerializerKind.MemoryPack,
+                PersistenceKind.None,
+                NuGetForUnitySource.OpenUpm,
+                DeploymentProfile.None));
+            var recordingRunner = new RecordingGitCommandRunner();
+            var generator = new LakonaProjectGenerator(
+                new LakonaProjectPlanBuilder(
+                    [
+                        new GitRenderer(),
+                        new ProjectConfigRenderer(),
+                        new SharedProjectRenderer(),
+                        new ServerAppRenderer(),
+                        new HotfixRenderer(),
+                        new OperationsRenderer(),
+                        new GeneratedProjectGuideRenderer()
+                    ],
+                    [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
+                new GenerationExecutor(new TransactionalOutputWriter()),
+                new GitInitializer(recordingRunner));
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => generator.GenerateAsync(spec, TestContext.Current.CancellationToken));
+
+            Assert.Equal(0, recordingRunner.CallCount);
+        }
+        finally
+        {
+            if (Directory.Exists(parentRoot))
+            {
+                Directory.Delete(parentRoot, recursive: true);
+            }
+        }
+    }
+
     private sealed class GitUnavailableRunner : IGitCommandRunner
     {
         public Task<GitCommandResult> RunAsync(
@@ -178,6 +227,20 @@ public sealed class LakonaProjectGeneratorTests
             CancellationToken cancellationToken)
         {
             return Task.FromResult(new GitCommandResult(1, "", ""));
+        }
+    }
+
+    private sealed class RecordingGitCommandRunner : IGitCommandRunner
+    {
+        public int CallCount { get; private set; }
+
+        public Task<GitCommandResult> RunAsync(
+            string workingDirectory,
+            string[] arguments,
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            return Task.FromResult(new GitCommandResult(0, "", ""));
         }
     }
 }

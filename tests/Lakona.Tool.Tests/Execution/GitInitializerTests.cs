@@ -106,7 +106,7 @@ public sealed class GitInitializerTests
     }
 
     [Fact]
-    public async Task InitializeAsync_MissingIdentity_ReturnsInitializedNoCommit()
+    public async Task InitializeAsync_MissingIdentity_ReturnsInitializedNoCommitMissingIdentity()
     {
         var fake = new FakeGitCommandRunner();
         fake.Setup(new GitCommandResult(0, "git version 2.45.0", ""), "--version");
@@ -118,11 +118,11 @@ public sealed class GitInitializerTests
         var initializer = new GitInitializer(fake);
         var result = await initializer.InitializeAsync("/tmp/project", CancellationToken.None);
 
-        Assert.Equal(GitInitializationStatus.InitializedNoCommit, result.Status);
+        Assert.Equal(GitInitializationStatus.InitializedNoCommitMissingIdentity, result.Status);
     }
 
     [Fact]
-    public async Task InitializeAsync_EmptyStatus_ReturnsInitializedNoCommit()
+    public async Task InitializeAsync_EmptyStatus_ReturnsInitializedNoCommitNoFiles()
     {
         var fake = new FakeGitCommandRunner();
         fake.Setup(new GitCommandResult(0, "git version 2.45.0", ""), "--version");
@@ -136,8 +136,7 @@ public sealed class GitInitializerTests
         var initializer = new GitInitializer(fake);
         var result = await initializer.InitializeAsync("/tmp/project", CancellationToken.None);
 
-        Assert.Equal(GitInitializationStatus.InitializedNoCommit, result.Status);
-        Assert.Equal("no files to commit", result.Reason);
+        Assert.Equal(GitInitializationStatus.InitializedNoCommitNoFiles, result.Status);
     }
 
     [Fact]
@@ -187,6 +186,40 @@ public sealed class GitInitializerTests
         Assert.Equal("unable to set main branch", result.Reason);
     }
 
+    [Fact]
+    public void InitializeAsync_CancellationDuringVersionCheck_PropagatesException()
+    {
+        var fake = new CancellationGitCommandRunner();
+
+        var initializer = new GitInitializer(fake);
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var ex = Assert.ThrowsAsync<OperationCanceledException>(
+            () => initializer.InitializeAsync("/tmp/project", cts.Token));
+
+        Assert.NotNull(ex);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_StatusFails_ReturnsCommitFailed()
+    {
+        var fake = new FakeGitCommandRunner();
+        fake.Setup(new GitCommandResult(0, "git version 2.45.0", ""), "--version");
+        fake.Setup(new GitCommandResult(128, "", "fatal: not a git repository"), "rev-parse", "--show-toplevel");
+        fake.Setup(new GitCommandResult(0, "Initialized empty Git repository", ""), "init", "-b", "main");
+        fake.Setup(new GitCommandResult(0, "Test User", ""), "config", "user.name");
+        fake.Setup(new GitCommandResult(0, "test@example.com", ""), "config", "user.email");
+        fake.Setup(new GitCommandResult(0, "", ""), "add", "-A");
+        fake.Setup(new GitCommandResult(128, "", "fatal: index file corrupt"), "status", "--porcelain");
+
+        var initializer = new GitInitializer(fake);
+        var result = await initializer.InitializeAsync("/tmp/project", CancellationToken.None);
+
+        Assert.Equal(GitInitializationStatus.CommitFailed, result.Status);
+        Assert.Contains("index file corrupt", result.Reason, StringComparison.Ordinal);
+    }
+
     private sealed class FakeGitCommandRunner : IGitCommandRunner
     {
         private readonly Dictionary<string, GitCommandResult> _setups = new(StringComparer.Ordinal);
@@ -220,6 +253,18 @@ public sealed class GitInitializerTests
             CancellationToken cancellationToken)
         {
             throw new Win32Exception(2, "The system cannot find the file specified");
+        }
+    }
+
+    private sealed class CancellationGitCommandRunner : IGitCommandRunner
+    {
+        public Task<GitCommandResult> RunAsync(
+            string workingDirectory,
+            string[] arguments,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new GitCommandResult(0, "", ""));
         }
     }
 }
