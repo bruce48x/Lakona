@@ -21,9 +21,16 @@ rules. Supporting documents hold current architecture details:
 | [docs/game/session-lifecycle.md](./docs/game/session-lifecycle.md) | Current game session identity, binding, disconnect, resume, and termination model |
 | [docs/game/generated-hotfix-service-binding.md](./docs/game/generated-hotfix-service-binding.md) | Current generated service binding model for shared RPC contracts and hotfix services |
 | [docs/game/actor-kernel-boundary.md](./docs/game/actor-kernel-boundary.md) | Actor kernel and game framework responsibility split |
+| [docs/game/feature-role.md](./docs/game/feature-role.md) | Current feature discovery, naming, and startup selection model |
+| [docs/game/remote-actor-messaging.md](./docs/game/remote-actor-messaging.md) | Managed distributed actor messaging and generated actor selector model |
 | [docs/game/distributed-feature-cluster-model.md](./docs/game/distributed-feature-cluster-model.md) | Current distributed Feature, endpoint, RPC service, cluster discovery, and Agar acceptance model |
 | [docs/game/lakona-game-configuration-startup.md](./docs/game/lakona-game-configuration-startup.md) | Game configuration schema and startup validation boundary |
 | [docs/game/lakona-game-runtime-guardrails.md](./docs/game/lakona-game-runtime-guardrails.md) | Runtime validation model for cluster, hotfix, endpoints, and production profile |
+| [docs/rpc/source-generation.md](./docs/rpc/source-generation.md) | Current RPC source-generation policy and generated-code boundary |
+| [docs/rpc/api-stability/public-api-boundaries.md](./docs/rpc/api-stability/public-api-boundaries.md) | Current RPC public API boundary and compatibility policy |
+| [docs/rpc/protocol/wire-protocol-v1.md](./docs/rpc/protocol/wire-protocol-v1.md) | Current RPC wire protocol frame contract |
+| [docs/rpc/protocol/rpc-status-error-model.md](./docs/rpc/protocol/rpc-status-error-model.md) | Current RPC status and error classification model |
+| [docs/tool/lakona-tool-default-experience.md](./docs/tool/lakona-tool-default-experience.md) | Current generated Lakona.Game project experience and default runtime shape |
 | [docs/tool/lakona-tool-generation-architecture.md](./docs/tool/lakona-tool-generation-architecture.md) | Current Lakona.Tool generation architecture and regression boundaries |
 
 Durable design notes belong under `docs/**` when they describe current

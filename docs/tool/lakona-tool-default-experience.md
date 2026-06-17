@@ -28,7 +28,12 @@ The default local topology is a single process with generated defaults for the n
 
 ## Configuration Principle
 
-The canonical configuration and startup model is defined in [Lakona.Game Configuration And Startup Model](lakona-game-configuration-startup.md). Generated projects should use `Lakona:Node:Id`, `Lakona:Endpoints[]` with endpoint-local `RpcServices`, compact `Lakona:Feature` selection when needed, and convention-based `services.AddLakonaGame(configuration)` startup inside the `LakonaGameServer` service-registration callback.
+The canonical configuration and startup model is defined in
+[Lakona.Game Configuration And Startup Model](../game/lakona-game-configuration-startup.md).
+Generated projects should use `Lakona:Node:Id`, `Lakona:Endpoints[]` with
+endpoint-local `RpcServices`, compact `Lakona:Feature` selection when needed,
+and convention-based `services.AddLakonaGame(configuration)` startup inside the
+`LakonaGameServer` service-registration callback.
 
 The generated `appsettings.json` should contain only source values the user can understand and may reasonably change.
 

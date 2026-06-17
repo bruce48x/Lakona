@@ -53,10 +53,11 @@ repository with clear package boundaries:
 
 - `Lakona.Rpc.*` provides typed RPC, protocol primitives, transports,
   serializers, and analyzers.
-- `Lakona.Game.Server.Actors` provides game-facing actor execution backed by an
-  internal mailbox kernel.
-- `Lakona.Game.*` provides game server hosting, sessions, cluster routing,
-  hotfix, client helpers, generators, reliable push, and guardrails.
+- `Lakona.Game.Server` provides game server hosting, sessions, reliable push,
+  guardrails, and game-facing actor execution backed by an internal mailbox
+  kernel.
+- `Lakona.Game.*` provides cluster routing, hotfix, client helpers, generators,
+  load testing, and shared game primitives.
 - `Lakona.Tool` provides `lakona-tool`, the project scaffolding and maintenance
   command.
 
@@ -64,7 +65,7 @@ repository with clear package boundaries:
 
 ```bash
 dotnet tool install -g Lakona.Tool
-lakona-tool new --name MyGame --client-engine unity --transport tcp --serializer memorypack
+lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack
 cd MyGame
 dotnet run --project "Server/App/Server.App.csproj"
 ```
@@ -242,27 +243,22 @@ await rooms.Remote(nodeId, roomId).JoinAsync(request, ct); // Pinned to node
 Source generators produce `RoomActors` with `Get`, `Local`, and `Remote`
 selectors. No reflection, no string-based dispatch.
 
-## Feature Catalog Startup
+## Feature Startup
 
-Assemble server capabilities from ordered features. Run all registered features
-in one development process, or select a compact feature set per production
-process with `Lakona:Game:Feature`.
+Assemble server capabilities from `LakonaGameFeature` types. Run every
+discovered feature in one development process, or select a compact feature set
+per production process with `Lakona:Feature`.
 
 ```csharp
-builder.Services.AddLakonaGame(builder.Configuration, game =>
+public sealed class BattleRuntimeFeature : LakonaGameFeature
 {
-    game.Feature<GatewayFeature>("gateway")
-        .RequiresTransport("websocket");
+    public override void ConfigureServices(LakonaGameFeatureContext context)
+    {
+        context.Services.AddSingleton<RoomRuntime>();
+    }
+}
 
-    game.Feature<MatchmakingFeature>("matchmaking")
-        .After("gateway")
-        .RequiresFeature("gateway");
-
-    game.Feature<RoomFeature>("room")
-        .After("matchmaking")
-        .RequiresFeature("matchmaking")
-        .RequiresTransport("kcp");
-});
+builder.Services.AddLakonaGame(builder.Configuration);
 ```
 
 ## Runtime Guardrails
@@ -310,9 +306,9 @@ The repository publishes small packages under `src/`. Stable entry points are:
 - `Lakona.Game.Cluster`, `Lakona.Game.Cluster.Rpc`, and
   `Lakona.Game.Cluster.Sql` for optional cluster routing and persistence
   adapters
-- `Lakona.Game.Server.Hotfix.*` and `Lakona.Game.Server.Generators` for hotfix
-  and generated actor APIs
-- `Lakona.Game.Server` for game-facing actor runtime
+- `Lakona.Game.Server.Hotfix.*` for hotfix runtime and generators
+- `Lakona.Game.Server.Generators` for generated actor APIs
+- `Lakona.Game.LoadTesting` for headless load-test helpers
 - `Lakona.Rpc.*` for RPC core, client/server runtime, transports, serializers,
   and analyzers
 
@@ -325,7 +321,7 @@ package-specific usage.
 | --- | --- |
 | .NET 10 server | Full |
 | .NET Standard 2.1 shared/client packages | Full |
-| Unity 2021.3+ | Full |
+| Unity 2022 LTS | Full |
 | Godot 4.x .NET | Full |
 | Windows / Linux / macOS | Full |
 
@@ -350,7 +346,7 @@ RPC-focused samples:
 ## Further Reading
 
 - [Design Philosophy](docs/game/design-philosophy.md)
-- [Feature Catalog Startup](docs/game/feature-role.md)
+- [Feature Startup](docs/game/feature-role.md)
 - [Runtime Guardrails](docs/game/lakona-game-runtime-guardrails.md)
 - [Actor Kernel Boundary](docs/game/actor-kernel-boundary.md)
 - [Changelog](CHANGELOG.md)
