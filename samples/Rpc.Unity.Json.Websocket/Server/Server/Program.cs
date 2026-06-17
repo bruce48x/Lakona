@@ -12,6 +12,7 @@ var builder = RpcServerHostBuilder.Create()
 builder.UseAcceptor(async ct => await WsConnectionAcceptor.CreateAsync(
     20000,
     "/ws",
+    "127.0.0.1",
     builder.Limits.MaxPendingAcceptedConnections,
     ct));
 
