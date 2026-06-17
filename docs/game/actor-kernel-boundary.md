@@ -21,7 +21,6 @@ Tell / Call (process-local)         Cluster routing (cross-node)
 Timer dispatch                      Reliable push (at-least-once)
 Lifecycle (start/stop/drain)        Hotfix (AssemblyLoadContext)
 Diagnostics (Activity/Meter)        Gate / Watchdog / Agent patterns
-Execution timeout                   Server hosting (DI, config)
 Message interceptor hooks           Message recording/replay (storage)
 Actor state reporting               Service discovery
 ```
@@ -36,7 +35,6 @@ Examples:
 - Message dispatch with try-catch isolation
 - Mailbox capacity and backpressure
 - Timer scheduling and delivery
-- Execution timeout (interrupt stuck handlers)
 - Call chain tracking and deadlock detection
 - Activity/span propagation through Tell/Call
 - Message interception hooks (mechanism, not storage)
@@ -80,7 +78,6 @@ Lakona.Game.ActorRuntimeOptions
     └─ maps to → Internal ActorKernel system options
         ├─ MailboxCapacity
         ├─ SlowMessageThreshold
-        ├─ ExecutionTimeout       ← new in 0.3.0
         └─ MessageInterceptor     ← new in 0.3.0
     └─ maps to → Internal ActorKernel spawn options
         └─ MailboxCapacity
