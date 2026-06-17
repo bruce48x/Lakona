@@ -87,6 +87,9 @@ Recordings/
 /samples/*/Client/export_presets.cfg
 *.import
 
+# Sample preview / artifact images
+**/_artifacts/
+
 # Logs
 *.log
 

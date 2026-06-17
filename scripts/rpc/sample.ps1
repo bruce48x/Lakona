@@ -106,19 +106,46 @@ function Stop-SampleProcesses {
     )
 
     try {
-        $processes = @(Get-CimInstance Win32_Process | Where-Object {
-            if ([string]::IsNullOrWhiteSpace($_.CommandLine)) {
-                return $false
-            }
-
-            foreach ($term in $MatchTerms) {
-                if (-not [string]::IsNullOrWhiteSpace($term) -and $_.CommandLine.IndexOf($term, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
-                    return $true
+        if ($IsWindows) {
+            $processes = @(Get-CimInstance Win32_Process | Where-Object {
+                if ([string]::IsNullOrWhiteSpace($_.CommandLine)) {
+                    return $false
                 }
-            }
 
-            return $false
-        })
+                foreach ($term in $MatchTerms) {
+                    if (-not [string]::IsNullOrWhiteSpace($term) -and $_.CommandLine.IndexOf($term, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                        return $true
+                    }
+                }
+
+                return $false
+            })
+        } elseif ($IsLinux) {
+            $processes = @(Get-Process -Name "dotnet" -ErrorAction SilentlyContinue | Where-Object {
+                $cmdline = $null
+                try {
+                    $cmdPath = "/proc/$($_.Id)/cmdline"
+                    if (Test-Path $cmdPath) {
+                        $cmdline = (Get-Content -Path $cmdPath -Raw -ErrorAction SilentlyContinue) -replace "\0", " "
+                    }
+                } catch { }
+
+                if ([string]::IsNullOrWhiteSpace($cmdline)) {
+                    return $false
+                }
+
+                foreach ($term in $MatchTerms) {
+                    if (-not [string]::IsNullOrWhiteSpace($term) -and $cmdline.IndexOf($term, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                        return $true
+                    }
+                }
+
+                return $false
+            })
+        } else {
+            # macOS: skip process-level matching; Get-CimInstance is Windows-only
+            return
+        }
     } catch {
         Write-Warning "Skipping process cleanup: $($_.Exception.Message)"
         return
