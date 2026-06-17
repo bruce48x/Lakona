@@ -149,8 +149,9 @@ shared contract source used by both server and client.
 - Keep metric tags low-cardinality. Do not put actor ids, actor names, message
   payloads, request values, or user-specific identifiers into metric tags.
 - Allowed `ValueTask` patterns are `return default;`, `return new ValueTask<T>(value);`,
-  and `async` `ValueTask<T>` methods with `return value;`. Do not use
-  `ValueTask.CompletedTask` or `ValueTask.FromResult(...)`.
+  and `async` `ValueTask<T>` methods with `return value;`. Do not use:
+  - `ValueTask.CompletedTask`
+  - `ValueTask.FromResult(...)`
 
 ## Testing Responsibility
 
