@@ -1,21 +1,121 @@
 {{ define "main" }}
-  <section class="hero">
+
+<!-- Hero -->
+<section class="hero">
+  <svg class="hero-graph" viewBox="0 0 800 400" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <circle class="node" cx="120" cy="180" r="70" stroke-width="0.6"/>
+    <circle class="node" cx="400" cy="100" r="90" stroke-width="0.6"/>
+    <circle class="node" cx="680" cy="200" r="60" stroke-width="0.6"/>
+    <circle class="node" cx="250" cy="300" r="50" stroke-width="0.5"/>
+    <circle class="node" cx="550" cy="310" r="75" stroke-width="0.5"/>
+    <line class="edge" x1="120" y1="180" x2="400" y2="100" stroke-width="0.5"/>
+    <line class="edge" x1="400" y1="100" x2="680" y2="200" stroke-width="0.5"/>
+    <line class="edge" x1="120" y1="180" x2="250" y2="300" stroke-width="0.5"/>
+    <line class="edge" x1="400" y1="100" x2="550" y2="310" stroke-width="0.5"/>
+    <line class="edge" x1="680" y1="200" x2="550" y2="310" stroke-width="0.5"/>
+    <line class="edge" x1="250" y1="300" x2="550" y2="310" stroke-width="0.5"/>
+    <circle class="dot" cx="120" cy="180" r="4"/>
+    <circle class="dot" cx="400" cy="100" r="5"/>
+    <circle class="dot" cx="680" cy="200" r="3.5"/>
+    <circle class="dot" cx="250" cy="300" r="3"/>
+    <circle class="dot" cx="550" cy="310" r="4"/>
+  </svg>
+
+  <div style="position:relative;z-index:1">
     <p class="eyebrow">Lakona</p>
-    <h1>{{ .Site.Title }}</h1>
+    <h1>C# Networking<br>That Ships</h1>
     <p class="lead">{{ .Site.Params.description }}</p>
     <div class="hero-actions">
-      <a class="button primary" href="{{ "posts/" | relURL }}">All Posts</a>
-      <a class="button" href="{{ .Site.Params.repo }}">GitHub</a>
+      <a class="button primary" href="{{ .Site.Params.repo }}">Get Started</a>
+      <a class="button" href="{{ .Site.Params.repo }}" target="_blank" rel="noopener">View on GitHub</a>
     </div>
-  </section>
-  <section class="post-list">
-    <h2>Latest Posts</h2>
-    {{ range first 8 (where site.RegularPages "Section" "posts").ByDate.Reverse }}
-      <article class="post-card">
-        <h3><a href="{{ .RelPermalink }}">{{ .Title }}</a></h3>
-        <p class="meta">{{ .Date.Format "2006-01-02" }} · {{ .Section }}</p>
-        {{ with .Summary }}<div class="summary">{{ . }}</div>{{ end }}
-      </article>
-    {{ end }}
-  </section>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="features">
+  <div class="wrap">
+    <p class="section-label">Why Lakona</p>
+    <h2 class="section-title">Built for multiplayer games</h2>
+    <div class="features-grid">
+      <div class="feature-card">
+        <span class="feature-icon">📡</span>
+        <h3>Typed RPC</h3>
+        <p>Share C# contracts between server and client. Bidirectional communication over one connection.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🎮</span>
+        <h3>Game Server</h3>
+        <p>Actor-based framework with hot-reloadable game logic, session management, and reliable push.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🔌</span>
+        <h3>Multi-Engine</h3>
+        <p>First-class support for Unity, Godot, and standalone .NET. One codebase, every platform.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">⚡</span>
+        <h3>Performance</h3>
+        <p>TCP, WebSocket, and KCP transports. Zero-allocation serialization. Built for production load.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Code Showcase -->
+<section class="code-showcase">
+  <div class="wrap">
+    <p class="section-label">Show, Don't Tell</p>
+    <h2 class="section-title">Define once. Use everywhere.</h2>
+    <div class="code-window">
+      <div class="code-chrome">
+        <span class="dot dot-red"></span>
+        <span class="dot dot-yel"></span>
+        <span class="dot dot-grn"></span>
+        <span class="filename">IGameService.cs</span>
+      </div>
+      <div class="code-body">
+        <span class="c">// Shared contract — server and client both reference this</span><br>
+        <span class="na">[RpcService]</span><br>
+        <span class="k">public interface</span> <span class="nc">IGameService</span><br>
+        {<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="kt">Task</span>&lt;<span class="nc">LoginResult</span>&gt; <span class="nf">Login</span>(<span class="kt">string</span> token);<br>
+        <br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="kt">Task</span>&lt;<span class="nc">PlayerData</span>&gt; <span class="nf">GetPlayerData</span>();<br>
+        <br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="kt">Task</span> <span class="nf">SendChatMessage</span>(<span class="nc">ChatMsg</span> msg);<br>
+        }<span class="code-cursor"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Guides -->
+<section class="guides">
+  <div class="wrap">
+    <p class="section-label">Documentation</p>
+    <h2 class="section-title">Start building in minutes</h2>
+    <div class="guides-grid">
+      <a class="guide-card" href="{{ .Site.Params.repo }}#readme" target="_blank" rel="noopener">
+        <span class="guide-icon">📖</span>
+        <h3>Quick Start</h3>
+        <p>Scaffold a project and go from zero to running in under five minutes.</p>
+        <span class="arrow">Read the guide →</span>
+      </a>
+      <a class="guide-card" href="{{ .Site.Params.repo }}" target="_blank" rel="noopener">
+        <span class="guide-icon">🚀</span>
+        <h3>Deploy to Linux</h3>
+        <p>Production-ready deployment guide for multi-machine game server clusters.</p>
+        <span class="arrow">Read the guide →</span>
+      </a>
+      <a class="guide-card" href="{{ .Site.Params.repo }}" target="_blank" rel="noopener">
+        <span class="guide-icon">⚡</span>
+        <h3>Performance Tuning</h3>
+        <p>Transport selection, serialization options, and throughput optimization.</p>
+        <span class="arrow">Read the guide →</span>
+      </a>
+    </div>
+  </div>
+</section>
+
 {{ end }}

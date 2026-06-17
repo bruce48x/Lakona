@@ -6,35 +6,47 @@
     <title>{{ if .Title }}{{ .Title }} | {{ end }}{{ .Site.Title }}</title>
     <meta name="description" content="{{ with .Params.description }}{{ . }}{{ else }}{{ .Site.Params.description }}{{ end }}">
     <link rel="stylesheet" href="{{ "css/site.css" | relURL }}">
-    <script type="module">
-      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-
-      mermaid.initialize({
-        startOnLoad: true,
-        theme: 'neutral',
-        securityLevel: 'loose',
-        flowchart: {
-          useMaxWidth: true,
-          htmlLabels: true
-        }
-      });
-    </script>
   </head>
   <body>
-    <header class="site-header">
+    <header class="site-header" id="site-header">
       <div class="wrap">
         <a class="brand" href="{{ .Site.Home.RelPermalink }}">{{ .Site.Title }}</a>
         <nav class="nav">
-          <a href="{{ .Site.Home.RelPermalink }}">Home</a>
-          <a href="{{ "posts/" | relURL }}">Posts</a>
-          <a href="{{ "reference/api/" | relURL }}">API Reference</a>
           <a href="{{ "about/" | relURL }}">About</a>
-          <a href="{{ .Site.Params.repo }}">GitHub</a>
+          <a href="{{ .Site.Params.repo }}" target="_blank" rel="noopener">GitHub</a>
         </nav>
       </div>
     </header>
-    <main class="wrap">
-      {{ block "main" . }}{{ end }}
-    </main>
+    <main>{{ block "main" . }}{{ end }}</main>
+    <footer class="site-footer">
+      <div class="wrap">
+        <span class="brand">{{ .Site.Title }}</span>
+        <p class="muted">Open source &middot; MIT License</p>
+        <div class="footer-links">
+          <a href="{{ .Site.Params.repo }}" target="_blank" rel="noopener">GitHub</a>
+          <a href="{{ "about/" | relURL }}">About</a>
+        </div>
+      </div>
+    </footer>
+    <script>
+      // Sticky header scroll effect
+      const header = document.getElementById('site-header');
+      window.addEventListener('scroll', () => {
+        header.classList.toggle('scrolled', window.scrollY > 20);
+      });
+
+      // Scroll-triggered fade-in animations
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+          }
+        });
+      }, { threshold: 0.15 });
+
+      document.querySelectorAll('.feature-card, .guide-card, .code-window').forEach(el => {
+        observer.observe(el);
+      });
+    </script>
   </body>
 </html>

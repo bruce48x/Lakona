@@ -1,11 +1,12 @@
 {{ define "main" }}
-  <article class="article">
-    <header class="article-header">
-      <p class="meta">{{ .Date.Format "2006-01-02" }}</p>
-      <h1>{{ .Title }}</h1>
-    </header>
-    <div class="content">
-      {{ .Content }}
-    </div>
-  </article>
+  <div class="wrap">
+    <article class="article">
+      <header class="article-header">
+        <h1>{{ .Title }}</h1>
+      </header>
+      <div class="content">
+        {{ .Content }}
+      </div>
+    </article>
+  </div>
 {{ end }}
