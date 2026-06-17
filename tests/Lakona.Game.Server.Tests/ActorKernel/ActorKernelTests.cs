@@ -19,7 +19,7 @@ public sealed class ActorSystemTests
         ProbeActor actor = new();
         ActorRef<object> actorRef = (await system.SpawnAsync(actor)).Ref;
 
-        await actorRef.Send("hello");
+        await actorRef.Send("hello", TestContext.Current.CancellationToken);
 
         Assert.Equal("hello", await actor.NextMessage());
     }
@@ -30,7 +30,7 @@ public sealed class ActorSystemTests
         await using ActorSystem system = new();
         ActorRef<object> actorRef = (await system.SpawnAsync(new EchoActor())).Ref;
 
-        string response = await actorRef.Call<string>("ping", DefaultCallOptions);
+        string response = await actorRef.Call<string>("ping", DefaultCallOptions, TestContext.Current.CancellationToken);
 
         Assert.Equal("ping", response);
     }
@@ -54,7 +54,7 @@ public sealed class ActorSystemTests
         ActorRef<object> actorRef = (await system.SpawnAsync(new IgnoringActor())).Ref;
 
         await Assert.ThrowsAsync<TimeoutException>(async () =>
-            await actorRef.Call<string>("ping", CallOptions(TimeSpan.FromMilliseconds(20))));
+            await actorRef.Call<string>("ping", CallOptions(TimeSpan.FromMilliseconds(20)), TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -67,9 +67,9 @@ public sealed class ActorSystemTests
         ActorCallOptions options = new(TimeSpan.FromSeconds(1), TimeSpan.FromMilliseconds(20));
 
         TimeoutException exception = await Assert.ThrowsAsync<TimeoutException>(async () =>
-            await actorRef.Call<string>("ping", options));
+            await actorRef.Call<string>("ping", options, TestContext.Current.CancellationToken));
 
-        ActorCallTimeout timeout = await timedOut.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        ActorCallTimeout timeout = await timedOut.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         Assert.Null(timeout.Caller);
         Assert.Equal(actorRef.Id, timeout.Target);
@@ -95,12 +95,12 @@ public sealed class ActorSystemTests
 
         try
         {
-            await actorRef.Send("first");
+            await actorRef.Send("first", TestContext.Current.CancellationToken);
 
             TimeoutException exception = await Assert.ThrowsAsync<TimeoutException>(async () =>
-                await actorRef.Call<string>("queued", options));
+                await actorRef.Call<string>("queued", options, TestContext.Current.CancellationToken));
 
-            ActorCallTimeout timeout = await timedOut.Task.WaitAsync(TimeSpan.FromSeconds(1));
+            ActorCallTimeout timeout = await timedOut.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
             Assert.Null(timeout.Caller);
             Assert.Equal(actorRef.Id, timeout.Target);
@@ -127,7 +127,7 @@ public sealed class ActorSystemTests
         ActorRef<object> actorRef = (await system.SpawnAsync(new EchoActor())).Ref;
         ActorCallOptions options = new(TimeSpan.Zero, TimeSpan.FromSeconds(1));
 
-        string response = await actorRef.Call<string>("ping", options);
+        string response = await actorRef.Call<string>("ping", options, TestContext.Current.CancellationToken);
 
         Assert.Equal("ping", response);
     }
@@ -146,7 +146,7 @@ public sealed class ActorSystemTests
                 new ActorCallOptions(TimeSpan.Zero, TimeSpan.FromSeconds(1)),
                 cancellation.Token));
 
-        await Task.Delay(50);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
 
         Assert.Equal(0, actorHandle.GetMailboxMetrics().ProcessedCount);
     }
@@ -161,7 +161,7 @@ public sealed class ActorSystemTests
         ActorRef<object> actorRef = (await system.SpawnAsync(new SelfCallingActor())).Ref;
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await actorRef.Call<string>(new StartSelfCall(), DefaultCallOptions));
+            await actorRef.Call<string>(new StartSelfCall(), DefaultCallOptions, TestContext.Current.CancellationToken));
 
         Assert.Contains("Circular actor call detected", exception.Message, StringComparison.Ordinal);
         Assert.Contains(actorRef.Id.Value.ToString(), exception.Message, StringComparison.Ordinal);
@@ -175,11 +175,11 @@ public sealed class ActorSystemTests
         BackgroundSelfCallingActor actor = new();
         ActorRef<object> actorRef = (await system.SpawnAsync(actor)).Ref;
 
-        string started = await actorRef.Call<string>(new StartBackgroundSelfCall(), DefaultCallOptions);
+        string started = await actorRef.Call<string>(new StartBackgroundSelfCall(), DefaultCallOptions, TestContext.Current.CancellationToken);
 
         Assert.Equal("started", started);
         actor.ReleaseBackgroundWork();
-        Assert.Equal("background", await actor.BackgroundResult.WaitAsync(TimeSpan.FromSeconds(1)));
+        Assert.Equal("background", await actor.BackgroundResult.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -192,9 +192,9 @@ public sealed class ActorSystemTests
         ActorRef<object> upstream = (await system.SpawnAsync(new DownstreamCallingActor(downstream))).Ref;
 
         await Assert.ThrowsAsync<TimeoutException>(async () =>
-            await upstream.Call<string>(new StartDownstreamCall(), DefaultCallOptions));
+            await upstream.Call<string>(new StartDownstreamCall(), DefaultCallOptions, TestContext.Current.CancellationToken));
 
-        ActorCallTimeout timeout = await timedOut.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        ActorCallTimeout timeout = await timedOut.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         Assert.Equal(upstream.Id, timeout.Caller);
         Assert.Equal(downstream.Id, timeout.Target);
@@ -211,10 +211,10 @@ public sealed class ActorSystemTests
 
         for (int i = 0; i < 64; i++)
         {
-            await actorRef.Send(i);
+            await actorRef.Send(i, TestContext.Current.CancellationToken);
         }
 
-        int[] values = await actorRef.Call<int[]>(new GetValues(), DefaultCallOptions);
+        int[] values = await actorRef.Call<int[]>(new GetValues(), DefaultCallOptions, TestContext.Current.CancellationToken);
 
         Assert.Equal(Enumerable.Range(0, 64), values);
     }
@@ -226,12 +226,12 @@ public sealed class ActorSystemTests
         ActorRef<object> actorRef = (await system.SpawnAsync(new ConcurrencyProbeActor())).Ref;
 
         Task[] sends = Enumerable.Range(0, 32)
-            .Select(i => actorRef.Send(i).AsTask())
+            .Select(i => actorRef.Send(i, TestContext.Current.CancellationToken).AsTask())
             .ToArray();
 
         await Task.WhenAll(sends);
 
-        int maxConcurrency = await actorRef.Call<int>(new GetMaxConcurrency(), DefaultCallOptions);
+        int maxConcurrency = await actorRef.Call<int>(new GetMaxConcurrency(), DefaultCallOptions, TestContext.Current.CancellationToken);
 
         Assert.Equal(1, maxConcurrency);
     }
@@ -242,10 +242,10 @@ public sealed class ActorSystemTests
         await using ActorSystem system = new();
         ActorRef<object> actorRef = (await system.SpawnAsync(new TimerActor())).Ref;
 
-        await actorRef.Send(new StartTimer());
-        await Task.Delay(80);
+        await actorRef.Send(new StartTimer(), TestContext.Current.CancellationToken);
+        await Task.Delay(80, TestContext.Current.CancellationToken);
 
-        int ticks = await actorRef.Call<int>(new GetTickCount(), DefaultCallOptions);
+        int ticks = await actorRef.Call<int>(new GetTickCount(), DefaultCallOptions, TestContext.Current.CancellationToken);
 
         Assert.True(ticks > 0);
     }
@@ -270,8 +270,8 @@ public sealed class ActorSystemTests
 
         try
         {
-            await actorRef.Send(new StartTimer());
-            await actor.TickStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+            await actorRef.Send(new StartTimer(), TestContext.Current.CancellationToken);
+            await actor.TickStarted.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
             await Eventually(() => Volatile.Read(ref fullTickDeadLetters) > 0);
         }
@@ -289,15 +289,15 @@ public sealed class ActorSystemTests
         BlockingActor actor = new();
         ActorRef<object> actorRef = (await system.SpawnAsync(actor)).Ref;
 
-        await actorRef.Send("first");
+        await actorRef.Send("first", TestContext.Current.CancellationToken);
 
-        Task secondSend = actorRef.Send("second").AsTask();
-        Task completed = await Task.WhenAny(secondSend, Task.Delay(50));
+        Task secondSend = actorRef.Send("second", TestContext.Current.CancellationToken).AsTask();
+        Task completed = await Task.WhenAny(secondSend, Task.Delay(50, TestContext.Current.CancellationToken));
 
         Assert.NotSame(secondSend, completed);
 
         actor.Release();
-        await secondSend.WaitAsync(TimeSpan.FromSeconds(1));
+        await secondSend.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -312,11 +312,11 @@ public sealed class ActorSystemTests
 
         try
         {
-            await actorRef.Send("first").AsTask().WaitAsync(TimeSpan.FromSeconds(1));
-            await actorRef.Send("second").AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+            await actorRef.Send("first", TestContext.Current.CancellationToken).AsTask().WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+            await actorRef.Send("second", TestContext.Current.CancellationToken).AsTask().WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
-            Task thirdSend = actorRef.Send("third").AsTask();
-            Task completed = await Task.WhenAny(thirdSend, Task.Delay(50));
+            Task thirdSend = actorRef.Send("third", TestContext.Current.CancellationToken).AsTask();
+            Task completed = await Task.WhenAny(thirdSend, Task.Delay(50, TestContext.Current.CancellationToken));
 
             Assert.NotSame(thirdSend, completed);
             Assert.Equal(2, actorHandle.GetMailboxMetrics().Capacity);
@@ -339,9 +339,9 @@ public sealed class ActorSystemTests
 
         try
         {
-            await actorRef.Send("first").AsTask().WaitAsync(TimeSpan.FromSeconds(1));
-            await actor.MessageStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
-            await actorRef.Send("second").AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+            await actorRef.Send("first", TestContext.Current.CancellationToken).AsTask().WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+            await actor.MessageStarted.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+            await actorRef.Send("second", TestContext.Current.CancellationToken).AsTask().WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
             MailboxMetrics queuedMetrics = actorHandle.GetMailboxMetrics();
 
@@ -419,7 +419,7 @@ public sealed class ActorSystemTests
 
         await actorHandle.Stop();
         ActorSendResult result = actorRef.TrySend("late-message");
-        ActorObserverError error = await observerError.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        ActorObserverError error = await observerError.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         Assert.Equal(ActorSendResult.ActorUnavailable, result);
         Assert.Equal(ActorObserverErrorSource.DeadLetterHandler, error.Source);
@@ -440,9 +440,9 @@ public sealed class ActorSystemTests
         system.SlowMessageDetected += message => detected.TrySetResult(message);
         ActorRef<object> actorRef = (await system.SpawnAsync(new SlowActor(TimeSpan.FromMilliseconds(30)))).Ref;
 
-        await actorRef.Send("slow");
+        await actorRef.Send("slow", TestContext.Current.CancellationToken);
 
-        SlowMessage slowMessage = await detected.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        SlowMessage slowMessage = await detected.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         Assert.Equal(actorRef.Id, slowMessage.ActorId);
         Assert.Equal(typeof(string).FullName, slowMessage.MessageType);
@@ -498,9 +498,9 @@ public sealed class ActorSystemTests
         });
         ActorRef<object> actorRef = (await system.SpawnAsync(new SlowActor(TimeSpan.FromMilliseconds(30)))).Ref;
 
-        await actorRef.Send("slow");
+        await actorRef.Send("slow", TestContext.Current.CancellationToken);
 
-        Activity activity = await stopped.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        Activity activity = await stopped.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         Assert.Equal(true, activity.GetTagItem("lakona-actor.slow_message"));
         Assert.Contains(activity.Events, evt => evt.Name == "Lakona.Actor.Actor.SlowMessage");
@@ -512,8 +512,8 @@ public sealed class ActorSystemTests
         await using ActorSystem system = new();
         ActorRef<CounterMessage> counter = (await system.SpawnAsync<CounterMessage>(new CounterActor())).Ref;
 
-        await counter.Send(new Add(2));
-        int value = await counter.Call<int>(new GetCounter(), DefaultCallOptions);
+        await counter.Send(new Add(2), TestContext.Current.CancellationToken);
+        int value = await counter.Call<int>(new GetCounter(), DefaultCallOptions, TestContext.Current.CancellationToken);
 
         Assert.Equal(2, value);
     }
@@ -531,7 +531,7 @@ public sealed class ActorSystemTests
         await counter.Stop();
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await counter.Ref.Send(new Add(1)));
+            await counter.Ref.Send(new Add(1), TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -551,7 +551,7 @@ public sealed class ActorSystemTests
         ActorHandle<object> actorHandle = await system.SpawnAsync(actor);
         ActorRef<object> actorRef = actorHandle.Ref;
 
-        string[] events = await actorRef.Call<string[]>(new GetLifecycleEvents(), DefaultCallOptions);
+        string[] events = await actorRef.Call<string[]>(new GetLifecycleEvents(), DefaultCallOptions, TestContext.Current.CancellationToken);
 
         Assert.Equal(["started", "started-message", "get"], events);
         await actorHandle.Stop();
@@ -586,13 +586,13 @@ public sealed class ActorSystemTests
         ActorHandle<object> actorHandle = await system.SpawnAsync(actor);
         ActorRef<object> actorRef = actorHandle.Ref;
 
-        await actorRef.Send("block");
-        await actor.MessageStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        await actorRef.Send("block", TestContext.Current.CancellationToken);
+        await actor.MessageStarted.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         Task<ActorStopResult> stopTask = actorHandle.Stop(TimeSpan.FromSeconds(1)).AsTask();
         try
         {
-            await Task.Delay(50);
+            await Task.Delay(50, TestContext.Current.CancellationToken);
 
             Assert.False(actor.StoppingStarted.Task.IsCompleted);
         }
@@ -601,7 +601,7 @@ public sealed class ActorSystemTests
             actor.Release();
         }
 
-        ActorStopResult result = await stopTask.WaitAsync(TimeSpan.FromSeconds(1));
+        ActorStopResult result = await stopTask.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         Assert.Equal(ActorStopResult.Drained, result);
         Assert.Equal(1, actor.MaxConcurrency);
@@ -723,8 +723,8 @@ public sealed class ActorSystemTests
         await using ActorSystem system = new();
         ActorRef<object> actorRef = (await system.SpawnAsync(new EchoActor())).Ref;
 
-        string response = await actorRef.Call<string>("trace-me", DefaultCallOptions);
-        Activity activity = await stopped.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        string response = await actorRef.Call<string>("trace-me", DefaultCallOptions, TestContext.Current.CancellationToken);
+        Activity activity = await stopped.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         Assert.Equal("trace-me", response);
         Assert.Equal(ActivityStatusCode.Ok, activity.Status);
@@ -765,8 +765,8 @@ public sealed class ActorSystemTests
         using Activity? parent = testSource.StartActivity("parent");
         Assert.NotNull(parent);
 
-        await actorRef.Send(new ParentTraceSend());
-        ParentTraceCall response = await actorRef.Call<ParentTraceCall>(new ParentTraceCall(), DefaultCallOptions);
+        await actorRef.Send(new ParentTraceSend(), TestContext.Current.CancellationToken);
+        ParentTraceCall response = await actorRef.Call<ParentTraceCall>(new ParentTraceCall(), DefaultCallOptions, TestContext.Current.CancellationToken);
         await Eventually(() => stopped.Count >= 2);
 
         Assert.Equal(new ParentTraceCall(), response);
@@ -815,10 +815,10 @@ public sealed class ActorSystemTests
         using Activity? parent = testSource.StartActivity("timer-parent");
         Assert.NotNull(parent);
 
-        await actorRef.Send(new StartTimer());
+        await actorRef.Send(new StartTimer(), TestContext.Current.CancellationToken);
 
-        Activity scheduledBy = await startTimerActivity.Task.WaitAsync(TimeSpan.FromSeconds(1));
-        Activity activity = await tickActivity.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        Activity scheduledBy = await startTimerActivity.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+        Activity activity = await tickActivity.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         Assert.Equal(parent!.SpanId, scheduledBy.ParentSpanId);
         Assert.Equal(scheduledBy.SpanId, activity.ParentSpanId);
@@ -860,12 +860,12 @@ public sealed class ActorSystemTests
 
         try
         {
-            await echo.Send("send");
-            _ = await echo.Call<string>("call", DefaultCallOptions);
+            await echo.Send("send", TestContext.Current.CancellationToken);
+            _ = await echo.Call<string>("call", DefaultCallOptions, TestContext.Current.CancellationToken);
             await Assert.ThrowsAsync<TimeoutException>(async () =>
-                await ignoring.Call<string>("timeout", CallOptions(TimeSpan.FromMilliseconds(20))));
-            await blocked.Send("active");
-            await blocked.Send("queued");
+                await ignoring.Call<string>("timeout", CallOptions(TimeSpan.FromMilliseconds(20)), TestContext.Current.CancellationToken));
+            await blocked.Send("active", TestContext.Current.CancellationToken);
+            await blocked.Send("queued", TestContext.Current.CancellationToken);
             await stoppedHandle.Stop();
             Assert.Equal(ActorSendResult.ActorUnavailable, stopped.TrySend("late"));
             listener.RecordObservableInstruments();
@@ -933,9 +933,9 @@ public sealed class ActorSystemTests
         DisposeGaugeBlockingActor actor = new();
         ActorRef<object> actorRef = (await system.SpawnAsync(actor)).Ref;
 
-        await actorRef.Send("active");
-        await actor.MessageStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
-        await actorRef.Send("queued");
+        await actorRef.Send("active", TestContext.Current.CancellationToken);
+        await actor.MessageStarted.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+        await actorRef.Send("queued", TestContext.Current.CancellationToken);
 
         Task disposeTask = system.DisposeAsync().AsTask();
 
@@ -951,7 +951,7 @@ public sealed class ActorSystemTests
         finally
         {
             actor.Release();
-            await disposeTask.WaitAsync(TimeSpan.FromSeconds(1));
+            await disposeTask.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         }
     }
 
@@ -962,7 +962,7 @@ public sealed class ActorSystemTests
         ActorRef<object> spawned = (await system.SpawnAsync("echo", new EchoActor())).Ref;
 
         ActorRef<object> resolved = system.GetActor<object>("echo");
-        string response = await resolved.Call<string>("named", DefaultCallOptions);
+        string response = await resolved.Call<string>("named", DefaultCallOptions, TestContext.Current.CancellationToken);
 
         Assert.Equal(spawned.Id, resolved.Id);
         Assert.Equal("named", response);
@@ -989,7 +989,7 @@ public sealed class ActorSystemTests
 
         Assert.False(system.TryGetActor<object>("echo", out _));
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await actorRef.Send("late"));
+            await actorRef.Send("late", TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -999,8 +999,8 @@ public sealed class ActorSystemTests
         ActorRef<CounterMessage> spawned = (await system.SpawnAsync<CounterMessage>("counter", new CounterActor())).Ref;
 
         ActorRef<CounterMessage> resolved = system.GetActor<CounterMessage>("counter");
-        await resolved.Send(new Add(3));
-        int value = await spawned.Call<int>(new GetCounter(), DefaultCallOptions);
+        await resolved.Send(new Add(3), TestContext.Current.CancellationToken);
+        int value = await spawned.Call<int>(new GetCounter(), DefaultCallOptions, TestContext.Current.CancellationToken);
 
         Assert.Equal(spawned.Id, resolved.Id);
         Assert.Equal(3, value);
@@ -1025,7 +1025,7 @@ public sealed class ActorSystemTests
 
         for (int i = 0; i < 16; i++)
         {
-            await actorRef.Send(i);
+            await actorRef.Send(i, TestContext.Current.CancellationToken);
         }
 
         await actorHandle.Stop();
@@ -1043,7 +1043,7 @@ public sealed class ActorSystemTests
 
         for (int i = 0; i < 16; i++)
         {
-            await actorRef.Send(i);
+            await actorRef.Send(i, TestContext.Current.CancellationToken);
         }
 
         ActorStopResult result = await actorHandle.Stop(TimeSpan.FromSeconds(1));
@@ -1062,13 +1062,13 @@ public sealed class ActorSystemTests
         ActorHandle<object> actorHandle = await system.SpawnAsync(actor);
         ActorRef<object> actorRef = actorHandle.Ref;
 
-        await actorRef.Send("blocked");
+        await actorRef.Send("blocked", TestContext.Current.CancellationToken);
 
         ActorStopResult result = await actorHandle.Stop(TimeSpan.FromMilliseconds(20));
 
         Assert.Equal(ActorStopResult.TimedOut, result);
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await actorRef.Send("late"));
+            await actorRef.Send("late", TestContext.Current.CancellationToken));
 
         DeadLetter deadLetter = Assert.Single(deadLetters);
         Assert.Equal(actorRef.Id, deadLetter.Target);
@@ -1086,13 +1086,13 @@ public sealed class ActorSystemTests
         ActorHandle<object> actorHandle = await system.SpawnAsync(actor);
         ActorRef<object> actorRef = actorHandle.Ref;
 
-        await actorRef.Send(new StartTimer());
+        await actorRef.Send(new StartTimer(), TestContext.Current.CancellationToken);
         await Eventually(() => actor.Ticks > 0);
 
         await actorHandle.Stop();
         int ticksAfterStop = actor.Ticks;
 
-        await Task.Delay(80);
+        await Task.Delay(80, TestContext.Current.CancellationToken);
 
         Assert.Equal(ticksAfterStop, actor.Ticks);
     }
@@ -1106,7 +1106,7 @@ public sealed class ActorSystemTests
         ActorHandle<object> actorHandle = await system.SpawnAsync(new StoppingTimerActor());
 
         await actorHandle.Stop();
-        await Task.Delay(80);
+        await Task.Delay(80, TestContext.Current.CancellationToken);
 
         Assert.Empty(deadLetters);
     }
@@ -1118,9 +1118,9 @@ public sealed class ActorSystemTests
         OffloadActor actor = new();
         ActorRef<object> actorRef = (await system.SpawnAsync(actor)).Ref;
 
-        await actorRef.Send(new StartOffload(21));
+        await actorRef.Send(new StartOffload(21), TestContext.Current.CancellationToken);
         await Eventually(() => actor.Events.Contains("complete"));
-        int doubled = await actorRef.Call<int>(new GetOffloadResult(), DefaultCallOptions);
+        int doubled = await actorRef.Call<int>(new GetOffloadResult(), DefaultCallOptions, TestContext.Current.CancellationToken);
 
         Assert.Equal(42, doubled);
         Assert.Equal(new[] { "start", "complete", "get" }, actor.Events);
@@ -1137,7 +1137,7 @@ public sealed class ActorSystemTests
 
         Assert.Equal(ActorState.Active, actorHandle.GetState());
 
-        await actorRef.Send("blocked");
+        await actorRef.Send("blocked", TestContext.Current.CancellationToken);
 
         Task<ActorStopResult> stopTask = actorHandle.Stop(TimeSpan.FromSeconds(1)).AsTask();
 
@@ -1158,7 +1158,7 @@ public sealed class ActorSystemTests
         ActorHandle<object> actorHandle = await system.SpawnAsync(actor);
         ActorRef<object> actorRef = actorHandle.Ref;
 
-        await actorRef.Send("blocked");
+        await actorRef.Send("blocked", TestContext.Current.CancellationToken);
 
         ActorStopResult result = await actorHandle.Stop(TimeSpan.FromMilliseconds(20));
 
@@ -1182,7 +1182,7 @@ public sealed class ActorSystemTests
 
         ActorRef<object> actorRef = (await system.SpawnAsync(new EchoActor())).Ref;
 
-        string response = await actorRef.Call<string>("hello", DefaultCallOptions);
+        string response = await actorRef.Call<string>("hello", DefaultCallOptions, TestContext.Current.CancellationToken);
 
         Assert.Equal("hello", response);
         await Eventually(() => events.Count == 2);
@@ -1205,7 +1205,7 @@ public sealed class ActorSystemTests
         ActorRef<object> actorRef = (await system.SpawnAsync(new ThrowingActor())).Ref;
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await actorRef.Call<string>("fail", DefaultCallOptions));
+            await actorRef.Call<string>("fail", DefaultCallOptions, TestContext.Current.CancellationToken));
 
         Assert.Equal(2, events.Count);
         Assert.Equal("before:fail", events[0]);
@@ -1225,8 +1225,8 @@ public sealed class ActorSystemTests
 
         ActorRef<object> actorRef = (await system.SpawnAsync(new EchoActor())).Ref;
 
-        string response = await actorRef.Call<string>("hello", DefaultCallOptions);
-        ActorObserverError error = await observerError.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        string response = await actorRef.Call<string>("hello", DefaultCallOptions, TestContext.Current.CancellationToken);
+        ActorObserverError error = await observerError.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         Assert.Equal("hello", response);
         Assert.Equal(ActorObserverErrorSource.MessageInterceptorBefore, error.Source);
@@ -1246,8 +1246,8 @@ public sealed class ActorSystemTests
 
         ActorRef<object> actorRef = (await system.SpawnAsync(new EchoActor())).Ref;
 
-        string response = await actorRef.Call<string>("hello", DefaultCallOptions);
-        ActorObserverError error = await observerError.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        string response = await actorRef.Call<string>("hello", DefaultCallOptions, TestContext.Current.CancellationToken);
+        ActorObserverError error = await observerError.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         Assert.Equal("hello", response);
         Assert.Equal(ActorObserverErrorSource.MessageInterceptorAfter, error.Source);
@@ -1273,7 +1273,7 @@ public sealed class ActorSystemTests
         await actorHandle.Stop();
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await actorRef.Send("late-message"));
+            await actorRef.Send("late-message", TestContext.Current.CancellationToken));
 
         DeadLetter deadLetter = Assert.Single(deadLetters);
         Assert.Equal(actorRef.Id, deadLetter.Target);

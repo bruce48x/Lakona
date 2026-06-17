@@ -143,7 +143,7 @@ public sealed class LakonaGameServerTests
         await using var provider = services.BuildServiceProvider();
 
         var hotfix = provider.GetRequiredService<IHotfixManager>();
-        var result = await hotfix.ReloadAsync();
+        var result = await hotfix.ReloadAsync(TestContext.Current.CancellationToken);
 
         Assert.False(result.Succeeded);
         Assert.Equal(HotfixReloadStatus.Failed, result.Status);
@@ -179,7 +179,7 @@ public sealed class LakonaGameServerTests
             Directory.CreateDirectory(hotfixDirectory);
             var hotfixPath = Path.Combine(hotfixDirectory, "Server.Hotfix.dll");
 
-            var syntaxTree = CSharpSyntaxTree.ParseText("public sealed class Marker { }");
+            var syntaxTree = CSharpSyntaxTree.ParseText("public sealed class Marker { }", cancellationToken: TestContext.Current.CancellationToken);
             var references = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!
                 .ToString()!
                 .Split(Path.PathSeparator)
@@ -190,7 +190,7 @@ public sealed class LakonaGameServerTests
                 references,
                 new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
             using var stream = File.Create(hotfixPath);
-            var emit = compilation.Emit(stream);
+            var emit = compilation.Emit(stream, cancellationToken: TestContext.Current.CancellationToken);
             Assert.True(emit.Success, string.Join(Environment.NewLine, emit.Diagnostics));
 
             var before = AssemblyLoadContext.Default.Assemblies
