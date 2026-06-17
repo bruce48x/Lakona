@@ -130,7 +130,13 @@ Rendering/
 Execution/
   GenerationExecutor.cs
   TransactionalOutputWriter.cs
+  GitInitializer.cs
+  GitInitializationResult.cs
+  IGitCommandRunner.cs
   ToolFileSystem.cs
+
+Infrastructure/
+  GitCommandRunner.cs
 ```
 
 `CliApplication` routes commands and translates CLI usage failures. It should
@@ -139,7 +145,11 @@ For hotfix operations it should route to focused command classes under
 `Cli/Commands/Hotfix/`.
 
 `LakonaProjectGenerator` is the high-level generation facade. It builds and
-validates a plan, then executes it transactionally.
+validates a plan, executes it transactionally, and runs post-generation Git
+initialization (init + initial commit) when the environment supports it.
+Git initialization is not part of the render plan and runs only after
+transactional write success. The generator returns a
+`LakonaProjectGenerationResult` with the root path and Git status.
 
 ## Hotfix Operations
 
@@ -204,7 +214,8 @@ flowchart TD
     H --> I["PlanValidator"]
     I --> J["GenerationExecutor"]
     J --> K["TransactionalOutputWriter"]
-    K --> L["Complete generated project tree"]
+    K --> L["GitInitializer (post-generation)"]
+    L --> M["Complete generated project tree + Git repo"]
 ```
 
 Renderers implement `IPlanContributor` and contribute `GeneratedFile`,
@@ -409,7 +420,7 @@ input model instead of allowing both renderers to emit or mutate the same path.
 | `Client/**` for Godot | `GodotClientRenderer` |
 | `Client/**` for Console | `ConsoleClientRenderer` |
 | `docker-compose.cluster.yml`, `.env.cluster.example`, `ops/**`, `Server/Dockerfile` | `OperationsRenderer` |
-| `docs/GETTING_STARTED.md`, `docs/EDITING_GUIDE.md`, `docs/OPERATIONS.md` | `GeneratedProjectDocsRenderer` |
+| `README.md`, `AGENTS.md`, `CLAUDE.md` | `GeneratedProjectGuideRenderer` |
 
 ### Shared Renderer
 
@@ -496,11 +507,11 @@ server runtime configuration.
 `OperationsRenderer` owns compose output only when
 `DeploymentProfile.Compose` is selected.
 
-`GeneratedProjectDocsRenderer` owns generated project docs:
+`GeneratedProjectGuideRenderer` owns generated project guide files:
 
-- `docs/GETTING_STARTED.md`
-- `docs/EDITING_GUIDE.md`
-- `docs/OPERATIONS.md`
+- `README.md`
+- `AGENTS.md`
+- `CLAUDE.md`
 
 ## Generated Project Layout
 
@@ -510,6 +521,9 @@ The generated project layout is:
 MyGame/
   .gitattributes
   .gitignore
+  README.md
+  AGENTS.md
+  CLAUDE.md
   lakona-game.tool.json
   Shared/
     Shared.csproj
@@ -532,10 +546,6 @@ MyGame/
       Chat/
   Client/
     ...
-  docs/
-    GETTING_STARTED.md
-    EDITING_GUIDE.md
-    OPERATIONS.md
   ops/
     ...
 ```
@@ -566,7 +576,8 @@ hold instances of types loaded from `Server.Hotfix`, because already-connected
 clients must use new Service logic on their next RPC call after a successful
 reload.
 
-Generated docs should point users to three edit zones:
+The generated root guide files (README.md, AGENTS.md, CLAUDE.md) point users to
+three edit zones:
 
 - `Shared/Contracts/` for RPC contracts, callback contracts, reliable push DTOs,
   and named contract ids.

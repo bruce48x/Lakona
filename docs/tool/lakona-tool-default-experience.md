@@ -203,13 +203,30 @@ lakona-tool new --name MyGame
 
 ## Documentation Direction
 
-Generated projects should include short, task-oriented documentation:
+Generated projects include a root `README.md` as the single authority and short
+AI-agent entry files:
 
-- `docs/GETTING_STARTED.md`: build, check, run, open client, change first RPC, change first reliable push, change first hotfix rule
-- `docs/EDITING_GUIDE.md`: where to edit contracts, stable orchestration, hotfix rules, and deployment settings
-- `docs/OPERATIONS.md`: check command, hotfix build/reload model, cluster topology, environment variable overrides
+- `README.md`: project overview, generated options, build and run, project structure,
+  where to edit, runtime model, client notes, configuration, and tooling
+- `AGENTS.md`: directs AI agents to read `README.md` first
+- `CLAUDE.md`: directs Claude to read `README.md` first
 
-These documents should explain that Cluster, Hotfix, and Reliable Push are defaults. They should not ask the user to enable them.
+The README explains that Cluster, Hotfix, and Reliable Push are defaults. It
+should not ask the user to enable them.
+
+## Git Initialization
+
+After transactionally writing generated files, `lakona-tool new` attempts safe
+automatic `git init` and initial commit (`"Initial Lakona project"`). The
+initializer skips when:
+
+- Git is not available
+- the project is inside an existing parent Git worktree
+- the project root already has Git commits
+- user.name or user.email is not configured (repo is initialized but no commit)
+
+Project generation succeeds regardless of Git environment failures. The CLI
+completion output reports the Git status clearly.
 
 ## Current Contract
 
