@@ -19,15 +19,35 @@ namespace Lakona.Game.Cluster.Sql
                 throw new ArgumentNullException(nameof(connection));
             }
 
-            var validatedTableName = ValidateTableName(tableName);
             if (connection.State != ConnectionState.Open)
             {
                 await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
             }
 
             using var command = connection.CreateCommand();
-            command.CommandText = CreateTableSql(dialect, validatedTableName);
+            command.CommandText = CreateTableSql(dialect, tableName);
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public static async ValueTask VerifyReadyAsync(
+            DbConnection connection,
+            SqlNodeDirectoryDialect dialect,
+            string tableName = SqlNodeDirectoryOptions.DefaultTableName,
+            CancellationToken cancellationToken = default)
+        {
+            if (connection is null)
+            {
+                throw new ArgumentNullException(nameof(connection));
+            }
+
+            if (connection.State != ConnectionState.Open)
+            {
+                await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            using var command = connection.CreateCommand();
+            command.CommandText = CreateReadinessSql(dialect, ValidateTableName(tableName));
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         }
 
         internal static string ValidateTableName(string tableName)
@@ -49,13 +69,16 @@ namespace Lakona.Game.Cluster.Sql
             return tableName;
         }
 
-        private static string CreateTableSql(SqlNodeDirectoryDialect dialect, string tableName)
+        public static string CreateTableSql(
+            SqlNodeDirectoryDialect dialect,
+            string tableName = SqlNodeDirectoryOptions.DefaultTableName)
         {
+            var validatedTableName = ValidateTableName(tableName);
             switch (dialect)
             {
                 case SqlNodeDirectoryDialect.Sqlite:
                     return
-                        "CREATE TABLE IF NOT EXISTS " + tableName + " (" +
+                        "CREATE TABLE IF NOT EXISTS " + validatedTableName + " (" +
                         "cluster_name TEXT NOT NULL, " +
                         "node_id TEXT NOT NULL, " +
                         "node_epoch INTEGER NOT NULL, " +
@@ -68,7 +91,7 @@ namespace Lakona.Game.Cluster.Sql
                         "PRIMARY KEY (cluster_name, node_id))";
                 case SqlNodeDirectoryDialect.Postgres:
                     return
-                        "CREATE TABLE IF NOT EXISTS " + tableName + " (" +
+                        "CREATE TABLE IF NOT EXISTS " + validatedTableName + " (" +
                         "cluster_name TEXT NOT NULL, " +
                         "node_id TEXT NOT NULL, " +
                         "node_epoch BIGINT NOT NULL, " +
@@ -81,7 +104,7 @@ namespace Lakona.Game.Cluster.Sql
                         "PRIMARY KEY (cluster_name, node_id))";
                 case SqlNodeDirectoryDialect.MySql:
                     return
-                        "CREATE TABLE IF NOT EXISTS " + tableName + " (" +
+                        "CREATE TABLE IF NOT EXISTS " + validatedTableName + " (" +
                         "cluster_name VARCHAR(256) NOT NULL, " +
                         "node_id VARCHAR(256) NOT NULL, " +
                         "node_epoch BIGINT NOT NULL, " +
@@ -92,6 +115,21 @@ namespace Lakona.Game.Cluster.Sql
                         "lease_expires_at BIGINT NOT NULL, " +
                         "updated_at BIGINT NOT NULL, " +
                         "PRIMARY KEY (cluster_name, node_id))";
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(dialect), dialect, "Unsupported SQL node directory dialect.");
+            }
+        }
+
+        private static string CreateReadinessSql(SqlNodeDirectoryDialect dialect, string tableName)
+        {
+            switch (dialect)
+            {
+                case SqlNodeDirectoryDialect.Sqlite:
+                case SqlNodeDirectoryDialect.Postgres:
+                case SqlNodeDirectoryDialect.MySql:
+                    return
+                        "SELECT cluster_name, node_id, node_epoch, state, endpoints_json, features_json, labels_json, lease_expires_at, updated_at " +
+                        "FROM " + tableName + " WHERE 1 = 0";
                 default:
                     throw new ArgumentOutOfRangeException(nameof(dialect), dialect, "Unsupported SQL node directory dialect.");
             }

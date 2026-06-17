@@ -39,6 +39,10 @@ public sealed class DatabaseFeature : LakonaGameFeature
             ?? configuration["AGAR_REDIS_CONNECTION_STRING"];
         var nodeDirectoryTable = configuration["Agar:Database:NodeDirectoryTable"]
             ?? AgarDatabaseOptions.DefaultNodeDirectoryTable;
+        var ensureSchemaOnStartup = bool.TryParse(
+            configuration["Agar:Database:EnsureSchemaOnStartup"],
+            out var parsedEnsureSchemaOnStartup)
+            && parsedEnsureSchemaOnStartup;
 
         if (string.IsNullOrWhiteSpace(postgres))
         {
@@ -52,6 +56,6 @@ public sealed class DatabaseFeature : LakonaGameFeature
                 $"The database feature requires ConnectionStrings:{AgarDatabaseOptions.RedisConnectionName}.");
         }
 
-        return new AgarDatabaseOptions(postgres, redis, nodeDirectoryTable);
+        return new AgarDatabaseOptions(postgres, redis, nodeDirectoryTable, ensureSchemaOnStartup);
     }
 }

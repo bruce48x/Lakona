@@ -93,6 +93,16 @@ dotnet run --project Server/App/Server.App.csproj
 
 三节点 sample 拓扑可通过 `docker-compose.yml` 启动 `data-1`、`gateway-1`、`battle-1`、Postgres 和 Redis。`data-1` 的 `database` feature 会读取 `ConnectionStrings:AgarPostgres` 和 `ConnectionStrings:AgarRedis`，把 cluster node directory 接到 Postgres，并在 data 进程内提供共享 route directory；`gateway-1` 和 `battle-1` 通过 `Lakona:Cluster:Seeds` 使用 seeded directory clients 访问 data 节点。远程客户端通知通过 battle/data 侧的 `ClusterClientNotificationDispatcher` 调用 gateway cluster endpoint 上的 binder，再由 gateway 的本地 session callback 发给客户端。当前阶段 Postgres 用于 cluster membership；route directory 是 sample V1 的 data-local in-memory 实现；完整 gameplay state 持久化和 Redis 排行榜索引仍是后续 sample 工作，不应把回调对象或会话 callback 状态写入 Postgres/Redis。
 
+本地 `docker-compose.yml` 会把 `infra/postgres/init` 挂载到 Postgres
+`/docker-entrypoint-initdb.d`，其中 `001-lakona-cluster-nodes.sql` 创建
+Lakona cluster node directory 表，`002-dapper-grain-storage.sql` 创建 sample
+状态表。`data-1` 启动时默认只验证 schema 是否可用，不执行建表；只有显式设置
+`Agar:Database:EnsureSchemaOnStartup=true` 时才会用当前连接执行
+`CREATE TABLE IF NOT EXISTS`。这个开关只用于本地开发、测试或一次性 admin
+bootstrap，不是生产运行建议。已有旧本地 Postgres volume 的开发环境不会自动补跑
+新的 init SQL；可重建本地 volume、用 admin-capable 账号手动执行
+`001-lakona-cluster-nodes.sql`，或临时用上述开关做一次 admin/bootstrap 启动。
+
 ## 开发命令
 
 共享协议变更后，不再手动生成 RPC 源码。服务端 `dotnet build` 会通过 `Lakona.Rpc.Analyzers` 生成服务端绑定；Unity 客户端重新编译时会通过 `Client/Assets/Scripts/Rpc/LakonaRpcGeneration.cs` 中的 assembly 标记生成客户端 API。

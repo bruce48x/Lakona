@@ -160,6 +160,24 @@ create remote directory clients; directory-owner nodes must provide local
 directory implementations instead of recursively calling their own cluster RPC
 endpoint.
 
+### Node Directory Storage
+
+The node directory stores live cluster membership metadata. It is framework
+infrastructure, not gameplay state, account data, matchmaking state,
+leaderboard state, route ownership, or a durable event log.
+
+For SQL-backed node directories, the framework owns the `lakona_cluster_nodes`
+table contract and ships dialect-specific initial schema scripts through
+`Lakona.Game.Cluster.Sql`. Production app startup must not be the default place
+where this table is created. Production deployments should apply the schema
+through a controlled migration, DBA step, or admin bootstrap job, then let app
+startup verify readiness without DDL permissions.
+
+`SqlNodeDirectorySchema.EnsureCreatedAsync` is allowed for tests, local
+development, and explicit admin/bootstrap tooling. Production app code should
+prefer `SqlNodeDirectorySchema.VerifyReadyAsync`, which checks that the table
+and required columns are queryable without attempting `CREATE TABLE`.
+
 ### RpcService
 
 `RpcService` describes which client-facing RPC protocol surfaces an endpoint
@@ -624,6 +642,12 @@ back to `data-1`. Full durable gameplay-state persistence remains
 project-owned sample work; the current sample user, matchmaking, room, and
 leaderboard stores still run through the sample actor-backed state facade.
 `database` is not discoverable.
+
+The sample's local Docker Postgres initializes `lakona_cluster_nodes` from
+`infra/postgres/init/001-lakona-cluster-nodes.sql`; the data-node app verifies
+that schema on startup. Runtime schema creation is disabled by default and can
+be enabled only with `Agar:Database:EnsureSchemaOnStartup=true` for development
+or admin bootstrap runs.
 
 ### Gateway Node
 

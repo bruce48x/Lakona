@@ -19,7 +19,17 @@ internal sealed class AgarDatabaseSchemaHostedService : IHostedService
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         await using var connection = _connections.CreatePostgresConnection();
-        await SqlNodeDirectorySchema.EnsureCreatedAsync(
+        if (_connections.Options.EnsureSchemaOnStartup)
+        {
+            await SqlNodeDirectorySchema.EnsureCreatedAsync(
+                    connection,
+                    _nodeDirectoryOptions.Dialect,
+                    _nodeDirectoryOptions.TableName,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        await SqlNodeDirectorySchema.VerifyReadyAsync(
                 connection,
                 _nodeDirectoryOptions.Dialect,
                 _nodeDirectoryOptions.TableName,

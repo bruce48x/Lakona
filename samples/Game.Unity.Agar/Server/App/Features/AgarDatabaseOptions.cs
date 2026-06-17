@@ -9,7 +9,8 @@ public sealed class AgarDatabaseOptions
     public AgarDatabaseOptions(
         string postgresConnectionString,
         string redisConnectionString,
-        string nodeDirectoryTable)
+        string nodeDirectoryTable,
+        bool ensureSchemaOnStartup)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(postgresConnectionString);
         ArgumentException.ThrowIfNullOrWhiteSpace(redisConnectionString);
@@ -18,6 +19,7 @@ public sealed class AgarDatabaseOptions
         PostgresConnectionString = postgresConnectionString;
         RedisConnectionString = redisConnectionString;
         NodeDirectoryTable = nodeDirectoryTable;
+        EnsureSchemaOnStartup = ensureSchemaOnStartup;
     }
 
     public string PostgresConnectionString { get; }
@@ -25,4 +27,6 @@ public sealed class AgarDatabaseOptions
     public string RedisConnectionString { get; }
 
     public string NodeDirectoryTable { get; }
+
+    public bool EnsureSchemaOnStartup { get; }
 }

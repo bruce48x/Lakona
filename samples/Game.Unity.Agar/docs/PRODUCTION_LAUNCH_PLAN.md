@@ -81,7 +81,7 @@
 
 - 把开发连接串、端口、节点 id 和 advertised IP 从本地配置迁移到环境变量或部署配置。
 - 为排行榜时区、周期重置、归档保留周期、房间容量、匹配超时、可靠推送保留时间提供配置项。
-- 明确 PostgreSQL schema 迁移流程，不能依赖手动复制 init SQL 作为生产升级方式。
+- 明确 PostgreSQL schema 生命周期：初始环境可以由 DBA、部署流水线或一次性 admin bootstrap 执行 Lakona 和 sample 的初始 SQL；生产升级必须使用版本化迁移流程，不能依赖普通 app 启动时自动建表，也不能把手动复制 init SQL 当作升级机制。
 - 将当前周期胜利积分排行榜索引迁移到 Redis sorted set，PostgreSQL 继续保存用户资料和持久化状态。
 - 明确可靠业务推送使用内存短窗口，写清楚进程重启或 outbox 丢失后的 state lost / new session 玩家体验。
 - 建立用户目录或补充排行榜重置策略。当前 leaderboard 只能重置索引内玩家，长期会和“所有玩家积分归零”的产品语义冲突。

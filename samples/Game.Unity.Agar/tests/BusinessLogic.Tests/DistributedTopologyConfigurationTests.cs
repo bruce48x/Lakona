@@ -87,10 +87,51 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Contains("Host=postgres", options.PostgresConnectionString);
         Assert.Contains("redis:6379", options.RedisConnectionString);
         Assert.Equal("lakona_cluster_nodes", options.NodeDirectoryTable);
+        Assert.False(options.EnsureSchemaOnStartup);
         Assert.Equal(SqlNodeDirectoryDialect.Postgres, sqlOptions.Dialect);
         Assert.Equal(new[] { "database", "state-store", "matchmaking", "leaderboard" }, catalog.ActiveNames);
         Assert.IsType<InMemoryRouteDirectory>(routeDirectory);
         Assert.IsNotType<SeededRouteDirectoryClient>(routeDirectory);
+    }
+
+    [Fact]
+    public void DataNodeCanEnableRuntimeSchemaCreationExplicitly()
+    {
+        var services = BuildFeatureServices(
+            "appsettings.data-1.json",
+            new Dictionary<string, string?>
+            {
+                ["Agar:Database:EnsureSchemaOnStartup"] = "true"
+            });
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<AgarDatabaseOptions>();
+
+        Assert.True(options.EnsureSchemaOnStartup);
+    }
+
+    [Fact]
+    public void AgarPostgresInitIncludesLakonaClusterNodeDirectorySchema()
+    {
+        var root = FindRepositoryRoot();
+        var frameworkScript = File.ReadAllText(Path.Combine(
+            root,
+            "src",
+            "Lakona.Game.Cluster.Sql",
+            "schema",
+            "postgres",
+            "001-lakona-cluster-nodes.sql"));
+        var sampleScript = File.ReadAllText(Path.Combine(
+            root,
+            "samples",
+            "Game.Unity.Agar",
+            "infra",
+            "postgres",
+            "init",
+            "001-lakona-cluster-nodes.sql"));
+
+        Assert.Contains(NormalizeSql(SqlNodeDirectorySchema.CreateTableSql(SqlNodeDirectoryDialect.Postgres)), NormalizeSql(frameworkScript), StringComparison.Ordinal);
+        Assert.Contains(NormalizeSql(SqlNodeDirectorySchema.CreateTableSql(SqlNodeDirectoryDialect.Postgres)), NormalizeSql(sampleScript), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -229,12 +270,20 @@ public sealed class DistributedTopologyConfigurationTests
         return JsonDocument.Parse(File.ReadAllText(path));
     }
 
-    private static IServiceCollection BuildFeatureServices(string fileName)
+    private static IServiceCollection BuildFeatureServices(
+        string fileName,
+        IReadOnlyDictionary<string, string?>? overrides = null)
     {
-        var configuration = new ConfigurationBuilder()
+        var configurationBuilder = new ConfigurationBuilder()
             .SetBasePath(Path.Combine(FindRepositoryRoot(), "samples", "Game.Unity.Agar", "Server", "App"))
-            .AddJsonFile(fileName)
-            .Build();
+            .AddJsonFile(fileName);
+
+        if (overrides is not null)
+        {
+            configurationBuilder.AddInMemoryCollection(overrides);
+        }
+
+        var configuration = configurationBuilder.Build();
         var services = new ServiceCollection();
 
         services.AddLakonaGame(configuration, [
@@ -262,6 +311,18 @@ public sealed class DistributedTopologyConfigurationTests
         }
 
         throw new DirectoryNotFoundException($"Could not find repository root from '{AppContext.BaseDirectory}'.");
+    }
+
+    private static string NormalizeSql(string sql)
+    {
+        var normalized = string.Join(
+                " ",
+                sql.Replace(";", string.Empty, StringComparison.Ordinal)
+                    .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+            .Trim();
+        return normalized
+            .Replace("( ", "(", StringComparison.Ordinal)
+            .Replace(" )", ")", StringComparison.Ordinal);
     }
 
     private static int GetFreePort()

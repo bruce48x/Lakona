@@ -12,6 +12,8 @@ public sealed class AgarDatabaseConnectionFactory
         _options = options;
     }
 
+    public AgarDatabaseOptions Options => _options;
+
     public DbConnection CreatePostgresConnection()
     {
         return new NpgsqlConnection(_options.PostgresConnectionString);

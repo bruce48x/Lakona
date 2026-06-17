@@ -10,6 +10,85 @@ namespace Lakona.Game.Cluster.Sql.Tests;
 
 public sealed class SqlNodeDirectoryTests
 {
+    [Theory]
+    [InlineData(SqlNodeDirectoryDialect.Postgres, "CREATE TABLE IF NOT EXISTS lakona_cluster_nodes (cluster_name TEXT NOT NULL, node_id TEXT NOT NULL, node_epoch BIGINT NOT NULL, state INTEGER NOT NULL, endpoints_json TEXT NOT NULL, features_json TEXT NOT NULL, labels_json TEXT NOT NULL, lease_expires_at BIGINT NOT NULL, updated_at BIGINT NOT NULL, PRIMARY KEY (cluster_name, node_id))")]
+    [InlineData(SqlNodeDirectoryDialect.MySql, "CREATE TABLE IF NOT EXISTS lakona_cluster_nodes (cluster_name VARCHAR(256) NOT NULL, node_id VARCHAR(256) NOT NULL, node_epoch BIGINT NOT NULL, state INT NOT NULL, endpoints_json TEXT NOT NULL, features_json TEXT NOT NULL, labels_json TEXT NOT NULL, lease_expires_at BIGINT NOT NULL, updated_at BIGINT NOT NULL, PRIMARY KEY (cluster_name, node_id))")]
+    [InlineData(SqlNodeDirectoryDialect.Sqlite, "CREATE TABLE IF NOT EXISTS lakona_cluster_nodes (cluster_name TEXT NOT NULL, node_id TEXT NOT NULL, node_epoch INTEGER NOT NULL, state INTEGER NOT NULL, endpoints_json TEXT NOT NULL, features_json TEXT NOT NULL, labels_json TEXT NOT NULL, lease_expires_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (cluster_name, node_id))")]
+    public void CreateTableSqlReturnsDialectSpecificInitialSchema(SqlNodeDirectoryDialect dialect, string expected)
+    {
+        Assert.Equal(expected, SqlNodeDirectorySchema.CreateTableSql(dialect));
+    }
+
+    [Fact]
+    public void CreateTableSqlRejectsUnsafeTableName()
+    {
+        var ex = Assert.Throws<ArgumentException>(() =>
+            SqlNodeDirectorySchema.CreateTableSql(SqlNodeDirectoryDialect.Postgres, "public.lakona_cluster_nodes"));
+
+        Assert.Contains("letters, digits, and underscores", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task VerifyReadyAsyncPassesWhenRequiredTableAndColumnsExist()
+    {
+        await using var database = await OpenSharedDatabaseAsync();
+        await SqlNodeDirectorySchema.EnsureCreatedAsync(
+            database.KeeperConnection,
+            SqlNodeDirectoryDialect.Sqlite,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        await SqlNodeDirectorySchema.VerifyReadyAsync(
+            database.KeeperConnection,
+            SqlNodeDirectoryDialect.Sqlite,
+            cancellationToken: TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task VerifyReadyAsyncFailsWhenTableIsMissing()
+    {
+        await using var database = await OpenSharedDatabaseAsync();
+
+        await Assert.ThrowsAsync<SqliteException>(async () =>
+            await SqlNodeDirectorySchema.VerifyReadyAsync(
+                database.KeeperConnection,
+                SqlNodeDirectoryDialect.Sqlite,
+                cancellationToken: TestContext.Current.CancellationToken));
+    }
+
+    [Theory]
+    [InlineData("postgres", SqlNodeDirectoryDialect.Postgres)]
+    [InlineData("mysql", SqlNodeDirectoryDialect.MySql)]
+    [InlineData("sqlite", SqlNodeDirectoryDialect.Sqlite)]
+    public void PackagedSchemaScriptMatchesGeneratedInitialSchema(string dialectDirectory, SqlNodeDirectoryDialect dialect)
+    {
+        var path = Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "Lakona.Game.Cluster.Sql",
+            "schema",
+            dialectDirectory,
+            "001-lakona-cluster-nodes.sql");
+        var script = File.ReadAllText(path);
+        var expected = NormalizeSql(SqlNodeDirectorySchema.CreateTableSql(dialect));
+
+        Assert.Contains(expected, NormalizeSql(script), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ProjectPacksSchemaSqlFiles()
+    {
+        var path = Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "Lakona.Game.Cluster.Sql",
+            "Lakona.Game.Cluster.Sql.csproj");
+        var project = File.ReadAllText(path);
+
+        Assert.Contains(@"schema\**\*.sql", project, StringComparison.Ordinal);
+        Assert.Contains(@"Pack=""true""", project, StringComparison.Ordinal);
+        Assert.Contains(@"PackagePath=""schema\%(RecursiveDir)%(Filename)%(Extension)""", project, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task RegisterPersistsAndIncrementsEpochAcrossDirectoryInstances()
     {
@@ -460,6 +539,34 @@ public sealed class SqlNodeDirectoryTests
             {
                 ["zone"] = "local"
             });
+    }
+
+    private static string NormalizeSql(string sql)
+    {
+        var normalized = string.Join(
+                " ",
+                sql.Replace(";", string.Empty, StringComparison.Ordinal)
+                    .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+            .Trim();
+        return normalized
+            .Replace("( ", "(", StringComparison.Ordinal)
+            .Replace(" )", ")", StringComparison.Ordinal);
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "CONTRIBUTING.md")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException($"Could not find repository root from '{AppContext.BaseDirectory}'.");
     }
 
     private sealed class SharedSqliteDatabase : IAsyncDisposable
