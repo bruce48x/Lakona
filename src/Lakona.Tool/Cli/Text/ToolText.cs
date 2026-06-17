@@ -298,6 +298,55 @@ internal sealed class ToolText
         _ => "  4) dotnet run --project \"Server/App/Server.App.csproj\" --no-build"
     };
 
+    public string GitStatusInitializedAndCommitted => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => "git: 已初始化仓库并创建初始提交",
+        ToolLanguage.TraditionalChinese => "git: 已初始化儲存庫並建立初始提交",
+        _ => "git: initialized repository and created initial commit"
+    };
+
+    public string GitStatusInitializedNoCommit => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => "git: 已初始化仓库；由于 user.name 或 user.email 未配置，跳过初始提交",
+        ToolLanguage.TraditionalChinese => "git: 已初始化儲存庫；由於 user.name 或 user.email 未設定，跳過初始提交",
+        _ => "git: initialized repository; initial commit skipped because user.name or user.email is not configured"
+    };
+
+    public string GitStatusSkippedParentWorktree => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => "git: 由于项目位于已有 Git 工作树中，跳过初始化",
+        ToolLanguage.TraditionalChinese => "git: 由於專案位於已有 Git 工作樹中，跳過初始化",
+        _ => "git: skipped because the project is inside an existing Git worktree"
+    };
+
+    public string GitStatusSkippedAlreadyCommitted => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => "git: 由于项目根目录已有 Git 提交，跳过初始化",
+        ToolLanguage.TraditionalChinese => "git: 由於專案根目錄已有 Git 提交，跳過初始化",
+        _ => "git: skipped because the project root already has Git commits"
+    };
+
+    public string GitStatusSkippedGitUnavailable => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => "git: 由于 Git 不可用，跳过初始化",
+        ToolLanguage.TraditionalChinese => "git: 由於 Git 不可用，跳過初始化",
+        _ => "git: skipped because Git is not available"
+    };
+
+    public string GitStatusInitFailed(string reason) => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => $"git: 初始化失败: {reason}",
+        ToolLanguage.TraditionalChinese => $"git: 初始化失敗: {reason}",
+        _ => $"git: initialization failed: {reason}"
+    };
+
+    public string GitStatusCommitFailed(string reason) => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => $"git: 提交失败: {reason}",
+        ToolLanguage.TraditionalChinese => $"git: 提交失敗: {reason}",
+        _ => $"git: commit failed: {reason}"
+    };
+
     private string DidYouMeanValue(string suggestion) => Language switch
     {
         ToolLanguage.SimplifiedChinese => $"你是否想输入 '{suggestion}'?",

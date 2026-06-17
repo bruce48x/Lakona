@@ -1,5 +1,6 @@
 using Lakona.Tool.Cli.Options;
 using Lakona.Tool.Domain;
+using Lakona.Tool.Execution;
 using Lakona.Tool.Planning;
 
 namespace Lakona.Tool.Cli.Commands;
@@ -17,7 +18,8 @@ internal sealed class NewProjectCommand(
         {
             var options = prompter.Complete(NewProjectOptionParser.Parse(args, text));
             var spec = specFactory.Create(options);
-            await generator.GenerateAsync(spec, cancellationToken).ConfigureAwait(false);
+            var result = await generator.GenerateAsync(spec, cancellationToken).ConfigureAwait(false);
+            terminal.WriteLine(RenderGitStatus(result.Git));
             terminal.WriteLine(text.NewProjectReadyHeader);
             terminal.WriteLine($"  1) cd \"{spec.Layout.RootPath}\"");
             terminal.WriteLine(text.CheckProjectStep);
@@ -32,5 +34,23 @@ internal sealed class NewProjectCommand(
             terminal.WriteErrorLine(text.RunHelpForUsage);
             return 1;
         }
+    }
+
+    private string RenderGitStatus(GitInitializationResult git)
+    {
+        return git.Status switch
+        {
+            GitInitializationStatus.InitializedAndCommitted => text.GitStatusInitializedAndCommitted,
+            GitInitializationStatus.InitializedNoCommit =>
+                git.Reason is not null
+                    ? $"{text.GitStatusInitializedNoCommit} ({git.Reason})"
+                    : text.GitStatusInitializedNoCommit,
+            GitInitializationStatus.SkippedParentWorktree => text.GitStatusSkippedParentWorktree,
+            GitInitializationStatus.SkippedAlreadyCommitted => text.GitStatusSkippedAlreadyCommitted,
+            GitInitializationStatus.SkippedGitUnavailable => text.GitStatusSkippedGitUnavailable,
+            GitInitializationStatus.InitializationFailed => text.GitStatusInitFailed(git.Reason ?? "unknown"),
+            GitInitializationStatus.CommitFailed => text.GitStatusCommitFailed(git.Reason ?? "unknown"),
+            _ => ""
+        };
     }
 }

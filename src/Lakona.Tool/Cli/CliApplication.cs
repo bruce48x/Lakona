@@ -10,6 +10,7 @@ using Lakona.Tool.Rendering.Docs;
 using Lakona.Tool.Rendering.Operations;
 using Lakona.Tool.Rendering.Project;
 using Lakona.Tool.Rendering.Server;
+using Lakona.Tool.Infrastructure;
 using Lakona.Tool.Rendering.Shared;
 
 internal sealed class CliApplication
@@ -85,7 +86,8 @@ internal sealed class CliApplication
                         new GeneratedProjectGuideRenderer()
                     ],
                     [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
-                new GenerationExecutor(new TransactionalOutputWriter())),
+                new GenerationExecutor(new TransactionalOutputWriter()),
+                new GitInitializer(new GitCommandRunner())),
             text,
             terminal);
     }
