@@ -1,11 +1,12 @@
 # Lakona.Game 游戏样例
 
-这个样例用于验证 Lakona.Game 在轻量多人对战游戏中的接入方式。它同时包含本地单机、RPC 联机、控制连接、实时连接、可靠业务推送、三节点 Feature/Cluster 拓扑，以及基于 Lakona.Game.Server.Actors 的样例状态执行路径。
+这个样例用于验证 Lakona 在轻量多人对战游戏中的接入方式。
+
+它同时包含本地单机、多人联机、可靠业务推送、三节点 Cluster 拓扑。
 
 ## 文档入口
 
 - [玩法与架构设计](docs/GAMEPLAY_DESIGN.md)（总索引，各功能子文档在 `docs/features/` 下）
-- [开发计划](docs/DEVELOPMENT_PLAN.md)
 - [生产上线规划](docs/PRODUCTION_LAUNCH_PLAN.md)
 
 `README.md` 只保留项目入口、运行方式和代码索引；玩法规则、胜利积分系统、客户端服务端边界、联机流程和分布式架构判断都放在 `docs/features/` 下的功能子文档里，避免重复维护。

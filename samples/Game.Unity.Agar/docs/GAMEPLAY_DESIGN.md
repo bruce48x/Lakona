@@ -25,7 +25,7 @@
 | [客户端架构](features/client-architecture.md) | Unity 客户端边界、代码位置、依赖方向、已知重构目标、表现原则；本地玩家小球默认颜色随机 |
 | [服务端架构](features/server-architecture.md) | 网关和状态服务职责、控制面/实时面 RPC 流程、排行榜查询流程、联机同步边界、分布式设计 |
 
-阶段性任务安排放在 [`DEVELOPMENT_PLAN.md`](DEVELOPMENT_PLAN.md)，不在此文档中重复。
+上线前工作和后续路线图放在 [`PRODUCTION_LAUNCH_PLAN.md`](PRODUCTION_LAUNCH_PLAN.md)，不在此文档中重复。
 
 ## 暂不实现
 

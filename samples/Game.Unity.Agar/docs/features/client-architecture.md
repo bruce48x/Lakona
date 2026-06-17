@@ -70,7 +70,7 @@ Shared -> Lakona.Rpc.Analyzers compiler output -> SampleClient.Rpc -> SampleClie
 - 后续拆分的目标是让 `DotArenaGame` 退回 Unity 场景组合根，让会话流程、单机模拟、输入、世界表现、UI 快照、资源/皮肤和本地元进度分别拥有清晰所有者。
 - `DotArenaSceneUiPresenter` 应退回 UI 根协调器；入口/模式选择、登录、匹配中、大厅、HUD、对局排名和结算应由独立 presenter、稳定 prefab 或小型工厂承载。调试面板不作为玩家 UI 保留。
 - `DotArenaMetaProgression` 已拆分完成（Models、Persistence、Queries、Rules）。本地 mock 排行榜已淘汰，`GetLeaderboardSummary` 现在展示服务端 RPC 刷新后的缓存数据。
-- 计划中的拆分工作见 `DEVELOPMENT_PLAN.md` 阶段 6。
+- 后续拆分工作以本节的目标结构和 `PRODUCTION_LAUNCH_PLAN.md` 的上线门槛为准。
 
 建议的目标结构：
 
