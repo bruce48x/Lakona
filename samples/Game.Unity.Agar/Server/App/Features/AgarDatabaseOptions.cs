@@ -4,7 +4,7 @@ public sealed class AgarDatabaseOptions
 {
     public const string PostgresConnectionName = "AgarPostgres";
     public const string RedisConnectionName = "AgarRedis";
-    public const string DefaultNodeDirectoryTable = "lakona_game_cluster_nodes";
+    public const string DefaultNodeDirectoryTable = "lakona_cluster_nodes";
 
     public AgarDatabaseOptions(
         string postgresConnectionString,

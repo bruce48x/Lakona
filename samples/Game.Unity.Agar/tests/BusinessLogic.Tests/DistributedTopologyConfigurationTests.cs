@@ -86,7 +86,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         Assert.Contains("Host=postgres", options.PostgresConnectionString);
         Assert.Contains("redis:6379", options.RedisConnectionString);
-        Assert.Equal("lakona_game_cluster_nodes", options.NodeDirectoryTable);
+        Assert.Equal("lakona_cluster_nodes", options.NodeDirectoryTable);
         Assert.Equal(SqlNodeDirectoryDialect.Postgres, sqlOptions.Dialect);
         Assert.Equal(new[] { "database", "state-store", "matchmaking", "leaderboard" }, catalog.ActiveNames);
         Assert.IsType<InMemoryRouteDirectory>(routeDirectory);

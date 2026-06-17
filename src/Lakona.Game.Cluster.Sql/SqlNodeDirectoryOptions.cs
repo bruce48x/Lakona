@@ -6,7 +6,7 @@ namespace Lakona.Game.Cluster.Sql
 {
     public sealed class SqlNodeDirectoryOptions
     {
-        public const string DefaultTableName = "lakona_game_cluster_nodes";
+        public const string DefaultTableName = "lakona_cluster_nodes";
 
         public SqlNodeDirectoryOptions(
             Func<ValueTask<DbConnection>> connectionFactory,
