@@ -40,18 +40,26 @@ public sealed class LakonaProjectGeneratorTests
                         new ServerAppRenderer(),
                         new HotfixRenderer(),
                         new OperationsRenderer(),
-                        new GeneratedProjectDocsRenderer()
+                        new GeneratedProjectGuideRenderer()
                     ],
                     [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
-                new GenerationExecutor(new TransactionalOutputWriter()));
+                new GenerationExecutor(new TransactionalOutputWriter()),
+                new GitInitializer(new GitUnavailableRunner()));
 
-            await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
+            var result = await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
+            Assert.Equal(GitInitializationStatus.SkippedGitUnavailable, result.Git.Status);
 
             Assert.True(File.Exists(Path.Combine(spec.Layout.RootPath, "Shared", "Shared.csproj")));
             Assert.True(File.Exists(Path.Combine(spec.Layout.RootPath, "Server", "App", "Server.App.csproj")));
             Assert.True(File.Exists(Path.Combine(spec.Layout.RootPath, "Client", "project.godot")));
             Assert.True(File.Exists(Path.Combine(spec.Layout.RootPath, "docker-compose.cluster.yml")));
             Assert.False(Directory.Exists(Path.Combine(spec.Layout.RootPath, "Server", "Server")));
+            Assert.False(File.Exists(Path.Combine(spec.Layout.RootPath, "docs", "GETTING_STARTED.md")));
+            Assert.False(File.Exists(Path.Combine(spec.Layout.RootPath, "docs", "EDITING_GUIDE.md")));
+            Assert.False(File.Exists(Path.Combine(spec.Layout.RootPath, "docs", "OPERATIONS.md")));
+            Assert.True(File.Exists(Path.Combine(spec.Layout.RootPath, "README.md")));
+            Assert.True(File.Exists(Path.Combine(spec.Layout.RootPath, "AGENTS.md")));
+            Assert.True(File.Exists(Path.Combine(spec.Layout.RootPath, "CLAUDE.md")));
             Assert.Empty(Directory.GetDirectories(parentRoot, ".MyGame.tmp-*", SearchOption.TopDirectoryOnly));
         }
         finally
@@ -89,12 +97,14 @@ public sealed class LakonaProjectGeneratorTests
                         new ServerAppRenderer(),
                         new HotfixRenderer(),
                         new OperationsRenderer(),
-                        new GeneratedProjectDocsRenderer()
+                        new GeneratedProjectGuideRenderer()
                     ],
                     [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
-                new GenerationExecutor(new TransactionalOutputWriter()));
+                new GenerationExecutor(new TransactionalOutputWriter()),
+                new GitInitializer(new GitUnavailableRunner()));
 
-            await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
+            var result = await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
+            Assert.Equal(GitInitializationStatus.SkippedGitUnavailable, result.Git.Status);
 
             Assert.True(File.Exists(Path.Combine(
                 spec.Layout.RootPath,
@@ -139,12 +149,14 @@ public sealed class LakonaProjectGeneratorTests
                         new ServerAppRenderer(),
                         new HotfixRenderer(),
                         new OperationsRenderer(),
-                        new GeneratedProjectDocsRenderer()
+                        new GeneratedProjectGuideRenderer()
                     ],
                     [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
-                new GenerationExecutor(new TransactionalOutputWriter()));
+                new GenerationExecutor(new TransactionalOutputWriter()),
+                new GitInitializer(new GitUnavailableRunner()));
 
-            await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
+            var result = await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
+            Assert.Equal(GitInitializationStatus.SkippedGitUnavailable, result.Git.Status);
 
             Assert.True(File.Exists(Path.Combine(spec.Layout.RootPath, "Client", "Client.csproj")));
             Assert.True(File.Exists(Path.Combine(spec.Layout.RootPath, "Client", "Program.cs")));
@@ -155,6 +167,17 @@ public sealed class LakonaProjectGeneratorTests
         finally
         {
             Directory.Delete(parentRoot, recursive: true);
+        }
+    }
+
+    private sealed class GitUnavailableRunner : IGitCommandRunner
+    {
+        public Task<GitCommandResult> RunAsync(
+            string workingDirectory,
+            string[] arguments,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new GitCommandResult(1, "", ""));
         }
     }
 }

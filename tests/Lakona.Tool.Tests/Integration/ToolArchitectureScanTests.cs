@@ -60,7 +60,7 @@ public sealed class ToolArchitectureScanTests
                 DeploymentProfile.None));
             var generator = CreateGenerator();
 
-            await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
+            var result = await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
 
             Assert.False(Directory.Exists(Path.Combine(spec.Layout.RootPath, "Server", "Server")));
             Assert.True(File.Exists(Path.Combine(spec.Layout.RootPath, "Server", "App", "Server.App.csproj")));
@@ -95,7 +95,7 @@ public sealed class ToolArchitectureScanTests
                 DeploymentProfile.None));
             var generator = CreateGenerator();
 
-            await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
+            var result = await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
 
             Assert.False(File.Exists(Path.Combine(spec.Layout.RootPath, "Server", "App", "Services", $"{ForbiddenGeneratedGlueFile}.cs")));
 
@@ -185,10 +185,11 @@ public sealed class ToolArchitectureScanTests
                     new ServerAppRenderer(),
                     new HotfixRenderer(),
                     new OperationsRenderer(),
-                    new GeneratedProjectDocsRenderer()
+                    new GeneratedProjectGuideRenderer()
                 ],
                 [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
-            new GenerationExecutor(new TransactionalOutputWriter()));
+            new GenerationExecutor(new TransactionalOutputWriter()),
+            new GitInitializer(new GitUnavailableRunner()));
     }
 
     private static string FindRepositoryRoot()
@@ -225,5 +226,16 @@ public sealed class ToolArchitectureScanTests
     {
         var extension = Path.GetExtension(path);
         return extension is ".cs" or ".csproj" or ".json" or ".md" or ".slnx" or ".props" or ".asmdef" or ".config" or ".tscn" or ".tres" or ".xml" or ".txt";
+    }
+
+    private sealed class GitUnavailableRunner : IGitCommandRunner
+    {
+        public Task<GitCommandResult> RunAsync(
+            string workingDirectory,
+            string[] arguments,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new GitCommandResult(1, "", ""));
+        }
     }
 }

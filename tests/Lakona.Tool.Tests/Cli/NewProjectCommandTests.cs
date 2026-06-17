@@ -102,12 +102,24 @@ public sealed class NewProjectCommandTests
                         new ServerAppRenderer(),
                         new HotfixRenderer(),
                         new OperationsRenderer(),
-                        new GeneratedProjectDocsRenderer()
+                        new GeneratedProjectGuideRenderer()
                     ],
                     [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
-                new GenerationExecutor(new TransactionalOutputWriter())),
+                new GenerationExecutor(new TransactionalOutputWriter()),
+                new GitInitializer(new GitUnavailableRunner())),
             ToolText.ForCulture(System.Globalization.CultureInfo.InvariantCulture),
             terminal);
+    }
+
+    private sealed class GitUnavailableRunner : IGitCommandRunner
+    {
+        public Task<GitCommandResult> RunAsync(
+            string workingDirectory,
+            string[] arguments,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new GitCommandResult(1, "", ""));
+        }
     }
 
     private sealed class FakeTerminal : ICliTerminal

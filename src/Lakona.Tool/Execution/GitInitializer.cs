@@ -9,8 +9,17 @@ internal sealed class GitInitializer(IGitCommandRunner runner)
         CancellationToken cancellationToken)
     {
         // Step 1: Check Git availability
-        var versionResult = await runner.RunAsync(projectRoot, ["--version"], cancellationToken)
-            .ConfigureAwait(false);
+        GitCommandResult versionResult;
+        try
+        {
+            versionResult = await runner.RunAsync(projectRoot, ["--version"], cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            return new GitInitializationResult(GitInitializationStatus.SkippedGitUnavailable);
+        }
+
         if (versionResult.ExitCode != 0)
         {
             return new GitInitializationResult(GitInitializationStatus.SkippedGitUnavailable);
