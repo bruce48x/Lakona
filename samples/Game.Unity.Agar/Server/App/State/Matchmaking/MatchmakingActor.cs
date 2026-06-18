@@ -204,6 +204,12 @@ public sealed class MatchmakingActor : Actor
                 var roomId = $"room-{Guid.NewGuid():N}";
                 var matchId = $"match-{Guid.NewGuid():N}";
                 var runtimeGateway = await ResolveRuntimeGatewayAsync(batch).ConfigureAwait(false);
+                if (runtimeGateway is null)
+                {
+                    RestoreBatch(batch);
+                    break;
+                }
+
                 var playerAssignments = batch.Select((ticket, seatIndex) => new PlayerRoomAssignment
                 {
                     UserId = ticket.UserId,
@@ -421,7 +427,7 @@ public sealed class MatchmakingActor : Actor
         return value == default ? DateTime.UtcNow : value;
     }
 
-    private async Task<GatewayEndpointDescriptor> ResolveRuntimeGatewayAsync(IReadOnlyList<MatchmakingQueueTicket> batch)
+    private async Task<GatewayEndpointDescriptor?> ResolveRuntimeGatewayAsync(IReadOnlyList<MatchmakingQueueTicket> batch)
     {
         _ = batch;
         return await _runtimeGateways.ResolveAsync().ConfigureAwait(false);

@@ -30,10 +30,6 @@ public static class LakonaGameServer
             .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
             .AddEnvironmentVariables();
 
-        var serverBuilder = new LakonaGameServerBuilder(builder);
-        configure(serverBuilder);
-        serverBuilder.ApplyToHostBuilder();
-
         var runtimeOptions = LakonaGameRuntimeOptions.FromConfiguration(builder.Configuration);
 
         // Health check commands (exit before full startup)
@@ -61,6 +57,10 @@ public static class LakonaGameServer
         builder.Services.AddLakonaGameServer(builder.Configuration);
         builder.Services.AddSingleton(runtimeOptions);
         builder.Services.AddSingleton(DiscoverRpcServiceCatalog());
+
+        var serverBuilder = new LakonaGameServerBuilder(builder);
+        configure(serverBuilder);
+        serverBuilder.ApplyToHostBuilder();
 
         var serviceBinder = serverBuilder.GetServiceBinder();
         foreach (var endpoint in runtimeOptions.Endpoints)

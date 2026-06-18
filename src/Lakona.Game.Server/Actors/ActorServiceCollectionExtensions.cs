@@ -29,7 +29,16 @@ public static class ActorServiceCollectionExtensions
         var options = new ActorRuntimeOptions();
         configure?.Invoke(options);
 
-        services.TryAddSingleton(options);
+        if (configure is null)
+        {
+            services.TryAddSingleton(options);
+        }
+        else
+        {
+            services.RemoveAll<ActorRuntimeOptions>();
+            services.AddSingleton(options);
+        }
+
         services.TryAddSingleton(new LocalActorNodeIdentity("local"));
         services.TryAddSingleton<RemoteActorGateway>();
         services.TryAddSingleton<RemoteActorOptions>();

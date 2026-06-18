@@ -3,6 +3,7 @@ using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Cluster.Sql;
 using Lakona.Game.Server;
+using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Diagnostics;
 using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Guardrails;
@@ -212,6 +213,144 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Equal("kcp", result.RoomAssignment.RuntimeGateway.Transport);
         Assert.Equal("battle-1", result.RoomAssignment.RuntimeGateway.Host);
         Assert.Equal(20001, result.RoomAssignment.RuntimeGateway.Port);
+    }
+
+    [Fact]
+    public async Task MatchmakingKeepsTicketsQueuedWhenBattleRuntimeEndpointIsUnavailable()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddLakonaGameServer();
+        services.AddAgarSampleState();
+
+        await using var provider = services.BuildServiceProvider();
+        var users = provider.GetRequiredService<IUserStateStore>();
+        var sessions = provider.GetRequiredService<IPlayerSessionStateStore>();
+        var matchmaking = provider.GetRequiredService<IMatchmakingStateStore>();
+
+        MatchmakingEnqueueResult? result = null;
+        var playerIds = new List<string>();
+        for (var i = 0; i < 10; i++)
+        {
+            var playerId = $"no-runtime-player-{i}";
+            playerIds.Add(playerId);
+            var login = await users.LoginAsync(playerId, "pw", reconnect: false);
+
+            await sessions.AttachAsync(new PlayerSessionAttachRequest
+            {
+                UserId = login.UserId,
+                SessionToken = login.SessionToken,
+                ConnectionId = $"control-{i}",
+                AttachedAtUtc = DateTime.UtcNow,
+                ControlGateway = new Agar.Sample.State.Contracts.GatewayEndpointDescriptor
+                {
+                    InstanceId = "gateway-1",
+                    Transport = "websocket",
+                    Host = "gateway-1",
+                    Port = 20000,
+                    Path = "/ws"
+                }
+            });
+
+            result = await matchmaking.EnqueueAsync(new MatchmakingEnqueueRequest
+            {
+                UserId = login.UserId,
+                SessionToken = login.SessionToken,
+                EnqueuedAtUtc = DateTime.UtcNow
+            });
+        }
+
+        Assert.NotNull(result);
+        Assert.False(result.Matched);
+        Assert.True(result.Queued);
+
+        var status = await matchmaking.GetStatusAsync();
+        Assert.Equal(10, status.QueuedCount);
+        Assert.True(string.IsNullOrWhiteSpace(status.LastRoomId));
+        Assert.True(string.IsNullOrWhiteSpace(status.LastMatchId));
+
+        foreach (var playerId in playerIds)
+        {
+            var snapshot = await sessions.GetSnapshotAsync(playerId);
+            Assert.True(string.IsNullOrWhiteSpace(snapshot.CurrentRoomId));
+            Assert.True(string.IsNullOrWhiteSpace(snapshot.CurrentMatchId));
+            Assert.True(string.IsNullOrWhiteSpace(snapshot.RuntimeGateway.Host));
+            Assert.Equal(0, snapshot.RuntimeGateway.Port);
+        }
+    }
+
+    [Fact]
+    public async Task MatchmakingUsesLocalKcpEndpointWhenConfiguredWithoutDiscovery()
+    {
+        var services = BuildProgramServices("appsettings.json");
+
+        await using var provider = services.BuildServiceProvider();
+        var users = provider.GetRequiredService<IUserStateStore>();
+        var sessions = provider.GetRequiredService<IPlayerSessionStateStore>();
+        var matchmaking = provider.GetRequiredService<IMatchmakingStateStore>();
+
+        MatchmakingEnqueueResult? result = null;
+        for (var i = 0; i < 10; i++)
+        {
+            var playerId = $"local-runtime-player-{i}";
+            var login = await users.LoginAsync(playerId, "pw", reconnect: false);
+
+            await sessions.AttachAsync(new PlayerSessionAttachRequest
+            {
+                UserId = login.UserId,
+                SessionToken = login.SessionToken,
+                ConnectionId = $"control-{i}",
+                AttachedAtUtc = DateTime.UtcNow,
+                ControlGateway = new Agar.Sample.State.Contracts.GatewayEndpointDescriptor
+                {
+                    InstanceId = "gateway-1",
+                    Transport = "websocket",
+                    Host = "gateway-1",
+                    Port = 20000,
+                    Path = "/ws"
+                }
+            });
+
+            result = await matchmaking.EnqueueAsync(new MatchmakingEnqueueRequest
+            {
+                UserId = login.UserId,
+                SessionToken = login.SessionToken,
+                EnqueuedAtUtc = DateTime.UtcNow
+            });
+        }
+
+        Assert.NotNull(result);
+        Assert.True(result.Matched);
+        Assert.Equal("gateway-1", result.RoomAssignment.RuntimeGateway.InstanceId);
+        Assert.Equal("kcp", result.RoomAssignment.RuntimeGateway.Transport);
+        Assert.Equal("127.0.0.1", result.RoomAssignment.RuntimeGateway.Host);
+        Assert.Equal(20001, result.RoomAssignment.RuntimeGateway.Port);
+    }
+
+    [Fact]
+    public async Task AgarStartupOrderHonorsActorConfigurationAfterSampleStateRegistration()
+    {
+        var configuration = BuildAppConfiguration("appsettings.json");
+        var services = new ServiceCollection();
+
+        services.AddLogging();
+        services.AddAgarSampleServer(configuration);
+        services.AddMessageRecording();
+        services.AddLakonaGameRuntimeValidation();
+        services.AddLakonaGame(configuration, [
+            typeof(DatabaseFeature),
+            typeof(StateStoreFeature),
+            typeof(MatchmakingFeature),
+            typeof(LeaderboardFeature),
+            typeof(BattleRuntimeFeature)
+        ]);
+        services.AddLakonaGameServer(configuration);
+
+        await using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<ActorRuntimeOptions>();
+
+        Assert.Equal(TimeSpan.FromSeconds(5), options.CallTimeout);
+        Assert.Equal(TimeSpan.FromSeconds(1), options.SlowMessageThreshold);
     }
 
     [Fact]
@@ -454,16 +593,7 @@ public sealed class DistributedTopologyConfigurationTests
         string fileName,
         IReadOnlyDictionary<string, string?>? overrides = null)
     {
-        var configurationBuilder = new ConfigurationBuilder()
-            .SetBasePath(Path.Combine(FindRepositoryRoot(), "samples", "Game.Unity.Agar", "Server", "App"))
-            .AddJsonFile(fileName);
-
-        if (overrides is not null)
-        {
-            configurationBuilder.AddInMemoryCollection(overrides);
-        }
-
-        var configuration = configurationBuilder.Build();
+        var configuration = BuildAppConfiguration(fileName, overrides);
         var services = new ServiceCollection();
 
         services.AddLogging();
@@ -482,20 +612,14 @@ public sealed class DistributedTopologyConfigurationTests
         string fileName,
         IReadOnlyDictionary<string, string?>? overrides = null)
     {
-        var configurationBuilder = new ConfigurationBuilder()
-            .SetBasePath(Path.Combine(FindRepositoryRoot(), "samples", "Game.Unity.Agar", "Server", "App"))
-            .AddJsonFile(fileName);
-
-        if (overrides is not null)
-        {
-            configurationBuilder.AddInMemoryCollection(overrides);
-        }
-
-        var configuration = configurationBuilder.Build();
+        var configuration = BuildAppConfiguration(fileName, overrides);
+        var runtimeOptions = Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions.FromConfiguration(configuration);
         var services = new ServiceCollection();
 
         services.AddLogging();
         services.AddLakonaGameServer(configuration);
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddSingleton(runtimeOptions);
         services.AddAgarSampleServer(configuration);
         services.AddMessageRecording();
         services.AddLakonaGameRuntimeValidation();
@@ -508,6 +632,22 @@ public sealed class DistributedTopologyConfigurationTests
         ]);
 
         return services;
+    }
+
+    private static IConfigurationRoot BuildAppConfiguration(
+        string fileName,
+        IReadOnlyDictionary<string, string?>? overrides = null)
+    {
+        var configurationBuilder = new ConfigurationBuilder()
+            .SetBasePath(Path.Combine(FindRepositoryRoot(), "samples", "Game.Unity.Agar", "Server", "App"))
+            .AddJsonFile(fileName);
+
+        if (overrides is not null)
+        {
+            configurationBuilder.AddInMemoryCollection(overrides);
+        }
+
+        return configurationBuilder.Build();
     }
 
     private static string FindRepositoryRoot()

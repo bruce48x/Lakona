@@ -24,7 +24,7 @@ public sealed class BattleRuntimeGatewayResolver
         _runtimeOptions = services.GetService<LakonaGameRuntimeOptions>();
     }
 
-    public async ValueTask<GatewayEndpointDescriptor> ResolveAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<GatewayEndpointDescriptor?> ResolveAsync(CancellationToken cancellationToken = default)
     {
         if (_discovery is not null)
         {
@@ -42,7 +42,7 @@ public sealed class BattleRuntimeGatewayResolver
             return GatewayEndpointDescriptorFactory.FromConfiguredEndpoint(_configuration, localKcp);
         }
 
-        return new GatewayEndpointDescriptor();
+        return null;
     }
 
     public bool IsLocalOwner(GatewayEndpointDescriptor? gateway)
