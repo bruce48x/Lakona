@@ -4,5 +4,5 @@ namespace Lakona.Game.Server.Diagnostics;
 
 public sealed record MessageLogEntry(
     DateTimeOffset Timestamp,
-    object Message,
+    object? Message,
     string? Error);
