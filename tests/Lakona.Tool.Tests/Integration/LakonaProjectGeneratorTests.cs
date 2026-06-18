@@ -6,7 +6,6 @@ using Lakona.Tool.Rendering.Client;
 using Lakona.Tool.Rendering.Common;
 using Lakona.Tool.Rendering.Docs;
 using Lakona.Tool.Rendering.Operations;
-using Lakona.Tool.Rendering.Project;
 using Lakona.Tool.Rendering.Server;
 using Lakona.Tool.Rendering.Shared;
 using Xunit;
@@ -36,7 +35,6 @@ public sealed class LakonaProjectGeneratorTests
                 new LakonaProjectPlanBuilder(
                     [
                         new GitRenderer(),
-                        new ProjectConfigRenderer(),
                         new SharedProjectRenderer(),
                         new ServerAppRenderer(),
                         new HotfixRenderer(),
@@ -93,7 +91,6 @@ public sealed class LakonaProjectGeneratorTests
                 new LakonaProjectPlanBuilder(
                     [
                         new GitRenderer(),
-                        new ProjectConfigRenderer(),
                         new SharedProjectRenderer(),
                         new ServerAppRenderer(),
                         new HotfixRenderer(),
@@ -145,7 +142,6 @@ public sealed class LakonaProjectGeneratorTests
                 new LakonaProjectPlanBuilder(
                     [
                         new GitRenderer(),
-                        new ProjectConfigRenderer(),
                         new SharedProjectRenderer(),
                         new ServerAppRenderer(),
                         new HotfixRenderer(),
@@ -195,7 +191,6 @@ public sealed class LakonaProjectGeneratorTests
                 new LakonaProjectPlanBuilder(
                     [
                         new GitRenderer(),
-                        new ProjectConfigRenderer(),
                         new SharedProjectRenderer(),
                         new ServerAppRenderer(),
                         new HotfixRenderer(),

@@ -120,7 +120,6 @@ Planning/
 
 Rendering/
   Common/
-  Project/
   Shared/
   Server/
   Client/
@@ -411,7 +410,6 @@ input model instead of allowing both renderers to emit or mutate the same path.
 | Path Prefix | Owner |
 | --- | --- |
 | `.gitignore`, `.gitattributes` | `GitRenderer` |
-| `lakona-game.tool.json` | `ProjectConfigRenderer` |
 | `Shared/**` | `SharedProjectRenderer` and `SharedContractsRenderer` |
 | `Server/Server.slnx` | `ServerAppRenderer` |
 | `Server/App/**` | `ServerAppRenderer` |
@@ -499,10 +497,7 @@ the default scenes.
 The generated Console client is a headless operations and load-test client. It
 must not emit Unity assets, Godot scenes, or NuGetForUnity files.
 
-### Project, Operations, And Docs Renderers
-
-`ProjectConfigRenderer` owns `lakona-game.tool.json`. This is tool metadata, not
-server runtime configuration.
+### Operations And Docs Renderers
 
 `OperationsRenderer` owns compose output only when
 `DeploymentProfile.Compose` is selected.
@@ -524,7 +519,6 @@ MyGame/
   README.md
   AGENTS.md
   CLAUDE.md
-  lakona-game.tool.json
   Shared/
     Shared.csproj
     Directory.Build.props

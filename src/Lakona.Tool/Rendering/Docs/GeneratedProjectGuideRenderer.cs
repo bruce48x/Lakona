@@ -98,8 +98,6 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 
         ## Configuration
 
-        `lakona-game.tool.json` records generation choices for Lakona tooling.
-
         Server runtime configuration lives in `Server/App/appsettings.json`.
 
         Deployment-specific production configuration should be kept outside the generated

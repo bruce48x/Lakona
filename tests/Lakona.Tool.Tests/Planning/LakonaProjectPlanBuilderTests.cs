@@ -2,7 +2,6 @@ using Lakona.Tool.Cli.Options;
 using Lakona.Tool.Domain;
 using Lakona.Tool.Planning;
 using Lakona.Tool.Rendering.Common;
-using Lakona.Tool.Rendering.Project;
 using Lakona.Tool.Rendering.Client;
 using Lakona.Tool.Rendering.Shared;
 using Xunit;
@@ -26,7 +25,6 @@ public sealed class LakonaProjectPlanBuilderTests
         var planBuilder = new LakonaProjectPlanBuilder(
             [
                 new GitRenderer(),
-                new ProjectConfigRenderer(),
                 new SharedProjectRenderer()
             ]);
 
@@ -34,7 +32,7 @@ public sealed class LakonaProjectPlanBuilderTests
 
         Assert.Equal(spec.Layout.RootPath, plan.RootPath);
         Assert.Contains(plan.Files, file => file.RelativePath == ".gitignore");
-        Assert.Contains(plan.Files, file => file.RelativePath == "lakona-game.tool.json");
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath == "lakona-game.tool.json");
         Assert.Contains(plan.Files, file => file.RelativePath == "Shared/Shared.csproj");
         Assert.DoesNotContain(plan.Diagnostics, diagnostic => diagnostic.Severity == PlanDiagnosticSeverity.Error);
     }

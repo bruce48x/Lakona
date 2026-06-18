@@ -56,7 +56,6 @@ By default, the generated project includes:
 - Cluster infrastructure
 - Hotfix infrastructure
 - Reliable Push infrastructure
-- `lakona-game.tool.json`
 
 Generated server projects reference `Lakona.Game.Server.Generators` as an analyzer so server-side `Actor<TKey>` classes get typed `Local(id)` and `Remote(nodeId, id)` accessors at build time.
 
