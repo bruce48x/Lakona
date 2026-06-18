@@ -1,37 +1,20 @@
-using Microsoft.Extensions.Configuration;
 using Agar.Sample.State.Contracts;
-using Shared.Interfaces;
-using Lakona.Game.Server.Configuration;
 
 namespace Server.App.Services;
 
 internal sealed class GatewayNodeIdentity
 {
-    public GatewayNodeIdentity(IConfiguration configuration, LakonaGameEndpointOptions realtimeOptions)
+    public GatewayNodeIdentity(GatewayEndpointDescriptor advertisedEndpoint)
     {
-        InstanceId = configuration["Lakona:Node:Id"]
-            ?? configuration["Lakona.Game:Node:Id"]
-            ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(InstanceId))
-        {
-            InstanceId = $"{Environment.MachineName}-{Environment.ProcessId}";
-        }
-
-        RealtimeEndpoint = new GatewayEndpointDescriptor
-        {
-            InstanceId = InstanceId,
-            Transport = RealtimeTransportToString(realtimeOptions.Transport),
-            Host = realtimeOptions.Host,
-            Port = realtimeOptions.Port,
-            Path = string.IsNullOrWhiteSpace(realtimeOptions.Path)
-                ? realtimeOptions.GetDefaultPath()
-                : realtimeOptions.Path
-        };
+        AdvertisedEndpoint = advertisedEndpoint ?? throw new ArgumentNullException(nameof(advertisedEndpoint));
+        InstanceId = string.IsNullOrWhiteSpace(advertisedEndpoint.InstanceId)
+            ? $"{Environment.MachineName}-{Environment.ProcessId}"
+            : advertisedEndpoint.InstanceId;
     }
 
     public string InstanceId { get; }
 
-    public GatewayEndpointDescriptor RealtimeEndpoint { get; }
+    public GatewayEndpointDescriptor AdvertisedEndpoint { get; }
 
     public bool IsRuntimeOwner(GatewayEndpointDescriptor? gateway)
     {
@@ -39,7 +22,4 @@ internal sealed class GatewayNodeIdentity
             && !string.IsNullOrWhiteSpace(gateway.InstanceId)
             && string.Equals(gateway.InstanceId, InstanceId, StringComparison.Ordinal);
     }
-
-    private static string RealtimeTransportToString(string transport) =>
-        string.IsNullOrWhiteSpace(transport) ? "unknown" : transport.ToLowerInvariant();
 }

@@ -16,10 +16,10 @@ public sealed class BattleRuntimeFeature : LakonaGameFeature
     {
         context.Services.AddAgarSampleState();
         context.Services.TryAddSingleton<SessionDirectory>();
-        context.Services.TryAddSingleton<LakonaGameEndpointOptions>(_ => context.Endpoints.RequireTransport("kcp"));
+        var runtimeEndpoint = context.Endpoints.RequireTransport("kcp");
+        context.Services.TryAddSingleton<LakonaGameEndpointOptions>(_ => runtimeEndpoint);
         context.Services.TryAddSingleton(_ => new GatewayNodeIdentity(
-            context.Configuration,
-            context.Endpoints.RequireTransport("kcp")));
+            GatewayEndpointDescriptorFactory.FromConfiguredEndpoint(context.Configuration, runtimeEndpoint)));
         context.Services.TryAddSingleton<RoomRuntimeHost>();
         context.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IRpcSessionLifecycleObserver, PlayerSessionLifecycleObserver>());
     }

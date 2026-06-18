@@ -72,7 +72,7 @@ public sealed class LoginService
                     SessionToken = loginResult.SessionToken,
                     ConnectionId = call.ConnectionId,
                     ReconnectedAtUtc = DateTime.UtcNow,
-                    ControlGateway = CloneGateway(services.GatewayNodeIdentity.RealtimeEndpoint)
+                    ControlGateway = CloneGateway(services.GatewayNodeIdentity.AdvertisedEndpoint)
                 })
                 .ConfigureAwait(false);
         }
@@ -88,7 +88,7 @@ public sealed class LoginService
                     SessionToken = loginResult.SessionToken,
                     ConnectionId = call.ConnectionId,
                     AttachedAtUtc = DateTime.UtcNow,
-                    ControlGateway = CloneGateway(services.GatewayNodeIdentity.RealtimeEndpoint)
+                    ControlGateway = CloneGateway(services.GatewayNodeIdentity.AdvertisedEndpoint)
                 })
                 .ConfigureAwait(false);
             await services.ReliablePushOutbox.AckAsync(loginResult.UserId, long.MaxValue).ConfigureAwait(false);
