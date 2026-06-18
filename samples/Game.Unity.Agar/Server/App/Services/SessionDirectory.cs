@@ -32,26 +32,17 @@ internal sealed class SessionDirectory
         _gameSessions = gameSessions;
     }
 
-    public void Register(string playerId, string sessionToken, string connectionId, IPlayerCallback callback, bool preserveSessionState)
-    {
-        RegisterAsync(playerId, sessionToken, connectionId, callback, preserveSessionState)
-            .GetAwaiter()
-            .GetResult();
-    }
-
     public async ValueTask<GameSessionKey> RegisterNewControlAsync(
         string playerId,
         string sessionToken,
         string connectionId,
-        IPlayerCallback callback,
         CancellationToken cancellationToken = default)
     {
         var session = await _gameSessions.StartNewSessionAsync(playerId, cancellationToken).ConfigureAwait(false);
-        await BindControlAsync(session, connectionId, callback, cancellationToken).ConfigureAwait(false);
 
         lock (_gate)
         {
-            _byPlayerId[playerId] = new SessionRegistration(session, sessionToken, connectionId, callback);
+            _byPlayerId[playerId] = new SessionRegistration(session, sessionToken, connectionId);
             return session;
         }
     }
@@ -60,7 +51,6 @@ internal sealed class SessionDirectory
         string playerId,
         string sessionToken,
         string connectionId,
-        IPlayerCallback callback,
         CancellationToken cancellationToken = default)
     {
         SessionRegistration? registration;
@@ -86,91 +76,78 @@ internal sealed class SessionDirectory
             return decision;
         }
 
-        await BindControlAsync(decision.Session.Value, connectionId, callback, cancellationToken).ConfigureAwait(false);
-
         lock (_gate)
         {
             registration.SessionKey = decision.Session.Value;
             registration.SessionToken = sessionToken;
             registration.ConnectionId = connectionId;
-            registration.ControlCallback = callback;
+            registration.ControlCallback = null;
             registration.ControlDisconnectedAtUtc = null;
         }
 
         return decision;
     }
 
-    public async ValueTask<IPlayerCallback?> GetControlCallbackAsync(SessionRegistration registration, CancellationToken cancellationToken = default)
+    public async ValueTask<bool> BindControlCallbackAsync(
+        string playerId,
+        string connectionId,
+        IControlCallback callback,
+        CancellationToken cancellationToken = default)
     {
-        return await _gameSessions.GetCallbackAsync<IPlayerCallback>(
+        SessionRegistration? registration;
+        bool shouldBind;
+        lock (_gate)
+        {
+            if (!_byPlayerId.TryGetValue(playerId, out registration))
+            {
+                return false;
+            }
+
+            if (!string.Equals(registration.ConnectionId, connectionId, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            if (registration.ControlCallback is not null)
+            {
+                return false;
+            }
+
+            registration.ControlCallback = callback;
+            shouldBind = true;
+        }
+
+        if (!shouldBind)
+        {
+            return false;
+        }
+
+        await _gameSessions.BindSessionAsync(
+            registration.ControlSessionKey,
+            connectionId,
+            callback,
+            cancellationToken).ConfigureAwait(false);
+
+        return true;
+    }
+
+    public async ValueTask<IControlCallback?> GetControlCallbackAsync(SessionRegistration registration, CancellationToken cancellationToken = default)
+    {
+        return await _gameSessions.GetCallbackAsync<IControlCallback>(
             registration.ControlSessionKey,
             cancellationToken).ConfigureAwait(false);
     }
 
-    public async ValueTask<IPlayerCallback?> GetRealtimePreferredCallbackAsync(SessionRegistration registration, CancellationToken cancellationToken = default)
+    public async ValueTask<IBattleCallback?> GetRealtimeCallbackAsync(SessionRegistration registration, CancellationToken cancellationToken = default)
     {
         if (registration.RealtimeSessionKey is not { } realtimeSession)
         {
-            return await GetControlCallbackAsync(registration, cancellationToken).ConfigureAwait(false);
+            return null;
         }
 
-        var realtime = await _gameSessions.GetCallbackAsync<IPlayerCallback>(
+        return await _gameSessions.GetCallbackAsync<IBattleCallback>(
             realtimeSession,
             cancellationToken).ConfigureAwait(false);
-
-        return realtime ?? await GetControlCallbackAsync(registration, cancellationToken).ConfigureAwait(false);
-    }
-
-    private async ValueTask RegisterAsync(string playerId, string sessionToken, string connectionId, IPlayerCallback callback, bool preserveSessionState)
-    {
-        SessionRegistration? existing;
-        lock (_gate)
-        {
-            _byPlayerId.TryGetValue(playerId, out existing);
-        }
-
-        if (existing is null)
-        {
-            var session = await _gameSessions.StartNewSessionAsync(playerId).ConfigureAwait(false);
-            await BindControlAsync(session, connectionId, callback).ConfigureAwait(false);
-
-            lock (_gate)
-            {
-                _byPlayerId[playerId] = new SessionRegistration(session, sessionToken, connectionId, callback);
-            }
-
-            return;
-        }
-
-        var sessionKey = preserveSessionState
-            ? existing.SessionKey
-            : await _gameSessions.StartNewSessionAsync(playerId).ConfigureAwait(false);
-        await BindControlAsync(sessionKey, connectionId, callback).ConfigureAwait(false);
-
-        lock (_gate)
-        {
-            if (!_byPlayerId.TryGetValue(playerId, out var registration))
-            {
-                _byPlayerId[playerId] = new SessionRegistration(sessionKey, sessionToken, connectionId, callback);
-                return;
-            }
-
-            registration.SessionKey = sessionKey;
-            registration.SessionToken = sessionToken;
-            registration.ConnectionId = connectionId;
-            registration.ControlCallback = callback;
-            registration.ControlDisconnectedAtUtc = null;
-            if (!preserveSessionState)
-            {
-                registration.RealtimeConnectionId = null;
-                registration.RealtimeCallback = null;
-                registration.RealtimeSessionKey = null;
-                registration.RoomId = null;
-                registration.MatchId = null;
-                registration.SeatIndex = -1;
-                registration.MatchmakingTicketId = null;
-            }
-        }
     }
 
     public async ValueTask MarkControlDisconnectedAsync(string playerId, string? connectionId, DateTime disconnectedAtUtc, CancellationToken cancellationToken = default)
@@ -225,7 +202,7 @@ internal sealed class SessionDirectory
         }
     }
 
-    public bool AttachRealtime(string playerId, string sessionToken, string roomId, string matchId, string connectionId, IPlayerCallback callback)
+    public bool AttachRealtime(string playerId, string sessionToken, string roomId, string matchId, string connectionId, IBattleCallback callback)
     {
         return AttachRealtimeAsync(playerId, sessionToken, roomId, matchId, connectionId, callback)
             .GetAwaiter()
@@ -238,7 +215,7 @@ internal sealed class SessionDirectory
         string roomId,
         string matchId,
         string connectionId,
-        IPlayerCallback callback,
+        IBattleCallback callback,
         CancellationToken cancellationToken = default)
     {
         GameSessionKey session;
@@ -249,7 +226,7 @@ internal sealed class SessionDirectory
                 session = _gameSessions.StartNewSessionAsync(playerId, cancellationToken)
                     .GetAwaiter()
                     .GetResult();
-                registration = new SessionRegistration(session, sessionToken, string.Empty, controlCallback: null)
+                registration = new SessionRegistration(session, sessionToken, string.Empty)
                 {
                     RoomId = roomId,
                     MatchId = matchId
@@ -470,16 +447,4 @@ internal sealed class SessionDirectory
         }
     }
 
-    private async ValueTask BindControlAsync(
-        GameSessionKey session,
-        string connectionId,
-        IPlayerCallback callback,
-        CancellationToken cancellationToken = default)
-    {
-        await _gameSessions.BindSessionAsync(
-            session,
-            connectionId,
-            callback,
-            cancellationToken).ConfigureAwait(false);
-    }
 }

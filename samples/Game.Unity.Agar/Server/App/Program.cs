@@ -13,7 +13,6 @@ using Lakona.Game.Server.Diagnostics;
 using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Guardrails;
 using Lakona.Game.Server.Hosting;
-using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
 using Lakona.Rpc.Server;
 
@@ -57,10 +56,10 @@ return await LakonaGameServer.RunAsync(args, server => server
             services.AddSingleton<ReliableMatchmakingPublisher>();
             services.AddSingleton<GatewayMatchmakingCoordinator>();
             services.TryAddEnumerable(ServiceDescriptor.Singleton<IRpcSessionLifecycleObserver, PlayerSessionLifecycleObserver>());
-            services.TryAddEnumerable(ServiceDescriptor.Singleton<IHotfixRequiredServiceContracts, GeneratedHotfixRequiredServiceContracts>());
             services.AddHostedService<DisconnectedSessionCleanupHostedService>();
         }
-    }));
+    })
+    .UseGeneratedHotfixServices());
 
 static bool HasRpcService(LakonaGameRuntimeOptions runtimeOptions, string serviceName)
 {

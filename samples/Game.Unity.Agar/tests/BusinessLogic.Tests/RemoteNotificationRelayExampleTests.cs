@@ -19,7 +19,7 @@ public sealed class RemoteNotificationRelayExampleTests
         var gatewayPort = GetFreePort();
         var gatewaySessions = new InMemoryGameSessionDirectory();
         var session = await gatewaySessions.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
-        var callback = new CapturingPlayerCallback();
+        var callback = new CapturingControlCallback();
         await gatewaySessions.BindSessionAsync(session, "control-1", callback, TestContext.Current.CancellationToken);
         using var stopGateway = new CancellationTokenSource();
         var builder = RpcServerHostBuilder.Create()
@@ -54,7 +54,7 @@ public sealed class RemoteNotificationRelayExampleTests
             Message = "Matched into room room-1"
         };
 
-        var status = await remoteRelay.NotifyAsync<IPlayerCallback>(
+        var status = await remoteRelay.NotifyAsync<IControlCallback>(
             session,
             target => target.OnMatchmakingStatus(update),
             TestContext.Current.CancellationToken);
@@ -82,7 +82,7 @@ public sealed class RemoteNotificationRelayExampleTests
             new ClusterClientNotificationDispatcher(clientFactory),
             new NodeId("battle-1"));
 
-        var status = await relay.NotifyAsync<IPlayerCallback>(
+        var status = await relay.NotifyAsync<IControlCallback>(
             session,
             callback => callback.OnMatchmakingStatus(new MatchmakingStatusUpdate()),
             TestContext.Current.CancellationToken);
@@ -112,7 +112,7 @@ public sealed class RemoteNotificationRelayExampleTests
             new ClusterClientNotificationDispatcher(clientFactory),
             new NodeId("battle-1"));
 
-        var status = await relay.NotifyAsync<IPlayerCallback>(
+        var status = await relay.NotifyAsync<IControlCallback>(
             session,
             callback => callback.OnMatchmakingStatus(new MatchmakingStatusUpdate()),
             TestContext.Current.CancellationToken);
@@ -153,7 +153,7 @@ public sealed class RemoteNotificationRelayExampleTests
             new ClusterClientNotificationDispatcher(clientFactory),
             new NodeId("battle-1"));
 
-        var status = await relay.NotifyAsync<IPlayerCallback>(
+        var status = await relay.NotifyAsync<IControlCallback>(
             session,
             callback => callback.OnMatchmakingStatus(new MatchmakingStatusUpdate()),
             TestContext.Current.CancellationToken);
@@ -173,7 +173,7 @@ public sealed class RemoteNotificationRelayExampleTests
             new JsonRpcSerializer());
         var dispatcher = new ClusterClientNotificationDispatcher(clientFactory);
         var session = new GameSessionKey("player-1", "session-a", 1);
-        var command = ClientNotificationCommandFactory.Create<IPlayerCallback>(
+        var command = ClientNotificationCommandFactory.Create<IControlCallback>(
             session,
             callback => callback.OnMatchmakingStatus(new MatchmakingStatusUpdate()));
 
@@ -190,21 +190,9 @@ public sealed class RemoteNotificationRelayExampleTests
         Assert.Equal(ClientNotificationStatus.Failed, status);
     }
 
-    private sealed class CapturingPlayerCallback : IPlayerCallback
+    private sealed class CapturingControlCallback : IControlCallback
     {
         public MatchmakingStatusUpdate? LastMatchmakingStatus { get; private set; }
-
-        public void OnWorldState(WorldState worldState)
-        {
-        }
-
-        public void OnPlayerDead(PlayerDead deadEvent)
-        {
-        }
-
-        public void OnMatchEnd(MatchEnd matchEnd)
-        {
-        }
 
         public void OnMatchmakingStatus(MatchmakingStatusUpdate matchmakingStatus)
         {

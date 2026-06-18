@@ -14,9 +14,10 @@ namespace SampleClient.Gameplay
     {
         private readonly Action<Exception?> _onDisconnected;
         private RpcClient? _controlConnection;
+        private ILoginService? _loginService;
         private IPlayerService? _controlPlayerService;
         private RpcClient? _realtimeConnection;
-        private IPlayerService? _realtimePlayerService;
+        private IBattleService? _battleService;
         private string _playerId = string.Empty;
         private string _token = string.Empty;
         private string _sessionId = string.Empty;
@@ -39,7 +40,7 @@ namespace SampleClient.Gameplay
 
         public bool IsRealtimeConnecting { get; private set; }
 
-        public bool CanSubmitGameplayInput => IsConnected || IsRealtimeConnected;
+        public bool CanSubmitGameplayInput => IsRealtimeConnected;
 
         public async Task<LoginReply> ConnectAndLoginAsync(
             string host,
@@ -49,7 +50,7 @@ namespace SampleClient.Gameplay
             string password,
             bool guestLogin,
             bool reconnect,
-            IPlayerCallback callback,
+            IControlCallback callback,
             CancellationToken cancellationToken)
         {
             if (IsConnecting)
@@ -61,15 +62,16 @@ namespace SampleClient.Gameplay
             try
             {
                 var callbacks = new RpcClient.RpcNotificationBindings();
-                callbacks.Add(callback);
+                callbacks.Add((IControlCallback)callback);
 
                 _controlConnection = Rpc.WebSocketRpcClientFactory.Create(host, port, path, callbacks);
                 _controlConnection.Disconnected += HandleControlDisconnected;
 
                 await _controlConnection.ConnectAsync(cancellationToken);
 
+                _loginService = _controlConnection.Api.Shared.Login;
                 _controlPlayerService = _controlConnection.Api.Shared.Player;
-                var reply = await _controlPlayerService.LoginAsync(new LoginRequest
+                var reply = await _loginService.LoginAsync(new LoginRequest
                 {
                     Account = account,
                     Password = password,
@@ -104,13 +106,12 @@ namespace SampleClient.Gameplay
 
         public async Task SubmitInputAsync(InputMessage input)
         {
-            var playerService = _realtimePlayerService ?? _controlPlayerService;
-            if (playerService == null)
+            if (_battleService == null)
             {
                 return;
             }
 
-            await playerService.SubmitInput(input).ConfigureAwait(false);
+            await _battleService.SubmitInputAsync(input).ConfigureAwait(false);
         }
 
         public async Task StartMatchmakingAsync(CancellationToken cancellationToken = default)
@@ -184,7 +185,7 @@ namespace SampleClient.Gameplay
 
         public async Task<bool> EnsureRealtimeConnectedAsync(
             RealtimeConnectionInfo realtimeConnection,
-            IPlayerCallback callback,
+            IBattleCallback callback,
             CancellationToken cancellationToken)
         {
             if (realtimeConnection == null)
@@ -220,15 +221,15 @@ namespace SampleClient.Gameplay
             try
             {
                 var callbacks = new RpcClient.RpcNotificationBindings();
-                callbacks.Add(callback);
+                callbacks.Add((IBattleCallback)callback);
 
                 _realtimeConnection = Rpc.KcpRpcClientFactory.Create(realtimeConnection.Host, realtimeConnection.Port, callbacks);
                 _realtimeConnection.Disconnected += HandleRealtimeDisconnected;
 
                 await _realtimeConnection.ConnectAsync(cancellationToken).ConfigureAwait(false);
 
-                _realtimePlayerService = _realtimeConnection.Api.Shared.Player;
-                var reply = await _realtimePlayerService.AttachRealtimeAsync(new RealtimeAttachRequest
+                _battleService = _realtimeConnection.Api.Shared.Battle;
+                var reply = await _battleService.AttachRealtimeAsync(new RealtimeAttachRequest
                 {
                     PlayerId = _playerId,
                     Token = string.IsNullOrWhiteSpace(realtimeConnection.SessionToken) ? _token : realtimeConnection.SessionToken,
@@ -261,6 +262,7 @@ namespace SampleClient.Gameplay
         {
             if (_controlConnection == null)
             {
+                _loginService = null;
                 _controlPlayerService = null;
                 IsConnected = false;
                 IsConnecting = false;
@@ -296,6 +298,7 @@ namespace SampleClient.Gameplay
             finally
             {
                 _ignoreControlDisconnect = false;
+                _loginService = null;
                 _controlPlayerService = null;
                 if (logout)
                 {
@@ -314,7 +317,7 @@ namespace SampleClient.Gameplay
         {
             if (_realtimeConnection == null)
             {
-                _realtimePlayerService = null;
+                _battleService = null;
                 IsRealtimeConnected = false;
                 IsRealtimeConnecting = false;
                 _realtimeRoomId = string.Empty;
@@ -337,7 +340,7 @@ namespace SampleClient.Gameplay
             finally
             {
                 _ignoreRealtimeDisconnect = false;
-                _realtimePlayerService = null;
+                _battleService = null;
                 IsRealtimeConnected = false;
                 IsRealtimeConnecting = false;
                 _realtimeRoomId = string.Empty;
@@ -354,6 +357,7 @@ namespace SampleClient.Gameplay
 
             IsConnected = false;
             _controlConnection = null;
+            _loginService = null;
             _controlPlayerService = null;
             _onDisconnected(ex);
         }
@@ -366,7 +370,7 @@ namespace SampleClient.Gameplay
             }
 
             IsRealtimeConnected = false;
-            _realtimePlayerService = null;
+            _battleService = null;
             _realtimeRoomId = string.Empty;
             _realtimeMatchId = string.Empty;
 

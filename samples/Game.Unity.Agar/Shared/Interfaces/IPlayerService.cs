@@ -8,36 +8,51 @@ using UnityEngine;
 
 namespace Shared.Interfaces
 {
-    [RpcService(1, NotificationContract = typeof(IPlayerCallback))]
-    public interface IPlayerService
+    [RpcService(1)]
+    public interface ILoginService
     {
         [RpcMethod(1)]
         ValueTask<LoginReply> LoginAsync(LoginRequest req);
+    }
 
-        [RpcMethod(4)]
+    [RpcService(2, NotificationContract = typeof(IControlCallback))]
+    public interface IPlayerService
+    {
+        [RpcMethod(1)]
         ValueTask StartMatchmakingAsync(MatchmakingRequest req);
 
-        [RpcMethod(5)]
+        [RpcMethod(2)]
         ValueTask CancelMatchmakingAsync(CancelMatchmakingRequest req);
 
-        [RpcMethod(6)]
-        ValueTask<RealtimeAttachReply> AttachRealtimeAsync(RealtimeAttachRequest req);
-
-        [RpcMethod(7)]
+        [RpcMethod(3)]
         ValueTask<ReliablePushAckReply> AckReliablePushAsync(ReliablePushAckRequest req);
 
-        [RpcMethod(8)]
+        [RpcMethod(4)]
         ValueTask<LeaderboardReply> GetLeaderboardAsync(LeaderboardRequest req);
-        
-        [RpcMethod(2)]
-        ValueTask SubmitInput(InputMessage req);
 
-        [RpcMethod(3)]
+        [RpcMethod(5)]
         ValueTask LogoutAsync(LogoutRequest req);
     }
 
     [RpcNotificationContract(typeof(IPlayerService))]
-    public interface IPlayerCallback
+    public interface IControlCallback
+    {
+        [RpcNotification(1)]
+        void OnMatchmakingStatus(MatchmakingStatusUpdate matchmakingStatus);
+    }
+
+    [RpcService(3, NotificationContract = typeof(IBattleCallback))]
+    public interface IBattleService
+    {
+        [RpcMethod(1)]
+        ValueTask<RealtimeAttachReply> AttachRealtimeAsync(RealtimeAttachRequest req);
+
+        [RpcMethod(2)]
+        ValueTask SubmitInputAsync(InputMessage req);
+    }
+
+    [RpcNotificationContract(typeof(IBattleService))]
+    public interface IBattleCallback
     {
         [RpcNotification(1)]
         void OnWorldState(WorldState worldState);
@@ -47,9 +62,6 @@ namespace Shared.Interfaces
 
         [RpcNotification(3)]
         void OnMatchEnd(MatchEnd matchEnd);
-
-        [RpcNotification(4)]
-        void OnMatchmakingStatus(MatchmakingStatusUpdate matchmakingStatus) { }
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]

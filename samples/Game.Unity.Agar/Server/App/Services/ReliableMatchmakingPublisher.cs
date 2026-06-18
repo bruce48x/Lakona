@@ -40,7 +40,7 @@ internal sealed class ReliableMatchmakingPublisher
     {
         var registration = _sessionDirectory.Get(playerId);
         return registration is null
-            ? ValueTask.CompletedTask
+            ? default
             : _reliablePushOutbox.ReplayPendingAsync(registration.SessionKey, DeliverAsync, cancellationToken);
     }
 
@@ -69,7 +69,7 @@ internal sealed class ReliableMatchmakingPublisher
         SafeInvoke(callback, target => target.OnMatchmakingStatus(payload));
     }
 
-    private void SafeInvoke(IPlayerCallback callback, Action<IPlayerCallback> action)
+    private void SafeInvoke(IControlCallback callback, Action<IControlCallback> action)
     {
         try
         {

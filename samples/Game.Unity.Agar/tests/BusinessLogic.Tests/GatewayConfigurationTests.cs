@@ -34,14 +34,24 @@ public sealed class GatewayConfigurationTests
         Assert.Equal("gateway-1", lakona.GetProperty("Node").GetProperty("Id").GetString());
         Assert.Empty(lakona.GetProperty("Feature").EnumerateArray());
 
-        var endpoint = Assert.Single(lakona.GetProperty("Endpoints").EnumerateArray());
+        var endpoints = lakona.GetProperty("Endpoints").EnumerateArray().ToArray();
+        Assert.Equal(2, endpoints.Length);
 
-        Assert.Equal("websocket", endpoint.GetProperty("Transport").GetString());
-        Assert.Equal("memorypack", endpoint.GetProperty("Serializer").GetString());
-        Assert.Equal("127.0.0.1", endpoint.GetProperty("Host").GetString());
-        Assert.Equal(20000, endpoint.GetProperty("Port").GetInt32());
-        Assert.Equal("/ws", endpoint.GetProperty("Path").GetString());
-        Assert.Equal(new[] { "login", "player" }, endpoint.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
+        var control = endpoints.Single(endpoint =>
+            string.Equals(endpoint.GetProperty("Transport").GetString(), "websocket", StringComparison.Ordinal));
+        Assert.Equal("memorypack", control.GetProperty("Serializer").GetString());
+        Assert.Equal("127.0.0.1", control.GetProperty("Host").GetString());
+        Assert.Equal(20000, control.GetProperty("Port").GetInt32());
+        Assert.Equal("/ws", control.GetProperty("Path").GetString());
+        Assert.Equal(new[] { "login", "player" }, control.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
+
+        var realtime = endpoints.Single(endpoint =>
+            string.Equals(endpoint.GetProperty("Transport").GetString(), "kcp", StringComparison.Ordinal));
+        Assert.Equal("memorypack", realtime.GetProperty("Serializer").GetString());
+        Assert.Equal("127.0.0.1", realtime.GetProperty("Host").GetString());
+        Assert.Equal(20001, realtime.GetProperty("Port").GetInt32());
+        Assert.False(realtime.TryGetProperty("Path", out _));
+        Assert.Equal(new[] { "battle" }, realtime.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
     }
 
     [Fact]

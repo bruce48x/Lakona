@@ -53,16 +53,16 @@ namespace Rpc.Testing
         private readonly CancellationTokenSource _cts = new();
         private bool _cleanupStarted;
         private RpcClient? _connection;
+        private ILoginService? _login;
         private IPlayerService? _player;
         private string _playerId = string.Empty;
         private Task? _pollingTask;
         private bool _stopped;
-        private int _tick;
 
         public RpcConnectionTester()
         {
             _callbacks = new RpcClient.RpcNotificationBindings();
-            _callbacks.Add(new PlayerCallbacks(this));
+            _callbacks.Add(new ControlCallbacks(this));
         }
 
         private async void Start()
@@ -99,9 +99,10 @@ namespace Rpc.Testing
                 _connection = WebSocketRpcClientFactory.Create(_endpoint.Host, _endpoint.Port, _endpoint.Path, _callbacks);
                 await _connection.ConnectAsync(_cts.Token);
                 _connection.Disconnected += OnDisconnected;
+                _login = _connection.Api.Shared.Login;
                 _player = _connection.Api.Shared.Player;
 
-                var reply = await _player.LoginAsync(new LoginRequest
+                var reply = await _login.LoginAsync(new LoginRequest
                 {
                     Account = Account,
                     Password = Password,
@@ -141,17 +142,14 @@ namespace Rpc.Testing
             while (!_cts.IsCancellationRequested && !_stopped)
                 try
                 {
-                    await _player!.SubmitInput(new InputMessage
+                    var leaderboard = await _player!.GetLeaderboardAsync(new LeaderboardRequest
                     {
-                        PlayerId = _playerId,
-                        MoveX = 1f,
-                        MoveY = 0f,
-                        Tick = ++_tick
+                        TopN = 5
                     });
                     if (_cts.IsCancellationRequested || _stopped)
                         return;
 
-                    Debug.Log($"{Account} Input submitted");
+                    Debug.Log($"{Account} Leaderboard entries={leaderboard.Entries.Count}");
                     await Task.Delay(TimeSpan.FromSeconds(interval), _cts.Token);
                 }
                 catch (OperationCanceledException)
@@ -224,42 +222,16 @@ namespace Rpc.Testing
             }
         }
 
-        private sealed class PlayerCallbacks : RpcClient.PlayerCallbackBase
+        private sealed class ControlCallbacks : RpcClient.ControlCallbackBase
         {
-            private readonly RpcConnectionTester _owner;
-
-            public PlayerCallbacks(RpcConnectionTester owner)
+            public ControlCallbacks(RpcConnectionTester owner)
             {
-                _owner = owner;
-            }
-
-            public override void OnWorldState(WorldState worldState)
-            {
-                _owner.HandleWorldState(worldState);
-            }
-
-            public override void OnPlayerDead(PlayerDead deadEvent)
-            {
-                Debug.Log($"[WS] Player dead: {deadEvent.PlayerId} @ tick {deadEvent.Tick}");
-            }
-
-            public override void OnMatchEnd(MatchEnd matchEnd)
-            {
-                Debug.Log($"[WS] Match end: winner={matchEnd.WinnerPlayerId}, tick={matchEnd.Tick}");
             }
 
             public override void OnMatchmakingStatus(MatchmakingStatusUpdate matchmakingStatus)
             {
                 Debug.Log($"[WS] Matchmaking state={matchmakingStatus.State}, room={matchmakingStatus.RoomId}, queue={matchmakingStatus.QueuePosition}/{matchmakingStatus.QueueSize}, matched={matchmakingStatus.MatchedPlayerCount}/{matchmakingStatus.RoomCapacity}, message={matchmakingStatus.Message}");
             }
-        }
-
-        private void HandleWorldState(WorldState worldState)
-        {
-            if (_stopped)
-                return;
-
-            Debug.Log($"[WS] WorldState tick={worldState.Tick}, players={worldState.Players.Count}");
         }
     }
 }

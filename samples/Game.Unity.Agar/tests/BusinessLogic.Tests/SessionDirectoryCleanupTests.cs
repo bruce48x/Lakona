@@ -7,13 +7,14 @@ namespace Agar.Unity.Tests;
 public sealed class SessionDirectoryCleanupTests
 {
     [Fact]
-    public void ClearRoomDetachesRealtimeCallbackWhenExpectedRoomMatches()
+    public async Task ClearRoomDetachesRealtimeCallbackWhenExpectedRoomMatches()
     {
         var directory = new SessionDirectory();
-        var controlCallback = new TestPlayerCallback();
-        var realtimeCallback = new TestPlayerCallback();
+        var controlCallback = new TestControlCallback();
+        var realtimeCallback = new TestBattleCallback();
 
-        directory.Register("player-1", "session-1", "control-1", controlCallback, preserveSessionState: false);
+        await directory.RegisterNewControlAsync("player-1", "session-1", "control-1", TestContext.Current.CancellationToken);
+        Assert.True(await directory.BindControlCallbackAsync("player-1", "control-1", controlCallback, TestContext.Current.CancellationToken));
         directory.AssignRoom("player-1", "room-1", "match-1", seatIndex: 3);
         Assert.True(directory.AttachRealtime("player-1", "session-1", "room-1", "match-1", "realtime-1", realtimeCallback));
 
@@ -26,17 +27,19 @@ public sealed class SessionDirectoryCleanupTests
         Assert.Equal(-1, registration.SeatIndex);
         Assert.Null(registration.RealtimeConnectionId);
         Assert.Null(registration.RealtimeCallback);
-        Assert.Same(controlCallback, registration.GetRealtimePreferredCallback());
+        Assert.Null(registration.GetRealtimeCallback());
         Assert.Empty(directory.GetByRoom("room-1"));
     }
 
     [Fact]
-    public void ClearRoomPreservesRegistrationWhenExpectedRoomDoesNotMatch()
+    public async Task ClearRoomPreservesRegistrationWhenExpectedRoomDoesNotMatch()
     {
         var directory = new SessionDirectory();
-        var realtimeCallback = new TestPlayerCallback();
+        var controlCallback = new TestControlCallback();
+        var realtimeCallback = new TestBattleCallback();
 
-        directory.Register("player-1", "session-1", "control-1", new TestPlayerCallback(), preserveSessionState: false);
+        await directory.RegisterNewControlAsync("player-1", "session-1", "control-1", TestContext.Current.CancellationToken);
+        Assert.True(await directory.BindControlCallbackAsync("player-1", "control-1", controlCallback, TestContext.Current.CancellationToken));
         directory.AssignRoom("player-1", "room-1", "match-1", seatIndex: 2);
         Assert.True(directory.AttachRealtime("player-1", "session-1", "room-1", "match-1", "realtime-1", realtimeCallback));
 
@@ -63,7 +66,7 @@ public sealed class SessionDirectoryCleanupTests
             "room-1",
             "match-1",
             "realtime-1",
-            new TestPlayerCallback()));
+            new TestBattleCallback()));
 
         directory.ClearRoom("player-1", "room-1");
 
@@ -72,11 +75,12 @@ public sealed class SessionDirectoryCleanupTests
     }
 
     [Fact]
-    public void RegisterWithoutPreserveSessionStateClearsRoomQueueAndRealtimeState()
+    public async Task RegisterNewControlClearsRoomQueueAndRealtimeState()
     {
         var directory = new SessionDirectory();
 
-        directory.Register("player-1", "session-1", "control-1", new TestPlayerCallback(), preserveSessionState: false);
+        await directory.RegisterNewControlAsync("player-1", "session-1", "control-1", TestContext.Current.CancellationToken);
+        Assert.True(await directory.BindControlCallbackAsync("player-1", "control-1", new TestControlCallback(), TestContext.Current.CancellationToken));
         directory.SetQueueTicket("player-1", "ticket-1");
         directory.AssignRoom("player-1", "room-1", "match-1", seatIndex: 1);
         Assert.True(directory.AttachRealtime(
@@ -85,9 +89,10 @@ public sealed class SessionDirectoryCleanupTests
             "room-1",
             "match-1",
             "realtime-1",
-            new TestPlayerCallback()));
+            new TestBattleCallback()));
 
-        directory.Register("player-1", "session-2", "control-2", new TestPlayerCallback(), preserveSessionState: false);
+        await directory.RegisterNewControlAsync("player-1", "session-2", "control-2", TestContext.Current.CancellationToken);
+        Assert.True(await directory.BindControlCallbackAsync("player-1", "control-2", new TestControlCallback(), TestContext.Current.CancellationToken));
 
         var registration = directory.Get("player-1");
         Assert.NotNull(registration);
@@ -102,7 +107,17 @@ public sealed class SessionDirectoryCleanupTests
         Assert.Empty(directory.GetByRoom("room-1"));
     }
 
-    private sealed class TestPlayerCallback : IPlayerCallback
+    private sealed class TestControlCallback : IControlCallback
+    {
+        public MatchmakingStatusUpdate? LastStatus { get; private set; }
+
+        public void OnMatchmakingStatus(MatchmakingStatusUpdate matchmakingStatus)
+        {
+            LastStatus = matchmakingStatus;
+        }
+    }
+
+    private sealed class TestBattleCallback : IBattleCallback
     {
         public void OnWorldState(WorldState worldState)
         {

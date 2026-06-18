@@ -66,6 +66,22 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
+    public void DefaultAppsettingsExposeControlAndBattleRpcServicesSeparately()
+    {
+        using var document = Open("appsettings.json");
+        var lakona = document.RootElement.GetProperty("Lakona");
+        var endpoints = lakona.GetProperty("Endpoints").EnumerateArray().ToArray();
+
+        var control = endpoints.Single(endpoint =>
+            string.Equals(endpoint.GetProperty("Transport").GetString(), "websocket", StringComparison.Ordinal));
+        var battle = endpoints.Single(endpoint =>
+            string.Equals(endpoint.GetProperty("Transport").GetString(), "kcp", StringComparison.Ordinal));
+
+        Assert.Equal(new[] { "login", "player" }, control.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
+        Assert.Equal(new[] { "battle" }, battle.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
+    }
+
+    [Fact]
     public void DataNodeRegistersDatabaseServicesAndSqlNodeDirectory()
     {
         var services = BuildFeatureServices("appsettings.data-1.json");

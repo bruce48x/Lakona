@@ -1,18 +1,16 @@
 using Shared.Interfaces;
-using Lakona.Game.Abstractions;
 using Lakona.Game.Server.Sessions;
 
 namespace Server.App.Services;
 
 internal sealed class SessionRegistration
 {
-    public SessionRegistration(GameSessionKey sessionKey, string sessionToken, string connectionId, IPlayerCallback? controlCallback)
+    public SessionRegistration(GameSessionKey sessionKey, string sessionToken, string connectionId)
     {
         ControlSessionKey = sessionKey;
         PlayerId = sessionKey.OwnerKey;
         SessionToken = sessionToken;
         ConnectionId = connectionId;
-        ControlCallback = controlCallback;
     }
 
     public GameSessionKey SessionKey
@@ -26,8 +24,8 @@ internal sealed class SessionRegistration
     public string PlayerId { get; }
     public string SessionToken { get; set; }
     public string ConnectionId { get; set; }
-    public IPlayerCallback? ControlCallback { get; set; }
-    public IPlayerCallback? RealtimeCallback { get; set; }
+    public IControlCallback? ControlCallback { get; set; }
+    public IBattleCallback? RealtimeCallback { get; set; }
     public string? RealtimeConnectionId { get; set; }
     public DateTime? ControlDisconnectedAtUtc { get; set; }
     public string? RoomId { get; set; }
@@ -35,8 +33,8 @@ internal sealed class SessionRegistration
     public int SeatIndex { get; set; } = -1;
     public string? MatchmakingTicketId { get; set; }
 
-    public IPlayerCallback? GetRealtimePreferredCallback()
+    public IBattleCallback? GetRealtimeCallback()
     {
-        return RealtimeCallback ?? ControlCallback;
+        return RealtimeCallback;
     }
 }

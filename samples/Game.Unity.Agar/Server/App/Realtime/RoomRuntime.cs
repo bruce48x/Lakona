@@ -196,7 +196,7 @@ internal sealed class RoomRuntime : IAsyncDisposable
         var registrations = _sessionDirectory.GetByRoom(_roomId);
         foreach (var registration in registrations)
         {
-            var callback = registration.GetRealtimePreferredCallback();
+            var callback = registration.GetRealtimeCallback();
             if (callback is not null)
             {
                 SafeInvoke(callback, target => target.OnWorldState(result.WorldState));
@@ -207,7 +207,7 @@ internal sealed class RoomRuntime : IAsyncDisposable
         {
             foreach (var registration in registrations)
             {
-                var callback = registration.GetRealtimePreferredCallback();
+                var callback = registration.GetRealtimeCallback();
                 if (callback is not null)
                 {
                     SafeInvoke(callback, target => target.OnPlayerDead(deadEvent));
@@ -222,7 +222,7 @@ internal sealed class RoomRuntime : IAsyncDisposable
 
         foreach (var registration in registrations)
         {
-            var callback = registration.GetRealtimePreferredCallback();
+            var callback = registration.GetRealtimeCallback();
             if (callback is not null)
             {
                 SafeInvoke(callback, target => target.OnMatchEnd(result.MatchEnd));
@@ -350,7 +350,7 @@ internal sealed class RoomRuntime : IAsyncDisposable
             operation);
     }
 
-    private void SafeInvoke(IPlayerCallback callback, Action<IPlayerCallback> action)
+    private void SafeInvoke(IBattleCallback callback, Action<IBattleCallback> action)
     {
         try
         {
