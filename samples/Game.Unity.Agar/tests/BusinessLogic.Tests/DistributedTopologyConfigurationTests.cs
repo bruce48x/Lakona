@@ -2,7 +2,10 @@ using System.Text.Json;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Cluster.Sql;
+using Lakona.Game.Server;
+using Lakona.Game.Server.Diagnostics;
 using Lakona.Game.Server.Features;
+using Lakona.Game.Server.Guardrails;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Sessions;
 using Lakona.Rpc.Serializer.Json;
@@ -12,6 +15,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Agar.Sample.State;
 using Server.App.Features;
+using Server.App.Hosting;
 using System.Net;
 using System.Net.Sockets;
 using Xunit;
@@ -80,6 +84,62 @@ public sealed class DistributedTopologyConfigurationTests
 
         Assert.Equal(new[] { "login", "player" }, control.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
         Assert.Equal(new[] { "battle" }, battle.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
+    }
+
+    [Fact]
+    public void ProgramDoesNotScanRpcServicesOrSelectRealtimeOptions()
+    {
+        var path = Path.Combine(
+            FindRepositoryRoot(),
+            "samples",
+            "Game.Unity.Agar",
+            "Server",
+            "App",
+            "Program.cs");
+        var source = File.ReadAllText(path);
+
+        Assert.DoesNotContain("HasRpcService", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("SelectRealtimeOptions", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("RpcServices.Any", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("new LakonaGameEndpointOptions", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void GatewayNodeRegistersControlServicesWithoutKcpEndpoint()
+    {
+        var services = BuildProgramServices("appsettings.gateway-1.json");
+
+        Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(AgarDatabaseOptions));
+
+        using var provider = services.BuildServiceProvider();
+        provider.GetRequiredService(RequiredServerAppType("Server.App.Services.SessionDirectory"));
+        provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
+        provider.GetRequiredService(RequiredServerAppType("Server.App.Services.ReliableMatchmakingPublisher"));
+        provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayMatchmakingCoordinator"));
+
+        var identity = provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
+        var endpoint = identity.GetType().GetProperty("AdvertisedEndpoint")!.GetValue(identity)!;
+        Assert.Equal("websocket", endpoint.GetType().GetProperty("Transport")!.GetValue(endpoint));
+        Assert.Equal("gateway-1", endpoint.GetType().GetProperty("Host")!.GetValue(endpoint));
+    }
+
+    [Fact]
+    public void BattleNodeRegistersRuntimeServicesWithoutControlCoordinator()
+    {
+        var services = BuildProgramServices("appsettings.battle-1.json");
+
+        using var provider = services.BuildServiceProvider();
+        provider.GetRequiredService(RequiredServerAppType("Server.App.Services.SessionDirectory"));
+        provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
+        provider.GetRequiredService(RequiredServerAppType("Server.App.Realtime.RoomRuntimeHost"));
+
+        var identity = provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
+        var endpoint = identity.GetType().GetProperty("AdvertisedEndpoint")!.GetValue(identity)!;
+        Assert.Equal("kcp", endpoint.GetType().GetProperty("Transport")!.GetValue(endpoint));
+        Assert.Equal("battle-1", endpoint.GetType().GetProperty("Host")!.GetValue(endpoint));
+
+        Assert.Throws<InvalidOperationException>(() =>
+            provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayMatchmakingCoordinator")));
     }
 
     [Fact]
@@ -335,6 +395,38 @@ public sealed class DistributedTopologyConfigurationTests
         var services = new ServiceCollection();
 
         services.AddLogging();
+        services.AddLakonaGame(configuration, [
+            typeof(DatabaseFeature),
+            typeof(StateStoreFeature),
+            typeof(MatchmakingFeature),
+            typeof(LeaderboardFeature),
+            typeof(BattleRuntimeFeature)
+        ]);
+
+        return services;
+    }
+
+    private static IServiceCollection BuildProgramServices(
+        string fileName,
+        IReadOnlyDictionary<string, string?>? overrides = null)
+    {
+        var configurationBuilder = new ConfigurationBuilder()
+            .SetBasePath(Path.Combine(FindRepositoryRoot(), "samples", "Game.Unity.Agar", "Server", "App"))
+            .AddJsonFile(fileName);
+
+        if (overrides is not null)
+        {
+            configurationBuilder.AddInMemoryCollection(overrides);
+        }
+
+        var configuration = configurationBuilder.Build();
+        var services = new ServiceCollection();
+
+        services.AddLogging();
+        services.AddLakonaGameServer(configuration);
+        services.AddAgarSampleServer(configuration);
+        services.AddMessageRecording();
+        services.AddLakonaGameRuntimeValidation();
         services.AddLakonaGame(configuration, [
             typeof(DatabaseFeature),
             typeof(StateStoreFeature),
