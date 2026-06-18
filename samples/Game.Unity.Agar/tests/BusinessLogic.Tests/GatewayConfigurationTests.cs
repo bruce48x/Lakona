@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.Configuration;
 using Lakona.Game.Server.Configuration;
 using Xunit;
 
@@ -36,6 +37,7 @@ public sealed class GatewayConfigurationTests
         var endpoint = Assert.Single(lakona.GetProperty("Endpoints").EnumerateArray());
 
         Assert.Equal("websocket", endpoint.GetProperty("Transport").GetString());
+        Assert.Equal("memorypack", endpoint.GetProperty("Serializer").GetString());
         Assert.Equal("127.0.0.1", endpoint.GetProperty("Host").GetString());
         Assert.Equal(20000, endpoint.GetProperty("Port").GetInt32());
         Assert.Equal("/ws", endpoint.GetProperty("Path").GetString());
@@ -43,27 +45,25 @@ public sealed class GatewayConfigurationTests
     }
 
     [Fact]
-    public void ToServerRpcServerOptionsCreatesFromEndpoint()
+    public void FromConfigurationBindsEndpointLocalSerializer()
     {
-        var runtimeOptions = new LakonaGameRuntimeOptions
-        {
-            Endpoints =
-            [
-                new LakonaGameEndpointOptions
-                {
-                    Transport = "kcp",
-                    Host = "0.0.0.0",
-                    Port = 20001
-                }
-            ]
-        };
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Lakona:Endpoints:0:Transport"] = "kcp",
+                ["Lakona:Endpoints:0:Serializer"] = "memorypack",
+                ["Lakona:Endpoints:0:Host"] = "0.0.0.0",
+                ["Lakona:Endpoints:0:Port"] = "20001"
+            })
+            .Build();
 
-        var options = runtimeOptions.ToServerRpcServerOptions("kcp");
+        var endpoint = Assert.Single(LakonaGameRuntimeOptions.FromConfiguration(configuration).Endpoints);
 
-        Assert.Equal("kcp", options.Transport);
-        Assert.Equal("0.0.0.0", options.Host);
-        Assert.Equal(20001, options.Port);
-        Assert.Equal("", options.Path);
+        Assert.Equal("kcp", endpoint.Transport);
+        Assert.Equal("memorypack", endpoint.Serializer);
+        Assert.Equal("0.0.0.0", endpoint.Host);
+        Assert.Equal(20001, endpoint.Port);
+        Assert.Equal("", endpoint.Path);
     }
 
     private static string FindRepositoryRoot()

@@ -9,6 +9,12 @@ public sealed class EndpointRule : ILakonaGameValidationRule
         "websocket"
     };
 
+    private static readonly HashSet<string> KnownSerializers = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "json",
+        "memorypack"
+    };
+
     public IEnumerable<LakonaGameDiagnostic> Validate(LakonaGameResolvedRuntime runtime)
     {
         var transports = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -45,6 +51,20 @@ public sealed class EndpointRule : ILakonaGameValidationRule
                 {
                     yield return Error("ULINK024", $"Endpoint transport '{transport}' is configured more than once.", endpoint.Transport.Path);
                 }
+            }
+
+            var serializer = endpoint.Serializer.Value;
+            if (string.IsNullOrWhiteSpace(serializer))
+            {
+                yield return Error("ULINK028", "Endpoint serializer is required.", endpoint.Serializer.Path);
+            }
+            else if (!KnownSerializers.Contains(serializer))
+            {
+                yield return Error(
+                    "ULINK028",
+                    $"Endpoint serializer '{serializer}' is unknown.",
+                    endpoint.Serializer.Path,
+                    "Use json or memorypack.");
             }
 
             if (string.IsNullOrWhiteSpace(endpoint.Host.Value))

@@ -1,6 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
 using Lakona.Game.Server.Configuration;
-using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
 
 namespace Lakona.Game.Server.Hosting;
@@ -8,17 +7,14 @@ namespace Lakona.Game.Server.Hosting;
 public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
 {
     private readonly LakonaGameEndpointOptions _endpoint;
-    private readonly Func<IRpcSerializer> _serializerFactory;
-    private readonly Func<ServerRpcServerOptions, Task<IRpcConnectionAcceptor>> _acceptorFactory;
+    private readonly Action<RpcServiceRegistry, IServiceProvider>? _bindServices;
 
     public LakonaEndpointRpcServerConfigurator(
         LakonaGameEndpointOptions endpoint,
-        Func<IRpcSerializer> serializerFactory,
-        Func<ServerRpcServerOptions, Task<IRpcConnectionAcceptor>> acceptorFactory)
+        Action<RpcServiceRegistry, IServiceProvider>? bindServices = null)
     {
         _endpoint = endpoint ?? throw new ArgumentNullException(nameof(endpoint));
-        _serializerFactory = serializerFactory ?? throw new ArgumentNullException(nameof(serializerFactory));
-        _acceptorFactory = acceptorFactory ?? throw new ArgumentNullException(nameof(acceptorFactory));
+        _bindServices = bindServices;
     }
 
     public string Transport => _endpoint.Transport;
@@ -26,9 +22,8 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
     public void Configure(LakonaGameServerRpcContext context)
     {
         var builder = context.Builder;
-        var options = ToServerOptions(_endpoint);
-        builder.UseSerializer(_serializerFactory());
-        builder.UseAcceptor(async ct => await _acceptorFactory(options));
+        builder.UseSerializer(LakonaEndpointRuntimeDefaults.CreateSerializer(_endpoint));
+        builder.UseAcceptor(ct => LakonaEndpointRuntimeDefaults.CreateAcceptorAsync(_endpoint, ct));
 
         foreach (var observer in context.Services.GetServices<IRpcSessionLifecycleObserver>())
         {
@@ -54,16 +49,7 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
             var binder = (LakonaRpcServiceBinder)ActivatorUtilities.CreateInstance(context.Services, descriptor.BinderType);
             binder.Bind(context);
         }
-    }
 
-    private static ServerRpcServerOptions ToServerOptions(LakonaGameEndpointOptions endpoint)
-    {
-        return new ServerRpcServerOptions
-        {
-            Transport = endpoint.Transport,
-            Host = endpoint.Host,
-            Port = endpoint.Port,
-            Path = string.IsNullOrWhiteSpace(endpoint.Path) ? endpoint.GetDefaultPath() : endpoint.Path
-        };
+        _bindServices?.Invoke(builder.ServiceRegistry, context.Services);
     }
 }

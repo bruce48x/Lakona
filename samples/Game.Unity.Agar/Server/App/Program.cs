@@ -21,10 +21,6 @@ using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Loading;
 using Lakona.Game.Server.Sessions;
-using Lakona.Rpc.Core;
-using Lakona.Rpc.Serializer.MemoryPack;
-using Lakona.Rpc.Transport.Kcp;
-using Lakona.Rpc.Transport.WebSocket;
 using Lakona.Rpc.Server;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -129,10 +125,7 @@ static void ConfigureEndpointRpcServers(IServiceCollection services, LakonaGameR
     foreach (var endpoint in runtimeOptions.Endpoints)
     {
         services.AddSingleton<IRpcServerConfigurator>(_ =>
-            new LakonaEndpointRpcServerConfigurator(
-                endpoint,
-                static () => new MemoryPackRpcSerializer(),
-                CreateAcceptorAsync));
+            new LakonaEndpointRpcServerConfigurator(endpoint));
     }
 }
 
@@ -163,42 +156,16 @@ static bool HasRpcService(LakonaGameRuntimeOptions runtimeOptions, string servic
             string.Equals(candidate, serviceName, StringComparison.OrdinalIgnoreCase)));
 }
 
-static ServerRpcServerOptions SelectRealtimeOptions(LakonaGameRuntimeOptions runtimeOptions)
+static LakonaGameEndpointOptions SelectRealtimeOptions(LakonaGameRuntimeOptions runtimeOptions)
 {
-    var endpoint = runtimeOptions.Endpoints.FirstOrDefault(endpoint =>
+    return runtimeOptions.Endpoints.FirstOrDefault(endpoint =>
             string.Equals(endpoint.Transport, "kcp", StringComparison.OrdinalIgnoreCase))
         ?? runtimeOptions.Endpoints.FirstOrDefault()
         ?? new LakonaGameEndpointOptions
         {
             Transport = "kcp",
+            Serializer = "memorypack",
             Host = "127.0.0.1",
             Port = 20001
         };
-
-    return new ServerRpcServerOptions
-    {
-        Transport = endpoint.Transport,
-        Host = endpoint.Host,
-        Port = endpoint.Port,
-        Path = string.IsNullOrWhiteSpace(endpoint.Path) ? endpoint.GetDefaultPath() : endpoint.Path
-    };
-}
-
-static async Task<IRpcConnectionAcceptor> CreateAcceptorAsync(ServerRpcServerOptions options)
-{
-    var transport = options.Transport.ToLowerInvariant();
-    var host = string.IsNullOrWhiteSpace(options.Host) ? "127.0.0.1" : options.Host;
-    if (transport is "websocket" or "ws")
-    {
-        var path = string.IsNullOrWhiteSpace(options.Path) ? "/ws" : options.Path;
-        return await WsConnectionAcceptor.CreateAsync(options.Port, path, host).ConfigureAwait(false);
-    }
-
-    if (transport == "kcp")
-    {
-        return new KcpConnectionAcceptor(options.Port, host);
-    }
-
-    throw new InvalidOperationException(
-        $"Unsupported endpoint transport '{options.Transport}'. Register a custom {nameof(IRpcServerConfigurator)} for this project.");
 }

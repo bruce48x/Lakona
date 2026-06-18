@@ -31,9 +31,10 @@ The default local topology is a single process with generated defaults for the n
 The canonical configuration and startup model is defined in
 [Lakona.Game Configuration And Startup Model](../game/lakona-game-configuration-startup.md).
 Generated projects should use `Lakona:Node:Id`, `Lakona:Endpoints[]` with
-endpoint-local `RpcServices`, compact `Lakona:Feature` selection when needed,
-and convention-based `services.AddLakonaGame(configuration)` startup inside the
-`LakonaGameServer` service-registration callback.
+endpoint-local `Serializer` and `RpcServices`, compact `Lakona:Feature`
+selection when needed, and convention-based
+`services.AddLakonaGame(configuration)` startup inside the `LakonaGameServer`
+service-registration callback.
 
 The generated `appsettings.json` should contain only source values the user can understand and may reasonably change.
 
@@ -56,6 +57,7 @@ The default configuration should be:
     "Endpoints": [
       {
         "Transport": "kcp",
+        "Serializer": "memorypack",
         "Host": "127.0.0.1",
         "Port": 20000,
         "RpcServices": [ "login", "chat" ]
@@ -76,6 +78,7 @@ For WebSocket transport, the generated endpoint includes the path:
     "Endpoints": [
       {
         "Transport": "websocket",
+        "Serializer": "json",
         "Host": "127.0.0.1",
         "Port": 20000,
         "Path": "/ws",
@@ -97,6 +100,7 @@ From `Lakona:Endpoints[]`, it derives:
 - the RPC listener addresses
 - the advertised client endpoints
 - framework-owned endpoint transport wiring
+- framework-owned endpoint serializer wiring
 - endpoint-local RPC service exposure
 
 From the generated project structure, it derives the local hotfix source:

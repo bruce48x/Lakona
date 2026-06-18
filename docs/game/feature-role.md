@@ -62,6 +62,7 @@ Split processes can select a compact feature set:
     "Endpoints": [
       {
         "Transport": "kcp",
+        "Serializer": "memorypack",
         "Host": "0.0.0.0",
         "Port": 20001,
         "RpcServices": [ "battle" ]

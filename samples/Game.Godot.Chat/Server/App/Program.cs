@@ -3,18 +3,14 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Server.App.Generated;
 using Server.App.Lifecycle;
+using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Sessions;
-using Lakona.Rpc.Core;
-using Lakona.Rpc.Serializer.MemoryPack;
-using Lakona.Rpc.Transport.WebSocket;
 
 return await LakonaGameServer.RunAsync(args, server => server
-    .UseTransport("websocket")
-    .UseSerializer(() => new MemoryPackRpcSerializer())
-    .UseAcceptor(async opts => await WsConnectionAcceptor.CreateAsync(opts.Port, opts.Path, opts.Host))
-    .AddServices(services =>
+    .AddServices((services, configuration) =>
     {
+        services.AddLakonaGame(configuration);
         services.AddLakonaGameServerSessionCleanup(options =>
         {
             options.DisconnectedSessionRetention = TimeSpan.FromSeconds(30);

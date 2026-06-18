@@ -39,19 +39,19 @@ public static class LakonaGameServer
         // Health check commands (exit before full startup)
         if (args.Contains("--lakona-game-check", StringComparer.Ordinal))
         {
-            var clusterOptions = runtimeOptions.ToClusterOptions(builder.Configuration, serverBuilder.GetTransport());
+            var clusterOptions = runtimeOptions.ToClusterOptions(builder.Configuration);
             return LakonaGameReadinessProbe.Run(runtimeOptions, clusterOptions, args);
         }
 
         if (args.Contains("--health-check", StringComparer.Ordinal))
         {
-            var clusterOptions = TryBuildClusterOptions(runtimeOptions, builder.Configuration, serverBuilder.GetTransport());
+            var clusterOptions = TryBuildClusterOptions(runtimeOptions, builder.Configuration);
             return LakonaGameLivenessProbe.Run(clusterOptions, runtimeOptions);
         }
 
         if (args.Contains("--readiness-check", StringComparer.Ordinal))
         {
-            var clusterOptions = TryBuildClusterOptions(runtimeOptions, builder.Configuration, serverBuilder.GetTransport());
+            var clusterOptions = TryBuildClusterOptions(runtimeOptions, builder.Configuration);
             return LakonaGameReadinessProbe.Run(runtimeOptions, clusterOptions, args);
         }
 
@@ -60,46 +60,20 @@ public static class LakonaGameServer
 
         builder.Services.AddLakonaGameServer();
         builder.Services.AddSingleton(runtimeOptions);
-        builder.Services.AddSingleton(_ => runtimeOptions.ToServerRpcServerOptions(serverBuilder.GetTransport()));
         builder.Services.AddSingleton(DiscoverRpcServiceCatalog());
 
-        var legacyServiceBinder = serverBuilder.GetServiceBinder();
-        if (legacyServiceBinder is null)
+        var serviceBinder = serverBuilder.GetServiceBinder();
+        foreach (var endpoint in runtimeOptions.Endpoints)
         {
-            foreach (var endpoint in runtimeOptions.Endpoints)
-            {
-                builder.Services.AddSingleton<IRpcServerConfigurator>(sp =>
-                    new LakonaEndpointRpcServerConfigurator(
-                        endpoint,
-                        serverBuilder.GetSerializerFactory(),
-                        serverBuilder.GetAcceptorFactory()));
-            }
-        }
-        else
-        {
-            builder.Services.AddSingleton<IRpcServerConfigurator>(sp =>
-                new LakonaGameRpcConfigurator(
-                    runtimeOptions.ToServerRpcServerOptions(serverBuilder.GetTransport()),
-                    serverBuilder.GetSerializerFactory(),
-                    serverBuilder.GetAcceptorFactory(),
-                    legacyServiceBinder));
-        }
-
-        foreach (var endpoint in serverBuilder.GetAdditionalEndpoints())
-        {
-            builder.Services.AddSingleton<IRpcServerConfigurator>(sp =>
-                new LakonaGameRpcConfigurator(
-                    runtimeOptions.ToServerRpcServerOptions(endpoint.Transport),
-                    endpoint.SerializerFactory,
-                    endpoint.AcceptorFactory,
-                    endpoint.ServiceBinder));
+            builder.Services.AddSingleton<IRpcServerConfigurator>(_ =>
+                new LakonaEndpointRpcServerConfigurator(endpoint, serviceBinder));
         }
 
         // Cluster options (may throw for standalone — wrap gracefully)
         try
         {
             builder.Services.AddSingleton(
-                runtimeOptions.ToClusterOptions(builder.Configuration, serverBuilder.GetTransport()));
+                runtimeOptions.ToClusterOptions(builder.Configuration));
             builder.Services.AddLakonaGameClusterEndpoint();
         }
         catch (InvalidOperationException)
@@ -138,12 +112,11 @@ public static class LakonaGameServer
 
     private static ClusterOptions? TryBuildClusterOptions(
         LakonaGameRuntimeOptions runtimeOptions,
-        IConfiguration configuration,
-        string transport)
+        IConfiguration configuration)
     {
         try
         {
-            return runtimeOptions.ToClusterOptions(configuration, transport);
+            return runtimeOptions.ToClusterOptions(configuration);
         }
         catch (InvalidOperationException)
         {

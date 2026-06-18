@@ -3,6 +3,7 @@ namespace Lakona.Game.Server.Configuration;
 public sealed class LakonaGameEndpointOptions
 {
     public string Transport { get; init; } = "";
+    public string Serializer { get; init; } = "";
     public string Host { get; init; } = "";
     public int Port { get; init; }
     public string Path { get; init; } = "";

@@ -23,23 +23,6 @@ public sealed class LakonaGameRuntimeOptions
         };
     }
 
-    public ServerRpcServerOptions ToServerRpcServerOptions(string transport)
-    {
-        var endpoint = FindEndpoint(transport);
-        return new ServerRpcServerOptions
-        {
-            Transport = endpoint.Transport,
-            Host = endpoint.Host,
-            Port = endpoint.Port,
-            Path = string.IsNullOrWhiteSpace(endpoint.Path) ? endpoint.GetDefaultPath() : endpoint.Path
-        };
-    }
-
-    public ClusterOptions ToClusterOptions(string transport)
-    {
-        return ToClusterOptions();
-    }
-
     public ClusterOptions ToClusterOptions()
     {
         var advertisedEndpoints = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -77,7 +60,7 @@ public sealed class LakonaGameRuntimeOptions
         };
     }
 
-    public ClusterOptions ToClusterOptions(IConfiguration configuration, string transport)
+    public ClusterOptions ToClusterOptions(IConfiguration configuration)
     {
         var defaults = ToClusterOptions();
         var section = GetRuntimeSection(configuration).GetSection("Cluster");
@@ -107,14 +90,6 @@ public sealed class LakonaGameRuntimeOptions
         return configuration.GetSection("Lakona.Game");
     }
 
-    private LakonaGameEndpointOptions FindEndpoint(string transport)
-    {
-        return Endpoints.FirstOrDefault(e =>
-            string.Equals(e.Transport, transport, StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException(
-                $"No endpoint configured for transport '{transport}'.");
-    }
-
     private static LakonaGameNodeOptions BindNode(IConfiguration section)
     {
         return LakonaGameNodeOptions.FromConfiguration(section);
@@ -127,6 +102,7 @@ public sealed class LakonaGameRuntimeOptions
             .Select(endpoint => new LakonaGameEndpointOptions
             {
                 Transport = endpoint["Transport"] ?? "",
+                Serializer = endpoint["Serializer"] ?? "",
                 Host = endpoint["Host"] ?? "",
                 Port = ReadInt(endpoint["Port"]),
                 Path = endpoint["Path"] ?? "",

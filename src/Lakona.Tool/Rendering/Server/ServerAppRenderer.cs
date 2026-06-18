@@ -101,12 +101,6 @@ internal sealed class ServerAppRenderer : IPlanContributor
 
     private static string RenderProgram(LakonaProjectSpec spec)
     {
-        var serializerUsing = RenderSerializerUsing(spec.Serializer);
-        var serializerExpression = RenderSerializerExpression(spec.Serializer);
-        var transportUsing = RenderTransportUsing(spec.Transport);
-        var transportValue = ToolEnumText.ToCliValue(spec.Transport);
-        var acceptorExpression = RenderAcceptorExpression(spec.Transport);
-
         return $$"""
         using System;
         using System.Threading.Tasks;
@@ -116,14 +110,8 @@ internal sealed class ServerAppRenderer : IPlanContributor
         using Lakona.Game.Server.Features;
         using Lakona.Game.Server.Hosting;
         using Lakona.Game.Server.Sessions;
-        using Lakona.Rpc.Core;
-        {{serializerUsing}}
-        {{transportUsing}}
 
         return await LakonaGameServer.RunAsync(args, server => server
-            .UseTransport("{{transportValue}}")
-            .UseSerializer(() => {{serializerExpression}})
-            .UseAcceptor({{acceptorExpression}})
             .AddServices((services, configuration) =>
             {
                 services.AddLakonaGame(configuration);
@@ -226,41 +214,12 @@ internal sealed class ServerAppRenderer : IPlanContributor
         """;
     }
 
-    private static string RenderSerializerUsing(SerializerKind serializer) => serializer switch
-    {
-        SerializerKind.Json => "using Lakona.Rpc.Serializer.Json;",
-        SerializerKind.MemoryPack => "using Lakona.Rpc.Serializer.MemoryPack;",
-        _ => throw new ArgumentOutOfRangeException(nameof(serializer), serializer, null)
-    };
-
-    private static string RenderSerializerExpression(SerializerKind serializer) => serializer switch
-    {
-        SerializerKind.Json => "new JsonRpcSerializer()",
-        SerializerKind.MemoryPack => "new MemoryPackRpcSerializer()",
-        _ => throw new ArgumentOutOfRangeException(nameof(serializer), serializer, null)
-    };
-
-    private static string RenderTransportUsing(TransportKind transport) => transport switch
-    {
-        TransportKind.Tcp => "using Lakona.Rpc.Transport.Tcp;",
-        TransportKind.WebSocket => "using Lakona.Rpc.Transport.WebSocket;",
-        TransportKind.Kcp => "using Lakona.Rpc.Transport.Kcp;",
-        _ => throw new ArgumentOutOfRangeException(nameof(transport), transport, null)
-    };
-
-    private static string RenderAcceptorExpression(TransportKind transport) => transport switch
-    {
-        TransportKind.Tcp => "opts => Task.FromResult<IRpcConnectionAcceptor>(new TcpConnectionAcceptor(opts.Port, opts.Host))",
-        TransportKind.WebSocket => "async opts => await WsConnectionAcceptor.CreateAsync(opts.Port, opts.Path, opts.Host)",
-        TransportKind.Kcp => "opts => Task.FromResult<IRpcConnectionAcceptor>(new KcpConnectionAcceptor(opts.Port, opts.Host))",
-        _ => throw new ArgumentOutOfRangeException(nameof(transport), transport, null)
-    };
-
     private static string RenderAppSettings(LakonaProjectSpec spec)
     {
         var endpoint = new Dictionary<string, object?>
         {
             ["Transport"] = ToolEnumText.ToCliValue(spec.Transport),
+            ["Serializer"] = ToolEnumText.ToCliValue(spec.Serializer),
             ["Host"] = "127.0.0.1",
             ["Port"] = 20000,
             ["RpcServices"] = new[] { "login", "chat" }

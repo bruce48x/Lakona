@@ -55,6 +55,7 @@ All runtime configuration is under `Lakona`.
     "Endpoints": [
       {
         "Transport": "websocket",
+        "Serializer": "json",
         "Host": "0.0.0.0",
         "Port": 20000,
         "Path": "/ws",
@@ -193,6 +194,7 @@ Example:
 ```json
 {
   "Transport": "websocket",
+  "Serializer": "json",
   "Host": "0.0.0.0",
   "Port": 20000,
   "Path": "/ws",
@@ -680,6 +682,7 @@ Configuration:
     "Endpoints": [
       {
         "Transport": "websocket",
+        "Serializer": "json",
         "Host": "0.0.0.0",
         "Port": 20000,
         "Path": "/ws",
@@ -727,6 +730,7 @@ Configuration:
     "Endpoints": [
       {
         "Transport": "kcp",
+        "Serializer": "memorypack",
         "Host": "0.0.0.0",
         "Port": 20001,
         "AdvertisedHost": "battle.example.com",

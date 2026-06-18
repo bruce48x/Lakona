@@ -142,6 +142,32 @@ public sealed class LakonaGameRuntimeValidatorTests
         Assert.Contains(result.Diagnostics, d => d.Code == "ULINK021");
     }
 
+    [Fact]
+    public void EndpointRule_rejects_missing_serializer()
+    {
+        var runtime = TestRuntime() with
+        {
+            Endpoints = [TestEndpoint("kcp", "127.0.0.1", 20000, serializer: "")]
+        };
+
+        var result = Validate(runtime);
+
+        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK028");
+    }
+
+    [Fact]
+    public void EndpointRule_rejects_unknown_serializer()
+    {
+        var runtime = TestRuntime() with
+        {
+            Endpoints = [TestEndpoint("kcp", "127.0.0.1", 20000, serializer: "protobuf")]
+        };
+
+        var result = Validate(runtime);
+
+        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK028");
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(65536)]
@@ -320,12 +346,14 @@ public sealed class LakonaGameRuntimeValidatorTests
         string transport,
         string host,
         int port,
+        string serializer = "memorypack",
         string path = "",
         string advertisedHost = "",
         IReadOnlyList<string>? rpcServices = null)
     {
         return new LakonaGameResolvedEndpoint(
             Transport: new LakonaGameResolvedValue<string>(transport, LakonaGameValueSource.Configuration),
+            Serializer: new LakonaGameResolvedValue<string>(serializer, LakonaGameValueSource.Configuration),
             Host: new LakonaGameResolvedValue<string>(host, LakonaGameValueSource.Configuration),
             Port: new LakonaGameResolvedValue<int>(port, LakonaGameValueSource.Configuration),
             Path: new LakonaGameResolvedValue<string>(path, LakonaGameValueSource.Configuration),

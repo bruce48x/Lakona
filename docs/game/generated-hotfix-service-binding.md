@@ -74,14 +74,15 @@ framework-facing composition:
 
 ```csharp
 return await LakonaGameServer.RunAsync(args, server => server
-    .UseTransport("websocket")
-    .UseSerializer(() => new MemoryPackRpcSerializer())
-    .UseAcceptor(async opts => await WsConnectionAcceptor.CreateAsync(
-        opts.Port,
-        opts.Path,
-        opts.Host))
+    .AddServices((services, configuration) =>
+    {
+        services.AddLakonaGame(configuration);
+    })
     .UseGeneratedHotfixServices());
 ```
+
+Transport and serializer selection live in `Lakona:Endpoints[]`; generated
+`Program.cs` must not hand-write transport, serializer, or acceptor wiring.
 
 When a user adds a new shared `[RpcService]` interface and implements a matching
 hotfix `[HotfixService]`, no stable proxy file, binding configurator, endpoint

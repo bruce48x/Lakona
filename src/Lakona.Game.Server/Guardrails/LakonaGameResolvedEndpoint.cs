@@ -2,6 +2,7 @@ namespace Lakona.Game.Server.Guardrails;
 
 public sealed record LakonaGameResolvedEndpoint(
     LakonaGameResolvedValue<string> Transport,
+    LakonaGameResolvedValue<string> Serializer,
     LakonaGameResolvedValue<string> Host,
     LakonaGameResolvedValue<int> Port,
     LakonaGameResolvedValue<string> Path,

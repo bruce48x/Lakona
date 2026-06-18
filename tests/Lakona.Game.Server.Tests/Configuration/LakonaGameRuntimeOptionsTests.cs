@@ -15,6 +15,7 @@ public sealed class LakonaGameRuntimeOptionsTests
             ["Lakona:Node:Id"] = "gateway-1",
             ["Lakona.Game:Node:Id"] = "legacy",
             ["Lakona:Endpoints:0:Transport"] = "websocket",
+            ["Lakona:Endpoints:0:Serializer"] = "json",
             ["Lakona:Endpoints:0:Host"] = "0.0.0.0",
             ["Lakona:Endpoints:0:Port"] = "20000",
             ["Lakona:Endpoints:0:Path"] = "/ws",
@@ -29,6 +30,7 @@ public sealed class LakonaGameRuntimeOptionsTests
         Assert.Equal("gateway-1", options.Node.Id);
         var endpoint = Assert.Single(options.Endpoints);
         Assert.Equal("websocket", endpoint.Transport);
+        Assert.Equal("json", endpoint.Serializer);
         Assert.Equal(["login", "player"], endpoint.RpcServices);
         Assert.Equal("tcp://10.0.0.2:21002", options.Cluster!.Endpoint);
     }
@@ -151,10 +153,12 @@ public sealed class LakonaGameRuntimeOptionsTests
         {
             ["Lakona:Node:Id"] = "game-c",
             ["Lakona:Endpoints:0:Transport"] = "websocket",
+            ["Lakona:Endpoints:0:Serializer"] = "json",
             ["Lakona:Endpoints:0:Host"] = "0.0.0.0",
             ["Lakona:Endpoints:0:Port"] = "20000",
             ["Lakona:Endpoints:0:Path"] = "/ws",
             ["Lakona:Endpoints:1:Transport"] = "kcp",
+            ["Lakona:Endpoints:1:Serializer"] = "memorypack",
             ["Lakona:Endpoints:1:Host"] = "0.0.0.0",
             ["Lakona:Endpoints:1:Port"] = "20001",
             ["Lakona:Feature:0"] = "battle",
@@ -171,6 +175,7 @@ public sealed class LakonaGameRuntimeOptionsTests
             endpoint =>
             {
                 Assert.Equal("websocket", endpoint.Transport);
+                Assert.Equal("json", endpoint.Serializer);
                 Assert.Equal("0.0.0.0", endpoint.Host);
                 Assert.Equal(20000, endpoint.Port);
                 Assert.Equal("/ws", endpoint.Path);
@@ -178,6 +183,7 @@ public sealed class LakonaGameRuntimeOptionsTests
             endpoint =>
             {
                 Assert.Equal("kcp", endpoint.Transport);
+                Assert.Equal("memorypack", endpoint.Serializer);
                 Assert.Equal("0.0.0.0", endpoint.Host);
                 Assert.Equal(20001, endpoint.Port);
                 Assert.Equal("", endpoint.Path);

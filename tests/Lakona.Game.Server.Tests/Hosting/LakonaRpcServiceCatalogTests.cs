@@ -1,6 +1,5 @@
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Configuration;
-using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -43,6 +42,7 @@ public sealed class LakonaRpcServiceCatalogTests
         var endpoint = new LakonaGameEndpointOptions
         {
             Transport = "websocket",
+            Serializer = "json",
             RpcServices = ["login"]
         };
         var catalog = LakonaRpcServiceCatalog.FromTypes([typeof(LoginBinder), typeof(RoomBinder)]);
@@ -58,6 +58,7 @@ public sealed class LakonaRpcServiceCatalogTests
         var endpoint = new LakonaGameEndpointOptions
         {
             Transport = "websocket",
+            Serializer = "json",
             RpcServices = ["missing"]
         };
         var catalog = LakonaRpcServiceCatalog.FromTypes([typeof(LoginBinder)]);
@@ -73,6 +74,7 @@ public sealed class LakonaRpcServiceCatalogTests
         var endpoint = new LakonaGameEndpointOptions
         {
             Transport = "websocket",
+            Serializer = "json",
             RpcServices = ["login", "LOGIN"]
         };
         var catalog = LakonaRpcServiceCatalog.FromTypes([typeof(LoginBinder)]);
@@ -110,9 +112,7 @@ public sealed class LakonaRpcServiceCatalogTests
             [],
             CancellationToken.None);
         var configurator = new LakonaEndpointRpcServerConfigurator(
-            endpoint,
-            static () => new NoopSerializer(),
-            static _ => throw new InvalidOperationException("Acceptor factory should not run during configuration."));
+            endpoint);
 
         configurator.Configure(context);
     }
@@ -148,14 +148,5 @@ public sealed class LakonaRpcServiceCatalogTests
         public override void Bind(LakonaGameServerRpcContext context)
         {
         }
-    }
-
-    private sealed class NoopSerializer : IRpcSerializer
-    {
-        public TransportFrame SerializeFrame<T>(T value) => TransportFrame.Empty;
-
-        public T Deserialize<T>(ReadOnlySpan<byte> data) => throw new NotSupportedException();
-
-        public T Deserialize<T>(ReadOnlyMemory<byte> data) => throw new NotSupportedException();
     }
 }

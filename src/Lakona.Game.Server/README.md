@@ -13,56 +13,52 @@ hosts game-side services.
 dotnet add package Lakona.Game.Server
 ```
 
-## Register Services
+## Run A Game Server
 
 ```csharp
-using Lakona.Game.Server;
+using Microsoft.Extensions.DependencyInjection;
+using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Hosting;
-using Microsoft.Extensions.Hosting;
 
-var builder = Host.CreateApplicationBuilder(args);
-
-builder.Services.AddLakonaGameServer();
-builder.Services.AddRpcServer<ClientRpcServerConfigurator>();
-builder.Services.AddLakonaGameServerGateway();
-
-await builder.Build().RunAsync();
+return await LakonaGameServer.RunAsync(args, server => server
+    .AddServices((services, configuration) =>
+    {
+        services.AddLakonaGame(configuration);
+    })
+    .UseGeneratedHotfixServices());
 ```
 
-`AddLakonaGameServer()` registers the default in-memory session services,
-reliable push services, actor runtime, health checks, and runtime validation
-services. Replace the default stores when sessions or pending push records must
-survive process restarts.
+`LakonaGameServer.RunAsync()` registers the default in-memory session services,
+reliable push services, actor runtime, health checks, runtime validation,
+hotfix loading, and RPC listeners derived from `Lakona:Endpoints[]`. Replace the
+default stores when sessions or pending push records must survive process
+restarts.
 
-## Host RPC
+Configure client-facing endpoints in `appsettings.json`:
 
-Implement `IRpcServerConfigurator` to choose the serializer, transport, and
-generated service binder for each hosted endpoint.
-
-```csharp
-using Lakona.Game.Server.Hosting;
-using Lakona.Rpc.Serializer.MemoryPack;
-using Lakona.Rpc.Transport.WebSocket;
-using Microsoft.Extensions.DependencyInjection;
-
-public sealed class ClientRpcServerConfigurator : IRpcServerConfigurator
+```json
 {
-    public string Name => "websocket";
-
-    public void Configure(LakonaGameServerRpcContext context)
-    {
-        context.Builder
-            .UseSerializer(new MemoryPackRpcSerializer())
-            .UseAcceptor(ct => WsConnectionAcceptor.CreateAsync(20000, "/ws", ct));
-
-        PlayerServiceBinder.Bind(
-            context.Builder.ServiceRegistry,
-            callback => ActivatorUtilities.CreateInstance<PlayerService>(context.Services, callback));
-    }
+  "Lakona": {
+    "Node": {
+      "Id": "dev-1"
+    },
+    "Endpoints": [
+      {
+        "Transport": "websocket",
+        "Serializer": "memorypack",
+        "Host": "127.0.0.1",
+        "Port": 20000,
+        "Path": "/ws",
+        "RpcServices": [ "login", "player" ]
+      }
+    ]
+  }
 }
 ```
 
-Register another configurator when the process needs another endpoint.
+Transport, serializer, acceptor, and generated service binding are managed by
+the framework from endpoint configuration. Application `Program.cs` should not
+hand-write transport or serializer constructors.
 
 ## Use Actors
 

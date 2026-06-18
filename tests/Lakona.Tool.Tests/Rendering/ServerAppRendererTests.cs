@@ -30,20 +30,22 @@ public sealed class ServerAppRendererTests
         Assert.Contains("<CompilerVisibleProperty Include=\"LakonaRpcGenerateServer\" />", project, StringComparison.Ordinal);
         Assert.Contains("<CompilerVisibleProperty Include=\"LakonaRpcServerGeneratedNamespace\" />", project, StringComparison.Ordinal);
         Assert.Contains("<PackageReference Include=\"Lakona.Game.Server\"", project, StringComparison.Ordinal);
-        Assert.Contains("<PackageReference Include=\"Lakona.Rpc.Transport.Kcp\"", project, StringComparison.Ordinal);
+        Assert.DoesNotContain("<PackageReference Include=\"Lakona.Rpc.Transport.Kcp\"", project, StringComparison.Ordinal);
+        Assert.DoesNotContain("<PackageReference Include=\"Lakona.Rpc.Transport.WebSocket\"", project, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona.Rpc.Serializer.MemoryPack", project, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona.Rpc.Serializer.Json", project, StringComparison.Ordinal);
 
         var program = AssertPath(plan, "Server/App/Program.cs").Content;
         Assert.Contains("using Lakona.Game.Server.Hosting;", program, StringComparison.Ordinal);
         Assert.Contains("using Lakona.Game.Server.Sessions;", program, StringComparison.Ordinal);
         Assert.Contains("using Microsoft.Extensions.DependencyInjection;", program, StringComparison.Ordinal);
         Assert.Contains("using Server.App.Lifecycle;", program, StringComparison.Ordinal);
-        Assert.Contains("using Lakona.Rpc.Serializer.MemoryPack;", program, StringComparison.Ordinal);
-        Assert.Contains("using Lakona.Rpc.Transport.Kcp;", program, StringComparison.Ordinal);
         Assert.Contains("return await LakonaGameServer.RunAsync(args, server => server", program, StringComparison.Ordinal);
-        Assert.Contains(".UseTransport(\"kcp\")", program, StringComparison.Ordinal);
-        Assert.Contains(".UseSerializer(() => new MemoryPackRpcSerializer())", program, StringComparison.Ordinal);
-        Assert.Contains("new KcpConnectionAcceptor(opts.Port, opts.Host)", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona.Rpc.Serializer", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona.Rpc.Transport", program, StringComparison.Ordinal);
+        Assert.DoesNotContain(".UseTransport(", program, StringComparison.Ordinal);
+        Assert.DoesNotContain(".UseSerializer(", program, StringComparison.Ordinal);
+        Assert.DoesNotContain(".UseAcceptor(", program, StringComparison.Ordinal);
         Assert.Contains("services.AddSingleton<IGameSessionLifecycleHandler, ChatPresenceLifecycleHandler>();", program, StringComparison.Ordinal);
         Assert.Contains("services.AddLakonaGameServerSessionCleanup(options =>", program, StringComparison.Ordinal);
         Assert.Contains("options.DisconnectedSessionRetention = TimeSpan.FromSeconds(30);", program, StringComparison.Ordinal);
@@ -100,6 +102,7 @@ public sealed class ServerAppRendererTests
 
         var endpoint = document.RootElement.GetProperty("Lakona").GetProperty("Endpoints")[0];
         Assert.Equal("kcp", endpoint.GetProperty("Transport").GetString());
+        Assert.Equal("memorypack", endpoint.GetProperty("Serializer").GetString());
         Assert.Equal("127.0.0.1", endpoint.GetProperty("Host").GetString());
         Assert.Equal(20000, endpoint.GetProperty("Port").GetInt32());
         Assert.Equal(new[] { "login", "chat" }, endpoint.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
@@ -118,15 +121,16 @@ public sealed class ServerAppRendererTests
         using var document = JsonDocument.Parse(appsettings);
         var endpoint = document.RootElement.GetProperty("Lakona").GetProperty("Endpoints")[0];
         Assert.Equal("websocket", endpoint.GetProperty("Transport").GetString());
+        Assert.Equal("json", endpoint.GetProperty("Serializer").GetString());
         Assert.Equal("/ws", endpoint.GetProperty("Path").GetString());
         Assert.Equal(new[] { "login", "chat" }, endpoint.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
 
         var program = AssertPath(plan, "Server/App/Program.cs").Content;
-        Assert.Contains("using Lakona.Rpc.Serializer.Json;", program, StringComparison.Ordinal);
-        Assert.Contains("using Lakona.Rpc.Transport.WebSocket;", program, StringComparison.Ordinal);
-        Assert.Contains(".UseTransport(\"websocket\")", program, StringComparison.Ordinal);
-        Assert.Contains(".UseSerializer(() => new JsonRpcSerializer())", program, StringComparison.Ordinal);
-        Assert.Contains("WsConnectionAcceptor.CreateAsync(opts.Port, opts.Path, opts.Host)", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona.Rpc.Serializer", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona.Rpc.Transport", program, StringComparison.Ordinal);
+        Assert.DoesNotContain(".UseTransport(", program, StringComparison.Ordinal);
+        Assert.DoesNotContain(".UseSerializer(", program, StringComparison.Ordinal);
+        Assert.DoesNotContain(".UseAcceptor(", program, StringComparison.Ordinal);
     }
 
     [Fact]

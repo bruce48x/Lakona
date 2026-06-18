@@ -7,7 +7,7 @@ namespace Server.App.Services;
 
 internal sealed class GatewayNodeIdentity
 {
-    public GatewayNodeIdentity(IConfiguration configuration, ServerRpcServerOptions realtimeOptions)
+    public GatewayNodeIdentity(IConfiguration configuration, LakonaGameEndpointOptions realtimeOptions)
     {
         InstanceId = configuration["Lakona:Node:Id"]
             ?? configuration["Lakona.Game:Node:Id"]
@@ -23,7 +23,9 @@ internal sealed class GatewayNodeIdentity
             Transport = RealtimeTransportToString(realtimeOptions.Transport),
             Host = realtimeOptions.Host,
             Port = realtimeOptions.Port,
-            Path = realtimeOptions.Path
+            Path = string.IsNullOrWhiteSpace(realtimeOptions.Path)
+                ? realtimeOptions.GetDefaultPath()
+                : realtimeOptions.Path
         };
     }
 

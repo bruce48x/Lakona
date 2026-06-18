@@ -32,6 +32,7 @@ docs, and diagnostics must use `Lakona`.
     "Endpoints": [
       {
         "Transport": "kcp",
+        "Serializer": "memorypack",
         "Host": "127.0.0.1",
         "Port": 20000,
         "RpcServices": [ "login", "chat" ]
@@ -53,6 +54,7 @@ For WebSocket transport, include `Path`:
     "Endpoints": [
       {
         "Transport": "websocket",
+        "Serializer": "json",
         "Host": "0.0.0.0",
         "Port": 20000,
         "Path": "/ws",
@@ -105,7 +107,8 @@ They do not create session identities and they do not name endpoints.
 
 Rules:
 
-- `Transport`, `Host`, and `Port` are required for each endpoint.
+- `Transport`, `Serializer`, `Host`, and `Port` are required for each endpoint.
+- Supported serializers are `json` and `memorypack`.
 - WebSocket endpoints require `Path`.
 - KCP endpoints must not set `Path`.
 - A process cannot configure duplicate transports.
@@ -152,7 +155,7 @@ configuration should fail before listeners begin accepting traffic.
 Validation covers:
 
 - node identity;
-- endpoint shape, duplicate transports, and transport-specific rules;
+- endpoint shape, serializer selection, duplicate transports, and transport-specific rules;
 - endpoint-local `RpcServices`;
 - feature names, duplicates, and dependency/order constraints;
 - cluster endpoint and seed shape when cluster is configured.
@@ -173,7 +176,7 @@ fix: set Lakona:Endpoints:0:Path to a path such as /ws
 `Lakona.Tool` generated projects should emit:
 
 - `Lakona:Node`;
-- `Lakona:Endpoints[]` with endpoint-local `RpcServices`;
+- `Lakona:Endpoints[]` with endpoint-local `Serializer` and `RpcServices`;
 - optional `Lakona:Feature` only when the generated project is intentionally
   split;
 - optional `Lakona:Cluster` only when the selected template participates in

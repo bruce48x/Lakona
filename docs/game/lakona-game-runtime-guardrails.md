@@ -383,6 +383,7 @@ Default generated configuration should remain compact:
     "Endpoints": [
       {
         "Transport": "kcp",
+        "Serializer": "memorypack",
         "Host": "127.0.0.1",
         "Port": 20000,
         "RpcServices": [ "login", "chat" ]
@@ -415,6 +416,7 @@ Advanced configuration should still use user-facing Lakona concepts:
     "Endpoints": [
       {
         "Transport": "websocket",
+        "Serializer": "json",
         "Host": "0.0.0.0",
         "Port": 20000,
         "Path": "/ws",
@@ -423,6 +425,7 @@ Advanced configuration should still use user-facing Lakona concepts:
       },
       {
         "Transport": "kcp",
+        "Serializer": "memorypack",
         "Host": "0.0.0.0",
         "Port": 20001,
         "AdvertisedHost": "game.example.com",

@@ -31,8 +31,8 @@ public sealed class DependencyPlannerTests
         AssertPackage(references, "Lakona.Game.Server.Hotfix");
         AssertPackage(references, "Lakona.Game.Server.Hotfix.Generators", privateAssets: "all", outputItemType: "Analyzer");
         AssertPackage(references, "Lakona.Rpc.Server");
-        AssertPackage(references, "Lakona.Rpc.Transport.WebSocket");
-        AssertPackage(references, "Lakona.Rpc.Serializer.Json");
+        Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Rpc.Transport.WebSocket");
+        Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Rpc.Serializer.Json");
         AssertPackage(references, "Lakona.Game.Cluster");
         AssertPackage(references, "Lakona.Game.Cluster.Rpc");
         AssertPackage(references, "Dapper");

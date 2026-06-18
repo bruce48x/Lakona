@@ -592,6 +592,7 @@ Generated `Server/App/appsettings.json` contains only compact source values:
     "Endpoints": [
       {
         "Transport": "kcp",
+        "Serializer": "memorypack",
         "Host": "127.0.0.1",
         "Port": 20000,
         "RpcServices": [ "login", "chat" ]
@@ -610,7 +611,8 @@ use `Lakona:Feature` to select discovered `LakonaGameFeature` types by their
 conventional names.
 
 RPC service exposure is endpoint-local. Put generated service names in the
-endpoint's `RpcServices` array; do not generate endpoint `Name` or
+endpoint's `RpcServices` array and generated serializer names in endpoint
+`Serializer`; do not generate endpoint `Name` or
 `Lakona:Cluster:Services`.
 
 Do not generate these keys:

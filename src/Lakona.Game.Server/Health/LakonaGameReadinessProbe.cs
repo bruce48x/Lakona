@@ -133,6 +133,7 @@ public static class LakonaGameReadinessProbe
             Endpoints: runtime.Endpoints.Select((endpoint, endpointIndex) =>
                 new LakonaGameResolvedEndpoint(
                     Transport: new LakonaGameResolvedValue<string>(endpoint.Transport, LakonaGameValueSource.Configuration, $"Lakona:Endpoints:{endpointIndex}:Transport"),
+                    Serializer: new LakonaGameResolvedValue<string>(endpoint.Serializer, LakonaGameValueSource.Configuration, $"Lakona:Endpoints:{endpointIndex}:Serializer"),
                     Host: new LakonaGameResolvedValue<string>(endpoint.Host, LakonaGameValueSource.Configuration, $"Lakona:Endpoints:{endpointIndex}:Host"),
                     Port: new LakonaGameResolvedValue<int>(endpoint.Port, LakonaGameValueSource.Configuration, $"Lakona:Endpoints:{endpointIndex}:Port"),
                     Path: new LakonaGameResolvedValue<string>(endpoint.Path, LakonaGameValueSource.Configuration, $"Lakona:Endpoints:{endpointIndex}:Path"),
