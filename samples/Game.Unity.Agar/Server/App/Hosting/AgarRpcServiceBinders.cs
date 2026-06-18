@@ -16,15 +16,6 @@ internal sealed class LoginRpcServiceBinder : LakonaRpcServiceBinder
     }
 }
 
-[LakonaRpcService("player")]
-internal sealed class PlayerRpcServiceBinder : LakonaRpcServiceBinder
-{
-    public override void Bind(LakonaGameServerRpcContext context)
-    {
-        PlayerRpcServiceBinding.Bind(context);
-    }
-}
-
 [LakonaRpcService("battle")]
 internal sealed class BattleRpcServiceBinder : LakonaRpcServiceBinder
 {
