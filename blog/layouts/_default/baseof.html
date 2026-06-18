@@ -47,6 +47,53 @@
       document.querySelectorAll('.feature-card, .guide-card, .code-window').forEach(el => {
         observer.observe(el);
       });
+
+      // Copy buttons for shell command blocks.
+      async function copyText(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          return;
+        }
+
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+
+      document.querySelectorAll('.command-card pre code, .engine-card pre code').forEach(code => {
+        const block = code.closest('.command-card, .engine-card');
+        if (!block || block.querySelector('.copy-button')) {
+          return;
+        }
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'copy-button';
+        button.textContent = 'Copy';
+        button.setAttribute('aria-label', 'Copy command');
+
+        button.addEventListener('click', async () => {
+          const original = button.textContent;
+          try {
+            await copyText(code.textContent.trim());
+            button.textContent = 'Copied';
+          } catch {
+            button.textContent = 'Failed';
+          }
+
+          window.setTimeout(() => {
+            button.textContent = original;
+          }, 1400);
+        });
+
+        block.appendChild(button);
+      });
     </script>
   </body>
 </html>

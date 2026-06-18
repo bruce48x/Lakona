@@ -374,8 +374,10 @@ a:hover {
 
 .guides-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+  max-width: 760px;
+  margin: 0 auto;
 }
 
 .guide-card {
@@ -506,8 +508,244 @@ a:hover {
   margin-bottom: 12px;
 }
 
+.article .content ul,
+.article .content ol {
+  margin: 0 0 16px 22px;
+}
+
+.article .content li {
+  margin-bottom: 8px;
+}
+
 .article .content strong {
   color: var(--accent-light);
+}
+
+.article .content code {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.9em;
+  color: var(--accent-light);
+}
+
+.article .content pre {
+  background: #050504;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  margin: 16px 0;
+  overflow-x: auto;
+}
+
+.article .content pre code {
+  color: var(--ink);
+}
+
+/* -- Rich Article Components -------------------------------------- */
+.article-hero-panel,
+.workspace-map {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  gap: 24px;
+  align-items: center;
+  background: linear-gradient(135deg, rgba(214, 169, 58, 0.14), rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin: 8px 0 28px;
+}
+
+.article-kicker,
+.command-label {
+  color: var(--muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  margin-bottom: 8px;
+}
+
+.article-hero-copy {
+  font-size: 1.2rem;
+  line-height: 1.55;
+  color: var(--ink);
+  max-width: 34rem;
+}
+
+.mini-tree,
+.file-tree,
+.command-card pre,
+.engine-card pre {
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+
+.mini-tree {
+  display: grid;
+  gap: 6px;
+  background: rgba(5, 5, 4, 0.72);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 18px;
+  color: var(--accent-light);
+  font-size: 0.86rem;
+}
+
+.mini-tree .indent {
+  padding-left: 18px;
+  color: var(--ink);
+}
+
+.mini-tree em {
+  color: var(--muted);
+  font-style: normal;
+}
+
+.journey-steps,
+.requirement-grid,
+.engine-grid,
+.edit-grid,
+.outcome-grid {
+  display: grid;
+  gap: 14px;
+  margin: 20px 0 28px;
+}
+
+.journey-steps {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.requirement-grid,
+.engine-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.edit-grid,
+.outcome-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.journey-step,
+.requirement-card,
+.engine-card,
+.edit-grid > div,
+.outcome-grid > div,
+.command-card,
+.notice-card {
+  background: rgba(20, 18, 14, 0.82);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.journey-step,
+.requirement-card,
+.engine-card,
+.edit-grid > div,
+.outcome-grid > div {
+  padding: 18px;
+}
+
+.journey-step h3,
+.requirement-card h3,
+.engine-card h3,
+.outcome-grid h3 {
+  color: var(--accent-light);
+  font-size: 1rem;
+  margin-bottom: 6px;
+}
+
+.journey-step p,
+.requirement-card p,
+.engine-card p,
+.edit-grid p,
+.outcome-grid p,
+.notice-card p {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  margin-bottom: 0;
+}
+
+.step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-bottom: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #171107;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.command-card {
+  position: relative;
+  padding: 14px 16px 16px;
+  margin: 14px 0 20px;
+}
+
+.engine-card {
+  position: relative;
+}
+
+.command-card.primary-command {
+  border-color: var(--border);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.24);
+}
+
+.article .content .command-card pre,
+.article .content .engine-card pre,
+.article .content .file-tree {
+  margin: 0;
+  background: #050504;
+  border: 1px solid var(--border-subtle);
+}
+
+.article .content .command-card pre {
+  padding: 14px;
+}
+
+.copy-button {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  min-width: 64px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(5, 5, 4, 0.84);
+  color: var(--accent-light);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.copy-button:hover {
+  background: rgba(214, 169, 58, 0.16);
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.engine-card pre,
+.file-tree {
+  margin-top: 14px;
+  font-size: 0.78rem;
+  line-height: 1.65;
+}
+
+.notice-card {
+  border-color: rgba(214, 169, 58, 0.32);
+  padding: 14px;
+  margin-top: 14px;
+}
+
+.notice-card strong,
+.edit-grid strong {
+  color: var(--accent-light);
+}
+
+.workspace-map {
+  grid-template-columns: minmax(0, 0.8fr) minmax(340px, 1.2fr);
 }
 
 /* -- Keyframe Animations ------------------------------------------ */
@@ -550,6 +788,16 @@ a:hover {
   }
 
   .guides-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .article-hero-panel,
+  .workspace-map,
+  .journey-steps,
+  .requirement-grid,
+  .engine-grid,
+  .edit-grid,
+  .outcome-grid {
     grid-template-columns: 1fr;
   }
 

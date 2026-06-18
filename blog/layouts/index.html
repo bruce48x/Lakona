@@ -23,10 +23,10 @@
 
   <div style="position:relative;z-index:1">
     <p class="eyebrow">Lakona</p>
-    <h1>C# Networking<br>That Ships</h1>
+    <h1>Build realtime C# game servers<br>share code with Unity and Godot clients</h1>
     <p class="lead">{{ .Site.Params.description }}</p>
     <div class="hero-actions">
-      <a class="button primary" href="{{ .Site.Params.repo }}">Get Started</a>
+      <a class="button primary" href="{{ "getting-started/" | relURL }}">Get Started</a>
       <a class="button" href="{{ .Site.Params.repo }}" target="_blank" rel="noopener">View on GitHub</a>
     </div>
   </div>
@@ -36,27 +36,27 @@
 <section class="features">
   <div class="wrap">
     <p class="section-label">Why Lakona</p>
-    <h2 class="section-title">Built for multiplayer games</h2>
+    <h2 class="section-title">Built for live multiplayer games</h2>
     <div class="features-grid">
       <div class="feature-card">
         <span class="feature-icon">📡</span>
-        <h3>Typed RPC</h3>
-        <p>Share C# contracts between server and client. Bidirectional communication over one connection.</p>
+        <h3>No protocol drift</h3>
+        <p>Server and Unity/Godot clients compile the same C# RPC contracts, DTOs, and stable state types.</p>
       </div>
       <div class="feature-card">
         <span class="feature-icon">🎮</span>
-        <h3>Game Server</h3>
-        <p>Actor-based framework with hot-reloadable game logic, session management, and reliable push.</p>
+        <h3>Hot-update live logic</h3>
+        <p>Reload C# gameplay behavior while long-lived player, room, and match state stays alive.</p>
       </div>
       <div class="feature-card">
         <span class="feature-icon">🔌</span>
-        <h3>Multi-Engine</h3>
-        <p>First-class support for Unity, Godot, and standalone .NET. One codebase, every platform.</p>
+        <h3>Actor-owned state</h3>
+        <p>Rooms, players, lobbies, and matches process messages sequentially instead of fighting shared locks.</p>
       </div>
       <div class="feature-card">
         <span class="feature-icon">⚡</span>
-        <h3>Performance</h3>
-        <p>TCP, WebSocket, and KCP transports. Zero-allocation serialization. Built for production load.</p>
+        <h3>Scale deliberately</h3>
+        <p>Run everything in one process during development, then split nodes and route actors explicitly in production.</p>
       </div>
     </div>
   </div>
@@ -66,24 +66,23 @@
 <section class="code-showcase">
   <div class="wrap">
     <p class="section-label">Show, Don't Tell</p>
-    <h2 class="section-title">Define once. Use everywhere.</h2>
+    <h2 class="section-title">Reload rules. Keep state alive.</h2>
     <div class="code-window">
       <div class="code-chrome">
         <span class="dot dot-red"></span>
         <span class="dot dot-yel"></span>
         <span class="dot dot-grn"></span>
-        <span class="filename">IGameService.cs</span>
+        <span class="filename">GameRulesSystem.cs</span>
       </div>
       <div class="code-body">
-        <span class="c">// Shared contract — server and client both reference this</span><br>
-        <span class="na">[RpcService]</span><br>
-        <span class="k">public interface</span> <span class="nc">IGameService</span><br>
+        <span class="c">// Server-only C# logic that can reload while state remains owned by the runtime</span><br>
+        <span class="na">[HotfixSystemOf(typeof(GameRulesState))]</span><br>
+        <span class="k">public static class</span> <span class="nc">GameRulesSystem</span><br>
         {<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;<span class="kt">Task</span>&lt;<span class="nc">LoginResult</span>&gt; <span class="nf">Login</span>(<span class="kt">string</span> token);<br>
-        <br>
-        &nbsp;&nbsp;&nbsp;&nbsp;<span class="kt">Task</span>&lt;<span class="nc">PlayerData</span>&gt; <span class="nf">GetPlayerData</span>();<br>
-        <br>
-        &nbsp;&nbsp;&nbsp;&nbsp;<span class="kt">Task</span> <span class="nf">SendChatMessage</span>(<span class="nc">ChatMsg</span> msg);<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="k">public static</span> <span class="nc">GameRuleResult</span> <span class="nf">Evaluate</span>(<span class="k">this</span> <span class="nc">GameRulesState</span> self, <span class="nc">GameRuleInput</span> input)<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;{<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">return</span> self.<span class="nf">EvaluateStable</span>(input);<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;}<br>
         }<span class="code-cursor"></span>
       </div>
     </div>
@@ -96,22 +95,16 @@
     <p class="section-label">Documentation</p>
     <h2 class="section-title">Start building in minutes</h2>
     <div class="guides-grid">
-      <a class="guide-card" href="{{ .Site.Params.repo }}#readme" target="_blank" rel="noopener">
+      <a class="guide-card" href="{{ "getting-started/" | relURL }}">
         <span class="guide-icon">📖</span>
-        <h3>Quick Start</h3>
-        <p>Scaffold a project and go from zero to running in under five minutes.</p>
-        <span class="arrow">Read the guide →</span>
-      </a>
-      <a class="guide-card" href="{{ .Site.Params.repo }}" target="_blank" rel="noopener">
-        <span class="guide-icon">🚀</span>
-        <h3>Deploy to Linux</h3>
-        <p>Production-ready deployment guide for multi-machine game server clusters.</p>
+        <h3>Create and run a project</h3>
+        <p>Install the CLI, generate a Unity or Godot starter, validate it, and start the server.</p>
         <span class="arrow">Read the guide →</span>
       </a>
       <a class="guide-card" href="{{ .Site.Params.repo }}" target="_blank" rel="noopener">
         <span class="guide-icon">⚡</span>
-        <h3>Performance Tuning</h3>
-        <p>Transport selection, serialization options, and throughput optimization.</p>
+        <h3>Read the architecture</h3>
+        <p>Understand sessions, reliable push, hotfix, actors, cluster routing, and runtime guardrails.</p>
         <span class="arrow">Read the guide →</span>
       </a>
     </div>

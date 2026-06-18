@@ -3,8 +3,8 @@ languageCode = "en-us"
 title = "Lakona"
 
 [params]
-description = "C# networking infrastructure for online multiplayer games. Strongly-typed RPC and game server framework for Unity, Godot, and .NET."
-repo = "https://github.com/bruce48x/lakona"
+description = "A C# full-stack game server framework for shared client/server contracts, typed RPC, actor-owned state, reliable push, and live logic updates."
+repo = "https://github.com/bruce48x/Lakona"
 
 [markup]
   [markup.highlight]

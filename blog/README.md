@@ -1,6 +1,6 @@
 # Lakona Docs
 
-Hugo site for Lakona documentation — covers Lakona.Rpc and Lakona.Game.
+Hugo site for Lakona.
 
 ## Structure
 
@@ -9,7 +9,7 @@ Hugo site for Lakona documentation — covers Lakona.Rpc and Lakona.Game.
 Canonical pages that package READMEs and root docs should link to instead
 of duplicating long explanations:
 
-- [Getting Started](content/posts/lakona-rpc-getting-started.md)
+- [Getting Started](content/getting-started.md)
 - [Design boundary](content/posts/design-boundary.md)
 
 ## Local Usage
@@ -30,6 +30,6 @@ hugo
 
 The site is deployed from the repository `blog/` directory through GitHub Pages:
 
-- `https://bruce48x.github.io/lakona/`
+- `https://bruce48x.github.io/Lakona/`
 
 If the deployment target changes, update `baseURL` in `blog/hugo.toml`.
