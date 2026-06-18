@@ -39,7 +39,8 @@ public sealed class ActorSystemTests
     public void Call_requires_distinct_queue_and_response_timeouts()
     {
         System.Reflection.MethodInfo call = Assert.Single(
-            typeof(ActorRef<object>).GetMethods().Where(static method => method.Name == nameof(ActorRef<object>.Call)));
+            typeof(ActorRef<object>).GetMethods(),
+            static method => method.Name == nameof(ActorRef<object>.Call));
 
         Type[] parameterTypes = call.GetParameters().Select(static parameter => parameter.ParameterType).ToArray();
 
@@ -650,16 +651,18 @@ public sealed class ActorSystemTests
     {
         Assert.False(typeof(IDisposable).IsAssignableFrom(typeof(ActorSystem)));
         Assert.True(typeof(IAsyncDisposable).IsAssignableFrom(typeof(ActorSystem)));
-        Assert.Empty(typeof(ActorSystem).GetMethods().Where(static method => method.Name == "Spawn"));
+        Assert.DoesNotContain(
+            typeof(ActorSystem).GetMethods(),
+            static method => method.Name == "Spawn");
 
         System.Reflection.MethodInfo spawnAsync = Assert.Single(
-            typeof(ActorSystem).GetMethods()
-                .Where(static method =>
-                    method.Name == "SpawnAsync" &&
-                    method.IsPublic &&
-                    method.IsGenericMethodDefinition &&
-                    method.GetParameters().Length == 2 &&
-                    method.GetParameters()[0].ParameterType.Name == "IActor`1"));
+            typeof(ActorSystem).GetMethods(),
+            static method =>
+                method.Name == "SpawnAsync" &&
+                method.IsPublic &&
+                method.IsGenericMethodDefinition &&
+                method.GetParameters().Length == 2 &&
+                method.GetParameters()[0].ParameterType.Name == "IActor`1");
 
         Type returnType = spawnAsync.ReturnType;
         Assert.Equal("ValueTask`1", returnType.Name);

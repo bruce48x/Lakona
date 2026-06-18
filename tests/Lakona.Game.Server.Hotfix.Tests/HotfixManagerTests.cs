@@ -372,10 +372,11 @@ public sealed class HotfixManagerTests
                 && method.GetParameters()[0].ParameterType == typeof(int))
             .MakeGenericMethod(contractType, requestType, replyType);
         var task = invoke.Invoke(HotfixDispatch.Current, [7, request])!;
-        var reply = await ((ValueTask<object>)typeof(HotfixManagerTests)
+        var reply = await ((ValueTask<object?>)typeof(HotfixManagerTests)
             .GetMethod(nameof(AwaitValueTaskAsync), BindingFlags.NonPublic | BindingFlags.Static)!
             .MakeGenericMethod(replyType)
             .Invoke(null, [task])!);
+        Assert.NotNull(reply);
         var value = (int)replyType.GetProperty("Value")!.GetValue(reply)!;
         Assert.Equal(42, value);
     }
@@ -1015,7 +1016,7 @@ public sealed class HotfixManagerTests
         }
     }
 
-    private static async ValueTask<object> AwaitValueTaskAsync<T>(object valueTask)
+    private static async ValueTask<object?> AwaitValueTaskAsync<T>(object valueTask)
     {
         return await (ValueTask<T>)valueTask!;
     }
