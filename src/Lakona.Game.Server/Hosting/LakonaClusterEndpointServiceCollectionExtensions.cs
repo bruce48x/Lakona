@@ -40,6 +40,7 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
                 directorySeed));
         }
 
+        services.TryAddSingleton<IClusterNodeDiscovery, ClusterNodeDiscovery>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IRpcServerConfigurator>(
             new LakonaClusterRpcServerConfigurator(runtimeOptions)));
         return services;
