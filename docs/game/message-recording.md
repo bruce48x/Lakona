@@ -4,11 +4,13 @@ Message recording captures every actor message dispatch with its result (success
 
 ## Architecture
 
-Recording happens **inside the actor dispatch pipeline** — in `ActorCell.DispatchAsync()`. When `IMessageLogStore` is registered in DI, every message is automatically recorded after processing:
+Recording happens inside the actor runtime dispatch pipeline. When
+`IMessageLogStore` is registered in DI, every message is automatically recorded
+after processing:
 
 ```
 TellAsync / AskAsync
-    └─ ActorCell.DispatchAsync()
+    └─ actor dispatch
          ├─ activate + execute callback
          ├─ if error: capture exception type
          └─ finally:

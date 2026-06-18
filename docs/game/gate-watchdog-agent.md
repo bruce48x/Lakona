@@ -87,7 +87,7 @@ public sealed class ClientCallback : ILakonaGameSessionCallback
         CancellationToken cancellationToken = default)
     {
         client.ApplySessionTerminationNotice(notice);
-        return ValueTask.CompletedTask;
+        return default;
     }
 }
 ```
