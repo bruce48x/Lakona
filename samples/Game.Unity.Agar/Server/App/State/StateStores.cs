@@ -11,6 +11,7 @@ using Agar.Sample.State.Users;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Lakona.Game.Server.Actors;
+using Server.App.Services;
 
 namespace Agar.Sample.State;
 
@@ -65,6 +66,7 @@ public static class SampleStateServiceCollectionExtensions
     public static IServiceCollection AddAgarSampleState(this IServiceCollection services)
     {
         services.AddLakonaGameServerActors();
+        services.TryAddSingleton<BattleRuntimeGatewayResolver>();
         services.TryAddSingleton<IUserStateStore, ActorUserStateStore>();
         services.TryAddSingleton<IPlayerSessionStateStore, ActorPlayerSessionStateStore>();
         services.TryAddSingleton<IMatchmakingStateStore, ActorMatchmakingStateStore>();

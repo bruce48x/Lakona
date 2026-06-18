@@ -18,7 +18,7 @@ internal sealed class GatewayMatchmakingCoordinator
     private readonly SessionDirectory _sessionDirectory;
     private readonly MatchmakingMonitor _matchmakingMonitor;
     private readonly RoomRuntimeHost _roomRuntimeHost;
-    private readonly GatewayNodeIdentity _gatewayNodeIdentity;
+    private readonly BattleRuntimeGatewayResolver _runtimeGateways;
     private readonly ReliableMatchmakingPublisher _reliableMatchmakingPublisher;
     private readonly ILogger<GatewayMatchmakingCoordinator> _logger;
 
@@ -29,7 +29,7 @@ internal sealed class GatewayMatchmakingCoordinator
         SessionDirectory sessionDirectory,
         MatchmakingMonitor matchmakingMonitor,
         RoomRuntimeHost roomRuntimeHost,
-        GatewayNodeIdentity gatewayNodeIdentity,
+        BattleRuntimeGatewayResolver runtimeGateways,
         ReliableMatchmakingPublisher reliableMatchmakingPublisher,
         ILogger<GatewayMatchmakingCoordinator> logger)
     {
@@ -39,7 +39,7 @@ internal sealed class GatewayMatchmakingCoordinator
         _sessionDirectory = sessionDirectory;
         _matchmakingMonitor = matchmakingMonitor;
         _roomRuntimeHost = roomRuntimeHost;
-        _gatewayNodeIdentity = gatewayNodeIdentity;
+        _runtimeGateways = runtimeGateways;
         _reliableMatchmakingPublisher = reliableMatchmakingPublisher;
         _logger = logger;
     }
@@ -166,7 +166,7 @@ internal sealed class GatewayMatchmakingCoordinator
             .GetSnapshotAsync(assignment.RoomId)
             .ConfigureAwait(false);
 
-        if (_gatewayNodeIdentity.IsRuntimeOwner(room.RuntimeGateway))
+        if (_runtimeGateways.IsLocalOwner(room.RuntimeGateway))
         {
             await _roomRuntimeHost.EnsureRoomReadyAsync(room).ConfigureAwait(false);
         }

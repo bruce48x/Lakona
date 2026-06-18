@@ -14,6 +14,8 @@ using Lakona.Rpc.Transport.Tcp;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Agar.Sample.State;
+using Agar.Sample.State.Contracts.Matchmaking;
+using Agar.Sample.State.Contracts.Sessions;
 using Server.App.Features;
 using Server.App.Hosting;
 using System.Net;
@@ -105,13 +107,13 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
-    public void GatewayNodeRegistersControlServicesWithoutKcpEndpoint()
+    public async Task GatewayNodeRegistersControlServicesWithoutKcpEndpoint()
     {
         var services = BuildProgramServices("appsettings.gateway-1.json");
 
         Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(AgarDatabaseOptions));
 
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
         provider.GetRequiredService(RequiredServerAppType("Server.App.Services.SessionDirectory"));
         provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
         provider.GetRequiredService(RequiredServerAppType("Server.App.Services.ReliableMatchmakingPublisher"));
@@ -124,11 +126,11 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
-    public void BattleNodeRegistersRuntimeServicesWithoutControlCoordinator()
+    public async Task BattleNodeRegistersRuntimeServicesWithoutControlCoordinator()
     {
         var services = BuildProgramServices("appsettings.battle-1.json");
 
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
         provider.GetRequiredService(RequiredServerAppType("Server.App.Services.SessionDirectory"));
         provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
         provider.GetRequiredService(RequiredServerAppType("Server.App.Realtime.RoomRuntimeHost"));
@@ -140,6 +142,76 @@ public sealed class DistributedTopologyConfigurationTests
 
         Assert.Throws<InvalidOperationException>(() =>
             provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayMatchmakingCoordinator")));
+    }
+
+    [Fact]
+    public async Task MatchmakingSelectsBattleRuntimeEndpointInsteadOfControlGateway()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddLakonaGameServer();
+        services.AddAgarSampleState();
+        services.AddSingleton<INodeDirectory>(provider =>
+        {
+            var directory = new InMemoryNodeDirectory();
+            directory.RegisterAsync(
+                new NodeRegistration(
+                    "local",
+                    new NodeId("battle-1"),
+                    new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal)
+                    {
+                        ["kcp"] = new NodeEndpoint("kcp://battle-1:20001")
+                    },
+                    [new NodeFeatureDescriptor("battle-runtime")],
+                    DateTimeOffset.UtcNow.AddMinutes(1),
+                    NodeState.Ready),
+                DateTimeOffset.UtcNow,
+                CancellationToken.None).AsTask().GetAwaiter().GetResult();
+            return directory;
+        });
+        services.AddSingleton<IClusterNodeDiscovery, ClusterNodeDiscovery>();
+
+        await using var provider = services.BuildServiceProvider();
+        var users = provider.GetRequiredService<IUserStateStore>();
+        var sessions = provider.GetRequiredService<IPlayerSessionStateStore>();
+        var matchmaking = provider.GetRequiredService<IMatchmakingStateStore>();
+
+        MatchmakingEnqueueResult? result = null;
+        for (var i = 0; i < 10; i++)
+        {
+            var playerId = $"player-{i}";
+            var login = await users.LoginAsync(playerId, "pw", reconnect: false);
+
+            await sessions.AttachAsync(new PlayerSessionAttachRequest
+            {
+                UserId = login.UserId,
+                SessionToken = login.SessionToken,
+                ConnectionId = $"control-{i}",
+                AttachedAtUtc = DateTime.UtcNow,
+                ControlGateway = new Agar.Sample.State.Contracts.GatewayEndpointDescriptor
+                {
+                    InstanceId = "gateway-1",
+                    Transport = "websocket",
+                    Host = "gateway-1",
+                    Port = 20000,
+                    Path = "/ws"
+                }
+            });
+
+            result = await matchmaking.EnqueueAsync(new MatchmakingEnqueueRequest
+            {
+                UserId = login.UserId,
+                SessionToken = login.SessionToken,
+                EnqueuedAtUtc = DateTime.UtcNow
+            });
+        }
+
+        Assert.NotNull(result);
+        Assert.True(result.Matched);
+        Assert.Equal("battle-1", result.RoomAssignment.RuntimeGateway.InstanceId);
+        Assert.Equal("kcp", result.RoomAssignment.RuntimeGateway.Transport);
+        Assert.Equal("battle-1", result.RoomAssignment.RuntimeGateway.Host);
+        Assert.Equal(20001, result.RoomAssignment.RuntimeGateway.Port);
     }
 
     [Fact]

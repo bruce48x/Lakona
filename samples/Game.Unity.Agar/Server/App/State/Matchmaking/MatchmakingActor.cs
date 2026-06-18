@@ -3,6 +3,7 @@ using Agar.Sample.State.Contracts.Matchmaking;
 using Agar.Sample.State.Contracts.Rooms;
 using Agar.Sample.State.Contracts.Sessions;
 using Lakona.Game.Server.Actors;
+using Server.App.Services;
 
 namespace Agar.Sample.State.Matchmaking;
 
@@ -12,13 +13,18 @@ public sealed class MatchmakingActor : Actor
 
     private readonly IPlayerSessionStateStore _sessions;
     private readonly IRoomStateStore _rooms;
+    private readonly BattleRuntimeGatewayResolver _runtimeGateways;
     private bool _recordExists;
     private MatchmakingState _state = new();
 
-    public MatchmakingActor(IPlayerSessionStateStore sessions, IRoomStateStore rooms)
+    public MatchmakingActor(
+        IPlayerSessionStateStore sessions,
+        IRoomStateStore rooms,
+        BattleRuntimeGatewayResolver runtimeGateways)
     {
         _sessions = sessions;
         _rooms = rooms;
+        _runtimeGateways = runtimeGateways;
     }
 
     public async Task<MatchmakingEnqueueResult> EnqueueAsync(MatchmakingEnqueueRequest request)
@@ -417,24 +423,8 @@ public sealed class MatchmakingActor : Actor
 
     private async Task<GatewayEndpointDescriptor> ResolveRuntimeGatewayAsync(IReadOnlyList<MatchmakingQueueTicket> batch)
     {
-        foreach (var ticket in batch)
-        {
-            var snapshot = await _sessions.GetSnapshotAsync(ticket.UserId).ConfigureAwait(false);
-            if (HasValidGateway(snapshot.ControlGateway))
-            {
-                return CloneGateway(snapshot.ControlGateway);
-            }
-        }
-
-        return new GatewayEndpointDescriptor();
-    }
-
-    private static bool HasValidGateway(GatewayEndpointDescriptor? gateway)
-    {
-        return gateway is not null
-            && !string.IsNullOrWhiteSpace(gateway.InstanceId)
-            && !string.IsNullOrWhiteSpace(gateway.Host)
-            && gateway.Port > 0;
+        _ = batch;
+        return await _runtimeGateways.ResolveAsync().ConfigureAwait(false);
     }
 
     private static GatewayEndpointDescriptor CloneGateway(GatewayEndpointDescriptor? gateway)

@@ -17,7 +17,7 @@ internal sealed class MatchmakingMonitor
     private readonly IRoomStateStore _rooms;
     private readonly SessionDirectory _sessionDirectory;
     private readonly RoomRuntimeHost _roomRuntimeHost;
-    private readonly GatewayNodeIdentity _gatewayNodeIdentity;
+    private readonly BattleRuntimeGatewayResolver _runtimeGateways;
     private readonly ReliableMatchmakingPublisher _reliableMatchmakingPublisher;
     private readonly ILogger<MatchmakingMonitor> _logger;
 
@@ -27,7 +27,7 @@ internal sealed class MatchmakingMonitor
         IRoomStateStore rooms,
         SessionDirectory sessionDirectory,
         RoomRuntimeHost roomRuntimeHost,
-        GatewayNodeIdentity gatewayNodeIdentity,
+        BattleRuntimeGatewayResolver runtimeGateways,
         ReliableMatchmakingPublisher reliableMatchmakingPublisher,
         ILogger<MatchmakingMonitor> logger)
     {
@@ -36,7 +36,7 @@ internal sealed class MatchmakingMonitor
         _rooms = rooms;
         _sessionDirectory = sessionDirectory;
         _roomRuntimeHost = roomRuntimeHost;
-        _gatewayNodeIdentity = gatewayNodeIdentity;
+        _runtimeGateways = runtimeGateways;
         _reliableMatchmakingPublisher = reliableMatchmakingPublisher;
         _logger = logger;
     }
@@ -55,7 +55,7 @@ internal sealed class MatchmakingMonitor
                 _sessionDirectory.SetQueueTicket(playerId, null);
                 _sessionDirectory.AssignRoom(playerId, snapshot.CurrentRoomId, snapshot.CurrentMatchId, player?.SeatIndex ?? -1);
 
-                if (_gatewayNodeIdentity.IsRuntimeOwner(room.RuntimeGateway))
+                if (_runtimeGateways.IsLocalOwner(room.RuntimeGateway))
                 {
                     await _roomRuntimeHost.EnsureRoomReadyAsync(room).ConfigureAwait(false);
                 }
