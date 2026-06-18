@@ -102,7 +102,6 @@ internal sealed class ServerAppRenderer : IPlanContributor
     private static string RenderProgram(LakonaProjectSpec spec)
     {
         return $$"""
-        using System;
         using System.Threading.Tasks;
         using Microsoft.Extensions.DependencyInjection;
         using Server.App.Generated;
@@ -115,10 +114,6 @@ internal sealed class ServerAppRenderer : IPlanContributor
             .AddServices((services, configuration) =>
             {
                 services.AddLakonaGame(configuration);
-                services.AddLakonaGameServerSessionCleanup(options =>
-                {
-                    options.DisconnectedSessionRetention = TimeSpan.FromSeconds(30);
-                });
                 services.AddSingleton<IGameSessionLifecycleHandler, ChatPresenceLifecycleHandler>();
             })
             .UseGeneratedHotfixServices());
@@ -236,6 +231,13 @@ internal sealed class ServerAppRenderer : IPlanContributor
                 ["Node"] = new Dictionary<string, object?>
                 {
                     ["Id"] = "dev-1"
+                },
+                ["Sessions"] = new Dictionary<string, object?>
+                {
+                    ["Cleanup"] = new Dictionary<string, object?>
+                    {
+                        ["DisconnectedRetentionSeconds"] = 30
+                    }
                 },
                 ["Endpoints"] = new[] { endpoint }
             }

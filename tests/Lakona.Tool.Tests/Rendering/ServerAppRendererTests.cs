@@ -47,8 +47,8 @@ public sealed class ServerAppRendererTests
         Assert.DoesNotContain(".UseSerializer(", program, StringComparison.Ordinal);
         Assert.DoesNotContain(".UseAcceptor(", program, StringComparison.Ordinal);
         Assert.Contains("services.AddSingleton<IGameSessionLifecycleHandler, ChatPresenceLifecycleHandler>();", program, StringComparison.Ordinal);
-        Assert.Contains("services.AddLakonaGameServerSessionCleanup(options =>", program, StringComparison.Ordinal);
-        Assert.Contains("options.DisconnectedSessionRetention = TimeSpan.FromSeconds(30);", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("AddLakonaGameServerSessionCleanup", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("DisconnectedSessionRetention = TimeSpan", program, StringComparison.Ordinal);
         Assert.DoesNotContain(ForbiddenCleanupOption, program, StringComparison.Ordinal);
         Assert.Contains(".UseGeneratedHotfixServices());", program, StringComparison.Ordinal);
         Assert.DoesNotContain("RpcServerHostBuilder", program, StringComparison.Ordinal);
@@ -108,6 +108,12 @@ public sealed class ServerAppRendererTests
         Assert.Equal(new[] { "login", "chat" }, endpoint.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
         Assert.False(endpoint.TryGetProperty("Name", out _));
         Assert.False(endpoint.TryGetProperty("Path", out _));
+        var cleanup = document.RootElement
+            .GetProperty("Lakona")
+            .GetProperty("Sessions")
+            .GetProperty("Cleanup");
+        Assert.Equal(30, cleanup.GetProperty("DisconnectedRetentionSeconds").GetInt32());
+        Assert.False(cleanup.TryGetProperty("Enabled", out _));
         Assert.DoesNotContain("Enabled", appsettings, StringComparison.Ordinal);
         Assert.DoesNotContain("Bootstrap", appsettings, StringComparison.Ordinal);
     }
