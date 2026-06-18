@@ -1,5 +1,9 @@
+using Agar.Sample.State;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
+using Server.App.Realtime;
+using Server.App.Services;
 using Shared.Interfaces;
 
 namespace Server.Hotfix.Services;
@@ -10,7 +14,7 @@ public sealed class BattleService
     public async ValueTask<RealtimeAttachReply> AttachRealtimeAsync(HotfixServiceCall<RealtimeAttachRequest, IBattleCallback> call)
     {
         var req = call.Request;
-        var services = AgarServiceDependencies.From(call);
+        var services = AgarBattleServiceDependencies.From(call);
         if (string.IsNullOrWhiteSpace(req.PlayerId) ||
             string.IsNullOrWhiteSpace(req.Token) ||
             string.IsNullOrWhiteSpace(req.RoomId) ||
@@ -76,7 +80,7 @@ public sealed class BattleService
     public async ValueTask SubmitInputAsync(HotfixServiceCall<InputMessage, IBattleCallback> call)
     {
         var req = call.Request;
-        var services = AgarServiceDependencies.From(call);
+        var services = AgarBattleServiceDependencies.From(call);
         var playerId = services.SessionDirectory.GetPlayerIdByConnection(call.ConnectionId);
         if (string.IsNullOrWhiteSpace(playerId))
         {
@@ -102,5 +106,23 @@ public sealed class BattleService
         await services.RoomRuntimeHost
             .SubmitInputAsync(sessionSnapshot.CurrentRoomId, playerId, req)
             .ConfigureAwait(false);
+    }
+}
+
+internal sealed record AgarBattleServiceDependencies(
+    IPlayerSessionStateStore Sessions,
+    IRoomStateStore Rooms,
+    SessionDirectory SessionDirectory,
+    GatewayNodeIdentity GatewayNodeIdentity,
+    RoomRuntimeHost RoomRuntimeHost)
+{
+    public static AgarBattleServiceDependencies From<TRequest>(HotfixServiceCall<TRequest> call)
+    {
+        return new AgarBattleServiceDependencies(
+            call.Services.GetRequiredService<IPlayerSessionStateStore>(),
+            call.Services.GetRequiredService<IRoomStateStore>(),
+            call.Services.GetRequiredService<SessionDirectory>(),
+            call.Services.GetRequiredService<GatewayNodeIdentity>(),
+            call.Services.GetRequiredService<RoomRuntimeHost>());
     }
 }

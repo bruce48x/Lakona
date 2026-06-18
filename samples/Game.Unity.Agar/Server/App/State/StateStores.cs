@@ -9,6 +9,7 @@ using Agar.Sample.State.Rooms;
 using Agar.Sample.State.Sessions;
 using Agar.Sample.State.Users;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Lakona.Game.Server.Actors;
 
 namespace Agar.Sample.State;
@@ -64,11 +65,11 @@ public static class SampleStateServiceCollectionExtensions
     public static IServiceCollection AddAgarSampleState(this IServiceCollection services)
     {
         services.AddLakonaGameServerActors();
-        services.AddSingleton<IUserStateStore, ActorUserStateStore>();
-        services.AddSingleton<IPlayerSessionStateStore, ActorPlayerSessionStateStore>();
-        services.AddSingleton<IMatchmakingStateStore, ActorMatchmakingStateStore>();
-        services.AddSingleton<IRoomStateStore, ActorRoomStateStore>();
-        services.AddSingleton<ILeaderboardStateStore, ActorLeaderboardStateStore>();
+        services.TryAddSingleton<IUserStateStore, ActorUserStateStore>();
+        services.TryAddSingleton<IPlayerSessionStateStore, ActorPlayerSessionStateStore>();
+        services.TryAddSingleton<IMatchmakingStateStore, ActorMatchmakingStateStore>();
+        services.TryAddSingleton<IRoomStateStore, ActorRoomStateStore>();
+        services.TryAddSingleton<ILeaderboardStateStore, ActorLeaderboardStateStore>();
         return services;
     }
 }

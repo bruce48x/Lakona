@@ -10,6 +10,7 @@ using Lakona.Rpc.Server;
 using Lakona.Rpc.Transport.Tcp;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Agar.Sample.State;
 using Server.App.Features;
 using System.Net;
 using System.Net.Sockets;
@@ -185,6 +186,29 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
+    public void BattleNodeRegistersRuntimeServicesWithoutControlPlaneServices()
+    {
+        var services = BuildFeatureServices("appsettings.battle-1.json");
+
+        using var provider = services.BuildServiceProvider();
+
+        provider.GetRequiredService<IPlayerSessionStateStore>();
+        provider.GetRequiredService<IRoomStateStore>();
+        provider.GetRequiredService<IUserStateStore>();
+        provider.GetRequiredService<ILeaderboardStateStore>();
+        provider.GetRequiredService(RequiredServerAppType("Server.App.Services.SessionDirectory"));
+        provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
+        provider.GetRequiredService(RequiredServerAppType("Server.App.Realtime.RoomRuntimeHost"));
+
+        Assert.Contains(provider.GetServices<IRpcSessionLifecycleObserver>(),
+            observer => observer.GetType() == RequiredServerAppType("Server.App.Hosting.PlayerSessionLifecycleObserver"));
+        Assert.Throws<InvalidOperationException>(() =>
+            provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayMatchmakingCoordinator")));
+        Assert.Throws<InvalidOperationException>(() =>
+            provider.GetRequiredService(RequiredServerAppType("Server.App.Services.ReliableMatchmakingPublisher")));
+    }
+
+    [Fact]
     public async Task GatewayRegistrationAndBattleLookupUseDataNodeLocalRouteDirectory()
     {
         var port = GetFreePort();
@@ -288,6 +312,12 @@ public sealed class DistributedTopologyConfigurationTests
         return JsonDocument.Parse(File.ReadAllText(path));
     }
 
+    private static Type RequiredServerAppType(string typeName)
+    {
+        return typeof(BattleRuntimeFeature).Assembly.GetType(typeName)
+            ?? throw new InvalidOperationException($"Could not find Server.App type '{typeName}'.");
+    }
+
     private static IServiceCollection BuildFeatureServices(
         string fileName,
         IReadOnlyDictionary<string, string?>? overrides = null)
@@ -304,6 +334,7 @@ public sealed class DistributedTopologyConfigurationTests
         var configuration = configurationBuilder.Build();
         var services = new ServiceCollection();
 
+        services.AddLogging();
         services.AddLakonaGame(configuration, [
             typeof(DatabaseFeature),
             typeof(StateStoreFeature),
