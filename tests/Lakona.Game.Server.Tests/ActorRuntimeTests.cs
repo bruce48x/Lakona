@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Diagnostics;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 using GameActor = Lakona.Game.Server.Actors.Actor;
 
@@ -32,6 +33,28 @@ public sealed class ActorRuntimeTests
             .BuildServiceProvider();
 
         Assert.IsType<LakonaActorRuntime>(provider.GetRequiredService<IActorRuntime>());
+    }
+
+    [Fact]
+    public void AddLakonaGameServerActors_reads_configuration_options()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Lakona:Actors:MailboxCapacity"] = "12",
+                ["Lakona:Actors:CallTimeoutSeconds"] = "5",
+                ["Lakona:Actors:SlowMessageThresholdSeconds"] = "1"
+            })
+            .Build();
+
+        using var provider = new ServiceCollection()
+            .AddLakonaGameServerActors(configuration)
+            .BuildServiceProvider();
+
+        var options = provider.GetRequiredService<ActorRuntimeOptions>();
+        Assert.Equal(12, options.MailboxCapacity);
+        Assert.Equal(TimeSpan.FromSeconds(5), options.CallTimeout);
+        Assert.Equal(TimeSpan.FromSeconds(1), options.SlowMessageThreshold);
     }
 
     [Fact]

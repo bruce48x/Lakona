@@ -2,7 +2,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Lakona.Game.Abstractions;
+using Lakona.Game.Server;
 using Lakona.Game.Server.Sessions;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests;
@@ -67,6 +69,24 @@ public sealed class GameSessionCleanupHostedServiceTests
 
         Assert.Equal(TimeSpan.FromSeconds(5), provider.GetRequiredService<SessionCleanupOptions>().Interval);
         Assert.Contains(provider.GetServices<IHostedService>(), service => service is GameSessionCleanupHostedService);
+    }
+
+    [Fact]
+    public void AddLakonaGameServerWithConfigurationSkipsCleanupHostedServiceWhenDisabled()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Lakona:Sessions:Cleanup:Enabled"] = "false"
+            })
+            .Build();
+        var services = new ServiceCollection();
+
+        services.AddLakonaGameServer(configuration);
+        using var provider = services.BuildServiceProvider();
+
+        Assert.True(provider.GetRequiredService<SessionCleanupOptions>().Enabled);
+        Assert.DoesNotContain(provider.GetServices<IHostedService>(), service => service is GameSessionCleanupHostedService);
     }
 
     private sealed class Callback
