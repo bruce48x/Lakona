@@ -69,7 +69,7 @@ Server/App/Hosting/ServiceBindingConfigurator.cs
 Server/App/Chat/ChatServiceProxy.cs
 ```
 
-`Program.cs` binds generated hotfix-backed services through generated or
+`Program.cs` registers generated hotfix support through generated or
 framework-facing composition:
 
 ```csharp
@@ -83,6 +83,9 @@ return await LakonaGameServer.RunAsync(args, server => server
 
 Transport and serializer selection live in `Lakona:Endpoints[]`; generated
 `Program.cs` must not hand-write transport, serializer, or acceptor wiring.
+Generated hotfix-backed RPC services are selected by endpoint-local
+`RpcServices`. The generator emits `LakonaRpcServiceBinder` adapters that make
+those services visible to catalog validation before endpoint startup.
 
 When a user adds a new shared `[RpcService]` interface and implements a matching
 hotfix `[HotfixService]`, no stable proxy file, binding configurator, endpoint

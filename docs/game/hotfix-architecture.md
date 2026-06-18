@@ -147,7 +147,7 @@ For each supported shared service contract, generated stable code provides:
 - one method implementation per `[RpcMethod]`
 - callback proxy construction when the shared contract declares a notification
   contract
-- service binding through generated RPC binders
+- service binding through generated endpoint catalog binders
 - a generated host extension such as `UseGeneratedHotfixServices`
 
 Generated projects must not contain user-authored endpoint marker files such as

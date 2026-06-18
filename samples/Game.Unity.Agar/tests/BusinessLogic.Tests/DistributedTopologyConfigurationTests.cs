@@ -44,6 +44,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         var endpoint = Assert.Single(lakona.GetProperty("Endpoints").EnumerateArray());
         Assert.Equal("websocket", endpoint.GetProperty("Transport").GetString());
+        Assert.Equal("memorypack", endpoint.GetProperty("Serializer").GetString());
         Assert.Equal("/ws", endpoint.GetProperty("Path").GetString());
         Assert.Equal(new[] { "login", "player" }, endpoint.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
     }
@@ -59,6 +60,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         var endpoint = Assert.Single(lakona.GetProperty("Endpoints").EnumerateArray());
         Assert.Equal("kcp", endpoint.GetProperty("Transport").GetString());
+        Assert.Equal("memorypack", endpoint.GetProperty("Serializer").GetString());
         Assert.False(endpoint.TryGetProperty("Path", out _));
         Assert.Equal(new[] { "battle" }, endpoint.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
     }

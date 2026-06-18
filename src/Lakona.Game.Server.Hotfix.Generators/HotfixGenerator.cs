@@ -113,21 +113,16 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("                services);");
             builder.AppendLine("        });");
             builder.AppendLine();
-            builder.AppendLine("        return builder.BindServices(BindGeneratedHotfixServices);");
-            builder.AppendLine("    }");
-            builder.AppendLine();
-            builder.AppendLine("    private static void BindGeneratedHotfixServices(");
-            builder.AppendLine("        global::Lakona.Rpc.Server.RpcServiceRegistry registry,");
-            builder.AppendLine("        global::System.IServiceProvider services)");
-            builder.AppendLine("    {");
-            foreach (var service in services.OrderBy(static service => service.Contract.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
-            {
-                AppendRpcServiceBinding(builder, service);
-            }
-
+            builder.AppendLine("        return builder;");
             builder.AppendLine("    }");
             builder.AppendLine("}");
             builder.AppendLine();
+
+            foreach (var service in services.OrderBy(static service => service.Contract.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
+            {
+                AppendEndpointRpcServiceBinder(builder, service);
+            }
+
             builder.AppendLine("internal sealed class GeneratedHotfixRequiredServiceContracts :");
             builder.AppendLine("    global::Lakona.Game.Server.Hotfix.Abstractions.IHotfixRequiredServiceContracts");
             builder.AppendLine("{");
@@ -141,6 +136,27 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("    ];");
             builder.AppendLine("}");
             return builder.ToString();
+        }
+
+        private static void AppendEndpointRpcServiceBinder(StringBuilder builder, HotfixRpcServiceInfo service)
+        {
+            var serviceName = GetEndpointServiceName(service);
+            var binderTypeName = GetServiceTypeName(service.Contract.Name) + "EndpointBinder";
+
+            builder.Append("[global::Lakona.Game.Server.Hosting.LakonaRpcServiceAttribute(\"")
+                .Append(EscapeStringLiteral(serviceName))
+                .AppendLine("\")]");
+            builder.Append("internal sealed class ").Append(binderTypeName)
+                .AppendLine(" : global::Lakona.Game.Server.Hosting.LakonaRpcServiceBinder");
+            builder.AppendLine("{");
+            builder.AppendLine("    public override void Bind(global::Lakona.Game.Server.Hosting.LakonaGameServerRpcContext context)");
+            builder.AppendLine("    {");
+            builder.AppendLine("        var registry = context.Builder.ServiceRegistry;");
+            builder.AppendLine("        var services = context.Services;");
+            AppendRpcServiceBinding(builder, service);
+            builder.AppendLine("    }");
+            builder.AppendLine("}");
+            builder.AppendLine();
         }
 
         private static void AppendRpcServiceBinding(StringBuilder builder, HotfixRpcServiceInfo service)
@@ -786,11 +802,128 @@ namespace Lakona.Game.Server.Hotfix.Generators
             return null;
         }
 
+        private static string? GetNamedStringArgument(AttributeData? attribute, string name)
+        {
+            if (attribute == null)
+            {
+                return null;
+            }
+
+            foreach (var namedArgument in attribute.NamedArguments)
+            {
+                if (namedArgument.Key == name && namedArgument.Value.Value is string value)
+                {
+                    return value;
+                }
+            }
+
+            return null;
+        }
+
+        private static string GetEndpointServiceName(HotfixRpcServiceInfo service)
+        {
+            var rpcServiceAttribute = service.Contract.GetAttributes()
+                .FirstOrDefault(attribute => attribute.AttributeClass?.ToDisplayString() == RpcServiceAttributeName);
+            var apiName = GetNamedStringArgument(rpcServiceAttribute, "ApiName");
+            var sourceName = string.IsNullOrWhiteSpace(apiName)
+                ? GetEndpointServiceBaseName(service.Contract.Name)
+                : apiName!;
+
+            return ToKebabCase(sourceName);
+        }
+
         private static string GetServiceTypeName(string interfaceName)
         {
             return interfaceName.Length > 1 && interfaceName[0] == 'I' && char.IsUpper(interfaceName[1])
                 ? interfaceName.Substring(1)
                 : interfaceName;
+        }
+
+        private static string GetEndpointServiceBaseName(string interfaceName)
+        {
+            var name = GetServiceTypeName(interfaceName);
+            const string suffix = "Service";
+            return name.EndsWith(suffix, System.StringComparison.Ordinal) && name.Length > suffix.Length
+                ? name.Substring(0, name.Length - suffix.Length)
+                : name;
+        }
+
+        private static string ToKebabCase(string value)
+        {
+            var builder = new StringBuilder();
+            for (var index = 0; index < value.Length; index++)
+            {
+                var character = value[index];
+                if (IsAsciiLetterOrDigit(character))
+                {
+                    if (IsAsciiUpper(character) && builder.Length > 0)
+                    {
+                        var previous = value[index - 1];
+                        var next = index + 1 < value.Length ? value[index + 1] : '\0';
+                        if (IsAsciiLower(previous) ||
+                            IsAsciiDigit(previous) ||
+                            (IsAsciiUpper(previous) && IsAsciiLower(next)))
+                        {
+                            AppendDash(builder);
+                        }
+                    }
+
+                    builder.Append(ToAsciiLower(character));
+                    continue;
+                }
+
+                AppendDash(builder);
+            }
+
+            while (builder.Length > 0 && builder[builder.Length - 1] == '-')
+            {
+                builder.Length--;
+            }
+
+            if (builder.Length == 0)
+            {
+                return "service";
+            }
+
+            if (IsAsciiDigit(builder[0]))
+            {
+                builder.Insert(0, "service-");
+            }
+
+            return builder.ToString();
+        }
+
+        private static void AppendDash(StringBuilder builder)
+        {
+            if (builder.Length > 0 && builder[builder.Length - 1] != '-')
+            {
+                builder.Append('-');
+            }
+        }
+
+        private static bool IsAsciiLetterOrDigit(char value)
+        {
+            return IsAsciiLower(value) || IsAsciiUpper(value) || IsAsciiDigit(value);
+        }
+
+        private static bool IsAsciiLower(char value)
+        {
+            return value >= 'a' && value <= 'z';
+        }
+
+        private static bool IsAsciiUpper(char value)
+        {
+            return value >= 'A' && value <= 'Z';
+        }
+
+        private static bool IsAsciiDigit(char value)
+        {
+            return value >= '0' && value <= '9';
+        }
+
+        private static char ToAsciiLower(char value)
+        {
+            return IsAsciiUpper(value) ? (char)(value + ('a' - 'A')) : value;
         }
 
         private static string GetBinderTypeName(string interfaceName)
