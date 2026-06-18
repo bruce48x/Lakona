@@ -1,5 +1,7 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Configuration;
 using Lakona.Rpc.Server;
@@ -31,8 +33,33 @@ public static class SessionServiceCollectionExtensions
         var options = new SessionCleanupOptions();
         configure?.Invoke(options);
 
-        services.TryAddSingleton(options);
-        services.AddHostedService<GameSessionCleanupHostedService>();
+        services.RemoveAll<SessionCleanupOptions>();
+        services.AddSingleton(options);
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, GameSessionCleanupHostedService>());
+        return services;
+    }
+
+    public static IServiceCollection AddLakonaGameServerSessionCleanup(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        Action<SessionCleanupOptions>? configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        var hosting = LakonaGameHostingOptions.FromConfiguration(configuration);
+        services.AddLakonaGameServerSessions();
+
+        var options = new SessionCleanupOptions();
+        hosting.Sessions.Cleanup.ApplyTo(options);
+        configure?.Invoke(options);
+
+        services.RemoveAll<SessionCleanupOptions>();
+        services.AddSingleton(options);
+        if (hosting.Sessions.Cleanup.Enabled)
+        {
+            services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, GameSessionCleanupHostedService>());
+        }
+
         return services;
     }
 

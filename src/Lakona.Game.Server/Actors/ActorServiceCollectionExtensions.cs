@@ -1,10 +1,27 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Lakona.Game.Server.Configuration;
 
 namespace Lakona.Game.Server.Actors;
 
 public static class ActorServiceCollectionExtensions
 {
+    public static IServiceCollection AddLakonaGameServerActors(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        Action<ActorRuntimeOptions>? configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        var hosting = LakonaGameHostingOptions.FromConfiguration(configuration);
+        return services.AddLakonaGameServerActors(options =>
+        {
+            hosting.Actors.ApplyTo(options);
+            configure?.Invoke(options);
+        });
+    }
+
     public static IServiceCollection AddLakonaGameServerActors(
         this IServiceCollection services,
         Action<ActorRuntimeOptions>? configure = null)

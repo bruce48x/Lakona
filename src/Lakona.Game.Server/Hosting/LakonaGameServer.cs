@@ -58,7 +58,7 @@ public static class LakonaGameServer
         // Full startup
         LakonaBrand.Print();
 
-        builder.Services.AddLakonaGameServer();
+        builder.Services.AddLakonaGameServer(builder.Configuration);
         builder.Services.AddSingleton(runtimeOptions);
         builder.Services.AddSingleton(DiscoverRpcServiceCatalog());
 
