@@ -18,6 +18,35 @@ public sealed class AgarDockerBuildContextTests
         Assert.DoesNotContain("!src/Lakona.", dockerignore, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ServerDockerfileUsesAspNetRuntimeImage()
+    {
+        var dockerfile = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "samples",
+            "Game.Unity.Agar",
+            "Server",
+            "Dockerfile"));
+
+        Assert.Contains("FROM mcr.microsoft.com/dotnet/aspnet:10.0.7 AS runtime", dockerfile, StringComparison.Ordinal);
+        Assert.DoesNotContain("FROM mcr.microsoft.com/dotnet/runtime:10.0.7 AS runtime", dockerfile, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ServerDockerfilePublishesHotfixAssemblyIntoRuntimeImage()
+    {
+        var dockerfile = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "samples",
+            "Game.Unity.Agar",
+            "Server",
+            "Dockerfile"));
+
+        Assert.Contains("dotnet restore samples/Game.Unity.Agar/Server/Hotfix/Server.Hotfix.csproj", dockerfile, StringComparison.Ordinal);
+        Assert.Contains("dotnet build samples/Game.Unity.Agar/Server/Hotfix/Server.Hotfix.csproj", dockerfile, StringComparison.Ordinal);
+        Assert.Contains("COPY --from=publish-gateway /src/samples/Game.Unity.Agar/Server/App/bin/Release/net10.0/hotfix ./hotfix/", dockerfile, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

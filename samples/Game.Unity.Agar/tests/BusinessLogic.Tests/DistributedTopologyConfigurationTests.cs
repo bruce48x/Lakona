@@ -425,6 +425,21 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
+    public void DockerComposeDynamicAddressesDoNotOverlapStaticGameNodes()
+    {
+        var compose = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "samples",
+            "Game.Unity.Agar",
+            "docker-compose.yml"));
+
+        Assert.Contains("ipv4_address: 10.0.0.1", compose, StringComparison.Ordinal);
+        Assert.Contains("ipv4_address: 10.0.0.2", compose, StringComparison.Ordinal);
+        Assert.Contains("ipv4_address: 10.0.0.3", compose, StringComparison.Ordinal);
+        Assert.Contains("ip_range: 10.0.0.128/25", compose, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task GatewayNodeDoesNotRegisterDatabaseServicesOrApplicationFeatures()
     {
         var services = BuildFeatureServices("appsettings.gateway-1.json");
