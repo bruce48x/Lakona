@@ -80,7 +80,7 @@ internal sealed class RoomRuntime : IAsyncDisposable
             }
         }
 
-        return ValueTask.CompletedTask;
+        return default;
     }
 
     public ValueTask SubmitInputAsync(string playerId, InputMessage input)
@@ -91,7 +91,7 @@ internal sealed class RoomRuntime : IAsyncDisposable
             _simulation.SubmitInput(input);
         }
 
-        return ValueTask.CompletedTask;
+        return default;
     }
 
     public ValueTask<bool> RemovePlayerAsync(string playerId)
@@ -101,7 +101,7 @@ internal sealed class RoomRuntime : IAsyncDisposable
             _simulation.RemovePlayer(playerId, out _);
             var remaining = _sessionDirectory.GetByRoom(_roomId)
                 .Count(registration => !string.Equals(registration.PlayerId, playerId, StringComparison.Ordinal));
-            return ValueTask.FromResult(remaining == 0);
+            return new ValueTask<bool>(remaining == 0);
         }
     }
 

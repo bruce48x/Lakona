@@ -221,7 +221,7 @@ public sealed class AgarHotfixTests
 
         public ValueTask<HotfixAssemblySourceResult> ResolveAsync(CancellationToken cancellationToken = default)
         {
-            return ValueTask.FromResult(new HotfixAssemblySourceResult(
+            return new ValueTask<HotfixAssemblySourceResult>(new HotfixAssemblySourceResult(
                 "switchable",
                 "test",
                 Path,

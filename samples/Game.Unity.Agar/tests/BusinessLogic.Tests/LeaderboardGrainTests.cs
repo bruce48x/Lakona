@@ -1,4 +1,9 @@
+using System.Reflection;
+using Agar.Sample.State;
 using Agar.Sample.State.Leaderboard;
+using Lakona.Game.Server;
+using Lakona.Game.Server.Actors;
+using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.State.Leaderboard;
 using Xunit;
 
@@ -118,6 +123,44 @@ public sealed class LeaderboardActorTests
     }
 
     [Fact]
+    public async Task WeeklyResetClearsUserProfileVictoryPoints()
+    {
+        await TestHotfix.LoadCurrentAsync(TestContext.Current.CancellationToken);
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddLakonaGameServer();
+        services.AddAgarSampleState();
+
+        await using var provider = services.BuildServiceProvider();
+        var users = provider.GetRequiredService<IUserStateStore>();
+        var leaderboard = provider.GetRequiredService<ILeaderboardStateStore>();
+        var actors = provider.GetRequiredService<IActorRuntime>();
+
+        const string userId = "weekly-reset-player";
+        var login = await users.LoginAsync(userId, "pw", reconnect: false);
+        await users.AddVictoryPointsAsync(login.UserId, 25);
+        var profile = await users.GetProfileAsync(login.UserId);
+        await leaderboard.RecordVictoryPointsAsync(login.UserId, profile.VictoryPoints, profile.WinCount);
+
+        await actors.TellAsync<LeaderboardActor>(
+            ActorId.From("current"),
+            static (actor, _) =>
+            {
+                var state = GetLeaderboardState(actor);
+                state.CurrentPeriodStartLocalDate = "2000-01-03";
+                state.CurrentPeriodStartUtc = "2000-01-03";
+                return default;
+            },
+            TestContext.Current.CancellationToken);
+
+        await leaderboard.GetLeaderboardAsync(100);
+
+        var resetProfile = await users.GetProfileAsync(login.UserId);
+        Assert.Equal(0, resetProfile.VictoryPoints);
+    }
+
+    [Fact]
     public void LegacyUtcCurrentPeriodMigratesToLocalPeriodBeforeLocalReset()
     {
         var pacificTimeZone = FindPacificTimeZone();
@@ -150,5 +193,16 @@ public sealed class LeaderboardActorTests
         {
             return TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
         }
+    }
+
+    private static LeaderboardState GetLeaderboardState(LeaderboardActor actor)
+    {
+        var field = typeof(LeaderboardActor).GetField(
+            "State",
+            BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("LeaderboardActor.State field not found.");
+
+        return (LeaderboardState)(field.GetValue(actor)
+            ?? throw new InvalidOperationException("LeaderboardActor.State was null."));
     }
 }

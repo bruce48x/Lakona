@@ -59,7 +59,7 @@ public static class LeaderboardBehavior
         foreach (var playerId in playerIds)
         {
             await self.Context.Runtime.TellAsync<UserActor>(
-                ActorId.From($"user/{playerId}"),
+                ActorId.From(playerId),
                 static (actor, _) => actor.ResetVictoryPointsAsync()).ConfigureAwait(false);
         }
 
