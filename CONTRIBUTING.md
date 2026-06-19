@@ -22,6 +22,9 @@ rules. Supporting documents hold current architecture details:
 | [docs/game/gate-watchdog-agent.md](./docs/game/gate-watchdog-agent.md) | Current Gate / Watchdog / Agent connection-management composition pattern |
 | [docs/game/generated-hotfix-service-binding.md](./docs/game/generated-hotfix-service-binding.md) | Current generated service binding model for shared RPC contracts and hotfix services |
 | [docs/game/actor-kernel-boundary.md](./docs/game/actor-kernel-boundary.md) | Actor kernel and game framework responsibility split |
+| [docs/game/hotfix-actor-behavior-boundary.md](./docs/game/hotfix-actor-behavior-boundary.md) | Current mandatory actor state and hotfix behavior authoring rules |
+| [docs/game/hotfix-actor-behavior-enforcement-plan.md](./docs/game/hotfix-actor-behavior-enforcement-plan.md) | Implementation handoff for enforcing actor state and hotfix behavior separation |
+| [docs/game/hotfix-actor-behavior-enforcement-plan-clarifications.md](./docs/game/hotfix-actor-behavior-enforcement-plan-clarifications.md) | Resolved implementation clarifications for actor and behavior enforcement |
 | [docs/game/message-recording.md](./docs/game/message-recording.md) | Current actor message recording and replay diagnostics model |
 | [docs/game/feature-role.md](./docs/game/feature-role.md) | Current feature discovery, naming, and startup selection model |
 | [docs/game/remote-actor-messaging.md](./docs/game/remote-actor-messaging.md) | Managed distributed actor messaging and generated actor selector model |

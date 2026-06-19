@@ -148,6 +148,8 @@ public sealed class DistributedTopologyConfigurationTests
     [Fact]
     public async Task MatchmakingSelectsBattleRuntimeEndpointInsteadOfControlGateway()
     {
+        await TestHotfix.LoadCurrentAsync(TestContext.Current.CancellationToken);
+
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
@@ -218,6 +220,8 @@ public sealed class DistributedTopologyConfigurationTests
     [Fact]
     public async Task MatchmakingKeepsTicketsQueuedWhenBattleRuntimeEndpointIsUnavailable()
     {
+        await TestHotfix.LoadCurrentAsync(TestContext.Current.CancellationToken);
+
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
@@ -282,6 +286,8 @@ public sealed class DistributedTopologyConfigurationTests
     [Fact]
     public async Task MatchmakingUsesLocalKcpEndpointWhenConfiguredWithoutDiscovery()
     {
+        await TestHotfix.LoadCurrentAsync(TestContext.Current.CancellationToken);
+
         var services = BuildProgramServices("appsettings.json");
 
         await using var provider = services.BuildServiceProvider();

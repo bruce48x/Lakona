@@ -1,24 +1,42 @@
 # Managed Distributed Actor Messaging
 
+Hotfix is mandatory for Lakona.Game server projects. Distributed actor
+messaging must not place user business logic in `Server.App` actor classes.
+Actor classes provide stable identity and state; generated dispatchers,
+stable wrappers, or direct `IActorRuntime` calls must enter the current hotfix
+Behavior before executing game rules.
+
 Lakona.Game managed actor messaging should feel close to skynet's local and cluster call model: actor calls use the same business method shape, and the target selector makes placement intent explicit.
 
-The recommended API shape is generated from server-side actor classes:
+The target business API shape is generated from stable actor identity plus
+hotfix behavior metadata. The actor declaration owns state only:
 
 ```csharp
 public readonly record struct RoomId(string Value);
 
 public sealed class RoomActor : Actor<RoomId>
 {
-    public ValueTask<JoinRoomReply> JoinAsync(
+    internal readonly HashSet<string> Members = new(StringComparer.Ordinal);
+}
+```
+
+The hotfix Behavior owns the business method:
+
+```csharp
+[HotfixBehaviorOf(typeof(RoomActor))]
+public static class RoomBehavior
+{
+    public static ValueTask<JoinRoomReply> JoinAsync(
+        this RoomActor self,
         JoinRoomRequest request,
         CancellationToken cancellationToken = default)
     {
-        // actor mailbox code
+        // Reads and writes RoomActor fields inside the actor turn.
     }
 }
 ```
 
-The source generator emits typed accessors:
+The generated API can still expose typed accessors:
 
 ```csharp
 public sealed class RoomActors
@@ -58,6 +76,9 @@ var pinnedReply = await _rooms
 - Ordinary game server developers should not hand-write actor ids, route keys, message kinds, serializers, dispatch switches, endpoint addresses, or reply-correlation plumbing.
 - Business layer code should not know endpoint addresses, `clusterName`, `endpointName`, route-directory endpoints, or actor-directory host endpoints.
 - Actor calls should differ only in target selection, not in every business method call.
+- Generated actor calls must dispatch into the current hotfix Behavior. They
+  must not require a user-authored business method body on the stable actor
+  class.
 - Distributed messaging must keep target selection explicit. Lakona.Game should not expose an unqualified transparent actor proxy that hides placement policy.
 - Failures should throw typed actor call exceptions. Ordinary business code should not switch over `RemoteAskResult` or `RemoteActorInvocationResult`.
 - Repeated wrapper code should be generated at compile time. Source generation adds no runtime reflection or dynamic dispatch requirement.
@@ -65,7 +86,7 @@ var pinnedReply = await _rooms
 
 ## Generated API
 
-For each eligible `Actor<TKey>` subclass in a server-side assembly, the generator emits one actor accessor group:
+For each eligible actor/behavior pair, the generator emits one actor accessor group:
 
 ```csharp
 public sealed class RoomActors
@@ -195,7 +216,11 @@ Spawn claims placement in `ActorDirectory`, creates the actor locally, and invok
 
 Managed actor generation is server-side infrastructure. It should scan server assemblies and generate server-only code.
 
-Do not place actor declarations in the client-facing `Shared` project. `Shared` remains for client/server DTOs and RPC contracts. If a request or reply DTO is also needed by the client, that DTO can live in `Shared`; the actor class, generated actor refs, actor attributes, route keys, and invoker types stay server-side.
+Do not place actor declarations or Behavior declarations in the client-facing
+`Shared` project. `Shared` remains for client/server DTOs and RPC contracts. If
+a request or reply DTO is also needed by the client, that DTO can live in
+`Shared`; the actor class, Behavior class, generated actor refs, actor
+attributes, route keys, and invoker types stay server-side.
 
 ## Relation To Low-Level APIs
 

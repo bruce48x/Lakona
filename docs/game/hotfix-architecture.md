@@ -2,8 +2,12 @@
 
 ## Purpose
 
-Lakona.Game hotfix lets a running game server replace request logic and actor
-business behavior without restarting the process.
+Lakona.Game hotfix is a required part of the Lakona.Game server authoring
+model. It is not an optional extension and generated or sample game servers
+must not provide a non-hotfix business-logic path.
+
+Hotfix lets a running game server replace request logic and actor business
+behavior without restarting the process.
 
 The model is:
 
@@ -25,7 +29,7 @@ use Entity, Component, or System for the game-facing model.
 | --- | --- | --- | --- |
 | Service contract | `Shared` | `IChatService` | RPC interface shared by client and server |
 | Service | `Server.Hotfix` | `ChatService` | Request business logic for a Shared service contract |
-| Actor | `Server.App` | `ChatRoomActor` | Stable mailbox and fields only |
+| Actor | `Server.App` | `ChatRoomActor` | Stable mailbox, fields, and stable infrastructure dependencies only |
 | Behavior | `Server.Hotfix` | `ChatRoomBehavior` | Hot-reloadable behavior for one actor type |
 | Service proxy | `Server.App` | `ChatServiceProxy` | Stable RPC binding that forwards each call to current hotfix service logic |
 
@@ -58,6 +62,10 @@ dynamically through `HotfixManager`. No host, sample, tool template, or feature
 discovery path may load hotfix assemblies with `Assembly.LoadFrom` into the
 default `AssemblyLoadContext`.
 
+Every supported Lakona.Game server project has both a stable `Server.App`
+project and a reloadable `Server.Hotfix` project. Framework code, samples, and
+tool output must not include an alternate "hotfix disabled" project shape.
+
 ## Request Flow
 
 Each RPC session holds stable proxy instances, not hotfix service instances.
@@ -81,8 +89,9 @@ the new dispatch table after a successful reload.
 ## Actor And Behavior Boundary
 
 Actors are stable state holders and mailbox identities. User actor classes in
-hotfix-enabled samples should contain fields and framework lifecycle hooks only.
-Business decisions belong in the matching Behavior.
+Lakona.Game server projects must contain state fields, stable infrastructure
+dependencies, and framework lifecycle hooks only. Business decisions belong in
+the matching Behavior.
 
 ```csharp
 // Server.App
@@ -114,6 +123,11 @@ not use runtime reflection for normal actor field access.
 Hotfix code must not own long-lived timers, threads, static event
 subscriptions, cached callbacks, or any object that can keep an old collectible
 load context alive.
+
+The detailed authoring rules are defined in
+[hotfix-actor-behavior-boundary.md](./hotfix-actor-behavior-boundary.md). If
+another document appears to allow user-authored business methods on
+`Server.App` actor classes, this hotfix boundary takes precedence.
 
 ## Service Proxy Boundary
 

@@ -7,7 +7,6 @@ using Server.App.Services;
 using Shared.Gameplay;
 using Shared.Interfaces;
 using Microsoft.Extensions.Logging;
-using Lakona.Game.Server.Hotfix.Dispatch;
 
 namespace Server.App.Realtime;
 
@@ -27,7 +26,6 @@ internal sealed class RoomRuntime : IAsyncDisposable
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _loopTask;
     private bool _matchCommitted;
-    private bool _hotfixFallbackLogged;
 
     public RoomRuntime(
         RoomSnapshot room,
@@ -180,15 +178,7 @@ internal sealed class RoomRuntime : IAsyncDisposable
 
     private ArenaStepResult TickSimulation(float deltaTime)
     {
-        try
-        {
-            return _simulation.TickWithHotfix(deltaTime);
-        }
-        catch (HotfixMethodNotLoadedException ex)
-        {
-            LogHotfixFallback(ex, "tick");
-            return _simulation.Tick(deltaTime);
-        }
+        return _simulation.TickWithHotfix(deltaTime);
     }
 
     private void PublishWorldState(ArenaStepResult result)
@@ -291,63 +281,7 @@ internal sealed class RoomRuntime : IAsyncDisposable
 
     private MatchSettlementResult SettleMatch(WorldState worldState)
     {
-        try
-        {
-            return _simulation.SettleMatch(worldState);
-        }
-        catch (HotfixMethodNotLoadedException ex)
-        {
-            LogHotfixFallback(ex, "settlement");
-            return CreateStableSettlement(worldState);
-        }
-    }
-
-    private MatchSettlementResult CreateStableSettlement(WorldState worldState)
-    {
-        var rankedPlayers = worldState.Players
-            .OrderByDescending(static player => player.Mass)
-            .ThenBy(static player => player.PlayerId, StringComparer.Ordinal)
-            .ToArray();
-
-        var winnerPlayerId = rankedPlayers.FirstOrDefault()?.PlayerId ?? "";
-        var settlement = new MatchSettlementResult
-        {
-            WinnerPlayerId = winnerPlayerId,
-            Reason = "Round timer elapsed."
-        };
-
-        for (var index = 0; index < rankedPlayers.Length; index++)
-        {
-            var player = rankedPlayers[index];
-            var rank = index + 1;
-            var isBot = VictoryPointAwards.IsBotPlayer(player.PlayerId);
-            settlement.Entries.Add(new MatchSettlementEntry
-            {
-                PlayerId = player.PlayerId,
-                Rank = rank,
-                Mass = NormalizeRankingMass(player.Mass),
-                IsWinner = string.Equals(player.PlayerId, winnerPlayerId, StringComparison.Ordinal),
-                IsBot = isBot,
-                VictoryPoints = isBot ? 0 : VictoryPointAwards.GetPointsForRank(rank)
-            });
-        }
-
-        return settlement;
-    }
-
-    private void LogHotfixFallback(Exception exception, string operation)
-    {
-        if (_hotfixFallbackLogged)
-        {
-            return;
-        }
-
-        _hotfixFallbackLogged = true;
-        _logger.LogWarning(
-            exception,
-            "Room {RoomId} is using stable {HotfixOperation} rules because hotfix dispatch is not loaded.",
-            _roomId,
-            operation);
+        return _simulation.SettleMatch(worldState);
     }
 
     private void SafeInvoke(IBattleCallback callback, Action<IBattleCallback> action)
@@ -362,10 +296,4 @@ internal sealed class RoomRuntime : IAsyncDisposable
         }
     }
 
-    private static int NormalizeRankingMass(float mass)
-    {
-        return float.IsNaN(mass) || float.IsInfinity(mass)
-            ? 0
-            : Math.Max(0, (int)MathF.Round(mass, MidpointRounding.AwayFromZero));
-    }
 }

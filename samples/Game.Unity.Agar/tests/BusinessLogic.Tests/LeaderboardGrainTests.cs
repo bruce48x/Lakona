@@ -1,4 +1,5 @@
 using Agar.Sample.State.Leaderboard;
+using Server.Hotfix.State.Leaderboard;
 using Xunit;
 
 namespace Agar.Unity.Tests;

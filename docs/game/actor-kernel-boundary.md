@@ -68,6 +68,7 @@ Analyzer rules apply across the boundary:
 | ULA001 (no self-call) | Internal ActorKernel |
 | ULA002 (no blocking wait) | Internal ActorKernel |
 | ULA003 (no discarded call) | Internal ActorKernel |
+| ULGHOTFIX011 (no actor business methods in stable app) | Lakona.Game hotfix authoring |
 | Actor isolation rules | Shared (future) |
 | Thread safety annotations | Shared (future) |
 

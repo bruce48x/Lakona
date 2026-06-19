@@ -1,6 +1,6 @@
 using Agar.Sample.State.Contracts.Matchmaking;
 
-namespace Agar.Sample.State.Matchmaking;
+namespace Server.Hotfix.State.Matchmaking;
 
 public static class MatchmakingQueuePolicy
 {

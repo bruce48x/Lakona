@@ -166,11 +166,7 @@ public sealed class AgarHotfixTests
 
     private static string[] HotfixSharedAssemblyNames()
     {
-        return
-        [
-            typeof(ArenaSimulation).Assembly.GetName().Name!,
-            typeof(Lakona.Game.Server.ILakonaGameServer).Assembly.GetName().Name!
-        ];
+        return TestHotfix.SharedAssemblyNames();
     }
 
     private static string FindRepositoryRoot()

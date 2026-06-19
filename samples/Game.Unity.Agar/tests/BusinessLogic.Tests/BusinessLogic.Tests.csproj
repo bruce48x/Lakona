@@ -15,7 +15,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../Shared/Shared.csproj" />
-    <ProjectReference Include="../../Server/Hotfix/Server.Hotfix.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../Server/Hotfix/Server.Hotfix.csproj" />
     <ProjectReference Include="../../../../src/Lakona.Game.Server.Hotfix.Abstractions/Lakona.Game.Server.Hotfix.Abstractions.csproj" />
     <ProjectReference Include="../../../../src/Lakona.Game.Server.Hotfix/Lakona.Game.Server.Hotfix.csproj" />
     <ProjectReference Include="../../../../src/Lakona.Game.Server.Hotfix.Generators/Lakona.Game.Server.Hotfix.Generators.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />

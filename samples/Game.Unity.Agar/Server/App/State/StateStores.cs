@@ -11,6 +11,7 @@ using Agar.Sample.State.Users;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Hotfix.Dispatch;
 using Server.App.Services;
 
 namespace Agar.Sample.State;
@@ -82,42 +83,66 @@ internal sealed class ActorUserStateStore(IActorRuntime runtime) : IUserStateSto
     {
         return runtime.AskAsync<UserActor, UserLoginResult>(
             UserId(userId),
-            (actor, _) => new ValueTask<UserLoginResult>(actor.LoginAsync(password, reconnect))).AsTask();
+            async (actor, _) => await HotfixDispatch.Invoke<UserActor, ValueTask<UserLoginResult>>(
+                "LoginAsync",
+                actor,
+                [typeof(string), typeof(bool)],
+                [password, reconnect]).ConfigureAwait(false)).AsTask();
     }
 
     public Task<UserProfileSnapshot> GetProfileAsync(string userId)
     {
         return runtime.AskAsync<UserActor, UserProfileSnapshot>(
             UserId(userId),
-            static (actor, _) => new ValueTask<UserProfileSnapshot>(actor.GetProfileAsync())).AsTask();
+            async (actor, _) => await HotfixDispatch.Invoke<UserActor, ValueTask<UserProfileSnapshot>>(
+                "GetProfileAsync",
+                actor,
+                [],
+                []).ConfigureAwait(false)).AsTask();
     }
 
     public Task SetOnlineAsync(string userId, bool isOnline)
     {
         return runtime.TellAsync<UserActor>(
             UserId(userId),
-            (actor, _) => new ValueTask(actor.SetOnlineAsync(isOnline))).AsTask();
+            async (actor, _) => await HotfixDispatch.Invoke<UserActor, ValueTask>(
+                "SetOnlineAsync",
+                actor,
+                [typeof(bool)],
+                [isOnline]).ConfigureAwait(false)).AsTask();
     }
 
     public Task AddWinAsync(string userId)
     {
         return runtime.TellAsync<UserActor>(
             UserId(userId),
-            static (actor, _) => new ValueTask(actor.AddWinAsync())).AsTask();
+            async (actor, _) => await HotfixDispatch.Invoke<UserActor, ValueTask>(
+                "AddWinAsync",
+                actor,
+                [],
+                []).ConfigureAwait(false)).AsTask();
     }
 
     public Task AddVictoryPointsAsync(string userId, int points)
     {
         return runtime.TellAsync<UserActor>(
             UserId(userId),
-            (actor, _) => new ValueTask(actor.AddVictoryPointsAsync(points))).AsTask();
+            async (actor, _) => await HotfixDispatch.Invoke<UserActor, ValueTask>(
+                "AddVictoryPointsAsync",
+                actor,
+                [typeof(int)],
+                [points]).ConfigureAwait(false)).AsTask();
     }
 
     public Task ResetVictoryPointsAsync(string userId)
     {
         return runtime.TellAsync<UserActor>(
             UserId(userId),
-            static (actor, _) => new ValueTask(actor.ResetVictoryPointsAsync())).AsTask();
+            async (actor, _) => await HotfixDispatch.Invoke<UserActor, ValueTask>(
+                "ResetVictoryPointsAsync",
+                actor,
+                [],
+                []).ConfigureAwait(false)).AsTask();
     }
 
     private static ActorId UserId(string userId) => ActorId.From(userId);
@@ -127,56 +152,66 @@ internal sealed class ActorPlayerSessionStateStore(IActorRuntime runtime) : IPla
 {
     public Task<PlayerSessionSnapshot> AttachAsync(PlayerSessionAttachRequest request)
     {
-        return Ask(request.UserId, actor => actor.AttachAsync(request));
+        return Ask(request.UserId, "AttachAsync", request);
     }
 
     public Task<PlayerSessionSnapshot> ReconnectAsync(PlayerSessionReconnectRequest request)
     {
-        return Ask(request.UserId, actor => actor.ReconnectAsync(request));
+        return Ask(request.UserId, "ReconnectAsync", request);
     }
 
     public Task<PlayerSessionSnapshot> MarkQueuedAsync(PlayerSessionQueueRequest request)
     {
-        return Ask(request.UserId, actor => actor.MarkQueuedAsync(request));
+        return Ask(request.UserId, "MarkQueuedAsync", request);
     }
 
     public Task<PlayerSessionSnapshot> ClearQueueAsync(PlayerSessionQueueClearRequest request)
     {
-        return Ask(request.UserId, actor => actor.ClearQueueAsync(request));
+        return Ask(request.UserId, "ClearQueueAsync", request);
     }
 
     public Task<PlayerSessionSnapshot> AssignRoomAsync(PlayerRoomAssignment request)
     {
-        return Ask(request.UserId, actor => actor.AssignRoomAsync(request));
+        return Ask(request.UserId, "AssignRoomAsync", request);
     }
 
     public Task<PlayerSessionSnapshot> ClearRoomAsync(PlayerRoomClearRequest request)
     {
-        return Ask(request.UserId, actor => actor.ClearRoomAsync(request));
+        return Ask(request.UserId, "ClearRoomAsync", request);
     }
 
     public Task<PlayerSessionSnapshot> MarkDisconnectedAsync(PlayerSessionDisconnectRequest request)
     {
-        return Ask(request.UserId, actor => actor.MarkDisconnectedAsync(request));
+        return Ask(request.UserId, "MarkDisconnectedAsync", request);
     }
 
     public Task<PlayerSessionSnapshot> HeartbeatAsync(PlayerSessionHeartbeatRequest request)
     {
-        return Ask(request.UserId, actor => actor.HeartbeatAsync(request));
+        return Ask(request.UserId, "HeartbeatAsync", request);
     }
 
     public Task<PlayerSessionSnapshot> GetSnapshotAsync(string userId)
     {
-        return Ask(userId, static actor => actor.GetSnapshotAsync());
+        return runtime.AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
+            SessionId(userId),
+            async (actor, _) => await HotfixDispatch.Invoke<PlayerSessionActor, ValueTask<PlayerSessionSnapshot>>(
+                "GetSnapshotAsync",
+                actor,
+                [],
+                []).ConfigureAwait(false)).AsTask();
     }
 
     private static ActorId SessionId(string userId) => ActorId.From($"session:{userId}");
 
-    private Task<PlayerSessionSnapshot> Ask(string userId, Func<PlayerSessionActor, Task<PlayerSessionSnapshot>> call)
+    private Task<PlayerSessionSnapshot> Ask<TRequest>(string userId, string methodName, TRequest request)
     {
         return runtime.AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
             SessionId(userId),
-            (actor, _) => new ValueTask<PlayerSessionSnapshot>(call(actor))).AsTask();
+            async (actor, _) => await HotfixDispatch.Invoke<PlayerSessionActor, ValueTask<PlayerSessionSnapshot>>(
+                methodName,
+                actor,
+                [typeof(TRequest)],
+                [request]).ConfigureAwait(false)).AsTask();
     }
 }
 
@@ -188,28 +223,44 @@ internal sealed class ActorMatchmakingStateStore(IActorRuntime runtime) : IMatch
     {
         return runtime.AskAsync<MatchmakingActor, MatchmakingEnqueueResult>(
             DefaultQueueId,
-            (actor, _) => new ValueTask<MatchmakingEnqueueResult>(actor.EnqueueAsync(request))).AsTask();
+            async (actor, _) => await HotfixDispatch.Invoke<MatchmakingActor, ValueTask<MatchmakingEnqueueResult>>(
+                "EnqueueAsync",
+                actor,
+                [typeof(MatchmakingEnqueueRequest)],
+                [request]).ConfigureAwait(false)).AsTask();
     }
 
     public Task<MatchmakingCancelResult> CancelAsync(MatchmakingCancelRequest request)
     {
         return runtime.AskAsync<MatchmakingActor, MatchmakingCancelResult>(
             DefaultQueueId,
-            (actor, _) => new ValueTask<MatchmakingCancelResult>(actor.CancelAsync(request))).AsTask();
+            async (actor, _) => await HotfixDispatch.Invoke<MatchmakingActor, ValueTask<MatchmakingCancelResult>>(
+                "CancelAsync",
+                actor,
+                [typeof(MatchmakingCancelRequest)],
+                [request]).ConfigureAwait(false)).AsTask();
     }
 
     public Task TickAsync(MatchmakingTickRequest request)
     {
         return runtime.TellAsync<MatchmakingActor>(
             DefaultQueueId,
-            (actor, _) => new ValueTask(actor.TickAsync(request))).AsTask();
+            async (actor, _) => await HotfixDispatch.Invoke<MatchmakingActor, ValueTask>(
+                "TickAsync",
+                actor,
+                [typeof(MatchmakingTickRequest)],
+                [request]).ConfigureAwait(false)).AsTask();
     }
 
     public Task<MatchmakingStatusSnapshot> GetStatusAsync()
     {
         return runtime.AskAsync<MatchmakingActor, MatchmakingStatusSnapshot>(
             DefaultQueueId,
-            static (actor, _) => new ValueTask<MatchmakingStatusSnapshot>(actor.GetStatusAsync())).AsTask();
+            async (actor, _) => await HotfixDispatch.Invoke<MatchmakingActor, ValueTask<MatchmakingStatusSnapshot>>(
+                "GetStatusAsync",
+                actor,
+                [],
+                []).ConfigureAwait(false)).AsTask();
     }
 }
 
@@ -217,36 +268,44 @@ internal sealed class ActorRoomStateStore(IActorRuntime runtime) : IRoomStateSto
 {
     public Task<RoomSettlementResult> CreateAsync(RoomCreateRequest request)
     {
-        return Ask(request.RoomId, actor => actor.CreateAsync(request));
+        return Ask(request.RoomId, "CreateAsync", request);
     }
 
     public Task<RoomSettlementResult> LeaveAsync(RoomPlayerLeaveRequest request)
     {
-        return Ask(request.RoomId, actor => actor.LeaveAsync(request));
+        return Ask(request.RoomId, "LeaveAsync", request);
     }
 
     public Task<RoomSettlementResult> StartAsync(RoomStartRequest request)
     {
-        return Ask(request.RoomId, actor => actor.StartAsync(request));
+        return Ask(request.RoomId, "StartAsync", request);
     }
 
     public Task<RoomSettlementResult> CompleteAsync(RoomMatchCompletion request)
     {
-        return Ask(request.RoomId, actor => actor.CompleteAsync(request));
+        return Ask(request.RoomId, "CompleteAsync", request);
     }
 
     public Task<RoomSnapshot> GetSnapshotAsync(string roomId)
     {
         return runtime.AskAsync<RoomActor, RoomSnapshot>(
             ActorId.From(roomId),
-            static (actor, _) => new ValueTask<RoomSnapshot>(actor.GetSnapshotAsync())).AsTask();
+            async (actor, _) => await HotfixDispatch.Invoke<RoomActor, ValueTask<RoomSnapshot>>(
+                "GetSnapshotAsync",
+                actor,
+                [],
+                []).ConfigureAwait(false)).AsTask();
     }
 
-    private Task<RoomSettlementResult> Ask(string roomId, Func<RoomActor, Task<RoomSettlementResult>> call)
+    private Task<RoomSettlementResult> Ask<TRequest>(string roomId, string methodName, TRequest request)
     {
         return runtime.AskAsync<RoomActor, RoomSettlementResult>(
             ActorId.From(roomId),
-            (actor, _) => new ValueTask<RoomSettlementResult>(call(actor))).AsTask();
+            async (actor, _) => await HotfixDispatch.Invoke<RoomActor, ValueTask<RoomSettlementResult>>(
+                methodName,
+                actor,
+                [typeof(TRequest)],
+                [request]).ConfigureAwait(false)).AsTask();
     }
 }
 
@@ -258,13 +317,21 @@ internal sealed class ActorLeaderboardStateStore(IActorRuntime runtime) : ILeade
     {
         return runtime.AskAsync<LeaderboardActor, LeaderboardSnapshot>(
             LeaderboardId,
-            (actor, _) => new ValueTask<LeaderboardSnapshot>(actor.GetLeaderboardAsync(topN))).AsTask();
+            async (actor, _) => await HotfixDispatch.Invoke<LeaderboardActor, ValueTask<LeaderboardSnapshot>>(
+                "GetLeaderboardAsync",
+                actor,
+                [typeof(int)],
+                [topN]).ConfigureAwait(false)).AsTask();
     }
 
     public Task RecordVictoryPointsAsync(string playerId, int victoryPoints, int winCount)
     {
         return runtime.TellAsync<LeaderboardActor>(
             LeaderboardId,
-            (actor, _) => new ValueTask(actor.RecordVictoryPointsAsync(playerId, victoryPoints, winCount))).AsTask();
+            async (actor, _) => await HotfixDispatch.Invoke<LeaderboardActor, ValueTask>(
+                "RecordVictoryPointsAsync",
+                actor,
+                [typeof(string), typeof(int), typeof(int)],
+                [playerId, victoryPoints, winCount]).ConfigureAwait(false)).AsTask();
     }
 }
