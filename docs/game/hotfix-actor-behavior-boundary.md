@@ -178,9 +178,6 @@ After migration, each state store method must call `HotfixDispatch.Invoke`
 inside the actor turn and must not call a business method declared on the actor
 class.
 
-The implementation handoff for this migration is
-[hotfix-actor-behavior-enforcement-plan.md](./hotfix-actor-behavior-enforcement-plan.md).
-
 ## Typed Actor Generation Rule
 
 Managed distributed actor APIs may expose typed actor refs, but they must not
