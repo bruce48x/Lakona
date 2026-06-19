@@ -4,30 +4,7 @@
 !Directory.Build.props
 
 !src/
-!src/Lakona.Rpc.Core/
-!src/Lakona.Rpc.Core/**
-!src/Lakona.Rpc.Server/
-!src/Lakona.Rpc.Server/**
-!src/Lakona.Rpc.Analyzers/
-!src/Lakona.Rpc.Analyzers/**
-!src/Lakona.Rpc.Serializer.MemoryPack/
-!src/Lakona.Rpc.Serializer.MemoryPack/**
-!src/Lakona.Rpc.Transport.Kcp/
-!src/Lakona.Rpc.Transport.Kcp/**
-!src/Lakona.Rpc.Transport.WebSocket/
-!src/Lakona.Rpc.Transport.WebSocket/**
-!src/Lakona.Game.Cluster/
-!src/Lakona.Game.Cluster/**
-!src/Lakona.Game.Abstractions/
-!src/Lakona.Game.Abstractions/**
-!src/Lakona.Game.Server/
-!src/Lakona.Game.Server/**
-!src/Lakona.Game.Server.Hotfix/
-!src/Lakona.Game.Server.Hotfix/**
-!src/Lakona.Game.Server.Hotfix.Abstractions/
-!src/Lakona.Game.Server.Hotfix.Abstractions/**
-!src/Lakona.Game.Server.Hotfix.Generators/
-!src/Lakona.Game.Server.Hotfix.Generators/**
+!src/**
 
 !samples/
 !samples/Game.Unity.Agar/
