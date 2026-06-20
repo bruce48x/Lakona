@@ -1,9 +1,12 @@
 using Agar.Sample.State.Contracts;
 using Agar.Sample.State.Contracts.Leaderboard;
+using Agar.Sample.State.Contracts.Matchmaking;
+using Agar.Sample.State.Contracts.Rooms;
 using Agar.Sample.State.Contracts.Sessions;
-using Agar.Sample.State;
 using Lakona.Game.Abstractions;
+using Agar.Sample.State.Matchmaking;
 using Agar.Sample.State.Leaderboard;
+using Agar.Sample.State.Rooms;
 using Agar.Sample.State.Sessions;
 using Agar.Sample.State.Users;
 using Lakona.Game.Server.Actors;
@@ -16,6 +19,8 @@ using Microsoft.Extensions.Logging;
 using Server.App.Realtime;
 using Server.App.Services;
 using Server.Hotfix.State.Leaderboard;
+using Server.Hotfix.State.Matchmaking;
+using Server.Hotfix.State.Rooms;
 using Server.Hotfix.State.Sessions;
 using Server.Hotfix.State.Users;
 using Shared.Interfaces;
@@ -68,7 +73,7 @@ public sealed class PlayerService
             return;
         }
 
-        await services.MatchmakingCoordinator.EnqueueAsync(playerId).ConfigureAwait(false);
+        await EnqueuePlayerAsync(services, playerId).ConfigureAwait(false);
     }
 
     public async ValueTask CancelMatchmakingAsync(HotfixServiceCall<CancelMatchmakingRequest, IControlCallback> call)
@@ -80,7 +85,7 @@ public sealed class PlayerService
             return;
         }
 
-        await services.MatchmakingCoordinator.CancelAsync(playerId, "Matchmaking cancelled").ConfigureAwait(false);
+        await CancelMatchmakingAsync(services, playerId, "Matchmaking cancelled").ConfigureAwait(false);
     }
 
     public async ValueTask<ReliablePushAckReply> AckReliablePushAsync(HotfixServiceCall<ReliablePushAckRequest, IControlCallback> call)
@@ -195,13 +200,109 @@ public sealed class PlayerService
         return playerId;
     }
 
-    private static async Task ReleasePlayerAsync(AgarServiceDependencies services, string playerId, string reason)
+    internal static async Task EnqueuePlayerAsync(AgarServiceDependencies services, string playerId)
+    {
+        var registration = services.SessionDirectory.Get(playerId)
+            ?? throw new InvalidOperationException($"Player '{playerId}' is not registered.");
+
+        var result = await services.Actors
+            .AskAsync<MatchmakingActor, MatchmakingEnqueueResult>(
+                DefaultQueueId,
+                (actor, _) => actor.EnqueueAsync(new MatchmakingEnqueueRequest
+                {
+                    UserId = playerId,
+                    SessionToken = registration.SessionToken,
+                    EnqueuedAtUtc = DateTime.UtcNow
+                }))
+            .ConfigureAwait(false);
+
+        services.SessionDirectory.SetQueueTicket(playerId, string.IsNullOrWhiteSpace(result.TicketId) ? null : result.TicketId);
+
+        if (result.Matched)
+        {
+            await PublishMatchedAsync(services, result.RoomAssignment).ConfigureAwait(false);
+            return;
+        }
+
+        await PublishQueuedAsync(services, playerId, result).ConfigureAwait(false);
+    }
+
+    internal static async Task CancelMatchmakingAsync(AgarServiceDependencies services, string playerId, string reason)
+    {
+        var registration = services.SessionDirectory.Get(playerId);
+        if (registration is null)
+        {
+            return;
+        }
+
+        await services.Actors
+            .AskAsync<MatchmakingActor, MatchmakingCancelResult>(
+                DefaultQueueId,
+                (actor, _) => actor.CancelAsync(new MatchmakingCancelRequest
+                {
+                    UserId = playerId,
+                    TicketId = registration.MatchmakingTicketId ?? string.Empty,
+                    CancelledAtUtc = DateTime.UtcNow,
+                    Reason = reason
+                }))
+            .ConfigureAwait(false);
+
+        services.SessionDirectory.SetQueueTicket(playerId, null);
+        await services.ReliableMatchmakingPublisher.PublishAsync(playerId, new MatchmakingStatusUpdate
+        {
+            State = Shared.Interfaces.MatchmakingState.Canceled,
+            QueueSize = 0,
+            RoomCapacity = 10,
+            RoomId = string.Empty,
+            MatchedPlayerCount = 0,
+            Message = string.IsNullOrWhiteSpace(reason) ? "Matchmaking cancelled" : reason
+        }).ConfigureAwait(false);
+    }
+
+    internal static async Task ReleasePlayerAsync(AgarServiceDependencies services, string playerId, string reason)
     {
         var registration = services.SessionDirectory.Get(playerId);
         var logger = services.CreateLogger<PlayerService>();
         try
         {
-            await services.MatchmakingCoordinator.ReleasePlayerAsync(playerId, reason).ConfigureAwait(false);
+            if (registration is not null && !string.IsNullOrWhiteSpace(registration.MatchmakingTicketId))
+            {
+                await CancelMatchmakingAsync(services, playerId, reason).ConfigureAwait(false);
+            }
+
+            var roomId = registration?.RoomId;
+            if (!string.IsNullOrWhiteSpace(roomId))
+            {
+                await services.Actors
+                    .AskAsync<RoomActor, RoomSettlementResult>(
+                        RoomId(roomId),
+                        (actor, _) => actor.LeaveAsync(new RoomPlayerLeaveRequest
+                        {
+                            UserId = playerId,
+                            RoomId = roomId,
+                            LeftAtUtc = DateTime.UtcNow,
+                            Reason = reason
+                        }))
+                    .ConfigureAwait(false);
+                await services.Actors
+                    .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
+                        SessionId(playerId),
+                        (actor, _) => actor.ClearRoomAsync(new PlayerRoomClearRequest
+                        {
+                            UserId = playerId,
+                            RoomId = roomId,
+                            ClearedAtUtc = DateTime.UtcNow,
+                            Reason = reason
+                        }))
+                    .ConfigureAwait(false);
+                services.SessionDirectory.ClearRoom(playerId, roomId);
+                await services.RoomRuntimeHost.RemovePlayerAsync(roomId, playerId).ConfigureAwait(false);
+            }
+            else
+            {
+                services.SessionDirectory.ClearRoom(playerId);
+            }
+
             await services.Actors
                 .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
                     SessionId(playerId),
@@ -224,27 +325,85 @@ public sealed class PlayerService
             logger.LogError(ex, "Failed to release player {PlayerId} during {Reason}.", playerId, reason);
         }
 
-        if (registration is not null && !string.IsNullOrWhiteSpace(registration.RoomId))
-        {
-            services.SessionDirectory.ClearRoom(playerId, registration.RoomId);
-        }
-
         services.SessionDirectory.Remove(playerId);
     }
 
+    internal static Task PublishQueuedAsync(AgarServiceDependencies services, string playerId, MatchmakingEnqueueResult result)
+    {
+        return services.ReliableMatchmakingPublisher.PublishAsync(playerId, new MatchmakingStatusUpdate
+        {
+            State = Shared.Interfaces.MatchmakingState.Queued,
+            QueuePosition = result.QueuePosition,
+            QueueSize = Math.Max(result.QueuePosition, 1),
+            RoomCapacity = 10,
+            RoomId = string.Empty,
+            MatchedPlayerCount = 0,
+            Message = string.IsNullOrWhiteSpace(result.Message) ? "Queued for matchmaking" : result.Message
+        }).AsTask();
+    }
+
+    internal static async Task PublishMatchedAsync(AgarServiceDependencies services, RoomAssignment assignment)
+    {
+        if (string.IsNullOrWhiteSpace(assignment.RoomId))
+        {
+            return;
+        }
+
+        var room = await services.Actors
+            .AskAsync<RoomActor, RoomSnapshot>(
+                RoomId(assignment.RoomId),
+                (actor, _) => actor.GetSnapshotAsync())
+            .ConfigureAwait(false);
+
+        if (services.RuntimeGateways.IsLocalOwner(room.RuntimeGateway))
+        {
+            await services.RoomRuntimeHost.EnsureRoomReadyAsync(room).ConfigureAwait(false);
+        }
+
+        foreach (var player in room.Players)
+        {
+            var registration = services.SessionDirectory.Get(player.UserId);
+            if (registration is null)
+            {
+                continue;
+            }
+
+            services.SessionDirectory.SetQueueTicket(player.UserId, null);
+            services.SessionDirectory.AssignRoom(player.UserId, room.RoomId, room.MatchId, player.SeatIndex);
+
+            await services.ReliableMatchmakingPublisher.PublishAsync(player.UserId, new MatchmakingStatusUpdate
+            {
+                State = Shared.Interfaces.MatchmakingState.Matched,
+                QueueSize = room.MemberCount > 0 ? room.MemberCount : room.Players.Count,
+                RoomCapacity = room.MaxPlayers,
+                RoomId = room.RoomId,
+                MatchedPlayerCount = room.Players.Count,
+                Message = $"Matched into room {room.RoomId}",
+                RealtimeConnection = RealtimeEndpointMapper.ToRealtimeConnectionInfo(
+                    assignment.RuntimeGateway,
+                    room.RoomId,
+                    room.MatchId,
+                    player.SessionToken)
+            }).ConfigureAwait(false);
+        }
+    }
+
     private static readonly ActorId LeaderboardId = ActorId.From("current");
+    private static readonly ActorId DefaultQueueId = ActorId.From("default");
 
     private static ActorId UserId(string userId) => ActorId.From(userId);
 
     private static ActorId SessionId(string userId) => ActorId.From($"session:{userId}");
+
+    private static ActorId RoomId(string roomId) => ActorId.From(roomId);
 }
 
 internal sealed record AgarServiceDependencies(
     IActorRuntime Actors,
     SessionDirectory SessionDirectory,
-    GatewayMatchmakingCoordinator MatchmakingCoordinator,
     GatewayNodeIdentity GatewayNodeIdentity,
     RoomRuntimeHost RoomRuntimeHost,
+    BattleRuntimeGatewayResolver RuntimeGateways,
     ReliableMatchmakingPublisher ReliableMatchmakingPublisher,
     IReliablePushOutbox ReliablePushOutbox,
     IReliablePushAckService ReliablePushAckService,
@@ -260,9 +419,9 @@ internal sealed record AgarServiceDependencies(
         return new AgarServiceDependencies(
             call.Actors,
             call.Services.GetRequiredService<SessionDirectory>(),
-            call.Services.GetRequiredService<GatewayMatchmakingCoordinator>(),
             call.Services.GetRequiredService<GatewayNodeIdentity>(),
             call.Services.GetRequiredService<RoomRuntimeHost>(),
+            call.Services.GetRequiredService<BattleRuntimeGatewayResolver>(),
             call.Services.GetRequiredService<ReliableMatchmakingPublisher>(),
             call.Services.GetRequiredService<IReliablePushOutbox>(),
             call.Services.GetRequiredService<IReliablePushAckService>(),

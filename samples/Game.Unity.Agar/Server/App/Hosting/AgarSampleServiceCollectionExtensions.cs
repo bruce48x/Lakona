@@ -4,6 +4,7 @@ using Lakona.Rpc.Server;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Server.App.Hotfix;
 using Server.App.Realtime;
 using Server.App.Services;
 
@@ -20,7 +21,7 @@ public static class AgarSampleServiceCollectionExtensions
 
         var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
 
-        services.AddAgarSampleState();
+        services.AddAgarSampleActors();
         services.TryAddSingleton<SessionDirectory>();
 
         var controlEndpoint = options.Endpoints.FirstOrDefault(endpoint =>
@@ -30,9 +31,8 @@ public static class AgarSampleServiceCollectionExtensions
             services.TryAddSingleton(_ => new GatewayNodeIdentity(
                 GatewayEndpointDescriptorFactory.FromConfiguredEndpoint(configuration, controlEndpoint)));
             services.TryAddSingleton<RoomRuntimeHost>();
-            services.TryAddSingleton<MatchmakingMonitor>();
             services.TryAddSingleton<ReliableMatchmakingPublisher>();
-            services.TryAddSingleton<GatewayMatchmakingCoordinator>();
+            services.TryAddSingleton<AgarHotfixRuntimeEvents>();
             services.TryAddEnumerable(ServiceDescriptor.Singleton<IRpcSessionLifecycleObserver, PlayerSessionLifecycleObserver>());
             services.AddHostedService<DisconnectedSessionCleanupHostedService>();
         }

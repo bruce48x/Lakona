@@ -1,8 +1,5 @@
 using Agar.Sample.State.Contracts.Rooms;
-using Agar.Sample.State.Contracts.Sessions;
-using Agar.Sample.State.Contracts.Users;
-using Agar.Sample.State.Contracts.Leaderboard;
-using Agar.Sample.State;
+using Server.App.Hotfix;
 using Server.App.Services;
 using Shared.Gameplay;
 using Shared.Interfaces;
@@ -16,10 +13,7 @@ internal sealed class RoomRuntime : IAsyncDisposable
 
     private readonly Lock _gate = new();
     private readonly SessionDirectory _sessionDirectory;
-    private readonly IRoomStateStore _rooms;
-    private readonly IPlayerSessionStateStore _sessions;
-    private readonly IUserStateStore _users;
-    private readonly ILeaderboardStateStore _leaderboard;
+    private readonly AgarHotfixRuntimeEvents _hotfixEvents;
     private readonly ArenaSimulation _simulation;
     private readonly string _roomId;
     private readonly ILogger<RoomRuntime> _logger;
@@ -30,18 +24,12 @@ internal sealed class RoomRuntime : IAsyncDisposable
     public RoomRuntime(
         RoomSnapshot room,
         SessionDirectory sessionDirectory,
-        IRoomStateStore rooms,
-        IPlayerSessionStateStore sessions,
-        IUserStateStore users,
-        ILeaderboardStateStore leaderboard,
+        AgarHotfixRuntimeEvents hotfixEvents,
         ILogger<RoomRuntime> logger)
     {
         _roomId = room.RoomId;
         _sessionDirectory = sessionDirectory;
-        _rooms = rooms;
-        _sessions = sessions;
-        _users = users;
-        _leaderboard = leaderboard;
+        _hotfixEvents = hotfixEvents;
         _logger = logger;
         _simulation = new ArenaSimulation(new ArenaSimulationOptions
         {
@@ -223,60 +211,15 @@ internal sealed class RoomRuntime : IAsyncDisposable
     private async Task PersistMatchEndAsync(ArenaStepResult result)
     {
         var settlement = SettleMatch(result.WorldState);
-
-        var winnerPlayerId = settlement.WinnerPlayerId;
-        await _rooms
-            .CompleteAsync(new RoomMatchCompletion
-            {
-                RoomId = _roomId,
-                SettlementId = $"settlement-{_roomId}-{result.MatchEnd?.Tick ?? result.WorldState.Tick}",
-                FinishedAtUtc = DateTime.UtcNow,
-                WinnerUserId = winnerPlayerId,
-                Reason = settlement.Reason,
-                Results = settlement.Entries.Select(entry => new RoomSettlementEntry
-                {
-                    UserId = entry.PlayerId,
-                    Rank = entry.Rank,
-                    Mass = entry.Mass,
-                    IsWinner = entry.IsWinner
-                }).ToList()
-            })
+        var tick = result.MatchEnd?.Tick ?? result.WorldState.Tick;
+        await _hotfixEvents
+            .CommitRoomSettlementAsync(
+                _roomId,
+                $"settlement-{_roomId}-{tick}",
+                DateTime.UtcNow,
+                tick,
+                settlement)
             .ConfigureAwait(false);
-
-        var registrations = _sessionDirectory.GetByRoom(_roomId);
-        foreach (var registration in registrations)
-        {
-            _sessionDirectory.ClearRoom(registration.PlayerId, _roomId);
-            await _sessions
-                .ClearRoomAsync(new PlayerRoomClearRequest
-                {
-                    UserId = registration.PlayerId,
-                    RoomId = _roomId,
-                    ClearedAtUtc = DateTime.UtcNow,
-                    Reason = "Match completed."
-                })
-                .ConfigureAwait(false);
-        }
-
-        var winnerEntry = settlement.Entries.FirstOrDefault(static entry => entry.IsWinner);
-        if (winnerEntry is not null && !winnerEntry.IsBot)
-        {
-            await _users.AddWinAsync(winnerEntry.PlayerId).ConfigureAwait(false);
-        }
-
-        foreach (var entry in settlement.Entries.Where(static entry => !entry.IsBot && entry.VictoryPoints > 0))
-        {
-            await _users.AddVictoryPointsAsync(entry.PlayerId, entry.VictoryPoints).ConfigureAwait(false);
-            var profile = await _users.GetProfileAsync(entry.PlayerId).ConfigureAwait(false);
-            await _leaderboard
-                .RecordVictoryPointsAsync(entry.PlayerId, profile.VictoryPoints, profile.WinCount)
-                .ConfigureAwait(false);
-            _logger.LogInformation("Awarded {VictoryPoints} victory points to {PlayerId} for rank {Rank} in room {RoomId}.",
-                entry.VictoryPoints,
-                entry.PlayerId,
-                entry.Rank,
-                _roomId);
-        }
     }
 
     private MatchSettlementResult SettleMatch(WorldState worldState)

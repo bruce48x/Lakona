@@ -16,9 +16,17 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Agar.Sample.State;
 using Agar.Sample.State.Contracts.Matchmaking;
+using Agar.Sample.State.Contracts.Rooms;
 using Agar.Sample.State.Contracts.Sessions;
+using Agar.Sample.State.Contracts.Users;
+using Agar.Sample.State.Matchmaking;
+using Agar.Sample.State.Sessions;
+using Agar.Sample.State.Users;
 using Server.App.Features;
 using Server.App.Hosting;
+using Server.Hotfix.State.Matchmaking;
+using Server.Hotfix.State.Sessions;
+using Server.Hotfix.State.Users;
 using System.Net;
 using System.Net.Sockets;
 using Xunit;
@@ -118,7 +126,7 @@ public sealed class DistributedTopologyConfigurationTests
         provider.GetRequiredService(RequiredServerAppType("Server.App.Services.SessionDirectory"));
         provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
         provider.GetRequiredService(RequiredServerAppType("Server.App.Services.ReliableMatchmakingPublisher"));
-        provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayMatchmakingCoordinator"));
+        provider.GetRequiredService(RequiredServerAppType("Server.App.Hotfix.AgarHotfixRuntimeEvents"));
 
         var identity = provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
         var endpoint = identity.GetType().GetProperty("AdvertisedEndpoint")!.GetValue(identity)!;
@@ -141,8 +149,7 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Equal("kcp", endpoint.GetType().GetProperty("Transport")!.GetValue(endpoint));
         Assert.Equal("battle-1", endpoint.GetType().GetProperty("Host")!.GetValue(endpoint));
 
-        Assert.Throws<InvalidOperationException>(() =>
-            provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayMatchmakingCoordinator")));
+        provider.GetRequiredService(RequiredServerAppType("Server.App.Hotfix.AgarHotfixRuntimeEvents"));
     }
 
     [Fact]
@@ -153,7 +160,7 @@ public sealed class DistributedTopologyConfigurationTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
-        services.AddAgarSampleState();
+        services.AddAgarSampleActors();
         services.AddSingleton<INodeDirectory>(provider =>
         {
             var directory = new InMemoryNodeDirectory();
@@ -175,17 +182,15 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddSingleton<IClusterNodeDiscovery, ClusterNodeDiscovery>();
 
         await using var provider = services.BuildServiceProvider();
-        var users = provider.GetRequiredService<IUserStateStore>();
-        var sessions = provider.GetRequiredService<IPlayerSessionStateStore>();
-        var matchmaking = provider.GetRequiredService<IMatchmakingStateStore>();
+        var actors = provider.GetRequiredService<IActorRuntime>();
 
         MatchmakingEnqueueResult? result = null;
         for (var i = 0; i < 10; i++)
         {
             var playerId = $"player-{i}";
-            var login = await users.LoginAsync(playerId, "pw", reconnect: false);
+            var login = await LoginAsync(actors, playerId);
 
-            await sessions.AttachAsync(new PlayerSessionAttachRequest
+            await AttachSessionAsync(actors, new PlayerSessionAttachRequest
             {
                 UserId = login.UserId,
                 SessionToken = login.SessionToken,
@@ -201,7 +206,7 @@ public sealed class DistributedTopologyConfigurationTests
                 }
             });
 
-            result = await matchmaking.EnqueueAsync(new MatchmakingEnqueueRequest
+            result = await EnqueueAsync(actors, new MatchmakingEnqueueRequest
             {
                 UserId = login.UserId,
                 SessionToken = login.SessionToken,
@@ -225,12 +230,10 @@ public sealed class DistributedTopologyConfigurationTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
-        services.AddAgarSampleState();
+        services.AddAgarSampleActors();
 
         await using var provider = services.BuildServiceProvider();
-        var users = provider.GetRequiredService<IUserStateStore>();
-        var sessions = provider.GetRequiredService<IPlayerSessionStateStore>();
-        var matchmaking = provider.GetRequiredService<IMatchmakingStateStore>();
+        var actors = provider.GetRequiredService<IActorRuntime>();
 
         MatchmakingEnqueueResult? result = null;
         var playerIds = new List<string>();
@@ -238,9 +241,9 @@ public sealed class DistributedTopologyConfigurationTests
         {
             var playerId = $"no-runtime-player-{i}";
             playerIds.Add(playerId);
-            var login = await users.LoginAsync(playerId, "pw", reconnect: false);
+            var login = await LoginAsync(actors, playerId);
 
-            await sessions.AttachAsync(new PlayerSessionAttachRequest
+            await AttachSessionAsync(actors, new PlayerSessionAttachRequest
             {
                 UserId = login.UserId,
                 SessionToken = login.SessionToken,
@@ -256,7 +259,7 @@ public sealed class DistributedTopologyConfigurationTests
                 }
             });
 
-            result = await matchmaking.EnqueueAsync(new MatchmakingEnqueueRequest
+            result = await EnqueueAsync(actors, new MatchmakingEnqueueRequest
             {
                 UserId = login.UserId,
                 SessionToken = login.SessionToken,
@@ -268,14 +271,14 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.False(result.Matched);
         Assert.True(result.Queued);
 
-        var status = await matchmaking.GetStatusAsync();
+        var status = await GetMatchmakingStatusAsync(actors);
         Assert.Equal(10, status.QueuedCount);
         Assert.True(string.IsNullOrWhiteSpace(status.LastRoomId));
         Assert.True(string.IsNullOrWhiteSpace(status.LastMatchId));
 
         foreach (var playerId in playerIds)
         {
-            var snapshot = await sessions.GetSnapshotAsync(playerId);
+            var snapshot = await GetSessionSnapshotAsync(actors, playerId);
             Assert.True(string.IsNullOrWhiteSpace(snapshot.CurrentRoomId));
             Assert.True(string.IsNullOrWhiteSpace(snapshot.CurrentMatchId));
             Assert.True(string.IsNullOrWhiteSpace(snapshot.RuntimeGateway.Host));
@@ -291,17 +294,15 @@ public sealed class DistributedTopologyConfigurationTests
         var services = BuildProgramServices("appsettings.json");
 
         await using var provider = services.BuildServiceProvider();
-        var users = provider.GetRequiredService<IUserStateStore>();
-        var sessions = provider.GetRequiredService<IPlayerSessionStateStore>();
-        var matchmaking = provider.GetRequiredService<IMatchmakingStateStore>();
+        var actors = provider.GetRequiredService<IActorRuntime>();
 
         MatchmakingEnqueueResult? result = null;
         for (var i = 0; i < 10; i++)
         {
             var playerId = $"local-runtime-player-{i}";
-            var login = await users.LoginAsync(playerId, "pw", reconnect: false);
+            var login = await LoginAsync(actors, playerId);
 
-            await sessions.AttachAsync(new PlayerSessionAttachRequest
+            await AttachSessionAsync(actors, new PlayerSessionAttachRequest
             {
                 UserId = login.UserId,
                 SessionToken = login.SessionToken,
@@ -317,7 +318,7 @@ public sealed class DistributedTopologyConfigurationTests
                 }
             });
 
-            result = await matchmaking.EnqueueAsync(new MatchmakingEnqueueRequest
+            result = await EnqueueAsync(actors, new MatchmakingEnqueueRequest
             {
                 UserId = login.UserId,
                 SessionToken = login.SessionToken,
@@ -484,18 +485,14 @@ public sealed class DistributedTopologyConfigurationTests
 
         using var provider = services.BuildServiceProvider();
 
-        provider.GetRequiredService<IPlayerSessionStateStore>();
-        provider.GetRequiredService<IRoomStateStore>();
-        provider.GetRequiredService<IUserStateStore>();
-        provider.GetRequiredService<ILeaderboardStateStore>();
+        provider.GetRequiredService<IActorRuntime>();
         provider.GetRequiredService(RequiredServerAppType("Server.App.Services.SessionDirectory"));
         provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
+        provider.GetRequiredService(RequiredServerAppType("Server.App.Hotfix.AgarHotfixRuntimeEvents"));
         provider.GetRequiredService(RequiredServerAppType("Server.App.Realtime.RoomRuntimeHost"));
 
         Assert.Contains(provider.GetServices<IRpcSessionLifecycleObserver>(),
             observer => observer.GetType() == RequiredServerAppType("Server.App.Hosting.PlayerSessionLifecycleObserver"));
-        Assert.Throws<InvalidOperationException>(() =>
-            provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayMatchmakingCoordinator")));
         Assert.Throws<InvalidOperationException>(() =>
             provider.GetRequiredService(RequiredServerAppType("Server.App.Services.ReliableMatchmakingPublisher")));
     }
@@ -609,6 +606,43 @@ public sealed class DistributedTopologyConfigurationTests
         return typeof(BattleRuntimeFeature).Assembly.GetType(typeName)
             ?? throw new InvalidOperationException($"Could not find Server.App type '{typeName}'.");
     }
+
+    private static ValueTask<UserLoginResult> LoginAsync(IActorRuntime actors, string playerId)
+    {
+        return actors.AskAsync<UserActor, UserLoginResult>(
+            ActorId.From(playerId),
+            (actor, _) => actor.LoginAsync("pw", reconnect: false));
+    }
+
+    private static ValueTask<PlayerSessionSnapshot> AttachSessionAsync(IActorRuntime actors, PlayerSessionAttachRequest request)
+    {
+        return actors.AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
+            SessionId(request.UserId),
+            (actor, _) => actor.AttachAsync(request));
+    }
+
+    private static ValueTask<MatchmakingEnqueueResult> EnqueueAsync(IActorRuntime actors, MatchmakingEnqueueRequest request)
+    {
+        return actors.AskAsync<MatchmakingActor, MatchmakingEnqueueResult>(
+            ActorId.From("default"),
+            (actor, _) => actor.EnqueueAsync(request));
+    }
+
+    private static ValueTask<MatchmakingStatusSnapshot> GetMatchmakingStatusAsync(IActorRuntime actors)
+    {
+        return actors.AskAsync<MatchmakingActor, MatchmakingStatusSnapshot>(
+            ActorId.From("default"),
+            (actor, _) => actor.GetStatusAsync());
+    }
+
+    private static ValueTask<PlayerSessionSnapshot> GetSessionSnapshotAsync(IActorRuntime actors, string playerId)
+    {
+        return actors.AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
+            SessionId(playerId),
+            (actor, _) => actor.GetSnapshotAsync());
+    }
+
+    private static ActorId SessionId(string userId) => ActorId.From($"session:{userId}");
 
     private static IServiceCollection BuildFeatureServices(
         string fileName,

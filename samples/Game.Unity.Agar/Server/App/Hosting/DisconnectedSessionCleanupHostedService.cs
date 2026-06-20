@@ -1,8 +1,6 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Agar.Sample.State.Contracts.Sessions;
-using Agar.Sample.State.Contracts.Users;
-using Agar.Sample.State;
+using Server.App.Hotfix;
 using Server.App.Services;
 
 namespace Server.App.Hosting;
@@ -13,22 +11,16 @@ internal sealed class DisconnectedSessionCleanupHostedService : BackgroundServic
     private static readonly TimeSpan ReconnectGracePeriod = TimeSpan.FromSeconds(60);
 
     private readonly SessionDirectory _sessionDirectory;
-    private readonly GatewayMatchmakingCoordinator _matchmakingCoordinator;
-    private readonly IPlayerSessionStateStore _sessions;
-    private readonly IUserStateStore _users;
+    private readonly AgarHotfixRuntimeEvents _hotfixEvents;
     private readonly ILogger<DisconnectedSessionCleanupHostedService> _logger;
 
     public DisconnectedSessionCleanupHostedService(
         SessionDirectory sessionDirectory,
-        GatewayMatchmakingCoordinator matchmakingCoordinator,
-        IPlayerSessionStateStore sessions,
-        IUserStateStore users,
+        AgarHotfixRuntimeEvents hotfixEvents,
         ILogger<DisconnectedSessionCleanupHostedService> logger)
     {
         _sessionDirectory = sessionDirectory;
-        _matchmakingCoordinator = matchmakingCoordinator;
-        _sessions = sessions;
-        _users = users;
+        _hotfixEvents = hotfixEvents;
         _logger = logger;
     }
 
@@ -56,20 +48,13 @@ internal sealed class DisconnectedSessionCleanupHostedService : BackgroundServic
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                await _matchmakingCoordinator
-                    .ReleasePlayerAsync(registration.PlayerId, "Reconnect grace period expired")
-                    .ConfigureAwait(false);
-                await _sessions
-                    .MarkDisconnectedAsync(new PlayerSessionDisconnectRequest
-                    {
-                        UserId = registration.PlayerId,
-                        ConnectionId = registration.ConnectionId,
-                        DisconnectedAtUtc = DateTime.UtcNow,
-                        Reason = "Reconnect grace period expired"
-                    })
-                    .ConfigureAwait(false);
-                await _users
-                    .SetOnlineAsync(registration.PlayerId, false)
+                await _hotfixEvents
+                    .CleanupExpiredSessionAsync(
+                        registration.PlayerId,
+                        registration.ConnectionId,
+                        DateTime.UtcNow,
+                        "Reconnect grace period expired",
+                        cancellationToken)
                     .ConfigureAwait(false);
             }
             catch (Exception ex)
@@ -77,8 +62,6 @@ internal sealed class DisconnectedSessionCleanupHostedService : BackgroundServic
                 _logger.LogError(ex, "Failed to clean up expired disconnected session for player {PlayerId}.", registration.PlayerId);
                 continue;
             }
-
-            _sessionDirectory.Remove(registration.PlayerId);
         }
     }
 }

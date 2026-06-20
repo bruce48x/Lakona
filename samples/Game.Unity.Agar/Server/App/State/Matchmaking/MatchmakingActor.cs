@@ -8,19 +8,12 @@ public sealed class MatchmakingActor : Actor
 {
     internal const int DefaultRoomSize = 10;
 
-    internal readonly IPlayerSessionStateStore Sessions;
-    internal readonly IRoomStateStore Rooms;
     internal readonly BattleRuntimeGatewayResolver RuntimeGateways;
     internal bool RecordExists;
     internal MatchmakingState State = new();
 
-    public MatchmakingActor(
-        IPlayerSessionStateStore sessions,
-        IRoomStateStore rooms,
-        BattleRuntimeGatewayResolver runtimeGateways)
+    public MatchmakingActor(BattleRuntimeGatewayResolver runtimeGateways)
     {
-        Sessions = sessions;
-        Rooms = rooms;
         RuntimeGateways = runtimeGateways;
     }
 }

@@ -7,6 +7,6 @@ public sealed class StateStoreFeature : LakonaGameFeature
 {
     public override void ConfigureServices(LakonaGameFeatureContext context)
     {
-        context.Services.AddAgarSampleState();
+        context.Services.AddAgarSampleActors();
     }
 }

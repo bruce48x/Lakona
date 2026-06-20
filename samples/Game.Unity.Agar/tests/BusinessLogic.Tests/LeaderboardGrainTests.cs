@@ -1,10 +1,14 @@
 using System.Reflection;
 using Agar.Sample.State;
+using Agar.Sample.State.Contracts.Leaderboard;
+using Agar.Sample.State.Contracts.Users;
 using Agar.Sample.State.Leaderboard;
+using Agar.Sample.State.Users;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
 using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.State.Leaderboard;
+using Server.Hotfix.State.Users;
 using Xunit;
 
 namespace Agar.Unity.Tests;
@@ -130,18 +134,29 @@ public sealed class LeaderboardActorTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
-        services.AddAgarSampleState();
+        services.AddAgarSampleActors();
 
         await using var provider = services.BuildServiceProvider();
-        var users = provider.GetRequiredService<IUserStateStore>();
-        var leaderboard = provider.GetRequiredService<ILeaderboardStateStore>();
         var actors = provider.GetRequiredService<IActorRuntime>();
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         const string userId = "weekly-reset-player";
-        var login = await users.LoginAsync(userId, "pw", reconnect: false);
-        await users.AddVictoryPointsAsync(login.UserId, 25);
-        var profile = await users.GetProfileAsync(login.UserId);
-        await leaderboard.RecordVictoryPointsAsync(login.UserId, profile.VictoryPoints, profile.WinCount);
+        var login = await actors.AskAsync<UserActor, UserLoginResult>(
+            ActorId.From(userId),
+            (actor, _) => actor.LoginAsync("pw", reconnect: false),
+            cancellationToken);
+        await actors.TellAsync<UserActor>(
+            ActorId.From(login.UserId),
+            (actor, _) => actor.AddVictoryPointsAsync(25),
+            cancellationToken);
+        var profile = await actors.AskAsync<UserActor, UserProfileSnapshot>(
+            ActorId.From(login.UserId),
+            (actor, _) => actor.GetProfileAsync(),
+            cancellationToken);
+        await actors.TellAsync<LeaderboardActor>(
+            ActorId.From("current"),
+            (actor, _) => actor.RecordVictoryPointsAsync(login.UserId, profile.VictoryPoints, profile.WinCount),
+            cancellationToken);
 
         await actors.TellAsync<LeaderboardActor>(
             ActorId.From("current"),
@@ -152,11 +167,17 @@ public sealed class LeaderboardActorTests
                 state.CurrentPeriodStartUtc = "2000-01-03";
                 return default;
             },
-            TestContext.Current.CancellationToken);
+            cancellationToken);
 
-        await leaderboard.GetLeaderboardAsync(100);
+        await actors.AskAsync<LeaderboardActor, LeaderboardSnapshot>(
+            ActorId.From("current"),
+            (actor, _) => actor.GetLeaderboardAsync(100),
+            cancellationToken);
 
-        var resetProfile = await users.GetProfileAsync(login.UserId);
+        var resetProfile = await actors.AskAsync<UserActor, UserProfileSnapshot>(
+            ActorId.From(login.UserId),
+            (actor, _) => actor.GetProfileAsync(),
+            cancellationToken);
         Assert.Equal(0, resetProfile.VictoryPoints);
     }
 

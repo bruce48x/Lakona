@@ -1,7 +1,6 @@
-using Agar.Sample.State;
-using Agar.Sample.State.Contracts.Sessions;
 using Lakona.Rpc.Server;
 using Microsoft.Extensions.Logging;
+using Server.App.Hotfix;
 using Server.App.Services;
 
 namespace Server.App.Hosting;
@@ -9,16 +8,16 @@ namespace Server.App.Hosting;
 internal sealed class PlayerSessionLifecycleObserver : IRpcSessionLifecycleObserver
 {
     private readonly SessionDirectory _sessionDirectory;
-    private readonly IPlayerSessionStateStore _sessions;
+    private readonly AgarHotfixRuntimeEvents _hotfixEvents;
     private readonly ILogger<PlayerSessionLifecycleObserver> _logger;
 
     public PlayerSessionLifecycleObserver(
         SessionDirectory sessionDirectory,
-        IPlayerSessionStateStore sessions,
+        AgarHotfixRuntimeEvents hotfixEvents,
         ILogger<PlayerSessionLifecycleObserver> logger)
     {
         _sessionDirectory = sessionDirectory;
-        _sessions = sessions;
+        _hotfixEvents = hotfixEvents;
         _logger = logger;
     }
 
@@ -58,14 +57,13 @@ internal sealed class PlayerSessionLifecycleObserver : IRpcSessionLifecycleObser
         var disconnectedAtUtc = DateTime.UtcNow;
         try
         {
-            await _sessions
-                .MarkDisconnectedAsync(new PlayerSessionDisconnectRequest
-                {
-                    UserId = connection.PlayerId,
-                    ConnectionId = connection.ConnectionId,
-                    DisconnectedAtUtc = disconnectedAtUtc,
-                    Reason = "Control disconnect"
-                })
+            await _hotfixEvents
+                .MarkControlDisconnectedAsync(
+                    connection.PlayerId,
+                    connection.ConnectionId,
+                    disconnectedAtUtc,
+                    "Control disconnect",
+                    cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (Exception ex)

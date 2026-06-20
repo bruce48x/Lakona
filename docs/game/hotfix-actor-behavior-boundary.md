@@ -24,7 +24,7 @@ framework infrastructure, not game business logic.
 | --- | --- | --- |
 | `Shared` | RPC service contracts, client/server DTOs, callback contracts | Actor classes, Behavior classes, server-only actor routing types |
 | `Server.App` actor classes | State fields, stable infrastructure dependencies, constructors, `OnActivateAsync`, `OnDeactivateAsync` | Login rules, matchmaking rules, room rules, scoring rules, leaderboard ranking, DTO projection decisions |
-| `Server.App` bridge code | Actor id selection, `IActorRuntime` calls, `HotfixDispatch.Invoke`, DI registration, stable service proxies | Game decisions that can change without a stable deployment |
+| `Server.App` runtime event code | DI registration, actor runtime infrastructure, stable lifecycle observers, hosted service timers, room runtime ownership, framework `IHotfixServiceInvoker` calls by numeric method id | Game decisions that can change without a stable deployment, hand-written string dispatch into hotfix actor methods |
 | `Server.Hotfix` services | RPC request orchestration, session-facing business decisions, calls into actors and framework services | Stable RPC proxy registration, long-lived runtime ownership |
 | `Server.Hotfix` behaviors | One actor type's business operations, field mutation, DTO projection for that actor | RPC endpoints, background threads, timers, static event subscriptions, cached delegates into old hotfix assemblies |
 
@@ -42,8 +42,9 @@ declare only these members:
 - nested record or class types that are state containers
 
 Actor lifecycle hooks are for stable initialization and cleanup. If a lifecycle
-hook needs game-specific decisions, it must enter the current hotfix Behavior
-through `HotfixDispatch.Invoke` before executing those decisions.
+hook needs game-specific decisions, it should raise a framework hotfix service
+event through a numeric `IHotfixServiceInvoker` method id, and the hotfix service
+should call the current Behavior.
 
 A user-authored actor class in `Server.App` must not declare methods such as:
 
@@ -88,17 +89,21 @@ Behavior code must not own long-lived runtime resources. Do not store timers,
 threads, static event subscriptions, or callbacks in `Server.Hotfix` static
 fields.
 
-## Stable Bridge Rules
+## Stable Runtime Event Rules
 
-Stable bridge code may expose application-specific interfaces such as
-`IUserStateStore` or `IRoomStateStore` for stable `Server.App` callers that
-cannot reference `Server.Hotfix`. These interfaces are stable hotfix-visible
-contracts. Changing their method names, parameters, return types, or DTOs
-requires a `BuildTag` update.
+Stable app code must not expose application-specific state-store bridges such as
+`IUserStateStore` or `IRoomStateStore` for business actor behavior. Stable
+services that need to react to runtime facts, such as matchmaking ticks,
+disconnect cleanup, or room settlement, should define a small server-runtime
+hotfix contract with explicit `[RpcMethod(id)]` ids and call it through
+`IHotfixServiceInvoker` by numeric method id.
 
-`Server.Hotfix` service code must not route actor behavior through those stable
-state-store bridge interfaces. Hotfix services already share the current hotfix
-assembly with Behavior extensions, so they should enter actor turns through
+Generated framework RPC service proxies may also call hotfix services through
+`IHotfixServiceInvoker`; that is the supported service binding model. The
+forbidden pattern is sample-authored stable app code that wraps actor behavior
+behind business store interfaces or string method names.
+
+`Server.Hotfix` service code should enter actor turns through
 `HotfixServiceCall.Actors` and call Behavior methods directly:
 
 ```csharp
@@ -107,25 +112,27 @@ var result = await call.Actors.AskAsync<UserActor, UserLoginResult>(
     (actor, _) => actor.LoginAsync(password, reconnect));
 ```
 
-Stable-only bridge implementations must contain routing only:
+Stable runtime event adapters must contain routing only:
 
 ```csharp
-return runtime.AskAsync<UserActor, UserLoginResult>(
-    UserId(userId),
-    async (actor, _) => await HotfixDispatch.Invoke<UserActor, ValueTask<UserLoginResult>>(
-        "LoginAsync",
-        actor,
-        [typeof(string), typeof(bool)],
-        [password, reconnect]).ConfigureAwait(false)).AsTask();
+return hotfix.InvokeAsync<IAgarRuntimeService, HotfixServiceCall<AgarMatchmakingTickRequest>>(
+    AgarRuntimeMethodIds.TickMatchmaking,
+    new HotfixServiceCall<AgarMatchmakingTickRequest>(
+        request,
+        string.Empty,
+        services,
+        actors,
+        gameServer));
 ```
 
-The bridge selects the actor id, enters the actor turn through `IActorRuntime`,
-and invokes the current hotfix method. It does not validate passwords, choose
-match batches, compute ranks, award points, or build user-facing replies.
+The adapter selects the explicit hotfix service method id and supplies stable
+framework context. It does not validate passwords, choose match batches, compute
+ranks, award points, build user-facing replies, or call actor behavior one step
+at a time.
 
 `Server.App` may reference stable framework packages under
-`Lakona.Game.Server.Hotfix*`, including `HotfixDispatch`. It must not reference
-the reloadable game hotfix project, assembly, or namespace named
+`Lakona.Game.Server.Hotfix*`, including `IHotfixServiceInvoker`. It must not
+reference the reloadable game hotfix project, assembly, or namespace named
 `Server.Hotfix`.
 
 Mandatory hotfix also means stable app code must fail fast when a required
@@ -177,13 +184,12 @@ Move the following business logic to `samples/Game.Unity.Agar/Server/Hotfix`:
   projection
 - `MatchmakingQueuePolicy`, `LeaderboardRankingPolicy`, and
   `LeaderboardPeriodPolicy`
-- stable fallback simulation or settlement rules in
-  `Server/App/Realtime/RoomRuntime.cs`
+- settlement commit rules in `Server/App/Realtime/RoomRuntime.cs`
 
-The stable `StateStores.cs` file may remain in `Server.App` only as a bridge.
-After migration, each state store method must call `HotfixDispatch.Invoke`
-inside the actor turn and must not call a business method declared on the actor
-class.
+The Agar sample must not contain `Server/App/State/StateStores.cs` or replacement
+`I*StateStore` business bridges. Stable hosted services and runtime loops should
+raise hotfix runtime events; hotfix services and behaviors perform the business
+state mutation.
 
 ## Typed Actor Generation Rule
 
@@ -191,7 +197,7 @@ Managed distributed actor APIs may expose typed actor refs, but they must not
 require user-authored business method bodies on stable actor classes. Generated
 local or remote dispatch must eventually enter the current hotfix Behavior.
 
-Until the generator supports behavior-first actor contracts, samples must use
-`IActorRuntime` plus stable bridge code for actor behavior calls. Do not add
-new sample code that depends on business methods declared directly on
-`Server.App` actor classes.
+Until the generator supports behavior-first actor contracts, samples may use
+`IActorRuntime` inside hotfix services and behaviors for actor behavior calls.
+Do not add new sample code that depends on business methods declared directly on
+`Server.App` actor classes, and do not reintroduce stable state-store bridges.

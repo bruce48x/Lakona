@@ -1,8 +1,6 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Agar.Sample.State.Contracts.Matchmaking;
-using Agar.Sample.State;
-using Server.App.Services;
+using Server.App.Hotfix;
 
 namespace Server.App.Hosting;
 
@@ -10,12 +8,12 @@ internal sealed class MatchmakingHostedService : BackgroundService
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(250);
 
-    private readonly IMatchmakingStateStore _matchmaking;
+    private readonly AgarHotfixRuntimeEvents _hotfixEvents;
     private readonly ILogger<MatchmakingHostedService> _logger;
 
-    public MatchmakingHostedService(IMatchmakingStateStore matchmaking, ILogger<MatchmakingHostedService> logger)
+    public MatchmakingHostedService(AgarHotfixRuntimeEvents hotfixEvents, ILogger<MatchmakingHostedService> logger)
     {
-        _matchmaking = matchmaking;
+        _hotfixEvents = hotfixEvents;
         _logger = logger;
     }
 
@@ -28,12 +26,7 @@ internal sealed class MatchmakingHostedService : BackgroundService
             {
                 try
                 {
-                    await _matchmaking
-                        .TickAsync(new MatchmakingTickRequest
-                        {
-                            ObservedAtUtc = DateTime.UtcNow
-                        })
-                        .ConfigureAwait(false);
+                    await _hotfixEvents.TickMatchmakingAsync(DateTime.UtcNow, stoppingToken).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {

@@ -3,7 +3,12 @@ using Agar.Sample.State.Contracts.Matchmaking;
 using Agar.Sample.State.Contracts.Rooms;
 using Agar.Sample.State.Contracts.Sessions;
 using Agar.Sample.State.Matchmaking;
+using Agar.Sample.State.Rooms;
+using Agar.Sample.State.Sessions;
+using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Server.Hotfix.State.Rooms;
+using Server.Hotfix.State.Sessions;
 
 namespace Server.Hotfix.State.Matchmaking;
 
@@ -16,7 +21,7 @@ public static class MatchmakingBehavior
         var enqueuedAtUtc = NormalizeUtc(request.EnqueuedAtUtc);
         EnsureState(self);
 
-        var sessionSnapshot = await self.Sessions.GetSnapshotAsync(userId).ConfigureAwait(false);
+        var sessionSnapshot = await GetSessionSnapshotAsync(self, userId).ConfigureAwait(false);
         if (!string.IsNullOrWhiteSpace(sessionSnapshot.CurrentRoomId))
         {
             return new MatchmakingEnqueueResult
@@ -64,7 +69,7 @@ public static class MatchmakingBehavior
         SortQueue(self);
         self.State.LastUpdatedAtUtc = enqueuedAtUtc;
 
-        await self.Sessions.MarkQueuedAsync(new PlayerSessionQueueRequest
+        await MarkQueuedAsync(self, new PlayerSessionQueueRequest
         {
             UserId = userId,
             QueueId = self.State.QueueId,
@@ -122,7 +127,7 @@ public static class MatchmakingBehavior
         self.State.PendingTickets.RemoveAt(index);
         self.State.LastUpdatedAtUtc = cancelledAtUtc;
 
-        await self.Sessions.ClearQueueAsync(new PlayerSessionQueueClearRequest
+        await ClearQueueAsync(self, new PlayerSessionQueueClearRequest
         {
             UserId = userId,
             QueueId = ticket.QueueId,
@@ -157,22 +162,22 @@ public static class MatchmakingBehavior
         });
     }
 
-    public static async ValueTask TickAsync(this MatchmakingActor self, MatchmakingTickRequest request)
+    public static async ValueTask<Dictionary<string, RoomAssignment>> TickAsync(this MatchmakingActor self, MatchmakingTickRequest request)
     {
         EnsureState(self);
         if (self.State.PendingTickets.Count == 0)
         {
-            return;
+            return [];
         }
 
         var observedAtUtc = NormalizeUtc(request.ObservedAtUtc);
         var roomSize = MatchmakingQueuePolicy.NormalizeRoomSize(self.State.DefaultRoomSize);
         if (MatchmakingQueuePolicy.GetMatchBatchSize(self.State.PendingTickets, roomSize, observedAtUtc, allowExpiredPartialBatch: true) <= 0)
         {
-            return;
+            return [];
         }
 
-        await TryMatchAsync(self, observedAtUtc, allowExpiredPartialBatch: true).ConfigureAwait(false);
+        return await TryMatchAsync(self, observedAtUtc, allowExpiredPartialBatch: true).ConfigureAwait(false);
     }
 
     public static async ValueTask<Dictionary<string, RoomAssignment>> TryMatchAsync(
@@ -208,7 +213,7 @@ public static class MatchmakingBehavior
                     RuntimeGateway = CloneGateway(runtimeGateway)
                 }).ToList();
 
-                var createResult = await self.Rooms.CreateAsync(new RoomCreateRequest
+                var createResult = await CreateRoomAsync(self, new RoomCreateRequest
                 {
                     RoomId = roomId,
                     MatchId = matchId,
@@ -225,7 +230,7 @@ public static class MatchmakingBehavior
                     break;
                 }
 
-                await self.Rooms.StartAsync(new RoomStartRequest
+                await StartRoomAsync(self, new RoomStartRequest
                 {
                     RoomId = roomId,
                     StartedByUserId = batch[0].UserId,
@@ -234,7 +239,7 @@ public static class MatchmakingBehavior
 
                 foreach (var playerAssignment in playerAssignments)
                 {
-                    await self.Sessions.AssignRoomAsync(playerAssignment).ConfigureAwait(false);
+                    await AssignRoomAsync(self, playerAssignment).ConfigureAwait(false);
                 }
 
                 var roomAssignment = new RoomAssignment
@@ -272,6 +277,52 @@ public static class MatchmakingBehavior
         _ = batch;
         return await self.RuntimeGateways.ResolveAsync().ConfigureAwait(false);
     }
+
+    private static ValueTask<PlayerSessionSnapshot> GetSessionSnapshotAsync(MatchmakingActor self, string userId)
+    {
+        return self.Context.Runtime.AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
+            SessionId(userId),
+            (actor, _) => actor.GetSnapshotAsync());
+    }
+
+    private static ValueTask<PlayerSessionSnapshot> MarkQueuedAsync(MatchmakingActor self, PlayerSessionQueueRequest request)
+    {
+        return self.Context.Runtime.AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
+            SessionId(request.UserId),
+            (actor, _) => actor.MarkQueuedAsync(request));
+    }
+
+    private static ValueTask<PlayerSessionSnapshot> ClearQueueAsync(MatchmakingActor self, PlayerSessionQueueClearRequest request)
+    {
+        return self.Context.Runtime.AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
+            SessionId(request.UserId),
+            (actor, _) => actor.ClearQueueAsync(request));
+    }
+
+    private static ValueTask<PlayerSessionSnapshot> AssignRoomAsync(MatchmakingActor self, PlayerRoomAssignment request)
+    {
+        return self.Context.Runtime.AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
+            SessionId(request.UserId),
+            (actor, _) => actor.AssignRoomAsync(request));
+    }
+
+    private static ValueTask<RoomSettlementResult> CreateRoomAsync(MatchmakingActor self, RoomCreateRequest request)
+    {
+        return self.Context.Runtime.AskAsync<RoomActor, RoomSettlementResult>(
+            RoomId(request.RoomId),
+            (actor, _) => actor.CreateAsync(request));
+    }
+
+    private static ValueTask<RoomSettlementResult> StartRoomAsync(MatchmakingActor self, RoomStartRequest request)
+    {
+        return self.Context.Runtime.AskAsync<RoomActor, RoomSettlementResult>(
+            RoomId(request.RoomId),
+            (actor, _) => actor.StartAsync(request));
+    }
+
+    private static ActorId SessionId(string userId) => ActorId.From($"session:{userId}");
+
+    private static ActorId RoomId(string roomId) => ActorId.From(roomId);
 
     private static void RestoreBatch(MatchmakingActor self, List<MatchmakingQueueTicket> batch)
     {

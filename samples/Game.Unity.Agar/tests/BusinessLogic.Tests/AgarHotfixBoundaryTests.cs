@@ -43,13 +43,39 @@ public sealed class AgarHotfixBoundaryTests
     }
 
     [Fact]
-    public void Agar_sample_string_named_hotfix_actor_dispatch_stays_inside_stable_state_store_bridge()
+    public void Agar_app_does_not_define_stable_state_store_bridges_or_hand_written_hotfix_dispatch()
     {
-        var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/State/StateStores.cs")
-            .Directory!.Parent!.Parent!.Parent!.FullName;
+        var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
+            .Directory!.Parent!.Parent!.FullName;
+        var appRoot = Path.Combine(sampleRoot, "Server", "App");
+        var deletedBridge = Path.Combine(appRoot, "State", "StateStores.cs");
+        var forbidden = new Regex(
+            @"\bI(?:User|PlayerSession|Matchmaking|Room|Leaderboard)StateStore\b|HotfixDispatch\.Invoke\s*<|InvokeServiceAsync\s*<[^;]+,\s*string",
+            RegexOptions.CultureInvariant);
+        var violations = Directory.GetFiles(appRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(file => !IsUnderIgnoredSampleDirectory(sampleRoot, file))
+            .Select(file => new
+            {
+                File = file,
+                Matches = forbidden.Matches(File.ReadAllText(file)).Select(match => match.Value).Distinct().ToArray()
+            })
+            .Where(result => result.Matches.Length > 0)
+            .Select(result => $"{Path.GetRelativePath(Directory.GetCurrentDirectory(), result.File)}: {string.Join(", ", result.Matches)}")
+            .ToArray();
+
+        Assert.False(File.Exists(deletedBridge), "Server/App/State/StateStores.cs should not exist.");
+        Assert.True(
+            violations.Length == 0,
+            $"Server.App must not define stable state-store bridges or hand-written hotfix dispatch: {string.Join("; ", violations)}");
+    }
+
+    [Fact]
+    public void Agar_sample_actor_hotfix_dispatch_is_limited_to_scripted_gameplay_extension_points()
+    {
+        var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
+            .Directory!.Parent!.Parent!.FullName;
         var allowedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            Path.GetFullPath(Path.Combine(sampleRoot, "Server/App/State/StateStores.cs")),
             Path.GetFullPath(Path.Combine(sampleRoot, "Shared/Gameplay/ArenaSimulation.cs")),
         };
         var hotfixDispatch = new Regex(@"HotfixDispatch\.Invoke\s*<", RegexOptions.CultureInvariant);
@@ -67,13 +93,13 @@ public sealed class AgarHotfixBoundaryTests
 
         Assert.True(
             violations.Length == 0,
-            $"Actor hotfix dispatch must stay inside Server/App/State/StateStores.cs. Script hotfix dispatch is only allowed in Shared/Gameplay/ArenaSimulation.cs: {string.Join("; ", violations)}");
+            $"Actor hotfix dispatch is only allowed in Shared/Gameplay/ArenaSimulation.cs scripted gameplay extension points: {string.Join("; ", violations)}");
     }
 
     [Fact]
     public void Stable_state_actors_do_not_declare_business_methods()
     {
-        var stateRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/State/StateStores.cs")
+        var stateRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/State/AgarSampleActorServiceCollectionExtensions.cs")
             .DirectoryName!;
         var actorFiles = Directory.GetFiles(stateRoot, "*Actor.cs", SearchOption.AllDirectories);
         var forbidden = new Regex(
