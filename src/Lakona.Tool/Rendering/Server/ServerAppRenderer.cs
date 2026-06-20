@@ -20,7 +20,9 @@ internal sealed class ServerAppRenderer : IPlanContributor
         builder.AddFile("Server/App/Program.cs", RenderProgram(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/App/appsettings.json", RenderAppSettings(spec), FileWriteMode.Replace, GeneratedFileKind.Json);
         builder.AddFile("Server/App/Chat/ChatRoomActor.cs", RenderChatRoomActor(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Server/App/Lifecycle/ChatPresenceLifecycleHandler.cs", RenderChatPresenceLifecycleHandler(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Server/App/Hotfix/ChatRuntimeContracts.cs", RenderChatRuntimeContracts(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Server/App/Hotfix/ChatHotfixRuntimeEvents.cs", RenderChatHotfixRuntimeEvents(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Server/App/Hosting/ChatSessionLifecycleBridge.cs", RenderChatSessionLifecycleBridge(), FileWriteMode.Replace, GeneratedFileKind.Text);
     }
 
     private static string RenderSolution()
@@ -105,7 +107,8 @@ internal sealed class ServerAppRenderer : IPlanContributor
         using System.Threading.Tasks;
         using Microsoft.Extensions.DependencyInjection;
         using Server.App.Generated;
-        using Server.App.Lifecycle;
+        using Server.App.Hosting;
+        using Server.App.Hotfix;
         using Lakona.Game.Server.Features;
         using Lakona.Game.Server.Hosting;
         using Lakona.Game.Server.Sessions;
@@ -114,7 +117,8 @@ internal sealed class ServerAppRenderer : IPlanContributor
             .AddServices((services, configuration) =>
             {
                 services.AddLakonaGame(configuration);
-                services.AddSingleton<IGameSessionLifecycleHandler, ChatPresenceLifecycleHandler>();
+                services.AddSingleton<ChatHotfixRuntimeEvents>();
+                services.AddSingleton<IGameSessionLifecycleHandler, ChatSessionLifecycleBridge>();
             })
             .UseGeneratedHotfixServices());
         """;
@@ -142,65 +146,120 @@ internal sealed class ServerAppRenderer : IPlanContributor
         """;
     }
 
-    private static string RenderChatPresenceLifecycleHandler()
+    private static string RenderChatRuntimeContracts()
     {
         return """
-        using System;
-        using Server.App.Chat;
+        using Lakona.Rpc.Core;
+
+        namespace Server.App.Hotfix
+        {
+            public interface IChatRuntimeService
+            {
+                [RpcMethod(ChatRuntimeMethodIds.SessionExpired)]
+                ValueTask SessionExpiredAsync(ChatSessionExpiredRequest request);
+            }
+
+            public static class ChatRuntimeMethodIds
+            {
+                public const int SessionExpired = 1;
+            }
+
+            public sealed class ChatSessionExpiredRequest
+            {
+                public string ConnectionId { get; set; } = "";
+            }
+        }
+        """;
+    }
+
+    private static string RenderChatHotfixRuntimeEvents()
+    {
+        return """
+        using Lakona.Game.Server;
         using Lakona.Game.Server.Actors;
-        using Lakona.Game.Server.Hotfix.Dispatch;
+        using Lakona.Game.Server.Hotfix;
+        using Lakona.Game.Server.Hotfix.Abstractions;
+        using Microsoft.Extensions.DependencyInjection;
+
+        namespace Server.App.Hotfix
+        {
+            internal sealed class ChatHotfixRuntimeEvents
+            {
+                private readonly IServiceProvider _services;
+
+                public ChatHotfixRuntimeEvents(IServiceProvider services)
+                {
+                    _services = services;
+                }
+
+                public ValueTask SessionExpiredAsync(
+                    string connectionId,
+                    CancellationToken cancellationToken = default)
+                {
+                    var hotfix = _services.GetRequiredService<IHotfixServiceInvoker>();
+                    return hotfix.InvokeAsync<IChatRuntimeService, HotfixServiceCall<ChatSessionExpiredRequest>>(
+                        ChatRuntimeMethodIds.SessionExpired,
+                        new HotfixServiceCall<ChatSessionExpiredRequest>(
+                            new ChatSessionExpiredRequest { ConnectionId = connectionId },
+                            connectionId,
+                            _services,
+                            _services.GetRequiredService<IActorRuntime>(),
+                            _services.GetRequiredService<ILakonaGameServer>()),
+                        cancellationToken);
+                }
+            }
+        }
+        """;
+    }
+
+    private static string RenderChatSessionLifecycleBridge()
+    {
+        return """
+        using Server.App.Hotfix;
         using Lakona.Game.Server.Sessions;
 
-        namespace Server.App.Lifecycle
+        namespace Server.App.Hosting
         {
-            internal sealed class ChatPresenceLifecycleHandler : IGameSessionLifecycleHandler
+            internal sealed class ChatSessionLifecycleBridge : IGameSessionLifecycleHandler
             {
-                private static readonly ActorId RoomId = ActorId.From("chat:global");
-                private readonly IActorRuntime _actors;
+                private readonly ChatHotfixRuntimeEvents _hotfixEvents;
 
-                public ChatPresenceLifecycleHandler(IActorRuntime actors)
+                public ChatSessionLifecycleBridge(ChatHotfixRuntimeEvents hotfixEvents)
                 {
-                    _actors = actors;
+                    _hotfixEvents = hotfixEvents;
                 }
 
-                public ValueTask OnConnectionOpenedAsync(GameConnectionContext context, CancellationToken cancellationToken = default)
-                {
-                    return default;
-                }
-
-                public ValueTask OnSessionBoundAsync(GameSessionBindingContext context, CancellationToken cancellationToken = default)
+                public ValueTask OnConnectionOpenedAsync(
+                    GameConnectionContext context,
+                    CancellationToken cancellationToken = default)
                 {
                     return default;
                 }
 
-                public ValueTask OnSessionDisconnectedAsync(GameSessionBindingContext context, CancellationToken cancellationToken = default)
+                public ValueTask OnSessionBoundAsync(
+                    GameSessionBindingContext context,
+                    CancellationToken cancellationToken = default)
                 {
                     return default;
                 }
 
-                public async ValueTask OnSessionExpiredAsync(GameSessionBindingContext context, CancellationToken cancellationToken = default)
+                public ValueTask OnSessionDisconnectedAsync(
+                    GameSessionBindingContext context,
+                    CancellationToken cancellationToken = default)
                 {
-                    try
-                    {
-                        await _actors.AskAsync<ChatRoomActor, bool>(
-                            RoomId,
-                            async (room, ct) =>
-                            {
-                                await HotfixDispatch.Invoke<ChatRoomActor, ValueTask>(
-                                    "LeaveAsync",
-                                    room,
-                                    [typeof(string)],
-                                    [context.ConnectionId]);
-                                return true;
-                            });
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.Error.WriteLine($"Chat presence cleanup failed: {ex}");
-                    }
+                    return default;
                 }
 
-                public ValueTask OnSessionTerminatedAsync(GameSessionTerminationContext context, CancellationToken cancellationToken = default)
+                public ValueTask OnSessionExpiredAsync(
+                    GameSessionBindingContext context,
+                    CancellationToken cancellationToken = default)
+                {
+                    return _hotfixEvents.SessionExpiredAsync(context.ConnectionId, cancellationToken);
+                }
+
+                public ValueTask OnSessionTerminatedAsync(
+                    GameSessionTerminationContext context,
+                    CancellationToken cancellationToken = default)
                 {
                     return default;
                 }

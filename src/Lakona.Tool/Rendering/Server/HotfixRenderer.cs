@@ -10,6 +10,7 @@ internal sealed class HotfixRenderer : IPlanContributor
         builder.AddFile("Server/Hotfix/Server.Hotfix.csproj", RenderProject(), FileWriteMode.Replace, GeneratedFileKind.Project);
         builder.AddFile("Server/Hotfix/Login/LoginService.cs", RenderLoginService(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/Hotfix/Chat/ChatService.cs", RenderChatService(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Server/Hotfix/Chat/ChatRuntimeService.cs", RenderChatRuntimeService(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/Hotfix/Chat/ChatRoomBehavior.cs", RenderChatRoomBehavior(), FileWriteMode.Replace, GeneratedFileKind.Text);
     }
 
@@ -269,6 +270,43 @@ internal sealed class HotfixRenderer : IPlanContributor
                         {
                         }
                     }
+                }
+            }
+        }
+        """;
+    }
+
+    private static string RenderChatRuntimeService()
+    {
+        return """
+        using Server.App.Chat;
+        using Server.App.Hotfix;
+        using Lakona.Game.Server.Actors;
+        using Lakona.Game.Server.Hotfix;
+        using Lakona.Game.Server.Hotfix.Abstractions;
+
+        namespace Server.Hotfix.Chat
+        {
+            [HotfixService(typeof(IChatRuntimeService))]
+            internal sealed class ChatRuntimeService
+            {
+                private static readonly ActorId RoomId = ActorId.From("chat:global");
+
+                public static async ValueTask SessionExpiredAsync(HotfixServiceCall<ChatSessionExpiredRequest> call)
+                {
+                    var connectionId = call.Request.ConnectionId;
+                    if (string.IsNullOrWhiteSpace(connectionId))
+                    {
+                        return;
+                    }
+
+                    await call.Actors.AskAsync<ChatRoomActor, bool>(
+                        RoomId,
+                        async (room, ct) =>
+                        {
+                            await room.LeaveAsync(connectionId);
+                            return true;
+                        });
                 }
             }
         }
