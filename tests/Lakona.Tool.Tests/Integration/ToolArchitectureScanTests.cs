@@ -153,6 +153,25 @@ public sealed class ToolArchitectureScanTests
     }
 
     [Fact]
+    public void GodotChatSample_UsesHotfixRuntimeServiceForLifecycleCleanup()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var sampleRoot = Path.Combine(repositoryRoot, "samples", "Game.Godot.Chat");
+        var appText = ReadAllTextFiles(Path.Combine(sampleRoot, "Server", "App"));
+        var hotfixText = ReadAllTextFiles(Path.Combine(sampleRoot, "Server", "Hotfix"));
+
+        Assert.Contains("ChatHotfixRuntimeEvents", appText, StringComparison.Ordinal);
+        Assert.Contains("ChatSessionLifecycleBridge", appText, StringComparison.Ordinal);
+        Assert.Contains("IChatRuntimeService", appText, StringComparison.Ordinal);
+        Assert.Contains("[HotfixService(typeof(IChatRuntimeService))]", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("await room.LeaveAsync(connectionId);", hotfixText, StringComparison.Ordinal);
+        Assert.DoesNotContain("ChatPresenceLifecycleHandler", appText, StringComparison.Ordinal);
+        Assert.DoesNotContain("namespace Server.App.Lifecycle", appText, StringComparison.Ordinal);
+        Assert.DoesNotContain("HotfixDispatch.Invoke", appText, StringComparison.Ordinal);
+        Assert.DoesNotContain("IRpcSessionLifecycleObserver", appText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void SharedContractSources_DoNotExposeServerSessionIdentityOrCSharp10Syntax()
     {
         var repositoryRoot = FindRepositoryRoot();
