@@ -118,6 +118,29 @@ public sealed class AgarHotfixBoundaryTests
         }
     }
 
+    [Fact]
+    public void Agar_feature_classes_are_stable_startup_adapters()
+    {
+        var featureRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Features/BattleRuntimeFeature.cs")
+            .DirectoryName!;
+        var forbidden = new Regex(
+            @"HotfixDispatch\.|AskAsync<|TellAsync<|StartSessionAsync|BindCurrentSessionAsync|TerminateSessionAsync|FilterMessage|SettleMatch|TickMatchmakingAsync\(",
+            RegexOptions.CultureInvariant);
+        var violations = Directory.GetFiles(featureRoot, "*Feature.cs", SearchOption.TopDirectoryOnly)
+            .Select(file => new
+            {
+                File = file,
+                Matches = forbidden.Matches(File.ReadAllText(file)).Select(match => match.Value).Distinct().ToArray()
+            })
+            .Where(result => result.Matches.Length > 0)
+            .Select(result => $"{Path.GetRelativePath(Directory.GetCurrentDirectory(), result.File)}: {string.Join(", ", result.Matches)}")
+            .ToArray();
+
+        Assert.True(
+            violations.Length == 0,
+            $"LakonaGameFeature classes must stay stable startup adapters. Put business behavior in Server.Hotfix runtime services or actor behaviors: {string.Join("; ", violations)}");
+    }
+
     private static FileInfo FindRepositoryFile(string relativePath)
     {
         var directory = new DirectoryInfo(Directory.GetCurrentDirectory());
