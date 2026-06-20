@@ -160,7 +160,11 @@ Session disconnection, expiration, and termination are separate events:
   optionally published a terminal notice.
 
 User lifecycle hooks receive game-level context, not `RpcSession` and not
-endpoint names. Business presence policy belongs in these hooks.
+endpoint names. Business presence policy belongs behind these hooks. Stable
+framework code publishes the hook, and generated or sample App code may contain
+a bridge that forwards the event to a hotfix runtime service. The replaceable
+presence, cleanup, room leave, and matchmaking decisions belong in
+`Server.Hotfix`.
 
 ## Server-Initiated Termination
 

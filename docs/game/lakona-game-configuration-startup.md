@@ -100,6 +100,11 @@ builder.Services.AddLakonaGame(builder.Configuration, [
 Features may opt out of cluster publication with
 `public override bool Discoverable => false`.
 
+Feature selection is stable process topology. `Lakona:Feature` decides which
+startup adapters and cluster capabilities this process owns. It does not select
+which hotfix business rules are loaded. Hotfix services and actor behaviors are
+loaded by the hotfix manager after the stable host shape is known.
+
 ## Endpoint Rules
 
 `Lakona:Endpoints` entries are listener configuration and RPC service exposure.

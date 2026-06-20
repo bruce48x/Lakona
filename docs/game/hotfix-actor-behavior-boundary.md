@@ -24,7 +24,7 @@ framework infrastructure, not game business logic.
 | --- | --- | --- |
 | `Shared` | RPC service contracts, client/server DTOs, callback contracts | Actor classes, Behavior classes, server-only actor routing types |
 | `Server.App` actor classes | State fields, stable infrastructure dependencies, constructors, `OnActivateAsync`, `OnDeactivateAsync` | Login rules, matchmaking rules, room rules, scoring rules, leaderboard ranking, DTO projection decisions |
-| `Server.App` runtime event code | DI registration, actor runtime infrastructure, stable lifecycle observers, hosted service timers, room runtime ownership, framework `IHotfixServiceInvoker` calls by numeric method id | Game decisions that can change without a stable deployment, hand-written string dispatch into hotfix actor methods |
+| `Server.App` runtime adapter code | DI registration, actor runtime infrastructure, stable lifecycle bridges, `LakonaGameFeature` startup adapters, hosted service timers, room runtime ownership, framework `IHotfixServiceInvoker` calls by numeric method id | Game decisions that can change without a stable deployment, user-authored business lifecycle handlers, hand-written string dispatch into hotfix actor methods |
 | `Server.Hotfix` services | RPC request orchestration, session-facing business decisions, calls into actors and framework services | Stable RPC proxy registration, long-lived runtime ownership |
 | `Server.Hotfix` behaviors | One actor type's business operations, field mutation, DTO projection for that actor | RPC endpoints, background threads, timers, static event subscriptions, cached delegates into old hotfix assemblies |
 
@@ -129,6 +129,21 @@ The adapter selects the explicit hotfix service method id and supplies stable
 framework context. It does not validate passwords, choose match batches, compute
 ranks, award points, build user-facing replies, or call actor behavior one step
 at a time.
+
+Stable lifecycle bridges follow the same rule. An `IGameSessionLifecycleHandler`
+in `Server.App` may translate a framework session event into a runtime hotfix
+service call, but it must not implement presence, matchmaking, room cleanup,
+ranking, settlement, DTO projection, or product policy directly. The bridge
+selects a numeric `[RpcMethod]` id and supplies stable context. The
+`Server.Hotfix` runtime service decides what the event means for the game.
+
+`LakonaGameFeature` classes also stay in `Server.App`. A Feature is a stable
+startup and cluster capability adapter, not a hotfix behavior container.
+Feature classes may register services, runtime hosts, hosted service loops,
+and bridge adapters. Feature classes must not contain game rules. If a Feature
+starts a loop such as matchmaking ticks or room runtime settlement, that loop
+raises a hotfix runtime service event and the replaceable decision lives in
+`Server.Hotfix`.
 
 `Server.App` may reference stable framework packages under
 `Lakona.Game.Server.Hotfix*`, including `IHotfixServiceInvoker`. It must not

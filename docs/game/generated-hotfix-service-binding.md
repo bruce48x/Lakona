@@ -109,10 +109,17 @@ The boundary is:
 
 Generated docs should teach three edit zones:
 
-- `Shared/Contracts/**`: define service, callback, and DTO contracts.
-- `Server/Hotfix/**`: implement hot-reloadable service and actor behavior logic.
-- `Server/App/Lifecycle/**`: implement stable business lifecycle hooks such as
-  presence cleanup.
+- `Shared/Contracts/**`: define client/server RPC contracts, callback
+  contracts, DTOs, and stable numeric ids.
+- `Server/App/**`: keep stable actor state, generated RPC binding, startup
+  adapters, Feature classes, and hotfix runtime-event bridge contracts.
+- `Server/Hotfix/**`: implement hot-reloadable services, runtime lifecycle
+  event handlers, and actor behavior logic.
+
+Generated projects must not teach users to put presence cleanup, matchmaking
+cleanup, room leave policy, or session business policy in `Server.App`.
+When stable runtime code observes a lifecycle event, it forwards the event to a
+hotfix runtime service through `IHotfixServiceInvoker` and a numeric method id.
 
 There should be no generated-project edit zone for service endpoint markers,
 stable service proxies, or raw RPC lifecycle subscriptions.

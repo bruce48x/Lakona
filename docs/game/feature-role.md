@@ -16,6 +16,11 @@ The previous role/filter model and the older hand-written fluent catalog are
 superseded for generated projects and new samples. Do not use
 role-shaped configuration or endpoint names for new Lakona.Game startup code.
 
+Feature classes belong in stable `Server.App`. A Feature describes which
+capability this process starts and, when discoverable, publishes to the
+cluster. It is not the place for replaceable game rules. Business behavior
+behind a Feature belongs in `Server.Hotfix` services and actor behaviors.
+
 ## Define Features
 
 ```csharp
@@ -27,6 +32,11 @@ public sealed class BattleRuntimeFeature : LakonaGameFeature
     }
 }
 ```
+
+The Feature may register a hosted service or runtime host. That hosted service
+may raise hotfix runtime events through a stable App adapter. The Feature must
+not decide matchmaking batches, room results, leaderboard ranks, login policy,
+presence cleanup, or product DTO projection.
 
 ## Wire Program.cs
 
