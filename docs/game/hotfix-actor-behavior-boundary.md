@@ -91,11 +91,23 @@ fields.
 ## Stable Bridge Rules
 
 Stable bridge code may expose application-specific interfaces such as
-`IUserStateStore` or `IRoomStateStore` if they are DI boundaries used by hotfix
-services. These interfaces are stable hotfix-visible contracts. Changing their
-method names, parameters, return types, or DTOs requires a `BuildTag` update.
+`IUserStateStore` or `IRoomStateStore` for stable `Server.App` callers that
+cannot reference `Server.Hotfix`. These interfaces are stable hotfix-visible
+contracts. Changing their method names, parameters, return types, or DTOs
+requires a `BuildTag` update.
 
-Bridge implementations must contain routing only:
+`Server.Hotfix` service code must not route actor behavior through those stable
+state-store bridge interfaces. Hotfix services already share the current hotfix
+assembly with Behavior extensions, so they should enter actor turns through
+`HotfixServiceCall.Actors` and call Behavior methods directly:
+
+```csharp
+var result = await call.Actors.AskAsync<UserActor, UserLoginResult>(
+    ActorId.From(account),
+    (actor, _) => actor.LoginAsync(password, reconnect));
+```
+
+Stable-only bridge implementations must contain routing only:
 
 ```csharp
 return runtime.AskAsync<UserActor, UserLoginResult>(
@@ -110,11 +122,6 @@ return runtime.AskAsync<UserActor, UserLoginResult>(
 The bridge selects the actor id, enters the actor turn through `IActorRuntime`,
 and invokes the current hotfix method. It does not validate passwords, choose
 match batches, compute ranks, award points, or build user-facing replies.
-
-`Server.Hotfix` services may call Behavior extension methods directly because
-the service and Behavior are loaded from the same current hotfix assembly.
-`Server.App` code must not call Behavior extension methods directly because
-`Server.App` does not reference `Server.Hotfix`.
 
 `Server.App` may reference stable framework packages under
 `Lakona.Game.Server.Hotfix*`, including `HotfixDispatch`. It must not reference

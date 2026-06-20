@@ -1,9 +1,15 @@
-using Agar.Sample.State;
+using Agar.Sample.State.Contracts.Rooms;
+using Agar.Sample.State.Contracts.Sessions;
+using Agar.Sample.State.Rooms;
+using Agar.Sample.State.Sessions;
+using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Server.App.Realtime;
 using Server.App.Services;
+using Server.Hotfix.State.Rooms;
+using Server.Hotfix.State.Sessions;
 using Shared.Interfaces;
 
 namespace Server.Hotfix.Services;
@@ -27,8 +33,10 @@ public sealed class BattleService
             };
         }
 
-        var sessionSnapshot = await services.Sessions
-            .GetSnapshotAsync(req.PlayerId)
+        var sessionSnapshot = await call.Actors
+            .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
+                SessionId(req.PlayerId),
+                (actor, _) => actor.GetSnapshotAsync())
             .ConfigureAwait(false);
         if (!string.Equals(sessionSnapshot.SessionToken, req.Token, StringComparison.Ordinal) ||
             !string.Equals(sessionSnapshot.CurrentRoomId, req.RoomId, StringComparison.Ordinal) ||
@@ -50,8 +58,10 @@ public sealed class BattleService
             };
         }
 
-        var room = await services.Rooms
-            .GetSnapshotAsync(req.RoomId)
+        var room = await call.Actors
+            .AskAsync<RoomActor, RoomSnapshot>(
+                RoomId(req.RoomId),
+                (actor, _) => actor.GetSnapshotAsync())
             .ConfigureAwait(false);
         await services.RoomRuntimeHost.EnsureRoomReadyAsync(room).ConfigureAwait(false);
 
@@ -93,8 +103,10 @@ public sealed class BattleService
             return;
         }
 
-        var sessionSnapshot = await services.Sessions
-            .GetSnapshotAsync(playerId)
+        var sessionSnapshot = await call.Actors
+            .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
+                SessionId(playerId),
+                (actor, _) => actor.GetSnapshotAsync())
             .ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(sessionSnapshot.CurrentRoomId) ||
             !services.GatewayNodeIdentity.IsRuntimeOwner(sessionSnapshot.RuntimeGateway))
@@ -107,11 +119,13 @@ public sealed class BattleService
             .SubmitInputAsync(sessionSnapshot.CurrentRoomId, playerId, req)
             .ConfigureAwait(false);
     }
+
+    private static ActorId RoomId(string roomId) => ActorId.From(roomId);
+
+    private static ActorId SessionId(string userId) => ActorId.From($"session:{userId}");
 }
 
 internal sealed record AgarBattleServiceDependencies(
-    IPlayerSessionStateStore Sessions,
-    IRoomStateStore Rooms,
     SessionDirectory SessionDirectory,
     GatewayNodeIdentity GatewayNodeIdentity,
     RoomRuntimeHost RoomRuntimeHost)
@@ -119,8 +133,6 @@ internal sealed record AgarBattleServiceDependencies(
     public static AgarBattleServiceDependencies From<TRequest>(HotfixServiceCall<TRequest> call)
     {
         return new AgarBattleServiceDependencies(
-            call.Services.GetRequiredService<IPlayerSessionStateStore>(),
-            call.Services.GetRequiredService<IRoomStateStore>(),
             call.Services.GetRequiredService<SessionDirectory>(),
             call.Services.GetRequiredService<GatewayNodeIdentity>(),
             call.Services.GetRequiredService<RoomRuntimeHost>());

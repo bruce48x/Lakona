@@ -1,10 +1,12 @@
 using Agar.Sample.State.Contracts;
 using Agar.Sample.State.Contracts.Leaderboard;
-using Agar.Sample.State.Contracts.Rooms;
 using Agar.Sample.State.Contracts.Sessions;
-using Agar.Sample.State.Contracts.Users;
 using Agar.Sample.State;
 using Lakona.Game.Abstractions;
+using Agar.Sample.State.Leaderboard;
+using Agar.Sample.State.Sessions;
+using Agar.Sample.State.Users;
+using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.ReliablePush;
@@ -13,6 +15,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Server.App.Realtime;
 using Server.App.Services;
+using Server.Hotfix.State.Leaderboard;
+using Server.Hotfix.State.Sessions;
+using Server.Hotfix.State.Users;
 using Shared.Interfaces;
 
 namespace Server.Hotfix.Services;
@@ -28,8 +33,10 @@ public sealed class PlayerService
         _ = await EnsureControlCallbackBoundAsync(call, services).ConfigureAwait(false);
 
         var topN = req.TopN <= 0 ? 10 : req.TopN;
-        var snapshot = await services.Leaderboard
-            .GetLeaderboardAsync(topN)
+        var snapshot = await call.Actors
+            .AskAsync<LeaderboardActor, LeaderboardSnapshot>(
+                LeaderboardId,
+                (actor, _) => actor.GetLeaderboardAsync(topN))
             .ConfigureAwait(false);
 
         logger.LogInformation("Leaderboard queried. TopN={TopN} Returned={Returned} Period={PeriodStartUtc}.",
@@ -195,17 +202,21 @@ public sealed class PlayerService
         try
         {
             await services.MatchmakingCoordinator.ReleasePlayerAsync(playerId, reason).ConfigureAwait(false);
-            await services.Sessions
-                .MarkDisconnectedAsync(new PlayerSessionDisconnectRequest
-                {
-                    UserId = playerId,
-                    ConnectionId = registration?.ConnectionId ?? string.Empty,
-                    DisconnectedAtUtc = DateTime.UtcNow,
-                    Reason = reason
-                })
+            await services.Actors
+                .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
+                    SessionId(playerId),
+                    (actor, _) => actor.MarkDisconnectedAsync(new PlayerSessionDisconnectRequest
+                    {
+                        UserId = playerId,
+                        ConnectionId = registration?.ConnectionId ?? string.Empty,
+                        DisconnectedAtUtc = DateTime.UtcNow,
+                        Reason = reason
+                    }))
                 .ConfigureAwait(false);
-            await services.Users
-                .SetOnlineAsync(playerId, false)
+            await services.Actors
+                .TellAsync<UserActor>(
+                    UserId(playerId),
+                    (actor, _) => actor.SetOnlineAsync(false))
                 .ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -220,13 +231,16 @@ public sealed class PlayerService
 
         services.SessionDirectory.Remove(playerId);
     }
+
+    private static readonly ActorId LeaderboardId = ActorId.From("current");
+
+    private static ActorId UserId(string userId) => ActorId.From(userId);
+
+    private static ActorId SessionId(string userId) => ActorId.From($"session:{userId}");
 }
 
 internal sealed record AgarServiceDependencies(
-    IUserStateStore Users,
-    IPlayerSessionStateStore Sessions,
-    IRoomStateStore Rooms,
-    ILeaderboardStateStore Leaderboard,
+    IActorRuntime Actors,
     SessionDirectory SessionDirectory,
     GatewayMatchmakingCoordinator MatchmakingCoordinator,
     GatewayNodeIdentity GatewayNodeIdentity,
@@ -244,10 +258,7 @@ internal sealed record AgarServiceDependencies(
     public static AgarServiceDependencies From<TRequest>(HotfixServiceCall<TRequest> call)
     {
         return new AgarServiceDependencies(
-            call.Services.GetRequiredService<IUserStateStore>(),
-            call.Services.GetRequiredService<IPlayerSessionStateStore>(),
-            call.Services.GetRequiredService<IRoomStateStore>(),
-            call.Services.GetRequiredService<ILeaderboardStateStore>(),
+            call.Actors,
             call.Services.GetRequiredService<SessionDirectory>(),
             call.Services.GetRequiredService<GatewayMatchmakingCoordinator>(),
             call.Services.GetRequiredService<GatewayNodeIdentity>(),

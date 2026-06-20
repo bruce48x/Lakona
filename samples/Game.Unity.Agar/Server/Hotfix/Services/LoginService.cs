@@ -1,10 +1,15 @@
 using Agar.Sample.State.Contracts;
 using Agar.Sample.State.Contracts.Sessions;
 using Agar.Sample.State.Contracts.Users;
+using Agar.Sample.State.Sessions;
+using Agar.Sample.State.Users;
+using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.Logging;
+using Server.Hotfix.State.Sessions;
+using Server.Hotfix.State.Users;
 using Shared.Interfaces;
 using System.Security.Cryptography;
 
@@ -35,8 +40,10 @@ public sealed class LoginService
         UserLoginResult loginResult;
         try
         {
-            loginResult = await services.Users
-                .LoginAsync(account, password, req.Reconnect)
+            loginResult = await call.Actors
+                .AskAsync<UserActor, UserLoginResult>(
+                    UserId(account),
+                    (actor, _) => actor.LoginAsync(password, req.Reconnect))
                 .ConfigureAwait(false);
         }
         catch (InvalidOperationException ex)
@@ -65,15 +72,17 @@ public sealed class LoginService
             }
 
             sessionKey = resumeDecision.Session.Value;
-            await services.Sessions
-                .ReconnectAsync(new PlayerSessionReconnectRequest
-                {
-                    UserId = loginResult.UserId,
-                    SessionToken = loginResult.SessionToken,
-                    ConnectionId = call.ConnectionId,
-                    ReconnectedAtUtc = DateTime.UtcNow,
-                    ControlGateway = CloneGateway(services.GatewayNodeIdentity.AdvertisedEndpoint)
-                })
+            await call.Actors
+                .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
+                    SessionId(loginResult.UserId),
+                    (actor, _) => actor.ReconnectAsync(new PlayerSessionReconnectRequest
+                    {
+                        UserId = loginResult.UserId,
+                        SessionToken = loginResult.SessionToken,
+                        ConnectionId = call.ConnectionId,
+                        ReconnectedAtUtc = DateTime.UtcNow,
+                        ControlGateway = CloneGateway(services.GatewayNodeIdentity.AdvertisedEndpoint)
+                    }))
                 .ConfigureAwait(false);
         }
         else
@@ -81,15 +90,17 @@ public sealed class LoginService
             sessionKey = await services.SessionDirectory
                 .RegisterNewControlAsync(loginResult.UserId, loginResult.SessionToken, call.ConnectionId)
                 .ConfigureAwait(false);
-            await services.Sessions
-                .AttachAsync(new PlayerSessionAttachRequest
-                {
-                    UserId = loginResult.UserId,
-                    SessionToken = loginResult.SessionToken,
-                    ConnectionId = call.ConnectionId,
-                    AttachedAtUtc = DateTime.UtcNow,
-                    ControlGateway = CloneGateway(services.GatewayNodeIdentity.AdvertisedEndpoint)
-                })
+            await call.Actors
+                .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
+                    SessionId(loginResult.UserId),
+                    (actor, _) => actor.AttachAsync(new PlayerSessionAttachRequest
+                    {
+                        UserId = loginResult.UserId,
+                        SessionToken = loginResult.SessionToken,
+                        ConnectionId = call.ConnectionId,
+                        AttachedAtUtc = DateTime.UtcNow,
+                        ControlGateway = CloneGateway(services.GatewayNodeIdentity.AdvertisedEndpoint)
+                    }))
                 .ConfigureAwait(false);
             await services.ReliablePushOutbox.AckAsync(loginResult.UserId, long.MaxValue).ConfigureAwait(false);
         }
@@ -107,6 +118,10 @@ public sealed class LoginService
             SessionGeneration = sessionKey.Generation
         };
     }
+
+    private static ActorId UserId(string userId) => ActorId.From(userId);
+
+    private static ActorId SessionId(string userId) => ActorId.From($"session:{userId}");
 
     private static GatewayEndpointDescriptor CloneGateway(GatewayEndpointDescriptor gateway)
     {
