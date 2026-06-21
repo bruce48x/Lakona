@@ -157,21 +157,24 @@ public sealed class ToolArchitectureScanTests
     }
 
     [Fact]
-    public void GodotChatSample_UsesHotfixRuntimeServiceForLifecycleCleanup()
+    public void GodotChatSample_UsesFrameworkOwnedSessionLifecycleHotfix()
     {
         var repositoryRoot = FindRepositoryRoot();
         var sampleRoot = Path.Combine(repositoryRoot, "samples", "Game.Godot.Chat");
         var appText = ReadAllTextFiles(Path.Combine(sampleRoot, "Server", "App"));
         var hotfixText = ReadAllTextFiles(Path.Combine(sampleRoot, "Server", "Hotfix"));
 
-        Assert.Contains("ChatHotfixRuntimeEvents", appText, StringComparison.Ordinal);
-        Assert.Contains("ChatSessionLifecycleBridge", appText, StringComparison.Ordinal);
-        Assert.Contains("IChatRuntimeService", appText, StringComparison.Ordinal);
-        Assert.Contains("IHotfixRequiredServiceContracts", appText, StringComparison.Ordinal);
-        Assert.Contains("ChatRuntimeRequiredServiceContracts", appText, StringComparison.Ordinal);
-        Assert.Contains("typeof(IChatRuntimeService)", appText, StringComparison.Ordinal);
-        Assert.Contains("[HotfixService(typeof(IChatRuntimeService))]", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("AddLakonaGameSessionHotfixLifecycle", appText, StringComparison.Ordinal);
+        Assert.Contains("ChatSessionLifecycle", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("[HotfixLifecycle(typeof(IGameSessionLifecycle))]", hotfixText, StringComparison.Ordinal);
+        Assert.DoesNotContain("ChatHotfixRuntimeEvents", appText, StringComparison.Ordinal);
+        Assert.DoesNotContain("ChatSessionLifecycleBridge", appText, StringComparison.Ordinal);
+        Assert.DoesNotContain("IChatRuntimeService", appText, StringComparison.Ordinal);
+        Assert.DoesNotContain("IHotfixRequiredServiceContracts", appText, StringComparison.Ordinal);
+        Assert.DoesNotContain("ChatRuntimeRequiredServiceContracts", appText, StringComparison.Ordinal);
+        Assert.DoesNotContain("typeof(IChatRuntimeService)", appText, StringComparison.Ordinal);
         Assert.Contains("await room.LeaveAsync(connectionId);", hotfixText, StringComparison.Ordinal);
+        Assert.DoesNotContain("LifecycleService", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain("ChatPresenceLifecycleHandler", appText, StringComparison.Ordinal);
         Assert.DoesNotContain("namespace Server.App.Lifecycle", appText, StringComparison.Ordinal);
         Assert.DoesNotContain("HotfixDispatch.Invoke", appText, StringComparison.Ordinal);
