@@ -133,6 +133,33 @@ public sealed class HotfixBehaviorScannerTests
     }
 
     [Fact]
+    public void Scanner_rejects_lifecycle_methods_that_use_service_call_wrapper()
+    {
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(TestLifecycleContract).Assembly,
+            [typeof(TestLifecycleWithServiceCallImplementation)]);
+
+        Assert.False(scan.Succeeded);
+        Assert.Contains(scan.Diagnostics, diagnostic =>
+            diagnostic.Contains(nameof(TestLifecycleWithServiceCallImplementation), StringComparison.Ordinal) &&
+            diagnostic.Contains("HotfixLifecycleCall<TRequest>", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Scanner_rejects_service_methods_that_use_lifecycle_call_wrapper()
+    {
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(TestServiceContract).Assembly,
+            [typeof(TestServiceWithLifecycleCallImplementation)]);
+
+        Assert.False(scan.Succeeded);
+        Assert.Contains(scan.Diagnostics, diagnostic =>
+            diagnostic.Contains(nameof(TestServiceWithLifecycleCallImplementation), StringComparison.Ordinal) &&
+            diagnostic.Contains("HotfixServiceCall<TRequest>", StringComparison.Ordinal) &&
+            diagnostic.Contains("HotfixServiceCall<TRequest, TCallback>", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Scanner_reports_required_lifecycle_contracts_with_lifecycle_diagnostic_wording()
     {
         var scan = HotfixBehaviorScanner.Scan(
@@ -288,10 +315,38 @@ public sealed class HotfixBehaviorScannerTests
     {
     }
 
+    public interface TestServiceContract
+    {
+        [RpcMethod(302)]
+        ValueTask PingAsync(TestServiceRequest request);
+    }
+
+    public sealed class TestServiceRequest
+    {
+    }
+
     [HotfixLifecycle(typeof(TestLifecycleContract))]
     public sealed class TestLifecycleImplementation
     {
         public static ValueTask ExpiredAsync(HotfixLifecycleCall<TestLifecycleRequest> call)
+        {
+            return default;
+        }
+    }
+
+    [HotfixLifecycle(typeof(TestLifecycleContract))]
+    public sealed class TestLifecycleWithServiceCallImplementation
+    {
+        public static ValueTask ExpiredAsync(HotfixServiceCall<TestLifecycleRequest> call)
+        {
+            return default;
+        }
+    }
+
+    [HotfixService(typeof(TestServiceContract))]
+    public sealed class TestServiceWithLifecycleCallImplementation
+    {
+        public static ValueTask PingAsync(HotfixLifecycleCall<TestServiceRequest> call)
         {
             return default;
         }

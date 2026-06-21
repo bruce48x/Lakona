@@ -75,13 +75,14 @@ public static class HotfixBehaviorScanner
                     ScanBehaviorType(type, behavior.ActorType, methods, diagnostics, keys);
                 }
 
-                if (!TryGetHotfixServiceContract(type, diagnostics, out var serviceContract))
+                if (!TryGetHotfixServiceContract(type, diagnostics, out var serviceBinding))
                 {
                     continue;
                 }
 
-                if (serviceContract is not null)
+                if (serviceBinding is not null)
                 {
+                    var serviceContract = serviceBinding.ContractType;
                     if (!serviceImplementations.TryGetValue(serviceContract, out var implementations))
                     {
                         implementations = [];
@@ -89,7 +90,7 @@ public static class HotfixBehaviorScanner
                     }
 
                     implementations.Add(type);
-                    ScanServiceType(type, serviceContract, services, diagnostics, serviceKeys);
+                    ScanServiceType(type, serviceBinding, services, diagnostics, serviceKeys);
                 }
             }
         }
@@ -110,7 +111,7 @@ public static class HotfixBehaviorScanner
     private static bool TryGetHotfixServiceContract(
         Type type,
         List<string> diagnostics,
-        out Type? contractType)
+        out HotfixServiceBindingDescriptor? binding)
     {
         var service = type.GetCustomAttribute<HotfixServiceAttribute>();
         var lifecycle = type.GetCustomAttribute<HotfixLifecycleAttribute>();
@@ -118,11 +119,15 @@ public static class HotfixBehaviorScanner
         if (service is not null && lifecycle is not null)
         {
             diagnostics.Add($"Hotfix type '{type.FullName}' must not use both [HotfixService] and [HotfixLifecycle].");
-            contractType = null;
+            binding = null;
             return false;
         }
 
-        contractType = service?.ContractType ?? lifecycle?.ContractType;
+        binding = service is not null
+            ? new HotfixServiceBindingDescriptor(service.ContractType, HotfixServiceBindingKind.Service)
+            : lifecycle is not null
+                ? new HotfixServiceBindingDescriptor(lifecycle.ContractType, HotfixServiceBindingKind.Lifecycle)
+                : null;
         return true;
     }
 
@@ -185,11 +190,12 @@ public static class HotfixBehaviorScanner
 
     private static void ScanServiceType(
         Type serviceType,
-        Type contractType,
+        HotfixServiceBindingDescriptor binding,
         List<HotfixServiceMethodBinding> services,
         List<string> diagnostics,
         HashSet<string> serviceKeys)
     {
+        var contractType = binding.ContractType;
         if (serviceType.IsAbstract || serviceType.IsInterface)
         {
             diagnostics.Add($"Hotfix service '{serviceType.FullName}' must be a concrete class.");
@@ -227,7 +233,24 @@ public static class HotfixBehaviorScanner
                 ? typeof(ValueTask)
                 : method.ReturnType.GetGenericArguments()[0];
             var parameterTypes = parameters.Select(static parameter => parameter.ParameterType).ToArray();
-            var contractParameterTypes = parameterTypes.Select(GetContractParameterType).ToArray();
+            var contractParameterTypes = new Type[parameterTypes.Length];
+            var invalidParameter = false;
+            for (var index = 0; index < parameterTypes.Length; index++)
+            {
+                if (!TryGetContractParameterType(binding.Kind, serviceType, method, parameterTypes[index], diagnostics, out var contractParameterType))
+                {
+                    invalidParameter = true;
+                    break;
+                }
+
+                contractParameterTypes[index] = contractParameterType;
+            }
+
+            if (invalidParameter)
+            {
+                continue;
+            }
+
             var contractMethod = ResolveContractMethod(contractType, method, contractParameterTypes, diagnostics);
             if (contractMethod is null)
             {
@@ -257,18 +280,48 @@ public static class HotfixBehaviorScanner
         return type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ValueTask<>);
     }
 
-    private static Type GetContractParameterType(Type parameterType)
+    private static bool TryGetContractParameterType(
+        HotfixServiceBindingKind bindingKind,
+        Type serviceType,
+        MethodInfo method,
+        Type parameterType,
+        List<string> diagnostics,
+        out Type contractParameterType)
     {
+        contractParameterType = parameterType;
         if (!parameterType.IsGenericType)
         {
-            return parameterType;
+            return true;
         }
 
         var genericDefinition = parameterType.GetGenericTypeDefinition();
-        return genericDefinition.Namespace == "Lakona.Game.Server.Hotfix" &&
-            genericDefinition.Name is "HotfixServiceCall`1" or "HotfixServiceCall`2" or "HotfixLifecycleCall`1"
-            ? parameterType.GetGenericArguments()[0]
-            : parameterType;
+        if (genericDefinition.Namespace != "Lakona.Game.Server.Hotfix")
+        {
+            return true;
+        }
+
+        var name = genericDefinition.Name;
+        var isServiceCall = name is "HotfixServiceCall`1" or "HotfixServiceCall`2";
+        var isLifecycleCall = name is "HotfixLifecycleCall`1";
+        if (!isServiceCall && !isLifecycleCall)
+        {
+            return true;
+        }
+
+        if (bindingKind == HotfixServiceBindingKind.Lifecycle && !isLifecycleCall)
+        {
+            diagnostics.Add($"Hotfix lifecycle method '{serviceType.FullName}.{method.Name}' must use HotfixLifecycleCall<TRequest>.");
+            return false;
+        }
+
+        if (bindingKind == HotfixServiceBindingKind.Service && !isServiceCall)
+        {
+            diagnostics.Add($"Hotfix service method '{serviceType.FullName}.{method.Name}' must use HotfixServiceCall<TRequest> or HotfixServiceCall<TRequest, TCallback>.");
+            return false;
+        }
+
+        contractParameterType = parameterType.GetGenericArguments()[0];
+        return true;
     }
 
     private static MethodInfo? ResolveContractMethod(
@@ -296,5 +349,15 @@ public static class HotfixBehaviorScanner
             ? $"Hotfix service method '{serviceMethod.DeclaringType?.FullName}.{serviceMethod.Name}' does not match a method on contract '{contractType.FullName}'."
             : $"Hotfix service method '{serviceMethod.DeclaringType?.FullName}.{serviceMethod.Name}' matches more than one method on contract '{contractType.FullName}'.");
         return null;
+    }
+
+    private sealed record HotfixServiceBindingDescriptor(
+        Type ContractType,
+        HotfixServiceBindingKind Kind);
+
+    private enum HotfixServiceBindingKind
+    {
+        Service,
+        Lifecycle
     }
 }
