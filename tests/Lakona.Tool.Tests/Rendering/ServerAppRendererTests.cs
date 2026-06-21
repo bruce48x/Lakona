@@ -37,20 +37,21 @@ public sealed class ServerAppRendererTests
 
         var program = AssertPath(plan, "Server/App/Program.cs").Content;
         Assert.Contains("using Lakona.Game.Server.Hosting;", program, StringComparison.Ordinal);
-        Assert.Contains("using Lakona.Game.Server.Hotfix.Abstractions;", program, StringComparison.Ordinal);
         Assert.Contains("using Lakona.Game.Server.Sessions;", program, StringComparison.Ordinal);
         Assert.Contains("using Microsoft.Extensions.DependencyInjection;", program, StringComparison.Ordinal);
-        Assert.Contains("using Server.App.Hosting;", program, StringComparison.Ordinal);
-        Assert.Contains("using Server.App.Hotfix;", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("using Lakona.Game.Server.Hotfix.Abstractions;", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("using Server.App.Hosting;", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("using Server.App.Hotfix;", program, StringComparison.Ordinal);
         Assert.Contains("return await LakonaGameServer.RunAsync(args, server => server", program, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona.Rpc.Serializer", program, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona.Rpc.Transport", program, StringComparison.Ordinal);
         Assert.DoesNotContain(".UseTransport(", program, StringComparison.Ordinal);
         Assert.DoesNotContain(".UseSerializer(", program, StringComparison.Ordinal);
         Assert.DoesNotContain(".UseAcceptor(", program, StringComparison.Ordinal);
-        Assert.Contains("services.AddSingleton<ChatHotfixRuntimeEvents>();", program, StringComparison.Ordinal);
-        Assert.Contains("services.AddSingleton<IHotfixRequiredServiceContracts, ChatRuntimeRequiredServiceContracts>();", program, StringComparison.Ordinal);
-        Assert.Contains("services.AddSingleton<IGameSessionLifecycleHandler, ChatSessionLifecycleBridge>();", program, StringComparison.Ordinal);
+        Assert.Contains("services.AddLakonaGameSessionHotfixLifecycle();", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("services.AddSingleton<ChatHotfixRuntimeEvents>();", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("services.AddSingleton<IHotfixRequiredServiceContracts, ChatRuntimeRequiredServiceContracts>();", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("services.AddSingleton<IGameSessionLifecycleHandler, ChatSessionLifecycleBridge>();", program, StringComparison.Ordinal);
         Assert.DoesNotContain("using Server.App.Lifecycle;", program, StringComparison.Ordinal);
         Assert.DoesNotContain("ChatPresenceLifecycleHandler", program, StringComparison.Ordinal);
         Assert.DoesNotContain("AddLakonaGameServerSessionCleanup", program, StringComparison.Ordinal);
@@ -77,10 +78,18 @@ public sealed class ServerAppRendererTests
         Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Chat/ChatServiceProxy.cs");
         Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Hosting/ServiceBindingConfigurator.cs");
         Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Chat/ChatConnectionLifecycle.cs");
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Hotfix/ChatRuntimeContracts.cs");
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Hotfix/ChatHotfixRuntimeEvents.cs");
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Hosting/ChatSessionLifecycleBridge.cs");
 
         Assert.DoesNotContain(plan.Files, file => file.RelativePath == $"Server/App/Services/{ForbiddenGeneratedGlueFile}.cs");
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains(ForbiddenGeneratedGlueFile, StringComparison.Ordinal));
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains(ForbiddenHotfixMarker, StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains("IChatRuntimeService", StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains("ChatRuntimeContracts", StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains("IGameSessionLifecycleHandler", StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains("ChatSessionLifecycleBridge", StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains("ChatHotfixRuntimeEvents", StringComparison.Ordinal));
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("EndpointName", StringComparison.Ordinal));
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains(ForbiddenGameEndpointType, StringComparison.Ordinal));
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains(ForbiddenSessionEndpointType, StringComparison.Ordinal));
@@ -88,30 +97,7 @@ public sealed class ServerAppRendererTests
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("namespace Server.App.Lifecycle", StringComparison.Ordinal));
 
         Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Lifecycle/ChatPresenceLifecycleHandler.cs");
-
-        var runtimeContracts = AssertPath(plan, "Server/App/Hotfix/ChatRuntimeContracts.cs").Content;
-        Assert.Contains("public interface IChatRuntimeService", runtimeContracts, StringComparison.Ordinal);
-        Assert.Contains("[RpcMethod(ChatRuntimeMethodIds.SessionExpired)]", runtimeContracts, StringComparison.Ordinal);
-        Assert.Contains("IHotfixRequiredServiceContracts", runtimeContracts, StringComparison.Ordinal);
-        Assert.Contains("typeof(IChatRuntimeService)", runtimeContracts, StringComparison.Ordinal);
-        Assert.Contains("public sealed class ChatSessionExpiredRequest", runtimeContracts, StringComparison.Ordinal);
-        Assert.DoesNotContain("HotfixDispatch", runtimeContracts, StringComparison.Ordinal);
-
-        var runtimeEvents = AssertPath(plan, "Server/App/Hotfix/ChatHotfixRuntimeEvents.cs").Content;
-        Assert.Contains("internal sealed class ChatHotfixRuntimeEvents", runtimeEvents, StringComparison.Ordinal);
-        Assert.Contains("IHotfixServiceInvoker", runtimeEvents, StringComparison.Ordinal);
-        Assert.Contains("ChatRuntimeMethodIds.SessionExpired", runtimeEvents, StringComparison.Ordinal);
-        Assert.Contains("HotfixServiceCall<ChatSessionExpiredRequest>", runtimeEvents, StringComparison.Ordinal);
-        Assert.DoesNotContain("HotfixDispatch", runtimeEvents, StringComparison.Ordinal);
-
-        var lifecycleBridge = AssertPath(plan, "Server/App/Hosting/ChatSessionLifecycleBridge.cs").Content;
-        Assert.Contains("internal sealed class ChatSessionLifecycleBridge : IGameSessionLifecycleHandler", lifecycleBridge, StringComparison.Ordinal);
-        Assert.Contains("OnSessionExpiredAsync", lifecycleBridge, StringComparison.Ordinal);
-        Assert.Contains("return _hotfixEvents.SessionExpiredAsync(context.ConnectionId, cancellationToken);", lifecycleBridge, StringComparison.Ordinal);
-        Assert.DoesNotContain(ForbiddenEndpointHookPrefix, lifecycleBridge, StringComparison.Ordinal);
-        Assert.DoesNotContain("HotfixDispatch", lifecycleBridge, StringComparison.Ordinal);
-        Assert.DoesNotContain("RpcSession", lifecycleBridge, StringComparison.Ordinal);
-        Assert.DoesNotContain("Disconnected +=", lifecycleBridge, StringComparison.Ordinal);
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains(ForbiddenEndpointHookPrefix, StringComparison.Ordinal));
 
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("class LoginServiceProxy", StringComparison.Ordinal));
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("class ChatServiceProxy", StringComparison.Ordinal));

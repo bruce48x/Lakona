@@ -58,12 +58,15 @@ public sealed class HotfixRendererTests
         Assert.Contains("public static ValueTask<LoginReply> LoginAsync", behavior, StringComparison.Ordinal);
         Assert.Contains("public static ValueTask LeaveAsync", behavior, StringComparison.Ordinal);
 
-        var runtimeService = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Chat/ChatRuntimeService.cs").Content;
-        Assert.Contains("[HotfixService(typeof(IChatRuntimeService))]", runtimeService, StringComparison.Ordinal);
-        Assert.Contains("internal sealed class ChatRuntimeService", runtimeService, StringComparison.Ordinal);
-        Assert.Contains("public static async ValueTask SessionExpiredAsync(HotfixServiceCall<ChatSessionExpiredRequest> call)", runtimeService, StringComparison.Ordinal);
-        Assert.Contains("await room.LeaveAsync(connectionId);", runtimeService, StringComparison.Ordinal);
-        Assert.DoesNotContain("HotfixDispatch", runtimeService, StringComparison.Ordinal);
+        var lifecycle = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Chat/ChatSessionLifecycle.cs").Content;
+        Assert.Contains("[HotfixLifecycle(typeof(IGameSessionLifecycle))]", lifecycle, StringComparison.Ordinal);
+        Assert.Contains("internal sealed class ChatSessionLifecycle", lifecycle, StringComparison.Ordinal);
+        Assert.Contains("public static async ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call)", lifecycle, StringComparison.Ordinal);
+        Assert.Contains("await room.LeaveAsync(connectionId);", lifecycle, StringComparison.Ordinal);
+        Assert.DoesNotContain("LifecycleService", lifecycle, StringComparison.Ordinal);
+        Assert.DoesNotContain("IChatRuntimeService", lifecycle, StringComparison.Ordinal);
+        Assert.DoesNotContain("HotfixDispatch", lifecycle, StringComparison.Ordinal);
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/Hotfix/Chat/ChatRuntimeService.cs");
 
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("static event", StringComparison.OrdinalIgnoreCase));
     }
