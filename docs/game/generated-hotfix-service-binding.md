@@ -77,6 +77,7 @@ return await LakonaGameServer.RunAsync(args, server => server
     .AddServices((services, configuration) =>
     {
         services.AddLakonaGame(configuration);
+        services.AddLakonaGameSessionHotfixLifecycle();
     })
     .UseGeneratedHotfixServices());
 ```
@@ -112,17 +113,22 @@ Generated docs should teach three edit zones:
 - `Shared/Contracts/**`: define client/server RPC contracts, callback
   contracts, DTOs, and stable numeric ids.
 - `Server/App/**`: keep stable actor state, generated RPC binding, startup
-  adapters, Feature classes, and hotfix runtime-event bridge contracts.
-- `Server/Hotfix/**`: implement hot-reloadable services, runtime lifecycle
-  event handlers, and actor behavior logic.
+  adapters, Feature classes, and framework setup calls such as
+  `AddLakonaGameSessionHotfixLifecycle`.
+- `Server/Hotfix/**`: implement hot-reloadable services, user-authored
+  `*Lifecycle` classes such as `ChatSessionLifecycle`, and actor behavior
+  logic.
 
 Generated projects must not teach users to put presence cleanup, matchmaking
 cleanup, room leave policy, or session business policy in `Server.App`.
-When stable runtime code observes a lifecycle event, it forwards the event to a
-hotfix runtime service through `IHotfixServiceInvoker` and a numeric method id.
+When framework runtime code observes a lifecycle event, the framework-owned
+bridge forwards the event to a hotfix lifecycle contract through
+`IHotfixServiceInvoker` and a numeric method id. Do not name user lifecycle
+classes `*LifecycleService`.
 
 There should be no generated-project edit zone for service endpoint markers,
-stable service proxies, or raw RPC lifecycle subscriptions.
+stable service proxies, raw RPC lifecycle subscriptions, App lifecycle bridge
+classes, or App lifecycle runtime contract files.
 
 ## Validation Requirements
 

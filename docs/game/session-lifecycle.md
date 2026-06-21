@@ -161,10 +161,12 @@ Session disconnection, expiration, and termination are separate events:
 
 User lifecycle hooks receive game-level context, not `RpcSession` and not
 endpoint names. Business presence policy belongs behind these hooks. Stable
-framework code publishes the hook, and generated or sample App code may contain
-a bridge that forwards the event to a hotfix runtime service. The replaceable
-presence, cleanup, room leave, and matchmaking decisions belong in
-`Server.Hotfix`.
+framework code owns the lifecycle bridge and required-contract validation;
+generated or sample App code may enable that bridge through stable setup calls
+such as `AddLakonaGameSessionHotfixLifecycle`. The replaceable presence,
+cleanup, room leave, and matchmaking decisions belong in `Server.Hotfix`
+`*Lifecycle` classes such as `ChatSessionLifecycle`, not in App lifecycle
+handlers, App runtime contract files, or `*LifecycleService` classes.
 
 ## Server-Initiated Termination
 
