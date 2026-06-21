@@ -120,6 +120,33 @@ public sealed class HotfixBehaviorScannerTests
     }
 
     [Fact]
+    public void Scanner_discovers_hotfix_lifecycle_methods()
+    {
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(TestLifecycleContract).Assembly,
+            [typeof(TestLifecycleImplementation)],
+            requiredServiceContracts: [typeof(TestLifecycleContract)]);
+
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        var binding = Assert.Single(scan.Services);
+        Assert.Equal(typeof(TestLifecycleContract), binding.ContractType);
+    }
+
+    [Fact]
+    public void Scanner_reports_required_lifecycle_contracts_with_lifecycle_diagnostic_wording()
+    {
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(TestLifecycleContract).Assembly,
+            [],
+            requiredServiceContracts: [typeof(TestLifecycleContract)]);
+
+        Assert.False(scan.Succeeded);
+        Assert.Contains(scan.Diagnostics, diagnostic =>
+            diagnostic.Contains(nameof(TestLifecycleContract), StringComparison.Ordinal) &&
+            diagnostic.Contains("[HotfixService] or [HotfixLifecycle]", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Scanner_rejects_duplicate_hotfix_services_for_declared_rpc_contract()
     {
         var scan = HotfixBehaviorScanner.Scan(
@@ -249,6 +276,25 @@ public sealed class HotfixBehaviorScannerTests
 
     public sealed class MissingHotfixRequest
     {
+    }
+
+    public interface TestLifecycleContract
+    {
+        [RpcMethod(301)]
+        ValueTask ExpiredAsync(TestLifecycleRequest request);
+    }
+
+    public sealed class TestLifecycleRequest
+    {
+    }
+
+    [HotfixLifecycle(typeof(TestLifecycleContract))]
+    public sealed class TestLifecycleImplementation
+    {
+        public static ValueTask ExpiredAsync(HotfixLifecycleCall<TestLifecycleRequest> call)
+        {
+            return default;
+        }
     }
 
     public sealed class UnrelatedHotfixService

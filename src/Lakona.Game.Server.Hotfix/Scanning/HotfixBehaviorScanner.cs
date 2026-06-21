@@ -75,17 +75,21 @@ public static class HotfixBehaviorScanner
                     ScanBehaviorType(type, behavior.ActorType, methods, diagnostics, keys);
                 }
 
-                var service = type.GetCustomAttribute<HotfixServiceAttribute>();
-                if (service is not null)
+                if (!TryGetHotfixServiceContract(type, diagnostics, out var serviceContract))
                 {
-                    if (!serviceImplementations.TryGetValue(service.ContractType, out var implementations))
+                    continue;
+                }
+
+                if (serviceContract is not null)
+                {
+                    if (!serviceImplementations.TryGetValue(serviceContract, out var implementations))
                     {
                         implementations = [];
-                        serviceImplementations.Add(service.ContractType, implementations);
+                        serviceImplementations.Add(serviceContract, implementations);
                     }
 
                     implementations.Add(type);
-                    ScanServiceType(type, service.ContractType, services, diagnostics, serviceKeys);
+                    ScanServiceType(type, serviceContract, services, diagnostics, serviceKeys);
                 }
             }
         }
@@ -96,11 +100,30 @@ public static class HotfixBehaviorScanner
             var count = implementations?.Count ?? 0;
             if (count != 1)
             {
-                diagnostics.Add($"Hotfix service contract '{contract.FullName}' requires exactly one [HotfixService] implementation; found {count}.");
+                diagnostics.Add($"Hotfix service contract '{contract.FullName}' requires exactly one [HotfixService] or [HotfixLifecycle] implementation; found {count}.");
             }
         }
 
         return new HotfixBehaviorScanResult(methods, services, diagnostics);
+    }
+
+    private static bool TryGetHotfixServiceContract(
+        Type type,
+        List<string> diagnostics,
+        out Type? contractType)
+    {
+        var service = type.GetCustomAttribute<HotfixServiceAttribute>();
+        var lifecycle = type.GetCustomAttribute<HotfixLifecycleAttribute>();
+
+        if (service is not null && lifecycle is not null)
+        {
+            diagnostics.Add($"Hotfix type '{type.FullName}' must not use both [HotfixService] and [HotfixLifecycle].");
+            contractType = null;
+            return false;
+        }
+
+        contractType = service?.ContractType ?? lifecycle?.ContractType;
+        return true;
     }
 
     private static void ScanBehaviorType(
@@ -243,7 +266,7 @@ public static class HotfixBehaviorScanner
 
         var genericDefinition = parameterType.GetGenericTypeDefinition();
         return genericDefinition.Namespace == "Lakona.Game.Server.Hotfix" &&
-            genericDefinition.Name is "HotfixServiceCall`1" or "HotfixServiceCall`2"
+            genericDefinition.Name is "HotfixServiceCall`1" or "HotfixServiceCall`2" or "HotfixLifecycleCall`1"
             ? parameterType.GetGenericArguments()[0]
             : parameterType;
     }

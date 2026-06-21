@@ -10,3 +10,7 @@ public sealed class HotfixServiceCall<TRequest, TCallback> : HotfixServiceCall<T
 {
     public TCallback? Callback { get; }
 }
+
+public sealed class HotfixLifecycleCall<TRequest> : HotfixServiceCall<TRequest>
+{
+}
