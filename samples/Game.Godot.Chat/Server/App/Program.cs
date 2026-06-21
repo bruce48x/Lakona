@@ -6,6 +6,7 @@ using Server.App.Hosting;
 using Server.App.Hotfix;
 using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Hosting;
+using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
 
 return await LakonaGameServer.RunAsync(args, server => server
@@ -17,6 +18,7 @@ return await LakonaGameServer.RunAsync(args, server => server
             options.DisconnectedSessionRetention = TimeSpan.FromSeconds(30);
         });
         services.AddSingleton<ChatHotfixRuntimeEvents>();
+        services.AddSingleton<IHotfixRequiredServiceContracts, ChatRuntimeRequiredServiceContracts>();
         services.AddSingleton<IGameSessionLifecycleHandler, ChatSessionLifecycleBridge>();
     })
     .UseGeneratedHotfixServices());

@@ -118,6 +118,9 @@ public sealed class ToolArchitectureScanTests
             Assert.Contains("Server.App.Hotfix", generatedText, StringComparison.Ordinal);
             Assert.Contains("ChatHotfixRuntimeEvents", generatedText, StringComparison.Ordinal);
             Assert.Contains("ChatSessionLifecycleBridge", generatedText, StringComparison.Ordinal);
+            Assert.Contains("IHotfixRequiredServiceContracts", generatedText, StringComparison.Ordinal);
+            Assert.Contains("ChatRuntimeRequiredServiceContracts", generatedText, StringComparison.Ordinal);
+            Assert.Contains("typeof(IChatRuntimeService)", generatedText, StringComparison.Ordinal);
             Assert.Contains("[HotfixService(typeof(IChatRuntimeService))]", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("ChatPresenceLifecycleHandler", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("namespace Server.App.Lifecycle", generatedText, StringComparison.Ordinal);
@@ -163,6 +166,9 @@ public sealed class ToolArchitectureScanTests
         Assert.Contains("ChatHotfixRuntimeEvents", appText, StringComparison.Ordinal);
         Assert.Contains("ChatSessionLifecycleBridge", appText, StringComparison.Ordinal);
         Assert.Contains("IChatRuntimeService", appText, StringComparison.Ordinal);
+        Assert.Contains("IHotfixRequiredServiceContracts", appText, StringComparison.Ordinal);
+        Assert.Contains("ChatRuntimeRequiredServiceContracts", appText, StringComparison.Ordinal);
+        Assert.Contains("typeof(IChatRuntimeService)", appText, StringComparison.Ordinal);
         Assert.Contains("[HotfixService(typeof(IChatRuntimeService))]", hotfixText, StringComparison.Ordinal);
         Assert.Contains("await room.LeaveAsync(connectionId);", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain("ChatPresenceLifecycleHandler", appText, StringComparison.Ordinal);

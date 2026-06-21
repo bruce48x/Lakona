@@ -111,6 +111,7 @@ internal sealed class ServerAppRenderer : IPlanContributor
         using Server.App.Hotfix;
         using Lakona.Game.Server.Features;
         using Lakona.Game.Server.Hosting;
+        using Lakona.Game.Server.Hotfix.Abstractions;
         using Lakona.Game.Server.Sessions;
 
         return await LakonaGameServer.RunAsync(args, server => server
@@ -118,6 +119,7 @@ internal sealed class ServerAppRenderer : IPlanContributor
             {
                 services.AddLakonaGame(configuration);
                 services.AddSingleton<ChatHotfixRuntimeEvents>();
+                services.AddSingleton<IHotfixRequiredServiceContracts, ChatRuntimeRequiredServiceContracts>();
                 services.AddSingleton<IGameSessionLifecycleHandler, ChatSessionLifecycleBridge>();
             })
             .UseGeneratedHotfixServices());
@@ -149,6 +151,9 @@ internal sealed class ServerAppRenderer : IPlanContributor
     private static string RenderChatRuntimeContracts()
     {
         return """
+        using System;
+        using System.Collections.Generic;
+        using Lakona.Game.Server.Hotfix.Abstractions;
         using Lakona.Rpc.Core;
 
         namespace Server.App.Hotfix
@@ -157,6 +162,14 @@ internal sealed class ServerAppRenderer : IPlanContributor
             {
                 [RpcMethod(ChatRuntimeMethodIds.SessionExpired)]
                 ValueTask SessionExpiredAsync(ChatSessionExpiredRequest request);
+            }
+
+            internal sealed class ChatRuntimeRequiredServiceContracts : IHotfixRequiredServiceContracts
+            {
+                public IReadOnlyList<Type> ServiceContracts { get; } =
+                [
+                    typeof(IChatRuntimeService)
+                ];
             }
 
             public static class ChatRuntimeMethodIds

@@ -37,6 +37,7 @@ public sealed class ServerAppRendererTests
 
         var program = AssertPath(plan, "Server/App/Program.cs").Content;
         Assert.Contains("using Lakona.Game.Server.Hosting;", program, StringComparison.Ordinal);
+        Assert.Contains("using Lakona.Game.Server.Hotfix.Abstractions;", program, StringComparison.Ordinal);
         Assert.Contains("using Lakona.Game.Server.Sessions;", program, StringComparison.Ordinal);
         Assert.Contains("using Microsoft.Extensions.DependencyInjection;", program, StringComparison.Ordinal);
         Assert.Contains("using Server.App.Hosting;", program, StringComparison.Ordinal);
@@ -48,6 +49,7 @@ public sealed class ServerAppRendererTests
         Assert.DoesNotContain(".UseSerializer(", program, StringComparison.Ordinal);
         Assert.DoesNotContain(".UseAcceptor(", program, StringComparison.Ordinal);
         Assert.Contains("services.AddSingleton<ChatHotfixRuntimeEvents>();", program, StringComparison.Ordinal);
+        Assert.Contains("services.AddSingleton<IHotfixRequiredServiceContracts, ChatRuntimeRequiredServiceContracts>();", program, StringComparison.Ordinal);
         Assert.Contains("services.AddSingleton<IGameSessionLifecycleHandler, ChatSessionLifecycleBridge>();", program, StringComparison.Ordinal);
         Assert.DoesNotContain("using Server.App.Lifecycle;", program, StringComparison.Ordinal);
         Assert.DoesNotContain("ChatPresenceLifecycleHandler", program, StringComparison.Ordinal);
@@ -90,6 +92,8 @@ public sealed class ServerAppRendererTests
         var runtimeContracts = AssertPath(plan, "Server/App/Hotfix/ChatRuntimeContracts.cs").Content;
         Assert.Contains("public interface IChatRuntimeService", runtimeContracts, StringComparison.Ordinal);
         Assert.Contains("[RpcMethod(ChatRuntimeMethodIds.SessionExpired)]", runtimeContracts, StringComparison.Ordinal);
+        Assert.Contains("IHotfixRequiredServiceContracts", runtimeContracts, StringComparison.Ordinal);
+        Assert.Contains("typeof(IChatRuntimeService)", runtimeContracts, StringComparison.Ordinal);
         Assert.Contains("public sealed class ChatSessionExpiredRequest", runtimeContracts, StringComparison.Ordinal);
         Assert.DoesNotContain("HotfixDispatch", runtimeContracts, StringComparison.Ordinal);
 
