@@ -116,6 +116,25 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
+    public void AgarSampleUsesFrameworkOwnedSessionLifecycleHotfix()
+    {
+        var root = FindRepositoryRoot();
+        var appText = ReadAllTextFiles(Path.Combine(root, "samples", "Game.Unity.Agar", "Server", "App"));
+        var hotfixText = ReadAllTextFiles(Path.Combine(root, "samples", "Game.Unity.Agar", "Server", "Hotfix"));
+
+        Assert.Contains("AddLakonaGameSessionHotfixLifecycle", appText, StringComparison.Ordinal);
+        Assert.Contains("AgarSessionLifecycle", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("[HotfixLifecycle(typeof(IGameSessionLifecycle))]", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("HotfixLifecycleCall<GameSessionDisconnectedRequest>", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("HotfixLifecycleCall<GameSessionExpiredRequest>", hotfixText, StringComparison.Ordinal);
+        Assert.DoesNotContain("PlayerSessionLifecycleObserver", appText, StringComparison.Ordinal);
+        Assert.DoesNotContain("DisconnectedSessionCleanupHostedService", appText, StringComparison.Ordinal);
+        Assert.DoesNotContain("MarkControlDisconnected", appText, StringComparison.Ordinal);
+        Assert.DoesNotContain("CleanupExpiredSession", appText, StringComparison.Ordinal);
+        Assert.DoesNotContain("AgarPlayerDisconnectRequest", appText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task GatewayNodeRegistersControlServicesWithoutKcpEndpoint()
     {
         var services = BuildProgramServices("appsettings.gateway-1.json");
@@ -491,8 +510,11 @@ public sealed class DistributedTopologyConfigurationTests
         provider.GetRequiredService(RequiredServerAppType("Server.App.Hotfix.AgarHotfixRuntimeEvents"));
         provider.GetRequiredService(RequiredServerAppType("Server.App.Realtime.RoomRuntimeHost"));
 
-        Assert.Contains(provider.GetServices<IRpcSessionLifecycleObserver>(),
-            observer => observer.GetType() == RequiredServerAppType("Server.App.Hosting.PlayerSessionLifecycleObserver"));
+        Assert.DoesNotContain(provider.GetServices<IRpcSessionLifecycleObserver>(),
+            observer => string.Equals(
+                observer.GetType().FullName,
+                "Server.App.Hosting.PlayerSessionLifecycleObserver",
+                StringComparison.Ordinal));
         Assert.Throws<InvalidOperationException>(() =>
             provider.GetRequiredService(RequiredServerAppType("Server.App.Services.ReliableMatchmakingPublisher")));
     }
@@ -731,6 +753,25 @@ public sealed class DistributedTopologyConfigurationTests
         return normalized
             .Replace("( ", "(", StringComparison.Ordinal)
             .Replace(" )", ")", StringComparison.Ordinal);
+    }
+
+    private static string ReadAllTextFiles(string root)
+    {
+        var builder = new System.Text.StringBuilder();
+        foreach (var path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
+                     .Where(IsTextSourceFile)
+                     .Order(StringComparer.Ordinal))
+        {
+            builder.AppendLine(File.ReadAllText(path));
+        }
+
+        return builder.ToString();
+    }
+
+    private static bool IsTextSourceFile(string path)
+    {
+        var extension = Path.GetExtension(path);
+        return extension is ".cs" or ".csproj" or ".json" or ".slnx" or ".props" or ".xml" or ".txt";
     }
 
     private static int GetFreePort()

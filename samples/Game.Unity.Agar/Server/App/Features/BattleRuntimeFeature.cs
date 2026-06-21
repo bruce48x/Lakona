@@ -7,7 +7,7 @@ using Server.App.Realtime;
 using Server.App.Services;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Features;
-using Lakona.Rpc.Server;
+using Lakona.Game.Server.Sessions;
 
 namespace Server.App.Features;
 
@@ -23,6 +23,6 @@ public sealed class BattleRuntimeFeature : LakonaGameFeature
             GatewayEndpointDescriptorFactory.FromConfiguredEndpoint(context.Configuration, runtimeEndpoint)));
         context.Services.TryAddSingleton<AgarHotfixRuntimeEvents>();
         context.Services.TryAddSingleton<RoomRuntimeHost>();
-        context.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IRpcSessionLifecycleObserver, PlayerSessionLifecycleObserver>());
+        context.Services.AddLakonaGameSessionHotfixLifecycle();
     }
 }

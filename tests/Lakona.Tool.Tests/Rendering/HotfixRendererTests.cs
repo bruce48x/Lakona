@@ -61,6 +61,7 @@ public sealed class HotfixRendererTests
         var lifecycle = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Chat/ChatSessionLifecycle.cs").Content;
         Assert.Contains("[HotfixLifecycle(typeof(IGameSessionLifecycle))]", lifecycle, StringComparison.Ordinal);
         Assert.Contains("internal sealed class ChatSessionLifecycle", lifecycle, StringComparison.Ordinal);
+        Assert.Contains("public static ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)", lifecycle, StringComparison.Ordinal);
         Assert.Contains("public static async ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call)", lifecycle, StringComparison.Ordinal);
         Assert.Contains("await room.LeaveAsync(connectionId);", lifecycle, StringComparison.Ordinal);
         Assert.DoesNotContain("LifecycleService", lifecycle, StringComparison.Ordinal);

@@ -42,34 +42,6 @@ public sealed class AgarRuntimeService
         }
     }
 
-    public async ValueTask MarkControlDisconnectedAsync(HotfixServiceCall<AgarPlayerDisconnectRequest> call)
-    {
-        var req = call.Request;
-        var services = AgarServiceDependencies.From(call);
-        await services.Actors
-            .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
-                SessionId(req.PlayerId),
-                (actor, _) => actor.MarkDisconnectedAsync(new PlayerSessionDisconnectRequest
-                {
-                    UserId = req.PlayerId,
-                    ConnectionId = req.ConnectionId,
-                    DisconnectedAtUtc = req.DisconnectedAtUtc == default ? DateTime.UtcNow : req.DisconnectedAtUtc,
-                    Reason = string.IsNullOrWhiteSpace(req.Reason) ? "Control disconnect" : req.Reason
-                }))
-            .ConfigureAwait(false);
-    }
-
-    public async ValueTask CleanupExpiredSessionAsync(HotfixServiceCall<AgarPlayerDisconnectRequest> call)
-    {
-        var req = call.Request;
-        var services = AgarServiceDependencies.From(call);
-        await PlayerService.ReleasePlayerAsync(
-                services,
-                req.PlayerId,
-                string.IsNullOrWhiteSpace(req.Reason) ? "Reconnect grace period expired" : req.Reason)
-            .ConfigureAwait(false);
-    }
-
     public async ValueTask CommitRoomSettlementAsync(HotfixServiceCall<AgarRoomSettlementRequest> call)
     {
         var req = call.Request;

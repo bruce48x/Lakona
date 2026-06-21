@@ -291,6 +291,11 @@ internal sealed class HotfixRenderer : IPlanContributor
             {
                 private static readonly ActorId RoomId = ActorId.From("chat:global");
 
+                public static ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
+                {
+                    return default;
+                }
+
                 public static async ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call)
                 {
                     var connectionId = call.Request.ConnectionId;

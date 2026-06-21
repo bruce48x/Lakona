@@ -27,7 +27,6 @@ internal sealed class SessionRegistration
     public IControlCallback? ControlCallback { get; set; }
     public IBattleCallback? RealtimeCallback { get; set; }
     public string? RealtimeConnectionId { get; set; }
-    public DateTime? ControlDisconnectedAtUtc { get; set; }
     public string? RoomId { get; set; }
     public string? MatchId { get; set; }
     public int SeatIndex { get; set; } = -1;

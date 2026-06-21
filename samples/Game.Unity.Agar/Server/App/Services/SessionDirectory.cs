@@ -82,7 +82,6 @@ internal sealed class SessionDirectory
             registration.SessionToken = sessionToken;
             registration.ConnectionId = connectionId;
             registration.ControlCallback = null;
-            registration.ControlDisconnectedAtUtc = null;
         }
 
         return decision;
@@ -150,7 +149,7 @@ internal sealed class SessionDirectory
             cancellationToken).ConfigureAwait(false);
     }
 
-    public async ValueTask MarkControlDisconnectedAsync(string playerId, string? connectionId, DateTime disconnectedAtUtc, CancellationToken cancellationToken = default)
+    public async ValueTask DisconnectControlAsync(string playerId, string? connectionId, CancellationToken cancellationToken = default)
     {
         SessionRegistration? registration;
         lock (_gate)
@@ -168,7 +167,6 @@ internal sealed class SessionDirectory
 
             registration.ConnectionId = string.Empty;
             registration.ControlCallback = null;
-            registration.ControlDisconnectedAtUtc = disconnectedAtUtc;
         }
 
         await _gameSessions.MarkSessionDisconnectedAsync(
@@ -423,18 +421,6 @@ internal sealed class SessionDirectory
             return _byPlayerId.Values
                 .Where(static registration => !string.IsNullOrWhiteSpace(registration.RoomId))
                 .Where(registration => string.Equals(registration.RoomId, roomId, StringComparison.Ordinal))
-                .ToArray();
-        }
-    }
-
-    public IReadOnlyList<SessionRegistration> GetExpiredControlDisconnects(DateTime nowUtc, TimeSpan gracePeriod)
-    {
-        lock (_gate)
-        {
-            return _byPlayerId.Values
-                .Where(registration => registration.ControlCallback is null)
-                .Where(registration => registration.ControlDisconnectedAtUtc is DateTime disconnectedAtUtc &&
-                                       nowUtc - disconnectedAtUtc >= gracePeriod)
                 .ToArray();
         }
     }

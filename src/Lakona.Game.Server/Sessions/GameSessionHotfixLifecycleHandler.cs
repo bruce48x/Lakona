@@ -26,7 +26,32 @@ internal sealed class GameSessionHotfixLifecycleHandler : IGameSessionLifecycleH
 
     public ValueTask OnSessionDisconnectedAsync(GameSessionBindingContext context, CancellationToken cancellationToken = default)
     {
-        return default;
+        var hotfix = _services.GetService<IHotfixServiceInvoker>();
+        if (hotfix is null)
+        {
+            return default;
+        }
+
+        var request = new GameSessionDisconnectedRequest
+        {
+            OwnerKey = context.Session.OwnerKey,
+            SessionId = context.Session.SessionId,
+            Generation = context.Session.Generation,
+            ConnectionId = context.ConnectionId,
+            CallbackContractTypeNames = context.CallbackContractTypes
+                .Select(static type => type.FullName ?? type.Name)
+                .ToList()
+        };
+
+        return hotfix.InvokeAsync<IGameSessionLifecycle, HotfixLifecycleCall<GameSessionDisconnectedRequest>>(
+            GameSessionLifecycleMethodIds.SessionDisconnected,
+            new HotfixLifecycleCall<GameSessionDisconnectedRequest>(
+                request,
+                context.ConnectionId,
+                _services,
+                _services.GetRequiredService<IActorRuntime>(),
+                _services.GetRequiredService<ILakonaGameServer>()),
+            cancellationToken);
     }
 
     public ValueTask OnSessionExpiredAsync(GameSessionBindingContext context, CancellationToken cancellationToken = default)

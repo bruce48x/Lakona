@@ -84,6 +84,44 @@ public sealed class GameSessionLifecycleBridgeTests
     }
 
     [Fact]
+    public async Task SessionHotfixLifecycleDispatchesDisconnectedSessionThroughFrameworkContract()
+    {
+        var invoker = new RecordingHotfixServiceInvoker();
+        var services = new ServiceCollection();
+        services.AddLakonaGameServer();
+        services.AddSingleton<IHotfixServiceInvoker>(invoker);
+        services.AddLakonaGameSessionHotfixLifecycle();
+
+        using var provider = services.BuildServiceProvider();
+        var handler = provider.GetServices<IGameSessionLifecycleHandler>()
+            .OfType<GameSessionHotfixLifecycleHandler>()
+            .Single();
+
+        await handler.OnSessionDisconnectedAsync(
+            new GameSessionBindingContext(
+                new GameSessionKey("player-a", "session-a", 3),
+                "connection-a",
+                [typeof(LoginCallback), typeof(ChatCallback)]),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(typeof(IGameSessionLifecycle), invoker.ContractType);
+        Assert.Equal(typeof(HotfixLifecycleCall<GameSessionDisconnectedRequest>), invoker.ArgumentType);
+        Assert.Equal(GameSessionLifecycleMethodIds.SessionDisconnected, invoker.MethodId);
+
+        var call = Assert.IsType<HotfixLifecycleCall<GameSessionDisconnectedRequest>>(invoker.Argument);
+        Assert.Equal("player-a", call.Request.OwnerKey);
+        Assert.Equal("session-a", call.Request.SessionId);
+        Assert.Equal(3, call.Request.Generation);
+        Assert.Equal("connection-a", call.Request.ConnectionId);
+        Assert.Equal(
+            [
+                typeof(LoginCallback).FullName ?? typeof(LoginCallback).Name,
+                typeof(ChatCallback).FullName ?? typeof(ChatCallback).Name
+            ],
+            call.Request.CallbackContractTypeNames);
+    }
+
+    [Fact]
     public async Task StartSessionPublishesSessionBoundOnceForActiveSession()
     {
         var handler = new RecordingLifecycleHandler();

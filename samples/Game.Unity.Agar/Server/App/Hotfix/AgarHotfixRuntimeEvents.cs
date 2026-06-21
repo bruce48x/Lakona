@@ -17,44 +17,6 @@ internal sealed class AgarHotfixRuntimeEvents(IServiceProvider services)
             cancellationToken);
     }
 
-    public ValueTask MarkControlDisconnectedAsync(
-        string playerId,
-        string connectionId,
-        DateTime disconnectedAtUtc,
-        string reason,
-        CancellationToken cancellationToken = default)
-    {
-        return InvokeAsync(
-            AgarRuntimeMethodIds.MarkControlDisconnected,
-            new AgarPlayerDisconnectRequest
-            {
-                PlayerId = playerId,
-                ConnectionId = connectionId,
-                DisconnectedAtUtc = disconnectedAtUtc,
-                Reason = reason
-            },
-            cancellationToken);
-    }
-
-    public ValueTask CleanupExpiredSessionAsync(
-        string playerId,
-        string connectionId,
-        DateTime disconnectedAtUtc,
-        string reason,
-        CancellationToken cancellationToken = default)
-    {
-        return InvokeAsync(
-            AgarRuntimeMethodIds.CleanupExpiredSession,
-            new AgarPlayerDisconnectRequest
-            {
-                PlayerId = playerId,
-                ConnectionId = connectionId,
-                DisconnectedAtUtc = disconnectedAtUtc,
-                Reason = reason
-            },
-            cancellationToken);
-    }
-
     public ValueTask CommitRoomSettlementAsync(
         string roomId,
         string settlementId,

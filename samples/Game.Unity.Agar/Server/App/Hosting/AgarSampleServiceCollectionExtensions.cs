@@ -1,6 +1,6 @@
 using Agar.Sample.State;
 using Lakona.Game.Server.Configuration;
-using Lakona.Rpc.Server;
+using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -33,8 +33,7 @@ public static class AgarSampleServiceCollectionExtensions
             services.TryAddSingleton<RoomRuntimeHost>();
             services.TryAddSingleton<ReliableMatchmakingPublisher>();
             services.TryAddSingleton<AgarHotfixRuntimeEvents>();
-            services.TryAddEnumerable(ServiceDescriptor.Singleton<IRpcSessionLifecycleObserver, PlayerSessionLifecycleObserver>());
-            services.AddHostedService<DisconnectedSessionCleanupHostedService>();
+            services.AddLakonaGameSessionHotfixLifecycle();
         }
 
         return services;

@@ -257,14 +257,13 @@ public static class HotfixBehaviorScanner
                 continue;
             }
 
-            var rpcMethod = contractMethod.GetCustomAttribute<RpcMethodAttribute>();
-            if (rpcMethod is null)
+            if (!TryGetRpcMethodId(contractMethod, out var methodId))
             {
                 diagnostics.Add($"Hotfix service method '{serviceType.FullName}.{method.Name}' maps to contract method '{contractType.FullName}.{contractMethod.Name}' without [RpcMethod].");
                 continue;
             }
 
-            var key = HotfixDispatch.CreateServiceKey(contractType, rpcMethod.MethodId, returnType, parameterTypes);
+            var key = HotfixDispatch.CreateServiceKey(contractType, methodId, returnType, parameterTypes);
             if (!serviceKeys.Add(key))
             {
                 diagnostics.Add($"Duplicate hotfix service method key '{key}'.");
@@ -278,6 +277,37 @@ public static class HotfixBehaviorScanner
     private static bool IsValueTaskResult(Type type)
     {
         return type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ValueTask<>);
+    }
+
+    private static bool TryGetRpcMethodId(MethodInfo method, out int methodId)
+    {
+        var rpcMethod = method.GetCustomAttribute<RpcMethodAttribute>();
+        if (rpcMethod is not null)
+        {
+            methodId = rpcMethod.MethodId;
+            return true;
+        }
+
+        foreach (var attribute in method.CustomAttributes)
+        {
+            if (!string.Equals(
+                    attribute.AttributeType.FullName,
+                    typeof(RpcMethodAttribute).FullName,
+                    StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (attribute.ConstructorArguments.Count == 1 &&
+                attribute.ConstructorArguments[0].Value is int id)
+            {
+                methodId = id;
+                return true;
+            }
+        }
+
+        methodId = 0;
+        return false;
     }
 
     private static bool TryGetContractParameterType(
