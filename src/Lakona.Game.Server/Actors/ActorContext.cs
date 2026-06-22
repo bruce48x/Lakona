@@ -67,11 +67,34 @@ public sealed class ActorContext
             throw new InvalidOperationException("Actor context is not initialized.");
         }
 
+        public ValueTask TellAsync(
+            Type actorType,
+            ActorId id,
+            Func<IActor, CancellationToken, ValueTask> message,
+            CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("Actor context is not initialized.");
+        }
+
+        public ActorTellResult TryTell(
+            Type actorType,
+            ActorId id,
+            Func<IActor, CancellationToken, ValueTask> message,
+            CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("Actor context is not initialized.");
+        }
+
         public ValueTask<TResult> AskAsync<TActor, TResult>(
             ActorId id,
             Func<TActor, CancellationToken, ValueTask<TResult>> message,
             CancellationToken cancellationToken = default)
             where TActor : class, IActor
+        {
+            throw new InvalidOperationException("Actor context is not initialized.");
+        }
+
+        public IReadOnlyList<ActorId> GetActiveActorIds(Type actorType)
         {
             throw new InvalidOperationException("Actor context is not initialized.");
         }

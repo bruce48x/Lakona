@@ -95,6 +95,24 @@ public sealed class ClusterActorDispatcherTests
             throw new NotSupportedException();
         }
 
+        public ValueTask TellAsync(
+            Type actorType,
+            ActorId id,
+            Func<IActor, CancellationToken, ValueTask> message,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ActorTellResult TryTell(
+            Type actorType,
+            ActorId id,
+            Func<IActor, CancellationToken, ValueTask> message,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
         public async ValueTask<TResult> AskAsync<TActor, TResult>(
             ActorId id,
             Func<TActor, CancellationToken, ValueTask<TResult>> message,
@@ -118,6 +136,11 @@ public sealed class ClusterActorDispatcherTests
         }
 
         public bool TryGetMailboxMetrics(ActorId id, out ActorMailboxMetrics metrics)
+        {
+            throw new NotSupportedException();
+        }
+
+        public IReadOnlyList<ActorId> GetActiveActorIds(Type actorType)
         {
             throw new NotSupportedException();
         }

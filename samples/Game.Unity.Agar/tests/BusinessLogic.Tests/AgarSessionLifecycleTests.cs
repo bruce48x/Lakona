@@ -203,6 +203,24 @@ public sealed class AgarSessionLifecycleTests
             throw new InvalidOperationException("Actor runtime should not be used by this test path.");
         }
 
+        public ValueTask TellAsync(
+            Type actorType,
+            ActorId id,
+            Func<IActor, CancellationToken, ValueTask> message,
+            CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("Actor runtime should not be used by this test path.");
+        }
+
+        public ActorTellResult TryTell(
+            Type actorType,
+            ActorId id,
+            Func<IActor, CancellationToken, ValueTask> message,
+            CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("Actor runtime should not be used by this test path.");
+        }
+
         public ValueTask<TResult> AskAsync<TActor, TResult>(
             ActorId id,
             Func<TActor, CancellationToken, ValueTask<TResult>> message,
@@ -226,6 +244,11 @@ public sealed class AgarSessionLifecycleTests
         {
             metrics = default;
             return false;
+        }
+
+        public IReadOnlyList<ActorId> GetActiveActorIds(Type actorType)
+        {
+            throw new InvalidOperationException("Actor runtime should not be used by this test path.");
         }
 
         public ActorState GetState(ActorId id)

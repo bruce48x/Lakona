@@ -105,6 +105,48 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
             : throw new InvalidOperationException($"Actor call returned an invalid result for '{typeof(TResult).FullName}'.");
     }
 
+    public async ValueTask TellAsync(
+        Type actorType,
+        ActorId id,
+        Func<IActor, CancellationToken, ValueTask> message,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(actorType);
+        ArgumentNullException.ThrowIfNull(message);
+
+        var cell = GetOrCreateCell(actorType, id);
+        await cell.InvokeAsync(
+            static async (actor, state, ct) =>
+            {
+                var callback = (Func<IActor, CancellationToken, ValueTask>)state;
+                await callback(actor, ct).ConfigureAwait(false);
+                return null;
+            },
+            message,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public ActorTellResult TryTell(
+        Type actorType,
+        ActorId id,
+        Func<IActor, CancellationToken, ValueTask> message,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(actorType);
+        ArgumentNullException.ThrowIfNull(message);
+
+        var cell = GetOrCreateCell(actorType, id);
+        return cell.TryInvoke(
+            static async (actor, state, ct) =>
+            {
+                var callback = (Func<IActor, CancellationToken, ValueTask>)state;
+                await callback(actor, ct).ConfigureAwait(false);
+                return null;
+            },
+            message,
+            cancellationToken);
+    }
+
     public IAsyncDisposable RegisterTimer<TActor>(
         ActorId id,
         TimeSpan dueTime,
@@ -150,6 +192,16 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
         return ActorState.Dead;
     }
 
+    public IReadOnlyList<ActorId> GetActiveActorIds(Type actorType)
+    {
+        ArgumentNullException.ThrowIfNull(actorType);
+        return _actors
+            .Where(pair => actorType.IsAssignableFrom(pair.Value.ActorType) && pair.Value.GetState() == ActorState.Active)
+            .Select(static pair => pair.Key)
+            .OrderBy(static id => id.Value, StringComparer.Ordinal)
+            .ToArray();
+    }
+
     public async ValueTask StopAsync(ActorId id)
     {
         if (!_actors.TryGetValue(id, out var cell))
@@ -193,11 +245,23 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
     private ActorCell GetOrCreateCell<TActor>(ActorId id)
         where TActor : class, IActor
     {
+        return GetOrCreateCell(typeof(TActor), id);
+    }
+
+    private ActorCell GetOrCreateCell(Type actorType, ActorId id)
+    {
+        ArgumentNullException.ThrowIfNull(actorType);
+        if (!typeof(IActor).IsAssignableFrom(actorType))
+        {
+            throw new InvalidOperationException($"Actor type '{actorType.FullName}' must implement {typeof(IActor).FullName}.");
+        }
+
         var cell = _actors.GetOrAdd(id, static (actorId, state) =>
         {
             var runtime = state.Runtime;
-            var actor = ActivatorUtilities.CreateInstance<TActor>(runtime._services);
-            var cell = new ActorCell(actorId, actor, typeof(TActor), runtime._services, runtime, runtime._options);
+            var actorType = state.ActorType ?? throw new InvalidOperationException("Actor type is required.");
+            var actor = (IActor)ActivatorUtilities.CreateInstance(runtime._services, actorType);
+            var cell = new ActorCell(actorId, actor, actorType, runtime._services, runtime, runtime._options);
             var actorHandle = runtime._actorSystem.SpawnAsync(
                 actorId.Value,
                 new ActorAdapter(cell),
@@ -208,12 +272,12 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
             runtime._actorIds[actorHandle.Id] = actorId;
             cell.Bind(actorHandle);
             return cell;
-        }, new RuntimeState(this));
+        }, new RuntimeState(this, actorType));
 
-        if (!cell.ActorType.IsAssignableTo(typeof(TActor)) && !typeof(TActor).IsAssignableFrom(cell.ActorType))
+        if (!cell.ActorType.IsAssignableTo(actorType) && !actorType.IsAssignableFrom(cell.ActorType))
         {
             throw new InvalidOperationException(
-                $"Actor id '{id}' is already bound to '{cell.ActorType.FullName}', not '{typeof(TActor).FullName}'.");
+                $"Actor id '{id}' is already bound to '{cell.ActorType.FullName}', not '{actorType.FullName}'.");
         }
 
         return cell;
@@ -292,7 +356,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
             metrics.IsCompleted);
     }
 
-    private readonly record struct RuntimeState(LakonaActorRuntime Runtime);
+    private readonly record struct RuntimeState(LakonaActorRuntime Runtime, Type? ActorType = null);
 
     private sealed class KernelMessageInterceptorAdapter : K.IActorMessageInterceptor
     {
