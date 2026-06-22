@@ -5,6 +5,8 @@ namespace Lakona.Game.Server.Hotfix;
 
 public interface IHotfixManager
 {
+    event EventHandler<HotfixReloadResult>? Reloaded;
+
     HotfixSnapshot Current { get; }
 
     ValueTask<HotfixReloadResult> ValidateAsync(CancellationToken cancellationToken = default);

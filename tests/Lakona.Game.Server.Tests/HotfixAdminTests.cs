@@ -348,6 +348,12 @@ public sealed class HotfixAdminTests
 
         public HotfixSnapshot Current { get; private set; }
 
+        public event EventHandler<HotfixReloadResult>? Reloaded
+        {
+            add { }
+            remove { }
+        }
+
         public string? ValidatedAssemblyPath { get; private set; }
 
         public ValueTask<HotfixReloadResult> ValidateAsync(CancellationToken cancellationToken = default)

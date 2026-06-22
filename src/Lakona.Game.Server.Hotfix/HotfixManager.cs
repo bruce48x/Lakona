@@ -30,6 +30,8 @@ public sealed class HotfixManager : IHotfixManager
             .ToArray();
     }
 
+    public event EventHandler<HotfixReloadResult>? Reloaded;
+
     public HotfixSnapshot Current => Volatile.Read(ref _current);
 
     public async ValueTask<HotfixReloadResult> ValidateAsync(CancellationToken cancellationToken = default)
@@ -108,6 +110,7 @@ public sealed class HotfixManager : IHotfixManager
             var table = new HotfixDispatchTable(tableVersion, scan.Methods, scan.Services);
             table.ValidateMethodShapes();
             table.ValidateTypedDispatchDelegates();
+            table.ValidateFeatureTickMethods(scan.Features);
             var snapshot = new HotfixSnapshot(
                 resolved.Version,
                 resolved.SourceKind,
@@ -117,7 +120,8 @@ public sealed class HotfixManager : IHotfixManager
                 table.MethodKeys,
                 HotfixReloadStatus.Succeeded,
                 null,
-                null);
+                null,
+                scan.Features);
 
             if (!publish)
             {
@@ -132,7 +136,9 @@ public sealed class HotfixManager : IHotfixManager
             Volatile.Write(ref _current, snapshot);
             UnloadQuietly(oldContext);
 
-            return new HotfixReloadResult(HotfixReloadStatus.Succeeded, snapshot, resolved.Version, resolved.AssemblyPath, Array.Empty<string>());
+            var result = new HotfixReloadResult(HotfixReloadStatus.Succeeded, snapshot, resolved.Version, resolved.AssemblyPath, Array.Empty<string>());
+            Reloaded?.Invoke(this, result);
+            return result;
         }
         catch (OperationCanceledException)
         {
@@ -153,7 +159,8 @@ public sealed class HotfixManager : IHotfixManager
                 previous.Methods,
                 HotfixReloadStatus.Failed,
                 ex.Message,
-                ex.GetType().FullName);
+                ex.GetType().FullName,
+                previous.Features);
             if (publish)
             {
                 Volatile.Write(ref _current, snapshot);
