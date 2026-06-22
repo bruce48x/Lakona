@@ -11,6 +11,7 @@ public sealed class RpcServerHost
     private readonly RpcKeepAliveOptions _keepAlive;
     private readonly RpcServerLimits _limits;
     private readonly RpcServiceRegistry _registry;
+    private readonly IReadOnlyList<IRpcSessionRequestGate> _requestGates;
     private readonly IReadOnlyList<IRpcSessionLifecycleObserver> _sessionLifecycleObservers;
     private readonly TransportSecurityConfig _security;
     private readonly IRpcSerializer _serializer;
@@ -22,6 +23,7 @@ public sealed class RpcServerHost
         Func<CancellationToken, ValueTask<IRpcConnectionAcceptor>> acceptorFactory,
         ILogger logger,
         RpcServerLimits limits,
+        IReadOnlyList<IRpcSessionRequestGate>? requestGates = null,
         IReadOnlyList<IRpcSessionLifecycleObserver>? sessionLifecycleObservers = null)
     {
         _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
@@ -31,6 +33,7 @@ public sealed class RpcServerHost
         _acceptorFactory = acceptorFactory ?? throw new ArgumentNullException(nameof(acceptorFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _limits = limits ?? throw new ArgumentNullException(nameof(limits));
+        _requestGates = requestGates ?? Array.Empty<IRpcSessionRequestGate>();
         _sessionLifecycleObservers = sessionLifecycleObservers ?? Array.Empty<IRpcSessionLifecycleObserver>();
     }
 
@@ -103,7 +106,8 @@ public sealed class RpcServerHost
             ownsTransport: true,
             keepAlive: _keepAlive,
             logger: _logger,
-            limits: _limits);
+            limits: _limits,
+            requestGates: _requestGates);
         var lifecycleContext = new RpcSessionLifecycleContext(session.ContextId, connection.DisplayName);
         Exception? disconnectError = null;
         session.Disconnected += ex => disconnectError = ex;

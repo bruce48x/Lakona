@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Lakona.Game.Abstractions;
+using Lakona.Game.Abstractions.Sessions;
 using Lakona.Game.Client.ReliablePush;
 using Lakona.Game.Client.Sessions;
 
@@ -21,6 +22,17 @@ namespace Lakona.Game.Client
         public ClientSessionSnapshot Snapshot
         {
             get { return _sessions.Snapshot; }
+        }
+
+        public bool ReliablePushEnabled { get; private set; } = true;
+
+        public bool ReliablePushAckRequired { get; private set; } = true;
+
+        public void ApplyServerHello(GameServerHello hello)
+        {
+            if (hello == null) throw new ArgumentNullException(nameof(hello));
+            ReliablePushEnabled = hello.ReliablePush.Enabled;
+            ReliablePushAckRequired = hello.ReliablePush.Enabled && hello.ReliablePush.AckRequired;
         }
 
         public void MarkConnecting()

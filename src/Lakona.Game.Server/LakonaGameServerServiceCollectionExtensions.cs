@@ -14,6 +14,7 @@ public static class LakonaGameServerServiceCollectionExtensions
 {
     public static IServiceCollection AddLakonaGameServer(this IServiceCollection services)
     {
+        services.TryAddSingleton(new LakonaGameRuntimeOptions());
         return services.AddLakonaGameServer(new LakonaGameHostingOptions());
     }
 
@@ -22,14 +23,26 @@ public static class LakonaGameServerServiceCollectionExtensions
         IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-        return services.AddLakonaGameServer(LakonaGameHostingOptions.FromConfiguration(configuration));
+        services.TryAddSingleton(LakonaGameRuntimeOptions.FromConfiguration(configuration));
+        return services.AddLakonaGameServer(
+            LakonaGameHostingOptions.FromConfiguration(configuration),
+            configuration);
     }
 
     public static IServiceCollection AddLakonaGameServer(
         this IServiceCollection services,
         LakonaGameHostingOptions options)
     {
+        return services.AddLakonaGameServer(options, configuration: null);
+    }
+
+    private static IServiceCollection AddLakonaGameServer(
+        this IServiceCollection services,
+        LakonaGameHostingOptions options,
+        IConfiguration? configuration)
+    {
         ArgumentNullException.ThrowIfNull(options);
+        services.TryAddSingleton(new LakonaGameRuntimeOptions());
 
         services.AddLakonaGameServerActors(actorOptions => options.Actors.ApplyTo(actorOptions));
         if (options.Sessions.Cleanup.Enabled)
@@ -45,10 +58,19 @@ public static class LakonaGameServerServiceCollectionExtensions
             services.AddSingleton(sessionOptions);
         }
 
-        services.AddLakonaGameServerReliablePush();
+        if (configuration is null)
+        {
+            services.AddLakonaGameServerReliablePush();
+        }
+        else
+        {
+            services.AddLakonaGameServerReliablePush(configuration);
+        }
+
         services.AddMessageRecording();
         services.AddLakonaGameRuntimeValidation();
         services.AddLakonaGameSessionHotfixLifecycle();
+        services.TryAddSingleton<IGameHandshakeService, GameHandshakeService>();
         services.TryAddSingleton<ILakonaGameServer, LakonaGameServer>();
         return services;
     }

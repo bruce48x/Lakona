@@ -1,4 +1,5 @@
 using Lakona.Game.Abstractions;
+using Lakona.Game.Abstractions.Sessions;
 using Lakona.Game.Client.ReliablePush;
 using Lakona.Game.Client.Sessions;
 using Xunit;
@@ -71,5 +72,49 @@ public sealed class LakonaGameClientTests
         Assert.Null(client.Snapshot.SessionId);
         Assert.Equal(0, client.Snapshot.LastReliableSequence);
         Assert.Same(notice, client.Snapshot.Termination);
+    }
+
+    [Fact]
+    public void ApplyServerHello_disables_reliable_push_ack_when_server_reports_immediate_mode()
+    {
+        var client = new LakonaGameClient();
+
+        client.ApplyServerHello(new GameServerHello
+        {
+            SelectedProtocolVersion = 1,
+            ReliablePush = new ReliablePushHandshakeSettings
+            {
+                Enabled = false,
+                DeliveryMode = "immediate",
+                AckRequired = false,
+                ReplaySupported = false,
+                MaxPending = 0
+            }
+        });
+
+        Assert.False(client.ReliablePushEnabled);
+        Assert.False(client.ReliablePushAckRequired);
+    }
+
+    [Fact]
+    public void ApplyServerHello_enables_reliable_push_ack_when_server_reports_reliable_mode()
+    {
+        var client = new LakonaGameClient();
+
+        client.ApplyServerHello(new GameServerHello
+        {
+            SelectedProtocolVersion = 1,
+            ReliablePush = new ReliablePushHandshakeSettings
+            {
+                Enabled = true,
+                DeliveryMode = "reliable",
+                AckRequired = true,
+                ReplaySupported = true,
+                MaxPending = 256
+            }
+        });
+
+        Assert.True(client.ReliablePushEnabled);
+        Assert.True(client.ReliablePushAckRequired);
     }
 }

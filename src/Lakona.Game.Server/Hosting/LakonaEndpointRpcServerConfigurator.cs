@@ -1,5 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
+using Lakona.Game.Abstractions.Sessions;
 using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Sessions;
+using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
 
 namespace Lakona.Game.Server.Hosting;
@@ -24,6 +27,8 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
         var builder = context.Builder;
         builder.UseSerializer(LakonaEndpointRuntimeDefaults.CreateSerializer(_endpoint));
         builder.UseAcceptor(ct => LakonaEndpointRuntimeDefaults.CreateAcceptorAsync(_endpoint, ct));
+        builder.UseSessionRequestGate(new GameHandshakeRpcGate());
+        BindGameHandshake(builder.ServiceRegistry, context.Services);
 
         foreach (var observer in context.Services.GetServices<IRpcSessionLifecycleObserver>())
         {
@@ -51,5 +56,33 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
         }
 
         _bindServices?.Invoke(builder.ServiceRegistry, context.Services);
+    }
+
+    private void BindGameHandshake(RpcServiceRegistry registry, IServiceProvider services)
+    {
+        registry.Register(
+            GameHandshakeRpc.ServiceId,
+            GameHandshakeRpc.HandshakeMethodId,
+            async (session, request, cancellationToken) =>
+            {
+                var hello = session.Serializer.Deserialize<GameClientHello>(request.Payload.Memory);
+                var service = services.GetRequiredService<IGameHandshakeService>();
+                var reply = await service.HandshakeAsync(
+                    hello,
+                    _endpoint.Transport,
+                    _endpoint.Serializer,
+                    cancellationToken).ConfigureAwait(false);
+
+                var state = session.GetOrAddScopedService(
+                    GameHandshakeRpc.ServiceId,
+                    static _ => new GameHandshakeSessionState());
+                state.IsComplete = true;
+
+                using var payload = session.Serializer.SerializeFrame(reply);
+                return RpcEnvelopeCodec.EncodeResponse(
+                    request.RequestId,
+                    RpcStatus.Ok,
+                    payload.Memory);
+            });
     }
 }

@@ -131,6 +131,7 @@ namespace Lakona.Rpc.Server
         /// <param name="keepAlive">Optional keepalive configuration.</param>
         /// <param name="logger">Optional logger.</param>
         /// <param name="limits">Optional request concurrency and queue limits.</param>
+        /// <param name="requestGates">Optional per-session request admission gates.</param>
         public RpcSession(
             ITransport transport,
             IRpcSerializer serializer,
@@ -139,7 +140,8 @@ namespace Lakona.Rpc.Server
             bool ownsTransport,
             RpcKeepAliveOptions? keepAlive = null,
             ILogger? logger = null,
-            RpcServerLimits? limits = null)
+            RpcServerLimits? limits = null,
+            IReadOnlyList<IRpcSessionRequestGate>? requestGates = null)
         {
             _transport = transport ?? throw new ArgumentNullException(nameof(transport));
             _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
@@ -158,7 +160,7 @@ namespace Lakona.Rpc.Server
             }
             _keepAliveState = new RpcKeepAliveState(_keepAlive.MeasureRtt);
             _sender = new SerializedFrameSender(_transport, _keepAliveState);
-            _requestDispatcher = new ServerRequestDispatcher(_handlers, registry, _sender, _logger);
+            _requestDispatcher = new ServerRequestDispatcher(_handlers, registry, requestGates, _sender, _logger);
             ContextId = contextId ?? throw new ArgumentNullException(nameof(contextId));
             RemoteEndPoint = ResolveRemoteEndPoint(_transport);
         }

@@ -11,22 +11,30 @@ internal sealed class ServerRequestDispatcher
     private readonly ConcurrentDictionary<(int serviceId, int methodId), RpcHandler> _handlers;
     private readonly ILogger _logger;
     private readonly RpcServiceRegistry? _registry;
+    private readonly IReadOnlyList<IRpcSessionRequestGate> _requestGates;
     private readonly SerializedFrameSender _sender;
 
     public ServerRequestDispatcher(
         ConcurrentDictionary<(int serviceId, int methodId), RpcHandler> handlers,
         RpcServiceRegistry? registry,
+        IReadOnlyList<IRpcSessionRequestGate>? requestGates,
         SerializedFrameSender sender,
         ILogger logger)
     {
         _handlers = handlers ?? throw new ArgumentNullException(nameof(handlers));
         _registry = registry;
+        _requestGates = requestGates ?? Array.Empty<IRpcSessionRequestGate>();
         _sender = sender ?? throw new ArgumentNullException(nameof(sender));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task DispatchAsync(RpcSession session, RpcRequestFrame req, CancellationToken ct)
     {
+        if (!await IsAllowedAsync(session, req, ct).ConfigureAwait(false))
+        {
+            return;
+        }
+
         if (_handlers.TryGetValue((req.ServiceId, req.MethodId), out var handler))
         {
             await DispatchUserHandlerAsync(session, req, handler, ct).ConfigureAwait(false);
@@ -45,6 +53,34 @@ internal sealed class ServerRequestDispatcher
             ReadOnlyMemory<byte>.Empty,
             $"No handler for {req.ServiceId}:{req.MethodId}");
         await _sender.SendAsync(notFoundFrame.Memory, ct).ConfigureAwait(false);
+    }
+
+    private async ValueTask<bool> IsAllowedAsync(RpcSession session, RpcRequestFrame req, CancellationToken ct)
+    {
+        if (_requestGates.Count == 0)
+        {
+            return true;
+        }
+
+        var context = new RpcSessionRequestGateContext(session, req.ServiceId, req.MethodId);
+        foreach (var gate in _requestGates)
+        {
+            var result = await gate.EvaluateAsync(context, ct).ConfigureAwait(false);
+            if (result.Allowed)
+            {
+                continue;
+            }
+
+            using var frame = RpcEnvelopeCodec.EncodeResponse(
+                req.RequestId,
+                result.Status,
+                ReadOnlyMemory<byte>.Empty,
+                result.ErrorMessage);
+            await _sender.SendAsync(frame.Memory, ct).ConfigureAwait(false);
+            return false;
+        }
+
+        return true;
     }
 
     public async Task SendOverloadedResponseAsync(uint requestId, CancellationToken ct)

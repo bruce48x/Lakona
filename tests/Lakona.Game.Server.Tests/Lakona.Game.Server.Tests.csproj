@@ -15,5 +15,6 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Lakona.Game.Server/Lakona.Game.Server.csproj" />
+    <ProjectReference Include="../../src/Lakona.Rpc.Transport.Loopback/Lakona.Rpc.Transport.Loopback.csproj" />
   </ItemGroup>
 </Project>
