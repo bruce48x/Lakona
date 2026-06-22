@@ -1,8 +1,21 @@
 using Agar.Sample.State.Contracts;
+using Agar.Sample.State.Contracts.Leaderboard;
 using Agar.Sample.State.Contracts.Rooms;
 using Agar.Sample.State.Contracts.Sessions;
+using Agar.Sample.State.Contracts.Users;
+using Agar.Sample.State.Leaderboard;
 using Agar.Sample.State.Rooms;
+using Agar.Sample.State.Sessions;
+using Agar.Sample.State.Users;
+using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
+using Server.App.Services;
+using Shared.Gameplay;
+using Shared.Interfaces;
+using Server.Hotfix.State.Leaderboard;
+using Server.Hotfix.State.Sessions;
+using Server.Hotfix.State.Users;
 
 namespace Server.Hotfix.State.Rooms;
 
@@ -183,6 +196,19 @@ public static class RoomBehavior
         self.State.Status = RoomStatus.InProgress;
         self.State.StartedAtUtc = startedAtUtc;
         self.State.LastUpdatedAtUtc = startedAtUtc;
+        self.State.Simulation = new ArenaSimulationState();
+        var simulation = CreateSimulation(self);
+        foreach (var player in self.State.Players)
+        {
+            simulation.UpsertPlayer(new ArenaPlayerRegistration
+            {
+                PlayerId = player.UserId,
+                PreferredSpawnIndex = player.SeatIndex,
+                IsBot = false
+            });
+        }
+
+        self.State.LastWorldState = simulation.CreateWorldState();
         self.State.Revision += 1;
 
         return new ValueTask<RoomSettlementResult>(BuildSuccess(self, "Room started.", startedAtUtc));
@@ -259,11 +285,157 @@ public static class RoomBehavior
         return new ValueTask<RoomSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask TickAsync(this RoomActor self, HotfixActorTick tick)
+    public static ValueTask SubmitInputAsync(this RoomActor self, RoomInputSubmitRequest request)
     {
-        _ = self;
-        _ = tick;
+        if (!self.RecordExists || self.State.Status != RoomStatus.InProgress)
+        {
+            return default;
+        }
+
+        var player = self.State.Players.FirstOrDefault(item => string.Equals(item.UserId, request.UserId, StringComparison.Ordinal));
+        if (player is null || !player.IsConnected)
+        {
+            return default;
+        }
+
+        var simulation = CreateSimulation(self);
+        request.Input.PlayerId = request.UserId;
+        simulation.SubmitInput(request.Input);
+        self.State.LastUpdatedAtUtc = request.SubmittedAtUtc == default ? DateTime.UtcNow : request.SubmittedAtUtc;
         return default;
+    }
+
+    public static async ValueTask TickAsync(this RoomActor self, HotfixActorTick tick)
+    {
+        if (!self.RecordExists || self.State.Status != RoomStatus.InProgress || self.State.MatchCommitted)
+        {
+            return;
+        }
+
+        var simulation = CreateSimulation(self);
+        var deltaTime = tick.Interval <= TimeSpan.Zero ? 0.05f : (float)tick.Interval.TotalSeconds;
+        var result = simulation.TickWithHotfix(deltaTime);
+        if (result.MatchEnd is null && result.WorldState.RoundRemainingSeconds <= 0 && result.WorldState.Players.Count > 1)
+        {
+            result = new ArenaStepResult(result.WorldState, result.Deaths, CreateMatchEnd(result.WorldState));
+        }
+
+        self.State.LastWorldState = result.WorldState;
+        self.State.LastPublishedWorldTick = result.WorldState.Tick;
+        self.State.LastUpdatedAtUtc = tick.ObservedAtUtc == default ? DateTime.UtcNow : tick.ObservedAtUtc;
+
+        var publisher = self.Context.Services.GetRequiredService<RoomCallbackPublisher>();
+        publisher.PublishWorldState(self.State.RoomId, result.WorldState);
+        foreach (var dead in result.Deaths)
+        {
+            publisher.PublishPlayerDead(self.State.RoomId, dead);
+        }
+
+        if (result.MatchEnd is null)
+        {
+            return;
+        }
+
+        publisher.PublishMatchEnd(self.State.RoomId, result.MatchEnd);
+        self.State.MatchCommitted = true;
+        await CommitSettlementAsync(self, result).ConfigureAwait(false);
+    }
+
+    private static ArenaSimulation CreateSimulation(RoomActor self)
+    {
+        self.State.Simulation ??= new ArenaSimulationState();
+        return new ArenaSimulation(new ArenaSimulationOptions
+        {
+            Arena = ArenaConfig.CreateDefault(),
+            RespawnDelaySeconds = 5f,
+            TargetParticipantCount = self.State.MaxPlayers,
+            MinPlayersToStart = self.State.MaxPlayers,
+            EnableBots = true
+        }, self.State.Simulation);
+    }
+
+    private static MatchEnd CreateMatchEnd(WorldState worldState)
+    {
+        var winnerPlayerId = worldState.Players
+            .OrderByDescending(static player => player.Mass)
+            .ThenBy(static player => player.PlayerId, StringComparer.Ordinal)
+            .FirstOrDefault()?.PlayerId ?? string.Empty;
+
+        return new MatchEnd
+        {
+            WinnerPlayerId = winnerPlayerId,
+            Tick = worldState.Tick
+        };
+    }
+
+    private static async Task CommitSettlementAsync(RoomActor self, ArenaStepResult result)
+    {
+        var settlement = CreateSimulation(self).SettleMatch(result.WorldState);
+        var tick = result.MatchEnd?.Tick ?? result.WorldState.Tick;
+        var settlementId = $"settlement-{self.State.RoomId}-{tick}";
+        var finishedAtUtc = DateTime.UtcNow;
+
+        await self.CompleteAsync(new RoomMatchCompletion
+        {
+            RoomId = self.State.RoomId,
+            SettlementId = settlementId,
+            FinishedAtUtc = finishedAtUtc,
+            WinnerUserId = settlement.WinnerPlayerId,
+            Reason = settlement.Reason,
+            Results = settlement.Entries.Select(entry => new RoomSettlementEntry
+            {
+                UserId = entry.PlayerId,
+                Rank = entry.Rank,
+                Mass = entry.Mass,
+                IsWinner = entry.IsWinner
+            }).ToList()
+        }).ConfigureAwait(false);
+
+        var sessions = self.Context.Services.GetRequiredService<SessionDirectory>();
+        foreach (var registration in sessions.GetByRoom(self.State.RoomId))
+        {
+            sessions.ClearRoom(registration.PlayerId, self.State.RoomId);
+            await self.Context.Runtime
+                .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
+                    SessionId(registration.PlayerId),
+                    (actor, _) => actor.ClearRoomAsync(new PlayerRoomClearRequest
+                    {
+                        UserId = registration.PlayerId,
+                        RoomId = self.State.RoomId,
+                        ClearedAtUtc = DateTime.UtcNow,
+                        Reason = "Match completed."
+                    }))
+                .ConfigureAwait(false);
+        }
+
+        var winnerEntry = settlement.Entries.FirstOrDefault(static entry => entry.IsWinner);
+        if (winnerEntry is not null && !winnerEntry.IsBot)
+        {
+            await self.Context.Runtime
+                .TellAsync<UserActor>(
+                    UserId(winnerEntry.PlayerId),
+                    (actor, _) => actor.AddWinAsync())
+                .ConfigureAwait(false);
+        }
+
+        foreach (var entry in settlement.Entries.Where(static entry => !entry.IsBot && entry.VictoryPoints > 0))
+        {
+            await self.Context.Runtime
+                .TellAsync<UserActor>(
+                    UserId(entry.PlayerId),
+                    (actor, _) => actor.AddVictoryPointsAsync(entry.VictoryPoints))
+                .ConfigureAwait(false);
+            var profile = await self.Context.Runtime
+                .AskAsync<UserActor, UserProfileSnapshot>(
+                    UserId(entry.PlayerId),
+                    (actor, _) => actor.GetProfileAsync())
+                .ConfigureAwait(false);
+            await self.Context.Runtime
+                .TellAsync<LeaderboardActor>(
+                    LeaderboardId,
+                    (actor, _) => actor.RecordVictoryPointsAsync(entry.PlayerId, profile.VictoryPoints, profile.WinCount))
+                .ConfigureAwait(false);
+        }
     }
 
     private static void EnsureState(RoomActor self, string roomId)
@@ -451,4 +623,10 @@ public static class RoomBehavior
             Path = gateway.Path
         };
     }
+
+    private static readonly ActorId LeaderboardId = ActorId.From("current");
+
+    private static ActorId SessionId(string userId) => ActorId.From($"session:{userId}");
+
+    private static ActorId UserId(string userId) => ActorId.From(userId);
 }

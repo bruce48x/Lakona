@@ -94,6 +94,7 @@ namespace Shared.Gameplay
         private readonly Dictionary<string, ArenaPlayer> _players = new(StringComparer.Ordinal);
         private readonly List<ArenaFood> _foods = new();
         private readonly ArenaSimulationOptions _options;
+        private readonly ArenaSimulationState _state;
         private readonly System.Random _random = new();
         private readonly int _respawnDelaySecondsCeiling;
         private MatchEnd? _pendingMatchEnd;
@@ -105,11 +106,27 @@ namespace Shared.Gameplay
         private int _nextBotNumber = 1;
 
         public ArenaSimulation(ArenaSimulationOptions options)
+            : this(options, new ArenaSimulationState())
+        {
+        }
+
+        public ArenaSimulation(ArenaSimulationOptions options, ArenaSimulationState state)
         {
             _options = options ?? throw new ArgumentNullException(nameof(options));
+            _state = state ?? throw new ArgumentNullException(nameof(state));
             _respawnDelaySecondsCeiling = (int)MathF.Ceiling(Math.Max(1f, _options.RespawnDelaySeconds));
-            _currentArenaHalfExtents = options.Arena.ArenaHalfExtents;
-            EnsureFoodPopulation();
+            LoadState();
+            if (_currentArenaHalfExtents.x == 0f && _currentArenaHalfExtents.y == 0f)
+            {
+                _currentArenaHalfExtents = options.Arena.ArenaHalfExtents;
+            }
+
+            if (_foods.Count == 0)
+            {
+                EnsureFoodPopulation();
+            }
+
+            SyncState();
         }
 
         public int TickCount => _tick;
@@ -145,6 +162,8 @@ namespace Shared.Gameplay
                 RebalanceBots();
                 ResetMatchIfNeeded();
             }
+
+            SyncState();
         }
 
         public bool RemovePlayer(string playerId, out ArenaPlayerSnapshot snapshot)
@@ -174,6 +193,7 @@ namespace Shared.Gameplay
                 _foods.Clear();
                 _tick = 0;
                 EnsureFoodPopulation();
+                SyncState();
                 return true;
             }
 
@@ -183,6 +203,7 @@ namespace Shared.Gameplay
                 ClearMatchState();
             }
 
+            SyncState();
             return true;
         }
 
@@ -209,6 +230,7 @@ namespace Shared.Gameplay
             player.Input = new Vector2(
                 Math.Clamp(input.MoveX, -1f, 1f),
                 Math.Clamp(input.MoveY, -1f, 1f));
+            SyncState();
         }
 
         public ArenaStepResult Tick(float deltaTime)
@@ -237,6 +259,7 @@ namespace Shared.Gameplay
                 _pendingDeaths.ToArray(),
                 _pendingMatchEnd);
             _pendingMatchEnd = null;
+            SyncState();
             return result;
         }
 
@@ -316,6 +339,93 @@ namespace Shared.Gameplay
             _currentArenaHalfExtents = _options.Arena.ArenaHalfExtents;
             _nextBotNumber = 1;
             EnsureFoodPopulation();
+            SyncState();
+        }
+
+        private void LoadState()
+        {
+            _players.Clear();
+            _foods.Clear();
+            _tick = _state.Tick;
+            _roundElapsedSeconds = _state.RoundElapsedSeconds;
+            _currentArenaHalfExtents = new Vector2(_state.CurrentArenaHalfExtentX, _state.CurrentArenaHalfExtentY);
+            _winnerPlayerId = string.IsNullOrWhiteSpace(_state.WinnerPlayerId) ? null : _state.WinnerPlayerId;
+            _restartAtTick = _state.RestartAtTick < 0 ? null : _state.RestartAtTick;
+            _nextBotNumber = _state.NextBotNumber <= 0 ? 1 : _state.NextBotNumber;
+
+            foreach (var source in _state.Players)
+            {
+                if (string.IsNullOrWhiteSpace(source.PlayerId))
+                {
+                    continue;
+                }
+
+                var player = new ArenaPlayer(
+                    source.PlayerId,
+                    source.SpawnIndex,
+                    source.Mass,
+                    source.IsBot,
+                    source.BotNumber)
+                {
+                    Position = new Vector2(source.X, source.Y),
+                    Velocity = new Vector2(source.Vx, source.Vy),
+                    Input = new Vector2(source.InputX, source.InputY),
+                    LastInputTick = source.LastInputTick,
+                    Alive = source.Alive,
+                    RespawnRemaining = source.RespawnRemaining,
+                    Radius = source.Radius
+                };
+                _players[source.PlayerId] = player;
+            }
+
+            foreach (var source in _state.Foods)
+            {
+                _foods.Add(new ArenaFood
+                {
+                    Type = source.Type,
+                    Position = new Vector2(source.X, source.Y)
+                });
+            }
+        }
+
+        private void SyncState()
+        {
+            _state.Tick = _tick;
+            _state.RoundElapsedSeconds = _roundElapsedSeconds;
+            _state.CurrentArenaHalfExtentX = _currentArenaHalfExtents.x;
+            _state.CurrentArenaHalfExtentY = _currentArenaHalfExtents.y;
+            _state.WinnerPlayerId = _winnerPlayerId ?? "";
+            _state.RestartAtTick = _restartAtTick ?? -1;
+            _state.NextBotNumber = _nextBotNumber;
+            _state.Players = _players.Values
+                .OrderBy(static player => player.PlayerId, StringComparer.Ordinal)
+                .Select(static player => new ArenaPlayerRuntimeState
+                {
+                    PlayerId = player.PlayerId,
+                    SpawnIndex = player.SpawnIndex,
+                    Mass = player.Mass,
+                    IsBot = player.IsBot,
+                    BotNumber = player.BotNumber,
+                    X = player.Position.x,
+                    Y = player.Position.y,
+                    Vx = player.Velocity.x,
+                    Vy = player.Velocity.y,
+                    InputX = player.Input.x,
+                    InputY = player.Input.y,
+                    LastInputTick = player.LastInputTick,
+                    Alive = player.Alive,
+                    RespawnRemaining = player.RespawnRemaining,
+                    Radius = player.Radius
+                })
+                .ToList();
+            _state.Foods = _foods
+                .Select(static food => new ArenaFoodRuntimeState
+                {
+                    Type = food.Type,
+                    X = food.Position.x,
+                    Y = food.Position.y
+                })
+                .ToList();
         }
 
         private void UpdateArenaBounds(float deltaTime)
