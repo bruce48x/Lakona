@@ -1,7 +1,7 @@
 using System.Data.Common;
 using Npgsql;
 
-namespace Server.App.Features;
+namespace Server.App.Hosting;
 
 public sealed class AgarDatabaseConnectionFactory
 {

@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using Server.App.Features;
 using Server.App.Generated;
 using Server.App.Hosting;
 using Lakona.Game.Server.Diagnostics;
@@ -14,12 +13,6 @@ return await LakonaGameServer.RunAsync(args, server => server
         services.AddMessageRecording();
         services.AddLakonaGameRuntimeValidation();
 
-        services.AddLakonaGame(configuration, [
-            typeof(DatabaseFeature),
-            typeof(StateStoreFeature),
-            typeof(MatchmakingFeature),
-            typeof(LeaderboardFeature),
-            typeof(BattleRuntimeFeature)
-        ]);
+        services.AddLakonaGame(configuration, _ => { });
     })
     .UseGeneratedHotfixServices());

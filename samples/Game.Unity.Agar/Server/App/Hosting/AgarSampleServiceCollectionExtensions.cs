@@ -4,8 +4,6 @@ using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Server.App.Hotfix;
-using Server.App.Realtime;
 using Server.App.Services;
 
 namespace Server.App.Hosting;
@@ -20,19 +18,33 @@ public static class AgarSampleServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(configuration);
 
         var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
+        var activeFeatures = options.Feature?.ToHashSet(StringComparer.OrdinalIgnoreCase)
+            ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         services.AddAgarSampleActors();
         services.TryAddSingleton<SessionDirectory>();
+        services.TryAddSingleton<BattleRuntimeGatewayResolver>();
+        services.TryAddSingleton<RoomCallbackPublisher>();
+
+        if (activeFeatures.Contains("database"))
+        {
+            services.AddAgarDatabaseInfrastructure(configuration);
+        }
 
         var controlEndpoint = options.Endpoints.FirstOrDefault(endpoint =>
             string.Equals(endpoint.Transport, "websocket", StringComparison.OrdinalIgnoreCase));
-        if (controlEndpoint is not null)
+        var battleEndpoint = options.Endpoints.FirstOrDefault(endpoint =>
+            string.Equals(endpoint.Transport, "kcp", StringComparison.OrdinalIgnoreCase));
+        var identityEndpoint = battleEndpoint ?? controlEndpoint;
+        if (identityEndpoint is not null)
         {
             services.TryAddSingleton(_ => new GatewayNodeIdentity(
-                GatewayEndpointDescriptorFactory.FromConfiguredEndpoint(configuration, controlEndpoint)));
-            services.TryAddSingleton<RoomRuntimeHost>();
+                GatewayEndpointDescriptorFactory.FromConfiguredEndpoint(configuration, identityEndpoint)));
+        }
+
+        if (controlEndpoint is not null)
+        {
             services.TryAddSingleton<ReliableMatchmakingPublisher>();
-            services.TryAddSingleton<AgarHotfixRuntimeEvents>();
             services.AddLakonaGameSessionHotfixLifecycle();
         }
 

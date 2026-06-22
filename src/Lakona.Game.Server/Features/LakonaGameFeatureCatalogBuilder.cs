@@ -58,15 +58,15 @@ public sealed class LakonaGameFeatureCatalogBuilder
             return _definitions.ToArray();
         }
 
-        var active = new List<LakonaGameFeatureDefinition>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var featureName in configuredFeatures)
+        if (_definitions.Count == 0)
         {
-            if (!seen.Add(featureName))
-            {
-                throw new InvalidOperationException($"Lakona.Game feature '{featureName}' is configured more than once.");
-            }
+            ValidateConfiguredFeatureNames(configuredFeatures);
+            return [];
+        }
 
+        var active = new List<LakonaGameFeatureDefinition>();
+        foreach (var featureName in ValidateConfiguredFeatureNames(configuredFeatures))
+        {
             if (!_byName.TryGetValue(featureName, out var definition))
             {
                 var available = string.Join(", ", _definitions.Select(candidate => candidate.Name));
@@ -78,6 +78,20 @@ public sealed class LakonaGameFeatureCatalogBuilder
         }
 
         return active;
+    }
+
+    private static IReadOnlyList<string> ValidateConfiguredFeatureNames(IReadOnlyList<string> configuredFeatures)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var featureName in configuredFeatures)
+        {
+            if (!seen.Add(featureName))
+            {
+                throw new InvalidOperationException($"Lakona.Game feature '{featureName}' is configured more than once.");
+            }
+        }
+
+        return configuredFeatures;
     }
 
     private static void ValidateRequiredFeatures(IReadOnlyList<LakonaGameFeatureDefinition> active)
