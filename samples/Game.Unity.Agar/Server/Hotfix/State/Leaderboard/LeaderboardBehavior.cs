@@ -56,9 +56,10 @@ public static class LeaderboardBehavior
         }
 
         var playerIds = self.State.Players.Keys.ToArray();
+        var localActors = self.Context.Runtime;
         foreach (var playerId in playerIds)
         {
-            await self.Context.Runtime.TellAsync<UserActor>(
+            await localActors.TellAsync<UserActor>(
                 ActorId.From(playerId),
                 static (actor, _) => actor.ResetVictoryPointsAsync()).ConfigureAwait(false);
         }

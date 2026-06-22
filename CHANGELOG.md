@@ -4,6 +4,16 @@ Lakona was created on 2026-06-07 by merging the former ULinkGame, ULinkActor,
 and ULinkRpc repositories into a single monorepo. This changelog starts from
 that consolidation.
 
+## 2026-06-22
+
+### Changed
+
+- `Lakona.Tool` `0.12.10`: generated hotfix services now alias
+  `call.Actors` as `localActors`, and generated README files explain that
+  `localActors.AskAsync(...)` uses the process-local actor runtime while
+  generated `Get` / `Local` / `Remote` actor selectors express distributed
+  placement.
+
 ## 2026-06-17
 
 ### Changed

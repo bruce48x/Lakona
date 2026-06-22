@@ -168,6 +168,24 @@ public sealed class GeneratedProjectGuideRendererTests
         Assert.DoesNotContain("ops/", readme.Content, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Readme_ExplainsLocalAndDistributedActorCalls()
+    {
+        var spec = Spec(ClientEngine.Unity, TransportKind.Kcp, SerializerKind.MemoryPack,
+            DeploymentProfile.None);
+        var builder = new GenerationPlanBuilder("Root");
+
+        new GeneratedProjectGuideRenderer().AddFiles(spec, builder);
+
+        var plan = builder.Build();
+        var readme = Assert.Single(plan.Files, file => file.RelativePath == "README.md");
+        Assert.Contains("process-local actor runtime", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("localActors.AskAsync", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("rooms.Get(roomId)", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("rooms.Local(roomId)", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("rooms.Remote(nodeId, roomId)", readme.Content, StringComparison.Ordinal);
+    }
+
     private static LakonaProjectSpec Spec(ClientEngine engine, TransportKind transport,
         SerializerKind serializer, DeploymentProfile deploy)
     {

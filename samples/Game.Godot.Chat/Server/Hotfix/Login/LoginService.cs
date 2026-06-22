@@ -18,8 +18,9 @@ namespace Server.Hotfix.Login
             var playerName = string.IsNullOrWhiteSpace(call.Request.PlayerName)
                 ? "Player"
                 : call.Request.PlayerName.Trim();
+            var localActors = call.Actors;
 
-            var reply = await call.Actors.AskAsync<ChatRoomActor, LoginReply>(
+            var reply = await localActors.AskAsync<ChatRoomActor, LoginReply>(
                 RoomId,
                 (room, ct) => room.LoginAsync(call.ConnectionId, playerName, call.Callback));
             await call.GameServer.StartSessionAsync(

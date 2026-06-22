@@ -109,6 +109,13 @@ public sealed class ToolArchitectureScanTests
             Assert.Contains("<CompilerVisibleProperty Include=\"LakonaRpcGenerateServer\" />", generatedText, StringComparison.Ordinal);
             Assert.Contains("<CompilerVisibleProperty Include=\"LakonaRpcServerGeneratedNamespace\" />", generatedText, StringComparison.Ordinal);
             Assert.Contains("await call.GameServer.BindCurrentSessionAsync", generatedText, StringComparison.Ordinal);
+            Assert.Contains("process-local actor runtime", generatedText, StringComparison.Ordinal);
+            Assert.Contains("var localActors = call.Actors;", generatedText, StringComparison.Ordinal);
+            Assert.Contains("await localActors.AskAsync<ChatRoomActor", generatedText, StringComparison.Ordinal);
+            Assert.Contains("rooms.Get(roomId)", generatedText, StringComparison.Ordinal);
+            Assert.Contains("rooms.Local(roomId)", generatedText, StringComparison.Ordinal);
+            Assert.Contains("rooms.Remote(nodeId, roomId)", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain("call.Actors.AskAsync", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(ForbiddenGameSessionKeyType, generatedSharedText, StringComparison.Ordinal);
             Assert.DoesNotContain(ForbiddenGameSessionContractField, generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(ForbiddenGameSessionFormatter, generatedText, StringComparison.Ordinal);

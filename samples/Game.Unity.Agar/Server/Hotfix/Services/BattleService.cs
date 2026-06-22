@@ -20,6 +20,7 @@ public sealed class BattleService
     {
         var req = call.Request;
         var services = AgarBattleServiceDependencies.From(call);
+        var localActors = call.Actors;
         if (string.IsNullOrWhiteSpace(req.PlayerId) ||
             string.IsNullOrWhiteSpace(req.Token) ||
             string.IsNullOrWhiteSpace(req.RoomId) ||
@@ -32,7 +33,7 @@ public sealed class BattleService
             };
         }
 
-        var sessionSnapshot = await call.Actors
+        var sessionSnapshot = await localActors
             .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
                 SessionId(req.PlayerId),
                 (actor, _) => actor.GetSnapshotAsync())
@@ -69,7 +70,7 @@ public sealed class BattleService
             };
         }
 
-        await call.Actors.AskAsync<RoomActor, RoomSettlementResult>(
+        await localActors.AskAsync<RoomActor, RoomSettlementResult>(
             RoomId(req.RoomId),
             (actor, _) => actor.SetReadyAsync(new RoomPlayerReadyRequest
             {
@@ -93,6 +94,7 @@ public sealed class BattleService
     {
         var req = call.Request;
         var services = AgarBattleServiceDependencies.From(call);
+        var localActors = call.Actors;
         var playerId = services.SessionDirectory.GetPlayerIdByConnection(call.ConnectionId);
         if (string.IsNullOrWhiteSpace(playerId))
         {
@@ -105,7 +107,7 @@ public sealed class BattleService
             return;
         }
 
-        var sessionSnapshot = await call.Actors
+        var sessionSnapshot = await localActors
             .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
                 SessionId(playerId),
                 (actor, _) => actor.GetSnapshotAsync())
@@ -116,7 +118,7 @@ public sealed class BattleService
             return;
         }
 
-        await call.Actors.TellAsync<RoomActor>(
+        await localActors.TellAsync<RoomActor>(
             RoomId(sessionSnapshot.CurrentRoomId),
             (actor, _) => actor.SubmitInputAsync(new RoomInputSubmitRequest
             {

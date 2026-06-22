@@ -34,10 +34,11 @@ public sealed class PlayerService
         var req = call.Request;
         var services = AgarServiceDependencies.From(call);
         var logger = services.CreateLogger<PlayerService>();
+        var localActors = call.Actors;
         _ = await EnsureControlCallbackBoundAsync(call, services).ConfigureAwait(false);
 
         var topN = req.TopN <= 0 ? 10 : req.TopN;
-        var snapshot = await call.Actors
+        var snapshot = await localActors
             .AskAsync<LeaderboardActor, LeaderboardSnapshot>(
                 LeaderboardId,
                 (actor, _) => actor.GetLeaderboardAsync(topN))
@@ -204,7 +205,7 @@ public sealed class PlayerService
         var registration = services.SessionDirectory.Get(playerId)
             ?? throw new InvalidOperationException($"Player '{playerId}' is not registered.");
 
-        var result = await services.Actors
+        var result = await services.LocalActors
             .AskAsync<MatchmakingActor, MatchmakingEnqueueResult>(
                 DefaultQueueId,
                 (actor, _) => actor.EnqueueAsync(new MatchmakingEnqueueRequest
@@ -234,7 +235,7 @@ public sealed class PlayerService
             return;
         }
 
-        await services.Actors
+        await services.LocalActors
             .AskAsync<MatchmakingActor, MatchmakingCancelResult>(
                 DefaultQueueId,
                 (actor, _) => actor.CancelAsync(new MatchmakingCancelRequest
@@ -272,7 +273,7 @@ public sealed class PlayerService
             var roomId = registration?.RoomId;
             if (!string.IsNullOrWhiteSpace(roomId))
             {
-                await services.Actors
+                await services.LocalActors
                     .AskAsync<RoomActor, RoomSettlementResult>(
                         RoomId(roomId),
                         (actor, _) => actor.LeaveAsync(new RoomPlayerLeaveRequest
@@ -283,7 +284,7 @@ public sealed class PlayerService
                             Reason = reason
                         }))
                     .ConfigureAwait(false);
-                await services.Actors
+                await services.LocalActors
                     .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
                         SessionId(playerId),
                         (actor, _) => actor.ClearRoomAsync(new PlayerRoomClearRequest
@@ -301,7 +302,7 @@ public sealed class PlayerService
                 services.SessionDirectory.ClearRoom(playerId);
             }
 
-            await services.Actors
+            await services.LocalActors
                 .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
                     SessionId(playerId),
                     (actor, _) => actor.MarkDisconnectedAsync(new PlayerSessionDisconnectRequest
@@ -312,7 +313,7 @@ public sealed class PlayerService
                         Reason = reason
                     }))
                 .ConfigureAwait(false);
-            await services.Actors
+            await services.LocalActors
                 .TellAsync<UserActor>(
                     UserId(playerId),
                     (actor, _) => actor.SetOnlineAsync(false))
@@ -347,7 +348,7 @@ public sealed class PlayerService
             return;
         }
 
-        var room = await services.Actors
+        var room = await services.LocalActors
             .AskAsync<RoomActor, RoomSnapshot>(
                 RoomId(assignment.RoomId),
                 (actor, _) => actor.GetSnapshotAsync())
@@ -392,7 +393,7 @@ public sealed class PlayerService
 }
 
 internal sealed record AgarServiceDependencies(
-    IActorRuntime Actors,
+    IActorRuntime LocalActors,
     SessionDirectory SessionDirectory,
     GatewayNodeIdentity GatewayNodeIdentity,
     BattleRuntimeGatewayResolver RuntimeGateways,
@@ -411,10 +412,10 @@ internal sealed record AgarServiceDependencies(
         return From(call.Services, call.Actors);
     }
 
-    public static AgarServiceDependencies From(IServiceProvider services, IActorRuntime actors)
+    public static AgarServiceDependencies From(IServiceProvider services, IActorRuntime localActors)
     {
         return new AgarServiceDependencies(
-            actors,
+            localActors,
             services.GetRequiredService<SessionDirectory>(),
             services.GetRequiredService<GatewayNodeIdentity>(),
             services.GetRequiredService<BattleRuntimeGatewayResolver>(),

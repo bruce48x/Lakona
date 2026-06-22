@@ -17,6 +17,7 @@ public sealed class AgarSessionLifecycle
     public static async ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
     {
         var services = AgarLifecycleDependencies.From(call);
+        var localActors = services.LocalActors;
         var connection = services.SessionDirectory.GetConnection(call.Request.ConnectionId);
         if (connection is null)
         {
@@ -33,7 +34,7 @@ public sealed class AgarSessionLifecycle
 
         try
         {
-            await services.Actors
+            await localActors
                 .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
                     SessionId(connection.PlayerId),
                     (actor, _) => actor.MarkDisconnectedAsync(new PlayerSessionDisconnectRequest
@@ -104,7 +105,7 @@ public sealed class AgarSessionLifecycle
 }
 
 internal sealed record AgarLifecycleDependencies(
-    IActorRuntime Actors,
+    IActorRuntime LocalActors,
     SessionDirectory SessionDirectory,
     ILogger<AgarSessionLifecycle> Logger)
 {

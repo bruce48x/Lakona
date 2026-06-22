@@ -392,10 +392,11 @@ public static class RoomBehavior
         }).ConfigureAwait(false);
 
         var sessions = self.Context.Services.GetRequiredService<SessionDirectory>();
+        var localActors = self.Context.Runtime;
         foreach (var registration in sessions.GetByRoom(self.State.RoomId))
         {
             sessions.ClearRoom(registration.PlayerId, self.State.RoomId);
-            await self.Context.Runtime
+            await localActors
                 .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
                     SessionId(registration.PlayerId),
                     (actor, _) => actor.ClearRoomAsync(new PlayerRoomClearRequest
@@ -411,7 +412,7 @@ public static class RoomBehavior
         var winnerEntry = settlement.Entries.FirstOrDefault(static entry => entry.IsWinner);
         if (winnerEntry is not null && !winnerEntry.IsBot)
         {
-            await self.Context.Runtime
+            await localActors
                 .TellAsync<UserActor>(
                     UserId(winnerEntry.PlayerId),
                     (actor, _) => actor.AddWinAsync())
@@ -420,17 +421,17 @@ public static class RoomBehavior
 
         foreach (var entry in settlement.Entries.Where(static entry => !entry.IsBot && entry.VictoryPoints > 0))
         {
-            await self.Context.Runtime
+            await localActors
                 .TellAsync<UserActor>(
                     UserId(entry.PlayerId),
                     (actor, _) => actor.AddVictoryPointsAsync(entry.VictoryPoints))
                 .ConfigureAwait(false);
-            var profile = await self.Context.Runtime
+            var profile = await localActors
                 .AskAsync<UserActor, UserProfileSnapshot>(
                     UserId(entry.PlayerId),
                     (actor, _) => actor.GetProfileAsync())
                 .ConfigureAwait(false);
-            await self.Context.Runtime
+            await localActors
                 .TellAsync<LeaderboardActor>(
                     LeaderboardId,
                     (actor, _) => actor.RecordVictoryPointsAsync(entry.PlayerId, profile.VictoryPoints, profile.WinCount))

@@ -23,6 +23,7 @@ public sealed class LoginService
         var req = call.Request;
         var services = AgarServiceDependencies.From(call);
         var logger = services.CreateLogger<LoginService>();
+        var localActors = call.Actors;
 
         var account = req.Account;
         var password = req.Password;
@@ -40,7 +41,7 @@ public sealed class LoginService
         UserLoginResult loginResult;
         try
         {
-            loginResult = await call.Actors
+            loginResult = await localActors
                 .AskAsync<UserActor, UserLoginResult>(
                     UserId(account),
                     (actor, _) => actor.LoginAsync(password, req.Reconnect))
@@ -72,7 +73,7 @@ public sealed class LoginService
             }
 
             sessionKey = resumeDecision.Session.Value;
-            await call.Actors
+            await localActors
                 .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
                     SessionId(loginResult.UserId),
                     (actor, _) => actor.ReconnectAsync(new PlayerSessionReconnectRequest
@@ -90,7 +91,7 @@ public sealed class LoginService
             sessionKey = await services.SessionDirectory
                 .RegisterNewControlAsync(loginResult.UserId, loginResult.SessionToken, call.ConnectionId)
                 .ConfigureAwait(false);
-            await call.Actors
+            await localActors
                 .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
                     SessionId(loginResult.UserId),
                     (actor, _) => actor.AttachAsync(new PlayerSessionAttachRequest

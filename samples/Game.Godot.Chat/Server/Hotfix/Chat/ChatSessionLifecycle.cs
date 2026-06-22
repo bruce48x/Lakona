@@ -22,8 +22,9 @@ namespace Server.Hotfix.Chat
             {
                 return;
             }
+            var localActors = call.Actors;
 
-            await call.Actors.AskAsync<ChatRoomActor, bool>(
+            await localActors.AskAsync<ChatRoomActor, bool>(
                 RoomId,
                 async (room, ct) =>
                 {

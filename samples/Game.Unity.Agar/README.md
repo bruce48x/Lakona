@@ -100,6 +100,21 @@ dotnet run --project Server/App/Server.App.csproj
 
 三节点 sample 拓扑可通过 `docker-compose.yml` 启动 `data-1`、`gateway-1`、`battle-1`、Postgres 和 Redis。`data-1` 的 `database` feature 会读取 `ConnectionStrings:AgarPostgres` 和 `ConnectionStrings:AgarRedis`，把 cluster node directory 接到 Postgres，并在 data 进程内提供共享 route directory；`gateway-1` 和 `battle-1` 通过 `Lakona:Cluster:Seeds` 使用 seeded directory clients 访问 data 节点。远程客户端通知通过 battle/data 侧的 `ClusterClientNotificationDispatcher` 调用 gateway cluster endpoint 上的 binder，再由 gateway 的本地 session callback 发给客户端。当前阶段 Postgres 用于 cluster membership；route directory 是 sample V1 的 data-local in-memory 实现；完整 gameplay state 持久化和 Redis 排行榜索引仍是后续 sample 工作，不应把回调对象或会话 callback 状态写入 Postgres/Redis。
 
+### Actor 调用语义
+
+样例里的 `call.Actors`、`services.LocalActors` 和 actor behavior 中的
+`self.Context.Runtime` 都是当前进程的本地 actor runtime。代码中用
+`localActors.AskAsync(...)` 命名这类调用，表示它只投递到当前节点的本地
+mailbox，不会自动跨节点路由。
+
+需要表达分布式 actor 放置时，使用生成的 typed selector：
+
+```csharp
+await rooms.Get(roomId).JoinAsync(request, ct);            // 先查本地，再通过 ActorDirectory 路由
+await rooms.Local(roomId).JoinAsync(request, ct);          // 只调当前节点
+await rooms.Remote(nodeId, roomId).JoinAsync(request, ct); // 固定调指定远端节点
+```
+
 本地 `docker-compose.yml` 会把 `infra/postgres/init` 挂载到 Postgres
 `/docker-entrypoint-initdb.d`，其中 `001-lakona-cluster-nodes.sql` 创建
 Lakona cluster node directory 表，`002-dapper-grain-storage.sql` 创建 sample

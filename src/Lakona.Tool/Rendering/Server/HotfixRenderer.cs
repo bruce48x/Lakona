@@ -83,8 +83,9 @@ internal sealed class HotfixRenderer : IPlanContributor
                     var playerName = string.IsNullOrWhiteSpace(call.Request.PlayerName)
                         ? "Player"
                         : call.Request.PlayerName.Trim();
+                    var localActors = call.Actors;
 
-                    var reply = await call.Actors.AskAsync<ChatRoomActor, LoginReply>(
+                    var reply = await localActors.AskAsync<ChatRoomActor, LoginReply>(
                         RoomId,
                         (room, ct) => room.LoginAsync(call.ConnectionId, playerName, call.Callback));
                     await call.GameServer.StartSessionAsync(
@@ -120,7 +121,9 @@ internal sealed class HotfixRenderer : IPlanContributor
                     await call.GameServer.BindCurrentSessionAsync(
                         call.ConnectionId,
                         call.Callback);
-                    await call.Actors.AskAsync<ChatRoomActor, bool>(
+                    var localActors = call.Actors;
+
+                    await localActors.AskAsync<ChatRoomActor, bool>(
                         RoomId,
                         (room, ct) =>
                         {
@@ -131,7 +134,9 @@ internal sealed class HotfixRenderer : IPlanContributor
 
                 public static async ValueTask SendAsync(HotfixServiceCall<ChatSendRequest, IChatCallback> call)
                 {
-                    await call.Actors.AskAsync<ChatRoomActor, bool>(
+                    var localActors = call.Actors;
+
+                    await localActors.AskAsync<ChatRoomActor, bool>(
                         RoomId,
                         (room, ct) =>
                         {
@@ -139,7 +144,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                             return new ValueTask<bool>(true);
                         });
                     var text = FilterMessage(call.Request.Text ?? "");
-                    await call.Actors.AskAsync<ChatRoomActor, bool>(
+                    await localActors.AskAsync<ChatRoomActor, bool>(
                         RoomId,
                         async (room, ct) =>
                         {
@@ -303,8 +308,9 @@ internal sealed class HotfixRenderer : IPlanContributor
                     {
                         return;
                     }
+                    var localActors = call.Actors;
 
-                    await call.Actors.AskAsync<ChatRoomActor, bool>(
+                    await localActors.AskAsync<ChatRoomActor, bool>(
                         RoomId,
                         async (room, ct) =>
                         {

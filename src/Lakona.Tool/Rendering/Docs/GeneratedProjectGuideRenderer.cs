@@ -92,6 +92,29 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 
         Derived runtime state is shown through the `--lakona-game-check` command.
 
+        ## Actor Call Model
+
+        `call.Actors` is the process-local actor runtime for the node currently
+        executing the hotfix service. Generated services alias it as
+        `localActors` before calling `localActors.AskAsync(...)`, so local actor
+        calls are visually distinct from distributed actor selectors.
+
+        ```csharp
+        var localActors = call.Actors;
+        var reply = await localActors.AskAsync<ChatRoomActor, LoginReply>(
+            roomId,
+            (room, ct) => room.LoginAsync(connectionId, playerName, callback));
+        ```
+
+        Use generated typed actor selectors when business code should express
+        placement:
+
+        ```csharp
+        await rooms.Get(roomId).JoinAsync(request, ct);            // Local first, then route through ActorDirectory
+        await rooms.Local(roomId).JoinAsync(request, ct);          // Current node only
+        await rooms.Remote(nodeId, roomId).JoinAsync(request, ct); // Specific remote node
+        ```
+
         ## Client Notes
 
         {{ClientNotes(spec.ClientEngine)}}

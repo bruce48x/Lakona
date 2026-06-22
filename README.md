@@ -225,6 +225,11 @@ await rooms.Local(roomId).JoinAsync(request, ct);          // Current node only
 await rooms.Remote(nodeId, roomId).JoinAsync(request, ct); // Pinned to node
 ```
 
+Lower-level `IActorRuntime` calls, including `call.Actors.AskAsync(...)` in
+hotfix services, are process-local. Use the generated selectors above when code
+should say whether a call is distributed, local-only, or pinned to a specific
+node.
+
 Source generators produce `RoomActors` with `Get`, `Local`, and `Remote`
 selectors. No reflection, no string-based dispatch.
 
