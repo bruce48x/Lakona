@@ -314,6 +314,7 @@ public static class LakonaGameServer
             ? new VersionPointerHotfixAssemblySource(hotfixDirectory, "current.txt", "Server.Hotfix.dll")
             : new CurrentDirectoryHotfixAssemblySource(hotfixDirectory, "Server.Hotfix.dll");
         services.AddLakonaGameHotfix(source, sharedAssemblyNames: GetDefaultHotfixSharedAssemblyNames());
+        services.AddLakonaGameHotfixActorTicks();
     }
 
     private static HotfixAdminOptions CreateDefaultHotfixAdminOptions(
