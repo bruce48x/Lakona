@@ -29,17 +29,22 @@ use Entity, Component, or System for the game-facing model.
 | --- | --- | --- | --- |
 | Service contract | `Shared` | `IChatService` | RPC interface shared by client and server |
 | Service | `Server.Hotfix` | `ChatService` | Request business logic for a Shared service contract |
+| Lifecycle | `Server.Hotfix` | `ChatSessionLifecycle` | Replaceable business reaction to framework-owned lifecycle events |
 | Actor | `Server.App` | `ChatRoomActor` | Stable mailbox, fields, and stable infrastructure dependencies only |
 | Behavior | `Server.Hotfix` | `ChatRoomBehavior` | Hot-reloadable behavior for one actor type |
 | Service proxy | `Server.App` | `ChatServiceProxy` | Stable RPC binding that forwards each call to current hotfix service logic |
 
-The Service and Behavior concepts are deliberately separate:
+The Service, Lifecycle, and Behavior concepts are deliberately separate:
 
 - A Service corresponds to a `Shared` service interface. It handles request
   business logic and may call zero, one, or many actors.
+- A Lifecycle corresponds to a framework-owned runtime lifecycle contract, such
+  as game session disconnect or expiration. It handles replaceable business
+  reactions without adding app-owned RPC lifecycle subscriptions.
 - A Behavior corresponds one-to-one with an Actor. It runs inside an actor turn
   and reads or writes that actor's fields.
 - A Service must not be named `*Behavior`.
+- A Lifecycle must not be named `*LifecycleService`.
 - A Behavior must not become an RPC endpoint.
 
 ## Project Structure
@@ -49,6 +54,7 @@ Server.App (stable)                         Server.Hotfix (reloadable)
 ────────────────────                        ──────────────────────────
 Program entry point                         ChatService
 RPC service proxies                         ChatRoomBehavior
+Framework lifecycle bridge                  ChatSessionLifecycle
 Actor fields and mailbox ownership          Service helpers
 Hotfix dispatch bridge                      Request orchestration
 Admin hotfix endpoint                       Replaceable rules
@@ -145,6 +151,13 @@ This prevents RPC registries and existing sessions from holding instances of
 types loaded from the hotfix assembly. It is required for old connections to use
 new service logic after reload and for old hotfix load contexts to unload.
 
+Framework-owned lifecycle bridges use the same dispatch boundary. Stable app
+code enables the framework bridge, and the current hotfix assembly provides one
+`[HotfixLifecycle(typeof(TContract))]` implementation for the required
+lifecycle contract. The bridge invokes lifecycle methods through explicit
+`[RpcMethod]` ids; generated and sample app code must not add user-authored raw
+RPC lifecycle subscriptions or app-local lifecycle bridge classes.
+
 ## Generated Hotfix Services
 
 `Lakona.Game.Server.Hotfix.Generators` owns stable hotfix service proxy
@@ -197,6 +210,11 @@ public sealed class HotfixServiceCall<TRequest, TCallback> :
 {
     public TCallback Callback { get; }
 }
+
+public sealed class HotfixLifecycleCall<TRequest> :
+    HotfixServiceCall<TRequest>
+{
+}
 ```
 
 Return mapping stays one-to-one with the shared RPC contract:
@@ -208,6 +226,11 @@ Return mapping stays one-to-one with the shared RPC contract:
 
 The hotfix dispatch key must use the stable RPC method id from `[RpcMethod]`,
 not the C# method name.
+
+Service methods must use `HotfixServiceCall<TRequest>` or
+`HotfixServiceCall<TRequest, TCallback>`. Lifecycle methods must use
+`HotfixLifecycleCall<TRequest>`. The scanner rejects wrapper mismatches so
+service and lifecycle contracts cannot be accidentally crossed.
 
 ## BuildTag
 

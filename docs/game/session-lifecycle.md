@@ -168,6 +168,41 @@ cleanup, room leave, and matchmaking decisions belong in `Server.Hotfix`
 `*Lifecycle` classes such as `ChatSessionLifecycle`, not in App lifecycle
 handlers, App runtime contract files, or `*LifecycleService` classes.
 
+## Hotfix Lifecycle Contract
+
+When `AddLakonaGameSessionHotfixLifecycle` is enabled, the framework requires
+the hotfix assembly to implement the framework-owned
+`IGameSessionLifecycle` contract:
+
+```csharp
+public interface IGameSessionLifecycle
+{
+    ValueTask SessionDisconnectedAsync(GameSessionDisconnectedRequest request);
+
+    ValueTask SessionExpiredAsync(GameSessionExpiredRequest request);
+}
+```
+
+`SessionDisconnectedAsync` is published after an RPC connection bound to a game
+session is marked disconnected. `SessionExpiredAsync` is published after cleanup
+removes a stale disconnected game session. Both methods are invoked through
+stable `[RpcMethod]` ids and hotfix lifecycle wrappers; user-authored hotfix
+implementations accept `HotfixLifecycleCall<TRequest>`.
+
+Both request types carry the framework session snapshot needed for business
+cleanup:
+
+- `OwnerKey`: the game session owner key, such as a player id.
+- `SessionId`: the framework session id.
+- `Generation`: the owner session generation.
+- `ConnectionId`: the last RPC connection associated with the event.
+- `CallbackContractTypeNames`: the callback contract types bound before
+  disconnect or expiration.
+
+The lifecycle payload is framework state only. Product policy still belongs in
+hotfix code, where it can map the session event to presence, room, matchmaking,
+or other business cleanup.
+
 ## Server-Initiated Termination
 
 When the server must remove a player from an active session, treat it as a
