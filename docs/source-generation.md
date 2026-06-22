@@ -1,7 +1,5 @@
 # RPC Source Generation
 
-Status: active
-
 Lakona.Rpc uses Roslyn source generators as the normal RPC glue route for
 generated Lakona projects and hand-written applications.
 

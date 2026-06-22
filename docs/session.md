@@ -1,39 +1,30 @@
 # Session Lifecycle
 
-Status: current architecture reference
-Date: 2026-06-16
-Audience: maintainers and contributors
+Lakona owns one framework game session per accepted game RPC session. It does
+not own account, player, character, room, or device aggregation.
 
-Lakona.Game owns one framework game session per accepted game RPC session. It
-does not own account, player, character, room, or device aggregation.
+This document defines session identity, callback binding, disconnect,
+expiration, termination, resume, and the Gate / Watchdog / Agent composition
+pattern.
 
-For generated service binding, see
-[Generated Hotfix Service Binding](generated-hotfix-service-binding.md).
-For server-initiated disconnect composition, see
-[Gate / Watchdog / Agent](gate-watchdog-agent.md).
-
-## Purpose
-
-This document defines game session identity, callback binding, disconnect,
-expiration, termination, and resume behavior. It is the session lifecycle
-reference for generated projects, reliable push, hotfix call contexts, and
-business lifecycle hooks.
+For hotfix-backed service binding, see
+[hotfix/service-binding.md](hotfix/service-binding.md).
 
 ## Core Decisions
 
 - A `GameSessionKey` represents exactly one game RPC session.
 - One bound RPC connection is associated with at most one active
   `GameSessionKey`.
-- Multiple game RPC sessions for the same account, player, character, or room
-  are user-managed business state.
+- Multiple sessions for the same account, player, character, or room are
+  user-managed business state.
 - `EndpointName` and `GameEndpointName` are not user-facing concepts in
-  generated service binding, `ILakonaGameServer`, reliable push APIs, hotfix
-  call contexts, or session directory storage.
-- `Lakona:Endpoints[]` remains transport listener configuration. It does
-  not define framework session sub-identities.
-- `GameSessionKey` is server/framework identity. Generated shared RPC DTOs,
-  generated client code, and MemoryPack formatters must not expose, serialize,
-  store, or echo it.
+  generated binding, `ILakonaGameServer`, reliable push APIs, hotfix call
+  contexts, or session directory storage.
+- `Lakona:Endpoints[]` remains transport listener configuration. It does not
+  define framework session sub-identities.
+- `GameSessionKey` is server/framework identity. Shared RPC DTOs, generated
+  client code, and MemoryPack formatters must not expose, serialize, store, or
+  echo it.
 
 ## Vocabulary
 
@@ -44,7 +35,7 @@ business lifecycle hooks.
 | Game session | One framework-owned game session identified by `GameSessionKey`. |
 | Session callback binding | A callback contract instance bound to a game session and connection id. |
 | Business session group | User-owned grouping such as account, player, character, room member, or device. |
-| Transport endpoint | Listener configuration from `Lakona:Endpoints[]`. It is not part of session identity. |
+| Transport endpoint | Listener configuration from `Lakona:Endpoints[]`; not part of session identity. |
 | Business presence | User-owned online/offline policy derived from session lifecycle hooks. |
 
 ## Session Semantics
@@ -161,12 +152,13 @@ Session disconnection, expiration, and termination are separate events:
 
 User lifecycle hooks receive game-level context, not `RpcSession` and not
 endpoint names. Business presence policy belongs behind these hooks. Stable
-framework code owns the lifecycle bridge and required-contract validation;
-generated or sample App code may enable that bridge through stable setup calls
-such as `AddLakonaGameSessionHotfixLifecycle`. The replaceable presence,
-cleanup, room leave, and matchmaking decisions belong in `Server.Hotfix`
-`*Lifecycle` classes such as `ChatSessionLifecycle`, not in App lifecycle
-handlers, App runtime contract files, or `*LifecycleService` classes.
+framework code owns the lifecycle bridge and required-contract validation.
+Generated or sample App code may enable that bridge through stable setup calls
+such as `AddLakonaGameSessionHotfixLifecycle`.
+
+Replaceable presence, cleanup, room leave, and matchmaking decisions belong in
+`Server.Hotfix` lifecycle classes such as `ChatSessionLifecycle`, not in App
+lifecycle handlers, App runtime contract files, or `*LifecycleService` classes.
 
 ## Hotfix Lifecycle Contract
 
@@ -189,36 +181,85 @@ removes a stale disconnected game session. Both methods are invoked through
 stable `[RpcMethod]` ids and hotfix lifecycle wrappers; user-authored hotfix
 implementations accept `HotfixLifecycleCall<TRequest>`.
 
-Both request types carry the framework session snapshot needed for business
-cleanup:
+Both request types carry framework session state only:
 
 - `OwnerKey`: the game session owner key, such as a player id.
 - `SessionId`: the framework session id.
 - `Generation`: the owner session generation.
 - `ConnectionId`: the last RPC connection associated with the event.
-- `CallbackContractTypeNames`: the callback contract types bound before
-  disconnect or expiration.
+- `CallbackContractTypeNames`: callback contracts bound before disconnect or
+  expiration.
 
-The lifecycle payload is framework state only. Product policy still belongs in
-hotfix code, where it can map the session event to presence, room, matchmaking,
-or other business cleanup.
+Product policy still belongs in hotfix code, where it can map the session event
+to presence, room, matchmaking, or other business cleanup.
+
+## Gate / Watchdog / Agent
+
+Gate / Watchdog / Agent is a recommended composition pattern, not a framework
+class. It comes from skynet and maps cleanly onto Lakona's session and actor
+model.
+
+```txt
+Client -> Gate -> Watchdog -> Agent
+```
+
+| Role | Responsibility | Has business state | Failure impact |
+| --- | --- | :---: | --- |
+| Gate | Maintain client connections and forward messages. No business logic. | No | Client reconnects to another Gate; Agent can remain unchanged. |
+| Watchdog | Authenticate, create or bind Agent, then exit the call chain. | Transient | Affects only new or resuming connections. |
+| Agent | One-to-one player service. Holds session-facing state. | Yes | Affects only that player. |
+
+The key point is that Gate is stateless. Public internet traffic can hit cheap
+Gate nodes while player state lives behind Agents or actors.
+
+For low-latency games, add a realtime channel:
+
+```txt
+Client -> Gate -> Watchdog -> Agent   control, low-frequency
+Client -> KCP direct -> Room          realtime, high-frequency
+```
+
+The control and realtime channels are independent RPC sessions. Losing one does
+not directly change the other unless user business code links them and applies
+that policy.
+
+Lakona mechanisms for the pattern:
+
+| Need | Mechanism |
+| --- | --- |
+| Gate TCP/WebSocket listener | endpoint configuration and RPC server hosting |
+| Gate to Agent routing | cluster routing and route directory |
+| Watchdog auth and session bind | user auth plus `ILakonaGameServer.StartSessionAsync` |
+| Agent per-player state | actor runtime with per-player `ActorId` |
+| Reconnect to another Gate | resume token and session resume service |
+| Realtime channel | KCP endpoint plus separate `GameSessionKey` |
+| Reliable delivery | reliable push outbox/inbox |
+| Server-initiated disconnect | `ILakonaGameServer.TerminateSessionAsync` |
 
 ## Server-Initiated Termination
 
 When the server must remove a player from an active session, treat it as a
-terminal session lifecycle transition, not as a raw transport close. The
-recommended flow is:
+terminal lifecycle transition, not as a raw transport close.
 
-1. The Agent or server policy decides the current session must end.
+Recommended flow:
+
+1. The Agent or server policy decides the session must end.
 2. Server code calls `ILakonaGameServer.TerminateSessionAsync`.
-3. Lakona.Game marks the session terminal before notifying the client, so new
+3. Lakona marks the session terminal before notifying the client, so new
    business work for that session is rejected deterministically.
-4. Lakona.Game sends a fixed `SessionTerminationNotice` through the
+4. Lakona sends a fixed `SessionTerminationNotice` through the
    `ILakonaGameSessionCallback` bound to that `GameSessionKey`.
-5. Lakona.Game waits only up to `SessionTerminationOptions.NotifyTimeout`, then
-   asks the configured session closer to close the stored connection id.
+5. Lakona waits only up to `SessionTerminationOptions.NotifyTimeout`, then asks
+   the configured session closer to close the stored connection id.
 6. Later resume attempts return the terminal outcome when
    `KeepTerminalStateForResume` is enabled.
+
+```csharp
+await gameServer.TerminateSessionAsync(
+    session,
+    SessionTerminationReason.ReplacedByNewLogin,
+    message: "This account logged in elsewhere.");
+```
 
 `SessionTerminationReason` is the only machine-readable reason.
 `SessionTerminationNotice.Message` is optional display context and should not
@@ -243,7 +284,7 @@ product-specific policy.
 ## Validation Requirements
 
 Tests and source scans should reject these patterns in generated projects and
-current framework-facing docs:
+framework-facing docs:
 
 ```txt
 EndpointName

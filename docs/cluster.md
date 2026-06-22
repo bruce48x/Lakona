@@ -1,4 +1,4 @@
-# Distributed Feature And Cluster Model
+# Cluster
 
 ## Purpose
 
@@ -11,7 +11,7 @@ framework only absorbs generic runtime concepts. Game projects still own
 account policy, matchmaking policy, room rules, gameplay simulation, persistence
 schema, and product DTOs.
 
-This document is the V1 implementation contract. Implementations must follow
+This document is the implementation contract. Implementations must follow
 the rules here unless a later documentation change explicitly supersedes them.
 
 Normative words have their usual meaning:

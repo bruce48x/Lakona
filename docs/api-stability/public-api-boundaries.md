@@ -111,7 +111,7 @@ This layer supports protocol tools, tests, diagnostics, and package-internal coo
 
 Some of these may remain public, especially when protocol testing or transport implementation requires them. Others should be evaluated for `internal` visibility or `EditorBrowsable(Never)`.
 
-## Current Boundary Leak
+## Boundary Leak To Remove
 
 Generated server binders currently expose `RpcSession` in public generated signatures such as:
 

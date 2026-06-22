@@ -1,9 +1,9 @@
-# Lakona.Game Actor And Behavior Authoring Rules
+# Hotfix Actor And Behavior Authoring Rules
 
 ## Required Model
 
-Hotfix is mandatory for Lakona.Game server projects. A supported game server has
-a stable `Server.App` assembly and a reloadable `Server.Hotfix` assembly.
+Hotfix is mandatory for Lakona server projects. A supported game server has a
+stable `Server.App` assembly and a reloadable `Server.Hotfix` assembly.
 Framework code, tool output, samples, tests, and documentation must not describe
 hotfix as optional for game business logic.
 

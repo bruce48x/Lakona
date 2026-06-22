@@ -10,7 +10,7 @@ dotnet add package Lakona.Rpc.Server
 
 ## Documentation
 
-Design boundary: https://bruce48x.github.io/Lakona.Rpc/concepts/design-boundary/
+Design boundary: https://bruce48x.github.io/Lakona/concepts/design-boundary/
 
 ## Dependencies
 
@@ -61,4 +61,4 @@ Request-level authorization is not built into the server runtime by design.
 
 See the canonical design boundary page for the production integration boundary:
 
-- https://bruce48x.github.io/Lakona.Rpc/concepts/design-boundary/
+- https://bruce48x.github.io/Lakona/concepts/design-boundary/

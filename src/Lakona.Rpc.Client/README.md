@@ -10,7 +10,7 @@ dotnet add package Lakona.Rpc.Client
 
 ## Documentation
 
-Design boundary: https://bruce48x.github.io/Lakona.Rpc/concepts/design-boundary/
+Design boundary: https://bruce48x.github.io/Lakona/concepts/design-boundary/
 
 ## Dependencies
 

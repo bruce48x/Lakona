@@ -1,22 +1,22 @@
-# Lakona.Game Runtime Guardrails
+# Runtime Guardrails
 
 ## Purpose
 
 `lakona-tool new` reduces the configuration surface for new projects, but the runtime framework must still protect projects from invalid or unsafe states after users start editing configuration, deployment profiles, or generated code.
 
-Runtime guardrails make Lakona.Game easier to use and easier to maintain by moving common "do not configure it this way" knowledge into framework-owned validation, diagnostics, and check output.
+Runtime guardrails make Lakona easier to use and easier to maintain by moving common "do not configure it this way" knowledge into framework-owned validation, diagnostics, and check output.
 
-The goal is not to remove advanced configuration. The goal is to make the default path safe, make advanced paths explicit, and fail fast when a configuration violates Lakona.Game runtime invariants.
+The goal is not to remove advanced configuration. The goal is to make the default path safe, make advanced paths explicit, and fail fast when a configuration violates Lakona runtime invariants.
 
 ## Design Principle
 
 Tooling and runtime validation have different responsibilities:
 
 - `Lakona.Tool` hides unnecessary choices and generates safe defaults.
-- Lakona.Game runtime packages enforce invariants that must hold for a server to run correctly.
+- Lakona runtime packages enforce invariants that must hold for a server to run correctly.
 - `--health-check`, `--readiness-check`, and the compatibility `--lakona-game-check` explain runtime state at the right operational boundary.
 
-Do not make Cluster, Hotfix, or Reliable Push ordinary optional modules in generated projects. They are part of the Lakona.Game application model. Users may change their source, storage, topology, or deployment profile, but generated projects should not teach users to disable the core model.
+Do not make Cluster, Hotfix, or Reliable Push ordinary optional modules in generated projects. They are part of the Lakona application model. Users may change their source, storage, topology, or deployment profile, but generated projects should not teach users to disable the core model.
 
 ## Responsibility Boundary
 
@@ -41,7 +41,7 @@ Suggested generated host shape:
 builder.Services.AddLakonaGame(builder.Configuration);
 ```
 
-This keeps generated projects aligned with convention-based Feature discovery in [Lakona.Game Configuration And Startup Model](lakona-game-configuration-startup.md). When a default rule improves in the framework, projects should benefit by updating package versions rather than by regenerating their server host.
+This keeps generated projects aligned with convention-based Feature discovery in [Configuration](configuration.md). When a default rule improves in the framework, projects should benefit by updating package versions rather than by regenerating their server host.
 
 ## Validation Levels
 
@@ -86,9 +86,9 @@ Use warnings for local or temporary defaults:
 
 Warnings should not make local development painful. They should be visible in `--lakona-game-check` and diagnostics.
 
-Hotfix assembly absence is not a warning in any profile or command mode. It is always an error because Hotfix is part of the Lakona.Game default application model. `--lakona-game-check` should make the repair path friendly, but it must still return a non-zero exit code.
+Hotfix assembly absence is not a warning in any profile or command mode. It is always an error because Hotfix is part of the Lakona default application model. `--lakona-game-check` should make the repair path friendly, but it must still return a non-zero exit code.
 
-Normal server startup must fail when the initial Hotfix load fails. A missing, invalid, or scanner-rejected `Server.Hotfix.dll` is not a degraded mode. `--lakona-game-check`, readiness checks, and normal startup must agree that Hotfix absence is an error for generated Lakona.Game projects.
+Normal server startup must fail when the initial Hotfix load fails. A missing, invalid, or scanner-rejected `Server.Hotfix.dll` is not a degraded mode. `--lakona-game-check`, readiness checks, and normal startup must agree that Hotfix absence is an error for generated Lakona projects.
 
 ### Info
 
@@ -110,7 +110,7 @@ The default generated profile is development. Development allows local defaults 
 
 Production-oriented profiles must be stricter. A production profile should reject configuration that is only safe for local development, including loopback advertised endpoints and in-memory cluster directory storage.
 
-Profiles should not reintroduce `Hotfix.Enabled`, `Cluster.Enabled`, or `ReliablePush.Enabled` as normal user-facing switches. A profile changes topology, storage, endpoints, and operational strictness; it does not redefine the Lakona.Game application model.
+Profiles should not reintroduce `Hotfix.Enabled`, `Cluster.Enabled`, or `ReliablePush.Enabled` as normal user-facing switches. A profile changes topology, storage, endpoints, and operational strictness; it does not redefine the Lakona application model.
 
 Profiles should be represented as framework-owned values, not arbitrary strings. This keeps validation testable and avoids making users guess hidden mode names.
 

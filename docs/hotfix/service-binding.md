@@ -1,21 +1,17 @@
 # Generated Hotfix Service Binding
 
-Status: current architecture reference
-Date: 2026-06-16
-Audience: maintainers and contributors
-
-This document describes how generated Lakona.Game projects bind shared RPC
-service contracts to hotfix-backed server logic.
+This document describes how generated Lakona projects bind shared RPC service
+contracts to hotfix-backed server logic.
 
 For the hotfix loading model, dispatch publication, `BuildTag`, development
-reload, and production activation, see [Hotfix Architecture](hotfix-architecture.md).
+reload, and production activation, see [Hotfix Architecture](architecture.md).
 For game session identity, callback binding, disconnect, resume, and
-termination semantics, see [Session Lifecycle](session-lifecycle.md).
+termination semantics, see [Session Lifecycle](../session.md).
 
 ## Purpose
 
-Generated Lakona.Game projects should not require users to hand-write stable
-RPC service proxies, binder configuration, service endpoint marker files, or raw
+Generated Lakona projects should not require users to hand-write stable RPC
+service proxies, binder configuration, service endpoint marker files, or raw
 `RpcSession` lifecycle subscriptions when they add a new service.
 
 The default model is:
@@ -41,7 +37,7 @@ Shared RPC contract
   store, or echo it.
 - Raw `RpcSession` lifecycle subscriptions are not part of generated service
   binding. Session lifecycle behavior belongs to the framework APIs and hooks
-  described in [Session Lifecycle](session-lifecycle.md).
+  described in [Session Lifecycle](../session.md).
 
 ## Generated Binding
 
@@ -104,7 +100,7 @@ The boundary is:
 - Generated binding code must not require endpoint names.
 - Generated shared contracts must not expose `GameSessionKey`.
 - Session disconnect, expiration, termination, and resume semantics belong in
-  [Session Lifecycle](session-lifecycle.md).
+  [Session Lifecycle](../session.md).
 
 ## Generated Project Shape
 

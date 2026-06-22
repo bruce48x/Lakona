@@ -12,29 +12,28 @@ package boundaries.
 ## Documentation Map
 
 This file is the single authority for contributor workflow and maintenance
-rules. Supporting documents hold current architecture details:
+rules. Supporting documents describe the active architecture and maintainer
+contracts:
 
 | Document | Purpose |
 | --- | --- |
-| [docs/game/design-philosophy.md](./docs/game/design-philosophy.md) | Current game framework principles and scope boundaries |
-| [docs/game/hotfix-architecture.md](./docs/game/hotfix-architecture.md) | Current hotfix architecture and operational boundary |
-| [docs/game/session-lifecycle.md](./docs/game/session-lifecycle.md) | Current game session identity, binding, disconnect, resume, and termination model |
-| [docs/game/gate-watchdog-agent.md](./docs/game/gate-watchdog-agent.md) | Current Gate / Watchdog / Agent connection-management composition pattern |
-| [docs/game/generated-hotfix-service-binding.md](./docs/game/generated-hotfix-service-binding.md) | Current generated service binding model for shared RPC contracts and hotfix services |
-| [docs/game/actor-kernel-boundary.md](./docs/game/actor-kernel-boundary.md) | Actor kernel and game framework responsibility split |
-| [docs/game/hotfix-actor-behavior-boundary.md](./docs/game/hotfix-actor-behavior-boundary.md) | Current mandatory actor state and hotfix behavior authoring rules |
-| [docs/game/message-recording.md](./docs/game/message-recording.md) | Current actor message recording and replay diagnostics model |
-| [docs/game/feature-role.md](./docs/game/feature-role.md) | Current feature discovery, naming, and startup selection model |
-| [docs/game/remote-actor-messaging.md](./docs/game/remote-actor-messaging.md) | Managed distributed actor messaging and generated actor selector model |
-| [docs/game/distributed-feature-cluster-model.md](./docs/game/distributed-feature-cluster-model.md) | Current distributed Feature, endpoint, RPC service, cluster discovery, and Agar acceptance model |
-| [docs/game/lakona-game-configuration-startup.md](./docs/game/lakona-game-configuration-startup.md) | Game configuration schema and startup validation boundary |
-| [docs/game/lakona-game-runtime-guardrails.md](./docs/game/lakona-game-runtime-guardrails.md) | Runtime validation model for cluster, hotfix, endpoints, and production profile |
-| [docs/rpc/source-generation.md](./docs/rpc/source-generation.md) | Current RPC source-generation policy and generated-code boundary |
-| [docs/rpc/api-stability/public-api-boundaries.md](./docs/rpc/api-stability/public-api-boundaries.md) | Current RPC public API boundary and compatibility policy |
-| [docs/rpc/protocol/wire-protocol-v1.md](./docs/rpc/protocol/wire-protocol-v1.md) | Current RPC wire protocol frame contract |
-| [docs/rpc/protocol/rpc-status-error-model.md](./docs/rpc/protocol/rpc-status-error-model.md) | Current RPC status and error classification model |
-| [docs/tool/lakona-tool-default-experience.md](./docs/tool/lakona-tool-default-experience.md) | Current generated Lakona.Game project experience and default runtime shape |
-| [docs/tool/lakona-tool-generation-architecture.md](./docs/tool/lakona-tool-generation-architecture.md) | Current Lakona.Tool generation architecture and regression boundaries |
+| [docs/design-philosophy.md](./docs/design-philosophy.md) | Product principles, skynet lineage, and framework scope boundaries |
+| [docs/actor.md](./docs/actor.md) | Actor model, actor kernel boundary, generated selectors, and distributed actor calls |
+| [docs/session.md](./docs/session.md) | Session identity, callback binding, disconnect, resume, termination, and Gate / Watchdog / Agent composition |
+| [docs/cluster.md](./docs/cluster.md) | Feature, endpoint, RPC service, cluster discovery, routing, and Agar acceptance model |
+| [docs/configuration.md](./docs/configuration.md) | Configuration schema, feature startup, endpoint rules, and validation boundary |
+| [docs/guardrails.md](./docs/guardrails.md) | Runtime validation model for cluster, hotfix, endpoints, and production profiles |
+| [docs/recording.md](./docs/recording.md) | Actor message recording and replay diagnostics model |
+| [docs/rpc.md](./docs/rpc.md) | RPC design principles and maintainer reference index |
+| [docs/source-generation.md](./docs/source-generation.md) | RPC source-generation policy and generated-code boundary |
+| [docs/hotfix/architecture.md](./docs/hotfix/architecture.md) | Hotfix architecture, operational boundary, BuildTag, and deployment model |
+| [docs/hotfix/actor-behavior.md](./docs/hotfix/actor-behavior.md) | Mandatory actor state and hotfix behavior authoring rules |
+| [docs/hotfix/service-binding.md](./docs/hotfix/service-binding.md) | Generated service binding model for shared RPC contracts and hotfix services |
+| [docs/protocol/wire-protocol-v1.md](./docs/protocol/wire-protocol-v1.md) | RPC wire protocol frame contract |
+| [docs/protocol/rpc-status-error-model.md](./docs/protocol/rpc-status-error-model.md) | RPC status and error classification model |
+| [docs/api-stability/public-api-boundaries.md](./docs/api-stability/public-api-boundaries.md) | RPC public API boundary and compatibility policy |
+| [docs/tool/default-experience.md](./docs/tool/default-experience.md) | Generated Lakona project experience and default runtime shape |
+| [docs/tool/generation-architecture.md](./docs/tool/generation-architecture.md) | Lakona.Tool generation architecture and regression boundaries |
 
 Durable design notes belong under `docs/**` when they describe current
 behavior or active contributor policy. Delete completed plans, obsolete
@@ -97,9 +96,11 @@ samples/
   Rpc.*                            RPC-focused samples
 
 docs/
-  game/                            Current game framework design docs
-  rpc/                             Current RPC maintainer docs
-  tool/                            Current Lakona.Tool design docs
+  *.md                             Active design docs and maintainer references by topic
+  hotfix/                          Hotfix architecture and authoring rules
+  protocol/                        RPC protocol and status contracts
+  api-stability/                   Public API compatibility boundaries
+  tool/                            Lakona.Tool design docs
 
 blog/
   game/, rpc/                      Hugo article sources

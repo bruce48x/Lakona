@@ -1,12 +1,12 @@
-# Lakona.Game Configuration And Startup Model
+# Configuration
 
 ## Purpose
 
-Lakona.Game uses one runtime configuration root for generated projects,
-repository samples, and user applications: `Lakona`.
+Lakona uses one runtime configuration root for generated projects, repository
+samples, and user applications: `Lakona`.
 
-This document is the compact startup contract. The fuller distributed model is
-documented in [Distributed Feature And Cluster Model](distributed-feature-cluster-model.md).
+This document is the compact startup contract. The fuller distributed runtime
+model is documented in [cluster.md](cluster.md).
 
 ## Configuration Schema
 
@@ -75,6 +75,10 @@ Stable `LakonaGameFeature` is framework infrastructure for process startup.
 User-authored game feature declarations live in the hotfix assembly as
 `HotfixGameFeature` descriptors.
 
+The previous role/filter model and older hand-written fluent catalog are
+superseded for generated projects and new samples. Do not use role-shaped
+configuration or endpoint names for new startup code.
+
 Generated projects should use convention-based registration:
 
 ```csharp
@@ -107,6 +111,10 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
 - `Feature: []` enables no business features;
 - unknown or duplicate names fail startup.
 
+Business concepts such as `matchmaking` or `battle-runtime` are feature names,
+not endpoint names. RPC service exposure is configured per endpoint through
+`RpcServices`.
+
 Features may opt out of cluster publication with
 `public override bool Discoverable => false`.
 
@@ -114,6 +122,11 @@ Feature selection is stable process topology. `Lakona:Feature` decides which
 startup adapters and cluster capabilities this process owns. It does not select
 which hotfix business rules are loaded. Hotfix services and actor behaviors are
 loaded by the hotfix manager after the stable host shape is known.
+
+The descriptor may declare actor ticks and other reloadable game capabilities.
+It must not decide matchmaking batches, room results, leaderboard ranks, login
+policy, presence cleanup, or product DTO projection directly; those decisions
+belong in hotfix services and actor behaviors.
 
 ## Endpoint Rules
 

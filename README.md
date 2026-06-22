@@ -46,21 +46,6 @@ Lakona is built around that workflow:
    pluggable. Use TCP, WebSocket, KCP, loopback, JSON, or MemoryPack without
    binding gameplay code to one wire format or transport stack.
 
-## Product Layers
-
-Lakona brings RPC, actor execution, and game-server infrastructure into one
-repository with clear package boundaries:
-
-- `Lakona.Rpc.*` provides typed RPC, protocol primitives, transports,
-  serializers, and analyzers.
-- `Lakona.Game.Server` provides game server hosting, sessions, reliable push,
-  guardrails, and game-facing actor execution backed by an internal mailbox
-  kernel.
-- `Lakona.Game.*` provides cluster routing, hotfix, client helpers, generators,
-  load testing, and shared game primitives.
-- `Lakona.Tool` provides `lakona-tool`, the project scaffolding and maintenance
-  command.
-
 ## Quick Start ⚡
 
 ```bash
@@ -353,10 +338,13 @@ RPC-focused samples:
 
 ## Further Reading
 
-- [Design Philosophy](docs/game/design-philosophy.md)
-- [Feature Startup](docs/game/feature-role.md)
-- [Runtime Guardrails](docs/game/lakona-game-runtime-guardrails.md)
-- [Actor Kernel Boundary](docs/game/actor-kernel-boundary.md)
+- [Design Philosophy](docs/design-philosophy.md)
+- [Actor Model](docs/actor.md)
+- [Hotfix Architecture](docs/hotfix/architecture.md)
+- [Session Lifecycle](docs/session.md)
+- [Cluster](docs/cluster.md)
+- [RPC](docs/rpc.md)
+- [Runtime Guardrails](docs/guardrails.md)
 - [Changelog](CHANGELOG.md)
 
 ## Contributing

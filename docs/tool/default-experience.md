@@ -29,7 +29,7 @@ The default local topology is a single process with generated defaults for the n
 ## Configuration Principle
 
 The canonical configuration and startup model is defined in
-[Lakona.Game Configuration And Startup Model](../game/lakona-game-configuration-startup.md).
+[Configuration](../configuration.md).
 Generated projects should use `Lakona:Node:Id`, `Lakona:Endpoints[]` with
 endpoint-local `Serializer` and `RpcServices`, compact `Lakona:Feature`
 selection when needed, and convention-based
@@ -232,7 +232,7 @@ initializer skips when:
 Project generation succeeds regardless of Git environment failures. The CLI
 completion output reports the Git status clearly.
 
-## Current Contract
+## Contract
 
 A new user should be able to run:
 
