@@ -266,6 +266,24 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public void AddLakonaGameServer_registers_client_notifications_after_notification_api_exists()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Lakona:Node:Id"] = "test-node"
+            })
+            .Build();
+
+        using var provider = new ServiceCollection()
+            .AddLakonaGameServer(configuration)
+            .BuildServiceProvider();
+
+        Assert.NotNull(provider.GetService<IClientNotifications>());
+        Assert.NotNull(provider.GetService<IClientSessionIndex>());
+    }
+
+    [Fact]
     public void DiscoverHotfixRequiredServiceContracts_finds_provider_types()
     {
         var contracts = Lakona.Game.Server.Hosting.LakonaGameServer.DiscoverHotfixRequiredServiceContractsForTesting([

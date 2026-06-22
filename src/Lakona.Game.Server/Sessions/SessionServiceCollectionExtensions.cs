@@ -15,6 +15,8 @@ public static class SessionServiceCollectionExtensions
         services.TryAddSingleton<IGameSessionDirectory, InMemoryGameSessionDirectory>();
         services.TryAddSingleton<IGameSessionResumeService, GameSessionResumeService>();
         services.TryAddSingleton<IGameSessionConnectionCloser, NoopGameSessionConnectionCloser>();
+        services.TryAddSingleton<IClientSessionIndex, InMemoryClientSessionIndex>();
+        services.TryAddSingleton<IClientNotifications, ClientNotifications>();
         services.TryAddSingleton<IClientNotificationRelay>(CreateClientNotificationRelay);
         services.TryAddSingleton<IClientNotificationRemoteDispatcher, NoopClientNotificationRemoteDispatcher>();
         services.TryAddSingleton<LocalClientNotificationCommandDispatcher>();

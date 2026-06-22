@@ -1,6 +1,7 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Abstractions;
 using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
@@ -175,6 +176,78 @@ public sealed class ClientNotificationRelayTests
         Assert.Equal("tcp://10.0.0.2:21002", routes.LastEndpoint);
     }
 
+    [Fact]
+    public async Task PublishReliableAsync_delivers_immediately_without_outbox_when_reliable_push_is_disabled()
+    {
+        var services = new ServiceCollection();
+        services.AddLakonaGameServerSessions();
+        services.AddLakonaGameServerReliablePush(options => options.Enabled = false);
+        await using var provider = services.BuildServiceProvider();
+        var directory = provider.GetRequiredService<IGameSessionDirectory>();
+        var index = provider.GetRequiredService<IClientSessionIndex>();
+        var notifications = provider.GetRequiredService<IClientNotifications>();
+        var outbox = provider.GetRequiredService<IReliablePushOutbox>();
+        var callback = new NotificationSink();
+
+        var session = await directory.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync<IClientNotificationSink<string>>(
+            session,
+            "conn-1",
+            callback,
+            TestContext.Current.CancellationToken);
+        await index.UpdateAsync(
+            "player-1",
+            "control",
+            session,
+            session.Generation,
+            TestContext.Current.CancellationToken);
+
+        await notifications
+            .ForUser("player-1")
+            .PublishReliableAsync("matched", "payload", TestContext.Current.CancellationToken);
+
+        Assert.Equal(["payload"], callback.Delivered);
+        var pending = new List<ReliablePushRecord>();
+        await outbox.ReplayPendingAsync(
+            ReliablePushSessionOwnerKey.Create(session),
+            record =>
+            {
+                pending.Add(record);
+                return default;
+            },
+            TestContext.Current.CancellationToken);
+        Assert.Empty(pending);
+    }
+
+    [Fact]
+    public async Task Session_index_keeps_newer_control_session_when_old_session_disconnects()
+    {
+        await using var provider = new ServiceCollection()
+            .AddLogging()
+            .AddLakonaGameServer()
+            .BuildServiceProvider();
+        var server = provider.GetRequiredService<ILakonaGameServer>();
+        var index = provider.GetRequiredService<IClientSessionIndex>();
+
+        var oldSession = await server.StartSessionAsync(
+            "player-1",
+            "old-conn",
+            new NotificationSink(),
+            TestContext.Current.CancellationToken);
+        var newSession = await server.StartSessionAsync(
+            "player-1",
+            "new-conn",
+            new NotificationSink(),
+            TestContext.Current.CancellationToken);
+
+        await server.MarkSessionDisconnectedAsync(oldSession, "old-conn", TestContext.Current.CancellationToken);
+
+        var current = await index.FindCurrentAsync("player-1", "control", TestContext.Current.CancellationToken);
+
+        Assert.NotNull(current);
+        Assert.Equal(newSession, current!.Session);
+    }
+
     private sealed class TestPlayerCallback
     {
         public string LastMessage { get; private set; } = "";
@@ -182,6 +255,17 @@ public sealed class ClientNotificationRelayTests
         public void Notify(string message)
         {
             LastMessage = message;
+        }
+    }
+
+    private sealed class NotificationSink : IClientNotificationSink<string>
+    {
+        public List<string> Delivered { get; } = [];
+
+        public ValueTask OnNotificationAsync(string payload, CancellationToken cancellationToken = default)
+        {
+            Delivered.Add(payload);
+            return default;
         }
     }
 
