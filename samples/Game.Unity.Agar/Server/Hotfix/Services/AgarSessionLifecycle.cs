@@ -4,6 +4,8 @@ using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Server.App.Services;
 using Server.Hotfix.State.Sessions;
 
@@ -14,7 +16,7 @@ public sealed class AgarSessionLifecycle
 {
     public static async ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
     {
-        var services = AgarServiceDependencies.From(call);
+        var services = AgarLifecycleDependencies.From(call);
         var connection = services.SessionDirectory.GetConnection(call.Request.ConnectionId);
         if (connection is null)
         {
@@ -29,17 +31,32 @@ public sealed class AgarSessionLifecycle
             return;
         }
 
-        await services.Actors
-            .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
-                SessionId(connection.PlayerId),
-                (actor, _) => actor.MarkDisconnectedAsync(new PlayerSessionDisconnectRequest
-                {
-                    UserId = connection.PlayerId,
-                    ConnectionId = connection.ConnectionId,
-                    DisconnectedAtUtc = DateTime.UtcNow,
-                    Reason = "Control disconnect"
-                }))
-            .ConfigureAwait(false);
+        try
+        {
+            await services.Actors
+                .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
+                    SessionId(connection.PlayerId),
+                    (actor, _) => actor.MarkDisconnectedAsync(new PlayerSessionDisconnectRequest
+                    {
+                        UserId = connection.PlayerId,
+                        ConnectionId = connection.ConnectionId,
+                        DisconnectedAtUtc = DateTime.UtcNow,
+                        Reason = "Control disconnect"
+                    }))
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(
+                ex,
+                "Failed to mark player {PlayerId} disconnected for control connection {ConnectionId}.",
+                connection.PlayerId,
+                connection.ConnectionId);
+        }
 
         await services.SessionDirectory
             .DisconnectControlAsync(connection.PlayerId, connection.ConnectionId)
@@ -84,4 +101,19 @@ public sealed class AgarSessionLifecycle
     }
 
     private static ActorId SessionId(string userId) => ActorId.From($"session:{userId}");
+}
+
+internal sealed record AgarLifecycleDependencies(
+    IActorRuntime Actors,
+    SessionDirectory SessionDirectory,
+    ILogger<AgarSessionLifecycle> Logger)
+{
+    public static AgarLifecycleDependencies From<TRequest>(HotfixLifecycleCall<TRequest> call)
+    {
+        var loggerFactory = call.Services.GetRequiredService<ILoggerFactory>();
+        return new AgarLifecycleDependencies(
+            call.Actors,
+            call.Services.GetRequiredService<SessionDirectory>(),
+            loggerFactory.CreateLogger<AgarSessionLifecycle>());
+    }
 }
