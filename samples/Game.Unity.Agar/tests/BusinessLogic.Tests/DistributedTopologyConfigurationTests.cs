@@ -363,13 +363,7 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddAgarSampleServer(configuration);
         services.AddMessageRecording();
         services.AddLakonaGameRuntimeValidation();
-        services.AddLakonaGame(configuration, [
-            typeof(DatabaseFeature),
-            typeof(StateStoreFeature),
-            typeof(MatchmakingFeature),
-            typeof(LeaderboardFeature),
-            typeof(BattleRuntimeFeature)
-        ]);
+        services.AddLakonaGame(configuration, _ => { });
         services.AddLakonaGameServer(configuration);
 
         await using var provider = services.BuildServiceProvider();
@@ -625,7 +619,7 @@ public sealed class DistributedTopologyConfigurationTests
 
     private static Type RequiredServerAppType(string typeName)
     {
-        return typeof(BattleRuntimeFeature).Assembly.GetType(typeName)
+        return typeof(Server.App.Services.SessionDirectory).Assembly.GetType(typeName)
             ?? throw new InvalidOperationException($"Could not find Server.App type '{typeName}'.");
     }
 
@@ -674,13 +668,7 @@ public sealed class DistributedTopologyConfigurationTests
         var services = new ServiceCollection();
 
         services.AddLogging();
-        services.AddLakonaGame(configuration, [
-            typeof(DatabaseFeature),
-            typeof(StateStoreFeature),
-            typeof(MatchmakingFeature),
-            typeof(LeaderboardFeature),
-            typeof(BattleRuntimeFeature)
-        ]);
+        services.AddLakonaGame(configuration, _ => { });
 
         return services;
     }
@@ -700,13 +688,7 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddAgarSampleServer(configuration);
         services.AddMessageRecording();
         services.AddLakonaGameRuntimeValidation();
-        services.AddLakonaGame(configuration, [
-            typeof(DatabaseFeature),
-            typeof(StateStoreFeature),
-            typeof(MatchmakingFeature),
-            typeof(LeaderboardFeature),
-            typeof(BattleRuntimeFeature)
-        ]);
+        services.AddLakonaGame(configuration, _ => { });
 
         return services;
     }

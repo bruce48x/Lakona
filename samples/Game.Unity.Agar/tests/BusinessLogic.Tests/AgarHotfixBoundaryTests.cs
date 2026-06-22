@@ -119,14 +119,35 @@ public sealed class AgarHotfixBoundaryTests
     }
 
     [Fact]
-    public void Agar_feature_classes_are_stable_startup_adapters()
+    public void Agar_server_app_does_not_contain_user_runtime_features_or_app_hotfix_adapters()
     {
-        var featureRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Features/BattleRuntimeFeature.cs")
+        var appRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
             .DirectoryName!;
+        var forbiddenRelativePaths = new[]
+        {
+            "Features/BattleRuntimeFeature.cs",
+            "Features/DatabaseFeature.cs",
+            "Features/StateStoreFeature.cs",
+            "Features/MatchmakingFeature.cs",
+            "Features/LeaderboardFeature.cs",
+            "Hosting/MatchmakingHostedService.cs",
+            "Hotfix/AgarHotfixRuntimeEvents.cs",
+            "Hotfix/AgarRuntimeContracts.cs",
+            "Realtime/RoomRuntime.cs",
+            "Realtime/RoomRuntimeHost.cs",
+        };
+        var existingForbiddenPaths = forbiddenRelativePaths
+            .Where(path => File.Exists(Path.Combine(appRoot, path)))
+            .ToArray();
+
+        Assert.True(
+            existingForbiddenPaths.Length == 0,
+            $"Server.App must not contain user runtime Feature classes, App hotfix adapters, or runtime loops: {string.Join(", ", existingForbiddenPaths)}");
+
         var forbidden = new Regex(
-            @"HotfixDispatch\.|AskAsync<|TellAsync<|StartSessionAsync|BindCurrentSessionAsync|TerminateSessionAsync|FilterMessage|SettleMatch|TickMatchmakingAsync\(",
+            @"\b(Server\.App\.Hotfix|AgarHotfixRuntimeEvents|IAgarRuntimeService|AgarRuntimeMethodIds|RoomRuntimeHost|RoomRuntime|MatchmakingHostedService)\b",
             RegexOptions.CultureInvariant);
-        var violations = Directory.GetFiles(featureRoot, "*Feature.cs", SearchOption.TopDirectoryOnly)
+        var violations = Directory.GetFiles(appRoot, "*.cs", SearchOption.AllDirectories)
             .Select(file => new
             {
                 File = file,
@@ -138,7 +159,23 @@ public sealed class AgarHotfixBoundaryTests
 
         Assert.True(
             violations.Length == 0,
-            $"LakonaGameFeature classes must stay stable startup adapters. Put business behavior in Server.Hotfix runtime services or actor behaviors: {string.Join("; ", violations)}");
+            $"Server.App still references removed runtime boundary types: {string.Join("; ", violations)}");
+    }
+
+    [Fact]
+    public void Agar_user_features_are_hotfix_descriptors()
+    {
+        var hotfixRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Server.Hotfix.csproj")
+            .DirectoryName!;
+        var hotfixText = ReadAllTextFiles(hotfixRoot);
+
+        Assert.Contains("[HotfixFeature(\"database\")]", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("[HotfixFeature(\"state-store\")]", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("[HotfixFeature(\"matchmaking\")]", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("[HotfixFeature(\"leaderboard\")]", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("[HotfixFeature(\"battle-runtime\")]", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("ScheduleActorTick<MatchmakingActor>", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("ScheduleActiveActorTicks<RoomActor>", hotfixText, StringComparison.Ordinal);
     }
 
     private static FileInfo FindRepositoryFile(string relativePath)
@@ -181,5 +218,24 @@ public sealed class AgarHotfixBoundaryTests
             parts.Length >= 2 &&
             string.Equals(parts[0], "Assets", StringComparison.OrdinalIgnoreCase) &&
             string.Equals(parts[1], "Packages", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ReadAllTextFiles(string root)
+    {
+        var builder = new System.Text.StringBuilder();
+        foreach (var path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
+                     .Where(IsTextSourceFile)
+                     .Order(StringComparer.Ordinal))
+        {
+            builder.AppendLine(File.ReadAllText(path));
+        }
+
+        return builder.ToString();
+    }
+
+    private static bool IsTextSourceFile(string path)
+    {
+        var extension = Path.GetExtension(path);
+        return extension is ".cs" or ".csproj" or ".json" or ".slnx" or ".props" or ".xml" or ".txt";
     }
 }

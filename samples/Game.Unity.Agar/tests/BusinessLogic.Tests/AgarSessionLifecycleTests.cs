@@ -5,7 +5,6 @@ using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
-using Server.App.Features;
 using Server.Hotfix.Services;
 using Shared.Interfaces;
 using Xunit;
@@ -175,7 +174,7 @@ public sealed class AgarSessionLifecycleTests
     }
 
     private static readonly Type SessionDirectoryType =
-        typeof(BattleRuntimeFeature).Assembly.GetType("Server.App.Services.SessionDirectory")
+        typeof(Server.App.Services.SessionDirectory).Assembly.GetType("Server.App.Services.SessionDirectory")
         ?? throw new InvalidOperationException("Could not find Server.App.Services.SessionDirectory.");
 
     private sealed class ThrowingActorRuntime : IActorRuntime
