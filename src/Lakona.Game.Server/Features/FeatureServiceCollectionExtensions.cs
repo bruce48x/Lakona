@@ -78,7 +78,7 @@ public static class FeatureServiceCollectionExtensions
         return services;
     }
 
-    private static void RegisterLakonaGameFeatures(
+    internal static void RegisterLakonaGameFeatures(
         IServiceCollection services,
         IConfiguration config,
         LakonaGameRuntimeOptions options,

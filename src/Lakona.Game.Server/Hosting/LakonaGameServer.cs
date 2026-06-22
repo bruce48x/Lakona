@@ -89,8 +89,11 @@ public static class LakonaGameServer
         {
             var catalogBuilder = new LakonaGameFeatureCatalogBuilder();
             featureConfig(catalogBuilder);
-            var catalog = catalogBuilder.Build(runtimeOptions);
-            builder.Services.AddSingleton(catalog);
+            FeatureServiceCollectionExtensions.RegisterLakonaGameFeatures(
+                builder.Services,
+                builder.Configuration,
+                runtimeOptions,
+                catalogBuilder);
         }
         else if (!builder.Services.Any(static service => service.ServiceType == typeof(LakonaGameFeatureCatalog)))
         {
@@ -285,40 +288,38 @@ public static class LakonaGameServer
         IConfiguration configuration,
         string baseDirectory)
     {
-        var featureBuilder = new FeatureBuilder();
-
-        var entryAssembly = Assembly.GetEntryAssembly();
-        if (entryAssembly is not null)
-        {
-            featureBuilder.FromAssembly(entryAssembly);
-        }
-
-        // Referenced assemblies with project prefix
-        var entryName = entryAssembly?.GetName().Name ?? "";
-        foreach (var referencedAssembly in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            var name = referencedAssembly.GetName().Name;
-            if (name is not null
-                && name.StartsWith(entryName, StringComparison.OrdinalIgnoreCase)
-                && name != entryName) // don't double-scan entry assembly
-            {
-                featureBuilder.FromAssembly(referencedAssembly);
-            }
-        }
-
-        // Do not scan hotfix/*.dll here. Hotfix assemblies are loaded only by
-        // HotfixManager into a collectible AssemblyLoadContext.
-
-        var features = featureBuilder.ResolveFeatures()
-            .OrderBy(f => f.GetType().Assembly.GetName().Name)
-            .ThenBy(f => f.GetType().FullName)
+        _ = baseDirectory;
+        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
+        var catalogBuilder = new LakonaGameFeatureCatalogBuilder();
+        var definitions = DiscoverApplicationAssemblies()
+            .Where(static assembly => !IsTestAssembly(assembly))
+            .SelectMany(static assembly => LakonaGameFeatureDiscovery.Discover(
+                assembly,
+                GetLoadableTypes(assembly)
+                    .Where(static type => typeof(LakonaGameFeature).IsAssignableFrom(type)
+                        && !type.IsAbstract
+                        && !type.IsInterface
+                        && type.Name.EndsWith("Feature", StringComparison.Ordinal))
+                    .ToArray()))
+            .OrderBy(static definition => definition.Name, StringComparer.Ordinal)
             .ToArray();
 
-        foreach (var feature in features)
+        foreach (var definition in definitions)
         {
-            feature.Configure(services, configuration);
-            services.AddSingleton(feature.GetType(), feature);
+            catalogBuilder.Feature(definition.Name, definition.ImplementationType);
         }
+
+        FeatureServiceCollectionExtensions.RegisterLakonaGameFeatures(
+            services,
+            configuration,
+            options,
+            catalogBuilder);
+    }
+
+    private static bool IsTestAssembly(Assembly assembly)
+    {
+        var name = assembly.GetName().Name;
+        return name is not null && name.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase);
     }
 
     internal static IReadOnlyList<string> GetDefaultHotfixSharedAssemblyNames()

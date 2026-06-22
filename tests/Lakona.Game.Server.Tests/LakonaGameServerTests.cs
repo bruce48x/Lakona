@@ -228,6 +228,27 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public void AddLakonaGameServer_registers_default_framework_services()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Lakona:Node:Id"] = "test-node",
+                ["Lakona:Feature:0"] = "state-store"
+            })
+            .Build();
+
+        using var provider = new ServiceCollection()
+            .AddLakonaGameServer(configuration)
+            .BuildServiceProvider();
+
+        Assert.NotNull(provider.GetService<Lakona.Game.Server.Actors.IActorRuntime>());
+        Assert.NotNull(provider.GetService<Lakona.Game.Server.Sessions.IGameSessionDirectory>());
+        Assert.NotNull(provider.GetService<Lakona.Game.Server.ReliablePush.IReliablePushOutbox>());
+        Assert.NotNull(provider.GetService<Lakona.Game.Server.Diagnostics.IMessageLogStore>());
+    }
+
+    [Fact]
     public void DiscoverHotfixRequiredServiceContracts_finds_provider_types()
     {
         var contracts = Lakona.Game.Server.Hosting.LakonaGameServer.DiscoverHotfixRequiredServiceContractsForTesting([
