@@ -4,14 +4,14 @@
 
 ## 服务端边界
 
-`samples/Game.Unity.Agar/Server/App` 是 RPC 网关和房间运行时宿主。
+`samples/Game.Unity.Agar/Server/App` 是稳定宿主、RPC 网关、actor state shell、session 和 cluster infrastructure。
 
 当前职责：
 
 - 控制面 RPC：登录、登出、匹配和低频业务接口。
 - 实时面 RPC：对局输入和实时会话绑定。
 - 维护网关本地的在线会话和回调对象。
-- 通过 `RoomRuntimeHost` 和 `RoomRuntime` 承载房间运行时。
+- 通过稳定 actor runtime 承载房间 actor，房间 tick 和业务决策位于 `Server.Hotfix`。
 - 推送世界状态、死亡事件、结算事件和匹配状态。
 - 对局结束时按排名发放胜利积分到用户状态服务。
 
@@ -42,8 +42,8 @@ PostgreSQL 是状态持久化后端，状态服务通过 sample-local Dapper sto
 
 生产 Docker 拓扑的目标形态：
 
-- `state` 容器运行 `Server/App/Server.App.csproj` 的发布产物，承载状态服务。
-- `gateway` 容器运行 `Server/App/Server.App.csproj` 的发布产物，承载控制面 RPC、实时 RPC 和房间运行时。
+- `state` 容器运行 `Server/App/Server.App.csproj` 的发布产物，承载状态 actor 和数据基础设施。
+- `gateway` 容器运行 `Server/App/Server.App.csproj` 的发布产物，承载控制面 RPC、实时 RPC、session/callback delivery 和稳定 actor runtime。
 - `postgres` 容器或托管 PostgreSQL 保存持久化状态，必须使用持久化 volume 或外部数据库。
 - `redis` 容器或托管 Redis 用于胜利积分排行榜 sorted set；后续也可承载跨网关路由或在线状态，必须启用密码和持久化策略。
 - 可选反向代理或负载均衡负责 WebSocket/TLS 入口；KCP 实时端口需要按传输要求单独暴露。
@@ -58,16 +58,16 @@ PostgreSQL 是状态持久化后端，状态服务通过 sample-local Dapper sto
 2. 客户端登录。
 3. 客户端发起匹配。
 4. 网关调用匹配服务。
-5. 匹配和房间分配服务分配房间与运行时网关。
+5. 匹配和房间分配服务分配房间与 actor owner 网关。
 6. 网关可靠推送匹配状态，并携带实时连接信息。
 
 实时连接流程：
 
 1. 客户端打开实时 RPC 连接。
 2. 客户端用玩家、会话、房间和对局令牌调用 `AttachRealtimeAsync`。
-3. 运行时网关登记实时回调。
+3. actor owner 网关登记实时回调。
 4. 客户端通过实时 RPC 发送输入。
-5. 房间运行时通过实时回调广播世界状态。
+5. 房间 actor tick 通过实时回调广播世界状态。
 
 排行榜查询流程：
 

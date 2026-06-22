@@ -25,6 +25,11 @@ public sealed class ToolArchitectureScanTests
     private static readonly string ForbiddenBoundHook = string.Concat("On", "Endpoint", "Bound");
     private static readonly string ForbiddenDisconnectedHook = string.Concat("On", "Endpoint", "Disconnected");
     private static readonly string ForbiddenExpiredHook = string.Concat("On", "Endpoint", "Expired");
+    private static readonly string ForbiddenAppEventAdapterName = string.Concat("Hotfix", "Runtime", "Events");
+    private static readonly string ForbiddenEventAdapterSuffix = string.Concat("Runtime", "Events");
+    private static readonly string ForbiddenRoomLoopName = string.Concat("Room", "Runtime");
+    private static readonly string ForbiddenMatchLoopHostName = string.Concat("Matchmaking", "Hosted", "Service");
+    private static readonly string ForbiddenDispatchCall = string.Concat("HotfixDispatch", ".Invoke");
 
     [Fact]
     public void ToolSource_DoesNotContainStarterPipelineArtifacts()
@@ -97,6 +102,7 @@ public sealed class ToolArchitectureScanTests
             var result = await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
 
             Assert.False(File.Exists(Path.Combine(spec.Layout.RootPath, "Server", "App", "Services", $"{ForbiddenGeneratedGlueFile}.cs")));
+            Assert.False(Directory.Exists(Path.Combine(spec.Layout.RootPath, "Server", "App", "Hotfix")));
 
             var generatedText = ReadAllTextFiles(spec.Layout.RootPath);
             var generatedSharedText = ReadAllTextFiles(Path.Combine(spec.Layout.RootPath, "Shared"));
@@ -121,11 +127,15 @@ public sealed class ToolArchitectureScanTests
             Assert.DoesNotContain("IChatRuntimeService", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("ChatRuntimeContracts", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("ChatHotfixRuntimeEvents", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain(ForbiddenAppEventAdapterName, generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain(ForbiddenEventAdapterSuffix, generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain(ForbiddenRoomLoopName, generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain(ForbiddenMatchLoopHostName, generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("ChatSessionLifecycleBridge", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("LifecycleService", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("ChatPresenceLifecycleHandler", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("namespace Server.App.Lifecycle", generatedText, StringComparison.Ordinal);
-            Assert.DoesNotContain("HotfixDispatch.Invoke", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain(ForbiddenDispatchCall, generatedText, StringComparison.Ordinal);
         }
         finally
         {

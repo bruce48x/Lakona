@@ -730,6 +730,12 @@ public sealed class LakonaGameServerTests
 
     internal sealed class FailingHotfixManager : IHotfixManager
     {
+        public event EventHandler<HotfixReloadResult>? Reloaded
+        {
+            add { }
+            remove { }
+        }
+
         public HotfixSnapshot Current => new(
             Version: null,
             SourceKind: null,

@@ -32,9 +32,11 @@ public static class HotfixBehaviorScanner
     {
         var methods = new List<HotfixMethodBinding>();
         var services = new List<HotfixServiceMethodBinding>();
+        var features = new List<HotfixFeatureDeclaration>();
         var diagnostics = new List<string>();
         var keys = new HashSet<HotfixMethodKey>();
         var serviceKeys = new HashSet<string>(StringComparer.Ordinal);
+        var featureNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var serviceImplementations = new Dictionary<Type, HashSet<Type>>();
         var included = includedTypes is null ? null : new HashSet<Type>(includedTypes);
 
@@ -92,6 +94,12 @@ public static class HotfixBehaviorScanner
                     implementations.Add(type);
                     ScanServiceType(type, serviceBinding, services, diagnostics, serviceKeys);
                 }
+
+                var feature = type.GetCustomAttribute<HotfixFeatureAttribute>();
+                if (feature is not null)
+                {
+                    ScanFeatureType(type, feature, features, diagnostics, featureNames);
+                }
             }
         }
 
@@ -105,7 +113,64 @@ public static class HotfixBehaviorScanner
             }
         }
 
-        return new HotfixBehaviorScanResult(methods, services, diagnostics);
+        return new HotfixBehaviorScanResult(methods, services, features, diagnostics);
+    }
+
+    private static void ScanFeatureType(
+        Type featureType,
+        HotfixFeatureAttribute attribute,
+        List<HotfixFeatureDeclaration> features,
+        List<string> diagnostics,
+        HashSet<string> featureNames)
+    {
+        if (!typeof(HotfixGameFeature).IsAssignableFrom(featureType))
+        {
+            diagnostics.Add($"Hotfix feature '{featureType.FullName}' must inherit {typeof(HotfixGameFeature).FullName}.");
+            return;
+        }
+
+        if (featureType.IsAbstract || featureType.IsInterface)
+        {
+            diagnostics.Add($"Hotfix feature '{featureType.FullName}' must be a concrete class.");
+            return;
+        }
+
+        if (featureType.GetConstructor(Type.EmptyTypes) is null)
+        {
+            diagnostics.Add($"Hotfix feature '{featureType.FullName}' must have a public parameterless constructor.");
+            return;
+        }
+
+        if (!featureNames.Add(attribute.Name))
+        {
+            diagnostics.Add($"Duplicate hotfix feature name '{attribute.Name}'.");
+            return;
+        }
+
+        var instance = (HotfixGameFeature?)Activator.CreateInstance(featureType);
+        if (instance is null)
+        {
+            diagnostics.Add($"Hotfix feature '{featureType.FullName}' could not be created.");
+            return;
+        }
+
+        var context = new HotfixFeatureContext();
+        try
+        {
+            instance.Configure(context);
+        }
+        catch (Exception ex)
+        {
+            diagnostics.Add($"Hotfix feature '{featureType.FullName}' Configure failed: {ex.Message}");
+            return;
+        }
+
+        features.Add(new HotfixFeatureDeclaration(
+            attribute.Name,
+            featureType,
+            instance.Discoverable,
+            new Dictionary<string, string>(instance.Metadata, StringComparer.Ordinal),
+            context.ActorTicks.ToArray()));
     }
 
     private static bool TryGetHotfixServiceContract(

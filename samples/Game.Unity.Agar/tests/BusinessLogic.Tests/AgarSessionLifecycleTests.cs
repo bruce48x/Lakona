@@ -5,7 +5,7 @@ using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
-using Server.App.Features;
+using Server.App.Hosting;
 using Server.Hotfix.Services;
 using Shared.Interfaces;
 using Xunit;
@@ -175,7 +175,7 @@ public sealed class AgarSessionLifecycleTests
     }
 
     private static readonly Type SessionDirectoryType =
-        typeof(BattleRuntimeFeature).Assembly.GetType("Server.App.Services.SessionDirectory")
+        typeof(AgarSampleServiceCollectionExtensions).Assembly.GetType("Server.App.Services.SessionDirectory")
         ?? throw new InvalidOperationException("Could not find Server.App.Services.SessionDirectory.");
 
     private sealed class ThrowingActorRuntime : IActorRuntime
@@ -204,6 +204,24 @@ public sealed class AgarSessionLifecycleTests
             throw new InvalidOperationException("Actor runtime should not be used by this test path.");
         }
 
+        public ValueTask TellAsync(
+            Type actorType,
+            ActorId id,
+            Func<IActor, CancellationToken, ValueTask> message,
+            CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("Actor runtime should not be used by this test path.");
+        }
+
+        public ActorTellResult TryTell(
+            Type actorType,
+            ActorId id,
+            Func<IActor, CancellationToken, ValueTask> message,
+            CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("Actor runtime should not be used by this test path.");
+        }
+
         public ValueTask<TResult> AskAsync<TActor, TResult>(
             ActorId id,
             Func<TActor, CancellationToken, ValueTask<TResult>> message,
@@ -227,6 +245,11 @@ public sealed class AgarSessionLifecycleTests
         {
             metrics = default;
             return false;
+        }
+
+        public IReadOnlyList<ActorId> GetActiveActorIds(Type actorType)
+        {
+            throw new InvalidOperationException("Actor runtime should not be used by this test path.");
         }
 
         public ActorState GetState(ActorId id)

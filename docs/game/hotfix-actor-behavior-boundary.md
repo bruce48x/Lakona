@@ -93,10 +93,10 @@ fields.
 
 Stable app code must not expose application-specific state-store bridges such as
 `IUserStateStore` or `IRoomStateStore` for business actor behavior. Stable
-services that need to react to runtime facts, such as matchmaking ticks,
-disconnect cleanup, or room settlement, should define a small server-runtime
-hotfix contract with explicit `[RpcMethod(id)]` ids and call it through
-`IHotfixServiceInvoker` by numeric method id.
+framework services that need to react to runtime facts should use
+framework-owned lifecycle bridges. User-authored runtime loops such as
+matchmaking ticks, room ticks, and room settlement are actor ticks declared by
+hotfix feature descriptors and implemented in actor behaviors.
 
 Generated framework RPC service proxies may also call hotfix services through
 `IHotfixServiceInvoker`; that is the supported service binding model. The
@@ -112,23 +112,30 @@ var result = await call.Actors.AskAsync<UserActor, UserLoginResult>(
     (actor, _) => actor.LoginAsync(password, reconnect));
 ```
 
-Stable runtime event adapters must contain routing only:
+Hotfix feature descriptors declare the stable scheduler entry points:
 
 ```csharp
-return hotfix.InvokeAsync<IAgarRuntimeService, HotfixServiceCall<AgarMatchmakingTickRequest>>(
-    AgarRuntimeMethodIds.TickMatchmaking,
-    new HotfixServiceCall<AgarMatchmakingTickRequest>(
-        request,
-        string.Empty,
-        services,
-        actors,
-        gameServer));
+[HotfixFeature("battle-runtime")]
+public sealed class BattleRuntimeFeature : HotfixGameFeature
+{
+    public override void Configure(HotfixFeatureContext context)
+    {
+        context.ScheduleActorTick<MatchmakingActor>(
+            "default",
+            TimeSpan.FromMilliseconds(250),
+            TickBacklogPolicy.Coalesce);
+
+        context.ScheduleActiveActorTicks<RoomActor>(
+            TimeSpan.FromMilliseconds(50),
+            TickBacklogPolicy.SkipIfPending);
+    }
+}
 ```
 
-The adapter selects the explicit hotfix service method id and supplies stable
-framework context. It does not validate passwords, choose match batches, compute
-ranks, award points, build user-facing replies, or call actor behavior one step
-at a time.
+The scheduler supplies stable context and enters the current hotfix behavior
+table. Stable App code does not validate passwords, choose match batches,
+compute ranks, award points, build user-facing replies, or call actor behavior
+one step at a time.
 
 Framework-owned lifecycle bridges follow the same rule. `Server.App` may enable
 stable setup calls such as `AddLakonaGameSessionHotfixLifecycle`, but generated
@@ -201,12 +208,13 @@ Move the following business logic to `samples/Game.Unity.Agar/Server/Hotfix`:
   projection
 - `MatchmakingQueuePolicy`, `LeaderboardRankingPolicy`, and
   `LeaderboardPeriodPolicy`
-- settlement commit rules in `Server/App/Realtime/RoomRuntime.cs`
+- settlement commit rules in hotfix room actor behavior
 
 The Agar sample must not contain `Server/App/State/StateStores.cs` or replacement
-`I*StateStore` business bridges. Stable hosted services and runtime loops should
-raise hotfix runtime events; hotfix services and behaviors perform the business
-state mutation.
+`I*StateStore` business bridges. User-authored runtime loops are actor ticks
+declared by hotfix feature descriptors. Stable App code must not define
+application-specific hotfix event adapters, room runtimes, matchmaking hosted
+services, or game Feature classes.
 
 ## Typed Actor Generation Rule
 

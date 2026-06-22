@@ -8,35 +8,45 @@ configuration, discovery, and cluster publication model is documented in
 
 | Concept | Responsibility |
 |---------|---------------|
-| `LakonaGameFeature` | A startup unit that registers services through `ConfigureServices(LakonaGameFeatureContext)`. |
-| Feature name | The conventional kebab-case name derived from the type name, such as `BattleRuntimeFeature` -> `battle-runtime`. |
+| `LakonaGameFeature` | Stable framework infrastructure for local process startup. |
+| Hotfix feature descriptor | A reloadable game feature declaration implemented with `HotfixGameFeature` in `Server.Hotfix`. |
+| Feature name | The conventional or attributed kebab-case name, such as `battle-runtime`. |
 | `Lakona:Feature` | Optional compact configuration selection for which discovered features run in this process. |
 
 The previous role/filter model and the older hand-written fluent catalog are
 superseded for generated projects and new samples. Do not use
 role-shaped configuration or endpoint names for new Lakona.Game startup code.
 
-Feature classes belong in stable `Server.App`. A Feature describes which
-capability this process starts and, when discoverable, publishes to the
-cluster. It is not the place for replaceable game rules. Business behavior
-behind a Feature belongs in `Server.Hotfix` services and actor behaviors.
+Stable `LakonaGameFeature` belongs to framework infrastructure. User-authored
+game feature declarations live in the hotfix assembly, where they can describe
+reloadable actor runtime loops without adding application-specific runtime
+hosts to `Server.App`. Business behavior behind a feature belongs in
+`Server.Hotfix` services and actor behaviors.
 
 ## Define Features
 
 ```csharp
-public sealed class BattleRuntimeFeature : LakonaGameFeature
+[HotfixFeature("battle-runtime")]
+public sealed class BattleRuntimeFeature : HotfixGameFeature
 {
-    public override void ConfigureServices(LakonaGameFeatureContext context)
+    public override void Configure(HotfixFeatureContext context)
     {
-        context.Services.AddSingleton<RoomRuntime>();
+        context.ScheduleActorTick<MatchmakingActor>(
+            "default",
+            TimeSpan.FromMilliseconds(250),
+            TickBacklogPolicy.Coalesce);
+
+        context.ScheduleActiveActorTicks<RoomActor>(
+            TimeSpan.FromMilliseconds(50),
+            TickBacklogPolicy.SkipIfPending);
     }
 }
 ```
 
-The Feature may register a hosted service or runtime host. That hosted service
-may raise hotfix runtime events through a stable App adapter. The Feature must
-not decide matchmaking batches, room results, leaderboard ranks, login policy,
-presence cleanup, or product DTO projection.
+The descriptor may declare actor ticks and other reloadable game capabilities.
+It must not decide matchmaking batches, room results, leaderboard ranks, login
+policy, presence cleanup, or product DTO projection directly; those decisions
+belong in hotfix services and actor behaviors.
 
 ## Wire Program.cs
 
@@ -46,16 +56,9 @@ Generated projects should use convention-based discovery:
 builder.Services.AddLakonaGame(builder.Configuration);
 ```
 
-Samples that need a bounded explicit set may pass feature types while still
-using conventional names:
-
-```csharp
-builder.Services.AddLakonaGame(builder.Configuration, [
-    typeof(DatabaseFeature),
-    typeof(StateStoreFeature),
-    typeof(BattleRuntimeFeature)
-]);
-```
+Samples that need stable framework services should register those services
+through normal dependency injection or framework-owned startup features. They
+should not add game feature classes to stable `Server.App`.
 
 ## Select Features
 

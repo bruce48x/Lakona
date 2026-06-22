@@ -71,9 +71,9 @@ For WebSocket transport, include `Path`:
 
 ## Feature Startup
 
-`LakonaGameFeature` types are discovered by convention. A type named
-`BattleRuntimeFeature` resolves to the feature name `battle-runtime`; a type
-named `StateStoreFeature` resolves to `state-store`.
+Stable `LakonaGameFeature` is framework infrastructure for process startup.
+User-authored game feature declarations live in the hotfix assembly as
+`HotfixGameFeature` descriptors.
 
 Generated projects should use convention-based registration:
 
@@ -81,14 +81,24 @@ Generated projects should use convention-based registration:
 builder.Services.AddLakonaGame(builder.Configuration);
 ```
 
-Samples or hosts that need a bounded explicit set can pass feature types:
+Hotfix descriptors declare reloadable actor runtime loops:
 
 ```csharp
-builder.Services.AddLakonaGame(builder.Configuration, [
-    typeof(DatabaseFeature),
-    typeof(StateStoreFeature),
-    typeof(BattleRuntimeFeature)
-]);
+[HotfixFeature("battle-runtime")]
+public sealed class BattleRuntimeFeature : HotfixGameFeature
+{
+    public override void Configure(HotfixFeatureContext context)
+    {
+        context.ScheduleActorTick<MatchmakingActor>(
+            "default",
+            TimeSpan.FromMilliseconds(250),
+            TickBacklogPolicy.Coalesce);
+
+        context.ScheduleActiveActorTicks<RoomActor>(
+            TimeSpan.FromMilliseconds(50),
+            TickBacklogPolicy.SkipIfPending);
+    }
+}
 ```
 
 `Lakona:Feature` controls activation:

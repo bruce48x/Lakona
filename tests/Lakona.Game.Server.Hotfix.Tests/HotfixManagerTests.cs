@@ -61,6 +61,9 @@ public sealed class HotfixManagerTests
         Assert.True(first.Succeeded);
         Assert.False(second.Succeeded);
         Assert.Equal(first.Current.DispatchTableVersion, second.Current.DispatchTableVersion);
+        Assert.Equal(first.Current.SourcePath, manager.Current.SourcePath);
+        Assert.NotEmpty(manager.Current.Methods);
+        Assert.NotEmpty(manager.Current.Features);
     }
 
     [Fact]
@@ -818,6 +821,14 @@ public sealed class HotfixManagerTests
                     public static int Add(this ManagerTestState state, int value)
                     {
                         return value;
+                    }
+                }
+
+                [HotfixFeature("manager-test")]
+                public sealed class ManagerTestFeature : HotfixGameFeature
+                {
+                    public override void Configure(HotfixFeatureContext context)
+                    {
                     }
                 }
                 """,

@@ -1,7 +1,7 @@
 using Lakona.Game.Cluster.Sql;
 using Microsoft.Extensions.Hosting;
 
-namespace Server.App.Features;
+namespace Server.App.Hosting;
 
 internal sealed class AgarDatabaseSchemaHostedService : IHostedService
 {

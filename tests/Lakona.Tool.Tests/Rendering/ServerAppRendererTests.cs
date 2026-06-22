@@ -15,6 +15,12 @@ public sealed class ServerAppRendererTests
     private static readonly string ForbiddenSessionEndpointType = string.Concat("Session", "Endpoint", "Key");
     private static readonly string ForbiddenCleanupOption = string.Concat("Disconnected", "Endpoint", "Retention");
     private static readonly string ForbiddenEndpointHookPrefix = string.Concat("On", "Endpoint");
+    private static readonly string ForbiddenAppHotfixDirectory = string.Concat("Server/App/Hot", "fix/");
+    private static readonly string ForbiddenAppEventAdapterName = string.Concat("Hotfix", "Runtime", "Events");
+    private static readonly string ForbiddenEventAdapterSuffix = string.Concat("Runtime", "Events");
+    private static readonly string ForbiddenRoomLoopName = string.Concat("Room", "Runtime");
+    private static readonly string ForbiddenMatchLoopHostName = string.Concat("Matchmaking", "Hosted", "Service");
+    private static readonly string ForbiddenDispatchCall = string.Concat("HotfixDispatch", ".Invoke");
 
     [Fact]
     public void AddFiles_EmitsServerAppProjectProgramAndCompactSettings()
@@ -78,8 +84,7 @@ public sealed class ServerAppRendererTests
         Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Chat/ChatServiceProxy.cs");
         Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Hosting/ServiceBindingConfigurator.cs");
         Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Chat/ChatConnectionLifecycle.cs");
-        Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Hotfix/ChatRuntimeContracts.cs");
-        Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Hotfix/ChatHotfixRuntimeEvents.cs");
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath.StartsWith(ForbiddenAppHotfixDirectory, StringComparison.Ordinal));
         Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Hosting/ChatSessionLifecycleBridge.cs");
 
         Assert.DoesNotContain(plan.Files, file => file.RelativePath == $"Server/App/Services/{ForbiddenGeneratedGlueFile}.cs");
@@ -87,13 +92,17 @@ public sealed class ServerAppRendererTests
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains(ForbiddenHotfixMarker, StringComparison.Ordinal));
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("IChatRuntimeService", StringComparison.Ordinal));
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("ChatRuntimeContracts", StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains(ForbiddenAppEventAdapterName, StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains(ForbiddenEventAdapterSuffix, StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains(ForbiddenRoomLoopName, StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains(ForbiddenMatchLoopHostName, StringComparison.Ordinal));
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("IGameSessionLifecycleHandler", StringComparison.Ordinal));
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("ChatSessionLifecycleBridge", StringComparison.Ordinal));
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("ChatHotfixRuntimeEvents", StringComparison.Ordinal));
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("EndpointName", StringComparison.Ordinal));
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains(ForbiddenGameEndpointType, StringComparison.Ordinal));
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains(ForbiddenSessionEndpointType, StringComparison.Ordinal));
-        Assert.DoesNotContain(plan.Files, file => file.Content.Contains("HotfixDispatch.Invoke", StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains(ForbiddenDispatchCall, StringComparison.Ordinal));
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("namespace Server.App.Lifecycle", StringComparison.Ordinal));
 
         Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Lifecycle/ChatPresenceLifecycleHandler.cs");

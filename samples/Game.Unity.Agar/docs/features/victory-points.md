@@ -34,7 +34,7 @@
 ## 跨场数据流
 
 ```txt
-对局结束 → RoomRuntime 计算排名 → 按排名发放胜利积分 → 用户状态服务持久化
+对局结束 → RoomActor hotfix behavior 计算排名 → 按排名发放胜利积分 → 用户状态服务持久化
                                            ↓
                                  排行榜服务协调写入 Redis 排行榜索引
                                            ↓
@@ -67,7 +67,7 @@
 
 ## 积分发放时机
 
-在 `RoomRuntime.PersistMatchEndAsync` 中，对局结算时依次执行：
+在 `RoomBehavior` 的结算流程中，对局结束时依次执行：
 
 1. 计算排名（已有逻辑，通过 `RoomSettlementEntry.Rank` 获得）。
 2. 根据排名映射胜利积分（1→10, 2→7, 3→5, 4→3, 5→1, 其余 0）。

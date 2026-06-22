@@ -200,6 +200,12 @@ public sealed class HotfixFileWatcherTests
 
         public HotfixSnapshot Current { get; }
 
+        public event EventHandler<HotfixReloadResult>? Reloaded
+        {
+            add { }
+            remove { }
+        }
+
         public ValueTask<HotfixReloadResult> ValidateAsync(CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult(_result);

@@ -89,6 +89,29 @@ public static class HotfixDispatch
         throw new InvalidOperationException($"Hotfix method '{invocation.Key}' returned an invalid result.");
     }
 
+    public static async ValueTask InvokeValueTaskAsync(
+        Type stateType,
+        string methodName,
+        object state,
+        Type[] parameterTypes,
+        object?[] arguments)
+    {
+        var invocation = PrepareInvocation(stateType, methodName, state, typeof(ValueTask), parameterTypes, arguments);
+        var result = invocation.Method.Invoke(null, invocation.Arguments);
+        if (result is ValueTask valueTask)
+        {
+            await valueTask.ConfigureAwait(false);
+            return;
+        }
+
+        if (result is null)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException($"Hotfix method '{invocation.Key}' returned an invalid result.");
+    }
+
     private static PreparedInvocation PrepareInvocation<TState>(
         string methodName,
         TState state,
@@ -96,6 +119,19 @@ public static class HotfixDispatch
         Type[] parameterTypes,
         object?[] arguments)
     {
+        ArgumentNullException.ThrowIfNull(state);
+        return PrepareInvocation(typeof(TState), methodName, state, returnType, parameterTypes, arguments);
+    }
+
+    private static PreparedInvocation PrepareInvocation(
+        Type stateType,
+        string methodName,
+        object state,
+        Type returnType,
+        Type[] parameterTypes,
+        object?[] arguments)
+    {
+        ArgumentNullException.ThrowIfNull(stateType);
         ArgumentException.ThrowIfNullOrWhiteSpace(methodName);
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(returnType);
@@ -115,7 +151,7 @@ public static class HotfixDispatch
         }
 
         var table = Current;
-        var key = CreateKey(typeof(TState), methodName, returnType, parameterTypes);
+        var key = CreateKey(stateType, methodName, returnType, parameterTypes);
         var method = table.Resolve(key);
         var invokeArguments = new object?[arguments.Length + 1];
         invokeArguments[0] = state;
@@ -124,7 +160,7 @@ public static class HotfixDispatch
         return new PreparedInvocation(key, method, invokeArguments);
     }
 
-    private static HotfixMethodKey CreateKey(
+    public static HotfixMethodKey CreateKey(
         Type stateType,
         string methodName,
         Type returnType,

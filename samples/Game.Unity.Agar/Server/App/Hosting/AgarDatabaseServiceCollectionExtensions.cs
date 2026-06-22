@@ -1,22 +1,21 @@
 using System.Data.Common;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Sql;
-using Lakona.Game.Server.Features;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Server.App.Features;
+namespace Server.App.Hosting;
 
-public sealed class DatabaseFeature : LakonaGameFeature
+internal static class AgarDatabaseServiceCollectionExtensions
 {
-    public override bool Discoverable => false;
-
-    public override void ConfigureServices(LakonaGameFeatureContext context)
+    public static IServiceCollection AddAgarDatabaseInfrastructure(
+        this IServiceCollection services,
+        IConfiguration configuration)
     {
-        var options = CreateOptions(context.Configuration);
-        context.Services.AddSingleton(options);
-        context.Services.AddSingleton<AgarDatabaseConnectionFactory>();
-        context.Services.AddSingleton(provider =>
+        var options = CreateOptions(configuration);
+        services.AddSingleton(options);
+        services.AddSingleton<AgarDatabaseConnectionFactory>();
+        services.AddSingleton(provider =>
         {
             var connections = provider.GetRequiredService<AgarDatabaseConnectionFactory>();
             return new SqlNodeDirectoryOptions(
@@ -24,9 +23,10 @@ public sealed class DatabaseFeature : LakonaGameFeature
                 SqlNodeDirectoryDialect.Postgres,
                 options.NodeDirectoryTable);
         });
-        context.Services.AddSingleton<INodeDirectory, SqlNodeDirectory>();
-        context.Services.AddSingleton<IRouteDirectory, InMemoryRouteDirectory>();
-        context.Services.AddHostedService<AgarDatabaseSchemaHostedService>();
+        services.AddSingleton<INodeDirectory, SqlNodeDirectory>();
+        services.AddSingleton<IRouteDirectory, InMemoryRouteDirectory>();
+        services.AddHostedService<AgarDatabaseSchemaHostedService>();
+        return services;
     }
 
     private static AgarDatabaseOptions CreateOptions(IConfiguration configuration)

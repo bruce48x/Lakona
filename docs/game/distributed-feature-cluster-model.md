@@ -240,9 +240,10 @@ V1 binder rules:
 Features support both dependency registration and runtime lifecycle hooks.
 
 Those hooks are stable process lifecycle hooks. They are not hotfix reload
-hooks and they do not make Feature classes replaceable. If startup work needs
-game policy, the Feature registers a stable adapter or hosted service that
-calls a `Server.Hotfix` runtime service through `IHotfixServiceInvoker`.
+hooks and they do not make Feature classes replaceable. Stable
+`LakonaGameFeature` is framework infrastructure; user-authored game feature
+declarations live in the hotfix assembly and declare actor ticks through
+`HotfixGameFeature`.
 
 ```csharp
 public abstract class LakonaGameFeature
@@ -286,15 +287,14 @@ Lifecycle semantics:
   continues.
 
 `StartAsync` and `StopAsync` must not contain replaceable game decisions.
-They may verify infrastructure, warm caches, register routes, or start stable
-loops. Loops that need game policy must enter `Server.Hotfix` through a
-runtime service method with an explicit numeric id.
+They may verify infrastructure, warm caches, or register routes. User-authored
+runtime loops are actor ticks declared by hotfix feature descriptors.
 
 Features that are startup dependencies but must not be cluster-discoverable
 can opt out:
 
 ```csharp
-public sealed class DatabaseFeature : LakonaGameFeature
+public sealed class FrameworkDatabaseStartup : LakonaGameFeature
 {
     public override bool Discoverable => false;
 }

@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Agar.Sample.State.Contracts;
 using Agar.Sample.State.Contracts.Sessions;
+using Shared.Gameplay;
+using Shared.Interfaces;
 
 namespace Agar.Sample.State.Contracts.Rooms
 {
@@ -78,6 +80,17 @@ namespace Agar.Sample.State.Contracts.Rooms
         public string Reason { get; set; } = "";
 
         public List<RoomSettlementEntry> Results { get; set; } = new();
+    }
+
+    public sealed class RoomInputSubmitRequest
+    {
+        public string RoomId { get; set; } = "";
+
+        public string UserId { get; set; } = "";
+
+        public InputMessage Input { get; set; } = new();
+
+        public DateTime SubmittedAtUtc { get; set; }
     }
 
     public sealed class RoomSettlementEntry
@@ -203,6 +216,14 @@ namespace Agar.Sample.State.Contracts.Rooms
         public string Message { get; set; } = "";
 
         public GatewayEndpointDescriptor RuntimeGateway { get; set; } = new();
+
+        public ArenaSimulationState Simulation { get; set; } = new();
+
+        public WorldState LastWorldState { get; set; } = new();
+
+        public int LastPublishedWorldTick { get; set; }
+
+        public bool MatchCommitted { get; set; }
     }
 
     public sealed class RoomPlayerState

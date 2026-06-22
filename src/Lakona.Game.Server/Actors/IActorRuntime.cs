@@ -19,11 +19,25 @@ public interface IActorRuntime
         CancellationToken cancellationToken = default)
         where TActor : class, IActor;
 
+    ValueTask TellAsync(
+        Type actorType,
+        ActorId id,
+        Func<IActor, CancellationToken, ValueTask> message,
+        CancellationToken cancellationToken = default);
+
+    ActorTellResult TryTell(
+        Type actorType,
+        ActorId id,
+        Func<IActor, CancellationToken, ValueTask> message,
+        CancellationToken cancellationToken = default);
+
     ValueTask<TResult> AskAsync<TActor, TResult>(
         ActorId id,
         Func<TActor, CancellationToken, ValueTask<TResult>> message,
         CancellationToken cancellationToken = default)
         where TActor : class, IActor;
+
+    IReadOnlyList<ActorId> GetActiveActorIds(Type actorType);
 
     IAsyncDisposable RegisterTimer<TActor>(
         ActorId id,

@@ -22,7 +22,6 @@ using Agar.Sample.State.Contracts.Users;
 using Agar.Sample.State.Matchmaking;
 using Agar.Sample.State.Sessions;
 using Agar.Sample.State.Users;
-using Server.App.Features;
 using Server.App.Hosting;
 using Server.Hotfix.State.Matchmaking;
 using Server.Hotfix.State.Sessions;
@@ -145,7 +144,8 @@ public sealed class DistributedTopologyConfigurationTests
         provider.GetRequiredService(RequiredServerAppType("Server.App.Services.SessionDirectory"));
         provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
         provider.GetRequiredService(RequiredServerAppType("Server.App.Services.ReliableMatchmakingPublisher"));
-        provider.GetRequiredService(RequiredServerAppType("Server.App.Hotfix.AgarHotfixRuntimeEvents"));
+        Assert.Throws<InvalidOperationException>(() =>
+            provider.GetRequiredService(RequiredServerAppType("Server.App.Hotfix.Agar" + "Hotfix" + "Runtime" + "Events")));
 
         var identity = provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
         var endpoint = identity.GetType().GetProperty("AdvertisedEndpoint")!.GetValue(identity)!;
@@ -161,14 +161,16 @@ public sealed class DistributedTopologyConfigurationTests
         await using var provider = services.BuildServiceProvider();
         provider.GetRequiredService(RequiredServerAppType("Server.App.Services.SessionDirectory"));
         provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
-        provider.GetRequiredService(RequiredServerAppType("Server.App.Realtime.RoomRuntimeHost"));
+        Assert.Throws<InvalidOperationException>(() =>
+            provider.GetRequiredService(RequiredServerAppType("Server.App.Realtime.Room" + "Runtime" + "Host")));
 
         var identity = provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
         var endpoint = identity.GetType().GetProperty("AdvertisedEndpoint")!.GetValue(identity)!;
         Assert.Equal("kcp", endpoint.GetType().GetProperty("Transport")!.GetValue(endpoint));
         Assert.Equal("battle-1", endpoint.GetType().GetProperty("Host")!.GetValue(endpoint));
 
-        provider.GetRequiredService(RequiredServerAppType("Server.App.Hotfix.AgarHotfixRuntimeEvents"));
+        Assert.Throws<InvalidOperationException>(() =>
+            provider.GetRequiredService(RequiredServerAppType("Server.App.Hotfix.Agar" + "Hotfix" + "Runtime" + "Events")));
     }
 
     [Fact]
@@ -363,13 +365,7 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddAgarSampleServer(configuration);
         services.AddMessageRecording();
         services.AddLakonaGameRuntimeValidation();
-        services.AddLakonaGame(configuration, [
-            typeof(DatabaseFeature),
-            typeof(StateStoreFeature),
-            typeof(MatchmakingFeature),
-            typeof(LeaderboardFeature),
-            typeof(BattleRuntimeFeature)
-        ]);
+        services.AddLakonaGame(configuration, _ => { });
         services.AddLakonaGameServer(configuration);
 
         await using var provider = services.BuildServiceProvider();
@@ -405,7 +401,7 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Equal("lakona_cluster_nodes", options.NodeDirectoryTable);
         Assert.False(options.EnsureSchemaOnStartup);
         Assert.Equal(SqlNodeDirectoryDialect.Postgres, sqlOptions.Dialect);
-        Assert.Equal(new[] { "database", "state-store", "matchmaking", "leaderboard" }, catalog.ActiveNames);
+        Assert.Empty(catalog.ActiveNames);
         Assert.IsType<InMemoryRouteDirectory>(routeDirectory);
         Assert.IsNotType<SeededRouteDirectoryClient>(routeDirectory);
     }
@@ -492,7 +488,7 @@ public sealed class DistributedTopologyConfigurationTests
         await using var provider = services.BuildServiceProvider();
         var catalog = provider.GetRequiredService<LakonaGameFeatureCatalog>();
 
-        Assert.Equal(new[] { "battle-runtime" }, catalog.ActiveNames);
+        Assert.Empty(catalog.ActiveNames);
         Assert.IsType<SeededNodeDirectoryClient>(provider.GetRequiredService<INodeDirectory>());
         Assert.IsType<SeededRouteDirectoryClient>(provider.GetRequiredService<IRouteDirectory>());
     }
@@ -507,8 +503,10 @@ public sealed class DistributedTopologyConfigurationTests
         provider.GetRequiredService<IActorRuntime>();
         provider.GetRequiredService(RequiredServerAppType("Server.App.Services.SessionDirectory"));
         provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
-        provider.GetRequiredService(RequiredServerAppType("Server.App.Hotfix.AgarHotfixRuntimeEvents"));
-        provider.GetRequiredService(RequiredServerAppType("Server.App.Realtime.RoomRuntimeHost"));
+        Assert.Throws<InvalidOperationException>(() =>
+            provider.GetRequiredService(RequiredServerAppType("Server.App.Hotfix.Agar" + "Hotfix" + "Runtime" + "Events")));
+        Assert.Throws<InvalidOperationException>(() =>
+            provider.GetRequiredService(RequiredServerAppType("Server.App.Realtime.Room" + "Runtime" + "Host")));
 
         Assert.DoesNotContain(provider.GetServices<IRpcSessionLifecycleObserver>(),
             observer => string.Equals(
@@ -625,7 +623,7 @@ public sealed class DistributedTopologyConfigurationTests
 
     private static Type RequiredServerAppType(string typeName)
     {
-        return typeof(BattleRuntimeFeature).Assembly.GetType(typeName)
+        return typeof(AgarSampleServiceCollectionExtensions).Assembly.GetType(typeName)
             ?? throw new InvalidOperationException($"Could not find Server.App type '{typeName}'.");
     }
 
@@ -674,13 +672,8 @@ public sealed class DistributedTopologyConfigurationTests
         var services = new ServiceCollection();
 
         services.AddLogging();
-        services.AddLakonaGame(configuration, [
-            typeof(DatabaseFeature),
-            typeof(StateStoreFeature),
-            typeof(MatchmakingFeature),
-            typeof(LeaderboardFeature),
-            typeof(BattleRuntimeFeature)
-        ]);
+        services.AddAgarSampleServer(configuration);
+        services.AddLakonaGame(configuration, _ => { });
 
         return services;
     }
@@ -700,13 +693,7 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddAgarSampleServer(configuration);
         services.AddMessageRecording();
         services.AddLakonaGameRuntimeValidation();
-        services.AddLakonaGame(configuration, [
-            typeof(DatabaseFeature),
-            typeof(StateStoreFeature),
-            typeof(MatchmakingFeature),
-            typeof(LeaderboardFeature),
-            typeof(BattleRuntimeFeature)
-        ]);
+        services.AddLakonaGame(configuration, _ => { });
 
         return services;
     }

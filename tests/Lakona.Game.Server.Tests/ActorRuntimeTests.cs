@@ -69,6 +69,42 @@ public sealed class ActorRuntimeTests
     }
 
     [Fact]
+    public async Task GetActiveActorIds_returns_active_actor_ids_for_requested_type()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = CreateProvider();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+
+        await runtime.GetOrCreateAsync<TestActor>(ActorId.From("a"), cancellationToken);
+        await runtime.GetOrCreateAsync<TestActor>(ActorId.From("b"), cancellationToken);
+
+        var ids = runtime.GetActiveActorIds(typeof(TestActor));
+
+        Assert.Equal(new[] { "a", "b" }, ids.Select(id => id.Value).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task Dynamic_TellAsync_dispatches_to_requested_actor_type()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = CreateProvider();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+
+        await runtime.TellAsync(
+            typeof(TestActor),
+            ActorId.From("dynamic"),
+            static (actor, _) =>
+            {
+                ((TestActor)actor).Messages.Add("dynamic");
+                return default;
+            },
+            cancellationToken);
+
+        var typed = await runtime.GetOrCreateAsync<TestActor>(ActorId.From("dynamic"), cancellationToken);
+        Assert.Contains("dynamic", typed.Messages);
+    }
+
+    [Fact]
     public void AddLakonaGameServerActors_registers_local_actor_node_identity_default()
     {
         using var provider = new ServiceCollection()
@@ -587,6 +623,11 @@ public sealed class ActorRuntimeTests
             cancellationToken.ThrowIfCancellationRequested();
             Value = before + 1;
         }
+    }
+
+    private sealed class TestActor : GameActor
+    {
+        public List<string> Messages { get; } = [];
     }
 
     private sealed class ReentrantActor : GameActor
