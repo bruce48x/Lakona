@@ -1,7 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Configuration;
+using System.Data.Common;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
+using Lakona.Game.Cluster.Sql;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Sessions;
 using Lakona.Rpc.Core;
@@ -29,6 +32,8 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
         services.TryAddSingleton<LocalClientNotificationCommandDispatcher>();
         services.TryAddSingleton<IClientNotificationRemoteDispatcher, ClusterClientNotificationDispatcher>();
 
+        TryAddConfiguredNodeDirectory(services, runtimeOptions.Cluster);
+
         var directorySeed = SelectRemoteDirectorySeed(runtimeOptions.Cluster);
         if (directorySeed is not null)
         {
@@ -39,11 +44,61 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
                 provider.GetRequiredService<IClusterClientFactory>(),
                 directorySeed));
         }
+        else
+        {
+            services.TryAddSingleton<IRouteDirectory, InMemoryRouteDirectory>();
+        }
 
         services.TryAddSingleton<IClusterNodeDiscovery, ClusterNodeDiscovery>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IRpcServerConfigurator>(
             new LakonaClusterRpcServerConfigurator(runtimeOptions)));
         return services;
+    }
+
+    private static void TryAddConfiguredNodeDirectory(
+        IServiceCollection services,
+        LakonaGameClusterOptions cluster)
+    {
+        var directory = cluster.Directory;
+        if (!string.Equals(directory.Provider, "postgres", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        services.TryAddSingleton(provider =>
+        {
+            var configuration = provider.GetService<Microsoft.Extensions.Configuration.IConfiguration>();
+            var connectionString = configuration?.GetConnectionString(directory.ConnectionStringName);
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                throw new InvalidOperationException(
+                    $"Lakona cluster directory provider 'postgres' requires ConnectionStrings:{directory.ConnectionStringName}.");
+            }
+
+            return new SqlNodeDirectoryOptions(
+                () => new ValueTask<DbConnection>(CreatePostgresConnection(connectionString)),
+                SqlNodeDirectoryDialect.Postgres,
+                directory.NodeTable);
+        });
+        services.TryAddSingleton<INodeDirectory, SqlNodeDirectory>();
+    }
+
+    private static DbConnection CreatePostgresConnection(string connectionString)
+    {
+        var type = Type.GetType("Npgsql.NpgsqlConnection, Npgsql", throwOnError: false);
+        if (type is null)
+        {
+            throw new InvalidOperationException(
+                "The Npgsql package is required when Lakona:Cluster:Directory:Provider is 'postgres'.");
+        }
+
+        var connection = Activator.CreateInstance(type, connectionString) as DbConnection;
+        if (connection is null)
+        {
+            throw new InvalidOperationException("Could not create an NpgsqlConnection for the Lakona cluster directory.");
+        }
+
+        return connection;
     }
 
     private static string? SelectRemoteDirectorySeed(LakonaGameClusterOptions cluster)

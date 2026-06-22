@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hosting;
@@ -93,6 +94,7 @@ public static class FeatureServiceCollectionExtensions
             .ToArray();
         var catalog = new LakonaGameFeatureCatalog(builtCatalog.ActiveDefinitions, features);
 
+        services.TryAddSingleton(config);
         services.AddSingleton(options);
         services.AddSingleton(catalog);
         services.AddSingleton(endpointCatalog);

@@ -8,8 +8,8 @@ services:
     restart: unless-stopped
     environment:
       DOTNET_ENVIRONMENT: data-1
-      ConnectionStrings__AgarPostgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-lakona-game};Username=${POSTGRES_USER:-lakona-game};Password=${POSTGRES_PASSWORD:-lakona-game_dev_password}
-      ConnectionStrings__AgarRedis: redis:6379,password=${REDIS_PASSWORD:-lakona-game_redis_dev_password}
+      ConnectionStrings__LakonaClusterPostgres: Host=postgres;Port=5432;Database=${LAKONA_CLUSTER_POSTGRES_DB:-lakona-game};Username=${LAKONA_CLUSTER_POSTGRES_USER:-lakona-game};Password=${LAKONA_CLUSTER_POSTGRES_PASSWORD:-lakona-game_dev_password}
+      ConnectionStrings__AgarGamePostgres: Host=postgres;Port=5432;Database=${AGAR_POSTGRES_DB:-agar-game};Username=${AGAR_POSTGRES_USER:-agar};Password=${AGAR_POSTGRES_PASSWORD:-agar_dev_password}
     depends_on:
       postgres:
         condition: service_healthy

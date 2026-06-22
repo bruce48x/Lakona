@@ -137,7 +137,19 @@ public sealed class LakonaGameRuntimeOptions
         return new LakonaGameClusterOptions
         {
             Endpoint = section["Endpoint"] ?? "",
-            Seeds = BindStringArray(section.GetSection("Seeds"))
+            Seeds = BindStringArray(section.GetSection("Seeds")),
+            Directory = BindClusterDirectory(section.GetSection("Directory"))
+        };
+    }
+
+    private static LakonaClusterDirectoryOptions BindClusterDirectory(IConfiguration section)
+    {
+        return new LakonaClusterDirectoryOptions
+        {
+            Provider = section["Provider"] ?? "",
+            ConnectionStringName = section["ConnectionStringName"] ?? "",
+            NodeTable = ReadString(section, "NodeTable", "lakona_cluster_nodes"),
+            EnsureSchemaOnStartup = bool.TryParse(section["EnsureSchemaOnStartup"], out var parsed) && parsed
         };
     }
 
