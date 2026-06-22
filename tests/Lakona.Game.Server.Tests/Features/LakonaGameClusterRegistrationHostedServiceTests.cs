@@ -1,6 +1,9 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Features;
+using Lakona.Game.Server.Hotfix;
+using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.Hotfix.Loading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Xunit;
@@ -46,6 +49,44 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
         Assert.Equal("battle-runtime", feature.Name);
         Assert.Equal("cn-east", feature.Metadata["region"]);
         Assert.Equal(NodeState.Ready, registration.State);
+    }
+
+    [Fact]
+    public async Task StartAsyncRegistersDiscoverableHotfixFeatureDescriptors()
+    {
+        var directory = new RecordingNodeDirectory();
+        var services = new ServiceCollection();
+        services.AddSingleton<INodeDirectory>(directory);
+        services.AddSingleton(new ClusterOptions
+        {
+            NodeId = "battle-1",
+            AdvertisedEndpoints = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["cluster"] = "tcp://10.0.0.1:21001"
+            },
+            RouteLeaseSeconds = 45
+        });
+        services.AddSingleton(new LakonaGameRuntimeOptions
+        {
+            Feature = ["battle-runtime"]
+        });
+        services.AddSingleton(new LakonaGameFeatureCatalog([], []));
+        services.AddSingleton<IHotfixManager>(new HotfixFeatureManager(
+            new HotfixFeatureDeclaration(
+                "battle-runtime",
+                typeof(object),
+                Discoverable: true,
+                new Dictionary<string, string>(StringComparer.Ordinal),
+                [])));
+        services.AddSingleton<IHostedService, LakonaGameClusterRegistrationHostedService>();
+        await using var provider = services.BuildServiceProvider();
+        var hosted = provider.GetRequiredService<IHostedService>();
+
+        await hosted.StartAsync(TestContext.Current.CancellationToken);
+
+        var registration = Assert.Single(directory.Registrations);
+        var feature = Assert.Single(registration.Features);
+        Assert.Equal("battle-runtime", feature.Name);
     }
 
     [Fact]
@@ -309,4 +350,53 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
         NodeId Node,
         long NodeEpoch,
         NodeState State);
+
+    private sealed class HotfixFeatureManager(params HotfixFeatureDeclaration[] features) : IHotfixManager
+    {
+        public event EventHandler<HotfixReloadResult>? Reloaded
+        {
+            add { }
+            remove { }
+        }
+
+        public HotfixSnapshot Current { get; } = new(
+            Version: "test",
+            SourceKind: "test",
+            SourcePath: null,
+            LoadedAtUtc: DateTimeOffset.UtcNow,
+            DispatchTableVersion: 1,
+            Methods: [],
+            LastReloadStatus: HotfixReloadStatus.Succeeded,
+            LastFailureMessage: null,
+            LastFailureExceptionType: null,
+            Features: features);
+
+        public ValueTask<HotfixReloadResult> ValidateAsync(CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<HotfixReloadResult>(CreateResult());
+        }
+
+        public ValueTask<HotfixReloadResult> ValidateAsync(
+            IHotfixAssemblySource source,
+            CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<HotfixReloadResult>(CreateResult());
+        }
+
+        public ValueTask<HotfixReloadResult> ReloadAsync(CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<HotfixReloadResult>(CreateResult());
+        }
+
+        private HotfixReloadResult CreateResult()
+        {
+            return new HotfixReloadResult(
+                HotfixReloadStatus.Succeeded,
+                Current,
+                Current.SourcePath,
+                Current.SourceKind,
+                [],
+                null);
+        }
+    }
 }

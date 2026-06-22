@@ -1,5 +1,6 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Hotfix;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -212,10 +213,15 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
         return result;
     }
 
-    private static IReadOnlyList<NodeFeatureDescriptor> CreateFeatures(
+    private IReadOnlyList<NodeFeatureDescriptor> CreateFeatures(
         LakonaGameFeatureCatalog catalog)
     {
-        var result = new List<NodeFeatureDescriptor>();
+        var runtimeOptions = _services.GetService<LakonaGameRuntimeOptions>();
+        var allowed = runtimeOptions?.Feature is null
+            ? null
+            : new HashSet<string>(runtimeOptions.Feature, StringComparer.OrdinalIgnoreCase);
+        var result = new Dictionary<string, NodeFeatureDescriptor>(StringComparer.OrdinalIgnoreCase);
+
         for (var i = 0; i < catalog.ActiveDefinitions.Count; i++)
         {
             var feature = i < catalog.ActiveFeatures.Count
@@ -226,11 +232,43 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
                 continue;
             }
 
-            result.Add(new NodeFeatureDescriptor(
+            AddFeature(
+                result,
+                allowed,
                 catalog.ActiveDefinitions[i].Name,
-                feature?.Metadata));
+                feature?.Metadata);
         }
 
-        return result;
+        var hotfix = _services.GetService<IHotfixManager>();
+        if (hotfix is not null)
+        {
+            foreach (var feature in hotfix.Current.Features)
+            {
+                if (!feature.Discoverable)
+                {
+                    continue;
+                }
+
+                AddFeature(result, allowed, feature.Name, feature.Metadata);
+            }
+        }
+
+        return result.Values
+            .OrderBy(static feature => feature.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static void AddFeature(
+        IDictionary<string, NodeFeatureDescriptor> result,
+        ISet<string>? allowed,
+        string name,
+        IReadOnlyDictionary<string, string>? metadata)
+    {
+        if (allowed is not null && !allowed.Contains(name))
+        {
+            return;
+        }
+
+        result.TryAdd(name, new NodeFeatureDescriptor(name, metadata));
     }
 }
