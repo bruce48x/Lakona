@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+
 namespace Lakona.Game.Server.Hotfix.Abstractions;
 
 public sealed class HotfixFeatureContext
@@ -5,6 +7,8 @@ public sealed class HotfixFeatureContext
     private readonly List<HotfixActorTickDeclaration> _actorTicks = [];
 
     public IReadOnlyList<HotfixActorTickDeclaration> ActorTicks => _actorTicks;
+
+    public IServiceCollection Services { get; } = new ServiceCollection();
 
     public void ScheduleActorTick<TActor>(
         string actorId,

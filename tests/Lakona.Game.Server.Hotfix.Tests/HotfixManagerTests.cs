@@ -67,6 +67,35 @@ public sealed class HotfixManagerTests
     }
 
     [Fact]
+    public async Task Reload_publishes_hotfix_service_provider_with_dispatch_table()
+    {
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var source = new SwitchableAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
+        var manager = new HotfixManager(source, [
+            stableAssembly.GetName().Name!,
+            typeof(IGenerationMarker).Assembly.GetName().Name!
+        ]);
+        var accessor = Assert.IsAssignableFrom<IHotfixServiceProviderAccessor>(manager);
+
+        var first = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+        Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+        Assert.Equal("one", accessor.Current.GetRequiredService<IGenerationMarker>().Generation);
+
+        source.Path = compiled.SecondHotfixAssemblyPath;
+        var second = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+        Assert.True(second.Succeeded, string.Join(Environment.NewLine, second.Diagnostics));
+        Assert.Equal("two", accessor.Current.GetRequiredService<IGenerationMarker>().Generation);
+
+        source.Path = compiled.InvalidHotfixAssemblyPath;
+        var failed = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(failed.Succeeded);
+        Assert.Equal("two", accessor.Current.GetRequiredService<IGenerationMarker>().Generation);
+    }
+
+
+    [Fact]
     public async Task Reload_shares_configured_stable_assemblies_from_default_context()
     {
         using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
@@ -695,6 +724,8 @@ public sealed class HotfixManagerTests
                 $$"""
                 using StableContracts;
                 using Lakona.Game.Server.Hotfix.Abstractions;
+                using Lakona.Game.Server.Hotfix.Tests;
+                using Microsoft.Extensions.DependencyInjection;
 
                 namespace HotfixLogicV2;
 
@@ -706,8 +737,27 @@ public sealed class HotfixManagerTests
                         return delta + 1;
                     }
                 }
+
+                public sealed class GenerationTwoMarker : IGenerationMarker
+                {
+                    public string Generation => "two";
+                }
+
+                [HotfixFeature("manager-test")]
+                public sealed class ManagerTestFeature : HotfixGameFeature
+                {
+                    public override void Configure(HotfixFeatureContext context)
+                    {
+                        context.Services.AddSingleton<IGenerationMarker, GenerationTwoMarker>();
+                    }
+                }
                 """,
-                [stableReference, abstractionsReference],
+                [
+                    stableReference,
+                    abstractionsReference,
+                    MetadataReference.CreateFromFile(typeof(IGenerationMarker).Assembly.Location),
+                    MetadataReference.CreateFromFile(typeof(ServiceCollectionServiceExtensions).Assembly.Location)
+                ],
                 cancellationToken);
 
             await EmitAssemblyAsync(
@@ -812,6 +862,8 @@ public sealed class HotfixManagerTests
                 """
                 using StableContracts;
                 using Lakona.Game.Server.Hotfix.Abstractions;
+                using Lakona.Game.Server.Hotfix.Tests;
+                using Microsoft.Extensions.DependencyInjection;
 
                 namespace HotfixLogic;
 
@@ -824,15 +876,26 @@ public sealed class HotfixManagerTests
                     }
                 }
 
+                public sealed class GenerationOneMarker : IGenerationMarker
+                {
+                    public string Generation => "one";
+                }
+
                 [HotfixFeature("manager-test")]
                 public sealed class ManagerTestFeature : HotfixGameFeature
                 {
                     public override void Configure(HotfixFeatureContext context)
                     {
+                        context.Services.AddSingleton<IGenerationMarker, GenerationOneMarker>();
                     }
                 }
                 """,
-                [stableReference, abstractionsReference],
+                [
+                    stableReference,
+                    abstractionsReference,
+                    MetadataReference.CreateFromFile(typeof(IGenerationMarker).Assembly.Location),
+                    MetadataReference.CreateFromFile(typeof(ServiceCollectionServiceExtensions).Assembly.Location)
+                ],
                 cancellationToken);
 
             await EmitAssemblyAsync(
@@ -1031,4 +1094,9 @@ public sealed class HotfixManagerTests
     {
         return await (ValueTask<T>)valueTask!;
     }
+}
+
+public interface IGenerationMarker
+{
+    string Generation { get; }
 }

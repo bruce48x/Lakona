@@ -1,5 +1,6 @@
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Scanning;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Lakona.Game.Server.Hotfix.Tests;
@@ -33,6 +34,20 @@ public sealed class HotfixFeatureScannerTests
         Assert.Equal(TickBacklogPolicy.SkipIfPending, activeTick.BacklogPolicy);
     }
 
+    [Fact]
+    public void Scanner_captures_hotfix_feature_service_declarations()
+    {
+        var result = HotfixBehaviorScanner.Scan(typeof(ServiceFeature).Assembly, [
+            typeof(ServiceFeature)
+        ]);
+
+        Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
+        var feature = Assert.Single(result.Features);
+        var descriptor = Assert.Single(feature.Services);
+        Assert.Equal(typeof(ISampleHotfixService), descriptor.ServiceType);
+        Assert.Equal(typeof(SampleHotfixService), descriptor.ImplementationType);
+    }
+
     [HotfixFeature("battle-runtime")]
     private sealed class BattleRuntimeFeature : HotfixGameFeature
     {
@@ -53,6 +68,23 @@ public sealed class HotfixFeatureScannerTests
     }
 
     private sealed class RoomActor
+    {
+    }
+
+    [HotfixFeature("state-store")]
+    private sealed class ServiceFeature : HotfixGameFeature
+    {
+        public override void Configure(HotfixFeatureContext context)
+        {
+            context.Services.AddSingleton<ISampleHotfixService, SampleHotfixService>();
+        }
+    }
+
+    private interface ISampleHotfixService
+    {
+    }
+
+    private sealed class SampleHotfixService : ISampleHotfixService
     {
     }
 }

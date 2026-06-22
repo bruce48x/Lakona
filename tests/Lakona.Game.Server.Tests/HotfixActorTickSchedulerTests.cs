@@ -259,7 +259,8 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
             typeof(TestFeature),
             Discoverable: true,
             new Dictionary<string, string>(),
-            ticks);
+            ticks,
+            []);
         return new HotfixSnapshot(
             "test",
             "test.dll",

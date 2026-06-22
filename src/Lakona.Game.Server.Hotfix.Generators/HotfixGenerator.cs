@@ -152,7 +152,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("            registry,");
             builder.AppendLine("            session => new " + proxyType + "(");
             builder.AppendLine("                global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Lakona.Game.Server.Hotfix.Abstractions.IHotfixServiceInvoker>(services),");
-            builder.AppendLine("                services,");
+            builder.AppendLine("                global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Lakona.Game.Server.Hotfix.IHotfixServiceProviderAccessor>(services),");
             builder.AppendLine("                global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Lakona.Game.Server.Actors.IActorRuntime>(services),");
             builder.AppendLine("                global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Lakona.Game.Server.ILakonaGameServer>(services),");
             if (callbackType != null)
@@ -360,7 +360,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.Append("internal sealed class ").Append(proxyName).Append(" : ").Append(contractDisplay).AppendLine();
             builder.AppendLine("{");
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Hotfix.Abstractions.IHotfixServiceInvoker _hotfix;");
-            builder.AppendLine("    private readonly global::System.IServiceProvider _services;");
+            builder.AppendLine("    private readonly global::Lakona.Game.Server.Hotfix.IHotfixServiceProviderAccessor _hotfixServices;");
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorRuntime _actors;");
             builder.AppendLine("    private readonly global::Lakona.Game.Server.ILakonaGameServer _gameServer;");
             builder.AppendLine("    private readonly string _connectionId;");
@@ -372,7 +372,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine();
             builder.Append("    public ").Append(proxyName).AppendLine("(");
             builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.IHotfixServiceInvoker hotfix,");
-            builder.AppendLine("        global::System.IServiceProvider services,");
+            builder.AppendLine("        global::Lakona.Game.Server.Hotfix.IHotfixServiceProviderAccessor hotfixServices,");
             builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorRuntime actors,");
             builder.AppendLine("        global::Lakona.Game.Server.ILakonaGameServer gameServer,");
             if (callbackDisplay != null)
@@ -383,7 +383,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        string connectionId)");
             builder.AppendLine("    {");
             builder.AppendLine("        _hotfix = hotfix;");
-            builder.AppendLine("        _services = services;");
+            builder.AppendLine("        _hotfixServices = hotfixServices;");
             builder.AppendLine("        _actors = actors;");
             builder.AppendLine("        _gameServer = gameServer;");
             if (callbackDisplay != null)
@@ -448,7 +448,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 builder.AppendLine("                _callback,");
             }
 
-            builder.AppendLine("                _services,");
+            builder.AppendLine("                _hotfixServices.Current,");
             builder.AppendLine("                _actors,");
             builder.AppendLine("                _gameServer));");
             builder.AppendLine("    }");

@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+
 namespace Lakona.Game.Server.Hotfix.Abstractions;
 
 public sealed record HotfixFeatureDeclaration(
@@ -5,4 +7,5 @@ public sealed record HotfixFeatureDeclaration(
     Type FeatureType,
     bool Discoverable,
     IReadOnlyDictionary<string, string> Metadata,
-    IReadOnlyList<HotfixActorTickDeclaration> ActorTicks);
+    IReadOnlyList<HotfixActorTickDeclaration> ActorTicks,
+    IReadOnlyList<ServiceDescriptor> Services);

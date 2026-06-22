@@ -77,6 +77,7 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
                 typeof(object),
                 Discoverable: true,
                 new Dictionary<string, string>(StringComparer.Ordinal),
+                [],
                 [])));
         services.AddSingleton<IHostedService, LakonaGameClusterRegistrationHostedService>();
         await using var provider = services.BuildServiceProvider();
@@ -99,6 +100,7 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
                 typeof(object),
                 Discoverable: true,
                 new Dictionary<string, string>(StringComparer.Ordinal),
+                [],
                 [])));
         var services = new ServiceCollection();
         services.AddSingleton<INodeDirectory>(directory);
@@ -128,6 +130,7 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
                 typeof(object),
                 Discoverable: true,
                 new Dictionary<string, string>(StringComparer.Ordinal),
+                [],
                 [])));
         await WaitUntilAsync(
             () => directory.Registrations.Count > 1,
@@ -152,6 +155,7 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
                 typeof(object),
                 Discoverable: true,
                 new Dictionary<string, string>(StringComparer.Ordinal),
+                [],
                 [])));
         var services = new ServiceCollection();
         services.AddSingleton<INodeDirectory>(directory);
@@ -177,6 +181,7 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
                 typeof(object),
                 Discoverable: true,
                 new Dictionary<string, string>(StringComparer.Ordinal),
+                [],
                 [])));
         await Task.Delay(50, TestContext.Current.CancellationToken);
 

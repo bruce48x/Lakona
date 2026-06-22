@@ -19,9 +19,11 @@ public static class HotfixServiceCollectionExtensions
         var sharedNames = (sharedAssemblyNames ?? Array.Empty<string>()).ToArray();
         services.RemoveAll<IHotfixAssemblySource>();
         services.RemoveAll<IHotfixManager>();
+        services.RemoveAll<IHotfixServiceProviderAccessor>();
+        services.RemoveAll<HotfixManager>();
         services.AddSingleton(source);
         services.TryAddSingleton<IHotfixServiceInvoker, HotfixServiceInvoker>();
-        services.AddSingleton<IHotfixManager>(provider =>
+        services.AddSingleton<HotfixManager>(provider =>
         {
             var requiredContracts = provider
                 .GetServices<IHotfixRequiredServiceContracts>()
@@ -32,8 +34,11 @@ public static class HotfixServiceCollectionExtensions
             return new HotfixManager(
                 provider.GetRequiredService<IHotfixAssemblySource>(),
                 sharedNames,
-                requiredContracts);
+                requiredContracts,
+                provider);
         });
+        services.AddSingleton<IHotfixManager>(provider => provider.GetRequiredService<HotfixManager>());
+        services.AddSingleton<IHotfixServiceProviderAccessor>(provider => provider.GetRequiredService<HotfixManager>());
         return services;
     }
 

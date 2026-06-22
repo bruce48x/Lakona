@@ -2,25 +2,30 @@ using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
 using Lakona.Game.Server.Hotfix.Scanning;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Lakona.Game.Server.Hotfix;
 
-public sealed class HotfixManager : IHotfixManager
+public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccessor
 {
     private readonly IHotfixAssemblySource _source;
     private readonly IReadOnlyList<string> _sharedAssemblyNames;
     private readonly IReadOnlyList<Type> _requiredServiceContracts;
+    private readonly IServiceProvider? _rootServices;
     private readonly SemaphoreSlim _reloadLock = new(1, 1);
     private long _nextVersion;
     private HotfixSnapshot _current = new(null, null, null, null, 0, Array.Empty<HotfixMethodKey>(), null, null, null);
+    private IServiceProvider _currentProvider = EmptyServiceProvider.Instance;
     private HotfixAssemblyLoadContext? _loadContext;
 
     public HotfixManager(
         IHotfixAssemblySource source,
         IEnumerable<string>? sharedAssemblyNames = null,
-        IEnumerable<Type>? requiredServiceContracts = null)
+        IEnumerable<Type>? requiredServiceContracts = null,
+        IServiceProvider? rootServices = null)
     {
         _source = source ?? throw new ArgumentNullException(nameof(source));
+        _rootServices = rootServices;
         _sharedAssemblyNames = (sharedAssemblyNames ?? Array.Empty<string>())
             .Where(static name => !string.IsNullOrWhiteSpace(name))
             .Distinct(StringComparer.Ordinal)
@@ -33,6 +38,8 @@ public sealed class HotfixManager : IHotfixManager
     public event EventHandler<HotfixReloadResult>? Reloaded;
 
     public HotfixSnapshot Current => Volatile.Read(ref _current);
+
+    IServiceProvider IHotfixServiceProviderAccessor.Current => Volatile.Read(ref _currentProvider);
 
     public async ValueTask<HotfixReloadResult> ValidateAsync(CancellationToken cancellationToken = default)
     {
@@ -111,6 +118,7 @@ public sealed class HotfixManager : IHotfixManager
             table.ValidateMethodShapes();
             table.ValidateTypedDispatchDelegates();
             table.ValidateFeatureTickMethods(scan.Features);
+            var hotfixProvider = BuildHotfixProvider(scan);
             var snapshot = new HotfixSnapshot(
                 resolved.Version,
                 resolved.SourceKind,
@@ -125,15 +133,18 @@ public sealed class HotfixManager : IHotfixManager
 
             if (!publish)
             {
+                DisposeQuietly(hotfixProvider);
                 pendingContext.Unload();
                 pendingContext = null;
                 return new HotfixReloadResult(HotfixReloadStatus.Succeeded, snapshot, resolved.Version, resolved.AssemblyPath, Array.Empty<string>());
             }
 
             HotfixDispatch.Replace(table);
+            var oldProvider = Interlocked.Exchange(ref _currentProvider, hotfixProvider);
             var oldContext = Interlocked.Exchange(ref _loadContext, pendingContext);
             pendingContext = null;
             Volatile.Write(ref _current, snapshot);
+            DisposeQuietly(oldProvider);
             UnloadQuietly(oldContext);
 
             var result = new HotfixReloadResult(HotfixReloadStatus.Succeeded, snapshot, resolved.Version, resolved.AssemblyPath, Array.Empty<string>());
@@ -177,6 +188,20 @@ public sealed class HotfixManager : IHotfixManager
         }
     }
 
+    private IServiceProvider BuildHotfixProvider(HotfixBehaviorScanResult scan)
+    {
+        var services = new ServiceCollection();
+        foreach (var descriptor in scan.Features.SelectMany(static feature => feature.Services))
+        {
+            ((ICollection<ServiceDescriptor>)services).Add(descriptor);
+        }
+
+        var hotfixProvider = services.BuildServiceProvider(validateScopes: true);
+        return _rootServices is null
+            ? hotfixProvider
+            : new FallbackServiceProvider(hotfixProvider, _rootServices);
+    }
+
     private static void UnloadQuietly(HotfixAssemblyLoadContext? loadContext)
     {
         try
@@ -185,6 +210,66 @@ public sealed class HotfixManager : IHotfixManager
         }
         catch (InvalidOperationException)
         {
+        }
+    }
+
+    private static void DisposeQuietly(IServiceProvider? provider)
+    {
+        if (ReferenceEquals(provider, EmptyServiceProvider.Instance))
+        {
+            return;
+        }
+
+        try
+        {
+            switch (provider)
+            {
+                case IAsyncDisposable asyncDisposable:
+                    asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                    break;
+                case IDisposable disposable:
+                    disposable.Dispose();
+                    break;
+            }
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+
+    private sealed class EmptyServiceProvider : IServiceProvider
+    {
+        public static EmptyServiceProvider Instance { get; } = new();
+
+        public object? GetService(Type serviceType)
+        {
+            return null;
+        }
+    }
+
+    private sealed class FallbackServiceProvider(
+        IServiceProvider hotfixServices,
+        IServiceProvider rootServices) : IServiceProvider, IDisposable, IAsyncDisposable
+    {
+        public object? GetService(Type serviceType)
+        {
+            return hotfixServices.GetService(serviceType) ?? rootServices.GetService(serviceType);
+        }
+
+        public void Dispose()
+        {
+            (hotfixServices as IDisposable)?.Dispose();
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (hotfixServices is IAsyncDisposable asyncDisposable)
+            {
+                await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+                return;
+            }
+
+            (hotfixServices as IDisposable)?.Dispose();
         }
     }
 }
