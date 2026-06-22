@@ -5,7 +5,7 @@ using K = Lakona.Game.Server.Internal.ActorKernel;
 
 namespace Lakona.Game.Server.Actors;
 
-public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDisposable
+public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDisposable, IAsyncDisposable
 {
     private static readonly AsyncLocal<ActorCell?> CurrentCell = new();
 
@@ -42,6 +42,62 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
         return (TActor)cell.Actor;
     }
 
+    public async ValueTask<ActorCreateLocalResult> CreateLocalAsync<TActor>(
+        ActorId actorId,
+        ActorCreateOptions? options = null,
+        CancellationToken cancellationToken = default)
+        where TActor : class, IActor
+    {
+        _ = options ?? ActorCreateOptions.Default;
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var actorType = typeof(TActor);
+        if (_actors.TryGetValue(actorId, out var existing))
+        {
+            return IsCompatibleActorType(existing.ActorType, actorType)
+                ? new ActorCreateLocalResult(ActorCreateLocalStatus.AlreadyExistsSameType, actorId, actorType)
+                : new ActorCreateLocalResult(
+                    ActorCreateLocalStatus.AlreadyExistsDifferentType,
+                    actorId,
+                    actorType,
+                    $"Actor id '{actorId.Value}' is already bound to '{existing.ActorType.FullName}'.");
+        }
+
+        var cell = GetOrCreateCell<TActor>(actorId);
+        await cell.EnsureActivatedAsync(cancellationToken).ConfigureAwait(false);
+        return new ActorCreateLocalResult(ActorCreateLocalStatus.Created, actorId, actorType);
+    }
+
+    public async ValueTask<ActorDestroyLocalResult> DestroyLocalAsync<TActor>(
+        ActorId actorId,
+        ActorDestroyOptions? options = null,
+        CancellationToken cancellationToken = default)
+        where TActor : class, IActor
+    {
+        options ??= new ActorDestroyOptions();
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var actorType = typeof(TActor);
+        if (!_actors.TryGetValue(actorId, out var cell))
+        {
+            return new ActorDestroyLocalResult(ActorDestroyLocalStatus.NotFound, actorId, actorType);
+        }
+
+        if (!IsCompatibleActorType(cell.ActorType, actorType))
+        {
+            return new ActorDestroyLocalResult(
+                ActorDestroyLocalStatus.TypeMismatch,
+                actorId,
+                actorType,
+                $"Actor id '{actorId.Value}' is bound to '{cell.ActorType.FullName}'.");
+        }
+
+        var outcome = await StopAsync(actorId, options.DrainTimeout).ConfigureAwait(false);
+        return outcome == ActorStopOutcome.TimedOut
+            ? new ActorDestroyLocalResult(ActorDestroyLocalStatus.TimedOut, actorId, actorType)
+            : new ActorDestroyLocalResult(ActorDestroyLocalStatus.Destroyed, actorId, actorType);
+    }
+
     public async ValueTask TellAsync<TActor>(
         ActorId id,
         Func<TActor, CancellationToken, ValueTask> message,
@@ -50,7 +106,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        var cell = GetOrCreateCell<TActor>(id);
+        var cell = GetRequiredCell(typeof(TActor), id, nameof(TellAsync));
         await cell.InvokeAsync(
             static async (actor, state, ct) =>
             {
@@ -70,7 +126,11 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        var cell = GetOrCreateCell<TActor>(id);
+        if (!TryGetCell(typeof(TActor), id, out var cell))
+        {
+            return ActorTellResult.ActorNotFound;
+        }
+
         return cell.TryInvoke(
             static async (actor, state, ct) =>
             {
@@ -90,7 +150,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        var cell = GetOrCreateCell<TActor>(id);
+        var cell = GetRequiredCell(typeof(TActor), id, nameof(AskAsync));
         var result = await cell.InvokeAsync(
             static async (actor, state, ct) =>
             {
@@ -114,7 +174,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
         ArgumentNullException.ThrowIfNull(actorType);
         ArgumentNullException.ThrowIfNull(message);
 
-        var cell = GetOrCreateCell(actorType, id);
+        var cell = GetRequiredCell(actorType, id, nameof(TellAsync));
         await cell.InvokeAsync(
             static async (actor, state, ct) =>
             {
@@ -135,7 +195,11 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
         ArgumentNullException.ThrowIfNull(actorType);
         ArgumentNullException.ThrowIfNull(message);
 
-        var cell = GetOrCreateCell(actorType, id);
+        if (!TryGetCell(actorType, id, out var cell))
+        {
+            return ActorTellResult.ActorNotFound;
+        }
+
         return cell.TryInvoke(
             static async (actor, state, ct) =>
             {
@@ -274,13 +338,54 @@ public sealed class LakonaActorRuntime : IActorRuntime, IDisposable, IAsyncDispo
             return cell;
         }, new RuntimeState(this, actorType));
 
-        if (!cell.ActorType.IsAssignableTo(actorType) && !actorType.IsAssignableFrom(cell.ActorType))
+        if (!IsCompatibleActorType(cell.ActorType, actorType))
         {
             throw new InvalidOperationException(
                 $"Actor id '{id}' is already bound to '{cell.ActorType.FullName}', not '{actorType.FullName}'.");
         }
 
         return cell;
+    }
+
+    private ActorCell GetRequiredCell(Type actorType, ActorId id, string methodName)
+    {
+        if (TryGetCell(actorType, id, out var cell))
+        {
+            return cell;
+        }
+
+        throw new ActorNotFoundException(
+            id,
+            actorType.Name,
+            methodName,
+            $"Actor id '{id.Value}' is not active locally.");
+    }
+
+    private bool TryGetCell(Type actorType, ActorId id, out ActorCell cell)
+    {
+        ArgumentNullException.ThrowIfNull(actorType);
+        if (!typeof(IActor).IsAssignableFrom(actorType))
+        {
+            throw new InvalidOperationException($"Actor type '{actorType.FullName}' must implement {typeof(IActor).FullName}.");
+        }
+
+        if (!_actors.TryGetValue(id, out cell!))
+        {
+            return false;
+        }
+
+        if (!IsCompatibleActorType(cell.ActorType, actorType))
+        {
+            throw new InvalidOperationException(
+                $"Actor id '{id}' is already bound to '{cell.ActorType.FullName}', not '{actorType.FullName}'.");
+        }
+
+        return true;
+    }
+
+    private static bool IsCompatibleActorType(Type existingActorType, Type requestedActorType)
+    {
+        return existingActorType.IsAssignableTo(requestedActorType) || requestedActorType.IsAssignableFrom(existingActorType);
     }
 
     private void OnDeadLetterPublished(K.DeadLetter deadLetter)

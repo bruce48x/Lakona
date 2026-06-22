@@ -44,6 +44,7 @@ public sealed class ClusterActorTellDispatcher<TActor> : IClusterMessageHandler
     {
         return result switch
         {
+            ActorTellResult.ActorNotFound => ClusterSendStatus.RouteNotFound,
             ActorTellResult.MailboxFull => ClusterSendStatus.Backpressure,
             ActorTellResult.ActorUnavailable => ClusterSendStatus.HandlerUnavailable,
             _ => ClusterSendStatus.Accepted

@@ -249,6 +249,23 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public void AddLakonaGameServer_registers_actor_lifecycle_after_lifecycle_api_exists()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Lakona:Node:Id"] = "test-node"
+            })
+            .Build();
+
+        using var provider = new ServiceCollection()
+            .AddLakonaGameServer(configuration)
+            .BuildServiceProvider();
+
+        Assert.NotNull(provider.GetService<Lakona.Game.Server.Actors.IActorLifecycle>());
+    }
+
+    [Fact]
     public void DiscoverHotfixRequiredServiceContracts_finds_provider_types()
     {
         var contracts = Lakona.Game.Server.Hosting.LakonaGameServer.DiscoverHotfixRequiredServiceContractsForTesting([

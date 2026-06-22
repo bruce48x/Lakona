@@ -25,7 +25,9 @@ public sealed class RemoteActorGatewayTests
         var providerB = new ServiceCollection()
             .AddLakonaGameServerActors()
             .BuildServiceProvider();
+        var lifecycleB = providerB.GetRequiredService<IActorLifecycle>();
         var runtimeB = providerB.GetRequiredService<IActorRuntime>();
+        await lifecycleB.CreateLocalAsync<DummyActor>(ActorId.From("echo/1"), cancellationToken: cancellationToken);
         var gatewayB = new RemoteActorGateway();
         var routerB = new ClusterRouter("node-b", directory, new RecordingHandler(), messenger, () => now);
 
@@ -105,7 +107,9 @@ public sealed class RemoteActorGatewayTests
         var providerB = new ServiceCollection()
             .AddLakonaGameServerActors()
             .BuildServiceProvider();
+        var lifecycleB = providerB.GetRequiredService<IActorLifecycle>();
         var runtimeB = providerB.GetRequiredService<IActorRuntime>();
+        await lifecycleB.CreateLocalAsync<DummyActor>(ActorId.From("target/1"), cancellationToken: cancellationToken);
         var received = new TaskCompletionSource<ReadOnlyMemory<byte>>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var handlerB = new ClusterActorDispatcher<DummyActor>(

@@ -5,6 +5,7 @@ using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using GameActor = Lakona.Game.Server.Actors.Actor;
@@ -73,6 +74,34 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
         await TickHotfix.WaitForCountAsync(1, cancellationToken);
 
         Assert.Equal(["fixed"], TickHotfix.ActorIds.Distinct().ToArray());
+    }
+
+    [Fact]
+    public async Task Fixed_actor_tick_does_not_create_missing_actor()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = new ServiceCollection()
+            .AddLakonaGameServerActors()
+            .BuildServiceProvider();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        await using var scheduler = new HotfixActorTickScheduler(
+            runtime,
+            NullLogger<HotfixActorTickScheduler>.Instance);
+
+        HotfixDispatch.Replace(CreateTickTable(1));
+        scheduler.Apply(CreateSnapshot(
+            new HotfixActorTickDeclaration(
+                HotfixActorTickMode.FixedActor,
+                typeof(TickActor),
+                "fixed",
+                nameof(TickHotfix.TickAsync),
+                TimeSpan.FromMilliseconds(10),
+                TickBacklogPolicy.SkipIfPending)));
+
+        await Task.Delay(60, cancellationToken);
+
+        Assert.Empty(runtime.GetActiveActorIds(typeof(TickActor)));
+        Assert.Empty(TickHotfix.ActorIds);
     }
 
     [Fact]

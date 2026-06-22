@@ -15,10 +15,14 @@ public sealed class ActorRuntimeTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
+        var id = ActorId.From("room/alpha");
+
+        await lifecycle.CreateLocalAsync<TypedRoomActor>(id, cancellationToken: cancellationToken);
 
         var result = await runtime.AskAsync<TypedRoomActor, string>(
-            ActorId.From("room/alpha"),
+            id,
             static (actor, ct) => actor.EchoAsync("joined", ct),
             cancellationToken);
 
@@ -33,6 +37,9 @@ public sealed class ActorRuntimeTests
             .BuildServiceProvider();
 
         Assert.IsType<LakonaActorRuntime>(provider.GetRequiredService<IActorRuntime>());
+        Assert.Same(
+            provider.GetRequiredService<IActorRuntime>(),
+            provider.GetRequiredService<IActorLifecycle>());
     }
 
     [Fact]
@@ -73,10 +80,11 @@ public sealed class ActorRuntimeTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
 
-        await runtime.GetOrCreateAsync<TestActor>(ActorId.From("a"), cancellationToken);
-        await runtime.GetOrCreateAsync<TestActor>(ActorId.From("b"), cancellationToken);
+        await lifecycle.CreateLocalAsync<TestActor>(ActorId.From("a"), cancellationToken: cancellationToken);
+        await lifecycle.CreateLocalAsync<TestActor>(ActorId.From("b"), cancellationToken: cancellationToken);
 
         var ids = runtime.GetActiveActorIds(typeof(TestActor));
 
@@ -88,11 +96,15 @@ public sealed class ActorRuntimeTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
+        var id = ActorId.From("dynamic");
+
+        await lifecycle.CreateLocalAsync<TestActor>(id, cancellationToken: cancellationToken);
 
         await runtime.TellAsync(
             typeof(TestActor),
-            ActorId.From("dynamic"),
+            id,
             static (actor, _) =>
             {
                 ((TestActor)actor).Messages.Add("dynamic");
@@ -100,8 +112,64 @@ public sealed class ActorRuntimeTests
             },
             cancellationToken);
 
-        var typed = await runtime.GetOrCreateAsync<TestActor>(ActorId.From("dynamic"), cancellationToken);
+        var typed = await runtime.GetOrCreateAsync<TestActor>(id, cancellationToken);
         Assert.Contains("dynamic", typed.Messages);
+    }
+
+    [Fact]
+    public async Task Actor_lifecycle_creates_local_actor_explicitly()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = CreateProvider();
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        var id = ActorId.From("explicit");
+
+        var created = await lifecycle.CreateLocalAsync<TestActor>(id, cancellationToken: cancellationToken);
+        Assert.Equal(ActorCreateLocalStatus.Created, created.Status);
+
+        var reply = await runtime.AskAsync<TestActor, string>(
+            id,
+            static (actor, ct) => actor.EchoAsync("ok", ct),
+            cancellationToken);
+
+        Assert.Equal("explicit:ok", reply);
+    }
+
+    [Fact]
+    public async Task Ask_does_not_create_missing_actor()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = CreateProvider();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+
+        var ex = await Assert.ThrowsAnyAsync<ActorCallException>(async () =>
+            await runtime.AskAsync<TestActor, string>(
+                ActorId.From("missing"),
+                static (actor, ct) => actor.EchoAsync("no", ct),
+                cancellationToken));
+
+        Assert.Equal(ActorCallStatus.ActorNotFound, ex.Status);
+        Assert.Empty(runtime.GetActiveActorIds(typeof(TestActor)));
+    }
+
+    [Fact]
+    public async Task Destroy_local_actor_removes_actor_without_recreating_it()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = CreateProvider();
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        var id = ActorId.From("destroy-me");
+
+        await lifecycle.CreateLocalAsync<TestActor>(id, cancellationToken: cancellationToken);
+        var destroyed = await lifecycle.DestroyLocalAsync<TestActor>(
+            id,
+            new ActorDestroyOptions { DrainTimeout = TimeSpan.FromSeconds(1) },
+            cancellationToken);
+
+        Assert.Equal(ActorDestroyLocalStatus.Destroyed, destroyed.Status);
+        Assert.Empty(runtime.GetActiveActorIds(typeof(TestActor)));
     }
 
     [Fact]
@@ -134,8 +202,10 @@ public sealed class ActorRuntimeTests
         await using var provider = new ServiceCollection()
             .AddLakonaGameServerActors()
             .BuildServiceProvider();
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var id = ActorId.From("counter/1");
+        await lifecycle.CreateLocalAsync<CounterActor>(id, cancellationToken: cancellationToken);
 
         var tasks = Enumerable.Range(0, 100)
             .Select(_ => runtime.AskAsync<CounterActor, int>(
@@ -165,8 +235,10 @@ public sealed class ActorRuntimeTests
         await using var provider = new ServiceCollection()
             .AddLakonaGameServerActors()
             .BuildServiceProvider();
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var id = ActorId.From("reentrant/1");
+        await lifecycle.CreateLocalAsync<ReentrantActor>(id, cancellationToken: cancellationToken);
 
         var value = await runtime.AskAsync<ReentrantActor, int>(
             id,
@@ -208,7 +280,9 @@ public sealed class ActorRuntimeTests
             })
             .BuildServiceProvider();
 
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
+        await lifecycle.CreateLocalAsync<SlowActor>(id, cancellationToken: cancellationToken);
 
         await runtime.TellAsync<SlowActor>(
             id,
@@ -236,7 +310,9 @@ public sealed class ActorRuntimeTests
             })
             .BuildServiceProvider();
 
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
+        await lifecycle.CreateLocalAsync<SlowActor>(id, cancellationToken: cancellationToken);
 
         await Assert.ThrowsAsync<TimeoutException>(async () =>
             await runtime.AskAsync<SlowActor, int>(
@@ -264,7 +340,9 @@ public sealed class ActorRuntimeTests
         await using var provider = new ServiceCollection()
             .AddLakonaGameServerActors(options => options.MailboxCapacity = 2)
             .BuildServiceProvider();
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
+        await lifecycle.CreateLocalAsync<BlockingActor>(id, cancellationToken: cancellationToken);
 
         var blocking = runtime.TellAsync<BlockingActor>(
             id,
@@ -309,8 +387,10 @@ public sealed class ActorRuntimeTests
         await using var provider = new ServiceCollection()
             .AddLakonaGameServerActors()
             .BuildServiceProvider();
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var id = ActorId.From("stop/1");
+        await lifecycle.CreateLocalAsync<CounterActor>(id, cancellationToken: cancellationToken);
 
         await runtime.TellAsync<CounterActor>(
             id,
@@ -322,12 +402,13 @@ public sealed class ActorRuntimeTests
 
         await runtime.StopAsync(id);
 
-        var value = await runtime.AskAsync<CounterActor, int>(
-            id,
-            static (actor, _) => ValueTask.FromResult(actor.Value),
-            cancellationToken);
+        var ex = await Assert.ThrowsAnyAsync<ActorCallException>(async () =>
+            await runtime.AskAsync<CounterActor, int>(
+                id,
+                static (actor, _) => ValueTask.FromResult(actor.Value),
+                cancellationToken));
 
-        Assert.Equal(0, value);
+        Assert.Equal(ActorCallStatus.ActorNotFound, ex.Status);
     }
 
     [Fact]
@@ -339,8 +420,10 @@ public sealed class ActorRuntimeTests
         await using var provider = new ServiceCollection()
             .AddLakonaGameServerActors()
             .BuildServiceProvider();
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var id = ActorId.From("stop-timeout/1");
+        await lifecycle.CreateLocalAsync<BlockingActor>(id, cancellationToken: cancellationToken);
 
         var blocking = runtime.TellAsync<BlockingActor>(
             id,
@@ -367,9 +450,11 @@ public sealed class ActorRuntimeTests
         await using var provider = new ServiceCollection()
             .AddLakonaGameServerActors(options => options.MailboxCapacity = 3)
             .BuildServiceProvider();
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
 
         Assert.False(runtime.TryGetMailboxMetrics(id, out _));
+        await lifecycle.CreateLocalAsync<BlockingActor>(id, cancellationToken: cancellationToken);
 
         var blocking = runtime.TellAsync<BlockingActor>(
             id,
@@ -459,12 +544,7 @@ public sealed class ActorRuntimeTests
         await runtime.StopAsync(id);
         await Task.Delay(80, cancellationToken);
 
-        var recreatedTicks = await runtime.AskAsync<TimerActor, int>(
-            id,
-            static (actor, _) => ValueTask.FromResult(actor.Ticks),
-            cancellationToken);
-
-        Assert.Equal(0, recreatedTicks);
+        Assert.Empty(runtime.GetActiveActorIds(typeof(TimerActor)));
     }
 
     [Fact]
@@ -490,12 +570,7 @@ public sealed class ActorRuntimeTests
         await runtime.StopAsync(id);
         await Task.Delay(80, cancellationToken);
 
-        var recreatedTicks = await runtime.AskAsync<TimerActor, int>(
-            id,
-            static (actor, _) => ValueTask.FromResult(actor.Ticks),
-            cancellationToken);
-
-        Assert.Equal(0, recreatedTicks);
+        Assert.Empty(runtime.GetActiveActorIds(typeof(TimerActor)));
     }
 
     [Fact]
@@ -544,8 +619,10 @@ public sealed class ActorRuntimeTests
         await using var provider = new ServiceCollection()
             .AddLakonaGameServerActors()
             .BuildServiceProvider();
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var id = ActorId.From("deactivate-timeout/1");
+        await lifecycle.CreateLocalAsync<DeactivationActor>(id, cancellationToken: cancellationToken);
 
         var blocking = runtime.TellAsync<DeactivationActor>(
             id,
@@ -570,9 +647,11 @@ public sealed class ActorRuntimeTests
             .AddMessageRecording()
             .AddLakonaGameServerActors()
             .BuildServiceProvider();
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var store = provider.GetRequiredService<IMessageLogStore>();
         var id = ActorId.From("record/1");
+        await lifecycle.CreateLocalAsync<CounterActor>(id, cancellationToken: cancellationToken);
 
         await runtime.AskAsync<CounterActor, int>(
             id,
@@ -596,9 +675,11 @@ public sealed class ActorRuntimeTests
             .AddMessageRecording()
             .AddLakonaGameServerActors()
             .BuildServiceProvider();
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var store = provider.GetRequiredService<IMessageLogStore>();
         var id = ActorId.From("record-error/1");
+        await lifecycle.CreateLocalAsync<CounterActor>(id, cancellationToken: cancellationToken);
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await runtime.AskAsync<CounterActor, int>(
@@ -608,8 +689,8 @@ public sealed class ActorRuntimeTests
 
         var log = await store.GetLogAsync(id, cancellationToken);
         Assert.NotEmpty(log);
-        Assert.NotNull(log[0].Error);
-        Assert.Contains("InvalidOperationException", log[0].Error, StringComparison.Ordinal);
+        var error = Assert.Single(log, entry => entry.Error is not null);
+        Assert.Contains("InvalidOperationException", error.Error, StringComparison.Ordinal);
     }
 
     private sealed class CounterActor : GameActor
@@ -628,6 +709,11 @@ public sealed class ActorRuntimeTests
     private sealed class TestActor : GameActor
     {
         public List<string> Messages { get; } = [];
+
+        public ValueTask<string> EchoAsync(string value, CancellationToken cancellationToken = default)
+        {
+            return ValueTask.FromResult($"{Context.Id.Value}:{value}");
+        }
     }
 
     private sealed class ReentrantActor : GameActor

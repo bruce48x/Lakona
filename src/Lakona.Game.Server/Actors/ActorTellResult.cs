@@ -4,5 +4,6 @@ public enum ActorTellResult
 {
     Accepted = 0,
     MailboxFull = 1,
-    ActorUnavailable = 2
+    ActorUnavailable = 2,
+    ActorNotFound = 3
 }
