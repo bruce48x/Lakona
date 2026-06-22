@@ -6,7 +6,6 @@ using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
-using Server.App.Realtime;
 using Server.App.Services;
 using Server.Hotfix.State.Rooms;
 using Server.Hotfix.State.Sessions;
@@ -58,13 +57,6 @@ public sealed class BattleService
             };
         }
 
-        var room = await call.Actors
-            .AskAsync<RoomActor, RoomSnapshot>(
-                RoomId(req.RoomId),
-                (actor, _) => actor.GetSnapshotAsync())
-            .ConfigureAwait(false);
-        await services.RoomRuntimeHost.EnsureRoomReadyAsync(room).ConfigureAwait(false);
-
         var attached = await services.SessionDirectory
             .AttachRealtimeAsync(req.PlayerId, req.Token, req.RoomId, req.MatchId, call.ConnectionId, call.Callback)
             .ConfigureAwait(false);
@@ -76,6 +68,16 @@ public sealed class BattleService
                 Message = "Realtime session attach rejected."
             };
         }
+
+        await call.Actors.AskAsync<RoomActor, RoomSettlementResult>(
+            RoomId(req.RoomId),
+            (actor, _) => actor.SetReadyAsync(new RoomPlayerReadyRequest
+            {
+                UserId = req.PlayerId,
+                RoomId = req.RoomId,
+                IsReady = true,
+                UpdatedAtUtc = DateTime.UtcNow
+            })).ConfigureAwait(false);
 
         return new RealtimeAttachReply
         {
@@ -114,9 +116,15 @@ public sealed class BattleService
             return;
         }
 
-        req.PlayerId = playerId;
-        await services.RoomRuntimeHost
-            .SubmitInputAsync(sessionSnapshot.CurrentRoomId, playerId, req)
+        await call.Actors.TellAsync<RoomActor>(
+            RoomId(sessionSnapshot.CurrentRoomId),
+            (actor, _) => actor.SubmitInputAsync(new RoomInputSubmitRequest
+            {
+                RoomId = sessionSnapshot.CurrentRoomId,
+                UserId = playerId,
+                Input = req,
+                SubmittedAtUtc = DateTime.UtcNow
+            }))
             .ConfigureAwait(false);
     }
 
@@ -127,14 +135,12 @@ public sealed class BattleService
 
 internal sealed record AgarBattleServiceDependencies(
     SessionDirectory SessionDirectory,
-    GatewayNodeIdentity GatewayNodeIdentity,
-    RoomRuntimeHost RoomRuntimeHost)
+    GatewayNodeIdentity GatewayNodeIdentity)
 {
     public static AgarBattleServiceDependencies From<TRequest>(HotfixServiceCall<TRequest> call)
     {
         return new AgarBattleServiceDependencies(
             call.Services.GetRequiredService<SessionDirectory>(),
-            call.Services.GetRequiredService<GatewayNodeIdentity>(),
-            call.Services.GetRequiredService<RoomRuntimeHost>());
+            call.Services.GetRequiredService<GatewayNodeIdentity>());
     }
 }
