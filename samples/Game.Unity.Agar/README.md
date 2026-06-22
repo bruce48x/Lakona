@@ -41,11 +41,7 @@ samples/Game.Unity.Agar
  │     └─ MatchmakingContracts.cs
  ├─ Server
  │  ├─ App
- │  │  ├─ Hotfix
- │  │  │  ├─ AgarRuntimeContracts.cs
- │  │  │  └─ AgarHotfixRuntimeEvents.cs
- │  │  ├─ Realtime
- │  │  │  └─ RoomRuntime.cs
+ │  │  ├─ Hosting
  │  │  ├─ Services
  │  │  │  └─ SessionDirectory.cs
  │  │  └─ State
@@ -55,9 +51,9 @@ samples/Game.Unity.Agar
  │  │     ├─ Sessions
  │  │     └─ Users
  │  └─ Hotfix
+ │     ├─ Features
  │     ├─ Gameplay
  │     └─ Services
- │        ├─ AgarRuntimeService.cs
  │        └─ PlayerService.cs
  ├─ Client
  │  └─ Assets
@@ -70,17 +66,23 @@ samples/Game.Unity.Agar
  └─ infra
 ```
 
+目录职责：
+
+- `Server/App`：host bootstrap、actor state shells、stable callback delivery、session and cluster infrastructure。
+- `Server/Hotfix`：RPC services、lifecycle handlers、actor behaviors、hotfix feature descriptors、matchmaking ticks、room ticks、settlement。
+- `Shared`：client and server 共用的 DTOs，以及 reload-safe simulation state。
+
 关键职责：
 
 - `Shared/Gameplay/ArenaSimulation.cs`：玩法规则内核，单机和联机共用。
+- `Shared/Gameplay/ArenaSimulationState.cs`：服务端房间 tick 可跨 hotfix reload 保留的模拟状态。
 - `Shared/Interfaces/IPlayerService.cs`：客户端和服务端共用的 RPC 协议。
 - `Server/Hotfix/Services/PlayerService.cs`：可热更的控制面 RPC 业务服务，直接编排 actor 行为。
-- `Server/Hotfix/Services/AgarRuntimeService.cs`：可热更的服务端 runtime 事件处理，负责匹配 tick、断线清理和房间结算提交。
-- `Server/App/Features/DatabaseFeature.cs`：data 节点的数据库特性，注册 Postgres 连接工厂、SQL-backed cluster node directory 和 data 节点本地 route directory。
-- `Server/App/Realtime/RoomRuntime.cs`：服务端房间模拟和世界状态广播。
-- `Server/App/Hotfix/AgarHotfixRuntimeEvents.cs`：稳定层 runtime 事件 adapter，通过框架 hotfix invoker 和数字 method id 进入 `Server.Hotfix`。
-- `Server/App/State/Users/UserActor.cs`：用户登录、资料和胜利积分状态。
-- `Server/App/State/Leaderboard/LeaderboardActor.cs`：胜利积分排行榜周期、排序和归档。
+- `Server/Hotfix/Features/BattleRuntimeFeature.cs`：声明匹配 actor tick 和活跃房间 actor tick。
+- `Server/App/Hosting`：data 节点数据库基础设施、schema 检查和 sample 宿主注册扩展。
+- `Server/App/Services`：会话目录、网关身份、可靠匹配推送和房间 callback delivery。
+- `Server/App/State/Users/UserActor.cs`：用户资料和胜利积分的稳定状态 shell。
+- `Server/App/State/Leaderboard/LeaderboardActor.cs`：胜利积分排行榜的稳定状态 shell。
 - `Client/Assets/Scripts/Gameplay/DotArenaGame.cs`：客户端主流程、输入、渲染、模式切换和网络会话编排。
 - `Client/Assets/Scripts/Gameplay/DotArenaNetworkSession.cs`：客户端控制连接、实时连接和重连参数封装。
 
@@ -88,7 +90,7 @@ samples/Game.Unity.Agar
 
 ## 运行方式
 
-单进程开发时启动默认网关服务即可。用户、会话、匹配、房间和排行榜状态通过 Lakona.Game.Server.Actors 串行执行；业务决策和状态变更位于 `Server.Hotfix`，`Server.App` 只保留宿主、生命周期、推送和房间模拟循环等稳定职责。
+单进程开发时启动默认网关服务即可。用户、会话、匹配、房间和排行榜状态通过 Lakona.Game.Server.Actors 串行执行；业务决策、匹配 tick、房间 tick、结算和状态变更位于 `Server.Hotfix`，`Server.App` 只保留宿主、actor state shell、生命周期、推送、会话和集群基础设施。
 
 ```powershell
 dotnet run --project Server/App/Server.App.csproj

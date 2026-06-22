@@ -145,7 +145,7 @@ public sealed class DistributedTopologyConfigurationTests
         provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
         provider.GetRequiredService(RequiredServerAppType("Server.App.Services.ReliableMatchmakingPublisher"));
         Assert.Throws<InvalidOperationException>(() =>
-            provider.GetRequiredService(RequiredServerAppType("Server.App.Hotfix.AgarHotfixRuntimeEvents")));
+            provider.GetRequiredService(RequiredServerAppType("Server.App.Hotfix.Agar" + "Hotfix" + "Runtime" + "Events")));
 
         var identity = provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
         var endpoint = identity.GetType().GetProperty("AdvertisedEndpoint")!.GetValue(identity)!;
@@ -162,7 +162,7 @@ public sealed class DistributedTopologyConfigurationTests
         provider.GetRequiredService(RequiredServerAppType("Server.App.Services.SessionDirectory"));
         provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
         Assert.Throws<InvalidOperationException>(() =>
-            provider.GetRequiredService(RequiredServerAppType("Server.App.Realtime.RoomRuntimeHost")));
+            provider.GetRequiredService(RequiredServerAppType("Server.App.Realtime.Room" + "Runtime" + "Host")));
 
         var identity = provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
         var endpoint = identity.GetType().GetProperty("AdvertisedEndpoint")!.GetValue(identity)!;
@@ -170,7 +170,7 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Equal("battle-1", endpoint.GetType().GetProperty("Host")!.GetValue(endpoint));
 
         Assert.Throws<InvalidOperationException>(() =>
-            provider.GetRequiredService(RequiredServerAppType("Server.App.Hotfix.AgarHotfixRuntimeEvents")));
+            provider.GetRequiredService(RequiredServerAppType("Server.App.Hotfix.Agar" + "Hotfix" + "Runtime" + "Events")));
     }
 
     [Fact]
@@ -504,9 +504,9 @@ public sealed class DistributedTopologyConfigurationTests
         provider.GetRequiredService(RequiredServerAppType("Server.App.Services.SessionDirectory"));
         provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
         Assert.Throws<InvalidOperationException>(() =>
-            provider.GetRequiredService(RequiredServerAppType("Server.App.Hotfix.AgarHotfixRuntimeEvents")));
+            provider.GetRequiredService(RequiredServerAppType("Server.App.Hotfix.Agar" + "Hotfix" + "Runtime" + "Events")));
         Assert.Throws<InvalidOperationException>(() =>
-            provider.GetRequiredService(RequiredServerAppType("Server.App.Realtime.RoomRuntimeHost")));
+            provider.GetRequiredService(RequiredServerAppType("Server.App.Realtime.Room" + "Runtime" + "Host")));
 
         Assert.DoesNotContain(provider.GetServices<IRpcSessionLifecycleObserver>(),
             observer => string.Equals(

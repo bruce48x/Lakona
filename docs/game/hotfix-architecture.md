@@ -30,6 +30,7 @@ use Entity, Component, or System for the game-facing model.
 | Service contract | `Shared` | `IChatService` | RPC interface shared by client and server |
 | Service | `Server.Hotfix` | `ChatService` | Request business logic for a Shared service contract |
 | Lifecycle | `Server.Hotfix` | `ChatSessionLifecycle` | Replaceable business reaction to framework-owned lifecycle events |
+| Feature descriptor | `Server.Hotfix` | `BattleRuntimeFeature` | Reloadable game feature declaration and actor tick schedule |
 | Actor | `Server.App` | `ChatRoomActor` | Stable mailbox, fields, and stable infrastructure dependencies only |
 | Behavior | `Server.Hotfix` | `ChatRoomBehavior` | Hot-reloadable behavior for one actor type |
 | Service proxy | `Server.App` | `ChatServiceProxy` | Stable RPC binding that forwards each call to current hotfix service logic |
@@ -41,6 +42,8 @@ The Service, Lifecycle, and Behavior concepts are deliberately separate:
 - A Lifecycle corresponds to a framework-owned runtime lifecycle contract, such
   as game session disconnect or expiration. It handles replaceable business
   reactions without adding app-owned RPC lifecycle subscriptions.
+- A Feature Descriptor names a user-authored game capability and declares
+  actor runtime ticks for the stable scheduler.
 - A Behavior corresponds one-to-one with an Actor. It runs inside an actor turn
   and reads or writes that actor's fields.
 - A Service must not be named `*Behavior`.
@@ -58,6 +61,7 @@ Framework lifecycle bridge                  ChatSessionLifecycle
 Actor fields and mailbox ownership          Service helpers
 Hotfix dispatch bridge                      Request orchestration
 Admin hotfix endpoint                       Replaceable rules
+Actor tick scheduler                        Hotfix feature descriptors
 BuildTag metadata
 
 Reference direction: Server.Hotfix -> Server.App and Shared
@@ -157,6 +161,35 @@ code enables the framework bridge, and the current hotfix assembly provides one
 lifecycle contract. The bridge invokes lifecycle methods through explicit
 `[RpcMethod]` ids; generated and sample app code must not add user-authored raw
 RPC lifecycle subscriptions or app-local lifecycle bridge classes.
+
+## Hotfix Feature Descriptors
+
+Stable `LakonaGameFeature` is framework infrastructure. User-authored game
+feature declarations live in the hotfix assembly:
+
+```csharp
+[HotfixFeature("battle-runtime")]
+public sealed class BattleRuntimeFeature : HotfixGameFeature
+{
+    public override void Configure(HotfixFeatureContext context)
+    {
+        context.ScheduleActorTick<MatchmakingActor>(
+            "default",
+            TimeSpan.FromMilliseconds(250),
+            TickBacklogPolicy.Coalesce);
+
+        context.ScheduleActiveActorTicks<RoomActor>(
+            TimeSpan.FromMilliseconds(50),
+            TickBacklogPolicy.SkipIfPending);
+    }
+}
+```
+
+The stable scheduler converts descriptor declarations into actor turns against
+the current hotfix behavior table. User-authored runtime loops are actor ticks
+declared by these descriptors. Stable App code must not define
+application-specific hotfix event adapters, room runtimes, matchmaking hosted
+services, or game Feature classes.
 
 ## Generated Hotfix Services
 

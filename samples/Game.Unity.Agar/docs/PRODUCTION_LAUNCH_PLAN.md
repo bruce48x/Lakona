@@ -59,20 +59,20 @@
 
 验收门槛：
 
-- 两个 gateway 实例运行时，玩家控制连接、实时连接和房间 runtime 可以分布在不同网关。
-- 玩家输入能到达 runtime owner，世界状态能回到正确客户端。
+- 两个 gateway 实例运行时，玩家控制连接、实时连接和房间 actor owner 可以分布在不同网关。
+- 玩家输入能到达房间 actor owner，世界状态能回到正确客户端。
 - 关闭其中一个 gateway 后，受影响玩家得到明确失败/重连体验，其他房间不受影响。
 
 ### 清理与恢复语义
 
-`PlayerService`、`SessionRegistration` 和 `SessionDirectory` 已接入 `Lakona.Game.Server.Sessions`，可靠推送 ack 已接入框架 outcome。上线前仍必须集中验证这些路径和 `DisconnectedSessionCleanupHostedService`、`RoomRuntimeHost`、`RoomRuntime` 的业务清理语义。
+`PlayerService`、`SessionRegistration` 和 `SessionDirectory` 已接入 `Lakona.Game.Server.Sessions`，可靠推送 ack 已接入框架 outcome。上线前仍必须集中验证这些路径、断线清理、房间 actor tick 和结算的业务清理语义。
 
 必须完成：
 
 - 登录、登出、重复登录、取消匹配、匹配超时、实时断线、控制断线、离房和对局结束都有可回归验证的幂等清理路径。
 - 控制连接和实时连接可以独立解绑，并覆盖 stale connection id 不会解绑新连接。
 - 匹配票据、实时注册、房间玩家、按会话隔离的可靠推送 pending 记录和本地 callback 状态不会永久残留。
-- 空房间可以释放 runtime 资源。
+- 空房间可以停止活跃 tick 并释放会话回调资源。
 - outbox 过期或 server state lost 时，服务端和客户端已经有 new-session 语义，生产回归必须验证玩家不会停在 stale UI。
 
 ### 持久化与数据模型
@@ -134,7 +134,7 @@
 
 自动化测试必须扩展到以下范围：
 
-- `RoomRuntime`：玩家加入/离开、输入提交、世界快照、结算、空房间清理。
+- `RoomActor` hotfix behavior：玩家加入/离开、输入提交、世界快照、结算、空房间清理。
 - `SessionDirectory` / `SessionRegistration`：在现有房间和实时注册测试基础上，补充 framework-backed 控制注册、generation、stale connection 和过期清理覆盖。
 - `PlayerService`：登录、游客登录、重复登录、匹配、取消、实时绑定、ack state lost 和 session mismatch。
 - 匹配 / 房间分配服务：票据生命周期、房间分配、运行时网关端点、过期处理。

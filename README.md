@@ -245,16 +245,24 @@ selectors. No reflection, no string-based dispatch.
 
 ## Feature Startup
 
-Assemble server capabilities from `LakonaGameFeature` types. Run every
-discovered feature in one development process, or select a compact feature set
-per production process with `Lakona:Feature`.
+Stable `LakonaGameFeature` is framework infrastructure. User-authored game
+feature declarations live in the hotfix assembly as descriptors, so reloadable
+actor runtime loops stay with reloadable game behavior.
 
 ```csharp
-public sealed class BattleRuntimeFeature : LakonaGameFeature
+[HotfixFeature("battle-runtime")]
+public sealed class BattleRuntimeFeature : HotfixGameFeature
 {
-    public override void ConfigureServices(LakonaGameFeatureContext context)
+    public override void Configure(HotfixFeatureContext context)
     {
-        context.Services.AddSingleton<RoomRuntime>();
+        context.ScheduleActorTick<MatchmakingActor>(
+            "default",
+            TimeSpan.FromMilliseconds(250),
+            TickBacklogPolicy.Coalesce);
+
+        context.ScheduleActiveActorTicks<RoomActor>(
+            TimeSpan.FromMilliseconds(50),
+            TickBacklogPolicy.SkipIfPending);
     }
 }
 

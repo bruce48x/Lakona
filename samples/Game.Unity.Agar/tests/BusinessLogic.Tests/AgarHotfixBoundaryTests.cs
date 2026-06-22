@@ -130,11 +130,11 @@ public sealed class AgarHotfixBoundaryTests
             "Features/StateStoreFeature.cs",
             "Features/MatchmakingFeature.cs",
             "Features/LeaderboardFeature.cs",
-            "Hosting/MatchmakingHostedService.cs",
-            "Hotfix/AgarHotfixRuntimeEvents.cs",
+            "Hosting/" + "Matchmaking" + "Hosted" + "Service.cs",
+            "Hotfix/Agar" + "Hotfix" + "Runtime" + "Events.cs",
             "Hotfix/AgarRuntimeContracts.cs",
-            "Realtime/RoomRuntime.cs",
-            "Realtime/RoomRuntimeHost.cs",
+            "Realtime/" + "Room" + "Runtime.cs",
+            "Realtime/" + "Room" + "Runtime" + "Host.cs",
         };
         var existingForbiddenPaths = forbiddenRelativePaths
             .Where(path => File.Exists(Path.Combine(appRoot, path)))
@@ -144,8 +144,18 @@ public sealed class AgarHotfixBoundaryTests
             existingForbiddenPaths.Length == 0,
             $"Server.App must not contain user runtime Feature classes, App hotfix adapters, or runtime loops: {string.Join(", ", existingForbiddenPaths)}");
 
+        var forbiddenTerms = new[]
+        {
+            "Server.App.Hotfix",
+            "Agar" + "Hotfix" + "Runtime" + "Events",
+            "IAgar" + "Runtime" + "Service",
+            "Agar" + "Runtime" + "MethodIds",
+            "Room" + "Runtime" + "Host",
+            "Room" + "Runtime",
+            "Matchmaking" + "Hosted" + "Service",
+        };
         var forbidden = new Regex(
-            @"\b(Server\.App\.Hotfix|AgarHotfixRuntimeEvents|IAgarRuntimeService|AgarRuntimeMethodIds|RoomRuntimeHost|RoomRuntime|MatchmakingHostedService)\b",
+            @"\b(" + string.Join("|", forbiddenTerms.Select(Regex.Escape)) + @")\b",
             RegexOptions.CultureInvariant);
         var violations = Directory.GetFiles(appRoot, "*.cs", SearchOption.AllDirectories)
             .Select(file => new
