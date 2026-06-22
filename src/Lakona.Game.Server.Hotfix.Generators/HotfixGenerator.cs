@@ -98,26 +98,6 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.Append("namespace ").Append(namespaceName).AppendLine(";");
             builder.AppendLine();
 
-            builder.AppendLine("public static class GeneratedHotfixServiceExtensions");
-            builder.AppendLine("{");
-            builder.AppendLine("    public static global::Lakona.Game.Server.Hosting.LakonaGameServerBuilder UseGeneratedHotfixServices(");
-            builder.AppendLine("        this global::Lakona.Game.Server.Hosting.LakonaGameServerBuilder builder)");
-            builder.AppendLine("    {");
-            builder.AppendLine("        global::System.ArgumentNullException.ThrowIfNull(builder);");
-            builder.AppendLine();
-            builder.AppendLine("        builder.AddServices(services =>");
-            builder.AppendLine("        {");
-            builder.AppendLine("            global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<");
-            builder.AppendLine("                global::Lakona.Game.Server.Hotfix.Abstractions.IHotfixRequiredServiceContracts,");
-            builder.AppendLine("                GeneratedHotfixRequiredServiceContracts>(");
-            builder.AppendLine("                services);");
-            builder.AppendLine("        });");
-            builder.AppendLine();
-            builder.AppendLine("        return builder;");
-            builder.AppendLine("    }");
-            builder.AppendLine("}");
-            builder.AppendLine();
-
             foreach (var service in services.OrderBy(static service => service.Contract.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
             {
                 AppendEndpointRpcServiceBinder(builder, service);

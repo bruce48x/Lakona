@@ -65,13 +65,44 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("internal sealed class ChatServiceProxy : global::Shared.Contracts.Chat.IChatService", result.GeneratedSource);
         Assert.Contains("HotfixServiceCall<global::Shared.Contracts.Chat.ChatBindRequest, global::Shared.Contracts.Chat.IChatCallback>", result.GeneratedSource);
         Assert.Contains("global::Server.App.Generated.ChatServiceBinder.BindFactory", result.GeneratedSource);
-        Assert.Contains("UseGeneratedHotfixServices", result.GeneratedSource);
+        Assert.DoesNotContain("UseGeneratedHotfixServices", result.GeneratedSource);
         Assert.Contains("[global::Lakona.Game.Server.Hosting.LakonaRpcServiceAttribute(\"chat\")]", result.GeneratedSource);
         Assert.Contains("internal sealed class ChatServiceEndpointBinder : global::Lakona.Game.Server.Hosting.LakonaRpcServiceBinder", result.GeneratedSource);
         Assert.Contains("public override void Bind(global::Lakona.Game.Server.Hosting.LakonaGameServerRpcContext context)", result.GeneratedSource);
         Assert.DoesNotContain("return builder.BindServices", result.GeneratedSource, StringComparison.Ordinal);
         Assert.DoesNotContain("HotfixRpcService", result.GeneratedSource, StringComparison.Ordinal);
         Assert.DoesNotContain(ForbiddenGameEndpointType, result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_emits_required_contracts_without_manual_builder_extension()
+    {
+        var result = GeneratorTestHost.Run("""
+            using System.Threading.Tasks;
+            using Lakona.Rpc.Core;
+            namespace Demo;
+
+            [RpcService(ApiName = "login")]
+            public interface ILoginService
+            {
+                [RpcMethod(1)]
+                ValueTask<LoginReply> LoginAsync(LoginRequest request);
+            }
+
+            public sealed class LoginRequest
+            {
+            }
+
+            public sealed class LoginReply
+            {
+            }
+            """);
+
+        var generated = result.GeneratedSource;
+
+        Assert.Contains("GeneratedHotfixRequiredServiceContracts", generated);
+        Assert.Contains("IHotfixRequiredServiceContracts", generated);
+        Assert.DoesNotContain("UseGeneratedHotfixServices", generated);
     }
 
     [Fact]

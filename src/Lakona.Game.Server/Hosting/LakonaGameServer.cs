@@ -1,12 +1,14 @@
 using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Health;
 using Lakona.Game.Server.Hotfix;
+using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.BuildTag;
 using Lakona.Game.Server.HotfixAdmin;
 using Lakona.Game.Server.Hotfix.Loading;
@@ -98,6 +100,13 @@ public static class LakonaGameServer
         // Hotfix
         var hotfixBuildTag = HotfixBuildTag.Get(Assembly.GetEntryAssembly() ?? typeof(LakonaGameServer).Assembly);
         var hotfixAdminOptions = CreateDefaultHotfixAdminOptions(builder.Configuration, AppContext.BaseDirectory, hotfixBuildTag);
+        foreach (var providerType in DiscoverHotfixRequiredServiceContractProviders(DiscoverApplicationAssemblies()))
+        {
+            builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton(
+                typeof(IHotfixRequiredServiceContracts),
+                providerType));
+        }
+
         ConfigureDefaultHotfix(builder.Services, AppContext.BaseDirectory, hotfixAdminOptions);
         builder.Services.AddLakonaGameHotfixAdmin(options => CopyHotfixAdminOptions(hotfixAdminOptions, options));
 
@@ -166,6 +175,49 @@ public static class LakonaGameServer
             .ToArray();
 
         return LakonaRpcServiceCatalog.FromTypes(binderTypes);
+    }
+
+    internal static IReadOnlyList<Type> DiscoverHotfixRequiredServiceContractProvidersForTesting(
+        IReadOnlyList<Assembly> assemblies)
+    {
+        return DiscoverHotfixRequiredServiceContractProviders(assemblies);
+    }
+
+    internal static IReadOnlyList<Type> DiscoverHotfixRequiredServiceContractsForTesting(
+        IReadOnlyList<Assembly> assemblies)
+    {
+        return DiscoverHotfixRequiredServiceContracts(assemblies);
+    }
+
+    private static IReadOnlyList<Type> DiscoverHotfixRequiredServiceContracts(
+        IReadOnlyList<Assembly> assemblies)
+    {
+        var providerTypes = DiscoverHotfixRequiredServiceContractProviders(assemblies);
+
+        var contracts = new List<Type>();
+        foreach (var providerType in providerTypes)
+        {
+            var provider = (IHotfixRequiredServiceContracts)Activator.CreateInstance(providerType)!;
+            contracts.AddRange(provider.ServiceContracts);
+        }
+
+        return contracts
+            .Distinct()
+            .OrderBy(static type => type.FullName, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private static IReadOnlyList<Type> DiscoverHotfixRequiredServiceContractProviders(
+        IReadOnlyList<Assembly> assemblies)
+    {
+        return assemblies
+            .SelectMany(GetLoadableTypes)
+            .Where(static type => typeof(IHotfixRequiredServiceContracts).IsAssignableFrom(type)
+                && !type.IsAbstract
+                && !type.IsInterface
+                && type.GetConstructor(Type.EmptyTypes) is not null)
+            .OrderBy(static type => type.FullName, StringComparer.Ordinal)
+            .ToArray();
     }
 
     private static IReadOnlyList<Assembly> DiscoverApplicationAssemblies()

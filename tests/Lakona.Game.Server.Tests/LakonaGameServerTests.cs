@@ -228,6 +228,26 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public void DiscoverHotfixRequiredServiceContracts_finds_provider_types()
+    {
+        var contracts = Lakona.Game.Server.Hosting.LakonaGameServer.DiscoverHotfixRequiredServiceContractsForTesting([
+            typeof(GeneratedRequiredContractsForTest).Assembly
+        ]);
+
+        Assert.Contains(typeof(GeneratedRequiredServiceForTest), contracts);
+    }
+
+    [Fact]
+    public void DiscoverHotfixRequiredServiceContractProviders_finds_provider_types_for_di_registration()
+    {
+        var providers = Lakona.Game.Server.Hosting.LakonaGameServer.DiscoverHotfixRequiredServiceContractProvidersForTesting([
+            typeof(GeneratedRequiredContractsForTest).Assembly
+        ]);
+
+        Assert.Contains(typeof(GeneratedRequiredContractsForTest), providers);
+    }
+
+    [Fact]
     public async Task Default_hotfix_source_resolves_current_version_pointer()
     {
         var root = Path.Combine(Path.GetTempPath(), "LakonaDefaultHotfixSourceTests", Guid.NewGuid().ToString("N"));
@@ -609,6 +629,19 @@ public sealed class LakonaGameServerTests
     }
 
     private sealed record ConfiguredValue(string Value);
+
+    private sealed class GeneratedRequiredContractsForTest :
+        Lakona.Game.Server.Hotfix.Abstractions.IHotfixRequiredServiceContracts
+    {
+        public IReadOnlyList<Type> ServiceContracts { get; } =
+        [
+            typeof(GeneratedRequiredServiceForTest)
+        ];
+    }
+
+    private interface GeneratedRequiredServiceForTest
+    {
+    }
 
     private sealed class RecordingFeatureMessageHandler : IFeatureMessageHandler
     {
