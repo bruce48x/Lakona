@@ -7,6 +7,7 @@ using Agar.Sample.State.Rooms;
 using Agar.Sample.State.Sessions;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Server.Hotfix.Services;
 using Server.Hotfix.State.Rooms;
 using Server.Hotfix.State.Sessions;
 
@@ -162,22 +163,28 @@ public static class MatchmakingBehavior
         });
     }
 
-    public static async ValueTask<Dictionary<string, RoomAssignment>> TickAsync(this MatchmakingActor self, MatchmakingTickRequest request)
+    public static async ValueTask TickAsync(this MatchmakingActor self, HotfixActorTick tick)
     {
         EnsureState(self);
         if (self.State.PendingTickets.Count == 0)
         {
-            return [];
+            return;
         }
 
-        var observedAtUtc = NormalizeUtc(request.ObservedAtUtc);
+        var observedAtUtc = tick.ObservedAtUtc == default ? DateTime.UtcNow : tick.ObservedAtUtc;
         var roomSize = MatchmakingQueuePolicy.NormalizeRoomSize(self.State.DefaultRoomSize);
         if (MatchmakingQueuePolicy.GetMatchBatchSize(self.State.PendingTickets, roomSize, observedAtUtc, allowExpiredPartialBatch: true) <= 0)
         {
-            return [];
+            return;
         }
 
-        return await TryMatchAsync(self, observedAtUtc, allowExpiredPartialBatch: true).ConfigureAwait(false);
+        var assignments = await TryMatchAsync(self, observedAtUtc, allowExpiredPartialBatch: true).ConfigureAwait(false);
+        foreach (var assignment in assignments.Values.DistinctBy(static assignment => assignment.RoomId))
+        {
+            await PlayerService.PublishMatchedAsync(
+                AgarServiceDependencies.From(self.Context.Services, self.Context.Runtime),
+                assignment).ConfigureAwait(false);
+        }
     }
 
     public static async ValueTask<Dictionary<string, RoomAssignment>> TryMatchAsync(

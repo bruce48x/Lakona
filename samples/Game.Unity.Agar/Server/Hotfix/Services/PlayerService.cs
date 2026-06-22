@@ -16,7 +16,6 @@ using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Server.App.Realtime;
 using Server.App.Services;
 using Server.Hotfix.State.Leaderboard;
 using Server.Hotfix.State.Matchmaking;
@@ -296,7 +295,6 @@ public sealed class PlayerService
                         }))
                     .ConfigureAwait(false);
                 services.SessionDirectory.ClearRoom(playerId, roomId);
-                await services.RoomRuntimeHost.RemovePlayerAsync(roomId, playerId).ConfigureAwait(false);
             }
             else
             {
@@ -355,11 +353,6 @@ public sealed class PlayerService
                 (actor, _) => actor.GetSnapshotAsync())
             .ConfigureAwait(false);
 
-        if (services.RuntimeGateways.IsLocalOwner(room.RuntimeGateway))
-        {
-            await services.RoomRuntimeHost.EnsureRoomReadyAsync(room).ConfigureAwait(false);
-        }
-
         foreach (var player in room.Players)
         {
             var registration = services.SessionDirectory.Get(player.UserId);
@@ -402,7 +395,6 @@ internal sealed record AgarServiceDependencies(
     IActorRuntime Actors,
     SessionDirectory SessionDirectory,
     GatewayNodeIdentity GatewayNodeIdentity,
-    RoomRuntimeHost RoomRuntimeHost,
     BattleRuntimeGatewayResolver RuntimeGateways,
     ReliableMatchmakingPublisher ReliableMatchmakingPublisher,
     IReliablePushOutbox ReliablePushOutbox,
@@ -416,15 +408,19 @@ internal sealed record AgarServiceDependencies(
 
     public static AgarServiceDependencies From<TRequest>(HotfixServiceCall<TRequest> call)
     {
+        return From(call.Services, call.Actors);
+    }
+
+    public static AgarServiceDependencies From(IServiceProvider services, IActorRuntime actors)
+    {
         return new AgarServiceDependencies(
-            call.Actors,
-            call.Services.GetRequiredService<SessionDirectory>(),
-            call.Services.GetRequiredService<GatewayNodeIdentity>(),
-            call.Services.GetRequiredService<RoomRuntimeHost>(),
-            call.Services.GetRequiredService<BattleRuntimeGatewayResolver>(),
-            call.Services.GetRequiredService<ReliableMatchmakingPublisher>(),
-            call.Services.GetRequiredService<IReliablePushOutbox>(),
-            call.Services.GetRequiredService<IReliablePushAckService>(),
-            call.Services.GetRequiredService<ILoggerFactory>());
+            actors,
+            services.GetRequiredService<SessionDirectory>(),
+            services.GetRequiredService<GatewayNodeIdentity>(),
+            services.GetRequiredService<BattleRuntimeGatewayResolver>(),
+            services.GetRequiredService<ReliableMatchmakingPublisher>(),
+            services.GetRequiredService<IReliablePushOutbox>(),
+            services.GetRequiredService<IReliablePushAckService>(),
+            services.GetRequiredService<ILoggerFactory>());
     }
 }

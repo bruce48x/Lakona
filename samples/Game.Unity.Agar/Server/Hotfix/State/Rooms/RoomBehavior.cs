@@ -259,6 +259,13 @@ public static class RoomBehavior
         return new ValueTask<RoomSnapshot>(BuildSnapshot(self));
     }
 
+    public static ValueTask TickAsync(this RoomActor self, HotfixActorTick tick)
+    {
+        _ = self;
+        _ = tick;
+        return default;
+    }
+
     private static void EnsureState(RoomActor self, string roomId)
     {
         if (self.RecordExists && string.IsNullOrWhiteSpace(self.State.RoomId))
