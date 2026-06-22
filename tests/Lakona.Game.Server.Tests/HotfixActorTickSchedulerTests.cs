@@ -289,6 +289,7 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
             Discoverable: true,
             new Dictionary<string, string>(),
             ticks,
+            [],
             []);
         return new HotfixSnapshot(
             "test",

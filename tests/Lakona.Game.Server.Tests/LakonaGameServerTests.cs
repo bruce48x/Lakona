@@ -12,6 +12,7 @@ using Lakona.Game.Abstractions;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
@@ -281,6 +282,25 @@ public sealed class LakonaGameServerTests
 
         Assert.NotNull(provider.GetService<IClientNotifications>());
         Assert.NotNull(provider.GetService<IClientSessionIndex>());
+    }
+
+    [Fact]
+    public void AddLakonaGameServer_registers_feature_command_client_after_command_api_exists()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Lakona:Node:Id"] = "test-node"
+            })
+            .Build();
+
+        using var provider = new ServiceCollection()
+            .AddSingleton<IFeatureMessageBus, RecordingFeatureMessageBus>()
+            .AddSingleton<IFeatureMessageSerializer, TestFeatureMessageSerializer>()
+            .AddLakonaGameServer(configuration)
+            .BuildServiceProvider();
+
+        Assert.NotNull(provider.GetService<IFeatureCommandClient>());
     }
 
     [Fact]
@@ -711,6 +731,39 @@ public sealed class LakonaGameServerTests
             Requests.Add(request);
             return new ValueTask<FeatureMessageReply>(
                 new FeatureMessageReply(ClusterSendStatus.Accepted, new byte[] { 9 }));
+        }
+    }
+
+    private sealed class RecordingFeatureMessageBus : IFeatureMessageBus
+    {
+        public ValueTask<FeatureMessageReply> SendToFeatureAsync<TRequest, TReply>(
+            FeatureName feature,
+            TRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask<FeatureMessageReply> SendToFeatureAsync<TRequest, TReply>(
+            FeatureName feature,
+            string kind,
+            TRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class TestFeatureMessageSerializer : IFeatureMessageSerializer
+    {
+        public ReadOnlyMemory<byte> Serialize<T>(T value)
+        {
+            throw new NotSupportedException();
+        }
+
+        public T Deserialize<T>(ReadOnlyMemory<byte> payload)
+        {
+            throw new NotSupportedException();
         }
     }
 

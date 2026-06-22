@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Diagnostics;
+using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Guardrails;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
@@ -71,6 +72,7 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.AddLakonaGameRuntimeValidation();
         services.AddLakonaGameSessionHotfixLifecycle();
         services.TryAddSingleton<IGameHandshakeService, GameHandshakeService>();
+        services.TryAddSingleton<IFeatureCommandClient, FeatureCommandClient>();
         services.TryAddSingleton<ILakonaGameServer, LakonaGameServer>();
         return services;
     }

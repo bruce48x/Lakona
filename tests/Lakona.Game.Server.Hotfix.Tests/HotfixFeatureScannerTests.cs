@@ -48,6 +48,22 @@ public sealed class HotfixFeatureScannerTests
         Assert.Equal(typeof(SampleHotfixService), descriptor.ImplementationType);
     }
 
+    [Fact]
+    public void Scanner_captures_hotfix_feature_command_declarations()
+    {
+        var result = HotfixBehaviorScanner.Scan(typeof(CommandFeature).Assembly, [
+            typeof(CommandFeature)
+        ]);
+
+        Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
+        var feature = Assert.Single(result.Features);
+        var command = Assert.Single(feature.Commands);
+        Assert.Equal(typeof(StartMatchCommand), command.RequestType);
+        Assert.Equal(typeof(StartMatchReply), command.ReplyType);
+        Assert.Equal(101, command.CommandId);
+        Assert.Equal("ExecuteAsync", command.MethodName);
+    }
+
     [HotfixFeature("battle-runtime")]
     private sealed class BattleRuntimeFeature : HotfixGameFeature
     {
@@ -87,4 +103,18 @@ public sealed class HotfixFeatureScannerTests
     private sealed class SampleHotfixService : ISampleHotfixService
     {
     }
+
+    [HotfixFeature("commands")]
+    private sealed class CommandFeature : HotfixGameFeature
+    {
+        public override void Configure(HotfixFeatureContext context)
+        {
+            context.HandleCommand<StartMatchCommand, StartMatchReply>("ExecuteAsync");
+        }
+    }
+
+    [FeatureCommand(101)]
+    private sealed record StartMatchCommand(string RoomId);
+
+    private sealed record StartMatchReply(bool Accepted);
 }

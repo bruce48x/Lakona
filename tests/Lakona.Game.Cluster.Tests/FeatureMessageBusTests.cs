@@ -49,6 +49,50 @@ public sealed class FeatureMessageBusTests
         Assert.Equal("\"join\"", System.Text.Encoding.UTF8.GetString(transport.LastRequest?.Payload.ToArray() ?? []));
     }
 
+    [Fact]
+    public void FeatureCommandIdRejectsNonPositiveValues()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new FeatureCommandId(0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => FeatureCommandId.From(0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => FeatureCommandId.From(-1));
+    }
+
+    [Fact]
+    public void FeatureCommandIdFormatsUsingInvariantCulture()
+    {
+        var command = FeatureCommandId.From(42);
+
+        Assert.Equal("42", command.ToString());
+    }
+
+    [Fact]
+    public void FeatureMessageReplyDeserializesAcceptedPayload()
+    {
+        var serializer = new TestSerializer();
+        var reply = new FeatureMessageReply(
+            ClusterSendStatus.Accepted,
+            serializer.Serialize(new CommandReply("ok")));
+
+        var payload = reply.GetPayload<CommandReply>(serializer);
+
+        Assert.Equal("ok", payload.Value);
+    }
+
+    [Fact]
+    public void FeatureMessageReplyRejectsPayloadReadWhenStatusIsNotAccepted()
+    {
+        var reply = new FeatureMessageReply(
+            ClusterSendStatus.FeatureNotFound,
+            Array.Empty<byte>(),
+            "missing");
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            reply.GetPayload<string>(new TestSerializer()));
+
+        Assert.Contains("FeatureNotFound", exception.Message);
+        Assert.Contains("missing", exception.Message);
+    }
+
     private sealed class EmptyDiscovery : IClusterNodeDiscovery
     {
         public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> ListAsync(
@@ -136,4 +180,6 @@ public sealed class FeatureMessageBusTests
             return JsonSerializer.Deserialize<T>(payload.Span)!;
         }
     }
+
+    private sealed record CommandReply(string Value);
 }
