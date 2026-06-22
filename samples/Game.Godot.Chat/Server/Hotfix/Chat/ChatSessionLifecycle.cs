@@ -22,9 +22,10 @@ namespace Server.Hotfix.Chat
             {
                 return;
             }
-            var localActors = call.Actors;
+            // call.Actors is node-local. Use typed selectors for actors whose placement may be remote.
+            var starterNodeLocalActors = call.Actors;
 
-            await localActors.AskAsync<ChatRoomActor, bool>(
+            await starterNodeLocalActors.AskAsync<ChatRoomActor, bool>(
                 RoomId,
                 async (room, ct) =>
                 {

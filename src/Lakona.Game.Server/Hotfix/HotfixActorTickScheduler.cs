@@ -82,6 +82,8 @@ internal sealed class HotfixActorTickScheduler(
     {
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            DispatchInitialTicks(source);
             using var timer = new PeriodicTimer(source.Interval);
             while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
             {
@@ -97,6 +99,19 @@ internal sealed class HotfixActorTickScheduler(
         catch (Exception ex)
         {
             logger.LogError(ex, "Hotfix actor tick source {TickSource} stopped unexpectedly.", source.Key);
+        }
+    }
+
+    private void DispatchInitialTicks(TickSource source)
+    {
+        if (source.Mode != HotfixActorTickMode.FixedActor)
+        {
+            return;
+        }
+
+        foreach (var actorId in ResolveActorIds(source))
+        {
+            Dispatch(source, actorId);
         }
     }
 

@@ -17,9 +17,10 @@ namespace Server.Hotfix.Chat
             await call.GameServer.BindCurrentSessionAsync(
                 call.ConnectionId,
                 call.Callback);
-            var localActors = call.Actors;
+            // call.Actors is node-local. Use typed selectors for actors whose placement may be remote.
+            var starterNodeLocalActors = call.Actors;
 
-            await localActors.AskAsync<ChatRoomActor, bool>(
+            await starterNodeLocalActors.AskAsync<ChatRoomActor, bool>(
                 RoomId,
                 (room, ct) =>
                 {
@@ -30,9 +31,10 @@ namespace Server.Hotfix.Chat
 
         public static async ValueTask SendAsync(HotfixServiceCall<ChatSendRequest, IChatCallback> call)
         {
-            var localActors = call.Actors;
+            // call.Actors is node-local. Use typed selectors for actors whose placement may be remote.
+            var starterNodeLocalActors = call.Actors;
 
-            await localActors.AskAsync<ChatRoomActor, bool>(
+            await starterNodeLocalActors.AskAsync<ChatRoomActor, bool>(
                 RoomId,
                 (room, ct) =>
                 {
@@ -40,7 +42,7 @@ namespace Server.Hotfix.Chat
                     return new ValueTask<bool>(true);
                 });
             var text = FilterMessage(call.Request.Text ?? "");
-            await localActors.AskAsync<ChatRoomActor, bool>(
+            await starterNodeLocalActors.AskAsync<ChatRoomActor, bool>(
                 RoomId,
                 async (room, ct) =>
                 {

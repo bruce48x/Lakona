@@ -78,7 +78,8 @@ samples/Game.Unity.Agar
 - `Shared/Gameplay/ArenaSimulationState.cs`：服务端房间 tick 可跨 hotfix reload 保留的模拟状态。
 - `Shared/Interfaces/IPlayerService.cs`：客户端和服务端共用的 RPC 协议。
 - `Server/Hotfix/Services/PlayerService.cs`：可热更的控制面 RPC 业务服务，直接编排 actor 行为。
-- `Server/Hotfix/Features/BattleRuntimeFeature.cs`：声明匹配 actor tick 和活跃房间 actor tick。
+- `Server/Hotfix/Features/AgarInfrastructureFeatures.cs`：声明 `matchmaking`、`leaderboard` 等业务 feature；`matchmaking` feature 拥有默认匹配队列 actor 的固定 tick。
+- `Server/Hotfix/Features/BattleRuntimeFeature.cs`：声明 battle runtime 节点上的活跃房间 actor tick。
 - `Server/App/Hosting`：data 节点数据库基础设施、schema 检查和 sample 宿主注册扩展。
 - `Server/App/Services`：会话目录、网关身份、可靠匹配推送和房间 callback delivery。
 - `Server/App/State/Users/UserActor.cs`：用户资料和胜利积分的稳定状态 shell。
@@ -103,10 +104,11 @@ dotnet run --project Server/App/Server.App.csproj
 ### Actor 调用语义
 
 样例里的 `call.Actors`、`services.LocalActors` 和 actor behavior 中的
-`self.Context.Runtime` 都是当前进程的本地 actor runtime。代码中用
-`localActors.AskAsync(...)` 命名这类调用，表示它只投递到当前节点的本地
-mailbox，不会自动跨节点路由。
+`self.Context.Runtime` 都是当前进程的本地 actor runtime（node-local actor runtime）。RPC service 从 `call.Actors` 直接取出的本地 runtime 命名为
+`nodeLocalActors`；从依赖聚合传递的本地 runtime 命名为
+`services.LocalActors`。这类调用只投递到当前节点的本地 mailbox，不会自动跨节点路由。
 
+RPC service 编排业务 actor 时，应假设目标 actor may be local or remote。
 需要表达分布式 actor 放置时，使用生成的 typed selector：
 
 ```csharp
@@ -114,6 +116,14 @@ await rooms.Get(roomId).JoinAsync(request, ct);            // 先查本地，再
 await rooms.Local(roomId).JoinAsync(request, ct);          // 只调当前节点
 await rooms.Remote(nodeId, roomId).JoinAsync(request, ct); // 固定调指定远端节点
 ```
+
+Matchmaking 是 remote-capable actor 的示例。单进程默认配置启用
+`matchmaking` feature，`Server.Hotfix` 中的 `MatchmakingFeature` 声明
+`MatchmakingActor("default")` 的固定 tick。固定 actor tick 在 feature 生效时会先
+调度一次，因此默认匹配队列 actor 的创建发生在 feature lifecycle 里；三节点拓扑中
+`data-1` 启用 `matchmaking` feature，因此默认匹配队列属于 data 节点。RPC service
+不应在每次 enqueue/cancel 前调用 `EnsureCreatedAsync`；创建、放置和迁移是
+feature/业务 lifecycle 的职责，普通调用只应该路由到已经存在的 actor。
 
 本地 `docker-compose.yml` 会把 `infra/postgres/init` 挂载到 Postgres
 `/docker-entrypoint-initdb.d`，其中 `001-lakona-cluster-nodes.sql` 创建

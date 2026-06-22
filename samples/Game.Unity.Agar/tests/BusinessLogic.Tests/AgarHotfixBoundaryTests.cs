@@ -188,6 +188,25 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("ScheduleActiveActorTicks<RoomActor>", hotfixText, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Hotfix_matchmaking_feature_owns_default_queue_actor_ticks()
+    {
+        var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
+            .Directory!.Parent!.Parent!.FullName;
+        var hostingRoot = Path.Combine(sampleRoot, "Server", "App", "Hosting");
+        var featureRoot = Path.Combine(sampleRoot, "Server", "Hotfix", "Features");
+
+        var serviceRegistration = File.ReadAllText(Path.Combine(hostingRoot, "AgarSampleServiceCollectionExtensions.cs"));
+        var matchmakingFeature = File.ReadAllText(Path.Combine(featureRoot, "AgarInfrastructureFeatures.cs"));
+        var battleRuntimeFeature = File.ReadAllText(Path.Combine(featureRoot, "BattleRuntimeFeature.cs"));
+
+        Assert.DoesNotContain("MatchmakingFeatureActorBootstrap", serviceRegistration, StringComparison.Ordinal);
+        Assert.False(File.Exists(Path.Combine(hostingRoot, "MatchmakingFeatureActorBootstrap.cs")));
+        Assert.Contains("ScheduleActorTick<MatchmakingActor>", matchmakingFeature, StringComparison.Ordinal);
+        Assert.Contains("\"default\"", matchmakingFeature, StringComparison.Ordinal);
+        Assert.DoesNotContain("ScheduleActorTick<MatchmakingActor>", battleRuntimeFeature, StringComparison.Ordinal);
+    }
+
     private static FileInfo FindRepositoryFile(string relativePath)
     {
         var directory = new DirectoryInfo(Directory.GetCurrentDirectory());

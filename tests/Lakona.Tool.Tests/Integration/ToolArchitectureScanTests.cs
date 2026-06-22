@@ -109,12 +109,17 @@ public sealed class ToolArchitectureScanTests
             Assert.Contains("<CompilerVisibleProperty Include=\"LakonaRpcGenerateServer\" />", generatedText, StringComparison.Ordinal);
             Assert.Contains("<CompilerVisibleProperty Include=\"LakonaRpcServerGeneratedNamespace\" />", generatedText, StringComparison.Ordinal);
             Assert.Contains("await call.GameServer.BindCurrentSessionAsync", generatedText, StringComparison.Ordinal);
-            Assert.Contains("process-local actor runtime", generatedText, StringComparison.Ordinal);
-            Assert.Contains("var localActors = call.Actors;", generatedText, StringComparison.Ordinal);
-            Assert.Contains("await localActors.AskAsync<ChatRoomActor", generatedText, StringComparison.Ordinal);
+            Assert.Contains("node-local actor runtime", generatedText, StringComparison.Ordinal);
+            Assert.Contains("RPC services that target actors whose", generatedText, StringComparison.Ordinal);
+            Assert.Contains("call.Actors is node-local", generatedText, StringComparison.Ordinal);
+            Assert.Contains("var starterNodeLocalActors = call.Actors;", generatedText, StringComparison.Ordinal);
+            Assert.Contains("await starterNodeLocalActors.AskAsync<ChatRoomActor", generatedText, StringComparison.Ordinal);
             Assert.Contains("rooms.Get(roomId)", generatedText, StringComparison.Ordinal);
             Assert.Contains("rooms.Local(roomId)", generatedText, StringComparison.Ordinal);
             Assert.Contains("rooms.Remote(nodeId, roomId)", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain("starterLocalActors", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain("var localActors = call.Actors;", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain("localActors.AskAsync", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("call.Actors.AskAsync", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(ForbiddenGameSessionKeyType, generatedSharedText, StringComparison.Ordinal);
             Assert.DoesNotContain(ForbiddenGameSessionContractField, generatedText, StringComparison.Ordinal);
@@ -165,8 +170,13 @@ public sealed class ToolArchitectureScanTests
             "ChatService.cs"));
 
         Assert.Contains("await call.GameServer.BindCurrentSessionAsync", chatService, StringComparison.Ordinal);
+        Assert.Contains("var starterNodeLocalActors = call.Actors;", chatService, StringComparison.Ordinal);
+        Assert.Contains("call.Actors is node-local", chatService, StringComparison.Ordinal);
         Assert.Contains("call.ConnectionId", chatService, StringComparison.Ordinal);
         Assert.Contains("call.Callback", chatService, StringComparison.Ordinal);
+        Assert.DoesNotContain("starterLocalActors", chatService, StringComparison.Ordinal);
+        Assert.DoesNotContain("var localActors = call.Actors;", chatService, StringComparison.Ordinal);
+        Assert.DoesNotContain("localActors.AskAsync", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("call.Request.Session", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain(ForbiddenGameSessionKeyType, ReadAllTextFiles(Path.Combine(repositoryRoot, "samples", "Game.Godot.Chat", "Shared")), StringComparison.Ordinal);
         Assert.DoesNotContain(ForbiddenGameSessionContractField, sampleText, StringComparison.Ordinal);
@@ -196,6 +206,22 @@ public sealed class ToolArchitectureScanTests
         Assert.DoesNotContain("namespace Server.App.Lifecycle", appText, StringComparison.Ordinal);
         Assert.DoesNotContain("HotfixDispatch.Invoke", appText, StringComparison.Ordinal);
         Assert.DoesNotContain("IRpcSessionLifecycleObserver", appText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void UnityAgarSample_SeparatesNodeLocalActorRuntimeFromPlacementAwareSelectors()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var sampleRoot = Path.Combine(repositoryRoot, "samples", "Game.Unity.Agar");
+        var readme = File.ReadAllText(Path.Combine(sampleRoot, "README.md"));
+        var hotfixServices = ReadAllTextFiles(Path.Combine(sampleRoot, "Server", "Hotfix", "Services"));
+
+        Assert.Contains("node-local actor runtime", readme, StringComparison.Ordinal);
+        Assert.Contains("RPC service", readme, StringComparison.Ordinal);
+        Assert.Contains("may be local or remote", readme, StringComparison.Ordinal);
+        Assert.Contains("typed selector", readme, StringComparison.Ordinal);
+        Assert.Contains("var nodeLocalActors = call.Actors;", hotfixServices, StringComparison.Ordinal);
+        Assert.DoesNotContain("var localActors = call.Actors;", hotfixServices, StringComparison.Ordinal);
     }
 
     [Fact]

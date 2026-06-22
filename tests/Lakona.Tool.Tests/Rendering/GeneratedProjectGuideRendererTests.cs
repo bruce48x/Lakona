@@ -179,8 +179,12 @@ public sealed class GeneratedProjectGuideRendererTests
 
         var plan = builder.Build();
         var readme = Assert.Single(plan.Files, file => file.RelativePath == "README.md");
-        Assert.Contains("process-local actor runtime", readme.Content, StringComparison.Ordinal);
-        Assert.Contains("localActors.AskAsync", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("node-local actor runtime", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("starterNodeLocalActors.AskAsync", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("This is not a remote actor call", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("RPC services that target actors whose", readme.Content, StringComparison.Ordinal);
+        Assert.DoesNotContain("starterLocalActors", readme.Content, StringComparison.Ordinal);
+        Assert.DoesNotContain("localActors.AskAsync", readme.Content, StringComparison.Ordinal);
         Assert.Contains("rooms.Get(roomId)", readme.Content, StringComparison.Ordinal);
         Assert.Contains("rooms.Local(roomId)", readme.Content, StringComparison.Ordinal);
         Assert.Contains("rooms.Remote(nodeId, roomId)", readme.Content, StringComparison.Ordinal);

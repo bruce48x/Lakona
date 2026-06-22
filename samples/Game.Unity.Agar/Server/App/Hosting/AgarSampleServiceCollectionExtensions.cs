@@ -18,15 +18,12 @@ public static class AgarSampleServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(configuration);
 
         var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
-        var activeFeatures = options.Feature?.ToHashSet(StringComparer.OrdinalIgnoreCase)
-            ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
         services.AddAgarSampleActors();
         services.TryAddSingleton<SessionDirectory>();
         services.TryAddSingleton<BattleRuntimeGatewayResolver>();
         services.TryAddSingleton<RoomCallbackPublisher>();
 
-        if (activeFeatures.Contains("database"))
+        if (IsFeatureActive(options, "database"))
         {
             services.AddAgarDatabaseInfrastructure(configuration);
         }
@@ -49,5 +46,11 @@ public static class AgarSampleServiceCollectionExtensions
         }
 
         return services;
+    }
+
+    private static bool IsFeatureActive(LakonaGameRuntimeOptions options, string feature)
+    {
+        return options.Feature is null ||
+            options.Feature.Contains(feature, StringComparer.OrdinalIgnoreCase);
     }
 }

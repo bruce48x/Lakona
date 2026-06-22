@@ -34,11 +34,11 @@ public sealed class PlayerService
         var req = call.Request;
         var services = AgarServiceDependencies.From(call);
         var logger = services.CreateLogger<PlayerService>();
-        var localActors = call.Actors;
+        var nodeLocalActors = call.Actors;
         _ = await EnsureControlCallbackBoundAsync(call, services).ConfigureAwait(false);
 
         var topN = req.TopN <= 0 ? 10 : req.TopN;
-        var snapshot = await localActors
+        var snapshot = await nodeLocalActors
             .AskAsync<LeaderboardActor, LeaderboardSnapshot>(
                 LeaderboardId,
                 (actor, _) => actor.GetLeaderboardAsync(topN))

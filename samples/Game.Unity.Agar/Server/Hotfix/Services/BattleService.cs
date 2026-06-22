@@ -20,7 +20,7 @@ public sealed class BattleService
     {
         var req = call.Request;
         var services = AgarBattleServiceDependencies.From(call);
-        var localActors = call.Actors;
+        var nodeLocalActors = call.Actors;
         if (string.IsNullOrWhiteSpace(req.PlayerId) ||
             string.IsNullOrWhiteSpace(req.Token) ||
             string.IsNullOrWhiteSpace(req.RoomId) ||
@@ -33,7 +33,7 @@ public sealed class BattleService
             };
         }
 
-        var sessionSnapshot = await localActors
+        var sessionSnapshot = await nodeLocalActors
             .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
                 SessionId(req.PlayerId),
                 (actor, _) => actor.GetSnapshotAsync())
@@ -70,7 +70,7 @@ public sealed class BattleService
             };
         }
 
-        await localActors.AskAsync<RoomActor, RoomSettlementResult>(
+        await nodeLocalActors.AskAsync<RoomActor, RoomSettlementResult>(
             RoomId(req.RoomId),
             (actor, _) => actor.SetReadyAsync(new RoomPlayerReadyRequest
             {
@@ -94,7 +94,7 @@ public sealed class BattleService
     {
         var req = call.Request;
         var services = AgarBattleServiceDependencies.From(call);
-        var localActors = call.Actors;
+        var nodeLocalActors = call.Actors;
         var playerId = services.SessionDirectory.GetPlayerIdByConnection(call.ConnectionId);
         if (string.IsNullOrWhiteSpace(playerId))
         {
@@ -107,7 +107,7 @@ public sealed class BattleService
             return;
         }
 
-        var sessionSnapshot = await localActors
+        var sessionSnapshot = await nodeLocalActors
             .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
                 SessionId(playerId),
                 (actor, _) => actor.GetSnapshotAsync())
@@ -118,7 +118,7 @@ public sealed class BattleService
             return;
         }
 
-        await localActors.TellAsync<RoomActor>(
+        await nodeLocalActors.TellAsync<RoomActor>(
             RoomId(sessionSnapshot.CurrentRoomId),
             (actor, _) => actor.SubmitInputAsync(new RoomInputSubmitRequest
             {

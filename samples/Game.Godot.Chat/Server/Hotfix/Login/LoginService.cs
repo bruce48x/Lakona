@@ -18,9 +18,10 @@ namespace Server.Hotfix.Login
             var playerName = string.IsNullOrWhiteSpace(call.Request.PlayerName)
                 ? "Player"
                 : call.Request.PlayerName.Trim();
-            var localActors = call.Actors;
+            // call.Actors is node-local. Use typed selectors for actors whose placement may be remote.
+            var starterNodeLocalActors = call.Actors;
 
-            var reply = await localActors.AskAsync<ChatRoomActor, LoginReply>(
+            var reply = await starterNodeLocalActors.AskAsync<ChatRoomActor, LoginReply>(
                 RoomId,
                 (room, ct) => room.LoginAsync(call.ConnectionId, playerName, call.Callback));
             await call.GameServer.StartSessionAsync(

@@ -83,9 +83,10 @@ internal sealed class HotfixRenderer : IPlanContributor
                     var playerName = string.IsNullOrWhiteSpace(call.Request.PlayerName)
                         ? "Player"
                         : call.Request.PlayerName.Trim();
-                    var localActors = call.Actors;
+                    // call.Actors is node-local. Use typed selectors for actors whose placement may be remote.
+                    var starterNodeLocalActors = call.Actors;
 
-                    var reply = await localActors.AskAsync<ChatRoomActor, LoginReply>(
+                    var reply = await starterNodeLocalActors.AskAsync<ChatRoomActor, LoginReply>(
                         RoomId,
                         (room, ct) => room.LoginAsync(call.ConnectionId, playerName, call.Callback));
                     await call.GameServer.StartSessionAsync(
@@ -121,9 +122,10 @@ internal sealed class HotfixRenderer : IPlanContributor
                     await call.GameServer.BindCurrentSessionAsync(
                         call.ConnectionId,
                         call.Callback);
-                    var localActors = call.Actors;
+                    // call.Actors is node-local. Use typed selectors for actors whose placement may be remote.
+                    var starterNodeLocalActors = call.Actors;
 
-                    await localActors.AskAsync<ChatRoomActor, bool>(
+                    await starterNodeLocalActors.AskAsync<ChatRoomActor, bool>(
                         RoomId,
                         (room, ct) =>
                         {
@@ -134,9 +136,10 @@ internal sealed class HotfixRenderer : IPlanContributor
 
                 public static async ValueTask SendAsync(HotfixServiceCall<ChatSendRequest, IChatCallback> call)
                 {
-                    var localActors = call.Actors;
+                    // call.Actors is node-local. Use typed selectors for actors whose placement may be remote.
+                    var starterNodeLocalActors = call.Actors;
 
-                    await localActors.AskAsync<ChatRoomActor, bool>(
+                    await starterNodeLocalActors.AskAsync<ChatRoomActor, bool>(
                         RoomId,
                         (room, ct) =>
                         {
@@ -144,7 +147,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                             return new ValueTask<bool>(true);
                         });
                     var text = FilterMessage(call.Request.Text ?? "");
-                    await localActors.AskAsync<ChatRoomActor, bool>(
+                    await starterNodeLocalActors.AskAsync<ChatRoomActor, bool>(
                         RoomId,
                         async (room, ct) =>
                         {
@@ -308,9 +311,10 @@ internal sealed class HotfixRenderer : IPlanContributor
                     {
                         return;
                     }
-                    var localActors = call.Actors;
+                    // call.Actors is node-local. Use typed selectors for actors whose placement may be remote.
+                    var starterNodeLocalActors = call.Actors;
 
-                    await localActors.AskAsync<ChatRoomActor, bool>(
+                    await starterNodeLocalActors.AskAsync<ChatRoomActor, bool>(
                         RoomId,
                         async (room, ct) =>
                         {

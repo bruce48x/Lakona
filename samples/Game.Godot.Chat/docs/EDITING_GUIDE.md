@@ -10,6 +10,8 @@ Edit `Server/Hotfix/Chat/ChatSessionLifecycle.cs` for session lifecycle behavior
 
 Service classes correspond to `Shared` RPC service interfaces. Behavior classes correspond one-to-one with Actor classes and run inside actor turns.
 
+Actor calls in this starter are explicit about locality. `call.Actors` is node-local and is named `starterNodeLocalActors` in the generated chat services. When an actor may be placed on another node, use typed actor selectors such as `rooms.Get(id)`, `rooms.Local(id)`, or `rooms.Remote(nodeId, id)` instead of calling `call.Actors` directly.
+
 Development hotfix flow:
 
 ```powershell

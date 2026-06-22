@@ -52,6 +52,30 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
     }
 
     [Fact]
+    public async Task Fixed_actor_tick_dispatches_once_when_feature_is_applied()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var runtime = new RecordingActorRuntime();
+        await using var scheduler = new HotfixActorTickScheduler(
+            runtime,
+            NullLogger<HotfixActorTickScheduler>.Instance);
+
+        HotfixDispatch.Replace(CreateTickTable(1));
+        scheduler.Apply(CreateSnapshot(
+            new HotfixActorTickDeclaration(
+                HotfixActorTickMode.FixedActor,
+                typeof(TickActor),
+                "fixed",
+                nameof(TickHotfix.TickAsync),
+                TimeSpan.FromHours(1),
+                TickBacklogPolicy.SkipIfPending)));
+
+        await TickHotfix.WaitForCountAsync(1, cancellationToken);
+
+        Assert.Equal(["fixed"], TickHotfix.ActorIds.Distinct().ToArray());
+    }
+
+    [Fact]
     public async Task Active_actor_tick_enumerates_active_actor_ids()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
