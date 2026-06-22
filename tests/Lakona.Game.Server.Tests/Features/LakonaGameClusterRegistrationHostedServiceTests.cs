@@ -90,6 +90,102 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
     }
 
     [Fact]
+    public async Task SuccessfulHotfixReloadRefreshesAdvertisedFeatures()
+    {
+        var directory = new RecordingNodeDirectory();
+        var manager = new ReloadableHotfixFeatureManager(CreateHotfixSnapshot(
+            new HotfixFeatureDeclaration(
+                "battle-runtime",
+                typeof(object),
+                Discoverable: true,
+                new Dictionary<string, string>(StringComparer.Ordinal),
+                [])));
+        var services = new ServiceCollection();
+        services.AddSingleton<INodeDirectory>(directory);
+        services.AddSingleton(new ClusterOptions
+        {
+            NodeId = "battle-1",
+            AdvertisedEndpoints = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["cluster"] = "tcp://10.0.0.1:21001"
+            },
+            RouteLeaseSeconds = 45
+        });
+        services.AddSingleton(new LakonaGameRuntimeOptions
+        {
+            Feature = ["battle-runtime", "state-store"]
+        });
+        services.AddSingleton(new LakonaGameFeatureCatalog([], []));
+        services.AddSingleton<IHotfixManager>(manager);
+        services.AddSingleton<IHostedService, LakonaGameClusterRegistrationHostedService>();
+        await using var provider = services.BuildServiceProvider();
+        var hosted = provider.GetRequiredService<IHostedService>();
+
+        await hosted.StartAsync(TestContext.Current.CancellationToken);
+        manager.RaiseSucceeded(CreateHotfixSnapshot(
+            new HotfixFeatureDeclaration(
+                "state-store",
+                typeof(object),
+                Discoverable: true,
+                new Dictionary<string, string>(StringComparer.Ordinal),
+                [])));
+        await WaitUntilAsync(
+            () => directory.Registrations.Count > 1,
+            TestContext.Current.CancellationToken);
+
+        var query = await directory.QueryAsync(
+            new NodeDirectoryQuery("local", featureName: "state-store"),
+            DateTimeOffset.UtcNow,
+            TestContext.Current.CancellationToken);
+        var record = Assert.Single(query);
+        var feature = Assert.Single(record.Features);
+        Assert.Equal("state-store", feature.Name);
+    }
+
+    [Fact]
+    public async Task FailedHotfixReloadDoesNotRefreshAdvertisedFeatures()
+    {
+        var directory = new RecordingNodeDirectory();
+        var manager = new ReloadableHotfixFeatureManager(CreateHotfixSnapshot(
+            new HotfixFeatureDeclaration(
+                "battle-runtime",
+                typeof(object),
+                Discoverable: true,
+                new Dictionary<string, string>(StringComparer.Ordinal),
+                [])));
+        var services = new ServiceCollection();
+        services.AddSingleton<INodeDirectory>(directory);
+        services.AddSingleton(new ClusterOptions
+        {
+            NodeId = "battle-1",
+            AdvertisedEndpoints = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["cluster"] = "tcp://10.0.0.1:21001"
+            },
+            RouteLeaseSeconds = 45
+        });
+        services.AddSingleton(new LakonaGameFeatureCatalog([], []));
+        services.AddSingleton<IHotfixManager>(manager);
+        services.AddSingleton<IHostedService, LakonaGameClusterRegistrationHostedService>();
+        await using var provider = services.BuildServiceProvider();
+        var hosted = provider.GetRequiredService<IHostedService>();
+
+        await hosted.StartAsync(TestContext.Current.CancellationToken);
+        manager.RaiseFailed(CreateHotfixSnapshot(
+            new HotfixFeatureDeclaration(
+                "state-store",
+                typeof(object),
+                Discoverable: true,
+                new Dictionary<string, string>(StringComparer.Ordinal),
+                [])));
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+
+        var registration = Assert.Single(directory.Registrations);
+        var feature = Assert.Single(registration.Features);
+        Assert.Equal("battle-runtime", feature.Name);
+    }
+
+    [Fact]
     public async Task StartAsyncRefreshesLeaseBeforeItExpires()
     {
         var directory = new RecordingNodeDirectory();
@@ -239,6 +335,21 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
         }
     }
 
+    private static HotfixSnapshot CreateHotfixSnapshot(params HotfixFeatureDeclaration[] features)
+    {
+        return new HotfixSnapshot(
+            Version: "test",
+            SourceKind: "test",
+            SourcePath: null,
+            LoadedAtUtc: DateTimeOffset.UtcNow,
+            DispatchTableVersion: 1,
+            Methods: [],
+            LastReloadStatus: HotfixReloadStatus.Succeeded,
+            LastFailureMessage: null,
+            LastFailureExceptionType: null,
+            Features: features);
+    }
+
     private sealed class BattleRuntimeFeature : LakonaGameFeature
     {
         public override IReadOnlyDictionary<string, string> Metadata { get; } =
@@ -270,7 +381,7 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
             var record = new NodeRecord(
                 registration.ClusterName,
                 registration.NodeId,
-                1,
+                Registrations.Count,
                 registration.Endpoints,
                 registration.Features,
                 registration.Labels,
@@ -327,7 +438,21 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
             DateTimeOffset now,
             CancellationToken cancellationToken = default)
         {
-            throw new NotSupportedException();
+            var latest = Registrations
+                .Select((registration, index) => new NodeRecord(
+                    registration.ClusterName,
+                    registration.NodeId,
+                    index + 1,
+                    registration.Endpoints,
+                    registration.Features,
+                    registration.Labels,
+                    registration.State,
+                    registration.LeaseExpiresAt,
+                    now))
+                .LastOrDefault(record =>
+                    string.Equals(record.ClusterName, query.ClusterName, StringComparison.Ordinal) &&
+                    (query.FeatureName is null || record.HasFeature(query.FeatureName)));
+            return new ValueTask<IReadOnlyList<NodeRecord>>(latest is null ? [] : [latest]);
         }
 
         public ValueTask<int> ExpireAsync(
@@ -397,6 +522,52 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
                 Current.SourceKind,
                 [],
                 null);
+        }
+    }
+
+    private sealed class ReloadableHotfixFeatureManager(HotfixSnapshot current) : IHotfixManager
+    {
+        public event EventHandler<HotfixReloadResult>? Reloaded;
+
+        public HotfixSnapshot Current { get; private set; } = current;
+
+        public ValueTask<HotfixReloadResult> ValidateAsync(CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<HotfixReloadResult>(CreateResult(HotfixReloadStatus.Succeeded, Current));
+        }
+
+        public ValueTask<HotfixReloadResult> ValidateAsync(
+            IHotfixAssemblySource source,
+            CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<HotfixReloadResult>(CreateResult(HotfixReloadStatus.Succeeded, Current));
+        }
+
+        public ValueTask<HotfixReloadResult> ReloadAsync(CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<HotfixReloadResult>(CreateResult(HotfixReloadStatus.Succeeded, Current));
+        }
+
+        public void RaiseSucceeded(HotfixSnapshot snapshot)
+        {
+            Current = snapshot;
+            Reloaded?.Invoke(this, CreateResult(HotfixReloadStatus.Succeeded, snapshot));
+        }
+
+        public void RaiseFailed(HotfixSnapshot failedSnapshot)
+        {
+            Reloaded?.Invoke(this, CreateResult(HotfixReloadStatus.Failed, failedSnapshot));
+        }
+
+        private static HotfixReloadResult CreateResult(HotfixReloadStatus status, HotfixSnapshot snapshot)
+        {
+            return new HotfixReloadResult(
+                status,
+                snapshot,
+                snapshot.SourceKind,
+                snapshot.SourcePath,
+                [],
+                status == HotfixReloadStatus.Failed ? "reload failed" : null);
         }
     }
 }

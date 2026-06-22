@@ -1,6 +1,7 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hotfix;
+using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -17,6 +18,7 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
     private INodeDirectory? _directory;
     private ClusterOptions? _options;
     private LakonaGameFeatureCatalog? _catalog;
+    private IHotfixManager? _hotfix;
     private NodeRecord? _record;
 
     public LakonaGameClusterRegistrationHostedService(IServiceProvider services)
@@ -37,8 +39,13 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
         _directory = directory;
         _options = options;
         _catalog = catalog;
+        _hotfix = _services.GetService<IHotfixManager>();
         _record = await RegisterAsync(directory, options, catalog, cancellationToken)
             .ConfigureAwait(false);
+        if (_hotfix is not null)
+        {
+            _hotfix.Reloaded += OnHotfixReloaded;
+        }
 
         var heartbeatInterval = ResolveHeartbeatInterval(options);
         var heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -59,6 +66,12 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
             heartbeatTask = _heartbeatTask;
             _heartbeatCts = null;
             _heartbeatTask = null;
+        }
+
+        if (_hotfix is not null)
+        {
+            _hotfix.Reloaded -= OnHotfixReloaded;
+            _hotfix = null;
         }
 
         if (heartbeatCts is not null)
@@ -167,14 +180,15 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
         INodeDirectory directory,
         ClusterOptions options,
         LakonaGameFeatureCatalog catalog,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        HotfixSnapshot? hotfixSnapshot = null)
     {
         var now = DateTimeOffset.UtcNow;
         var registration = new NodeRegistration(
             ClusterName,
             new NodeId(options.NodeId),
             CreateEndpoints(options.AdvertisedEndpoints),
-            CreateFeatures(catalog),
+            CreateFeatures(catalog, hotfixSnapshot),
             now.AddSeconds(options.RouteLeaseSeconds),
             NodeState.Ready);
         var result = await directory.RegisterAsync(registration, now, cancellationToken)
@@ -186,6 +200,34 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
         }
 
         return result.Record;
+    }
+
+    private void OnHotfixReloaded(object? sender, HotfixReloadResult result)
+    {
+        if (!result.Succeeded)
+        {
+            return;
+        }
+
+        _ = RefreshRegistrationAsync(result.Current);
+    }
+
+    private async Task RefreshRegistrationAsync(HotfixSnapshot snapshot)
+    {
+        var directory = _directory;
+        var options = _options;
+        var catalog = _catalog;
+        if (directory is null || options is null || catalog is null)
+        {
+            return;
+        }
+
+        _record = await RegisterAsync(
+            directory,
+            options,
+            catalog,
+            CancellationToken.None,
+            snapshot).ConfigureAwait(false);
     }
 
     private TimeSpan ResolveHeartbeatInterval(ClusterOptions options)
@@ -214,7 +256,8 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
     }
 
     private IReadOnlyList<NodeFeatureDescriptor> CreateFeatures(
-        LakonaGameFeatureCatalog catalog)
+        LakonaGameFeatureCatalog catalog,
+        HotfixSnapshot? hotfixSnapshot = null)
     {
         var runtimeOptions = _services.GetService<LakonaGameRuntimeOptions>();
         var allowed = runtimeOptions?.Feature is null
@@ -239,10 +282,11 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
                 feature?.Metadata);
         }
 
-        var hotfix = _services.GetService<IHotfixManager>();
-        if (hotfix is not null)
+        var hotfixFeatures = hotfixSnapshot?.Features
+            ?? _services.GetService<IHotfixManager>()?.Current.Features;
+        if (hotfixFeatures is not null)
         {
-            foreach (var feature in hotfix.Current.Features)
+            foreach (var feature in hotfixFeatures)
             {
                 if (!feature.Discoverable)
                 {

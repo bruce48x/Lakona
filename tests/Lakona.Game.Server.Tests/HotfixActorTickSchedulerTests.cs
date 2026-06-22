@@ -1,8 +1,10 @@
 using System.Reflection;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
+using Lakona.Game.Server.Hotfix.Loading;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using GameActor = Lakona.Game.Server.Actors.Actor;
@@ -133,10 +135,103 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
         Assert.Equal(1, runtime.MaxQueuedWhileBlocked);
     }
 
+    [Fact]
+    public async Task Hosted_service_does_not_dispatch_disabled_feature_ticks_on_start()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var runtime = new RecordingActorRuntime();
+        await using var scheduler = new HotfixActorTickScheduler(
+            runtime,
+            NullLogger<HotfixActorTickScheduler>.Instance);
+        var manager = new ReloadableHotfixManager(CreateSnapshot(
+            "battle-runtime",
+            CreateFixedTick("fixed", TimeSpan.FromMilliseconds(10))));
+        var service = new HotfixActorTickHostedService(
+            manager,
+            scheduler,
+            new LakonaGameRuntimeOptions { Feature = [] });
+
+        HotfixDispatch.Replace(CreateTickTable(1));
+        await service.StartAsync(cancellationToken);
+        await Task.Delay(60, cancellationToken);
+        await service.StopAsync(cancellationToken);
+
+        Assert.Empty(TickHotfix.ActorIds);
+    }
+
+    [Fact]
+    public async Task Hosted_service_dispatches_enabled_feature_ticks_on_start()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var runtime = new RecordingActorRuntime();
+        await using var scheduler = new HotfixActorTickScheduler(
+            runtime,
+            NullLogger<HotfixActorTickScheduler>.Instance);
+        var manager = new ReloadableHotfixManager(CreateSnapshot(
+            "battle-runtime",
+            CreateFixedTick("fixed", TimeSpan.FromMilliseconds(10))));
+        var service = new HotfixActorTickHostedService(
+            manager,
+            scheduler,
+            new LakonaGameRuntimeOptions { Feature = ["battle-runtime"] });
+
+        HotfixDispatch.Replace(CreateTickTable(1));
+        await service.StartAsync(cancellationToken);
+        await TickHotfix.WaitForCountAsync(1, cancellationToken);
+        await service.StopAsync(cancellationToken);
+
+        Assert.Equal(["fixed"], TickHotfix.ActorIds.Distinct().ToArray());
+    }
+
+    [Fact]
+    public async Task Hosted_service_filters_successful_reload_feature_ticks()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var runtime = new RecordingActorRuntime();
+        await using var scheduler = new HotfixActorTickScheduler(
+            runtime,
+            NullLogger<HotfixActorTickScheduler>.Instance);
+        var manager = new ReloadableHotfixManager(CreateSnapshot(
+            "disabled-runtime",
+            CreateFixedTick("disabled", TimeSpan.FromMilliseconds(10))));
+        var service = new HotfixActorTickHostedService(
+            manager,
+            scheduler,
+            new LakonaGameRuntimeOptions { Feature = ["battle-runtime"] });
+
+        HotfixDispatch.Replace(CreateTickTable(1));
+        await service.StartAsync(cancellationToken);
+        await Task.Delay(40, cancellationToken);
+        manager.RaiseReload(CreateSnapshot(
+            "battle-runtime",
+            CreateFixedTick("enabled", TimeSpan.FromMilliseconds(10))));
+        await TickHotfix.WaitForActorAsync("enabled", cancellationToken);
+        await service.StopAsync(cancellationToken);
+
+        Assert.DoesNotContain("disabled", TickHotfix.ActorIds);
+        Assert.Contains("enabled", TickHotfix.ActorIds);
+    }
+
+    private static HotfixActorTickDeclaration CreateFixedTick(string actorId, TimeSpan interval)
+    {
+        return new HotfixActorTickDeclaration(
+            HotfixActorTickMode.FixedActor,
+            typeof(TickActor),
+            actorId,
+            nameof(TickHotfix.TickAsync),
+            interval,
+            TickBacklogPolicy.SkipIfPending);
+    }
+
     private static HotfixSnapshot CreateSnapshot(params HotfixActorTickDeclaration[] ticks)
     {
+        return CreateSnapshot("test", ticks);
+    }
+
+    private static HotfixSnapshot CreateSnapshot(string featureName, params HotfixActorTickDeclaration[] ticks)
+    {
         var feature = new HotfixFeatureDeclaration(
-            "test",
+            featureName,
             typeof(TestFeature),
             Discoverable: true,
             new Dictionary<string, string>(),
@@ -356,6 +451,46 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
     }
 
     private sealed class TestFeature;
+
+    private sealed class ReloadableHotfixManager(HotfixSnapshot current) : IHotfixManager
+    {
+        public event EventHandler<HotfixReloadResult>? Reloaded;
+
+        public HotfixSnapshot Current { get; private set; } = current;
+
+        public ValueTask<HotfixReloadResult> ValidateAsync(CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<HotfixReloadResult>(CreateResult(Current));
+        }
+
+        public ValueTask<HotfixReloadResult> ValidateAsync(
+            IHotfixAssemblySource source,
+            CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<HotfixReloadResult>(CreateResult(Current));
+        }
+
+        public ValueTask<HotfixReloadResult> ReloadAsync(CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<HotfixReloadResult>(CreateResult(Current));
+        }
+
+        public void RaiseReload(HotfixSnapshot snapshot)
+        {
+            Current = snapshot;
+            Reloaded?.Invoke(this, CreateResult(snapshot));
+        }
+
+        private static HotfixReloadResult CreateResult(HotfixSnapshot snapshot)
+        {
+            return new HotfixReloadResult(
+                HotfixReloadStatus.Succeeded,
+                snapshot,
+                snapshot.SourceKind,
+                snapshot.SourcePath,
+                []);
+        }
+    }
 
     public static class TickHotfix
     {
