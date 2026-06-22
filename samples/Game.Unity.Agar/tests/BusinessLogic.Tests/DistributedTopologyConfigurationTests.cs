@@ -41,11 +41,13 @@ public sealed class DistributedTopologyConfigurationTests
         var lakona = document.RootElement.GetProperty("Lakona");
 
         Assert.Equal("data-1", lakona.GetProperty("Node").GetProperty("Id").GetString());
-        AssertFeatureSet(lakona, "database", "state-store", "matchmaking", "leaderboard");
+        AssertFeatureSet(lakona, "state-store", "matchmaking", "leaderboard");
         Assert.False(lakona.TryGetProperty("Endpoints", out _));
         Assert.Equal("tcp://10.0.0.1:21001", lakona.GetProperty("Cluster").GetProperty("Endpoint").GetString());
-        Assert.True(document.RootElement.GetProperty("ConnectionStrings").TryGetProperty("AgarPostgres", out _));
-        Assert.True(document.RootElement.GetProperty("ConnectionStrings").TryGetProperty("AgarRedis", out _));
+        Assert.True(document.RootElement.GetProperty("ConnectionStrings").TryGetProperty("LakonaClusterPostgres", out _));
+        Assert.True(document.RootElement.GetProperty("ConnectionStrings").TryGetProperty("AgarGamePostgres", out _));
+        Assert.True(lakona.GetProperty("Cluster").TryGetProperty("Directory", out _));
+        Assert.True(document.RootElement.GetProperty("Agar").TryGetProperty("Persistence", out _));
     }
 
     [Fact]
