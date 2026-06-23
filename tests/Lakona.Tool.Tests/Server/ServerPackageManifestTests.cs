@@ -7,15 +7,30 @@ namespace Lakona.Tool.Tests.Server;
 public sealed class ServerPackageManifestTests
 {
     [Fact]
-    public void Manifest_serializes_with_web_casing_and_fixed_v1_flags()
+    public void CreateV1_sets_fixed_manifest_flags()
     {
-        var manifest = new ServerPackageManifest(
+        var manifest = ServerPackageManifest.CreateV1(
             "v20260623-153045Z",
             new DateTimeOffset(2026, 6, 23, 15, 30, 45, TimeSpan.Zero),
             "linux-x64",
             "Release",
-            selfContained: true,
-            trimmed: false,
+            "Server.App.dll",
+            "20260612.001",
+            "v20260623-153045Z",
+            "0.14.0-test");
+
+        Assert.True(manifest.SelfContained);
+        Assert.False(manifest.Trimmed);
+    }
+
+    [Fact]
+    public void Manifest_serializes_with_web_casing_and_fixed_v1_flags()
+    {
+        var manifest = ServerPackageManifest.CreateV1(
+            "v20260623-153045Z",
+            new DateTimeOffset(2026, 6, 23, 15, 30, 45, TimeSpan.Zero),
+            "linux-x64",
+            "Release",
             "Server.App.dll",
             "20260612.001",
             "v20260623-153045Z",

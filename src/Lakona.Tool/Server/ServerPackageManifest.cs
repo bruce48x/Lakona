@@ -2,6 +2,29 @@ namespace Lakona.Tool.Server;
 
 internal sealed record ServerPackageManifest
 {
+    public static ServerPackageManifest CreateV1(
+        string version,
+        DateTimeOffset builtAtUtc,
+        string runtime,
+        string configuration,
+        string entryAssembly,
+        string buildTag,
+        string initialHotfixVersion,
+        string toolVersion)
+    {
+        return new ServerPackageManifest(
+            version,
+            builtAtUtc,
+            runtime,
+            configuration,
+            selfContained: true,
+            trimmed: false,
+            entryAssembly,
+            buildTag,
+            initialHotfixVersion,
+            toolVersion);
+    }
+
     public ServerPackageManifest(
         string version,
         DateTimeOffset builtAtUtc,
