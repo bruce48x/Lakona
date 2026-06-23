@@ -115,21 +115,164 @@ public sealed class ServerPackageWriterTests
         }
     }
 
+    [Theory]
+    [InlineData(@"..\outside")]
+    [InlineData("linux/x64")]
+    public async Task WritePackageFromPublishedAppAsync_rejects_runtime_identifier_with_path_separators(string runtimeIdentifier)
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var request = await CreateRequestAsync(root, Version, BuildTag, runtimeIdentifier: runtimeIdentifier);
+
+            var exception = await Assert.ThrowsAsync<ArgumentException>(
+                async () => await new ServerPackageWriter().WritePackageFromPublishedAppAsync(
+                    request,
+                    TestContext.Current.CancellationToken));
+
+            Assert.Contains("RuntimeIdentifier", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData(@"..\v20260623-153045Z")]
+    [InlineData("v20260623/153045Z")]
+    public async Task WritePackageFromPublishedAppAsync_rejects_version_with_path_separators(string version)
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var request = await CreateRequestAsync(root, version, BuildTag, hotfixVersion: Version);
+
+            var exception = await Assert.ThrowsAsync<ArgumentException>(
+                async () => await new ServerPackageWriter().WritePackageFromPublishedAppAsync(
+                    request,
+                    TestContext.Current.CancellationToken));
+
+            Assert.Contains("Version", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData(@"..\Server.App.dll")]
+    [InlineData("nested/Server.App.dll")]
+    public async Task WritePackageFromPublishedAppAsync_rejects_entry_assembly_with_path_separators(string entryAssembly)
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var request = await CreateRequestAsync(root, Version, BuildTag, entryAssembly: entryAssembly);
+
+            var exception = await Assert.ThrowsAsync<ArgumentException>(
+                async () => await new ServerPackageWriter().WritePackageFromPublishedAppAsync(
+                    request,
+                    TestContext.Current.CancellationToken));
+
+            Assert.Contains("EntryAssembly", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task WritePackageFromPublishedAppAsync_rejects_output_directory_inside_published_app()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var publishedApp = await CreatePublishedAppAsync(root);
+            var hotfixZip = await CreateHotfixPackageAsync(root, Version, BuildTag);
+            var request = CreateRequest(
+                publishedApp,
+                hotfixZip,
+                Path.Combine(publishedApp, "packages"),
+                Version,
+                BuildTag);
+
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+                async () => await new ServerPackageWriter().WritePackageFromPublishedAppAsync(
+                    request,
+                    TestContext.Current.CancellationToken));
+
+            Assert.Contains("OutputDirectory", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task WritePackageFromPublishedAppAsync_deletes_temporary_zip_when_replace_fails()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var request = await CreateRequestAsync(root, Version, BuildTag);
+            Directory.CreateDirectory(Path.Combine(
+                request.OutputDirectory,
+                "Server.App-v20260623-153045Z-linux-x64.zip"));
+
+            var exception = await Record.ExceptionAsync(
+                async () => await new ServerPackageWriter().WritePackageFromPublishedAppAsync(
+                    request,
+                    TestContext.Current.CancellationToken));
+
+            Assert.NotNull(exception);
+            Assert.Empty(Directory.GetFiles(request.OutputDirectory, "*.tmp"));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private static async Task<ServerPackageWriteRequest> CreateRequestAsync(
         string root,
         string version,
         string buildTag,
         string? hotfixVersion = null,
-        string? hotfixBuildTag = null)
+        string? hotfixBuildTag = null,
+        string runtimeIdentifier = "linux-x64",
+        string entryAssembly = "Server.App.dll")
     {
         var publishedApp = await CreatePublishedAppAsync(root);
         var hotfixZip = await CreateHotfixPackageAsync(root, hotfixVersion ?? version, hotfixBuildTag ?? buildTag);
-        return new ServerPackageWriteRequest(
+        return CreateRequest(
             publishedApp,
             hotfixZip,
             Path.Combine(root, "packages"),
-            "Server.App.dll",
-            "linux-x64",
+            version,
+            buildTag,
+            runtimeIdentifier,
+            entryAssembly);
+    }
+
+    private static ServerPackageWriteRequest CreateRequest(
+        string publishedApp,
+        string hotfixZip,
+        string outputDirectory,
+        string version,
+        string buildTag,
+        string runtimeIdentifier = "linux-x64",
+        string entryAssembly = "Server.App.dll")
+    {
+        return new ServerPackageWriteRequest(
+            publishedApp,
+            hotfixZip,
+            outputDirectory,
+            entryAssembly,
+            runtimeIdentifier,
             "Release",
             version,
             buildTag,

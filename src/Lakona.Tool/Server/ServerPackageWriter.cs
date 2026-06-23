@@ -29,6 +29,9 @@ internal sealed class ServerPackageWriter
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Configuration);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Version);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.BuildTag);
+        ValidateFileNameComponent(request.EntryAssembly, nameof(request.EntryAssembly));
+        ValidateFileNameComponent(request.RuntimeIdentifier, nameof(request.RuntimeIdentifier));
+        ValidateFileNameComponent(request.Version, nameof(request.Version));
 
         var publishedAppDirectory = Path.GetFullPath(request.PublishedAppDirectory);
         var hotfixPackagePath = Path.GetFullPath(request.HotfixPackagePath);
@@ -42,6 +45,11 @@ internal sealed class ServerPackageWriter
         if (!File.Exists(hotfixPackagePath))
         {
             throw new InvalidOperationException($"Hotfix package '{hotfixPackagePath}' does not exist.");
+        }
+
+        if (IsSameOrChildPath(publishedAppDirectory, outputDirectory))
+        {
+            throw new InvalidOperationException("OutputDirectory must not be inside the published app directory.");
         }
 
         Directory.CreateDirectory(outputDirectory);
@@ -92,14 +100,24 @@ internal sealed class ServerPackageWriter
 
             var finalZipPath = GetZipPath(outputDirectory, request.EntryAssembly, request.Version, request.RuntimeIdentifier);
             var temporaryZipPath = Path.Combine(outputDirectory, $".{Path.GetFileName(finalZipPath)}.{Guid.NewGuid():N}.tmp");
-            if (File.Exists(temporaryZipPath))
+            try
             {
-                File.Delete(temporaryZipPath);
-            }
+                if (File.Exists(temporaryZipPath))
+                {
+                    File.Delete(temporaryZipPath);
+                }
 
-            ZipFile.CreateFromDirectory(stagedApp, temporaryZipPath);
-            File.Move(temporaryZipPath, finalZipPath, overwrite: true);
-            return finalZipPath;
+                ZipFile.CreateFromDirectory(stagedApp, temporaryZipPath);
+                File.Move(temporaryZipPath, finalZipPath, overwrite: true);
+                return finalZipPath;
+            }
+            finally
+            {
+                if (File.Exists(temporaryZipPath))
+                {
+                    File.Delete(temporaryZipPath);
+                }
+            }
         }
         finally
         {
@@ -108,6 +126,38 @@ internal sealed class ServerPackageWriter
                 Directory.Delete(stagingRoot, recursive: true);
             }
         }
+    }
+
+    private static void ValidateFileNameComponent(string value, string parameterName)
+    {
+        if (Path.IsPathRooted(value)
+            || value.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
+            || value.Contains(Path.DirectorySeparatorChar)
+            || value.Contains(Path.AltDirectorySeparatorChar)
+            || !StringComparer.Ordinal.Equals(Path.GetFileName(value), value)
+            || StringComparer.Ordinal.Equals(value, ".")
+            || StringComparer.Ordinal.Equals(value, ".."))
+        {
+            throw new ArgumentException("Value must be a single file name component.", parameterName);
+        }
+    }
+
+    private static bool IsSameOrChildPath(string parent, string candidate)
+    {
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        var normalizedParent = TrimEndingDirectorySeparators(parent);
+        var normalizedCandidate = TrimEndingDirectorySeparators(candidate);
+        return string.Equals(normalizedParent, normalizedCandidate, comparison)
+            || normalizedCandidate.StartsWith(
+                normalizedParent + Path.DirectorySeparatorChar,
+                comparison);
+    }
+
+    private static string TrimEndingDirectorySeparators(string path)
+    {
+        return path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
     }
 
     private static void CopyDirectory(string source, string target)
