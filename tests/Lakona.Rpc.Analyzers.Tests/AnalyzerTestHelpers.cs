@@ -3,6 +3,8 @@ using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Lakona.Game.Abstractions.Sessions;
+using Lakona.Game.Client;
 using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
@@ -15,11 +17,12 @@ internal static class AnalyzerTestHelpers
 
     public static CSharpCompilation CreateCompilation(
         string source,
-        string assemblyName = "TestAssembly",
-        IEnumerable<MetadataReference>? additionalReferences = null)
+        string? assemblyName = "TestAssembly",
+        IEnumerable<MetadataReference>? additionalReferences = null,
+        bool includeServerRuntimeReference = true)
     {
         var references = TrustedPlatformReferences()
-            .Concat(ProjectReferences())
+            .Concat(ProjectReferences(includeServerRuntimeReference))
             .Concat(additionalReferences ?? Array.Empty<MetadataReference>())
             .GroupBy(static reference => reference.Display, StringComparer.OrdinalIgnoreCase)
             .Select(static group => group.First());
@@ -70,11 +73,14 @@ internal static class AnalyzerTestHelpers
             .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
             .ToArray();
 
-    private static IEnumerable<MetadataReference> ProjectReferences()
+    private static IEnumerable<MetadataReference> ProjectReferences(bool includeServerRuntimeReference)
     {
         yield return MetadataReference.CreateFromFile(typeof(RpcServiceAttribute).Assembly.Location);
+        yield return MetadataReference.CreateFromFile(typeof(GameClientHello).Assembly.Location);
+        yield return MetadataReference.CreateFromFile(typeof(LakonaGameClientCore).Assembly.Location);
         yield return MetadataReference.CreateFromFile(typeof(RpcClientRuntime).Assembly.Location);
-        yield return MetadataReference.CreateFromFile(typeof(RpcServiceRegistry).Assembly.Location);
+        if (includeServerRuntimeReference)
+            yield return MetadataReference.CreateFromFile(typeof(RpcServiceRegistry).Assembly.Location);
     }
 
     private static IEnumerable<MetadataReference> TrustedPlatformReferences()
@@ -83,7 +89,12 @@ internal static class AnalyzerTestHelpers
             ?? throw new InvalidOperationException("TRUSTED_PLATFORM_ASSEMBLIES is not available.");
 
         foreach (var path in trustedPlatformAssemblies.Split(Path.PathSeparator))
+        {
+            if (Path.GetFileNameWithoutExtension(path).StartsWith("Lakona.", StringComparison.Ordinal))
+                continue;
+
             yield return MetadataReference.CreateFromFile(path);
+        }
     }
 
     private sealed class TestAnalyzerConfigOptionsProvider(IDictionary<string, string>? globalOptions)

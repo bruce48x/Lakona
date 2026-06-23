@@ -185,6 +185,270 @@ public sealed class LakonaRpcSourceGeneratorTests
         Assert.Contains("Duplicate generated API service name 'World.Player'", diagnostic.GetMessage());
     }
 
+    [Fact]
+    public void SourceGenerator_GameClientWrapper_IsOnlyGeneratedWhenEnabled()
+    {
+        var rpcOnlyRun = AnalyzerTestHelpers.RunGenerator(
+            AnalyzerTestHelpers.CreateCompilation(ContractWithCallbackSource),
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaRpcGenerateClient"] = "true"
+            },
+            out _);
+
+        Assert.DoesNotContain(
+            rpcOnlyRun.Results.Single().GeneratedSources,
+            static source => source.HintName == "LakonaGameClient.g.cs");
+
+        var gameRun = AnalyzerTestHelpers.RunGenerator(
+            AnalyzerTestHelpers.CreateCompilation(ContractWithCallbackSource),
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaGameGenerateClient"] = "true",
+                ["build_property.LakonaGameClientRuntime"] = "unity",
+                ["build_property.LakonaGameClientPlatform"] = "unity",
+                ["build_property.LakonaGameClientGameVersion"] = "agar"
+            },
+            out var outputCompilation);
+
+        Assert.Empty(gameRun.Diagnostics);
+        Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(outputCompilation));
+        Assert.Contains(
+            gameRun.Results.Single().GeneratedSources,
+            static source => source.HintName == "LakonaGameClient.g.cs");
+    }
+
+    [Fact]
+    public void SourceGenerator_GameClientWrapper_ForwardsApiAndAutoBindsCallbacks()
+    {
+        var runResult = AnalyzerTestHelpers.RunGenerator(
+            AnalyzerTestHelpers.CreateCompilation(ContractWithCallbackSource),
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaGameGenerateClient"] = "true",
+                ["build_property.LakonaRpcGeneratedNamespace"] = "Rpc.Generated",
+                ["build_property.LakonaGameClientRuntime"] = "unity",
+                ["build_property.LakonaGameClientPlatform"] = "unity",
+                ["build_property.LakonaGameClientGameVersion"] = "agar"
+            },
+            out var outputCompilation);
+
+        Assert.Empty(runResult.Diagnostics);
+        Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(outputCompilation));
+
+        var wrapper = GetGeneratedSource(runResult, "LakonaGameClient.g.cs");
+        Assert.Contains("public sealed class LakonaGameClient : IAsyncDisposable", wrapper);
+        Assert.Contains("public global::Rpc.Generated.RpcApi Api", wrapper);
+        Assert.Contains("LakonaGameClient is not connected. Call ConnectAsync first.", wrapper);
+        Assert.Contains("LakonaGameClient is single-use and has already started connecting.", wrapper);
+        Assert.Contains("public event Action<Exception?>? Disconnected", wrapper);
+        Assert.Contains("if (receiver is global::Game.Contracts.IPingNotifications pingNotifications)", wrapper);
+        Assert.Contains("bindings.Add(pingNotifications);", wrapper);
+        Assert.Contains("ClientRuntime = ResolveOption(_options.ClientRuntime, \"unity\")", wrapper);
+        Assert.Contains("Platform = ResolveOption(_options.Platform, \"unity\")", wrapper);
+        Assert.Contains("GameVersion = ResolveOption(_options.GameVersion, \"agar\")", wrapper);
+        Assert.DoesNotContain("System.Reflection", wrapper);
+        AssertInOrder(wrapper, "_core.MarkConnecting();", "await _rpcClient.ConnectAsync");
+        AssertInOrder(wrapper, "await _rpcClient.ConnectAsync", "await _core.HandshakeAsync");
+        AssertInOrder(wrapper, "await _core.HandshakeAsync", "_core.StartHeartbeat");
+        AssertInOrder(wrapper, "_core.StartHeartbeat", "_core.MarkReady();");
+        AssertInOrder(wrapper, "_core.MarkReady();", "_apiReady = true;");
+        AssertInOrder(
+            wrapper.Substring(wrapper.IndexOf("private void HandleDisconnected", StringComparison.Ordinal)),
+            "_apiReady = false;",
+            "_core.MarkReconnecting();");
+    }
+
+    [Fact]
+    public void SourceGenerator_GameClientWrapper_CompilesWithoutNotificationContracts()
+    {
+        var runResult = AnalyzerTestHelpers.RunGenerator(
+            AnalyzerTestHelpers.CreateCompilation(SimpleClientContractSource),
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaGameGenerateClient"] = "true"
+            },
+            out var outputCompilation);
+
+        Assert.Empty(runResult.Diagnostics);
+        Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(outputCompilation));
+
+        var wrapper = GetGeneratedSource(runResult, "LakonaGameClient.g.cs");
+        Assert.Contains("new global::Rpc.Generated.RpcClient(_options.RpcOptions)", wrapper);
+        Assert.Contains("ValidateCallbackReceivers(callbackReceivers);", wrapper);
+        Assert.Contains("throw new ArgumentNullException(nameof(callbackReceivers), \"Callback receiver cannot be null.\");", wrapper);
+        Assert.DoesNotContain("RpcNotificationBindings", wrapper);
+    }
+
+    [Fact]
+    public void SourceGenerator_GameClientWrapper_GameVersionFallback_UsesAssemblyNameOrGame()
+    {
+        var assemblyRun = AnalyzerTestHelpers.RunGenerator(
+            AnalyzerTestHelpers.CreateCompilation(SimpleClientContractSource, assemblyName: "SpaceGame"),
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaGameGenerateClient"] = "true"
+            },
+            out var assemblyOutput);
+
+        Assert.Empty(assemblyRun.Diagnostics);
+        Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(assemblyOutput));
+
+        var assemblyWrapper = GetGeneratedSource(assemblyRun, "LakonaGameClient.g.cs");
+        Assert.Contains("GameVersion = ResolveOption(_options.GameVersion, \"SpaceGame\")", assemblyWrapper);
+
+        var nullAssemblyRun = AnalyzerTestHelpers.RunGenerator(
+            AnalyzerTestHelpers.CreateCompilation(SimpleClientContractSource, assemblyName: null),
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaGameGenerateClient"] = "true"
+            },
+            out var nullAssemblyOutput);
+
+        Assert.Empty(nullAssemblyRun.Diagnostics);
+        Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(nullAssemblyOutput));
+
+        var nullAssemblyWrapper = GetGeneratedSource(nullAssemblyRun, "LakonaGameClient.g.cs");
+        Assert.Contains("GameVersion = ResolveOption(_options.GameVersion, \"game\")", nullAssemblyWrapper);
+    }
+
+    [Fact]
+    public void SourceGenerator_GameClientWrapper_DisabledGameClient_DoesNotSuppressClientAutoDetection()
+    {
+        var compilation = AnalyzerTestHelpers.CreateCompilation(
+            SimpleClientContractSource,
+            includeServerRuntimeReference: false);
+        Assert.NotNull(compilation.GetTypeByMetadataName("Lakona.Rpc.Client.RpcClientRuntime"));
+        Assert.Null(compilation.GetTypeByMetadataName("Lakona.Rpc.Server.RpcServiceRegistry"));
+
+        var runResult = AnalyzerTestHelpers.RunGenerator(
+            compilation,
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaGameGenerateClient"] = "false"
+            },
+            out var outputCompilation);
+
+        Assert.Empty(runResult.Diagnostics);
+        Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(outputCompilation));
+
+        var generatedHintNames = runResult.Results.Single().GeneratedSources.Select(static source => source.HintName).ToArray();
+        Assert.Contains("RpcApi.g.cs", generatedHintNames);
+        Assert.Contains("PingServiceClient.g.cs", generatedHintNames);
+        Assert.DoesNotContain("LakonaGameClient.g.cs", generatedHintNames);
+    }
+
+    [Fact]
+    public void SourceGenerator_GameClientWrapper_UnityMarker_EnablesWrapperAndMetadata()
+    {
+        var source = """
+            using System.Threading.Tasks;
+            using Lakona.Rpc.Core;
+
+            [assembly: LakonaRpcGenerateClient("Rpc.Generated")]
+            [assembly: LakonaGameGenerateClient("unity", "unity", "agar")]
+
+            namespace Game.Contracts
+            {
+                public sealed class PingRequest { }
+                public sealed class PingReply { }
+
+                [RpcService(1)]
+                public interface IPingService
+                {
+                    [RpcMethod(1)]
+                    ValueTask<PingReply> PingAsync(PingRequest request);
+                }
+            }
+            """;
+
+        var runResult = AnalyzerTestHelpers.RunGenerator(
+            AnalyzerTestHelpers.CreateCompilation(source, assemblyName: "Assembly-CSharp"),
+            null,
+            out var outputCompilation);
+
+        Assert.Empty(runResult.Diagnostics);
+        Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(outputCompilation));
+
+        var wrapper = GetGeneratedSource(runResult, "LakonaGameClient.g.cs");
+        Assert.Contains("ClientRuntime = ResolveOption(_options.ClientRuntime, \"unity\")", wrapper);
+        Assert.Contains("Platform = ResolveOption(_options.Platform, \"unity\")", wrapper);
+        Assert.Contains("GameVersion = ResolveOption(_options.GameVersion, \"agar\")", wrapper);
+    }
+
+    [Fact]
+    public void SourceGenerator_GameClientWrapper_PropertyPrecedence_OverridesMarker()
+    {
+        var source = """
+            using System.Threading.Tasks;
+            using Lakona.Rpc.Core;
+
+            [assembly: LakonaRpcGenerateClient("Rpc.Generated")]
+            [assembly: LakonaGameGenerateClient("unity", "unity", "agar")]
+
+            namespace Game.Contracts
+            {
+                public sealed class PingRequest { }
+                public sealed class PingReply { }
+
+                [RpcService(1)]
+                public interface IPingService
+                {
+                    [RpcMethod(1)]
+                    ValueTask<PingReply> PingAsync(PingRequest request);
+                }
+            }
+            """;
+
+        var disabledRun = AnalyzerTestHelpers.RunGenerator(
+            AnalyzerTestHelpers.CreateCompilation(source, assemblyName: "Assembly-CSharp"),
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaGameGenerateClient"] = "false"
+            },
+            out _);
+
+        Assert.DoesNotContain(
+            disabledRun.Results.Single().GeneratedSources,
+            static source => source.HintName == "LakonaGameClient.g.cs");
+
+        var overrideRun = AnalyzerTestHelpers.RunGenerator(
+            AnalyzerTestHelpers.CreateCompilation(source, assemblyName: "Assembly-CSharp"),
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaGameGenerateClient"] = "true",
+                ["build_property.LakonaGameClientRuntime"] = "dotnet-client",
+                ["build_property.LakonaGameClientPlatform"] = "windows",
+                ["build_property.LakonaGameClientGameVersion"] = "local"
+            },
+            out var outputCompilation);
+
+        Assert.Empty(overrideRun.Diagnostics);
+        Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(outputCompilation));
+
+        var wrapper = GetGeneratedSource(overrideRun, "LakonaGameClient.g.cs");
+        Assert.Contains("ClientRuntime = ResolveOption(_options.ClientRuntime, \"dotnet-client\")", wrapper);
+        Assert.Contains("Platform = ResolveOption(_options.Platform, \"windows\")", wrapper);
+        Assert.Contains("GameVersion = ResolveOption(_options.GameVersion, \"local\")", wrapper);
+    }
+
+    private static string GetGeneratedSource(GeneratorDriverRunResult runResult, string hintName) =>
+        runResult.Results
+            .Single()
+            .GeneratedSources
+            .Single(source => source.HintName == hintName)
+            .SourceText
+            .ToString();
+
+    private static void AssertInOrder(string source, string before, string after)
+    {
+        var beforeIndex = source.IndexOf(before, StringComparison.Ordinal);
+        var afterIndex = source.IndexOf(after, StringComparison.Ordinal);
+        Assert.True(beforeIndex >= 0, $"Expected to find '{before}'.");
+        Assert.True(afterIndex >= 0, $"Expected to find '{after}'.");
+        Assert.True(beforeIndex < afterIndex, $"Expected '{before}' before '{after}'.");
+    }
+
     private const string ContractWithCallbackSource = """
         using System.Threading.Tasks;
         using Lakona.Rpc.Core;

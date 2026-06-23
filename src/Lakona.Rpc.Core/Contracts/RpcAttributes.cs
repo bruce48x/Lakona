@@ -79,4 +79,28 @@ namespace Lakona.Rpc.Core
 
         public string? GeneratedNamespace { get; }
     }
+
+    /// <summary>
+    ///     Marks the current assembly as the game client assembly that should receive the generated Lakona game client wrapper.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = false)]
+    public sealed class LakonaGameGenerateClientAttribute : Attribute
+    {
+        public LakonaGameGenerateClientAttribute()
+        {
+        }
+
+        public LakonaGameGenerateClientAttribute(string clientRuntime, string platform, string gameVersion)
+        {
+            ClientRuntime = clientRuntime;
+            Platform = platform;
+            GameVersion = gameVersion;
+        }
+
+        public string? ClientRuntime { get; }
+
+        public string? Platform { get; }
+
+        public string? GameVersion { get; }
+    }
 }

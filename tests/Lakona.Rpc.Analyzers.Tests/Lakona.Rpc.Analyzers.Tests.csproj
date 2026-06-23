@@ -16,6 +16,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Lakona.Rpc.Analyzers\Lakona.Rpc.Analyzers.csproj" />
+    <ProjectReference Include="..\..\src\Lakona.Game.Abstractions\Lakona.Game.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Lakona.Game.Client\Lakona.Game.Client.csproj" />
     <ProjectReference Include="..\..\src\Lakona.Rpc.Client\Lakona.Rpc.Client.csproj" />
     <ProjectReference Include="..\..\src\Lakona.Rpc.Core\Lakona.Rpc.Core.csproj" />
     <ProjectReference Include="..\..\src\Lakona.Rpc.Server\Lakona.Rpc.Server.csproj" />

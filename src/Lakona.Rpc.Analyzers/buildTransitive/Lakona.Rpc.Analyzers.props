@@ -4,5 +4,9 @@
     <CompilerVisibleProperty Include="LakonaRpcGenerateServer" />
     <CompilerVisibleProperty Include="LakonaRpcGeneratedNamespace" />
     <CompilerVisibleProperty Include="LakonaRpcServerGeneratedNamespace" />
+    <CompilerVisibleProperty Include="LakonaGameGenerateClient" />
+    <CompilerVisibleProperty Include="LakonaGameClientRuntime" />
+    <CompilerVisibleProperty Include="LakonaGameClientPlatform" />
+    <CompilerVisibleProperty Include="LakonaGameClientGameVersion" />
   </ItemGroup>
 </Project>
