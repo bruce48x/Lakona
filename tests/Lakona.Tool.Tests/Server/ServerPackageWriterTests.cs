@@ -180,6 +180,46 @@ public sealed class ServerPackageWriterTests
     }
 
     [Fact]
+    public async Task WritePackageFromPublishedAppAsync_normalizes_built_at_utc_to_seconds()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var publishedApp = await CreatePublishedAppAsync(root);
+            var hotfixZip = await CreateHotfixPackageAsync(root, Version, BuildTag);
+            var builtAtUtc = new DateTimeOffset(2026, 6, 23, 23, 30, 45, TimeSpan.FromHours(8)).AddTicks(1234);
+
+            var zipPath = await new ServerPackageWriter().WritePackageFromPublishedAppAsync(
+                new ServerPackageWriteRequest(
+                    publishedApp,
+                    hotfixZip,
+                    Path.Combine(root, "packages"),
+                    "Server.App.dll",
+                    "linux-x64",
+                    "Release",
+                    Version,
+                    BuildTag,
+                    builtAtUtc),
+                TestContext.Current.CancellationToken);
+
+            using var archive = ZipFile.OpenRead(zipPath);
+            var manifestEntry = archive.GetEntry("lakona-server.json")!;
+            await using var manifestStream = manifestEntry.Open();
+            using var reader = new StreamReader(manifestStream);
+            var manifestJson = await reader.ReadToEndAsync(TestContext.Current.CancellationToken);
+
+            Assert.Contains("\"builtAtUtc\": \"2026-06-23T15:30:45Z\"", manifestJson, StringComparison.Ordinal);
+            var manifest = JsonSerializer.Deserialize<ServerPackageManifest>(manifestJson, ServerJson.Options);
+            Assert.NotNull(manifest);
+            Assert.Equal(new DateTimeOffset(2026, 6, 23, 15, 30, 45, TimeSpan.Zero), manifest.BuiltAtUtc);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task WritePackageFromPublishedAppAsync_removes_preexisting_hotfix_directory_before_installing_hotfix()
     {
         var root = CreateTempRoot();

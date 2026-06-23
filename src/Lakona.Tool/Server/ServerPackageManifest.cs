@@ -14,7 +14,7 @@ internal sealed record ServerPackageManifest
     {
         return new ServerPackageManifest(
             version,
-            builtAtUtc,
+            NormalizeToUtcSeconds(builtAtUtc),
             runtime,
             configuration,
             selfContained: true,
@@ -23,6 +23,13 @@ internal sealed record ServerPackageManifest
             buildTag,
             initialHotfixVersion,
             toolVersion);
+    }
+
+    private static DateTimeOffset NormalizeToUtcSeconds(DateTimeOffset value)
+    {
+        var utc = value.ToUniversalTime();
+        var ticks = utc.Ticks - (utc.Ticks % TimeSpan.TicksPerSecond);
+        return new DateTimeOffset(ticks, TimeSpan.Zero);
     }
 
     public ServerPackageManifest(
