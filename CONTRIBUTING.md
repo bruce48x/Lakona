@@ -34,6 +34,7 @@ contracts:
 | [docs/api-stability/public-api-boundaries.md](./docs/api-stability/public-api-boundaries.md) | RPC public API boundary and compatibility policy |
 | [docs/tool/default-experience.md](./docs/tool/default-experience.md) | Generated Lakona project experience and default runtime shape |
 | [docs/tool/generation-architecture.md](./docs/tool/generation-architecture.md) | Lakona.Tool generation architecture and regression boundaries |
+| [docs/tool/server-pack-command.md](./docs/tool/server-pack-command.md) | Maintainer reference for `lakona-tool server pack` packaging |
 
 Durable design notes belong under `docs/**` when they describe current
 behavior or active contributor policy. Delete completed plans, obsolete
