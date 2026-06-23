@@ -67,6 +67,9 @@ internal sealed class ToolText
               lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack [--output .] [--persistence none] [--nugetforunity-source openupm] [--deploy-profile none]
                   用于脚本和 CI 的非交互式创建。输入被重定向时，缺少必填选项会失败。
 
+              lakona-tool server pack --runtime linux-x64 [--configuration Release] [--output artifacts/server]
+                  打包自包含服务端 zip，并内置初始热更版本。
+
               lakona-tool help
                   显示此帮助。
             """,
@@ -81,6 +84,9 @@ internal sealed class ToolText
               lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack [--output .] [--persistence none] [--nugetforunity-source openupm] [--deploy-profile none]
                   用於指令碼和 CI 的非互動式建立。輸入被重新導向時，缺少必填選項會失敗。
 
+              lakona-tool server pack --runtime linux-x64 [--configuration Release] [--output artifacts/server]
+                  打包自包含伺服器 zip，並內建初始熱更版本。
+
               lakona-tool help
                   顯示此幫助。
             """,
@@ -94,6 +100,9 @@ internal sealed class ToolText
 
               lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack [--output .] [--persistence none] [--nugetforunity-source openupm] [--deploy-profile none]
                   Non-interactive project creation for scripts and CI. Missing required choices fail when input is redirected.
+
+              lakona-tool server pack --runtime linux-x64 [--configuration Release] [--output artifacts/server]
+                  Package a self-contained server zip with an installed initial hotfix version.
 
               lakona-tool help
                   Show this help.
