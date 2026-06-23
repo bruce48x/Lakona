@@ -5,12 +5,12 @@ namespace Lakona.Game.Server.Sessions;
 
 internal sealed class GameSessionRpcLifecycleObserver : IRpcSessionLifecycleObserver
 {
-    private readonly IGameSessionDirectory _directory;
+    private readonly IGameSessionRegistry _directory;
     private readonly IReadOnlyList<IGameSessionLifecycleHandler> _handlers;
     private readonly ILogger<GameSessionRpcLifecycleObserver> _logger;
 
     public GameSessionRpcLifecycleObserver(
-        IGameSessionDirectory directory,
+        IGameSessionRegistry directory,
         IEnumerable<IGameSessionLifecycleHandler> handlers,
         ILogger<GameSessionRpcLifecycleObserver> logger)
     {

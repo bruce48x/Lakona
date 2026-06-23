@@ -14,7 +14,7 @@ public sealed class GameSessionCleanupHostedServiceTests
     [Fact]
     public async Task CleanupOnceExpiresDisconnectedSessions()
     {
-        var directory = new InMemoryGameSessionDirectory();
+        var directory = new InMemoryGameSessionRegistry();
         var service = new GameSessionCleanupHostedService(
             directory,
             new SessionCleanupOptions
@@ -36,7 +36,7 @@ public sealed class GameSessionCleanupHostedServiceTests
     [Fact]
     public async Task CleanupOncePublishesSessionExpiredAndContainsHandlerFailures()
     {
-        var directory = new InMemoryGameSessionDirectory();
+        var directory = new InMemoryGameSessionRegistry();
         var throwingHandler = new ThrowingLifecycleHandler();
         var recordingHandler = new RecordingLifecycleHandler();
         var service = new GameSessionCleanupHostedService(

@@ -158,7 +158,7 @@ public sealed class ToolArchitectureScanTests
     }
 
     [Fact]
-    public void GodotChatSample_BindsChatCallbackThroughFrameworkSessionDirectory()
+    public void GodotChatSample_BindsChatCallbackThroughFrameworkSessionRegistry()
     {
         var repositoryRoot = FindRepositoryRoot();
         var sampleText = ReadAllTextFiles(Path.Combine(repositoryRoot, "samples", "Game.Godot.Chat"));

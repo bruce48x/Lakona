@@ -5,12 +5,12 @@ using Xunit;
 
 namespace Lakona.Game.Server.Tests;
 
-public sealed class GameSessionDirectoryTests
+public sealed class GameSessionRegistryTests
 {
     [Fact]
     public async Task StartingSecondSessionForSameOwnerLeavesBothSessionsResumable()
     {
-        var directory = new InMemoryGameSessionDirectory();
+        var directory = new InMemoryGameSessionRegistry();
         var first = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
         var second = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
 
@@ -24,7 +24,7 @@ public sealed class GameSessionDirectoryTests
     [Fact]
     public async Task MultipleCallbackContractsShareOneSessionWithoutOverwritingEachOther()
     {
-        var directory = new InMemoryGameSessionDirectory();
+        var directory = new InMemoryGameSessionRegistry();
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
         var login = new LoginCallback("login");
         var chat = new ChatCallback("chat");
@@ -39,7 +39,7 @@ public sealed class GameSessionDirectoryTests
     [Fact]
     public async Task RebindingSameCallbackContractOnSameConnectionReplacesOnlyThatContract()
     {
-        var directory = new InMemoryGameSessionDirectory();
+        var directory = new InMemoryGameSessionRegistry();
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
         var firstLogin = new LoginCallback("first-login");
         var secondLogin = new LoginCallback("second-login");
@@ -56,7 +56,7 @@ public sealed class GameSessionDirectoryTests
     [Fact]
     public async Task RebindingSameSessionToNewConnectionClearsCallbacksFromOldConnection()
     {
-        var directory = new InMemoryGameSessionDirectory();
+        var directory = new InMemoryGameSessionRegistry();
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
         var login = new LoginCallback("login");
 
@@ -71,7 +71,7 @@ public sealed class GameSessionDirectoryTests
     [Fact]
     public async Task BindingSecondActiveSessionToSameConnectionIsRejected()
     {
-        var directory = new InMemoryGameSessionDirectory();
+        var directory = new InMemoryGameSessionRegistry();
         var first = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
         var second = await directory.StartNewSessionAsync("player-b", TestContext.Current.CancellationToken);
 
@@ -85,7 +85,7 @@ public sealed class GameSessionDirectoryTests
     [Fact]
     public async Task MarkConnectionDisconnectedReturnsOneSessionSnapshotAndClearsCallbacks()
     {
-        var directory = new InMemoryGameSessionDirectory();
+        var directory = new InMemoryGameSessionRegistry();
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
 
         await directory.BindSessionAsync(session, "connection-a", new LoginCallback("login"), TestContext.Current.CancellationToken);
@@ -106,7 +106,7 @@ public sealed class GameSessionDirectoryTests
     [Fact]
     public async Task ExpireDisconnectedSessionsReturnsStaleDisconnectedSessionOnce()
     {
-        var directory = new InMemoryGameSessionDirectory();
+        var directory = new InMemoryGameSessionRegistry();
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
 
         await directory.BindSessionAsync(session, "connection-a", new LoginCallback("login"), TestContext.Current.CancellationToken);
@@ -124,7 +124,7 @@ public sealed class GameSessionDirectoryTests
     [Fact]
     public async Task StaleConnectionIdCannotDetachNewerBinding()
     {
-        var directory = new InMemoryGameSessionDirectory();
+        var directory = new InMemoryGameSessionRegistry();
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
         var callback = new LoginCallback("new");
 
@@ -138,7 +138,7 @@ public sealed class GameSessionDirectoryTests
     [Fact]
     public async Task TerminatedSessionResumesAsTerminated()
     {
-        var directory = new InMemoryGameSessionDirectory();
+        var directory = new InMemoryGameSessionRegistry();
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
         var notice = new SessionTerminationNotice(SessionTerminationReason.Policy, "Removed.");
 
@@ -157,7 +157,7 @@ public sealed class GameSessionDirectoryTests
     [Fact]
     public async Task BindingSessionAfterTerminationIsRejected()
     {
-        var directory = new InMemoryGameSessionDirectory();
+        var directory = new InMemoryGameSessionRegistry();
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
         var notice = new SessionTerminationNotice(SessionTerminationReason.Policy);
 
@@ -184,7 +184,7 @@ public sealed class GameSessionDirectoryTests
         services.AddLakonaGameServerSessions();
         using var provider = services.BuildServiceProvider();
 
-        Assert.NotNull(provider.GetRequiredService<IGameSessionDirectory>());
+        Assert.NotNull(provider.GetRequiredService<IGameSessionRegistry>());
     }
 
     private sealed class Callback

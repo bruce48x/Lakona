@@ -2,7 +2,7 @@ using Lakona.Game.Abstractions;
 
 namespace Lakona.Game.Server.Sessions;
 
-public interface IGameSessionDirectory
+public interface IGameSessionRegistry
 {
     ValueTask<GameSessionKey> StartNewSessionAsync(
         string ownerKey,

@@ -24,7 +24,7 @@ public sealed class ClientNotificationRelayTests
     [Fact]
     public async Task RelayInvokesLocalCallbackOnGateway()
     {
-        var directory = new InMemoryGameSessionDirectory();
+        var directory = new InMemoryGameSessionRegistry();
         var session = await directory.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
         var callback = new TestPlayerCallback();
         await directory.BindSessionAsync(session, "conn-1", callback, TestContext.Current.CancellationToken);
@@ -42,7 +42,7 @@ public sealed class ClientNotificationRelayTests
     [Fact]
     public async Task RelayReturnsRouteNotFoundForStaleGeneration()
     {
-        var directory = new InMemoryGameSessionDirectory();
+        var directory = new InMemoryGameSessionRegistry();
         var current = await directory.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
         var stale = new GameSessionKey(current.OwnerKey, current.SessionId, current.Generation + 1);
         var relay = new ClientNotificationRelay(directory);
@@ -58,7 +58,7 @@ public sealed class ClientNotificationRelayTests
     [Fact]
     public async Task RelayResolvesRemoteGatewayRouteAndInvokesGatewayLocalCallbackOnly()
     {
-        var gatewaySessions = new InMemoryGameSessionDirectory();
+        var gatewaySessions = new InMemoryGameSessionRegistry();
         var session = await gatewaySessions.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
         var callback = new TestPlayerCallbackContract();
         await gatewaySessions.BindSessionAsync(session, "gateway-conn-1", callback, TestContext.Current.CancellationToken);
@@ -72,7 +72,7 @@ public sealed class ClientNotificationRelayTests
         var dispatcher = new DelegatingRemoteNotificationDispatcher(
             new LocalClientNotificationCommandDispatcher(gatewaySessions));
         var remoteRelay = new ClientNotificationRelay(
-            new InMemoryGameSessionDirectory(),
+            new InMemoryGameSessionRegistry(),
             routes,
             dispatcher,
             new NodeId("battle-1"));
@@ -183,7 +183,7 @@ public sealed class ClientNotificationRelayTests
         services.AddLakonaGameServerSessions();
         services.AddLakonaGameServerReliablePush(options => options.Enabled = false);
         await using var provider = services.BuildServiceProvider();
-        var directory = provider.GetRequiredService<IGameSessionDirectory>();
+        var directory = provider.GetRequiredService<IGameSessionRegistry>();
         var index = provider.GetRequiredService<IClientSessionIndex>();
         var notifications = provider.GetRequiredService<IClientNotifications>();
         var outbox = provider.GetRequiredService<IReliablePushOutbox>();

@@ -7,13 +7,13 @@ public sealed class ClientNotifications : IClientNotifications
     private const string ControlSessionKind = "control";
 
     private readonly IClientSessionIndex _sessions;
-    private readonly IGameSessionDirectory _directory;
+    private readonly IGameSessionRegistry _directory;
     private readonly IReliablePushOutbox _reliablePush;
     private readonly ReliablePushOptions _reliablePushOptions;
 
     public ClientNotifications(
         IClientSessionIndex sessions,
-        IGameSessionDirectory directory,
+        IGameSessionRegistry directory,
         IReliablePushOutbox reliablePush,
         ReliablePushOptions reliablePushOptions)
     {

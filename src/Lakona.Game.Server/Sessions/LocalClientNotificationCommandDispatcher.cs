@@ -5,9 +5,9 @@ namespace Lakona.Game.Server.Sessions;
 
 public sealed class LocalClientNotificationCommandDispatcher
 {
-    private readonly IGameSessionDirectory _sessions;
+    private readonly IGameSessionRegistry _sessions;
 
-    public LocalClientNotificationCommandDispatcher(IGameSessionDirectory sessions)
+    public LocalClientNotificationCommandDispatcher(IGameSessionRegistry sessions)
     {
         _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
     }
@@ -55,8 +55,8 @@ public sealed class LocalClientNotificationCommandDispatcher
         GameSessionKey session,
         CancellationToken cancellationToken)
     {
-        var method = typeof(IGameSessionDirectory)
-            .GetMethod(nameof(IGameSessionDirectory.GetCallbackAsync))!
+        var method = typeof(IGameSessionRegistry)
+            .GetMethod(nameof(IGameSessionRegistry.GetCallbackAsync))!
             .MakeGenericMethod(callbackType);
         var valueTask = method.Invoke(_sessions, [session, cancellationToken]);
         if (valueTask is null)

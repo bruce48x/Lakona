@@ -187,7 +187,7 @@ public sealed class GameSessionLifecycleBridgeTests
     [Fact]
     public async Task RpcDisconnectMarksSessionDisconnectedAndPublishesOnce()
     {
-        var directory = new InMemoryGameSessionDirectory();
+        var directory = new InMemoryGameSessionRegistry();
         var handler = new RecordingLifecycleHandler();
         var observer = new GameSessionRpcLifecycleObserver(
             directory,

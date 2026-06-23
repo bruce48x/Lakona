@@ -6,20 +6,20 @@ namespace Lakona.Game.Server.Sessions;
 
 public sealed class GameSessionCleanupHostedService : BackgroundService
 {
-    private readonly IGameSessionDirectory _directory;
+    private readonly IGameSessionRegistry _directory;
     private readonly IReadOnlyList<IGameSessionLifecycleHandler> _handlers;
     private readonly ILogger<GameSessionCleanupHostedService> _logger;
     private readonly SessionCleanupOptions _options;
 
     public GameSessionCleanupHostedService(
-        IGameSessionDirectory directory,
+        IGameSessionRegistry directory,
         SessionCleanupOptions options)
         : this(directory, options, Array.Empty<IGameSessionLifecycleHandler>(), NullLogger<GameSessionCleanupHostedService>.Instance)
     {
     }
 
     public GameSessionCleanupHostedService(
-        IGameSessionDirectory directory,
+        IGameSessionRegistry directory,
         SessionCleanupOptions options,
         IEnumerable<IGameSessionLifecycleHandler> handlers,
         ILogger<GameSessionCleanupHostedService> logger)

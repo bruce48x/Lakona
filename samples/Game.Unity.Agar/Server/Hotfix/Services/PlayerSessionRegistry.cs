@@ -19,15 +19,15 @@ internal sealed record PlayerConnectionRegistration(
 internal sealed class PlayerSessionRegistry
 {
     private readonly Lock _gate = new();
-    private readonly IGameSessionDirectory _gameSessions;
+    private readonly IGameSessionRegistry _gameSessions;
     private readonly Dictionary<string, PlayerSessionRegistration> _byPlayerId = new(StringComparer.Ordinal);
 
     public PlayerSessionRegistry()
-        : this(new InMemoryGameSessionDirectory())
+        : this(new InMemoryGameSessionRegistry())
     {
     }
 
-    public PlayerSessionRegistry(IGameSessionDirectory gameSessions)
+    public PlayerSessionRegistry(IGameSessionRegistry gameSessions)
     {
         _gameSessions = gameSessions;
     }

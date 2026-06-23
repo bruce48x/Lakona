@@ -141,7 +141,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         await using var provider = services.BuildServiceProvider();
         provider.GetRequiredService<IActorRuntime>();
-        provider.GetRequiredService<IGameSessionDirectory>();
+        provider.GetRequiredService<IGameSessionRegistry>();
         Assert.Throws<InvalidOperationException>(() =>
             provider.GetRequiredService(RequiredServerAppType("Server.App.Hotfix.Agar" + "Hotfix" + "Runtime" + "Events")));
 
@@ -157,7 +157,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         await using var provider = services.BuildServiceProvider();
         provider.GetRequiredService<IActorRuntime>();
-        provider.GetRequiredService<IGameSessionDirectory>();
+        provider.GetRequiredService<IGameSessionRegistry>();
         Assert.Throws<InvalidOperationException>(() =>
             provider.GetRequiredService(RequiredServerAppType("Server.App.Realtime.Room" + "Runtime" + "Host")));
 
@@ -488,7 +488,7 @@ public sealed class DistributedTopologyConfigurationTests
         await using var provider = services.BuildServiceProvider();
 
         provider.GetRequiredService<IActorRuntime>();
-        provider.GetRequiredService<IGameSessionDirectory>();
+        provider.GetRequiredService<IGameSessionRegistry>();
         Assert.Throws<InvalidOperationException>(() =>
             provider.GetRequiredService(RequiredServerAppType("Server.App.Hotfix.Agar" + "Hotfix" + "Runtime" + "Events")));
         Assert.Throws<InvalidOperationException>(() =>

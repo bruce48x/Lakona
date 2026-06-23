@@ -4,18 +4,18 @@ namespace Lakona.Game.Server.Sessions;
 
 public sealed class ClientNotificationRelay : IClientNotificationRelay
 {
-    private readonly IGameSessionDirectory _sessions;
+    private readonly IGameSessionRegistry _sessions;
     private readonly IRouteDirectory? _routes;
     private readonly IClientNotificationRemoteDispatcher? _remoteDispatcher;
     private readonly NodeId? _localNode;
 
-    public ClientNotificationRelay(IGameSessionDirectory sessions)
+    public ClientNotificationRelay(IGameSessionRegistry sessions)
         : this(sessions, null, null, null)
     {
     }
 
     public ClientNotificationRelay(
-        IGameSessionDirectory sessions,
+        IGameSessionRegistry sessions,
         IRouteDirectory? routes,
         IClientNotificationRemoteDispatcher? remoteDispatcher,
         NodeId? localNode)

@@ -15,7 +15,7 @@ public sealed class GameSessionResumeServiceTests
         services.AddSingleton<IGameSessionTokenValidator>(
             new DelegateTokenValidator(_ => ValueTask.FromResult(SessionTokenValidationResult.Unauthorized("bad token"))));
         using var provider = services.BuildServiceProvider();
-        var directory = provider.GetRequiredService<IGameSessionDirectory>();
+        var directory = provider.GetRequiredService<IGameSessionRegistry>();
         var resumeService = provider.GetRequiredService<IGameSessionResumeService>();
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
 
@@ -34,7 +34,7 @@ public sealed class GameSessionResumeServiceTests
         services.AddSingleton<IAuthoritativeSessionStateProbe>(
             new DelegateStateProbe(_ => ValueTask.FromResult(AuthoritativeSessionStateProbeResult.RefreshRequired("snapshot changed"))));
         using var provider = services.BuildServiceProvider();
-        var directory = provider.GetRequiredService<IGameSessionDirectory>();
+        var directory = provider.GetRequiredService<IGameSessionRegistry>();
         var resumeService = provider.GetRequiredService<IGameSessionResumeService>();
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
 
@@ -54,7 +54,7 @@ public sealed class GameSessionResumeServiceTests
         services.AddSingleton<IAuthoritativeSessionStateProbe>(
             new DelegateStateProbe(_ => ValueTask.FromResult(AuthoritativeSessionStateProbeResult.Missing("gone"))));
         using var provider = services.BuildServiceProvider();
-        var directory = provider.GetRequiredService<IGameSessionDirectory>();
+        var directory = provider.GetRequiredService<IGameSessionRegistry>();
         var resumeService = provider.GetRequiredService<IGameSessionResumeService>();
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
 

@@ -244,7 +244,7 @@ public sealed class LakonaGameServerTests
             .BuildServiceProvider();
 
         Assert.NotNull(provider.GetService<Lakona.Game.Server.Actors.IActorRuntime>());
-        Assert.NotNull(provider.GetService<Lakona.Game.Server.Sessions.IGameSessionDirectory>());
+        Assert.NotNull(provider.GetService<Lakona.Game.Server.Sessions.IGameSessionRegistry>());
         Assert.NotNull(provider.GetService<Lakona.Game.Server.ReliablePush.IReliablePushOutbox>());
         Assert.NotNull(provider.GetService<Lakona.Game.Server.Diagnostics.IMessageLogStore>());
     }

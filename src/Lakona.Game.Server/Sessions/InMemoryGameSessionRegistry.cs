@@ -2,7 +2,7 @@ using Lakona.Game.Abstractions;
 
 namespace Lakona.Game.Server.Sessions;
 
-public sealed class InMemoryGameSessionDirectory : IGameSessionDirectory
+public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
 {
     private readonly Lock _gate = new();
     private readonly Dictionary<GameSessionKey, SessionState> _sessions = new();

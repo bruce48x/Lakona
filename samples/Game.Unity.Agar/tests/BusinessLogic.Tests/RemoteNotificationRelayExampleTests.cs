@@ -17,7 +17,7 @@ public sealed class RemoteNotificationRelayExampleTests
     public async Task RemoteMatchmakingNotificationCanRelayToGatewayCallback()
     {
         var gatewayPort = GetFreePort();
-        var gatewaySessions = new InMemoryGameSessionDirectory();
+        var gatewaySessions = new InMemoryGameSessionRegistry();
         var session = await gatewaySessions.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
         var callback = new CapturingControlCallback();
         await gatewaySessions.BindSessionAsync(session, "control-1", callback, TestContext.Current.CancellationToken);
@@ -41,7 +41,7 @@ public sealed class RemoteNotificationRelayExampleTests
             new TcpClusterTransportFactory(),
             new JsonRpcSerializer());
         var remoteRelay = new ClientNotificationRelay(
-            new InMemoryGameSessionDirectory(),
+            new InMemoryGameSessionRegistry(),
             routes,
             new ClusterClientNotificationDispatcher(clientFactory),
             new NodeId("battle-1"));
@@ -77,7 +77,7 @@ public sealed class RemoteNotificationRelayExampleTests
             new JsonRpcSerializer());
         var session = new GameSessionKey("player-1", "session-a", 1);
         var relay = new ClientNotificationRelay(
-            new InMemoryGameSessionDirectory(),
+            new InMemoryGameSessionRegistry(),
             new InMemoryRouteDirectory(),
             new ClusterClientNotificationDispatcher(clientFactory),
             new NodeId("battle-1"));
@@ -107,7 +107,7 @@ public sealed class RemoteNotificationRelayExampleTests
                 generation: 1),
             TestContext.Current.CancellationToken);
         var relay = new ClientNotificationRelay(
-            new InMemoryGameSessionDirectory(),
+            new InMemoryGameSessionRegistry(),
             routes,
             new ClusterClientNotificationDispatcher(clientFactory),
             new NodeId("battle-1"));
@@ -130,7 +130,7 @@ public sealed class RemoteNotificationRelayExampleTests
             .UseAcceptor(new TcpConnectionAcceptor(gatewayPort, "127.0.0.1"));
         ClientNotificationCommandBinder.Bind(
             builder.ServiceRegistry,
-            new LocalClientNotificationCommandDispatcher(new InMemoryGameSessionDirectory()));
+            new LocalClientNotificationCommandDispatcher(new InMemoryGameSessionRegistry()));
         var gatewayTask = builder.RunAsync(stopGateway.Token).AsTask();
         await Task.Delay(100, TestContext.Current.CancellationToken);
 
@@ -148,7 +148,7 @@ public sealed class RemoteNotificationRelayExampleTests
                 generation: session.Generation),
             TestContext.Current.CancellationToken);
         var relay = new ClientNotificationRelay(
-            new InMemoryGameSessionDirectory(),
+            new InMemoryGameSessionRegistry(),
             routes,
             new ClusterClientNotificationDispatcher(clientFactory),
             new NodeId("battle-1"));

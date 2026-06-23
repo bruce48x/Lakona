@@ -12,7 +12,7 @@ public static class SessionServiceCollectionExtensions
 {
     public static IServiceCollection AddLakonaGameServerSessions(this IServiceCollection services)
     {
-        services.TryAddSingleton<IGameSessionDirectory, InMemoryGameSessionDirectory>();
+        services.TryAddSingleton<IGameSessionRegistry, InMemoryGameSessionRegistry>();
         services.TryAddSingleton<IGameSessionResumeService, GameSessionResumeService>();
         services.TryAddSingleton<IGameSessionConnectionCloser, NoopGameSessionConnectionCloser>();
         services.TryAddSingleton<IClientSessionIndex, InMemoryClientSessionIndex>();
@@ -86,7 +86,7 @@ public static class SessionServiceCollectionExtensions
 
     private static IClientNotificationRelay CreateClientNotificationRelay(IServiceProvider services)
     {
-        var sessions = services.GetRequiredService<IGameSessionDirectory>();
+        var sessions = services.GetRequiredService<IGameSessionRegistry>();
         var routes = services.GetService<IRouteDirectory>();
         var dispatcher = services.GetService<IClientNotificationRemoteDispatcher>();
         var cluster = services.GetService<ClusterOptions>();

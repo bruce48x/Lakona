@@ -5,11 +5,11 @@ namespace Lakona.Game.Server.Sessions;
 
 public sealed class GameSessionResumeService : IGameSessionResumeService
 {
-    private readonly IGameSessionDirectory _directory;
+    private readonly IGameSessionRegistry _directory;
     private readonly IServiceProvider _services;
 
     public GameSessionResumeService(
-        IGameSessionDirectory directory,
+        IGameSessionRegistry directory,
         IServiceProvider services)
     {
         _directory = directory;

@@ -8,7 +8,7 @@ namespace Lakona.Game.Server;
 
 public sealed class LakonaGameServer : ILakonaGameServer
 {
-    private readonly IGameSessionDirectory _sessions;
+    private readonly IGameSessionRegistry _sessions;
     private readonly IGameSessionResumeService _resume;
     private readonly IReliablePushOutbox _reliablePush;
     private readonly IReliablePushAckService _reliablePushAcks;
@@ -17,7 +17,7 @@ public sealed class LakonaGameServer : ILakonaGameServer
     private readonly ILogger<LakonaGameServer> _logger;
 
     public LakonaGameServer(
-        IGameSessionDirectory sessions,
+        IGameSessionRegistry sessions,
         IGameSessionResumeService resume,
         IReliablePushOutbox reliablePush,
         IReliablePushAckService reliablePushAcks,
@@ -35,7 +35,7 @@ public sealed class LakonaGameServer : ILakonaGameServer
     }
 
     public LakonaGameServer(
-        IGameSessionDirectory sessions,
+        IGameSessionRegistry sessions,
         IGameSessionResumeService resume,
         IReliablePushOutbox reliablePush,
         IReliablePushAckService reliablePushAcks,
