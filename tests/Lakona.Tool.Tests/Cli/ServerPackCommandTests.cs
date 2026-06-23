@@ -75,6 +75,20 @@ public sealed class ServerPackCommandTests
         Assert.Contains("Unknown server subcommand 'publish'.", exception.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task CliApplication_routes_server_command()
+    {
+        var terminal = new FakeTerminal();
+        var application = new CliApplication(terminal: terminal);
+
+        var exitCode = await application.RunAsync(["server"]);
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains(
+            terminal.Errors,
+            line => line.Contains("Missing server subcommand", StringComparison.Ordinal));
+    }
+
     private sealed class FakeServerPackageWriter : IServerPackageWriter
     {
         public ServerPackOptions? Options { get; private set; }
