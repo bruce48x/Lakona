@@ -2,6 +2,8 @@ using Lakona.Game.Abstractions;
 using Lakona.Game.Abstractions.Sessions;
 using Lakona.Game.Client.ReliablePush;
 using Lakona.Game.Client.Sessions;
+using Lakona.Rpc.Client;
+using Lakona.Rpc.Core;
 using Xunit;
 
 namespace Lakona.Game.Client.Tests;
@@ -248,6 +250,231 @@ public sealed class LakonaGameClientCoreTests
         Assert.Equal(ClientSessionPhase.Active, client.Snapshot.Phase);
         Assert.Equal("session-a", client.Snapshot.SessionId);
         Assert.Equal(3, client.Snapshot.LastReliableSequence);
+    }
+
+    [Fact]
+    public async Task Heartbeat_state_lost_marks_client_state_lost()
+    {
+        var client = new LakonaGameClientCore();
+        var rpc = new ScriptedRpcClient(new GameHeartbeatReply { Status = GameHeartbeatStatus.StateLost });
+        var loop = new LakonaGameHeartbeatLoop(
+            rpc,
+            client,
+            new LakonaGameClientOptions(new RpcClientOptions(new NoopTransport(), new NoopSerializer())));
+
+        await loop.SendOnceAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientSessionPhase.StateLost, client.Snapshot.Phase);
+    }
+
+    [Fact]
+    public async Task Heartbeat_terminated_marks_client_terminated()
+    {
+        var client = new LakonaGameClientCore();
+        client.StartSession("session-a");
+        var rpc = new ScriptedRpcClient(new GameHeartbeatReply { Status = GameHeartbeatStatus.Terminated, Message = "removed" });
+        var loop = new LakonaGameHeartbeatLoop(
+            rpc,
+            client,
+            new LakonaGameClientOptions(new RpcClientOptions(new NoopTransport(), new NoopSerializer())));
+
+        await loop.SendOnceAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientSessionPhase.Terminated, client.Snapshot.Phase);
+        Assert.Equal("removed", client.Snapshot.Termination?.Message);
+    }
+
+    [Fact]
+    public async Task Heartbeat_rpc_failure_marks_reconnecting()
+    {
+        var client = new LakonaGameClientCore();
+        client.MarkConnecting();
+        client.MarkReady();
+        var rpc = new ScriptedRpcClient(new InvalidOperationException("network closed"));
+        var loop = new LakonaGameHeartbeatLoop(
+            rpc,
+            client,
+            new LakonaGameClientOptions(new RpcClientOptions(new NoopTransport(), new NoopSerializer())));
+
+        await loop.SendOnceAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientSessionPhase.Reconnecting, client.Snapshot.Phase);
+    }
+
+    [Fact]
+    public async Task StartHeartbeat_rejects_invalid_interval_before_starting_loop()
+    {
+        var client = new LakonaGameClientCore();
+        var rpc = new ScriptedRpcClient(new GameHeartbeatReply());
+        var options = CreateHeartbeatOptions();
+        options.HeartbeatInterval = TimeSpan.Zero;
+
+        try
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => client.StartHeartbeat(rpc, options));
+            Assert.Equal(0, rpc.CallCount);
+
+            options.HeartbeatInterval = TimeSpan.FromMilliseconds(-1);
+
+            Assert.Throws<ArgumentOutOfRangeException>(() => client.StartHeartbeat(rpc, options));
+            Assert.Equal(0, rpc.CallCount);
+        }
+        finally
+        {
+            await client.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task StartHeartbeat_rejects_negative_timeout_before_starting_loop()
+    {
+        var client = new LakonaGameClientCore();
+        var rpc = new ScriptedRpcClient(new GameHeartbeatReply());
+        var options = CreateHeartbeatOptions();
+        options.HeartbeatTimeout = TimeSpan.FromMilliseconds(-2);
+
+        try
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => client.StartHeartbeat(rpc, options));
+            Assert.Equal(0, rpc.CallCount);
+        }
+        finally
+        {
+            await client.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task StartHeartbeat_allows_only_one_loop_when_called_concurrently()
+    {
+        var client = new LakonaGameClientCore();
+        var options = CreateHeartbeatOptions();
+        options.HeartbeatInterval = TimeSpan.FromHours(1);
+        var start = new ManualResetEventSlim();
+        var successes = 0;
+        var duplicateStarts = 0;
+        var otherFailures = new List<Exception>();
+
+        Task[] tasks = Enumerable.Range(0, 8)
+            .Select(_ => Task.Run(() =>
+            {
+                start.Wait(TestContext.Current.CancellationToken);
+                try
+                {
+                    client.StartHeartbeat(new ScriptedRpcClient(new GameHeartbeatReply()), options);
+                    Interlocked.Increment(ref successes);
+                }
+                catch (InvalidOperationException)
+                {
+                    Interlocked.Increment(ref duplicateStarts);
+                }
+                catch (Exception ex)
+                {
+                    lock (otherFailures)
+                    {
+                        otherFailures.Add(ex);
+                    }
+                }
+            }, TestContext.Current.CancellationToken))
+            .ToArray();
+
+        start.Set();
+
+        await Task.WhenAll(tasks);
+        await client.DisposeAsync();
+
+        Assert.Empty(otherFailures);
+        Assert.Equal(1, successes);
+        Assert.Equal(tasks.Length - 1, duplicateStarts);
+    }
+
+    private static LakonaGameClientOptions CreateHeartbeatOptions()
+    {
+        return new LakonaGameClientOptions(new RpcClientOptions(new NoopTransport(), new NoopSerializer()));
+    }
+
+    private sealed class ScriptedRpcClient : IRpcClient
+    {
+        private readonly GameHeartbeatReply? _reply;
+        private readonly Exception? _exception;
+        private int _callCount;
+
+        public int CallCount => Volatile.Read(ref _callCount);
+
+        public ScriptedRpcClient(GameHeartbeatReply reply)
+        {
+            _reply = reply;
+        }
+
+        public ScriptedRpcClient(Exception exception)
+        {
+            _exception = exception;
+        }
+
+        public ValueTask<TResult> CallAsync<TArg, TResult>(
+            RpcMethod<TArg, TResult> method,
+            TArg? arg,
+            CancellationToken ct = default)
+        {
+            Interlocked.Increment(ref _callCount);
+            Assert.Equal(GameHeartbeatRpcIds.ServiceId, method.ServiceId);
+            Assert.Equal(GameHeartbeatRpcIds.HeartbeatMethodId, method.MethodId);
+            if (_exception is not null)
+            {
+                throw _exception;
+            }
+
+            return new ValueTask<TResult>((TResult)(object)_reply!);
+        }
+
+        public void RegisterNotificationHandler<TArg>(
+            RpcNotificationMethod<TArg> method,
+            Func<TArg, ValueTask> handler)
+        {
+        }
+    }
+
+    private sealed class NoopTransport : ITransport
+    {
+        public bool IsConnected => false;
+
+        public ValueTask ConnectAsync(CancellationToken ct = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken ct = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            return default;
+        }
+    }
+
+    private sealed class NoopSerializer : IRpcSerializer
+    {
+        public TransportFrame SerializeFrame<T>(T value)
+        {
+            return TransportFrame.Empty;
+        }
+
+        public T Deserialize<T>(ReadOnlySpan<byte> data)
+        {
+            throw new NotSupportedException();
+        }
+
+        public T Deserialize<T>(ReadOnlyMemory<byte> data)
+        {
+            throw new NotSupportedException();
+        }
     }
 
     private sealed class DelayedReliablePushCursorStore : IReliablePushCursorStore

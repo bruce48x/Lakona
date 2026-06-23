@@ -13,6 +13,8 @@ namespace Lakona.Game.Client
     {
         private readonly ClientSessionController _sessions;
         private readonly ReliablePushInbox _reliablePush;
+        private readonly object _heartbeatLock = new object();
+        private LakonaGameHeartbeatLoop? _heartbeat;
 
         public LakonaGameClientCore(IReliablePushCursorStore? cursorStore = null)
         {
@@ -34,6 +36,24 @@ namespace Lakona.Game.Client
             if (hello == null) throw new ArgumentNullException(nameof(hello));
             ReliablePushEnabled = hello.ReliablePush.Enabled;
             ReliablePushAckRequired = hello.ReliablePush.Enabled && hello.ReliablePush.AckRequired;
+        }
+
+        public void StartHeartbeat(IRpcClient rpcClient, LakonaGameClientOptions options)
+        {
+            if (rpcClient == null) throw new ArgumentNullException(nameof(rpcClient));
+            if (options == null) throw new ArgumentNullException(nameof(options));
+
+            lock (_heartbeatLock)
+            {
+                if (_heartbeat is not null)
+                {
+                    throw new InvalidOperationException("Lakona game heartbeat loop already started.");
+                }
+
+                var heartbeat = new LakonaGameHeartbeatLoop(rpcClient, this, options);
+                heartbeat.Start();
+                _heartbeat = heartbeat;
+            }
         }
 
         public async ValueTask<GameServerHello> HandshakeAsync(
@@ -137,9 +157,19 @@ namespace Lakona.Game.Client
             return result;
         }
 
-        public ValueTask DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
-            return default;
+            LakonaGameHeartbeatLoop? heartbeat;
+            lock (_heartbeatLock)
+            {
+                heartbeat = _heartbeat;
+                _heartbeat = null;
+            }
+
+            if (heartbeat is not null)
+            {
+                await heartbeat.DisposeAsync().ConfigureAwait(false);
+            }
         }
     }
 }
