@@ -23,6 +23,8 @@ internal static class UnityClientCodeTemplates
         using System.Threading.Tasks;
         using Rpc.Generated;
         using Shared.Contracts.Chat;
+        using Lakona.Game.Abstractions.Sessions;
+        using Lakona.Game.Client;
         using Lakona.Rpc.Client;
 
         namespace Client.Login
@@ -30,6 +32,7 @@ internal static class UnityClientCodeTemplates
             public sealed class LoginClient : ILoginCallback, IChatCallback, IAsyncDisposable
             {
                 private readonly RpcClient _rpcClient;
+                private readonly LakonaGameClient _gameClient = new();
                 private ILoginService? _loginService;
                 private bool _isConnected;
 
@@ -58,6 +61,11 @@ internal static class UnityClientCodeTemplates
                 public async Task ConnectAsync(CancellationToken cancellationToken = default)
                 {
                     await _rpcClient.ConnectAsync(cancellationToken);
+                    await _gameClient.HandshakeAsync(_rpcClient.Runtime, new GameClientHello
+                    {
+                        ClientRuntime = "unity",
+                        Platform = "unity"
+                    }, cancellationToken);
                     _loginService = _rpcClient.Api.Shared.Login;
                     _isConnected = true;
                 }

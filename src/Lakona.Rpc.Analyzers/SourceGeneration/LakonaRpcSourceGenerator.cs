@@ -721,6 +721,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             writer.CloseBlock();
             writer.Line();
             writer.Line("public RpcClientOptions Options { get; }");
+            writer.Line("public global::Lakona.Rpc.Core.IRpcClient Runtime => _runtime;");
             writer.Line($"public global::{generatedNamespace}.RpcApi Api => _api ??= new global::{generatedNamespace}.RpcApi(_runtime);");
             writer.Line();
             writer.OpenBlock("public ValueTask ConnectAsync(CancellationToken ct = default)");

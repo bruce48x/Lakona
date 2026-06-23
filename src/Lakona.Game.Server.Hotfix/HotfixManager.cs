@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Lakona.Game.Server.Hotfix;
 
-public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccessor
+public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccessor, IHotfixRuntimeAccessor
 {
     private readonly IHotfixAssemblySource _source;
     private readonly IReadOnlyList<string> _sharedAssemblyNames;
@@ -16,6 +16,7 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
     private long _nextVersion;
     private HotfixSnapshot _current = new(null, null, null, null, 0, Array.Empty<HotfixMethodKey>(), null, null, null);
     private IServiceProvider _currentProvider = EmptyServiceProvider.Instance;
+    private HotfixRuntimeSnapshot _currentRuntime = new(new HotfixServiceInvoker(HotfixDispatch.Current), EmptyServiceProvider.Instance);
     private HotfixAssemblyLoadContext? _loadContext;
 
     public HotfixManager(
@@ -39,7 +40,9 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
 
     public HotfixSnapshot Current => Volatile.Read(ref _current);
 
-    IServiceProvider IHotfixServiceProviderAccessor.Current => Volatile.Read(ref _currentProvider);
+    IServiceProvider IHotfixServiceProviderAccessor.Current => Volatile.Read(ref _currentRuntime).Services;
+
+    HotfixRuntimeSnapshot IHotfixRuntimeAccessor.Current => Volatile.Read(ref _currentRuntime);
 
     public async ValueTask<HotfixReloadResult> ValidateAsync(CancellationToken cancellationToken = default)
     {
@@ -140,9 +143,11 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             }
 
             HotfixDispatch.Replace(table);
+            var runtimeSnapshot = new HotfixRuntimeSnapshot(new HotfixServiceInvoker(table), hotfixProvider);
             var oldProvider = Interlocked.Exchange(ref _currentProvider, hotfixProvider);
             var oldContext = Interlocked.Exchange(ref _loadContext, pendingContext);
             pendingContext = null;
+            Volatile.Write(ref _currentRuntime, runtimeSnapshot);
             Volatile.Write(ref _current, snapshot);
             DisposeQuietly(oldProvider);
             UnloadQuietly(oldContext);

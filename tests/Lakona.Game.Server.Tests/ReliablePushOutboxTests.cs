@@ -84,6 +84,24 @@ public sealed class ReliablePushOutboxTests
     }
 
     [Fact]
+    public async Task PublishInDisabledModeDeliversImmediateRecordWithoutPendingSequence()
+    {
+        var outbox = CreateOutbox(options => options.Enabled = false);
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var delivered = new List<ReliablePushRecord>();
+
+        var sequence = await outbox.PublishAsync("player-a", "MatchReady", "ready", Capture(delivered), cancellationToken);
+        var replayed = new List<ReliablePushRecord>();
+        await outbox.ReplayPendingAsync("player-a", Capture(replayed), cancellationToken);
+
+        Assert.Equal(0, sequence);
+        var record = Assert.Single(delivered);
+        Assert.Equal(0, record.Sequence);
+        Assert.Equal(0, outbox.GetLastSequence("player-a"));
+        Assert.Empty(replayed);
+    }
+
+    [Fact]
     public void AddReliablePushRegistersOptionsAndOutbox()
     {
         var services = new ServiceCollection();

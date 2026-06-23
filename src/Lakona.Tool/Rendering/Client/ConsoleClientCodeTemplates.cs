@@ -47,6 +47,12 @@ internal static class ConsoleClientCodeTemplates
             var settings = ParseClientSettings(args, allowLoadOptions: false);
             await using var client = RpcClientFactory.Create(settings);
             await client.ConnectAsync();
+            var gameClient = new Lakona.Game.Client.LakonaGameClient();
+            await gameClient.HandshakeAsync(client.Runtime, new Lakona.Game.Abstractions.Sessions.GameClientHello
+            {
+                ClientRuntime = "console",
+                Platform = "console"
+            });
             var login = client.Api.Shared.Login;
             var chat = client.Api.Shared.Chat;
             var name = "smoke-user";
@@ -297,6 +303,15 @@ internal static class ConsoleClientCodeTemplates
             {
                 await using var client = RpcClientFactory.Create(options.ClientSettings);
                 await context.MeasureAsync("connect", token => client.ConnectAsync(token), cancellationToken);
+                var gameClient = new Lakona.Game.Client.LakonaGameClient();
+                await context.MeasureAsync("handshake", async token =>
+                {
+                    await gameClient.HandshakeAsync(client.Runtime, new Lakona.Game.Abstractions.Sessions.GameClientHello
+                    {
+                        ClientRuntime = "console-load",
+                        Platform = "console"
+                    }, token);
+                }, cancellationToken);
                 var login = client.Api.Shared.Login;
                 var chat = client.Api.Shared.Chat;
                 LoginReply? reply = null;

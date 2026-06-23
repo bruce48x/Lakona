@@ -23,6 +23,20 @@ internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
         ArgumentNullException.ThrowIfNull(payload);
         ArgumentNullException.ThrowIfNull(deliver);
 
+        if (!_options.Enabled)
+        {
+            var immediate = new ReliablePushRecord
+            {
+                OwnerKey = ownerKey,
+                Kind = kind,
+                Payload = payload,
+                Sequence = 0,
+                CreatedAtUtc = DateTime.UtcNow
+            };
+            await DeliverAsync(immediate, deliver, cancellationToken).ConfigureAwait(false);
+            return 0;
+        }
+
         ReliablePushRecord record;
         lock (_gate)
         {

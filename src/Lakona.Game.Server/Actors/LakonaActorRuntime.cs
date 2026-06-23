@@ -220,7 +220,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
     {
         ArgumentNullException.ThrowIfNull(callback);
 
-        var cell = GetOrCreateCell<TActor>(id);
+        var cell = GetRequiredCell(typeof(TActor), id, nameof(RegisterTimer));
         var envelope = new ActorRuntimeEnvelope(
             static async (actor, state, ct) =>
             {

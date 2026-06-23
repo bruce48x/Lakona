@@ -64,6 +64,10 @@ public sealed class HotfixGeneratorTests
         Assert.Empty(result.ErrorDiagnostics);
         Assert.Contains("internal sealed class ChatServiceProxy : global::Shared.Contracts.Chat.IChatService", result.GeneratedSource);
         Assert.Contains("HotfixServiceCall<global::Shared.Contracts.Chat.ChatBindRequest, global::Shared.Contracts.Chat.IChatCallback>", result.GeneratedSource);
+        Assert.Contains("var snapshot = _hotfixRuntime.Current;", result.GeneratedSource);
+        Assert.Contains("snapshot.Services,", result.GeneratedSource);
+        Assert.Contains("snapshot.Invoker.InvokeAsync", result.GeneratedSource);
+        Assert.DoesNotContain("_hotfixServices.Current", result.GeneratedSource, StringComparison.Ordinal);
         Assert.Contains("global::Server.App.Generated.ChatServiceBinder.BindFactory", result.GeneratedSource);
         Assert.DoesNotContain("UseGeneratedHotfixServices", result.GeneratedSource);
         Assert.Contains("[global::Lakona.Game.Server.Hosting.LakonaRpcServiceAttribute(\"chat\")]", result.GeneratedSource);

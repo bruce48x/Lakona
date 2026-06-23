@@ -20,6 +20,7 @@ public static class HotfixServiceCollectionExtensions
         services.RemoveAll<IHotfixAssemblySource>();
         services.RemoveAll<IHotfixManager>();
         services.RemoveAll<IHotfixServiceProviderAccessor>();
+        services.RemoveAll<IHotfixRuntimeAccessor>();
         services.RemoveAll<HotfixManager>();
         services.AddSingleton(source);
         services.TryAddSingleton<IHotfixServiceInvoker, HotfixServiceInvoker>();
@@ -39,6 +40,7 @@ public static class HotfixServiceCollectionExtensions
         });
         services.AddSingleton<IHotfixManager>(provider => provider.GetRequiredService<HotfixManager>());
         services.AddSingleton<IHotfixServiceProviderAccessor>(provider => provider.GetRequiredService<HotfixManager>());
+        services.AddSingleton<IHotfixRuntimeAccessor>(provider => provider.GetRequiredService<HotfixManager>());
         return services;
     }
 

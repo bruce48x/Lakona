@@ -54,6 +54,9 @@ public sealed class ClientRendererTests
         Assert.Contains("public sealed class LoginClient : ILoginCallback, IChatCallback, IAsyncDisposable", loginClient, StringComparison.Ordinal);
         Assert.Contains("callbacks.Add((ILoginCallback)this);", loginClient, StringComparison.Ordinal);
         Assert.Contains("callbacks.Add((IChatCallback)this);", loginClient, StringComparison.Ordinal);
+        Assert.Contains("private readonly LakonaGameClient _gameClient = new();", loginClient, StringComparison.Ordinal);
+        Assert.Contains("await _gameClient.HandshakeAsync(_rpcClient.Runtime, new GameClientHello", loginClient, StringComparison.Ordinal);
+        AssertBefore(loginClient, "await _gameClient.HandshakeAsync", "_loginService = _rpcClient.Api.Shared.Login;");
         Assert.Contains("_loginService = _rpcClient.Api.Shared.Login;", loginClient, StringComparison.Ordinal);
         Assert.Contains("public async Task<LoginReply> LoginAsync(string playerName)", loginClient, StringComparison.Ordinal);
         Assert.DoesNotContain("public sealed class LoginClient\r\n    {\r\n    }", loginClient, StringComparison.Ordinal);
@@ -226,6 +229,9 @@ public sealed class ClientRendererTests
         Assert.Contains("return 3;", program, StringComparison.Ordinal);
         Assert.Contains("Lakona.Game.LoadTesting.LoadRunSummaryFormatter.Format(summary)", program, StringComparison.Ordinal);
         Assert.Contains("summary.FailedOperations > 0 || summary.FailedUsers > 0", program, StringComparison.Ordinal);
+        Assert.Contains("var gameClient = new Lakona.Game.Client.LakonaGameClient();", program, StringComparison.Ordinal);
+        Assert.Contains("await gameClient.HandshakeAsync(client.Runtime, new Lakona.Game.Abstractions.Sessions.GameClientHello", program, StringComparison.Ordinal);
+        AssertBefore(program, "await gameClient.HandshakeAsync", "var login = client.Api.Shared.Login;");
     }
 
     [Fact]
@@ -281,6 +287,9 @@ public sealed class ClientRendererTests
         Assert.Contains("public sealed class LoginClient : ILoginCallback, IChatCallback, IAsyncDisposable", loginClient, StringComparison.Ordinal);
         Assert.Contains("callbacks.Add((ILoginCallback)this);", loginClient, StringComparison.Ordinal);
         Assert.Contains("callbacks.Add((IChatCallback)this);", loginClient, StringComparison.Ordinal);
+        Assert.Contains("private readonly LakonaGameClient _gameClient = new();", loginClient, StringComparison.Ordinal);
+        Assert.Contains("await _gameClient.HandshakeAsync(_rpcClient.Runtime, new GameClientHello", loginClient, StringComparison.Ordinal);
+        AssertBefore(loginClient, "await _gameClient.HandshakeAsync", "_loginService = _rpcClient.Api.Shared.Login;");
         Assert.Contains("_loginService = _rpcClient.Api.Shared.Login;", loginClient, StringComparison.Ordinal);
 
         var chatClient = AssertPath(plan, "Client/Scripts/Chat/ChatClient.cs").Content;
@@ -508,6 +517,15 @@ public sealed class ClientRendererTests
         }
 
         return count;
+    }
+
+    private static void AssertBefore(string text, string first, string second)
+    {
+        var firstIndex = text.IndexOf(first, StringComparison.Ordinal);
+        var secondIndex = text.IndexOf(second, StringComparison.Ordinal);
+        Assert.True(firstIndex >= 0, $"Missing '{first}'.");
+        Assert.True(secondIndex >= 0, $"Missing '{second}'.");
+        Assert.True(firstIndex < secondIndex, $"Expected '{first}' before '{second}'.");
     }
 
     private static void AssertUnitySceneHasMainCamera(string scene)

@@ -489,8 +489,11 @@ public sealed class ActorRuntimeTests
         await using var provider = new ServiceCollection()
             .AddLakonaGameServerActors()
             .BuildServiceProvider();
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var id = ActorId.From("timer/1");
+
+        await lifecycle.CreateLocalAsync<TimerActor>(id, cancellationToken: cancellationToken);
 
         await using var timer = runtime.RegisterTimer<TimerActor>(
             id,
@@ -514,14 +517,41 @@ public sealed class ActorRuntimeTests
     }
 
     [Fact]
+    public void RegisterTimer_does_not_create_missing_actor()
+    {
+        using var provider = new ServiceCollection()
+            .AddLakonaGameServerActors()
+            .BuildServiceProvider();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        var id = ActorId.From("timer-missing/1");
+
+        var ex = Assert.Throws<ActorNotFoundException>(() =>
+            runtime.RegisterTimer<TimerActor>(
+                id,
+                TimeSpan.FromMilliseconds(10),
+                null,
+                static (actor, _) =>
+                {
+                    actor.Ticks++;
+                    return ValueTask.CompletedTask;
+                }));
+
+        Assert.Equal(ActorCallStatus.ActorNotFound, ex.Status);
+        Assert.Empty(runtime.GetActiveActorIds(typeof(TimerActor)));
+    }
+
+    [Fact]
     public async Task StopAsync_disposes_registered_timer()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = new ServiceCollection()
             .AddLakonaGameServerActors()
             .BuildServiceProvider();
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var id = ActorId.From("timer-stop/1");
+
+        await lifecycle.CreateLocalAsync<TimerActor>(id, cancellationToken: cancellationToken);
 
         await using var timer = runtime.RegisterTimer<TimerActor>(
             id,
@@ -554,8 +584,11 @@ public sealed class ActorRuntimeTests
         await using var provider = new ServiceCollection()
             .AddLakonaGameServerActors()
             .BuildServiceProvider();
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var id = ActorId.From("timer-stop-race/1");
+
+        await lifecycle.CreateLocalAsync<TimerActor>(id, cancellationToken: cancellationToken);
 
         await using var timer = runtime.RegisterTimer<TimerActor>(
             id,

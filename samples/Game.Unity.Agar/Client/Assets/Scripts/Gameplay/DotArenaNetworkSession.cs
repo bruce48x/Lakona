@@ -1,12 +1,15 @@
 #nullable enable
 
 using System;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Rpc;
 using Rpc.Generated;
 using Shared.Interfaces;
+using Lakona.Game.Abstractions.Sessions;
 using Lakona.Rpc.Client;
+using Lakona.Rpc.Core;
 
 namespace SampleClient.Gameplay
 {
@@ -68,6 +71,12 @@ namespace SampleClient.Gameplay
                 _controlConnection.Disconnected += HandleControlDisconnected;
 
                 await _controlConnection.ConnectAsync(cancellationToken);
+                await HandshakeAsync(_controlConnection, new GameClientHello
+                {
+                    ClientRuntime = "unity",
+                    Platform = "unity",
+                    GameVersion = "agar"
+                }, cancellationToken).ConfigureAwait(false);
 
                 _loginService = _controlConnection.Api.Shared.Login;
                 _controlPlayerService = _controlConnection.Api.Shared.Player;
@@ -203,6 +212,12 @@ namespace SampleClient.Gameplay
                 _realtimeConnection.Disconnected += HandleRealtimeDisconnected;
 
                 await _realtimeConnection.ConnectAsync(cancellationToken).ConfigureAwait(false);
+                await HandshakeAsync(_realtimeConnection, new GameClientHello
+                {
+                    ClientRuntime = "unity-realtime",
+                    Platform = "unity",
+                    GameVersion = "agar"
+                }, cancellationToken).ConfigureAwait(false);
 
                 _battleService = _realtimeConnection.Api.Shared.Battle;
                 var reply = await _battleService.AttachRealtimeAsync(new RealtimeAttachRequest
@@ -232,6 +247,23 @@ namespace SampleClient.Gameplay
         {
             await DisposeRealtimeAsync().ConfigureAwait(false);
             await DisposeControlAsync(logout).ConfigureAwait(false);
+        }
+
+        private static async Task<GameServerHello> HandshakeAsync(
+            RpcClient connection,
+            GameClientHello hello,
+            CancellationToken cancellationToken)
+        {
+            var runtimeField = typeof(RpcClient).GetField("_runtime", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (runtimeField == null || runtimeField.GetValue(connection) is not IRpcClient runtime)
+            {
+                throw new InvalidOperationException("Generated RPC client runtime is not available for game handshake.");
+            }
+
+            return await runtime.CallAsync(
+                new RpcMethod<GameClientHello, GameServerHello>(0, 1),
+                hello,
+                cancellationToken).ConfigureAwait(false);
         }
 
         private async Task DisposeControlAsync(bool logout)

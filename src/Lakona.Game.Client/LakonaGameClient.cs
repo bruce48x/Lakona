@@ -5,6 +5,7 @@ using Lakona.Game.Abstractions;
 using Lakona.Game.Abstractions.Sessions;
 using Lakona.Game.Client.ReliablePush;
 using Lakona.Game.Client.Sessions;
+using Lakona.Rpc.Core;
 
 namespace Lakona.Game.Client
 {
@@ -33,6 +34,22 @@ namespace Lakona.Game.Client
             if (hello == null) throw new ArgumentNullException(nameof(hello));
             ReliablePushEnabled = hello.ReliablePush.Enabled;
             ReliablePushAckRequired = hello.ReliablePush.Enabled && hello.ReliablePush.AckRequired;
+        }
+
+        public async ValueTask<GameServerHello> HandshakeAsync(
+            IRpcClient rpcClient,
+            GameClientHello hello,
+            CancellationToken cancellationToken = default)
+        {
+            if (rpcClient == null) throw new ArgumentNullException(nameof(rpcClient));
+            if (hello == null) throw new ArgumentNullException(nameof(hello));
+
+            var serverHello = await rpcClient.CallAsync(
+                new RpcMethod<GameClientHello, GameServerHello>(0, 1),
+                hello,
+                cancellationToken).ConfigureAwait(false);
+            ApplyServerHello(serverHello);
+            return serverHello;
         }
 
         public void MarkConnecting()
