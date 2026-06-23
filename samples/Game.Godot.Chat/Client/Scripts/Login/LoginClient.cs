@@ -3,6 +3,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Rpc.Generated;
 using Shared.Contracts.Chat;
+using Lakona.Game.Abstractions.Sessions;
+using Lakona.Game.Client;
 using Lakona.Rpc.Client;
 
 namespace Client.Login
@@ -10,6 +12,7 @@ namespace Client.Login
     public sealed class LoginClient : ILoginCallback, IChatCallback, IAsyncDisposable
     {
         private readonly RpcClient _rpcClient;
+        private readonly LakonaGameClient _gameClient = new();
         private ILoginService? _loginService;
         private bool _isConnected;
 
@@ -38,6 +41,11 @@ namespace Client.Login
         public async Task ConnectAsync(CancellationToken cancellationToken = default)
         {
             await _rpcClient.ConnectAsync(cancellationToken);
+            await _gameClient.HandshakeAsync(_rpcClient.Runtime, new GameClientHello
+            {
+                ClientRuntime = "godot",
+                Platform = "godot"
+            }, cancellationToken);
             _loginService = _rpcClient.Api.Shared.Login;
             _isConnected = true;
         }
