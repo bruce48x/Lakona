@@ -49,21 +49,25 @@ public sealed class ClientRendererTests
 
         var rpcMarker = AssertPath(plan, "Client/Assets/Scripts/Rpc/LakonaRpcGeneration.cs").Content;
         Assert.Contains("[assembly: LakonaRpcGenerateClient(\"Rpc.Generated\")]", rpcMarker, StringComparison.Ordinal);
+        Assert.Contains("[assembly: LakonaGameGenerateClient(\"unity\", \"unity\", \"chat\")]", rpcMarker, StringComparison.Ordinal);
 
         var loginClient = AssertPath(plan, "Client/Assets/Scripts/Login/LoginClient.cs").Content;
         Assert.Contains("public sealed class LoginClient : ILoginCallback, IChatCallback, IAsyncDisposable", loginClient, StringComparison.Ordinal);
-        Assert.Contains("callbacks.Add((ILoginCallback)this);", loginClient, StringComparison.Ordinal);
-        Assert.Contains("callbacks.Add((IChatCallback)this);", loginClient, StringComparison.Ordinal);
-        Assert.Contains("private readonly LakonaGameClient _gameClient = new();", loginClient, StringComparison.Ordinal);
-        Assert.Contains("await _gameClient.HandshakeAsync(_rpcClient.Runtime, new GameClientHello", loginClient, StringComparison.Ordinal);
-        AssertBefore(loginClient, "await _gameClient.HandshakeAsync", "_loginService = _rpcClient.Api.Shared.Login;");
-        Assert.Contains("_loginService = _rpcClient.Api.Shared.Login;", loginClient, StringComparison.Ordinal);
+        Assert.Contains("private readonly LakonaGameClient _gameClient;", loginClient, StringComparison.Ordinal);
+        Assert.Contains("_gameClient = new LakonaGameClient(options, this);", loginClient, StringComparison.Ordinal);
+        Assert.Contains("_loginService = _gameClient.Api.Shared.Login;", loginClient, StringComparison.Ordinal);
+        Assert.Contains("public LakonaGameClient GameClient => _gameClient;", loginClient, StringComparison.Ordinal);
+        Assert.DoesNotContain("RpcClient _rpcClient", loginClient, StringComparison.Ordinal);
+        Assert.DoesNotContain("RpcNotificationBindings", loginClient, StringComparison.Ordinal);
+        Assert.DoesNotContain("callbacks.Add", loginClient, StringComparison.Ordinal);
+        Assert.DoesNotContain("HandshakeAsync", loginClient, StringComparison.Ordinal);
         Assert.Contains("public async Task<LoginReply> LoginAsync(string playerName)", loginClient, StringComparison.Ordinal);
         Assert.DoesNotContain("public sealed class LoginClient\r\n    {\r\n    }", loginClient, StringComparison.Ordinal);
 
         var chatClient = AssertPath(plan, "Client/Assets/Scripts/Chat/ChatClient.cs").Content;
         Assert.Contains("private readonly IChatService _chatService;", chatClient, StringComparison.Ordinal);
-        Assert.Contains("_chatService = loginClient.RpcClient.Api.Shared.Chat;", chatClient, StringComparison.Ordinal);
+        Assert.Contains("_chatService = loginClient.GameClient.Api.Shared.Chat;", chatClient, StringComparison.Ordinal);
+        Assert.DoesNotContain("loginClient.RpcClient", chatClient, StringComparison.Ordinal);
         Assert.Contains("public async Task BindAsync(LoginReply reply)", chatClient, StringComparison.Ordinal);
         Assert.Contains("await _chatService.BindAsync(new ChatBindRequest());", chatClient, StringComparison.Ordinal);
         Assert.DoesNotContain("reply.Session", chatClient, StringComparison.Ordinal);
@@ -167,7 +171,7 @@ public sealed class ClientRendererTests
         Assert.Contains(plan.Files, file => file.RelativePath == "Client/Client.csproj");
         Assert.Contains(plan.Files, file => file.RelativePath == "Client/Program.cs");
         Assert.Contains(plan.Files, file => file.RelativePath == "Client/ClientRuntime/ConsoleClientSettings.cs");
-        Assert.Contains(plan.Files, file => file.RelativePath == "Client/ClientRuntime/RpcClientFactory.cs");
+        Assert.Contains(plan.Files, file => file.RelativePath == "Client/ClientRuntime/GameClientFactory.cs");
         Assert.Contains(plan.Files, file => file.RelativePath == "Client/LoadScenarios/LoginChatLoadScenario.cs");
         Assert.Contains(plan.Files, file => file.RelativePath == "Client/LoadScenarios/LoginChatLoadScenarioOptions.cs");
 
@@ -187,6 +191,10 @@ public sealed class ClientRendererTests
         Assert.Contains("<TargetFramework>net10.0</TargetFramework>", project, StringComparison.Ordinal);
         Assert.Contains("<LakonaRpcGenerateClient>true</LakonaRpcGenerateClient>", project, StringComparison.Ordinal);
         Assert.Contains("<LakonaRpcGeneratedNamespace>Rpc.Generated</LakonaRpcGeneratedNamespace>", project, StringComparison.Ordinal);
+        Assert.Contains("<CompilerVisibleProperty Include=\"LakonaGameGenerateClient\" />", project, StringComparison.Ordinal);
+        Assert.Contains("<CompilerVisibleProperty Include=\"LakonaGameClientRuntime\" />", project, StringComparison.Ordinal);
+        Assert.Contains("<CompilerVisibleProperty Include=\"LakonaGameClientPlatform\" />", project, StringComparison.Ordinal);
+        Assert.Contains("<CompilerVisibleProperty Include=\"LakonaGameClientGameVersion\" />", project, StringComparison.Ordinal);
         Assert.Contains("<ProjectReference Include=\"..\\Shared\\Shared.csproj\" />", project, StringComparison.Ordinal);
         Assert.Contains("<PackageReference Include=\"Lakona.Game.LoadTesting\"", project, StringComparison.Ordinal);
         Assert.Contains("<PackageReference Include=\"Lakona.Rpc.Analyzers\"", project, StringComparison.Ordinal);
@@ -197,7 +205,7 @@ public sealed class ClientRendererTests
     [InlineData("Tcp", "Json", "using Lakona.Rpc.Transport.Tcp;", "using Lakona.Rpc.Serializer.Json;", "new TcpTransport(settings.Host, settings.Port)", "new JsonRpcSerializer()")]
     [InlineData("WebSocket", "Json", "using Lakona.Rpc.Transport.WebSocket;", "using Lakona.Rpc.Serializer.Json;", "new WsTransport($\"ws://{settings.Host}:{settings.Port}{NormalizePath(settings.Path)}\")", "new JsonRpcSerializer()")]
     [InlineData("Kcp", "MemoryPack", "using Lakona.Rpc.Transport.Kcp;", "using Lakona.Rpc.Serializer.MemoryPack;", "new KcpTransport(settings.Host, settings.Port)", "new MemoryPackRpcSerializer()")]
-    public void ConsoleClientRenderer_RpcClientFactoryUsesSelectedTransportAndSerializer(
+    public void ConsoleClientRenderer_GameClientFactoryUsesSelectedTransportAndSerializer(
         string transportName,
         string serializerName,
         string transportUsing,
@@ -208,7 +216,7 @@ public sealed class ClientRendererTests
         var transport = Enum.Parse<TransportKind>(transportName);
         var serializer = Enum.Parse<SerializerKind>(serializerName);
         var plan = Render(new ConsoleClientRenderer(), Spec(ClientEngine.Console, serializer: serializer, transport: transport));
-        var factory = AssertPath(plan, "Client/ClientRuntime/RpcClientFactory.cs").Content;
+        var factory = AssertPath(plan, "Client/ClientRuntime/GameClientFactory.cs").Content;
 
         Assert.Contains(transportUsing, factory, StringComparison.Ordinal);
         Assert.Contains(serializerUsing, factory, StringComparison.Ordinal);
@@ -229,9 +237,11 @@ public sealed class ClientRendererTests
         Assert.Contains("return 3;", program, StringComparison.Ordinal);
         Assert.Contains("Lakona.Game.LoadTesting.LoadRunSummaryFormatter.Format(summary)", program, StringComparison.Ordinal);
         Assert.Contains("summary.FailedOperations > 0 || summary.FailedUsers > 0", program, StringComparison.Ordinal);
-        Assert.Contains("var gameClient = new Lakona.Game.Client.LakonaGameClient();", program, StringComparison.Ordinal);
-        Assert.Contains("await gameClient.HandshakeAsync(client.Runtime, new Lakona.Game.Abstractions.Sessions.GameClientHello", program, StringComparison.Ordinal);
-        AssertBefore(program, "await gameClient.HandshakeAsync", "var login = client.Api.Shared.Login;");
+        Assert.DoesNotContain("new Lakona.Game.Client.LakonaGameClient", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("HandshakeAsync", program, StringComparison.Ordinal);
+        Assert.Contains("await using var client = GameClientFactory.Create(settings);", program, StringComparison.Ordinal);
+        Assert.Contains("var login = client.Api.Shared.Login;", program, StringComparison.Ordinal);
+        Assert.Contains("var chat = client.Api.Shared.Chat;", program, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -257,6 +267,11 @@ public sealed class ClientRendererTests
 
         Assert.Contains("public sealed class LoginChatLoadScenario : ILoadScenario", scenario, StringComparison.Ordinal);
         Assert.Contains("context.MeasureAsync(\"connect\"", scenario, StringComparison.Ordinal);
+        Assert.DoesNotContain("new Lakona.Game.Client.LakonaGameClient", scenario, StringComparison.Ordinal);
+        Assert.DoesNotContain("HandshakeAsync", scenario, StringComparison.Ordinal);
+        Assert.Contains("await using var client = GameClientFactory.Create(options.ClientSettings);", scenario, StringComparison.Ordinal);
+        Assert.Contains("var login = client.Api.Shared.Login;", scenario, StringComparison.Ordinal);
+        Assert.Contains("var chat = client.Api.Shared.Chat;", scenario, StringComparison.Ordinal);
         Assert.Contains("context.MeasureAsync(\"login\"", scenario, StringComparison.Ordinal);
         Assert.Contains("context.MeasureAsync(\"bind\"", scenario, StringComparison.Ordinal);
         Assert.Contains("context.MeasureAsync(\"send\"", scenario, StringComparison.Ordinal);
@@ -273,6 +288,14 @@ public sealed class ClientRendererTests
         Assert.Contains("<ImplicitUsings>enable</ImplicitUsings>", project, StringComparison.Ordinal);
         Assert.Contains("<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>", project, StringComparison.Ordinal);
         Assert.Contains("<LakonaRpcGeneratedNamespace>Rpc.Generated</LakonaRpcGeneratedNamespace>", project, StringComparison.Ordinal);
+        Assert.Contains("<LakonaGameGenerateClient>true</LakonaGameGenerateClient>", project, StringComparison.Ordinal);
+        Assert.Contains("<LakonaGameClientRuntime>godot</LakonaGameClientRuntime>", project, StringComparison.Ordinal);
+        Assert.Contains("<LakonaGameClientPlatform>godot</LakonaGameClientPlatform>", project, StringComparison.Ordinal);
+        Assert.Contains("<LakonaGameClientGameVersion>chat</LakonaGameClientGameVersion>", project, StringComparison.Ordinal);
+        Assert.Contains("<CompilerVisibleProperty Include=\"LakonaGameGenerateClient\" />", project, StringComparison.Ordinal);
+        Assert.Contains("<CompilerVisibleProperty Include=\"LakonaGameClientRuntime\" />", project, StringComparison.Ordinal);
+        Assert.Contains("<CompilerVisibleProperty Include=\"LakonaGameClientPlatform\" />", project, StringComparison.Ordinal);
+        Assert.Contains("<CompilerVisibleProperty Include=\"LakonaGameClientGameVersion\" />", project, StringComparison.Ordinal);
         Assert.Contains("<PackageReference Include=\"Lakona.Rpc.Serializer.Json\"", project, StringComparison.Ordinal);
 
         var projectGodot = AssertPath(plan, "Client/project.godot").Content;
@@ -285,16 +308,19 @@ public sealed class ClientRendererTests
         var loginClient = AssertPath(plan, "Client/Scripts/Login/LoginClient.cs").Content;
         Assert.Contains("using Rpc.Generated;", loginClient, StringComparison.Ordinal);
         Assert.Contains("public sealed class LoginClient : ILoginCallback, IChatCallback, IAsyncDisposable", loginClient, StringComparison.Ordinal);
-        Assert.Contains("callbacks.Add((ILoginCallback)this);", loginClient, StringComparison.Ordinal);
-        Assert.Contains("callbacks.Add((IChatCallback)this);", loginClient, StringComparison.Ordinal);
-        Assert.Contains("private readonly LakonaGameClient _gameClient = new();", loginClient, StringComparison.Ordinal);
-        Assert.Contains("await _gameClient.HandshakeAsync(_rpcClient.Runtime, new GameClientHello", loginClient, StringComparison.Ordinal);
-        AssertBefore(loginClient, "await _gameClient.HandshakeAsync", "_loginService = _rpcClient.Api.Shared.Login;");
-        Assert.Contains("_loginService = _rpcClient.Api.Shared.Login;", loginClient, StringComparison.Ordinal);
+        Assert.Contains("private readonly LakonaGameClient _gameClient;", loginClient, StringComparison.Ordinal);
+        Assert.Contains("_gameClient = new LakonaGameClient(options, this);", loginClient, StringComparison.Ordinal);
+        Assert.Contains("_loginService = _gameClient.Api.Shared.Login;", loginClient, StringComparison.Ordinal);
+        Assert.Contains("public LakonaGameClient GameClient => _gameClient;", loginClient, StringComparison.Ordinal);
+        Assert.DoesNotContain("RpcClient _rpcClient", loginClient, StringComparison.Ordinal);
+        Assert.DoesNotContain("RpcNotificationBindings", loginClient, StringComparison.Ordinal);
+        Assert.DoesNotContain("callbacks.Add", loginClient, StringComparison.Ordinal);
+        Assert.DoesNotContain("HandshakeAsync", loginClient, StringComparison.Ordinal);
 
         var chatClient = AssertPath(plan, "Client/Scripts/Chat/ChatClient.cs").Content;
         Assert.Contains("private readonly IChatService _chatService;", chatClient, StringComparison.Ordinal);
-        Assert.Contains("_chatService = loginClient.RpcClient.Api.Shared.Chat;", chatClient, StringComparison.Ordinal);
+        Assert.Contains("_chatService = loginClient.GameClient.Api.Shared.Chat;", chatClient, StringComparison.Ordinal);
+        Assert.DoesNotContain("loginClient.RpcClient", chatClient, StringComparison.Ordinal);
         Assert.Contains("public async Task BindAsync(LoginReply reply)", chatClient, StringComparison.Ordinal);
         Assert.Contains("await _chatService.BindAsync(new ChatBindRequest());", chatClient, StringComparison.Ordinal);
         Assert.DoesNotContain("reply.Session", chatClient, StringComparison.Ordinal);

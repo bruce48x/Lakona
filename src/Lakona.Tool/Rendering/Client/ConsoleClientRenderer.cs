@@ -16,7 +16,7 @@ internal sealed class ConsoleClientRenderer : IClientRenderer
         builder.AddFile("Client/Client.csproj", RenderClientProject(spec), FileWriteMode.Replace, GeneratedFileKind.Project);
         builder.AddFile("Client/Program.cs", ConsoleClientCodeTemplates.RenderProgram(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Client/ClientRuntime/ConsoleClientSettings.cs", ConsoleClientCodeTemplates.RenderConsoleClientSettings(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/ClientRuntime/RpcClientFactory.cs", ConsoleClientCodeTemplates.RenderRpcClientFactory(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/ClientRuntime/GameClientFactory.cs", ConsoleClientCodeTemplates.RenderGameClientFactory(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Client/LoadScenarios/LoginChatLoadScenario.cs", ConsoleClientCodeTemplates.RenderLoginChatLoadScenario(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Client/LoadScenarios/LoginChatLoadScenarioOptions.cs", ConsoleClientCodeTemplates.RenderLoginChatLoadScenarioOptions(), FileWriteMode.Replace, GeneratedFileKind.Text);
     }
@@ -37,7 +37,20 @@ internal sealed class ConsoleClientRenderer : IClientRenderer
             <NuGetAudit>false</NuGetAudit>
             <LakonaRpcGenerateClient>true</LakonaRpcGenerateClient>
             <LakonaRpcGeneratedNamespace>Rpc.Generated</LakonaRpcGeneratedNamespace>
+            <LakonaGameGenerateClient>true</LakonaGameGenerateClient>
+            <LakonaGameClientRuntime>console</LakonaGameClientRuntime>
+            <LakonaGameClientPlatform>console</LakonaGameClientPlatform>
+            <LakonaGameClientGameVersion>chat</LakonaGameClientGameVersion>
           </PropertyGroup>
+
+          <ItemGroup>
+            <CompilerVisibleProperty Include="LakonaRpcGenerateClient" />
+            <CompilerVisibleProperty Include="LakonaRpcGeneratedNamespace" />
+            <CompilerVisibleProperty Include="LakonaGameGenerateClient" />
+            <CompilerVisibleProperty Include="LakonaGameClientRuntime" />
+            <CompilerVisibleProperty Include="LakonaGameClientPlatform" />
+            <CompilerVisibleProperty Include="LakonaGameClientGameVersion" />
+          </ItemGroup>
 
           <ItemGroup>
             <ProjectReference Include="..\Shared\Shared.csproj" />

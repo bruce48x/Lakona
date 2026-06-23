@@ -154,6 +154,12 @@ public sealed class ToolArchitectureScanTests
             Assert.DoesNotContain("ChatPresenceLifecycleHandler", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("namespace Server.App.Lifecycle", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(ForbiddenDispatchCall, generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain("RpcNotificationBindings", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain("callbacks.Add", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain(".HandshakeAsync(", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain("public RpcClient RpcClient", generatedText, StringComparison.Ordinal);
+            Assert.Contains("new LakonaGameClient(options, this)", generatedText, StringComparison.Ordinal);
+            Assert.Contains("gameClient.Api.Shared", generatedText, StringComparison.Ordinal);
 
             var appsettings = File.ReadAllText(Path.Combine(spec.Layout.RootPath, "Server", "App", "appsettings.json"));
             Assert.DoesNotContain("\"Feature\"", appsettings, StringComparison.Ordinal);
@@ -219,9 +225,14 @@ public sealed class ToolArchitectureScanTests
         Assert.Contains("[HotfixLifecycle(typeof(IGameSessionLifecycle))]", hotfixText, StringComparison.Ordinal);
         Assert.Contains("await room.LeaveAsync(connectionId);", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain("CreateLocalAsync<ChatRoomActor>", hotfixText, StringComparison.Ordinal);
-        Assert.Contains("private readonly LakonaGameClient _gameClient = new();", loginClient, StringComparison.Ordinal);
-        Assert.Contains("await _gameClient.HandshakeAsync(_rpcClient.Runtime, new GameClientHello", loginClient, StringComparison.Ordinal);
-        AssertBefore(loginClient, "await _gameClient.HandshakeAsync(_rpcClient.Runtime, new GameClientHello", "_loginService =");
+        Assert.Contains("private readonly LakonaGameClient _gameClient;", loginClient, StringComparison.Ordinal);
+        Assert.Contains("_gameClient = new LakonaGameClient(options, this);", loginClient, StringComparison.Ordinal);
+        Assert.Contains("_loginService = _gameClient.Api.Shared.Login;", loginClient, StringComparison.Ordinal);
+        Assert.Contains("public LakonaGameClient GameClient => _gameClient;", loginClient, StringComparison.Ordinal);
+        Assert.DoesNotContain("RpcNotificationBindings", loginClient, StringComparison.Ordinal);
+        Assert.DoesNotContain("callbacks.Add", loginClient, StringComparison.Ordinal);
+        Assert.DoesNotContain("HandshakeAsync", loginClient, StringComparison.Ordinal);
+        Assert.DoesNotContain("public RpcClient RpcClient", loginClient, StringComparison.Ordinal);
     }
 
     [Fact]
