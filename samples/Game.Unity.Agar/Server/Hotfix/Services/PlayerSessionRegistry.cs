@@ -3,7 +3,7 @@ using Lakona.Game.Abstractions;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 
-namespace Server.App.Services;
+namespace Server.Hotfix.Services;
 
 internal enum PlayerConnectionKind
 {
@@ -16,18 +16,18 @@ internal sealed record PlayerConnectionRegistration(
     string ConnectionId,
     PlayerConnectionKind Kind);
 
-internal sealed class SessionDirectory
+internal sealed class PlayerSessionRegistry
 {
     private readonly Lock _gate = new();
     private readonly IGameSessionDirectory _gameSessions;
-    private readonly Dictionary<string, SessionRegistration> _byPlayerId = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, PlayerSessionRegistration> _byPlayerId = new(StringComparer.Ordinal);
 
-    public SessionDirectory()
+    public PlayerSessionRegistry()
         : this(new InMemoryGameSessionDirectory())
     {
     }
 
-    public SessionDirectory(IGameSessionDirectory gameSessions)
+    public PlayerSessionRegistry(IGameSessionDirectory gameSessions)
     {
         _gameSessions = gameSessions;
     }
@@ -42,7 +42,7 @@ internal sealed class SessionDirectory
 
         lock (_gate)
         {
-            _byPlayerId[playerId] = new SessionRegistration(session, sessionToken, connectionId);
+            _byPlayerId[playerId] = new PlayerSessionRegistration(session, sessionToken, connectionId);
             return session;
         }
     }
@@ -53,7 +53,7 @@ internal sealed class SessionDirectory
         string connectionId,
         CancellationToken cancellationToken = default)
     {
-        SessionRegistration? registration;
+        PlayerSessionRegistration? registration;
         lock (_gate)
         {
             _byPlayerId.TryGetValue(playerId, out registration);
@@ -93,7 +93,7 @@ internal sealed class SessionDirectory
         IControlCallback callback,
         CancellationToken cancellationToken = default)
     {
-        SessionRegistration? registration;
+        PlayerSessionRegistration? registration;
         bool shouldBind;
         lock (_gate)
         {
@@ -130,14 +130,14 @@ internal sealed class SessionDirectory
         return true;
     }
 
-    public async ValueTask<IControlCallback?> GetControlCallbackAsync(SessionRegistration registration, CancellationToken cancellationToken = default)
+    public async ValueTask<IControlCallback?> GetControlCallbackAsync(PlayerSessionRegistration registration, CancellationToken cancellationToken = default)
     {
         return await _gameSessions.GetCallbackAsync<IControlCallback>(
             registration.ControlSessionKey,
             cancellationToken).ConfigureAwait(false);
     }
 
-    public async ValueTask<IBattleCallback?> GetRealtimeCallbackAsync(SessionRegistration registration, CancellationToken cancellationToken = default)
+    public async ValueTask<IBattleCallback?> GetRealtimeCallbackAsync(PlayerSessionRegistration registration, CancellationToken cancellationToken = default)
     {
         if (registration.RealtimeSessionKey is not { } realtimeSession)
         {
@@ -151,7 +151,7 @@ internal sealed class SessionDirectory
 
     public async ValueTask DisconnectControlAsync(string playerId, string? connectionId, CancellationToken cancellationToken = default)
     {
-        SessionRegistration? registration;
+        PlayerSessionRegistration? registration;
         lock (_gate)
         {
             if (!_byPlayerId.TryGetValue(playerId, out registration))
@@ -224,7 +224,7 @@ internal sealed class SessionDirectory
                 session = _gameSessions.StartNewSessionAsync(playerId, cancellationToken)
                     .GetAwaiter()
                     .GetResult();
-                registration = new SessionRegistration(session, sessionToken, string.Empty)
+                registration = new PlayerSessionRegistration(session, sessionToken, string.Empty)
                 {
                     RoomId = roomId,
                     MatchId = matchId
@@ -261,7 +261,7 @@ internal sealed class SessionDirectory
 
     public async ValueTask DetachRealtimeAsync(string playerId, string? connectionId = null, CancellationToken cancellationToken = default)
     {
-        SessionRegistration? registration;
+        PlayerSessionRegistration? registration;
         GameSessionKey? realtimeSession = null;
         lock (_gate)
         {
@@ -302,7 +302,7 @@ internal sealed class SessionDirectory
 
     public void ClearRoom(string playerId, string? expectedRoomId = null)
     {
-        SessionRegistration? detachedRegistration = null;
+        PlayerSessionRegistration? detachedRegistration = null;
         string? realtimeConnectionId = null;
         GameSessionKey? realtimeSession = null;
         lock (_gate)
@@ -346,7 +346,7 @@ internal sealed class SessionDirectory
         }
     }
 
-    public SessionRegistration? Get(string playerId)
+    public PlayerSessionRegistration? Get(string playerId)
     {
         lock (_gate)
         {
@@ -393,7 +393,7 @@ internal sealed class SessionDirectory
         return null;
     }
 
-    public SessionRegistration? GetByReliablePushOwnerKey(string ownerKey)
+    public PlayerSessionRegistration? GetByReliablePushOwnerKey(string ownerKey)
     {
         lock (_gate)
         {
@@ -402,19 +402,19 @@ internal sealed class SessionDirectory
         }
     }
 
-    public IReadOnlyList<SessionRegistration> GetMany(IEnumerable<string> playerIds)
+    public IReadOnlyList<PlayerSessionRegistration> GetMany(IEnumerable<string> playerIds)
     {
         lock (_gate)
         {
             return playerIds
                 .Select(playerId => _byPlayerId.TryGetValue(playerId, out var registration) ? registration : null)
                 .Where(static registration => registration is not null)
-                .Cast<SessionRegistration>()
+                .Cast<PlayerSessionRegistration>()
                 .ToArray();
         }
     }
 
-    public IReadOnlyList<SessionRegistration> GetByRoom(string roomId)
+    public IReadOnlyList<PlayerSessionRegistration> GetByRoom(string roomId)
     {
         lock (_gate)
         {

@@ -1,11 +1,11 @@
 using Shared.Interfaces;
 using Lakona.Game.Server.Sessions;
 
-namespace Server.App.Services;
+namespace Server.Hotfix.Services;
 
-internal sealed class SessionRegistration
+internal sealed class PlayerSessionRegistration
 {
-    public SessionRegistration(GameSessionKey sessionKey, string sessionToken, string connectionId)
+    public PlayerSessionRegistration(GameSessionKey sessionKey, string sessionToken, string connectionId)
     {
         ControlSessionKey = sessionKey;
         PlayerId = sessionKey.OwnerKey;

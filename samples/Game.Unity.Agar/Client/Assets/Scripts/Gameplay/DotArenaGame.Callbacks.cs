@@ -226,7 +226,7 @@ namespace SampleClient.Gameplay
                         ApplyMatchmakingStatus(payload);
                         return default;
                     },
-                    async (ack, _) => await AckReliablePushAsync(ack.Sequence.Value),
+                    (_, _) => new ValueTask<ReliablePushAckOutcome>(ReliablePushAckOutcome.Accepted()),
                     _cts.Token);
 
                 if (result.Acknowledgement is { Status: ReliablePushAckStatus.StateLost or ReliablePushAckStatus.SessionMismatch } acknowledgement)
@@ -290,31 +290,6 @@ namespace SampleClient.Gameplay
             _entryMenuState = viewState.EntryMenuState;
             _status = viewState.Status;
             _eventMessage = viewState.EventMessage;
-        }
-
-        private async Task<ReliablePushAckOutcome> AckReliablePushAsync(long sequence)
-        {
-            try
-            {
-                var reply = await NetworkSession.AckReliablePushAsync(sequence, _cts.Token);
-                if (reply.RequiresNewSession)
-                {
-                    return ReliablePushAckOutcome.StateLost(reply.Message);
-                }
-
-                return reply.Code == ReliablePushAckResultCodes.Ok
-                    ? ReliablePushAckOutcome.Accepted()
-                    : ReliablePushAckOutcome.Duplicate();
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[DotArena] Reliable push ack failed: {ex.Message}");
-                return ReliablePushAckOutcome.Duplicate();
-            }
         }
 
         private void HandleSessionStateLost(string? message)

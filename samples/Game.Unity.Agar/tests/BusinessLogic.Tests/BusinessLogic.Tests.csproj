@@ -27,7 +27,7 @@
     <ProjectReference Include="../../Server/App/Server.App.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="../../Server/App/Services/SessionDirectory.cs" Link="TestHooks/SessionDirectory.cs" />
-    <Compile Include="../../Server/App/Services/SessionRegistration.cs" Link="TestHooks/SessionRegistration.cs" />
+    <Compile Include="../../Server/Hotfix/Services/PlayerSessionRegistry.cs" Link="TestHooks/PlayerSessionRegistry.cs" />
+    <Compile Include="../../Server/Hotfix/Services/PlayerSessionRegistration.cs" Link="TestHooks/PlayerSessionRegistration.cs" />
   </ItemGroup>
 </Project>

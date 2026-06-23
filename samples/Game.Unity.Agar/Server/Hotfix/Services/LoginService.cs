@@ -1,7 +1,6 @@
 using Agar.Sample.State.Contracts;
 using Agar.Sample.State.Contracts.Sessions;
 using Agar.Sample.State.Contracts.Users;
-using Agar.Sample.State.Sessions;
 using Agar.Sample.State.Users;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
@@ -56,7 +55,7 @@ public sealed class LoginService
         GameSessionKey sessionKey;
         if (req.Reconnect)
         {
-            var resumeDecision = await services.SessionDirectory
+            var resumeDecision = await services.PlayerSessionRegistry
                 .ResumeControlAsync(loginResult.UserId, loginResult.SessionToken, call.ConnectionId)
                 .ConfigureAwait(false);
             if (resumeDecision.Status != SessionResumeStatus.Resumed || resumeDecision.Session is null)
@@ -74,33 +73,33 @@ public sealed class LoginService
 
             sessionKey = resumeDecision.Session.Value;
             await nodeLocalActors
-                .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
-                    SessionId(loginResult.UserId),
+                .AskAsync<UserActor, PlayerSessionSnapshot>(
+                    UserId(loginResult.UserId),
                     (actor, _) => actor.ReconnectAsync(new PlayerSessionReconnectRequest
                     {
                         UserId = loginResult.UserId,
                         SessionToken = loginResult.SessionToken,
                         ConnectionId = call.ConnectionId,
                         ReconnectedAtUtc = DateTime.UtcNow,
-                        ControlGateway = CloneGateway(services.GatewayNodeIdentity.AdvertisedEndpoint)
+                        ControlGateway = CloneGateway(services.RuntimeNodeIdentity.AdvertisedEndpoint)
                     }))
                 .ConfigureAwait(false);
         }
         else
         {
-            sessionKey = await services.SessionDirectory
+            sessionKey = await services.PlayerSessionRegistry
                 .RegisterNewControlAsync(loginResult.UserId, loginResult.SessionToken, call.ConnectionId)
                 .ConfigureAwait(false);
             await nodeLocalActors
-                .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
-                    SessionId(loginResult.UserId),
+                .AskAsync<UserActor, PlayerSessionSnapshot>(
+                    UserId(loginResult.UserId),
                     (actor, _) => actor.AttachAsync(new PlayerSessionAttachRequest
                     {
                         UserId = loginResult.UserId,
                         SessionToken = loginResult.SessionToken,
                         ConnectionId = call.ConnectionId,
                         AttachedAtUtc = DateTime.UtcNow,
-                        ControlGateway = CloneGateway(services.GatewayNodeIdentity.AdvertisedEndpoint)
+                        ControlGateway = CloneGateway(services.RuntimeNodeIdentity.AdvertisedEndpoint)
                     }))
                 .ConfigureAwait(false);
             await services.ReliablePushOutbox.AckAsync(loginResult.UserId, long.MaxValue).ConfigureAwait(false);
@@ -121,8 +120,6 @@ public sealed class LoginService
     }
 
     private static ActorId UserId(string userId) => ActorId.From(userId);
-
-    private static ActorId SessionId(string userId) => ActorId.From($"session:{userId}");
 
     private static GatewayEndpointDescriptor CloneGateway(GatewayEndpointDescriptor gateway)
     {

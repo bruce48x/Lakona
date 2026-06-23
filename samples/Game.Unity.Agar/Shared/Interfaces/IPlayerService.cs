@@ -24,9 +24,6 @@ namespace Shared.Interfaces
         [RpcMethod(2)]
         ValueTask CancelMatchmakingAsync(CancelMatchmakingRequest req);
 
-        [RpcMethod(3)]
-        ValueTask<ReliablePushAckReply> AckReliablePushAsync(ReliablePushAckRequest req);
-
         [RpcMethod(4)]
         ValueTask<LeaderboardReply> GetLeaderboardAsync(LeaderboardRequest req);
 
@@ -144,39 +141,6 @@ namespace Shared.Interfaces
         public string PlayerId { get; set; } = "";
         [MemoryPackOrder(1)]
         public string Token { get; set; } = "";
-    }
-
-    [MemoryPackable(GenerateType.VersionTolerant)]
-    public partial class ReliablePushAckRequest
-    {
-        [MemoryPackOrder(0)]
-        public string PlayerId { get; set; } = "";
-        [MemoryPackOrder(1)]
-        public string Token { get; set; } = "";
-        [MemoryPackOrder(2)]
-        public long Sequence { get; set; }
-        [MemoryPackOrder(3)]
-        public string SessionId { get; set; } = "";
-        [MemoryPackOrder(4)]
-        public long SessionGeneration { get; set; }
-    }
-
-    [MemoryPackable(GenerateType.VersionTolerant)]
-    public partial class ReliablePushAckReply
-    {
-        [MemoryPackOrder(0)]
-        public int Code { get; set; }
-        [MemoryPackOrder(1)]
-        public bool RequiresNewSession { get; set; }
-        [MemoryPackOrder(2)]
-        public string Message { get; set; } = "";
-    }
-
-    public static class ReliablePushAckResultCodes
-    {
-        public const int Ok = 0;
-        public const int InvalidRequest = 1;
-        public const int SessionStateLost = 2;
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]

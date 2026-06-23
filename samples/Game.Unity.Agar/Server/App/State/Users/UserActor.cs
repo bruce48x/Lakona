@@ -1,4 +1,5 @@
 using Agar.Sample.State.Contracts.Users;
+using Agar.Sample.State.Contracts.Sessions;
 using Lakona.Game.Server.Actors;
 
 namespace Agar.Sample.State.Users;
@@ -22,10 +23,13 @@ public sealed class UserState
     public int WinCount { get; set; }
 
     public int VictoryPoints { get; set; }
+
+    public PlayerSessionState Session { get; set; } = new();
 }
 
 public sealed class UserActor : Actor
 {
     internal bool RecordExists;
+    internal bool SessionRecordExists;
     internal UserState State = new();
 }

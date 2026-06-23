@@ -2,27 +2,27 @@ using Shared.Interfaces;
 using Lakona.Game.Server.ReliablePush;
 using Microsoft.Extensions.Logging;
 
-namespace Server.App.Services;
+namespace Server.Hotfix.Services;
 
-internal sealed class ReliableMatchmakingPublisher
+internal sealed class MatchmakingNotifier
 {
     private readonly IReliablePushOutbox _reliablePushOutbox;
-    private readonly SessionDirectory _sessionDirectory;
-    private readonly ILogger<ReliableMatchmakingPublisher> _logger;
+    private readonly PlayerSessionRegistry _PlayerSessionRegistry;
+    private readonly ILogger<MatchmakingNotifier> _logger;
 
-    public ReliableMatchmakingPublisher(
+    public MatchmakingNotifier(
         IReliablePushOutbox reliablePushOutbox,
-        SessionDirectory sessionDirectory,
-        ILogger<ReliableMatchmakingPublisher> logger)
+        PlayerSessionRegistry PlayerSessionRegistry,
+        ILogger<MatchmakingNotifier> logger)
     {
         _reliablePushOutbox = reliablePushOutbox;
-        _sessionDirectory = sessionDirectory;
+        _PlayerSessionRegistry = PlayerSessionRegistry;
         _logger = logger;
     }
 
     public async ValueTask PublishAsync(string playerId, MatchmakingStatusUpdate update, CancellationToken cancellationToken = default)
     {
-        var registration = _sessionDirectory.Get(playerId);
+        var registration = _PlayerSessionRegistry.Get(playerId);
         if (registration is null)
         {
             return;
@@ -30,7 +30,7 @@ internal sealed class ReliableMatchmakingPublisher
 
         await _reliablePushOutbox.PublishAsync(
             registration.SessionKey,
-            ReliablePushKinds.MatchmakingStatus,
+            PushNotificationKinds.MatchmakingStatus,
             Clone(update),
             DeliverAsync,
             cancellationToken).ConfigureAwait(false);
@@ -38,7 +38,7 @@ internal sealed class ReliableMatchmakingPublisher
 
     public ValueTask ReplayPendingAsync(string playerId, CancellationToken cancellationToken = default)
     {
-        var registration = _sessionDirectory.Get(playerId);
+        var registration = _PlayerSessionRegistry.Get(playerId);
         return registration is null
             ? default
             : _reliablePushOutbox.ReplayPendingAsync(registration.SessionKey, DeliverAsync, cancellationToken);
@@ -46,19 +46,19 @@ internal sealed class ReliableMatchmakingPublisher
 
     private async ValueTask DeliverAsync(ReliablePushRecord record)
     {
-        if (!string.Equals(record.Kind, ReliablePushKinds.MatchmakingStatus, StringComparison.Ordinal) ||
+        if (!string.Equals(record.Kind, PushNotificationKinds.MatchmakingStatus, StringComparison.Ordinal) ||
             record.Payload is not MatchmakingStatusUpdate update)
         {
             return;
         }
 
-        var registration = _sessionDirectory.GetByReliablePushOwnerKey(record.OwnerKey);
+        var registration = _PlayerSessionRegistry.GetByReliablePushOwnerKey(record.OwnerKey);
         if (registration is null)
         {
             return;
         }
 
-        var callback = await _sessionDirectory.GetControlCallbackAsync(registration).ConfigureAwait(false);
+        var callback = await _PlayerSessionRegistry.GetControlCallbackAsync(registration).ConfigureAwait(false);
         if (callback is null)
         {
             return;

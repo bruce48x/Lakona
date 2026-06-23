@@ -134,13 +134,15 @@ public sealed class LeaderboardActorTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
-        services.AddAgarSampleActors();
 
         await using var provider = services.BuildServiceProvider();
         var actors = provider.GetRequiredService<IActorRuntime>();
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
         var cancellationToken = TestContext.Current.CancellationToken;
 
         const string userId = "weekly-reset-player";
+        await lifecycle.CreateLocalAsync<UserActor>(ActorId.From(userId), cancellationToken: cancellationToken);
+        await lifecycle.CreateLocalAsync<LeaderboardActor>(ActorId.From("current"), cancellationToken: cancellationToken);
         var login = await actors.AskAsync<UserActor, UserLoginResult>(
             ActorId.From(userId),
             (actor, _) => actor.LoginAsync("pw", reconnect: false),

@@ -5,12 +5,11 @@ using Agar.Sample.State.Contracts.Sessions;
 using Agar.Sample.State.Contracts.Users;
 using Agar.Sample.State.Leaderboard;
 using Agar.Sample.State.Rooms;
-using Agar.Sample.State.Sessions;
 using Agar.Sample.State.Users;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
-using Server.App.Services;
+using Server.Hotfix.Services;
 using Shared.Gameplay;
 using Shared.Interfaces;
 using Server.Hotfix.State.Leaderboard;
@@ -324,7 +323,7 @@ public static class RoomBehavior
         self.State.LastPublishedWorldTick = result.WorldState.Tick;
         self.State.LastUpdatedAtUtc = tick.ObservedAtUtc == default ? DateTime.UtcNow : tick.ObservedAtUtc;
 
-        var publisher = self.Context.Services.GetRequiredService<RoomCallbackPublisher>();
+        var publisher = self.Context.Services.GetRequiredService<RoomNotifier>();
         publisher.PublishWorldState(self.State.RoomId, result.WorldState);
         foreach (var dead in result.Deaths)
         {
@@ -391,14 +390,14 @@ public static class RoomBehavior
             }).ToList()
         }).ConfigureAwait(false);
 
-        var sessions = self.Context.Services.GetRequiredService<SessionDirectory>();
+        var sessions = self.Context.Services.GetRequiredService<PlayerSessionRegistry>();
         var localActors = self.Context.Runtime;
         foreach (var registration in sessions.GetByRoom(self.State.RoomId))
         {
             sessions.ClearRoom(registration.PlayerId, self.State.RoomId);
             await localActors
-                .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
-                    SessionId(registration.PlayerId),
+                .AskAsync<UserActor, PlayerSessionSnapshot>(
+                    UserId(registration.PlayerId),
                     (actor, _) => actor.ClearRoomAsync(new PlayerRoomClearRequest
                     {
                         UserId = registration.PlayerId,
@@ -626,8 +625,6 @@ public static class RoomBehavior
     }
 
     private static readonly ActorId LeaderboardId = ActorId.From("current");
-
-    private static ActorId SessionId(string userId) => ActorId.From($"session:{userId}");
 
     private static ActorId UserId(string userId) => ActorId.From(userId);
 }

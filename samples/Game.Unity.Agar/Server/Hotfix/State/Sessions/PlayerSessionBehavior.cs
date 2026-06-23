@@ -1,183 +1,190 @@
 using Agar.Sample.State.Contracts;
 using Agar.Sample.State.Contracts.Sessions;
-using Agar.Sample.State.Sessions;
+using Agar.Sample.State.Users;
 using Lakona.Game.Server.Hotfix.Abstractions;
 
 namespace Server.Hotfix.State.Sessions;
 
-[HotfixBehaviorOf(typeof(PlayerSessionActor))]
+[HotfixBehaviorOf(typeof(UserActor))]
 public static class PlayerSessionBehavior
 {
-    public static ValueTask<PlayerSessionSnapshot> AttachAsync(this PlayerSessionActor self, PlayerSessionAttachRequest request)
+    public static ValueTask<PlayerSessionSnapshot> AttachAsync(this UserActor self, PlayerSessionAttachRequest request)
     {
         var userId = NormalizeUserId(request.UserId);
         var attachedAtUtc = NormalizeUtc(request.AttachedAtUtc);
         EnsureState(self, userId);
 
         self.State.UserId = userId;
-        self.State.SessionToken = request.SessionToken;
-        self.State.ConnectionId = request.ConnectionId;
-        self.State.IsOnline = true;
-        self.State.IsQueued = false;
-        self.State.QueueId = "";
-        self.State.MatchmakingTicketId = "";
-        self.State.CurrentRoomId = "";
-        self.State.CurrentMatchId = "";
-        self.State.SeatIndex = -1;
-        self.State.AttachedAtUtc = attachedAtUtc;
-        self.State.LastConnectedAtUtc = attachedAtUtc;
-        self.State.LastHeartbeatAtUtc = attachedAtUtc;
-        self.State.ReconnectToken = EnsureReconnectToken(self.State.ReconnectToken);
-        self.State.ControlGateway = CloneGateway(request.ControlGateway);
-        self.State.RuntimeGateway = new GatewayEndpointDescriptor();
+        var session = self.State.Session;
+        session.SessionToken = request.SessionToken;
+        session.ConnectionId = request.ConnectionId;
+        session.IsOnline = true;
+        session.IsQueued = false;
+        session.QueueId = "";
+        session.MatchmakingTicketId = "";
+        session.CurrentRoomId = "";
+        session.CurrentMatchId = "";
+        session.SeatIndex = -1;
+        session.AttachedAtUtc = attachedAtUtc;
+        session.LastConnectedAtUtc = attachedAtUtc;
+        session.LastHeartbeatAtUtc = attachedAtUtc;
+        session.ReconnectToken = EnsureReconnectToken(session.ReconnectToken);
+        session.ControlGateway = CloneGateway(request.ControlGateway);
+        session.RuntimeGateway = new GatewayEndpointDescriptor();
 
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask<PlayerSessionSnapshot> ReconnectAsync(this PlayerSessionActor self, PlayerSessionReconnectRequest request)
+    public static ValueTask<PlayerSessionSnapshot> ReconnectAsync(this UserActor self, PlayerSessionReconnectRequest request)
     {
         var userId = NormalizeUserId(request.UserId);
         var reconnectedAtUtc = NormalizeUtc(request.ReconnectedAtUtc);
         EnsureState(self, userId);
 
         self.State.UserId = userId;
-        self.State.SessionToken = request.SessionToken;
-        self.State.ConnectionId = request.ConnectionId;
-        self.State.IsOnline = true;
-        self.State.LastConnectedAtUtc = reconnectedAtUtc;
-        self.State.LastHeartbeatAtUtc = reconnectedAtUtc;
-        self.State.ReconnectToken = EnsureReconnectToken(self.State.ReconnectToken);
-        self.State.ControlGateway = CloneGateway(request.ControlGateway);
+        var session = self.State.Session;
+        session.SessionToken = request.SessionToken;
+        session.ConnectionId = request.ConnectionId;
+        session.IsOnline = true;
+        session.LastConnectedAtUtc = reconnectedAtUtc;
+        session.LastHeartbeatAtUtc = reconnectedAtUtc;
+        session.ReconnectToken = EnsureReconnectToken(session.ReconnectToken);
+        session.ControlGateway = CloneGateway(request.ControlGateway);
 
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask<PlayerSessionSnapshot> MarkQueuedAsync(this PlayerSessionActor self, PlayerSessionQueueRequest request)
+    public static ValueTask<PlayerSessionSnapshot> MarkQueuedAsync(this UserActor self, PlayerSessionQueueRequest request)
     {
         var userId = NormalizeUserId(request.UserId);
         var queuedAtUtc = NormalizeUtc(request.QueuedAtUtc);
         EnsureState(self, userId);
 
         self.State.UserId = userId;
-        self.State.IsQueued = true;
-        self.State.QueueId = request.QueueId;
-        self.State.MatchmakingTicketId = request.TicketId;
-        self.State.LastQueuedAtUtc = queuedAtUtc;
+        var session = self.State.Session;
+        session.IsQueued = true;
+        session.QueueId = request.QueueId;
+        session.MatchmakingTicketId = request.TicketId;
+        session.LastQueuedAtUtc = queuedAtUtc;
 
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask<PlayerSessionSnapshot> ClearQueueAsync(this PlayerSessionActor self, PlayerSessionQueueClearRequest request)
+    public static ValueTask<PlayerSessionSnapshot> ClearQueueAsync(this UserActor self, PlayerSessionQueueClearRequest request)
     {
         var userId = NormalizeUserId(request.UserId);
         EnsureState(self, userId);
 
-        self.State.IsQueued = false;
-        self.State.QueueId = "";
-        self.State.MatchmakingTicketId = "";
+        var session = self.State.Session;
+        session.IsQueued = false;
+        session.QueueId = "";
+        session.MatchmakingTicketId = "";
 
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask<PlayerSessionSnapshot> AssignRoomAsync(this PlayerSessionActor self, PlayerRoomAssignment request)
+    public static ValueTask<PlayerSessionSnapshot> AssignRoomAsync(this UserActor self, PlayerRoomAssignment request)
     {
         var userId = NormalizeUserId(request.UserId);
         var assignedAtUtc = NormalizeUtc(request.AssignedAtUtc);
         EnsureState(self, userId);
 
-        self.State.UserId = userId;
-        self.State.SessionToken = string.IsNullOrWhiteSpace(request.SessionToken) ? self.State.SessionToken : request.SessionToken;
-        self.State.ConnectionId = string.IsNullOrWhiteSpace(request.ConnectionId) ? self.State.ConnectionId : request.ConnectionId;
-        self.State.CurrentRoomId = request.RoomId;
-        self.State.CurrentMatchId = request.MatchId;
-        self.State.SeatIndex = request.SeatIndex;
-        self.State.IsQueued = false;
-        self.State.QueueId = "";
-        self.State.MatchmakingTicketId = "";
-        self.State.IsOnline = true;
-        self.State.LastConnectedAtUtc = assignedAtUtc;
-        self.State.LastHeartbeatAtUtc = assignedAtUtc;
-        self.State.ReconnectToken = EnsureReconnectToken(self.State.ReconnectToken);
-        self.State.RuntimeGateway = CloneGateway(request.RuntimeGateway);
+        var session = self.State.Session;
+        session.SessionToken = string.IsNullOrWhiteSpace(request.SessionToken) ? session.SessionToken : request.SessionToken;
+        session.ConnectionId = string.IsNullOrWhiteSpace(request.ConnectionId) ? session.ConnectionId : request.ConnectionId;
+        session.CurrentRoomId = request.RoomId;
+        session.CurrentMatchId = request.MatchId;
+        session.SeatIndex = request.SeatIndex;
+        session.IsQueued = false;
+        session.QueueId = "";
+        session.MatchmakingTicketId = "";
+        session.IsOnline = true;
+        session.LastConnectedAtUtc = assignedAtUtc;
+        session.LastHeartbeatAtUtc = assignedAtUtc;
+        session.ReconnectToken = EnsureReconnectToken(session.ReconnectToken);
+        session.RuntimeGateway = CloneGateway(request.RuntimeGateway);
 
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask<PlayerSessionSnapshot> ClearRoomAsync(this PlayerSessionActor self, PlayerRoomClearRequest request)
+    public static ValueTask<PlayerSessionSnapshot> ClearRoomAsync(this UserActor self, PlayerRoomClearRequest request)
     {
         var userId = NormalizeUserId(request.UserId);
         EnsureState(self, userId);
 
-        if (string.IsNullOrWhiteSpace(request.RoomId) || string.Equals(self.State.CurrentRoomId, request.RoomId, StringComparison.Ordinal))
+        var session = self.State.Session;
+        if (string.IsNullOrWhiteSpace(request.RoomId) || string.Equals(session.CurrentRoomId, request.RoomId, StringComparison.Ordinal))
         {
-            self.State.CurrentRoomId = "";
-            self.State.CurrentMatchId = "";
-            self.State.SeatIndex = -1;
+            session.CurrentRoomId = "";
+            session.CurrentMatchId = "";
+            session.SeatIndex = -1;
         }
 
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask<PlayerSessionSnapshot> MarkDisconnectedAsync(this PlayerSessionActor self, PlayerSessionDisconnectRequest request)
+    public static ValueTask<PlayerSessionSnapshot> MarkDisconnectedAsync(this UserActor self, PlayerSessionDisconnectRequest request)
     {
         var userId = NormalizeUserId(request.UserId);
         var disconnectedAtUtc = NormalizeUtc(request.DisconnectedAtUtc);
         EnsureState(self, userId);
 
-        if (string.IsNullOrWhiteSpace(request.ConnectionId) || string.Equals(self.State.ConnectionId, request.ConnectionId, StringComparison.Ordinal))
+        var session = self.State.Session;
+        if (string.IsNullOrWhiteSpace(request.ConnectionId) || string.Equals(session.ConnectionId, request.ConnectionId, StringComparison.Ordinal))
         {
-            self.State.ConnectionId = "";
+            session.ConnectionId = "";
         }
 
-        self.State.IsOnline = false;
-        self.State.LastDisconnectedAtUtc = disconnectedAtUtc;
-        self.State.LastHeartbeatAtUtc = disconnectedAtUtc;
+        session.IsOnline = false;
+        session.LastDisconnectedAtUtc = disconnectedAtUtc;
+        session.LastHeartbeatAtUtc = disconnectedAtUtc;
 
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask<PlayerSessionSnapshot> HeartbeatAsync(this PlayerSessionActor self, PlayerSessionHeartbeatRequest request)
+    public static ValueTask<PlayerSessionSnapshot> HeartbeatAsync(this UserActor self, PlayerSessionHeartbeatRequest request)
     {
         var userId = NormalizeUserId(request.UserId);
         var observedAtUtc = NormalizeUtc(request.ObservedAtUtc);
         EnsureState(self, userId);
 
-        self.State.LastHeartbeatAtUtc = observedAtUtc;
-        if (self.State.AttachedAtUtc == default)
+        var session = self.State.Session;
+        session.LastHeartbeatAtUtc = observedAtUtc;
+        if (session.AttachedAtUtc == default)
         {
-            self.State.AttachedAtUtc = observedAtUtc;
+            session.AttachedAtUtc = observedAtUtc;
         }
 
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask<PlayerSessionSnapshot> GetSnapshotAsync(this PlayerSessionActor self)
+    public static ValueTask<PlayerSessionSnapshot> GetSnapshotAsync(this UserActor self)
     {
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    private static void EnsureState(PlayerSessionActor self, string userId)
+    private static void EnsureState(UserActor self, string userId)
     {
-        if (!self.RecordExists)
+        if (!self.SessionRecordExists)
         {
-            self.State = new PlayerSessionState
+            self.State.Session = new PlayerSessionState
             {
                 UserId = userId,
                 ReconnectToken = Guid.NewGuid().ToString("N")
             };
-            self.RecordExists = true;
+            self.SessionRecordExists = true;
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(self.State.UserId) && !string.Equals(self.State.UserId, userId, StringComparison.Ordinal))
+        if (!string.IsNullOrWhiteSpace(self.State.Session.UserId) && !string.Equals(self.State.Session.UserId, userId, StringComparison.Ordinal))
         {
             throw new InvalidOperationException("Player session actor id does not match the requested user id.");
         }
     }
 
-    private static PlayerSessionSnapshot BuildSnapshot(PlayerSessionActor self)
+    private static PlayerSessionSnapshot BuildSnapshot(UserActor self)
     {
-        if (!self.RecordExists)
+        if (!self.SessionRecordExists)
         {
             return new PlayerSessionSnapshot
             {
@@ -185,26 +192,27 @@ public static class PlayerSessionBehavior
             };
         }
 
+        var session = self.State.Session;
         return new PlayerSessionSnapshot
         {
-            UserId = self.State.UserId,
-            SessionToken = self.State.SessionToken,
-            ConnectionId = self.State.ConnectionId,
-            IsOnline = self.State.IsOnline,
-            IsQueued = self.State.IsQueued,
-            QueueId = self.State.QueueId,
-            MatchmakingTicketId = self.State.MatchmakingTicketId,
-            CurrentRoomId = self.State.CurrentRoomId,
-            CurrentMatchId = self.State.CurrentMatchId,
-            SeatIndex = self.State.SeatIndex,
-            AttachedAtUtc = self.State.AttachedAtUtc,
-            LastQueuedAtUtc = self.State.LastQueuedAtUtc,
-            LastConnectedAtUtc = self.State.LastConnectedAtUtc,
-            LastDisconnectedAtUtc = self.State.LastDisconnectedAtUtc,
-            LastHeartbeatAtUtc = self.State.LastHeartbeatAtUtc,
-            ReconnectToken = self.State.ReconnectToken,
-            ControlGateway = CloneGateway(self.State.ControlGateway),
-            RuntimeGateway = CloneGateway(self.State.RuntimeGateway)
+            UserId = session.UserId,
+            SessionToken = session.SessionToken,
+            ConnectionId = session.ConnectionId,
+            IsOnline = session.IsOnline,
+            IsQueued = session.IsQueued,
+            QueueId = session.QueueId,
+            MatchmakingTicketId = session.MatchmakingTicketId,
+            CurrentRoomId = session.CurrentRoomId,
+            CurrentMatchId = session.CurrentMatchId,
+            SeatIndex = session.SeatIndex,
+            AttachedAtUtc = session.AttachedAtUtc,
+            LastQueuedAtUtc = session.LastQueuedAtUtc,
+            LastConnectedAtUtc = session.LastConnectedAtUtc,
+            LastDisconnectedAtUtc = session.LastDisconnectedAtUtc,
+            LastHeartbeatAtUtc = session.LastHeartbeatAtUtc,
+            ReconnectToken = session.ReconnectToken,
+            ControlGateway = CloneGateway(session.ControlGateway),
+            RuntimeGateway = CloneGateway(session.RuntimeGateway)
         };
     }
 

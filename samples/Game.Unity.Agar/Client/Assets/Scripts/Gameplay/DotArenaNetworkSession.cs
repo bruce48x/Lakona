@@ -142,30 +142,6 @@ namespace SampleClient.Gameplay
             }).ConfigureAwait(false);
         }
 
-        public async Task<ReliablePushAckReply> AckReliablePushAsync(long sequence, CancellationToken cancellationToken = default)
-        {
-            if (_controlPlayerService == null ||
-                string.IsNullOrWhiteSpace(_playerId) ||
-                string.IsNullOrWhiteSpace(_token) ||
-                sequence <= 0)
-            {
-                return new ReliablePushAckReply
-                {
-                    Code = ReliablePushAckResultCodes.InvalidRequest,
-                    Message = "Reliable push ack request is incomplete."
-                };
-            }
-
-            return await _controlPlayerService.AckReliablePushAsync(new ReliablePushAckRequest
-            {
-                PlayerId = _playerId,
-                Token = _token,
-                Sequence = sequence,
-                SessionId = _sessionId,
-                SessionGeneration = _sessionGeneration
-            }).ConfigureAwait(false);
-        }
-
         public async Task<LeaderboardReply> GetLeaderboardAsync(int topN, CancellationToken cancellationToken = default)
         {
             if (_controlPlayerService == null)

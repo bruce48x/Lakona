@@ -3,9 +3,9 @@ using Lakona.Game.Cluster;
 using Lakona.Game.Server.Configuration;
 using Microsoft.Extensions.Configuration;
 
-namespace Server.App.Services;
+namespace Server.Hotfix.Services;
 
-internal static class GatewayEndpointDescriptorFactory
+internal static class EndpointDescriptorMapper
 {
     public static GatewayEndpointDescriptor FromConfiguredEndpoint(
         IConfiguration configuration,

@@ -5,7 +5,6 @@ using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
-using Server.App.Hosting;
 using Server.Hotfix.Services;
 using Shared.Interfaces;
 using Xunit;
@@ -17,7 +16,7 @@ public sealed class AgarSessionLifecycleTests
     [Fact]
     public async Task RealtimeDisconnectOnBattleNodeDoesNotRequireControlPlaneServices()
     {
-        var directory = CreateSessionDirectory();
+        var directory = CreatePlayerSessionRegistry();
         Assert.True(await AttachRealtimeAsync(
             directory,
             "player-1",
@@ -49,7 +48,7 @@ public sealed class AgarSessionLifecycleTests
     [Fact]
     public async Task ControlDisconnectClearsDirectoryWhenActorUpdateFails()
     {
-        var directory = CreateSessionDirectory();
+        var directory = CreatePlayerSessionRegistry();
         await RegisterNewControlAsync(
             directory,
             "player-1",
@@ -88,14 +87,14 @@ public sealed class AgarSessionLifecycleTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSingleton(SessionDirectoryType, directory);
+        services.AddSingleton(PlayerSessionRegistryType, directory);
         return services;
     }
 
-    private static object CreateSessionDirectory()
+    private static object CreatePlayerSessionRegistry()
     {
-        return Activator.CreateInstance(SessionDirectoryType)
-            ?? throw new InvalidOperationException("Could not create SessionDirectory.");
+        return Activator.CreateInstance(PlayerSessionRegistryType)
+            ?? throw new InvalidOperationException("Could not create PlayerSessionRegistry.");
     }
 
     private static async ValueTask RegisterNewControlAsync(
@@ -104,8 +103,8 @@ public sealed class AgarSessionLifecycleTests
         string sessionToken,
         string connectionId)
     {
-        var method = SessionDirectoryType.GetMethod("RegisterNewControlAsync")
-            ?? throw new MissingMethodException(SessionDirectoryType.FullName, "RegisterNewControlAsync");
+        var method = PlayerSessionRegistryType.GetMethod("RegisterNewControlAsync")
+            ?? throw new MissingMethodException(PlayerSessionRegistryType.FullName, "RegisterNewControlAsync");
         _ = await (ValueTask<GameSessionKey>)method.Invoke(directory, [
             playerId,
             sessionToken,
@@ -120,8 +119,8 @@ public sealed class AgarSessionLifecycleTests
         string connectionId,
         IControlCallback callback)
     {
-        var method = SessionDirectoryType.GetMethod("BindControlCallbackAsync")
-            ?? throw new MissingMethodException(SessionDirectoryType.FullName, "BindControlCallbackAsync");
+        var method = PlayerSessionRegistryType.GetMethod("BindControlCallbackAsync")
+            ?? throw new MissingMethodException(PlayerSessionRegistryType.FullName, "BindControlCallbackAsync");
         return await (ValueTask<bool>)method.Invoke(directory, [
             playerId,
             connectionId,
@@ -139,8 +138,8 @@ public sealed class AgarSessionLifecycleTests
         string connectionId,
         IBattleCallback callback)
     {
-        var method = SessionDirectoryType.GetMethod("AttachRealtimeAsync")
-            ?? throw new MissingMethodException(SessionDirectoryType.FullName, "AttachRealtimeAsync");
+        var method = PlayerSessionRegistryType.GetMethod("AttachRealtimeAsync")
+            ?? throw new MissingMethodException(PlayerSessionRegistryType.FullName, "AttachRealtimeAsync");
         return await (ValueTask<bool>)method.Invoke(directory, [
             playerId,
             sessionToken,
@@ -154,15 +153,15 @@ public sealed class AgarSessionLifecycleTests
 
     private static object? GetRegistration(object directory, string playerId)
     {
-        var method = SessionDirectoryType.GetMethod("Get")
-            ?? throw new MissingMethodException(SessionDirectoryType.FullName, "Get");
+        var method = PlayerSessionRegistryType.GetMethod("Get")
+            ?? throw new MissingMethodException(PlayerSessionRegistryType.FullName, "Get");
         return method.Invoke(directory, [playerId]);
     }
 
     private static object? GetConnection(object directory, string connectionId)
     {
-        var method = SessionDirectoryType.GetMethod("GetConnection")
-            ?? throw new MissingMethodException(SessionDirectoryType.FullName, "GetConnection");
+        var method = PlayerSessionRegistryType.GetMethod("GetConnection")
+            ?? throw new MissingMethodException(PlayerSessionRegistryType.FullName, "GetConnection");
         return method.Invoke(directory, [connectionId]);
     }
 
@@ -174,9 +173,9 @@ public sealed class AgarSessionLifecycleTests
                 : throw new MissingMemberException(instance.GetType().FullName, propertyName));
     }
 
-    private static readonly Type SessionDirectoryType =
-        typeof(AgarSampleServiceCollectionExtensions).Assembly.GetType("Server.App.Services.SessionDirectory")
-        ?? throw new InvalidOperationException("Could not find Server.App.Services.SessionDirectory.");
+    private static readonly Type PlayerSessionRegistryType =
+        typeof(PlayerService).Assembly.GetType("Server.Hotfix.Services.PlayerSessionRegistry")
+        ?? throw new InvalidOperationException("Could not find Server.Hotfix.Services.PlayerSessionRegistry.");
 
     private sealed class ThrowingActorRuntime : IActorRuntime
     {

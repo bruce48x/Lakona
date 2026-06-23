@@ -21,7 +21,7 @@ public sealed class RpcContractSplitTests
             new[] { "LoginAsync" },
             RpcMethodNames(typeof(ILoginService)));
         Assert.Equal(
-            new[] { "StartMatchmakingAsync", "CancelMatchmakingAsync", "AckReliablePushAsync", "GetLeaderboardAsync", "LogoutAsync" },
+            new[] { "StartMatchmakingAsync", "CancelMatchmakingAsync", "GetLeaderboardAsync", "LogoutAsync" },
             RpcMethodNames(typeof(IPlayerService)));
         Assert.Equal(
             new[] { "AttachRealtimeAsync", "SubmitInputAsync" },

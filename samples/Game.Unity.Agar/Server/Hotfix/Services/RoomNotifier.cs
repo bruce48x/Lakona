@@ -1,14 +1,14 @@
 using Microsoft.Extensions.Logging;
 using Shared.Interfaces;
 
-namespace Server.App.Services;
+namespace Server.Hotfix.Services;
 
-internal sealed class RoomCallbackPublisher
+internal sealed class RoomNotifier
 {
-    private readonly SessionDirectory _sessions;
-    private readonly ILogger<RoomCallbackPublisher> _logger;
+    private readonly PlayerSessionRegistry _sessions;
+    private readonly ILogger<RoomNotifier> _logger;
 
-    public RoomCallbackPublisher(SessionDirectory sessions, ILogger<RoomCallbackPublisher> logger)
+    public RoomNotifier(PlayerSessionRegistry sessions, ILogger<RoomNotifier> logger)
     {
         _sessions = sessions;
         _logger = logger;

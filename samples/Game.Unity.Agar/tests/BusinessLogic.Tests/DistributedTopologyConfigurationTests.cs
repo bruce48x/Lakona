@@ -20,9 +20,8 @@ using Agar.Sample.State.Contracts.Rooms;
 using Agar.Sample.State.Contracts.Sessions;
 using Agar.Sample.State.Contracts.Users;
 using Agar.Sample.State.Matchmaking;
-using Agar.Sample.State.Sessions;
 using Agar.Sample.State.Users;
-using Server.App.Hosting;
+using Server.Hotfix.Services;
 using Server.Hotfix.State.Matchmaking;
 using Server.Hotfix.State.Sessions;
 using Server.Hotfix.State.Users;
@@ -123,7 +122,7 @@ public sealed class DistributedTopologyConfigurationTests
         var appText = ReadAllTextFiles(Path.Combine(root, "samples", "Game.Unity.Agar", "Server", "App"));
         var hotfixText = ReadAllTextFiles(Path.Combine(root, "samples", "Game.Unity.Agar", "Server", "Hotfix"));
 
-        Assert.Contains("AddLakonaGameSessionHotfixLifecycle", appText, StringComparison.Ordinal);
+        Assert.DoesNotContain("AddLakonaGameSessionHotfixLifecycle", appText, StringComparison.Ordinal);
         Assert.Contains("AgarSessionLifecycle", hotfixText, StringComparison.Ordinal);
         Assert.Contains("[HotfixLifecycle(typeof(IGameSessionLifecycle))]", hotfixText, StringComparison.Ordinal);
         Assert.Contains("HotfixLifecycleCall<GameSessionDisconnectedRequest>", hotfixText, StringComparison.Ordinal);
@@ -140,19 +139,15 @@ public sealed class DistributedTopologyConfigurationTests
     {
         var services = BuildProgramServices("appsettings.gateway-1.json");
 
-        Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(AgarDatabaseOptions));
-
         await using var provider = services.BuildServiceProvider();
-        provider.GetRequiredService(RequiredServerAppType("Server.App.Services.SessionDirectory"));
-        provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
-        provider.GetRequiredService(RequiredServerAppType("Server.App.Services.ReliableMatchmakingPublisher"));
+        provider.GetRequiredService<IActorRuntime>();
+        provider.GetRequiredService<IGameSessionDirectory>();
         Assert.Throws<InvalidOperationException>(() =>
             provider.GetRequiredService(RequiredServerAppType("Server.App.Hotfix.Agar" + "Hotfix" + "Runtime" + "Events")));
 
-        var identity = provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
-        var endpoint = identity.GetType().GetProperty("AdvertisedEndpoint")!.GetValue(identity)!;
-        Assert.Equal("websocket", endpoint.GetType().GetProperty("Transport")!.GetValue(endpoint));
-        Assert.Equal("gateway-1", endpoint.GetType().GetProperty("Host")!.GetValue(endpoint));
+        var endpoint = Assert.Single(provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>().Endpoints);
+        Assert.Equal("websocket", endpoint.Transport);
+        Assert.Equal("gateway-1", endpoint.AdvertisedHost);
     }
 
     [Fact]
@@ -161,15 +156,14 @@ public sealed class DistributedTopologyConfigurationTests
         var services = BuildProgramServices("appsettings.battle-1.json");
 
         await using var provider = services.BuildServiceProvider();
-        provider.GetRequiredService(RequiredServerAppType("Server.App.Services.SessionDirectory"));
-        provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
+        provider.GetRequiredService<IActorRuntime>();
+        provider.GetRequiredService<IGameSessionDirectory>();
         Assert.Throws<InvalidOperationException>(() =>
             provider.GetRequiredService(RequiredServerAppType("Server.App.Realtime.Room" + "Runtime" + "Host")));
 
-        var identity = provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
-        var endpoint = identity.GetType().GetProperty("AdvertisedEndpoint")!.GetValue(identity)!;
-        Assert.Equal("kcp", endpoint.GetType().GetProperty("Transport")!.GetValue(endpoint));
-        Assert.Equal("battle-1", endpoint.GetType().GetProperty("Host")!.GetValue(endpoint));
+        var endpoint = Assert.Single(provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>().Endpoints);
+        Assert.Equal("kcp", endpoint.Transport);
+        Assert.Equal("battle-1", endpoint.AdvertisedHost);
 
         Assert.Throws<InvalidOperationException>(() =>
             provider.GetRequiredService(RequiredServerAppType("Server.App.Hotfix.Agar" + "Hotfix" + "Runtime" + "Events")));
@@ -183,7 +177,7 @@ public sealed class DistributedTopologyConfigurationTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
-        services.AddAgarSampleActors();
+        services.AddSingleton<RuntimeGatewaySelector>();
         services.AddSingleton<INodeDirectory>(provider =>
         {
             var directory = new InMemoryNodeDirectory();
@@ -253,7 +247,7 @@ public sealed class DistributedTopologyConfigurationTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
-        services.AddAgarSampleActors();
+        services.AddSingleton<RuntimeGatewaySelector>();
 
         await using var provider = services.BuildServiceProvider();
         var actors = provider.GetRequiredService<IActorRuntime>();
@@ -364,7 +358,6 @@ public sealed class DistributedTopologyConfigurationTests
         var services = new ServiceCollection();
 
         services.AddLogging();
-        services.AddAgarSampleServer(configuration);
         services.AddMessageRecording();
         services.AddLakonaGameRuntimeValidation();
         services.AddLakonaGame(configuration, _ => { });
@@ -378,12 +371,10 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
-    public void DataNodeRegistersDatabaseServicesAndSqlNodeDirectory()
+    public void DataNodeRegistersSqlNodeDirectoryFromFrameworkConfig()
     {
         var services = BuildFeatureServices("appsettings.data-1.json");
 
-        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(AgarDatabaseOptions));
-        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(AgarDatabaseConnectionFactory));
         Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(SqlNodeDirectoryOptions));
         Assert.Contains(services, descriptor =>
             descriptor.ServiceType == typeof(INodeDirectory)
@@ -393,15 +384,13 @@ public sealed class DistributedTopologyConfigurationTests
             && descriptor.ImplementationType == typeof(InMemoryRouteDirectory));
 
         using var provider = services.BuildServiceProvider();
-        var options = provider.GetRequiredService<AgarDatabaseOptions>();
         var sqlOptions = provider.GetRequiredService<SqlNodeDirectoryOptions>();
+        var runtimeOptions = provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
         var catalog = provider.GetRequiredService<LakonaGameFeatureCatalog>();
         var routeDirectory = provider.GetRequiredService<IRouteDirectory>();
 
-        Assert.Contains("Host=postgres", options.PostgresConnectionString);
-        Assert.Contains("redis:6379", options.RedisConnectionString);
-        Assert.Equal("lakona_cluster_nodes", options.NodeDirectoryTable);
-        Assert.False(options.EnsureSchemaOnStartup);
+        Assert.Equal("lakona_cluster_nodes", sqlOptions.TableName);
+        Assert.False(runtimeOptions.Cluster!.Directory.EnsureSchemaOnStartup);
         Assert.Equal(SqlNodeDirectoryDialect.Postgres, sqlOptions.Dialect);
         Assert.Empty(catalog.ActiveNames);
         Assert.IsType<InMemoryRouteDirectory>(routeDirectory);
@@ -409,19 +398,19 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
-    public void DataNodeCanEnableRuntimeSchemaCreationExplicitly()
+    public void DataNodeCanEnableClusterDirectorySchemaCreationExplicitly()
     {
         var services = BuildFeatureServices(
             "appsettings.data-1.json",
             new Dictionary<string, string?>
             {
-                ["Agar:Database:EnsureSchemaOnStartup"] = "true"
+                ["Lakona:Cluster:Directory:EnsureSchemaOnStartup"] = "true"
             });
 
         using var provider = services.BuildServiceProvider();
-        var options = provider.GetRequiredService<AgarDatabaseOptions>();
+        var options = provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
 
-        Assert.True(options.EnsureSchemaOnStartup);
+        Assert.True(options.Cluster!.Directory.EnsureSchemaOnStartup);
     }
 
     [Fact]
@@ -468,8 +457,6 @@ public sealed class DistributedTopologyConfigurationTests
     {
         var services = BuildFeatureServices("appsettings.gateway-1.json");
 
-        Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(AgarDatabaseOptions));
-
         await using var provider = services.BuildServiceProvider();
         var catalog = provider.GetRequiredService<LakonaGameFeatureCatalog>();
 
@@ -485,8 +472,6 @@ public sealed class DistributedTopologyConfigurationTests
     {
         var services = BuildFeatureServices("appsettings.battle-1.json");
 
-        Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(AgarDatabaseOptions));
-
         await using var provider = services.BuildServiceProvider();
         var catalog = provider.GetRequiredService<LakonaGameFeatureCatalog>();
 
@@ -496,15 +481,14 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
-    public void BattleNodeRegistersRuntimeServicesWithoutControlPlaneServices()
+    public async Task BattleNodeRegistersRuntimeServicesWithoutControlPlaneServices()
     {
         var services = BuildFeatureServices("appsettings.battle-1.json");
 
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
 
         provider.GetRequiredService<IActorRuntime>();
-        provider.GetRequiredService(RequiredServerAppType("Server.App.Services.SessionDirectory"));
-        provider.GetRequiredService(RequiredServerAppType("Server.App.Services.GatewayNodeIdentity"));
+        provider.GetRequiredService<IGameSessionDirectory>();
         Assert.Throws<InvalidOperationException>(() =>
             provider.GetRequiredService(RequiredServerAppType("Server.App.Hotfix.Agar" + "Hotfix" + "Runtime" + "Events")));
         Assert.Throws<InvalidOperationException>(() =>
@@ -516,7 +500,7 @@ public sealed class DistributedTopologyConfigurationTests
                 "Server.App.Hosting.PlayerSessionLifecycleObserver",
                 StringComparison.Ordinal));
         Assert.Throws<InvalidOperationException>(() =>
-            provider.GetRequiredService(RequiredServerAppType("Server.App.Services.ReliableMatchmakingPublisher")));
+            provider.GetRequiredService(RequiredServerAppType("Server.Hotfix.Services.MatchmakingNotifier")));
     }
 
     [Fact]
@@ -625,46 +609,51 @@ public sealed class DistributedTopologyConfigurationTests
 
     private static Type RequiredServerAppType(string typeName)
     {
-        return typeof(AgarSampleServiceCollectionExtensions).Assembly.GetType(typeName)
-            ?? throw new InvalidOperationException($"Could not find Server.App type '{typeName}'.");
+        return typeof(PlayerService).Assembly.GetType(typeName)
+            ?? throw new InvalidOperationException($"Could not find server type '{typeName}'.");
     }
 
-    private static ValueTask<UserLoginResult> LoginAsync(IActorRuntime actors, string playerId)
+    private static async ValueTask<UserLoginResult> LoginAsync(IActorRuntime actors, string playerId)
     {
-        return actors.AskAsync<UserActor, UserLoginResult>(
+        await ((IActorLifecycle)actors).CreateLocalAsync<UserActor>(ActorId.From(playerId));
+        return await actors.AskAsync<UserActor, UserLoginResult>(
             ActorId.From(playerId),
             (actor, _) => actor.LoginAsync("pw", reconnect: false));
     }
 
-    private static ValueTask<PlayerSessionSnapshot> AttachSessionAsync(IActorRuntime actors, PlayerSessionAttachRequest request)
+    private static async ValueTask<PlayerSessionSnapshot> AttachSessionAsync(IActorRuntime actors, PlayerSessionAttachRequest request)
     {
-        return actors.AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
-            SessionId(request.UserId),
+        await ((IActorLifecycle)actors).CreateLocalAsync<UserActor>(UserId(request.UserId));
+        return await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
+            UserId(request.UserId),
             (actor, _) => actor.AttachAsync(request));
     }
 
-    private static ValueTask<MatchmakingEnqueueResult> EnqueueAsync(IActorRuntime actors, MatchmakingEnqueueRequest request)
+    private static async ValueTask<MatchmakingEnqueueResult> EnqueueAsync(IActorRuntime actors, MatchmakingEnqueueRequest request)
     {
-        return actors.AskAsync<MatchmakingActor, MatchmakingEnqueueResult>(
+        await ((IActorLifecycle)actors).CreateLocalAsync<MatchmakingActor>(ActorId.From("default"));
+        return await actors.AskAsync<MatchmakingActor, MatchmakingEnqueueResult>(
             ActorId.From("default"),
             (actor, _) => actor.EnqueueAsync(request));
     }
 
-    private static ValueTask<MatchmakingStatusSnapshot> GetMatchmakingStatusAsync(IActorRuntime actors)
+    private static async ValueTask<MatchmakingStatusSnapshot> GetMatchmakingStatusAsync(IActorRuntime actors)
     {
-        return actors.AskAsync<MatchmakingActor, MatchmakingStatusSnapshot>(
+        await ((IActorLifecycle)actors).CreateLocalAsync<MatchmakingActor>(ActorId.From("default"));
+        return await actors.AskAsync<MatchmakingActor, MatchmakingStatusSnapshot>(
             ActorId.From("default"),
             (actor, _) => actor.GetStatusAsync());
     }
 
-    private static ValueTask<PlayerSessionSnapshot> GetSessionSnapshotAsync(IActorRuntime actors, string playerId)
+    private static async ValueTask<PlayerSessionSnapshot> GetSessionSnapshotAsync(IActorRuntime actors, string playerId)
     {
-        return actors.AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
-            SessionId(playerId),
+        await ((IActorLifecycle)actors).CreateLocalAsync<UserActor>(UserId(playerId));
+        return await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
+            UserId(playerId),
             (actor, _) => actor.GetSnapshotAsync());
     }
 
-    private static ActorId SessionId(string userId) => ActorId.From($"session:{userId}");
+    private static ActorId UserId(string userId) => ActorId.From(userId);
 
     private static IServiceCollection BuildFeatureServices(
         string fileName,
@@ -674,7 +663,7 @@ public sealed class DistributedTopologyConfigurationTests
         var services = new ServiceCollection();
 
         services.AddLogging();
-        services.AddAgarSampleServer(configuration);
+        services.AddLakonaGameServer(configuration);
         services.AddLakonaGame(configuration, _ => { });
 
         return services;
@@ -692,7 +681,7 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddLakonaGameServer(configuration);
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton(runtimeOptions);
-        services.AddAgarSampleServer(configuration);
+        services.AddSingleton<RuntimeGatewaySelector>();
         services.AddMessageRecording();
         services.AddLakonaGameRuntimeValidation();
         services.AddLakonaGame(configuration, _ => { });

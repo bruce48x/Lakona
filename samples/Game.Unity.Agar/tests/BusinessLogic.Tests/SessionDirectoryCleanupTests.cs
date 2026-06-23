@@ -1,15 +1,15 @@
-using Server.App.Services;
+using Server.Hotfix.Services;
 using Shared.Interfaces;
 using Xunit;
 
 namespace Agar.Unity.Tests;
 
-public sealed class SessionDirectoryCleanupTests
+public sealed class PlayerSessionRegistryCleanupTests
 {
     [Fact]
     public async Task ClearRoomDetachesRealtimeCallbackWhenExpectedRoomMatches()
     {
-        var directory = new SessionDirectory();
+        var directory = new PlayerSessionRegistry();
         var controlCallback = new TestControlCallback();
         var realtimeCallback = new TestBattleCallback();
 
@@ -34,7 +34,7 @@ public sealed class SessionDirectoryCleanupTests
     [Fact]
     public async Task ClearRoomPreservesRegistrationWhenExpectedRoomDoesNotMatch()
     {
-        var directory = new SessionDirectory();
+        var directory = new PlayerSessionRegistry();
         var controlCallback = new TestControlCallback();
         var realtimeCallback = new TestBattleCallback();
 
@@ -58,7 +58,7 @@ public sealed class SessionDirectoryCleanupTests
     [Fact]
     public void ClearRoomRemovesRealtimeOnlyRegistration()
     {
-        var directory = new SessionDirectory();
+        var directory = new PlayerSessionRegistry();
 
         Assert.True(directory.AttachRealtime(
             "player-1",
@@ -77,7 +77,7 @@ public sealed class SessionDirectoryCleanupTests
     [Fact]
     public async Task RegisterNewControlClearsRoomQueueAndRealtimeState()
     {
-        var directory = new SessionDirectory();
+        var directory = new PlayerSessionRegistry();
 
         await directory.RegisterNewControlAsync("player-1", "session-1", "control-1", TestContext.Current.CancellationToken);
         Assert.True(await directory.BindControlCallbackAsync("player-1", "control-1", new TestControlCallback(), TestContext.Current.CancellationToken));

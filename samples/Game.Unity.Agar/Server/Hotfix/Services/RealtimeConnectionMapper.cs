@@ -1,9 +1,9 @@
 using Agar.Sample.State.Contracts;
 using Shared.Interfaces;
 
-namespace Server.App.Services;
+namespace Server.Hotfix.Services;
 
-internal static class RealtimeEndpointMapper
+internal static class RealtimeConnectionMapper
 {
     public static RealtimeConnectionInfo ToRealtimeConnectionInfo(
         GatewayEndpointDescriptor gateway,

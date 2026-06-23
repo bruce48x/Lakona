@@ -4,9 +4,9 @@ using Lakona.Game.Server.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Server.App.Services;
+namespace Server.Hotfix.Services;
 
-public sealed class BattleRuntimeGatewayResolver
+public sealed class RuntimeGatewaySelector
 {
     private static readonly FeatureName BattleRuntimeFeature = new("battle-runtime");
 
@@ -14,7 +14,7 @@ public sealed class BattleRuntimeGatewayResolver
     private readonly IConfiguration _configuration;
     private readonly LakonaGameRuntimeOptions? _runtimeOptions;
 
-    public BattleRuntimeGatewayResolver(IServiceProvider services)
+    public RuntimeGatewaySelector(IServiceProvider services)
     {
         ArgumentNullException.ThrowIfNull(services);
 
@@ -31,7 +31,7 @@ public sealed class BattleRuntimeGatewayResolver
             var node = await _discovery.AnyAsync(BattleRuntimeFeature, cancellationToken).ConfigureAwait(false);
             if (node is not null && node.Endpoints.TryGetValue("kcp", out var endpoint))
             {
-                return GatewayEndpointDescriptorFactory.FromClusterEndpoint(node.Node, "kcp", endpoint);
+                return EndpointDescriptorMapper.FromClusterEndpoint(node.Node, "kcp", endpoint);
             }
         }
 
@@ -39,7 +39,7 @@ public sealed class BattleRuntimeGatewayResolver
             string.Equals(endpoint.Transport, "kcp", StringComparison.OrdinalIgnoreCase));
         if (localKcp is not null)
         {
-            return GatewayEndpointDescriptorFactory.FromConfiguredEndpoint(_configuration, localKcp);
+            return EndpointDescriptorMapper.FromConfiguredEndpoint(_configuration, localKcp);
         }
 
         return null;
@@ -47,7 +47,7 @@ public sealed class BattleRuntimeGatewayResolver
 
     public bool IsLocalOwner(GatewayEndpointDescriptor? gateway)
     {
-        var localId = GatewayEndpointDescriptorFactory.ResolveNodeId(_configuration);
+        var localId = EndpointDescriptorMapper.ResolveNodeId(_configuration);
         return gateway is not null
             && !string.IsNullOrWhiteSpace(gateway.InstanceId)
             && string.Equals(gateway.InstanceId, localId, StringComparison.Ordinal);

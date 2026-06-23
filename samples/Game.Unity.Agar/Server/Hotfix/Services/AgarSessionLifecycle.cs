@@ -1,12 +1,12 @@
 using Agar.Sample.State.Contracts.Sessions;
-using Agar.Sample.State.Sessions;
+using Agar.Sample.State.Users;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Server.App.Services;
+using Server.Hotfix.Services;
 using Server.Hotfix.State.Sessions;
 
 namespace Server.Hotfix.Services;
@@ -18,7 +18,7 @@ public sealed class AgarSessionLifecycle
     {
         var services = AgarLifecycleDependencies.From(call);
         var localActors = services.LocalActors;
-        var connection = services.SessionDirectory.GetConnection(call.Request.ConnectionId);
+        var connection = services.PlayerSessionRegistry.GetConnection(call.Request.ConnectionId);
         if (connection is null)
         {
             return;
@@ -26,7 +26,7 @@ public sealed class AgarSessionLifecycle
 
         if (connection.Kind == PlayerConnectionKind.Realtime)
         {
-            await services.SessionDirectory
+            await services.PlayerSessionRegistry
                 .DetachRealtimeAsync(connection.PlayerId, connection.ConnectionId)
                 .ConfigureAwait(false);
             return;
@@ -35,8 +35,8 @@ public sealed class AgarSessionLifecycle
         try
         {
             await localActors
-                .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
-                    SessionId(connection.PlayerId),
+                .AskAsync<UserActor, PlayerSessionSnapshot>(
+                    UserId(connection.PlayerId),
                     (actor, _) => actor.MarkDisconnectedAsync(new PlayerSessionDisconnectRequest
                     {
                         UserId = connection.PlayerId,
@@ -59,7 +59,7 @@ public sealed class AgarSessionLifecycle
                 connection.ConnectionId);
         }
 
-        await services.SessionDirectory
+        await services.PlayerSessionRegistry
             .DisconnectControlAsync(connection.PlayerId, connection.ConnectionId)
             .ConfigureAwait(false);
     }
@@ -73,7 +73,7 @@ public sealed class AgarSessionLifecycle
             return;
         }
 
-        var registration = services.SessionDirectory.Get(playerId);
+        var registration = services.PlayerSessionRegistry.Get(playerId);
         if (registration is null)
         {
             return;
@@ -85,7 +85,7 @@ public sealed class AgarSessionLifecycle
             call.Request.Generation);
         if (registration.RealtimeSessionKey == expiredSession)
         {
-            await services.SessionDirectory
+            await services.PlayerSessionRegistry
                 .DetachRealtimeAsync(playerId, call.Request.ConnectionId)
                 .ConfigureAwait(false);
             return;
@@ -101,12 +101,12 @@ public sealed class AgarSessionLifecycle
             .ConfigureAwait(false);
     }
 
-    private static ActorId SessionId(string userId) => ActorId.From($"session:{userId}");
+    private static ActorId UserId(string userId) => ActorId.From($"session:{userId}");
 }
 
 internal sealed record AgarLifecycleDependencies(
     IActorRuntime LocalActors,
-    SessionDirectory SessionDirectory,
+    PlayerSessionRegistry PlayerSessionRegistry,
     ILogger<AgarSessionLifecycle> Logger)
 {
     public static AgarLifecycleDependencies From<TRequest>(HotfixLifecycleCall<TRequest> call)
@@ -114,7 +114,7 @@ internal sealed record AgarLifecycleDependencies(
         var loggerFactory = call.Services.GetRequiredService<ILoggerFactory>();
         return new AgarLifecycleDependencies(
             call.Actors,
-            call.Services.GetRequiredService<SessionDirectory>(),
+            call.Services.GetRequiredService<PlayerSessionRegistry>(),
             loggerFactory.CreateLogger<AgarSessionLifecycle>());
     }
 }

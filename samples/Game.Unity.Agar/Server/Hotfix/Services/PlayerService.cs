@@ -7,7 +7,6 @@ using Lakona.Game.Abstractions;
 using Agar.Sample.State.Matchmaking;
 using Agar.Sample.State.Leaderboard;
 using Agar.Sample.State.Rooms;
-using Agar.Sample.State.Sessions;
 using Agar.Sample.State.Users;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
@@ -16,7 +15,7 @@ using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Server.App.Services;
+using Server.Hotfix.Services;
 using Server.Hotfix.State.Leaderboard;
 using Server.Hotfix.State.Matchmaking;
 using Server.Hotfix.State.Rooms;
@@ -88,83 +87,6 @@ public sealed class PlayerService
         await CancelMatchmakingAsync(services, playerId, "Matchmaking cancelled").ConfigureAwait(false);
     }
 
-    public async ValueTask<ReliablePushAckReply> AckReliablePushAsync(HotfixServiceCall<ReliablePushAckRequest, IControlCallback> call)
-    {
-        var req = call.Request;
-        var services = AgarServiceDependencies.From(call);
-        var playerId = await EnsureControlCallbackBoundAsync(call, services).ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(playerId) || req.Sequence <= 0)
-        {
-            return new ReliablePushAckReply
-            {
-                Code = ReliablePushAckResultCodes.InvalidRequest,
-                Message = "Reliable push ack request is incomplete."
-            };
-        }
-
-        if (!string.IsNullOrWhiteSpace(req.PlayerId) &&
-            !string.Equals(req.PlayerId, playerId, StringComparison.Ordinal))
-        {
-            return new ReliablePushAckReply
-            {
-                Code = ReliablePushAckResultCodes.InvalidRequest,
-                Message = "Reliable push ack player does not match the current session."
-            };
-        }
-
-        var registration = services.SessionDirectory.Get(playerId);
-        if (registration is null)
-        {
-            return new ReliablePushAckReply
-            {
-                Code = ReliablePushAckResultCodes.SessionStateLost,
-                RequiresNewSession = true,
-                Message = "Server session state was lost. Start a new session instead of reconnecting."
-            };
-        }
-
-        var currentSession = registration.SessionKey;
-        var acknowledgedSession = string.IsNullOrWhiteSpace(req.SessionId) || req.SessionGeneration <= 0
-            ? currentSession
-            : new GameSessionKey(playerId, req.SessionId, req.SessionGeneration);
-
-        if (!string.IsNullOrWhiteSpace(req.Token) &&
-            !string.Equals(registration.SessionToken, req.Token, StringComparison.Ordinal))
-        {
-            return new ReliablePushAckReply
-            {
-                Code = ReliablePushAckResultCodes.InvalidRequest,
-                Message = "Reliable push ack token does not match the current session."
-            };
-        }
-
-        var outcome = await services.ReliablePushAckService
-            .AckAsync(currentSession, acknowledgedSession, req.Sequence)
-            .ConfigureAwait(false);
-
-        if (outcome.Status == ReliablePushAckStatus.StateLost)
-        {
-            return new ReliablePushAckReply
-            {
-                Code = ReliablePushAckResultCodes.SessionStateLost,
-                RequiresNewSession = true,
-                Message = "Client acknowledged a reliable push sequence unknown to the server."
-            };
-        }
-
-        if (outcome.Status == ReliablePushAckStatus.SessionMismatch)
-        {
-            return new ReliablePushAckReply
-            {
-                Code = ReliablePushAckResultCodes.SessionStateLost,
-                RequiresNewSession = true,
-                Message = "Reliable push ack belongs to a different session generation."
-            };
-        }
-
-        return new ReliablePushAckReply { Code = ReliablePushAckResultCodes.Ok };
-    }
-
     public async ValueTask LogoutAsync(HotfixServiceCall<LogoutRequest, IControlCallback> call)
     {
         var services = AgarServiceDependencies.From(call);
@@ -181,18 +103,18 @@ public sealed class PlayerService
         HotfixServiceCall<TRequest, IControlCallback> call,
         AgarServiceDependencies services)
     {
-        var playerId = services.SessionDirectory.GetPlayerIdByConnection(call.ConnectionId);
+        var playerId = services.PlayerSessionRegistry.GetPlayerIdByConnection(call.ConnectionId);
         if (string.IsNullOrWhiteSpace(playerId))
         {
             return null;
         }
 
-        var newlyBound = await services.SessionDirectory
+        var newlyBound = await services.PlayerSessionRegistry
             .BindControlCallbackAsync(playerId, call.ConnectionId, call.Callback)
             .ConfigureAwait(false);
         if (newlyBound)
         {
-            await services.ReliableMatchmakingPublisher
+            await services.MatchmakingNotifier
                 .ReplayPendingAsync(playerId)
                 .ConfigureAwait(false);
         }
@@ -202,7 +124,7 @@ public sealed class PlayerService
 
     internal static async Task EnqueuePlayerAsync(AgarServiceDependencies services, string playerId)
     {
-        var registration = services.SessionDirectory.Get(playerId)
+        var registration = services.PlayerSessionRegistry.Get(playerId)
             ?? throw new InvalidOperationException($"Player '{playerId}' is not registered.");
 
         var result = await services.LocalActors
@@ -216,7 +138,7 @@ public sealed class PlayerService
                 }))
             .ConfigureAwait(false);
 
-        services.SessionDirectory.SetQueueTicket(playerId, string.IsNullOrWhiteSpace(result.TicketId) ? null : result.TicketId);
+        services.PlayerSessionRegistry.SetQueueTicket(playerId, string.IsNullOrWhiteSpace(result.TicketId) ? null : result.TicketId);
 
         if (result.Matched)
         {
@@ -229,7 +151,7 @@ public sealed class PlayerService
 
     internal static async Task CancelMatchmakingAsync(AgarServiceDependencies services, string playerId, string reason)
     {
-        var registration = services.SessionDirectory.Get(playerId);
+        var registration = services.PlayerSessionRegistry.Get(playerId);
         if (registration is null)
         {
             return;
@@ -247,8 +169,8 @@ public sealed class PlayerService
                 }))
             .ConfigureAwait(false);
 
-        services.SessionDirectory.SetQueueTicket(playerId, null);
-        await services.ReliableMatchmakingPublisher.PublishAsync(playerId, new MatchmakingStatusUpdate
+        services.PlayerSessionRegistry.SetQueueTicket(playerId, null);
+        await services.MatchmakingNotifier.PublishAsync(playerId, new MatchmakingStatusUpdate
         {
             State = Shared.Interfaces.MatchmakingState.Canceled,
             QueueSize = 0,
@@ -261,7 +183,7 @@ public sealed class PlayerService
 
     internal static async Task ReleasePlayerAsync(AgarServiceDependencies services, string playerId, string reason)
     {
-        var registration = services.SessionDirectory.Get(playerId);
+        var registration = services.PlayerSessionRegistry.Get(playerId);
         var logger = services.CreateLogger<PlayerService>();
         try
         {
@@ -285,8 +207,8 @@ public sealed class PlayerService
                         }))
                     .ConfigureAwait(false);
                 await services.LocalActors
-                    .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
-                        SessionId(playerId),
+                    .AskAsync<UserActor, PlayerSessionSnapshot>(
+                        UserId(playerId),
                         (actor, _) => actor.ClearRoomAsync(new PlayerRoomClearRequest
                         {
                             UserId = playerId,
@@ -295,16 +217,16 @@ public sealed class PlayerService
                             Reason = reason
                         }))
                     .ConfigureAwait(false);
-                services.SessionDirectory.ClearRoom(playerId, roomId);
+                services.PlayerSessionRegistry.ClearRoom(playerId, roomId);
             }
             else
             {
-                services.SessionDirectory.ClearRoom(playerId);
+                services.PlayerSessionRegistry.ClearRoom(playerId);
             }
 
             await services.LocalActors
-                .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
-                    SessionId(playerId),
+                .AskAsync<UserActor, PlayerSessionSnapshot>(
+                    UserId(playerId),
                     (actor, _) => actor.MarkDisconnectedAsync(new PlayerSessionDisconnectRequest
                     {
                         UserId = playerId,
@@ -324,12 +246,12 @@ public sealed class PlayerService
             logger.LogError(ex, "Failed to release player {PlayerId} during {Reason}.", playerId, reason);
         }
 
-        services.SessionDirectory.Remove(playerId);
+        services.PlayerSessionRegistry.Remove(playerId);
     }
 
     internal static Task PublishQueuedAsync(AgarServiceDependencies services, string playerId, MatchmakingEnqueueResult result)
     {
-        return services.ReliableMatchmakingPublisher.PublishAsync(playerId, new MatchmakingStatusUpdate
+        return services.MatchmakingNotifier.PublishAsync(playerId, new MatchmakingStatusUpdate
         {
             State = Shared.Interfaces.MatchmakingState.Queued,
             QueuePosition = result.QueuePosition,
@@ -356,16 +278,16 @@ public sealed class PlayerService
 
         foreach (var player in room.Players)
         {
-            var registration = services.SessionDirectory.Get(player.UserId);
+            var registration = services.PlayerSessionRegistry.Get(player.UserId);
             if (registration is null)
             {
                 continue;
             }
 
-            services.SessionDirectory.SetQueueTicket(player.UserId, null);
-            services.SessionDirectory.AssignRoom(player.UserId, room.RoomId, room.MatchId, player.SeatIndex);
+            services.PlayerSessionRegistry.SetQueueTicket(player.UserId, null);
+            services.PlayerSessionRegistry.AssignRoom(player.UserId, room.RoomId, room.MatchId, player.SeatIndex);
 
-            await services.ReliableMatchmakingPublisher.PublishAsync(player.UserId, new MatchmakingStatusUpdate
+            await services.MatchmakingNotifier.PublishAsync(player.UserId, new MatchmakingStatusUpdate
             {
                 State = Shared.Interfaces.MatchmakingState.Matched,
                 QueueSize = room.MemberCount > 0 ? room.MemberCount : room.Players.Count,
@@ -373,7 +295,7 @@ public sealed class PlayerService
                 RoomId = room.RoomId,
                 MatchedPlayerCount = room.Players.Count,
                 Message = $"Matched into room {room.RoomId}",
-                RealtimeConnection = RealtimeEndpointMapper.ToRealtimeConnectionInfo(
+                RealtimeConnection = RealtimeConnectionMapper.ToRealtimeConnectionInfo(
                     assignment.RuntimeGateway,
                     room.RoomId,
                     room.MatchId,
@@ -387,19 +309,16 @@ public sealed class PlayerService
 
     private static ActorId UserId(string userId) => ActorId.From(userId);
 
-    private static ActorId SessionId(string userId) => ActorId.From($"session:{userId}");
-
     private static ActorId RoomId(string roomId) => ActorId.From(roomId);
 }
 
 internal sealed record AgarServiceDependencies(
     IActorRuntime LocalActors,
-    SessionDirectory SessionDirectory,
-    GatewayNodeIdentity GatewayNodeIdentity,
-    BattleRuntimeGatewayResolver RuntimeGateways,
-    ReliableMatchmakingPublisher ReliableMatchmakingPublisher,
+    PlayerSessionRegistry PlayerSessionRegistry,
+    RuntimeNodeIdentity RuntimeNodeIdentity,
+    RuntimeGatewaySelector RuntimeGateways,
+    MatchmakingNotifier MatchmakingNotifier,
     IReliablePushOutbox ReliablePushOutbox,
-    IReliablePushAckService ReliablePushAckService,
     ILoggerFactory LoggerFactory)
 {
     public ILogger<T> CreateLogger<T>()
@@ -416,12 +335,11 @@ internal sealed record AgarServiceDependencies(
     {
         return new AgarServiceDependencies(
             localActors,
-            services.GetRequiredService<SessionDirectory>(),
-            services.GetRequiredService<GatewayNodeIdentity>(),
-            services.GetRequiredService<BattleRuntimeGatewayResolver>(),
-            services.GetRequiredService<ReliableMatchmakingPublisher>(),
+            services.GetRequiredService<PlayerSessionRegistry>(),
+            services.GetRequiredService<RuntimeNodeIdentity>(),
+            services.GetRequiredService<RuntimeGatewaySelector>(),
+            services.GetRequiredService<MatchmakingNotifier>(),
             services.GetRequiredService<IReliablePushOutbox>(),
-            services.GetRequiredService<IReliablePushAckService>(),
             services.GetRequiredService<ILoggerFactory>());
     }
 }

@@ -60,7 +60,8 @@ internal static class TestHotfix
         [
             typeof(ArenaSimulation).Assembly.GetName().Name!,
             typeof(UserActor).Assembly.GetName().Name!,
-            typeof(Lakona.Game.Server.ILakonaGameServer).Assembly.GetName().Name!
+            typeof(Lakona.Game.Server.ILakonaGameServer).Assembly.GetName().Name!,
+            typeof(Lakona.Game.Server.Hotfix.Abstractions.HotfixFeatureContext).Assembly.GetName().Name!
         ];
     }
 

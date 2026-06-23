@@ -1,10 +1,10 @@
 using Agar.Sample.State.Contracts;
 
-namespace Server.App.Services;
+namespace Server.Hotfix.Services;
 
-internal sealed class GatewayNodeIdentity
+internal sealed class RuntimeNodeIdentity
 {
-    public GatewayNodeIdentity(GatewayEndpointDescriptor advertisedEndpoint)
+    public RuntimeNodeIdentity(GatewayEndpointDescriptor advertisedEndpoint)
     {
         AdvertisedEndpoint = advertisedEndpoint ?? throw new ArgumentNullException(nameof(advertisedEndpoint));
         InstanceId = string.IsNullOrWhiteSpace(advertisedEndpoint.InstanceId)

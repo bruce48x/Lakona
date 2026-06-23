@@ -99,8 +99,8 @@ public sealed class AgarHotfixBoundaryTests
     [Fact]
     public void Stable_state_actors_do_not_declare_business_methods()
     {
-        var stateRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/State/AgarSampleActorServiceCollectionExtensions.cs")
-            .DirectoryName!;
+        var stateRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/State/Users/UserActor.cs")
+            .Directory!.Parent!.FullName;
         var actorFiles = Directory.GetFiles(stateRoot, "*Actor.cs", SearchOption.AllDirectories);
         var forbidden = new Regex(
             @"^\s*(public|internal|private|protected)\s+(static\s+|override\s+|async\s+)*(Task|ValueTask|[\w<>]+)\s+\w+\s*\(",
@@ -179,7 +179,7 @@ public sealed class AgarHotfixBoundaryTests
             .DirectoryName!;
         var hotfixText = ReadAllTextFiles(hotfixRoot);
 
-        Assert.Contains("[HotfixFeature(\"database\")]", hotfixText, StringComparison.Ordinal);
+        Assert.DoesNotContain("[HotfixFeature(\"database\")]", hotfixText, StringComparison.Ordinal);
         Assert.Contains("[HotfixFeature(\"state-store\")]", hotfixText, StringComparison.Ordinal);
         Assert.Contains("[HotfixFeature(\"matchmaking\")]", hotfixText, StringComparison.Ordinal);
         Assert.Contains("[HotfixFeature(\"leaderboard\")]", hotfixText, StringComparison.Ordinal);
@@ -193,15 +193,12 @@ public sealed class AgarHotfixBoundaryTests
     {
         var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
             .Directory!.Parent!.Parent!.FullName;
-        var hostingRoot = Path.Combine(sampleRoot, "Server", "App", "Hosting");
         var featureRoot = Path.Combine(sampleRoot, "Server", "Hotfix", "Features");
 
-        var serviceRegistration = File.ReadAllText(Path.Combine(hostingRoot, "AgarSampleServiceCollectionExtensions.cs"));
-        var matchmakingFeature = File.ReadAllText(Path.Combine(featureRoot, "AgarInfrastructureFeatures.cs"));
+        var matchmakingFeature = File.ReadAllText(Path.Combine(featureRoot, "MatchmakingFeature.cs"));
         var battleRuntimeFeature = File.ReadAllText(Path.Combine(featureRoot, "BattleRuntimeFeature.cs"));
 
-        Assert.DoesNotContain("MatchmakingFeatureActorBootstrap", serviceRegistration, StringComparison.Ordinal);
-        Assert.False(File.Exists(Path.Combine(hostingRoot, "MatchmakingFeatureActorBootstrap.cs")));
+        Assert.False(Directory.Exists(Path.Combine(sampleRoot, "Server", "App", "Hosting")));
         Assert.Contains("ScheduleActorTick<MatchmakingActor>", matchmakingFeature, StringComparison.Ordinal);
         Assert.Contains("\"default\"", matchmakingFeature, StringComparison.Ordinal);
         Assert.DoesNotContain("ScheduleActorTick<MatchmakingActor>", battleRuntimeFeature, StringComparison.Ordinal);

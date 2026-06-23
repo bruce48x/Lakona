@@ -4,9 +4,10 @@ using Agar.Sample.State.Contracts.Rooms;
 using Agar.Sample.State.Contracts.Sessions;
 using Agar.Sample.State.Matchmaking;
 using Agar.Sample.State.Rooms;
-using Agar.Sample.State.Sessions;
+using Agar.Sample.State.Users;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.Services;
 using Server.Hotfix.State.Rooms;
 using Server.Hotfix.State.Sessions;
@@ -283,44 +284,63 @@ public static class MatchmakingBehavior
         IReadOnlyList<MatchmakingQueueTicket> batch)
     {
         _ = batch;
-        return await self.RuntimeGateways.ResolveAsync().ConfigureAwait(false);
+        return await self.Context.Services
+            .GetRequiredService<RuntimeGatewaySelector>()
+            .ResolveAsync()
+            .ConfigureAwait(false);
     }
 
     private static ValueTask<PlayerSessionSnapshot> GetSessionSnapshotAsync(MatchmakingActor self, string userId)
     {
         var localActors = self.Context.Runtime;
-        return localActors.AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
-            SessionId(userId),
+        return localActors.AskAsync<UserActor, PlayerSessionSnapshot>(
+            UserId(userId),
             (actor, _) => actor.GetSnapshotAsync());
     }
 
     private static ValueTask<PlayerSessionSnapshot> MarkQueuedAsync(MatchmakingActor self, PlayerSessionQueueRequest request)
     {
         var localActors = self.Context.Runtime;
-        return localActors.AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
-            SessionId(request.UserId),
+        return localActors.AskAsync<UserActor, PlayerSessionSnapshot>(
+            UserId(request.UserId),
             (actor, _) => actor.MarkQueuedAsync(request));
     }
 
     private static ValueTask<PlayerSessionSnapshot> ClearQueueAsync(MatchmakingActor self, PlayerSessionQueueClearRequest request)
     {
         var localActors = self.Context.Runtime;
-        return localActors.AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
-            SessionId(request.UserId),
+        return localActors.AskAsync<UserActor, PlayerSessionSnapshot>(
+            UserId(request.UserId),
             (actor, _) => actor.ClearQueueAsync(request));
     }
 
     private static ValueTask<PlayerSessionSnapshot> AssignRoomAsync(MatchmakingActor self, PlayerRoomAssignment request)
     {
         var localActors = self.Context.Runtime;
-        return localActors.AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
-            SessionId(request.UserId),
+        return localActors.AskAsync<UserActor, PlayerSessionSnapshot>(
+            UserId(request.UserId),
             (actor, _) => actor.AssignRoomAsync(request));
     }
 
     private static ValueTask<RoomSettlementResult> CreateRoomAsync(MatchmakingActor self, RoomCreateRequest request)
     {
         var localActors = self.Context.Runtime;
+        var created = self.Context.Services
+            .GetRequiredService<IActorLifecycle>()
+            .CreateLocalAsync<RoomActor>(RoomId(request.RoomId))
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+        if (!created.Succeeded)
+        {
+            return new ValueTask<RoomSettlementResult>(new RoomSettlementResult
+            {
+                RoomId = request.RoomId,
+                Succeeded = false,
+                Message = created.Diagnostic ?? $"Could not create room actor '{request.RoomId}'."
+            });
+        }
+
         return localActors.AskAsync<RoomActor, RoomSettlementResult>(
             RoomId(request.RoomId),
             (actor, _) => actor.CreateAsync(request));
@@ -334,7 +354,7 @@ public static class MatchmakingBehavior
             (actor, _) => actor.StartAsync(request));
     }
 
-    private static ActorId SessionId(string userId) => ActorId.From($"session:{userId}");
+    private static ActorId UserId(string userId) => ActorId.From(userId);
 
     private static ActorId RoomId(string roomId) => ActorId.From(roomId);
 

@@ -52,6 +52,7 @@ public static class UserBehavior
 
     public static ValueTask<UserProfileSnapshot> GetProfileAsync(this UserActor self)
     {
+        var session = self.State.Session;
         return new ValueTask<UserProfileSnapshot>(new UserProfileSnapshot
         {
             UserId = self.State.UserId,
@@ -60,7 +61,15 @@ public static class UserBehavior
             LastLoginAtUtc = self.State.LastLoginAtUtc,
             IsOnline = self.State.IsOnline,
             WinCount = Math.Max(0, self.State.WinCount),
-            VictoryPoints = Math.Max(0, self.State.VictoryPoints)
+            VictoryPoints = Math.Max(0, self.State.VictoryPoints),
+            SessionToken = session.SessionToken,
+            ControlConnectionId = session.ConnectionId,
+            ControlGatewayNodeId = session.ControlGateway.InstanceId,
+            RealtimeGatewayNodeId = session.RuntimeGateway.InstanceId,
+            CurrentRoomId = session.CurrentRoomId,
+            CurrentMatchId = session.CurrentMatchId,
+            SeatIndex = session.SeatIndex,
+            MatchmakingTicketId = session.MatchmakingTicketId
         });
     }
 

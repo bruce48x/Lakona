@@ -1,6 +1,6 @@
-namespace Server.App.Services;
+namespace Server.Hotfix.Services;
 
-internal static class ReliablePushKinds
+internal static class PushNotificationKinds
 {
     public const string MatchmakingStatus = "player.matchmaking-status";
 }

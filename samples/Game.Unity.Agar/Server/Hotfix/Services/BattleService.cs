@@ -1,12 +1,12 @@
 using Agar.Sample.State.Contracts.Rooms;
 using Agar.Sample.State.Contracts.Sessions;
 using Agar.Sample.State.Rooms;
-using Agar.Sample.State.Sessions;
+using Agar.Sample.State.Users;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
-using Server.App.Services;
+using Server.Hotfix.Services;
 using Server.Hotfix.State.Rooms;
 using Server.Hotfix.State.Sessions;
 using Shared.Interfaces;
@@ -34,8 +34,8 @@ public sealed class BattleService
         }
 
         var sessionSnapshot = await nodeLocalActors
-            .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
-                SessionId(req.PlayerId),
+            .AskAsync<UserActor, PlayerSessionSnapshot>(
+                UserId(req.PlayerId),
                 (actor, _) => actor.GetSnapshotAsync())
             .ConfigureAwait(false);
         if (!string.Equals(sessionSnapshot.SessionToken, req.Token, StringComparison.Ordinal) ||
@@ -49,7 +49,7 @@ public sealed class BattleService
             };
         }
 
-        if (!services.GatewayNodeIdentity.IsRuntimeOwner(sessionSnapshot.RuntimeGateway))
+        if (!services.RuntimeNodeIdentity.IsRuntimeOwner(sessionSnapshot.RuntimeGateway))
         {
             return new RealtimeAttachReply
             {
@@ -58,7 +58,7 @@ public sealed class BattleService
             };
         }
 
-        var attached = await services.SessionDirectory
+        var attached = await services.PlayerSessionRegistry
             .AttachRealtimeAsync(req.PlayerId, req.Token, req.RoomId, req.MatchId, call.ConnectionId, call.Callback)
             .ConfigureAwait(false);
         if (!attached)
@@ -95,7 +95,7 @@ public sealed class BattleService
         var req = call.Request;
         var services = AgarBattleServiceDependencies.From(call);
         var nodeLocalActors = call.Actors;
-        var playerId = services.SessionDirectory.GetPlayerIdByConnection(call.ConnectionId);
+        var playerId = services.PlayerSessionRegistry.GetPlayerIdByConnection(call.ConnectionId);
         if (string.IsNullOrWhiteSpace(playerId))
         {
             return;
@@ -108,12 +108,12 @@ public sealed class BattleService
         }
 
         var sessionSnapshot = await nodeLocalActors
-            .AskAsync<PlayerSessionActor, PlayerSessionSnapshot>(
-                SessionId(playerId),
+            .AskAsync<UserActor, PlayerSessionSnapshot>(
+                UserId(playerId),
                 (actor, _) => actor.GetSnapshotAsync())
             .ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(sessionSnapshot.CurrentRoomId) ||
-            !services.GatewayNodeIdentity.IsRuntimeOwner(sessionSnapshot.RuntimeGateway))
+            !services.RuntimeNodeIdentity.IsRuntimeOwner(sessionSnapshot.RuntimeGateway))
         {
             return;
         }
@@ -132,17 +132,17 @@ public sealed class BattleService
 
     private static ActorId RoomId(string roomId) => ActorId.From(roomId);
 
-    private static ActorId SessionId(string userId) => ActorId.From($"session:{userId}");
+    private static ActorId UserId(string userId) => ActorId.From($"session:{userId}");
 }
 
 internal sealed record AgarBattleServiceDependencies(
-    SessionDirectory SessionDirectory,
-    GatewayNodeIdentity GatewayNodeIdentity)
+    PlayerSessionRegistry PlayerSessionRegistry,
+    RuntimeNodeIdentity RuntimeNodeIdentity)
 {
     public static AgarBattleServiceDependencies From<TRequest>(HotfixServiceCall<TRequest> call)
     {
         return new AgarBattleServiceDependencies(
-            call.Services.GetRequiredService<SessionDirectory>(),
-            call.Services.GetRequiredService<GatewayNodeIdentity>());
+            call.Services.GetRequiredService<PlayerSessionRegistry>(),
+            call.Services.GetRequiredService<RuntimeNodeIdentity>());
     }
 }

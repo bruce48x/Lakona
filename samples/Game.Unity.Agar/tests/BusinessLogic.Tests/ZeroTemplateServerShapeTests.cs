@@ -20,9 +20,7 @@ public sealed class ZeroTemplateServerShapeTests
         var program = File.ReadAllText(Path.Combine(ServerApp, "Program.cs"));
 
         Assert.Equal(
-            "using Lakona.Game.Server.Hosting;" + Environment.NewLine +
-            Environment.NewLine +
-            "return await LakonaGameServer.RunAsync(args);" + Environment.NewLine,
+            "using Lakona.Game.Server.Hosting;\n\nreturn await LakonaGameServer.RunAsync(args);\n",
             program);
     }
 

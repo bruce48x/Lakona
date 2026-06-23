@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.Loader;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Lakona.Game.Server.Hotfix.Loading;
 
@@ -8,6 +9,7 @@ internal sealed class HotfixAssemblyLoadContext : AssemblyLoadContext
 {
     private static readonly string AbstractionsAssemblyName = typeof(HotfixBehaviorOfAttribute).Assembly.GetName().Name!;
     private static readonly string RuntimeAssemblyName = typeof(IGameSessionLifecycle).Assembly.GetName().Name!;
+    private static readonly string DependencyInjectionAbstractionsAssemblyName = typeof(IServiceCollection).Assembly.GetName().Name!;
 
     private readonly AssemblyDependencyResolver _resolver;
     private readonly IReadOnlySet<string> _sharedAssemblyNames;
@@ -68,7 +70,8 @@ internal sealed class HotfixAssemblyLoadContext : AssemblyLoadContext
         var names = new HashSet<string>(StringComparer.Ordinal)
         {
             AbstractionsAssemblyName,
-            RuntimeAssemblyName
+            RuntimeAssemblyName,
+            DependencyInjectionAbstractionsAssemblyName
         };
 
         foreach (var name in sharedAssemblyNames)
