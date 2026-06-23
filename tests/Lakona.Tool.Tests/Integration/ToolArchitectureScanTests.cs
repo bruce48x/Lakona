@@ -133,7 +133,9 @@ public sealed class ToolArchitectureScanTests
             Assert.DoesNotContain(ForbiddenDisconnectedHook, generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(ForbiddenExpiredHook, generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("RpcSession.Disconnected +=", generatedText, StringComparison.Ordinal);
-            Assert.Contains("AddLakonaGameSessionHotfixLifecycle", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain("AddLakonaGame(", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain("AddLakonaGameSessionHotfixLifecycle", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain("UseGeneratedHotfixServices", generatedText, StringComparison.Ordinal);
             Assert.Contains("ChatSessionLifecycle", generatedText, StringComparison.Ordinal);
             Assert.Contains("[HotfixLifecycle(typeof(IGameSessionLifecycle))]", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("IChatRuntimeService", generatedText, StringComparison.Ordinal);

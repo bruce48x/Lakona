@@ -100,21 +100,11 @@ internal sealed class ServerAppRenderer : IPlanContributor
 
     private static string RenderProgram(LakonaProjectSpec spec)
     {
-        return $$"""
-        using System.Threading.Tasks;
-        using Microsoft.Extensions.DependencyInjection;
-        using Server.App.Generated;
-        using Lakona.Game.Server.Features;
+        _ = spec;
+        return """
         using Lakona.Game.Server.Hosting;
-        using Lakona.Game.Server.Sessions;
 
-        return await LakonaGameServer.RunAsync(args, server => server
-            .AddServices((services, configuration) =>
-            {
-                services.AddLakonaGame(configuration);
-                services.AddLakonaGameSessionHotfixLifecycle();
-            })
-            .UseGeneratedHotfixServices());
+        return await LakonaGameServer.RunAsync(args);
         """;
     }
 

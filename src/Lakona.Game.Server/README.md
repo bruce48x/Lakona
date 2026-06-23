@@ -16,16 +16,9 @@ dotnet add package Lakona.Game.Server
 ## Run A Game Server
 
 ```csharp
-using Microsoft.Extensions.DependencyInjection;
-using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Hosting;
 
-return await LakonaGameServer.RunAsync(args, server => server
-    .AddServices((services, configuration) =>
-    {
-        services.AddLakonaGame(configuration);
-    })
-    .UseGeneratedHotfixServices());
+return await LakonaGameServer.RunAsync(args);
 ```
 
 `LakonaGameServer.RunAsync()` registers the default in-memory session services,
@@ -157,14 +150,13 @@ matchmaking policy, persistence schema, or gameplay DTOs.
 
 ## Optional Features
 
-- Runtime validation: call `AddLakonaGameRuntimeValidation()` or run generated
-  projects with `--lakona-game-check`.
-- Message recording: call `AddMessageRecording()` to store recent actor
-  dispatch records in an in-memory ring buffer.
+- Runtime validation: run generated projects with `--lakona-game-check`.
+- Message recording: configure the framework default recorder to store recent
+  actor dispatch records in an in-memory ring buffer.
 - Cluster notifications: use `ClientNotificationRelay` from business nodes to
   send serializable callback commands to the gateway that owns the session.
-- Feature startup: use `AddLakonaGame(...)` and `LakonaGameFeature` classes
-  when a server is composed from named startup units.
+- Feature startup: use `LakonaGameFeature` classes when a server is composed
+  from named startup units.
 
 ## Actor Runtime Configuration
 

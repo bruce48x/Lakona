@@ -42,19 +42,20 @@ public sealed class ServerAppRendererTests
         Assert.DoesNotContain("Lakona.Rpc.Serializer.Json", project, StringComparison.Ordinal);
 
         var program = AssertPath(plan, "Server/App/Program.cs").Content;
+        Assert.Equal("using Lakona.Game.Server.Hosting;\n\nreturn await LakonaGameServer.RunAsync(args);", program);
         Assert.Contains("using Lakona.Game.Server.Hosting;", program, StringComparison.Ordinal);
-        Assert.Contains("using Lakona.Game.Server.Sessions;", program, StringComparison.Ordinal);
-        Assert.Contains("using Microsoft.Extensions.DependencyInjection;", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("using Lakona.Game.Server.Sessions;", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("using Microsoft.Extensions.DependencyInjection;", program, StringComparison.Ordinal);
         Assert.DoesNotContain("using Lakona.Game.Server.Hotfix.Abstractions;", program, StringComparison.Ordinal);
         Assert.DoesNotContain("using Server.App.Hosting;", program, StringComparison.Ordinal);
         Assert.DoesNotContain("using Server.App.Hotfix;", program, StringComparison.Ordinal);
-        Assert.Contains("return await LakonaGameServer.RunAsync(args, server => server", program, StringComparison.Ordinal);
+        Assert.Contains("return await LakonaGameServer.RunAsync(args);", program, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona.Rpc.Serializer", program, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona.Rpc.Transport", program, StringComparison.Ordinal);
         Assert.DoesNotContain(".UseTransport(", program, StringComparison.Ordinal);
         Assert.DoesNotContain(".UseSerializer(", program, StringComparison.Ordinal);
         Assert.DoesNotContain(".UseAcceptor(", program, StringComparison.Ordinal);
-        Assert.Contains("services.AddLakonaGameSessionHotfixLifecycle();", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("services.AddLakonaGameSessionHotfixLifecycle", program, StringComparison.Ordinal);
         Assert.DoesNotContain("services.AddSingleton<ChatHotfixRuntimeEvents>();", program, StringComparison.Ordinal);
         Assert.DoesNotContain("services.AddSingleton<IHotfixRequiredServiceContracts, ChatRuntimeRequiredServiceContracts>();", program, StringComparison.Ordinal);
         Assert.DoesNotContain("services.AddSingleton<IGameSessionLifecycleHandler, ChatSessionLifecycleBridge>();", program, StringComparison.Ordinal);
@@ -63,10 +64,10 @@ public sealed class ServerAppRendererTests
         Assert.DoesNotContain("AddLakonaGameServerSessionCleanup", program, StringComparison.Ordinal);
         Assert.DoesNotContain("DisconnectedSessionRetention = TimeSpan", program, StringComparison.Ordinal);
         Assert.DoesNotContain(ForbiddenCleanupOption, program, StringComparison.Ordinal);
-        Assert.Contains(".UseGeneratedHotfixServices());", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("UseGeneratedHotfixServices", program, StringComparison.Ordinal);
         Assert.DoesNotContain("RpcServerHostBuilder", program, StringComparison.Ordinal);
-        Assert.Contains(".AddServices((services, configuration) =>", program, StringComparison.Ordinal);
-        Assert.Contains("services.AddLakonaGame(configuration)", program, StringComparison.Ordinal);
+        Assert.DoesNotContain(".AddServices((services, configuration) =>", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("services.AddLakonaGame(configuration)", program, StringComparison.Ordinal);
         Assert.DoesNotContain("ConfigureFeatures(", program, StringComparison.Ordinal);
         Assert.DoesNotContain(".Feature<", program, StringComparison.Ordinal);
 
