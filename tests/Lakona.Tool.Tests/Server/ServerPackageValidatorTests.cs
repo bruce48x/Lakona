@@ -177,6 +177,35 @@ public sealed class ServerPackageValidatorTests
         }
     }
 
+    [Theory]
+    [InlineData("reload.signal")]
+    [InlineData(@"hotfix\versions\v20260623-153045Z\reload.signal")]
+    public async Task ValidateAsync_rejects_reload_signal_anywhere_in_package_tree(string relativePath)
+    {
+        var fixture = await CreateValidServerPackageAsync();
+        try
+        {
+            var path = Path.Combine(fixture.Root, relativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            await File.WriteAllTextAsync(
+                path,
+                "",
+                TestContext.Current.CancellationToken);
+
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+                async () => await new ServerPackageValidator().ValidateAsync(
+                    fixture.Root,
+                    fixture.Manifest,
+                    TestContext.Current.CancellationToken));
+
+            Assert.Contains("reload.signal", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(fixture.Root, recursive: true);
+        }
+    }
+
     [Fact]
     public async Task ValidateAsync_accepts_valid_server_package_tree()
     {

@@ -20,6 +20,7 @@ internal sealed class ServerPackageValidator
         }
 
         RejectBuildOutputDirectories(root);
+        RejectReloadSignalFiles(root);
         RequireRootFile(root, manifest.EntryAssembly, "entry assembly");
         var serverManifestPath = Path.Combine(root, "lakona-server.json");
         RequireFile(serverManifestPath, "server package manifest");
@@ -123,6 +124,16 @@ internal sealed class ServerPackageValidator
             var relativePath = Path.GetRelativePath(root, directory);
             throw new InvalidOperationException(
                 $"Server package contains build output directory '{relativePath}'. Remove bin/obj directories before packing.");
+        }
+    }
+
+    private static void RejectReloadSignalFiles(string root)
+    {
+        foreach (var file in Directory.EnumerateFiles(root, "reload.signal", SearchOption.AllDirectories))
+        {
+            var relativePath = Path.GetRelativePath(root, file);
+            throw new InvalidOperationException(
+                $"Server package contains reload signal file '{relativePath}'. Remove reload.signal before packing.");
         }
     }
 

@@ -33,6 +33,7 @@ internal static class HotfixPackageVerifier
         var checksums = ParseChecksums(directory, lines);
         RequireChecksum(checksums, "hotfix.json");
         RequireChecksum(checksums, assemblyFileName);
+        RejectUnchecksummedFiles(directory, checksumPath, checksums);
 
         foreach (var item in checksums.Values)
         {
@@ -99,6 +100,35 @@ internal static class HotfixPackageVerifier
         {
             throw new InvalidOperationException($"Hotfix checksum file is missing '{normalized}'.");
         }
+    }
+
+    private static void RejectUnchecksummedFiles(
+        string directory,
+        string checksumPath,
+        IReadOnlyDictionary<string, ChecksumEntry> checksums)
+    {
+        var checksumFullPath = Path.GetFullPath(checksumPath);
+        foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+        {
+            var fullPath = Path.GetFullPath(file);
+            if (StringComparer.Ordinal.Equals(fullPath, checksumFullPath)
+                || IsReadyMarker(directory, fullPath))
+            {
+                continue;
+            }
+
+            var relativePath = NormalizeRelativePath(Path.GetRelativePath(directory, fullPath));
+            if (!checksums.ContainsKey(relativePath))
+            {
+                throw new InvalidOperationException($"Hotfix checksum file is missing '{relativePath}'.");
+            }
+        }
+    }
+
+    private static bool IsReadyMarker(string directory, string fullPath)
+    {
+        var readyPath = Path.GetFullPath(Path.Combine(directory, "READY"));
+        return StringComparer.Ordinal.Equals(fullPath, readyPath);
     }
 
     private static bool IsUnderDirectory(string directory, string path)

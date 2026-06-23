@@ -233,6 +233,35 @@ public sealed class HotfixPackageWriterTests
         }
     }
 
+    [Fact]
+    public async Task InstallAsync_rejects_extra_package_files_missing_from_checksums()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var staging = await CreatePackageStagingAsync(root, "v20260612-153045Z");
+            await File.WriteAllTextAsync(Path.Combine(staging, "unlisted.txt"), "extra", TestContext.Current.CancellationToken);
+
+            var manifestHash = await Sha256Async(Path.Combine(staging, "hotfix.json"));
+            var dllHash = await Sha256Async(Path.Combine(staging, "Server.Hotfix.dll"));
+            var zip = await ZipPackageAsync(
+                root,
+                staging,
+                [$"{manifestHash} hotfix.json", $"{dllHash} Server.Hotfix.dll"]);
+            var installRoot = Path.Combine(root, "hotfix");
+
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+                async () => await new HotfixPackageInstaller().InstallAsync(zip, installRoot, TestContext.Current.CancellationToken));
+
+            Assert.Contains("checksum", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("unlisted.txt", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private static string CreateTempRoot()
     {
         var root = Path.Combine(Path.GetTempPath(), "LakonaHotfixPackageWriterTests", Guid.NewGuid().ToString("N"));
