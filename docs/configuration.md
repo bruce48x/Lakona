@@ -246,9 +246,9 @@ Validation covers:
 - feature names, duplicates, and dependency/order constraints;
 - cluster endpoint and seed shape when cluster is configured.
 
-`--lakona-game-check` remains a compatibility alias for local project
-inspection. New deployment automation should prefer `--readiness-check` and
-`--health-check`.
+`--readiness-check` is the canonical project readiness command for local
+inspection and deployment automation. Use `--health-check` for liveness-only
+checks.
 
 Example diagnostic wording:
 

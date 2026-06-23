@@ -200,7 +200,7 @@ lower-level generated `RpcClient`.
 Generated projects should include a check command:
 
 ```bash
-dotnet run --project Server/App/Server.App.csproj -- --lakona-game-check
+dotnet run --project Server/App/Server.App.csproj -- --readiness-check
 ```
 
 The command should print derived runtime state in stable, readable lines:
@@ -283,7 +283,7 @@ A new user should be able to run:
 ```bash
 lakona-tool new --name MyGame
 dotnet build Server/Server.slnx
-dotnet run --project Server/App/Server.App.csproj -- --lakona-game-check
+dotnet run --project Server/App/Server.App.csproj -- --readiness-check
 dotnet run --project Server/App/Server.App.csproj
 ```
 

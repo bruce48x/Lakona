@@ -48,6 +48,40 @@ public sealed class ToolArchitectureScanTests
     }
 
     [Fact]
+    public async Task NewProject_UsesReadinessCheckAndDoesNotGenerateLegacyLakonaGameCheck()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var toolSourceText = ReadAllTextFiles(Path.Combine(repositoryRoot, "src", "Lakona.Tool"));
+        var parentRoot = Path.Combine(Path.GetTempPath(), "lakona-tool-readiness-command-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(parentRoot);
+        try
+        {
+            var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+                "MyGame",
+                parentRoot,
+                ClientEngine.Unity,
+                TransportKind.Kcp,
+                SerializerKind.MemoryPack,
+                PersistenceKind.None,
+                NuGetForUnitySource.OpenUpm,
+                DeploymentProfile.None));
+            var generator = CreateGenerator();
+
+            var result = await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
+
+            var generatedText = ReadAllTextFiles(spec.Layout.RootPath);
+            Assert.Contains("--readiness-check", toolSourceText, StringComparison.Ordinal);
+            Assert.Contains("--readiness-check", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain("--lakona-game-check", toolSourceText, StringComparison.Ordinal);
+            Assert.DoesNotContain("--lakona-game-check", generatedText, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(parentRoot, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task NewProject_DoesNotGenerateLegacyStarterLayout()
     {
         var parentRoot = Path.Combine(Path.GetTempPath(), "lakona-tool-architecture-scan-tests", Guid.NewGuid().ToString("N"));

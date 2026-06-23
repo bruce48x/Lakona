@@ -14,7 +14,7 @@ Tooling and runtime validation have different responsibilities:
 
 - `Lakona.Tool` hides unnecessary choices and generates safe defaults.
 - Lakona runtime packages enforce invariants that must hold for a server to run correctly.
-- `--health-check`, `--readiness-check`, and the compatibility `--lakona-game-check` explain runtime state at the right operational boundary.
+- `--health-check` and `--readiness-check` explain runtime state at the right operational boundary.
 
 Do not make Cluster, Hotfix, or Reliable Push ordinary optional modules in generated projects. They are part of the Lakona application model. Users may change their source, storage, topology, or deployment profile, but generated projects should not teach users to disable the core model.
 
@@ -51,7 +51,7 @@ Runtime guardrails use three levels.
 
 ### Errors
 
-Errors are invalid states. Startup or `--lakona-game-check` should fail.
+Errors are invalid states. Startup or `--readiness-check` should fail.
 
 Use errors for framework invariants:
 
@@ -86,11 +86,11 @@ Use warnings for local or temporary defaults:
 - persistence is not configured
 - route lease duration, send timeout, replay retention, or pending push limit uses defaults
 
-Warnings should not make local development painful. They should be visible in `--lakona-game-check` and diagnostics.
+Warnings should not make local development painful. They should be visible in `--readiness-check` and diagnostics.
 
-Hotfix assembly absence is not a warning in any profile or command mode. It is always an error because Hotfix is part of the Lakona default application model. `--lakona-game-check` should make the repair path friendly, but it must still return a non-zero exit code.
+Hotfix assembly absence is not a warning in any profile or command mode. It is always an error because Hotfix is part of the Lakona default application model. `--readiness-check` should make the repair path friendly, but it must still return a non-zero exit code.
 
-Normal server startup must fail when the initial Hotfix load fails. A missing, invalid, or scanner-rejected `Server.Hotfix.dll` is not a degraded mode. `--lakona-game-check`, readiness checks, and normal startup must agree that Hotfix absence is an error for generated Lakona projects.
+Normal server startup must fail when the initial Hotfix load fails. A missing, invalid, or scanner-rejected `Server.Hotfix.dll` is not a degraded mode. Readiness checks and normal startup must agree that Hotfix absence is an error for generated Lakona projects.
 
 ### Info
 
@@ -322,11 +322,10 @@ Startup exceptions should preserve diagnostic codes so tests and tools can asser
 
 ## Check Command Behavior
 
-Generated readiness checks should call the same runtime validation pipeline used by startup. `--lakona-game-check` remains available for compatibility and local inspection, but new deployment automation should use the more explicit probes:
+Generated readiness checks should call the same runtime validation pipeline used by startup. Deployment automation and local inspection should use the explicit probes:
 
 - `--health-check`: liveness only. It is fast, does not perform network calls, and answers whether the process is alive and minimally configured.
 - `--readiness-check`: liveness plus applicable guardrails. It answers whether the node is ready to receive traffic. It supports `--json`.
-- `--lakona-game-check`: local/developer compatibility surface for the readiness output.
 
 Liveness failure must imply readiness failure. Readiness failure does not necessarily imply liveness failure; for example, a missing hotfix assembly means the process is alive but not ready.
 
@@ -351,7 +350,7 @@ When Hotfix build output is missing, the check command should print the repair c
 The check command should also support machine-readable output:
 
 ```bash
-dotnet run --project Server/App/Server.App.csproj -- --lakona-game-check --json
+dotnet run --project Server/App/Server.App.csproj -- --readiness-check --json
 ```
 
 Suggested JSON shape:
@@ -467,5 +466,5 @@ projects and CI checks to explain the fix.
 
 A generated development project should still run with minimal configuration and
 no manual edits. Tooling and framework startup should use the same validation
-rules, so a project that passes `--lakona-game-check` has the same basic runtime
+rules, so a project that passes `--readiness-check` has the same basic runtime
 invariants that server startup expects.

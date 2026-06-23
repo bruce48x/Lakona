@@ -28,6 +28,13 @@ namespace Lakona.Game.Server.Tests;
 public sealed class LakonaGameServerTests
 {
     [Fact]
+    public void Probe_command_detection_does_not_accept_legacy_lakona_game_check_alias()
+    {
+        Assert.True(Lakona.Game.Server.Hosting.LakonaGameServer.IsReadinessCheckCommandForTesting(["--readiness-check"]));
+        Assert.False(Lakona.Game.Server.Hosting.LakonaGameServer.IsReadinessCheckCommandForTesting(["--lakona-game-check"]));
+    }
+
+    [Fact]
     public void AddServices_CanUseHostConfiguration()
     {
         var hostBuilder = Host.CreateApplicationBuilder([]);

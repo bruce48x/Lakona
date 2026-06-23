@@ -264,7 +264,7 @@ builder.Services.AddLakonaGame(builder.Configuration);
 Validate configuration before starting:
 
 ```bash
-dotnet run --project "Server/App/Server.App.csproj" -- --lakona-game-check
+dotnet run --project "Server/App/Server.App.csproj" -- --readiness-check
 ```
 
 Guardrails catch missing endpoints, invalid cluster topology, production profile

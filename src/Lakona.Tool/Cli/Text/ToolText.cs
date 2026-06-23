@@ -279,9 +279,9 @@ internal sealed class ToolText
 
     public string CheckProjectStep => Language switch
     {
-        ToolLanguage.SimplifiedChinese => "  2) dotnet run --project \"Server/App/Server.App.csproj\" -- --lakona-game-check",
-        ToolLanguage.TraditionalChinese => "  2) dotnet run --project \"Server/App/Server.App.csproj\" -- --lakona-game-check",
-        _ => "  2) dotnet run --project \"Server/App/Server.App.csproj\" -- --lakona-game-check"
+        ToolLanguage.SimplifiedChinese => "  2) dotnet run --project \"Server/App/Server.App.csproj\" -- --readiness-check",
+        ToolLanguage.TraditionalChinese => "  2) dotnet run --project \"Server/App/Server.App.csproj\" -- --readiness-check",
+        _ => "  2) dotnet run --project \"Server/App/Server.App.csproj\" -- --readiness-check"
     };
 
     public string BuildSolutionStep => Language switch

@@ -125,7 +125,7 @@ After the server solution builds, run the check command:
 
 <div class="command-card">
   <div class="command-label">Inspect generated runtime state</div>
-  <pre><code>dotnet run --project "Server/App/Server.App.csproj" -- --lakona-game-check</code></pre>
+  <pre><code>dotnet run --project "Server/App/Server.App.csproj" -- --readiness-check</code></pre>
 </div>
 
 The check prints the derived Lakona runtime state: cluster defaults, hotfix
@@ -177,7 +177,7 @@ Start with the generated vertical slice, then change one layer at a time.
   <div><strong>Client/</strong><p>Change the selected engine UI and client session flow.</p></div>
 </div>
 
-Run `--lakona-game-check` again after changing runtime configuration. It is the
+Run `--readiness-check` again after changing runtime configuration. It is the
 fastest way to catch missing endpoints, invalid service exposure, and unsafe
 server startup state before the game reaches players.
 

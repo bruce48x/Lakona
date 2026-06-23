@@ -33,7 +33,7 @@ After generation, run the printed check command before starting the server:
 
 ```bash
 cd MyGame
-dotnet run --project "Server/App/Server.App.csproj" -- --lakona-game-check
+dotnet run --project "Server/App/Server.App.csproj" -- --readiness-check
 ```
 
 Supported values:
@@ -111,7 +111,7 @@ For WebSocket projects, the endpoint entry also includes `"Path": "/ws"`.
 Validate the derived project state with:
 
 ```bash
-dotnet run --project "Server/App/Server.App.csproj" -- --lakona-game-check
+dotnet run --project "Server/App/Server.App.csproj" -- --readiness-check
 ```
 
 The check prints the generated Cluster, Hotfix, Reliable Push, and RPC state so the default `appsettings.json` does not need to expose every derived setting.
@@ -119,7 +119,7 @@ The check prints the generated Cluster, Hotfix, Reliable Push, and RPC state so 
 Use JSON output when CI or deployment scripts need machine-readable validation results:
 
 ```bash
-dotnet run --project "Server/App/Server.App.csproj" -- --lakona-game-check --json
+dotnet run --project "Server/App/Server.App.csproj" -- --readiness-check --json
 ```
 
 ## Hotfix Operations
@@ -148,4 +148,4 @@ lakona-tool hotfix rollback --server http://127.0.0.1:20090
 
 The generated server derives a node-local feature model. A node is one .NET server process; generated defaults include gateway, node-directory, and route-directory infrastructure inside that node.
 
-The default `appsettings.json` does not expose that full derived topology and does not include `Lakona:Feature` for the single-node starter. Use `--lakona-game-check` to inspect it. When a generated project is intentionally split across processes, use the canonical feature selection, `Lakona:Endpoints[]`, endpoint `RpcServices`, and minimal `Lakona:Cluster` shape described in `../../docs/cluster.md`; do not add `Cluster.Directory`, `Services`, endpoint `Name`, or deployment-shaped sections to appsettings until the framework owns and validates those settings.
+The default `appsettings.json` does not expose that full derived topology and does not include `Lakona:Feature` for the single-node starter. Use `--readiness-check` to inspect it. When a generated project is intentionally split across processes, use the canonical feature selection, `Lakona:Endpoints[]`, endpoint `RpcServices`, and minimal `Lakona:Cluster` shape described in `../../docs/cluster.md`; do not add `Cluster.Directory`, `Services`, endpoint `Name`, or deployment-shaped sections to appsettings until the framework owns and validates those settings.

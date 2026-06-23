@@ -35,19 +35,13 @@ public static class LakonaGameServer
         var runtimeOptions = LakonaGameRuntimeOptions.FromConfiguration(builder.Configuration);
 
         // Health check commands (exit before full startup)
-        if (args.Contains("--lakona-game-check", StringComparer.Ordinal))
-        {
-            var clusterOptions = runtimeOptions.ToClusterOptions(builder.Configuration);
-            return LakonaGameReadinessProbe.Run(runtimeOptions, clusterOptions, args);
-        }
-
         if (args.Contains("--health-check", StringComparer.Ordinal))
         {
             var clusterOptions = TryBuildClusterOptions(runtimeOptions, builder.Configuration);
             return LakonaGameLivenessProbe.Run(clusterOptions, runtimeOptions);
         }
 
-        if (args.Contains("--readiness-check", StringComparer.Ordinal))
+        if (IsReadinessCheckCommand(args))
         {
             var clusterOptions = TryBuildClusterOptions(runtimeOptions, builder.Configuration);
             return LakonaGameReadinessProbe.Run(runtimeOptions, clusterOptions, args);
@@ -134,6 +128,16 @@ public static class LakonaGameServer
         {
             return null;
         }
+    }
+
+    internal static bool IsReadinessCheckCommandForTesting(string[] args)
+    {
+        return IsReadinessCheckCommand(args);
+    }
+
+    private static bool IsReadinessCheckCommand(string[] args)
+    {
+        return args.Contains("--readiness-check", StringComparer.Ordinal);
     }
 
     public static async Task LoadInitialHotfixAsync(IHost host)

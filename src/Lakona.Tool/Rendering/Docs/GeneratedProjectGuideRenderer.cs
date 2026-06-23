@@ -42,7 +42,7 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         Check the generated server:
 
         ```powershell
-        dotnet run --project "Server/App/Server.App.csproj" -- --lakona-game-check
+        dotnet run --project "Server/App/Server.App.csproj" -- --readiness-check
         ```
 
         Run the server:
@@ -96,7 +96,7 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 
         `Server/App/appsettings.json` intentionally contains only compact source values.
 
-        Derived runtime state is shown through the `--lakona-game-check` command.
+        Derived runtime state is shown through the `--readiness-check` command.
 
         ## Actor Call Model
 

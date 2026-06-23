@@ -150,7 +150,7 @@ matchmaking policy, persistence schema, or gameplay DTOs.
 
 ## Optional Features
 
-- Runtime validation: run generated projects with `--lakona-game-check`.
+- Runtime validation: run generated projects with `--readiness-check`.
 - Message recording: configure the framework default recorder to store recent
   actor dispatch records in an in-memory ring buffer.
 - Cluster notifications: use `ClientNotificationRelay` from business nodes to
