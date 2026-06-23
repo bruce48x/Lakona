@@ -1,19 +1,118 @@
 using System.IO.Compression;
 using System.Reflection;
 using System.Text.Json;
+using System.Xml.Linq;
 using Lakona.Tool.Hotfix;
 
 namespace Lakona.Tool.Server;
 
-internal sealed class ServerPackageWriter
+internal sealed class ServerPackageWriter : IServerPackageWriter
 {
+    private readonly IDotNetCommandRunner dotNet;
+    private readonly IHotfixPackageBuilder hotfixPackageBuilder;
     private readonly HotfixPackageInstaller hotfixInstaller;
     private readonly ServerPackageValidator validator;
+    private readonly Func<DateTimeOffset> utcNow;
 
-    public ServerPackageWriter(HotfixPackageInstaller? hotfixInstaller = null, ServerPackageValidator? validator = null)
+    public ServerPackageWriter(
+        IDotNetCommandRunner? dotNet = null,
+        IHotfixPackageBuilder? hotfixPackageBuilder = null,
+        HotfixPackageInstaller? hotfixInstaller = null,
+        ServerPackageValidator? validator = null,
+        Func<DateTimeOffset>? utcNow = null)
     {
+        this.dotNet = dotNet ?? new DotNetCommandRunner();
+        this.hotfixPackageBuilder = hotfixPackageBuilder ?? new HotfixPackageBuilder();
         this.hotfixInstaller = hotfixInstaller ?? new HotfixPackageInstaller();
         this.validator = validator ?? new ServerPackageValidator();
+        this.utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
+    }
+
+    public async Task<string> PackAsync(ServerPackOptions options, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.ProjectPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.HotfixProjectPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.OutputDirectory);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.RuntimeIdentifier);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Configuration);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Version);
+
+        var projectPath = Path.GetFullPath(options.ProjectPath);
+        var hotfixProjectPath = Path.GetFullPath(options.HotfixProjectPath);
+        var outputDirectory = Path.GetFullPath(options.OutputDirectory);
+        if (!File.Exists(projectPath))
+        {
+            throw new FileNotFoundException($"Server project '{projectPath}' does not exist.", projectPath);
+        }
+
+        if (!File.Exists(hotfixProjectPath))
+        {
+            throw new FileNotFoundException($"Hotfix project '{hotfixProjectPath}' does not exist.", hotfixProjectPath);
+        }
+
+        var projectDirectory = Path.GetDirectoryName(projectPath)!;
+        var entryAssembly = ReadAssemblyName(projectPath) + ".dll";
+        var buildTag = ReadBuildTag(projectDirectory);
+
+        Directory.CreateDirectory(outputDirectory);
+        var stagingRoot = Path.Combine(outputDirectory, ".staging", Guid.NewGuid().ToString("N"));
+        var publishDirectory = Path.Combine(stagingRoot, "publish");
+        var hotfixPackageOutputDirectory = Path.Combine(stagingRoot, "hotfix-package");
+        try
+        {
+            Directory.CreateDirectory(publishDirectory);
+            Directory.CreateDirectory(hotfixPackageOutputDirectory);
+
+            var publishResult = await dotNet.RunAsync(
+                projectDirectory,
+                [
+                    "publish",
+                    projectPath,
+                    "-c",
+                    options.Configuration,
+                    "-r",
+                    options.RuntimeIdentifier,
+                    "--self-contained",
+                    "true",
+                    "-o",
+                    publishDirectory,
+                    "/nologo"
+                ],
+                cancellationToken).ConfigureAwait(false);
+            if (publishResult.ExitCode != 0)
+            {
+                throw new InvalidOperationException(
+                    $"dotnet publish failed.{Environment.NewLine}{publishResult.StandardOutput}{Environment.NewLine}{publishResult.StandardError}");
+            }
+
+            var hotfixPackagePath = await hotfixPackageBuilder.PackAsync(
+                hotfixProjectPath,
+                hotfixPackageOutputDirectory,
+                options.Configuration,
+                options.Version,
+                cancellationToken).ConfigureAwait(false);
+
+            return await WritePackageFromPublishedAppAsync(
+                new ServerPackageWriteRequest(
+                    publishDirectory,
+                    hotfixPackagePath,
+                    outputDirectory,
+                    entryAssembly,
+                    options.RuntimeIdentifier,
+                    options.Configuration,
+                    options.Version,
+                    buildTag,
+                    utcNow()),
+                cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (Directory.Exists(stagingRoot))
+            {
+                Directory.Delete(stagingRoot, recursive: true);
+            }
+        }
     }
 
     public async Task<string> WritePackageFromPublishedAppAsync(
@@ -202,6 +301,44 @@ internal sealed class ServerPackageWriter
             ?.InformationalVersion
             ?? typeof(ServerPackageWriter).Assembly.GetName().Version?.ToString()
             ?? "0.0.0-local";
+    }
+
+    private static string ReadAssemblyName(string projectPath)
+    {
+        var assemblyName = XDocument.Load(projectPath)
+            .Descendants()
+            .FirstOrDefault(element => element.Name.LocalName == "AssemblyName")
+            ?.Value;
+        if (string.IsNullOrWhiteSpace(assemblyName))
+        {
+            assemblyName = Path.GetFileNameWithoutExtension(projectPath);
+        }
+
+        assemblyName = assemblyName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
+            ? Path.GetFileNameWithoutExtension(assemblyName)
+            : assemblyName;
+        ValidateFileNameComponent(assemblyName + ".dll", "AssemblyName");
+        return assemblyName;
+    }
+
+    private static string ReadBuildTag(string projectDirectory)
+    {
+        var buildTagPath = Path.Combine(projectDirectory, "BuildTag.props");
+        if (!File.Exists(buildTagPath))
+        {
+            throw new InvalidOperationException($"BuildTag.props was not found beside server project '{projectDirectory}'.");
+        }
+
+        var buildTag = XDocument.Load(buildTagPath)
+            .Descendants()
+            .FirstOrDefault(element => element.Name.LocalName == "LakonaHotfixBuildTag")
+            ?.Value;
+        if (string.IsNullOrWhiteSpace(buildTag))
+        {
+            throw new InvalidOperationException("BuildTag.props must define LakonaHotfixBuildTag.");
+        }
+
+        return buildTag;
     }
 
     private static async Task<HotfixPackageManifest> ReadHotfixManifestAsync(

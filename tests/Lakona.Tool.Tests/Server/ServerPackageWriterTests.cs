@@ -12,6 +12,112 @@ public sealed class ServerPackageWriterTests
     private const string BuildTag = "20260623.001";
 
     [Fact]
+    public async Task PackAsync_runs_self_contained_untrimmed_publish_and_uses_same_configuration_for_hotfix()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var appProject = await CreateProjectFileAsync(Path.Combine(root, "App"), "Server.App.csproj", "Server.App", BuildTag);
+            var hotfixProject = await CreateProjectFileAsync(Path.Combine(root, "Hotfix"), "Server.Hotfix.csproj", "Server.Hotfix", BuildTag);
+            var output = Path.Combine(root, "packages");
+            var fixedDate = new DateTimeOffset(2026, 6, 23, 15, 30, 45, TimeSpan.Zero);
+            var runner = new FakeDotNetCommandRunner(
+                static async (arguments, cancellationToken) =>
+                {
+                    var outputIndex = IndexOf(arguments, "-o");
+                    Assert.True(outputIndex >= 0);
+                    var publishDirectory = arguments[outputIndex + 1];
+                    Directory.CreateDirectory(publishDirectory);
+                    await File.WriteAllTextAsync(Path.Combine(publishDirectory, "Server.App.dll"), "server dll", cancellationToken);
+                    await File.WriteAllTextAsync(Path.Combine(publishDirectory, "appsettings.json"), "{}", cancellationToken);
+                    await File.WriteAllTextAsync(Path.Combine(publishDirectory, "Server.App.runtimeconfig.json"), "{}", cancellationToken);
+                    return new DotNetCommandResult(0, "", "");
+                });
+            var hotfixBuilder = new FakeHotfixPackageBuilder(
+                (projectPath, outputDirectory, configuration, version, cancellationToken) =>
+                    CreateHotfixPackageAsync(outputDirectory, version, BuildTag));
+
+            var zipPath = await new ServerPackageWriter(
+                runner,
+                hotfixBuilder,
+                new HotfixPackageInstaller(),
+                new ServerPackageValidator(),
+                () => fixedDate).PackAsync(
+                new ServerPackOptions(appProject, hotfixProject, output, "linux-x64", "Debug", Version),
+                TestContext.Current.CancellationToken);
+
+            Assert.True(File.Exists(zipPath));
+            var publishArguments = Assert.Single(runner.Calls).Arguments;
+            Assert.Equal(
+                new[]
+                {
+                    "publish",
+                    Path.GetFullPath(appProject),
+                    "-c",
+                    "Debug",
+                    "-r",
+                    "linux-x64",
+                    "--self-contained",
+                    "true",
+                    "-o",
+                    publishArguments[IndexOf(publishArguments, "-o") + 1],
+                    "/nologo"
+                },
+                publishArguments);
+            Assert.DoesNotContain(publishArguments, argument => argument.Contains("PublishTrimmed", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(publishArguments, argument => argument.Contains("PublishSingleFile", StringComparison.OrdinalIgnoreCase));
+            var hotfixCall = Assert.Single(hotfixBuilder.Calls);
+            Assert.Equal(Path.GetFullPath(hotfixProject), hotfixCall.ProjectPath);
+            Assert.Equal("Debug", hotfixCall.Configuration);
+            Assert.Equal(Version, hotfixCall.Version);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task PackAsync_rejects_missing_runtime()
+    {
+        var exception = await Assert.ThrowsAsync<ArgumentException>(
+            async () => await new ServerPackageWriter(
+                new FakeDotNetCommandRunner(),
+                new FakeHotfixPackageBuilder()).PackAsync(
+                new ServerPackOptions("Server.App.csproj", "Server.Hotfix.csproj", "packages", "", "Release", Version),
+                TestContext.Current.CancellationToken));
+
+        Assert.Contains("RuntimeIdentifier", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task PackAsync_reports_dotnet_publish_failure()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var appProject = await CreateProjectFileAsync(Path.Combine(root, "App"), "Server.App.csproj", "Server.App", BuildTag);
+            var hotfixProject = await CreateProjectFileAsync(Path.Combine(root, "Hotfix"), "Server.Hotfix.csproj", "Server.Hotfix", BuildTag);
+            var runner = new FakeDotNetCommandRunner(new DotNetCommandResult(1, "publish out", "publish err"));
+
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+                async () => await new ServerPackageWriter(
+                    runner,
+                    new FakeHotfixPackageBuilder()).PackAsync(
+                    new ServerPackOptions(appProject, hotfixProject, Path.Combine(root, "packages"), "linux-x64", "Release", Version),
+                    TestContext.Current.CancellationToken));
+
+            Assert.Contains("dotnet publish failed", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("publish out", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("publish err", exception.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task WritePackageFromPublishedAppAsync_creates_rooted_zip_with_installed_hotfix()
     {
         var root = CreateTempRoot();
@@ -337,6 +443,38 @@ public sealed class ServerPackageWriterTests
         return publishedApp;
     }
 
+    private static async Task<string> CreateProjectFileAsync(
+        string root,
+        string fileName,
+        string assemblyName,
+        string buildTag)
+    {
+        Directory.CreateDirectory(root);
+        var projectPath = Path.Combine(root, fileName);
+        await File.WriteAllTextAsync(
+            projectPath,
+            $"""
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFramework>net10.0</TargetFramework>
+                <AssemblyName>{assemblyName}</AssemblyName>
+              </PropertyGroup>
+            </Project>
+            """,
+            TestContext.Current.CancellationToken);
+        await File.WriteAllTextAsync(
+            Path.Combine(root, "BuildTag.props"),
+            $"""
+            <Project>
+              <PropertyGroup>
+                <LakonaHotfixBuildTag>{buildTag}</LakonaHotfixBuildTag>
+              </PropertyGroup>
+            </Project>
+            """,
+            TestContext.Current.CancellationToken);
+        return projectPath;
+    }
+
     private static async Task<string> CreateHotfixPackageAsync(string root, string version, string buildTag)
     {
         var buildOutput = Path.Combine(root, "hotfix-build-" + Guid.NewGuid().ToString("N"));
@@ -375,4 +513,80 @@ public sealed class ServerPackageWriterTests
     {
         Assert.Contains(archive.Entries, entry => entry.FullName == entryName);
     }
+
+    private static int IndexOf(IReadOnlyList<string> values, string value)
+    {
+        for (var index = 0; index < values.Count; index++)
+        {
+            if (StringComparer.Ordinal.Equals(values[index], value))
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private sealed class FakeDotNetCommandRunner : IDotNetCommandRunner
+    {
+        private readonly Func<IReadOnlyList<string>, CancellationToken, Task<DotNetCommandResult>> runAsync;
+
+        public FakeDotNetCommandRunner()
+            : this(new DotNetCommandResult(0, "", ""))
+        {
+        }
+
+        public FakeDotNetCommandRunner(DotNetCommandResult result)
+            : this((_, _) => Task.FromResult(result))
+        {
+        }
+
+        public FakeDotNetCommandRunner(Func<IReadOnlyList<string>, CancellationToken, Task<DotNetCommandResult>> runAsync)
+        {
+            this.runAsync = runAsync;
+        }
+
+        public List<DotNetCall> Calls { get; } = [];
+
+        public async Task<DotNetCommandResult> RunAsync(
+            string workingDirectory,
+            IReadOnlyList<string> arguments,
+            CancellationToken cancellationToken)
+        {
+            Calls.Add(new DotNetCall(workingDirectory, arguments.ToArray()));
+            return await runAsync(arguments, cancellationToken);
+        }
+    }
+
+    private sealed class FakeHotfixPackageBuilder : IHotfixPackageBuilder
+    {
+        private readonly Func<string, string, string, string, CancellationToken, Task<string>> packAsync;
+
+        public FakeHotfixPackageBuilder()
+            : this((_, _, _, _, _) => throw new InvalidOperationException("Hotfix package builder should not be called."))
+        {
+        }
+
+        public FakeHotfixPackageBuilder(Func<string, string, string, string, CancellationToken, Task<string>> packAsync)
+        {
+            this.packAsync = packAsync;
+        }
+
+        public List<HotfixCall> Calls { get; } = [];
+
+        public async Task<string> PackAsync(
+            string projectPath,
+            string outputDirectory,
+            string configuration,
+            string version,
+            CancellationToken cancellationToken)
+        {
+            Calls.Add(new HotfixCall(projectPath, outputDirectory, configuration, version));
+            return await packAsync(projectPath, outputDirectory, configuration, version, cancellationToken);
+        }
+    }
+
+    private sealed record DotNetCall(string WorkingDirectory, IReadOnlyList<string> Arguments);
+
+    private sealed record HotfixCall(string ProjectPath, string OutputDirectory, string Configuration, string Version);
 }
