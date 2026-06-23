@@ -218,6 +218,17 @@ public sealed class AgarHotfixBoundaryTests
             "Scripts",
             "Gameplay",
             "DotArenaNetworkSession.cs"));
+        var tester = File.ReadAllText(Path.Combine(
+            clientRoot,
+            "Assets",
+            "Scripts",
+            "Rpc",
+            "Testing",
+            "RpcConnectionTester.cs"));
+        var controlDisconnectHandler = ExtractMethodBody(session, "HandleControlDisconnected");
+        var realtimeDisconnectHandler = ExtractMethodBody(session, "HandleRealtimeDisconnected");
+        var ensureRealtimeConnected = ExtractMethodBody(session, "EnsureRealtimeConnectedAsync");
+        var testerDisconnectHandler = ExtractMethodBody(tester, "OnDisconnected");
 
         Assert.False(File.Exists(handshakeShim), "Unity client must use generated LakonaGameClient handshake orchestration.");
         Assert.Contains("LakonaGameClient? _controlConnection", session, StringComparison.Ordinal);
@@ -232,6 +243,17 @@ public sealed class AgarHotfixBoundaryTests
         Assert.DoesNotContain("HandshakeAsync", session, StringComparison.Ordinal);
         Assert.DoesNotContain("GameClientHello", session, StringComparison.Ordinal);
         Assert.DoesNotContain("new RpcMethod<GameClientHello, GameServerHello>(0, 1)", session, StringComparison.Ordinal);
+        Assert.Contains("private async Task DisposeControlAfterDisconnectAsync()", session, StringComparison.Ordinal);
+        Assert.Contains("private async Task DisposeRealtimeAfterDisconnectAsync()", session, StringComparison.Ordinal);
+        Assert.Contains("_ = DisposeControlAfterDisconnectAsync();", controlDisconnectHandler, StringComparison.Ordinal);
+        Assert.Contains("_ = DisposeRealtimeAfterDisconnectAsync();", realtimeDisconnectHandler, StringComparison.Ordinal);
+        Assert.DoesNotContain("_controlConnection = null;", controlDisconnectHandler, StringComparison.Ordinal);
+        Assert.DoesNotContain("_realtimeConnection = null;", realtimeDisconnectHandler, StringComparison.Ordinal);
+        Assert.Contains("catch", ensureRealtimeConnected, StringComparison.Ordinal);
+        Assert.Contains("await DisposeRealtimeAsync().ConfigureAwait(false);", ensureRealtimeConnected, StringComparison.Ordinal);
+        Assert.Contains("throw;", ensureRealtimeConnected, StringComparison.Ordinal);
+        Assert.Contains("_ = CleanupAsync();", testerDisconnectHandler, StringComparison.Ordinal);
+        Assert.DoesNotContain("_connection = null;", testerDisconnectHandler, StringComparison.Ordinal);
     }
 
     private static FileInfo FindRepositoryFile(string relativePath)
@@ -293,5 +315,34 @@ public sealed class AgarHotfixBoundaryTests
     {
         var extension = Path.GetExtension(path);
         return extension is ".cs" or ".csproj" or ".json" or ".slnx" or ".props" or ".xml" or ".txt";
+    }
+
+    private static string ExtractMethodBody(string text, string methodName)
+    {
+        var marker = methodName + "(";
+        var markerIndex = text.IndexOf(marker, StringComparison.Ordinal);
+        Assert.True(markerIndex >= 0, $"Expected to find method '{methodName}'.");
+
+        var openBrace = text.IndexOf('{', markerIndex);
+        Assert.True(openBrace >= 0, $"Expected method '{methodName}' to have a body.");
+
+        var depth = 0;
+        for (var index = openBrace; index < text.Length; index++)
+        {
+            if (text[index] == '{')
+            {
+                depth++;
+            }
+            else if (text[index] == '}')
+            {
+                depth--;
+                if (depth == 0)
+                {
+                    return text.Substring(openBrace, index - openBrace + 1);
+                }
+            }
+        }
+
+        throw new InvalidOperationException($"Could not extract method '{methodName}'.");
     }
 }

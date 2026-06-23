@@ -196,7 +196,10 @@ namespace Rpc.Testing
                 return;
 
             _stopped = true;
-            _connection = null;
+            if (_connection is not null)
+                _connection.Disconnected -= OnDisconnected;
+
+            _ = CleanupAsync();
 
             if (ex is null)
                 Debug.Log("[WS] Disconnected.");

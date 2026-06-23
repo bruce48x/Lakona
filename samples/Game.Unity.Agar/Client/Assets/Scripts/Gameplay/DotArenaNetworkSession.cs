@@ -217,6 +217,11 @@ namespace SampleClient.Gameplay
                 IsRealtimeConnected = true;
                 return true;
             }
+            catch
+            {
+                await DisposeRealtimeAsync().ConfigureAwait(false);
+                throw;
+            }
             finally
             {
                 IsRealtimeConnecting = false;
@@ -327,9 +332,9 @@ namespace SampleClient.Gameplay
             }
 
             IsConnected = false;
-            _controlConnection = null;
             _loginService = null;
             _controlPlayerService = null;
+            _ = DisposeControlAfterDisconnectAsync();
             _onDisconnected(ex);
         }
 
@@ -344,10 +349,33 @@ namespace SampleClient.Gameplay
             _battleService = null;
             _realtimeRoomId = string.Empty;
             _realtimeMatchId = string.Empty;
+            _ = DisposeRealtimeAfterDisconnectAsync();
 
             if (!IsConnected)
             {
                 _onDisconnected(ex);
+            }
+        }
+
+        private async Task DisposeControlAfterDisconnectAsync()
+        {
+            try
+            {
+                await DisposeControlAsync(logout: false).ConfigureAwait(false);
+            }
+            catch
+            {
+            }
+        }
+
+        private async Task DisposeRealtimeAfterDisconnectAsync()
+        {
+            try
+            {
+                await DisposeRealtimeAsync().ConfigureAwait(false);
+            }
+            catch
+            {
             }
         }
     }
