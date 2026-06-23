@@ -4,6 +4,20 @@ namespace Lakona.Tool.Hotfix;
 
 internal static class HotfixPackageVerifier
 {
+    public static void ValidateVersionName(string version)
+    {
+        if (string.IsNullOrWhiteSpace(version)
+            || Path.IsPathRooted(version)
+            || version.Contains(Path.DirectorySeparatorChar)
+            || version.Contains(Path.AltDirectorySeparatorChar)
+            || version.Contains("..", StringComparison.Ordinal)
+            || version.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
+            || !string.Equals(Path.GetFileName(version), version, StringComparison.Ordinal))
+        {
+            throw new ArgumentException("Invalid hotfix package version.", nameof(version));
+        }
+    }
+
     public static async Task VerifyChecksumsAsync(
         string directory,
         string assemblyFileName,

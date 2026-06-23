@@ -21,7 +21,10 @@ internal sealed class ServerPackageValidator
 
         RejectBuildOutputDirectories(root);
         RequireRootFile(root, manifest.EntryAssembly, "entry assembly");
-        RequireFile(Path.Combine(root, "lakona-server.json"), "server package manifest");
+        var serverManifestPath = Path.Combine(root, "lakona-server.json");
+        RequireFile(serverManifestPath, "server package manifest");
+        var fileManifest = await ReadServerManifestAsync(serverManifestPath, cancellationToken).ConfigureAwait(false);
+        EnsureManifestMatches(fileManifest, manifest);
 
         var hotfixRoot = Path.Combine(root, "hotfix");
         var currentPath = Path.Combine(hotfixRoot, "current.txt");
@@ -33,6 +36,7 @@ internal sealed class ServerPackageValidator
                 $"Server package current hotfix version '{currentVersion}' does not match manifest initial hotfix version '{manifest.InitialHotfixVersion}'.");
         }
 
+        HotfixPackageVerifier.ValidateVersionName(manifest.InitialHotfixVersion);
         var versionDirectory = Path.Combine(hotfixRoot, "versions", manifest.InitialHotfixVersion);
         if (!Directory.Exists(versionDirectory))
         {
@@ -67,6 +71,42 @@ internal sealed class ServerPackageValidator
             versionDirectory,
             hotfixManifest.Assembly,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<ServerPackageManifest> ReadServerManifestAsync(
+        string manifestPath,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var stream = File.OpenRead(manifestPath);
+            return await JsonSerializer.DeserializeAsync<ServerPackageManifest>(
+                stream,
+                ServerJson.Options,
+                cancellationToken).ConfigureAwait(false)
+                ?? throw new InvalidOperationException("Server package manifest is invalid.");
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidOperationException("Server package manifest is invalid.", exception);
+        }
+    }
+
+    private static void EnsureManifestMatches(ServerPackageManifest fileManifest, ServerPackageManifest expectedManifest)
+    {
+        if (!StringComparer.Ordinal.Equals(fileManifest.Version, expectedManifest.Version)
+            || fileManifest.BuiltAtUtc != expectedManifest.BuiltAtUtc
+            || !StringComparer.Ordinal.Equals(fileManifest.Runtime, expectedManifest.Runtime)
+            || !StringComparer.Ordinal.Equals(fileManifest.Configuration, expectedManifest.Configuration)
+            || fileManifest.SelfContained != expectedManifest.SelfContained
+            || fileManifest.Trimmed != expectedManifest.Trimmed
+            || !StringComparer.Ordinal.Equals(fileManifest.EntryAssembly, expectedManifest.EntryAssembly)
+            || !StringComparer.Ordinal.Equals(fileManifest.BuildTag, expectedManifest.BuildTag)
+            || !StringComparer.Ordinal.Equals(fileManifest.InitialHotfixVersion, expectedManifest.InitialHotfixVersion)
+            || !StringComparer.Ordinal.Equals(fileManifest.ToolVersion, expectedManifest.ToolVersion))
+        {
+            throw new InvalidOperationException("Server package manifest file does not match the expected manifest.");
+        }
     }
 
     private static void RejectBuildOutputDirectories(string root)

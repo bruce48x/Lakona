@@ -76,6 +76,83 @@ public sealed class ServerPackageValidatorTests
         }
     }
 
+    [Fact]
+    public async Task ValidateAsync_rejects_initial_hotfix_version_that_escapes_versions_directory()
+    {
+        var escapingVersion = @"..\..\outside";
+        var manifest = CreateServerManifest(escapingVersion);
+        var fixture = await CreateValidServerPackageAsync(
+            manifest: manifest,
+            hotfixVersion: escapingVersion);
+        try
+        {
+            var exception = await Assert.ThrowsAsync<ArgumentException>(
+                async () => await new ServerPackageValidator().ValidateAsync(
+                    fixture.Root,
+                    fixture.Manifest,
+                    TestContext.Current.CancellationToken));
+
+            Assert.Contains("version", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(fixture.Root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ValidateAsync_rejects_invalid_server_manifest_json()
+    {
+        var fixture = await CreateValidServerPackageAsync();
+        try
+        {
+            await File.WriteAllTextAsync(
+                Path.Combine(fixture.Root, "lakona-server.json"),
+                "{",
+                TestContext.Current.CancellationToken);
+
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+                async () => await new ServerPackageValidator().ValidateAsync(
+                    fixture.Root,
+                    fixture.Manifest,
+                    TestContext.Current.CancellationToken));
+
+            Assert.Contains("manifest", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(fixture.Root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ValidateAsync_rejects_stale_server_manifest_file()
+    {
+        var fixture = await CreateValidServerPackageAsync();
+        try
+        {
+            var staleManifest = CreateServerManifest(
+                InitialHotfixVersion,
+                buildTag: "20260612.stale");
+            await File.WriteAllTextAsync(
+                Path.Combine(fixture.Root, "lakona-server.json"),
+                JsonSerializer.Serialize(staleManifest, ServerJson.Options),
+                TestContext.Current.CancellationToken);
+
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+                async () => await new ServerPackageValidator().ValidateAsync(
+                    fixture.Root,
+                    fixture.Manifest,
+                    TestContext.Current.CancellationToken));
+
+            Assert.Contains("manifest", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(fixture.Root, recursive: true);
+        }
+    }
+
     [Theory]
     [InlineData("bin")]
     [InlineData("obj")]
@@ -120,20 +197,13 @@ public sealed class ServerPackageValidatorTests
     private static async Task<ServerPackageFixture> CreateValidServerPackageAsync(
         bool writeReady = true,
         string hotfixBuildTag = BuildTag,
-        string hotfixVersion = InitialHotfixVersion)
+        string hotfixVersion = InitialHotfixVersion,
+        ServerPackageManifest? manifest = null)
     {
         var root = Path.Combine(Path.GetTempPath(), "LakonaServerPackageValidatorTests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
 
-        var manifest = ServerPackageManifest.CreateV1(
-            "v20260623-153045Z",
-            new DateTimeOffset(2026, 6, 23, 15, 30, 45, TimeSpan.Zero),
-            "linux-x64",
-            "Release",
-            "Server.App.dll",
-            BuildTag,
-            InitialHotfixVersion,
-            "0.14.0-test");
+        manifest ??= CreateServerManifest(InitialHotfixVersion);
 
         await File.WriteAllTextAsync(
             Path.Combine(root, "Server.App.dll"),
@@ -152,7 +222,7 @@ public sealed class ServerPackageValidatorTests
         Directory.CreateDirectory(hotfixRoot);
         await File.WriteAllTextAsync(
             Path.Combine(hotfixRoot, "current.txt"),
-            InitialHotfixVersion,
+            manifest.InitialHotfixVersion,
             TestContext.Current.CancellationToken);
 
         var versionDirectory = Path.Combine(hotfixRoot, "versions", hotfixVersion);
@@ -184,6 +254,21 @@ public sealed class ServerPackageValidatorTests
 
         await WriteChecksumsAsync(versionDirectory);
         return new ServerPackageFixture(root, manifest);
+    }
+
+    private static ServerPackageManifest CreateServerManifest(
+        string initialHotfixVersion,
+        string buildTag = BuildTag)
+    {
+        return ServerPackageManifest.CreateV1(
+            "v20260623-153045Z",
+            new DateTimeOffset(2026, 6, 23, 15, 30, 45, TimeSpan.Zero),
+            "linux-x64",
+            "Release",
+            "Server.App.dll",
+            buildTag,
+            initialHotfixVersion,
+            "0.14.0-test");
     }
 
     private static async Task WriteChecksumsAsync(string directory)
