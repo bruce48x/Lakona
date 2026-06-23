@@ -150,6 +150,16 @@ Git initialization is not part of the render plan and runs only after
 transactional write success. The generator returns a
 `LakonaProjectGenerationResult` with the root path and Git status.
 
+## Server Package Operation
+
+`lakona-tool server pack --runtime linux-x64` creates the initial deployable
+server zip. It publishes `Server/App/Server.App.csproj` as a self-contained,
+RID-specific, untrimmed application and installs the initial hotfix version into
+the production `hotfix/current.txt` plus `hotfix/versions/<version>/READY`
+layout.
+
+`lakona-tool hotfix pack` remains the follow-up patch package command.
+
 ## Hotfix Operations
 
 V1 hotfix commands are node-local except for `pack`, which runs in a build or CI

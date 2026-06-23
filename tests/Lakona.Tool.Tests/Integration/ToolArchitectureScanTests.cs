@@ -319,6 +319,21 @@ public sealed class ToolArchitectureScanTests
         Assert.DoesNotContain("dotnet build \"$SERVER_PROJECT\"", script, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ToolDocs_DescribeServerPackAndHotfixPackSeparately()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var toolReadme = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Tool", "README.md"));
+        var architecture = File.ReadAllText(Path.Combine(repositoryRoot, "docs", "tool", "generation-architecture.md"));
+        var design = File.ReadAllText(Path.Combine(repositoryRoot, "docs", "tool", "server-pack-command.md"));
+
+        Assert.Contains("lakona-tool server pack --runtime linux-x64", toolReadme, StringComparison.Ordinal);
+        Assert.Contains("lakona-tool hotfix pack", toolReadme, StringComparison.Ordinal);
+        Assert.Contains("lakona-tool server pack --runtime linux-x64", architecture, StringComparison.Ordinal);
+        Assert.Contains("lakona-tool hotfix pack", architecture, StringComparison.Ordinal);
+        Assert.Contains("Publish trimming", design, StringComparison.Ordinal);
+    }
+
     private static LakonaProjectGenerator CreateGenerator()
     {
         return new LakonaProjectGenerator(

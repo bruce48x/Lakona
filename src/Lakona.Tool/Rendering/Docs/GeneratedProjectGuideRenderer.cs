@@ -135,8 +135,17 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 
         ## Tooling
 
-        `lakona-tool hotfix pack` can package the hotfix project after the server and hotfix
-        projects build.
+        Create the initial deployable server zip:
+
+        ```powershell
+        lakona-tool server pack --runtime linux-x64
+        ```
+
+        Create future hotfix zips after the initial server package has shipped:
+
+        ```powershell
+        lakona-tool hotfix pack
+        ```
         {{(spec.DeploymentProfile == DeploymentProfile.Compose
             ? "\nCompose deployment files were generated under `ops/` and should be reviewed before production use."
             : "")}}

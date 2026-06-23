@@ -122,9 +122,26 @@ Use JSON output when CI or deployment scripts need machine-readable validation r
 dotnet run --project "Server/App/Server.App.csproj" -- --readiness-check --json
 ```
 
+## Server Package
+
+Create the initial deployable server zip:
+
+```bash
+lakona-tool server pack --runtime linux-x64
+```
+
+The server package is self-contained, RID-specific, untrimmed, and includes an
+installed initial hotfix version under `hotfix/versions/<version>/`.
+
+Use `--configuration Debug` for symbol-rich staging packages:
+
+```bash
+lakona-tool server pack --runtime linux-x64 --configuration Debug
+```
+
 ## Hotfix Operations
 
-Package the current hotfix project:
+Package future hotfix zips after the initial server package has shipped:
 
 ```bash
 lakona-tool hotfix pack

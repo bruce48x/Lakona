@@ -208,6 +208,23 @@ public sealed class GeneratedProjectGuideRendererTests
         Assert.DoesNotContain("actor state, host binding, runtime integration", readme.Content, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Readme_DistinguishesInitialServerPackageFromHotfixPackage()
+    {
+        var spec = Spec(ClientEngine.Console, TransportKind.Kcp, SerializerKind.MemoryPack,
+            DeploymentProfile.None);
+        var builder = new GenerationPlanBuilder("Root");
+
+        new GeneratedProjectGuideRenderer().AddFiles(spec, builder);
+
+        var plan = builder.Build();
+        var readme = Assert.Single(plan.Files, file => file.RelativePath == "README.md");
+        Assert.Contains("lakona-tool server pack --runtime linux-x64", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("initial deployable server zip", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("lakona-tool hotfix pack", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("future hotfix zips", readme.Content, StringComparison.Ordinal);
+    }
+
     private static LakonaProjectSpec Spec(ClientEngine engine, TransportKind transport,
         SerializerKind serializer, DeploymentProfile deploy)
     {
