@@ -179,13 +179,13 @@ public sealed class ServerPackageValidatorTests
 
     [Theory]
     [InlineData("reload.signal")]
-    [InlineData(@"hotfix\versions\v20260623-153045Z\reload.signal")]
-    public async Task ValidateAsync_rejects_reload_signal_anywhere_in_package_tree(string relativePath)
+    [InlineData("hotfix", "versions", "v20260623-153045Z", "reload.signal")]
+    public async Task ValidateAsync_rejects_reload_signal_anywhere_in_package_tree(params string[] relativePathSegments)
     {
         var fixture = await CreateValidServerPackageAsync();
         try
         {
-            var path = Path.Combine(fixture.Root, relativePath);
+            var path = Path.Combine([fixture.Root, .. relativePathSegments]);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             await File.WriteAllTextAsync(
                 path,
