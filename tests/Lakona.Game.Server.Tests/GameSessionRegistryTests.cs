@@ -177,6 +177,58 @@ public sealed class GameSessionRegistryTests
     }
 
     [Fact]
+    public async Task Heartbeat_for_unbound_connection_is_connection_only()
+    {
+        var directory = new InMemoryGameSessionRegistry();
+
+        var result = await directory.RecordHeartbeatAsync(
+            "connection-a",
+            DateTimeOffset.UtcNow,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(GameSessionHeartbeatStatus.ConnectionOnly, result.Status);
+        Assert.Null(result.Session);
+    }
+
+    [Fact]
+    public async Task Heartbeat_for_bound_connection_reports_active_session()
+    {
+        var directory = new InMemoryGameSessionRegistry();
+        var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "connection-a", new LoginCallback("login"), TestContext.Current.CancellationToken);
+
+        var result = await directory.RecordHeartbeatAsync(
+            "connection-a",
+            DateTimeOffset.UtcNow,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(GameSessionHeartbeatStatus.ActiveSession, result.Status);
+        Assert.Equal(session, result.Session);
+    }
+
+    [Fact]
+    public async Task Heartbeat_for_connection_that_was_terminated_reports_terminated()
+    {
+        var directory = new InMemoryGameSessionRegistry();
+        var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "connection-a", new LoginCallback("login"), TestContext.Current.CancellationToken);
+        await directory.MarkSessionTerminatedAsync(
+            session,
+            new SessionTerminationNotice(SessionTerminationReason.Policy, "removed"),
+            keepForResume: true,
+            TestContext.Current.CancellationToken);
+
+        var result = await directory.RecordHeartbeatAsync(
+            "connection-a",
+            DateTimeOffset.UtcNow,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(GameSessionHeartbeatStatus.Terminated, result.Status);
+        Assert.Equal(session, result.Session);
+        Assert.Equal("removed", result.Termination?.Message);
+    }
+
+    [Fact]
     public void AddSessionsRegistersDirectory()
     {
         var services = new ServiceCollection();

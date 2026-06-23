@@ -40,6 +40,11 @@ public interface IGameSessionRegistry
         bool keepForResume,
         CancellationToken cancellationToken = default);
 
+    ValueTask<GameSessionHeartbeatResult> RecordHeartbeatAsync(
+        string connectionId,
+        DateTimeOffset heartbeatAt,
+        CancellationToken cancellationToken = default);
+
     ValueTask<TCallback?> GetCallbackAsync<TCallback>(
         GameSessionKey session,
         CancellationToken cancellationToken = default)

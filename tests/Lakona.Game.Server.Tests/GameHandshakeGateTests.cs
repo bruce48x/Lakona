@@ -81,6 +81,18 @@ public sealed class GameHandshakeGateTests
             Assert.Equal(RpcStatus.BadRequest, before.Status);
             Assert.Equal("HandshakeRequired", before.ErrorMessage);
 
+            var heartbeatBefore = await Assert.ThrowsAsync<RpcException>(async () =>
+                await client.CallAsync(
+                        new RpcMethod<GameHeartbeatRequest, GameHeartbeatReply>(
+                            GameHeartbeatRpcIds.ServiceId,
+                            GameHeartbeatRpcIds.HeartbeatMethodId),
+                        new GameHeartbeatRequest(),
+                        cancellationToken)
+                    .AsTask()
+                    .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken));
+            Assert.Equal(RpcStatus.BadRequest, heartbeatBefore.Status);
+            Assert.Equal("HandshakeRequired", heartbeatBefore.ErrorMessage);
+
             var hello = await client.CallAsync(
                     new RpcMethod<GameClientHello, GameServerHello>(
                         GameHandshakeRpc.ServiceId,
@@ -96,6 +108,17 @@ public sealed class GameHandshakeGateTests
                 .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
 
             Assert.Equal(1, hello.SelectedProtocolVersion);
+
+            var heartbeat = await client.CallAsync(
+                    new RpcMethod<GameHeartbeatRequest, GameHeartbeatReply>(
+                        GameHeartbeatRpcIds.ServiceId,
+                        GameHeartbeatRpcIds.HeartbeatMethodId),
+                    new GameHeartbeatRequest(),
+                    cancellationToken)
+                .AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+
+            Assert.Equal(GameHeartbeatStatus.Ok, heartbeat.Status);
 
             var after = await client.CallAsync(new RpcMethod<string, string>(10, 1), "after", cancellationToken)
                 .AsTask()

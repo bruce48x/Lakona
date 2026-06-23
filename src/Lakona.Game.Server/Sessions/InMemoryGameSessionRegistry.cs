@@ -166,9 +166,11 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                 throw new InvalidOperationException($"Game session '{session}' does not exist.");
             }
 
-            if (state.ConnectionId is not null)
+            var activeConnectionId = state.ConnectionId;
+            if (activeConnectionId is not null)
             {
-                _connectionToSession.Remove(state.ConnectionId);
+                _connectionToSession.Remove(activeConnectionId);
+                state.LastTerminatedConnectionId = activeConnectionId;
             }
 
             state.ConnectionId = null;
@@ -178,6 +180,47 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         }
 
         return default;
+    }
+
+    public ValueTask<GameSessionHeartbeatResult> RecordHeartbeatAsync(
+        string connectionId,
+        DateTimeOffset heartbeatAt,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_gate)
+        {
+            if (_connectionToSession.TryGetValue(connectionId, out var session))
+            {
+                if (!_sessions.TryGetValue(session, out var activeState))
+                {
+                    _connectionToSession.Remove(connectionId);
+                    return new ValueTask<GameSessionHeartbeatResult>(GameSessionHeartbeatResult.StateLost());
+                }
+
+                if (activeState.Termination is null)
+                {
+                    activeState.LastHeartbeatAt = heartbeatAt;
+                    return new ValueTask<GameSessionHeartbeatResult>(
+                        GameSessionHeartbeatResult.ActiveSession(activeState.Session));
+                }
+            }
+
+            foreach (var state in _sessions.Values)
+            {
+                if (string.Equals(state.LastTerminatedConnectionId, connectionId, StringComparison.Ordinal) &&
+                    state.Termination is not null)
+                {
+                    state.LastHeartbeatAt = heartbeatAt;
+                    return new ValueTask<GameSessionHeartbeatResult>(
+                        GameSessionHeartbeatResult.Terminated(state.Session, state.Termination));
+                }
+            }
+
+            return new ValueTask<GameSessionHeartbeatResult>(GameSessionHeartbeatResult.ConnectionOnly());
+        }
     }
 
     public ValueTask<TCallback?> GetCallbackAsync<TCallback>(
@@ -340,7 +383,9 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         }
 
         state.LastDisconnectedConnectionId = null;
+        state.LastTerminatedConnectionId = null;
         state.DisconnectedAt = null;
+        state.LastHeartbeatAt = DateTimeOffset.UtcNow;
         state.Callbacks[typeof(TCallback)] = callback;
 
         return new GameSessionBindResult(sessionBecameActive
@@ -374,7 +419,11 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
 
         public string? LastDisconnectedConnectionId { get; set; }
 
+        public string? LastTerminatedConnectionId { get; set; }
+
         public DateTimeOffset? DisconnectedAt { get; set; }
+
+        public DateTimeOffset? LastHeartbeatAt { get; set; }
 
         public IReadOnlyList<Type> DisconnectedCallbackContractTypes { get; set; } = Array.Empty<Type>();
 

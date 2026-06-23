@@ -28,7 +28,7 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
         builder.UseSerializer(LakonaEndpointRuntimeDefaults.CreateSerializer(_endpoint));
         builder.UseAcceptor(ct => LakonaEndpointRuntimeDefaults.CreateAcceptorAsync(_endpoint, ct));
         builder.UseSessionRequestGate(new GameHandshakeRpcGate());
-        BindGameHandshake(builder.ServiceRegistry, context.Services);
+        BindGameFrameworkRpcs(builder.ServiceRegistry, context.Services);
 
         foreach (var observer in context.Services.GetServices<IRpcSessionLifecycleObserver>())
         {
@@ -58,7 +58,7 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
         _bindServices?.Invoke(builder.ServiceRegistry, context.Services);
     }
 
-    private void BindGameHandshake(RpcServiceRegistry registry, IServiceProvider services)
+    private void BindGameFrameworkRpcs(RpcServiceRegistry registry, IServiceProvider services)
     {
         registry.Register(
             GameHandshakeRpc.ServiceId,
@@ -77,6 +77,25 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
                     GameHandshakeRpc.ServiceId,
                     static _ => new GameHandshakeSessionState());
                 state.IsComplete = true;
+
+                using var payload = session.Serializer.SerializeFrame(reply);
+                return RpcEnvelopeCodec.EncodeResponse(
+                    request.RequestId,
+                    RpcStatus.Ok,
+                    payload.Memory);
+            });
+
+        registry.Register(
+            GameHeartbeatRpc.ServiceId,
+            GameHeartbeatRpc.HeartbeatMethodId,
+            async (session, request, cancellationToken) =>
+            {
+                var heartbeat = session.Serializer.Deserialize<GameHeartbeatRequest>(request.Payload.Memory);
+                var service = services.GetRequiredService<IGameHeartbeatService>();
+                var reply = await service.HeartbeatAsync(
+                    session.ContextId,
+                    heartbeat,
+                    cancellationToken).ConfigureAwait(false);
 
                 using var payload = session.Serializer.SerializeFrame(reply);
                 return RpcEnvelopeCodec.EncodeResponse(

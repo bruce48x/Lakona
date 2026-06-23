@@ -14,6 +14,7 @@ public static class SessionServiceCollectionExtensions
     {
         services.TryAddSingleton<IGameSessionRegistry, InMemoryGameSessionRegistry>();
         services.TryAddSingleton<IGameSessionResumeService, GameSessionResumeService>();
+        services.TryAddSingleton<IGameHeartbeatService, GameHeartbeatService>();
         services.TryAddSingleton<IGameSessionConnectionCloser, NoopGameSessionConnectionCloser>();
         services.TryAddSingleton<IClientSessionIndex, InMemoryClientSessionIndex>();
         services.TryAddSingleton<IClientNotifications, ClientNotifications>();
