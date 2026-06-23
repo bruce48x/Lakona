@@ -67,6 +67,10 @@ Publish trimming is not supported in v1. Do not expose `--trim`; the package
 must be untrimmed. Lakona's stable host plus dynamically loaded hotfix assembly
 model is not a safe default fit for publish trimming.
 
+Do not pass `PublishTrimmed`, `PublishSingleFile`, or NativeAOT publish
+properties in v1. A single deployable artifact means one zip containing the
+normal published app tree, not a .NET single-file executable.
+
 Docker packaging is not supported in v1. Use `server pack` for the server zip
 and handle image creation with external deployment tooling if needed.
 
@@ -145,6 +149,11 @@ initial hotfix manifest.
 `builtAtUtc` is canonical UTC text and must be written with a `Z` suffix, for
 example `2026-06-23T15:30:45Z`.
 
+The canonical timestamp precision is whole seconds. Implementations must
+normalize `BuiltAtUtc` to UTC whole-second precision before writing
+`lakona-server.json` and before comparing an in-memory manifest with the JSON
+manifest read back from disk.
+
 ## Build And Packaging Flow
 
 1. Resolve and validate paths:
@@ -160,7 +169,7 @@ example `2026-06-23T15:30:45Z`.
    - pass `-r <runtime>`
    - pass `-c <configuration>`
    - pass `-o <staging>/app`
-   - do not pass any trimming property
+   - do not pass trimming, single-file, or NativeAOT publish properties
 
 3. Build and package the initial hotfix:
    - reuse the existing hotfix packaging logic where practical
@@ -238,8 +247,14 @@ Implemented source layout:
 ```txt
 src/Lakona.Tool/Cli/Commands/Server/ServerCommand.cs
 src/Lakona.Tool/Cli/Commands/Server/ServerPackCommand.cs
+src/Lakona.Tool/Hotfix/HotfixPackageVerifier.cs
+src/Lakona.Tool/Server/DotNetCommandRunner.cs
+src/Lakona.Tool/Server/HotfixPackageBuilder.cs
+src/Lakona.Tool/Server/ServerJson.cs
 src/Lakona.Tool/Server/ServerPackageWriter.cs
 src/Lakona.Tool/Server/ServerPackageManifest.cs
+src/Lakona.Tool/Server/ServerPackageValidator.cs
+src/Lakona.Tool/Server/UtcDateTimeOffsetJsonConverter.cs
 ```
 
 `CliApplication` should route:
@@ -275,6 +290,11 @@ Recommended coverage:
 - zip root contains `Server.App.dll` directly rather than an extra top-level
   staging folder.
 - generated docs or tool README mention `lakona-tool server pack --runtime`.
+- manifest tests cover sub-second `BuiltAtUtc` input and verify that server
+  package validation uses the same whole-second UTC value that is written to
+  `lakona-server.json`.
+- writer tests assert that `dotnet publish` receives no `PublishTrimmed`,
+  `PublishSingleFile`, or NativeAOT arguments.
 
 For integration tests that need external `dotnet publish`, keep them narrow and
 skip or isolate them if the local SDK/runtime cannot support the requested RID.
@@ -304,6 +324,7 @@ future hotfix zips.
 
 - Docker image build or compose deployment.
 - Publish trimming.
+- Single-file publish.
 - NativeAOT.
 - Multiple server entry projects in one zip.
 - Separate server version and initial hotfix version.

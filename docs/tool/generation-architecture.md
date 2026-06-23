@@ -158,6 +158,10 @@ RID-specific, untrimmed application and installs the initial hotfix version into
 the production `hotfix/current.txt` plus `hotfix/versions/<version>/READY`
 layout.
 
+The server package remains a normal published app tree inside a zip. V1 does
+not enable publish trimming, single-file publish, NativeAOT, or Docker image
+creation.
+
 `lakona-tool hotfix pack` remains the follow-up patch package command.
 
 ## Hotfix Operations
