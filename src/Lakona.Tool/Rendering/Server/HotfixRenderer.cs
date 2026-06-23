@@ -12,6 +12,7 @@ internal sealed class HotfixRenderer : IPlanContributor
         builder.AddFile("Server/Hotfix/Chat/ChatService.cs", RenderChatService(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/Hotfix/Chat/ChatSessionLifecycle.cs", RenderChatSessionLifecycle(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/Hotfix/Chat/ChatRoomBehavior.cs", RenderChatRoomBehavior(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Server/Hotfix/Features/ChatFeature.cs", RenderChatFeature(), FileWriteMode.Replace, GeneratedFileKind.Text);
     }
 
     private static string RenderProject()
@@ -278,6 +279,26 @@ internal sealed class HotfixRenderer : IPlanContributor
                         {
                         }
                     }
+                }
+            }
+        }
+        """;
+    }
+
+    private static string RenderChatFeature()
+    {
+        return """
+        using Server.App.Chat;
+        using Lakona.Game.Server.Hotfix.Abstractions;
+
+        namespace Server.Hotfix.Features
+        {
+            [HotfixFeature("chat")]
+            public sealed class ChatFeature : HotfixGameFeature
+            {
+                public override void Configure(HotfixFeatureContext context)
+                {
+                    context.EnsureLocalActor<ChatRoomActor>("chat:global");
                 }
             }
         }

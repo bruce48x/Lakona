@@ -59,8 +59,8 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 
         ```txt
         Shared/        Contracts, DTOs, RPC service interfaces, callback contracts
-        Server/App/    Stable server host, actors, lifecycle handlers, configuration
-        Server/Hotfix/ Reloadable services and actor behaviors
+        Server/App/    Stable server host, actor state shells, configuration
+        Server/Hotfix/ Reloadable services, actor behaviors, lifecycle reactions, feature declarations
         Client/        Generated client for the selected engine
         {{(spec.DeploymentProfile == DeploymentProfile.Compose ? "ops/           Deployment support files for the compose profile" : "")}}
         ```
@@ -69,9 +69,10 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 
         - Edit `Shared/Contracts/` for RPC contracts, callback contracts, reliable push
           DTOs, and named contract ids.
-        - Edit `Server/App/` for stable orchestration, actor state, host binding, runtime
-          integration, and local configuration.
-        - Edit `Server/Hotfix/` for replaceable services and actor behaviors.
+        - Edit `Server/App/` for stable actor state shells, host metadata, and local
+          configuration.
+        - Edit `Server/Hotfix/` for replaceable services, actor behaviors, lifecycle
+          reactions, and feature declarations.
         - Edit `Client/` for the selected client UI and client-side session flow.
 
         ## Runtime Model
@@ -79,12 +80,17 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         The generated project demonstrates one vertical slice:
 
         ```txt
-        client login RPC
-          -> stable Server/App service binding
+        client connect
+          -> framework handshake
+          -> client login RPC
+          -> generated hotfix-backed service binding
           -> current Server/Hotfix service implementation
           -> actor-backed chat room state
           -> reliable callback or notification
         ```
+
+        The Hotfix feature declaration ensures the fixed local ChatRoomActor exists
+        before business RPC asks it for work.
 
         Cluster, hotfix, and reliable push are part of the generated default model.
 

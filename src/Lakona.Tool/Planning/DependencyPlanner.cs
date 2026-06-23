@@ -111,7 +111,8 @@ internal static class DependencyPlanner
             Sdk(GetTransportPackage(spec.Transport), GetTransportVersion(spec.Transport, catalog)),
             Sdk(GetSerializerPackage(spec.Serializer), GetSerializerVersion(spec.Serializer, catalog)),
             Sdk("Lakona.Rpc.Analyzers", catalog.LakonaRpcAnalyzers, privateAssets: "all", includeAssets: AnalyzerIncludeAssets),
-            Sdk("Lakona.Game.Client", catalog.LakonaGameClient)
+            Sdk("Lakona.Game.Client", catalog.LakonaGameClient),
+            Sdk("Lakona.Game.Abstractions", catalog.LakonaGameAbstractions)
         };
 
         return references;
