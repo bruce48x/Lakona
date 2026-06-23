@@ -16,7 +16,7 @@ internal sealed class TypedActorAdapter<TMessage> : IActor
     {
         if (message is TMessage typedMessage)
         {
-            return actor.OnMessage(new ActorContext<TMessage>(ctx), typedMessage);
+            return actor.OnMessage(new ActorKernelContext<TMessage>(ctx), typedMessage);
         }
 
         throw new InvalidOperationException(
@@ -27,7 +27,7 @@ internal sealed class TypedActorAdapter<TMessage> : IActor
     {
         if (actor is IActorStarted<TMessage> started)
         {
-            return started.OnStarted(new ActorContext<TMessage>(ctx));
+            return started.OnStarted(new ActorKernelContext<TMessage>(ctx));
         }
 
         return ValueTask.CompletedTask;
@@ -37,7 +37,7 @@ internal sealed class TypedActorAdapter<TMessage> : IActor
     {
         if (actor is IActorStopping<TMessage> stopping)
         {
-            return stopping.OnStopping(new ActorContext<TMessage>(ctx));
+            return stopping.OnStopping(new ActorKernelContext<TMessage>(ctx));
         }
 
         return ValueTask.CompletedTask;

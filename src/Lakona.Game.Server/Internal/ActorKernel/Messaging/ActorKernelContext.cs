@@ -2,11 +2,11 @@ using Lakona.Game.Server.Internal.ActorKernel.Messaging;
 
 namespace Lakona.Game.Server.Internal.ActorKernel;
 
-internal sealed class ActorContext<TMessage>
+internal sealed class ActorKernelContext<TMessage>
 {
     private readonly ActorContextCore inner;
 
-    internal ActorContext(ActorContextCore inner)
+    internal ActorKernelContext(ActorContextCore inner)
     {
         this.inner = inner;
         Self = new ActorRef<TMessage>(inner.Self);

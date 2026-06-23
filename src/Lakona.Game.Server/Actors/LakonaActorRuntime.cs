@@ -691,7 +691,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
         }
 
         public async ValueTask RegisterNativeTimerAsync(
-            K.ActorContext<ActorRuntimeEnvelope> ctx,
+            K.ActorKernelContext<ActorRuntimeEnvelope> ctx,
             ActorTimerRegistration registration,
             CancellationToken cancellationToken)
         {
@@ -814,7 +814,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
         }
 
         public async ValueTask OnMessage(
-            K.ActorContext<ActorRuntimeEnvelope> ctx,
+            K.ActorKernelContext<ActorRuntimeEnvelope> ctx,
             ActorRuntimeEnvelope message)
         {
             if (message.State is ActorTimerRegistration registration)

@@ -468,7 +468,7 @@ public sealed class ActorSystemTests
     [Fact]
     public void Actor_context_does_not_expose_actor_system()
     {
-        Assert.Null(typeof(ActorContext<object>).GetProperty("System"));
+        Assert.Null(typeof(ActorKernelContext<object>).GetProperty("System"));
     }
 
     [Fact]
@@ -1289,7 +1289,7 @@ public sealed class ActorSystemTests
         private readonly Queue<object> messages = new();
         private readonly SemaphoreSlim available = new(0);
 
-        public ValueTask OnMessage(ActorContext<object> ctx, object message)
+        public ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
         {
             messages.Enqueue(message);
             available.Release();
@@ -1305,7 +1305,7 @@ public sealed class ActorSystemTests
 
     private sealed class EchoActor : IActor<object>
     {
-        public ValueTask OnMessage(ActorContext<object> ctx, object message)
+        public ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
         {
             ctx.Respond(message);
             return ValueTask.CompletedTask;
@@ -1314,7 +1314,7 @@ public sealed class ActorSystemTests
 
     private sealed class IgnoringActor : IActor<object>
     {
-        public ValueTask OnMessage(ActorContext<object> ctx, object message)
+        public ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
         {
             return ValueTask.CompletedTask;
         }
@@ -1324,7 +1324,7 @@ public sealed class ActorSystemTests
     {
         private readonly List<int> values = new();
 
-        public ValueTask OnMessage(ActorContext<object> ctx, object message)
+        public ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
         {
             switch (message)
             {
@@ -1345,7 +1345,7 @@ public sealed class ActorSystemTests
         private int active;
         private int maxConcurrency;
 
-        public async ValueTask OnMessage(ActorContext<object> ctx, object message)
+        public async ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
         {
             switch (message)
             {
@@ -1367,7 +1367,7 @@ public sealed class ActorSystemTests
         private int ticks;
         private IDisposable? timer;
 
-        public ValueTask OnMessage(ActorContext<object> ctx, object message)
+        public ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
         {
             switch (message)
             {
@@ -1391,7 +1391,7 @@ public sealed class ActorSystemTests
     {
         public int Ticks { get; private set; }
 
-        public ValueTask OnMessage(ActorContext<object> ctx, object message)
+        public ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
         {
             switch (message)
             {
@@ -1416,7 +1416,7 @@ public sealed class ActorSystemTests
         public TaskCompletionSource TickStarted { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public async ValueTask OnMessage(ActorContext<object> ctx, object message)
+        public async ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
         {
             switch (message)
             {
@@ -1449,7 +1449,7 @@ public sealed class ActorSystemTests
         public TaskCompletionSource MessageStarted { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public async ValueTask OnMessage(ActorContext<object> ctx, object message)
+        public async ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
         {
             if (Interlocked.Exchange(ref messageStarted, 1) == 0)
             {
@@ -1469,7 +1469,7 @@ public sealed class ActorSystemTests
     {
         private readonly TaskCompletionSource gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public async ValueTask OnMessage(ActorContext<object> ctx, object message)
+        public async ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
         {
             await gate.Task;
         }
@@ -1486,7 +1486,7 @@ public sealed class ActorSystemTests
 
         public IReadOnlyList<int> Values => values;
 
-        public ValueTask OnMessage(ActorContext<object> ctx, object message)
+        public ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
         {
             if (message is int value)
             {
@@ -1499,7 +1499,7 @@ public sealed class ActorSystemTests
 
     private sealed class SlowActor(TimeSpan delay) : IActor<object>
     {
-        public async ValueTask OnMessage(ActorContext<object> ctx, object message)
+        public async ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
         {
             await Task.Delay(delay);
         }
@@ -1516,7 +1516,7 @@ public sealed class ActorSystemTests
 
         public int MaxConcurrency => maxConcurrency;
 
-        public async ValueTask OnMessage(ActorContext<object> ctx, object message)
+        public async ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
         {
             int current = Interlocked.Increment(ref active);
             maxConcurrency = Math.Max(maxConcurrency, current);
@@ -1552,7 +1552,7 @@ public sealed class ActorSystemTests
 
     private sealed class SelfCallingActor : IActor<object>
     {
-        public async ValueTask OnMessage(ActorContext<object> ctx, object message)
+        public async ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
         {
             if (message is StartSelfCall)
             {
@@ -1577,7 +1577,7 @@ public sealed class ActorSystemTests
             releaseBackgroundWork.SetResult();
         }
 
-        public ValueTask OnMessage(ActorContext<object> ctx, object message)
+        public ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
         {
             switch (message)
             {
@@ -1610,7 +1610,7 @@ public sealed class ActorSystemTests
 
     private sealed class DownstreamCallingActor(ActorRef<object> downstream) : IActor<object>
     {
-        public async ValueTask OnMessage(ActorContext<object> ctx, object message)
+        public async ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
         {
             if (message is StartDownstreamCall)
             {
@@ -1623,7 +1623,7 @@ public sealed class ActorSystemTests
     {
         private int value;
 
-        public ValueTask OnMessage(ActorContext<CounterMessage> ctx, CounterMessage message)
+        public ValueTask OnMessage(ActorKernelContext<CounterMessage> ctx, CounterMessage message)
         {
             switch (message)
             {
@@ -1648,19 +1648,19 @@ public sealed class ActorSystemTests
 
         public IReadOnlyList<string> Events => events;
 
-        public async ValueTask OnStarted(ActorContext<object> ctx)
+        public async ValueTask OnStarted(ActorKernelContext<object> ctx)
         {
             events.Add("started");
             await ctx.Self.Send(new StartedMessage());
         }
 
-        public ValueTask OnStopping(ActorContext<object> ctx)
+        public ValueTask OnStopping(ActorKernelContext<object> ctx)
         {
             events.Add("stopping");
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask OnMessage(ActorContext<object> ctx, object message)
+        public ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
         {
             switch (message)
             {
@@ -1679,12 +1679,12 @@ public sealed class ActorSystemTests
 
     private sealed class FailingStartActor : IActor<object>, IActorStarted<object>
     {
-        public ValueTask OnStarted(ActorContext<object> ctx)
+        public ValueTask OnStarted(ActorKernelContext<object> ctx)
         {
             throw new InvalidOperationException("start failed");
         }
 
-        public ValueTask OnMessage(ActorContext<object> ctx, object message)
+        public ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
         {
             return ValueTask.CompletedTask;
         }
@@ -1692,12 +1692,12 @@ public sealed class ActorSystemTests
 
     private sealed class FailingStopActor : IActor<object>, IActorStopping<object>
     {
-        public ValueTask OnMessage(ActorContext<object> ctx, object message)
+        public ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
         {
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask OnStopping(ActorContext<object> ctx)
+        public ValueTask OnStopping(ActorKernelContext<object> ctx)
         {
             throw new InvalidOperationException("stop failed");
         }
@@ -1705,12 +1705,12 @@ public sealed class ActorSystemTests
 
     private sealed class StoppingTimerActor : IActor<object>, IActorStopping<object>
     {
-        public ValueTask OnMessage(ActorContext<object> ctx, object message)
+        public ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
         {
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask OnStopping(ActorContext<object> ctx)
+        public ValueTask OnStopping(ActorKernelContext<object> ctx)
         {
             ctx.ScheduleRepeated(new Tick(), TimeSpan.FromMilliseconds(20), TimeSpan.FromMilliseconds(10));
             return ValueTask.CompletedTask;
@@ -1732,7 +1732,7 @@ public sealed class ActorSystemTests
 
         public int MaxConcurrency => maxConcurrency;
 
-        public async ValueTask OnMessage(ActorContext<object> ctx, object message)
+        public async ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
         {
             int current = Interlocked.Increment(ref active);
             maxConcurrency = Math.Max(maxConcurrency, current);
@@ -1750,7 +1750,7 @@ public sealed class ActorSystemTests
             }
         }
 
-        public ValueTask OnStopping(ActorContext<object> ctx)
+        public ValueTask OnStopping(ActorKernelContext<object> ctx)
         {
             int current = Interlocked.Increment(ref active);
             maxConcurrency = Math.Max(maxConcurrency, current);
@@ -1829,7 +1829,7 @@ public sealed class ActorSystemTests
 
     private sealed class ThrowingActor : IActor<object>
     {
-        public ValueTask OnMessage(ActorContext<object> ctx, object message)
+        public ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
         {
             throw new InvalidOperationException("test failure");
         }
