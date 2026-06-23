@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Rpc.Generated;
 using Shared.Contracts.Chat;
-using Lakona.Game.Abstractions.Sessions;
 using Lakona.Game.Client;
 using Lakona.Rpc.Client;
 
@@ -11,8 +10,7 @@ namespace Client.Login
 {
     public sealed class LoginClient : ILoginCallback, IChatCallback, IAsyncDisposable
     {
-        private readonly RpcClient _rpcClient;
-        private readonly LakonaGameClient _gameClient = new();
+        private readonly LakonaGameClient _gameClient;
         private ILoginService? _loginService;
         private bool _isConnected;
 
@@ -22,16 +20,12 @@ namespace Client.Login
         public event Action<ChatMessage>? OnMessageReceived;
 
         public bool IsConnected => _isConnected;
-        public RpcClient RpcClient => _rpcClient;
+        public LakonaGameClient GameClient => _gameClient;
 
         public LoginClient(RpcClientOptions options)
         {
-            var callbacks = new RpcClient.RpcNotificationBindings();
-            callbacks.Add((ILoginCallback)this);
-            callbacks.Add((IChatCallback)this);
-
-            _rpcClient = new RpcClient(options, callbacks);
-            _rpcClient.Disconnected += _ =>
+            _gameClient = new LakonaGameClient(options, this);
+            _gameClient.Disconnected += _ =>
             {
                 _isConnected = false;
                 OnDisconnected?.Invoke();
@@ -40,13 +34,8 @@ namespace Client.Login
 
         public async Task ConnectAsync(CancellationToken cancellationToken = default)
         {
-            await _rpcClient.ConnectAsync(cancellationToken);
-            await _gameClient.HandshakeAsync(_rpcClient.Runtime, new GameClientHello
-            {
-                ClientRuntime = "godot",
-                Platform = "godot"
-            }, cancellationToken);
-            _loginService = _rpcClient.Api.Shared.Login;
+            await _gameClient.ConnectAsync(cancellationToken);
+            _loginService = _gameClient.Api.Shared.Login;
             _isConnected = true;
         }
 
@@ -63,7 +52,7 @@ namespace Client.Login
         public async ValueTask DisposeAsync()
         {
             _isConnected = false;
-            await _rpcClient.DisposeAsync();
+            await _gameClient.DisposeAsync();
         }
 
         void ILoginCallback.OnUserJoined(ChatMember member)

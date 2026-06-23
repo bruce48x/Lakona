@@ -19,7 +19,7 @@ namespace Client.Chat
         public ChatClient(LoginClient loginClient)
         {
             _loginClient = loginClient ?? throw new ArgumentNullException(nameof(loginClient));
-            _chatService = loginClient.RpcClient.Api.Shared.Chat;
+            _chatService = loginClient.GameClient.Api.Shared.Chat;
         }
 
         public async Task BindAsync(LoginReply reply)
