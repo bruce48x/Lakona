@@ -65,24 +65,20 @@ Server/App/Hosting/ServiceBindingConfigurator.cs
 Server/App/Chat/ChatServiceProxy.cs
 ```
 
-`Program.cs` registers generated hotfix support through generated or
-framework-facing composition:
+`Program.cs` is strict zero-template:
 
 ```csharp
-return await LakonaGameServer.RunAsync(args, server => server
-    .AddServices((services, configuration) =>
-    {
-        services.AddLakonaGame(configuration);
-        services.AddLakonaGameSessionHotfixLifecycle();
-    })
-    .UseGeneratedHotfixServices());
+using Lakona.Game.Server.Hosting;
+
+return await LakonaGameServer.RunAsync(args);
 ```
 
 Transport and serializer selection live in `Lakona:Endpoints[]`; generated
 `Program.cs` must not hand-write transport, serializer, or acceptor wiring.
 Generated hotfix-backed RPC services are selected by endpoint-local
-`RpcServices`. The generator emits `LakonaRpcServiceBinder` adapters that make
-those services visible to catalog validation before endpoint startup.
+`RpcServices`. The generator emits `LakonaRpcServiceBinder` adapters and
+`IHotfixRequiredServiceContracts` providers; `LakonaGameServer.RunAsync`
+discovers both automatically from the application assembly.
 
 When a user adds a new shared `[RpcService]` interface and implements a matching
 hotfix `[HotfixService]`, no stable proxy file, binding configurator, endpoint
@@ -108,9 +104,8 @@ Generated docs should teach three edit zones:
 
 - `Shared/Contracts/**`: define client/server RPC contracts, callback
   contracts, DTOs, and stable numeric ids.
-- `Server/App/**`: keep stable actor state, generated RPC binding, startup
-  adapters, Feature classes, and framework setup calls such as
-  `AddLakonaGameSessionHotfixLifecycle`.
+- `Server/App/**`: keep the executable host, stable actor state, and generated
+  RPC binding.
 - `Server/Hotfix/**`: implement hot-reloadable services, user-authored
   `*Lifecycle` classes such as `ChatSessionLifecycle`, and actor behavior
   logic.

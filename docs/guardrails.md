@@ -110,7 +110,7 @@ The default generated profile is development. Development allows local defaults 
 
 Production-oriented profiles must be stricter. A production profile should reject configuration that is only safe for local development, including loopback advertised endpoints and in-memory cluster directory storage.
 
-Profiles should not reintroduce `Hotfix.Enabled`, `Cluster.Enabled`, or `ReliablePush.Enabled` as normal user-facing switches. A profile changes topology, storage, endpoints, and operational strictness; it does not redefine the Lakona application model.
+Profiles should not reintroduce `Hotfix.Enabled` or `Cluster.Enabled` as normal user-facing switches. A profile changes topology, storage, endpoints, and operational strictness; it does not redefine the Lakona application model. `ReliablePush.Enabled` is allowed, defaults to `true`, and disabled means immediate best-effort notification with no ack or replay.
 
 Profiles should be represented as framework-owned values, not arbitrary strings. This keeps validation testable and avoids making users guess hidden mode names.
 
@@ -442,7 +442,6 @@ Avoid user-facing defaults for:
 
 - `Hotfix.Enabled`
 - `Cluster.Enabled`
-- `ReliablePush.Enabled`
 - `Hotfix.Directory`
 - `ReliablePush.Outbox`
 - `Node.Profile`

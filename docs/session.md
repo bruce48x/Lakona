@@ -153,8 +153,8 @@ Session disconnection, expiration, and termination are separate events:
 User lifecycle hooks receive game-level context, not `RpcSession` and not
 endpoint names. Business presence policy belongs behind these hooks. Stable
 framework code owns the lifecycle bridge and required-contract validation.
-Generated or sample App code may enable that bridge through stable setup calls
-such as `AddLakonaGameSessionHotfixLifecycle`.
+Generated and sample App code uses strict zero-template hosting; the framework
+registers the lifecycle bridge as part of the default game-server graph.
 
 Replaceable presence, cleanup, room leave, and matchmaking decisions belong in
 `Server.Hotfix` lifecycle classes such as `ChatSessionLifecycle`, not in App
@@ -162,9 +162,8 @@ lifecycle handlers, App runtime contract files, or `*LifecycleService` classes.
 
 ## Hotfix Lifecycle Contract
 
-When `AddLakonaGameSessionHotfixLifecycle` is enabled, the framework requires
-the hotfix assembly to implement the framework-owned
-`IGameSessionLifecycle` contract:
+The framework requires the hotfix assembly to implement the framework-owned
+`IGameSessionLifecycle` contract when session lifecycle hooks are active:
 
 ```csharp
 public interface IGameSessionLifecycle
@@ -192,6 +191,16 @@ Both request types carry framework session state only:
 
 Product policy still belongs in hotfix code, where it can map the session event
 to presence, room, matchmaking, or other business cleanup.
+
+## Handshake Gate
+
+No business RPC dispatch occurs before `ClientHello` / `ServerHello`
+completes. Handshake failure rejects the connection before user hotfix service
+code runs. `ServerHello` reports the resolved reliable push mode; disabled
+reliable push is reported as immediate delivery with no ack or replay.
+
+Agar uses `UserActor` for business session grouping. The framework session
+directory stores framework session and callback binding state.
 
 ## Gate / Watchdog / Agent
 

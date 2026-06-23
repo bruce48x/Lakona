@@ -198,7 +198,7 @@ Move the following business logic to `samples/Game.Unity.Agar/Server/Hotfix`:
 
 - `UserActor` login, profile projection, online status, win count, and victory
   point updates
-- `PlayerSessionActor` attach, reconnect, queue, room assignment, disconnect,
+- `UserActor` session attach, reconnect, queue, room assignment, disconnect,
   heartbeat, and snapshot projection
 - `MatchmakingActor` enqueue, cancel, tick, batch selection, room assignment,
   bot fill, and gateway resolution decisions

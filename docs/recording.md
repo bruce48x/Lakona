@@ -23,7 +23,11 @@ This is done with a fire-and-forget pattern (`_ = store.RecordAsync(...)`) in th
 
 ## Usage
 
-### Register recording
+### Configure recording
+
+Message recording is a framework default in generated hosts. Users configure
+the recorder and store; they do not register message recording manually in
+`Program.cs`.
 
 ```csharp
 // Program.cs

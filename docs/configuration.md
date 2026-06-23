@@ -79,10 +79,12 @@ The previous role/filter model and older hand-written fluent catalog are
 superseded for generated projects and new samples. Do not use role-shaped
 configuration or endpoint names for new startup code.
 
-Generated projects should use convention-based registration:
+Generated projects use a strict zero-template host:
 
 ```csharp
-builder.Services.AddLakonaGame(builder.Configuration);
+using Lakona.Game.Server.Hosting;
+
+return await LakonaGameServer.RunAsync(args);
 ```
 
 Hotfix descriptors declare reloadable actor runtime loops:
@@ -157,7 +159,13 @@ other project code.
   "Lakona": {
     "Cluster": {
       "Endpoint": "tcp://10.0.0.1:21001",
-      "Seeds": [ "tcp://10.0.0.1:21001" ]
+      "Seeds": [ "tcp://10.0.0.1:21001" ],
+      "Directory": {
+        "Provider": "postgres",
+        "ConnectionStringName": "LakonaClusterPostgres",
+        "NodeTable": "lakona_cluster_nodes",
+        "EnsureSchemaOnStartup": false
+      }
     }
   }
 }
@@ -174,6 +182,10 @@ clients.
 
 Do not generate or document `Lakona:Cluster:Services`. Cluster discovery uses
 node features (`NodeFeatureDescriptor`) and advertised endpoints.
+
+Cluster directory database configuration lives under
+`Lakona:Cluster:Directory`. Game-specific persistence lives under a separate
+application-owned root such as `Agar:Persistence`.
 
 ## Validation
 
@@ -211,5 +223,4 @@ fix: set Lakona:Endpoints:0:Path to a path such as /ws
   cluster routing.
 
 Generated projects should not emit service endpoint marker files, endpoint
-`Name`, hidden `control` or `realtime` endpoint names, `Cluster.Directory`, or
-`Services` lists.
+`Name`, hidden `control` or `realtime` endpoint names, or `Services` lists.

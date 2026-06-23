@@ -208,7 +208,8 @@ For each supported shared service contract, generated stable code provides:
 - callback proxy construction when the shared contract declares a notification
   contract
 - service binding through generated endpoint catalog binders
-- a generated host extension such as `UseGeneratedHotfixServices`
+- an `IHotfixRequiredServiceContracts` provider discovered automatically by
+  `LakonaGameServer.RunAsync`
 
 Generated projects must not contain user-authored endpoint marker files such as
 `GeneratedServiceEndpoints.cs`, and generated hotfix binding must not introduce

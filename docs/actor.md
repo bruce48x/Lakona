@@ -196,27 +196,18 @@ business API.
 
 ## Managed Lifecycle
 
-All actors are framework-managed in the first version. Do not introduce a
-`UserManaged` or `ActorLifetime` split until a concrete repeated need exists.
+Actor creation and destruction are local framework lifecycle operations exposed
+through `IActorLifecycle.CreateLocalAsync` and `DestroyLocalAsync`. `AskAsync`,
+`TellAsync`, generated actor refs, and scheduler ticks do not create actors.
 
-Generated lifecycle operations are local-only:
+Cross-node creation is a feature command to the owning feature; the owning
+feature calls `CreateLocalAsync` on its own node.
 
-```csharp
-await rooms.SpawnAsync(roomId, request, cancellationToken);
-await rooms.DestroyAsync(roomId, cancellationToken);
+Destroy order is:
+
+```txt
+draining -> drain mailbox -> deactivate -> remove local actor -> unregister route
 ```
-
-Spawn claims placement in `ActorDirectory`, creates the actor locally, and
-invokes the spawn hook if present. Hook or local creation failure unregisters
-placement and rolls back the local actor.
-
-Destroy unregisters placement first, then invokes the destroy hook if present
-and removes the local actor. Hook or stop failure attempts to re-register
-placement for the still-local actor.
-
-Lakona does not provide `SpawnRemoteAsync` or `DestroyRemoteAsync`. Cross-node
-creation or destruction should be explicit business commands to a manager actor
-or service on the target node.
 
 ## Analyzer Boundary
 

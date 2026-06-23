@@ -88,14 +88,13 @@ Rules:
 - Unknown features fail startup.
 - Duplicate features fail startup.
 
-Feature order is intentionally visible in configuration. If a project needs a
-database feature to initialize first, it writes it first:
+Feature order is intentionally visible in configuration. If a project needs
+state-store startup before matchmaking, it writes it first:
 
 ```json
 {
   "Lakona": {
     "Feature": [
-      "database",
       "state-store",
       "matchmaking",
       "leaderboard"
@@ -105,8 +104,8 @@ database feature to initialize first, it writes it first:
 ```
 
 Feature types are discovered by convention from server assemblies. A
-`DatabaseFeature` type resolves to `database`, `StateStoreFeature` resolves to
-`state-store`, and `BattleRuntimeFeature` resolves to `battle-runtime`.
+`StateStoreFeature` resolves to `state-store`, and `BattleRuntimeFeature`
+resolves to `battle-runtime`.
 
 The V1 feature name convention is:
 
@@ -120,7 +119,6 @@ Examples:
 
 | Type | Feature name |
 | --- | --- |
-| `DatabaseFeature` | `database` |
 | `StateStoreFeature` | `state-store` |
 | `BattleRuntimeFeature` | `battle-runtime` |
 | `HTTPGatewayFeature` | `http-gateway` |
@@ -305,9 +303,9 @@ The V1 public base class remains `LakonaGameFeature`. The configuration root is
 `LakonaGame` prefix unless a separate API-renaming design explicitly changes
 them.
 
-`database` is a good example: it creates local connection factories and
-repository dependencies for the data node, but other nodes must not discover
-it as a business command target.
+Local persistence setup is a good example of non-discoverable startup work: it
+creates local connection factories and repository dependencies for a node, but
+other nodes must not discover it as a business command target.
 
 V1 feature metadata rules:
 
@@ -608,7 +606,6 @@ The first end-to-end acceptance sample is a three-node Agar deployment.
 ```txt
 node data-1
 features:
-  database
   state-store
   matchmaking
   leaderboard
@@ -616,11 +613,11 @@ endpoints:
   cluster tcp://10.0.0.1:21001
 ```
 
-The data node owns database connections, persistent state access, matchmaking
-policy, room assignment state, leaderboard updates, and the shared cluster
-directories. In the current Agar sample, `database` registers a local
-SQL-backed `INodeDirectory` and an explicit local in-memory `IRouteDirectory`;
-gateway and battle nodes use seeded clients to reach those directories.
+The data node owns state-store, matchmaking, leaderboard work, and the shared
+cluster directories. The framework registers the SQL-backed `INodeDirectory`
+from `Lakona:Cluster:Directory` and an explicit local in-memory
+`IRouteDirectory`; gateway and battle nodes use seeded clients to reach those
+directories.
 
 Configuration:
 
@@ -630,36 +627,38 @@ Configuration:
     "Node": {
       "Id": "data-1"
     },
-    "Feature": [
-      "database",
-      "state-store",
-      "matchmaking",
-      "leaderboard"
-    ],
+    "Feature": [ "state-store", "matchmaking", "leaderboard" ],
     "Cluster": {
       "Endpoint": "tcp://10.0.0.1:21001",
-      "Seeds": [ "tcp://10.0.0.1:21001" ]
+      "Seeds": [ "tcp://10.0.0.1:21001" ],
+      "Directory": {
+        "Provider": "postgres",
+        "ConnectionStringName": "LakonaClusterPostgres",
+        "NodeTable": "lakona_cluster_nodes",
+        "EnsureSchemaOnStartup": false
+      }
+    }
+  },
+  "Agar": {
+    "Persistence": {
+      "Provider": "postgres",
+      "ConnectionStringName": "AgarGamePostgres"
     }
   }
 }
 ```
 
-`database` must be first because it registers database connection factories and
-cluster directory storage for later data-node features. In the current Agar
-sample, the database feature wires the cluster node directory to Postgres
-through `Lakona.Game.Cluster.Sql` and records Redis connection configuration
-for later data-node features. The route directory is intentionally in-memory
-for sample V1 but is process-local to `data-1`, not a seeded client pointing
-back to `data-1`. Full durable gameplay-state persistence remains
-project-owned sample work; the current sample user, matchmaking, room, and
-leaderboard stores still run through the sample actor-backed state facade.
-`database` is not discoverable.
+`Lakona:Cluster:Directory` is framework cluster membership storage.
+`Agar:Persistence` is project-owned gameplay persistence configuration. The
+route directory is intentionally in-memory for sample V1 but is process-local
+to `data-1`, not a seeded client pointing back to `data-1`. Full durable
+gameplay-state persistence remains project-owned sample work.
 
 The sample's local Docker Postgres initializes `lakona_cluster_nodes` from
 `infra/postgres/init/001-lakona-cluster-nodes.sql`; the data-node app verifies
 that schema on startup. Runtime schema creation is disabled by default and can
-be enabled only with `Agar:Database:EnsureSchemaOnStartup=true` for development
-or admin bootstrap runs.
+be enabled only with `Lakona:Cluster:Directory:EnsureSchemaOnStartup=true` for
+development or admin bootstrap runs.
 
 ### Gateway Node
 
