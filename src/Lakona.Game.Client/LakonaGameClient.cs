@@ -45,7 +45,9 @@ namespace Lakona.Game.Client
             if (hello == null) throw new ArgumentNullException(nameof(hello));
 
             var serverHello = await rpcClient.CallAsync(
-                new RpcMethod<GameClientHello, GameServerHello>(0, 1),
+                new RpcMethod<GameClientHello, GameServerHello>(
+                    GameHandshakeRpcIds.ServiceId,
+                    GameHandshakeRpcIds.HandshakeMethodId),
                 hello,
                 cancellationToken).ConfigureAwait(false);
             ApplyServerHello(serverHello);

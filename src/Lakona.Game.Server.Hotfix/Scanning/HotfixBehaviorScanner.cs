@@ -170,6 +170,7 @@ public static class HotfixBehaviorScanner
             featureType,
             instance.Discoverable,
             new Dictionary<string, string>(instance.Metadata, StringComparer.Ordinal),
+            context.LocalActors.ToArray(),
             context.ActorTicks.ToArray(),
             context.Commands.ToArray(),
             context.Services.ToArray()));

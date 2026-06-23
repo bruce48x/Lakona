@@ -199,9 +199,33 @@ public sealed class AgarHotfixBoundaryTests
         var battleRuntimeFeature = File.ReadAllText(Path.Combine(featureRoot, "BattleRuntimeFeature.cs"));
 
         Assert.False(Directory.Exists(Path.Combine(sampleRoot, "Server", "App", "Hosting")));
+        Assert.Contains("EnsureLocalActor<MatchmakingActor>", matchmakingFeature, StringComparison.Ordinal);
         Assert.Contains("ScheduleActorTick<MatchmakingActor>", matchmakingFeature, StringComparison.Ordinal);
         Assert.Contains("\"default\"", matchmakingFeature, StringComparison.Ordinal);
         Assert.DoesNotContain("ScheduleActorTick<MatchmakingActor>", battleRuntimeFeature, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Agar_unity_client_uses_framework_handshake_contracts()
+    {
+        var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
+            .Directory!.Parent!.Parent!.FullName;
+        var clientRoot = Path.Combine(sampleRoot, "Client");
+        var handshakeShim = Path.Combine(clientRoot, "Assets", "Scripts", "Rpc", "GameHandshakeDtos.cs");
+        var session = File.ReadAllText(Path.Combine(
+            clientRoot,
+            "Assets",
+            "Scripts",
+            "Gameplay",
+            "DotArenaNetworkSession.cs"));
+
+        Assert.False(File.Exists(handshakeShim), "Unity client must use Lakona.Game.Abstractions.Sessions handshake contracts.");
+        Assert.Contains("LakonaGameClient", session, StringComparison.Ordinal);
+        Assert.Contains("_gameClient.HandshakeAsync(_controlConnection.Runtime", session, StringComparison.Ordinal);
+        Assert.Contains("_gameClient.HandshakeAsync(_realtimeConnection.Runtime", session, StringComparison.Ordinal);
+        Assert.DoesNotContain("BindingFlags", session, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetField(\"_runtime\"", session, StringComparison.Ordinal);
+        Assert.DoesNotContain("new RpcMethod<GameClientHello, GameServerHello>(0, 1)", session, StringComparison.Ordinal);
     }
 
     private static FileInfo FindRepositoryFile(string relativePath)

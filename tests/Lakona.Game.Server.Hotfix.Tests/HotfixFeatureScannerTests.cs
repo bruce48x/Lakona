@@ -19,6 +19,10 @@ public sealed class HotfixFeatureScannerTests
         Assert.Equal("battle-runtime", feature.Name);
         Assert.Equal(typeof(BattleRuntimeFeature), feature.FeatureType);
 
+        var localActor = Assert.Single(feature.LocalActors);
+        Assert.Equal(typeof(MatchmakingActor), localActor.ActorType);
+        Assert.Equal("default", localActor.ActorId);
+
         var fixedTick = Assert.Single(feature.ActorTicks, tick => tick.Mode == HotfixActorTickMode.FixedActor);
         Assert.Equal(typeof(MatchmakingActor), fixedTick.ActorType);
         Assert.Equal("default", fixedTick.ActorId);
@@ -69,6 +73,7 @@ public sealed class HotfixFeatureScannerTests
     {
         public override void Configure(HotfixFeatureContext context)
         {
+            context.EnsureLocalActor<MatchmakingActor>("default");
             context.ScheduleActorTick<MatchmakingActor>(
                 "default",
                 TimeSpan.FromMilliseconds(250),

@@ -1,4 +1,5 @@
 using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.Hosting;
 
@@ -7,14 +8,13 @@ namespace Lakona.Game.Server.Hotfix;
 internal sealed class HotfixActorTickHostedService(
     IHotfixManager hotfix,
     HotfixActorTickScheduler scheduler,
+    IActorLifecycle actorLifecycle,
     LakonaGameRuntimeOptions runtimeOptions) : IHostedService
 {
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
-        _ = cancellationToken;
-        scheduler.Apply(FilterSnapshot(hotfix.Current));
+        await ApplySnapshotAsync(FilterSnapshot(hotfix.Current), cancellationToken).ConfigureAwait(false);
         hotfix.Reloaded += OnReloaded;
-        return Task.CompletedTask;
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
@@ -28,7 +28,39 @@ internal sealed class HotfixActorTickHostedService(
     {
         if (result.Succeeded)
         {
-            scheduler.Apply(FilterSnapshot(result.Current));
+            ApplySnapshotAsync(FilterSnapshot(result.Current), CancellationToken.None)
+                .GetAwaiter()
+                .GetResult();
+        }
+    }
+
+    private async Task ApplySnapshotAsync(HotfixSnapshot snapshot, CancellationToken cancellationToken)
+    {
+        foreach (var actor in snapshot.Features.SelectMany(static feature => feature.LocalActors))
+        {
+            await CreateLocalActorAsync(actor, cancellationToken).ConfigureAwait(false);
+        }
+
+        scheduler.Apply(snapshot);
+    }
+
+    private async ValueTask CreateLocalActorAsync(
+        HotfixLocalActorDeclaration declaration,
+        CancellationToken cancellationToken)
+    {
+        if (!typeof(IActor).IsAssignableFrom(declaration.ActorType))
+        {
+            throw new InvalidOperationException(
+                $"Hotfix local actor type '{declaration.ActorType.FullName}' must implement {typeof(IActor).FullName}.");
+        }
+
+        var result = await actorLifecycle
+            .CreateLocalAsync(declaration.ActorType, ActorId.From(declaration.ActorId), cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(result.Diagnostic ??
+                $"Hotfix local actor '{declaration.ActorId}' could not be created as '{declaration.ActorType.FullName}'.");
         }
     }
 

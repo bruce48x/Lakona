@@ -2,6 +2,12 @@ namespace Lakona.Game.Server.Actors;
 
 public interface IActorLifecycle
 {
+    ValueTask<ActorCreateLocalResult> CreateLocalAsync(
+        Type actorType,
+        ActorId actorId,
+        ActorCreateOptions? options = null,
+        CancellationToken cancellationToken = default);
+
     ValueTask<ActorCreateLocalResult> CreateLocalAsync<TActor>(
         ActorId actorId,
         ActorCreateOptions? options = null,

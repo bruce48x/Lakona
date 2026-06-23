@@ -5,14 +5,23 @@ namespace Lakona.Game.Server.Hotfix.Abstractions;
 
 public sealed class HotfixFeatureContext
 {
+    private readonly List<HotfixLocalActorDeclaration> _localActors = [];
     private readonly List<HotfixActorTickDeclaration> _actorTicks = [];
     private readonly List<HotfixFeatureCommandDeclaration> _commands = [];
+
+    public IReadOnlyList<HotfixLocalActorDeclaration> LocalActors => _localActors;
 
     public IReadOnlyList<HotfixActorTickDeclaration> ActorTicks => _actorTicks;
 
     public IReadOnlyList<HotfixFeatureCommandDeclaration> Commands => _commands;
 
     public IServiceCollection Services { get; } = new ServiceCollection();
+
+    public void EnsureLocalActor<TActor>(string actorId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(actorId);
+        _localActors.Add(new HotfixLocalActorDeclaration(typeof(TActor), actorId));
+    }
 
     public void HandleCommand<TRequest, TReply>(string methodName = "HandleAsync")
     {

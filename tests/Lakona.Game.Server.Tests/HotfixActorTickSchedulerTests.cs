@@ -202,6 +202,7 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
         var service = new HotfixActorTickHostedService(
             manager,
             scheduler,
+            runtime,
             new LakonaGameRuntimeOptions { Feature = [] });
 
         HotfixDispatch.Replace(CreateTickTable(1));
@@ -226,6 +227,7 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
         var service = new HotfixActorTickHostedService(
             manager,
             scheduler,
+            runtime,
             new LakonaGameRuntimeOptions { Feature = ["battle-runtime"] });
 
         HotfixDispatch.Replace(CreateTickTable(1));
@@ -234,6 +236,38 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
         await service.StopAsync(cancellationToken);
 
         Assert.Equal(["fixed"], TickHotfix.ActorIds.Distinct().ToArray());
+    }
+
+    [Fact]
+    public async Task Hosted_service_creates_declared_local_actors_before_fixed_ticks()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = new ServiceCollection()
+            .AddLakonaGameServerActors()
+            .BuildServiceProvider();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
+        await using var scheduler = new HotfixActorTickScheduler(
+            runtime,
+            NullLogger<HotfixActorTickScheduler>.Instance);
+        var actorId = ActorId.From("fixed");
+        var manager = new ReloadableHotfixManager(CreateSnapshot(
+            "battle-runtime",
+            [new HotfixLocalActorDeclaration(typeof(TickActor), actorId.Value)],
+            [CreateFixedTick(actorId.Value, TimeSpan.FromMilliseconds(10))]));
+        var service = new HotfixActorTickHostedService(
+            manager,
+            scheduler,
+            lifecycle,
+            new LakonaGameRuntimeOptions { Feature = ["battle-runtime"] });
+
+        HotfixDispatch.Replace(CreateTickTable(1));
+        await service.StartAsync(cancellationToken);
+        await TickHotfix.WaitForActorAsync(actorId.Value, cancellationToken);
+        await service.StopAsync(cancellationToken);
+
+        Assert.Contains(actorId, runtime.GetActiveActorIds(typeof(TickActor)));
+        Assert.Contains(actorId.Value, TickHotfix.ActorIds);
     }
 
     [Fact]
@@ -250,6 +284,7 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
         var service = new HotfixActorTickHostedService(
             manager,
             scheduler,
+            runtime,
             new LakonaGameRuntimeOptions { Feature = ["battle-runtime"] });
 
         HotfixDispatch.Replace(CreateTickTable(1));
@@ -283,11 +318,20 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
 
     private static HotfixSnapshot CreateSnapshot(string featureName, params HotfixActorTickDeclaration[] ticks)
     {
+        return CreateSnapshot(featureName, [], ticks);
+    }
+
+    private static HotfixSnapshot CreateSnapshot(
+        string featureName,
+        IReadOnlyList<HotfixLocalActorDeclaration> localActors,
+        IReadOnlyList<HotfixActorTickDeclaration> ticks)
+    {
         var feature = new HotfixFeatureDeclaration(
             featureName,
             typeof(TestFeature),
             Discoverable: true,
             new Dictionary<string, string>(),
+            localActors,
             ticks,
             [],
             []);
@@ -322,7 +366,7 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
         return new HotfixDispatchTable(version, [binding]);
     }
 
-    private sealed class RecordingActorRuntime : IActorRuntime
+    private sealed class RecordingActorRuntime : IActorRuntime, IActorLifecycle
     {
         private readonly Dictionary<ActorId, TickActor> _actors = [];
         private readonly object _sync = new();
@@ -342,6 +386,43 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
             where TActor : class, IActor
         {
             return new ValueTask<TActor>((TActor)(IActor)GetOrCreate(id));
+        }
+
+        public ValueTask<ActorCreateLocalResult> CreateLocalAsync<TActor>(
+            ActorId actorId,
+            ActorCreateOptions? options = null,
+            CancellationToken cancellationToken = default)
+            where TActor : class, IActor
+        {
+            return CreateLocalAsync(typeof(TActor), actorId, options, cancellationToken);
+        }
+
+        public ValueTask<ActorCreateLocalResult> CreateLocalAsync(
+            Type actorType,
+            ActorId actorId,
+            ActorCreateOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            _ = options;
+            cancellationToken.ThrowIfCancellationRequested();
+            GetOrCreate(actorId);
+            ActiveActorIds[actorType] = _actors.Keys.OrderBy(static id => id.Value).ToArray();
+            return new ValueTask<ActorCreateLocalResult>(
+                new ActorCreateLocalResult(ActorCreateLocalStatus.Created, actorId, actorType));
+        }
+
+        public ValueTask<ActorDestroyLocalResult> DestroyLocalAsync<TActor>(
+            ActorId actorId,
+            ActorDestroyOptions? options = null,
+            CancellationToken cancellationToken = default)
+            where TActor : class, IActor
+        {
+            _ = options;
+            cancellationToken.ThrowIfCancellationRequested();
+            _actors.Remove(actorId);
+            ActiveActorIds[typeof(TActor)] = _actors.Keys.OrderBy(static id => id.Value).ToArray();
+            return new ValueTask<ActorDestroyLocalResult>(
+                new ActorDestroyLocalResult(ActorDestroyLocalStatus.Destroyed, actorId, typeof(TActor)));
         }
 
         public ValueTask TellAsync<TActor>(
@@ -500,9 +581,24 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
         }
     }
 
-    public sealed class TickActor(string id) : GameActor
+    public sealed class TickActor : GameActor
     {
-        public string Id { get; } = id;
+        private readonly string _recordingRuntimeId;
+
+        public TickActor()
+        {
+            _recordingRuntimeId = "";
+        }
+
+        public TickActor(string id)
+        {
+            _recordingRuntimeId = id;
+        }
+
+        public string Id =>
+            string.Equals(Context.Id.Value, "__uninitialized__", StringComparison.Ordinal)
+                ? _recordingRuntimeId
+                : Context.Id.Value;
     }
 
     private sealed class TestFeature;

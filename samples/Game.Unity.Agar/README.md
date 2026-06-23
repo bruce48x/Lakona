@@ -114,11 +114,12 @@ await rooms.Remote(nodeId, roomId).JoinAsync(request, ct); // 固定调指定远
 
 Matchmaking 是 remote-capable actor 的示例。单进程默认配置启用
 `matchmaking` feature，`Server.Hotfix` 中的 `MatchmakingFeature` 声明
-`MatchmakingActor("default")` 的固定 tick。固定 actor tick 在 feature 生效时会先
-调度一次，因此默认匹配队列 actor 的创建发生在 feature lifecycle 里；三节点拓扑中
-`data-1` 启用 `matchmaking` feature，因此默认匹配队列属于 data 节点。RPC service
-不应在每次 enqueue/cancel 前调用 `EnsureCreatedAsync`；创建、放置和迁移是
-feature/业务 lifecycle 的职责，普通调用只应该路由到已经存在的 actor。
+`MatchmakingActor("default")` 的本地 actor 创建和固定 tick。固定 actor tick 只向
+已经存在的 actor 投递 tick，不负责隐式创建；默认匹配队列 actor 的创建由 feature
+lifecycle 中的显式 actor 声明完成。三节点拓扑中 `data-1` 启用 `matchmaking`
+feature，因此默认匹配队列属于 data 节点。RPC service 不应在每次 enqueue/cancel
+前调用 `EnsureCreatedAsync`；创建、放置和迁移是 feature/业务 lifecycle 的职责，
+普通调用只应该路由到已经存在的 actor。
 
 本地 `docker-compose.yml` 会把 `infra/postgres/init` 挂载到 Postgres
 `/docker-entrypoint-initdb.d`，其中 `001-lakona-cluster-nodes.sql` 创建

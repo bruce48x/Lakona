@@ -8,6 +8,7 @@ public sealed class MatchmakingFeature : HotfixGameFeature
 {
     public override void Configure(HotfixFeatureContext context)
     {
+        context.EnsureLocalActor<MatchmakingActor>("default");
         context.ScheduleActorTick<MatchmakingActor>(
             "default",
             TimeSpan.FromMilliseconds(250),

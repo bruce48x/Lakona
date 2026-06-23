@@ -48,10 +48,19 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
         CancellationToken cancellationToken = default)
         where TActor : class, IActor
     {
+        return await CreateLocalAsync(typeof(TActor), actorId, options, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask<ActorCreateLocalResult> CreateLocalAsync(
+        Type actorType,
+        ActorId actorId,
+        ActorCreateOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(actorType);
         _ = options ?? ActorCreateOptions.Default;
         cancellationToken.ThrowIfCancellationRequested();
 
-        var actorType = typeof(TActor);
         if (_actors.TryGetValue(actorId, out var existing))
         {
             return IsCompatibleActorType(existing.ActorType, actorType)
@@ -63,7 +72,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
                     $"Actor id '{actorId.Value}' is already bound to '{existing.ActorType.FullName}'.");
         }
 
-        var cell = GetOrCreateCell<TActor>(actorId);
+        var cell = GetOrCreateCell(actorType, actorId);
         await cell.EnsureActivatedAsync(cancellationToken).ConfigureAwait(false);
         return new ActorCreateLocalResult(ActorCreateLocalStatus.Created, actorId, actorType);
     }
