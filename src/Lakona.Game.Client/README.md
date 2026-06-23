@@ -1,18 +1,37 @@
 # Lakona.Game.Client
 
-`Lakona.Game.Client` contains engine-neutral client helpers for game clients built on top of Lakona.Rpc.
+`Lakona.Game.Client` contains reusable engine-neutral Game client primitives.
+Generated game projects use a project-specific `Rpc.Generated.LakonaGameClient`
+as the public entry point. The fixed package type is `LakonaGameClientCore`,
+which owns framework handshake state, reliable push state, heartbeat state, and
+session snapshots.
 
-The package focuses on one recommended main entry point, `LakonaGameClient`, plus lower-level reliable server push and reconnect-aware state helpers:
+The library does not depend on Unity, Godot, or any transport package. Game
+clients remain responsible for choosing their transport, dispatching callbacks
+onto the engine main thread, and applying business-specific payloads.
 
-- track the latest applied reliable push sequence
-- detect duplicate reliable push messages
-- decide whether an incoming push should be applied and acknowledged
-- reset sequence state when the client starts a new logical session
-- expose an engine-neutral session phase snapshot for reconnect, refresh, and state-lost flows
+## Generated Client Entry Point
 
-The library does not depend on Unity, Godot, or any transport package. Game clients remain responsible for choosing their transport, dispatching callbacks onto the engine main thread, and applying business-specific payloads.
+Generated game projects should use their generated wrapper as the single
+connection entry point:
 
-## Main Client API
+```csharp
+using Rpc.Generated;
+
+await using var gameClient = new LakonaGameClient(options, callbackReceiver);
+await gameClient.ConnectAsync(cancellationToken);
+
+var login = gameClient.Api.Shared.Login;
+var reply = await login.LoginAsync(new LoginRequest { PlayerName = name });
+```
+
+`ConnectAsync` owns the framework handshake and heartbeat startup. Business RPC
+services are exposed through `gameClient.Api`.
+
+## Core Client Primitive
+
+Use `LakonaGameClientCore` directly only when you are building a custom client
+wrapper instead of using generated `Rpc.Generated.LakonaGameClient`.
 
 ```csharp
 using Lakona.Game.Abstractions;
@@ -20,16 +39,16 @@ using Lakona.Game.Client;
 using Lakona.Game.Client.ReliablePush;
 using Lakona.Game.Client.Sessions;
 
-var client = new LakonaGameClient();
-client.StartSession(sessionId, lastReliableSequence: 0);
+var core = new LakonaGameClientCore();
+core.StartSession(sessionId, lastReliableSequence: 0);
 
-await client.ProcessReliablePushAsync(
+await core.ProcessReliablePushAsync(
     ReliablePushSequence.From(update.ReliableSequence),
     update,
     applyAsync: static (payload, ct) =>
     {
         // Apply the business payload on the application's chosen thread.
-        return ValueTask.CompletedTask;
+        return default;
     },
     acknowledgeAsync: async (ack, ct) =>
     {
@@ -40,12 +59,12 @@ await client.ProcessReliablePushAsync(
     },
     cancellationToken);
 
-if (client.Snapshot.Phase == ClientSessionPhase.RefreshRequired)
+if (core.Snapshot.Phase == ClientSessionPhase.RefreshRequired)
 {
     // Clear transient view state and fetch an authoritative game snapshot.
 }
 
-if (client.Snapshot.Phase == ClientSessionPhase.StateLost)
+if (core.Snapshot.Phase == ClientSessionPhase.StateLost)
 {
     // Start a new login/session flow. StateLost remains terminal until StartSession is called again.
 }
@@ -53,7 +72,9 @@ if (client.Snapshot.Phase == ClientSessionPhase.StateLost)
 
 ## Lower-level reliable push inbox
 
-Use `ReliablePushInbox` directly only when you want to manage session phase separately. The session id is an opaque client-side key chosen by your game protocol, not `Lakona.Game.Server.Sessions.GameSessionKey`.
+Use `ReliablePushInbox` directly only when you want to manage session phase
+separately. The session id is an opaque client-side key chosen by your game
+protocol, not `Lakona.Game.Server.Sessions.GameSessionKey`.
 
 ```csharp
 using Lakona.Game.Abstractions;
@@ -68,7 +89,7 @@ await inbox.ProcessAsync(
     applyAsync: static (payload, ct) =>
     {
         // Apply the business payload on the application's chosen thread.
-        return ValueTask.CompletedTask;
+        return default;
     },
     acknowledgeAsync: async (ack, ct) =>
     {
@@ -81,7 +102,9 @@ await inbox.ProcessAsync(
 
 ## Engine-neutral session state
 
-`ClientSessionController` is a pure state helper. Unity, Godot, and plain .NET clients can render their own UI from the snapshot without the framework touching engine APIs or dispatchers.
+`ClientSessionController` is a pure state helper. Unity, Godot, and plain .NET
+clients can render their own UI from the snapshot without the framework
+touching engine APIs or dispatchers.
 
 ```csharp
 using Lakona.Game.Abstractions;

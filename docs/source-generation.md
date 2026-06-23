@@ -30,6 +30,22 @@ Generated server projects opt into server glue with:
 Generated client projects opt into client glue with the matching client
 generation property or Unity-compatible analyzer configuration.
 
+Game client wrappers are an additional opt-in for projects that use
+Lakona.Game:
+
+```xml
+<LakonaGameGenerateClient>true</LakonaGameGenerateClient>
+<LakonaGameClientRuntime>godot</LakonaGameClientRuntime>
+<LakonaGameClientPlatform>godot</LakonaGameClientPlatform>
+<LakonaGameClientGameVersion>chat</LakonaGameClientGameVersion>
+```
+
+When enabled, the generator emits `LakonaGameClient` in the same namespace as
+the generated `RpcClient`. The wrapper owns the generated `RpcClient`,
+framework handshake, Game heartbeat, and static callback receiver type checks.
+Business RPC services are exposed through `gameClient.Api`, so game client code
+uses the generated wrapper as its single connection entry point.
+
 ## Ownership
 
 - `Lakona.Rpc.Core` owns runtime attributes and shared contracts.

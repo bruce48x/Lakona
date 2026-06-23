@@ -6,6 +6,22 @@ Generated starter server and SDK-style client projects reference this package as
 
 Unity-compatible client assemblies should opt in with `[assembly: LakonaRpcGenerateClient("Rpc.Generated")]` so only one Unity script assembly receives generated client glue.
 
+Game clients can also opt into a generated `LakonaGameClient` wrapper:
+
+```xml
+<LakonaGameGenerateClient>true</LakonaGameGenerateClient>
+<LakonaGameClientRuntime>unity</LakonaGameClientRuntime>
+<LakonaGameClientPlatform>unity</LakonaGameClientPlatform>
+<LakonaGameClientGameVersion>chat</LakonaGameClientGameVersion>
+```
+
+Unity script assemblies can use assembly markers beside the RPC client marker:
+
+```csharp
+[assembly: LakonaRpcGenerateClient("Rpc.Generated")]
+[assembly: LakonaGameGenerateClient("unity", "unity", "chat")]
+```
+
 Typical projects should add this package with:
 
 ```xml

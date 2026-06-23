@@ -183,6 +183,12 @@ context.EnsureLocalActor<ChatRoomActor>("chat:global");
 
 The user should see Lakona.Game's core capabilities through a working game-server story instead of isolated infrastructure examples.
 
+Generated clients use `Rpc.Generated.LakonaGameClient` as the single connection
+entry point. Starter code creates one game client, calls `ConnectAsync`, then
+accesses services through `gameClient.Api.Shared.*`. Starter code does not
+construct `GameClientHello`, register callback bindings by hand, or expose the
+lower-level generated `RpcClient`.
+
 ## Health And Check Command
 
 Generated projects should include a check command:
