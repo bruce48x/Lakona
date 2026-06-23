@@ -28,6 +28,7 @@ internal sealed class HotfixPackageInstaller
             await HotfixPackageVerifier.VerifyChecksumsAsync(
                 staging,
                 manifest.Assembly,
+                allowReadyMarker: false,
                 cancellationToken).ConfigureAwait(false);
             var target = Path.Combine(root, "versions", manifest.Version);
             if (Directory.Exists(target))

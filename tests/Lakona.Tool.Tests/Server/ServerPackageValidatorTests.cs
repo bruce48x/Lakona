@@ -223,11 +223,29 @@ public sealed class ServerPackageValidatorTests
         }
     }
 
+    [Fact]
+    public async Task ValidateAsync_accepts_installed_ready_marker_missing_from_checksums()
+    {
+        var fixture = await CreateValidServerPackageAsync(includeReadyInChecksums: false);
+        try
+        {
+            await new ServerPackageValidator().ValidateAsync(
+                fixture.Root,
+                fixture.Manifest,
+                TestContext.Current.CancellationToken);
+        }
+        finally
+        {
+            Directory.Delete(fixture.Root, recursive: true);
+        }
+    }
+
     private static async Task<ServerPackageFixture> CreateValidServerPackageAsync(
         bool writeReady = true,
         string hotfixBuildTag = BuildTag,
         string hotfixVersion = InitialHotfixVersion,
-        ServerPackageManifest? manifest = null)
+        ServerPackageManifest? manifest = null,
+        bool includeReadyInChecksums = true)
     {
         var root = Path.Combine(Path.GetTempPath(), "LakonaServerPackageValidatorTests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -281,7 +299,7 @@ public sealed class ServerPackageValidatorTests
                 TestContext.Current.CancellationToken);
         }
 
-        await WriteChecksumsAsync(versionDirectory);
+        await WriteChecksumsAsync(versionDirectory, includeReadyInChecksums);
         return new ServerPackageFixture(root, manifest);
     }
 
@@ -300,12 +318,17 @@ public sealed class ServerPackageValidatorTests
             "0.14.0-test");
     }
 
-    private static async Task WriteChecksumsAsync(string directory)
+    private static async Task WriteChecksumsAsync(string directory, bool includeReady)
     {
         var lines = new List<string>();
         foreach (var file in Directory.GetFiles(directory).OrderBy(Path.GetFileName, StringComparer.Ordinal))
         {
             if (StringComparer.Ordinal.Equals(Path.GetFileName(file), "checksums.sha256"))
+            {
+                continue;
+            }
+
+            if (!includeReady && StringComparer.Ordinal.Equals(Path.GetFileName(file), "READY"))
             {
                 continue;
             }

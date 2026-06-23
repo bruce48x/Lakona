@@ -21,6 +21,7 @@ internal static class HotfixPackageVerifier
     public static async Task VerifyChecksumsAsync(
         string directory,
         string assemblyFileName,
+        bool allowReadyMarker,
         CancellationToken cancellationToken)
     {
         var checksumPath = Path.Combine(directory, "checksums.sha256");
@@ -33,7 +34,7 @@ internal static class HotfixPackageVerifier
         var checksums = ParseChecksums(directory, lines);
         RequireChecksum(checksums, "hotfix.json");
         RequireChecksum(checksums, assemblyFileName);
-        RejectUnchecksummedFiles(directory, checksumPath, checksums);
+        RejectUnchecksummedFiles(directory, checksumPath, checksums, allowReadyMarker);
 
         foreach (var item in checksums.Values)
         {
@@ -105,14 +106,15 @@ internal static class HotfixPackageVerifier
     private static void RejectUnchecksummedFiles(
         string directory,
         string checksumPath,
-        IReadOnlyDictionary<string, ChecksumEntry> checksums)
+        IReadOnlyDictionary<string, ChecksumEntry> checksums,
+        bool allowReadyMarker)
     {
         var checksumFullPath = Path.GetFullPath(checksumPath);
         foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
         {
             var fullPath = Path.GetFullPath(file);
             if (StringComparer.Ordinal.Equals(fullPath, checksumFullPath)
-                || IsReadyMarker(directory, fullPath))
+                || allowReadyMarker && IsReadyMarker(directory, fullPath))
             {
                 continue;
             }

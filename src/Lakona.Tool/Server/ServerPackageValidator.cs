@@ -71,6 +71,7 @@ internal sealed class ServerPackageValidator
         await HotfixPackageVerifier.VerifyChecksumsAsync(
             versionDirectory,
             hotfixManifest.Assembly,
+            allowReadyMarker: true,
             cancellationToken).ConfigureAwait(false);
     }
 
