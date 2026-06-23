@@ -190,6 +190,24 @@ public sealed class GeneratedProjectGuideRendererTests
         Assert.Contains("rooms.Remote(nodeId, roomId)", readme.Content, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Readme_DescribesAppAsStableHostAndHotfixAsBusinessLayer()
+    {
+        var spec = Spec(ClientEngine.Godot, TransportKind.WebSocket, SerializerKind.Json,
+            DeploymentProfile.None);
+        var builder = new GenerationPlanBuilder("Root");
+
+        new GeneratedProjectGuideRenderer().AddFiles(spec, builder);
+
+        var plan = builder.Build();
+        var readme = Assert.Single(plan.Files, file => file.RelativePath == "README.md");
+        Assert.Contains("Server/App/    Stable server host, actor state shells, configuration", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("Server/Hotfix/ Reloadable services, actor behaviors, lifecycle reactions, feature declarations", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("Hotfix feature declaration ensures the fixed local ChatRoomActor exists", readme.Content, StringComparison.Ordinal);
+        Assert.DoesNotContain("stable Server/App service binding", readme.Content, StringComparison.Ordinal);
+        Assert.DoesNotContain("actor state, host binding, runtime integration", readme.Content, StringComparison.Ordinal);
+    }
+
     private static LakonaProjectSpec Spec(ClientEngine engine, TransportKind transport,
         SerializerKind serializer, DeploymentProfile deploy)
     {

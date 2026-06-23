@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using Lakona.Tool.Cli.Options;
 using Lakona.Tool.Domain;
 using Lakona.Tool.Execution;
@@ -136,6 +137,9 @@ public sealed class ToolArchitectureScanTests
             Assert.DoesNotContain("AddLakonaGame(", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("AddLakonaGameSessionHotfixLifecycle", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("UseGeneratedHotfixServices", generatedText, StringComparison.Ordinal);
+            Assert.Contains("[HotfixFeature(\"chat\")]", generatedText, StringComparison.Ordinal);
+            Assert.Contains("context.EnsureLocalActor<ChatRoomActor>(\"chat:global\");", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain("CreateLocalAsync<ChatRoomActor>", generatedText, StringComparison.Ordinal);
             Assert.Contains("ChatSessionLifecycle", generatedText, StringComparison.Ordinal);
             Assert.Contains("[HotfixLifecycle(typeof(IGameSessionLifecycle))]", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("IChatRuntimeService", generatedText, StringComparison.Ordinal);
@@ -150,6 +154,9 @@ public sealed class ToolArchitectureScanTests
             Assert.DoesNotContain("ChatPresenceLifecycleHandler", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("namespace Server.App.Lifecycle", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(ForbiddenDispatchCall, generatedText, StringComparison.Ordinal);
+
+            var appsettings = File.ReadAllText(Path.Combine(spec.Layout.RootPath, "Server", "App", "appsettings.json"));
+            Assert.DoesNotContain("\"Feature\"", appsettings, StringComparison.Ordinal);
         }
         finally
         {
@@ -186,28 +193,35 @@ public sealed class ToolArchitectureScanTests
     }
 
     [Fact]
-    public void GodotChatSample_UsesFrameworkOwnedSessionLifecycleHotfix()
+    public void GodotChatSample_UsesZeroTemplateHostAndHotfixOwnedChatFeature()
     {
         var repositoryRoot = FindRepositoryRoot();
         var sampleRoot = Path.Combine(repositoryRoot, "samples", "Game.Godot.Chat");
         var appText = ReadAllTextFiles(Path.Combine(sampleRoot, "Server", "App"));
         var hotfixText = ReadAllTextFiles(Path.Combine(sampleRoot, "Server", "Hotfix"));
+        var program = File.ReadAllText(Path.Combine(sampleRoot, "Server", "App", "Program.cs"));
+        var appsettings = File.ReadAllText(Path.Combine(sampleRoot, "Server", "App", "appsettings.json"));
+        var loginClient = File.ReadAllText(Path.Combine(sampleRoot, "Client", "Scripts", "Login", "LoginClient.cs"));
 
-        Assert.Contains("AddLakonaGameSessionHotfixLifecycle", appText, StringComparison.Ordinal);
+        Assert.Equal("using Lakona.Game.Server.Hosting;\n\nreturn await LakonaGameServer.RunAsync(args);\n", program);
+        Assert.DoesNotContain("\"Feature\"", appsettings, StringComparison.Ordinal);
+        using var document = JsonDocument.Parse(appsettings);
+        var cleanup = document.RootElement.GetProperty("Lakona")
+            .GetProperty("Sessions")
+            .GetProperty("Cleanup");
+        Assert.Equal(30, cleanup.GetProperty("DisconnectedRetentionSeconds").GetInt32());
+        Assert.DoesNotContain("AddLakonaGame(", appText, StringComparison.Ordinal);
+        Assert.DoesNotContain("AddLakonaGameSessionHotfixLifecycle", appText, StringComparison.Ordinal);
+        Assert.DoesNotContain("UseGeneratedHotfixServices", appText, StringComparison.Ordinal);
+        Assert.Contains("[HotfixFeature(\"chat\")]", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("context.EnsureLocalActor<ChatRoomActor>(\"chat:global\");", hotfixText, StringComparison.Ordinal);
         Assert.Contains("ChatSessionLifecycle", hotfixText, StringComparison.Ordinal);
         Assert.Contains("[HotfixLifecycle(typeof(IGameSessionLifecycle))]", hotfixText, StringComparison.Ordinal);
-        Assert.DoesNotContain("ChatHotfixRuntimeEvents", appText, StringComparison.Ordinal);
-        Assert.DoesNotContain("ChatSessionLifecycleBridge", appText, StringComparison.Ordinal);
-        Assert.DoesNotContain("IChatRuntimeService", appText, StringComparison.Ordinal);
-        Assert.DoesNotContain("IHotfixRequiredServiceContracts", appText, StringComparison.Ordinal);
-        Assert.DoesNotContain("ChatRuntimeRequiredServiceContracts", appText, StringComparison.Ordinal);
-        Assert.DoesNotContain("typeof(IChatRuntimeService)", appText, StringComparison.Ordinal);
         Assert.Contains("await room.LeaveAsync(connectionId);", hotfixText, StringComparison.Ordinal);
-        Assert.DoesNotContain("LifecycleService", hotfixText, StringComparison.Ordinal);
-        Assert.DoesNotContain("ChatPresenceLifecycleHandler", appText, StringComparison.Ordinal);
-        Assert.DoesNotContain("namespace Server.App.Lifecycle", appText, StringComparison.Ordinal);
-        Assert.DoesNotContain("HotfixDispatch.Invoke", appText, StringComparison.Ordinal);
-        Assert.DoesNotContain("IRpcSessionLifecycleObserver", appText, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreateLocalAsync<ChatRoomActor>", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("private readonly LakonaGameClient _gameClient = new();", loginClient, StringComparison.Ordinal);
+        Assert.Contains("await _gameClient.HandshakeAsync(_rpcClient.Runtime, new GameClientHello", loginClient, StringComparison.Ordinal);
+        AssertBefore(loginClient, "await _gameClient.HandshakeAsync(_rpcClient.Runtime, new GameClientHello", "_loginService =");
     }
 
     [Fact]
@@ -305,6 +319,16 @@ public sealed class ToolArchitectureScanTests
     {
         var extension = Path.GetExtension(path);
         return extension is ".cs" or ".csproj" or ".json" or ".md" or ".slnx" or ".props" or ".asmdef" or ".config" or ".tscn" or ".tres" or ".xml" or ".txt";
+    }
+
+    private static void AssertBefore(string text, string expectedBefore, string expectedAfter)
+    {
+        var beforeIndex = text.IndexOf(expectedBefore, StringComparison.Ordinal);
+        var afterIndex = text.IndexOf(expectedAfter, StringComparison.Ordinal);
+
+        Assert.True(beforeIndex >= 0, $"Expected to find '{expectedBefore}'.");
+        Assert.True(afterIndex >= 0, $"Expected to find '{expectedAfter}'.");
+        Assert.True(beforeIndex < afterIndex, $"Expected '{expectedBefore}' to appear before '{expectedAfter}'.");
     }
 
     private sealed class GitUnavailableRunner : IGitCommandRunner

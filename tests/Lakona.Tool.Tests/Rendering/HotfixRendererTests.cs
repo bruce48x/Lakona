@@ -45,6 +45,7 @@ public sealed class HotfixRendererTests
         Assert.Contains("return reply;", loginService, StringComparison.Ordinal);
         Assert.DoesNotContain("reply.Session", loginService, StringComparison.Ordinal);
         Assert.DoesNotContain("LoginServiceCall", loginService, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreateLocalAsync", loginService, StringComparison.Ordinal);
 
         var chatService = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Chat/ChatService.cs").Content;
         Assert.Contains("[HotfixService(typeof(IChatService))]", chatService, StringComparison.Ordinal);
@@ -64,11 +65,19 @@ public sealed class HotfixRendererTests
         Assert.DoesNotContain("call.Actors.AskAsync", chatService, StringComparison.Ordinal);
         Assert.Contains("badword", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("ChatServiceCall", chatService, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreateLocalAsync", chatService, StringComparison.Ordinal);
 
         var behavior = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Chat/ChatRoomBehavior.cs").Content;
         Assert.Contains("[HotfixBehaviorOf(typeof(ChatRoomActor))]", behavior, StringComparison.Ordinal);
         Assert.Contains("public static ValueTask<LoginReply> LoginAsync", behavior, StringComparison.Ordinal);
         Assert.Contains("public static ValueTask LeaveAsync", behavior, StringComparison.Ordinal);
+
+        var feature = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Features/ChatFeature.cs").Content;
+        Assert.Contains("[HotfixFeature(\"chat\")]", feature, StringComparison.Ordinal);
+        Assert.Contains("public sealed class ChatFeature : HotfixGameFeature", feature, StringComparison.Ordinal);
+        Assert.Contains("context.EnsureLocalActor<ChatRoomActor>(\"chat:global\");", feature, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreateLocalAsync", feature, StringComparison.Ordinal);
+        Assert.DoesNotContain("ScheduleActorTick", feature, StringComparison.Ordinal);
 
         var lifecycle = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Chat/ChatSessionLifecycle.cs").Content;
         Assert.Contains("[HotfixLifecycle(typeof(IGameSessionLifecycle))]", lifecycle, StringComparison.Ordinal);
@@ -86,6 +95,7 @@ public sealed class HotfixRendererTests
         Assert.DoesNotContain("LifecycleService", lifecycle, StringComparison.Ordinal);
         Assert.DoesNotContain("IChatRuntimeService", lifecycle, StringComparison.Ordinal);
         Assert.DoesNotContain("HotfixDispatch", lifecycle, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreateLocalAsync", lifecycle, StringComparison.Ordinal);
         Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/Hotfix/Chat/ChatRuntimeService.cs");
 
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("static event", StringComparison.OrdinalIgnoreCase));

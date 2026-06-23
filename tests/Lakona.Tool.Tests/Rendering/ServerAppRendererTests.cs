@@ -123,7 +123,10 @@ public sealed class ServerAppRendererTests
         Assert.DoesNotContain("Lakona:Cluster:Services", appsettings, StringComparison.Ordinal);
         Assert.Contains("\"RpcServices\"", appsettings, StringComparison.Ordinal);
 
-        var endpoint = document.RootElement.GetProperty("Lakona").GetProperty("Endpoints")[0];
+        var lakona = document.RootElement.GetProperty("Lakona");
+        Assert.False(lakona.TryGetProperty("Feature", out _));
+
+        var endpoint = lakona.GetProperty("Endpoints")[0];
         Assert.Equal("kcp", endpoint.GetProperty("Transport").GetString());
         Assert.Equal("memorypack", endpoint.GetProperty("Serializer").GetString());
         Assert.Equal("127.0.0.1", endpoint.GetProperty("Host").GetString());
@@ -131,8 +134,7 @@ public sealed class ServerAppRendererTests
         Assert.Equal(new[] { "login", "chat" }, endpoint.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
         Assert.False(endpoint.TryGetProperty("Name", out _));
         Assert.False(endpoint.TryGetProperty("Path", out _));
-        var cleanup = document.RootElement
-            .GetProperty("Lakona")
+        var cleanup = lakona
             .GetProperty("Sessions")
             .GetProperty("Cleanup");
         Assert.Equal(30, cleanup.GetProperty("DisconnectedRetentionSeconds").GetInt32());

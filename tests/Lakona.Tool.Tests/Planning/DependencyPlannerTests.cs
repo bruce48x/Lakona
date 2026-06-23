@@ -62,7 +62,7 @@ public sealed class DependencyPlannerTests
     [Fact]
     public void Create_GodotMemoryPack_IncludesSelectedSerializerButDoesNotDuplicateSharedOwnedMemoryPackPackages()
     {
-        var references = DependencyPlanner.Create(ProjectTarget.GodotClient, Spec()).PackageReferences;
+        var references = DependencyPlanner.Create(ProjectTarget.GodotClient, Spec(engine: ClientEngine.Godot)).PackageReferences;
 
         AssertPackage(references, "Lakona.Rpc.Core");
         AssertPackage(references, "Lakona.Rpc.Client");
@@ -70,6 +70,7 @@ public sealed class DependencyPlannerTests
         AssertPackage(references, "Lakona.Rpc.Serializer.MemoryPack");
         AssertPackage(references, "Lakona.Rpc.Analyzers", privateAssets: "all", includeAssets: AnalyzerIncludeAssets);
         AssertPackage(references, "Lakona.Game.Client");
+        AssertPackage(references, "Lakona.Game.Abstractions");
         Assert.DoesNotContain(references, reference => reference.Id is "MemoryPack" or "MemoryPack.Generator");
     }
 
@@ -91,6 +92,7 @@ public sealed class DependencyPlannerTests
     private const string AnalyzerIncludeAssets = "runtime; build; native; contentfiles; analyzers; buildtransitive";
 
     private static LakonaProjectSpec Spec(
+        ClientEngine engine = ClientEngine.Unity,
         TransportKind transport = TransportKind.Kcp,
         SerializerKind serializer = SerializerKind.MemoryPack,
         PersistenceKind persistence = PersistenceKind.None)
@@ -99,7 +101,7 @@ public sealed class DependencyPlannerTests
         return new LakonaProjectSpec(
             "MyGame",
             layout,
-            ClientEngine.Unity,
+            engine,
             transport,
             serializer,
             persistence,
