@@ -25,7 +25,7 @@ Unity script assemblies can use assembly markers beside the RPC client marker:
 Typical projects should add this package with:
 
 ```xml
-<PackageReference Include="Lakona.Rpc.Analyzers" Version="0.2.0">
+<PackageReference Include="Lakona.Rpc.Analyzers" Version="0.2.2">
   <PrivateAssets>all</PrivateAssets>
   <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 </PackageReference>
