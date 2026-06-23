@@ -191,6 +191,13 @@ declared by these descriptors. Stable App code must not define
 application-specific hotfix event adapters, room runtimes, matchmaking hosted
 services, or game Feature classes.
 
+Feature descriptors are scanned and validated with the rest of the hotfix
+assembly. They are not retained as long-lived runtime objects from the
+collectible hotfix load context. After a successful reload, the framework
+publishes the new hotfix provider, dispatch table, behavior table, lifecycle
+handlers, and descriptor-derived scheduler registrations as one generation.
+If scanning or validation fails, the previous generation remains active.
+
 ## Generated Hotfix Services
 
 `Lakona.Game.Server.Hotfix.Generators` owns stable hotfix service proxy

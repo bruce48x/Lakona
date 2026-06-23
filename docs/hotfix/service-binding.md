@@ -80,6 +80,10 @@ Generated hotfix-backed RPC services are selected by endpoint-local
 `IHotfixRequiredServiceContracts` providers; `LakonaGameServer.RunAsync`
 discovers both automatically from the application assembly.
 
+There is no user-authored `.UseGeneratedHotfixServices()` step in generated
+projects. Generated binders and required-contract providers are framework
+discovery artifacts, not fluent host calls that users copy into `Program.cs`.
+
 When a user adds a new shared `[RpcService]` interface and implements a matching
 hotfix `[HotfixService]`, no stable proxy file, binding configurator, endpoint
 marker, or endpoint name should be written by hand.

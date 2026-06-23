@@ -35,10 +35,12 @@ Use this boundary when deciding where a rule or default belongs:
 
 Generated projects should call framework APIs for default derivation when possible instead of embedding framework rules in generated source. Generated source may provide project-specific presentation, but it should not become the long-term owner of Cluster, Hotfix, Reliable Push, or endpoint derivation rules.
 
-Suggested generated host shape:
+Generated projects use the strict zero-template host shape:
 
 ```csharp
-builder.Services.AddLakonaGame(builder.Configuration);
+using Lakona.Game.Server.Hosting;
+
+return await LakonaGameServer.RunAsync(args);
 ```
 
 This keeps generated projects aligned with convention-based Feature discovery in [Configuration](configuration.md). When a default rule improves in the framework, projects should benefit by updating package versions rather than by regenerating their server host.
@@ -110,7 +112,7 @@ The default generated profile is development. Development allows local defaults 
 
 Production-oriented profiles must be stricter. A production profile should reject configuration that is only safe for local development, including loopback advertised endpoints and in-memory cluster directory storage.
 
-Profiles should not reintroduce `Hotfix.Enabled` or `Cluster.Enabled` as normal user-facing switches. A profile changes topology, storage, endpoints, and operational strictness; it does not redefine the Lakona application model. `ReliablePush.Enabled` is allowed, defaults to `true`, and disabled means immediate best-effort notification with no ack or replay.
+Profiles should not reintroduce `Hotfix.Enabled` or `Cluster.Enabled` as normal user-facing switches. A profile changes topology, storage, endpoints, and operational strictness; it does not redefine the Lakona application model. `Lakona:ReliablePush:Enabled` is allowed, defaults to `true`, and disabled means immediate best-effort notification with no ack or replay. Generated default configuration should omit the key unless the user explicitly opts out.
 
 Profiles should be represented as framework-owned values, not arbitrary strings. This keeps validation testable and avoids making users guess hidden mode names.
 
@@ -447,10 +449,15 @@ Avoid user-facing defaults for:
 - `Node.Profile`
 - `Deployment`
 - `Services`
-- `Cluster.Directory`
 - top-level business endpoint sections such as `ControlPlane` or `Realtime`
 - derived bootstrap endpoints
 - derived feature lists for the default local topology
+
+`Lakona:Cluster:Directory` is valid explicit framework configuration for a
+node that owns the cluster node directory. It should not appear as an
+unexplained default in single-node generated development configuration, and it
+must not be used for gameplay persistence. Business persistence belongs under
+an application-owned root such as `Agar:Persistence`.
 
 ## Validation Contract
 

@@ -107,6 +107,12 @@ Feature types are discovered by convention from server assemblies. A
 `StateStoreFeature` resolves to `state-store`, and `BattleRuntimeFeature`
 resolves to `battle-runtime`.
 
+Feature names are application capability names. The framework does not attach
+special meaning to names such as `state-store`; a project could name the same
+capability `lobby` if that is the product language. What matters to the
+framework is that the name is stable, discoverable, and selected consistently
+in configuration and generated clients.
+
 The V1 feature name convention is:
 
 1. The type name must end with `Feature`.
@@ -126,6 +132,12 @@ Examples:
 Feature is also the cluster discovery unit. A discoverable feature on a ready
 node is registered in the node directory so other nodes can find nodes with that
 capability.
+
+Co-locating features on one node does not create ownership between them. For
+example, Agar may configure `matchmaking` and `state-store` on `data-1`, but
+`MatchmakingFeature` still owns creation and command handling for
+`MatchmakingActor`; state-store remains a separate feature that happens to run
+in the same process.
 
 ### Endpoint
 
@@ -443,6 +455,18 @@ This finds a node by feature, then sends a request or command to that node. Use
 feature-addressed messages for service-level commands such as allocating a
 battle room, enqueueing matchmaking, or recording a match settlement.
 
+Feature messages are the boundary for capability-level work: placement,
+creation, capacity checks, idempotency, and cross-node command admission. They
+are not the normal permanent proxy for every method on an already-created
+actor. Once a concrete actor exists, callers should use generated actor refs,
+the actor runtime, or route-addressed actor calls.
+
+Do not hard-code business command kind strings such as
+`"agar.user.ensure"` or `"agar.room.allocate"` in services or samples. Stable
+command identity should come from typed command contracts, attributes, or
+generated constants, and business code should call generated typed clients when
+available. `typeof(TRequest).FullName` is also not a long-term wire identity.
+
 V1 feature-addressed delivery:
 
 1. Resolve candidate nodes with `IClusterNodeDiscovery.AnyAsync(feature)`.
@@ -532,27 +556,36 @@ Session routes must include session generation rather than only player id. This
 avoids delivering messages to a stale connection after reconnect or multi-device
 login.
 
-For reliable notifications, the business owner creates the durable or
-replayable notification record and the gateway acts as the transport relay:
+For reliable notifications, business code publishes a notification intent and
+the framework owns the durable or replayable reliable push protocol state. The
+gateway acts as the transport relay:
 
 ```txt
 business owner
-  -> creates notification with sequence
+  -> publishes notification intent
+framework reliable push
+  -> assigns sequence and records pending state when enabled
   -> sends to client-session route
 gateway node
   -> delivers to local callback
 client
   -> acknowledges through gateway
-gateway node
-  -> forwards ack to notification owner or outbox owner
+gateway/framework
+  -> records ack and handles replay state
 ```
 
 This keeps ownership explicit:
 
 - The gateway owns transport sessions and callback objects.
-- The business node owns the decision to notify and any durable notification
-  state.
+- The business node owns the decision to notify.
+- The framework owns ack, replay, pending limits, and reliable push storage
+  when reliable push is enabled.
 - The cluster owns delivery between the business node and the gateway node.
+
+When reliable push is disabled, the same business publish path degrades to
+best-effort immediate callback delivery with no ack and no replay. Business RPC
+contracts should not expose `AckReliablePushAsync`; ack is a framework protocol
+negotiated during game handshake.
 
 ## Failure Model
 

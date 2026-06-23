@@ -48,11 +48,17 @@ The generated `appsettings.json` should contain only source values the user can 
 
 It should not contain:
 
-- framework identity flags such as `Hotfix.Enabled`, `Cluster.Enabled`, or `ReliablePush.Enabled`
+- framework identity flags such as `Hotfix.Enabled` or `Cluster.Enabled`
 - implementation paths such as `Hotfix.Directory`
 - internal storage selectors such as `ReliablePush.Outbox`
 - topology abstractions such as `Node.Profile`
 - derived cluster values such as advertised endpoints, bootstrap endpoints, feature descriptors, route lease seconds, or send timeout milliseconds
+
+Reliable Push is enabled by default and generated local configuration should
+not include `Lakona:ReliablePush:Enabled`. Users may explicitly set
+`Lakona:ReliablePush:Enabled=false` later to opt out; the framework then keeps
+the same notification API and degrades delivery to immediate best effort with
+no ack or replay.
 
 The default configuration should be:
 

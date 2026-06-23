@@ -29,12 +29,13 @@ Message recording is a framework default in generated hosts. Users configure
 the recorder and store; they do not register message recording manually in
 `Program.cs`.
 
-```csharp
-// Program.cs
-builder.Services.AddMessageRecording(maxEntriesPerActor: 4096);
-```
+`LakonaGameServer.RunAsync(args)` composes the default recorder as part of the
+framework game-server graph. Lower-level custom hosts may call
+`AddMessageRecording()` directly, but generated or sample `Program.cs` files
+must stay strict zero-template.
 
-One line. That's it. `AddMessageRecording()` registers:
+`AddMessageRecording()` registers:
+
 - `IMessageLogStore` as `InMemoryMessageLogStore` (singleton)
 - `MessageReplayer` (singleton)
 
@@ -82,7 +83,7 @@ Then replace the default:
 
 ```csharp
 services.AddSingleton<IMessageLogStore, MyFileMessageLogStore>();
-services.AddMessageRecording(); // MessageReplayer still registered
+services.AddMessageRecording(); // advanced custom host only
 ```
 
 ## InMemoryMessageLogStore

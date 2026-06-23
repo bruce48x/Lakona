@@ -16,6 +16,8 @@ Supported top-level keys under `Lakona`:
 - `Feature`: optional array selecting discovered `LakonaGameFeature` names.
 - `Endpoints`: optional array of client-facing RPC listeners.
 - `Cluster`: optional node-to-node cluster settings.
+- `Sessions`: optional framework session cleanup and retention settings.
+- `ReliablePush`: optional reliable push settings.
 
 The legacy `Lakona.Game` root is only a compatibility read path for old
 applications and explicit compatibility tests. New samples, generated projects,
@@ -87,6 +89,22 @@ using Lakona.Game.Server.Hosting;
 return await LakonaGameServer.RunAsync(args);
 ```
 
+Generated and sample `Program.cs` files must not hand-write framework
+registration calls such as:
+
+```txt
+AddMessageRecording()
+AddLakonaGameRuntimeValidation()
+AddLakonaGame(...)
+UseGeneratedHotfixServices()
+```
+
+`LakonaGameServer.RunAsync` owns framework defaults, generated binder
+discovery, required hotfix contract discovery, validation, message recording,
+session lifecycle bridges, reliable push defaults, cluster startup, and
+endpoint listener startup. Application behavior belongs in configuration,
+shared contracts, stable actor state shells, and `Server.Hotfix`.
+
 Hotfix descriptors declare reloadable actor runtime loops:
 
 ```csharp
@@ -150,6 +168,28 @@ RPC service binding is independent from Feature selection. The RPC handler owns
 business dispatch to local services, feature-addressed messages, actors, or
 other project code.
 
+## Reliable Push
+
+Reliable push is enabled by default as part of the Lakona game runtime. The
+default generated `appsettings.json` usually omits the section because the
+framework derives the default.
+
+Explicit configuration may opt out:
+
+```json
+{
+  "Lakona": {
+    "ReliablePush": {
+      "Enabled": false
+    }
+  }
+}
+```
+
+`Enabled: false` does not remove the notification API. It changes delivery to
+immediate best-effort callback delivery with no ack and no replay. The resolved
+mode is sent to clients during the framework game handshake.
+
 ## Cluster Rules
 
 `Lakona:Cluster` is node-to-node configuration:
@@ -186,6 +226,12 @@ node features (`NodeFeatureDescriptor`) and advertised endpoints.
 Cluster directory database configuration lives under
 `Lakona:Cluster:Directory`. Game-specific persistence lives under a separate
 application-owned root such as `Agar:Persistence`.
+
+When a database is used as the cluster node directory, it is framework
+infrastructure and belongs under `Lakona:Cluster:Directory`. When a database is
+used for account data, match records, leaderboards, inventories, or other
+gameplay state, it is business infrastructure and belongs under an
+application-owned root. Do not model database as a runtime `Feature`.
 
 ## Validation
 

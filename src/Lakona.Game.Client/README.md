@@ -33,72 +33,26 @@ services are exposed through `gameClient.Api`.
 Use `LakonaGameClientCore` directly only when you are building a custom client
 wrapper instead of using generated `Rpc.Generated.LakonaGameClient`.
 
-```csharp
-using Lakona.Game.Abstractions;
-using Lakona.Game.Client;
-using Lakona.Game.Client.ReliablePush;
-using Lakona.Game.Client.Sessions;
+The core primitive owns framework handshake state, resolved server
+capabilities, heartbeat state, reliable push client state, and connection
+snapshots. It does not expose business services; generated wrappers expose
+business services through `gameClient.Api`.
 
-var core = new LakonaGameClientCore();
-core.StartSession(sessionId, lastReliableSequence: 0);
-
-await core.ProcessReliablePushAsync(
-    ReliablePushSequence.From(update.ReliableSequence),
-    update,
-    applyAsync: static (payload, ct) =>
-    {
-        // Apply the business payload on the application's chosen thread.
-        return default;
-    },
-    acknowledgeAsync: async (ack, ct) =>
-    {
-        // Send ack.Sequence.Value through the game's RPC API. Use your own client-facing
-        // session token or stream id if the server requires one for acknowledgement.
-        await playerService.AckReliablePushAsync(sessionId, ack.Sequence.Value, ct);
-        return ReliablePushAckOutcome.Accepted();
-    },
-    cancellationToken);
-
-if (core.Snapshot.Phase == ClientSessionPhase.RefreshRequired)
-{
-    // Clear transient view state and fetch an authoritative game snapshot.
-}
-
-if (core.Snapshot.Phase == ClientSessionPhase.StateLost)
-{
-    // Start a new login/session flow. StateLost remains terminal until StartSession is called again.
-}
-```
+Normal clients should not call reliable-push ack RPCs. The generated wrapper
+uses the framework protocol negotiated by handshake. If the server disables
+reliable push, the wrapper keeps the same public callback path and treats
+notifications as immediate best-effort delivery.
 
 ## Lower-level reliable push inbox
 
 Use `ReliablePushInbox` directly only when you want to manage session phase
-separately. The session id is an opaque client-side key chosen by your game
-protocol, not `Lakona.Game.Server.Sessions.GameSessionKey`.
+separately while building framework or generated-wrapper infrastructure. It is
+not a normal game-client entry point.
 
-```csharp
-using Lakona.Game.Abstractions;
-using Lakona.Game.Client.ReliablePush;
-
-var inbox = new ReliablePushInbox();
-inbox.StartSession(sessionId, lastAppliedSequence);
-
-await inbox.ProcessAsync(
-    ReliablePushSequence.From(update.ReliableSequence),
-    update,
-    applyAsync: static (payload, ct) =>
-    {
-        // Apply the business payload on the application's chosen thread.
-        return default;
-    },
-    acknowledgeAsync: async (ack, ct) =>
-    {
-        // Send ack.SessionId and ack.Sequence.Value through the game's RPC API.
-        await playerService.AckReliablePushAsync(ack.SessionId, ack.Sequence.Value, ct);
-        return ReliablePushAckOutcome.Accepted();
-    },
-    cancellationToken);
-```
+`ReliablePushInbox` can decide whether a sequence should be applied and whether
+an acknowledgement is required. Generated wrappers are responsible for wiring
+that acknowledgement to the framework protocol. Game code should receive
+business callbacks after the wrapper has handled sequencing concerns.
 
 ## Engine-neutral session state
 

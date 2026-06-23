@@ -149,6 +149,21 @@ Default actor id shape:
 Long-lived protocols can pin the wire name and method ids with `[ActorName]`
 and `[ActorMethod]`.
 
+Actor ids are global, stable business ids. They must not encode node id,
+transport endpoint, callback state, connection id, or RPC session objects.
+Good ids are shaped around the business object:
+
+```txt
+user/player-123
+matchmaking/default
+room/room-456
+leaderboard/current
+```
+
+The actor lifecycle service owns route registration for actors it creates. User
+code should not separately publish an actor route for a local actor created
+through framework lifecycle APIs.
+
 ## Failure Model
 
 Generated business methods return a reply on success and throw typed exceptions
@@ -203,11 +218,63 @@ through `IActorLifecycle.CreateLocalAsync` and `DestroyLocalAsync`. `AskAsync`,
 Cross-node creation is a feature command to the owning feature; the owning
 feature calls `CreateLocalAsync` on its own node.
 
+Creation, placement, capacity, and idempotency belong at the feature-command
+boundary. Once an actor exists, services and gateways should call it through
+generated actor refs or `IActorRuntime`, not keep sending every actor method
+through the feature command handler.
+
+Missing actor behavior is deterministic:
+
+- `AskAsync`, `TellAsync`, and generated actor refs return or throw structured
+  `ActorNotFound` failures.
+- scheduler ticks skip missing actors and report diagnostics.
+- no normal actor call path implicitly creates the actor.
+
 Destroy order is:
 
 ```txt
 draining -> drain mailbox -> deactivate -> remove local actor -> unregister route
 ```
+
+Failure to unregister a route is a routing/diagnostic problem; it does not
+resurrect a destroyed actor or keep it callable in the local runtime.
+
+## Actor Ticks
+
+Actor ticks are framework-scheduled actor turns. They are declared by hotfix
+feature descriptors and executed by the stable scheduler against the latest
+loaded hotfix behavior table:
+
+```csharp
+[HotfixFeature("battle-runtime")]
+public sealed class BattleRuntimeFeature : HotfixGameFeature
+{
+    public override void Configure(HotfixFeatureContext context)
+    {
+        context.ScheduleActorTick<MatchmakingActor>(
+            "default",
+            TimeSpan.FromMilliseconds(250),
+            TickBacklogPolicy.Coalesce);
+
+        context.ScheduleActiveActorTicks<RoomActor>(
+            TimeSpan.FromMilliseconds(50),
+            TickBacklogPolicy.SkipIfPending);
+    }
+}
+```
+
+The descriptor is a reloadable declaration, not a long-lived runtime loop
+object. The framework owns timers, cancellation, mailbox entry, skipped-tick
+diagnostics, slow-tick diagnostics, and shutdown.
+
+Tick execution follows actor turn rules:
+
+- one actor turn runs at a time for a given actor;
+- at most one pending tick per tick source should exist;
+- backlog policy must coalesce or skip instead of growing without bound;
+- a thrown tick logs diagnostics and leaves actor state at the last completed
+  turn;
+- a failed hotfix reload keeps the previous tick behavior table active.
 
 ## Analyzer Boundary
 

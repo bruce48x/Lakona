@@ -64,8 +64,9 @@ code applies cross-session policy when that is the desired product behavior.
 
 ## Session Directory
 
-The session directory stores sessions by `GameSessionKey`, not by owner or
-endpoint.
+The framework session directory stores sessions by `GameSessionKey`, not by
+owner or endpoint. It is framework infrastructure, not a user-authored
+`Server.App` business class such as the removed Agar `SessionDirectory`.
 
 Each session stores callback bindings by callback contract type:
 
@@ -199,8 +200,72 @@ completes. Handshake failure rejects the connection before user hotfix service
 code runs. `ServerHello` reports the resolved reliable push mode; disabled
 reliable push is reported as immediate delivery with no ack or replay.
 
-Agar uses `UserActor` for business session grouping. The framework session
-directory stores framework session and callback binding state.
+The game handshake is separate from transport connection setup:
+
+```txt
+transport accepted
+  -> framework connection created
+  -> ClientHello
+  -> ServerHello
+  -> business RPC enabled
+```
+
+Business RPC before a completed handshake is rejected with a structured
+`HandshakeRequired` failure. `ServerHello` sends resolved public capabilities,
+not raw `appsettings.json`. Capabilities include selected protocol version,
+node identity, endpoint transport and serializer, reliable push mode, heartbeat
+settings, server time, and framework feature flags that are safe for clients to
+know.
+
+`ClientHello` is framework metadata. Generated clients fill it from generated
+metadata and options, including client runtime, runtime version, game version,
+build id, platform, and supported capabilities. User code should not construct
+`GameClientHello` directly.
+
+## Framework Heartbeat
+
+Game heartbeat is a framework RPC, not a business service method. Generated
+`LakonaGameClient` starts one heartbeat loop after the handshake succeeds.
+
+The heartbeat request does not carry `GameSessionKey`. The server interprets it
+as a connection heartbeat before a business session is bound, and as a session
+heartbeat after `StartSessionAsync` or `BindCurrentSessionAsync` binds the
+current connection. This upgrade is automatic; business code should not start a
+second session heartbeat loop.
+
+Default heartbeat settings are enabled, 15 seconds interval, and 45 seconds
+timeout unless the resolved server/client options say otherwise.
+
+Heartbeat replies report framework session status:
+
+- `Ok`: the connection or bound session is still valid.
+- `StateLost`: the bound session can no longer be resumed.
+- `Terminated`: the bound session reached a terminal server-side outcome.
+
+Network errors, heartbeat RPC failures, or heartbeat timeouts move the generated
+client to a reconnecting or failed state. Lakona v1 does not provide automatic
+reconnect; users dispose the generated client and create a new one.
+
+## Business Session State
+
+The framework owns `GameSessionKey`, callback bindings, resume tokens, reliable
+push protocol state, route indexes, and transport connection state. Business
+code owns account, player, character, room, and device policy.
+
+Games that need one player-level session aggregate should keep it in a business
+actor such as `UserActor`, not in `Server.App` transport helpers. For example,
+Agar's `UserActor` is the authority for player session policy and may store
+business values such as player id, control session id, realtime session id,
+connection generations, current room, match ticket, seat, and online state.
+
+Business actors must not store callback objects, `RpcSession`, transport
+objects, endpoint names, or framework callback binding containers. Framework
+lifecycle requests carry stable data such as owner key, session id, generation,
+connection id, session kind, and callback contract type names so hotfix
+lifecycle code can update business state without holding transport objects.
+
+Control and realtime channels are independent framework sessions. If losing one
+channel should affect the other, the business actor applies that product policy.
 
 ## Gate / Watchdog / Agent
 
@@ -289,6 +354,53 @@ Resume tokens are opaque client-facing credentials. They should not reveal
 `GameSessionKey` or become business identity. User code may associate resume
 state with account, player, character, room, or device records when it needs
 product-specific policy.
+
+Reliable push is framework-provided by default. Business code publishes through
+the same notification API whether reliability is enabled or disabled. When
+enabled, the framework owns sequence assignment, ack handling, replay, pending
+limits, and route lookup. When disabled, the same publish operation degrades to
+immediate best-effort notification with no ack and no replay.
+
+The public configuration switch is:
+
+```json
+{
+  "Lakona": {
+    "ReliablePush": {
+      "Enabled": true
+    }
+  }
+}
+```
+
+The default is `true`. Generated development projects usually omit this key
+because the default is derived by the framework. Setting it to `false` is an
+explicit opt-out.
+
+Business services must not expose reliable-push ack RPC methods such as
+`AckReliablePushAsync`. Ack and replay are framework protocol messages
+negotiated by the handshake. The server reports reliable push capability in
+`ServerHello`; clients do not need to know whether the server uses an in-memory
+store, durable store, plugin, or built-in implementation.
+
+Business notification APIs should express the intended target, such as a
+session or user, and let the framework resolve delivery:
+
+```csharp
+await clientNotifications
+    .ForSession(sessionKey)
+    .NotifyAsync(notification, cancellationToken);
+
+await clientNotifications
+    .ForUser(playerId)
+    .PublishReliableAsync(kind, payload, cancellationToken);
+```
+
+For user-targeted push, the framework uses its maintained route/session index.
+It must not query a `UserActor` for every notification or ask business code to
+hold callback objects. Reliable notification kinds should be stable typed or
+generated identifiers, not sample-local string catalogs. Games may still keep
+business presence and product session policy in a user actor.
 
 ## Validation Requirements
 

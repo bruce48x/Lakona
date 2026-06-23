@@ -308,7 +308,8 @@ Plan validation must catch:
 - generated RPC glue directories
 - `Server/Server/` paths
 - removed framework branding or old starter brand text in generated user files
-- `Cluster.Enabled`, `Hotfix.Enabled`, or `ReliablePush.Enabled` config keys
+- `Cluster.Enabled` or `Hotfix.Enabled` config keys
+- generated default `ReliablePush.Enabled` config keys
 
 Validation errors fail generation before a staging directory is created.
 
@@ -636,7 +637,7 @@ feature declares:
 context.EnsureLocalActor<ChatRoomActor>("chat:global");
 ```
 
-Do not generate these keys:
+Default local generation must not emit these keys:
 
 - `Cluster.Enabled`
 - `Hotfix.Enabled`
@@ -651,6 +652,17 @@ Do not generate these keys:
 
 Derived runtime state belongs in generated server code and check output, not
 default JSON.
+
+`Lakona:ReliablePush:Enabled` is still a valid user-authored opt-out. The tool
+does not generate it by default because the framework default is enabled.
+If a future command explicitly creates an opt-out configuration, it must use
+the documented `Lakona:ReliablePush:Enabled=false` shape and explain that
+delivery becomes best-effort with no ack or replay.
+
+`Lakona:Cluster:Directory` is valid generated output only for a topology that
+explicitly creates a cluster directory owner. It must not appear as a hidden
+single-node development default, and it must not be reused for business
+persistence.
 
 ## Regression Checks
 
