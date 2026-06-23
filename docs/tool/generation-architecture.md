@@ -445,6 +445,13 @@ stays in Shared, not duplicated in server or Godot clients.
 
 `Program.cs` should stay thin and delegate to `LakonaGameServer.RunAsync`. Do
 not render the old low-level `RpcServerHostBuilder` starter program.
+The generated file is intentionally strict zero-template host code:
+
+```csharp
+using Lakona.Game.Server.Hosting;
+
+return await LakonaGameServer.RunAsync(args);
+```
 
 `HotfixRenderer` owns:
 
@@ -552,9 +559,9 @@ The default generated project demonstrates Lakona.Game as one vertical slice:
 
 ```txt
 client login RPC
-  -> stable Server/App service proxy
+  -> framework/source-generated hotfix-backed service binding
   -> current Server.Hotfix ChatService
-  -> ChatRoomActor through IActorRuntime
+  -> pre-created ChatRoomActor state shell
   -> current Server.Hotfix ChatRoomBehavior inside the actor turn
   -> reliable chat callback or notification
 ```
@@ -565,19 +572,21 @@ fields and mailbox ownership only. Replaceable request logic belongs in
 `Server.Hotfix` Service classes, and actor state behavior belongs in
 one-to-one `Server.Hotfix` Behavior classes.
 
-Generated RPC bindings must hold stable service proxy instances. They must not
-hold instances of types loaded from `Server.Hotfix`, because already-connected
-clients must use new Service logic on their next RPC call after a successful
-reload.
+Generated RPC bindings are framework/source-generated hotfix-backed bindings,
+not generated business orchestration in `Server/App`. They must dispatch to the
+current `Server.Hotfix` service implementation so already-connected clients use
+new Service logic on their next RPC call after a successful reload.
 
 The generated root guide files (README.md, AGENTS.md, CLAUDE.md) point users to
 three edit zones:
 
 - `Shared/Contracts/` for RPC contracts, callback contracts, reliable push DTOs,
   and named contract ids.
-- `Server/App/` for stable orchestration, actor fields, service proxies, host
-  binding, runtime integration, `BuildTag`, and local admin endpoint wiring.
-- `Server/Hotfix/` for replaceable Services and Actor Behaviors.
+- `Server/App/` for strict zero-template host metadata, compact runtime
+  configuration, actor state shells, `BuildTag`, and local admin endpoint
+  metadata.
+- `Server/Hotfix/` for Services, Actor Behaviors, lifecycle reactions, and
+  feature declarations.
 
 ## Configuration Contract
 
@@ -588,6 +597,11 @@ Generated `Server/App/appsettings.json` contains only compact source values:
   "Lakona": {
     "Node": {
       "Id": "dev-1"
+    },
+    "Sessions": {
+      "Cleanup": {
+        "DisconnectedRetentionSeconds": 30
+      }
     },
     "Endpoints": [
       {
@@ -603,17 +617,24 @@ Generated `Server/App/appsettings.json` contains only compact source values:
 ```
 
 For WebSocket transport, include only `"Path": "/ws"` in the endpoint entry.
-Feature activation is convention-based by default: generated `Program.cs`
-registers `services.AddLakonaGame(configuration)` inside the `LakonaGameServer`
-service-registration callback and does not emit a fluent feature catalog. If a
-generated project later splits into multiple processes,
-use `Lakona:Feature` to select discovered `LakonaGameFeature` types by their
-conventional names.
+Feature activation is convention-based by default: generated `Program.cs` is
+only the zero-template `LakonaGameServer.RunAsync(args)` host and does not emit
+a service-registration callback or fluent feature catalog. Single-node starter
+projects do not generate `Lakona:Feature`. If a generated project later splits
+into multiple processes, use `Lakona:Feature` to select discovered
+`LakonaGameFeature` types by their conventional names.
 
 RPC service exposure is endpoint-local. Put generated service names in the
 endpoint's `RpcServices` array and generated serializer names in endpoint
 `Serializer`; do not generate endpoint `Name` or
 `Lakona:Cluster:Services`.
+
+Generated hotfix feature declarations own fixed local actor creation. The Chat
+feature declares:
+
+```csharp
+context.EnsureLocalActor<ChatRoomActor>("chat:global");
+```
 
 Do not generate these keys:
 

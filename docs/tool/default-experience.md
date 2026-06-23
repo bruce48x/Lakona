@@ -30,11 +30,19 @@ The default local topology is a single process with generated defaults for the n
 
 The canonical configuration and startup model is defined in
 [Configuration](../configuration.md).
-Generated projects should use `Lakona:Node:Id`, `Lakona:Endpoints[]` with
-endpoint-local `Serializer` and `RpcServices`, compact `Lakona:Feature`
-selection when needed, and convention-based
-`services.AddLakonaGame(configuration)` startup inside the `LakonaGameServer`
-service-registration callback.
+Generated projects should use `Lakona:Node:Id`,
+`Lakona:Sessions:Cleanup:DisconnectedRetentionSeconds`, and
+`Lakona:Endpoints[]` with endpoint-local `Serializer` and `RpcServices`.
+Startup is the strict zero-template host:
+
+```csharp
+using Lakona.Game.Server.Hosting;
+
+return await LakonaGameServer.RunAsync(args);
+```
+
+Single-node starter projects omit `Lakona:Feature`; generated defaults are
+discovered by convention and explained by the check command.
 
 The generated `appsettings.json` should contain only source values the user can understand and may reasonably change.
 
@@ -53,6 +61,11 @@ The default configuration should be:
   "Lakona": {
     "Node": {
       "Id": "dev-1"
+    },
+    "Sessions": {
+      "Cleanup": {
+        "DisconnectedRetentionSeconds": 30
+      }
     },
     "Endpoints": [
       {
@@ -75,6 +88,11 @@ For WebSocket transport, the generated endpoint includes the path:
     "Node": {
       "Id": "dev-1"
     },
+    "Sessions": {
+      "Cleanup": {
+        "DisconnectedRetentionSeconds": 30
+      }
+    },
     "Endpoints": [
       {
         "Transport": "websocket",
@@ -94,6 +112,9 @@ For WebSocket transport, the generated endpoint includes the path:
 Generated server code should derive the full runtime model from the small configuration surface and project conventions.
 
 From `Lakona:Node:Id`, it derives the local node identity.
+
+From `Lakona:Sessions:Cleanup`, it configures session cleanup policy without
+requiring server code changes.
 
 From `Lakona:Endpoints[]`, it derives:
 
@@ -132,8 +153,8 @@ Generated projects should guide users toward three editing areas:
 
 ```txt
 Shared/Contracts/      RPC and reliable push DTOs
-Server/App/            stable business orchestration
-Server/Hotfix/         hotfixable business rules
+Server/App/            zero-template host metadata, configuration, and actor state shells
+Server/Hotfix/         services, actor behaviors, lifecycle reactions, and feature declarations
 ```
 
 The framework still allows user-owned RPC contracts to live in any compiled shared assembly path and namespace. The generated project uses `Shared/Contracts/<Domain>/` as the recommended convention so new projects have one obvious place for RPC services, notification contracts, DTOs, and named RPC contract IDs.
@@ -145,9 +166,20 @@ The generated application should include a small vertical slice that demonstrate
 - cluster route registration
 - reliable welcome notification
 - reconnect with pending reliable push replay
-- stable wrapper calling a hotfix rule
+- generated hotfix-backed service binding calling current hotfix code
 
-The generated Chat vertical slice must use the core Lakona.Game runtime model: RPC enters through `IChatService`, stable server code dispatches to `ChatRoomActor` through `IActorRuntime`, and message filtering calls a reloadable Hotfix rule through a stable wrapper. The generated project must not use static mutable process state as the room concurrency model.
+The generated Chat vertical slice must use the core Lakona.Game runtime model:
+RPC enters generated hotfix-backed service binding, the current
+`Server/Hotfix` service implementation talks to the pre-created
+`ChatRoomActor` state shell, and actor behavior remains reloadable through the
+hotfix behavior. The generated project must not use static mutable process
+state as the room concurrency model.
+
+The hotfix Chat feature must declare the fixed local room actor explicitly:
+
+```csharp
+context.EnsureLocalActor<ChatRoomActor>("chat:global");
+```
 
 The user should see Lakona.Game's core capabilities through a working game-server story instead of isolated infrastructure examples.
 
