@@ -74,6 +74,40 @@ public sealed class ServerPackageWriterTests
     }
 
     [Fact]
+    public async Task WritePackageFromPublishedAppAsync_removes_preexisting_hotfix_directory_before_installing_hotfix()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var publishedApp = await CreatePublishedAppAsync(root);
+            Directory.CreateDirectory(Path.Combine(publishedApp, "hotfix"));
+            await File.WriteAllTextAsync(
+                Path.Combine(publishedApp, "hotfix", "reload.signal"),
+                "",
+                TestContext.Current.CancellationToken);
+            var hotfixZip = await CreateHotfixPackageAsync(root, Version, BuildTag);
+
+            var zipPath = await new ServerPackageWriter().WritePackageFromPublishedAppAsync(
+                CreateRequest(
+                    publishedApp,
+                    hotfixZip,
+                    Path.Combine(root, "packages"),
+                    Version,
+                    BuildTag),
+                TestContext.Current.CancellationToken);
+
+            using var archive = ZipFile.OpenRead(zipPath);
+            Assert.DoesNotContain(archive.Entries, entry => entry.FullName == "hotfix/reload.signal");
+            AssertEntryExists(archive, "hotfix/current.txt");
+            AssertEntryExists(archive, "hotfix/versions/v20260623-153045Z/Server.Hotfix.dll");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task WritePackageFromPublishedAppAsync_rejects_build_tag_mismatch()
     {
         var root = CreateTempRoot();
@@ -182,6 +216,20 @@ public sealed class ServerPackageWriterTests
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    [Fact]
+    public void ServerPackageWriter_rejects_unix_and_windows_separator_literals()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "Lakona.Tool",
+            "Server",
+            "ServerPackageWriter.cs"));
+
+        Assert.Contains("value.Contains('/')", source, StringComparison.Ordinal);
+        Assert.Contains("value.Contains('\\\\')", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -310,6 +358,17 @@ public sealed class ServerPackageWriterTests
         var root = Path.Combine(Path.GetTempPath(), "LakonaServerPackageWriterTests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         return root;
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Lakona.slnx")))
+        {
+            directory = directory.Parent;
+        }
+
+        return directory?.FullName ?? throw new InvalidOperationException("Repository root could not be found.");
     }
 
     private static void AssertEntryExists(ZipArchive archive, string entryName)

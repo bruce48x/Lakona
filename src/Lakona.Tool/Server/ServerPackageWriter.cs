@@ -60,6 +60,15 @@ internal sealed class ServerPackageWriter
             CopyDirectory(publishedAppDirectory, stagedApp);
 
             var hotfixRoot = Path.Combine(stagedApp, "hotfix");
+            if (Directory.Exists(hotfixRoot))
+            {
+                Directory.Delete(hotfixRoot, recursive: true);
+            }
+            else if (File.Exists(hotfixRoot))
+            {
+                File.Delete(hotfixRoot);
+            }
+
             var installedVersion = await hotfixInstaller.InstallAsync(
                 hotfixPackagePath,
                 hotfixRoot,
@@ -132,6 +141,8 @@ internal sealed class ServerPackageWriter
     {
         if (Path.IsPathRooted(value)
             || value.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
+            || value.Contains('/')
+            || value.Contains('\\')
             || value.Contains(Path.DirectorySeparatorChar)
             || value.Contains(Path.AltDirectorySeparatorChar)
             || !StringComparer.Ordinal.Equals(Path.GetFileName(value), value)
