@@ -1,7 +1,6 @@
 #nullable enable
 
 using System;
-using Rpc.Generated;
 using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Serializer.MemoryPack;
@@ -11,21 +10,19 @@ namespace Rpc
 {
     public static class KcpRpcClientFactory
     {
-        public static RpcClient Create(string host, int port, RpcClient.RpcNotificationBindings callbacks)
+        public static RpcClientOptions CreateOptions(string host, int port)
         {
-            return new RpcClient(
-                new RpcClientOptions(
-                    new KcpTransport(host, port),
-                    new MemoryPackRpcSerializer())
+            return new RpcClientOptions(
+                new KcpTransport(host, port),
+                new MemoryPackRpcSerializer())
+            {
+                KeepAlive = new RpcKeepAliveOptions
                 {
-                    KeepAlive = new RpcKeepAliveOptions
-                    {
-                        Enabled = true,
-                        Interval = TimeSpan.FromSeconds(2),
-                        Timeout = TimeSpan.FromSeconds(6)
-                    }
-                },
-                callbacks);
+                    Enabled = true,
+                    Interval = TimeSpan.FromSeconds(2),
+                    Timeout = TimeSpan.FromSeconds(6)
+                }
+            };
         }
     }
 }

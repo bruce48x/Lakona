@@ -242,6 +242,7 @@ public sealed class ToolArchitectureScanTests
         var sampleRoot = Path.Combine(repositoryRoot, "samples", "Game.Unity.Agar");
         var readme = File.ReadAllText(Path.Combine(sampleRoot, "README.md"));
         var hotfixServices = ReadAllTextFiles(Path.Combine(sampleRoot, "Server", "Hotfix", "Services"));
+        var clientScripts = ReadAllTextFiles(Path.Combine(sampleRoot, "Client", "Assets", "Scripts"));
 
         Assert.Contains("node-local actor runtime", readme, StringComparison.Ordinal);
         Assert.Contains("RPC service", readme, StringComparison.Ordinal);
@@ -249,6 +250,11 @@ public sealed class ToolArchitectureScanTests
         Assert.Contains("typed selector", readme, StringComparison.Ordinal);
         Assert.Contains("var nodeLocalActors = call.Actors;", hotfixServices, StringComparison.Ordinal);
         Assert.DoesNotContain("var localActors = call.Actors;", hotfixServices, StringComparison.Ordinal);
+        Assert.Contains("[assembly: LakonaGameGenerateClient(\"unity\", \"unity\", \"agar\")]", clientScripts, StringComparison.Ordinal);
+        Assert.DoesNotContain("RpcNotificationBindings", clientScripts, StringComparison.Ordinal);
+        Assert.DoesNotContain("callbacks.Add", clientScripts, StringComparison.Ordinal);
+        Assert.DoesNotContain(".HandshakeAsync(", clientScripts, StringComparison.Ordinal);
+        Assert.DoesNotContain("GameClientHello", clientScripts, StringComparison.Ordinal);
     }
 
     [Fact]

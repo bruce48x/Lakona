@@ -219,12 +219,18 @@ public sealed class AgarHotfixBoundaryTests
             "Gameplay",
             "DotArenaNetworkSession.cs"));
 
-        Assert.False(File.Exists(handshakeShim), "Unity client must use Lakona.Game.Abstractions.Sessions handshake contracts.");
-        Assert.Contains("LakonaGameClient", session, StringComparison.Ordinal);
-        Assert.Contains("_gameClient.HandshakeAsync(_controlConnection.Runtime", session, StringComparison.Ordinal);
-        Assert.Contains("_gameClient.HandshakeAsync(_realtimeConnection.Runtime", session, StringComparison.Ordinal);
-        Assert.DoesNotContain("BindingFlags", session, StringComparison.Ordinal);
-        Assert.DoesNotContain("GetField(\"_runtime\"", session, StringComparison.Ordinal);
+        Assert.False(File.Exists(handshakeShim), "Unity client must use generated LakonaGameClient handshake orchestration.");
+        Assert.Contains("LakonaGameClient? _controlConnection", session, StringComparison.Ordinal);
+        Assert.Contains("LakonaGameClient? _realtimeConnection", session, StringComparison.Ordinal);
+        Assert.Contains("new LakonaGameClient(", session, StringComparison.Ordinal);
+        Assert.Contains("await _controlConnection.ConnectAsync", session, StringComparison.Ordinal);
+        Assert.Contains("await _realtimeConnection.ConnectAsync", session, StringComparison.Ordinal);
+        Assert.Contains("_controlConnection.Api.Shared.Login", session, StringComparison.Ordinal);
+        Assert.Contains("_realtimeConnection.Api.Shared.Battle", session, StringComparison.Ordinal);
+        Assert.DoesNotContain("RpcNotificationBindings", session, StringComparison.Ordinal);
+        Assert.DoesNotContain("callbacks.Add", session, StringComparison.Ordinal);
+        Assert.DoesNotContain("HandshakeAsync", session, StringComparison.Ordinal);
+        Assert.DoesNotContain("GameClientHello", session, StringComparison.Ordinal);
         Assert.DoesNotContain("new RpcMethod<GameClientHello, GameServerHello>(0, 1)", session, StringComparison.Ordinal);
     }
 

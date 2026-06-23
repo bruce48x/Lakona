@@ -1,7 +1,6 @@
 #nullable enable
 
 using System;
-using Rpc.Generated;
 using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Serializer.MemoryPack;
@@ -11,21 +10,19 @@ namespace Rpc
 {
     public static class WebSocketRpcClientFactory
     {
-        public static RpcClient Create(string host, int port, string path, RpcClient.RpcNotificationBindings callbacks)
+        public static RpcClientOptions CreateOptions(string host, int port, string path)
         {
-            return new RpcClient(
-                new RpcClientOptions(
-                    new WsTransport(BuildUrl(host, port, path)),
-                    new MemoryPackRpcSerializer())
+            return new RpcClientOptions(
+                new WsTransport(BuildUrl(host, port, path)),
+                new MemoryPackRpcSerializer())
+            {
+                KeepAlive = new RpcKeepAliveOptions
                 {
-                    KeepAlive = new RpcKeepAliveOptions
-                    {
-                        Enabled = true,
-                        Interval = TimeSpan.FromSeconds(5),
-                        Timeout = TimeSpan.FromSeconds(15)
-                    }
-                },
-                callbacks);
+                    Enabled = true,
+                    Interval = TimeSpan.FromSeconds(5),
+                    Timeout = TimeSpan.FromSeconds(15)
+                }
+            };
         }
 
         public static string BuildUrl(string host, int port, string path)
@@ -44,5 +41,4 @@ namespace Rpc
         }
     }
 }
-
 

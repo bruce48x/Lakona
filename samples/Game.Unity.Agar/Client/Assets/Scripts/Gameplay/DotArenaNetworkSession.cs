@@ -6,20 +6,16 @@ using System.Threading.Tasks;
 using Rpc;
 using Rpc.Generated;
 using Shared.Interfaces;
-using Lakona.Game.Abstractions.Sessions;
-using Lakona.Game.Client;
-using Lakona.Rpc.Client;
 
 namespace SampleClient.Gameplay
 {
     internal sealed class DotArenaNetworkSession
     {
         private readonly Action<Exception?> _onDisconnected;
-        private readonly LakonaGameClient _gameClient = new LakonaGameClient();
-        private RpcClient? _controlConnection;
+        private LakonaGameClient? _controlConnection;
         private ILoginService? _loginService;
         private IPlayerService? _controlPlayerService;
-        private RpcClient? _realtimeConnection;
+        private LakonaGameClient? _realtimeConnection;
         private IBattleService? _battleService;
         private string _playerId = string.Empty;
         private string _token = string.Empty;
@@ -64,20 +60,12 @@ namespace SampleClient.Gameplay
             IsConnecting = true;
             try
             {
-                var callbacks = new RpcClient.RpcNotificationBindings();
-                callbacks.Add((IControlCallback)callback);
-
-                _controlConnection = Rpc.WebSocketRpcClientFactory.Create(host, port, path, callbacks);
+                _controlConnection = new LakonaGameClient(
+                    WebSocketRpcClientFactory.CreateOptions(host, port, path),
+                    callback);
                 _controlConnection.Disconnected += HandleControlDisconnected;
 
-                await _controlConnection.ConnectAsync(cancellationToken);
-                await _gameClient.HandshakeAsync(_controlConnection.Runtime, new GameClientHello
-                {
-                    ClientRuntime = "unity",
-                    Platform = "unity",
-                    GameVersion = "agar"
-                }, cancellationToken).ConfigureAwait(false);
-
+                await _controlConnection.ConnectAsync(cancellationToken).ConfigureAwait(false);
                 _loginService = _controlConnection.Api.Shared.Login;
                 _controlPlayerService = _controlConnection.Api.Shared.Player;
                 var reply = await _loginService.LoginAsync(new LoginRequest
@@ -205,20 +193,12 @@ namespace SampleClient.Gameplay
 
             try
             {
-                var callbacks = new RpcClient.RpcNotificationBindings();
-                callbacks.Add((IBattleCallback)callback);
-
-                _realtimeConnection = Rpc.KcpRpcClientFactory.Create(realtimeConnection.Host, realtimeConnection.Port, callbacks);
+                _realtimeConnection = new LakonaGameClient(
+                    KcpRpcClientFactory.CreateOptions(realtimeConnection.Host, realtimeConnection.Port),
+                    callback);
                 _realtimeConnection.Disconnected += HandleRealtimeDisconnected;
 
                 await _realtimeConnection.ConnectAsync(cancellationToken).ConfigureAwait(false);
-                await _gameClient.HandshakeAsync(_realtimeConnection.Runtime, new GameClientHello
-                {
-                    ClientRuntime = "unity-realtime",
-                    Platform = "unity",
-                    GameVersion = "agar"
-                }, cancellationToken).ConfigureAwait(false);
-
                 _battleService = _realtimeConnection.Api.Shared.Battle;
                 var reply = await _battleService.AttachRealtimeAsync(new RealtimeAttachRequest
                 {

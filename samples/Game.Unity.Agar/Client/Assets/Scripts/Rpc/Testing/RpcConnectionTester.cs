@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Rpc.Generated;
 using Shared.Interfaces;
-using Lakona.Rpc.Client;
 using UnityEngine;
 
 namespace Rpc.Testing
@@ -48,22 +47,15 @@ namespace Rpc.Testing
 
         public float RequestIntervalSeconds = 1f;
         public bool AutoConnect = true;
-        private readonly RpcClient.RpcNotificationBindings _callbacks;
 
         private readonly CancellationTokenSource _cts = new();
         private bool _cleanupStarted;
-        private RpcClient? _connection;
+        private LakonaGameClient? _connection;
         private ILoginService? _login;
         private IPlayerService? _player;
         private string _playerId = string.Empty;
         private Task? _pollingTask;
         private bool _stopped;
-
-        public RpcConnectionTester()
-        {
-            _callbacks = new RpcClient.RpcNotificationBindings();
-            _callbacks.Add(new ControlCallbacks(this));
-        }
 
         private async void Start()
         {
@@ -96,9 +88,11 @@ namespace Rpc.Testing
 
             try
             {
-                _connection = WebSocketRpcClientFactory.Create(_endpoint.Host, _endpoint.Port, _endpoint.Path, _callbacks);
-                await _connection.ConnectAsync(_cts.Token);
+                _connection = new LakonaGameClient(
+                    WebSocketRpcClientFactory.CreateOptions(_endpoint.Host, _endpoint.Port, _endpoint.Path),
+                    new ControlCallbacks(this));
                 _connection.Disconnected += OnDisconnected;
+                await _connection.ConnectAsync(_cts.Token);
                 _login = _connection.Api.Shared.Login;
                 _player = _connection.Api.Shared.Player;
 
@@ -222,13 +216,13 @@ namespace Rpc.Testing
             }
         }
 
-        private sealed class ControlCallbacks : RpcClient.ControlCallbackBase
+        private sealed class ControlCallbacks : IControlCallback
         {
             public ControlCallbacks(RpcConnectionTester owner)
             {
             }
 
-            public override void OnMatchmakingStatus(MatchmakingStatusUpdate matchmakingStatus)
+            public void OnMatchmakingStatus(MatchmakingStatusUpdate matchmakingStatus)
             {
                 Debug.Log($"[WS] Matchmaking state={matchmakingStatus.State}, room={matchmakingStatus.RoomId}, queue={matchmakingStatus.QueuePosition}/{matchmakingStatus.QueueSize}, matched={matchmakingStatus.MatchedPlayerCount}/{matchmakingStatus.RoomCapacity}, message={matchmakingStatus.Message}");
             }
