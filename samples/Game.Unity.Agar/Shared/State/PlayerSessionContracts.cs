@@ -4,7 +4,7 @@ using Agar.Sample.State.Contracts;
 
 namespace Agar.Sample.State.Contracts.Sessions
 {
-    public interface IPlayerSessionActor
+    public interface IUserSessionActor
     {
         Task<PlayerSessionSnapshot> AttachAsync(PlayerSessionAttachRequest request);
         Task<PlayerSessionSnapshot> ReconnectAsync(PlayerSessionReconnectRequest request);

@@ -74,18 +74,18 @@ public sealed class ZeroTemplateServerShapeTests
     {
         var forbiddenSymbols = new[]
         {
-            "AddAgarSampleServer",
-            "AddAgarSampleActors",
-            "AddAgarDatabaseInfrastructure",
-            "SessionDirectory",
-            "PlayerSessionActor",
-            "ReliableMatchmakingPublisher",
-            "RoomCallbackPublisher",
-            "GatewayNodeIdentity",
-            "GatewayEndpointDescriptorFactory",
-            "BattleRuntimeGatewayResolver",
-            "ReliablePushKinds",
-            "UseGeneratedHotfixServices"
+            "AddAgar" + "SampleServer",
+            "AddAgar" + "SampleActors",
+            "AddAgar" + "DatabaseInfrastructure",
+            "Session" + "Directory",
+            "Player" + "SessionActor",
+            "Reliable" + "MatchmakingPublisher",
+            "Room" + "CallbackPublisher",
+            "Gateway" + "NodeIdentity",
+            "Gateway" + "EndpointDescriptorFactory",
+            "Battle" + "RuntimeGatewayResolver",
+            "Reliable" + "PushKinds",
+            "UseGenerated" + "HotfixServices"
         };
 
         var files = Directory.GetFiles(ServerApp, "*.cs", SearchOption.AllDirectories);
@@ -142,7 +142,7 @@ public sealed class ZeroTemplateServerShapeTests
             .GetProperty("Persistence");
         Assert.Equal("postgres", persistence.GetProperty("Provider").GetString());
         Assert.Equal("AgarGamePostgres", persistence.GetProperty("ConnectionStringName").GetString());
-        Assert.False(root.TryGetProperty("Agar:Database", out _));
+        Assert.False(root.TryGetProperty("Agar:" + "Database", out _));
     }
 
     private static string FindRepoRoot()

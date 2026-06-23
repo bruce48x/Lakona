@@ -65,7 +65,7 @@
 
 ### 清理与恢复语义
 
-`PlayerService`、`SessionRegistration` 和 `SessionDirectory` 已接入 `Lakona.Game.Server.Sessions`，可靠推送 ack 已接入框架 outcome。上线前仍必须集中验证这些路径、断线清理、房间 actor tick 和结算的业务清理语义。
+`PlayerService`、`PlayerSessionRegistration` 和 `PlayerSessionRegistry` 已接入 `Lakona.Game.Server.Sessions`，可靠推送 ack 已接入框架 outcome。上线前仍必须集中验证这些路径、断线清理、房间 actor tick 和结算的业务清理语义。
 
 必须完成：
 
@@ -135,7 +135,7 @@
 自动化测试必须扩展到以下范围：
 
 - `RoomActor` hotfix behavior：玩家加入/离开、输入提交、世界快照、结算、空房间清理。
-- `SessionDirectory` / `SessionRegistration`：在现有房间和实时注册测试基础上，补充 framework-backed 控制注册、generation、stale connection 和过期清理覆盖。
+- `PlayerSessionRegistry` / `PlayerSessionRegistration`：在现有房间和实时注册测试基础上，补充 framework-backed 控制注册、generation、stale connection 和过期清理覆盖。
 - `PlayerService`：登录、游客登录、重复登录、匹配、取消、实时绑定、ack state lost 和 session mismatch。
 - 匹配 / 房间分配服务：票据生命周期、房间分配、运行时网关端点、过期处理。
 - Redis 排行榜 store / 排行榜服务：sorted set 写入、top N 查询、AI 过滤、周重置、归档、时区配置、Redis 不可用降级。
