@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Lakona.Game.Abstractions\Lakona.Game.Abstractions.csproj" />
+    <ProjectReference Include="..\Lakona.Rpc.Client\Lakona.Rpc.Client.csproj" />
     <ProjectReference Include="..\Lakona.Rpc.Core\Lakona.Rpc.Core.csproj" />
   </ItemGroup>
 

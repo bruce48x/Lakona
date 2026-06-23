@@ -9,12 +9,12 @@ using Lakona.Rpc.Core;
 
 namespace Lakona.Game.Client
 {
-    public sealed class LakonaGameClient
+    public sealed class LakonaGameClientCore : IAsyncDisposable
     {
         private readonly ClientSessionController _sessions;
         private readonly ReliablePushInbox _reliablePush;
 
-        public LakonaGameClient(IReliablePushCursorStore? cursorStore = null)
+        public LakonaGameClientCore(IReliablePushCursorStore? cursorStore = null)
         {
             _reliablePush = new ReliablePushInbox(cursorStore);
             _sessions = new ClientSessionController(_reliablePush);
@@ -59,6 +59,16 @@ namespace Lakona.Game.Client
             _sessions.MarkConnecting();
         }
 
+        public void MarkReady()
+        {
+            _sessions.MarkReady();
+        }
+
+        public void MarkConnectionFailed(ClientConnectionFailure failure)
+        {
+            _sessions.MarkConnectionFailed(failure);
+        }
+
         public void StartSession(string sessionId, long lastReliableSequence = 0)
         {
             _sessions.StartSession(sessionId, lastReliableSequence);
@@ -68,7 +78,18 @@ namespace Lakona.Game.Client
             string sessionId,
             CancellationToken cancellationToken = default)
         {
+            if (Snapshot.Phase == ClientSessionPhase.ConnectionFailed)
+            {
+                return;
+            }
+
             await _reliablePush.StartSessionAsync(sessionId, cancellationToken).ConfigureAwait(false);
+            if (Snapshot.Phase == ClientSessionPhase.ConnectionFailed)
+            {
+                _reliablePush.Reset();
+                return;
+            }
+
             _sessions.StartSession(sessionId, _reliablePush.LastAppliedSequence);
         }
 
@@ -114,6 +135,11 @@ namespace Lakona.Game.Client
             }
 
             return result;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            return default;
         }
     }
 }

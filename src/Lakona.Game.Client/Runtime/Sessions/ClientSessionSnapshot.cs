@@ -6,12 +6,14 @@ namespace Lakona.Game.Client.Sessions
             ClientSessionPhase phase,
             string? sessionId,
             long lastReliableSequence,
-            Lakona.Game.Abstractions.SessionTerminationNotice? termination = null)
+            Lakona.Game.Abstractions.SessionTerminationNotice? termination = null,
+            ClientConnectionFailure? failure = null)
         {
             Phase = phase;
             SessionId = sessionId;
             LastReliableSequence = lastReliableSequence;
             Termination = termination;
+            Failure = failure;
         }
 
         public ClientSessionPhase Phase { get; }
@@ -21,5 +23,7 @@ namespace Lakona.Game.Client.Sessions
         public long LastReliableSequence { get; }
 
         public Lakona.Game.Abstractions.SessionTerminationNotice? Termination { get; }
+
+        public ClientConnectionFailure? Failure { get; }
     }
 }

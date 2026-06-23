@@ -24,13 +24,44 @@ namespace Lakona.Game.Client.Sessions
             }
         }
 
+        public void MarkReady()
+        {
+            if (Snapshot.Phase == ClientSessionPhase.Connecting)
+            {
+                SetPhase(ClientSessionPhase.Ready);
+            }
+        }
+
+        public void MarkConnectionFailed(ClientConnectionFailure failure)
+        {
+            if (failure == null)
+            {
+                throw new ArgumentNullException(nameof(failure));
+            }
+
+            _reliablePushInbox.Reset();
+            Snapshot = new ClientSessionSnapshot(
+                ClientSessionPhase.ConnectionFailed,
+                null,
+                0,
+                null,
+                failure);
+        }
+
         public void StartSession(string sessionId, long lastReliableSequence = 0)
         {
+            if (Snapshot.Phase == ClientSessionPhase.ConnectionFailed)
+            {
+                return;
+            }
+
             _reliablePushInbox.StartSession(sessionId, lastReliableSequence);
             Snapshot = new ClientSessionSnapshot(
                 ClientSessionPhase.Active,
                 sessionId,
-                _reliablePushInbox.LastAppliedSequence);
+                _reliablePushInbox.LastAppliedSequence,
+                null,
+                null);
         }
 
         public void MarkReconnecting()
@@ -76,19 +107,19 @@ namespace Lakona.Game.Client.Sessions
             }
 
             _reliablePushInbox.Reset();
-            Snapshot = new ClientSessionSnapshot(ClientSessionPhase.Terminated, null, 0, notice);
+            Snapshot = new ClientSessionSnapshot(ClientSessionPhase.Terminated, null, 0, notice, null);
         }
 
         public void MarkStateLost()
         {
             _reliablePushInbox.Reset();
-            Snapshot = new ClientSessionSnapshot(ClientSessionPhase.StateLost, null, 0);
+            Snapshot = new ClientSessionSnapshot(ClientSessionPhase.StateLost, null, 0, null, null);
         }
 
         public void EndSession()
         {
             _reliablePushInbox.Reset();
-            Snapshot = new ClientSessionSnapshot(ClientSessionPhase.SignedOut, null, 0);
+            Snapshot = new ClientSessionSnapshot(ClientSessionPhase.SignedOut, null, 0, null, null);
         }
 
         private void SetPhase(ClientSessionPhase phase)
@@ -97,12 +128,15 @@ namespace Lakona.Game.Client.Sessions
                 phase,
                 Snapshot.SessionId,
                 _reliablePushInbox.LastAppliedSequence,
-                Snapshot.Termination);
+                Snapshot.Termination,
+                null);
         }
 
         private static bool IsTerminalPhase(ClientSessionPhase phase)
         {
-            return phase is ClientSessionPhase.StateLost or ClientSessionPhase.Terminated;
+            return phase is ClientSessionPhase.StateLost
+                or ClientSessionPhase.Terminated
+                or ClientSessionPhase.ConnectionFailed;
         }
     }
 }

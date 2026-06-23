@@ -4,10 +4,12 @@ namespace Lakona.Game.Client.Sessions
     {
         SignedOut,
         Connecting,
+        Ready,
         Active,
         Reconnecting,
         RefreshRequired,
         StateLost,
-        Terminated
+        Terminated,
+        ConnectionFailed
     }
 }
