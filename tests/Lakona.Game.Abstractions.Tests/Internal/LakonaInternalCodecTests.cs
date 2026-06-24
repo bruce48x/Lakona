@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Text;
 using Lakona.Game.Abstractions;
 using Lakona.Game.Abstractions.Sessions;
 using Xunit;
@@ -7,13 +8,13 @@ namespace Lakona.Game.Abstractions.Tests.Internal;
 
 public sealed class LakonaInternalCodecTests
 {
-    private const int Magic = 0x4C414B47;
-    private const int CodecVersion = 1;
-    private const int GameClientHelloKind = 1;
-    private const int GameServerHelloKind = 2;
-    private const int GameHeartbeatRequestKind = 3;
-    private const int GameHeartbeatReplyKind = 4;
-    private const int ReliablePushAckRequestKind = 5;
+    private const int Magic = 0x4C4B4943;
+    private const byte CodecVersion = 1;
+    private const byte GameClientHelloKind = 1;
+    private const byte GameServerHelloKind = 2;
+    private const byte GameHeartbeatRequestKind = 3;
+    private const byte GameHeartbeatReplyKind = 4;
+    private const byte ReliablePushAckRequestKind = 5;
 
     [Fact]
     public void GameClientHello_roundtrips_with_all_fields()
@@ -30,7 +31,8 @@ public sealed class LakonaInternalCodecTests
             SupportedCapabilities = new List<string> { "resume", "reliable-push" },
         };
 
-        var decoded = Decode<GameClientHello>(Encode(hello));
+        var decoded = LakonaInternalCodec.DecodeGameClientHello(
+            LakonaInternalCodec.EncodeGameClientHello(hello));
 
         Assert.Equal(hello.ProtocolVersionMin, decoded.ProtocolVersionMin);
         Assert.Equal(hello.ProtocolVersionMax, decoded.ProtocolVersionMax);
@@ -63,7 +65,8 @@ public sealed class LakonaInternalCodecTests
             ServerCapabilities = new List<string> { "heartbeat", "replay" },
         };
 
-        var decoded = Decode<GameServerHello>(Encode(hello));
+        var decoded = LakonaInternalCodec.DecodeGameServerHello(
+            LakonaInternalCodec.EncodeGameServerHello(hello));
 
         Assert.Equal(hello.SelectedProtocolVersion, decoded.SelectedProtocolVersion);
         Assert.Equal(hello.ServerNodeId, decoded.ServerNodeId);
@@ -78,6 +81,17 @@ public sealed class LakonaInternalCodecTests
         Assert.Equal(hello.ServerCapabilities, decoded.ServerCapabilities);
     }
 
+    [Fact]
+    public void GameHeartbeatRequest_roundtrips_protocol_version()
+    {
+        var request = new GameHeartbeatRequest { ProtocolVersion = 1 };
+
+        var decoded = LakonaInternalCodec.DecodeGameHeartbeatRequest(
+            LakonaInternalCodec.EncodeGameHeartbeatRequest(request));
+
+        Assert.Equal(request.ProtocolVersion, decoded.ProtocolVersion);
+    }
+
     [Theory]
     [InlineData(GameHeartbeatStatus.Ok)]
     [InlineData(GameHeartbeatStatus.StateLost)]
@@ -90,7 +104,8 @@ public sealed class LakonaInternalCodecTests
             Message = status == GameHeartbeatStatus.Ok ? null : "session state changed",
         };
 
-        var decoded = Decode<GameHeartbeatReply>(Encode(reply));
+        var decoded = LakonaInternalCodec.DecodeGameHeartbeatReply(
+            LakonaInternalCodec.EncodeGameHeartbeatReply(reply));
 
         Assert.Equal(reply.Status, decoded.Status);
         Assert.Equal(reply.Message, decoded.Message);
@@ -101,7 +116,8 @@ public sealed class LakonaInternalCodecTests
     {
         var request = new ReliablePushAckRequest("session-123", 42);
 
-        var decoded = Decode<ReliablePushAckRequest>(Encode(request));
+        var decoded = LakonaInternalCodec.DecodeReliablePushAckRequest(
+            LakonaInternalCodec.EncodeReliablePushAckRequest(request));
 
         Assert.Equal(request.SessionId, decoded.SessionId);
         Assert.Equal(request.Sequence, decoded.Sequence);
@@ -117,7 +133,8 @@ public sealed class LakonaInternalCodecTests
     {
         var outcome = new ReliablePushAckOutcome(status, 42, status == ReliablePushAckStatus.Accepted ? null : "ack rejected");
 
-        var decoded = Decode<ReliablePushAckOutcome>(Encode(outcome));
+        var decoded = LakonaInternalCodec.DecodeReliablePushAckOutcome(
+            LakonaInternalCodec.EncodeReliablePushAckOutcome(outcome));
 
         Assert.Equal(outcome.Status, decoded.Status);
         Assert.Equal(outcome.Sequence, decoded.Sequence);
@@ -139,7 +156,8 @@ public sealed class LakonaInternalCodecTests
             "closed",
             new DateTimeOffset(2026, 6, 24, 11, 0, 0, TimeSpan.Zero));
 
-        var decoded = Decode<SessionTerminationNotice>(Encode(notice));
+        var decoded = LakonaInternalCodec.DecodeSessionTerminationNotice(
+            LakonaInternalCodec.EncodeSessionTerminationNotice(notice));
 
         Assert.Equal(notice.Reason, decoded.Reason);
         Assert.Equal(notice.Message, decoded.Message);
@@ -149,28 +167,28 @@ public sealed class LakonaInternalCodecTests
     [Fact]
     public void Decode_rejects_wrong_magic()
     {
-        var payload = Encode(new GameHeartbeatReply());
-        WriteInt32BigEndian(payload, 0, 0x58414B47);
+        var payload = LakonaInternalCodec.EncodeGameHeartbeatReply(new GameHeartbeatReply());
+        WriteInt32BigEndian(payload, 0, 0x584B4943);
 
-        Assert.Throws<FormatException>(() => Decode<GameHeartbeatReply>(payload));
+        Assert.Throws<FormatException>(() => LakonaInternalCodec.DecodeGameHeartbeatReply(payload));
     }
 
     [Fact]
     public void Decode_rejects_wrong_message_kind()
     {
-        var payload = Encode(new GameHeartbeatReply());
-        WriteInt32BigEndian(payload, 8, GameClientHelloKind);
+        var payload = LakonaInternalCodec.EncodeGameHeartbeatReply(new GameHeartbeatReply());
+        payload[5] = GameClientHelloKind;
 
-        Assert.Throws<FormatException>(() => Decode<GameHeartbeatReply>(payload));
+        Assert.Throws<FormatException>(() => LakonaInternalCodec.DecodeGameHeartbeatReply(payload));
     }
 
     [Fact]
     public void Decode_rejects_trailing_bytes()
     {
-        var payload = Encode(new GameHeartbeatReply());
+        var payload = LakonaInternalCodec.EncodeGameHeartbeatReply(new GameHeartbeatReply());
         var withTrailingByte = payload.Concat(new byte[] { 0x7F }).ToArray();
 
-        Assert.Throws<FormatException>(() => Decode<GameHeartbeatReply>(withTrailingByte));
+        Assert.Throws<FormatException>(() => LakonaInternalCodec.DecodeGameHeartbeatReply(withTrailingByte));
     }
 
     [Fact]
@@ -178,7 +196,8 @@ public sealed class LakonaInternalCodecTests
     {
         var outcome = ReliablePushAckOutcome.StateRefreshRequired("resync");
 
-        var decoded = Decode<ReliablePushAckOutcome>(Encode(outcome));
+        var decoded = LakonaInternalCodec.DecodeReliablePushAckOutcome(
+            LakonaInternalCodec.EncodeReliablePushAckOutcome(outcome));
 
         Assert.Equal(ReliablePushAckStatus.StateRefreshRequired, decoded.Status);
         Assert.Equal(0, decoded.Sequence);
@@ -188,19 +207,20 @@ public sealed class LakonaInternalCodecTests
     [Fact]
     public void Decode_rejects_unsupported_codec_version()
     {
-        var payload = Encode(new GameHeartbeatReply());
-        WriteInt32BigEndian(payload, 4, CodecVersion + 1);
+        var payload = LakonaInternalCodec.EncodeGameHeartbeatReply(new GameHeartbeatReply());
+        payload[4] = (byte)(CodecVersion + 1);
 
-        Assert.Throws<FormatException>(() => Decode<GameHeartbeatReply>(payload));
+        Assert.Throws<FormatException>(() => LakonaInternalCodec.DecodeGameHeartbeatReply(payload));
     }
 
     [Fact]
     public void Decode_rejects_truncated_payload()
     {
-        var payload = Encode(new GameHeartbeatReply { Status = GameHeartbeatStatus.Terminated, Message = "closed" });
+        var payload = LakonaInternalCodec.EncodeGameHeartbeatReply(
+            new GameHeartbeatReply { Status = GameHeartbeatStatus.Terminated, Message = "closed" });
         var truncated = payload[..^1];
 
-        Assert.Throws<FormatException>(() => Decode<GameHeartbeatReply>(truncated));
+        Assert.Throws<FormatException>(() => LakonaInternalCodec.DecodeGameHeartbeatReply(truncated));
     }
 
     [Fact]
@@ -212,7 +232,7 @@ public sealed class LakonaInternalCodecTests
             WriteInt32BigEndian(builder, -2);
         });
 
-        Assert.Throws<FormatException>(() => Decode<GameHeartbeatReply>(payload));
+        Assert.Throws<FormatException>(() => LakonaInternalCodec.DecodeGameHeartbeatReply(payload));
     }
 
     [Fact]
@@ -224,7 +244,7 @@ public sealed class LakonaInternalCodecTests
             WriteInt32BigEndian(builder, 1024 * 1024 + 1);
         });
 
-        Assert.Throws<FormatException>(() => Decode<GameHeartbeatReply>(payload));
+        Assert.Throws<FormatException>(() => LakonaInternalCodec.DecodeGameHeartbeatReply(payload));
     }
 
     [Fact]
@@ -242,7 +262,7 @@ public sealed class LakonaInternalCodecTests
             WriteInt32BigEndian(builder, 1024 * 1024 + 1);
         });
 
-        Assert.Throws<FormatException>(() => Decode<GameClientHello>(payload));
+        Assert.Throws<FormatException>(() => LakonaInternalCodec.DecodeGameClientHello(payload));
     }
 
     [Fact]
@@ -263,7 +283,7 @@ public sealed class LakonaInternalCodecTests
             WriteInt32BigEndian(builder, 0);
         });
 
-        Assert.Throws<FormatException>(() => Decode<GameServerHello>(payload));
+        Assert.Throws<FormatException>(() => LakonaInternalCodec.DecodeGameServerHello(payload));
     }
 
     [Fact]
@@ -275,7 +295,7 @@ public sealed class LakonaInternalCodecTests
             WriteInt32BigEndian(builder, -1);
         });
 
-        Assert.Throws<FormatException>(() => Decode<GameHeartbeatReply>(payload));
+        Assert.Throws<FormatException>(() => LakonaInternalCodec.DecodeGameHeartbeatReply(payload));
     }
 
     [Fact]
@@ -283,7 +303,7 @@ public sealed class LakonaInternalCodecTests
     {
         var payload = CreatePayload(GameHeartbeatRequestKind, builder => WriteInt32BigEndian(builder, 0));
 
-        Assert.Throws<FormatException>(() => Decode<GameHeartbeatRequest>(payload));
+        Assert.Throws<FormatException>(() => LakonaInternalCodec.DecodeGameHeartbeatRequest(payload));
     }
 
     [Theory]
@@ -297,25 +317,15 @@ public sealed class LakonaInternalCodecTests
             WriteInt64BigEndian(builder, sequence);
         });
 
-        Assert.Throws<FormatException>(() => Decode<ReliablePushAckRequest>(payload));
+        Assert.Throws<FormatException>(() => LakonaInternalCodec.DecodeReliablePushAckRequest(payload));
     }
 
-    private static byte[] Encode<T>(T message)
-    {
-        return LakonaInternalCodec.Encode(message);
-    }
-
-    private static T Decode<T>(byte[] payload)
-    {
-        return LakonaInternalCodec.Decode<T>(payload);
-    }
-
-    private static byte[] CreatePayload(int messageKind, Action<List<byte>> writePayload)
+    private static byte[] CreatePayload(byte messageKind, Action<List<byte>> writePayload)
     {
         var payload = new List<byte>();
         WriteInt32BigEndian(payload, Magic);
-        WriteInt32BigEndian(payload, CodecVersion);
-        WriteInt32BigEndian(payload, messageKind);
+        payload.Add(CodecVersion);
+        payload.Add(messageKind);
         writePayload(payload);
         return payload.ToArray();
     }
@@ -328,27 +338,32 @@ public sealed class LakonaInternalCodecTests
             return;
         }
 
-        var bytes = System.Text.Encoding.UTF8.GetBytes(value);
+        var bytes = Encoding.UTF8.GetBytes(value);
         WriteInt32BigEndian(payload, bytes.Length);
         payload.AddRange(bytes);
     }
 
     private static void WriteInt32BigEndian(List<byte> payload, int value)
     {
-        Span<byte> buffer = stackalloc byte[sizeof(int)];
-        BinaryPrimitives.WriteInt32BigEndian(buffer, value);
-        payload.AddRange(buffer.ToArray());
-    }
-
-    private static void WriteInt32BigEndian(byte[] payload, int offset, int value)
-    {
-        BinaryPrimitives.WriteInt32BigEndian(payload.AsSpan(offset, sizeof(int)), value);
+        var bytes = new byte[sizeof(int)];
+        WriteInt32BigEndian(bytes, 0, value);
+        payload.AddRange(bytes);
     }
 
     private static void WriteInt64BigEndian(List<byte> payload, long value)
     {
-        Span<byte> buffer = stackalloc byte[sizeof(long)];
-        BinaryPrimitives.WriteInt64BigEndian(buffer, value);
-        payload.AddRange(buffer.ToArray());
+        var bytes = new byte[sizeof(long)];
+        WriteInt64BigEndian(bytes, 0, value);
+        payload.AddRange(bytes);
+    }
+
+    private static void WriteInt32BigEndian(byte[] bytes, int offset, int value)
+    {
+        BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(offset, sizeof(int)), value);
+    }
+
+    private static void WriteInt64BigEndian(byte[] bytes, int offset, long value)
+    {
+        BinaryPrimitives.WriteInt64BigEndian(bytes.AsSpan(offset, sizeof(long)), value);
     }
 }
