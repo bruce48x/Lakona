@@ -1,8 +1,13 @@
 using System.Text.Json;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Hosting;
+using Lakona.Rpc.Core;
+using Lakona.Rpc.Serializer.Json;
 using Lakona.Rpc.Serializer.MemoryPack;
 using MemoryPack;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests;
@@ -70,6 +75,62 @@ public sealed partial class TypedActorDispatcherTests
     }
 
     [Fact]
+    public async Task Typed_actor_handler_uses_cluster_backed_json_remote_actor_serializer()
+    {
+        using var provider = CreateClusterProvider("json", new MemoryPackRpcSerializer());
+        var runtime = new RecordingActorRuntime();
+        var serializer = provider.GetRequiredService<IRemoteActorSerializer>();
+        var router = new RecordingClusterRouter();
+        var handler = new RoomActorClusterHandler(runtime, serializer, router);
+        var request = new JoinRoomRequest("player-3");
+        var message = new ClusterActorEnvelope(
+            ClusterActorRouteKeys.ForActor("room/44"),
+            "room/44",
+            "join",
+            serializer.Serialize(request),
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            new NodeId("node-a"),
+            correlationId: "corr-3",
+            replyCorrelationId: "reply-3").ToClusterMessage();
+
+        var status = await handler.HandleAsync(message, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.Accepted, status);
+        Assert.Equal("player-3", runtime.Actor.LastPlayerId);
+        Assert.NotNull(router.LastMessage);
+        var reply = new JsonRpcSerializer().Deserialize<JoinRoomReply>(router.LastMessage.Payload);
+        Assert.True(reply.Accepted);
+    }
+
+    [Fact]
+    public async Task Typed_actor_handler_uses_cluster_backed_memorypack_remote_actor_serializer()
+    {
+        using var provider = CreateClusterProvider("memorypack", new JsonRpcSerializer());
+        var runtime = new RecordingActorRuntime();
+        var serializer = provider.GetRequiredService<IRemoteActorSerializer>();
+        var router = new RecordingClusterRouter();
+        var handler = new RoomActorClusterHandler(runtime, serializer, router);
+        var request = new MemoryPackJoinRoomRequest { PlayerId = "player-4" };
+        var message = new ClusterActorEnvelope(
+            ClusterActorRouteKeys.ForActor("room/45"),
+            "room/45",
+            "join-memorypack",
+            serializer.Serialize(request),
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            new NodeId("node-a"),
+            correlationId: "corr-4",
+            replyCorrelationId: "reply-4").ToClusterMessage();
+
+        var status = await handler.HandleAsync(message, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.Accepted, status);
+        Assert.Equal("player-4", runtime.Actor.LastPlayerId);
+        Assert.NotNull(router.LastMessage);
+        var reply = new MemoryPackRpcSerializer().Deserialize<MemoryPackJoinRoomReply>(router.LastMessage.Payload);
+        Assert.True(reply.Accepted);
+    }
+
+    [Fact]
     public async Task Typed_actor_handler_rejects_unknown_method()
     {
         var handler = new RoomActorClusterHandler(
@@ -129,6 +190,23 @@ public sealed partial class TypedActorDispatcherTests
     }
 
     private readonly record struct TypedDispatcherRoomId(string Value);
+
+    private static ServiceProvider CreateClusterProvider(string clusterSerializer, IRpcSerializer laterSerializer)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "data-1" },
+            Cluster = new LakonaGameClusterOptions
+            {
+                Endpoint = "tcp://127.0.0.1:21001",
+                Serializer = clusterSerializer
+            }
+        });
+        services.AddLakonaGameClusterEndpoint();
+        services.AddSingleton(laterSerializer);
+        return services.BuildServiceProvider();
+    }
 
     private sealed class RoomActorClusterHandler : IClusterMessageHandler
     {
