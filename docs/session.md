@@ -218,6 +218,25 @@ does not follow `Lakona:Cluster:Serializer`; the cluster serializer is for
 node-to-node cluster, feature-message, notification-relay, and remote actor
 payloads.
 
+`LakonaInternalCodec` is the framework-owned v1 payload codec for
+Lakona.Game control messages. It covers `GameClientHello`, `GameServerHello`,
+`GameHeartbeatRequest`, `GameHeartbeatReply`, `ReliablePushAckRequest`,
+`ReliablePushAckOutcome`, and `SessionTerminationNotice`. New Lakona.Game
+framework-internal payloads must add an explicit codec kind and layout instead
+of routing DTOs through endpoint `IRpcSerializer`.
+
+`Lakona.Game.Abstractions` must remain free of concrete serializer package
+dependencies such as `Lakona.Rpc.Serializer.Json`,
+`Lakona.Rpc.Serializer.MemoryPack`, `MemoryPack`, or
+`MemoryPack.Generator`. Framework-control DTOs must not require user projects
+to add JSON converters or MemoryPack attributes. Malformed framework-internal
+request payloads are protocol-level bad requests (`RpcStatus.BadRequest`), not
+business failures.
+
+Service id `0` is reserved for Lakona.Game framework-internal calls and
+notifications. Generated business RPC contracts must use positive service ids
+outside that reserved range.
+
 Business RPC before a completed handshake is rejected with a structured
 `HandshakeRequired` failure. `ServerHello` sends resolved public capabilities,
 not raw `appsettings.json`. Capabilities include selected protocol version,

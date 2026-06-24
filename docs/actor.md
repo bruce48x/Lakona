@@ -124,10 +124,25 @@ internals and boundary services.
 Remote actor request and reply payloads use the cluster serializer selected by
 `Lakona:Cluster:Serializer`. They do not use the client-facing endpoint
 serializer unless that endpoint happens to use the same serializer. The
-actor-facing `IRemoteActorSerializer` abstraction should default to an adapter
-over the configured cluster `IRpcSerializer`, so a project generated with
-`--serializer memorypack` uses MemoryPack for remote actor payloads as well as
-cluster RPC payloads.
+actor-facing `IRemoteActorSerializer` abstraction defaults to an adapter over
+the configured cluster `IRpcSerializer` when active cluster endpoint wiring is
+used, so a project generated with `--serializer memorypack` uses MemoryPack for
+remote actor payloads as well as cluster RPC payloads.
+
+The default `RpcRemoteActorSerializer` is registered by active cluster endpoint
+wiring, not by `AddLakonaGameServerActors()`. Direct
+`AddLakonaGameServerActors()` usage is process-local: it installs the actor
+runtime and local actor services, but it does not register a default
+`IRemoteActorSerializer` or a cluster `IRpcSerializer`. Hosts that bypass the
+normal game server or cluster endpoint wiring and still use generated
+non-local actor references must explicitly register compatible remote actor
+serialization, cluster routing, directory, and transport-client services.
+
+A custom `IRemoteActorSerializer` can intentionally override the built-in
+adapter, but then the project owns cross-node compatibility for every generated
+remote actor request and reply payload. When the cluster serializer is
+`memorypack`, those user-defined actor payload DTOs must be
+MemoryPack-serializable.
 
 ## Actor Key Model
 
