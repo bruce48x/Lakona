@@ -15,33 +15,33 @@ Always read `CONTRIBUTING.md` first. It is the repository authority for package 
 
 When the failure involves project generation architecture, read `docs/tool/lakona-tool-generation-architecture.md` before proposing fixes.
 
-If comparing with existing broad E2E behavior, read `.claude/skills/lakona-e2e-testing/SKILL.md`, but prefer this skill for local NuGet feed verification.
+If comparing with existing broad E2E behavior, read `.Codex/skills/lakona-e2e-testing/SKILL.md`, but prefer this skill for local NuGet feed verification.
 
 ## Wrapper
 
 Use the bundled script as the default entry point:
 
 ```powershell
-.\.claude\skills\lakona-local-package-e2e\scripts\run-local-package-e2e.ps1
+.\.Codex\skills\lakona-local-package-e2e\scripts\run-local-package-e2e.ps1
 ```
 
 Common runs:
 
 ```powershell
 # Default smoke: Godot + websocket + memorypack, scaffold, server build, and runtime RPC verification.
-.\.claude\skills\lakona-local-package-e2e\scripts\run-local-package-e2e.ps1
+.\.Codex\skills\lakona-local-package-e2e\scripts\run-local-package-e2e.ps1
 
 # One Unity-facing generated project build.
-.\.claude\skills\lakona-local-package-e2e\scripts\run-local-package-e2e.ps1 -Engine unity -Transport kcp -Serializer memorypack
+.\.Codex\skills\lakona-local-package-e2e\scripts\run-local-package-e2e.ps1 -Engine unity -Transport kcp -Serializer memorypack
 
 # Explicit build-only smoke when investigating scaffold/build failures.
-.\.claude\skills\lakona-local-package-e2e\scripts\run-local-package-e2e.ps1 -SkipRuntime
+.\.Codex\skills\lakona-local-package-e2e\scripts\run-local-package-e2e.ps1 -SkipRuntime
 
 # Full matrix. Use only when the user asks for release-grade confidence or the change has broad blast radius.
-.\.claude\skills\lakona-local-package-e2e\scripts\run-local-package-e2e.ps1 -Engine all -Transport all -Serializer all
+.\.Codex\skills\lakona-local-package-e2e\scripts\run-local-package-e2e.ps1 -Engine all -Transport all -Serializer all
 
 # Keep generated scaffolds for inspection.
-.\.claude\skills\lakona-local-package-e2e\scripts\run-local-package-e2e.ps1 -KeepScaffolds
+.\.Codex\skills\lakona-local-package-e2e\scripts\run-local-package-e2e.ps1 -KeepScaffolds
 ```
 
 The wrapper:

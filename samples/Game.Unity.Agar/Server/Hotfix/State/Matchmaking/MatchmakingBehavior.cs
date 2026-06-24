@@ -63,18 +63,16 @@ public static class MatchmakingBehavior
             UserId = userId,
             SessionToken = request.SessionToken,
             EnqueuedAtUtc = enqueuedAtUtc,
-            QueueId = self.State.QueueId,
+            QueueId = GetQueueId(self),
             Priority = request.Priority
         };
 
         self.State.PendingTickets.Add(ticket);
         SortQueue(self);
-        self.State.LastUpdatedAtUtc = enqueuedAtUtc;
-
         await MarkQueuedAsync(self, new PlayerSessionQueueRequest
         {
             UserId = userId,
-            QueueId = self.State.QueueId,
+            QueueId = GetQueueId(self),
             TicketId = ticket.TicketId,
             QueuedAtUtc = enqueuedAtUtc
         }).ConfigureAwait(false);
@@ -127,8 +125,6 @@ public static class MatchmakingBehavior
 
         var ticket = self.State.PendingTickets[index];
         self.State.PendingTickets.RemoveAt(index);
-        self.State.LastUpdatedAtUtc = cancelledAtUtc;
-
         await ClearQueueAsync(self, new PlayerSessionQueueClearRequest
         {
             UserId = userId,
@@ -154,12 +150,9 @@ public static class MatchmakingBehavior
         EnsureState(self);
         return new ValueTask<MatchmakingStatusSnapshot>(new MatchmakingStatusSnapshot
         {
-            QueueId = self.State.QueueId,
+            QueueId = GetQueueId(self),
             DefaultRoomSize = self.State.DefaultRoomSize,
             QueuedCount = self.State.PendingTickets.Count,
-            LastMatchId = self.State.LastMatchId,
-            LastRoomId = self.State.LastRoomId,
-            LastUpdatedAtUtc = self.State.LastUpdatedAtUtc,
             PendingTickets = self.State.PendingTickets.Select(CloneTicket).ToList()
         });
     }
@@ -265,9 +258,6 @@ public static class MatchmakingBehavior
                     assignments[playerAssignment.UserId] = roomAssignment;
                 }
 
-                self.State.LastMatchId = matchId;
-                self.State.LastRoomId = roomId;
-                self.State.LastUpdatedAtUtc = nowUtc;
             }
             catch
             {
@@ -392,11 +382,6 @@ public static class MatchmakingBehavior
     {
         if (self.RecordExists)
         {
-            if (string.IsNullOrWhiteSpace(self.State.QueueId))
-            {
-                self.State.QueueId = self.Context.Id.Value;
-            }
-
             if (self.State.DefaultRoomSize <= 0)
             {
                 self.State.DefaultRoomSize = MatchmakingActor.DefaultRoomSize;
@@ -407,12 +392,12 @@ public static class MatchmakingBehavior
 
         self.State = new MatchmakingState
         {
-            QueueId = self.Context.Id.Value,
-            DefaultRoomSize = MatchmakingActor.DefaultRoomSize,
-            LastUpdatedAtUtc = DateTime.UtcNow
+            DefaultRoomSize = MatchmakingActor.DefaultRoomSize
         };
         self.RecordExists = true;
     }
+
+    private static string GetQueueId(MatchmakingActor self) => self.Context.Id.Value;
 
     private static int GetQueuePosition(MatchmakingActor self, string ticketId)
     {

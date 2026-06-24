@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using Agar.Sample.State.Contracts;
 using Agar.Sample.State.Contracts.Sessions;
 using Agar.Sample.State.Contracts.Rooms;
@@ -68,23 +67,6 @@ namespace Agar.Sample.State.Contracts.Matchmaking
         public DateTime UpdatedAtUtc { get; set; }
     }
 
-    public sealed class MatchmakingStatusSnapshot
-    {
-        public string QueueId { get; set; } = "";
-
-        public int DefaultRoomSize { get; set; } = 10;
-
-        public int QueuedCount { get; set; }
-
-        public string LastMatchId { get; set; } = "";
-
-        public string LastRoomId { get; set; } = "";
-
-        public DateTime LastUpdatedAtUtc { get; set; }
-
-        public List<MatchmakingQueueTicket> PendingTickets { get; set; } = new();
-    }
-
     public sealed class MatchmakingQueueTicket
     {
         public string TicketId { get; set; } = "";
@@ -102,17 +84,9 @@ namespace Agar.Sample.State.Contracts.Matchmaking
 
     public sealed class MatchmakingState
     {
-        public string QueueId { get; set; } = "";
-
         public int DefaultRoomSize { get; set; } = 10;
 
         public List<MatchmakingQueueTicket> PendingTickets { get; set; } = new();
-
-        public string LastMatchId { get; set; } = "";
-
-        public string LastRoomId { get; set; } = "";
-
-        public DateTime LastUpdatedAtUtc { get; set; }
     }
 
     public sealed class RoomAssignment
