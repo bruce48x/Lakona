@@ -472,7 +472,11 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
                 throw new InvalidOperationException("RPC methods and notifications must declare exactly one DTO payload parameter.");
 
             return parameters
-                .Select(static parameter => new RpcParameterModel(TypeName(parameter.Type), parameter.Name))
+                .Select(static parameter => new RpcParameterModel(
+                    TypeName(parameter.Type),
+                    parameter.Name,
+                    isCancellationToken: IsCancellationToken(parameter.Type),
+                    hasDefaultValue: parameter.IsOptional || parameter.HasExplicitDefaultValue))
                 .ToList();
         }
 
@@ -485,7 +489,11 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
                 throw new InvalidOperationException("RPC notifications may only use CancellationToken as their optional second parameter.");
 
             return parameters
-                .Select(static parameter => new RpcParameterModel(TypeName(parameter.Type), parameter.Name))
+                .Select(static parameter => new RpcParameterModel(
+                    TypeName(parameter.Type),
+                    parameter.Name,
+                    isCancellationToken: IsCancellationToken(parameter.Type),
+                    hasDefaultValue: parameter.IsOptional || parameter.HasExplicitDefaultValue))
                 .ToList();
         }
 
@@ -1193,6 +1201,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             RpcNotificationMethodModel method)
         {
             return method.ReturnsValueTask &&
+                method.HasTrailingDefaultCancellationToken &&
                 string.Equals(
                     NormalizeGlobalName(service.NotificationContractFullName),
                     "Lakona.Game.Abstractions.ILakonaGameSessionCallback",
@@ -1374,21 +1383,31 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
         public int MethodId { get; }
         public List<RpcParameterModel> Parameters { get; }
         public bool ReturnsValueTask { get; }
-        public bool AcceptsCancellationToken => Parameters.Count == 2;
+        public bool AcceptsCancellationToken => Parameters.Count == 2 && Parameters[1].IsCancellationToken;
+        public bool HasTrailingDefaultCancellationToken =>
+            AcceptsCancellationToken && Parameters[1].HasDefaultValue;
         public string PayloadType => Parameters[0].TypeName;
         public string PayloadValue => Parameters[0].Name;
     }
 
     private sealed class RpcParameterModel
     {
-        public RpcParameterModel(string typeName, string name)
+        public RpcParameterModel(
+            string typeName,
+            string name,
+            bool isCancellationToken,
+            bool hasDefaultValue)
         {
             TypeName = typeName;
             Name = name;
+            IsCancellationToken = isCancellationToken;
+            HasDefaultValue = hasDefaultValue;
         }
 
         public string TypeName { get; }
         public string Name { get; }
+        public bool IsCancellationToken { get; }
+        public bool HasDefaultValue { get; }
     }
 
     private sealed class FacadeGroupModel
