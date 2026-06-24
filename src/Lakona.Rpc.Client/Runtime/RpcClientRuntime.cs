@@ -217,6 +217,50 @@ namespace Lakona.Rpc.Client
             }
         }
 
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+        public async ValueTask<TransportFrame> CallRawAsync(
+            int serviceId,
+            int methodId,
+            ReadOnlyMemory<byte> payload,
+            CancellationToken ct = default)
+        {
+            ThrowIfDisposed();
+            var reservation = _pending.Reserve(ref _nextId);
+            var id = reservation.RequestId;
+            var tcs = reservation.CompletionSource;
+
+            try
+            {
+                var req = new RpcRequestEnvelope
+                {
+                    RequestId = id,
+                    ServiceId = serviceId,
+                    MethodId = methodId,
+                    Payload = payload
+                };
+
+                using var reqBytes = RpcEnvelopeCodec.EncodeRequest(req);
+                await SendFrameAsyncSerialized(reqBytes.Memory, ct).ConfigureAwait(false);
+
+                using var reg = ct.Register(() =>
+                {
+                    _pending.TryCancel(id, ct);
+                });
+
+                using var resp = await tcs.Task.ConfigureAwait(false);
+                if (resp.Status != RpcStatus.Ok)
+                    throw new RpcException(resp.Status, resp.ErrorMessage, id, serviceId, methodId);
+
+                var result = TransportFrame.Allocate(resp.Payload.Length);
+                resp.Payload.Memory.Span.CopyTo(result.GetWritableSpan());
+                return result;
+            }
+            finally
+            {
+                _pending.Remove(id);
+            }
+        }
+
         /// <summary>
         ///     Stops background loops, fails pending requests, and disposes the transport.
         /// </summary>
