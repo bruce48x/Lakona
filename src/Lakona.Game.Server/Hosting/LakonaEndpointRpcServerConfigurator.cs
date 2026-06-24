@@ -76,16 +76,16 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
                     return EncodeBadRequest(request.RequestId, ex.Message);
                 }
 
-                var service = services.GetRequiredService<IGameHandshakeService>();
-                var reply = await service.HandshakeAsync(
-                    hello,
-                    _endpoint.Transport,
-                    _endpoint.Serializer,
-                    cancellationToken).ConfigureAwait(false);
-
                 byte[] payload;
                 try
                 {
+                    var service = services.GetRequiredService<IGameHandshakeService>();
+                    var reply = await service.HandshakeAsync(
+                        hello,
+                        _endpoint.Transport,
+                        _endpoint.Serializer,
+                        cancellationToken).ConfigureAwait(false);
+
                     payload = LakonaInternalCodec.EncodeGameServerHello(reply);
                 }
                 catch (InvalidOperationException ex)
