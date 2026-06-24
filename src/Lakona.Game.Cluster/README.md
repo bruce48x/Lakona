@@ -51,7 +51,6 @@ without changing route or messaging code.
       "Id": "dev-1"
     },
     "Feature": [
-      "database",
       "state-store",
       "matchmaking",
       "leaderboard",
@@ -60,6 +59,7 @@ without changing route or messaging code.
     "Endpoints": [
       {
         "Transport": "websocket",
+        "Serializer": "json",
         "Host": "127.0.0.1",
         "Port": 20000,
         "Path": "/ws",
@@ -67,6 +67,7 @@ without changing route or messaging code.
       },
       {
         "Transport": "kcp",
+        "Serializer": "json",
         "Host": "127.0.0.1",
         "Port": 20001,
         "RpcServices": [ "battle" ]
@@ -74,6 +75,7 @@ without changing route or messaging code.
     ],
     "Cluster": {
       "Endpoint": "tcp://127.0.0.1:21000",
+      "Serializer": "json",
       "Seeds": [ "tcp://127.0.0.1:21000" ],
       "RouteLeaseSeconds": 30
     }
@@ -90,23 +92,26 @@ local validation.
 
 ```json
 {
-  "ConnectionStrings": {
-    "AgarPostgres": "Host=postgres;Database=lakona-game;Username=lakona-game;Password=..."
-  },
   "Lakona": {
     "Node": {
       "Id": "data-1"
     },
     "Feature": [
-      "database",
       "state-store",
       "matchmaking",
       "leaderboard"
     ],
     "Cluster": {
       "Endpoint": "tcp://10.0.0.1:21001",
+      "Serializer": "memorypack",
       "Seeds": [ "tcp://10.0.0.1:21001" ],
-      "RouteLeaseSeconds": 30
+      "RouteLeaseSeconds": 30,
+      "Directory": {
+        "Provider": "postgres",
+        "ConnectionStringName": "LakonaClusterPostgres",
+        "NodeTable": "lakona_cluster_nodes",
+        "EnsureSchemaOnStartup": false
+      }
     }
   }
 }
@@ -122,6 +127,7 @@ local validation.
     "Endpoints": [
       {
         "Transport": "websocket",
+        "Serializer": "json",
         "Host": "0.0.0.0",
         "AdvertisedHost": "gateway-1",
         "Port": 20000,
@@ -131,21 +137,27 @@ local validation.
     ],
     "Cluster": {
       "Endpoint": "tcp://10.0.0.2:21002",
+      "Serializer": "memorypack",
       "Seeds": [ "tcp://10.0.0.1:21001" ]
     }
   }
 }
 ```
 
-The data node above can provide a project-owned persistent node directory
-through `Lakona.Game.Cluster.Sql`. The gateway node starts no application
-features because `Feature` is an empty array, but it still exposes client RPC
-services and a node-to-node cluster endpoint.
+The data node above can provide persistent framework cluster membership through
+`Lakona:Cluster:Directory` and `Lakona.Game.Cluster.Sql`. The gateway node
+starts no application features because `Feature` is an empty array, but it
+still exposes client RPC services and a node-to-node cluster endpoint.
 
 Every node that configures `Lakona:Cluster:Endpoint` must listen on that
 endpoint. Framework-owned cluster endpoint hosting binds node-directory RPC,
 route-directory RPC, and feature-message RPC when the corresponding local
 services are registered in DI.
+
+Every configured cluster must also set `Lakona:Cluster:Serializer`. Supported
+values are `json` and `memorypack`; all communicating cluster nodes must use
+the same cluster serializer. This cluster serializer is separate from
+endpoint-local client RPC serializers.
 
 ## Node Directory Storage
 

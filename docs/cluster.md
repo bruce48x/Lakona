@@ -64,6 +64,7 @@ All runtime configuration is under `Lakona`.
     ],
     "Cluster": {
       "Endpoint": "tcp://10.0.0.2:21002",
+      "Serializer": "json",
       "Seeds": [ "tcp://10.0.0.1:21001" ]
     }
   }
@@ -170,6 +171,15 @@ resolves to the current node's own `Lakona:Cluster:Endpoint` is not used to
 create remote directory clients; directory-owner nodes must provide local
 directory implementations instead of recursively calling their own cluster RPC
 endpoint.
+
+`Lakona:Cluster:Serializer` is required whenever `Lakona:Cluster` is
+configured. Supported values are `json` and `memorypack`. Every communicating
+cluster node must use the same value because node-directory calls,
+route-directory calls, feature messages, route-addressed messages, and remote
+actor payloads all follow the cluster serializer. This setting is separate
+from endpoint-local client RPC serializers; client-facing framework-control
+traffic such as handshake, heartbeat, reliable push ack, and session
+termination notice remains encoded with the fixed `LakonaInternalCodec`.
 
 ### Node Directory Storage
 
@@ -502,6 +512,9 @@ Remote actor: where is this concrete object currently owned?
 The first version is request/reply and point-to-point. It does not introduce
 durable pub/sub, topics, consumer groups, offsets, or room migration.
 
+Remote actor envelopes and their request/reply payloads use
+`Lakona:Cluster:Serializer`, not endpoint-local client RPC serializers.
+
 ## Client Notification Relay
 
 Client callbacks and transport sessions are process-local objects. A remote
@@ -663,6 +676,7 @@ Configuration:
     "Feature": [ "state-store", "matchmaking", "leaderboard" ],
     "Cluster": {
       "Endpoint": "tcp://10.0.0.1:21001",
+      "Serializer": "memorypack",
       "Seeds": [ "tcp://10.0.0.1:21001" ],
       "Directory": {
         "Provider": "postgres",
@@ -724,7 +738,7 @@ Configuration:
     "Endpoints": [
       {
         "Transport": "websocket",
-        "Serializer": "json",
+        "Serializer": "memorypack",
         "Host": "0.0.0.0",
         "Port": 20000,
         "Path": "/ws",
@@ -734,6 +748,7 @@ Configuration:
     ],
     "Cluster": {
       "Endpoint": "tcp://10.0.0.2:21002",
+      "Serializer": "memorypack",
       "Seeds": [ "tcp://10.0.0.1:21001" ]
     }
   }
@@ -781,6 +796,7 @@ Configuration:
     ],
     "Cluster": {
       "Endpoint": "tcp://10.0.0.3:21003",
+      "Serializer": "memorypack",
       "Seeds": [ "tcp://10.0.0.1:21001" ]
     }
   }

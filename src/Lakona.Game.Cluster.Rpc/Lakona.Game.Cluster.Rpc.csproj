@@ -6,12 +6,17 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>Lakona.Game.Cluster.Rpc</RootNamespace>
     <PackageId>Lakona.Game.Cluster.Rpc</PackageId>
-    <Version>0.2.0</Version>
+    <Version>0.2.1</Version>
     <Description>Lakona.Rpc-based node messenger adapter for Lakona.Game cluster routing.</Description>
     <PackageTags>lakona-game;game;cluster;routing;lakona-rpc</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="MemoryPack" Version="1.21.4" />
+    <PackageReference Include="MemoryPack.Generator" Version="1.21.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <ProjectReference Include="..\Lakona.Game.Cluster\Lakona.Game.Cluster.csproj" />
   </ItemGroup>
   <ItemGroup>

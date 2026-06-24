@@ -1,97 +1,137 @@
 using System;
 using System.Collections.Generic;
+using MemoryPack;
 
 namespace Lakona.Game.Cluster.Rpc
 {
-    public sealed class RouteLocationDto
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class RouteLocationDto
     {
+        [MemoryPackOrder(0)]
         public string Route { get; set; } = string.Empty;
 
+        [MemoryPackOrder(1)]
         public string Node { get; set; } = string.Empty;
 
+        [MemoryPackOrder(2)]
         public string EndpointAddress { get; set; } = string.Empty;
 
+        [MemoryPackOrder(3)]
         public Dictionary<string, string>? EndpointMetadata { get; set; }
 
+        [MemoryPackOrder(4)]
         public DateTimeOffset ExpiresAt { get; set; }
 
+        [MemoryPackOrder(5)]
         public long NodeEpoch { get; set; }
 
+        [MemoryPackOrder(6)]
         public long Generation { get; set; }
 
+        [MemoryPackOrder(7)]
         public Dictionary<string, string>? Metadata { get; set; }
     }
 
-    public sealed class RouteRegisterRequest
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class RouteRegisterRequest
     {
+        [MemoryPackOrder(0)]
         public RouteLocationDto? Location { get; set; }
     }
 
-    public sealed class RouteRegisterReply
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class RouteRegisterReply
     {
+        [MemoryPackOrder(0)]
         public int Status { get; set; }
     }
 
-    public sealed class RouteResolveRequest
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class RouteResolveRequest
     {
+        [MemoryPackOrder(0)]
         public string Route { get; set; } = string.Empty;
 
+        [MemoryPackOrder(1)]
         public DateTimeOffset Now { get; set; }
     }
 
-    public sealed class RouteResolveReply
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class RouteResolveReply
     {
+        [MemoryPackOrder(0)]
         public RouteLocationDto? Location { get; set; }
     }
 
-    public sealed class RouteUnregisterRequest
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class RouteUnregisterRequest
     {
+        [MemoryPackOrder(0)]
         public string Route { get; set; } = string.Empty;
     }
 
-    public sealed class RouteUnregisterReply
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class RouteUnregisterReply
     {
+        [MemoryPackOrder(0)]
         public int Status { get; set; }
     }
 
-    public sealed class RouteRefreshLeaseRequest
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class RouteRefreshLeaseRequest
     {
+        [MemoryPackOrder(0)]
         public RouteLocationDto? ExpectedLocation { get; set; }
 
+        [MemoryPackOrder(1)]
         public DateTimeOffset ExpiresAt { get; set; }
 
+        [MemoryPackOrder(2)]
         public DateTimeOffset Now { get; set; }
     }
 
-    public sealed class RouteRefreshLeaseReply
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class RouteRefreshLeaseReply
     {
+        [MemoryPackOrder(0)]
         public int Status { get; set; }
     }
 
-    public sealed class RouteExpireRequest
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class RouteExpireRequest
     {
+        [MemoryPackOrder(0)]
         public DateTimeOffset Now { get; set; }
     }
 
-    public sealed class RouteExpireReply
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class RouteExpireReply
     {
+        [MemoryPackOrder(0)]
         public int Removed { get; set; }
     }
 
-    public sealed class RouteClearByNodeRequest
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class RouteClearByNodeRequest
     {
+        [MemoryPackOrder(0)]
         public string Node { get; set; } = string.Empty;
     }
 
-    public sealed class RouteClearByNodeEpochRequest
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class RouteClearByNodeEpochRequest
     {
+        [MemoryPackOrder(0)]
         public string Node { get; set; } = string.Empty;
 
+        [MemoryPackOrder(1)]
         public long NodeEpoch { get; set; }
     }
 
-    public sealed class RouteClearReply
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class RouteClearReply
     {
+        [MemoryPackOrder(0)]
         public int Removed { get; set; }
     }
 }

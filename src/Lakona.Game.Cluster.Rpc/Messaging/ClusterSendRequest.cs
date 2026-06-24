@@ -1,23 +1,33 @@
 using System;
+using MemoryPack;
 
 namespace Lakona.Game.Cluster.Rpc
 {
-    public sealed class ClusterSendRequest
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class ClusterSendRequest
     {
+        [MemoryPackOrder(0)]
         public string Route { get; set; } = string.Empty;
 
+        [MemoryPackOrder(1)]
         public string Kind { get; set; } = string.Empty;
 
+        [MemoryPackOrder(2)]
         public byte[] Payload { get; set; } = Array.Empty<byte>();
 
+        [MemoryPackOrder(3)]
         public DateTimeOffset ExpiresAt { get; set; }
 
+        [MemoryPackOrder(4)]
         public string SourceNode { get; set; } = string.Empty;
 
+        [MemoryPackOrder(5)]
         public string? CorrelationId { get; set; }
 
+        [MemoryPackOrder(6)]
         public string? TraceId { get; set; }
 
+        [MemoryPackOrder(7)]
         public string? OrderedBy { get; set; }
     }
 }

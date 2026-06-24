@@ -125,6 +125,9 @@ public sealed class ServerAppRendererTests
 
         var lakona = document.RootElement.GetProperty("Lakona");
         Assert.False(lakona.TryGetProperty("Feature", out _));
+        Assert.DoesNotContain(
+            lakona.EnumerateObject(),
+            property => string.Equals(property.Name, "Cluster", StringComparison.OrdinalIgnoreCase));
 
         var endpoint = lakona.GetProperty("Endpoints")[0];
         Assert.Equal("kcp", endpoint.GetProperty("Transport").GetString());

@@ -148,6 +148,10 @@ public static class LakonaGameReadinessProbe
                     runtime.Cluster?.Endpoint ?? "",
                     LakonaGameValueSource.Configuration,
                     "Lakona:Cluster:Endpoint"),
+                new LakonaGameResolvedValue<string>(
+                    runtime.Cluster?.Serializer ?? "",
+                    LakonaGameValueSource.Configuration,
+                    "Lakona:Cluster:Serializer"),
                 runtime.Cluster?.Seeds ?? Array.Empty<string>()),
             Feature: new LakonaGameResolvedFeature(
                 Configured: null,

@@ -1,7 +1,11 @@
+using MemoryPack;
+
 namespace Lakona.Game.Cluster.Rpc
 {
-    public sealed class ClusterSendReply
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class ClusterSendReply
     {
+        [MemoryPackOrder(0)]
         public int Status { get; set; }
     }
 }

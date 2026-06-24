@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Xunit;
@@ -73,6 +74,16 @@ public sealed class ActorRuntimeTests
 
         Assert.IsType<InMemoryActorDirectory>(provider.GetRequiredService<IActorDirectory>());
         Assert.IsType<InMemoryActorDirectoryCache>(provider.GetRequiredService<IActorDirectoryCache>());
+    }
+
+    [Fact]
+    public void AddLakonaGameServerActors_does_not_register_remote_actor_serializer_without_cluster_serializer()
+    {
+        using var provider = new ServiceCollection()
+            .AddLakonaGameServerActors()
+            .BuildServiceProvider();
+
+        Assert.Null(provider.GetService<IRemoteActorSerializer>());
     }
 
     [Fact]
@@ -193,6 +204,41 @@ public sealed class ActorRuntimeTests
             .BuildServiceProvider();
 
         Assert.Equal(node, provider.GetRequiredService<LocalActorNodeIdentity>().NodeId);
+    }
+
+    [Fact]
+    public void AddLakonaGameServer_uses_configured_node_id_for_local_actor_identity()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Lakona:Node:Id"] = "battle-1"
+            })
+            .Build();
+
+        using var provider = new ServiceCollection()
+            .AddLakonaGameServer(configuration)
+            .BuildServiceProvider();
+
+        Assert.Equal(new NodeId("battle-1"), provider.GetRequiredService<LocalActorNodeIdentity>().NodeId);
+    }
+
+    [Fact]
+    public void AddLakonaGameServer_uses_factory_registered_runtime_options_for_local_actor_identity()
+    {
+        using var provider = new ServiceCollection()
+            .AddSingleton(_ => new LakonaGameRuntimeOptions
+            {
+                Node = new LakonaGameNodeOptions
+                {
+                    Id = "factory-node"
+                }
+            })
+            .AddLakonaGameServer(new LakonaGameHostingOptions())
+            .BuildServiceProvider();
+
+        Assert.Equal("factory-node", provider.GetRequiredService<LakonaGameRuntimeOptions>().Node.Id);
+        Assert.Equal(new NodeId("factory-node"), provider.GetRequiredService<LocalActorNodeIdentity>().NodeId);
     }
 
     [Fact]

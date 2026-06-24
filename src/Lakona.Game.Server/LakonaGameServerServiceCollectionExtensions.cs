@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Diagnostics;
@@ -44,6 +45,11 @@ public static class LakonaGameServerServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(options);
         services.TryAddSingleton(new LakonaGameRuntimeOptions());
+        services.TryAddSingleton(provider =>
+        {
+            var runtimeOptions = provider.GetRequiredService<LakonaGameRuntimeOptions>();
+            return new LocalActorNodeIdentity(new NodeId(runtimeOptions.Node.Id));
+        });
 
         services.AddLakonaGameServerActors(actorOptions => options.Actors.ApplyTo(actorOptions));
         if (options.Sessions.Cleanup.Enabled)

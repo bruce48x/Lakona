@@ -23,6 +23,19 @@ internal static class LakonaEndpointRuntimeDefaults
         };
     }
 
+    public static IRpcSerializer CreateClusterSerializer(LakonaGameClusterOptions cluster)
+    {
+        ArgumentNullException.ThrowIfNull(cluster);
+
+        return Normalize(cluster.Serializer) switch
+        {
+            "json" => new JsonRpcSerializer(),
+            "memorypack" => new MemoryPackRpcSerializer(),
+            var serializer => throw new InvalidOperationException(
+                $"Cluster serializer '{serializer}' is unknown. Use json or memorypack.")
+        };
+    }
+
     public static async ValueTask<IRpcConnectionAcceptor> CreateAcceptorAsync(
         LakonaGameEndpointOptions endpoint,
         CancellationToken cancellationToken = default)

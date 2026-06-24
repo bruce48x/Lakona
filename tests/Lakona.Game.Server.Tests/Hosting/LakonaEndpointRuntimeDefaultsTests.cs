@@ -44,4 +44,35 @@ public sealed class LakonaEndpointRuntimeDefaultsTests
 
         Assert.Contains("protobuf", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Theory]
+    [InlineData("json", typeof(JsonRpcSerializer))]
+    [InlineData("memorypack", typeof(MemoryPackRpcSerializer))]
+    public void CreateClusterSerializer_uses_cluster_serializer(string serializer, Type expectedType)
+    {
+        var cluster = new LakonaGameClusterOptions
+        {
+            Endpoint = "tcp://127.0.0.1:21001",
+            Serializer = serializer
+        };
+
+        var result = LakonaEndpointRuntimeDefaults.CreateClusterSerializer(cluster);
+
+        Assert.IsType(expectedType, result);
+    }
+
+    [Fact]
+    public void CreateClusterSerializer_rejects_unknown_serializer()
+    {
+        var cluster = new LakonaGameClusterOptions
+        {
+            Endpoint = "tcp://127.0.0.1:21001",
+            Serializer = "protobuf"
+        };
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            LakonaEndpointRuntimeDefaults.CreateClusterSerializer(cluster));
+
+        Assert.Contains("protobuf", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
 }

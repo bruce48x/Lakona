@@ -65,6 +65,7 @@ For WebSocket transport, include `Path`:
     ],
     "Cluster": {
       "Endpoint": "tcp://10.0.0.2:21002",
+      "Serializer": "json",
       "Seeds": [ "tcp://10.0.0.1:21001" ]
     }
   }
@@ -204,6 +205,7 @@ mode is sent to clients during the framework game handshake.
   "Lakona": {
     "Cluster": {
       "Endpoint": "tcp://10.0.0.1:21001",
+      "Serializer": "json",
       "Seeds": [ "tcp://10.0.0.1:21001" ],
       "Directory": {
         "Provider": "postgres",
@@ -218,6 +220,20 @@ mode is sent to clients during the framework game handshake.
 
 The cluster endpoint is not listed in `Endpoints`; it is advertised separately
 as the `cluster` endpoint for node-to-node traffic.
+
+`Lakona:Cluster:Serializer` is required whenever `Lakona:Cluster` is
+configured. Supported values are `json` and `memorypack`. All communicating
+cluster nodes must use the same cluster serializer; node-directory calls,
+route-directory calls, feature messages, and remote actor payloads follow this
+setting. This is separate from endpoint-local `Lakona:Endpoints[]:Serializer`,
+and client-facing framework-control messages continue to use
+`LakonaInternalCodec`.
+
+When the cluster serializer is `memorypack`, user-defined request and reply
+DTOs used by generated remote actor calls must also be MemoryPack-serializable.
+Use `MemoryPackable(GenerateType.VersionTolerant)` with explicit
+`MemoryPackOrder` values on those actor payload DTOs, just as you would for
+client-facing MemoryPack RPC contracts.
 
 `Seeds` is the public bootstrap list for shared cluster directories. A data
 node can register local node-directory and route-directory implementations,
@@ -249,7 +265,11 @@ Validation covers:
 - endpoint shape, serializer selection, duplicate transports, and transport-specific rules;
 - endpoint-local `RpcServices`;
 - feature names, duplicates, and dependency/order constraints;
-- cluster endpoint and seed shape when cluster is configured.
+- cluster endpoint and seed shape when cluster is configured;
+- required cluster serializer and supported values.
+
+All communicating cluster nodes must still be operated with the same cluster
+serializer; startup validation only checks local presence and supported values.
 
 `--readiness-check` is the canonical project readiness command for local
 inspection and deployment automation. Use `--health-check` for liveness-only
