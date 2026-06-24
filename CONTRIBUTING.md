@@ -43,6 +43,13 @@ path.
 
 ## Quick Workflow
 
+Repository maintenance scripts require PowerShell 7 or newer. Use `pwsh`, not
+Windows PowerShell, when running `.ps1` scripts on any platform:
+
+```powershell
+pwsh -NoProfile -File scripts/rpc/check-docs-consistency.ps1
+```
+
 Use the repository solution for normal validation:
 
 ```powershell
