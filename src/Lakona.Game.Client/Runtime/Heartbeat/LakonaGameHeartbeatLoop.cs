@@ -3,18 +3,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using Lakona.Game.Abstractions;
 using Lakona.Game.Abstractions.Sessions;
+using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
 
 namespace Lakona.Game.Client
 {
     internal sealed class LakonaGameHeartbeatLoop : IAsyncDisposable
     {
-        private static readonly RpcMethod<GameHeartbeatRequest, GameHeartbeatReply> HeartbeatMethod =
-            new RpcMethod<GameHeartbeatRequest, GameHeartbeatReply>(
-                GameHeartbeatRpcIds.ServiceId,
-                GameHeartbeatRpcIds.HeartbeatMethodId);
-
-        private readonly IRpcClient _rpcClient;
+        private readonly RpcClientRuntime _rpcClient;
         private readonly LakonaGameClientCore _core;
         private readonly LakonaGameClientOptions _options;
         private int _started;
@@ -22,7 +18,7 @@ namespace Lakona.Game.Client
         private Task? _loopTask;
 
         public LakonaGameHeartbeatLoop(
-            IRpcClient rpcClient,
+            RpcClientRuntime rpcClient,
             LakonaGameClientCore core,
             LakonaGameClientOptions options)
         {
@@ -73,9 +69,15 @@ namespace Lakona.Game.Client
 
             try
             {
-                var reply = await _rpcClient
-                    .CallAsync(HeartbeatMethod, new GameHeartbeatRequest(), timeoutCts.Token)
+                var requestPayload = LakonaInternalCodec.EncodeGameHeartbeatRequest(new GameHeartbeatRequest());
+                using var responsePayload = await _rpcClient
+                    .CallRawAsync(
+                        GameHeartbeatRpcIds.ServiceId,
+                        GameHeartbeatRpcIds.HeartbeatMethodId,
+                        requestPayload,
+                        timeoutCts.Token)
                     .ConfigureAwait(false);
+                var reply = LakonaInternalCodec.DecodeGameHeartbeatReply(responsePayload.Memory);
 
                 switch (reply.Status)
                 {

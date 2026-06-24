@@ -1,3 +1,4 @@
+using Lakona.Game.Abstractions;
 using Lakona.Game.Abstractions.Sessions;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hosting;
@@ -20,7 +21,7 @@ public sealed class GameHandshakeGateTests
     public async Task Business_rpc_is_rejected_before_handshake_and_allowed_after_handshake()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var serializer = new JsonRpcSerializer();
+        var serializer = new FrameworkDtoRejectingSerializer(new JsonRpcSerializer());
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         await using var acceptor = new SingleConnectionAcceptor(serverTransport);
 
@@ -81,42 +82,45 @@ public sealed class GameHandshakeGateTests
             Assert.Equal(RpcStatus.BadRequest, before.Status);
             Assert.Equal("HandshakeRequired", before.ErrorMessage);
 
+            var heartbeatBeforePayload = LakonaInternalCodec.EncodeGameHeartbeatRequest(new GameHeartbeatRequest());
             var heartbeatBefore = await Assert.ThrowsAsync<RpcException>(async () =>
-                await client.CallAsync(
-                        new RpcMethod<GameHeartbeatRequest, GameHeartbeatReply>(
-                            GameHeartbeatRpcIds.ServiceId,
-                            GameHeartbeatRpcIds.HeartbeatMethodId),
-                        new GameHeartbeatRequest(),
+                await client.CallRawAsync(
+                        GameHeartbeatRpcIds.ServiceId,
+                        GameHeartbeatRpcIds.HeartbeatMethodId,
+                        heartbeatBeforePayload,
                         cancellationToken)
                     .AsTask()
                     .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken));
             Assert.Equal(RpcStatus.BadRequest, heartbeatBefore.Status);
             Assert.Equal("HandshakeRequired", heartbeatBefore.ErrorMessage);
 
-            var hello = await client.CallAsync(
-                    new RpcMethod<GameClientHello, GameServerHello>(
-                        GameHandshakeRpc.ServiceId,
-                        GameHandshakeRpc.HandshakeMethodId),
-                    new GameClientHello
-                    {
-                        ProtocolVersionMin = 1,
-                        ProtocolVersionMax = 1,
-                        ClientRuntime = "dotnet"
-                    },
+            var helloPayload = LakonaInternalCodec.EncodeGameClientHello(
+                new GameClientHello
+                {
+                    ProtocolVersionMin = 1,
+                    ProtocolVersionMax = 1,
+                    ClientRuntime = "dotnet"
+                });
+            using var helloFrame = await client.CallRawAsync(
+                    GameHandshakeRpcIds.ServiceId,
+                    GameHandshakeRpcIds.HandshakeMethodId,
+                    helloPayload,
                     cancellationToken)
                 .AsTask()
                 .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+            var hello = LakonaInternalCodec.DecodeGameServerHello(helloFrame.Memory);
 
             Assert.Equal(1, hello.SelectedProtocolVersion);
 
-            var heartbeat = await client.CallAsync(
-                    new RpcMethod<GameHeartbeatRequest, GameHeartbeatReply>(
-                        GameHeartbeatRpcIds.ServiceId,
-                        GameHeartbeatRpcIds.HeartbeatMethodId),
-                    new GameHeartbeatRequest(),
+            var heartbeatPayload = LakonaInternalCodec.EncodeGameHeartbeatRequest(new GameHeartbeatRequest());
+            using var heartbeatFrame = await client.CallRawAsync(
+                    GameHeartbeatRpcIds.ServiceId,
+                    GameHeartbeatRpcIds.HeartbeatMethodId,
+                    heartbeatPayload,
                     cancellationToken)
                 .AsTask()
                 .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+            var heartbeat = LakonaInternalCodec.DecodeGameHeartbeatReply(heartbeatFrame.Memory);
 
             Assert.Equal(GameHeartbeatStatus.Ok, heartbeat.Status);
 
@@ -130,6 +134,39 @@ public sealed class GameHandshakeGateTests
         {
             stopServer.Cancel();
             await serverTask.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+        }
+    }
+
+    private sealed class FrameworkDtoRejectingSerializer(IRpcSerializer inner) : IRpcSerializer
+    {
+        public TransportFrame SerializeFrame<T>(T value)
+        {
+            RejectFrameworkDto<T>();
+            return inner.SerializeFrame(value);
+        }
+
+        public T Deserialize<T>(ReadOnlySpan<byte> data)
+        {
+            RejectFrameworkDto<T>();
+            return inner.Deserialize<T>(data);
+        }
+
+        public T Deserialize<T>(ReadOnlyMemory<byte> data)
+        {
+            RejectFrameworkDto<T>();
+            return inner.Deserialize<T>(data);
+        }
+
+        private static void RejectFrameworkDto<T>()
+        {
+            var type = typeof(T);
+            if (type == typeof(GameClientHello) ||
+                type == typeof(GameServerHello) ||
+                type == typeof(GameHeartbeatRequest) ||
+                type == typeof(GameHeartbeatReply))
+            {
+                throw new InvalidOperationException("Framework DTOs must use LakonaInternalCodec.");
+            }
         }
     }
 

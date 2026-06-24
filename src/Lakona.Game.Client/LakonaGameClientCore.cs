@@ -5,6 +5,7 @@ using Lakona.Game.Abstractions;
 using Lakona.Game.Abstractions.Sessions;
 using Lakona.Game.Client.ReliablePush;
 using Lakona.Game.Client.Sessions;
+using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
 
 namespace Lakona.Game.Client
@@ -38,7 +39,7 @@ namespace Lakona.Game.Client
             ReliablePushAckRequired = hello.ReliablePush.Enabled && hello.ReliablePush.AckRequired;
         }
 
-        public void StartHeartbeat(IRpcClient rpcClient, LakonaGameClientOptions options)
+        public void StartHeartbeat(RpcClientRuntime rpcClient, LakonaGameClientOptions options)
         {
             if (rpcClient == null) throw new ArgumentNullException(nameof(rpcClient));
             if (options == null) throw new ArgumentNullException(nameof(options));
@@ -57,19 +58,20 @@ namespace Lakona.Game.Client
         }
 
         public async ValueTask<GameServerHello> HandshakeAsync(
-            IRpcClient rpcClient,
+            RpcClientRuntime rpcClient,
             GameClientHello hello,
             CancellationToken cancellationToken = default)
         {
             if (rpcClient == null) throw new ArgumentNullException(nameof(rpcClient));
             if (hello == null) throw new ArgumentNullException(nameof(hello));
 
-            var serverHello = await rpcClient.CallAsync(
-                new RpcMethod<GameClientHello, GameServerHello>(
-                    GameHandshakeRpcIds.ServiceId,
-                    GameHandshakeRpcIds.HandshakeMethodId),
-                hello,
+            var requestPayload = LakonaInternalCodec.EncodeGameClientHello(hello);
+            using var responsePayload = await rpcClient.CallRawAsync(
+                GameHandshakeRpcIds.ServiceId,
+                GameHandshakeRpcIds.HandshakeMethodId,
+                requestPayload,
                 cancellationToken).ConfigureAwait(false);
+            var serverHello = LakonaInternalCodec.DecodeGameServerHello(responsePayload.Memory);
             ApplyServerHello(serverHello);
             return serverHello;
         }

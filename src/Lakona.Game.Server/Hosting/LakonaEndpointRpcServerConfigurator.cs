@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Lakona.Game.Abstractions;
 using Lakona.Game.Abstractions.Sessions;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Sessions;
@@ -61,11 +62,20 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
     private void BindGameFrameworkRpcs(RpcServiceRegistry registry, IServiceProvider services)
     {
         registry.Register(
-            GameHandshakeRpc.ServiceId,
-            GameHandshakeRpc.HandshakeMethodId,
+            GameHandshakeRpcIds.ServiceId,
+            GameHandshakeRpcIds.HandshakeMethodId,
             async (session, request, cancellationToken) =>
             {
-                var hello = session.Serializer.Deserialize<GameClientHello>(request.Payload.Memory);
+                GameClientHello hello;
+                try
+                {
+                    hello = LakonaInternalCodec.DecodeGameClientHello(request.Payload.Memory);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return EncodeBadRequest(request.RequestId, ex.Message);
+                }
+
                 var service = services.GetRequiredService<IGameHandshakeService>();
                 var reply = await service.HandshakeAsync(
                     hello,
@@ -73,35 +83,71 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
                     _endpoint.Serializer,
                     cancellationToken).ConfigureAwait(false);
 
+                byte[] payload;
+                try
+                {
+                    payload = LakonaInternalCodec.EncodeGameServerHello(reply);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return EncodeBadRequest(request.RequestId, ex.Message);
+                }
+
                 var state = session.GetOrAddScopedService(
-                    GameHandshakeRpc.ServiceId,
+                    GameHandshakeRpcIds.ServiceId,
                     static _ => new GameHandshakeSessionState());
                 state.IsComplete = true;
 
-                using var payload = session.Serializer.SerializeFrame(reply);
                 return RpcEnvelopeCodec.EncodeResponse(
                     request.RequestId,
                     RpcStatus.Ok,
-                    payload.Memory);
+                    payload);
             });
 
         registry.Register(
-            GameHeartbeatRpc.ServiceId,
-            GameHeartbeatRpc.HeartbeatMethodId,
+            GameHeartbeatRpcIds.ServiceId,
+            GameHeartbeatRpcIds.HeartbeatMethodId,
             async (session, request, cancellationToken) =>
             {
-                var heartbeat = session.Serializer.Deserialize<GameHeartbeatRequest>(request.Payload.Memory);
+                GameHeartbeatRequest heartbeat;
+                try
+                {
+                    heartbeat = LakonaInternalCodec.DecodeGameHeartbeatRequest(request.Payload.Memory);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return EncodeBadRequest(request.RequestId, ex.Message);
+                }
+
                 var service = services.GetRequiredService<IGameHeartbeatService>();
                 var reply = await service.HeartbeatAsync(
                     session.ContextId,
                     heartbeat,
                     cancellationToken).ConfigureAwait(false);
 
-                using var payload = session.Serializer.SerializeFrame(reply);
+                byte[] payload;
+                try
+                {
+                    payload = LakonaInternalCodec.EncodeGameHeartbeatReply(reply);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return EncodeBadRequest(request.RequestId, ex.Message);
+                }
+
                 return RpcEnvelopeCodec.EncodeResponse(
                     request.RequestId,
                     RpcStatus.Ok,
-                    payload.Memory);
+                    payload);
             });
+    }
+
+    private static TransportFrame EncodeBadRequest(uint requestId, string message)
+    {
+        return RpcEnvelopeCodec.EncodeResponse(
+            requestId,
+            RpcStatus.BadRequest,
+            ReadOnlyMemory<byte>.Empty,
+            message);
     }
 }

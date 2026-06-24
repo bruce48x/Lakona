@@ -256,9 +256,11 @@ public sealed class LakonaGameClientCoreTests
     public async Task Heartbeat_state_lost_marks_client_state_lost()
     {
         var client = new LakonaGameClientCore();
-        var rpc = new ScriptedRpcClient(new GameHeartbeatReply { Status = GameHeartbeatStatus.StateLost });
+        await using var rpc = await HeartbeatRuntimeFixture.CreateAsync(
+            new GameHeartbeatReply { Status = GameHeartbeatStatus.StateLost },
+            TestContext.Current.CancellationToken);
         var loop = new LakonaGameHeartbeatLoop(
-            rpc,
+            rpc.Client,
             client,
             new LakonaGameClientOptions(new RpcClientOptions(new NoopTransport(), new NoopSerializer())));
 
@@ -272,9 +274,11 @@ public sealed class LakonaGameClientCoreTests
     {
         var client = new LakonaGameClientCore();
         client.StartSession("session-a");
-        var rpc = new ScriptedRpcClient(new GameHeartbeatReply { Status = GameHeartbeatStatus.Terminated, Message = "removed" });
+        await using var rpc = await HeartbeatRuntimeFixture.CreateAsync(
+            new GameHeartbeatReply { Status = GameHeartbeatStatus.Terminated, Message = "removed" },
+            TestContext.Current.CancellationToken);
         var loop = new LakonaGameHeartbeatLoop(
-            rpc,
+            rpc.Client,
             client,
             new LakonaGameClientOptions(new RpcClientOptions(new NoopTransport(), new NoopSerializer())));
 
@@ -290,9 +294,9 @@ public sealed class LakonaGameClientCoreTests
         var client = new LakonaGameClientCore();
         client.MarkConnecting();
         client.MarkReady();
-        var rpc = new ScriptedRpcClient(new InvalidOperationException("network closed"));
+        await using var rpc = await HeartbeatRuntimeFixture.CreateFailureAsync(TestContext.Current.CancellationToken);
         var loop = new LakonaGameHeartbeatLoop(
-            rpc,
+            rpc.Client,
             client,
             new LakonaGameClientOptions(new RpcClientOptions(new NoopTransport(), new NoopSerializer())));
 
@@ -305,19 +309,17 @@ public sealed class LakonaGameClientCoreTests
     public async Task StartHeartbeat_rejects_invalid_interval_before_starting_loop()
     {
         var client = new LakonaGameClientCore();
-        var rpc = new ScriptedRpcClient(new GameHeartbeatReply());
+        await using var rpc = CreateUnstartedRuntime();
         var options = CreateHeartbeatOptions();
         options.HeartbeatInterval = TimeSpan.Zero;
 
         try
         {
             Assert.Throws<ArgumentOutOfRangeException>(() => client.StartHeartbeat(rpc, options));
-            Assert.Equal(0, rpc.CallCount);
 
             options.HeartbeatInterval = TimeSpan.FromMilliseconds(-1);
 
             Assert.Throws<ArgumentOutOfRangeException>(() => client.StartHeartbeat(rpc, options));
-            Assert.Equal(0, rpc.CallCount);
         }
         finally
         {
@@ -329,14 +331,13 @@ public sealed class LakonaGameClientCoreTests
     public async Task StartHeartbeat_rejects_negative_timeout_before_starting_loop()
     {
         var client = new LakonaGameClientCore();
-        var rpc = new ScriptedRpcClient(new GameHeartbeatReply());
+        await using var rpc = CreateUnstartedRuntime();
         var options = CreateHeartbeatOptions();
         options.HeartbeatTimeout = TimeSpan.FromMilliseconds(-2);
 
         try
         {
             Assert.Throws<ArgumentOutOfRangeException>(() => client.StartHeartbeat(rpc, options));
-            Assert.Equal(0, rpc.CallCount);
         }
         finally
         {
@@ -354,14 +355,21 @@ public sealed class LakonaGameClientCoreTests
         var successes = 0;
         var duplicateStarts = 0;
         var otherFailures = new List<Exception>();
+        var runtimes = new List<RpcClientRuntime>();
 
         Task[] tasks = Enumerable.Range(0, 8)
             .Select(_ => Task.Run(() =>
             {
                 start.Wait(TestContext.Current.CancellationToken);
+                var rpc = CreateUnstartedRuntime();
+                lock (runtimes)
+                {
+                    runtimes.Add(rpc);
+                }
+
                 try
                 {
-                    client.StartHeartbeat(new ScriptedRpcClient(new GameHeartbeatReply()), options);
+                    client.StartHeartbeat(rpc, options);
                     Interlocked.Increment(ref successes);
                 }
                 catch (InvalidOperationException)
@@ -382,6 +390,10 @@ public sealed class LakonaGameClientCoreTests
 
         await Task.WhenAll(tasks);
         await client.DisposeAsync();
+        foreach (var runtime in runtimes)
+        {
+            await runtime.DisposeAsync();
+        }
 
         Assert.Empty(otherFailures);
         Assert.Equal(1, successes);
@@ -393,44 +405,111 @@ public sealed class LakonaGameClientCoreTests
         return new LakonaGameClientOptions(new RpcClientOptions(new NoopTransport(), new NoopSerializer()));
     }
 
-    private sealed class ScriptedRpcClient : IRpcClient
+    private static RpcClientRuntime CreateUnstartedRuntime()
     {
+        return new RpcClientRuntime(new NoopTransport(), new NoopSerializer());
+    }
+
+    private sealed class HeartbeatRuntimeFixture : IAsyncDisposable
+    {
+        private HeartbeatRuntimeFixture(RpcClientRuntime client)
+        {
+            Client = client;
+        }
+
+        public RpcClientRuntime Client { get; }
+
+        public static async Task<HeartbeatRuntimeFixture> CreateAsync(
+            GameHeartbeatReply reply,
+            CancellationToken cancellationToken)
+        {
+            return await CreateAsync(RpcStatus.Ok, reply, null, cancellationToken).ConfigureAwait(false);
+        }
+
+        public static async Task<HeartbeatRuntimeFixture> CreateFailureAsync(CancellationToken cancellationToken)
+        {
+            return await CreateAsync(
+                RpcStatus.HandlerError,
+                null,
+                "network closed",
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await Client.DisposeAsync().ConfigureAwait(false);
+        }
+
+        private static async Task<HeartbeatRuntimeFixture> CreateAsync(
+            RpcStatus status,
+            GameHeartbeatReply? reply,
+            string? errorMessage,
+            CancellationToken cancellationToken)
+        {
+            var transport = new OneShotHeartbeatTransport(status, reply, errorMessage);
+            var client = new RpcClientRuntime(transport, new NoopSerializer());
+            await client.StartAsync(cancellationToken).ConfigureAwait(false);
+            return new HeartbeatRuntimeFixture(client);
+        }
+    }
+
+    private sealed class OneShotHeartbeatTransport : ITransport
+    {
+        private readonly RpcStatus _status;
         private readonly GameHeartbeatReply? _reply;
-        private readonly Exception? _exception;
-        private int _callCount;
+        private readonly string? _errorMessage;
+        private readonly TaskCompletionSource<TransportFrame> _response =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _sent;
 
-        public int CallCount => Volatile.Read(ref _callCount);
-
-        public ScriptedRpcClient(GameHeartbeatReply reply)
+        public OneShotHeartbeatTransport(RpcStatus status, GameHeartbeatReply? reply, string? errorMessage)
         {
+            _status = status;
             _reply = reply;
+            _errorMessage = errorMessage;
         }
 
-        public ScriptedRpcClient(Exception exception)
+        public bool IsConnected { get; private set; }
+
+        public ValueTask ConnectAsync(CancellationToken ct = default)
         {
-            _exception = exception;
+            IsConnected = true;
+            return default;
         }
 
-        public ValueTask<TResult> CallAsync<TArg, TResult>(
-            RpcMethod<TArg, TResult> method,
-            TArg? arg,
-            CancellationToken ct = default)
+        public ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken ct = default)
         {
-            Interlocked.Increment(ref _callCount);
-            Assert.Equal(GameHeartbeatRpcIds.ServiceId, method.ServiceId);
-            Assert.Equal(GameHeartbeatRpcIds.HeartbeatMethodId, method.MethodId);
-            if (_exception is not null)
+            if (Interlocked.Exchange(ref _sent, 1) != 0)
             {
-                throw _exception;
+                throw new InvalidOperationException("Only one heartbeat request is expected.");
             }
 
-            return new ValueTask<TResult>((TResult)(object)_reply!);
+            using var requestFrame = TransportFrame.CopyOf(frame.Span);
+            using var request = RpcEnvelopeCodec.DecodeRequest(requestFrame);
+            Assert.Equal(GameHeartbeatRpcIds.ServiceId, request.ServiceId);
+            Assert.Equal(GameHeartbeatRpcIds.HeartbeatMethodId, request.MethodId);
+            LakonaInternalCodec.DecodeGameHeartbeatRequest(request.Payload.Memory);
+
+            var payload = _status == RpcStatus.Ok
+                ? LakonaInternalCodec.EncodeGameHeartbeatReply(_reply!)
+                : Array.Empty<byte>();
+            _response.SetResult(RpcEnvelopeCodec.EncodeResponse(
+                request.RequestId,
+                _status,
+                payload,
+                _errorMessage));
+            return default;
         }
 
-        public void RegisterNotificationHandler<TArg>(
-            RpcNotificationMethod<TArg> method,
-            Func<TArg, ValueTask> handler)
+        public async ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
         {
+            return await _response.Task.WaitAsync(ct).ConfigureAwait(false);
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            IsConnected = false;
+            return default;
         }
     }
 
