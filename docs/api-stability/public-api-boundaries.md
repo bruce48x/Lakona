@@ -69,11 +69,19 @@ Generated code uses this layer. Users may see it, but compatibility is tied to m
 - `IRpcClient`.
 - `RpcMethod<TArg, TResult>`.
 - `RpcNotificationMethod<TArg>`.
+- `RpcClientRuntime.CallRawAsync(...)` and
+  `RpcClientRuntime.RegisterRawNotificationHandler(...)` only for
+  framework-owned generated or Lakona.Game control paths.
 - `RpcGeneratedServicesBinderAttribute`.
 - `RpcGeneratedServiceBinder`.
 - `RpcServiceRegistry`, until the generator no longer exposes registry binding directly.
 
 Breaking changes in this layer must be released together with analyzer changes and must tell users to rebuild source-generated code.
+
+The raw `RpcClientRuntime` methods are public because generated client code may
+live in user assemblies, but they are hidden from normal IntelliSense and are
+not the recommended business RPC model. User-authored business calls should go
+through generated typed clients and configured serializers.
 
 ### Runtime Internal API
 

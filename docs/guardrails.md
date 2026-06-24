@@ -62,6 +62,8 @@ Use errors for framework invariants:
 - endpoint transport names are duplicated where the framework needs one endpoint per transport
 - endpoint `RpcServices` are duplicated or unknown
 - cluster service kind is unknown
+- configured cluster is missing `Lakona:Cluster:Serializer` or selects a
+  serializer other than `json` or `memorypack`
 - gateway service is configured without reachable route-directory or node-directory support
 - advertised endpoint cannot be parsed
 - advertised endpoint conflicts with the configured listener in a way the runtime cannot route
@@ -243,7 +245,7 @@ Initial code families:
 
 - `ULINK001-ULINK019`: node identity and profile
 - `ULINK020-ULINK039`: endpoint and advertised addresses
-- `ULINK040-ULINK069`: cluster feature discovery, node directory, route directory
+- `ULINK040-ULINK069`: cluster endpoint, serializer, feature discovery, node directory, route directory
 - `ULINK070-ULINK089`: hotfix loading and dispatch
 - `ULINK090-ULINK109`: Reliable Push and session identity
 - `ULINK110-ULINK129`: production readiness
@@ -256,11 +258,17 @@ Example diagnostics:
 ULINK001 error Node id is required.
 ULINK023 error WebSocket endpoint path is required.
 ULINK041 error Cluster service name 'gateway' is duplicated.
+ULINK044 error Lakona:Cluster:Serializer is required when Cluster is configured.
+ULINK044 repair Set Lakona:Cluster:Serializer to json or memorypack.
 ULINK071 error Hotfix assembly was not found.
 ULINK071 repair dotnet build Server/Hotfix/Server.Hotfix.csproj
 ULINK091 error Reliable Push requires a session identity resolver.
 ULINK111 error Production profile cannot advertise 127.0.0.1.
 ```
+
+`ULINK044` covers both missing and unknown cluster serializer values. It checks
+local configuration only; deployment configuration must still keep every
+communicating cluster node on the same serializer value.
 
 ## Hotfix Operational Guardrails
 

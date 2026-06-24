@@ -162,11 +162,14 @@ cluster RPC server on that endpoint. The server binds node-directory,
 route-directory, and feature-message RPC handlers only when the corresponding
 local services exist in DI.
 
-`Lakona:Cluster:Serializer` selects the node-to-node RPC payload serializer for
-cluster protocol DTOs. Supported values are `json` and `memorypack`. Every node
-that exchanges cluster RPC traffic must use the same cluster serializer; mixed
-client-facing endpoint serializers are allowed, but the cluster channel has one
-serializer per communicating cluster.
+`Lakona:Cluster:Serializer` is required whenever `Lakona:Cluster` is
+configured. It selects the node-to-node RPC payload serializer for cluster
+protocol DTOs. Supported values are `json` and `memorypack`. Every node that
+exchanges cluster RPC traffic must use the same cluster serializer because
+node-directory calls, route-directory calls, feature-addressed messages,
+route-addressed messages, client-notification relay commands, and remote actor
+payloads all follow this setting. Mixed client-facing endpoint serializers are
+allowed, but the cluster channel has one serializer per communicating cluster.
 
 Generated projects that emit cluster configuration copy the user's
 `--serializer` choice into `Lakona:Cluster:Serializer`. This keeps business
@@ -186,14 +189,30 @@ create remote directory clients; directory-owner nodes must provide local
 directory implementations instead of recursively calling their own cluster RPC
 endpoint.
 
-`Lakona:Cluster:Serializer` is required whenever `Lakona:Cluster` is
-configured. Supported values are `json` and `memorypack`. Every communicating
-cluster node must use the same value because node-directory calls,
-route-directory calls, feature messages, route-addressed messages, and remote
-actor payloads all follow the cluster serializer. This setting is separate
-from endpoint-local client RPC serializers; client-facing framework-control
-traffic such as handshake, heartbeat, reliable push ack, and session
-termination notice remains encoded with the fixed `LakonaInternalCodec`.
+### Cluster Serializer Wiring
+
+Built-in cluster endpoint wiring creates one cluster serializer from
+`Lakona:Cluster:Serializer` and uses that same serializer for the cluster
+client factory, cluster RPC server, feature-message transport,
+client-notification relay commands, and the default `RpcRemoteActorSerializer`.
+The configured cluster serializer wins over earlier bare `IRpcSerializer`
+registrations in built-in cluster wiring.
+
+Later app-specific or endpoint-specific `IRpcSerializer` registrations must
+not change the already configured cluster channel. Cluster infrastructure must
+use the cluster serializer holder created by endpoint wiring, not an
+unrelated bare serializer service that may belong to another RPC surface.
+
+Low-level direct use of `LakonaClusterRpcServerConfigurator` must bind the
+server to the same serializer selected by `Lakona:Cluster:Serializer`, or use
+the full `AddLakonaGameClusterEndpoint()` wiring. Falling back to an arbitrary
+DI `IRpcSerializer` contradicts the cluster configuration contract and can
+make the server speak a different payload format from cluster clients.
+
+Projects may provide a custom `IRemoteActorSerializer`, but that is an
+explicit compatibility choice for the whole communicating cluster. The built-in
+default adapts the configured cluster serializer and does not introduce a
+separate JSON-only remote actor format.
 
 ### Node Directory Storage
 
@@ -518,9 +537,9 @@ such as rooms, player sessions, and leaderboard actors.
 
 Generated remote actor refs serialize method request and reply payloads with
 the same serializer selected by `Lakona:Cluster:Serializer`. The public
-`IRemoteActorSerializer` remains the actor-facing abstraction, but the default
-runtime wiring should adapt the configured cluster `IRpcSerializer` instead of
-introducing a separate JSON-only actor serializer.
+`IRemoteActorSerializer` remains the actor-facing abstraction. Active cluster
+endpoint wiring registers the default adapter over the configured cluster
+`IRpcSerializer` instead of introducing a separate JSON-only actor serializer.
 
 Boundary:
 
