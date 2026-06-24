@@ -52,7 +52,7 @@ namespace Lakona.Game.Client.ReliablePush
             ReliablePushSequence sequence,
             TPayload payload,
             Func<TPayload, CancellationToken, ValueTask> applyAsync,
-            Func<ReliablePushAck, CancellationToken, ValueTask<ReliablePushAckOutcome>> acknowledgeAsync,
+            Func<ReliablePushAckRequest, CancellationToken, ValueTask<ReliablePushAckOutcome>> acknowledgeAsync,
             CancellationToken cancellationToken = default)
         {
             var sessionId = EnsureStarted();
@@ -78,7 +78,7 @@ namespace Lakona.Game.Client.ReliablePush
             if (decision.ShouldAck)
             {
                 acknowledgement = await acknowledgeAsync(
-                    new ReliablePushAck(sessionId, sequence),
+                    new ReliablePushAckRequest(sessionId, sequence),
                     cancellationToken).ConfigureAwait(false);
             }
 

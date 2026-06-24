@@ -207,6 +207,28 @@ public sealed class GameSessionRegistryTests
     }
 
     [Fact]
+    public async Task Current_session_lookup_returns_active_session_for_connection()
+    {
+        var directory = new InMemoryGameSessionRegistry();
+        var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "connection-a", new LoginCallback("login"), TestContext.Current.CancellationToken);
+
+        var current = await directory.GetCurrentSessionAsync("connection-a", TestContext.Current.CancellationToken);
+
+        Assert.Equal(session, current);
+    }
+
+    [Fact]
+    public async Task Current_session_lookup_returns_null_for_unbound_connection()
+    {
+        var directory = new InMemoryGameSessionRegistry();
+
+        var current = await directory.GetCurrentSessionAsync("connection-a", TestContext.Current.CancellationToken);
+
+        Assert.Null(current);
+    }
+
+    [Fact]
     public async Task Heartbeat_for_connection_that_was_terminated_reports_terminated()
     {
         var directory = new InMemoryGameSessionRegistry();

@@ -95,6 +95,23 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         }
     }
 
+    public ValueTask<GameSessionKey?> GetCurrentSessionAsync(
+        string connectionId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_gate)
+        {
+            return new ValueTask<GameSessionKey?>(
+                _connectionToSession.TryGetValue(connectionId, out var session) &&
+                _sessions.ContainsKey(session)
+                    ? session
+                    : null);
+        }
+    }
+
     public ValueTask<GameSessionSnapshot?> MarkConnectionDisconnectedAsync(
         string connectionId,
         CancellationToken cancellationToken = default)

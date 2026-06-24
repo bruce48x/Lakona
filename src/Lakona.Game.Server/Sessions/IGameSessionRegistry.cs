@@ -25,6 +25,10 @@ public interface IGameSessionRegistry
         CancellationToken cancellationToken = default)
         where TCallback : class;
 
+    ValueTask<GameSessionKey?> GetCurrentSessionAsync(
+        string connectionId,
+        CancellationToken cancellationToken = default);
+
     ValueTask<GameSessionSnapshot?> MarkConnectionDisconnectedAsync(
         string connectionId,
         CancellationToken cancellationToken = default);

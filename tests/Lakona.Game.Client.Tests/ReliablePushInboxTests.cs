@@ -12,7 +12,7 @@ public sealed class ReliablePushInboxTests
         var inbox = new ReliablePushInbox();
         var session = "session-a";
         var applied = new List<string>();
-        var acknowledged = new List<ReliablePushAck>();
+        var acknowledged = new List<ReliablePushAckRequest>();
         inbox.StartSession(session);
 
         var result = await inbox.ProcessAsync(

@@ -140,6 +140,52 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
                     RpcStatus.Ok,
                     payload);
             });
+
+        registry.Register(
+            GameReliablePushRpcIds.ServiceId,
+            GameReliablePushRpcIds.AckMethodId,
+            async (session, request, cancellationToken) =>
+            {
+                ReliablePushAckRequest ack;
+                try
+                {
+                    ack = LakonaInternalCodec.DecodeReliablePushAckRequest(request.Payload.Memory);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return EncodeBadRequest(request.RequestId, ex.Message);
+                }
+
+                var sessions = services.GetRequiredService<IGameSessionRegistry>();
+                var currentSession = await sessions
+                    .GetCurrentSessionAsync(session.ContextId, cancellationToken)
+                    .ConfigureAwait(false);
+                if (currentSession is null)
+                {
+                    return EncodeBadRequest(
+                        request.RequestId,
+                        "Reliable push acknowledgement requires an active game session.");
+                }
+
+                var acknowledgedSession = new GameSessionKey(
+                    currentSession.Value.OwnerKey,
+                    ack.SessionId,
+                    currentSession.Value.Generation);
+                var gameServer = services.GetRequiredService<ILakonaGameServer>();
+                var outcome = await gameServer
+                    .AckReliablePushAsync(
+                        currentSession.Value,
+                        acknowledgedSession,
+                        ack.Sequence.Value,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                var payload = LakonaInternalCodec.EncodeReliablePushAckOutcome(outcome);
+
+                return RpcEnvelopeCodec.EncodeResponse(
+                    request.RequestId,
+                    RpcStatus.Ok,
+                    payload);
+            });
     }
 
     private static TransportFrame EncodeBadRequest(uint requestId, string message)

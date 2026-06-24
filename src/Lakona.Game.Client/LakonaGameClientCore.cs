@@ -144,7 +144,7 @@ namespace Lakona.Game.Client
             ReliablePushSequence sequence,
             TPayload payload,
             Func<TPayload, CancellationToken, ValueTask> applyAsync,
-            Func<ReliablePushAck, CancellationToken, ValueTask<ReliablePushAckOutcome>> acknowledgeAsync,
+            Func<ReliablePushAckRequest, CancellationToken, ValueTask<ReliablePushAckOutcome>> acknowledgeAsync,
             CancellationToken cancellationToken = default)
         {
             var result = await _reliablePush
