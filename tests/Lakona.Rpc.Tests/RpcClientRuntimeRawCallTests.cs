@@ -12,28 +12,35 @@ public sealed class RpcClientRuntimeRawCallTests
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         await using var client = new RpcClientRuntime(clientTransport, new ThrowingSerializer());
+        await using var server = serverTransport;
         await client.StartAsync();
 
+        var serviceId = -1;
+        var methodId = -1;
+        byte[]? requestPayload = null;
         var serverTask = Task.Run(async () =>
         {
-            await serverTransport.ConnectAsync();
-            using var requestFrame = await serverTransport.ReceiveFrameAsync();
-            var request = RpcEnvelopeCodec.DecodeRequest(requestFrame);
-            Assert.Equal(0, request.ServiceId);
-            Assert.Equal(1, request.MethodId);
-            Assert.Equal(new byte[] { 1, 2, 3 }, request.Payload.Memory.ToArray());
+            await server.ConnectAsync();
+            using var requestFrame = await server.ReceiveFrameAsync();
+            using var request = RpcEnvelopeCodec.DecodeRequest(requestFrame);
+            serviceId = request.ServiceId;
+            methodId = request.MethodId;
+            requestPayload = request.Payload.Memory.ToArray();
             using var response = RpcEnvelopeCodec.EncodeResponse(request.RequestId, RpcStatus.Ok, new byte[] { 4, 5 });
-            await serverTransport.SendFrameAsync(response.Memory);
+            await server.SendFrameAsync(response.Memory);
         });
 
         using var responsePayload = await client.CallRawAsync(
             0,
             1,
             new byte[] { 1, 2, 3 },
-            default);
+            default).AsTask().WaitAsync(TimeSpan.FromSeconds(2));
 
         Assert.Equal(new byte[] { 4, 5 }, responsePayload.Memory.ToArray());
         await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(0, serviceId);
+        Assert.Equal(1, methodId);
+        Assert.Equal(new byte[] { 1, 2, 3 }, requestPayload);
     }
 
     private sealed class ThrowingSerializer : IRpcSerializer
