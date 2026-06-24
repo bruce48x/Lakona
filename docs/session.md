@@ -210,6 +210,11 @@ transport accepted
   -> business RPC enabled
 ```
 
+Handshake payloads are framework-internal Lakona.Game messages. They are
+encoded with `LakonaInternalCodec`, not with the endpoint-selected business
+serializer. The endpoint serializer is reported in `ServerHello` and begins at
+business RPC payloads after handshake succeeds.
+
 Business RPC before a completed handshake is rejected with a structured
 `HandshakeRequired` failure. `ServerHello` sends resolved public capabilities,
 not raw `appsettings.json`. Capabilities include selected protocol version,
@@ -235,6 +240,10 @@ second session heartbeat loop.
 
 Default heartbeat settings are enabled, 15 seconds interval, and 45 seconds
 timeout unless the resolved server/client options say otherwise.
+
+Heartbeat request and reply payloads are encoded with `LakonaInternalCodec`.
+They do not require JSON converters, MemoryPack formatters, or generated
+business contract DTO metadata.
 
 Heartbeat replies report framework session status:
 

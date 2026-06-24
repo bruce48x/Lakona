@@ -307,6 +307,28 @@ public sealed class ToolArchitectureScanTests
     }
 
     [Fact]
+    public void FrameworkInternalDtos_DoNotUseEndpointSerializerMetadata()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var abstractionsText = ReadAllTextFiles(Path.Combine(repositoryRoot, "src", "Lakona.Game.Abstractions"));
+
+        Assert.DoesNotContain("MemoryPackable", abstractionsText, StringComparison.Ordinal);
+        Assert.DoesNotContain("MemoryPackOrder", abstractionsText, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona.Rpc.Serializer.Json", abstractionsText, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona.Rpc.Serializer.MemoryPack", abstractionsText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void GeneratedSharedContracts_DoNotConstructFrameworkHandshakeDtos()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var toolText = ReadAllTextFiles(Path.Combine(repositoryRoot, "src", "Lakona.Tool", "Rendering", "Shared"));
+
+        Assert.DoesNotContain("new GameClientHello", toolText, StringComparison.Ordinal);
+        Assert.DoesNotContain("new GameServerHello", toolText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void GodotDailyScript_UsesGeneratedServerAppProjectLayout()
     {
         var repositoryRoot = FindRepositoryRoot();

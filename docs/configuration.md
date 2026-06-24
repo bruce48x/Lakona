@@ -153,6 +153,11 @@ belong in hotfix services and actor behaviors.
 `Lakona:Endpoints` entries are listener configuration and RPC service exposure.
 They do not create session identities and they do not name endpoints.
 
+Endpoint `Serializer` selects the business RPC payload serializer. It does not
+select the Lakona.Game framework-internal serializer. Framework-internal
+messages such as handshake, heartbeat, reliable push ack, and session
+termination notice use `LakonaInternalCodec` on every endpoint.
+
 Rules:
 
 - `Transport`, `Serializer`, `Host`, and `Port` are required for each endpoint.
