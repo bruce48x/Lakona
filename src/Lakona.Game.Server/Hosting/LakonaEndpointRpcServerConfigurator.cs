@@ -76,22 +76,22 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
                     return EncodeBadRequest(request.RequestId, ex.Message);
                 }
 
-                byte[] payload;
+                GameServerHello reply;
                 try
                 {
                     var service = services.GetRequiredService<IGameHandshakeService>();
-                    var reply = await service.HandshakeAsync(
+                    reply = await service.HandshakeAsync(
                         hello,
                         _endpoint.Transport,
                         _endpoint.Serializer,
                         cancellationToken).ConfigureAwait(false);
-
-                    payload = LakonaInternalCodec.EncodeGameServerHello(reply);
                 }
-                catch (InvalidOperationException ex)
+                catch (GameHandshakeRejectedException ex)
                 {
                     return EncodeBadRequest(request.RequestId, ex.Message);
                 }
+
+                var payload = LakonaInternalCodec.EncodeGameServerHello(reply);
 
                 var state = session.GetOrAddScopedService(
                     GameHandshakeRpcIds.ServiceId,
@@ -125,15 +125,7 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
                     heartbeat,
                     cancellationToken).ConfigureAwait(false);
 
-                byte[] payload;
-                try
-                {
-                    payload = LakonaInternalCodec.EncodeGameHeartbeatReply(reply);
-                }
-                catch (InvalidOperationException ex)
-                {
-                    return EncodeBadRequest(request.RequestId, ex.Message);
-                }
+                var payload = LakonaInternalCodec.EncodeGameHeartbeatReply(reply);
 
                 return RpcEnvelopeCodec.EncodeResponse(
                     request.RequestId,

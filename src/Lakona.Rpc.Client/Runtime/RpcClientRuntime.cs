@@ -161,6 +161,7 @@ namespace Lakona.Rpc.Client
                     $"Notification handler already registered for {method.ServiceId}:{method.MethodId}.");
         }
 
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
         public void RegisterRawNotificationHandler(
             int serviceId,
             int methodId,

@@ -28,7 +28,8 @@ public sealed class GameHandshakeService : IGameHandshakeService
 
         if (hello.ProtocolVersionMin > 1 || hello.ProtocolVersionMax < 1)
         {
-            throw new InvalidOperationException("Client does not support Lakona game handshake protocol version 1.");
+            throw new GameHandshakeRejectedException(
+                "Client does not support Lakona game handshake protocol version 1.");
         }
 
         var reliable = _reliablePush.Enabled;
@@ -52,5 +53,13 @@ public sealed class GameHandshakeService : IGameHandshakeService
                 "business-rpc-after-handshake"
             }
         });
+    }
+}
+
+internal sealed class GameHandshakeRejectedException : InvalidOperationException
+{
+    public GameHandshakeRejectedException(string message)
+        : base(message)
+    {
     }
 }

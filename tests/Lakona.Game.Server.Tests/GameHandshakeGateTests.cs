@@ -90,6 +90,158 @@ public sealed class GameHandshakeGateTests
     }
 
     [Fact]
+    public async Task Handshake_service_failure_returns_handler_error()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var serializer = new FrameworkDtoRejectingSerializer(new JsonRpcSerializer());
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        await using var acceptor = new SingleConnectionAcceptor(serverTransport);
+
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Lakona:Node:Id"] = "node-a"
+            })
+            .Build();
+        using var provider = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton(LakonaRpcServiceCatalog.FromTypes([]))
+            .AddSingleton<IGameHandshakeService, ThrowingHandshakeService>()
+            .AddLakonaGameServer(configuration)
+            .BuildServiceProvider();
+
+        var builder = RpcServerHostBuilder.Create();
+        var endpoint = new LakonaGameEndpointOptions
+        {
+            Transport = "tcp",
+            Serializer = "json",
+            RpcServices = []
+        };
+        var configurator = new LakonaEndpointRpcServerConfigurator(endpoint);
+        configurator.Configure(new LakonaGameServerRpcContext(
+            "test",
+            endpoint,
+            builder,
+            provider,
+            [],
+            cancellationToken));
+        builder.UseAcceptor(acceptor);
+
+        var host = builder.Build();
+        using var stopServer = new CancellationTokenSource();
+        var serverTask = host.RunAsync(stopServer.Token).AsTask();
+        await using var client = new RpcClientRuntime(clientTransport, serializer);
+        await client.StartAsync(cancellationToken);
+
+        try
+        {
+            var helloPayload = LakonaInternalCodec.EncodeGameClientHello(
+                new GameClientHello
+                {
+                    ProtocolVersionMin = 1,
+                    ProtocolVersionMax = 1,
+                    ClientRuntime = "dotnet"
+                });
+
+            var failure = await Assert.ThrowsAsync<RpcException>(async () =>
+                await client.CallRawAsync(
+                        GameHandshakeRpcIds.ServiceId,
+                        GameHandshakeRpcIds.HandshakeMethodId,
+                        helloPayload,
+                        cancellationToken)
+                    .AsTask()
+                    .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken));
+
+            Assert.Equal(RpcStatus.HandlerError, failure.Status);
+        }
+        finally
+        {
+            stopServer.Cancel();
+            await serverTask.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task Heartbeat_invalid_server_reply_returns_handler_error()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var serializer = new FrameworkDtoRejectingSerializer(new JsonRpcSerializer());
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        await using var acceptor = new SingleConnectionAcceptor(serverTransport);
+
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Lakona:Node:Id"] = "node-a"
+            })
+            .Build();
+        using var provider = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton(LakonaRpcServiceCatalog.FromTypes([]))
+            .AddSingleton<IGameHeartbeatService, InvalidHeartbeatService>()
+            .AddLakonaGameServer(configuration)
+            .BuildServiceProvider();
+
+        var builder = RpcServerHostBuilder.Create();
+        var endpoint = new LakonaGameEndpointOptions
+        {
+            Transport = "tcp",
+            Serializer = "json",
+            RpcServices = []
+        };
+        var configurator = new LakonaEndpointRpcServerConfigurator(endpoint);
+        configurator.Configure(new LakonaGameServerRpcContext(
+            "test",
+            endpoint,
+            builder,
+            provider,
+            [],
+            cancellationToken));
+        builder.UseAcceptor(acceptor);
+
+        var host = builder.Build();
+        using var stopServer = new CancellationTokenSource();
+        var serverTask = host.RunAsync(stopServer.Token).AsTask();
+        await using var client = new RpcClientRuntime(clientTransport, serializer);
+        await client.StartAsync(cancellationToken);
+
+        try
+        {
+            var helloPayload = LakonaInternalCodec.EncodeGameClientHello(
+                new GameClientHello
+                {
+                    ProtocolVersionMin = 1,
+                    ProtocolVersionMax = 1,
+                    ClientRuntime = "dotnet"
+                });
+            using var _ = await client.CallRawAsync(
+                    GameHandshakeRpcIds.ServiceId,
+                    GameHandshakeRpcIds.HandshakeMethodId,
+                    helloPayload,
+                    cancellationToken)
+                .AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+
+            var heartbeatPayload = LakonaInternalCodec.EncodeGameHeartbeatRequest(new GameHeartbeatRequest());
+            var failure = await Assert.ThrowsAsync<RpcException>(async () =>
+                await client.CallRawAsync(
+                        GameHeartbeatRpcIds.ServiceId,
+                        GameHeartbeatRpcIds.HeartbeatMethodId,
+                        heartbeatPayload,
+                        cancellationToken)
+                    .AsTask()
+                    .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken));
+
+            Assert.Equal(RpcStatus.HandlerError, failure.Status);
+        }
+        finally
+        {
+            stopServer.Cancel();
+            await serverTask.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+        }
+    }
+
+    [Fact]
     public async Task Business_rpc_is_rejected_before_handshake_and_allowed_after_handshake()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -206,6 +358,32 @@ public sealed class GameHandshakeGateTests
         {
             stopServer.Cancel();
             await serverTask.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+        }
+    }
+
+    private sealed class ThrowingHandshakeService : IGameHandshakeService
+    {
+        public ValueTask<GameServerHello> HandshakeAsync(
+            GameClientHello hello,
+            string endpointTransport,
+            string endpointSerializer,
+            CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("Handshake service failed.");
+        }
+    }
+
+    private sealed class InvalidHeartbeatService : IGameHeartbeatService
+    {
+        public ValueTask<GameHeartbeatReply> HeartbeatAsync(
+            string connectionId,
+            GameHeartbeatRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<GameHeartbeatReply>(new GameHeartbeatReply
+            {
+                Status = (GameHeartbeatStatus)999
+            });
         }
     }
 
