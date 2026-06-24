@@ -19,7 +19,9 @@ using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Loading;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
+using Lakona.Rpc.Core;
 using Lakona.Rpc.Serializer.Json;
+using Lakona.Rpc.Serializer.MemoryPack;
 using Lakona.Rpc.Server;
 using Xunit;
 
@@ -63,7 +65,8 @@ public sealed class LakonaGameServerTests
             Node = new LakonaGameNodeOptions { Id = "data-1" },
             Cluster = new LakonaGameClusterOptions
             {
-                Endpoint = "tcp://127.0.0.1:21001"
+                Endpoint = "tcp://127.0.0.1:21001",
+                Serializer = "memorypack"
             }
         };
         services.AddSingleton(runtime);
@@ -88,12 +91,14 @@ public sealed class LakonaGameServerTests
             Node = new LakonaGameNodeOptions { Id = "data-1" },
             Cluster = new LakonaGameClusterOptions
             {
-                Endpoint = $"tcp://127.0.0.1:{port}"
+                Endpoint = $"tcp://127.0.0.1:{port}",
+                Serializer = "json"
             }
         };
         var handler = new RecordingFeatureMessageHandler();
         var services = new ServiceCollection();
         services.AddSingleton<IFeatureMessageHandler>(handler);
+        services.AddSingleton<IRpcSerializer, JsonRpcSerializer>();
         using var provider = services.BuildServiceProvider();
         var rpcBuilder = RpcServerHostBuilder.Create();
         var configurator = new LakonaClusterRpcServerConfigurator(runtime);
@@ -111,6 +116,71 @@ public sealed class LakonaGameServerTests
         await using var clientFactory = new ClusterClientFactory(
             new TcpClusterTransportFactory(),
             new JsonRpcSerializer());
+        var transport = new RpcFeatureMessageTransport(clientFactory);
+        var reply = await transport.SendAsync(
+            new ClusterNodeDescriptor(
+                new NodeId("data-1"),
+                NodeState.Ready,
+                new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal)
+                {
+                    ["cluster"] = new NodeEndpoint($"tcp://127.0.0.1:{port}")
+                },
+                [new NodeFeatureDescriptor("matchmaking")]),
+            new FeatureMessageRequest(
+                new FeatureName("matchmaking"),
+                "join",
+                new byte[] { 1, 2, 3 },
+                DateTimeOffset.UtcNow.AddMinutes(1),
+                new NodeId("gateway-1"),
+                "corr-1"),
+            TestContext.Current.CancellationToken);
+
+        stopServer.Cancel();
+        await Task.WhenAny(serverTask, Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
+
+        Assert.Equal(ClusterSendStatus.Accepted, reply.Status);
+        Assert.Equal(new byte[] { 9 }, reply.Payload.ToArray());
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal("matchmaking", request.Feature.Value);
+        Assert.Equal("join", request.Kind);
+        Assert.Equal(new byte[] { 1, 2, 3 }, request.Payload.ToArray());
+        Assert.Equal(new NodeId("gateway-1"), request.SourceNode);
+    }
+
+    [Fact]
+    public async Task ClusterEndpointRpcServerAcceptsFeatureMessageTransportWithMemoryPack()
+    {
+        var port = GetFreePort();
+        var runtime = new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "data-1" },
+            Cluster = new LakonaGameClusterOptions
+            {
+                Endpoint = $"tcp://127.0.0.1:{port}",
+                Serializer = "memorypack"
+            }
+        };
+        var handler = new RecordingFeatureMessageHandler();
+        var services = new ServiceCollection();
+        services.AddSingleton<IFeatureMessageHandler>(handler);
+        services.AddSingleton<IRpcSerializer, MemoryPackRpcSerializer>();
+        using var provider = services.BuildServiceProvider();
+        var rpcBuilder = RpcServerHostBuilder.Create();
+        var configurator = new LakonaClusterRpcServerConfigurator(runtime);
+        configurator.Configure(new LakonaGameServerRpcContext(
+            "cluster",
+            new LakonaGameEndpointOptions { Transport = "cluster" },
+            rpcBuilder,
+            provider,
+            [],
+            TestContext.Current.CancellationToken));
+        using var stopServer = new CancellationTokenSource();
+        var serverTask = rpcBuilder.RunAsync(stopServer.Token).AsTask();
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+
+        await using var clientFactory = new ClusterClientFactory(
+            new TcpClusterTransportFactory(),
+            new MemoryPackRpcSerializer());
         var transport = new RpcFeatureMessageTransport(clientFactory);
         var reply = await transport.SendAsync(
             new ClusterNodeDescriptor(

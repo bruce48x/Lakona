@@ -22,6 +22,7 @@ public sealed class LakonaGameRuntimeOptionsTests
             ["Lakona:Endpoints:0:RpcServices:0"] = "login",
             ["Lakona:Endpoints:0:RpcServices:1"] = "player",
             ["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.2:21002",
+            ["Lakona:Cluster:Serializer"] = "memorypack",
             ["Lakona:Cluster:Seeds:0"] = "tcp://10.0.0.1:21001"
         });
 
@@ -33,6 +34,22 @@ public sealed class LakonaGameRuntimeOptionsTests
         Assert.Equal("json", endpoint.Serializer);
         Assert.Equal(["login", "player"], endpoint.RpcServices);
         Assert.Equal("tcp://10.0.0.2:21002", options.Cluster!.Endpoint);
+        Assert.Equal("memorypack", options.Cluster.Serializer);
+    }
+
+    [Fact]
+    public void FromConfiguration_preserves_cluster_serializer()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:Node:Id"] = "gateway-1",
+            ["Lakona:Cluster:Endpoint"] = "tcp://127.0.0.1:21002",
+            ["Lakona:Cluster:Serializer"] = "json"
+        });
+
+        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
+
+        Assert.Equal("json", options.Cluster!.Serializer);
     }
 
     [Fact]
@@ -103,6 +120,7 @@ public sealed class LakonaGameRuntimeOptionsTests
             Cluster = new LakonaGameClusterOptions
             {
                 Endpoint = "tcp://10.0.0.2:21002",
+                Serializer = "memorypack",
                 Seeds = ["tcp://10.0.0.1:21001"]
             },
             Endpoints =
@@ -133,7 +151,11 @@ public sealed class LakonaGameRuntimeOptionsTests
         var options = new LakonaGameRuntimeOptions
         {
             Node = new LakonaGameNodeOptions { Id = "gateway-1" },
-            Cluster = new LakonaGameClusterOptions { Endpoint = "tcp://10.0.0.2:21002" },
+            Cluster = new LakonaGameClusterOptions
+            {
+                Endpoint = "tcp://10.0.0.2:21002",
+                Serializer = "memorypack"
+            },
             Endpoints =
             [
                 new LakonaGameEndpointOptions { Transport = "websocket", Host = "0.0.0.0", Port = 20000 },
@@ -164,6 +186,7 @@ public sealed class LakonaGameRuntimeOptionsTests
             ["Lakona:Feature:0"] = "battle",
             ["Lakona:Feature:1"] = "battle-settlement",
             ["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.3:21003",
+            ["Lakona:Cluster:Serializer"] = "memorypack",
             ["Lakona:Cluster:Seeds:0"] = "tcp://10.0.0.1:21001"
         });
 

@@ -52,6 +52,7 @@ public sealed class LakonaGameServerHostingOptionsTests
             {
                 ["Lakona:Node:Id"] = "data-1",
                 ["Lakona:Cluster:Endpoint"] = "tcp://127.0.0.1:21001",
+                ["Lakona:Cluster:Serializer"] = "memorypack",
                 ["Lakona:Cluster:Directory:Provider"] = "postgres",
                 ["Lakona:Cluster:Directory:ConnectionStringName"] = "LakonaClusterPostgres",
                 ["Lakona:Cluster:Directory:NodeTable"] = "lakona_cluster_nodes",

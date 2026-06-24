@@ -29,10 +29,17 @@ Example data node that owns the shared directories and business features:
     "Node": {
       "Id": "data-1"
     },
-    "Feature": [ "database", "state-store", "matchmaking", "leaderboard" ],
+    "Feature": [ "state-store", "matchmaking", "leaderboard" ],
     "Cluster": {
       "Endpoint": "tcp://10.0.0.1:21001",
-      "Seeds": [ "tcp://10.0.0.1:21001" ]
+      "Serializer": "memorypack",
+      "Seeds": [ "tcp://10.0.0.1:21001" ],
+      "Directory": {
+        "Provider": "postgres",
+        "ConnectionStringName": "LakonaClusterPostgres",
+        "NodeTable": "lakona_cluster_nodes",
+        "EnsureSchemaOnStartup": false
+      }
     }
   }
 }
@@ -50,6 +57,7 @@ Example gateway node with only endpoint-local client RPC exposure:
     "Endpoints": [
       {
         "Transport": "websocket",
+        "Serializer": "json",
         "Host": "0.0.0.0",
         "Port": 20000,
         "Path": "/ws",
@@ -58,6 +66,7 @@ Example gateway node with only endpoint-local client RPC exposure:
     ],
     "Cluster": {
       "Endpoint": "tcp://10.0.0.2:21002",
+      "Serializer": "memorypack",
       "Seeds": [ "tcp://10.0.0.1:21001" ]
     }
   }
@@ -65,5 +74,10 @@ Example gateway node with only endpoint-local client RPC exposure:
 ```
 
 `Feature` declares cluster-discoverable node capability. `RpcServices` declares services exposed only on that client endpoint. Nodes that do not register a local `INodeDirectory` or `IRouteDirectory` use `Lakona:Cluster:Seeds` as the public bootstrap input and register themselves, client-session routes, and lease refreshes through the remote directory node.
+
+`Lakona:Cluster:Serializer` is required when cluster is configured. Supported
+values are `json` and `memorypack`, and all communicating cluster nodes must
+use the same value. It selects the node-to-node cluster payload serializer and
+does not replace endpoint-local client RPC serializers.
 
 Additional concrete transport factories should be added only with passing cross-process smoke tests. The package exposes `IClusterTransportFactory` so consuming projects can wire custom Lakona.Rpc transport policy while the package keeps the node messaging protocol and status mapping centralized.

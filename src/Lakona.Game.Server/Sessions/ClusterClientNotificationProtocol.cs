@@ -1,4 +1,5 @@
 using Lakona.Rpc.Core;
+using MemoryPack;
 
 namespace Lakona.Game.Server.Sessions;
 
@@ -11,12 +12,16 @@ internal static class ClusterClientNotificationProtocol
         new(ServiceId, DispatchMethodId);
 }
 
-public sealed class ClientNotificationDispatchRequest
+[MemoryPackable(GenerateType.VersionTolerant)]
+public sealed partial class ClientNotificationDispatchRequest
 {
+    [MemoryPackOrder(0)]
     public ClientNotificationCommand? Command { get; init; }
 }
 
-public sealed class ClientNotificationDispatchReply
+[MemoryPackable(GenerateType.VersionTolerant)]
+public sealed partial class ClientNotificationDispatchReply
 {
+    [MemoryPackOrder(0)]
     public int Status { get; init; }
 }

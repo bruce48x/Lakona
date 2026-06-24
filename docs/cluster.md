@@ -186,6 +186,15 @@ create remote directory clients; directory-owner nodes must provide local
 directory implementations instead of recursively calling their own cluster RPC
 endpoint.
 
+`Lakona:Cluster:Serializer` is required whenever `Lakona:Cluster` is
+configured. Supported values are `json` and `memorypack`. Every communicating
+cluster node must use the same value because node-directory calls,
+route-directory calls, feature messages, route-addressed messages, and remote
+actor payloads all follow the cluster serializer. This setting is separate
+from endpoint-local client RPC serializers; client-facing framework-control
+traffic such as handshake, heartbeat, reliable push ack, and session
+termination notice remains encoded with the fixed `LakonaInternalCodec`.
+
 ### Node Directory Storage
 
 The node directory stores live cluster membership metadata. It is framework
@@ -522,6 +531,9 @@ Remote actor: where is this concrete object currently owned?
 
 The first version is request/reply and point-to-point. It does not introduce
 durable pub/sub, topics, consumer groups, offsets, or room migration.
+
+Remote actor envelopes and their request/reply payloads use
+`Lakona:Cluster:Serializer`, not endpoint-local client RPC serializers.
 
 ## Client Notification Relay
 

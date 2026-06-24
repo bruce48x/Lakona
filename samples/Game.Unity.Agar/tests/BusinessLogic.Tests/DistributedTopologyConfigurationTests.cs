@@ -43,6 +43,7 @@ public sealed class DistributedTopologyConfigurationTests
         AssertFeatureSet(lakona, "state-store", "matchmaking", "leaderboard");
         Assert.False(lakona.TryGetProperty("Endpoints", out _));
         Assert.Equal("tcp://10.0.0.1:21001", lakona.GetProperty("Cluster").GetProperty("Endpoint").GetString());
+        Assert.Equal("memorypack", lakona.GetProperty("Cluster").GetProperty("Serializer").GetString());
         Assert.True(document.RootElement.GetProperty("ConnectionStrings").TryGetProperty("LakonaClusterPostgres", out _));
         Assert.True(document.RootElement.GetProperty("ConnectionStrings").TryGetProperty("AgarGamePostgres", out _));
         Assert.True(lakona.GetProperty("Cluster").TryGetProperty("Directory", out _));
@@ -57,6 +58,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         Assert.Equal("gateway-1", lakona.GetProperty("Node").GetProperty("Id").GetString());
         Assert.Empty(lakona.GetProperty("Feature").EnumerateArray());
+        Assert.Equal("memorypack", lakona.GetProperty("Cluster").GetProperty("Serializer").GetString());
 
         var endpoint = Assert.Single(lakona.GetProperty("Endpoints").EnumerateArray());
         Assert.Equal("websocket", endpoint.GetProperty("Transport").GetString());
@@ -73,6 +75,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         Assert.Equal("battle-1", lakona.GetProperty("Node").GetProperty("Id").GetString());
         AssertFeatureSet(lakona, "battle-runtime");
+        Assert.Equal("memorypack", lakona.GetProperty("Cluster").GetProperty("Serializer").GetString());
 
         var endpoint = Assert.Single(lakona.GetProperty("Endpoints").EnumerateArray());
         Assert.Equal("kcp", endpoint.GetProperty("Transport").GetString());
@@ -559,6 +562,7 @@ public sealed class DistributedTopologyConfigurationTests
             Cluster = new Lakona.Game.Server.Configuration.LakonaGameClusterOptions
             {
                 Endpoint = "tcp://127.0.0.1:21001",
+                Serializer = "json",
                 Seeds = ["tcp://127.0.0.1:21001"]
             }
         });

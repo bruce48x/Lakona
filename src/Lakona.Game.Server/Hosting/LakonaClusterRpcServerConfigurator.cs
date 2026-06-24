@@ -2,9 +2,9 @@ using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.Configuration;
 using Lakona.Rpc.Core;
-using Lakona.Rpc.Serializer.Json;
 using Lakona.Rpc.Transport.Tcp;
 using Lakona.Game.Server.Sessions;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Lakona.Game.Server.Hosting;
 
@@ -33,7 +33,9 @@ public sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurator
                 $"Cluster endpoint transport '{endpoint.Scheme}' is not supported by the default cluster RPC server.");
         }
 
-        context.Builder.UseSerializer(new JsonRpcSerializer());
+        var serializer = context.Services.GetService<LakonaClusterRpcSerializer>()?.Serializer
+            ?? context.Services.GetRequiredService<IRpcSerializer>();
+        context.Builder.UseSerializer(serializer);
         context.Builder.UseAcceptor(_ => new ValueTask<IRpcConnectionAcceptor>(
             new TcpConnectionAcceptor(endpoint.Port, endpoint.Host)));
 

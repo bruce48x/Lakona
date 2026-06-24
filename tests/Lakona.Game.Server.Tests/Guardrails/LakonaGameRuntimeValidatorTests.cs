@@ -267,12 +267,43 @@ public sealed class LakonaGameRuntimeValidatorTests
         {
             ClusterEndpoint = new LakonaGameResolvedClusterEndpoint(
                 Endpoint: new LakonaGameResolvedValue<string>("", LakonaGameValueSource.Configuration, "Lakona:Cluster:Endpoint"),
+                Serializer: new LakonaGameResolvedValue<string>("memorypack", LakonaGameValueSource.Configuration, "Lakona:Cluster:Serializer"),
                 Seeds: [])
         };
 
         var result = Validate(runtime);
 
         Assert.Contains(result.Diagnostics, d => d.Code == "ULINK040");
+    }
+
+    [Fact]
+    public void ClusterEndpointRule_rejects_missing_serializer_when_cluster_is_configured()
+    {
+        var runtime = TestRuntime() with
+        {
+            ClusterEndpoint = TestClusterEndpoint("tcp://127.0.0.1:21000", serializer: "")
+        };
+
+        var result = Validate(runtime);
+
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK044");
+        Assert.Equal("Lakona:Cluster:Serializer is required when Cluster is configured.", diagnostic.Message);
+        Assert.Equal("Set Lakona:Cluster:Serializer to json or memorypack.", diagnostic.Repair);
+    }
+
+    [Fact]
+    public void ClusterEndpointRule_rejects_unknown_serializer()
+    {
+        var runtime = TestRuntime() with
+        {
+            ClusterEndpoint = TestClusterEndpoint("tcp://127.0.0.1:21000", serializer: "protobuf")
+        };
+
+        var result = Validate(runtime);
+
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK044");
+        Assert.Contains("protobuf", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("Use json or memorypack.", diagnostic.Repair);
     }
 
     [Theory]
@@ -362,10 +393,13 @@ public sealed class LakonaGameRuntimeValidatorTests
             RpcServices: rpcServices ?? []);
     }
 
-    private static LakonaGameResolvedClusterEndpoint TestClusterEndpoint(string endpoint)
+    private static LakonaGameResolvedClusterEndpoint TestClusterEndpoint(
+        string endpoint,
+        string serializer = "memorypack")
     {
         return new LakonaGameResolvedClusterEndpoint(
             Endpoint: new LakonaGameResolvedValue<string>(endpoint, LakonaGameValueSource.Configuration, "Lakona:Cluster:Endpoint"),
+            Serializer: new LakonaGameResolvedValue<string>(serializer, LakonaGameValueSource.Configuration, "Lakona:Cluster:Serializer"),
             Seeds: []);
     }
 

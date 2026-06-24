@@ -137,6 +137,7 @@ public sealed class LakonaGameRuntimeOptions
         return new LakonaGameClusterOptions
         {
             Endpoint = section["Endpoint"] ?? "",
+            Serializer = section["Serializer"] ?? "",
             Seeds = BindStringArray(section.GetSection("Seeds")),
             Directory = BindClusterDirectory(section.GetSection("Directory"))
         };

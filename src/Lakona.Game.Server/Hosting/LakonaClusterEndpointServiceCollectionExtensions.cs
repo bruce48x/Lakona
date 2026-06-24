@@ -5,10 +5,10 @@ using System.Data.Common;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Cluster.Sql;
+using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Sessions;
 using Lakona.Rpc.Core;
-using Lakona.Rpc.Serializer.Json;
 
 namespace Lakona.Game.Server.Hosting;
 
@@ -25,10 +25,16 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
         }
 
         services.TryAddSingleton<IClusterTransportFactory, TcpClusterTransportFactory>();
-        services.TryAddSingleton<IRpcSerializer, JsonRpcSerializer>();
+        services.RemoveAll<IRpcSerializer>();
+        services.AddSingleton(_ => new LakonaClusterRpcSerializer(
+            LakonaEndpointRuntimeDefaults.CreateClusterSerializer(runtimeOptions.Cluster)));
+        services.AddSingleton<IRpcSerializer>(provider =>
+            provider.GetRequiredService<LakonaClusterRpcSerializer>().Serializer);
+        services.TryAddSingleton<IRemoteActorSerializer>(provider =>
+            new RpcRemoteActorSerializer(provider.GetRequiredService<LakonaClusterRpcSerializer>().Serializer));
         services.TryAddSingleton<IClusterClientFactory>(provider => new ClusterClientFactory(
             provider.GetRequiredService<IClusterTransportFactory>(),
-            provider.GetRequiredService<IRpcSerializer>()));
+            provider.GetRequiredService<LakonaClusterRpcSerializer>().Serializer));
         services.TryAddSingleton<LocalClientNotificationCommandDispatcher>();
         services.TryAddSingleton<IClientNotificationRemoteDispatcher, ClusterClientNotificationDispatcher>();
 
@@ -150,4 +156,14 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
 
         return null;
     }
+}
+
+internal sealed class LakonaClusterRpcSerializer
+{
+    public LakonaClusterRpcSerializer(IRpcSerializer serializer)
+    {
+        Serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
+    }
+
+    public IRpcSerializer Serializer { get; }
 }

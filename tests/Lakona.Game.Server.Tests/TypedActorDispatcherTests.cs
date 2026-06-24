@@ -1,11 +1,13 @@
 using System.Text.Json;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
+using Lakona.Rpc.Serializer.MemoryPack;
+using MemoryPack;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests;
 
-public sealed class TypedActorDispatcherTests
+public sealed partial class TypedActorDispatcherTests
 {
     [Fact]
     public async Task Typed_actor_handler_dispatches_join_and_sends_reply()
@@ -38,6 +40,36 @@ public sealed class TypedActorDispatcherTests
     }
 
     [Fact]
+    public async Task Typed_actor_handler_round_trips_memorypack_actor_payloads()
+    {
+        var runtime = new RecordingActorRuntime();
+        var serializer = new RpcRemoteActorSerializer(new MemoryPackRpcSerializer());
+        var router = new RecordingClusterRouter();
+        var handler = new RoomActorClusterHandler(runtime, serializer, router);
+        var request = new MemoryPackJoinRoomRequest { PlayerId = "player-2" };
+        var message = new ClusterActorEnvelope(
+            ClusterActorRouteKeys.ForActor("room/43"),
+            "room/43",
+            "join-memorypack",
+            serializer.Serialize(request),
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            new NodeId("node-a"),
+            correlationId: "corr-2",
+            replyCorrelationId: "reply-2").ToClusterMessage();
+
+        var status = await handler.HandleAsync(message, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.Accepted, status);
+        Assert.Equal(ActorId.From("room/43"), runtime.LastActorId);
+        Assert.Equal("player-2", runtime.Actor.LastPlayerId);
+        Assert.NotNull(router.LastMessage);
+        Assert.Equal(RemoteActorGateway.ReplyKind, router.LastMessage.Kind);
+        Assert.Equal("reply-2", router.LastMessage.CorrelationId);
+        var reply = serializer.Deserialize<MemoryPackJoinRoomReply>(router.LastMessage.Payload);
+        Assert.True(reply.Accepted);
+    }
+
+    [Fact]
     public async Task Typed_actor_handler_rejects_unknown_method()
     {
         var handler = new RoomActorClusterHandler(
@@ -61,6 +93,20 @@ public sealed class TypedActorDispatcherTests
 
     private sealed record JoinRoomReply(bool Accepted);
 
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    private sealed partial class MemoryPackJoinRoomRequest
+    {
+        [MemoryPackOrder(0)]
+        public string PlayerId { get; set; } = "";
+    }
+
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    private sealed partial class MemoryPackJoinRoomReply
+    {
+        [MemoryPackOrder(0)]
+        public bool Accepted { get; set; }
+    }
+
     private sealed class RoomActor : Actor<TypedDispatcherRoomId>
     {
         public string? LastPlayerId { get; private set; }
@@ -71,6 +117,14 @@ public sealed class TypedActorDispatcherTests
         {
             LastPlayerId = request.PlayerId;
             return ValueTask.FromResult(new JoinRoomReply(true));
+        }
+
+        public ValueTask<MemoryPackJoinRoomReply> JoinMemoryPackAsync(
+            MemoryPackJoinRoomRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            LastPlayerId = request.PlayerId;
+            return ValueTask.FromResult(new MemoryPackJoinRoomReply { Accepted = true });
         }
     }
 
@@ -115,6 +169,26 @@ public sealed class TypedActorDispatcherTests
                     var reply = await _runtime.AskAsync<RoomActor, JoinRoomReply>(
                         actorId,
                         (actor, ct) => actor.JoinAsync(request, ct),
+                        cancellationToken).ConfigureAwait(false);
+                    if (envelope.ReplyCorrelationId is not null)
+                    {
+                        await RemoteActorGateway.SendReplyAsync(
+                            _router,
+                            envelope.SourceNode,
+                            envelope.ReplyCorrelationId,
+                            _serializer.Serialize(reply),
+                            cancellationToken).ConfigureAwait(false);
+                    }
+
+                    return ClusterSendStatus.Accepted;
+                }
+
+                case "join-memorypack":
+                {
+                    var request = _serializer.Deserialize<MemoryPackJoinRoomRequest>(envelope.Payload);
+                    var reply = await _runtime.AskAsync<RoomActor, MemoryPackJoinRoomReply>(
+                        actorId,
+                        (actor, ct) => actor.JoinMemoryPackAsync(request, ct),
                         cancellationToken).ConfigureAwait(false);
                     if (envelope.ReplyCorrelationId is not null)
                     {
