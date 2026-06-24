@@ -15,6 +15,7 @@ public sealed class LakonaInternalCodecTests
     private const byte GameHeartbeatRequestKind = 3;
     private const byte GameHeartbeatReplyKind = 4;
     private const byte ReliablePushAckRequestKind = 5;
+    private const byte SessionTerminationNoticeKind = 7;
 
     [Fact]
     public void GameClientHello_roundtrips_with_all_fields()
@@ -248,6 +249,19 @@ public sealed class LakonaInternalCodecTests
     }
 
     [Fact]
+    public void Decode_rejects_malformed_utf8_string_payload()
+    {
+        var payload = CreatePayload(GameHeartbeatReplyKind, builder =>
+        {
+            WriteInt32BigEndian(builder, (int)GameHeartbeatStatus.Terminated);
+            WriteInt32BigEndian(builder, 1);
+            builder.Add(0xFF);
+        });
+
+        Assert.Throws<InvalidOperationException>(() => LakonaInternalCodec.DecodeGameHeartbeatReply(payload));
+    }
+
+    [Fact]
     public void Decode_rejects_oversized_string_list_count()
     {
         var payload = CreatePayload(GameClientHelloKind, builder =>
@@ -284,6 +298,42 @@ public sealed class LakonaInternalCodecTests
         });
 
         Assert.Throws<InvalidOperationException>(() => LakonaInternalCodec.DecodeGameServerHello(payload));
+    }
+
+    [Fact]
+    public void Decode_rejects_negative_game_server_hello_reliable_push_max_pending()
+    {
+        var payload = CreatePayload(GameServerHelloKind, builder =>
+        {
+            WriteInt32BigEndian(builder, 1);
+            WriteString(builder, "node-a");
+            WriteString(builder, "tcp");
+            WriteString(builder, "lakona-internal");
+            builder.Add(1);
+            WriteString(builder, "reliable");
+            builder.Add(1);
+            builder.Add(1);
+            WriteInt32BigEndian(builder, -1);
+            WriteInt64BigEndian(builder, new DateTimeOffset(2026, 6, 24, 10, 30, 0, TimeSpan.Zero).Ticks);
+            WriteInt16BigEndian(builder, 0);
+            WriteInt32BigEndian(builder, 0);
+        });
+
+        Assert.Throws<InvalidOperationException>(() => LakonaInternalCodec.DecodeGameServerHello(payload));
+    }
+
+    [Fact]
+    public void Decode_rejects_out_of_range_datetime_ticks_with_invalid_operation_exception()
+    {
+        var payload = CreatePayload(SessionTerminationNoticeKind, builder =>
+        {
+            WriteInt32BigEndian(builder, (int)SessionTerminationReason.ServerShutdown);
+            WriteString(builder, "closed");
+            WriteInt64BigEndian(builder, long.MaxValue);
+            WriteInt16BigEndian(builder, 0);
+        });
+
+        Assert.Throws<InvalidOperationException>(() => LakonaInternalCodec.DecodeSessionTerminationNotice(payload));
     }
 
     [Fact]
@@ -354,6 +404,13 @@ public sealed class LakonaInternalCodecTests
     {
         var bytes = new byte[sizeof(long)];
         WriteInt64BigEndian(bytes, 0, value);
+        payload.AddRange(bytes);
+    }
+
+    private static void WriteInt16BigEndian(List<byte> payload, short value)
+    {
+        var bytes = new byte[sizeof(short)];
+        BinaryPrimitives.WriteInt16BigEndian(bytes, value);
         payload.AddRange(bytes);
     }
 

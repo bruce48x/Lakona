@@ -12,8 +12,8 @@ namespace Lakona.Game.Abstractions
 
         private const int Magic = 0x4C4B4943;
         private const byte Version = 1;
-        private const int HeaderSize = sizeof(int) + sizeof(byte) + sizeof(byte);
         private const int MaxStringListCount = 1024;
+        private static readonly UTF8Encoding StrictUtf8 = new UTF8Encoding(false, true);
 
         private const byte GameClientHelloKind = 1;
         private const byte GameServerHelloKind = 2;
@@ -377,7 +377,7 @@ namespace Lakona.Game.Abstractions
                     return;
                 }
 
-                var encoded = Encoding.UTF8.GetBytes(value);
+                var encoded = StrictUtf8.GetBytes(value);
                 if (encoded.Length > MaxPayloadSize)
                 {
                     throw new InvalidOperationException("String exceeds the maximum allowed size.");
@@ -500,7 +500,16 @@ namespace Lakona.Game.Abstractions
                 }
 
                 EnsureAvailable(length);
-                var value = Encoding.UTF8.GetString(payload.Span.Slice(offset, length));
+                string value;
+                try
+                {
+                    value = StrictUtf8.GetString(payload.Span.Slice(offset, length));
+                }
+                catch (DecoderFallbackException ex)
+                {
+                    throw new InvalidOperationException("String payload contains malformed UTF-8.", ex);
+                }
+
                 offset += length;
                 return value;
             }
@@ -546,7 +555,14 @@ namespace Lakona.Game.Abstractions
                     throw new InvalidOperationException("DateTimeOffset must use UTC offset.");
                 }
 
-                return new DateTimeOffset(ticks, TimeSpan.Zero);
+                try
+                {
+                    return new DateTimeOffset(ticks, TimeSpan.Zero);
+                }
+                catch (ArgumentOutOfRangeException ex)
+                {
+                    throw new InvalidOperationException("DateTimeOffset ticks are outside the valid range.", ex);
+                }
             }
 
             public TEnum ReadEnum<TEnum>()
