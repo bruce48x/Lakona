@@ -213,7 +213,10 @@ transport accepted
 Handshake payloads are framework-internal Lakona.Game messages. They are
 encoded with `LakonaInternalCodec`, not with the endpoint-selected business
 serializer. The endpoint serializer is reported in `ServerHello` and begins at
-business RPC payloads after handshake succeeds.
+business RPC payloads after handshake succeeds. `LakonaInternalCodec` also
+does not follow `Lakona:Cluster:Serializer`; the cluster serializer is for
+node-to-node cluster, feature-message, notification-relay, and remote actor
+payloads.
 
 Business RPC before a completed handshake is rejected with a structured
 `HandshakeRequired` failure. `ServerHello` sends resolved public capabilities,

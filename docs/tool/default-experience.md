@@ -113,6 +113,13 @@ For WebSocket transport, the generated endpoint includes the path:
 }
 ```
 
+Single-node generated projects write the selected serializer only on the
+client-facing endpoint. Templates that emit `Lakona:Cluster` must also write
+`Lakona:Cluster:Serializer` from the same `--serializer` choice. That value
+drives node-to-node cluster RPC payloads and remote actor payloads; it does not
+replace the `LakonaInternalCodec` used by handshake, heartbeat, reliable push
+ack, or session termination notice.
+
 ## Derived Runtime State
 
 Generated server code should derive the full runtime model from the small configuration surface and project conventions.

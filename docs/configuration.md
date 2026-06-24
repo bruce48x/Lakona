@@ -65,6 +65,7 @@ For WebSocket transport, include `Path`:
     ],
     "Cluster": {
       "Endpoint": "tcp://10.0.0.2:21002",
+      "Serializer": "json",
       "Seeds": [ "tcp://10.0.0.1:21001" ]
     }
   }
@@ -153,8 +154,14 @@ belong in hotfix services and actor behaviors.
 `Lakona:Endpoints` entries are listener configuration and RPC service exposure.
 They do not create session identities and they do not name endpoints.
 
-Endpoint `Serializer` selects the business RPC payload serializer. It does not
-select the Lakona.Game framework-internal serializer. Framework-internal
+Endpoint `Serializer` selects the client-facing business RPC payload
+serializer for that listener. It does not select the node-to-node cluster
+serializer and it does not select the Lakona.Game framework-internal control
+codec.
+
+Node-to-node cluster traffic uses `Lakona:Cluster:Serializer`. Remote actor
+request and reply payloads follow the cluster serializer because remote actor
+calls travel over the cluster channel. Framework-internal client control
 messages such as handshake, heartbeat, reliable push ack, and session
 termination notice use `LakonaInternalCodec` on every endpoint.
 
@@ -204,6 +211,7 @@ mode is sent to clients during the framework game handshake.
   "Lakona": {
     "Cluster": {
       "Endpoint": "tcp://10.0.0.1:21001",
+      "Serializer": "memorypack",
       "Seeds": [ "tcp://10.0.0.1:21001" ],
       "Directory": {
         "Provider": "postgres",
@@ -218,6 +226,14 @@ mode is sent to clients during the framework game handshake.
 
 The cluster endpoint is not listed in `Endpoints`; it is advertised separately
 as the `cluster` endpoint for node-to-node traffic.
+
+`Serializer` is required when `Cluster` is configured. Supported cluster
+serializers are `json` and `memorypack`, and all nodes that communicate through
+the same cluster must use the same cluster serializer. The cluster serializer
+selects the RPC payload serializer for cluster protocol DTOs, feature-addressed
+messages, client-notification relay commands, and remote actor payloads. It
+does not replace `LakonaInternalCodec` for client-facing framework control
+messages.
 
 `Seeds` is the public bootstrap list for shared cluster directories. A data
 node can register local node-directory and route-directory implementations,
@@ -249,7 +265,7 @@ Validation covers:
 - endpoint shape, serializer selection, duplicate transports, and transport-specific rules;
 - endpoint-local `RpcServices`;
 - feature names, duplicates, and dependency/order constraints;
-- cluster endpoint and seed shape when cluster is configured.
+- cluster endpoint, cluster serializer selection, and seed shape when cluster is configured.
 
 `--readiness-check` is the canonical project readiness command for local
 inspection and deployment automation. Use `--health-check` for liveness-only
@@ -271,7 +287,8 @@ fix: set Lakona:Endpoints:0:Path to a path such as /ws
 - optional `Lakona:Feature` only when the generated project is intentionally
   split;
 - optional `Lakona:Cluster` only when the selected template participates in
-  cluster routing.
+  cluster routing. When generated, `Lakona:Cluster:Serializer` should be set
+  from the same `--serializer` choice used for generated business RPC contracts.
 
 Generated projects should not emit service endpoint marker files, endpoint
 `Name`, hidden `control` or `realtime` endpoint names, or `Services` lists.

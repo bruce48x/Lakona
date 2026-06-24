@@ -644,6 +644,13 @@ endpoint's `RpcServices` array and generated serializer names in endpoint
 `Serializer`; do not generate endpoint `Name` or
 `Lakona:Cluster:Services`.
 
+Single-node starter projects do not emit `Lakona:Cluster`. Templates that do
+emit cluster configuration must also emit `Lakona:Cluster:Serializer` using
+the same serializer selected by `--serializer`. Cluster serializer selection
+drives node-to-node cluster RPC payloads and remote actor payloads. It does not
+change the `LakonaInternalCodec` used for framework handshake, heartbeat,
+reliable push ack, and session termination notice payloads.
+
 Generated hotfix feature declarations own fixed local actor creation. The Chat
 feature declares:
 

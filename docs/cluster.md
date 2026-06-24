@@ -64,6 +64,7 @@ All runtime configuration is under `Lakona`.
     ],
     "Cluster": {
       "Endpoint": "tcp://10.0.0.2:21002",
+      "Serializer": "json",
       "Seeds": [ "tcp://10.0.0.1:21001" ]
     }
   }
@@ -160,6 +161,20 @@ client-facing business endpoint. When configured, the framework starts a
 cluster RPC server on that endpoint. The server binds node-directory,
 route-directory, and feature-message RPC handlers only when the corresponding
 local services exist in DI.
+
+`Lakona:Cluster:Serializer` selects the node-to-node RPC payload serializer for
+cluster protocol DTOs. Supported values are `json` and `memorypack`. Every node
+that exchanges cluster RPC traffic must use the same cluster serializer; mixed
+client-facing endpoint serializers are allowed, but the cluster channel has one
+serializer per communicating cluster.
+
+Generated projects that emit cluster configuration copy the user's
+`--serializer` choice into `Lakona:Cluster:Serializer`. This keeps business
+RPC payloads, cluster protocol payloads, feature-addressed message payloads,
+client-notification relay commands, and remote actor payloads aligned with the
+same project-level serializer choice. Client-facing framework control messages
+such as handshake, heartbeat, reliable push ack, and session termination notice
+remain encoded with `LakonaInternalCodec`.
 
 `Lakona:Cluster:Seeds` is the public bootstrap input for directory access. If
 a node has seeds but no local `INodeDirectory` or `IRouteDirectory`
@@ -472,7 +487,7 @@ V1 feature-addressed delivery:
 1. Resolve candidate nodes with `IClusterNodeDiscovery.AnyAsync(feature)`.
 2. Use the candidate node's `cluster` endpoint.
 3. Send a `FeatureMessageRequest` to the selected node through the new
-   request/reply transport.
+   request/reply transport, serialized with `Lakona:Cluster:Serializer`.
 4. Dispatch the message to a registered local feature message handler.
 5. Return a `FeatureMessageReply` or a structured failure.
 
@@ -491,6 +506,12 @@ await rooms.Get(roomId).SubmitInputAsync(input, cancellationToken);
 This finds a concrete actor route and dispatches through a
 `ClusterActorEnvelope`. Use actor-addressed calls for addressable state units
 such as rooms, player sessions, and leaderboard actors.
+
+Generated remote actor refs serialize method request and reply payloads with
+the same serializer selected by `Lakona:Cluster:Serializer`. The public
+`IRemoteActorSerializer` remains the actor-facing abstraction, but the default
+runtime wiring should adapt the configured cluster `IRpcSerializer` instead of
+introducing a separate JSON-only actor serializer.
 
 Boundary:
 
@@ -663,6 +684,7 @@ Configuration:
     "Feature": [ "state-store", "matchmaking", "leaderboard" ],
     "Cluster": {
       "Endpoint": "tcp://10.0.0.1:21001",
+      "Serializer": "memorypack",
       "Seeds": [ "tcp://10.0.0.1:21001" ],
       "Directory": {
         "Provider": "postgres",
@@ -724,7 +746,7 @@ Configuration:
     "Endpoints": [
       {
         "Transport": "websocket",
-        "Serializer": "json",
+        "Serializer": "memorypack",
         "Host": "0.0.0.0",
         "Port": 20000,
         "Path": "/ws",
@@ -734,6 +756,7 @@ Configuration:
     ],
     "Cluster": {
       "Endpoint": "tcp://10.0.0.2:21002",
+      "Serializer": "memorypack",
       "Seeds": [ "tcp://10.0.0.1:21001" ]
     }
   }
@@ -781,6 +804,7 @@ Configuration:
     ],
     "Cluster": {
       "Endpoint": "tcp://10.0.0.3:21003",
+      "Serializer": "memorypack",
       "Seeds": [ "tcp://10.0.0.1:21001" ]
     }
   }

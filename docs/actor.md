@@ -121,6 +121,14 @@ The business method surface should return normally or throw typed actor call
 exceptions. Lower-level status-returning APIs remain available for framework
 internals and boundary services.
 
+Remote actor request and reply payloads use the cluster serializer selected by
+`Lakona:Cluster:Serializer`. They do not use the client-facing endpoint
+serializer unless that endpoint happens to use the same serializer. The
+actor-facing `IRemoteActorSerializer` abstraction should default to an adapter
+over the configured cluster `IRpcSerializer`, so a project generated with
+`--serializer memorypack` uses MemoryPack for remote actor payloads as well as
+cluster RPC payloads.
+
 ## Actor Key Model
 
 Actor key type is declared in the actor base type:
@@ -198,7 +206,7 @@ game service code
   -> ActorDirectory cache / local actor invoker / remote actor invoker
   -> IActorRuntime / IClusterRouter
   -> ClusterActorEnvelope
-  -> ClusterMessage / RouteLocation / transport adapter
+  -> ClusterMessage / RouteLocation / cluster serializer / transport adapter
 ```
 
 `ActorDirectory` lives in `Lakona.Game.Server`. Business code should not
