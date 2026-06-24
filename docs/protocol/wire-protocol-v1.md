@@ -28,7 +28,9 @@ The current envelope format has no explicit version field. From this document fo
 - `uint32`: unsigned 32-bit integer, big-endian.
 - `int64`: signed 64-bit integer, big-endian.
 - UTF-8 strings are encoded as an `int32` byte length followed by that many UTF-8 bytes.
-- Payload bytes are opaque to the envelope layer and are produced by the configured `IRpcSerializer`.
+- Payload bytes are opaque to the envelope layer. Business RPC payload bytes
+  are produced by the configured `IRpcSerializer`; framework-internal
+  Lakona.Game payloads use `LakonaInternalCodec`.
 
 The maximum accepted RPC envelope payload length is `RpcProtocolLimits.DefaultMaxPayloadSize`, currently 64 MiB.
 
