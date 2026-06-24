@@ -77,6 +77,37 @@ public sealed class LakonaGameClientCoreTests
     }
 
     [Fact]
+    public async Task RawTerminationNotificationAppliesInternalCodecWithoutEndpointSerializer()
+    {
+        var client = new LakonaGameClientCore();
+        client.StartSession("session-a");
+        var transport = new OneShotTerminationNotificationTransport(
+            new SessionTerminationNotice(SessionTerminationReason.Policy, "Removed."));
+        await using var rpc = new RpcClientRuntime(transport, new NoopSerializer());
+        var handled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        rpc.RegisterRawNotificationHandler(
+            GameSessionNotificationRpcIds.ServiceId,
+            GameSessionNotificationRpcIds.TerminatedNotificationId,
+            payload =>
+            {
+                client.ApplySessionTerminationNotice(
+                    LakonaInternalCodec.DecodeSessionTerminationNotice(payload));
+                handled.TrySetResult();
+                return default;
+            });
+
+        await rpc.StartAsync(TestContext.Current.CancellationToken);
+        await handled.Task.WaitAsync(
+            TimeSpan.FromSeconds(2),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientSessionPhase.Terminated, client.Snapshot.Phase);
+        Assert.Equal(SessionTerminationReason.Policy, client.Snapshot.Termination?.Reason);
+        Assert.Equal("Removed.", client.Snapshot.Termination?.Message);
+    }
+
+    [Fact]
     public void ApplyServerHello_disables_reliable_push_ack_when_server_reports_immediate_mode()
     {
         var client = new LakonaGameClientCore();
@@ -504,6 +535,56 @@ public sealed class LakonaGameClientCoreTests
         public async ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
         {
             return await _response.Task.WaitAsync(ct).ConfigureAwait(false);
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            IsConnected = false;
+            return default;
+        }
+    }
+
+    private sealed class OneShotTerminationNotificationTransport : ITransport
+    {
+        private readonly SessionTerminationNotice _notice;
+        private readonly TaskCompletionSource<TransportFrame> _notification =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _received;
+
+        public OneShotTerminationNotificationTransport(SessionTerminationNotice notice)
+        {
+            _notice = notice;
+        }
+
+        public bool IsConnected { get; private set; }
+
+        public ValueTask ConnectAsync(CancellationToken ct = default)
+        {
+            IsConnected = true;
+            var push = new RpcPushEnvelope
+            {
+                ServiceId = GameSessionNotificationRpcIds.ServiceId,
+                MethodId = GameSessionNotificationRpcIds.TerminatedNotificationId,
+                Payload = LakonaInternalCodec.EncodeSessionTerminationNotice(_notice)
+            };
+            _notification.SetResult(RpcEnvelopeCodec.EncodePush(push));
+            return default;
+        }
+
+        public ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken ct = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public async ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
+        {
+            if (Interlocked.Exchange(ref _received, 1) == 0)
+            {
+                return await _notification.Task.WaitAsync(ct).ConfigureAwait(false);
+            }
+
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+            throw new OperationCanceledException(ct);
         }
 
         public ValueTask DisposeAsync()

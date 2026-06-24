@@ -5,6 +5,34 @@ namespace Lakona.Rpc.Analyzers.Tests;
 public sealed class RpcContractIdAnalyzerTests
 {
     [Fact]
+    public async Task ContractIdAnalyzer_ReportsServiceIdZeroAsInvalid()
+    {
+        var compilation = AnalyzerTestHelpers.CreateCompilation(
+            """
+            using Lakona.Rpc.Core;
+
+            namespace Analyzer.Contracts
+            {
+                public sealed class Request { }
+                public sealed class Reply { }
+
+                [RpcService(0)]
+                public interface IFrameworkIdService
+                {
+                    [RpcMethod(1)]
+                    System.Threading.Tasks.ValueTask<Reply> InvalidAsync(Request request);
+                }
+            }
+            """);
+
+        var diagnostics = await AnalyzerTestHelpers.RunContractIdAnalyzerAsync(compilation);
+
+        Assert.Contains(
+            diagnostics,
+            static diagnostic => diagnostic.Id == RpcContractIdAnalyzer.InvalidServiceIdDiagnosticId);
+    }
+
+    [Fact]
     public async Task ContractIdAnalyzer_ReportsInvalidAndDuplicateIdsInTheirOwnScopes()
     {
         var compilation = AnalyzerTestHelpers.CreateCompilation(

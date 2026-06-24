@@ -161,6 +161,23 @@ namespace Lakona.Rpc.Client
                     $"Notification handler already registered for {method.ServiceId}:{method.MethodId}.");
         }
 
+        public void RegisterRawNotificationHandler(
+            int serviceId,
+            int methodId,
+            Func<ReadOnlyMemory<byte>, ValueTask> handler)
+        {
+            ThrowIfDisposed();
+            if (handler is null) throw new ArgumentNullException(nameof(handler));
+
+            var registered = _notificationHandlers.TryAdd((serviceId, methodId), new RegisteredNotificationHandler(
+                typeof(ReadOnlyMemory<byte>),
+                payload => handler(payload)));
+
+            if (!registered)
+                throw new InvalidOperationException(
+                    $"Notification handler already registered for {serviceId}:{methodId}.");
+        }
+
         /// <summary>
         ///     Registers a synchronous handler for a server-to-client notification method.
         /// </summary>

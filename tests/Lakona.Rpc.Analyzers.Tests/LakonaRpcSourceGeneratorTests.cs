@@ -247,16 +247,50 @@ public sealed class LakonaRpcSourceGeneratorTests
         Assert.Contains("ClientRuntime = ResolveOption(_options.ClientRuntime, \"unity\")", wrapper);
         Assert.Contains("Platform = ResolveOption(_options.Platform, \"unity\")", wrapper);
         Assert.Contains("GameVersion = ResolveOption(_options.GameVersion, \"agar\")", wrapper);
+        Assert.Contains("using Lakona.Game.Abstractions;", wrapper);
+        Assert.Contains("using Lakona.Game.Abstractions.Sessions;", wrapper);
+        Assert.Contains("_rpcClient.Runtime.RegisterRawNotificationHandler(", wrapper);
+        Assert.Contains("GameSessionNotificationRpcIds.ServiceId", wrapper);
+        Assert.Contains("GameSessionNotificationRpcIds.TerminatedNotificationId", wrapper);
+        Assert.Contains("LakonaInternalCodec.DecodeSessionTerminationNotice(payload)", wrapper);
         Assert.DoesNotContain("System.Reflection", wrapper);
         AssertInOrder(wrapper, "_core.MarkConnecting();", "await _rpcClient.ConnectAsync");
         AssertInOrder(wrapper, "await _rpcClient.ConnectAsync", "await _core.HandshakeAsync");
-        AssertInOrder(wrapper, "await _core.HandshakeAsync", "_core.StartHeartbeat");
+        AssertInOrder(wrapper, "await _core.HandshakeAsync", "_rpcClient.Runtime.RegisterRawNotificationHandler");
+        AssertInOrder(wrapper, "_rpcClient.Runtime.RegisterRawNotificationHandler", "_core.StartHeartbeat");
         AssertInOrder(wrapper, "_core.StartHeartbeat", "_core.MarkReady();");
         AssertInOrder(wrapper, "_core.MarkReady();", "_apiReady = true;");
         AssertInOrder(
             wrapper.Substring(wrapper.IndexOf("private void HandleDisconnected", StringComparison.Ordinal)),
             "_apiReady = false;",
             "_core.MarkReconnecting();");
+    }
+
+    [Fact]
+    public void SourceGenerator_FrameworkSessionCallbackProxy_UsesInternalCodecForTerminationNotice()
+    {
+        var runResult = AnalyzerTestHelpers.RunGenerator(
+            AnalyzerTestHelpers.CreateCompilation(FrameworkSessionCallbackContractSource),
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaRpcGenerateServer"] = "true",
+                ["build_property.LakonaRpcServerGeneratedNamespace"] = "Server.Generated"
+            },
+            out var outputCompilation);
+
+        Assert.Empty(runResult.Diagnostics);
+        Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(outputCompilation));
+
+        var proxy = GetGeneratedSource(runResult, "LakonaGameSessionCallbackProxy.g.cs");
+        Assert.Contains("using Lakona.Game.Abstractions;", proxy);
+        Assert.Contains("using Lakona.Game.Abstractions.Sessions;", proxy);
+        Assert.Contains(
+            "var payload = LakonaInternalCodec.EncodeSessionTerminationNotice(notice);",
+            proxy);
+        Assert.Contains("_session.SendRawNotificationAsync(", proxy);
+        Assert.Contains("GameSessionNotificationRpcIds.ServiceId", proxy);
+        Assert.Contains("GameSessionNotificationRpcIds.TerminatedNotificationId", proxy);
+        Assert.DoesNotContain("SendNotificationAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>", proxy);
     }
 
     [Fact]
@@ -590,6 +624,34 @@ public sealed class LakonaRpcSourceGeneratorTests
             {
                 [RpcMethod(1)]
                 ValueTask<PlayerReply> GetAsync(PlayerRequest request);
+            }
+        }
+        """;
+
+    private const string FrameworkSessionCallbackContractSource = """
+        using System.Threading;
+        using System.Threading.Tasks;
+        using Lakona.Rpc.Core;
+
+        namespace Lakona.Game.Abstractions
+        {
+            public sealed class FrameworkRequest { }
+            public sealed class FrameworkReply { }
+
+            [RpcService(5, NotificationContract = typeof(ILakonaGameSessionCallback))]
+            public interface IFrameworkSessionService
+            {
+                [RpcMethod(1)]
+                ValueTask<FrameworkReply> PingAsync(FrameworkRequest request);
+            }
+
+            [RpcNotificationContract(typeof(IFrameworkSessionService))]
+            public interface ILakonaGameSessionCallback
+            {
+                [RpcNotification(9)]
+                ValueTask OnSessionTerminatedAsync(
+                    SessionTerminationNotice notice,
+                    CancellationToken cancellationToken = default);
             }
         }
         """;

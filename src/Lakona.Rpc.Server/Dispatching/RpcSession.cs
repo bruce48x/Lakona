@@ -250,6 +250,23 @@ namespace Lakona.Rpc.Server
             await SendFrameAsyncSerialized(bytes.Memory, ct).ConfigureAwait(false);
         }
 
+        public async ValueTask SendRawNotificationAsync(
+            int serviceId,
+            int methodId,
+            ReadOnlyMemory<byte> payload,
+            CancellationToken cancellationToken = default)
+        {
+            ThrowIfDisposed();
+            var push = new RpcPushEnvelope
+            {
+                ServiceId = serviceId,
+                MethodId = methodId,
+                Payload = payload
+            };
+            using var bytes = RpcEnvelopeCodec.EncodePush(push);
+            await SendFrameAsyncSerialized(bytes.Memory, cancellationToken).ConfigureAwait(false);
+        }
+
         /// <summary>
         ///     Connects the transport and starts the session receive loop.
         /// </summary>
