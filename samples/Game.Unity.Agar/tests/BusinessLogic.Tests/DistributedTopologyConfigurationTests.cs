@@ -293,9 +293,6 @@ public sealed class DistributedTopologyConfigurationTests
 
         var status = await GetMatchmakingStatusAsync(actors);
         Assert.Equal(10, status.QueuedCount);
-        Assert.True(string.IsNullOrWhiteSpace(status.LastRoomId));
-        Assert.True(string.IsNullOrWhiteSpace(status.LastMatchId));
-
         foreach (var playerId in playerIds)
         {
             var snapshot = await GetSessionSnapshotAsync(actors, playerId);

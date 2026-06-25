@@ -205,6 +205,47 @@ public sealed class ToolArchitectureScanTests
     }
 
     [Fact]
+    public async Task NewProject_JsonSerializer_DoesNotGenerateMemoryPackProjectArtifacts()
+    {
+        var parentRoot = Path.Combine(Path.GetTempPath(), "lakona-tool-json-serializer-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(parentRoot);
+        try
+        {
+            var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+                "MyGame",
+                parentRoot,
+                ClientEngine.Godot,
+                TransportKind.WebSocket,
+                SerializerKind.Json,
+                PersistenceKind.None,
+                NuGetForUnitySource.OpenUpm,
+                DeploymentProfile.Compose));
+            var generator = CreateGenerator();
+
+            var result = await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
+
+            var generatedText = ReadAllTextFiles(spec.Layout.RootPath);
+            var appsettings = File.ReadAllText(Path.Combine(spec.Layout.RootPath, "Server", "App", "appsettings.json"));
+            using var document = JsonDocument.Parse(appsettings);
+            var lakona = document.RootElement.GetProperty("Lakona");
+            var endpoint = lakona.GetProperty("Endpoints")[0];
+
+            Assert.Equal("json", endpoint.GetProperty("Serializer").GetString());
+            Assert.False(lakona.TryGetProperty("Cluster", out _));
+            Assert.DoesNotContain("MemoryPackable", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain("MemoryPackOrder", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain("using MemoryPack", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain("MemoryPack.Generator", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain("MemoryPack.Core", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain("Lakona.Rpc.Serializer.MemoryPack", generatedText, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(parentRoot, recursive: true);
+        }
+    }
+
+    [Fact]
     public void GodotChatSample_BindsChatCallbackThroughFrameworkSessionRegistry()
     {
         var repositoryRoot = FindRepositoryRoot();

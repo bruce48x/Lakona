@@ -206,6 +206,28 @@ public sealed class AgarHotfixBoundaryTests
     }
 
     [Fact]
+    public void Matchmaking_shared_contracts_do_not_expose_server_only_diagnostics()
+    {
+        var contracts = File.ReadAllText(FindRepositoryFile("samples/Game.Unity.Agar/Shared/State/MatchmakingContracts.cs").FullName);
+        var stateMatch = Regex.Match(
+            contracts,
+            @"public\s+sealed\s+class\s+MatchmakingState\s*\{(?<body>.*?)^\s*\}",
+            RegexOptions.Singleline | RegexOptions.Multiline | RegexOptions.CultureInvariant);
+
+        Assert.True(stateMatch.Success, "Expected MatchmakingState to remain in shared matchmaking contracts.");
+        Assert.DoesNotContain("MatchmakingStatusSnapshot", contracts, StringComparison.Ordinal);
+
+        var stateProperties = Regex.Matches(
+                stateMatch.Groups["body"].Value,
+                @"public\s+(?<type>[^{;]+?)\s+(?<name>\w+)\s*\{\s*get;\s*set;\s*\}",
+                RegexOptions.CultureInvariant)
+            .Select(match => match.Groups["name"].Value)
+            .ToArray();
+
+        Assert.Equal(new[] { "DefaultRoomSize", "PendingTickets" }, stateProperties);
+    }
+
+    [Fact]
     public void Agar_unity_client_uses_framework_handshake_contracts()
     {
         var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
