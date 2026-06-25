@@ -1812,7 +1812,13 @@ namespace Lakona.Game.Server.Hotfix.Generators
         {
             var contractIdentity = contract.Contract.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
                 .Replace("global::", string.Empty);
-            return SanitizeRemoteKindIdentity(contractIdentity) + "." + GetRemoteMethodName(method.Name);
+            var requestIdentity = method.RequestType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                .Replace("global::", string.Empty);
+            return SanitizeRemoteKindIdentity(contractIdentity) +
+                "." +
+                GetRemoteMethodName(method.Name) +
+                "." +
+                SanitizeRemoteKindIdentity(requestIdentity);
         }
 
         private static string SanitizeRemoteKindIdentity(string value)
