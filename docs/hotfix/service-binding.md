@@ -88,6 +88,39 @@ When a user adds a new shared `[RpcService]` interface and implements a matching
 hotfix `[HotfixService]`, no stable proxy file, binding configurator, endpoint
 marker, or endpoint name should be written by hand.
 
+### Hotfix Service Dependencies
+
+Hotfix service implementations express dependencies through constructors:
+
+```csharp
+[HotfixService(typeof(IChatService))]
+public sealed class ChatService
+{
+    private readonly ChatPresenceStore _presence;
+
+    public ChatService(ChatPresenceStore presence)
+    {
+        _presence = presence;
+    }
+
+    public ValueTask SendAsync(HotfixServiceCall<ChatSendRequest, IChatCallback> call)
+    {
+        // Use _presence for dependencies and call for request-specific data.
+        return default;
+    }
+}
+```
+
+`HotfixFeatureContext.Services` registers dependencies used by hotfix logic.
+It does not register `[HotfixService]` classes themselves. The dispatch layer
+owns service implementation lifetime and creates one instance per non-static
+service call.
+
+For high-frequency realtime methods, a service method may stay static to avoid
+allocating one service implementation instance per request. Keep that exception
+local to the hot method and resolve only the required dependencies from
+`call.Services`.
+
 ## Session Lifecycle Boundary
 
 Generated binding code may call session-oriented game server APIs when a

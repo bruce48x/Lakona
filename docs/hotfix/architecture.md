@@ -155,6 +155,23 @@ This prevents RPC registries and existing sessions from holding instances of
 types loaded from the hotfix assembly. It is required for old connections to use
 new service logic after reload and for old hotfix load contexts to unload.
 
+Hotfix service and lifecycle implementation classes may use constructor
+injection. The dispatcher activates one fresh instance per non-static hotfix
+service or lifecycle method call using the current generation provider carried
+by the call context. The dispatcher disposes that instance after the returned
+`ValueTask` completes.
+
+Hotfix service and lifecycle implementation classes are not registered in the
+stable root DI container. Dependencies registered by `HotfixFeatureContext`
+belong to the current hotfix generation; stable framework dependencies are
+resolved through the provider fallback to the root container.
+
+High-frequency service methods may remain static when avoiding one service
+instance allocation per request is required. Static methods may resolve the
+small set of required dependencies directly from `call.Services` in local
+variables. Do not hide those lookups behind dependency records whose only
+purpose is DI resolution.
+
 Framework-owned lifecycle bridges use the same dispatch boundary. Stable app
 code enables the framework bridge, and the current hotfix assembly provides one
 `[HotfixLifecycle(typeof(TContract))]` implementation for the required
@@ -236,7 +253,12 @@ The call context exposes stable runtime dependencies and the current RPC
 connection id. It must not expose endpoint names:
 
 ```csharp
-public class HotfixServiceCall<TRequest>
+public interface IHotfixCallContext
+{
+    IServiceProvider Services { get; }
+}
+
+public class HotfixServiceCall<TRequest> : IHotfixCallContext
 {
     public TRequest Request { get; }
     public string ConnectionId { get; }
@@ -257,6 +279,13 @@ public sealed class HotfixLifecycleCall<TRequest> :
 {
 }
 ```
+
+Service and lifecycle constructors receive long-lived dependencies through DI.
+Method arguments carry request-specific data: request DTOs, connection id,
+callback proxy, actor runtime, and game server APIs. Do not resolve ordinary
+constructor dependencies manually inside method bodies. The exception is a
+documented high-frequency static method that avoids service instance
+allocation.
 
 Return mapping stays one-to-one with the shared RPC contract:
 

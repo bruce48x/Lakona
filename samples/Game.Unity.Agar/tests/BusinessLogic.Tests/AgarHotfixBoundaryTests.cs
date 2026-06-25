@@ -6,6 +6,32 @@ namespace BusinessLogic.Tests;
 public sealed class AgarHotfixBoundaryTests
 {
     [Fact]
+    public void Agar_battle_service_uses_constructor_injection_without_allocating_submit_input_instances()
+    {
+        var battleServicePath = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Services/BattleService.cs");
+        var text = File.ReadAllText(battleServicePath.FullName);
+
+        Assert.Matches(
+            @"public\s+BattleService\s*\([^)]*PlayerSessionRegistry[^)]*RuntimeNodeIdentity[^)]*\)",
+            text);
+        Assert.Matches(
+            @"static\s+(?:async\s+)?ValueTask\s+SubmitInputAsync\s*\(",
+            text);
+
+        var serviceLookups = Regex.Matches(
+                text,
+                @"call\.Services\s*\.\s*GetRequiredService\s*<\s*(?<type>[^>]+)\s*>\s*\(")
+            .Select(match => match.Groups["type"].Value.Trim())
+            .ToArray();
+        Assert.Contains("PlayerSessionRegistry", serviceLookups);
+        Assert.Contains("RuntimeNodeIdentity", serviceLookups);
+        Assert.All(serviceLookups, type =>
+            Assert.Contains(type, new[] { "PlayerSessionRegistry", "RuntimeNodeIdentity" }));
+        Assert.DoesNotContain("AgarBattleServiceDependencies.From(call)", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("internal sealed record AgarBattleServiceDependencies", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Hotfix_services_do_not_route_actor_behavior_through_stable_state_store_bridges()
     {
         var servicesRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Services/PlayerService.cs")

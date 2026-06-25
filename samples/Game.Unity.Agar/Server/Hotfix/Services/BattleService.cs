@@ -14,12 +14,22 @@ using Shared.Interfaces;
 namespace Server.Hotfix.Services;
 
 [HotfixService(typeof(IBattleService))]
-public sealed class BattleService
+internal sealed class BattleService
 {
+    private readonly PlayerSessionRegistry _playerSessionRegistry;
+    private readonly RuntimeNodeIdentity _runtimeNodeIdentity;
+
+    public BattleService(
+        PlayerSessionRegistry playerSessionRegistry,
+        RuntimeNodeIdentity runtimeNodeIdentity)
+    {
+        _playerSessionRegistry = playerSessionRegistry;
+        _runtimeNodeIdentity = runtimeNodeIdentity;
+    }
+
     public async ValueTask<RealtimeAttachReply> AttachRealtimeAsync(HotfixServiceCall<RealtimeAttachRequest, IBattleCallback> call)
     {
         var req = call.Request;
-        var services = AgarBattleServiceDependencies.From(call);
         var nodeLocalActors = call.Actors;
         if (string.IsNullOrWhiteSpace(req.PlayerId) ||
             string.IsNullOrWhiteSpace(req.Token) ||
@@ -49,7 +59,7 @@ public sealed class BattleService
             };
         }
 
-        if (!services.RuntimeNodeIdentity.IsRuntimeOwner(sessionSnapshot.RuntimeGateway))
+        if (!_runtimeNodeIdentity.IsRuntimeOwner(sessionSnapshot.RuntimeGateway))
         {
             return new RealtimeAttachReply
             {
@@ -58,7 +68,7 @@ public sealed class BattleService
             };
         }
 
-        var attached = await services.PlayerSessionRegistry
+        var attached = await _playerSessionRegistry
             .AttachRealtimeAsync(req.PlayerId, req.Token, req.RoomId, req.MatchId, call.ConnectionId, call.Callback)
             .ConfigureAwait(false);
         if (!attached)
@@ -90,12 +100,13 @@ public sealed class BattleService
         };
     }
 
-    public async ValueTask SubmitInputAsync(HotfixServiceCall<InputMessage, IBattleCallback> call)
+    public static async ValueTask SubmitInputAsync(HotfixServiceCall<InputMessage, IBattleCallback> call)
     {
         var req = call.Request;
-        var services = AgarBattleServiceDependencies.From(call);
+        var playerSessionRegistry = call.Services.GetRequiredService<PlayerSessionRegistry>();
+        var runtimeNodeIdentity = call.Services.GetRequiredService<RuntimeNodeIdentity>();
         var nodeLocalActors = call.Actors;
-        var playerId = services.PlayerSessionRegistry.GetPlayerIdByConnection(call.ConnectionId);
+        var playerId = playerSessionRegistry.GetPlayerIdByConnection(call.ConnectionId);
         if (string.IsNullOrWhiteSpace(playerId))
         {
             return;
@@ -113,7 +124,7 @@ public sealed class BattleService
                 (actor, _) => actor.GetSnapshotAsync())
             .ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(sessionSnapshot.CurrentRoomId) ||
-            !services.RuntimeNodeIdentity.IsRuntimeOwner(sessionSnapshot.RuntimeGateway))
+            !runtimeNodeIdentity.IsRuntimeOwner(sessionSnapshot.RuntimeGateway))
         {
             return;
         }
@@ -133,16 +144,4 @@ public sealed class BattleService
     private static ActorId RoomId(string roomId) => ActorId.From(roomId);
 
     private static ActorId UserId(string userId) => ActorId.From($"session:{userId}");
-}
-
-internal sealed record AgarBattleServiceDependencies(
-    PlayerSessionRegistry PlayerSessionRegistry,
-    RuntimeNodeIdentity RuntimeNodeIdentity)
-{
-    public static AgarBattleServiceDependencies From<TRequest>(HotfixServiceCall<TRequest> call)
-    {
-        return new AgarBattleServiceDependencies(
-            call.Services.GetRequiredService<PlayerSessionRegistry>(),
-            call.Services.GetRequiredService<RuntimeNodeIdentity>());
-    }
 }
