@@ -122,12 +122,14 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 {
                     foreach (var duplicate in duplicateSignatures)
                     {
-                        var first = duplicate.First();
-                        context.ReportDiagnostic(Diagnostic.Create(
-                            HotfixGeneratorDiagnostics.DuplicateHotfixActorContractMethod,
-                            first.Contract.Contract.Locations.FirstOrDefault(),
-                            first.Contract.Contract.ToDisplayString(),
-                            duplicate.Key));
+                        foreach (var duplicateMethod in duplicate.Skip(1))
+                        {
+                            context.ReportDiagnostic(Diagnostic.Create(
+                                HotfixGeneratorDiagnostics.DuplicateHotfixActorContractMethod,
+                                duplicateMethod.Method.Location,
+                                duplicateMethod.Contract.Contract.ToDisplayString(),
+                                duplicate.Key));
+                        }
                     }
 
                     continue;
@@ -409,7 +411,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             var requestType = method.RequestType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             var resultType = method.ResultType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             var actorName = LowerFirst(GetActorPrefix(contract.Actor.Name));
-            var methodName = GetRemoteKind(actorName, method);
+            var methodName = GetRemoteKind(contract, method);
 
             builder.Append("    public async ").Append(returnType).Append(' ').Append(method.Name)
                 .Append('(').Append(requestType).AppendLine(" request, global::System.Threading.CancellationToken cancellationToken = default)");
@@ -530,7 +532,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             var requestType = method.RequestType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             var resultType = method.ResultType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             var actorName = LowerFirst(GetActorPrefix(contract.Actor.Name));
-            var methodName = GetRemoteKind(actorName, method);
+            var methodName = GetRemoteKind(contract, method);
 
             builder.Append("    public async ").Append(returnType).Append(' ').Append(method.Name)
                 .Append('(').Append(requestType).AppendLine(" request, global::System.Threading.CancellationToken cancellationToken = default)");
@@ -611,7 +613,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             var actorType = contract.Actor.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             var requestType = method.RequestType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             var resultType = method.ResultType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            var methodName = GetRemoteKind(LowerFirst(GetActorPrefix(contract.Actor.Name)), method);
+            var methodName = GetRemoteKind(contract, method);
 
             builder.Append("            case \"").Append(methodName).AppendLine("\":");
             builder.AppendLine("            {");
@@ -976,11 +978,14 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 .GroupBy(static method => method.PublicSignatureKey)
                 .Where(static group => group.Count() > 1))
             {
-                diagnostics.Add(new HotfixGeneratorDiagnosticInfo(
-                    HotfixGeneratorDiagnostics.DuplicateHotfixActorContractMethod,
-                    contract.Locations.FirstOrDefault(),
-                    contract.ToDisplayString(),
-                    duplicate.Key));
+                foreach (var duplicateMethod in duplicate.Skip(1))
+                {
+                    diagnostics.Add(new HotfixGeneratorDiagnosticInfo(
+                        HotfixGeneratorDiagnostics.DuplicateHotfixActorContractMethod,
+                        duplicateMethod.Location,
+                        contract.ToDisplayString(),
+                        duplicate.Key));
+                }
             }
 
             info = new HotfixActorContractInfo(
@@ -1803,9 +1808,24 @@ namespace Lakona.Game.Server.Hotfix.Generators
             return LowerFirst(normalized);
         }
 
-        private static string GetRemoteKind(string actorName, HotfixActorMethodInfo method)
+        private static string GetRemoteKind(HotfixActorContractInfo contract, HotfixActorMethodInfo method)
         {
-            return actorName + "." + GetRemoteMethodName(method.Name);
+            var contractIdentity = contract.Contract.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                .Replace("global::", string.Empty);
+            return SanitizeRemoteKindIdentity(contractIdentity) + "." + GetRemoteMethodName(method.Name);
+        }
+
+        private static string SanitizeRemoteKindIdentity(string value)
+        {
+            var builder = new StringBuilder();
+            foreach (var character in value)
+            {
+                builder.Append(IsAsciiLetterOrDigit(character) || character == '.'
+                    ? character
+                    : '_');
+            }
+
+            return builder.Length == 0 ? "contract" : builder.ToString();
         }
 
         private static string GetActorPrefix(string actorName)
@@ -1958,12 +1978,14 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 string name,
                 ITypeSymbol requestType,
                 ITypeSymbol? resultType,
-                bool hasCancellationToken)
+                bool hasCancellationToken,
+                Location? location)
             {
                 Name = name;
                 RequestType = requestType;
                 ResultType = resultType;
                 HasCancellationToken = hasCancellationToken;
+                Location = location;
             }
 
             public string Name { get; }
@@ -1973,6 +1995,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
             public ITypeSymbol? ResultType { get; }
 
             public bool HasCancellationToken { get; }
+
+            public Location? Location { get; }
 
             public string SignatureKey =>
                 Name + "(" + RequestType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "," + HasCancellationToken + ")";
@@ -1987,7 +2011,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     method.Name,
                     method.Parameters[0].Type,
                     resultType,
-                    method.Parameters.Length == 2);
+                    method.Parameters.Length == 2,
+                    method.Locations.FirstOrDefault());
             }
         }
     }
