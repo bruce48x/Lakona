@@ -48,6 +48,15 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("public UserRef Get(global::Game.Server.UserId id)", result.GeneratedSource);
         Assert.Contains("public UserLocalRef Local(global::Game.Server.UserId id)", result.GeneratedSource);
         Assert.Contains("public UserRemoteRef Remote(global::Lakona.Game.Cluster.NodeId nodeId, global::Game.Server.UserId id)", result.GeneratedSource);
+        Assert.Contains("global::System.IServiceProvider services,", result.GeneratedSource);
+        Assert.Contains(
+            "public UserActors(\r\n        global::Lakona.Game.Server.Actors.IActorRuntime runtime,\r\n        global::System.IServiceProvider services,",
+            result.GeneratedSource);
+        Assert.Contains("GetRequiredService<global::Lakona.Game.Server.Actors.IRemoteActorInvoker>(_services)", result.GeneratedSource);
+        Assert.DoesNotContain(
+            "public UserActors(\r\n        global::Lakona.Game.Server.Actors.IActorRuntime runtime,\r\n        global::Lakona.Game.Server.Actors.IRemoteActorInvoker remote,",
+            result.GeneratedSource,
+            StringComparison.Ordinal);
         Assert.Contains("global::Lakona.Game.Server.Actors.ActorId.From(_id.ToString())", result.GeneratedSource);
         Assert.Contains("global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync<global::Game.Server.LoginReply>", result.GeneratedSource);
         Assert.Contains("\"Game.Server.IUserActorContract.LoginAsync.Game.Server.LoginRequest.", result.GeneratedSource);

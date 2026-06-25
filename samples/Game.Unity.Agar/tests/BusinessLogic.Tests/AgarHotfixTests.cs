@@ -1,13 +1,34 @@
 using Shared.Gameplay;
+using Lakona.Game.Server;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Agar.Unity.Tests;
 
 public sealed class AgarHotfixTests
 {
+    [Fact]
+    public async Task Hotfix_reload_succeeds_without_cluster_remote_actor_services()
+    {
+        var hotfixAssemblyPath = FindHotfixAssemblyPath();
+        var source = new CurrentDirectoryHotfixAssemblySource(
+            Path.GetDirectoryName(hotfixAssemblyPath)!,
+            Path.GetFileName(hotfixAssemblyPath));
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddLakonaGameServer();
+        new global::GeneratedHotfixActorRegistration().Register(services);
+        await using var rootServices = services.BuildServiceProvider();
+        var manager = new HotfixManager(source, HotfixSharedAssemblyNames(), rootServices: rootServices);
+
+        var reload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(reload.Succeeded, BuildReloadDiagnostics(reload));
+    }
+
     [Fact]
     public void Hotfix_behavior_sources_do_not_use_system_class_names()
     {
