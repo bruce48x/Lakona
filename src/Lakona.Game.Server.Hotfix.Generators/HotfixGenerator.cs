@@ -197,22 +197,28 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IRemoteActorInvoker _remote;");
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IRemoteActorSerializer _serializer;");
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.RemoteActorOptions _options;");
+            builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorDirectory _directory;");
+            builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorDirectoryCache _directoryCache;");
             builder.AppendLine();
             builder.Append("    public ").Append(actorsType).AppendLine("(");
             builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorRuntime runtime,");
             builder.AppendLine("        global::Lakona.Game.Server.Actors.IRemoteActorInvoker remote,");
             builder.AppendLine("        global::Lakona.Game.Server.Actors.IRemoteActorSerializer serializer,");
-            builder.AppendLine("        global::Lakona.Game.Server.Actors.RemoteActorOptions options)");
+            builder.AppendLine("        global::Lakona.Game.Server.Actors.RemoteActorOptions options,");
+            builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorDirectory directory,");
+            builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorDirectoryCache directoryCache)");
             builder.AppendLine("    {");
             builder.AppendLine("        _runtime = runtime;");
             builder.AppendLine("        _remote = remote;");
             builder.AppendLine("        _serializer = serializer;");
             builder.AppendLine("        _options = options;");
+            builder.AppendLine("        _directory = directory;");
+            builder.AppendLine("        _directoryCache = directoryCache;");
             builder.AppendLine("    }");
             builder.AppendLine();
             builder.Append("    public ").Append(distributedRefType).Append(" Get(").Append(keyType).AppendLine(" id)");
             builder.AppendLine("    {");
-            builder.Append("        return new ").Append(distributedRefType).AppendLine("(_runtime, _remote, _serializer, _options, id);");
+            builder.Append("        return new ").Append(distributedRefType).AppendLine("(_runtime, _remote, _serializer, _options, _directory, _directoryCache, id);");
             builder.AppendLine("    }");
             builder.AppendLine();
             builder.Append("    public ").Append(localRefType).Append(" Local(").Append(keyType).AppendLine(" id)");
@@ -239,6 +245,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IRemoteActorInvoker _remote;");
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IRemoteActorSerializer _serializer;");
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.RemoteActorOptions _options;");
+            builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorDirectory _directory;");
+            builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorDirectoryCache _directoryCache;");
             builder.Append("    private readonly ").Append(keyType).AppendLine(" _id;");
             builder.AppendLine();
             builder.Append("    public ").Append(refType).AppendLine("(");
@@ -246,20 +254,29 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        global::Lakona.Game.Server.Actors.IRemoteActorInvoker remote,");
             builder.AppendLine("        global::Lakona.Game.Server.Actors.IRemoteActorSerializer serializer,");
             builder.AppendLine("        global::Lakona.Game.Server.Actors.RemoteActorOptions options,");
+            builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorDirectory directory,");
+            builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorDirectoryCache directoryCache,");
             builder.Append("        ").Append(keyType).AppendLine(" id)");
             builder.AppendLine("    {");
             builder.AppendLine("        _runtime = runtime;");
             builder.AppendLine("        _remote = remote;");
             builder.AppendLine("        _serializer = serializer;");
             builder.AppendLine("        _options = options;");
+            builder.AppendLine("        _directory = directory;");
+            builder.AppendLine("        _directoryCache = directoryCache;");
             builder.AppendLine("        _id = id;");
             builder.AppendLine("    }");
 
             foreach (var method in contract.Methods)
             {
                 builder.AppendLine();
-                AppendHotfixLocalDispatchMethod(builder, contract, method, useDistributedFields: true, indentLevel: 1);
+                AppendHotfixDistributedMethod(builder, contract, method);
             }
+
+            builder.AppendLine();
+            AppendHotfixResolveNodeMethod(builder, LowerFirst(GetActorPrefix(contract.Actor.Name)), indentLevel: 1);
+            builder.AppendLine();
+            AppendHotfixIsLocationFailureMethod(builder, indentLevel: 1);
 
             builder.AppendLine("}");
         }
@@ -284,7 +301,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             foreach (var method in contract.Methods)
             {
                 builder.AppendLine();
-                AppendHotfixLocalDispatchMethod(builder, contract, method, useDistributedFields: false, indentLevel: 1);
+                AppendHotfixLocalDispatchMethod(builder, contract, method, indentLevel: 1);
             }
 
             builder.AppendLine("}");
@@ -294,7 +311,6 @@ namespace Lakona.Game.Server.Hotfix.Generators
             StringBuilder builder,
             HotfixActorContractInfo contract,
             HotfixActorMethodInfo method,
-            bool useDistributedFields,
             int indentLevel)
         {
             var indent = Indent(indentLevel);
@@ -344,12 +360,92 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 builder.Append(indent).AppendLine("        cancellationToken);");
             }
 
-            if (useDistributedFields)
+            builder.Append(indent).AppendLine("}");
+        }
+
+        private static void AppendHotfixDistributedMethod(
+            StringBuilder builder,
+            HotfixActorContractInfo contract,
+            HotfixActorMethodInfo method)
+        {
+            var actorType = contract.Actor.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            var returnType = DisplayReturnType(method);
+            var requestType = method.RequestType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            var resultType = method.ResultType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            var actorName = LowerFirst(GetActorPrefix(contract.Actor.Name));
+            var methodName = GetRemoteMethodName(method.Name);
+
+            builder.Append("    public async ").Append(returnType).Append(' ').Append(method.Name)
+                .Append('(').Append(requestType).AppendLine(" request, global::System.Threading.CancellationToken cancellationToken = default)");
+            builder.AppendLine("    {");
+            AppendHotfixActorIdSetup(builder, indentLevel: 2);
+            builder.AppendLine("        if (_runtime.GetState(actorId) != global::Lakona.Game.Server.Actors.ActorState.Dead)");
+            builder.AppendLine("        {");
+            if (method.ResultType == null)
             {
-                _ = useDistributedFields;
+                builder.Append("            await _runtime.TellAsync<").Append(actorType).AppendLine(">(");
+                builder.AppendLine("                actorId,");
+                builder.AppendLine("                (actor, ct) => global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync(");
+                builder.Append("                    typeof(").Append(actorType).AppendLine("),");
+                builder.Append("                    \"").Append(EscapeStringLiteral(method.Name)).AppendLine("\",");
+                builder.AppendLine("                    actor,");
+                AppendParameterTypeArray(builder, method, indentLevel: 5);
+                builder.AppendLine(",");
+                AppendArgumentArray(builder, method, indentLevel: 5);
+                builder.AppendLine("),");
+                builder.AppendLine("                cancellationToken).ConfigureAwait(false);");
+                builder.AppendLine("            return;");
+            }
+            else
+            {
+                builder.Append("            return await _runtime.AskAsync<").Append(actorType).Append(", ").Append(resultType).AppendLine(">(");
+                builder.AppendLine("                actorId,");
+                builder.Append("                (actor, ct) => global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync<").Append(resultType).AppendLine(">(");
+                builder.Append("                    typeof(").Append(actorType).AppendLine("),");
+                builder.Append("                    \"").Append(EscapeStringLiteral(method.Name)).AppendLine("\",");
+                builder.AppendLine("                    actor,");
+                AppendParameterTypeArray(builder, method, indentLevel: 5);
+                builder.AppendLine(",");
+                AppendArgumentArray(builder, method, indentLevel: 5);
+                builder.AppendLine("),");
+                builder.AppendLine("                cancellationToken).ConfigureAwait(false);");
             }
 
-            builder.Append(indent).AppendLine("}");
+            builder.AppendLine("        }");
+            builder.AppendLine();
+            builder.Append("        var node = await ResolveNodeAsync(actorId, \"")
+                .Append(EscapeStringLiteral(methodName))
+                .AppendLine("\", cancellationToken).ConfigureAwait(false);");
+            AppendHotfixRemoteInvocationSetup(builder, actorName, methodName, "node", indentLevel: 2, includeActorId: false);
+            builder.AppendLine("        try");
+            builder.AppendLine("        {");
+            if (method.ResultType == null)
+            {
+                builder.AppendLine("            var result = await _remote.TellAsync(invocation, cancellationToken).ConfigureAwait(false);");
+                builder.Append("            global::Lakona.Game.Server.Actors.RemoteActorCall.EnsureAccepted(result, actorId, \"")
+                    .Append(EscapeStringLiteral(actorName))
+                    .Append("\", \"")
+                    .Append(EscapeStringLiteral(methodName))
+                    .AppendLine("\", node, correlationId);");
+            }
+            else
+            {
+                builder.AppendLine("            var result = await _remote.AskAsync(invocation, cancellationToken).ConfigureAwait(false);");
+                builder.Append("            global::Lakona.Game.Server.Actors.RemoteActorCall.EnsureReplied(result, actorId, \"")
+                    .Append(EscapeStringLiteral(actorName))
+                    .Append("\", \"")
+                    .Append(EscapeStringLiteral(methodName))
+                    .AppendLine("\", node, correlationId);");
+                builder.Append("            return _serializer.Deserialize<").Append(resultType).AppendLine(">(result.Payload);");
+            }
+
+            builder.AppendLine("        }");
+            builder.AppendLine("        catch (global::Lakona.Game.Server.Actors.ActorCallException exception) when (IsLocationFailure(exception))");
+            builder.AppendLine("        {");
+            builder.AppendLine("            _directoryCache.Remove(actorId);");
+            builder.AppendLine("            throw;");
+            builder.AppendLine("        }");
+            builder.AppendLine("    }");
         }
 
         private static void AppendHotfixRemoteRef(
@@ -403,7 +499,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.Append("    public async ").Append(returnType).Append(' ').Append(method.Name)
                 .Append('(').Append(requestType).AppendLine(" request, global::System.Threading.CancellationToken cancellationToken = default)");
             builder.AppendLine("    {");
-            AppendHotfixRemoteInvocationSetup(builder, actorName, methodName, indentLevel: 2);
+            AppendHotfixRemoteInvocationSetup(builder, actorName, methodName, "_node", indentLevel: 2, includeActorId: true);
             if (method.ResultType == null)
             {
                 builder.AppendLine("        var result = await _remote.TellAsync(invocation, cancellationToken).ConfigureAwait(false);");
@@ -1518,19 +1614,68 @@ namespace Lakona.Game.Server.Hotfix.Generators
             StringBuilder builder,
             string actorName,
             string methodName,
-            int indentLevel)
+            string nodeExpression,
+            int indentLevel,
+            bool includeActorId)
         {
             var indent = Indent(indentLevel);
-            AppendHotfixActorIdSetup(builder, indentLevel);
+            if (includeActorId)
+            {
+                AppendHotfixActorIdSetup(builder, indentLevel);
+            }
+
             builder.Append(indent).AppendLine("var payload = _serializer.Serialize(request);");
             builder.Append(indent).AppendLine("var correlationId = global::System.Guid.NewGuid().ToString(\"N\");");
             builder.Append(indent).AppendLine("var deadline = global::System.DateTimeOffset.UtcNow.Add(_options.DefaultTimeout);");
             builder.Append(indent)
-                .Append("var invocation = new global::Lakona.Game.Server.Actors.RemoteActorInvocation(_node, actorId, \"")
+                .Append("var invocation = new global::Lakona.Game.Server.Actors.RemoteActorInvocation(")
+                .Append(nodeExpression)
+                .Append(", actorId, \"")
                 .Append(EscapeStringLiteral(actorName))
                 .Append("\", \"")
                 .Append(EscapeStringLiteral(methodName))
                 .AppendLine("\", payload, deadline, correlationId);");
+        }
+
+        private static void AppendHotfixResolveNodeMethod(
+            StringBuilder builder,
+            string actorName,
+            int indentLevel)
+        {
+            var indent = Indent(indentLevel);
+            builder.Append(indent).AppendLine("private async global::System.Threading.Tasks.ValueTask<global::Lakona.Game.Cluster.NodeId> ResolveNodeAsync(");
+            builder.Append(indent).AppendLine("    global::Lakona.Game.Server.Actors.ActorId actorId,");
+            builder.Append(indent).AppendLine("    string methodName,");
+            builder.Append(indent).AppendLine("    global::System.Threading.CancellationToken cancellationToken)");
+            builder.Append(indent).AppendLine("{");
+            builder.Append(indent).AppendLine("    if (!_directoryCache.TryGet(actorId, out var node))");
+            builder.Append(indent).AppendLine("    {");
+            builder.Append(indent).AppendLine("        var record = await _directory.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);");
+            builder.Append(indent).AppendLine("        if (record is null)");
+            builder.Append(indent).AppendLine("        {");
+            builder.Append(indent).AppendLine("            throw new global::Lakona.Game.Server.Actors.ActorNotFoundException(");
+            builder.Append(indent).AppendLine("                actorId,");
+            builder.Append(indent).Append("                \"").Append(EscapeStringLiteral(actorName)).AppendLine("\",");
+            builder.Append(indent).AppendLine("                methodName,");
+            builder.Append(indent).AppendLine("                \"Actor was not found in actor directory.\");");
+            builder.Append(indent).AppendLine("        }");
+            builder.AppendLine();
+            builder.Append(indent).AppendLine("        node = record.Node;");
+            builder.Append(indent).AppendLine("        _directoryCache.Set(actorId, node);");
+            builder.Append(indent).AppendLine("    }");
+            builder.AppendLine();
+            builder.Append(indent).AppendLine("    return node;");
+            builder.Append(indent).AppendLine("}");
+        }
+
+        private static void AppendHotfixIsLocationFailureMethod(StringBuilder builder, int indentLevel)
+        {
+            var indent = Indent(indentLevel);
+            builder.Append(indent).AppendLine("private static bool IsLocationFailure(global::Lakona.Game.Server.Actors.ActorCallException exception)");
+            builder.Append(indent).AppendLine("{");
+            builder.Append(indent).AppendLine("    return exception.Status == global::Lakona.Game.Server.Actors.ActorCallStatus.ActorNotFound");
+            builder.Append(indent).AppendLine("        || exception.Status == global::Lakona.Game.Server.Actors.ActorCallStatus.NodeUnavailable;");
+            builder.Append(indent).AppendLine("}");
         }
 
         private static void AppendParameterTypeArray(

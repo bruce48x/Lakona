@@ -50,6 +50,11 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("public UserRemoteRef Remote(global::Lakona.Game.Cluster.NodeId nodeId, global::Game.Server.UserId id)", result.GeneratedSource);
         Assert.Contains("global::Lakona.Game.Server.Actors.ActorId.From(_id.ToString())", result.GeneratedSource);
         Assert.Contains("global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync<global::Game.Server.LoginReply>", result.GeneratedSource);
+        Assert.Contains("_directoryCache.TryGet(actorId, out var node)", result.GeneratedSource);
+        Assert.Contains("_directory.ResolveAsync(actorId, cancellationToken)", result.GeneratedSource);
+        Assert.Contains("_remote.AskAsync(invocation, cancellationToken)", result.GeneratedSource);
+        Assert.Contains("global::Lakona.Game.Server.Actors.RemoteActorCall.EnsureReplied", result.GeneratedSource);
+        Assert.Contains("return _serializer.Deserialize<global::Game.Server.LoginReply>(result.Payload);", result.GeneratedSource);
         Assert.Contains("public sealed class UserActorClusterHandler", result.GeneratedSource);
         Assert.Contains("global::Lakona.Game.Server.Actors.RemoteActorGateway.SendReplyAsync(", result.GeneratedSource);
         Assert.Contains("_router,", result.GeneratedSource);
