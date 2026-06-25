@@ -219,6 +219,27 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public async Task AddLakonaGameClusterEndpoint_registers_cluster_router_dependencies()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "data-1" },
+            Cluster = new LakonaGameClusterOptions
+            {
+                Endpoint = "tcp://127.0.0.1:21001",
+                Serializer = "json"
+            }
+        });
+
+        services.AddLakonaGameClusterEndpoint();
+        await using var provider = services.BuildServiceProvider();
+
+        Assert.IsType<ClusterNodeMessenger>(provider.GetRequiredService<INodeMessenger>());
+        Assert.IsType<ClusterRouter>(provider.GetRequiredService<IClusterRouter>());
+    }
+
+    [Fact]
     public void AddLakonaGameClusterEndpoint_registers_sql_node_directory_from_runtime_directory_options()
     {
         var services = new ServiceCollection();
@@ -270,7 +291,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void Cluster_configurator_binds_generated_actor_handlers()
+    public async Task Cluster_configurator_binds_generated_actor_handlers()
     {
         var services = new ServiceCollection();
         services.AddSingleton(new LakonaGameRuntimeOptions
@@ -283,10 +304,10 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         });
         services.AddLakonaGameServerActors();
         services.AddLakonaGameServerSessions();
-        services.AddSingleton<IClusterMessageHandler, GeneratedActorHandlerProbe>();
+        services.AddSingleton<IClusterMessageHandler, GeneratedActorHandlerWithRouterProbe>();
         services.AddLakonaGameClusterEndpoint();
 
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
         var configurator = provider.GetServices<IRpcServerConfigurator>()
             .OfType<LakonaClusterRpcServerConfigurator>()
             .Single();
@@ -307,12 +328,20 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             out _));
     }
 
-    private sealed class GeneratedActorHandlerProbe : IClusterMessageHandler
+    private sealed class GeneratedActorHandlerWithRouterProbe : IClusterMessageHandler
     {
+        private readonly IClusterRouter _router;
+
+        public GeneratedActorHandlerWithRouterProbe(IClusterRouter router)
+        {
+            _router = router;
+        }
+
         public ValueTask<ClusterSendStatus> HandleAsync(
             ClusterMessage message,
             CancellationToken cancellationToken = default)
         {
+            Assert.NotNull(_router);
             return new ValueTask<ClusterSendStatus>(ClusterSendStatus.RouteNotFound);
         }
     }

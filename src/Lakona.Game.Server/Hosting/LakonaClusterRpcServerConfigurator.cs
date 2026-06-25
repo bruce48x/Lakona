@@ -69,9 +69,16 @@ public sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurator
 
         if (actorHandlers.Count > 0)
         {
+            var composite = new CompositeClusterMessageHandler(actorHandlers.ToArray());
             ClusterMessageBinder.Bind(
                 context.Builder.ServiceRegistry,
-                new CompositeClusterMessageHandler(actorHandlers.ToArray()));
+                composite);
+
+            if (context.Services.GetService<ClusterLocalMessageHandler>() is
+                ClusterLocalMessageHandler localMessageHandler)
+            {
+                localMessageHandler.SetHandler(composite);
+            }
         }
     }
 }
