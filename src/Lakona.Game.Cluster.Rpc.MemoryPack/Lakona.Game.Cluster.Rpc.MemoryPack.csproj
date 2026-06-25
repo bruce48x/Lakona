@@ -7,8 +7,8 @@
     <RootNamespace>Lakona.Game.Cluster.Rpc.MemoryPack</RootNamespace>
     <PackageId>Lakona.Game.Cluster.Rpc.MemoryPack</PackageId>
     <Version>0.1.0</Version>
-    <Description>MemoryPack formatter registrations for Lakona.Game.Cluster.Rpc DTOs.</Description>
-    <PackageTags>lakona-game;game;cluster;rpc;serializer;memorypack</PackageTags>
+    <Description>Generated MemoryPack formatter catalog for Lakona.Game cluster RPC protocol DTOs.</Description>
+    <PackageTags>lakona-game;cluster;rpc;memorypack;serializer</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Lakona.Game.Cluster.Rpc\Lakona.Game.Cluster.Rpc.csproj" Condition="'$(TargetFramework)' == 'net10.0'" />
+    <ProjectReference Include="..\Lakona.Game.Cluster.Rpc\Lakona.Game.Cluster.Rpc.csproj" />
     <ProjectReference Include="..\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj" />
   </ItemGroup>
 
