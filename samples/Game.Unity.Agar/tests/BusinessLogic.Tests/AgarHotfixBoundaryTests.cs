@@ -248,6 +248,26 @@ public sealed class AgarHotfixBoundaryTests
             File.Exists(Path.Combine(sampleRoot, "Server", "Hotfix", "State", "Matchmaking", "MatchmakingStatusSnapshot.cs")),
             "Server/Hotfix/State/Matchmaking/MatchmakingStatusSnapshot.cs should not exist.");
 
+        var serverContracts = File.ReadAllText(Path.Combine(
+            sampleRoot,
+            "Server",
+            "App",
+            "Contracts",
+            "MatchmakingActorContracts.cs"));
+        var serverStateMatch = Regex.Match(
+            serverContracts,
+            @"public\s+sealed\s+class\s+MatchmakingState\s*\{(?<body>.*?)^\s*\}",
+            RegexOptions.Singleline | RegexOptions.Multiline | RegexOptions.CultureInvariant);
+        Assert.True(serverStateMatch.Success, "Expected server-side MatchmakingState in Server/App/Contracts/MatchmakingActorContracts.cs.");
+
+        var serverStateProperties = Regex.Matches(
+                serverStateMatch.Groups["body"].Value,
+                @"public\s+(?<type>[^{;]+?)\s+(?<name>\w+)\s*\{\s*get;\s*set;\s*\}",
+                RegexOptions.CultureInvariant)
+            .Select(match => match.Groups["name"].Value)
+            .ToArray();
+        Assert.Equal(new[] { "DefaultRoomSize", "PendingTickets" }, serverStateProperties);
+
         var sharedText = ReadAllTextFiles(sharedRoot);
         var forbiddenDeclarations = new[]
         {
