@@ -11,7 +11,7 @@ public sealed class ClusterRpcMemoryPackSchemaTests
     private static readonly string RepositoryRoot = FindRepositoryRoot();
 
     private static readonly Regex FormatterClassPattern = new(
-        @"class\s+\w+Formatter\s*:\s*(?:global::)?(?:MemoryPack\.)?MemoryPackFormatter\b",
+        @"class\s+@?\w+Formatter\s*:\s*(?:global::)?(?:MemoryPack\.)?MemoryPackFormatter\b",
         RegexOptions.CultureInvariant);
 
     private static readonly string[] ExpectedTypeNames =
@@ -103,9 +103,22 @@ public sealed class ClusterRpcMemoryPackSchemaTests
     [InlineData("internal sealed class RouteFormatter : MemoryPackFormatter<RouteRegisterRequest>")]
     [InlineData("internal sealed class RouteFormatter : MemoryPack.MemoryPackFormatter<RouteRegisterRequest>")]
     [InlineData("internal sealed class RouteFormatter : global::MemoryPack.MemoryPackFormatter<RouteRegisterRequest>")]
+    [InlineData("file sealed class @RouteRegisterRequestFormatter : global::MemoryPack.MemoryPackFormatter<RouteRegisterRequest>")]
     public void Formatter_source_scan_detects_qualified_memorypack_formatter_base_types(string source)
     {
         Assert.True(ContainsHandWrittenMemoryPackFormatter(source));
+    }
+
+    [Theory]
+    [InlineData("Generated/RouteRegisterRequestFormatter.cs", false)]
+    [InlineData("bin/Debug/net9.0/Generated/RouteRegisterRequestFormatter.cs", true)]
+    [InlineData("obj/Debug/net9.0/Generated/RouteRegisterRequestFormatter.cs", true)]
+    public void Formatter_source_scan_only_ignores_compiler_output_paths(string relativePath, bool expectedIgnored)
+    {
+        var sourceRoot = Path.Combine(RepositoryRoot, "src", "Lakona.Game.Cluster.Rpc.MemoryPack");
+        var path = Path.Combine(sourceRoot, relativePath.Replace('/', Path.DirectorySeparatorChar));
+
+        Assert.Equal(expectedIgnored, IsGeneratedOutput(path));
     }
 
     private static ClusterRpcMemoryPackSchema LoadSchema()
@@ -144,8 +157,7 @@ public sealed class ClusterRpcMemoryPackSchemaTests
         var segments = relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         return segments.Any(segment =>
             string.Equals(segment, "bin", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(segment, "obj", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(segment, "Generated", StringComparison.OrdinalIgnoreCase));
+            string.Equals(segment, "obj", StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool ContainsHandWrittenMemoryPackFormatter(string source)
