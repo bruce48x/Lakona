@@ -98,13 +98,15 @@ dotnet run --project Server/App/Server.App.csproj
 
 ### Actor 调用语义
 
-样例里的 `call.Actors`、`services.LocalActors` 和 actor behavior 中的
-`self.Context.Runtime` 都是当前进程的本地 actor runtime（node-local actor runtime）。RPC service 从 `call.Actors` 直接取出的本地 runtime 命名为
-`nodeLocalActors`；从依赖聚合传递的本地 runtime 命名为
-`services.LocalActors`。这类调用只投递到当前节点的本地 mailbox，不会自动跨节点路由。
+RPC services and actor behaviors use generated behavior-first actor selectors.
+`Get(id)` is the default business path and resolves local or remote placement
+through ActorDirectory. `Local(id)` is reserved for code that has already
+proved current-node ownership, such as battle runtime room input after realtime
+attach validation. `Remote(nodeId, id)` pins a specific target node.
 
-RPC service 编排业务 actor 时，应假设目标 actor may be local or remote。
-需要表达分布式 actor 放置时，使用生成的 typed selector：
+`HotfixServiceCall.Actors` and `self.Context.Runtime` remain framework escape
+hatches. Agar business code must not use raw `AskAsync` or `TellAsync` for
+ordinary actor behavior calls.
 
 ```csharp
 await rooms.Get(roomId).JoinAsync(request, ct);            // 先查本地，再通过 ActorDirectory 路由

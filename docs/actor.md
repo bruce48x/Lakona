@@ -242,9 +242,10 @@ Cross-node creation is a feature command to the owning feature; the owning
 feature calls `CreateLocalAsync` on its own node.
 
 Creation, placement, capacity, and idempotency belong at the feature-command
-boundary. Once an actor exists, services and gateways should call it through
-generated actor refs or `IActorRuntime`, not keep sending every actor method
-through the feature command handler.
+boundary. Once an actor exists, services and gateways should call ordinary
+business behavior through generated actor refs, not keep sending every actor
+method through the feature command handler. Raw `IActorRuntime.AskAsync` and
+`TellAsync` remain framework-level escape hatches.
 
 Missing actor behavior is deterministic:
 

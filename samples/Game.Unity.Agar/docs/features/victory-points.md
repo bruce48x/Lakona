@@ -59,8 +59,8 @@
 
 排行榜服务：
 
-- **写入**：接收 `RecordVictoryPointsAsync(string playerId, int victoryPoints, int winCount)`，在结算后调用 Redis 排行榜 store 更新该玩家的当前周期索引。
-- **查询**：接收 `GetLeaderboardAsync(int topN)`，从 Redis 排行榜 store 读取候选集合，按积分降序、胜场降序、玩家标识升序排序后返回 top N。
+- **写入**：接收 `RecordVictoryPointsAsync(LeaderboardVictoryPointsRequest request)`，在结算后通过生成的 actor selector 传入 `new LeaderboardVictoryPointsRequest { PlayerId = playerId, VictoryPoints = victoryPoints, WinCount = winCount }`，并调用 Redis 排行榜 store 更新该玩家的当前周期索引。
+- **查询**：接收 `GetLeaderboardAsync(LeaderboardQueryRequest request)`，通过生成的 actor selector 传入 `new LeaderboardQueryRequest { TopN = topN }`，从 Redis 排行榜 store 读取候选集合，按积分降序、胜场降序、玩家标识升序排序后返回 top N。
 - **周期检查**：记录当前周期标识（`yyyy-MM-dd` 格式的本地周一日期）和榜单时区。每次查询或写入时按榜单当地时区检查是否已过周一 00:00，若是则先执行重置。
 - **重置**：归档 Redis 上周 top 100（保留最近两周），切换当前周期 key，并按数据模型要求同步处理用户状态中的当前周期胜利积分。
 - **条目结构**：`PlayerId`、`VictoryPoints`、`WinCount`、`Rank`。

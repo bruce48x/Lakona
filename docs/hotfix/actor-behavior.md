@@ -51,7 +51,7 @@ A user-authored actor class in `Server.App` must not declare methods such as:
 ```csharp
 public Task<UserLoginResult> LoginAsync(string password, bool reconnect)
 public Task<RoomSettlementResult> StartAsync(RoomStartRequest request)
-public Task<LeaderboardSnapshot> GetLeaderboardAsync(int topN)
+public Task<LeaderboardSnapshot> GetLeaderboardAsync(LeaderboardQueryRequest request)
 private Task<Dictionary<string, RoomAssignment>> TryMatchAsync(DateTime nowUtc, bool allowExpiredPartialBatch)
 ```
 
@@ -103,13 +103,17 @@ Generated framework RPC service proxies may also call hotfix services through
 forbidden pattern is sample-authored stable app code that wraps actor behavior
 behind business store interfaces or string method names.
 
-`Server.Hotfix` service code should enter actor turns through
-`HotfixServiceCall.Actors` and call Behavior methods directly:
+`Server.Hotfix` service code should enter actor turns through generated
+behavior-first actor selectors and call DTO-shaped Behavior contracts:
 
 ```csharp
-var result = await call.Actors.AskAsync<UserActor, UserLoginResult>(
-    ActorId.From(account),
-    (actor, _) => actor.LoginAsync(password, reconnect));
+var result = await users
+    .Get(new UserId(account))
+    .LoginAsync(new UserLoginRequest
+    {
+        Password = request.Password,
+        Reconnect = request.Reconnect
+    });
 ```
 
 Hotfix feature descriptors declare the stable scheduler entry points:
@@ -222,7 +226,7 @@ Managed distributed actor APIs may expose typed actor refs, but they must not
 require user-authored business method bodies on stable actor classes. Generated
 local or remote dispatch must eventually enter the current hotfix Behavior.
 
-Until the generator supports behavior-first actor contracts, samples may use
-`IActorRuntime` inside hotfix services and behaviors for actor behavior calls.
-Do not add new sample code that depends on business methods declared directly on
-`Server.App` actor classes, and do not reintroduce stable state-store bridges.
+Samples must use generated behavior-first actor selectors for ordinary business
+actor calls. Raw `IActorRuntime.AskAsync` and `TellAsync` are framework-level
+escape hatches, not a normal service or behavior authoring style. When a node
+has already proven local ownership, use the generated `Local(id)` selector.

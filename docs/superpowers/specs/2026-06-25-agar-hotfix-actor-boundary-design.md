@@ -208,8 +208,8 @@ Migrate Agar service orchestration to generated actor accessors.
 
 Actor behaviors:
 
-- replace helper methods that call `self.Context.Runtime.AskAsync` with
-  generated accessor calls resolved from `self.Context.Services`;
+- replace helper methods that use raw runtime ask calls with generated accessor
+  calls resolved from `self.Context.Services`;
 - use `Local` only for actors created in the same behavior turn through
   `IActorLifecycle.CreateLocalAsync`.
 
