@@ -8,6 +8,60 @@ public sealed class HotfixGeneratorTests
     private static readonly string ForbiddenGameEndpointType = string.Concat("Game", "Endpoint", "Name");
 
     [Fact]
+    public void Generator_emits_behavior_first_actor_refs_from_hotfix_actor_contract()
+    {
+        var source = """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Server;
+
+            public readonly record struct UserId(string Value);
+
+            public sealed class LoginRequest
+            {
+                public string Password { get; set; } = "";
+            }
+
+            public sealed class LoginReply
+            {
+            }
+
+            public sealed class UserActor : Actor<UserId>
+            {
+                internal int LoginCount;
+            }
+
+            [HotfixActorContract(typeof(UserActor))]
+            public interface IUserActorContract
+            {
+                ValueTask<LoginReply> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default);
+            }
+            """;
+
+        var result = GeneratorTestHost.Run(source);
+
+        Assert.Empty(result.ErrorDiagnostics);
+        Assert.Contains("public sealed class UserActors", result.GeneratedSource);
+        Assert.Contains("public UserRef Get(global::Game.Server.UserId id)", result.GeneratedSource);
+        Assert.Contains("public UserLocalRef Local(global::Game.Server.UserId id)", result.GeneratedSource);
+        Assert.Contains("public UserRemoteRef Remote(global::Lakona.Game.Cluster.NodeId nodeId, global::Game.Server.UserId id)", result.GeneratedSource);
+        Assert.Contains("global::Lakona.Game.Server.Actors.ActorId.From(_id.ToString())", result.GeneratedSource);
+        Assert.Contains("global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync<global::Game.Server.LoginReply>", result.GeneratedSource);
+        Assert.Contains("public sealed class UserActorClusterHandler", result.GeneratedSource);
+        Assert.Contains("global::Lakona.Game.Server.Actors.RemoteActorGateway.SendReplyAsync(", result.GeneratedSource);
+        Assert.Contains("_router,", result.GeneratedSource);
+        Assert.Contains("envelope.SourceNode,", result.GeneratedSource);
+        Assert.Contains("envelope.ReplyCorrelationId,", result.GeneratedSource);
+        Assert.Contains("_serializer.Serialize(reply),", result.GeneratedSource);
+        Assert.Contains("global::Lakona.Game.Server.Hosting.ILakonaGameGeneratedServiceRegistration", result.GeneratedSource);
+        Assert.Contains("TryAddSingleton<global::Game.Server.UserActors>", result.GeneratedSource);
+        Assert.DoesNotContain("actor.LoginAsync", result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Generator_discovers_shared_rpc_service_contract_without_marker()
     {
         var source = """

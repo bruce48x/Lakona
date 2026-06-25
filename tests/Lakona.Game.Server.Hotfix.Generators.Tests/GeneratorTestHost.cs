@@ -68,7 +68,12 @@ internal static class GeneratorTestHost
                 MetadataReference.CreateFromFile(typeof(IServiceProvider).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(Lakona.Rpc.Server.RpcSession).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(Microsoft.Extensions.Configuration.IConfiguration).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions).Assembly.Location)
+                MetadataReference.CreateFromFile(typeof(Microsoft.Extensions.DependencyInjection.IServiceCollection).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Lakona.Game.Cluster.NodeId).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Lakona.Game.Server.Actors.Actor<>).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Lakona.Game.Server.Hosting.ILakonaGameGeneratedServiceRegistration).Assembly.Location)
             })
             .Distinct(MetadataReferencePathComparer.Instance)
             .ToArray();

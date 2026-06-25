@@ -112,6 +112,28 @@ public static class HotfixDispatch
         throw new InvalidOperationException($"Hotfix method '{invocation.Key}' returned an invalid result.");
     }
 
+    public static async ValueTask<TResult> InvokeValueTaskAsync<TResult>(
+        Type stateType,
+        string methodName,
+        object state,
+        Type[] parameterTypes,
+        object?[] arguments)
+    {
+        var invocation = PrepareInvocation(stateType, methodName, state, typeof(ValueTask<TResult>), parameterTypes, arguments);
+        var result = invocation.Method.Invoke(null, invocation.Arguments);
+        if (result is ValueTask<TResult> valueTask)
+        {
+            return await valueTask.ConfigureAwait(false);
+        }
+
+        if (result is TResult typedResult)
+        {
+            return typedResult;
+        }
+
+        throw new InvalidOperationException($"Hotfix method '{invocation.Key}' returned an invalid result.");
+    }
+
     private static PreparedInvocation PrepareInvocation<TState>(
         string methodName,
         TState state,

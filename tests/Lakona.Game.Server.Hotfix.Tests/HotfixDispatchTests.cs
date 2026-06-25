@@ -68,6 +68,23 @@ public sealed class HotfixDispatchTests
     }
 
     [Fact]
+    public async Task InvokeValueTaskAsync_result_uses_scanned_value_task_result_key()
+    {
+        var scan = HotfixBehaviorScanner.Scan(typeof(DispatchTestStateSystem).Assembly);
+        HotfixDispatch.Replace(new HotfixDispatchTable(1, scan.Methods));
+        var state = new DispatchTestState { Value = 5 };
+
+        var result = await HotfixDispatch.InvokeValueTaskAsync<int>(
+            typeof(DispatchTestState),
+            "AddAsync",
+            state,
+            [typeof(int), typeof(CancellationToken)],
+            [7, CancellationToken.None]);
+
+        Assert.Equal(12, result);
+    }
+
+    [Fact]
     public void Resolve_throws_specific_exception_when_hotfix_method_is_not_loaded()
     {
         var table = new HotfixDispatchTable(1, Array.Empty<HotfixMethodBinding>());
@@ -368,5 +385,14 @@ public static class DispatchTestStateSystem
     public static void AddExp(this DispatchTestState self, int amount)
     {
         self.Value += amount;
+    }
+
+    public static ValueTask<int> AddAsync(
+        this DispatchTestState self,
+        int amount,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return new ValueTask<int>(self.Value + amount);
     }
 }
