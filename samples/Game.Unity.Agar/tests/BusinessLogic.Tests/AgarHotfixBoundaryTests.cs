@@ -317,6 +317,25 @@ public sealed class AgarHotfixBoundaryTests
     }
 
     [Fact]
+    public void Agar_shared_contracts_do_not_expose_actor_interfaces()
+    {
+        var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
+            .Directory!.Parent!.Parent!.FullName;
+        var sharedText = ReadAllTextFiles(Path.Combine(sampleRoot, "Shared"));
+        var forbiddenDeclarations = new[]
+        {
+            "public interface IUserActor",
+            "public interface IRoomActor",
+            "public interface IUserSessionActor",
+        };
+
+        foreach (var declaration in forbiddenDeclarations)
+        {
+            Assert.DoesNotContain(declaration, sharedText, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public void Agar_unity_client_uses_framework_handshake_contracts()
     {
         var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")

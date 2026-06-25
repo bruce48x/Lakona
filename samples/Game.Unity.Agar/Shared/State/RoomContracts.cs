@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using Agar.Sample.State.Contracts;
 using Agar.Sample.State.Contracts.Sessions;
 using Shared.Gameplay;
@@ -8,17 +7,6 @@ using Shared.Interfaces;
 
 namespace Agar.Sample.State.Contracts.Rooms
 {
-    public interface IRoomActor
-    {
-        Task<RoomSettlementResult> CreateAsync(RoomCreateRequest request);
-        Task<RoomSettlementResult> JoinAsync(PlayerRoomAssignment request);
-        Task<RoomSettlementResult> LeaveAsync(RoomPlayerLeaveRequest request);
-        Task<RoomSettlementResult> SetReadyAsync(RoomPlayerReadyRequest request);
-        Task<RoomSettlementResult> StartAsync(RoomStartRequest request);
-        Task<RoomSettlementResult> CompleteAsync(RoomMatchCompletion request);
-        Task<RoomSnapshot> GetSnapshotAsync();
-    }
-
     public sealed class RoomCreateRequest
     {
         public string RoomId { get; set; } = "";

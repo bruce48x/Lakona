@@ -1,22 +1,8 @@
 using System;
-using System.Threading.Tasks;
 using Agar.Sample.State.Contracts;
 
 namespace Agar.Sample.State.Contracts.Sessions
 {
-    public interface IUserSessionActor
-    {
-        Task<PlayerSessionSnapshot> AttachAsync(PlayerSessionAttachRequest request);
-        Task<PlayerSessionSnapshot> ReconnectAsync(PlayerSessionReconnectRequest request);
-        Task<PlayerSessionSnapshot> MarkQueuedAsync(PlayerSessionQueueRequest request);
-        Task<PlayerSessionSnapshot> ClearQueueAsync(PlayerSessionQueueClearRequest request);
-        Task<PlayerSessionSnapshot> AssignRoomAsync(PlayerRoomAssignment request);
-        Task<PlayerSessionSnapshot> ClearRoomAsync(PlayerRoomClearRequest request);
-        Task<PlayerSessionSnapshot> MarkDisconnectedAsync(PlayerSessionDisconnectRequest request);
-        Task<PlayerSessionSnapshot> HeartbeatAsync(PlayerSessionHeartbeatRequest request);
-        Task<PlayerSessionSnapshot> GetSnapshotAsync();
-    }
-
     public sealed class PlayerSessionReconnectRequest
     {
         public string UserId { get; set; } = "";
