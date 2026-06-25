@@ -10,6 +10,10 @@ public sealed class ClusterRpcMemoryPackSchemaTests
 {
     private static readonly string RepositoryRoot = FindRepositoryRoot();
 
+    private static readonly Regex FormatterClassPattern = new(
+        @"class\s+\w+Formatter\s*:\s*(?:global::)?(?:MemoryPack\.)?MemoryPackFormatter\b",
+        RegexOptions.CultureInvariant);
+
     private static readonly string[] ExpectedTypeNames =
     [
         "NodeEndpointDto",
@@ -84,18 +88,24 @@ public sealed class ClusterRpcMemoryPackSchemaTests
     public void MemoryPack_package_commits_no_hand_written_per_dto_formatters()
     {
         var sourceRoot = Path.Combine(RepositoryRoot, "src", "Lakona.Game.Cluster.Rpc.MemoryPack");
-        var formatterClassPattern = new Regex(
-            @"class\s+\w+Formatter\s*:\s*MemoryPackFormatter",
-            RegexOptions.CultureInvariant);
 
         var formatterFiles = Directory
             .EnumerateFiles(sourceRoot, "*.cs", SearchOption.AllDirectories)
             .Where(path => !IsGeneratedOutput(path))
-            .Where(path => formatterClassPattern.IsMatch(File.ReadAllText(path)))
+            .Where(path => ContainsHandWrittenMemoryPackFormatter(File.ReadAllText(path)))
             .Select(path => Path.GetRelativePath(sourceRoot, path).Replace('\\', '/'))
             .ToArray();
 
         Assert.Empty(formatterFiles);
+    }
+
+    [Theory]
+    [InlineData("internal sealed class RouteFormatter : MemoryPackFormatter<RouteRegisterRequest>")]
+    [InlineData("internal sealed class RouteFormatter : MemoryPack.MemoryPackFormatter<RouteRegisterRequest>")]
+    [InlineData("internal sealed class RouteFormatter : global::MemoryPack.MemoryPackFormatter<RouteRegisterRequest>")]
+    public void Formatter_source_scan_detects_qualified_memorypack_formatter_base_types(string source)
+    {
+        Assert.True(ContainsHandWrittenMemoryPackFormatter(source));
     }
 
     private static ClusterRpcMemoryPackSchema LoadSchema()
@@ -136,6 +146,11 @@ public sealed class ClusterRpcMemoryPackSchemaTests
             string.Equals(segment, "bin", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(segment, "obj", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(segment, "Generated", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool ContainsHandWrittenMemoryPackFormatter(string source)
+    {
+        return FormatterClassPattern.IsMatch(source);
     }
 
     private sealed class ClusterRpcMemoryPackSchema
