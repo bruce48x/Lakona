@@ -6,6 +6,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Lakona.Game.Abstractions;
@@ -342,6 +343,20 @@ public sealed class LakonaGameServerTests
             .BuildServiceProvider();
 
         Assert.NotNull(provider.GetService<Lakona.Game.Server.Actors.IActorLifecycle>());
+    }
+
+    [Fact]
+    public void Generated_registration_discovery_registers_explicit_assemblies()
+    {
+        GeneratedRegistrationProbe.Reset();
+        var services = new ServiceCollection();
+
+        LakonaGameGeneratedServiceRegistrationDiscovery.RegisterDiscovered(
+            services,
+            [typeof(GeneratedRegistrationProbe.Registration).Assembly]);
+
+        Assert.True(GeneratedRegistrationProbe.Registered);
+        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(GeneratedRegistrationProbe));
     }
 
     [Fact]
@@ -783,6 +798,25 @@ public sealed class LakonaGameServerTests
     }
 
     private sealed record ConfiguredValue(string Value);
+
+    private sealed class GeneratedRegistrationProbe
+    {
+        public static bool Registered { get; private set; }
+
+        public static void Reset()
+        {
+            Registered = false;
+        }
+
+        public sealed class Registration : ILakonaGameGeneratedServiceRegistration
+        {
+            public void Register(IServiceCollection services)
+            {
+                Registered = true;
+                services.TryAddSingleton<GeneratedRegistrationProbe>();
+            }
+        }
+    }
 
     private sealed class GeneratedRequiredContractsForTest :
         Lakona.Game.Server.Hotfix.Abstractions.IHotfixRequiredServiceContracts

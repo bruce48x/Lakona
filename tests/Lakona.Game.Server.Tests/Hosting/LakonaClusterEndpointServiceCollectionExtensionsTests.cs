@@ -10,6 +10,7 @@ using Lakona.Game.Server.Sessions;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Serializer.Json;
 using Lakona.Rpc.Serializer.MemoryPack;
+using Lakona.Rpc.Server;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -266,6 +267,54 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
 
         Assert.IsType<SqlNodeDirectory>(provider.GetRequiredService<INodeDirectory>());
         Assert.NotNull(provider.GetRequiredService<SqlNodeDirectoryOptions>());
+    }
+
+    [Fact]
+    public void Cluster_configurator_binds_generated_actor_handlers()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(new LakonaGameRuntimeOptions
+        {
+            Cluster = new LakonaGameClusterOptions
+            {
+                Endpoint = "tcp://127.0.0.1:21001",
+                Serializer = "json"
+            }
+        });
+        services.AddLakonaGameServerActors();
+        services.AddLakonaGameServerSessions();
+        services.AddSingleton<IClusterMessageHandler, GeneratedActorHandlerProbe>();
+        services.AddLakonaGameClusterEndpoint();
+
+        using var provider = services.BuildServiceProvider();
+        var configurator = provider.GetServices<IRpcServerConfigurator>()
+            .OfType<LakonaClusterRpcServerConfigurator>()
+            .Single();
+        var builder = RpcServerHostBuilder.Create();
+        var context = new LakonaGameServerRpcContext(
+            "cluster",
+            new LakonaGameEndpointOptions { Transport = "cluster" },
+            builder,
+            provider,
+            [],
+            TestContext.Current.CancellationToken);
+
+        configurator.Configure(context);
+
+        Assert.True(builder.ServiceRegistry.TryGetHandler(
+            ClusterProtocol.ServiceId,
+            ClusterProtocol.SendMethodId,
+            out _));
+    }
+
+    private sealed class GeneratedActorHandlerProbe : IClusterMessageHandler
+    {
+        public ValueTask<ClusterSendStatus> HandleAsync(
+            ClusterMessage message,
+            CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<ClusterSendStatus>(ClusterSendStatus.RouteNotFound);
+        }
     }
 }
 

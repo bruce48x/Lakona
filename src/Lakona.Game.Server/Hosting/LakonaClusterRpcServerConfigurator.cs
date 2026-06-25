@@ -1,5 +1,6 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
+using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Transport.Tcp;
@@ -58,6 +59,19 @@ public sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurator
             LocalClientNotificationCommandDispatcher notificationDispatcher)
         {
             ClientNotificationCommandBinder.Bind(context.Builder.ServiceRegistry, notificationDispatcher);
+        }
+
+        var actorHandlers = context.Services.GetServices<IClusterMessageHandler>().ToList();
+        if (context.Services.GetService<RemoteActorGateway>() is RemoteActorGateway remoteActorGateway)
+        {
+            actorHandlers.Insert(0, remoteActorGateway.CreateReplyHandler());
+        }
+
+        if (actorHandlers.Count > 0)
+        {
+            ClusterMessageBinder.Bind(
+                context.Builder.ServiceRegistry,
+                new CompositeClusterMessageHandler(actorHandlers.ToArray()));
         }
     }
 }

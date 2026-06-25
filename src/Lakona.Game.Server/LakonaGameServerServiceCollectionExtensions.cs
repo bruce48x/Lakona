@@ -7,6 +7,7 @@ using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Diagnostics;
 using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Guardrails;
+using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 
@@ -52,6 +53,7 @@ public static class LakonaGameServerServiceCollectionExtensions
         });
 
         services.AddLakonaGameServerActors(actorOptions => options.Actors.ApplyTo(actorOptions));
+        LakonaGameGeneratedServiceRegistrationDiscovery.RegisterDiscovered(services);
         if (options.Sessions.Cleanup.Enabled)
         {
             services.AddLakonaGameServerSessionCleanup(sessionOptions => options.Sessions.Cleanup.ApplyTo(sessionOptions));
