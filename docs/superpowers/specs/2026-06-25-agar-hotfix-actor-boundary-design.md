@@ -12,10 +12,11 @@ making the actor id model explicit and consistent.
 `Shared` currently exposes server-only actor DTOs. Unity client code imports
 `Shared.Interfaces` and `Shared.Gameplay`; it does not need
 `Agar.Sample.State.Contracts.*`. `Shared/State/MatchmakingContracts.cs` still
-contains internal matchmaking enqueue, cancel, tick, queue, result, and room
-assignment types. `MatchmakingTickRequest` is unused. `MatchmakingState` is
-already narrowed to `DefaultRoomSize` and `PendingTickets`, but its companion
-server-only contracts still leak through the shared Unity assembly.
+contains internal matchmaking actor state, enqueue/cancel requests, queue
+tickets, results, and room assignment types. `MatchmakingTickRequest` is
+unused. `MatchmakingState` itself is server actor state; even when narrowed to
+`DefaultRoomSize` and `PendingTickets`, `PendingTickets` is queue internals and
+depends on a server-only ticket type.
 
 Hotfix services and behaviors use `IActorRuntime.AskAsync` and
 `IActorRuntime.TellAsync` directly. That makes placement intent unclear at the
@@ -50,9 +51,10 @@ There is also a concrete actor id inconsistency. `LoginService`,
 actor snapshots used only for server orchestration, stable actor state, or
 server diagnostics.
 
-Move the matchmaking actor DTOs used only by server hotfix behavior, server
-services, and server tests out of `Shared`:
+Move the matchmaking actor state and DTOs used only by server hotfix behavior,
+server services, and server tests out of `Shared`:
 
+- `MatchmakingState`
 - `MatchmakingEnqueueRequest`
 - `MatchmakingEnqueueResult`
 - `MatchmakingCancelRequest`
@@ -65,11 +67,14 @@ Delete `MatchmakingTickRequest`.
 Keep `MatchmakingStatusSnapshot` server-only. It already lives under
 `Server/Hotfix/State/Matchmaking`; it must not be reintroduced into `Shared`.
 
-Keep `MatchmakingState` with exactly these properties until a separate design
-removes the remaining server-only state contracts from `Shared`:
+Keep server-side `MatchmakingState` with exactly these properties:
 
 - `DefaultRoomSize`
 - `PendingTickets`
+
+Delete `Shared/State/MatchmakingContracts.cs` and its Unity `.meta` file. The
+Unity client does not import `Agar.Sample.State.Contracts.*`, so there is no
+client contract to preserve for this file.
 
 This design does not move every existing server-only room, session, leaderboard,
 or user DTO out of `Shared` in the first implementation. It adds tests that
@@ -216,11 +221,10 @@ Update current docs so they say one thing:
 Add or update tests to enforce these rules:
 
 - Unity client code must not import `Agar.Sample.State.Contracts.*`.
-- `Shared/State/MatchmakingContracts.cs` must not contain
-  `MatchmakingEnqueueRequest`, `MatchmakingEnqueueResult`,
-  `MatchmakingTickRequest`, or `MatchmakingStatusSnapshot`.
-- `MatchmakingState` must contain exactly `DefaultRoomSize` and
-  `PendingTickets` while it remains in `Shared`.
+- `Shared/State/MatchmakingContracts.cs` and
+  `Shared/State/MatchmakingContracts.cs.meta` must not exist.
+- Server-side `MatchmakingState` must contain exactly `DefaultRoomSize` and
+  `PendingTickets`.
 - Agar hotfix services must not contain `.AskAsync<` or `.TellAsync<`.
 - Agar hotfix behaviors must not contain `.AskAsync<` or `.TellAsync<` except
   in generated framework code.
