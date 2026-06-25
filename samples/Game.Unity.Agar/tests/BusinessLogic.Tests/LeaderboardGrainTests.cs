@@ -189,6 +189,49 @@ public sealed class LeaderboardActorTests
     }
 
     [Fact]
+    public async Task QueryWithZeroTopNUsesActorClampMinimum()
+    {
+        await TestHotfix.LoadCurrentAsync(TestContext.Current.CancellationToken);
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddLakonaGameServer();
+
+        await using var provider = services.BuildServiceProvider();
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        await lifecycle.CreateLocalAsync<LeaderboardActor>(ActorId.From("current"), cancellationToken: cancellationToken);
+        await actors.TellAsync<LeaderboardActor>(
+            ActorId.From("current"),
+            (actor, _) => actor.RecordVictoryPointsAsync(new LeaderboardVictoryPointsRequest
+            {
+                PlayerId = "player-a",
+                VictoryPoints = 20,
+                WinCount = 1
+            }),
+            cancellationToken);
+        await actors.TellAsync<LeaderboardActor>(
+            ActorId.From("current"),
+            (actor, _) => actor.RecordVictoryPointsAsync(new LeaderboardVictoryPointsRequest
+            {
+                PlayerId = "player-b",
+                VictoryPoints = 10,
+                WinCount = 1
+            }),
+            cancellationToken);
+
+        var snapshot = await actors.AskAsync<LeaderboardActor, LeaderboardSnapshot>(
+            ActorId.From("current"),
+            (actor, _) => actor.GetLeaderboardAsync(new LeaderboardQueryRequest { TopN = 0 }),
+            cancellationToken);
+
+        var entry = Assert.Single(snapshot.Entries);
+        Assert.Equal("player-a", entry.PlayerId);
+    }
+
+    [Fact]
     public void LegacyUtcCurrentPeriodMigratesToLocalPeriodBeforeLocalReset()
     {
         var pacificTimeZone = FindPacificTimeZone();

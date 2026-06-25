@@ -15,8 +15,7 @@ public static class LeaderboardBehavior
     {
         await ResetWeeklyIfNeededAsync(self, new LeaderboardResetRequest()).ConfigureAwait(false);
 
-        var topN = request.TopN <= 0 ? 10 : request.TopN;
-        topN = Math.Clamp(topN, 1, 100);
+        var topN = Math.Clamp(request.TopN, 1, 100);
         var now = DateTime.UtcNow;
         var entries = GetRankedEntries(self)
             .Take(topN)
