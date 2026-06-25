@@ -8,6 +8,12 @@ that consolidation.
 
 ### Changed
 
+- `Lakona.Game.Cluster.Rpc` `0.2.2`, `Lakona.Game.Cluster.Rpc.MemoryPack`
+  `0.1.0`, `Lakona.Game.Server` `0.8.4`, and
+  `Lakona.Rpc.Serializer.MemoryPack` `0.11.2`: cluster RPC DTOs are
+  serializer-neutral, built-in MemoryPack cluster formatters are generated from
+  a committed schema, and cluster remote actor payloads use the configured
+  cluster serializer.
 - `Lakona.Tool` `0.12.10`: generated hotfix services now alias
   `call.Actors` as `localActors`, and generated README files explain that
   `localActors.AskAsync(...)` uses the process-local actor runtime while
