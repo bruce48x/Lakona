@@ -51,6 +51,11 @@ There is also a concrete actor id inconsistency. `LoginService`,
 actor snapshots used only for server orchestration, stable actor state, or
 server diagnostics.
 
+Server-side actor contracts live in `Server.App` because generated stable actor
+refs are compiled into the stable server host. These contracts are not
+client/server RPC contracts and must not duplicate Unity-facing service
+contracts from `Shared.Interfaces`.
+
 Move the matchmaking actor state and DTOs used only by server hotfix behavior,
 server services, and server tests out of `Shared`:
 
@@ -61,11 +66,14 @@ server services, and server tests out of `Shared`:
 - `MatchmakingCancelResult`
 - `MatchmakingQueueTicket`
 - `RoomAssignment`
+- `MatchmakingStatusSnapshot`
 
 Delete `MatchmakingTickRequest`.
 
-Keep `MatchmakingStatusSnapshot` server-only. It already lives under
-`Server/Hotfix/State/Matchmaking`; it must not be reintroduced into `Shared`.
+Keep `MatchmakingStatusSnapshot` server-only by moving it to the same stable
+`Server.App` actor-contract file as the matchmaking actor interface. It must
+not remain under `Server.Hotfix`, because `Server.App` must not reference the
+reloadable hotfix assembly.
 
 Keep server-side `MatchmakingState` with exactly these properties:
 
@@ -225,6 +233,8 @@ Add or update tests to enforce these rules:
   `Shared/State/MatchmakingContracts.cs.meta` must not exist.
 - Server-side `MatchmakingState` must contain exactly `DefaultRoomSize` and
   `PendingTickets`.
+- `MatchmakingStatusSnapshot` must live in stable server actor contracts, not
+  in `Shared` and not under `Server.Hotfix`.
 - Agar hotfix services must not contain `.AskAsync<` or `.TellAsync<`.
 - Agar hotfix behaviors must not contain `.AskAsync<` or `.TellAsync<` except
   in generated framework code.
