@@ -1,3 +1,4 @@
+using Lakona.Game.Cluster.Rpc.MemoryPack;
 using Lakona.Game.Server.Configuration;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Serializer.Json;
@@ -30,7 +31,7 @@ internal static class LakonaEndpointRuntimeDefaults
         return Normalize(cluster.Serializer) switch
         {
             "json" => new JsonRpcSerializer(),
-            "memorypack" => new MemoryPackRpcSerializer(),
+            "memorypack" => ClusterRpcMemoryPack.CreateSerializer(),
             var serializer => throw new InvalidOperationException(
                 $"Cluster serializer '{serializer}' is unknown. Use json or memorypack.")
         };
