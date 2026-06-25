@@ -67,5 +67,37 @@ namespace Lakona.Game.Server.Hotfix.Generators
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor HotfixActorContractActorMustDeriveActor = new DiagnosticDescriptor(
+            "ULGHOTFIX012",
+            "Hotfix actor contract actor type must derive Actor<TKey>",
+            "Hotfix actor contract '{0}' references actor type '{1}' that must derive Actor<TKey>",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor UnsupportedHotfixActorContractReturnType = new DiagnosticDescriptor(
+            "ULGHOTFIX013",
+            "Unsupported hotfix actor contract method return type",
+            "Hotfix actor contract method '{0}' must return ValueTask or ValueTask<T>",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor UnsupportedHotfixActorContractParameters = new DiagnosticDescriptor(
+            "ULGHOTFIX014",
+            "Unsupported hotfix actor contract method parameters",
+            "Hotfix actor contract method '{0}' must declare exactly one request parameter plus optional CancellationToken",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor DuplicateHotfixActorContractMethod = new DiagnosticDescriptor(
+            "ULGHOTFIX015",
+            "Duplicate hotfix actor contract method signature",
+            "Hotfix actor contract '{0}' has duplicate generated ref method signature '{1}'",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
     }
 }
