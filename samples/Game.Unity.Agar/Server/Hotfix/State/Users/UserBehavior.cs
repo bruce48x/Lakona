@@ -9,7 +9,7 @@ namespace Server.Hotfix.State.Users;
 [HotfixBehaviorOf(typeof(UserActor))]
 public static class UserBehavior
 {
-    public static ValueTask<UserLoginResult> LoginAsync(this UserActor self, UserLoginRequest request)
+    public static ValueTask<UserLoginResult> LoginAsync(this UserActor self, UserLoginRequest request, CancellationToken cancellationToken = default)
     {
         var userId = self.Context.Id.Value;
         var passwordHash = ComputePasswordHash(request.Password);
@@ -50,7 +50,7 @@ public static class UserBehavior
         });
     }
 
-    public static ValueTask<UserProfileSnapshot> GetProfileAsync(this UserActor self, UserProfileRequest request)
+    public static ValueTask<UserProfileSnapshot> GetProfileAsync(this UserActor self, UserProfileRequest request, CancellationToken cancellationToken = default)
     {
         var session = self.State.Session;
         return new ValueTask<UserProfileSnapshot>(new UserProfileSnapshot
@@ -73,7 +73,7 @@ public static class UserBehavior
         });
     }
 
-    public static ValueTask SetOnlineAsync(this UserActor self, UserOnlineStatusRequest request)
+    public static ValueTask SetOnlineAsync(this UserActor self, UserOnlineStatusRequest request, CancellationToken cancellationToken = default)
     {
         if (self.RecordExists)
         {
@@ -83,7 +83,7 @@ public static class UserBehavior
         return default;
     }
 
-    public static ValueTask AddWinAsync(this UserActor self, UserWinRequest request)
+    public static ValueTask AddWinAsync(this UserActor self, UserWinRequest request, CancellationToken cancellationToken = default)
     {
         if (self.RecordExists)
         {
@@ -93,7 +93,7 @@ public static class UserBehavior
         return default;
     }
 
-    public static ValueTask AddVictoryPointsAsync(this UserActor self, UserVictoryPointsRequest request)
+    public static ValueTask AddVictoryPointsAsync(this UserActor self, UserVictoryPointsRequest request, CancellationToken cancellationToken = default)
     {
         if (self.RecordExists && request.Points > 0)
         {
@@ -103,7 +103,7 @@ public static class UserBehavior
         return default;
     }
 
-    public static ValueTask ResetVictoryPointsAsync(this UserActor self, UserVictoryPointsResetRequest request)
+    public static ValueTask ResetVictoryPointsAsync(this UserActor self, UserVictoryPointsResetRequest request, CancellationToken cancellationToken = default)
     {
         if (self.RecordExists)
         {

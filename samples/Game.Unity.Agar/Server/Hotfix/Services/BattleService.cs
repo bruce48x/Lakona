@@ -1,3 +1,4 @@
+using Agar.Sample.State.Contracts;
 using Agar.Sample.State.Contracts.Rooms;
 using Agar.Sample.State.Contracts.Sessions;
 using Agar.Sample.State.Contracts.Users;
@@ -18,20 +19,25 @@ namespace Server.Hotfix.Services;
 internal sealed class BattleService
 {
     private readonly PlayerSessionRegistry _playerSessionRegistry;
+    private readonly RoomActors _rooms;
     private readonly RuntimeNodeIdentity _runtimeNodeIdentity;
+    private readonly UserActors _users;
 
     public BattleService(
         PlayerSessionRegistry playerSessionRegistry,
-        RuntimeNodeIdentity runtimeNodeIdentity)
+        RuntimeNodeIdentity runtimeNodeIdentity,
+        UserActors users,
+        RoomActors rooms)
     {
         _playerSessionRegistry = playerSessionRegistry;
         _runtimeNodeIdentity = runtimeNodeIdentity;
+        _users = users;
+        _rooms = rooms;
     }
 
     public async ValueTask<RealtimeAttachReply> AttachRealtimeAsync(HotfixServiceCall<RealtimeAttachRequest, IBattleCallback> call)
     {
         var req = call.Request;
-        var nodeLocalActors = call.Actors;
         if (string.IsNullOrWhiteSpace(req.PlayerId) ||
             string.IsNullOrWhiteSpace(req.Token) ||
             string.IsNullOrWhiteSpace(req.RoomId) ||
@@ -44,10 +50,9 @@ internal sealed class BattleService
             };
         }
 
-        var sessionSnapshot = await nodeLocalActors
-            .AskAsync<UserActor, PlayerSessionSnapshot>(
-                UserId(req.PlayerId),
-                (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()))
+        var sessionSnapshot = await _users
+            .Get(new UserId(req.PlayerId))
+            .GetSnapshotAsync(new PlayerSessionSnapshotRequest())
             .ConfigureAwait(false);
         if (!string.Equals(sessionSnapshot.SessionToken, req.Token, StringComparison.Ordinal) ||
             !string.Equals(sessionSnapshot.CurrentRoomId, req.RoomId, StringComparison.Ordinal) ||
@@ -81,15 +86,15 @@ internal sealed class BattleService
             };
         }
 
-        await nodeLocalActors.AskAsync<RoomActor, RoomSettlementResult>(
-            RoomId(req.RoomId),
-            (actor, _) => actor.SetReadyAsync(new RoomPlayerReadyRequest
+        await _rooms
+            .Local(new RoomId(req.RoomId))
+            .SetReadyAsync(new RoomPlayerReadyRequest
             {
                 UserId = req.PlayerId,
                 RoomId = req.RoomId,
                 IsReady = true,
                 UpdatedAtUtc = DateTime.UtcNow
-            })).ConfigureAwait(false);
+            }).ConfigureAwait(false);
 
         return new RealtimeAttachReply
         {
@@ -106,7 +111,8 @@ internal sealed class BattleService
         var req = call.Request;
         var playerSessionRegistry = call.Services.GetRequiredService<PlayerSessionRegistry>();
         var runtimeNodeIdentity = call.Services.GetRequiredService<RuntimeNodeIdentity>();
-        var nodeLocalActors = call.Actors;
+        var users = call.Services.GetRequiredService<UserActors>();
+        var rooms = call.Services.GetRequiredService<RoomActors>();
         var playerId = playerSessionRegistry.GetPlayerIdByConnection(call.ConnectionId);
         if (string.IsNullOrWhiteSpace(playerId))
         {
@@ -119,10 +125,9 @@ internal sealed class BattleService
             return;
         }
 
-        var sessionSnapshot = await nodeLocalActors
-            .AskAsync<UserActor, PlayerSessionSnapshot>(
-                UserId(playerId),
-                (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()))
+        var sessionSnapshot = await users
+            .Get(new UserId(playerId))
+            .GetSnapshotAsync(new PlayerSessionSnapshotRequest())
             .ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(sessionSnapshot.CurrentRoomId) ||
             !runtimeNodeIdentity.IsRuntimeOwner(sessionSnapshot.RuntimeGateway))
@@ -130,19 +135,15 @@ internal sealed class BattleService
             return;
         }
 
-        await nodeLocalActors.TellAsync<RoomActor>(
-            RoomId(sessionSnapshot.CurrentRoomId),
-            (actor, _) => actor.SubmitInputAsync(new RoomInputSubmitRequest
+        await rooms
+            .Local(new RoomId(sessionSnapshot.CurrentRoomId))
+            .SubmitInputAsync(new RoomInputSubmitRequest
             {
                 RoomId = sessionSnapshot.CurrentRoomId,
                 UserId = playerId,
                 Input = req,
                 SubmittedAtUtc = DateTime.UtcNow
-            }))
+            })
             .ConfigureAwait(false);
     }
-
-    private static ActorId RoomId(string roomId) => ActorId.From(roomId);
-
-    private static ActorId UserId(string userId) => ActorId.From(userId);
 }

@@ -21,7 +21,7 @@ namespace Server.Hotfix.State.Rooms;
 [HotfixBehaviorOf(typeof(RoomActor))]
 public static class RoomBehavior
 {
-    public static ValueTask<RoomSettlementResult> CreateAsync(this RoomActor self, RoomCreateRequest request)
+    public static ValueTask<RoomSettlementResult> CreateAsync(this RoomActor self, RoomCreateRequest request, CancellationToken cancellationToken = default)
     {
         var roomId = NormalizeRoomId(request.RoomId);
         var createdAtUtc = NormalizeUtc(request.CreatedAtUtc);
@@ -75,7 +75,7 @@ public static class RoomBehavior
         });
     }
 
-    public static ValueTask<RoomSettlementResult> JoinAsync(this RoomActor self, PlayerRoomAssignment request)
+    public static ValueTask<RoomSettlementResult> JoinAsync(this RoomActor self, PlayerRoomAssignment request, CancellationToken cancellationToken = default)
     {
         var roomId = NormalizeRoomId(request.RoomId);
         var joinedAtUtc = NormalizeUtc(request.AssignedAtUtc);
@@ -111,7 +111,7 @@ public static class RoomBehavior
         return new ValueTask<RoomSettlementResult>(BuildSuccess(self, "Player joined the room.", joinedAtUtc));
     }
 
-    public static ValueTask<RoomSettlementResult> LeaveAsync(this RoomActor self, RoomPlayerLeaveRequest request)
+    public static ValueTask<RoomSettlementResult> LeaveAsync(this RoomActor self, RoomPlayerLeaveRequest request, CancellationToken cancellationToken = default)
     {
         var leftAtUtc = NormalizeUtc(request.LeftAtUtc);
 
@@ -138,7 +138,7 @@ public static class RoomBehavior
         return new ValueTask<RoomSettlementResult>(BuildSuccess(self, "Player left the room.", leftAtUtc));
     }
 
-    public static ValueTask<RoomSettlementResult> SetReadyAsync(this RoomActor self, RoomPlayerReadyRequest request)
+    public static ValueTask<RoomSettlementResult> SetReadyAsync(this RoomActor self, RoomPlayerReadyRequest request, CancellationToken cancellationToken = default)
     {
         var updatedAtUtc = NormalizeUtc(request.UpdatedAtUtc);
 
@@ -162,7 +162,7 @@ public static class RoomBehavior
         return new ValueTask<RoomSettlementResult>(BuildSuccess(self, "Ready state updated.", updatedAtUtc));
     }
 
-    public static ValueTask<RoomSettlementResult> StartAsync(this RoomActor self, RoomStartRequest request)
+    public static ValueTask<RoomSettlementResult> StartAsync(this RoomActor self, RoomStartRequest request, CancellationToken cancellationToken = default)
     {
         var roomId = NormalizeRoomId(request.RoomId);
         var startedAtUtc = NormalizeUtc(request.StartedAtUtc);
@@ -213,7 +213,7 @@ public static class RoomBehavior
         return new ValueTask<RoomSettlementResult>(BuildSuccess(self, "Room started.", startedAtUtc));
     }
 
-    public static ValueTask<RoomSettlementResult> CompleteAsync(this RoomActor self, RoomMatchCompletion request)
+    public static ValueTask<RoomSettlementResult> CompleteAsync(this RoomActor self, RoomMatchCompletion request, CancellationToken cancellationToken = default)
     {
         var roomId = NormalizeRoomId(request.RoomId);
         var finishedAtUtc = NormalizeUtc(request.FinishedAtUtc);
@@ -279,12 +279,12 @@ public static class RoomBehavior
         });
     }
 
-    public static ValueTask<RoomSnapshot> GetSnapshotAsync(this RoomActor self, RoomSnapshotRequest request)
+    public static ValueTask<RoomSnapshot> GetSnapshotAsync(this RoomActor self, RoomSnapshotRequest request, CancellationToken cancellationToken = default)
     {
         return new ValueTask<RoomSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask SubmitInputAsync(this RoomActor self, RoomInputSubmitRequest request)
+    public static ValueTask SubmitInputAsync(this RoomActor self, RoomInputSubmitRequest request, CancellationToken cancellationToken = default)
     {
         if (!self.RecordExists || self.State.Status != RoomStatus.InProgress)
         {
@@ -391,54 +391,50 @@ public static class RoomBehavior
         }).ConfigureAwait(false);
 
         var sessions = self.Context.Services.GetRequiredService<PlayerSessionRegistry>();
-        var localActors = self.Context.Runtime;
+        var users = self.Context.Services.GetRequiredService<UserActors>();
+        var leaderboards = self.Context.Services.GetRequiredService<LeaderboardActors>();
         foreach (var registration in sessions.GetByRoom(self.State.RoomId))
         {
             sessions.ClearRoom(registration.PlayerId, self.State.RoomId);
-            await localActors
-                .AskAsync<UserActor, PlayerSessionSnapshot>(
-                    UserId(registration.PlayerId),
-                    (actor, _) => actor.ClearRoomAsync(new PlayerRoomClearRequest
+            await users
+                .Get(new UserId(registration.PlayerId))
+                .ClearRoomAsync(new PlayerRoomClearRequest
                     {
                         UserId = registration.PlayerId,
                         RoomId = self.State.RoomId,
                         ClearedAtUtc = DateTime.UtcNow,
                         Reason = "Match completed."
-                    }))
+                    })
                 .ConfigureAwait(false);
         }
 
         var winnerEntry = settlement.Entries.FirstOrDefault(static entry => entry.IsWinner);
         if (winnerEntry is not null && !winnerEntry.IsBot)
         {
-            await localActors
-                .TellAsync<UserActor>(
-                    UserId(winnerEntry.PlayerId),
-                    (actor, _) => actor.AddWinAsync(new UserWinRequest()))
+            await users
+                .Get(new UserId(winnerEntry.PlayerId))
+                .AddWinAsync(new UserWinRequest())
                 .ConfigureAwait(false);
         }
 
         foreach (var entry in settlement.Entries.Where(static entry => !entry.IsBot && entry.VictoryPoints > 0))
         {
-            await localActors
-                .TellAsync<UserActor>(
-                    UserId(entry.PlayerId),
-                    (actor, _) => actor.AddVictoryPointsAsync(new UserVictoryPointsRequest { Points = entry.VictoryPoints }))
+            await users
+                .Get(new UserId(entry.PlayerId))
+                .AddVictoryPointsAsync(new UserVictoryPointsRequest { Points = entry.VictoryPoints })
                 .ConfigureAwait(false);
-            var profile = await localActors
-                .AskAsync<UserActor, UserProfileSnapshot>(
-                    UserId(entry.PlayerId),
-                    (actor, _) => actor.GetProfileAsync(new UserProfileRequest()))
+            var profile = await users
+                .Get(new UserId(entry.PlayerId))
+                .GetProfileAsync(new UserProfileRequest())
                 .ConfigureAwait(false);
-            await localActors
-                .TellAsync<LeaderboardActor>(
-                    LeaderboardId,
-                    (actor, _) => actor.RecordVictoryPointsAsync(new LeaderboardVictoryPointsRequest
+            await leaderboards
+                .Get(new LeaderboardId("current"))
+                .RecordVictoryPointsAsync(new LeaderboardVictoryPointsRequest
                     {
                         PlayerId = entry.PlayerId,
                         VictoryPoints = profile.VictoryPoints,
                         WinCount = profile.WinCount
-                    }))
+                    })
                 .ConfigureAwait(false);
         }
     }
@@ -628,8 +624,4 @@ public static class RoomBehavior
             Path = gateway.Path
         };
     }
-
-    private static readonly ActorId LeaderboardId = ActorId.From("current");
-
-    private static ActorId UserId(string userId) => ActorId.From(userId);
 }

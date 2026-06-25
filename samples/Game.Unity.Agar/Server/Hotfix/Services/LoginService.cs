@@ -17,12 +17,18 @@ namespace Server.Hotfix.Services;
 [HotfixService(typeof(ILoginService))]
 public sealed class LoginService
 {
+    private readonly UserActors _users;
+
+    public LoginService(UserActors users)
+    {
+        _users = users;
+    }
+
     public async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest> call)
     {
         var req = call.Request;
         var services = AgarServiceDependencies.From(call);
         var logger = services.CreateLogger<LoginService>();
-        var nodeLocalActors = call.Actors;
 
         var account = req.Account;
         var password = req.Password;
@@ -40,10 +46,9 @@ public sealed class LoginService
         UserLoginResult loginResult;
         try
         {
-            loginResult = await nodeLocalActors
-                .AskAsync<UserActor, UserLoginResult>(
-                    UserId(account),
-                    (actor, _) => actor.LoginAsync(new UserLoginRequest { Password = password, Reconnect = req.Reconnect }))
+            loginResult = await _users
+                .Get(new UserId(account))
+                .LoginAsync(new UserLoginRequest { Password = password, Reconnect = req.Reconnect })
                 .ConfigureAwait(false);
         }
         catch (InvalidOperationException ex)
@@ -72,17 +77,16 @@ public sealed class LoginService
             }
 
             sessionKey = resumeDecision.Session.Value;
-            await nodeLocalActors
-                .AskAsync<UserActor, PlayerSessionSnapshot>(
-                    UserId(loginResult.UserId),
-                    (actor, _) => actor.ReconnectAsync(new PlayerSessionReconnectRequest
+            await _users
+                .Get(new UserId(loginResult.UserId))
+                .ReconnectAsync(new PlayerSessionReconnectRequest
                     {
                         UserId = loginResult.UserId,
                         SessionToken = loginResult.SessionToken,
                         ConnectionId = call.ConnectionId,
                         ReconnectedAtUtc = DateTime.UtcNow,
                         ControlGateway = CloneGateway(services.RuntimeNodeIdentity.AdvertisedEndpoint)
-                    }))
+                    })
                 .ConfigureAwait(false);
         }
         else
@@ -90,17 +94,16 @@ public sealed class LoginService
             sessionKey = await services.PlayerSessionRegistry
                 .RegisterNewControlAsync(loginResult.UserId, loginResult.SessionToken, call.ConnectionId)
                 .ConfigureAwait(false);
-            await nodeLocalActors
-                .AskAsync<UserActor, PlayerSessionSnapshot>(
-                    UserId(loginResult.UserId),
-                    (actor, _) => actor.AttachAsync(new PlayerSessionAttachRequest
+            await _users
+                .Get(new UserId(loginResult.UserId))
+                .AttachAsync(new PlayerSessionAttachRequest
                     {
                         UserId = loginResult.UserId,
                         SessionToken = loginResult.SessionToken,
                         ConnectionId = call.ConnectionId,
                         AttachedAtUtc = DateTime.UtcNow,
                         ControlGateway = CloneGateway(services.RuntimeNodeIdentity.AdvertisedEndpoint)
-                    }))
+                    })
                 .ConfigureAwait(false);
             await services.ReliablePushOutbox.AckAsync(loginResult.UserId, long.MaxValue).ConfigureAwait(false);
         }
@@ -118,8 +121,6 @@ public sealed class LoginService
             SessionGeneration = sessionKey.Generation
         };
     }
-
-    private static ActorId UserId(string userId) => ActorId.From(userId);
 
     private static GatewayEndpointDescriptor CloneGateway(GatewayEndpointDescriptor gateway)
     {

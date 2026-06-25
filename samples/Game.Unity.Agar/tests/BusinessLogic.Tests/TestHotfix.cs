@@ -1,6 +1,10 @@
 using Agar.Sample.State.Users;
+using Lakona.Game.Server;
+using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Loading;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shared.Gameplay;
 
 namespace Agar.Unity.Tests;
@@ -13,7 +17,8 @@ internal static class TestHotfix
         var source = new CurrentDirectoryHotfixAssemblySource(
             Path.GetDirectoryName(hotfixAssemblyPath)!,
             Path.GetFileName(hotfixAssemblyPath));
-        var manager = new HotfixManager(source, SharedAssemblyNames());
+        var rootServices = CreateRootServiceProvider();
+        var manager = new HotfixManager(source, SharedAssemblyNames(), rootServices: rootServices);
 
         var reload = await manager.ReloadAsync(cancellationToken).ConfigureAwait(false);
         if (!reload.Succeeded)
@@ -65,6 +70,15 @@ internal static class TestHotfix
         ];
     }
 
+    public static ServiceProvider CreateRootServiceProvider()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddLakonaGameServer();
+        services.AddGeneratedActorSelectorTestDependencies();
+        return services.BuildServiceProvider();
+    }
+
     public static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
@@ -104,5 +118,45 @@ internal static class TestHotfix
 #else
         return "Release";
 #endif
+    }
+}
+
+internal static class AgarTestServiceCollectionExtensions
+{
+    public static IServiceCollection AddGeneratedActorSelectorTestDependencies(this IServiceCollection services)
+    {
+        services.TryAddSingleton<IRemoteActorInvoker, FailingRemoteActorInvoker>();
+        services.TryAddSingleton<IRemoteActorSerializer, FailingRemoteActorSerializer>();
+        return services;
+    }
+
+    private sealed class FailingRemoteActorInvoker : IRemoteActorInvoker
+    {
+        public ValueTask<RemoteActorInvocationResult> AskAsync(
+            RemoteActorInvocation invocation,
+            CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("Remote actor calls are not available in this test service provider.");
+        }
+
+        public ValueTask<RemoteActorInvocationResult> TellAsync(
+            RemoteActorInvocation invocation,
+            CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("Remote actor calls are not available in this test service provider.");
+        }
+    }
+
+    private sealed class FailingRemoteActorSerializer : IRemoteActorSerializer
+    {
+        public ReadOnlyMemory<byte> Serialize<T>(T value)
+        {
+            throw new InvalidOperationException("Remote actor serialization is not available in this test service provider.");
+        }
+
+        public T Deserialize<T>(ReadOnlyMemory<byte> payload)
+        {
+            throw new InvalidOperationException("Remote actor serialization is not available in this test service provider.");
+        }
     }
 }

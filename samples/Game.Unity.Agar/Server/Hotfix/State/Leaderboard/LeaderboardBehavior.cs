@@ -1,9 +1,10 @@
+using Agar.Sample.State.Contracts;
 using Agar.Sample.State.Contracts.Leaderboard;
 using Agar.Sample.State.Contracts.Users;
 using Agar.Sample.State.Leaderboard;
 using Agar.Sample.State.Users;
-using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.State.Users;
 
 namespace Server.Hotfix.State.Leaderboard;
@@ -11,7 +12,7 @@ namespace Server.Hotfix.State.Leaderboard;
 [HotfixBehaviorOf(typeof(LeaderboardActor))]
 public static class LeaderboardBehavior
 {
-    public static async ValueTask<LeaderboardSnapshot> GetLeaderboardAsync(this LeaderboardActor self, LeaderboardQueryRequest request)
+    public static async ValueTask<LeaderboardSnapshot> GetLeaderboardAsync(this LeaderboardActor self, LeaderboardQueryRequest request, CancellationToken cancellationToken = default)
     {
         await ResetWeeklyIfNeededAsync(self, new LeaderboardResetRequest()).ConfigureAwait(false);
 
@@ -30,7 +31,7 @@ public static class LeaderboardBehavior
         };
     }
 
-    public static async ValueTask ResetWeeklyIfNeededAsync(this LeaderboardActor self, LeaderboardResetRequest request)
+    public static async ValueTask ResetWeeklyIfNeededAsync(this LeaderboardActor self, LeaderboardResetRequest request, CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
         EnsurePeriodInitialized(self, now);
@@ -57,12 +58,13 @@ public static class LeaderboardBehavior
         }
 
         var playerIds = self.State.Players.Keys.ToArray();
-        var localActors = self.Context.Runtime;
+        var users = self.Context.Services.GetRequiredService<UserActors>();
         foreach (var playerId in playerIds)
         {
-            await localActors.TellAsync<UserActor>(
-                ActorId.From(playerId),
-                static (actor, _) => actor.ResetVictoryPointsAsync(new UserVictoryPointsResetRequest())).ConfigureAwait(false);
+            await users
+                .Get(new UserId(playerId))
+                .ResetVictoryPointsAsync(new UserVictoryPointsResetRequest())
+                .ConfigureAwait(false);
         }
 
         self.State.Players.Clear();
@@ -70,7 +72,7 @@ public static class LeaderboardBehavior
         self.State.CurrentPeriodStartUtc = currentPeriod;
     }
 
-    public static async ValueTask RecordVictoryPointsAsync(this LeaderboardActor self, LeaderboardVictoryPointsRequest request)
+    public static async ValueTask RecordVictoryPointsAsync(this LeaderboardActor self, LeaderboardVictoryPointsRequest request, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(request.PlayerId) || request.VictoryPoints <= 0)
         {

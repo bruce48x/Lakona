@@ -134,6 +134,7 @@ public sealed class LeaderboardActorTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
+        services.AddGeneratedActorSelectorTestDependencies();
 
         await using var provider = services.BuildServiceProvider();
         var actors = provider.GetRequiredService<IActorRuntime>();
@@ -196,6 +197,7 @@ public sealed class LeaderboardActorTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
+        services.AddGeneratedActorSelectorTestDependencies();
 
         await using var provider = services.BuildServiceProvider();
         var actors = provider.GetRequiredService<IActorRuntime>();

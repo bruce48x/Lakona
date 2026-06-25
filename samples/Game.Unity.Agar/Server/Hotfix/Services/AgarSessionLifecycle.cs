@@ -1,5 +1,6 @@
 using Agar.Sample.State.Contracts.Sessions;
 using Agar.Sample.State.Users;
+using Agar.Sample.State.Contracts;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
@@ -17,7 +18,6 @@ public sealed class AgarSessionLifecycle
     public static async ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
     {
         var services = AgarLifecycleDependencies.From(call);
-        var localActors = services.LocalActors;
         var connection = services.PlayerSessionRegistry.GetConnection(call.Request.ConnectionId);
         if (connection is null)
         {
@@ -34,16 +34,16 @@ public sealed class AgarSessionLifecycle
 
         try
         {
-            await localActors
-                .AskAsync<UserActor, PlayerSessionSnapshot>(
-                    UserId(connection.PlayerId),
-                    (actor, _) => actor.MarkDisconnectedAsync(new PlayerSessionDisconnectRequest
+            var users = call.Services.GetRequiredService<UserActors>();
+            await users
+                .Get(new UserId(connection.PlayerId))
+                .MarkDisconnectedAsync(new PlayerSessionDisconnectRequest
                     {
                         UserId = connection.PlayerId,
                         ConnectionId = connection.ConnectionId,
                         DisconnectedAtUtc = DateTime.UtcNow,
                         Reason = "Control disconnect"
-                    }))
+                    })
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException)
@@ -100,12 +100,9 @@ public sealed class AgarSessionLifecycle
             .ReleasePlayerAsync(services, playerId, "Reconnect grace period expired")
             .ConfigureAwait(false);
     }
-
-    private static ActorId UserId(string userId) => ActorId.From(userId);
 }
 
 internal sealed record AgarLifecycleDependencies(
-    IActorRuntime LocalActors,
     PlayerSessionRegistry PlayerSessionRegistry,
     ILogger<AgarSessionLifecycle> Logger)
 {
@@ -113,7 +110,6 @@ internal sealed record AgarLifecycleDependencies(
     {
         var loggerFactory = call.Services.GetRequiredService<ILoggerFactory>();
         return new AgarLifecycleDependencies(
-            call.Actors,
             call.Services.GetRequiredService<PlayerSessionRegistry>(),
             loggerFactory.CreateLogger<AgarSessionLifecycle>());
     }

@@ -180,6 +180,7 @@ public sealed class DistributedTopologyConfigurationTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
+        services.AddGeneratedActorSelectorTestDependencies();
         services.AddSingleton<RuntimeGatewaySelector>();
         services.AddSingleton<INodeDirectory>(provider =>
         {
@@ -250,6 +251,7 @@ public sealed class DistributedTopologyConfigurationTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
+        services.AddGeneratedActorSelectorTestDependencies();
         services.AddSingleton<RuntimeGatewaySelector>();
 
         await using var provider = services.BuildServiceProvider();
@@ -665,6 +667,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         services.AddLogging();
         services.AddLakonaGameServer(configuration);
+        services.AddGeneratedActorSelectorTestDependencies();
         services.AddLakonaGame(configuration, _ => { });
 
         return services;
@@ -680,6 +683,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         services.AddLogging();
         services.AddLakonaGameServer(configuration);
+        services.AddGeneratedActorSelectorTestDependencies();
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton(runtimeOptions);
         services.AddSingleton<RuntimeGatewaySelector>();

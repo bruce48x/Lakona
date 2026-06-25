@@ -32,7 +32,8 @@ public sealed class AgarHotfixTests
         var source = new CurrentDirectoryHotfixAssemblySource(
             Path.GetDirectoryName(hotfixAssemblyPath)!,
             Path.GetFileName(hotfixAssemblyPath));
-        var manager = new HotfixManager(source, HotfixSharedAssemblyNames());
+        await using var rootServices = TestHotfix.CreateRootServiceProvider();
+        var manager = new HotfixManager(source, HotfixSharedAssemblyNames(), rootServices: rootServices);
 
         var reload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
 
@@ -65,7 +66,8 @@ public sealed class AgarHotfixTests
         var source = new CurrentDirectoryHotfixAssemblySource(
             Path.GetDirectoryName(hotfixAssemblyPath)!,
             Path.GetFileName(hotfixAssemblyPath));
-        var manager = new HotfixManager(source, HotfixSharedAssemblyNames());
+        await using var rootServices = TestHotfix.CreateRootServiceProvider();
+        var manager = new HotfixManager(source, HotfixSharedAssemblyNames(), rootServices: rootServices);
 
         var firstReload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
         Assert.True(firstReload.Succeeded, BuildReloadDiagnostics(firstReload));
@@ -97,7 +99,8 @@ public sealed class AgarHotfixTests
     {
         var hotfixAssemblyPath = FindHotfixAssemblyPath();
         var source = new SwitchableHotfixAssemblySource(hotfixAssemblyPath);
-        var manager = new HotfixManager(source, HotfixSharedAssemblyNames());
+        await using var rootServices = TestHotfix.CreateRootServiceProvider();
+        var manager = new HotfixManager(source, HotfixSharedAssemblyNames(), rootServices: rootServices);
 
         var firstReload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
         Assert.True(firstReload.Succeeded, BuildReloadDiagnostics(firstReload));

@@ -25,8 +25,10 @@ public sealed class AgarHotfixBoundaryTests
             .ToArray();
         Assert.Contains("PlayerSessionRegistry", serviceLookups);
         Assert.Contains("RuntimeNodeIdentity", serviceLookups);
+        Assert.Contains("UserActors", serviceLookups);
+        Assert.Contains("RoomActors", serviceLookups);
         Assert.All(serviceLookups, type =>
-            Assert.Contains(type, new[] { "PlayerSessionRegistry", "RuntimeNodeIdentity" }));
+            Assert.Contains(type, new[] { "PlayerSessionRegistry", "RuntimeNodeIdentity", "UserActors", "RoomActors" }));
         Assert.DoesNotContain("AgarBattleServiceDependencies.From(call)", text, StringComparison.Ordinal);
         Assert.DoesNotContain("internal sealed record AgarBattleServiceDependencies", text, StringComparison.Ordinal);
     }
@@ -43,10 +45,7 @@ public sealed class AgarHotfixBoundaryTests
             "IMatchmakingStateStore",
             "IRoomStateStore",
             "ILeaderboardStateStore",
-            "services.Users",
             "services.Sessions",
-            "services.Rooms",
-            "services.Leaderboard",
         };
         var violations = new List<string>();
 
@@ -120,6 +119,24 @@ public sealed class AgarHotfixBoundaryTests
         Assert.True(
             violations.Length == 0,
             $"Actor hotfix dispatch is only allowed in Shared/Gameplay/ArenaSimulation.cs scripted gameplay extension points: {string.Join("; ", violations)}");
+    }
+
+    [Fact]
+    public void Agar_hotfix_business_code_uses_generated_actor_selectors()
+    {
+        var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
+            .Directory!.Parent!.Parent!.FullName;
+        var hotfixRoot = Path.Combine(sampleRoot, "Server", "Hotfix");
+        var violations = Directory.GetFiles(hotfixRoot, "*.cs", SearchOption.AllDirectories)
+            .Select(file => new { File = file, Text = File.ReadAllText(file) })
+            .Where(result => result.Text.Contains(".AskAsync<", StringComparison.Ordinal) ||
+                result.Text.Contains(".TellAsync<", StringComparison.Ordinal))
+            .Select(result => Path.GetRelativePath(Directory.GetCurrentDirectory(), result.File))
+            .ToArray();
+
+        Assert.True(
+            violations.Length == 0,
+            $"Agar hotfix business code must use generated actor selectors, not raw AskAsync/TellAsync: {string.Join("; ", violations)}");
     }
 
     [Fact]

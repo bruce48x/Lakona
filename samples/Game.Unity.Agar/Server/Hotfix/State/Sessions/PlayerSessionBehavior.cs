@@ -9,7 +9,7 @@ namespace Server.Hotfix.State.Sessions;
 [HotfixBehaviorOf(typeof(UserActor))]
 public static class PlayerSessionBehavior
 {
-    public static ValueTask<PlayerSessionSnapshot> AttachAsync(this UserActor self, PlayerSessionAttachRequest request)
+    public static ValueTask<PlayerSessionSnapshot> AttachAsync(this UserActor self, PlayerSessionAttachRequest request, CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(request.UserId);
         var attachedAtUtc = NormalizeUtc(request.AttachedAtUtc);
@@ -36,7 +36,7 @@ public static class PlayerSessionBehavior
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask<PlayerSessionSnapshot> ReconnectAsync(this UserActor self, PlayerSessionReconnectRequest request)
+    public static ValueTask<PlayerSessionSnapshot> ReconnectAsync(this UserActor self, PlayerSessionReconnectRequest request, CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(request.UserId);
         var reconnectedAtUtc = NormalizeUtc(request.ReconnectedAtUtc);
@@ -55,7 +55,7 @@ public static class PlayerSessionBehavior
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask<PlayerSessionSnapshot> MarkQueuedAsync(this UserActor self, PlayerSessionQueueRequest request)
+    public static ValueTask<PlayerSessionSnapshot> MarkQueuedAsync(this UserActor self, PlayerSessionQueueRequest request, CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(request.UserId);
         var queuedAtUtc = NormalizeUtc(request.QueuedAtUtc);
@@ -71,7 +71,7 @@ public static class PlayerSessionBehavior
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask<PlayerSessionSnapshot> ClearQueueAsync(this UserActor self, PlayerSessionQueueClearRequest request)
+    public static ValueTask<PlayerSessionSnapshot> ClearQueueAsync(this UserActor self, PlayerSessionQueueClearRequest request, CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(request.UserId);
         EnsureState(self, userId);
@@ -84,7 +84,7 @@ public static class PlayerSessionBehavior
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask<PlayerSessionSnapshot> AssignRoomAsync(this UserActor self, PlayerRoomAssignment request)
+    public static ValueTask<PlayerSessionSnapshot> AssignRoomAsync(this UserActor self, PlayerRoomAssignment request, CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(request.UserId);
         var assignedAtUtc = NormalizeUtc(request.AssignedAtUtc);
@@ -108,7 +108,7 @@ public static class PlayerSessionBehavior
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask<PlayerSessionSnapshot> ClearRoomAsync(this UserActor self, PlayerRoomClearRequest request)
+    public static ValueTask<PlayerSessionSnapshot> ClearRoomAsync(this UserActor self, PlayerRoomClearRequest request, CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(request.UserId);
         EnsureState(self, userId);
@@ -124,7 +124,7 @@ public static class PlayerSessionBehavior
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask<PlayerSessionSnapshot> MarkDisconnectedAsync(this UserActor self, PlayerSessionDisconnectRequest request)
+    public static ValueTask<PlayerSessionSnapshot> MarkDisconnectedAsync(this UserActor self, PlayerSessionDisconnectRequest request, CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(request.UserId);
         var disconnectedAtUtc = NormalizeUtc(request.DisconnectedAtUtc);
@@ -143,7 +143,7 @@ public static class PlayerSessionBehavior
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask<PlayerSessionSnapshot> HeartbeatAsync(this UserActor self, PlayerSessionHeartbeatRequest request)
+    public static ValueTask<PlayerSessionSnapshot> HeartbeatAsync(this UserActor self, PlayerSessionHeartbeatRequest request, CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(request.UserId);
         var observedAtUtc = NormalizeUtc(request.ObservedAtUtc);
@@ -159,7 +159,7 @@ public static class PlayerSessionBehavior
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask<PlayerSessionSnapshot> GetSnapshotAsync(this UserActor self, PlayerSessionSnapshotRequest request)
+    public static ValueTask<PlayerSessionSnapshot> GetSnapshotAsync(this UserActor self, PlayerSessionSnapshotRequest request, CancellationToken cancellationToken = default)
     {
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
