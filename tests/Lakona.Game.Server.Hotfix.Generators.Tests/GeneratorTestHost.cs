@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
@@ -29,6 +30,40 @@ internal static class GeneratorTestHost
         stream.Position = 0;
         var sharedReference = MetadataReference.CreateFromStream(stream);
         return Run(appSource, references.Concat(new[] { sharedReference }).ToArray());
+    }
+
+    public static GeneratorAssemblyRunResult RunAndEmit(string source)
+    {
+        var references = CreateDefaultReferences();
+        var syntaxTree = CSharpSyntaxTree.ParseText(source);
+        var compilation = CSharpCompilation.Create(
+            "GeneratorTests." + Guid.NewGuid().ToString("N"),
+            new[] { syntaxTree },
+            references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var generator = new HotfixGenerator();
+        CSharpGeneratorDriver.Create(generator).RunGeneratorsAndUpdateCompilation(
+            compilation,
+            out var updated,
+            out var diagnostics);
+
+        var result = new GeneratorRunResult(
+            string.Join(
+                Environment.NewLine,
+                updated.SyntaxTrees.Skip(1).Select(static tree => tree.ToString())),
+            diagnostics,
+            updated.GetDiagnostics());
+
+        using var stream = new MemoryStream();
+        var emit = updated.Emit(stream);
+        if (!emit.Success)
+        {
+            throw new InvalidOperationException(string.Join(Environment.NewLine, emit.Diagnostics));
+        }
+
+        stream.Position = 0;
+        return new GeneratorAssemblyRunResult(result, Assembly.Load(stream.ToArray()));
     }
 
     private static GeneratorRunResult Run(string source, IReadOnlyList<MetadataReference> references)
@@ -106,3 +141,7 @@ internal sealed record GeneratorRunResult(
             .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
             .ToArray();
 }
+
+internal sealed record GeneratorAssemblyRunResult(
+    GeneratorRunResult Result,
+    Assembly Assembly);

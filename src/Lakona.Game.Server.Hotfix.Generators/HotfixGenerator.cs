@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using Microsoft.CodeAnalysis;
@@ -411,7 +412,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             var requestType = method.RequestType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             var resultType = method.ResultType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             var actorName = LowerFirst(GetActorPrefix(contract.Actor.Name));
-            var methodName = GetRemoteKind(contract, method);
+            var methodName = GetRemoteKind(method);
 
             builder.Append("    public async ").Append(returnType).Append(' ').Append(method.Name)
                 .Append('(').Append(requestType).AppendLine(" request, global::System.Threading.CancellationToken cancellationToken = default)");
@@ -532,7 +533,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             var requestType = method.RequestType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             var resultType = method.ResultType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             var actorName = LowerFirst(GetActorPrefix(contract.Actor.Name));
-            var methodName = GetRemoteKind(contract, method);
+            var methodName = GetRemoteKind(method);
 
             builder.Append("    public async ").Append(returnType).Append(' ').Append(method.Name)
                 .Append('(').Append(requestType).AppendLine(" request, global::System.Threading.CancellationToken cancellationToken = default)");
@@ -613,7 +614,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             var actorType = contract.Actor.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             var requestType = method.RequestType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             var resultType = method.ResultType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            var methodName = GetRemoteKind(contract, method);
+            var methodName = GetRemoteKind(method);
 
             builder.Append("            case \"").Append(methodName).AppendLine("\":");
             builder.AppendLine("            {");
@@ -663,7 +664,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
         private static void AppendActorRegistration(StringBuilder builder, HotfixActorContractInfo[] contracts)
         {
-            builder.AppendLine("internal sealed class GeneratedHotfixActorRegistration :");
+            builder.AppendLine("public sealed class GeneratedHotfixActorRegistration :");
             builder.AppendLine("    global::Lakona.Game.Server.Hosting.ILakonaGameGeneratedServiceRegistration");
             builder.AppendLine("{");
             builder.AppendLine("    public void Register(global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)");
@@ -1016,12 +1017,20 @@ namespace Lakona.Game.Server.Hotfix.Generators
         {
             if (method.Parameters.Length == 1)
             {
-                return !IsCancellationToken(method.Parameters[0].Type);
+                return IsSupportedRequestParameter(method.Parameters[0]);
             }
 
             return method.Parameters.Length == 2 &&
-                !IsCancellationToken(method.Parameters[0].Type) &&
+                IsSupportedRequestParameter(method.Parameters[0]) &&
+                method.Parameters[1].RefKind == RefKind.None &&
                 IsCancellationToken(method.Parameters[1].Type);
+        }
+
+        private static bool IsSupportedRequestParameter(IParameterSymbol parameter)
+        {
+            return parameter.RefKind == RefKind.None &&
+                parameter.Type.TypeKind != TypeKind.Pointer &&
+                !IsCancellationToken(parameter.Type);
         }
 
         private static bool IsValueTask(ITypeSymbol type, out ITypeSymbol? resultType)
@@ -1799,26 +1808,39 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 ">";
         }
 
-        private static string GetRemoteMethodName(string methodName)
+        private static string GetRemoteKind(HotfixActorMethodInfo method)
         {
-            var normalized = methodName.EndsWith("Async", System.StringComparison.Ordinal) && methodName.Length > "Async".Length
-                ? methodName.Substring(0, methodName.Length - "Async".Length)
-                : methodName;
-
-            return LowerFirst(normalized);
-        }
-
-        private static string GetRemoteKind(HotfixActorContractInfo contract, HotfixActorMethodInfo method)
-        {
-            var contractIdentity = contract.Contract.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
-                .Replace("global::", string.Empty);
-            var requestIdentity = method.RequestType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
-                .Replace("global::", string.Empty);
+            var contractIdentity = GetRemoteIdentity(method.DeclaringContract);
+            var requestIdentity = GetRemoteIdentity(method.RequestType);
+            var canonicalIdentity = contractIdentity + "|" + method.Name + "|" + requestIdentity;
             return SanitizeRemoteKindIdentity(contractIdentity) +
                 "." +
-                GetRemoteMethodName(method.Name) +
+                SanitizeRemoteKindIdentity(method.Name) +
                 "." +
-                SanitizeRemoteKindIdentity(requestIdentity);
+                SanitizeRemoteKindIdentity(requestIdentity) +
+                "." +
+                ComputeSha256Hex(canonicalIdentity);
+        }
+
+        private static string GetRemoteIdentity(ISymbol symbol)
+        {
+            return symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                .Replace("global::", string.Empty);
+        }
+
+        private static string ComputeSha256Hex(string value)
+        {
+            using (var sha256 = SHA256.Create())
+            {
+                var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(value));
+                var builder = new StringBuilder(bytes.Length * 2);
+                foreach (var b in bytes)
+                {
+                    builder.Append(b.ToString("x2"));
+                }
+
+                return builder.ToString();
+            }
         }
 
         private static string SanitizeRemoteKindIdentity(string value)
@@ -1982,12 +2004,14 @@ namespace Lakona.Game.Server.Hotfix.Generators
         {
             private HotfixActorMethodInfo(
                 string name,
+                INamedTypeSymbol declaringContract,
                 ITypeSymbol requestType,
                 ITypeSymbol? resultType,
                 bool hasCancellationToken,
                 Location? location)
             {
                 Name = name;
+                DeclaringContract = declaringContract;
                 RequestType = requestType;
                 ResultType = resultType;
                 HasCancellationToken = hasCancellationToken;
@@ -1995,6 +2019,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
             }
 
             public string Name { get; }
+
+            public INamedTypeSymbol DeclaringContract { get; }
 
             public ITypeSymbol RequestType { get; }
 
@@ -2015,6 +2041,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 IsValueTask(method.ReturnType, out var resultType);
                 return new HotfixActorMethodInfo(
                     method.Name,
+                    method.ContainingType,
                     method.Parameters[0].Type,
                     resultType,
                     method.Parameters.Length == 2,

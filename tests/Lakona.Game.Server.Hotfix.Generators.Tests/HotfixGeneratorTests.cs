@@ -50,8 +50,8 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("public UserRemoteRef Remote(global::Lakona.Game.Cluster.NodeId nodeId, global::Game.Server.UserId id)", result.GeneratedSource);
         Assert.Contains("global::Lakona.Game.Server.Actors.ActorId.From(_id.ToString())", result.GeneratedSource);
         Assert.Contains("global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync<global::Game.Server.LoginReply>", result.GeneratedSource);
-        Assert.Contains("\"Game.Server.IUserActorContract.login.Game.Server.LoginRequest\"", result.GeneratedSource);
-        Assert.Contains("case \"Game.Server.IUserActorContract.login.Game.Server.LoginRequest\":", result.GeneratedSource);
+        Assert.Contains("\"Game.Server.IUserActorContract.LoginAsync.Game.Server.LoginRequest.", result.GeneratedSource);
+        Assert.Contains("case \"Game.Server.IUserActorContract.LoginAsync.Game.Server.LoginRequest.", result.GeneratedSource);
         Assert.Contains("_directoryCache.TryGet(actorId, out var node)", result.GeneratedSource);
         Assert.Contains("_directory.ResolveAsync(actorId, cancellationToken)", result.GeneratedSource);
         Assert.Contains("_remote.AskAsync(invocation, cancellationToken)", result.GeneratedSource);
@@ -64,8 +64,39 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("envelope.ReplyCorrelationId,", result.GeneratedSource);
         Assert.Contains("_serializer.Serialize(reply),", result.GeneratedSource);
         Assert.Contains("global::Lakona.Game.Server.Hosting.ILakonaGameGeneratedServiceRegistration", result.GeneratedSource);
+        Assert.Contains("public sealed class GeneratedHotfixActorRegistration", result.GeneratedSource);
         Assert.Contains("TryAddSingleton<global::Game.Server.UserActors>", result.GeneratedSource);
         Assert.DoesNotContain("actor.LoginAsync", result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_emits_discoverable_public_actor_registration_provider()
+    {
+        var source = """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Server;
+
+            public readonly record struct UserId(string Value);
+            public sealed class PingRequest { }
+            public sealed class UserActor : Actor<UserId> { }
+
+            [HotfixActorContract(typeof(UserActor))]
+            public interface IUserActorContract
+            {
+                ValueTask PingAsync(PingRequest request);
+            }
+            """;
+
+        var emitted = GeneratorTestHost.RunAndEmit(source);
+
+        Assert.Empty(emitted.Result.ErrorDiagnostics);
+        var registration = emitted.Assembly.GetType("GeneratedHotfixActorRegistration", throwOnError: true);
+        Assert.NotNull(registration);
+        Assert.NotNull(registration.GetConstructor(Type.EmptyTypes));
+        Assert.True(typeof(Lakona.Game.Server.Hosting.ILakonaGameGeneratedServiceRegistration).IsAssignableFrom(registration));
     }
 
     [Fact]
@@ -101,10 +132,10 @@ public sealed class HotfixGeneratorTests
         var result = GeneratorTestHost.Run(source);
 
         Assert.Empty(result.ErrorDiagnostics);
-        Assert.Contains("\"Game.Server.IUserActorContract.ping.Game.Server.PingRequest\"", result.GeneratedSource);
-        Assert.Contains("\"Game.Server.IRoomActorContract.ping.Game.Server.PingRequest\"", result.GeneratedSource);
-        Assert.Contains("case \"Game.Server.IUserActorContract.ping.Game.Server.PingRequest\":", result.GeneratedSource);
-        Assert.Contains("case \"Game.Server.IRoomActorContract.ping.Game.Server.PingRequest\":", result.GeneratedSource);
+        Assert.Contains("\"Game.Server.IUserActorContract.PingAsync.Game.Server.PingRequest.", result.GeneratedSource);
+        Assert.Contains("\"Game.Server.IRoomActorContract.PingAsync.Game.Server.PingRequest.", result.GeneratedSource);
+        Assert.Contains("case \"Game.Server.IUserActorContract.PingAsync.Game.Server.PingRequest.", result.GeneratedSource);
+        Assert.Contains("case \"Game.Server.IRoomActorContract.PingAsync.Game.Server.PingRequest.", result.GeneratedSource);
         Assert.DoesNotContain("case \"ping\":", result.GeneratedSource, StringComparison.Ordinal);
         Assert.DoesNotContain(", \"user\", \"ping\",", result.GeneratedSource, StringComparison.Ordinal);
         Assert.DoesNotContain(", \"room\", \"ping\",", result.GeneratedSource, StringComparison.Ordinal);
@@ -149,10 +180,10 @@ public sealed class HotfixGeneratorTests
         var result = GeneratorTestHost.Run(source);
 
         Assert.Empty(result.ErrorDiagnostics);
-        Assert.Contains("\"Game.One.IUserActorContract.ping.Game.One.PingRequest\"", result.GeneratedSource);
-        Assert.Contains("\"Game.Two.IUserActorContract.ping.Game.Two.PingRequest\"", result.GeneratedSource);
-        Assert.Contains("case \"Game.One.IUserActorContract.ping.Game.One.PingRequest\":", result.GeneratedSource);
-        Assert.Contains("case \"Game.Two.IUserActorContract.ping.Game.Two.PingRequest\":", result.GeneratedSource);
+        Assert.Contains("\"Game.One.IUserActorContract.PingAsync.Game.One.PingRequest.", result.GeneratedSource);
+        Assert.Contains("\"Game.Two.IUserActorContract.PingAsync.Game.Two.PingRequest.", result.GeneratedSource);
+        Assert.Contains("case \"Game.One.IUserActorContract.PingAsync.Game.One.PingRequest.", result.GeneratedSource);
+        Assert.Contains("case \"Game.Two.IUserActorContract.PingAsync.Game.Two.PingRequest.", result.GeneratedSource);
         Assert.DoesNotContain("case \"user.ping\":", result.GeneratedSource, StringComparison.Ordinal);
     }
 
@@ -183,11 +214,77 @@ public sealed class HotfixGeneratorTests
         var result = GeneratorTestHost.Run(source);
 
         Assert.Empty(result.ErrorDiagnostics);
-        Assert.Contains("\"Game.Server.IUserActorContract.ping.Game.Server.PingUserRequest\"", result.GeneratedSource);
-        Assert.Contains("\"Game.Server.IUserActorContract.ping.Game.Server.PingAdminRequest\"", result.GeneratedSource);
-        Assert.Contains("case \"Game.Server.IUserActorContract.ping.Game.Server.PingUserRequest\":", result.GeneratedSource);
-        Assert.Contains("case \"Game.Server.IUserActorContract.ping.Game.Server.PingAdminRequest\":", result.GeneratedSource);
+        Assert.Contains("\"Game.Server.IUserActorContract.PingAsync.Game.Server.PingUserRequest.", result.GeneratedSource);
+        Assert.Contains("\"Game.Server.IUserActorContract.PingAsync.Game.Server.PingAdminRequest.", result.GeneratedSource);
+        Assert.Contains("case \"Game.Server.IUserActorContract.PingAsync.Game.Server.PingUserRequest.", result.GeneratedSource);
+        Assert.Contains("case \"Game.Server.IUserActorContract.PingAsync.Game.Server.PingAdminRequest.", result.GeneratedSource);
         Assert.DoesNotContain("case \"Game.Server.IUserActorContract.ping\":", result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_preserves_declaring_contract_identity_for_multiple_contracts_on_same_actor()
+    {
+        var source = """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Server;
+
+            public readonly record struct UserId(string Value);
+            public sealed class AlphaRequest { }
+            public sealed class ZetaRequest { }
+            public sealed class UserActor : Actor<UserId> { }
+
+            [HotfixActorContract(typeof(UserActor))]
+            public interface IZetaActorContract
+            {
+                ValueTask ZetaAsync(ZetaRequest request);
+            }
+
+            [HotfixActorContract(typeof(UserActor))]
+            public interface IAlphaActorContract
+            {
+                ValueTask AlphaAsync(AlphaRequest request);
+            }
+            """;
+
+        var result = GeneratorTestHost.Run(source);
+
+        Assert.Empty(result.ErrorDiagnostics);
+        Assert.Contains("\"Game.Server.IAlphaActorContract.AlphaAsync.Game.Server.AlphaRequest.", result.GeneratedSource);
+        Assert.Contains("\"Game.Server.IZetaActorContract.ZetaAsync.Game.Server.ZetaRequest.", result.GeneratedSource);
+        Assert.DoesNotContain("\"Game.Server.IAlphaActorContract.ZetaAsync.Game.Server.ZetaRequest.", result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_uses_exact_method_name_in_remote_kind_for_ping_and_ping_async()
+    {
+        var source = """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Server;
+
+            public readonly record struct UserId(string Value);
+            public sealed class PingRequest { }
+            public sealed class UserActor : Actor<UserId> { }
+
+            [HotfixActorContract(typeof(UserActor))]
+            public interface IUserActorContract
+            {
+                ValueTask Ping(PingRequest request);
+                ValueTask PingAsync(PingRequest request);
+            }
+            """;
+
+        var result = GeneratorTestHost.Run(source);
+
+        Assert.Empty(result.ErrorDiagnostics);
+        Assert.Contains("\"Game.Server.IUserActorContract.Ping.Game.Server.PingRequest.", result.GeneratedSource);
+        Assert.Contains("\"Game.Server.IUserActorContract.PingAsync.Game.Server.PingRequest.", result.GeneratedSource);
+        Assert.DoesNotContain("case \"Game.Server.IUserActorContract.ping.Game.Server.PingRequest", result.GeneratedSource, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -269,6 +366,34 @@ public sealed class HotfixGeneratorTests
 
         var diagnostic = Assert.Single(result.GeneratorDiagnostics, diagnostic => diagnostic.Id == "ULGHOTFIX014");
         Assert.Equal(14, diagnostic.Location.GetLineSpan().StartLinePosition.Line);
+        Assert.DoesNotContain("UserActors", result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_reports_diagnostic_for_ref_hotfix_actor_contract_parameter()
+    {
+        var source = """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Server;
+
+            public readonly record struct UserId(string Value);
+            public sealed class PingRequest { }
+            public sealed class UserActor : Actor<UserId> { }
+
+            [HotfixActorContract(typeof(UserActor))]
+            public interface IUserActorContract
+            {
+                ValueTask PingAsync(ref PingRequest request);
+            }
+            """;
+
+        var result = GeneratorTestHost.Run(source);
+
+        var diagnostic = Assert.Single(result.GeneratorDiagnostics, diagnostic => diagnostic.Id == "ULGHOTFIX014");
+        Assert.Equal(13, diagnostic.Location.GetLineSpan().StartLinePosition.Line);
         Assert.DoesNotContain("UserActors", result.GeneratedSource, StringComparison.Ordinal);
     }
 
