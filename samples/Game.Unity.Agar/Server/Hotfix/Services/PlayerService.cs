@@ -3,6 +3,7 @@ using Agar.Sample.State.Contracts.Leaderboard;
 using Agar.Sample.State.Contracts.Matchmaking;
 using Agar.Sample.State.Contracts.Rooms;
 using Agar.Sample.State.Contracts.Sessions;
+using Agar.Sample.State.Contracts.Users;
 using Lakona.Game.Abstractions;
 using Agar.Sample.State.Matchmaking;
 using Agar.Sample.State.Leaderboard;
@@ -40,7 +41,7 @@ public sealed class PlayerService
         var snapshot = await nodeLocalActors
             .AskAsync<LeaderboardActor, LeaderboardSnapshot>(
                 LeaderboardId,
-                (actor, _) => actor.GetLeaderboardAsync(topN))
+                (actor, _) => actor.GetLeaderboardAsync(new LeaderboardQueryRequest { TopN = topN }))
             .ConfigureAwait(false);
 
         logger.LogInformation("Leaderboard queried. TopN={TopN} Returned={Returned} Period={PeriodStartUtc}.",
@@ -238,7 +239,7 @@ public sealed class PlayerService
             await services.LocalActors
                 .TellAsync<UserActor>(
                     UserId(playerId),
-                    (actor, _) => actor.SetOnlineAsync(false))
+                    (actor, _) => actor.SetOnlineAsync(new UserOnlineStatusRequest { IsOnline = false }))
                 .ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -273,7 +274,7 @@ public sealed class PlayerService
         var room = await services.LocalActors
             .AskAsync<RoomActor, RoomSnapshot>(
                 RoomId(assignment.RoomId),
-                (actor, _) => actor.GetSnapshotAsync())
+                (actor, _) => actor.GetSnapshotAsync(new RoomSnapshotRequest()))
             .ConfigureAwait(false);
 
         foreach (var player in room.Players)

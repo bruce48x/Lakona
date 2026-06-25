@@ -43,7 +43,7 @@ public sealed class LoginService
             loginResult = await nodeLocalActors
                 .AskAsync<UserActor, UserLoginResult>(
                     UserId(account),
-                    (actor, _) => actor.LoginAsync(password, req.Reconnect))
+                    (actor, _) => actor.LoginAsync(new UserLoginRequest { Password = password, Reconnect = req.Reconnect }))
                 .ConfigureAwait(false);
         }
         catch (InvalidOperationException ex)

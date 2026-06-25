@@ -1,5 +1,6 @@
 using Agar.Sample.State.Contracts.Rooms;
 using Agar.Sample.State.Contracts.Sessions;
+using Agar.Sample.State.Contracts.Users;
 using Agar.Sample.State.Rooms;
 using Agar.Sample.State.Users;
 using Lakona.Game.Server.Actors;
@@ -46,7 +47,7 @@ internal sealed class BattleService
         var sessionSnapshot = await nodeLocalActors
             .AskAsync<UserActor, PlayerSessionSnapshot>(
                 UserId(req.PlayerId),
-                (actor, _) => actor.GetSnapshotAsync())
+                (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()))
             .ConfigureAwait(false);
         if (!string.Equals(sessionSnapshot.SessionToken, req.Token, StringComparison.Ordinal) ||
             !string.Equals(sessionSnapshot.CurrentRoomId, req.RoomId, StringComparison.Ordinal) ||
@@ -121,7 +122,7 @@ internal sealed class BattleService
         var sessionSnapshot = await nodeLocalActors
             .AskAsync<UserActor, PlayerSessionSnapshot>(
                 UserId(playerId),
-                (actor, _) => actor.GetSnapshotAsync())
+                (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()))
             .ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(sessionSnapshot.CurrentRoomId) ||
             !runtimeNodeIdentity.IsRuntimeOwner(sessionSnapshot.RuntimeGateway))

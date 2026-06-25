@@ -2,6 +2,7 @@ using Agar.Sample.State.Contracts;
 using Agar.Sample.State.Contracts.Matchmaking;
 using Agar.Sample.State.Contracts.Rooms;
 using Agar.Sample.State.Contracts.Sessions;
+using Agar.Sample.State.Contracts.Users;
 using Agar.Sample.State.Matchmaking;
 using Agar.Sample.State.Rooms;
 using Agar.Sample.State.Users;
@@ -145,7 +146,7 @@ public static class MatchmakingBehavior
         };
     }
 
-    public static ValueTask<MatchmakingStatusSnapshot> GetStatusAsync(this MatchmakingActor self)
+    public static ValueTask<MatchmakingStatusSnapshot> GetStatusAsync(this MatchmakingActor self, MatchmakingStatusRequest request)
     {
         EnsureState(self);
         return new ValueTask<MatchmakingStatusSnapshot>(new MatchmakingStatusSnapshot
@@ -285,7 +286,7 @@ public static class MatchmakingBehavior
         var localActors = self.Context.Runtime;
         return localActors.AskAsync<UserActor, PlayerSessionSnapshot>(
             UserId(userId),
-            (actor, _) => actor.GetSnapshotAsync());
+            (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()));
     }
 
     private static ValueTask<PlayerSessionSnapshot> MarkQueuedAsync(MatchmakingActor self, PlayerSessionQueueRequest request)

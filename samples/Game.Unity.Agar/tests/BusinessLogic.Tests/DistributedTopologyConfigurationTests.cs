@@ -619,7 +619,7 @@ public sealed class DistributedTopologyConfigurationTests
         await ((IActorLifecycle)actors).CreateLocalAsync<UserActor>(ActorId.From(playerId));
         return await actors.AskAsync<UserActor, UserLoginResult>(
             ActorId.From(playerId),
-            (actor, _) => actor.LoginAsync("pw", reconnect: false));
+            (actor, _) => actor.LoginAsync(new UserLoginRequest { Password = "pw", Reconnect = false }));
     }
 
     private static async ValueTask<PlayerSessionSnapshot> AttachSessionAsync(IActorRuntime actors, PlayerSessionAttachRequest request)
@@ -643,7 +643,7 @@ public sealed class DistributedTopologyConfigurationTests
         await ((IActorLifecycle)actors).CreateLocalAsync<MatchmakingActor>(ActorId.From("default"));
         return await actors.AskAsync<MatchmakingActor, MatchmakingStatusSnapshot>(
             ActorId.From("default"),
-            (actor, _) => actor.GetStatusAsync());
+            (actor, _) => actor.GetStatusAsync(new MatchmakingStatusRequest()));
     }
 
     private static async ValueTask<PlayerSessionSnapshot> GetSessionSnapshotAsync(IActorRuntime actors, string playerId)
@@ -651,7 +651,7 @@ public sealed class DistributedTopologyConfigurationTests
         await ((IActorLifecycle)actors).CreateLocalAsync<UserActor>(UserId(playerId));
         return await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
             UserId(playerId),
-            (actor, _) => actor.GetSnapshotAsync());
+            (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()));
     }
 
     private static ActorId UserId(string userId) => ActorId.From(userId);

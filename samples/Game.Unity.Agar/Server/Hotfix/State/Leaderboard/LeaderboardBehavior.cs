@@ -1,4 +1,5 @@
 using Agar.Sample.State.Contracts.Leaderboard;
+using Agar.Sample.State.Contracts.Users;
 using Agar.Sample.State.Leaderboard;
 using Agar.Sample.State.Users;
 using Lakona.Game.Server.Actors;
@@ -10,10 +11,11 @@ namespace Server.Hotfix.State.Leaderboard;
 [HotfixBehaviorOf(typeof(LeaderboardActor))]
 public static class LeaderboardBehavior
 {
-    public static async ValueTask<LeaderboardSnapshot> GetLeaderboardAsync(this LeaderboardActor self, int topN)
+    public static async ValueTask<LeaderboardSnapshot> GetLeaderboardAsync(this LeaderboardActor self, LeaderboardQueryRequest request)
     {
-        await ResetWeeklyIfNeededAsync(self).ConfigureAwait(false);
+        await ResetWeeklyIfNeededAsync(self, new LeaderboardResetRequest()).ConfigureAwait(false);
 
+        var topN = request.TopN <= 0 ? 10 : request.TopN;
         topN = Math.Clamp(topN, 1, 100);
         var now = DateTime.UtcNow;
         var entries = GetRankedEntries(self)
@@ -29,7 +31,7 @@ public static class LeaderboardBehavior
         };
     }
 
-    public static async ValueTask ResetWeeklyIfNeededAsync(this LeaderboardActor self)
+    public static async ValueTask ResetWeeklyIfNeededAsync(this LeaderboardActor self, LeaderboardResetRequest request)
     {
         var now = DateTime.UtcNow;
         EnsurePeriodInitialized(self, now);
@@ -61,7 +63,7 @@ public static class LeaderboardBehavior
         {
             await localActors.TellAsync<UserActor>(
                 ActorId.From(playerId),
-                static (actor, _) => actor.ResetVictoryPointsAsync()).ConfigureAwait(false);
+                static (actor, _) => actor.ResetVictoryPointsAsync(new UserVictoryPointsResetRequest())).ConfigureAwait(false);
         }
 
         self.State.Players.Clear();
@@ -69,23 +71,23 @@ public static class LeaderboardBehavior
         self.State.CurrentPeriodStartUtc = currentPeriod;
     }
 
-    public static async ValueTask RecordVictoryPointsAsync(this LeaderboardActor self, string playerId, int victoryPoints, int winCount)
+    public static async ValueTask RecordVictoryPointsAsync(this LeaderboardActor self, LeaderboardVictoryPointsRequest request)
     {
-        if (string.IsNullOrWhiteSpace(playerId) || victoryPoints <= 0)
+        if (string.IsNullOrWhiteSpace(request.PlayerId) || request.VictoryPoints <= 0)
         {
             return;
         }
 
-        await ResetWeeklyIfNeededAsync(self).ConfigureAwait(false);
+        await ResetWeeklyIfNeededAsync(self, new LeaderboardResetRequest()).ConfigureAwait(false);
 
-        if (!self.State.Players.TryGetValue(playerId, out var player))
+        if (!self.State.Players.TryGetValue(request.PlayerId, out var player))
         {
-            player = new LeaderboardPlayerState { PlayerId = playerId };
-            self.State.Players[playerId] = player;
+            player = new LeaderboardPlayerState { PlayerId = request.PlayerId };
+            self.State.Players[request.PlayerId] = player;
         }
 
-        player.VictoryPoints = Math.Max(0, victoryPoints);
-        player.WinCount = Math.Max(0, winCount);
+        player.VictoryPoints = Math.Max(0, request.VictoryPoints);
+        player.WinCount = Math.Max(0, request.WinCount);
     }
 
     private static List<LeaderboardEntrySnapshot> GetRankedEntries(LeaderboardActor self)

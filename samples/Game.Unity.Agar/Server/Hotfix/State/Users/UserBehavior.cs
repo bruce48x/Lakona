@@ -9,10 +9,10 @@ namespace Server.Hotfix.State.Users;
 [HotfixBehaviorOf(typeof(UserActor))]
 public static class UserBehavior
 {
-    public static ValueTask<UserLoginResult> LoginAsync(this UserActor self, string password, bool reconnect)
+    public static ValueTask<UserLoginResult> LoginAsync(this UserActor self, UserLoginRequest request)
     {
         var userId = self.Context.Id.Value;
-        var passwordHash = ComputePasswordHash(password);
+        var passwordHash = ComputePasswordHash(request.Password);
         var now = DateTime.UtcNow;
 
         if (!self.RecordExists)
@@ -30,7 +30,7 @@ public static class UserBehavior
             throw new InvalidOperationException("Invalid password.");
         }
 
-        if (!reconnect || string.IsNullOrWhiteSpace(self.State.SessionToken))
+        if (!request.Reconnect || string.IsNullOrWhiteSpace(self.State.SessionToken))
         {
             self.State.SessionToken = Guid.NewGuid().ToString("N");
         }
@@ -50,7 +50,7 @@ public static class UserBehavior
         });
     }
 
-    public static ValueTask<UserProfileSnapshot> GetProfileAsync(this UserActor self)
+    public static ValueTask<UserProfileSnapshot> GetProfileAsync(this UserActor self, UserProfileRequest request)
     {
         var session = self.State.Session;
         return new ValueTask<UserProfileSnapshot>(new UserProfileSnapshot
@@ -73,17 +73,17 @@ public static class UserBehavior
         });
     }
 
-    public static ValueTask SetOnlineAsync(this UserActor self, bool isOnline)
+    public static ValueTask SetOnlineAsync(this UserActor self, UserOnlineStatusRequest request)
     {
         if (self.RecordExists)
         {
-            self.State.IsOnline = isOnline;
+            self.State.IsOnline = request.IsOnline;
         }
 
         return default;
     }
 
-    public static ValueTask AddWinAsync(this UserActor self)
+    public static ValueTask AddWinAsync(this UserActor self, UserWinRequest request)
     {
         if (self.RecordExists)
         {
@@ -93,17 +93,17 @@ public static class UserBehavior
         return default;
     }
 
-    public static ValueTask AddVictoryPointsAsync(this UserActor self, int points)
+    public static ValueTask AddVictoryPointsAsync(this UserActor self, UserVictoryPointsRequest request)
     {
-        if (self.RecordExists && points > 0)
+        if (self.RecordExists && request.Points > 0)
         {
-            self.State.VictoryPoints = Math.Max(0, self.State.VictoryPoints + points);
+            self.State.VictoryPoints = Math.Max(0, self.State.VictoryPoints + request.Points);
         }
 
         return default;
     }
 
-    public static ValueTask ResetVictoryPointsAsync(this UserActor self)
+    public static ValueTask ResetVictoryPointsAsync(this UserActor self, UserVictoryPointsResetRequest request)
     {
         if (self.RecordExists)
         {

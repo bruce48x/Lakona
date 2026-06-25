@@ -279,7 +279,7 @@ public static class RoomBehavior
         });
     }
 
-    public static ValueTask<RoomSnapshot> GetSnapshotAsync(this RoomActor self)
+    public static ValueTask<RoomSnapshot> GetSnapshotAsync(this RoomActor self, RoomSnapshotRequest request)
     {
         return new ValueTask<RoomSnapshot>(BuildSnapshot(self));
     }
@@ -414,7 +414,7 @@ public static class RoomBehavior
             await localActors
                 .TellAsync<UserActor>(
                     UserId(winnerEntry.PlayerId),
-                    (actor, _) => actor.AddWinAsync())
+                    (actor, _) => actor.AddWinAsync(new UserWinRequest()))
                 .ConfigureAwait(false);
         }
 
@@ -423,17 +423,22 @@ public static class RoomBehavior
             await localActors
                 .TellAsync<UserActor>(
                     UserId(entry.PlayerId),
-                    (actor, _) => actor.AddVictoryPointsAsync(entry.VictoryPoints))
+                    (actor, _) => actor.AddVictoryPointsAsync(new UserVictoryPointsRequest { Points = entry.VictoryPoints }))
                 .ConfigureAwait(false);
             var profile = await localActors
                 .AskAsync<UserActor, UserProfileSnapshot>(
                     UserId(entry.PlayerId),
-                    (actor, _) => actor.GetProfileAsync())
+                    (actor, _) => actor.GetProfileAsync(new UserProfileRequest()))
                 .ConfigureAwait(false);
             await localActors
                 .TellAsync<LeaderboardActor>(
                     LeaderboardId,
-                    (actor, _) => actor.RecordVictoryPointsAsync(entry.PlayerId, profile.VictoryPoints, profile.WinCount))
+                    (actor, _) => actor.RecordVictoryPointsAsync(new LeaderboardVictoryPointsRequest
+                    {
+                        PlayerId = entry.PlayerId,
+                        VictoryPoints = profile.VictoryPoints,
+                        WinCount = profile.WinCount
+                    }))
                 .ConfigureAwait(false);
         }
     }

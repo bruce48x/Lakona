@@ -145,19 +145,24 @@ public sealed class LeaderboardActorTests
         await lifecycle.CreateLocalAsync<LeaderboardActor>(ActorId.From("current"), cancellationToken: cancellationToken);
         var login = await actors.AskAsync<UserActor, UserLoginResult>(
             ActorId.From(userId),
-            (actor, _) => actor.LoginAsync("pw", reconnect: false),
+            (actor, _) => actor.LoginAsync(new UserLoginRequest { Password = "pw", Reconnect = false }),
             cancellationToken);
         await actors.TellAsync<UserActor>(
             ActorId.From(login.UserId),
-            (actor, _) => actor.AddVictoryPointsAsync(25),
+            (actor, _) => actor.AddVictoryPointsAsync(new UserVictoryPointsRequest { Points = 25 }),
             cancellationToken);
         var profile = await actors.AskAsync<UserActor, UserProfileSnapshot>(
             ActorId.From(login.UserId),
-            (actor, _) => actor.GetProfileAsync(),
+            (actor, _) => actor.GetProfileAsync(new UserProfileRequest()),
             cancellationToken);
         await actors.TellAsync<LeaderboardActor>(
             ActorId.From("current"),
-            (actor, _) => actor.RecordVictoryPointsAsync(login.UserId, profile.VictoryPoints, profile.WinCount),
+            (actor, _) => actor.RecordVictoryPointsAsync(new LeaderboardVictoryPointsRequest
+            {
+                PlayerId = login.UserId,
+                VictoryPoints = profile.VictoryPoints,
+                WinCount = profile.WinCount
+            }),
             cancellationToken);
 
         await actors.TellAsync<LeaderboardActor>(
@@ -173,12 +178,12 @@ public sealed class LeaderboardActorTests
 
         await actors.AskAsync<LeaderboardActor, LeaderboardSnapshot>(
             ActorId.From("current"),
-            (actor, _) => actor.GetLeaderboardAsync(100),
+            (actor, _) => actor.GetLeaderboardAsync(new LeaderboardQueryRequest { TopN = 100 }),
             cancellationToken);
 
         var resetProfile = await actors.AskAsync<UserActor, UserProfileSnapshot>(
             ActorId.From(login.UserId),
-            (actor, _) => actor.GetProfileAsync(),
+            (actor, _) => actor.GetProfileAsync(new UserProfileRequest()),
             cancellationToken);
         Assert.Equal(0, resetProfile.VictoryPoints);
     }

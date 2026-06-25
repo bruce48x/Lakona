@@ -1,5 +1,6 @@
 using Agar.Sample.State.Contracts;
 using Agar.Sample.State.Contracts.Sessions;
+using Agar.Sample.State.Contracts.Users;
 using Agar.Sample.State.Users;
 using Lakona.Game.Server.Hotfix.Abstractions;
 
@@ -158,7 +159,7 @@ public static class PlayerSessionBehavior
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask<PlayerSessionSnapshot> GetSnapshotAsync(this UserActor self)
+    public static ValueTask<PlayerSessionSnapshot> GetSnapshotAsync(this UserActor self, PlayerSessionSnapshotRequest request)
     {
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
