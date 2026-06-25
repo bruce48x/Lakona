@@ -1,5 +1,6 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
+using Lakona.Game.Cluster.Rpc.MemoryPack;
 using Lakona.Game.Cluster.Sql;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
@@ -11,6 +12,7 @@ using Lakona.Rpc.Serializer.Json;
 using Lakona.Rpc.Serializer.MemoryPack;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests.Hosting;
@@ -52,17 +54,21 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         });
 
         services.AddLakonaGameClusterEndpoint();
+        var holderType = typeof(LakonaClusterEndpointServiceCollectionExtensions).Assembly.GetType(
+            "Lakona.Game.Server.Hosting.LakonaClusterRpcSerializer",
+            throwOnError: true)!;
+        services.RemoveAll(holderType);
+        services.AddSingleton(
+            holderType,
+            Activator.CreateInstance(holderType, ClusterRpcMemoryPack.CreateSerializer())!);
         services.AddSingleton<IRpcSerializer, JsonRpcSerializer>();
         using var provider = services.BuildServiceProvider();
 
         var serializer = provider.GetRequiredService<IRemoteActorSerializer>();
         var payload = serializer.Serialize(new ClusterSendReply { Status = 7 });
         var decoded = serializer.Deserialize<ClusterSendReply>(payload);
-        var memoryPackDecoded = new MemoryPackRpcSerializer().Deserialize<ClusterSendReply>(payload);
+        var memoryPackDecoded = ClusterRpcMemoryPack.CreateSerializer().Deserialize<ClusterSendReply>(payload);
 
-        var holderType = typeof(LakonaClusterEndpointServiceCollectionExtensions).Assembly.GetType(
-            "Lakona.Game.Server.Hosting.LakonaClusterRpcSerializer",
-            throwOnError: true)!;
         var holder = provider.GetRequiredService(holderType);
         var clusterSerializer = Assert.IsAssignableFrom<IRpcSerializer>(
             holderType.GetProperty("Serializer")!.GetValue(holder));
