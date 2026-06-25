@@ -201,6 +201,32 @@ public sealed class HotfixBehaviorScannerTests
     }
 
     [Fact]
+    public void Scanner_rejects_non_static_service_with_raw_dto_parameter()
+    {
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(ConstructorDependencyServiceContract).Assembly,
+            [typeof(InstanceRawDtoService)]);
+
+        Assert.False(scan.Succeeded);
+        Assert.Contains(scan.Diagnostics, diagnostic =>
+            diagnostic.Contains(nameof(InstanceRawDtoService), StringComparison.Ordinal) &&
+            diagnostic.Contains("instance dispatch", StringComparison.OrdinalIgnoreCase) &&
+            diagnostic.Contains("HotfixServiceCall", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Scanner_accepts_static_service_with_raw_dto_parameter()
+    {
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(ConstructorDependencyServiceContract).Assembly,
+            [typeof(StaticRawDtoService)]);
+
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        var binding = Assert.Single(scan.Services);
+        Assert.Equal(typeof(StaticRawDtoService), binding.ServiceType);
+    }
+
+    [Fact]
     public void Scanner_rejects_open_generic_hotfix_service_type()
     {
         var scan = HotfixBehaviorScanner.Scan(
@@ -456,6 +482,24 @@ public sealed class HotfixBehaviorScannerTests
         }
 
         public ValueTask PingAsync(HotfixServiceCall<ConstructorDependencyRequest> call)
+        {
+            return default;
+        }
+    }
+
+    [HotfixService(typeof(ConstructorDependencyServiceContract))]
+    public sealed class InstanceRawDtoService
+    {
+        public ValueTask PingAsync(ConstructorDependencyRequest request)
+        {
+            return default;
+        }
+    }
+
+    [HotfixService(typeof(ConstructorDependencyServiceContract))]
+    public sealed class StaticRawDtoService
+    {
+        public static ValueTask PingAsync(ConstructorDependencyRequest request)
         {
             return default;
         }

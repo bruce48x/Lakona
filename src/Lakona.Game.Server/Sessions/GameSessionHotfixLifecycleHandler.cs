@@ -7,11 +7,11 @@ namespace Lakona.Game.Server.Sessions;
 
 internal sealed class GameSessionHotfixLifecycleHandler : IGameSessionLifecycleHandler
 {
-    private readonly IServiceProvider _services;
+    private readonly IHotfixRuntimeAccessor? _hotfixRuntime;
 
-    public GameSessionHotfixLifecycleHandler(IServiceProvider services)
+    public GameSessionHotfixLifecycleHandler(IHotfixRuntimeAccessor? hotfixRuntime = null)
     {
-        _services = services ?? throw new ArgumentNullException(nameof(services));
+        _hotfixRuntime = hotfixRuntime;
     }
 
     public ValueTask OnConnectionOpenedAsync(GameConnectionContext context, CancellationToken cancellationToken = default)
@@ -26,8 +26,8 @@ internal sealed class GameSessionHotfixLifecycleHandler : IGameSessionLifecycleH
 
     public ValueTask OnSessionDisconnectedAsync(GameSessionBindingContext context, CancellationToken cancellationToken = default)
     {
-        var hotfix = _services.GetService<IHotfixServiceInvoker>();
-        if (hotfix is null)
+        var snapshot = _hotfixRuntime?.Current;
+        if (snapshot is null)
         {
             return default;
         }
@@ -43,21 +43,21 @@ internal sealed class GameSessionHotfixLifecycleHandler : IGameSessionLifecycleH
                 .ToList()
         };
 
-        return hotfix.InvokeAsync<IGameSessionLifecycle, HotfixLifecycleCall<GameSessionDisconnectedRequest>>(
+        return snapshot.Invoker.InvokeAsync<IGameSessionLifecycle, HotfixLifecycleCall<GameSessionDisconnectedRequest>>(
             GameSessionLifecycleMethodIds.SessionDisconnected,
             new HotfixLifecycleCall<GameSessionDisconnectedRequest>(
                 request,
                 context.ConnectionId,
-                _services,
-                _services.GetRequiredService<IActorRuntime>(),
-                _services.GetRequiredService<ILakonaGameServer>()),
+                snapshot.Services,
+                snapshot.Services.GetRequiredService<IActorRuntime>(),
+                snapshot.Services.GetRequiredService<ILakonaGameServer>()),
             cancellationToken);
     }
 
     public ValueTask OnSessionExpiredAsync(GameSessionBindingContext context, CancellationToken cancellationToken = default)
     {
-        var hotfix = _services.GetService<IHotfixServiceInvoker>();
-        if (hotfix is null)
+        var snapshot = _hotfixRuntime?.Current;
+        if (snapshot is null)
         {
             return default;
         }
@@ -73,14 +73,14 @@ internal sealed class GameSessionHotfixLifecycleHandler : IGameSessionLifecycleH
                 .ToList()
         };
 
-        return hotfix.InvokeAsync<IGameSessionLifecycle, HotfixLifecycleCall<GameSessionExpiredRequest>>(
+        return snapshot.Invoker.InvokeAsync<IGameSessionLifecycle, HotfixLifecycleCall<GameSessionExpiredRequest>>(
             GameSessionLifecycleMethodIds.SessionExpired,
             new HotfixLifecycleCall<GameSessionExpiredRequest>(
                 request,
                 context.ConnectionId,
-                _services,
-                _services.GetRequiredService<IActorRuntime>(),
-                _services.GetRequiredService<ILakonaGameServer>()),
+                snapshot.Services,
+                snapshot.Services.GetRequiredService<IActorRuntime>(),
+                snapshot.Services.GetRequiredService<ILakonaGameServer>()),
             cancellationToken);
     }
 

@@ -1,8 +1,10 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Lakona.Game.Abstractions;
+using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Lakona.Rpc.Server;
 using Xunit;
@@ -46,12 +48,46 @@ public sealed class GameSessionLifecycleBridgeTests
     }
 
     [Fact]
+    public async Task SessionHotfixLifecycleUsesCurrentRuntimeSnapshotServicesForExpiredCall()
+    {
+        var invoker = new RecordingHotfixServiceInvoker();
+        var actorRuntime = new SnapshotActorRuntime();
+        var gameServer = new SnapshotGameServer();
+        using var snapshotServices = new ServiceCollection()
+            .AddSingleton<IActorRuntime>(actorRuntime)
+            .AddSingleton<ILakonaGameServer>(gameServer)
+            .BuildServiceProvider();
+        var services = new ServiceCollection();
+        services.AddSingleton<IHotfixRuntimeAccessor>(new FixedHotfixRuntimeAccessor(
+            new HotfixRuntimeSnapshot(invoker, snapshotServices)));
+        services.AddLakonaGameSessionHotfixLifecycle();
+
+        using var provider = services.BuildServiceProvider();
+        var handler = provider.GetServices<IGameSessionLifecycleHandler>()
+            .OfType<GameSessionHotfixLifecycleHandler>()
+            .Single();
+
+        await handler.OnSessionExpiredAsync(
+            new GameSessionBindingContext(
+                new GameSessionKey("player-a", "session-a", 3),
+                "connection-a",
+                [typeof(LoginCallback)]),
+            TestContext.Current.CancellationToken);
+
+        var call = Assert.IsType<HotfixLifecycleCall<GameSessionExpiredRequest>>(invoker.Argument);
+        Assert.Same(snapshotServices, call.Services);
+        Assert.Same(actorRuntime, call.Actors);
+        Assert.Same(gameServer, call.GameServer);
+    }
+
+    [Fact]
     public async Task SessionHotfixLifecycleDispatchesExpiredSessionThroughFrameworkContract()
     {
         var invoker = new RecordingHotfixServiceInvoker();
         var services = new ServiceCollection();
         services.AddLakonaGameServer();
-        services.AddSingleton<IHotfixServiceInvoker>(invoker);
+        services.AddSingleton<IHotfixRuntimeAccessor>(provider =>
+            new FixedHotfixRuntimeAccessor(new HotfixRuntimeSnapshot(invoker, provider)));
         services.AddLakonaGameSessionHotfixLifecycle();
 
         using var provider = services.BuildServiceProvider();
@@ -89,7 +125,8 @@ public sealed class GameSessionLifecycleBridgeTests
         var invoker = new RecordingHotfixServiceInvoker();
         var services = new ServiceCollection();
         services.AddLakonaGameServer();
-        services.AddSingleton<IHotfixServiceInvoker>(invoker);
+        services.AddSingleton<IHotfixRuntimeAccessor>(provider =>
+            new FixedHotfixRuntimeAccessor(new HotfixRuntimeSnapshot(invoker, provider)));
         services.AddLakonaGameSessionHotfixLifecycle();
 
         using var provider = services.BuildServiceProvider();
@@ -260,6 +297,231 @@ public sealed class GameSessionLifecycleBridgeTests
 
     private sealed class ChatCallback
     {
+    }
+
+    private sealed class FixedHotfixRuntimeAccessor : IHotfixRuntimeAccessor
+    {
+        public FixedHotfixRuntimeAccessor(HotfixRuntimeSnapshot current)
+        {
+            Current = current;
+        }
+
+        public HotfixRuntimeSnapshot Current { get; }
+    }
+
+    private sealed class SnapshotActorRuntime : IActorRuntime
+    {
+        public ValueTask<TActor> GetOrCreateAsync<TActor>(
+            ActorId id,
+            CancellationToken cancellationToken = default)
+            where TActor : class, IActor
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask TellAsync<TActor>(
+            ActorId id,
+            Func<TActor, CancellationToken, ValueTask> message,
+            CancellationToken cancellationToken = default)
+            where TActor : class, IActor
+        {
+            throw new NotSupportedException();
+        }
+
+        public ActorTellResult TryTell<TActor>(
+            ActorId id,
+            Func<TActor, CancellationToken, ValueTask> message,
+            CancellationToken cancellationToken = default)
+            where TActor : class, IActor
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask TellAsync(
+            Type actorType,
+            ActorId id,
+            Func<IActor, CancellationToken, ValueTask> message,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ActorTellResult TryTell(
+            Type actorType,
+            ActorId id,
+            Func<IActor, CancellationToken, ValueTask> message,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask<TResult> AskAsync<TActor, TResult>(
+            ActorId id,
+            Func<TActor, CancellationToken, ValueTask<TResult>> message,
+            CancellationToken cancellationToken = default)
+            where TActor : class, IActor
+        {
+            throw new NotSupportedException();
+        }
+
+        public IReadOnlyList<ActorId> GetActiveActorIds(Type actorType)
+        {
+            throw new NotSupportedException();
+        }
+
+        public IAsyncDisposable RegisterTimer<TActor>(
+            ActorId id,
+            TimeSpan dueTime,
+            TimeSpan? period,
+            Func<TActor, CancellationToken, ValueTask> callback)
+            where TActor : class, IActor
+        {
+            throw new NotSupportedException();
+        }
+
+        public bool TryGetMailboxMetrics(ActorId id, out ActorMailboxMetrics metrics)
+        {
+            metrics = default;
+            return false;
+        }
+
+        public ActorState GetState(ActorId id)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask StopAsync(ActorId id)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask<ActorStopOutcome> StopAsync(ActorId id, TimeSpan drainTimeout)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class SnapshotGameServer : ILakonaGameServer
+    {
+        public ValueTask<GameSessionKey> StartSessionAsync(
+            string ownerKey,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask<GameSessionKey> StartSessionAsync<TCallback>(
+            string ownerKey,
+            string connectionId,
+            TCallback callback,
+            CancellationToken cancellationToken = default)
+            where TCallback : class
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask<SessionResumeDecision> ResumeSessionAsync<TCallback>(
+            GameSessionResumeRequest request,
+            string connectionId,
+            TCallback callback,
+            CancellationToken cancellationToken = default)
+            where TCallback : class
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask BindSessionAsync<TCallback>(
+            GameSessionKey session,
+            string connectionId,
+            TCallback callback,
+            CancellationToken cancellationToken = default)
+            where TCallback : class
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask BindCurrentSessionAsync<TCallback>(
+            string connectionId,
+            TCallback callback,
+            CancellationToken cancellationToken = default)
+            where TCallback : class
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask MarkSessionDisconnectedAsync(
+            GameSessionKey session,
+            string? connectionId = null,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask<TCallback?> GetCallbackAsync<TCallback>(
+            GameSessionKey session,
+            CancellationToken cancellationToken = default)
+            where TCallback : class
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask TerminateSessionAsync(
+            GameSessionKey session,
+            SessionTerminationReason reason,
+            string? message = null,
+            SessionTerminationOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask<long> PublishReliablePushAsync<TCallback, TPayload>(
+            GameSessionKey session,
+            string kind,
+            TPayload payload,
+            ReliablePushDeliver<TCallback, TPayload> deliver,
+            CancellationToken cancellationToken = default)
+            where TCallback : class
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask<long> PublishReliablePushAsync(
+            GameSessionKey session,
+            string kind,
+            object payload,
+            Func<ReliablePushRecord, ValueTask> deliver,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask ReplayReliablePushAsync(
+            GameSessionKey session,
+            Func<ReliablePushRecord, ValueTask> deliver,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask ReplayReliablePushAsync<TCallback, TPayload>(
+            GameSessionKey session,
+            string kind,
+            ReliablePushDeliver<TCallback, TPayload> deliver,
+            CancellationToken cancellationToken = default)
+            where TCallback : class
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask<ReliablePushAckOutcome> AckReliablePushAsync(
+            GameSessionKey currentSession,
+            GameSessionKey acknowledgedSession,
+            long sequence,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
     }
 
     private sealed class RecordingHotfixServiceInvoker : IHotfixServiceInvoker

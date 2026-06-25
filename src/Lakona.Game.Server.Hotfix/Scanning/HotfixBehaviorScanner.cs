@@ -314,6 +314,14 @@ public static class HotfixBehaviorScanner
                 ? typeof(ValueTask)
                 : method.ReturnType.GetGenericArguments()[0];
             var parameterTypes = parameters.Select(static parameter => parameter.ParameterType).ToArray();
+            if (!method.IsStatic && !IsSupportedInstanceCallParameter(binding.Kind, parameterTypes[0]))
+            {
+                diagnostics.Add(binding.Kind == HotfixServiceBindingKind.Lifecycle
+                    ? $"Hotfix lifecycle method '{serviceType.FullName}.{method.Name}' must use HotfixLifecycleCall<TRequest> for instance dispatch; static methods may use raw request DTO parameters."
+                    : $"Hotfix service method '{serviceType.FullName}.{method.Name}' must use HotfixServiceCall<TRequest> or HotfixServiceCall<TRequest, TCallback> for instance dispatch; static methods may use raw request DTO parameters.");
+                continue;
+            }
+
             var contractParameterTypes = new Type[parameterTypes.Length];
             var invalidParameter = false;
             for (var index = 0; index < parameterTypes.Length; index++)
@@ -399,6 +407,32 @@ public static class HotfixBehaviorScanner
         return method.Name == nameof(IAsyncDisposable.DisposeAsync) &&
             method.ReturnType == typeof(ValueTask) &&
             method.GetParameters().Length == 0;
+    }
+
+    private static bool IsSupportedInstanceCallParameter(
+        HotfixServiceBindingKind bindingKind,
+        Type parameterType)
+    {
+        if (typeof(IHotfixCallContext).IsAssignableFrom(parameterType))
+        {
+            return true;
+        }
+
+        if (!parameterType.IsGenericType)
+        {
+            return false;
+        }
+
+        var genericDefinition = parameterType.GetGenericTypeDefinition();
+        if (genericDefinition.Namespace != "Lakona.Game.Server.Hotfix")
+        {
+            return false;
+        }
+
+        var name = genericDefinition.Name;
+        return bindingKind == HotfixServiceBindingKind.Lifecycle
+            ? name is "HotfixLifecycleCall`1"
+            : name is "HotfixServiceCall`1" or "HotfixServiceCall`2";
     }
 
     private static bool TryGetRpcMethodId(MethodInfo method, out int methodId)

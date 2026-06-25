@@ -1119,7 +1119,7 @@ public sealed class HotfixManagerTests
                 [HotfixService(typeof(IManagerService))]
                 public sealed class ManagerService
                 {
-                    public ValueTask<OwnedReply> LoginAsync(ServiceRequest request)
+                    public static ValueTask<OwnedReply> LoginAsync(ServiceRequest request)
                     {
                         return new ValueTask<OwnedReply>(new OwnedReply(request.Value));
                     }
@@ -1143,7 +1143,7 @@ public sealed class HotfixManagerTests
                 [HotfixService(typeof(IManagerService))]
                 public sealed class ManagerService
                 {
-                    public ValueTask<ServiceReply> LoginAsync(OwnedRequest request)
+                    public static ValueTask<ServiceReply> LoginAsync(OwnedRequest request)
                     {
                         return new ValueTask<ServiceReply>(new ServiceReply(request.Value));
                     }
