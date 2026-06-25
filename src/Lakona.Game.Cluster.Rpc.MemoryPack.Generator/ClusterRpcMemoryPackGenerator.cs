@@ -25,6 +25,14 @@ public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor InvalidSchema = new(
+        "LKGMP004",
+        "Cluster RPC MemoryPack schema is invalid",
+        "Schema file '{0}' is invalid: {1}",
+        "Lakona.Game.Cluster.Rpc.MemoryPack",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     private static readonly DiagnosticDescriptor MissingType = new(
         "LKGMP002",
         "Cluster RPC MemoryPack schema type is missing",
@@ -36,7 +44,7 @@ public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
     private static readonly DiagnosticDescriptor MissingProperty = new(
         "LKGMP003",
         "Cluster RPC MemoryPack schema property is missing",
-        "Schema property '{0}' on type '{1}' is missing or is not a public instance readable property",
+        "Schema property '{0}' on type '{1}' is missing or is not a public instance readable and settable property",
         "Lakona.Game.Cluster.Rpc.MemoryPack",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -69,10 +77,10 @@ public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
         }
 
         var schemaFile = schemaFiles[0];
-        var schema = ReadSchema(schemaFile, context.CancellationToken);
+        var schema = ReadSchema(schemaFile, context.CancellationToken, out var schemaError);
         if (schema is null)
         {
-            context.ReportDiagnostic(Diagnostic.Create(MissingSchema, Location.None, SchemaFileName));
+            context.ReportDiagnostic(Diagnostic.Create(InvalidSchema, Location.None, SchemaFileName, schemaError ?? "schema could not be parsed"));
             return;
         }
 
@@ -86,54 +94,141 @@ public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
         context.AddSource(GeneratedFileName, SourceText.From(source, Encoding.UTF8));
     }
 
-    private static SchemaModel? ReadSchema(AdditionalText schemaFile, CancellationToken cancellationToken)
+    private static SchemaModel? ReadSchema(AdditionalText schemaFile, CancellationToken cancellationToken, out string? errorMessage)
     {
+        errorMessage = null;
+
         var text = schemaFile.GetText(cancellationToken)?.ToString();
         if (string.IsNullOrWhiteSpace(text))
         {
+            errorMessage = "schema file is empty";
             return null;
         }
 
-        using var document = JsonDocument.Parse(text!);
-        var root = document.RootElement;
-        var schemaVersion = root.GetProperty("schemaVersion").GetInt32();
-        var dtoNamespace = root.GetProperty("dtoNamespace").GetString();
-        var formatterNamespace = root.GetProperty("formatterNamespace").GetString();
-        var registrationClass = root.GetProperty("registrationClass").GetString();
-
-        if (schemaVersion < 1 ||
-            string.IsNullOrWhiteSpace(dtoNamespace) ||
-            string.IsNullOrWhiteSpace(formatterNamespace) ||
-            string.IsNullOrWhiteSpace(registrationClass))
+        JsonDocument document;
+        try
         {
+            document = JsonDocument.Parse(text!);
+        }
+        catch (JsonException ex)
+        {
+            errorMessage = ex.Message;
             return null;
         }
 
-        var types = ImmutableArray.CreateBuilder<SchemaType>();
-        foreach (var typeElement in root.GetProperty("types").EnumerateArray())
+        using (document)
         {
-            var name = typeElement.GetProperty("name").GetString();
-            if (string.IsNullOrWhiteSpace(name))
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                errorMessage = "root must be a JSON object";
+                return null;
+            }
+
+            if (!TryGetRequiredInt32(root, "schemaVersion", out var schemaVersion, out errorMessage) ||
+                !TryGetRequiredString(root, "dtoNamespace", out var dtoNamespace, out errorMessage) ||
+                !TryGetRequiredString(root, "formatterNamespace", out var formatterNamespace, out errorMessage) ||
+                !TryGetRequiredString(root, "registrationClass", out var registrationClass, out errorMessage))
             {
                 return null;
             }
 
-            var properties = ImmutableArray.CreateBuilder<string>();
-            foreach (var propertyElement in typeElement.GetProperty("properties").EnumerateArray())
+            if (schemaVersion < 1)
             {
-                var property = propertyElement.GetString();
-                if (string.IsNullOrWhiteSpace(property))
+                errorMessage = "schemaVersion must be at least 1";
+                return null;
+            }
+
+            if (!root.TryGetProperty("types", out var typesElement) ||
+                typesElement.ValueKind != JsonValueKind.Array)
+            {
+                errorMessage = "required array property 'types' is missing or invalid";
+                return null;
+            }
+
+            var types = ImmutableArray.CreateBuilder<SchemaType>();
+            foreach (var typeElement in typesElement.EnumerateArray())
+            {
+                if (typeElement.ValueKind != JsonValueKind.Object)
+                {
+                    errorMessage = "each entry in 'types' must be a JSON object";
+                    return null;
+                }
+
+                if (!TryGetRequiredString(typeElement, "name", out var name, out errorMessage))
                 {
                     return null;
                 }
 
-                properties.Add(property!);
+                if (!typeElement.TryGetProperty("properties", out var propertiesElement) ||
+                    propertiesElement.ValueKind != JsonValueKind.Array)
+                {
+                    errorMessage = "required array property 'properties' is missing or invalid";
+                    return null;
+                }
+
+                var properties = ImmutableArray.CreateBuilder<string>();
+                foreach (var propertyElement in propertiesElement.EnumerateArray())
+                {
+                    if (propertyElement.ValueKind != JsonValueKind.String)
+                    {
+                        errorMessage = "each entry in 'properties' must be a string";
+                        return null;
+                    }
+
+                    var property = propertyElement.GetString();
+                    if (string.IsNullOrWhiteSpace(property))
+                    {
+                        errorMessage = "property names must not be empty";
+                        return null;
+                    }
+
+                    properties.Add(property!);
+                }
+
+                types.Add(new SchemaType(name!, properties.ToImmutable()));
             }
 
-            types.Add(new SchemaType(name!, properties.ToImmutable()));
+            return new SchemaModel(dtoNamespace!, formatterNamespace!, registrationClass!, types.ToImmutable());
+        }
+    }
+
+    private static bool TryGetRequiredString(JsonElement element, string propertyName, out string? value, out string? errorMessage)
+    {
+        value = null;
+        errorMessage = null;
+
+        if (!element.TryGetProperty(propertyName, out var propertyElement) ||
+            propertyElement.ValueKind != JsonValueKind.String)
+        {
+            errorMessage = "required string property '" + propertyName + "' is missing or invalid";
+            return false;
         }
 
-        return new SchemaModel(dtoNamespace!, formatterNamespace!, registrationClass!, types.ToImmutable());
+        value = propertyElement.GetString();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            errorMessage = "required string property '" + propertyName + "' must not be empty";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryGetRequiredInt32(JsonElement element, string propertyName, out int value, out string? errorMessage)
+    {
+        value = 0;
+        errorMessage = null;
+
+        if (!element.TryGetProperty(propertyName, out var propertyElement) ||
+            propertyElement.ValueKind != JsonValueKind.Number ||
+            !propertyElement.TryGetInt32(out value))
+        {
+            errorMessage = "required integer property '" + propertyName + "' is missing or invalid";
+            return false;
+        }
+
+        return true;
     }
 
     private static ImmutableArray<ResolvedType> ResolveSchemaTypes(
@@ -163,7 +258,8 @@ public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
                     .FirstOrDefault(static property =>
                         property.DeclaredAccessibility == Accessibility.Public &&
                         !property.IsStatic &&
-                        property.GetMethod is { DeclaredAccessibility: Accessibility.Public });
+                        property.GetMethod is { DeclaredAccessibility: Accessibility.Public } &&
+                        property.SetMethod is { DeclaredAccessibility: Accessibility.Public });
 
                 if (property is null)
                 {
@@ -302,48 +398,41 @@ public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
             return;
         }
 
-        builder.AppendLine("        var tempBuffer = global::MemoryPack.Internal.ReusableLinkedArrayBufferWriterPool.Rent();");
-        builder.AppendLine("        try");
-        builder.AppendLine("        {");
+        builder.AppendLine("        var tempBuffer = new global::System.Buffers.ArrayBufferWriter<byte>();");
         builder
-            .Append("            global::System.Span<int> offsets = stackalloc int[")
+            .Append("        global::System.Span<int> offsets = stackalloc int[")
             .Append(properties.Length.ToString(System.Globalization.CultureInfo.InvariantCulture))
             .AppendLine("];");
-        builder.AppendLine("            var tempWriter = new global::MemoryPack.MemoryPackWriter<global::MemoryPack.Internal.ReusableLinkedArrayBufferWriter>(ref tempBuffer, writer.OptionalState);");
+        builder.AppendLine("        var tempWriter = new global::MemoryPack.MemoryPackWriter<global::System.Buffers.ArrayBufferWriter<byte>>(ref tempBuffer, writer.OptionalState);");
         builder.AppendLine();
 
         for (var i = 0; i < properties.Length; i++)
         {
-            builder.Append("            ");
+            builder.Append("        ");
             AppendWritePayload(builder, encodings[i], "tempWriter", "__field" + i.ToString(System.Globalization.CultureInfo.InvariantCulture));
             builder
-                .Append("            offsets[")
+                .Append("        offsets[")
                 .Append(i.ToString(System.Globalization.CultureInfo.InvariantCulture))
                 .Append("] = tempWriter.WrittenCount;")
                 .AppendLine();
         }
 
         builder.AppendLine();
-        builder.AppendLine("            tempWriter.Flush();");
+        builder.AppendLine("        tempWriter.Flush();");
         builder
-            .Append("            writer.WriteObjectHeader((byte)")
+            .Append("        writer.WriteObjectHeader((byte)")
             .Append(properties.Length.ToString(System.Globalization.CultureInfo.InvariantCulture))
             .AppendLine(");");
         builder
-            .Append("            for (var i = 0; i < ")
+            .Append("        for (var i = 0; i < ")
             .Append(properties.Length.ToString(System.Globalization.CultureInfo.InvariantCulture))
             .AppendLine("; i++)");
-        builder.AppendLine("            {");
-        builder.AppendLine("                var delta = i == 0 ? offsets[i] : offsets[i] - offsets[i - 1];");
-        builder.AppendLine("                writer.WriteVarInt(delta);");
-        builder.AppendLine("            }");
-        builder.AppendLine();
-        builder.AppendLine("            tempBuffer.WriteToAndReset(ref writer);");
-        builder.AppendLine("        }");
-        builder.AppendLine("        finally");
         builder.AppendLine("        {");
-        builder.AppendLine("            global::MemoryPack.Internal.ReusableLinkedArrayBufferWriterPool.Return(tempBuffer);");
+        builder.AppendLine("            var delta = i == 0 ? offsets[i] : offsets[i] - offsets[i - 1];");
+        builder.AppendLine("            writer.WriteVarInt(delta);");
         builder.AppendLine("        }");
+        builder.AppendLine();
+        builder.AppendLine("        writer.WriteSpanWithoutLengthHeader(tempBuffer.WrittenSpan);");
         builder.AppendLine("    }");
         builder.AppendLine();
 
