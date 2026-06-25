@@ -24,17 +24,17 @@
 - 玩家会话状态。
 - 匹配队列状态。
 - 房间分配和房间快照状态。
-- 排行榜聚合查询与 Redis 排行榜索引协调。
+- 排行榜聚合查询、周期检查和 actor state 排行榜索引。
 
 PostgreSQL 是状态持久化后端，状态服务通过 sample-local Dapper storage provider 读写。
 
 排行榜服务职责：
 
-- 接收排行榜查询请求，读取 Redis sorted set 中由结算写入维护的排行榜积分索引。
-- 接收结算后的 `RecordVictoryPointsAsync` 写入，更新 Redis 当前周期胜利积分 zset、胜场索引和玩家快照。
-- 从 Redis 取候选集合后，按积分降序、胜场降序、玩家标识升序排序后返回 top N。
-- 榜单当地时间周一 00:00 触发重置：归档上周 Redis top 100，切换当前周期 key，并按数据模型要求同步处理用户状态中的当前周期胜利积分。
-- 排行榜服务自身只保留周期协调和兼容所需状态，不再把完整排行榜排序索引作为主数据源。
+- 接收排行榜查询请求，读取 `LeaderboardActor.State.Players` 中由结算写入维护的排行榜积分索引。
+- 接收结算后的 `RecordVictoryPointsAsync` 写入，更新当前周期胜利积分、胜场索引和玩家快照。
+- 从 actor state 取候选集合后，按积分降序、胜场降序、玩家标识升序排序后返回 top N。
+- 榜单当地时间周一 00:00 触发重置：归档上一周期 top 100，清空当前周期 actor state 索引，并按数据模型要求同步处理用户状态中的当前周期胜利积分。
+- Redis sorted set 排行榜索引是后续生产化迁移目标，不是当前实现路径。
 
 ## Docker 部署边界
 
@@ -45,7 +45,7 @@ PostgreSQL 是状态持久化后端，状态服务通过 sample-local Dapper sto
 - `state` 容器运行 `Server/App/Server.App.csproj` 的发布产物，承载状态 actor 和数据基础设施。
 - `gateway` 容器运行 `Server/App/Server.App.csproj` 的发布产物，承载控制面 RPC、实时 RPC、session/callback delivery 和稳定 actor runtime。
 - `postgres` 容器或托管 PostgreSQL 保存持久化状态，必须使用持久化 volume 或外部数据库。
-- `redis` 容器或托管 Redis 用于胜利积分排行榜 sorted set；后续也可承载跨网关路由或在线状态，必须启用密码和持久化策略。
+- `redis` 容器或托管 Redis 是后续生产化目标，用于胜利积分排行榜 sorted set；后续也可承载跨网关路由或在线状态，必须启用密码和持久化策略。
 - 可选反向代理或负载均衡负责 WebSocket/TLS 入口；KCP 实时端口需要按传输要求单独暴露。
 
 生产配置必须通过环境变量、env 文件或部署平台 secret 注入，不把生产连接串、数据库密码、Redis 密码、token secret 或公网主机名写死在 `appsettings.json` 中。
@@ -74,7 +74,7 @@ PostgreSQL 是状态持久化后端，状态服务通过 sample-local Dapper sto
 1. 客户端在登录后或模式入口界面通过控制面 RPC 请求排行榜。
 2. 网关将请求转发到排行榜服务。
 3. 排行榜服务检查当前周期（若已过周一 00:00 则触发重置）。
-4. 排行榜服务从 Redis sorted set 读取候选集合，按排行榜口径排序后返回 top N。
+4. 排行榜服务从 `LeaderboardActor.State.Players` 读取候选集合，按排行榜口径排序后返回 top N。
 5. 网关将结果返回客户端渲染。
 
 ## 联机同步边界
@@ -120,7 +120,7 @@ WorldState
 - 客户端收到明确的实时连接目标，不假设控制网关一定拥有房间。
 - 实时绑定不再要求本地已有控制连接回调。
 - 胜利积分存储在用户状态中，跨网关读写均通过状态服务。
-- 排行榜查询通过控制面 RPC 进入网关，再转发到排行榜服务，由排行榜服务协调 Redis sorted set 查询。
+- 排行榜查询通过控制面 RPC 进入网关，再转发到排行榜服务，由排行榜服务查询 actor state 索引。
 
 仍然局限在单个网关进程内的部分：
 

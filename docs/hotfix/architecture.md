@@ -86,7 +86,7 @@ next RPC call after a successful reload.
 client RPC
   -> Server.App ChatServiceProxy
   -> current hotfix ChatService
-  -> IActorRuntime Ask/Call for ChatRoomActor
+  -> generated ChatRoomActors.Get/Local/Remote selector
   -> current ChatRoomBehavior inside the actor turn
   -> mutate ChatRoomActor fields
   -> return stable DTO/effects to the proxy/runtime
@@ -279,6 +279,16 @@ public sealed class HotfixLifecycleCall<TRequest> :
 {
 }
 ```
+
+RPC services and actor behaviors use generated behavior-first actor selectors
+for ordinary business actor calls. `Get(id)` is the default service path and
+resolves local or remote placement through the actor directory. `Local(id)` is
+reserved for code that has already proven current-node ownership. `Remote(nodeId,
+id)` pins a specific target node.
+
+`HotfixServiceCall.Actors` and raw `IActorRuntime.AskAsync` / `TellAsync`
+remain framework-level escape hatches. Samples and generated projects must not
+use them as the normal business authoring style.
 
 Service and lifecycle constructors receive long-lived dependencies through DI.
 Method arguments carry request-specific data: request DTOs, connection id,
