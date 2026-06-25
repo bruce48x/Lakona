@@ -273,10 +273,27 @@ public sealed class AgarHotfixBoundaryTests
     {
         var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
             .Directory!.Parent!.Parent!.FullName;
-        var serverText = ReadAllTextFiles(Path.Combine(sampleRoot, "Server"));
+        var serverSourceRoots = new[]
+        {
+            Path.Combine(sampleRoot, "Server", "App"),
+            Path.Combine(sampleRoot, "Server", "Hotfix"),
+        };
+        var forbidden = new Regex(@"session:", RegexOptions.CultureInvariant);
+        var violations = serverSourceRoots
+            .SelectMany(root => Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
+            .Where(file => !IsUnderIgnoredSampleDirectory(sampleRoot, file))
+            .Select(file => new
+            {
+                File = file,
+                Matches = forbidden.Matches(File.ReadAllText(file)).Select(match => match.Value).Distinct().ToArray()
+            })
+            .Where(result => result.Matches.Length > 0)
+            .Select(result => $"{Path.GetRelativePath(Directory.GetCurrentDirectory(), result.File)}: {string.Join(", ", result.Matches)}")
+            .ToArray();
 
-        Assert.DoesNotContain("session:{userId}", serverText, StringComparison.Ordinal);
-        Assert.DoesNotContain("session:\"", serverText, StringComparison.Ordinal);
+        Assert.True(
+            violations.Length == 0,
+            $"Agar server source must use canonical actor ids without session: prefixes: {string.Join("; ", violations)}");
     }
 
     [Fact]
