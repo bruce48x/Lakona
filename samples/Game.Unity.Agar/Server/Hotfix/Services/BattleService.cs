@@ -143,5 +143,5 @@ internal sealed class BattleService
 
     private static ActorId RoomId(string roomId) => ActorId.From(roomId);
 
-    private static ActorId UserId(string userId) => ActorId.From($"session:{userId}");
+    private static ActorId UserId(string userId) => ActorId.From(userId);
 }

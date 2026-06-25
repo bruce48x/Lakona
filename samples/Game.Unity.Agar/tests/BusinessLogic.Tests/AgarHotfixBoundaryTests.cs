@@ -234,23 +234,49 @@ public sealed class AgarHotfixBoundaryTests
     [Fact]
     public void Matchmaking_shared_contracts_do_not_expose_server_only_diagnostics()
     {
-        var contracts = File.ReadAllText(FindRepositoryFile("samples/Game.Unity.Agar/Shared/State/MatchmakingContracts.cs").FullName);
-        var stateMatch = Regex.Match(
-            contracts,
-            @"public\s+sealed\s+class\s+MatchmakingState\s*\{(?<body>.*?)^\s*\}",
-            RegexOptions.Singleline | RegexOptions.Multiline | RegexOptions.CultureInvariant);
+        var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
+            .Directory!.Parent!.Parent!.FullName;
+        var sharedRoot = Path.Combine(sampleRoot, "Shared");
 
-        Assert.True(stateMatch.Success, "Expected MatchmakingState to remain in shared matchmaking contracts.");
-        Assert.DoesNotContain("MatchmakingStatusSnapshot", contracts, StringComparison.Ordinal);
+        Assert.False(
+            File.Exists(Path.Combine(sharedRoot, "State", "MatchmakingContracts.cs")),
+            "Shared/State/MatchmakingContracts.cs should not exist.");
+        Assert.False(
+            File.Exists(Path.Combine(sharedRoot, "State", "MatchmakingContracts.cs.meta")),
+            "Shared/State/MatchmakingContracts.cs.meta should not exist.");
+        Assert.False(
+            File.Exists(Path.Combine(sampleRoot, "Server", "Hotfix", "State", "Matchmaking", "MatchmakingStatusSnapshot.cs")),
+            "Server/Hotfix/State/Matchmaking/MatchmakingStatusSnapshot.cs should not exist.");
 
-        var stateProperties = Regex.Matches(
-                stateMatch.Groups["body"].Value,
-                @"public\s+(?<type>[^{;]+?)\s+(?<name>\w+)\s*\{\s*get;\s*set;\s*\}",
-                RegexOptions.CultureInvariant)
-            .Select(match => match.Groups["name"].Value)
-            .ToArray();
+        var sharedText = ReadAllTextFiles(sharedRoot);
+        var forbiddenDeclarations = new[]
+        {
+            "public sealed class MatchmakingStatusSnapshot",
+            "public sealed class MatchmakingState",
+            "public sealed class MatchmakingEnqueueRequest",
+            "public sealed class MatchmakingEnqueueResult",
+            "public sealed class MatchmakingCancelRequest",
+            "public sealed class MatchmakingCancelResult",
+            "public sealed class MatchmakingTickRequest",
+            "public sealed class MatchmakingQueueTicket",
+            "public sealed class RoomAssignment",
+        };
 
-        Assert.Equal(new[] { "DefaultRoomSize", "PendingTickets" }, stateProperties);
+        foreach (var declaration in forbiddenDeclarations)
+        {
+            Assert.DoesNotContain(declaration, sharedText, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void Agar_uses_canonical_user_actor_ids()
+    {
+        var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
+            .Directory!.Parent!.Parent!.FullName;
+        var serverText = ReadAllTextFiles(Path.Combine(sampleRoot, "Server"));
+
+        Assert.DoesNotContain("session:{userId}", serverText, StringComparison.Ordinal);
+        Assert.DoesNotContain("session:\"", serverText, StringComparison.Ordinal);
     }
 
     [Fact]

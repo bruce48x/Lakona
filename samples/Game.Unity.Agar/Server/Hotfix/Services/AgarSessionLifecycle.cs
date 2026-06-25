@@ -101,7 +101,7 @@ public sealed class AgarSessionLifecycle
             .ConfigureAwait(false);
     }
 
-    private static ActorId UserId(string userId) => ActorId.From($"session:{userId}");
+    private static ActorId UserId(string userId) => ActorId.From(userId);
 }
 
 internal sealed record AgarLifecycleDependencies(

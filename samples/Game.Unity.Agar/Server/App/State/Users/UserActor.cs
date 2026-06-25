@@ -1,3 +1,4 @@
+using Agar.Sample.State.Contracts;
 using Agar.Sample.State.Contracts.Users;
 using Agar.Sample.State.Contracts.Sessions;
 using Lakona.Game.Server.Actors;
@@ -27,7 +28,7 @@ public sealed class UserState
     public PlayerSessionState Session { get; set; } = new();
 }
 
-public sealed class UserActor : Actor
+public sealed class UserActor : Actor<UserId>
 {
     internal bool RecordExists;
     internal bool SessionRecordExists;

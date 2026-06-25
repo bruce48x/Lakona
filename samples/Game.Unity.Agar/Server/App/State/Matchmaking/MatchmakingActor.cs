@@ -1,9 +1,10 @@
+using Agar.Sample.State.Contracts;
 using Agar.Sample.State.Contracts.Matchmaking;
 using Lakona.Game.Server.Actors;
 
 namespace Agar.Sample.State.Matchmaking;
 
-public sealed class MatchmakingActor : Actor
+public sealed class MatchmakingActor : Actor<MatchmakingQueueId>
 {
     internal const int DefaultRoomSize = 10;
 

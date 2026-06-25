@@ -1,3 +1,4 @@
+using Agar.Sample.State.Contracts;
 using Agar.Sample.State.Contracts.Leaderboard;
 using Lakona.Game.Server.Actors;
 
@@ -32,7 +33,7 @@ public sealed class WeeklyLeaderboardSnapshot
     public string PeriodStartLocalDate { get; set; } = "";
 }
 
-public sealed class LeaderboardActor : Actor
+public sealed class LeaderboardActor : Actor<LeaderboardId>
 {
     internal readonly TimeZoneInfo LeaderboardTimeZone = TimeZoneInfo.Local;
     internal LeaderboardState State = new();
