@@ -297,10 +297,12 @@ Return mapping stays one-to-one with the shared RPC contract:
 The hotfix dispatch key must use the stable RPC method id from `[RpcMethod]`,
 not the C# method name.
 
-Service methods must use `HotfixServiceCall<TRequest>` or
-`HotfixServiceCall<TRequest, TCallback>`. Lifecycle methods must use
-`HotfixLifecycleCall<TRequest>`. The scanner rejects wrapper mismatches so
-service and lifecycle contracts cannot be accidentally crossed.
+Instance service methods must use `HotfixServiceCall<TRequest>` or
+`HotfixServiceCall<TRequest, TCallback>`. Instance lifecycle methods must use
+`HotfixLifecycleCall<TRequest>`. Static service methods may continue to accept
+raw request DTO parameters for allocation-sensitive paths. The scanner rejects
+instance/raw-DTO dispatch and wrapper mismatches so service and lifecycle
+contracts cannot be accidentally crossed.
 
 ## BuildTag
 
