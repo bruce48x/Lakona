@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
+using Lakona.Game.Cluster.Rpc;
 
 namespace Lakona.Game.Server.Sessions;
 
@@ -25,7 +26,7 @@ public sealed class LocalClientNotificationCommandDispatcher
             return ClientNotificationStatus.CallbackUnavailable;
         }
 
-        var callback = await GetCallbackAsync(callbackType, command.ToSessionKey(), cancellationToken)
+        var callback = await GetCallbackAsync(callbackType, ToSessionKey(command), cancellationToken)
             .ConfigureAwait(false);
         if (callback is null)
         {
@@ -94,4 +95,7 @@ public sealed class LocalClientNotificationCommandDispatcher
 
         return arguments;
     }
+
+    private static GameSessionKey ToSessionKey(ClientNotificationCommand command) =>
+        new(command.OwnerKey, command.SessionId, command.Generation);
 }

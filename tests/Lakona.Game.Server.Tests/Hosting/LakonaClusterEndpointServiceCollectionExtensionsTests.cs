@@ -56,9 +56,9 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         using var provider = services.BuildServiceProvider();
 
         var serializer = provider.GetRequiredService<IRemoteActorSerializer>();
-        var payload = serializer.Serialize(new ClientNotificationDispatchReply { Status = 7 });
-        var decoded = serializer.Deserialize<ClientNotificationDispatchReply>(payload);
-        var memoryPackDecoded = new MemoryPackRpcSerializer().Deserialize<ClientNotificationDispatchReply>(payload);
+        var payload = serializer.Serialize(new ClusterSendReply { Status = 7 });
+        var decoded = serializer.Deserialize<ClusterSendReply>(payload);
+        var memoryPackDecoded = new MemoryPackRpcSerializer().Deserialize<ClusterSendReply>(payload);
 
         var holderType = typeof(LakonaClusterEndpointServiceCollectionExtensions).Assembly.GetType(
             "Lakona.Game.Server.Hosting.LakonaClusterRpcSerializer",

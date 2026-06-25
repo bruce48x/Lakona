@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
+using Lakona.Game.Cluster.Rpc;
 
 namespace Lakona.Game.Server.Sessions;
 

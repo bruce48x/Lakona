@@ -1,4 +1,5 @@
 using Lakona.Game.Cluster;
+using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Abstractions;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.ReliablePush;

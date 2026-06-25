@@ -1,15 +1,15 @@
-using Lakona.Game.Server.Sessions;
-using Lakona.Rpc.Serializer.MemoryPack;
+using Lakona.Game.Cluster.Rpc;
+using Lakona.Rpc.Serializer.Json;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests;
 
-public sealed class ClientNotificationMemoryPackDtoTests
+public sealed class ClientNotificationDtoTests
 {
     [Fact]
-    public void MemoryPack_roundtrips_client_notification_dispatch_request()
+    public void Json_roundtrips_client_notification_dispatch_request()
     {
-        var serializer = new MemoryPackRpcSerializer();
+        var serializer = new JsonRpcSerializer();
         using var frame = serializer.SerializeFrame(new ClientNotificationDispatchRequest
         {
             Command = new ClientNotificationCommand
