@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Lakona.Game.Cluster.Rpc\Lakona.Game.Cluster.Rpc.csproj" />
+    <ProjectReference Include="..\Lakona.Game.Cluster.Rpc.MemoryPack.Generator\Lakona.Game.Cluster.Rpc.MemoryPack.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <ProjectReference Include="..\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj" />
   </ItemGroup>
 

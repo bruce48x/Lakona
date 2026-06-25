@@ -1,4 +1,4 @@
-using Lakona.Rpc.Serializer.MemoryPack;
+using Lakona.Game.Cluster.Rpc.MemoryPack;
 using Xunit;
 
 namespace Lakona.Game.Cluster.Rpc.Tests;
@@ -25,6 +25,63 @@ public sealed class ClusterRpcMemoryPackDtoTests
         Assert.Equal("actor:room/1", roundtripped.Route);
         Assert.Equal(new byte[] { 1, 2, 3 }, roundtripped.Payload);
         Assert.Equal("gateway-1", roundtripped.SourceNode);
+    }
+
+    [Fact]
+    public void RoundtripsNodeQueryReply()
+    {
+        var reply = new NodeQueryReply
+        {
+            Records =
+            [
+                new NodeRecordDto
+                {
+                    ClusterName = "local",
+                    Node = "gateway-1",
+                    NodeEpoch = 9,
+                    Endpoints = new Dictionary<string, NodeEndpointDto>
+                    {
+                        ["cluster"] = new NodeEndpointDto
+                        {
+                            Address = "tcp://127.0.0.1:22001",
+                            Metadata = new Dictionary<string, string>
+                            {
+                                ["transport"] = "tcp"
+                            }
+                        }
+                    },
+                    Features =
+                    [
+                        new NodeFeatureDto
+                        {
+                            Name = "gateway",
+                            Metadata = new Dictionary<string, string>
+                            {
+                                ["region"] = "us-east"
+                            }
+                        }
+                    ],
+                    Labels = new Dictionary<string, string>
+                    {
+                        ["zone"] = "a"
+                    },
+                    State = 1,
+                    LeaseExpiresAt = new DateTimeOffset(2026, 6, 24, 5, 6, 7, TimeSpan.Zero),
+                    UpdatedAt = new DateTimeOffset(2026, 6, 24, 5, 7, 8, TimeSpan.Zero)
+                }
+            ]
+        };
+
+        var roundtripped = Roundtrip(reply);
+
+        var record = Assert.Single(roundtripped.Records!);
+        Assert.Equal("local", record.ClusterName);
+        Assert.Equal("gateway-1", record.Node);
+        Assert.Equal(9, record.NodeEpoch);
+        Assert.Equal("tcp://127.0.0.1:22001", record.Endpoints!["cluster"].Address);
+        Assert.Equal("gateway", Assert.Single(record.Features!).Name);
+        Assert.Equal("a", record.Labels!["zone"]);
+        Assert.Equal(new DateTimeOffset(2026, 6, 24, 5, 7, 8, TimeSpan.Zero), record.UpdatedAt);
     }
 
     [Fact]
@@ -84,6 +141,43 @@ public sealed class ClusterRpcMemoryPackDtoTests
     }
 
     [Fact]
+    public void RoundtripsRouteRefreshLeaseRequest()
+    {
+        var request = new RouteRefreshLeaseRequest
+        {
+            ExpectedLocation = new RouteLocationDto
+            {
+                Route = "actor:room/2",
+                Node = "room-node-2",
+                EndpointAddress = "tcp://127.0.0.1:21002",
+                EndpointMetadata = new Dictionary<string, string>
+                {
+                    ["transport"] = "tcp"
+                },
+                ExpiresAt = new DateTimeOffset(2026, 6, 24, 6, 7, 8, TimeSpan.Zero),
+                NodeEpoch = 10,
+                Generation = 11,
+                Metadata = new Dictionary<string, string>
+                {
+                    ["role"] = "room"
+                }
+            },
+            ExpiresAt = new DateTimeOffset(2026, 6, 24, 7, 8, 9, TimeSpan.Zero),
+            Now = new DateTimeOffset(2026, 6, 24, 6, 8, 9, TimeSpan.Zero)
+        };
+
+        var roundtripped = Roundtrip(request);
+
+        Assert.NotNull(roundtripped.ExpectedLocation);
+        Assert.Equal("actor:room/2", roundtripped.ExpectedLocation.Route);
+        Assert.Equal("room-node-2", roundtripped.ExpectedLocation.Node);
+        Assert.Equal(10, roundtripped.ExpectedLocation.NodeEpoch);
+        Assert.Equal(11, roundtripped.ExpectedLocation.Generation);
+        Assert.Equal(new DateTimeOffset(2026, 6, 24, 7, 8, 9, TimeSpan.Zero), roundtripped.ExpiresAt);
+        Assert.Equal(new DateTimeOffset(2026, 6, 24, 6, 8, 9, TimeSpan.Zero), roundtripped.Now);
+    }
+
+    [Fact]
     public void RoundtripsNodeRegisterRequest()
     {
         var request = new NodeRegisterRequest
@@ -136,9 +230,45 @@ public sealed class ClusterRpcMemoryPackDtoTests
         Assert.Equal("a", roundtripped.Registration.Labels!["zone"]);
     }
 
+    [Fact]
+    public void RoundtripsClientNotificationDispatchRequest()
+    {
+        var request = new ClientNotificationDispatchRequest
+        {
+            Command = new ClientNotificationCommand
+            {
+                OwnerKey = "player-1",
+                SessionId = "session-1",
+                Generation = 2,
+                CallbackContractType = "Game.ILoginCallback",
+                MethodName = "OnMatchedAsync",
+                Arguments =
+                [
+                    new ClientNotificationArgument
+                    {
+                        TypeName = "System.String",
+                        Payload = [7, 8, 9]
+                    }
+                ]
+            }
+        };
+
+        var roundtripped = Roundtrip(request);
+
+        Assert.NotNull(roundtripped.Command);
+        Assert.Equal("player-1", roundtripped.Command.OwnerKey);
+        Assert.Equal("session-1", roundtripped.Command.SessionId);
+        Assert.Equal(2, roundtripped.Command.Generation);
+        Assert.Equal("Game.ILoginCallback", roundtripped.Command.CallbackContractType);
+        Assert.Equal("OnMatchedAsync", roundtripped.Command.MethodName);
+        var argument = Assert.Single(roundtripped.Command.Arguments);
+        Assert.Equal("System.String", argument.TypeName);
+        Assert.Equal(new byte[] { 7, 8, 9 }, argument.Payload);
+    }
+
     private static T Roundtrip<T>(T value)
     {
-        var serializer = new MemoryPackRpcSerializer();
+        var serializer = ClusterRpcMemoryPack.CreateSerializer();
         using var frame = serializer.SerializeFrame(value);
         return serializer.Deserialize<T>(frame.Memory);
     }

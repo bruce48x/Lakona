@@ -6,12 +6,19 @@
   </Configurations>
   <Folder Name="/samples/">
     <Project Path="samples/Game.Cluster.TwoNode/Cluster.TwoNode.csproj" />
+  </Folder>
+  <Folder Name="/samples/Game.Unity.Agar/">
     <Project Path="samples/Game.Unity.Agar/Server/App/Server.App.csproj" />
     <Project Path="samples/Game.Unity.Agar/Server/Hotfix/Server.Hotfix.csproj" />
+  </Folder>
+  <Folder Name="/samples/Game.Godot.Chat/">
+    <Project Path="samples/Game.Godot.Chat/Server/App/Server.App.csproj" />
+    <Project Path="samples/Game.Godot.Chat/Server/Hotfix/Server.Hotfix.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Lakona.Game.Abstractions/Lakona.Game.Abstractions.csproj" />
     <Project Path="src/Lakona.Game.Client/Lakona.Game.Client.csproj" />
+    <Project Path="src/Lakona.Game.Cluster.Rpc.MemoryPack.Generator/Lakona.Game.Cluster.Rpc.MemoryPack.Generator.csproj" />
     <Project Path="src/Lakona.Game.Cluster.Rpc.MemoryPack/Lakona.Game.Cluster.Rpc.MemoryPack.csproj" />
     <Project Path="src/Lakona.Game.Cluster.Rpc/Lakona.Game.Cluster.Rpc.csproj" />
     <Project Path="src/Lakona.Game.Cluster.Sql/Lakona.Game.Cluster.Sql.csproj" />

@@ -13,6 +13,9 @@ Use this package when a cluster endpoint is configured to use MemoryPack for
 node-to-node RPC. It keeps the cluster RPC DTO formatter registration separate
 from the transport adapter and from application gameplay contracts.
 
+Built-in Lakona.Game server cluster wiring uses these formatters when
+`Lakona:Cluster:Serializer` is `memorypack`.
+
 ## Usage
 
 Register the framework formatters before cluster RPC traffic is serialized:
@@ -26,7 +29,7 @@ ClusterRpcMemoryPack.RegisterFormatters();
 ## Advanced Usage
 
 Create a ready-to-use MemoryPack RPC serializer after registering the cluster
-formatters:
+formatters for advanced manual cluster hosts:
 
 ```csharp
 using Lakona.Game.Cluster.Rpc.MemoryPack;

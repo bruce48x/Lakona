@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using Lakona.Game.Abstractions;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
+using Lakona.Game.Cluster.Rpc.MemoryPack;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Hosting;
@@ -163,7 +164,7 @@ public sealed class LakonaGameServerTests
         var handler = new RecordingFeatureMessageHandler();
         var services = new ServiceCollection();
         services.AddSingleton<IFeatureMessageHandler>(handler);
-        services.AddSingleton<IRpcSerializer, MemoryPackRpcSerializer>();
+        services.AddSingleton<IRpcSerializer>(_ => ClusterRpcMemoryPack.CreateSerializer());
         using var provider = services.BuildServiceProvider();
         var rpcBuilder = RpcServerHostBuilder.Create();
         var configurator = new LakonaClusterRpcServerConfigurator(runtime);
@@ -180,7 +181,7 @@ public sealed class LakonaGameServerTests
 
         await using var clientFactory = new ClusterClientFactory(
             new TcpClusterTransportFactory(),
-            new MemoryPackRpcSerializer());
+            ClusterRpcMemoryPack.CreateSerializer());
         var transport = new RpcFeatureMessageTransport(clientFactory);
         var reply = await transport.SendAsync(
             new ClusterNodeDescriptor(

@@ -44,10 +44,19 @@ Regular application projects can rely on this layer after a hard freeze.
 - `RpcServerHost`.
 - `RpcServerLimits`.
 - Official transport constructors.
-- Official serializer constructors.
+- Official serializer constructors, including:
+  - `Lakona.Rpc.Serializer.MemoryPack.MemoryPackRpcSerializer()`
+  - `Lakona.Rpc.Serializer.MemoryPack.MemoryPackRpcSerializer(MemoryPackSerializerOptions options)`
 - `RpcKeepAliveOptions`.
 - `RpcException`.
 - `RpcStatus` as framework-only status taxonomy.
+- Cluster MemoryPack helpers in `Lakona.Game.Cluster.Rpc.MemoryPack`:
+  - `ClusterRpcMemoryPack.RegisterFormatters()`
+  - `ClusterRpcMemoryPack.CreateSerializer(...)`
+
+Generated formatter class names under `.Generated` namespaces are not public
+API. They may change as formatter generation changes; application code should
+use the package-level helper methods instead.
 
 ### Stable Extension API
 

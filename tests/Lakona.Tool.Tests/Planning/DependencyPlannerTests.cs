@@ -41,6 +41,18 @@ public sealed class DependencyPlannerTests
     }
 
     [Fact]
+    public void Create_ServerAppMemoryPack_DoesNotReferenceClusterMemoryPackDirectly()
+    {
+        var references = DependencyPlanner.Create(
+            ProjectTarget.ServerApp,
+            Spec(transport: TransportKind.Tcp, serializer: SerializerKind.MemoryPack)).PackageReferences;
+
+        AssertPackage(references, "Lakona.Game.Server");
+        AssertPackage(references, "Lakona.Game.Cluster.Rpc");
+        Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Cluster.Rpc.MemoryPack");
+    }
+
+    [Fact]
     public void Create_UnityKcpMemoryPack_IncludesUnityRuntimeClosure()
     {
         var references = DependencyPlanner.Create(ProjectTarget.UnityClient, Spec()).PackageReferences;
