@@ -240,6 +240,50 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public async Task AddLakonaGameClusterEndpoint_registers_remote_actor_invoker_dependencies()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "data-1" },
+            Cluster = new LakonaGameClusterOptions
+            {
+                Endpoint = "tcp://127.0.0.1:21001",
+                Serializer = "json"
+            }
+        });
+
+        services.AddLakonaGameServerActors();
+        services.AddLakonaGameClusterEndpoint();
+        await using var provider = services.BuildServiceProvider();
+
+        Assert.IsType<ClusterNodeSender>(provider.GetRequiredService<IClusterNodeSender>());
+        Assert.IsType<RemoteActorInvoker>(provider.GetRequiredService<IRemoteActorInvoker>());
+    }
+
+    [Fact]
+    public async Task AddLakonaGameClusterEndpoint_supports_generated_distributed_actor_accessors()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "data-1" },
+            Cluster = new LakonaGameClusterOptions
+            {
+                Endpoint = "tcp://127.0.0.1:21001",
+                Serializer = "json"
+            }
+        });
+
+        services.AddLakonaGameServerActors();
+        services.AddLakonaGameClusterEndpoint();
+        services.AddSingleton<GeneratedDistributedActorAccessorProbe>();
+        await using var provider = services.BuildServiceProvider();
+
+        Assert.NotNull(provider.GetRequiredService<GeneratedDistributedActorAccessorProbe>());
+    }
+
+    [Fact]
     public void AddLakonaGameClusterEndpoint_registers_sql_node_directory_from_runtime_directory_options()
     {
         var services = new ServiceCollection();
@@ -344,6 +388,41 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             Assert.NotNull(_router);
             return new ValueTask<ClusterSendStatus>(ClusterSendStatus.RouteNotFound);
         }
+    }
+
+    private sealed class GeneratedDistributedActorAccessorProbe
+    {
+        public GeneratedDistributedActorAccessorProbe(
+            IActorRuntime runtime,
+            IRemoteActorInvoker remote,
+            IRemoteActorSerializer serializer,
+            RemoteActorOptions remoteOptions,
+            IActorDirectory directory,
+            IActorDirectoryCache directoryCache,
+            LocalActorNodeIdentity localNode)
+        {
+            Runtime = runtime;
+            Remote = remote;
+            Serializer = serializer;
+            RemoteOptions = remoteOptions;
+            Directory = directory;
+            DirectoryCache = directoryCache;
+            LocalNode = localNode;
+        }
+
+        public IActorRuntime Runtime { get; }
+
+        public IRemoteActorInvoker Remote { get; }
+
+        public IRemoteActorSerializer Serializer { get; }
+
+        public RemoteActorOptions RemoteOptions { get; }
+
+        public IActorDirectory Directory { get; }
+
+        public IActorDirectoryCache DirectoryCache { get; }
+
+        public LocalActorNodeIdentity LocalNode { get; }
     }
 }
 

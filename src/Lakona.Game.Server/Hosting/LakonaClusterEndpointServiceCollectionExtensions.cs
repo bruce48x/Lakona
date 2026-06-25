@@ -37,6 +37,7 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             provider.GetRequiredService<LakonaClusterRpcSerializer>().Serializer));
         services.TryAddSingleton<ClusterLocalMessageHandler>();
         services.TryAddSingleton<INodeMessenger, ClusterNodeMessenger>();
+        services.TryAddSingleton<IClusterNodeSender, ClusterNodeSender>();
         services.TryAddSingleton<LocalClientNotificationCommandDispatcher>();
         services.TryAddSingleton<IClientNotificationRemoteDispatcher, ClusterClientNotificationDispatcher>();
 
@@ -54,6 +55,7 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
         }
         else
         {
+            services.TryAddSingleton<INodeDirectory, InMemoryNodeDirectory>();
             services.TryAddSingleton<IRouteDirectory, InMemoryRouteDirectory>();
         }
 
@@ -62,6 +64,11 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             provider.GetRequiredService<IRouteDirectory>(),
             provider.GetRequiredService<ClusterLocalMessageHandler>(),
             provider.GetRequiredService<INodeMessenger>()));
+        services.TryAddSingleton<IRemoteActorInvoker>(provider => new RemoteActorInvoker(
+            provider.GetRequiredService<RemoteActorGateway>(),
+            provider.GetRequiredService<LocalActorNodeIdentity>().NodeId,
+            provider.GetRequiredService<IClusterNodeSender>(),
+            provider.GetService<RemoteActorOptions>()));
         services.TryAddSingleton<IClusterNodeDiscovery, ClusterNodeDiscovery>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IRpcServerConfigurator>(
             new LakonaClusterRpcServerConfigurator(runtimeOptions)));
