@@ -161,9 +161,10 @@ codec.
 
 Node-to-node cluster traffic uses `Lakona:Cluster:Serializer`. Remote actor
 request and reply payloads follow the cluster serializer because remote actor
-calls travel over the cluster channel. Framework-internal client control
-messages such as handshake, heartbeat, reliable push ack, and session
-termination notice use `LakonaInternalCodec` on every endpoint.
+calls travel over the cluster channel. There is no second user-facing actor
+serialization setting. Framework-internal client control messages such as
+handshake, heartbeat, reliable push ack, and session termination notice use
+`LakonaInternalCodec` on every endpoint.
 
 Rules:
 
@@ -231,15 +232,11 @@ as the `cluster` endpoint for node-to-node traffic.
 configured. Supported values are `json` and `memorypack`. All communicating
 cluster nodes must use the same cluster serializer; node-directory calls,
 route-directory calls, feature-addressed messages, client-notification relay
-commands, and remote actor payloads follow this setting. This is separate from
+commands, and remote actor payloads in cluster mode follow this setting. Keep
+`Lakona:Cluster:Serializer` as the only user-facing cluster serializer switch;
+do not add a separate actor serialization setting. This is separate from
 endpoint-local `Lakona:Endpoints[]:Serializer`, and client-facing
 framework-control messages continue to use `LakonaInternalCodec`.
-
-When the cluster serializer is `memorypack`, user-defined request and reply
-DTOs used by generated remote actor calls must also be MemoryPack-serializable.
-Use `MemoryPackable(GenerateType.VersionTolerant)` with explicit
-`MemoryPackOrder` values on those actor payload DTOs, just as you would for
-client-facing MemoryPack RPC contracts.
 
 `Seeds` is the public bootstrap list for shared cluster directories. A data
 node can register local node-directory and route-directory implementations,

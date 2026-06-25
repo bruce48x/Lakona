@@ -53,6 +53,12 @@ Transport, serializer, acceptor, and generated service binding are managed by
 the framework from endpoint configuration. Application `Program.cs` should not
 hand-write transport or serializer constructors.
 
+When `Lakona:Cluster` is configured, the node-to-node cluster serializer is
+selected with `Lakona:Cluster:Serializer`. Do not configure cluster RPC by
+calling `UseSerializer` directly in the game server host; keep client-facing
+endpoint serializers under `Lakona:Endpoints[]:Serializer` and the cluster
+serializer under `Lakona:Cluster:Serializer`.
+
 ## Use Actors
 
 Actors are process-local state owners with mailbox-ordered execution. State for

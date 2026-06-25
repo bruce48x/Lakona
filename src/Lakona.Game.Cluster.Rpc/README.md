@@ -15,6 +15,11 @@ The package stays outside `Lakona.Game.Cluster` so core route contracts remain t
 - `RouteDirectoryClient`, an `IRouteDirectory` client backed by Lakona.Rpc calls
 - `RouteDirectoryBinder`, a server-side binder that exposes an application-provided `IRouteDirectory`
 
+The cluster protocol DTOs in this package are serializer-neutral. Configure the
+cluster serializer with `Lakona:Cluster:Serializer`; add a serializer package
+such as `Lakona.Game.Cluster.Rpc.MemoryPack` only when that concrete format is
+selected for the cluster channel.
+
 It does not provide durable route directory storage, external platform discovery bindings, durable queues, gameplay DTOs, actor migration, or transparent remote actor clients. A route directory service can expose `InMemoryRouteDirectory` for smoke tests, or a project-owned durable implementation for production-specific policy.
 
 ## Directory Hosting And Bootstrap

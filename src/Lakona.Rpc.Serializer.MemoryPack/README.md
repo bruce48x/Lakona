@@ -20,6 +20,13 @@ using Lakona.Rpc.Serializer.MemoryPack;
 var serializer = new MemoryPackRpcSerializer();
 ```
 
+Pass `MemoryPackSerializerOptions` when the host needs non-default MemoryPack
+options:
+
+```csharp
+var serializer = new MemoryPackRpcSerializer(options);
+```
+
 Use it with `Lakona.Rpc.Server` by passing the serializer instance explicitly:
 
 ```csharp

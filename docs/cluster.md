@@ -164,12 +164,14 @@ local services exist in DI.
 
 `Lakona:Cluster:Serializer` is required whenever `Lakona:Cluster` is
 configured. It selects the node-to-node RPC payload serializer for cluster
-protocol DTOs. Supported values are `json` and `memorypack`. Every node that
-exchanges cluster RPC traffic must use the same cluster serializer because
-node-directory calls, route-directory calls, feature-addressed messages,
-route-addressed messages, client-notification relay commands, and remote actor
-payloads all follow this setting. Mixed client-facing endpoint serializers are
-allowed, but the cluster channel has one serializer per communicating cluster.
+protocol DTOs. The DTOs in `Lakona.Game.Cluster.Rpc` are serializer-neutral;
+serializer packages provide the concrete encoding support. Supported values
+are `json` and `memorypack`. Every node that exchanges cluster RPC traffic
+must use the same cluster serializer because node-directory calls,
+route-directory calls, feature-addressed messages, route-addressed messages,
+client-notification relay commands, and remote actor payloads all follow this
+setting. Mixed client-facing endpoint serializers are allowed, but the cluster
+channel has one serializer per communicating cluster.
 
 Generated projects that emit cluster configuration copy the user's
 `--serializer` choice into `Lakona:Cluster:Serializer`. This keeps business
@@ -197,6 +199,13 @@ client factory, cluster RPC server, feature-message transport,
 client-notification relay commands, and the default `RpcRemoteActorSerializer`.
 The configured cluster serializer wins over earlier bare `IRpcSerializer`
 registrations in built-in cluster wiring.
+
+When `Lakona:Cluster:Serializer` is `memorypack`, server cluster wiring uses
+the generated built-in cluster MemoryPack formatters from
+`Lakona.Game.Cluster.Rpc.MemoryPack`. Advanced manual MemoryPack cluster hosts
+that bypass the built-in server cluster wiring should create the cluster RPC
+serializer with `ClusterRpcMemoryPack.CreateSerializer()` so those framework
+formatters are registered before cluster traffic is serialized.
 
 Later app-specific or endpoint-specific `IRpcSerializer` registrations must
 not change the already configured cluster channel. Cluster infrastructure must
