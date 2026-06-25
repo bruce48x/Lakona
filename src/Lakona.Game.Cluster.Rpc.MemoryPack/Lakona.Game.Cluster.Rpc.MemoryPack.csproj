@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.1;net10.0</TargetFrameworks>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Lakona.Game.Cluster.Rpc.MemoryPack</RootNamespace>
+    <PackageId>Lakona.Game.Cluster.Rpc.MemoryPack</PackageId>
+    <Version>0.1.0</Version>
+    <Description>MemoryPack formatter registrations for Lakona.Game.Cluster.Rpc DTOs.</Description>
+    <PackageTags>lakona-game;game;cluster;rpc;serializer;memorypack</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MemoryPack" Version="1.21.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Lakona.Game.Cluster.Rpc\Lakona.Game.Cluster.Rpc.csproj" Condition="'$(TargetFramework)' == 'net10.0'" />
+    <ProjectReference Include="..\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="Generation\cluster-rpc-memorypack.schema.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="" />
+    <None Include="Generation\cluster-rpc-memorypack.schema.json" Pack="true" PackagePath="Generation\" />
+  </ItemGroup>
+</Project>

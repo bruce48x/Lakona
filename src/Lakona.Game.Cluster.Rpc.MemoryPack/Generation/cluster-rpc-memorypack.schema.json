@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "dtoNamespace": "Lakona.Game.Cluster.Rpc",
+  "formatterNamespace": "Lakona.Game.Cluster.Rpc.MemoryPack.Generated",
+  "registrationClass": "GeneratedClusterRpcMemoryPackFormatters",
+  "types": [
+    {
+      "name": "NodeEndpointDto",
+      "properties": [ "Address", "Metadata" ]
+    },
+    {
+      "name": "NodeFeatureDto",
+      "properties": [ "Name", "Metadata" ]
+    },
+    {
+      "name": "NodeRegistrationDto",
+      "properties": [ "ClusterName", "Node", "Endpoints", "Features", "Labels", "State", "LeaseExpiresAt" ]
+    },
+    {
+      "name": "NodeRecordDto",
+      "properties": [ "ClusterName", "Node", "NodeEpoch", "Endpoints", "Features", "Labels", "State", "LeaseExpiresAt", "UpdatedAt" ]
+    },
+    {
+      "name": "NodeDirectoryClientQueryDto",
+      "properties": [ "ClusterName", "FeatureName", "State", "Labels", "IncludeExpired" ]
+    },
+    {
+      "name": "NodeRegisterRequest",
+      "properties": [ "Registration", "Now" ]
+    },
+    {
+      "name": "NodeRegisterReply",
+      "properties": [ "Status", "Record" ]
+    },
+    {
+      "name": "NodeHeartbeatRequest",
+      "properties": [ "ClusterName", "Node", "NodeEpoch", "LeaseExpiresAt", "Now" ]
+    },
+    {
+      "name": "NodeHeartbeatReply",
+      "properties": [ "Status" ]
+    },
+    {
+      "name": "NodeUpdateStateRequest",
+      "properties": [ "ClusterName", "Node", "NodeEpoch", "State", "Now" ]
+    },
+    {
+      "name": "NodeUpdateStateReply",
+      "properties": [ "Status" ]
+    },
+    {
+      "name": "NodeResolveRequest",
+      "properties": [ "ClusterName", "Node", "Now" ]
+    },
+    {
+      "name": "NodeResolveReply",
+      "properties": [ "Record" ]
+    },
+    {
+      "name": "NodeQueryRequest",
+      "properties": [ "Query", "Now" ]
+    },
+    {
+      "name": "NodeQueryReply",
+      "properties": [ "Records" ]
+    },
+    {
+      "name": "NodeExpireRequest",
+      "properties": [ "ClusterName", "Now" ]
+    },
+    {
+      "name": "NodeExpireReply",
+      "properties": [ "Expired" ]
+    },
+    {
+      "name": "RouteLocationDto",
+      "properties": [ "Route", "Node", "EndpointAddress", "EndpointMetadata", "ExpiresAt", "NodeEpoch", "Generation", "Metadata" ]
+    },
+    {
+      "name": "RouteRegisterRequest",
+      "properties": [ "Location" ]
+    },
+    {
+      "name": "RouteRegisterReply",
+      "properties": [ "Status" ]
+    },
+    {
+      "name": "RouteResolveRequest",
+      "properties": [ "Route", "Now" ]
+    },
+    {
+      "name": "RouteResolveReply",
+      "properties": [ "Location" ]
+    },
+    {
+      "name": "RouteUnregisterRequest",
+      "properties": [ "Route" ]
+    },
+    {
+      "name": "RouteUnregisterReply",
+      "properties": [ "Status" ]
+    },
+    {
+      "name": "RouteRefreshLeaseRequest",
+      "properties": [ "ExpectedLocation", "ExpiresAt", "Now" ]
+    },
+    {
+      "name": "RouteRefreshLeaseReply",
+      "properties": [ "Status" ]
+    },
+    {
+      "name": "RouteExpireRequest",
+      "properties": [ "Now" ]
+    },
+    {
+      "name": "RouteExpireReply",
+      "properties": [ "Removed" ]
+    },
+    {
+      "name": "RouteClearByNodeRequest",
+      "properties": [ "Node" ]
+    },
+    {
+      "name": "RouteClearByNodeEpochRequest",
+      "properties": [ "Node", "NodeEpoch" ]
+    },
+    {
+      "name": "RouteClearReply",
+      "properties": [ "Removed" ]
+    },
+    {
+      "name": "ClusterSendRequest",
+      "properties": [ "Route", "Kind", "Payload", "ExpiresAt", "SourceNode", "CorrelationId", "TraceId", "OrderedBy" ]
+    },
+    {
+      "name": "ClusterSendReply",
+      "properties": [ "Status" ]
+    },
+    {
+      "name": "FeatureSendRequest",
+      "properties": [ "Feature", "Kind", "Payload", "ExpiresAt", "SourceNode", "CorrelationId" ]
+    },
+    {
+      "name": "FeatureSendReply",
+      "properties": [ "Status", "Payload", "ErrorMessage" ]
+    },
+    {
+      "name": "ClientNotificationDispatchRequest",
+      "properties": [ "Command" ]
+    },
+    {
+      "name": "ClientNotificationDispatchReply",
+      "properties": [ "Status" ]
+    },
+    {
+      "name": "ClientNotificationCommand",
+      "properties": [ "OwnerKey", "SessionId", "Generation", "CallbackContractType", "MethodName", "Arguments" ]
+    },
+    {
+      "name": "ClientNotificationArgument",
+      "properties": [ "TypeName", "Payload" ]
+    }
+  ]
+}
