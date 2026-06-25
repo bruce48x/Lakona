@@ -86,6 +86,7 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
     {
         HotfixAssemblySourceResult? resolved = null;
         HotfixAssemblyLoadContext? pendingContext = null;
+        IServiceProvider? hotfixProvider = null;
         try
         {
             resolved = await source.ResolveAsync(cancellationToken).ConfigureAwait(false);
@@ -121,7 +122,8 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             table.ValidateMethodShapes();
             table.ValidateTypedDispatchDelegates();
             table.ValidateFeatureTickMethods(scan.Features);
-            var hotfixProvider = BuildHotfixProvider(scan);
+            hotfixProvider = BuildHotfixProvider(scan);
+            table.ValidateServiceActivation(hotfixProvider);
             var snapshot = new HotfixSnapshot(
                 resolved.Version,
                 resolved.SourceKind,
@@ -145,6 +147,7 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             HotfixDispatch.Replace(table);
             var runtimeSnapshot = new HotfixRuntimeSnapshot(new HotfixServiceInvoker(table), hotfixProvider);
             var oldProvider = Interlocked.Exchange(ref _currentProvider, hotfixProvider);
+            hotfixProvider = null;
             var oldContext = Interlocked.Exchange(ref _loadContext, pendingContext);
             pendingContext = null;
             Volatile.Write(ref _currentRuntime, runtimeSnapshot);
@@ -158,11 +161,13 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
         }
         catch (OperationCanceledException)
         {
+            DisposeQuietly(hotfixProvider);
             pendingContext?.Unload();
             throw;
         }
         catch (Exception ex)
         {
+            DisposeQuietly(hotfixProvider);
             pendingContext?.Unload();
 
             var previous = Current;

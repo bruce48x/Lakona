@@ -1,5 +1,7 @@
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Lakona.Game.Server.Hotfix.Dispatch;
 
@@ -7,6 +9,7 @@ public sealed class HotfixDispatchTable
 {
     private readonly IReadOnlyDictionary<HotfixMethodKey, HotfixMethodBinding> bindings;
     private readonly IReadOnlyDictionary<string, HotfixServiceMethodBinding> serviceBindings;
+    private readonly IReadOnlyDictionary<Type, ObjectFactory> serviceActivationFactories;
     private readonly Dictionary<DelegateCacheKey, Delegate> delegates = new();
 
     public HotfixDispatchTable(long version, IEnumerable<HotfixMethodBinding> methods)
@@ -47,6 +50,13 @@ public sealed class HotfixDispatchTable
         Version = version;
         bindings = methodList.ToDictionary(static method => method.Key, static method => method);
         serviceBindings = serviceList.ToDictionary(static service => service.Key, static service => service);
+        serviceActivationFactories = serviceList
+            .Where(static service => !service.Method.IsStatic)
+            .Select(static service => service.ServiceType)
+            .Distinct()
+            .ToDictionary(
+                static serviceType => serviceType,
+                static serviceType => ActivatorUtilities.CreateFactory(serviceType, Type.EmptyTypes));
         MethodKeys = bindings.Keys.OrderBy(static key => key.ToString(), StringComparer.Ordinal).ToArray();
     }
 
@@ -92,23 +102,42 @@ public sealed class HotfixDispatchTable
             throw new HotfixMethodNotLoadedException($"Hotfix service method '{key}' is not loaded.");
         }
 
-        var target = binding.Method.IsStatic ? null : Activator.CreateInstance(binding.ServiceType);
-        var result = binding.Method.Invoke(target, [arg]);
+        var target = CreateServiceTarget(binding, arg);
+        object? result;
+        try
+        {
+            result = binding.Method.Invoke(target.Instance, [arg]);
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException is not null)
+        {
+            DisposeServiceTargetAsync(target).AsTask().GetAwaiter().GetResult();
+            ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+            throw;
+        }
+        catch
+        {
+            DisposeServiceTargetAsync(target).AsTask().GetAwaiter().GetResult();
+            throw;
+        }
+
         if (result is ValueTask<TResult> valueTask)
         {
-            return valueTask;
+            return AwaitAndDisposeAsync(valueTask, target);
         }
 
         if (result is TResult value)
         {
+            DisposeServiceTargetAsync(target).AsTask().GetAwaiter().GetResult();
             return new ValueTask<TResult>(value);
         }
 
         if (result is null && default(TResult) is null)
         {
+            DisposeServiceTargetAsync(target).AsTask().GetAwaiter().GetResult();
             return new ValueTask<TResult>(default(TResult)!);
         }
 
+        DisposeServiceTargetAsync(target).AsTask().GetAwaiter().GetResult();
         throw new InvalidOperationException($"Hotfix service method '{key}' returned an invalid result.");
     }
 
@@ -119,19 +148,137 @@ public sealed class HotfixDispatchTable
             throw new HotfixMethodNotLoadedException($"Hotfix service method '{key}' is not loaded.");
         }
 
-        var target = binding.Method.IsStatic ? null : Activator.CreateInstance(binding.ServiceType);
-        var result = binding.Method.Invoke(target, [arg]);
+        var target = CreateServiceTarget(binding, arg);
+        object? result;
+        try
+        {
+            result = binding.Method.Invoke(target.Instance, [arg]);
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException is not null)
+        {
+            DisposeServiceTargetAsync(target).AsTask().GetAwaiter().GetResult();
+            ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+            throw;
+        }
+        catch
+        {
+            DisposeServiceTargetAsync(target).AsTask().GetAwaiter().GetResult();
+            throw;
+        }
+
         if (result is ValueTask valueTask)
         {
-            return valueTask;
+            return AwaitAndDisposeAsync(valueTask, target);
         }
 
         if (result is null)
         {
+            DisposeServiceTargetAsync(target).AsTask().GetAwaiter().GetResult();
             return default;
         }
 
+        DisposeServiceTargetAsync(target).AsTask().GetAwaiter().GetResult();
         throw new InvalidOperationException($"Hotfix service method '{key}' returned an invalid result.");
+    }
+
+    public void ValidateServiceActivation(IServiceProvider services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        var validated = new HashSet<Type>();
+        foreach (var binding in serviceBindings.Values)
+        {
+            if (binding.Method.IsStatic || !validated.Add(binding.ServiceType))
+            {
+                continue;
+            }
+
+            if (!serviceActivationFactories.TryGetValue(binding.ServiceType, out var factory))
+            {
+                throw new InvalidOperationException($"Hotfix service '{binding.ServiceType.FullName}' does not have an activation factory.");
+            }
+
+            ServiceTarget target = default;
+            try
+            {
+                target = new ServiceTarget(factory(services, Array.Empty<object?>()));
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(
+                    $"Hotfix service '{binding.ServiceType.FullName}' constructor activation failed: {ex.Message}",
+                    ex);
+            }
+            finally
+            {
+                DisposeServiceTargetAsync(target).AsTask().GetAwaiter().GetResult();
+            }
+        }
+    }
+
+    private ServiceTarget CreateServiceTarget<TArg>(HotfixServiceMethodBinding binding, TArg arg)
+    {
+        if (binding.Method.IsStatic)
+        {
+            return new ServiceTarget(null);
+        }
+
+        if (!serviceActivationFactories.TryGetValue(binding.ServiceType, out var factory))
+        {
+            throw new InvalidOperationException($"Hotfix service '{binding.ServiceType.FullName}' does not have an activation factory.");
+        }
+
+        if (arg is not IHotfixCallContext callContext)
+        {
+            throw new InvalidOperationException(
+                $"Hotfix service method '{binding.Key}' requires an argument that implements {typeof(IHotfixCallContext).FullName}.");
+        }
+
+        return new ServiceTarget(factory(callContext.Services, Array.Empty<object?>()));
+    }
+
+    private static ValueTask DisposeServiceTargetAsync(ServiceTarget target)
+    {
+        switch (target.Instance)
+        {
+            case null:
+                return default;
+            case IAsyncDisposable asyncDisposable:
+                return asyncDisposable.DisposeAsync();
+            case IDisposable disposable:
+                disposable.Dispose();
+                return default;
+            default:
+                return default;
+        }
+    }
+
+    private static async ValueTask<TResult> AwaitAndDisposeAsync<TResult>(
+        ValueTask<TResult> task,
+        ServiceTarget target)
+    {
+        try
+        {
+            return await task.ConfigureAwait(false);
+        }
+        finally
+        {
+            await DisposeServiceTargetAsync(target).ConfigureAwait(false);
+        }
+    }
+
+    private static async ValueTask AwaitAndDisposeAsync(
+        ValueTask task,
+        ServiceTarget target)
+    {
+        try
+        {
+            await task.ConfigureAwait(false);
+        }
+        finally
+        {
+            await DisposeServiceTargetAsync(target).ConfigureAwait(false);
+        }
     }
 
     public void ValidateMethodShapes()
@@ -232,6 +379,8 @@ public sealed class HotfixDispatchTable
             return typed;
         }
     }
+
+    private readonly record struct ServiceTarget(object? Instance);
 
     private readonly record struct DelegateCacheKey(HotfixMethodKey Key, Type DelegateType);
 }

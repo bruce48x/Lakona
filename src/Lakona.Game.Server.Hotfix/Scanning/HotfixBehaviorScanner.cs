@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Rpc.Core;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Lakona.Game.Server.Hotfix.Scanning;
 
@@ -270,8 +271,26 @@ public static class HotfixBehaviorScanner
             return;
         }
 
-        foreach (var method in serviceType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
+        if (serviceType.ContainsGenericParameters)
         {
+            diagnostics.Add($"Hotfix service '{serviceType.FullName}' must not be an open generic type.");
+            return;
+        }
+
+        var declaredMethods = serviceType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly);
+        if (declaredMethods.Any(static method => !method.IsStatic) &&
+            !ValidateServiceConstructors(serviceType, diagnostics))
+        {
+            return;
+        }
+
+        foreach (var method in declaredMethods)
+        {
+            if (IsDisposalMethod(method))
+            {
+                continue;
+            }
+
             if (method.ContainsGenericParameters)
             {
                 diagnostics.Add($"Hotfix service method '{serviceType.FullName}.{method.Name}' must not be generic.");
@@ -288,12 +307,6 @@ public static class HotfixBehaviorScanner
             if (method.ReturnType != typeof(ValueTask) && !IsValueTaskResult(method.ReturnType))
             {
                 diagnostics.Add($"Hotfix service method '{serviceType.FullName}.{method.Name}' must return ValueTask or ValueTask<TResult>.");
-                continue;
-            }
-
-            if (!method.IsStatic && serviceType.GetConstructor(Type.EmptyTypes) is null)
-            {
-                diagnostics.Add($"Hotfix service '{serviceType.FullName}' must have a public parameterless constructor for instance dispatch.");
                 continue;
             }
 
@@ -342,9 +355,50 @@ public static class HotfixBehaviorScanner
         }
     }
 
+    private static bool ValidateServiceConstructors(Type serviceType, List<string> diagnostics)
+    {
+        var publicConstructors = serviceType.GetConstructors();
+        if (publicConstructors.Length == 0)
+        {
+            diagnostics.Add($"Hotfix service '{serviceType.FullName}' must have a public constructor for instance dispatch.");
+            return false;
+        }
+
+        var markedConstructors = publicConstructors
+            .Where(static constructor => constructor.IsDefined(typeof(ActivatorUtilitiesConstructorAttribute), inherit: false))
+            .ToArray();
+        if (markedConstructors.Length > 1)
+        {
+            diagnostics.Add($"Hotfix service '{serviceType.FullName}' must not mark more than one public constructor with [ActivatorUtilitiesConstructor].");
+            return false;
+        }
+
+        if (markedConstructors.Length == 0 && publicConstructors.Length > 1)
+        {
+            diagnostics.Add($"Hotfix service '{serviceType.FullName}' has multiple public constructors; mark the intended constructor with [ActivatorUtilitiesConstructor].");
+            return false;
+        }
+
+        return true;
+    }
+
     private static bool IsValueTaskResult(Type type)
     {
         return type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ValueTask<>);
+    }
+
+    private static bool IsDisposalMethod(MethodInfo method)
+    {
+        if (method.Name == nameof(IDisposable.Dispose) &&
+            method.ReturnType == typeof(void) &&
+            method.GetParameters().Length == 0)
+        {
+            return true;
+        }
+
+        return method.Name == nameof(IAsyncDisposable.DisposeAsync) &&
+            method.ReturnType == typeof(ValueTask) &&
+            method.GetParameters().Length == 0;
     }
 
     private static bool TryGetRpcMethodId(MethodInfo method, out int methodId)

@@ -3,6 +3,7 @@ using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Scanning;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Rpc.Core;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Lakona.Game.Server.Hotfix.Tests;
@@ -91,11 +92,102 @@ public sealed class HotfixDispatchTests
             binding.Key);
     }
 
+    [Fact]
+    public void Hotfix_service_call_exposes_activation_context()
+    {
+        Assert.True(typeof(IHotfixCallContext).IsAssignableFrom(typeof(HotfixServiceCall<>)));
+        Assert.True(typeof(IHotfixCallContext).IsAssignableFrom(typeof(HotfixServiceCall<,>)));
+    }
+
+    [Fact]
+    public void Hotfix_lifecycle_call_exposes_activation_context()
+    {
+        Assert.True(typeof(IHotfixCallContext).IsAssignableFrom(typeof(HotfixLifecycleCall<>)));
+    }
+
+    [Fact]
+    public async Task Invoke_service_uses_constructor_injection_from_call_context_services()
+    {
+        using var provider = new ServiceCollection()
+            .AddSingleton(new DispatchInjectedDependency("injected"))
+            .BuildServiceProvider();
+        var table = CreateServiceTable(typeof(ConstructorInjectedDispatchService));
+
+        var result = await table.InvokeServiceAsync<IConstructorInjectedDispatchContract, HotfixServiceCall<ConstructorInjectedDispatchRequest>, string>(
+            11,
+            CreateDispatchCall(provider));
+
+        Assert.Equal("injected", result);
+    }
+
+    [Fact]
+    public async Task Invoke_service_disposes_idisposable_instance_after_successful_value_task()
+    {
+        DisposableDispatchService.DisposeCount = 0;
+        using var provider = new ServiceCollection().BuildServiceProvider();
+        var table = CreateServiceTable(typeof(DisposableDispatchService));
+
+        var result = await table.InvokeServiceAsync<IConstructorInjectedDispatchContract, HotfixServiceCall<ConstructorInjectedDispatchRequest>, string>(
+            11,
+            CreateDispatchCall(provider));
+
+        Assert.Equal("disposed-sync", result);
+        Assert.Equal(1, DisposableDispatchService.DisposeCount);
+    }
+
+    [Fact]
+    public async Task Invoke_service_disposes_async_disposable_instance_after_async_value_task()
+    {
+        AsyncDisposableDispatchService.DisposeCount = 0;
+        using var provider = new ServiceCollection().BuildServiceProvider();
+        var table = CreateServiceTable(typeof(AsyncDisposableDispatchService));
+
+        var result = await table.InvokeServiceAsync<IConstructorInjectedDispatchContract, HotfixServiceCall<ConstructorInjectedDispatchRequest>, string>(
+            11,
+            CreateDispatchCall(provider));
+
+        Assert.Equal("disposed-async", result);
+        Assert.Equal(1, AsyncDisposableDispatchService.DisposeCount);
+    }
+
+    [Fact]
+    public async Task Invoke_service_disposes_instance_after_synchronous_method_exception()
+    {
+        ThrowingDisposableDispatchService.DisposeCount = 0;
+        using var provider = new ServiceCollection().BuildServiceProvider();
+        var table = CreateServiceTable(typeof(ThrowingDisposableDispatchService));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await table.InvokeServiceAsync<IConstructorInjectedDispatchContract, HotfixServiceCall<ConstructorInjectedDispatchRequest>, string>(
+                11,
+                CreateDispatchCall(provider)));
+
+        Assert.Equal("dispatch failure", ex.Message);
+        Assert.Equal(1, ThrowingDisposableDispatchService.DisposeCount);
+    }
+
     private static void ReplaceDispatchWith(long version, Type serviceType)
     {
         var scan = HotfixBehaviorScanner.Scan(serviceType.Assembly, [serviceType]);
         Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
         HotfixDispatch.Replace(new HotfixDispatchTable(version, scan.Methods, scan.Services));
+    }
+
+    private static HotfixDispatchTable CreateServiceTable(Type serviceType)
+    {
+        var scan = HotfixBehaviorScanner.Scan(
+            serviceType.Assembly,
+            [serviceType],
+            requiredServiceContracts: [typeof(IConstructorInjectedDispatchContract)]);
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        return new HotfixDispatchTable(1, scan.Methods, scan.Services);
+    }
+
+    private static HotfixServiceCall<ConstructorInjectedDispatchRequest> CreateDispatchCall(IServiceProvider services)
+    {
+        return new HotfixServiceCall<ConstructorInjectedDispatchRequest>(
+            new ConstructorInjectedDispatchRequest(),
+            services);
     }
 }
 
@@ -125,7 +217,7 @@ public sealed class ChatServiceProxy : IChatService
 [HotfixService(typeof(IChatService))]
 public sealed class ChatServiceV1
 {
-    public ValueTask<string> EchoAsync(string text)
+    public static ValueTask<string> EchoAsync(string text)
     {
         return new ValueTask<string>("v1:" + text);
     }
@@ -134,7 +226,7 @@ public sealed class ChatServiceV1
 [HotfixService(typeof(IChatService))]
 public sealed class ChatServiceV2
 {
-    public ValueTask<string> EchoAsync(string text)
+    public static ValueTask<string> EchoAsync(string text)
     {
         return new ValueTask<string>("v2:" + text);
     }
@@ -166,6 +258,92 @@ public sealed class WrappedLoginService
         HotfixServiceCall<WrappedLoginRequest, IWrappedLoginCallback> call)
     {
         return new ValueTask<WrappedLoginReply>(new WrappedLoginReply());
+    }
+}
+
+public sealed class DispatchInjectedDependency
+{
+    public DispatchInjectedDependency(string value)
+    {
+        Value = value;
+    }
+
+    public string Value { get; }
+}
+
+public sealed class ConstructorInjectedDispatchRequest
+{
+}
+
+public interface IConstructorInjectedDispatchContract
+{
+    [RpcMethod(11)]
+    ValueTask<string> RunAsync(ConstructorInjectedDispatchRequest request);
+}
+
+[HotfixService(typeof(IConstructorInjectedDispatchContract))]
+public sealed class ConstructorInjectedDispatchService
+{
+    private readonly DispatchInjectedDependency _dependency;
+
+    public ConstructorInjectedDispatchService(DispatchInjectedDependency dependency)
+    {
+        _dependency = dependency;
+    }
+
+    public ValueTask<string> RunAsync(HotfixServiceCall<ConstructorInjectedDispatchRequest> call)
+    {
+        return new ValueTask<string>(_dependency.Value);
+    }
+}
+
+[HotfixService(typeof(IConstructorInjectedDispatchContract))]
+public sealed class DisposableDispatchService : IDisposable
+{
+    public static int DisposeCount;
+
+    public ValueTask<string> RunAsync(HotfixServiceCall<ConstructorInjectedDispatchRequest> call)
+    {
+        return new ValueTask<string>("disposed-sync");
+    }
+
+    public void Dispose()
+    {
+        DisposeCount++;
+    }
+}
+
+[HotfixService(typeof(IConstructorInjectedDispatchContract))]
+public sealed class ThrowingDisposableDispatchService : IDisposable
+{
+    public static int DisposeCount;
+
+    public ValueTask<string> RunAsync(HotfixServiceCall<ConstructorInjectedDispatchRequest> call)
+    {
+        throw new InvalidOperationException("dispatch failure");
+    }
+
+    public void Dispose()
+    {
+        DisposeCount++;
+    }
+}
+
+[HotfixService(typeof(IConstructorInjectedDispatchContract))]
+public sealed class AsyncDisposableDispatchService : IAsyncDisposable
+{
+    public static int DisposeCount;
+
+    public async ValueTask<string> RunAsync(HotfixServiceCall<ConstructorInjectedDispatchRequest> call)
+    {
+        await Task.Yield();
+        return "disposed-async";
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        DisposeCount++;
+        return default;
     }
 }
 

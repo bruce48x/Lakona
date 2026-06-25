@@ -1,8 +1,9 @@
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Hotfix.Abstractions;
 
 namespace Lakona.Game.Server.Hotfix;
 
-public class HotfixServiceCall<TRequest>
+public class HotfixServiceCall<TRequest> : IHotfixCallContext
 {
     public HotfixServiceCall(
         TRequest request,

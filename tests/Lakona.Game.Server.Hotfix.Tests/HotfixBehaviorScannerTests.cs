@@ -4,6 +4,7 @@ using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Scanning;
 using Lakona.Rpc.Core;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Lakona.Game.Server.Hotfix.Tests;
@@ -185,6 +186,53 @@ public sealed class HotfixBehaviorScannerTests
         Assert.Contains(scan.Diagnostics, diagnostic =>
             diagnostic.Contains("DuplicateHotfixContract", StringComparison.Ordinal) &&
             diagnostic.Contains("2", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Scanner_accepts_non_static_service_with_constructor_dependencies()
+    {
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(ConstructorDependencyServiceContract).Assembly,
+            [typeof(ConstructorDependencyService)]);
+
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        var binding = Assert.Single(scan.Services);
+        Assert.Equal(typeof(ConstructorDependencyService), binding.ServiceType);
+    }
+
+    [Fact]
+    public void Scanner_rejects_open_generic_hotfix_service_type()
+    {
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(GenericHotfixService<>).Assembly,
+            [typeof(GenericHotfixService<>)]);
+
+        Assert.False(scan.Succeeded);
+        Assert.Contains(scan.Diagnostics, diagnostic =>
+            diagnostic.Contains(nameof(GenericHotfixService<object>), StringComparison.Ordinal) ||
+            diagnostic.Contains("open generic", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Scanner_rejects_service_with_multiple_unmarked_public_constructors()
+    {
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(MultipleConstructorService).Assembly,
+            [typeof(MultipleConstructorService)]);
+
+        Assert.False(scan.Succeeded);
+        Assert.Contains(scan.Diagnostics, diagnostic =>
+            diagnostic.Contains("multiple public constructors", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Scanner_accepts_service_with_activator_utilities_constructor_marker()
+    {
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(MarkedConstructorService).Assembly,
+            [typeof(MarkedConstructorService)]);
+
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
     }
 
     private static Assembly CreateAssembly(string name, Action<ModuleBuilder> build)
@@ -380,6 +428,78 @@ public sealed class HotfixBehaviorScannerTests
     public sealed class DuplicateHotfixServiceB
     {
         public static ValueTask PingAsync(HotfixServiceCall<DuplicateHotfixRequest> call)
+        {
+            return default;
+        }
+    }
+
+    [RpcService(303)]
+    public interface ConstructorDependencyServiceContract
+    {
+        [RpcMethod(1)]
+        ValueTask PingAsync(ConstructorDependencyRequest request);
+    }
+
+    public sealed class ConstructorDependencyRequest
+    {
+    }
+
+    public sealed class ConstructorDependency
+    {
+    }
+
+    [HotfixService(typeof(ConstructorDependencyServiceContract))]
+    public sealed class ConstructorDependencyService
+    {
+        public ConstructorDependencyService(ConstructorDependency dependency)
+        {
+        }
+
+        public ValueTask PingAsync(HotfixServiceCall<ConstructorDependencyRequest> call)
+        {
+            return default;
+        }
+    }
+
+    [HotfixService(typeof(ConstructorDependencyServiceContract))]
+    public sealed class GenericHotfixService<T>
+    {
+        public ValueTask PingAsync(HotfixServiceCall<ConstructorDependencyRequest> call)
+        {
+            return default;
+        }
+    }
+
+    [HotfixService(typeof(ConstructorDependencyServiceContract))]
+    public sealed class MultipleConstructorService
+    {
+        public MultipleConstructorService(ConstructorDependency dependency)
+        {
+        }
+
+        public MultipleConstructorService(string value)
+        {
+        }
+
+        public ValueTask PingAsync(HotfixServiceCall<ConstructorDependencyRequest> call)
+        {
+            return default;
+        }
+    }
+
+    [HotfixService(typeof(ConstructorDependencyServiceContract))]
+    public sealed class MarkedConstructorService
+    {
+        public MarkedConstructorService(string value)
+        {
+        }
+
+        [ActivatorUtilitiesConstructor]
+        public MarkedConstructorService(ConstructorDependency dependency)
+        {
+        }
+
+        public ValueTask PingAsync(HotfixServiceCall<ConstructorDependencyRequest> call)
         {
             return default;
         }
