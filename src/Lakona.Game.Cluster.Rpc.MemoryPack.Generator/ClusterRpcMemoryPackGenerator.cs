@@ -47,7 +47,6 @@ public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
         genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters,
         miscellaneousOptions:
             SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers |
-            SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier |
             SymbolDisplayMiscellaneousOptions.UseSpecialTypes);
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -237,6 +236,8 @@ public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
         var typeName = TypeName(type.Symbol);
         var formatterName = FormatterClassName(type.Symbol);
         var properties = type.Properties;
+        var encodings = properties.Select(static property => GetFieldEncoding(property.Symbol)).ToArray();
+        var useDirectMetadata = encodings.All(static encoding => encoding.LengthExpression is not null);
 
         builder
             .Append("file sealed class ")
@@ -256,6 +257,51 @@ public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
         builder.AppendLine("            return;");
         builder.AppendLine("        }");
         builder.AppendLine();
+
+        for (var i = 0; i < properties.Length; i++)
+        {
+            var property = properties[i].Symbol;
+            builder
+                .Append("        var __field")
+                .Append(i.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                .Append(" = value.")
+                .Append(EscapeIdentifier(property.Name))
+                .AppendLine(";");
+        }
+
+        builder.AppendLine();
+
+        if (useDirectMetadata)
+        {
+            builder
+                .Append("        writer.WriteObjectHeader((byte)")
+                .Append(properties.Length.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                .AppendLine(");");
+
+            for (var i = 0; i < properties.Length; i++)
+            {
+                builder
+                    .Append("        writer.WriteVarInt(")
+                    .Append(encodings[i].LengthExpression!("writer", "__field" + i.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+                    .AppendLine(");");
+            }
+
+            builder.AppendLine();
+
+            for (var i = 0; i < properties.Length; i++)
+            {
+                builder.Append("        ");
+                AppendWritePayload(builder, encodings[i], "writer", "__field" + i.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            }
+
+            builder.AppendLine("    }");
+            builder.AppendLine();
+            AppendDeserialize(builder, typeName, properties, encodings);
+            builder.AppendLine("}");
+            builder.AppendLine();
+            return;
+        }
+
         builder.AppendLine("        var tempBuffer = global::MemoryPack.Internal.ReusableLinkedArrayBufferWriterPool.Rent();");
         builder.AppendLine("        try");
         builder.AppendLine("        {");
@@ -268,17 +314,8 @@ public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
 
         for (var i = 0; i < properties.Length; i++)
         {
-            var property = properties[i].Symbol;
-            builder
-                .Append("            var __field")
-                .Append(i.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                .Append(" = value.")
-                .Append(EscapeIdentifier(property.Name))
-                .AppendLine(";");
-            builder
-                .Append("            tempWriter.WriteValue(__field")
-                .Append(i.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                .AppendLine(");");
+            builder.Append("            ");
+            AppendWritePayload(builder, encodings[i], "tempWriter", "__field" + i.ToString(System.Globalization.CultureInfo.InvariantCulture));
             builder
                 .Append("            offsets[")
                 .Append(i.ToString(System.Globalization.CultureInfo.InvariantCulture))
@@ -310,6 +347,17 @@ public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
         builder.AppendLine("    }");
         builder.AppendLine();
 
+        AppendDeserialize(builder, typeName, properties, encodings);
+        builder.AppendLine("}");
+        builder.AppendLine();
+    }
+
+    private static void AppendDeserialize(
+        StringBuilder builder,
+        string typeName,
+        ImmutableArray<ResolvedProperty> properties,
+        FieldEncoding[] encodings)
+    {
         builder
             .Append("    public override void Deserialize(ref global::MemoryPack.MemoryPackReader reader, scoped ref ")
             .Append(typeName)
@@ -320,6 +368,8 @@ public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
         builder.AppendLine("            value = null;");
         builder.AppendLine("            return;");
         builder.AppendLine("        }");
+        builder.AppendLine();
+        builder.AppendLine("        var __isNew = value is null;");
         builder.AppendLine();
         builder
             .Append("        const byte memberCount = ")
@@ -348,7 +398,7 @@ public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
                 .Append(TypeName(property.Type))
                 .Append(" __field")
                 .Append(i.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                .Append(" = value is null ? ")
+                .Append(" = __isNew ? ")
                 .Append(DefaultInitializer(property))
                 .Append(" : value.")
                 .Append(EscapeIdentifier(property.Name))
@@ -369,9 +419,15 @@ public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
                 builder
                     .Append("                if (deltas[")
                     .Append(fieldIndex.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                    .Append("] != 0) reader.ReadValue(ref __field")
-                    .Append(fieldIndex.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                    .AppendLine(");");
+                    .AppendLine("] != 0)");
+                builder.AppendLine("                {");
+                AppendReadPayload(
+                    builder,
+                    encodings[fieldIndex],
+                    "reader",
+                    "__field" + fieldIndex.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "                    ");
+                builder.AppendLine("                }");
             }
 
             builder.AppendLine("                break;");
@@ -379,7 +435,7 @@ public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
 
         builder.AppendLine("        }");
         builder.AppendLine();
-        builder.AppendLine("        if (value is null)");
+        builder.AppendLine("        if (__isNew)");
         builder.AppendLine("        {");
         builder
             .Append("            value = new ")
@@ -400,8 +456,95 @@ public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
         }
 
         builder.AppendLine("    }");
-        builder.AppendLine("}");
-        builder.AppendLine();
+    }
+
+    private static void AppendWritePayload(StringBuilder builder, FieldEncoding encoding, string writerName, string valueExpression)
+    {
+        builder
+            .Append(encoding.WriteStatement(writerName, valueExpression))
+            .AppendLine();
+    }
+
+    private static void AppendReadPayload(
+        StringBuilder builder,
+        FieldEncoding encoding,
+        string readerName,
+        string targetExpression,
+        string indent)
+    {
+        if (encoding.ReadNewStatement == encoding.ReadExistingStatement)
+        {
+            builder
+                .Append(indent)
+                .Append(encoding.ReadExistingStatement(readerName, targetExpression))
+                .AppendLine();
+            return;
+        }
+
+        builder.Append(indent).AppendLine("if (__isNew)");
+        builder.Append(indent).AppendLine("{");
+        builder
+            .Append(indent)
+            .Append("    ")
+            .Append(encoding.ReadNewStatement(readerName, targetExpression))
+            .AppendLine();
+        builder.Append(indent).AppendLine("}");
+        builder.Append(indent).AppendLine("else");
+        builder.Append(indent).AppendLine("{");
+        builder
+            .Append(indent)
+            .Append("    ")
+            .Append(encoding.ReadExistingStatement(readerName, targetExpression))
+            .AppendLine();
+        builder.Append(indent).AppendLine("}");
+    }
+
+    private static FieldEncoding GetFieldEncoding(IPropertySymbol property)
+    {
+        var type = property.Type;
+        var typeName = TypeName(type);
+
+        if (type.SpecialType == SpecialType.System_String)
+        {
+            return new FieldEncoding(
+                static (writer, value) => writer + ".GetStringWriteLength(" + value + ")",
+                static (writer, value) => writer + ".WriteString(" + value + ");",
+                static (reader, target) => target + " = " + reader + ".ReadString();",
+                static (reader, target) => target + " = " + reader + ".ReadString();");
+        }
+
+        if (IsByteArray(type))
+        {
+            return new FieldEncoding(
+                static (writer, value) => writer + ".GetUnmanageArrayWriteLength<byte>(" + value + ")",
+                static (writer, value) => writer + ".WriteUnmanagedArray(" + value + ");",
+                static (reader, target) => target + " = " + reader + ".ReadUnmanagedArray<byte>();",
+                static (reader, target) => reader + ".ReadUnmanagedArray(ref " + target + ");");
+        }
+
+        if (IsDirectUnmanaged(type, out var unmanagedTypeName))
+        {
+            return new FieldEncoding(
+                (_, _) => "global::System.Runtime.CompilerServices.Unsafe.SizeOf<" + unmanagedTypeName + ">()",
+                static (writer, value) => writer + ".WriteUnmanaged(" + value + ");",
+                static (reader, target) => reader + ".ReadUnmanaged(out " + target + ");",
+                static (reader, target) => reader + ".ReadUnmanaged(out " + target + ");");
+        }
+
+        if (IsNullablePrimitive(type))
+        {
+            return new FieldEncoding(
+                null,
+                static (writer, value) => writer + ".DangerousWriteUnmanaged(" + value + ");",
+                static (reader, target) => reader + ".DangerousReadUnmanaged(out " + target + ");",
+                static (reader, target) => reader + ".DangerousReadUnmanaged(out " + target + ");");
+        }
+
+        return new FieldEncoding(
+            null,
+            static (writer, value) => writer + ".WriteValue(" + value + ");",
+            (reader, target) => target + " = " + reader + ".ReadValue<" + typeName + ">();",
+            static (reader, target) => reader + ".ReadValue(ref " + target + ");");
     }
 
     private static string TypeName(ITypeSymbol type) => type.ToDisplayString(TypeDisplayFormat);
@@ -455,6 +598,42 @@ public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
         type is INamedTypeSymbol namedType &&
         namedType.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T;
 
+    private static bool IsNullablePrimitive(ITypeSymbol type)
+    {
+        if (type is not INamedTypeSymbol namedType ||
+            namedType.OriginalDefinition.SpecialType != SpecialType.System_Nullable_T)
+        {
+            return false;
+        }
+
+        return IsSupportedPrimitive(namedType.TypeArguments[0]);
+    }
+
+    private static bool IsDirectUnmanaged(ITypeSymbol type, out string unmanagedTypeName)
+    {
+        if (type.SpecialType == SpecialType.System_Int32 ||
+            type.SpecialType == SpecialType.System_Int64 ||
+            type.SpecialType == SpecialType.System_Boolean ||
+            IsDateTimeOffset(type))
+        {
+            unmanagedTypeName = TypeName(type);
+            return true;
+        }
+
+        unmanagedTypeName = string.Empty;
+        return false;
+    }
+
+    private static bool IsSupportedPrimitive(ITypeSymbol type) =>
+        type.SpecialType == SpecialType.System_Int32 ||
+        type.SpecialType == SpecialType.System_Int64 ||
+        type.SpecialType == SpecialType.System_Boolean;
+
+    private static bool IsDateTimeOffset(ITypeSymbol type) =>
+        type is INamedTypeSymbol namedType &&
+        namedType.Name == "DateTimeOffset" &&
+        namedType.ContainingNamespace?.ToDisplayString() == "System";
+
     private static bool IsByteArray(ITypeSymbol type) =>
         type is IArrayTypeSymbol { ElementType.SpecialType: SpecialType.System_Byte };
 
@@ -502,6 +681,29 @@ public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
         public string RegistrationClass { get; }
 
         public ImmutableArray<SchemaType> Types { get; }
+    }
+
+    private sealed class FieldEncoding
+    {
+        public FieldEncoding(
+            Func<string, string, string>? lengthExpression,
+            Func<string, string, string> writeStatement,
+            Func<string, string, string> readNewStatement,
+            Func<string, string, string> readExistingStatement)
+        {
+            LengthExpression = lengthExpression;
+            WriteStatement = writeStatement;
+            ReadNewStatement = readNewStatement;
+            ReadExistingStatement = readExistingStatement;
+        }
+
+        public Func<string, string, string>? LengthExpression { get; }
+
+        public Func<string, string, string> WriteStatement { get; }
+
+        public Func<string, string, string> ReadNewStatement { get; }
+
+        public Func<string, string, string> ReadExistingStatement { get; }
     }
 
     private sealed class SchemaType
