@@ -941,8 +941,30 @@ namespace Lakona.Game.Server.Hotfix.Generators
             }
 
             var diagnostics = new List<HotfixGeneratorDiagnosticInfo>();
-            var keyType = GetActorKeyType(actor);
-            if (keyType == null)
+            var hasUnsupportedGenericShape = false;
+            if (contract.TypeParameters.Length > 0)
+            {
+                hasUnsupportedGenericShape = true;
+                diagnostics.Add(new HotfixGeneratorDiagnosticInfo(
+                    HotfixGeneratorDiagnostics.UnsupportedHotfixActorContractGenericShape,
+                    contract.Locations.FirstOrDefault(),
+                    contract.ToDisplayString(),
+                    contract.ToDisplayString()));
+            }
+
+            var actorIsGeneric = actor.TypeParameters.Length > 0 || actor.IsGenericType;
+            if (actorIsGeneric)
+            {
+                hasUnsupportedGenericShape = true;
+                diagnostics.Add(new HotfixGeneratorDiagnosticInfo(
+                    HotfixGeneratorDiagnostics.UnsupportedHotfixActorContractGenericShape,
+                    contract.Locations.FirstOrDefault(),
+                    contract.ToDisplayString(),
+                    actor.ToDisplayString()));
+            }
+
+            var keyType = actorIsGeneric ? null : GetActorKeyType(actor);
+            if (keyType == null && !actorIsGeneric)
             {
                 diagnostics.Add(new HotfixGeneratorDiagnosticInfo(
                     HotfixGeneratorDiagnostics.HotfixActorContractActorMustDeriveActor,
@@ -952,27 +974,41 @@ namespace Lakona.Game.Server.Hotfix.Generators
             }
 
             var methods = new List<HotfixActorMethodInfo>();
-            foreach (var method in GetContractMethods(contract))
+            if (!hasUnsupportedGenericShape)
             {
-                if (!IsValueTask(method.ReturnType, out _))
+                foreach (var method in GetContractMethods(contract))
                 {
-                    diagnostics.Add(new HotfixGeneratorDiagnosticInfo(
-                        HotfixGeneratorDiagnostics.UnsupportedHotfixActorContractReturnType,
-                        method.Locations.FirstOrDefault() ?? contract.Locations.FirstOrDefault(),
-                        method.ToDisplayString()));
-                    continue;
-                }
+                    if (method.TypeParameters.Length > 0)
+                    {
+                        diagnostics.Add(new HotfixGeneratorDiagnosticInfo(
+                            HotfixGeneratorDiagnostics.UnsupportedHotfixActorContractGenericShape,
+                            method.Locations.FirstOrDefault() ?? contract.Locations.FirstOrDefault(),
+                            contract.ToDisplayString(),
+                            method.ToDisplayString()));
+                        continue;
+                    }
 
-                if (!HasSupportedActorContractParameters(method))
-                {
-                    diagnostics.Add(new HotfixGeneratorDiagnosticInfo(
-                        HotfixGeneratorDiagnostics.UnsupportedHotfixActorContractParameters,
-                        method.Locations.FirstOrDefault() ?? contract.Locations.FirstOrDefault(),
-                        method.ToDisplayString()));
-                    continue;
-                }
+                    if (!IsValueTask(method.ReturnType, out var resultType) ||
+                        (resultType != null && (resultType.IsRefLikeType || ContainsTypeParameter(resultType))))
+                    {
+                        diagnostics.Add(new HotfixGeneratorDiagnosticInfo(
+                            HotfixGeneratorDiagnostics.UnsupportedHotfixActorContractReturnType,
+                            method.Locations.FirstOrDefault() ?? contract.Locations.FirstOrDefault(),
+                            method.ToDisplayString()));
+                        continue;
+                    }
 
-                methods.Add(HotfixActorMethodInfo.Create(method));
+                    if (!HasSupportedActorContractParameters(method))
+                    {
+                        diagnostics.Add(new HotfixGeneratorDiagnosticInfo(
+                            HotfixGeneratorDiagnostics.UnsupportedHotfixActorContractParameters,
+                            method.Locations.FirstOrDefault() ?? contract.Locations.FirstOrDefault(),
+                            method.ToDisplayString()));
+                        continue;
+                    }
+
+                    methods.Add(HotfixActorMethodInfo.Create(method));
+                }
             }
 
             foreach (var duplicate in methods
@@ -1030,7 +1066,30 @@ namespace Lakona.Game.Server.Hotfix.Generators
         {
             return parameter.RefKind == RefKind.None &&
                 parameter.Type.TypeKind != TypeKind.Pointer &&
+                !parameter.Type.IsRefLikeType &&
+                !ContainsTypeParameter(parameter.Type) &&
                 !IsCancellationToken(parameter.Type);
+        }
+
+        private static bool ContainsTypeParameter(ITypeSymbol type)
+        {
+            if (type.TypeKind == TypeKind.TypeParameter)
+            {
+                return true;
+            }
+
+            if (type is IArrayTypeSymbol arrayType)
+            {
+                return ContainsTypeParameter(arrayType.ElementType);
+            }
+
+            if (type is IPointerTypeSymbol pointerType)
+            {
+                return ContainsTypeParameter(pointerType.PointedAtType);
+            }
+
+            return type is INamedTypeSymbol namedType &&
+                namedType.TypeArguments.Any(ContainsTypeParameter);
         }
 
         private static bool IsValueTask(ITypeSymbol type, out ITypeSymbol? resultType)

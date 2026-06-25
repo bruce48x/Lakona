@@ -97,6 +97,13 @@ public sealed class HotfixGeneratorTests
         Assert.NotNull(registration);
         Assert.NotNull(registration.GetConstructor(Type.EmptyTypes));
         Assert.True(typeof(Lakona.Game.Server.Hosting.ILakonaGameGeneratedServiceRegistration).IsAssignableFrom(registration));
+
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        var provider = (Lakona.Game.Server.Hosting.ILakonaGameGeneratedServiceRegistration)Activator.CreateInstance(registration)!;
+        provider.Register(services);
+
+        Assert.Contains(services, service => service.ServiceType.FullName == "Game.Server.UserActors");
+        Assert.Contains(services, service => service.ServiceType == typeof(Lakona.Game.Cluster.IClusterMessageHandler));
     }
 
     [Fact]
@@ -387,6 +394,119 @@ public sealed class HotfixGeneratorTests
             public interface IUserActorContract
             {
                 ValueTask PingAsync(ref PingRequest request);
+            }
+            """;
+
+        var result = GeneratorTestHost.Run(source);
+
+        var diagnostic = Assert.Single(result.GeneratorDiagnostics, diagnostic => diagnostic.Id == "ULGHOTFIX014");
+        Assert.Equal(13, diagnostic.Location.GetLineSpan().StartLinePosition.Line);
+        Assert.DoesNotContain("UserActors", result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_reports_diagnostic_for_generic_hotfix_actor_contract_method()
+    {
+        var source = """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Server;
+
+            public readonly record struct UserId(string Value);
+            public sealed class UserActor : Actor<UserId> { }
+
+            [HotfixActorContract(typeof(UserActor))]
+            public interface IUserActorContract
+            {
+                ValueTask PingAsync<T>(T request);
+            }
+            """;
+
+        var result = GeneratorTestHost.Run(source);
+
+        var diagnostic = Assert.Single(result.GeneratorDiagnostics, diagnostic => diagnostic.Id == "ULGHOTFIX016");
+        Assert.Contains("PingAsync", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Equal(12, diagnostic.Location.GetLineSpan().StartLinePosition.Line);
+        Assert.DoesNotContain("UserActors", result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_reports_diagnostic_for_generic_hotfix_actor_contract()
+    {
+        var source = """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Server;
+
+            public readonly record struct UserId(string Value);
+            public sealed class UserActor : Actor<UserId> { }
+
+            [HotfixActorContract(typeof(UserActor))]
+            public interface IUserActorContract<T>
+            {
+                ValueTask PingAsync(T request);
+            }
+            """;
+
+        var result = GeneratorTestHost.Run(source);
+
+        var diagnostic = Assert.Single(result.GeneratorDiagnostics, diagnostic => diagnostic.Id == "ULGHOTFIX016");
+        Assert.Contains("IUserActorContract<T>", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Equal(10, diagnostic.Location.GetLineSpan().StartLinePosition.Line);
+        Assert.DoesNotContain("UserActors", result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_reports_diagnostic_for_generic_hotfix_actor_contract_actor()
+    {
+        var source = """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Server;
+
+            public readonly record struct UserId(string Value);
+            public sealed class PingRequest { }
+            public sealed class UserActor<T> : Actor<UserId> { }
+
+            [HotfixActorContract(typeof(UserActor<>))]
+            public interface IUserActorContract
+            {
+                ValueTask PingAsync(PingRequest request);
+            }
+            """;
+
+        var result = GeneratorTestHost.Run(source);
+
+        var diagnostic = Assert.Single(result.GeneratorDiagnostics, diagnostic => diagnostic.Id == "ULGHOTFIX016");
+        Assert.Contains("UserActor<>", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Equal(11, diagnostic.Location.GetLineSpan().StartLinePosition.Line);
+        Assert.DoesNotContain("UserActors", result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_reports_diagnostic_for_ref_like_hotfix_actor_contract_request()
+    {
+        var source = """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Server;
+
+            public readonly record struct UserId(string Value);
+            public ref struct PingRequest { }
+            public sealed class UserActor : Actor<UserId> { }
+
+            [HotfixActorContract(typeof(UserActor))]
+            public interface IUserActorContract
+            {
+                ValueTask PingAsync(PingRequest request);
             }
             """;
 

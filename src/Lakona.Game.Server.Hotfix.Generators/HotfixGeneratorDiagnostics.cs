@@ -99,5 +99,13 @@ namespace Lakona.Game.Server.Hotfix.Generators
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor UnsupportedHotfixActorContractGenericShape = new DiagnosticDescriptor(
+            "ULGHOTFIX016",
+            "Unsupported generic hotfix actor contract shape",
+            "Hotfix actor contract '{0}' uses unsupported generic actor contract shape '{1}'",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
     }
 }
