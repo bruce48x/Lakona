@@ -232,6 +232,13 @@ The lower-level `ClusterMessage`, `ClusterActorEnvelope`, `IClusterRouter`,
 important foundations. They are escape hatches, not the recommended daily
 business API.
 
+`IActorRuntime` is a generated-support and advanced local runtime API. It
+remains public because generated actor refs, hotfix service boundaries, tests,
+diagnostics, and framework integrations may live in user assemblies, but it is
+process-local and not the recommended daily business API. Ordinary gameplay
+code should use generated actor selectors so local, distributed, and pinned
+remote placement intent remains visible at the call site.
+
 ## Managed Lifecycle
 
 Actor creation and destruction are local framework lifecycle operations exposed

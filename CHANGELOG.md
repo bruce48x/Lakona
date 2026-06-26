@@ -4,6 +4,15 @@ Lakona was created on 2026-06-07 by merging the former ULinkGame, ULinkActor,
 and ULinkRpc repositories into a single monorepo. This changelog starts from
 that consolidation.
 
+## 2026-06-26
+
+### Changed
+
+- `Lakona.Game.Server` `0.8.11`: `IActorRuntime` is now documented and hidden
+  from normal IntelliSense as a generated-support and advanced node-local API.
+  Package actor examples now lead with generated `Get` / `Local` / `Remote`
+  selectors instead of raw process-local runtime calls.
+
 ## 2026-06-22
 
 ### Changed

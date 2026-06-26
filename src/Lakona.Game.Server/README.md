@@ -65,44 +65,72 @@ Actors are process-local state owners with mailbox-ordered execution. State for
 one actor is processed sequentially, so actor fields usually do not need locks.
 
 ```csharp
+using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 
-public sealed class RoomActor : Actor
+public readonly record struct RoomId(string Value);
+
+[ActorName("room")]
+public sealed class RoomActor : Actor<RoomId>
 {
-    private int _joinedPlayers;
+    internal readonly HashSet<long> JoinedPlayers = new();
+}
 
-    public ValueTask JoinAsync(long playerId, CancellationToken cancellationToken = default)
-    {
-        _joinedPlayers++;
-        return default;
-    }
+public sealed class JoinRoomRequest
+{
+    public long PlayerId { get; init; }
+}
 
-    public ValueTask<int> CountAsync(CancellationToken cancellationToken = default)
+public sealed class JoinRoomReply
+{
+    public int PlayerCount { get; init; }
+}
+
+// In Server.Hotfix:
+[HotfixBehaviorOf(typeof(RoomActor))]
+public static class RoomBehavior
+{
+    public static ValueTask<JoinRoomReply> JoinAsync(
+        this RoomActor room,
+        JoinRoomRequest request,
+        CancellationToken cancellationToken = default)
     {
-        return new ValueTask<int>(_joinedPlayers);
+        room.JoinedPlayers.Add(request.PlayerId);
+
+        return new(new JoinRoomReply
+        {
+            PlayerCount = room.JoinedPlayers.Count
+        });
     }
 }
 
-var runtime = provider.GetRequiredService<IActorRuntime>();
-var roomId = ActorId.From("room/alpha");
+var rooms = provider.GetRequiredService<RoomActors>();
+var roomId = new RoomId("alpha");
+var nodeId = new NodeId("battle-1");
+var request = new JoinRoomRequest { PlayerId = 10001 };
 
-await runtime.TellAsync<RoomActor>(
-    roomId,
-    static (room, ct) => room.JoinAsync(10001, ct));
-
-int count = await runtime.AskAsync<RoomActor, int>(
-    roomId,
-    static (room, ct) => room.CountAsync(ct));
+var routed = await rooms.Get(roomId).JoinAsync(request, cancellationToken);
+var localOnly = await rooms.Local(roomId).JoinAsync(request, cancellationToken);
+var pinned = await rooms.Remote(nodeId, roomId).JoinAsync(request, cancellationToken);
 ```
-
-Use `TryTell` when the caller must fail fast on local mailbox pressure. Use
-`StopAsync`, `TryGetMailboxMetrics`, and actor lifecycle hooks when you need
-explicit actor management.
 
 For frequent business actor calls, reference `Lakona.Game.Server.Generators` as
 an analyzer. It generates typed actor accessors with `Get(id)`, `Local(id)`,
 and `Remote(nodeId, id)` selectors for `Actor<TKey>` classes.
+
+## Advanced Local Actor Runtime
+
+`IActorRuntime` remains public for generated code, framework-owned boundary
+services, tests, diagnostics, and rare node-local escape hatches. It is
+process-local: it does not resolve actor directory placement and it does not
+route to another node. Business code should prefer generated selectors so local
+versus distributed actor intent stays visible.
+
+Use `TryTell` only when a framework boundary must fail fast on local mailbox
+pressure. Use `IActorLifecycle`, mailbox metrics, and state queries for
+explicit actor management and diagnostics rather than ordinary gameplay calls.
 
 ## Sessions And Push
 
