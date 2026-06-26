@@ -6,7 +6,6 @@ using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.Services;
-using Shared.Interfaces;
 using Xunit;
 
 namespace Agar.Unity.Tests;
@@ -24,7 +23,7 @@ public sealed class AgarSessionLifecycleTests
             "room-1",
             "match-1",
             "realtime-1",
-            new TestBattleCallback()));
+            new GameSessionKey("player-1", "realtime-session", 1)));
         var services = BuildLifecycleServices(directory);
         await using var provider = services.BuildServiceProvider();
 
@@ -49,16 +48,12 @@ public sealed class AgarSessionLifecycleTests
     public async Task ControlDisconnectClearsDirectoryWhenActorUpdateFails()
     {
         var directory = CreatePlayerSessionRegistry();
-        await RegisterNewControlAsync(
+        RegisterControl(
             directory,
             "player-1",
             "session-1",
-            "control-1");
-        Assert.True(await BindControlCallbackAsync(
-            directory,
-            "player-1",
             "control-1",
-            new TestControlCallback()));
+            new GameSessionKey("player-1", "control-session", 1));
         var services = BuildLifecycleServices(directory);
         await using var provider = services.BuildServiceProvider();
 
@@ -79,7 +74,6 @@ public sealed class AgarSessionLifecycleTests
         Assert.NotNull(registration);
         var connectionId = Assert.IsType<string>(GetRequiredProperty(registration, "ConnectionId"));
         Assert.Empty(connectionId);
-        Assert.Null(GetRequiredProperty(registration, "ControlCallback"));
         Assert.Null(GetConnection(directory, "control-1"));
     }
 
@@ -97,58 +91,42 @@ public sealed class AgarSessionLifecycleTests
             ?? throw new InvalidOperationException("Could not create PlayerSessionRegistry.");
     }
 
-    private static async ValueTask RegisterNewControlAsync(
+    private static void RegisterControl(
         object directory,
         string playerId,
         string sessionToken,
-        string connectionId)
+        string connectionId,
+        GameSessionKey session)
     {
-        var method = PlayerSessionRegistryType.GetMethod("RegisterNewControlAsync")
-            ?? throw new MissingMethodException(PlayerSessionRegistryType.FullName, "RegisterNewControlAsync");
-        _ = await (ValueTask<GameSessionKey>)method.Invoke(directory, [
+        var method = PlayerSessionRegistryType.GetMethod("RegisterControl")
+            ?? throw new MissingMethodException(PlayerSessionRegistryType.FullName, "RegisterControl");
+        method.Invoke(directory, [
             playerId,
             sessionToken,
             connectionId,
-            TestContext.Current.CancellationToken
-        ])!;
+            session
+        ]);
     }
 
-    private static async ValueTask<bool> BindControlCallbackAsync(
-        object directory,
-        string playerId,
-        string connectionId,
-        IControlCallback callback)
-    {
-        var method = PlayerSessionRegistryType.GetMethod("BindControlCallbackAsync")
-            ?? throw new MissingMethodException(PlayerSessionRegistryType.FullName, "BindControlCallbackAsync");
-        return await (ValueTask<bool>)method.Invoke(directory, [
-            playerId,
-            connectionId,
-            callback,
-            TestContext.Current.CancellationToken
-        ])!;
-    }
-
-    private static async ValueTask<bool> AttachRealtimeAsync(
+    private static ValueTask<bool> AttachRealtimeAsync(
         object directory,
         string playerId,
         string sessionToken,
         string roomId,
         string matchId,
         string connectionId,
-        IBattleCallback callback)
+        GameSessionKey session)
     {
-        var method = PlayerSessionRegistryType.GetMethod("AttachRealtimeAsync")
-            ?? throw new MissingMethodException(PlayerSessionRegistryType.FullName, "AttachRealtimeAsync");
-        return await (ValueTask<bool>)method.Invoke(directory, [
+        var method = PlayerSessionRegistryType.GetMethod("AttachRealtime")
+            ?? throw new MissingMethodException(PlayerSessionRegistryType.FullName, "AttachRealtime");
+        return new ValueTask<bool>((bool)method.Invoke(directory, [
             playerId,
             sessionToken,
             roomId,
             matchId,
             connectionId,
-            callback,
-            TestContext.Current.CancellationToken
-        ])!;
+            session
+        ])!);
     }
 
     private static object? GetRegistration(object directory, string playerId)
@@ -387,28 +365,6 @@ public sealed class AgarSessionLifecycleTests
             CancellationToken cancellationToken = default)
         {
             return new ValueTask<ReliablePushAckOutcome>(ReliablePushAckOutcome.StateLost());
-        }
-    }
-
-    private sealed class TestControlCallback : IControlCallback
-    {
-        public void OnMatchmakingStatus(MatchmakingStatusUpdate matchmakingStatus)
-        {
-        }
-    }
-
-    private sealed class TestBattleCallback : IBattleCallback
-    {
-        public void OnWorldState(WorldState worldState)
-        {
-        }
-
-        public void OnPlayerDead(PlayerDead deadEvent)
-        {
-        }
-
-        public void OnMatchEnd(MatchEnd matchEnd)
-        {
         }
     }
 }

@@ -73,9 +73,11 @@ internal sealed class BattleService
             };
         }
 
-        var attached = await _playerSessionRegistry
-            .AttachRealtimeAsync(req.PlayerId, req.Token, req.RoomId, req.MatchId, call.ConnectionId, call.Callback)
+        var realtimeSession = await call.GameServer
+            .StartSessionAsync(req.PlayerId, call.ConnectionId, call.Callback)
             .ConfigureAwait(false);
+        var attached = _playerSessionRegistry
+            .AttachRealtime(req.PlayerId, req.Token, req.RoomId, req.MatchId, call.ConnectionId, realtimeSession);
         if (!attached)
         {
             return new RealtimeAttachReply

@@ -12,7 +12,6 @@ using Agar.Sample.State.Users;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
-using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -46,12 +45,12 @@ public sealed class PlayerService
         _leaderboards = leaderboards;
     }
 
-    public async ValueTask<LeaderboardReply> GetLeaderboardAsync(HotfixServiceCall<LeaderboardRequest, IControlCallback> call)
+    public async ValueTask<LeaderboardReply> GetLeaderboardAsync(HotfixServiceCall<LeaderboardRequest> call)
     {
         var req = call.Request;
         var services = CreateDependencies(call.Services);
         var logger = services.CreateLogger<PlayerService>();
-        _ = await EnsureControlCallbackBoundAsync(call, services).ConfigureAwait(false);
+        _ = await EnsureControlConnectionAsync(call, services).ConfigureAwait(false);
 
         var topN = req.TopN <= 0 ? 10 : req.TopN;
         var snapshot = await _leaderboards
@@ -79,10 +78,10 @@ public sealed class PlayerService
         };
     }
 
-    public async ValueTask StartMatchmakingAsync(HotfixServiceCall<MatchmakingRequest, IControlCallback> call)
+    public async ValueTask StartMatchmakingAsync(HotfixServiceCall<MatchmakingRequest> call)
     {
         var services = CreateDependencies(call.Services);
-        var playerId = await EnsureControlCallbackBoundAsync(call, services).ConfigureAwait(false);
+        var playerId = await EnsureControlConnectionAsync(call, services).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(playerId))
         {
             return;
@@ -91,10 +90,10 @@ public sealed class PlayerService
         await EnqueuePlayerAsync(services, playerId).ConfigureAwait(false);
     }
 
-    public async ValueTask CancelMatchmakingAsync(HotfixServiceCall<CancelMatchmakingRequest, IControlCallback> call)
+    public async ValueTask CancelMatchmakingAsync(HotfixServiceCall<CancelMatchmakingRequest> call)
     {
         var services = CreateDependencies(call.Services);
-        var playerId = await EnsureControlCallbackBoundAsync(call, services).ConfigureAwait(false);
+        var playerId = await EnsureControlConnectionAsync(call, services).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(playerId))
         {
             return;
@@ -103,10 +102,10 @@ public sealed class PlayerService
         await CancelMatchmakingAsync(services, playerId, "Matchmaking cancelled").ConfigureAwait(false);
     }
 
-    public async ValueTask LogoutAsync(HotfixServiceCall<LogoutRequest, IControlCallback> call)
+    public async ValueTask LogoutAsync(HotfixServiceCall<LogoutRequest> call)
     {
         var services = CreateDependencies(call.Services);
-        var playerId = await EnsureControlCallbackBoundAsync(call, services).ConfigureAwait(false);
+        var playerId = await EnsureControlConnectionAsync(call, services).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(playerId))
         {
             return;
@@ -126,31 +125,20 @@ public sealed class PlayerService
             services.GetRequiredService<RuntimeNodeIdentity>(),
             services.GetRequiredService<RuntimeGatewaySelector>(),
             services.GetRequiredService<MatchmakingNotifier>(),
-            services.GetRequiredService<IReliablePushOutbox>(),
             services.GetRequiredService<ILoggerFactory>());
     }
 
-    private static async ValueTask<string?> EnsureControlCallbackBoundAsync<TRequest>(
-        HotfixServiceCall<TRequest, IControlCallback> call,
+    private static ValueTask<string?> EnsureControlConnectionAsync<TRequest>(
+        HotfixServiceCall<TRequest> call,
         AgarServiceDependencies services)
     {
         var playerId = services.PlayerSessionRegistry.GetPlayerIdByConnection(call.ConnectionId);
         if (string.IsNullOrWhiteSpace(playerId))
         {
-            return null;
+            return new ValueTask<string?>((string?)null);
         }
 
-        var newlyBound = await services.PlayerSessionRegistry
-            .BindControlCallbackAsync(playerId, call.ConnectionId, call.Callback)
-            .ConfigureAwait(false);
-        if (newlyBound)
-        {
-            await services.MatchmakingNotifier
-                .ReplayPendingAsync(playerId)
-                .ConfigureAwait(false);
-        }
-
-        return playerId;
+        return new ValueTask<string?>(playerId);
     }
 
     internal static async Task EnqueuePlayerAsync(AgarServiceDependencies services, string playerId)
@@ -339,7 +327,6 @@ internal sealed record AgarServiceDependencies(
     RuntimeNodeIdentity RuntimeNodeIdentity,
     RuntimeGatewaySelector RuntimeGateways,
     MatchmakingNotifier MatchmakingNotifier,
-    IReliablePushOutbox ReliablePushOutbox,
     ILoggerFactory LoggerFactory)
 {
     public ILogger<T> CreateLogger<T>()
@@ -363,7 +350,6 @@ internal sealed record AgarServiceDependencies(
             services.GetRequiredService<RuntimeNodeIdentity>(),
             services.GetRequiredService<RuntimeGatewaySelector>(),
             services.GetRequiredService<MatchmakingNotifier>(),
-            services.GetRequiredService<IReliablePushOutbox>(),
             services.GetRequiredService<ILoggerFactory>());
     }
 }

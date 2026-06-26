@@ -15,7 +15,7 @@ public sealed class AgarHotfixBoundaryTests
             @"public\s+BattleService\s*\([^)]*PlayerSessionRegistry[^)]*RuntimeNodeIdentity[^)]*\)",
             text);
         Assert.Matches(
-            @"static\s+(?:async\s+)?ValueTask\s+SubmitInputAsync\s*\(",
+            @"public\s+(?:async\s+)?ValueTask\s+SubmitInputAsync\s*\(",
             text);
 
         var serviceLookups = Regex.Matches(
@@ -23,12 +23,11 @@ public sealed class AgarHotfixBoundaryTests
                 @"call\.Services\s*\.\s*GetRequiredService\s*<\s*(?<type>[^>]+)\s*>\s*\(")
             .Select(match => match.Groups["type"].Value.Trim())
             .ToArray();
-        Assert.Contains("PlayerSessionRegistry", serviceLookups);
-        Assert.Contains("RuntimeNodeIdentity", serviceLookups);
-        Assert.Contains("UserActors", serviceLookups);
-        Assert.Contains("RoomActors", serviceLookups);
-        Assert.All(serviceLookups, type =>
-            Assert.Contains(type, new[] { "PlayerSessionRegistry", "RuntimeNodeIdentity", "UserActors", "RoomActors" }));
+        Assert.Empty(serviceLookups);
+        Assert.Contains("_playerSessionRegistry.GetPlayerIdByConnection", text, StringComparison.Ordinal);
+        Assert.Contains("_runtimeNodeIdentity.IsRuntimeOwner", text, StringComparison.Ordinal);
+        Assert.Contains("_users", text, StringComparison.Ordinal);
+        Assert.Contains("_rooms", text, StringComparison.Ordinal);
         Assert.DoesNotContain("AgarBattleServiceDependencies.From(call)", text, StringComparison.Ordinal);
         Assert.DoesNotContain("internal sealed record AgarBattleServiceDependencies", text, StringComparison.Ordinal);
     }

@@ -1,4 +1,5 @@
 using Shared.Interfaces;
+using Lakona.Game.Server;
 using Lakona.Game.Server.ReliablePush;
 using Microsoft.Extensions.Logging;
 
@@ -6,30 +7,30 @@ namespace Server.Hotfix.Services;
 
 internal sealed class MatchmakingNotifier
 {
-    private readonly IReliablePushOutbox _reliablePushOutbox;
-    private readonly PlayerSessionRegistry _PlayerSessionRegistry;
+    private readonly ILakonaGameServer _gameServer;
+    private readonly PlayerSessionRegistry _playerSessionRegistry;
     private readonly ILogger<MatchmakingNotifier> _logger;
 
     public MatchmakingNotifier(
-        IReliablePushOutbox reliablePushOutbox,
-        PlayerSessionRegistry PlayerSessionRegistry,
+        ILakonaGameServer gameServer,
+        PlayerSessionRegistry playerSessionRegistry,
         ILogger<MatchmakingNotifier> logger)
     {
-        _reliablePushOutbox = reliablePushOutbox;
-        _PlayerSessionRegistry = PlayerSessionRegistry;
+        _gameServer = gameServer;
+        _playerSessionRegistry = playerSessionRegistry;
         _logger = logger;
     }
 
     public async ValueTask PublishAsync(string playerId, MatchmakingStatusUpdate update, CancellationToken cancellationToken = default)
     {
-        var registration = _PlayerSessionRegistry.Get(playerId);
-        if (registration is null)
+        var registration = _playerSessionRegistry.Get(playerId);
+        if (registration?.ControlSessionKey is not { } controlSession)
         {
             return;
         }
 
-        await _reliablePushOutbox.PublishAsync(
-            registration.SessionKey,
+        await _gameServer.PublishReliablePushAsync(
+            controlSession,
             PushNotificationKinds.MatchmakingStatus,
             Clone(update),
             DeliverAsync,
@@ -38,10 +39,10 @@ internal sealed class MatchmakingNotifier
 
     public ValueTask ReplayPendingAsync(string playerId, CancellationToken cancellationToken = default)
     {
-        var registration = _PlayerSessionRegistry.Get(playerId);
-        return registration is null
+        var registration = _playerSessionRegistry.Get(playerId);
+        return registration?.ControlSessionKey is not { } controlSession
             ? default
-            : _reliablePushOutbox.ReplayPendingAsync(registration.SessionKey, DeliverAsync, cancellationToken);
+            : _gameServer.ReplayReliablePushAsync(controlSession, DeliverAsync, cancellationToken);
     }
 
     private async ValueTask DeliverAsync(ReliablePushRecord record)
@@ -52,13 +53,13 @@ internal sealed class MatchmakingNotifier
             return;
         }
 
-        var registration = _PlayerSessionRegistry.GetByReliablePushOwnerKey(record.OwnerKey);
-        if (registration is null)
+        var registration = _playerSessionRegistry.GetByReliablePushOwnerKey(record.OwnerKey);
+        if (registration?.ControlSessionKey is not { } controlSession)
         {
             return;
         }
 
-        var callback = await _PlayerSessionRegistry.GetControlCallbackAsync(registration).ConfigureAwait(false);
+        var callback = await _gameServer.GetCallbackAsync<IControlCallback>(controlSession).ConfigureAwait(false);
         if (callback is null)
         {
             return;

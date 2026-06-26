@@ -1,5 +1,5 @@
+using Lakona.Game.Server.Sessions;
 using Server.Hotfix.Services;
-using Shared.Interfaces;
 using Xunit;
 
 namespace Agar.Unity.Tests;
@@ -7,16 +7,13 @@ namespace Agar.Unity.Tests;
 public sealed class PlayerSessionRegistryCleanupTests
 {
     [Fact]
-    public async Task ClearRoomDetachesRealtimeCallbackWhenExpectedRoomMatches()
+    public void ClearRoomDetachesRealtimeSessionWhenExpectedRoomMatches()
     {
         var directory = new PlayerSessionRegistry();
-        var controlCallback = new TestControlCallback();
-        var realtimeCallback = new TestBattleCallback();
 
-        await directory.RegisterNewControlAsync("player-1", "session-1", "control-1", TestContext.Current.CancellationToken);
-        Assert.True(await directory.BindControlCallbackAsync("player-1", "control-1", controlCallback, TestContext.Current.CancellationToken));
+        directory.RegisterControl("player-1", "session-1", "control-1", new GameSessionKey("player-1", "control-session", 1));
         directory.AssignRoom("player-1", "room-1", "match-1", seatIndex: 3);
-        Assert.True(directory.AttachRealtime("player-1", "session-1", "room-1", "match-1", "realtime-1", realtimeCallback));
+        Assert.True(directory.AttachRealtime("player-1", "session-1", "room-1", "match-1", "realtime-1", new GameSessionKey("player-1", "realtime-session", 2)));
 
         directory.ClearRoom("player-1", "room-1");
 
@@ -26,22 +23,19 @@ public sealed class PlayerSessionRegistryCleanupTests
         Assert.Null(registration.MatchId);
         Assert.Equal(-1, registration.SeatIndex);
         Assert.Null(registration.RealtimeConnectionId);
-        Assert.Null(registration.RealtimeCallback);
-        Assert.Null(registration.GetRealtimeCallback());
+        Assert.Null(registration.RealtimeSessionKey);
         Assert.Empty(directory.GetByRoom("room-1"));
     }
 
     [Fact]
-    public async Task ClearRoomPreservesRegistrationWhenExpectedRoomDoesNotMatch()
+    public void ClearRoomPreservesRegistrationWhenExpectedRoomDoesNotMatch()
     {
         var directory = new PlayerSessionRegistry();
-        var controlCallback = new TestControlCallback();
-        var realtimeCallback = new TestBattleCallback();
 
-        await directory.RegisterNewControlAsync("player-1", "session-1", "control-1", TestContext.Current.CancellationToken);
-        Assert.True(await directory.BindControlCallbackAsync("player-1", "control-1", controlCallback, TestContext.Current.CancellationToken));
+        var realtimeSession = new GameSessionKey("player-1", "realtime-session", 2);
+        directory.RegisterControl("player-1", "session-1", "control-1", new GameSessionKey("player-1", "control-session", 1));
         directory.AssignRoom("player-1", "room-1", "match-1", seatIndex: 2);
-        Assert.True(directory.AttachRealtime("player-1", "session-1", "room-1", "match-1", "realtime-1", realtimeCallback));
+        Assert.True(directory.AttachRealtime("player-1", "session-1", "room-1", "match-1", "realtime-1", realtimeSession));
 
         directory.ClearRoom("player-1", "other-room");
 
@@ -51,7 +45,7 @@ public sealed class PlayerSessionRegistryCleanupTests
         Assert.Equal("match-1", registration.MatchId);
         Assert.Equal(2, registration.SeatIndex);
         Assert.Equal("realtime-1", registration.RealtimeConnectionId);
-        Assert.Same(realtimeCallback, registration.RealtimeCallback);
+        Assert.Equal(realtimeSession, registration.RealtimeSessionKey);
         Assert.Single(directory.GetByRoom("room-1"));
     }
 
@@ -66,7 +60,7 @@ public sealed class PlayerSessionRegistryCleanupTests
             "room-1",
             "match-1",
             "realtime-1",
-            new TestBattleCallback()));
+            new GameSessionKey("player-1", "realtime-session", 1)));
 
         directory.ClearRoom("player-1", "room-1");
 
@@ -75,12 +69,11 @@ public sealed class PlayerSessionRegistryCleanupTests
     }
 
     [Fact]
-    public async Task RegisterNewControlClearsRoomQueueAndRealtimeState()
+    public void RegisterControlClearsRoomQueueAndRealtimeState()
     {
         var directory = new PlayerSessionRegistry();
 
-        await directory.RegisterNewControlAsync("player-1", "session-1", "control-1", TestContext.Current.CancellationToken);
-        Assert.True(await directory.BindControlCallbackAsync("player-1", "control-1", new TestControlCallback(), TestContext.Current.CancellationToken));
+        directory.RegisterControl("player-1", "session-1", "control-1", new GameSessionKey("player-1", "control-session-1", 1));
         directory.SetQueueTicket("player-1", "ticket-1");
         directory.AssignRoom("player-1", "room-1", "match-1", seatIndex: 1);
         Assert.True(directory.AttachRealtime(
@@ -89,10 +82,9 @@ public sealed class PlayerSessionRegistryCleanupTests
             "room-1",
             "match-1",
             "realtime-1",
-            new TestBattleCallback()));
+            new GameSessionKey("player-1", "realtime-session", 2)));
 
-        await directory.RegisterNewControlAsync("player-1", "session-2", "control-2", TestContext.Current.CancellationToken);
-        Assert.True(await directory.BindControlCallbackAsync("player-1", "control-2", new TestControlCallback(), TestContext.Current.CancellationToken));
+        directory.RegisterControl("player-1", "session-2", "control-2", new GameSessionKey("player-1", "control-session-2", 3));
 
         var registration = directory.Get("player-1");
         Assert.NotNull(registration);
@@ -103,32 +95,7 @@ public sealed class PlayerSessionRegistryCleanupTests
         Assert.Equal(-1, registration.SeatIndex);
         Assert.Null(registration.MatchmakingTicketId);
         Assert.Null(registration.RealtimeConnectionId);
-        Assert.Null(registration.RealtimeCallback);
+        Assert.Null(registration.RealtimeSessionKey);
         Assert.Empty(directory.GetByRoom("room-1"));
-    }
-
-    private sealed class TestControlCallback : IControlCallback
-    {
-        public MatchmakingStatusUpdate? LastStatus { get; private set; }
-
-        public void OnMatchmakingStatus(MatchmakingStatusUpdate matchmakingStatus)
-        {
-            LastStatus = matchmakingStatus;
-        }
-    }
-
-    private sealed class TestBattleCallback : IBattleCallback
-    {
-        public void OnWorldState(WorldState worldState)
-        {
-        }
-
-        public void OnPlayerDead(PlayerDead deadEvent)
-        {
-        }
-
-        public void OnMatchEnd(MatchEnd matchEnd)
-        {
-        }
     }
 }

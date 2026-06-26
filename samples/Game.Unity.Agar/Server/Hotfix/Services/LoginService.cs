@@ -24,7 +24,7 @@ public sealed class LoginService
         _users = users;
     }
 
-    public async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest> call)
+    public async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, IControlCallback> call)
     {
         var req = call.Request;
         var services = AgarServiceDependencies.From(call);
@@ -60,8 +60,24 @@ public sealed class LoginService
         GameSessionKey sessionKey;
         if (req.Reconnect)
         {
-            var resumeDecision = await services.PlayerSessionRegistry
-                .ResumeControlAsync(loginResult.UserId, loginResult.SessionToken, call.ConnectionId)
+            var registration = services.PlayerSessionRegistry.Get(loginResult.UserId);
+            if (registration?.ControlSessionKey is not { } controlSession ||
+                !string.Equals(registration.SessionToken, loginResult.SessionToken, StringComparison.Ordinal))
+            {
+                return new LoginReply
+                {
+                    Code = LoginResultCodes.ReconnectStateLost,
+                    PlayerId = loginResult.UserId,
+                    Account = account,
+                    Message = "Server session state was lost. Start a new session instead of reconnecting."
+                };
+            }
+
+            var resumeDecision = await call.GameServer
+                .ResumeSessionAsync(
+                    new GameSessionResumeRequest(controlSession, loginResult.SessionToken),
+                    call.ConnectionId,
+                    call.Callback)
                 .ConfigureAwait(false);
             if (resumeDecision.Status != SessionResumeStatus.Resumed || resumeDecision.Session is null)
             {
@@ -77,6 +93,11 @@ public sealed class LoginService
             }
 
             sessionKey = resumeDecision.Session.Value;
+            services.PlayerSessionRegistry.UpdateControlConnection(
+                loginResult.UserId,
+                loginResult.SessionToken,
+                call.ConnectionId,
+                sessionKey);
             await _users
                 .Get(new UserId(loginResult.UserId))
                 .ReconnectAsync(new PlayerSessionReconnectRequest
@@ -91,9 +112,14 @@ public sealed class LoginService
         }
         else
         {
-            sessionKey = await services.PlayerSessionRegistry
-                .RegisterNewControlAsync(loginResult.UserId, loginResult.SessionToken, call.ConnectionId)
+            sessionKey = await call.GameServer
+                .StartSessionAsync(loginResult.UserId, call.ConnectionId, call.Callback)
                 .ConfigureAwait(false);
+            services.PlayerSessionRegistry.RegisterControl(
+                loginResult.UserId,
+                loginResult.SessionToken,
+                call.ConnectionId,
+                sessionKey);
             await _users
                 .Get(new UserId(loginResult.UserId))
                 .AttachAsync(new PlayerSessionAttachRequest
@@ -105,8 +131,11 @@ public sealed class LoginService
                         ControlGateway = CloneGateway(services.RuntimeNodeIdentity.AdvertisedEndpoint)
                     })
                 .ConfigureAwait(false);
-            await services.ReliablePushOutbox.AckAsync(loginResult.UserId, long.MaxValue).ConfigureAwait(false);
         }
+
+        await services.MatchmakingNotifier
+            .ReplayPendingAsync(loginResult.UserId)
+            .ConfigureAwait(false);
 
         return new LoginReply
         {

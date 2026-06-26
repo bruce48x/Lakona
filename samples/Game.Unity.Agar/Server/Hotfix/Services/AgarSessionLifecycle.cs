@@ -26,9 +26,7 @@ public sealed class AgarSessionLifecycle
 
         if (connection.Kind == PlayerConnectionKind.Realtime)
         {
-            await services.PlayerSessionRegistry
-                .DetachRealtimeAsync(connection.PlayerId, connection.ConnectionId)
-                .ConfigureAwait(false);
+            services.PlayerSessionRegistry.DetachRealtime(connection.PlayerId, connection.ConnectionId);
             return;
         }
 
@@ -59,9 +57,7 @@ public sealed class AgarSessionLifecycle
                 connection.ConnectionId);
         }
 
-        await services.PlayerSessionRegistry
-            .DisconnectControlAsync(connection.PlayerId, connection.ConnectionId)
-            .ConfigureAwait(false);
+        services.PlayerSessionRegistry.DisconnectControl(connection.PlayerId, connection.ConnectionId);
     }
 
     public static async ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call)
@@ -85,9 +81,7 @@ public sealed class AgarSessionLifecycle
             call.Request.Generation);
         if (registration.RealtimeSessionKey == expiredSession)
         {
-            await services.PlayerSessionRegistry
-                .DetachRealtimeAsync(playerId, call.Request.ConnectionId)
-                .ConfigureAwait(false);
+            services.PlayerSessionRegistry.DetachRealtime(playerId, call.Request.ConnectionId);
             return;
         }
 

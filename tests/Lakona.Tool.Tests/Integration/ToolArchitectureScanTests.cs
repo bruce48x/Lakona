@@ -339,6 +339,40 @@ public sealed class ToolArchitectureScanTests
     }
 
     [Fact]
+    public void UnityAgarSample_UsesFrameworkGameServerForSessionLifecycle()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var sampleRoot = Path.Combine(repositoryRoot, "samples", "Game.Unity.Agar");
+        var hotfixServices = ReadAllTextFiles(Path.Combine(sampleRoot, "Server", "Hotfix", "Services"));
+        var sessionDirectory = File.ReadAllText(Path.Combine(
+            sampleRoot,
+            "Server",
+            "Hotfix",
+            "Services",
+            "PlayerSessionRegistry.cs"));
+        var registration = File.ReadAllText(Path.Combine(
+            sampleRoot,
+            "Server",
+            "Hotfix",
+            "Services",
+            "PlayerSessionRegistration.cs"));
+
+        Assert.Contains("call.GameServer", hotfixServices, StringComparison.Ordinal);
+        Assert.Contains(".StartSessionAsync", hotfixServices, StringComparison.Ordinal);
+        Assert.Contains(".ResumeSessionAsync", hotfixServices, StringComparison.Ordinal);
+        Assert.Contains(".GetCallbackAsync", hotfixServices, StringComparison.Ordinal);
+        Assert.DoesNotContain("IGameSessionRegistry", hotfixServices, StringComparison.Ordinal);
+        Assert.DoesNotContain("InMemoryGameSessionRegistry", hotfixServices, StringComparison.Ordinal);
+        Assert.DoesNotContain("StartNewSessionAsync", hotfixServices, StringComparison.Ordinal);
+        Assert.DoesNotContain("TryResumeAsync", hotfixServices, StringComparison.Ordinal);
+        Assert.DoesNotContain("BindSessionAsync(", sessionDirectory, StringComparison.Ordinal);
+        Assert.DoesNotContain("ControlCallback", registration, StringComparison.Ordinal);
+        Assert.DoesNotContain("RealtimeCallback", registration, StringComparison.Ordinal);
+        Assert.DoesNotContain("IBattleCallback?", registration, StringComparison.Ordinal);
+        Assert.DoesNotContain("IControlCallback?", registration, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void SharedContractSources_DoNotExposeServerSessionIdentityOrCSharp10Syntax()
     {
         var repositoryRoot = FindRepositoryRoot();
