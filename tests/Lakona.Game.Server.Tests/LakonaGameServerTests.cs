@@ -32,6 +32,22 @@ namespace Lakona.Game.Server.Tests;
 public sealed class LakonaGameServerTests
 {
     [Fact]
+    public void Public_game_server_entry_point_name_is_not_reused_by_runtime_implementation()
+    {
+        var publicTypesNamedLakonaGameServer = typeof(ILakonaGameServer)
+            .Assembly
+            .GetExportedTypes()
+            .Where(static type => type.Name == "LakonaGameServer")
+            .Select(static type => type.FullName!)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(
+            ["Lakona.Game.Server.Hosting.LakonaGameServer"],
+            publicTypesNamedLakonaGameServer);
+    }
+
+    [Fact]
     public void Probe_command_detection_does_not_accept_legacy_lakona_game_check_alias()
     {
         Assert.True(Lakona.Game.Server.Hosting.LakonaGameServer.IsReadinessCheckCommandForTesting(["--readiness-check"]));

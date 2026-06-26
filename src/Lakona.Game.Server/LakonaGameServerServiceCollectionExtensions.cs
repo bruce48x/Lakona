@@ -81,7 +81,7 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.AddLakonaGameSessionHotfixLifecycle();
         services.TryAddSingleton<IGameHandshakeService, GameHandshakeService>();
         services.TryAddSingleton<IFeatureCommandClient, FeatureCommandClient>();
-        services.TryAddSingleton<ILakonaGameServer, LakonaGameServer>();
+        services.TryAddSingleton<ILakonaGameServer, DefaultLakonaGameServer>();
         return services;
     }
 }

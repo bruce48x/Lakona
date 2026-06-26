@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Lakona.Game.Server;
 
-public sealed class LakonaGameServer : ILakonaGameServer
+public sealed class DefaultLakonaGameServer : ILakonaGameServer
 {
     private readonly IGameSessionRegistry _sessions;
     private readonly IGameSessionResumeService _resume;
@@ -14,9 +14,9 @@ public sealed class LakonaGameServer : ILakonaGameServer
     private readonly IReliablePushAckService _reliablePushAcks;
     private readonly IGameSessionConnectionCloser _connectionCloser;
     private readonly IReadOnlyList<IGameSessionLifecycleHandler> _lifecycleHandlers;
-    private readonly ILogger<LakonaGameServer> _logger;
+    private readonly ILogger<DefaultLakonaGameServer> _logger;
 
-    public LakonaGameServer(
+    public DefaultLakonaGameServer(
         IGameSessionRegistry sessions,
         IGameSessionResumeService resume,
         IReliablePushOutbox reliablePush,
@@ -30,18 +30,18 @@ public sealed class LakonaGameServer : ILakonaGameServer
             reliablePushAcks,
             connectionCloser,
             lifecycleHandlers,
-            NullLogger<LakonaGameServer>.Instance)
+            NullLogger<DefaultLakonaGameServer>.Instance)
     {
     }
 
-    public LakonaGameServer(
+    public DefaultLakonaGameServer(
         IGameSessionRegistry sessions,
         IGameSessionResumeService resume,
         IReliablePushOutbox reliablePush,
         IReliablePushAckService reliablePushAcks,
         IGameSessionConnectionCloser connectionCloser,
         IEnumerable<IGameSessionLifecycleHandler> lifecycleHandlers,
-        ILogger<LakonaGameServer> logger)
+        ILogger<DefaultLakonaGameServer> logger)
     {
         _sessions = sessions;
         _resume = resume;
