@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lakona E2E Testing"
+  short_description: "E2E validate Lakona.Tool projects with ProjectReference, local, or nuget.org packages"
+  default_prompt: "Use $lakona-e2e-testing to validate Lakona.Tool scaffolded projects end-to-end. Ask which feed mode to use if not specified."
