@@ -12,6 +12,8 @@ var kcpPort = args.Length >= 2 && int.TryParse(args[1], out var parsedKcpPort) ?
 await using var world = new BattleWorld();
 var loginTickets = new LoginTicketStore(kcpPort);
 
+// This sample hosts auth and battle RPC on separate transports, so it binds
+// each generated service explicitly instead of using entry-assembly auto binding.
 var authBuilder = RpcServerHostBuilder.Create()
     .UseSerializer(new MemoryPackRpcSerializer())
     .UseKeepAlive(TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(45))
