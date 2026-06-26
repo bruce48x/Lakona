@@ -112,7 +112,17 @@ pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1
 pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 -UnityPath "C:\Program Files\Unity\Hub\Editor\2022.3.62f1\Editor\Unity.exe"
 ```
 
-失败时脚本会把 Unity 日志、测试结果和 Docker Compose 日志写到 `.tmp/agar-three-node/`。排查时可加 `-KeepEnvironment` 保留容器和 volume。
+常用参数：
+
+- `-TimeoutSeconds <seconds>`：设置 Docker readiness 和 Unity PlayMode 测试的总等待时间，默认 600 秒。
+- `-ProjectName <name>`：指定隔离的 Docker Compose project name，默认 `lakona-agar-three-node-test`。
+- `-ReuseEnvironment`：复用已存在的容器和 volume，不在启动前执行清理。
+- `-SkipBuild`：复用已有镜像，不让 Docker Compose 重新 build。
+- `-KeepEnvironment`：测试结束后保留容器和 volume，便于排查。
+
+脚本只把 `gateway-1` 和 `battle-1` 的客户端广告地址覆盖为 `127.0.0.1`，让宿主机上的 Unity 客户端可以连接；cluster endpoint 和 seed 仍然走 Compose 网络内的节点地址。
+
+失败时脚本会把 Unity 日志、测试结果和 Docker Compose 日志写到 `.tmp/agar-three-node/`，主要包括 `TestResults.xml`、`unity-editor.log`、`docker-compose.log` 和 `docker-compose.ps.json`。脚本会在失败摘要中标出阶段，例如 Docker 不可用、Unity 未找到、Postgres 未 healthy、gateway 端口不可达、登录未进入多人大厅、KCP 实时连接未 attach、或未收到 world state。
 
 ### Actor 调用语义
 

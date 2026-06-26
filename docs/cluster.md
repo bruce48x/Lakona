@@ -181,6 +181,12 @@ same project-level serializer choice. Client-facing framework control messages
 such as handshake, heartbeat, reliable push ack, and session termination notice
 remain encoded with `LakonaInternalCodec`.
 
+Do not add serializer-specific attributes or package references back to
+`Lakona.Game.Cluster.Rpc` DTOs. MemoryPack cluster support belongs in
+`Lakona.Game.Cluster.Rpc.MemoryPack`, where repository-owned generation and the
+committed formatter schema preserve the built-in cluster wire layout without
+making JSON users restore MemoryPack generator assets.
+
 `Lakona:Cluster:Seeds` is the public bootstrap input for directory access. If
 a node has seeds but no local `INodeDirectory` or `IRouteDirectory`
 registration, the framework creates remote directory clients that call the
@@ -924,7 +930,10 @@ battle-1
 The local automated acceptance entry point for this topology is
 `scripts/game/ci/test-agar-three-node.ps1`. It is intentionally a local
 developer test because it requires Docker plus a Unity installation; it is not
-part of the default repository CI gate.
+part of the default repository CI gate. The test drives the existing Unity
+client PlayMode flow, not a replacement console client, so it covers the
+client's login, matchmaking, KCP realtime attach, and world-state observation
+paths against the real three-node server topology.
 
 ## Agar Acceptance Criteria
 

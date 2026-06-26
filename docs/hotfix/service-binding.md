@@ -116,6 +116,23 @@ It does not register `[HotfixService]` classes themselves. The dispatch layer
 owns service implementation lifetime and creates one instance per non-static
 service call.
 
+Constructor parameters resolve from the current hotfix generation provider
+first and the stable root provider second. Generation-local dependencies should
+be registered through `HotfixFeatureContext.Services`; stable framework
+dependencies should come from the root provider and must not capture
+`Server.Hotfix` types.
+
+Non-static `[HotfixService]` and `[HotfixLifecycle]` implementation classes
+must have one public constructor, or one public constructor marked with
+`[ActivatorUtilitiesConstructor]`. Missing dependencies, open generic
+implementations, multiple unmarked public constructors, and activation failures
+fail hotfix validation or reload before the candidate generation is published.
+
+The dispatch layer disposes the per-call service or lifecycle instance after
+the returned `ValueTask` completes, including failure paths. Constructors
+should capture and validate dependencies only; they must not start timers,
+threads, static event subscriptions, long-lived connections, or request work.
+
 For high-frequency realtime methods, a service method may stay static to avoid
 allocating one service implementation instance per request. Keep that exception
 local to the hot method and resolve only the required dependencies from
