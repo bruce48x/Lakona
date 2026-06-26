@@ -147,6 +147,42 @@ function Test-Command {
     return $null -ne $existing
 }
 
+function Get-UnityProjectEditorVersion {
+    $projectVersionFile = Join-Path $clientRoot "ProjectSettings\ProjectVersion.txt"
+    if (-not (Test-Path -LiteralPath $projectVersionFile)) {
+        return ""
+    }
+
+    foreach ($line in Get-Content -LiteralPath $projectVersionFile -ErrorAction SilentlyContinue) {
+        if ($line -match '^\s*m_EditorVersion:\s*(?<Version>\S+)\s*$') {
+            return $Matches["Version"]
+        }
+    }
+
+    return ""
+}
+
+function Get-UnityVersionSortKey {
+    param([string]$Version)
+
+    if ($Version -match '^(?<Major>\d+)\.(?<Minor>\d+)\.(?<Patch>\d+)') {
+        return "{0:D6}.{1:D6}.{2:D6}.{3}" -f [int]$Matches["Major"], [int]$Matches["Minor"], [int]$Matches["Patch"], $Version
+    }
+
+    return "000000.000000.000000.$Version"
+}
+
+function Add-UnityCandidate {
+    param(
+        [System.Collections.Generic.List[string]]$Candidates,
+        [string]$Path
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($Path)) {
+        $Candidates.Add($Path)
+    }
+}
+
 function Resolve-UnityExecutable {
     param([string]$ExplicitPath)
 
@@ -156,24 +192,35 @@ function Resolve-UnityExecutable {
             throw "Unity executable was not found. Pass -UnityPath or set UNITY_PATH."
         }
 
-        $candidates.Add($ExplicitPath)
+        Add-UnityCandidate $candidates $ExplicitPath
     }
 
-    if (-not [string]::IsNullOrWhiteSpace($env:UNITY_PATH)) {
-        $candidates.Add($env:UNITY_PATH)
-    }
+    Add-UnityCandidate $candidates $env:UNITY_PATH
 
     $hubRoot = "C:\Program Files\Unity\Hub\Editor"
+    $projectEditorVersion = Get-UnityProjectEditorVersion
+    if (-not [string]::IsNullOrWhiteSpace($projectEditorVersion)) {
+        Add-UnityCandidate $candidates (Join-Path $hubRoot "$projectEditorVersion\Editor\Unity.exe")
+    }
+
     if (Test-Path $hubRoot) {
         Get-ChildItem -LiteralPath $hubRoot -Directory -ErrorAction SilentlyContinue |
-            Sort-Object Name -Descending |
+            Where-Object { $_.Name -like "2022.3.*" } |
+            Sort-Object @{ Expression = { Get-UnityVersionSortKey $_.Name }; Descending = $true } |
             ForEach-Object {
-                $candidates.Add((Join-Path $_.FullName "Editor\Unity.exe"))
+                Add-UnityCandidate $candidates (Join-Path $_.FullName "Editor\Unity.exe")
+            }
+
+        Get-ChildItem -LiteralPath $hubRoot -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notlike "2022.3.*" } |
+            Sort-Object @{ Expression = { Get-UnityVersionSortKey $_.Name }; Descending = $true } |
+            ForEach-Object {
+                Add-UnityCandidate $candidates (Join-Path $_.FullName "Editor\Unity.exe")
             }
     }
 
     $legacy = "C:\Program Files\Unity\Editor\Unity.exe"
-    $candidates.Add($legacy)
+    Add-UnityCandidate $candidates $legacy
 
     foreach ($candidate in $candidates) {
         if (-not [string]::IsNullOrWhiteSpace($candidate) -and (Test-Path -LiteralPath $candidate)) {
@@ -350,6 +397,7 @@ function Run-UnityPlayModeTest {
         "-projectPath", $clientRoot,
         "-runTests",
         "-testPlatform", "PlayMode",
+        "-testFilter", "SampleClient.Gameplay.Tests.DotArenaThreeNodePlayModeTests.UnityClientCompletesThreeNodeMultiplayerSmoke",
         "-testResults", $testResults,
         "-logFile", $unityLog,
         "--host", "127.0.0.1",
