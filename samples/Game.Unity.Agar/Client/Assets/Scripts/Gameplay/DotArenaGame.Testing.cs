@@ -1,0 +1,66 @@
+#nullable enable
+
+#if UNITY_INCLUDE_TESTS
+using Shared.Interfaces;
+
+namespace SampleClient.Gameplay
+{
+    public sealed partial class DotArenaGame
+    {
+        public DotArenaGameTestSnapshot BuildTestSnapshot()
+        {
+            var realtime = _lastRealtimeConnection;
+
+            return new DotArenaGameTestSnapshot
+            {
+                FlowState = _flowState.ToString(),
+                EntryMenuState = _entryMenuState.ToString(),
+                SessionMode = _sessionMode.ToString(),
+                Status = _status,
+                LocalPlayerId = _localPlayerId,
+                IsControlConnected = IsConnected,
+                IsRealtimeConnected = IsRealtimeConnected,
+                IsConnecting = IsConnecting,
+                LastWorldTick = _lastWorldTick,
+                ViewCount = _views.Count,
+                LastRealtimeTransport = realtime?.Transport.ToString() ?? string.Empty,
+                LastRealtimeHost = realtime?.Host ?? string.Empty,
+                LastRealtimePort = realtime?.Port ?? 0,
+                LastRealtimeRoomId = realtime?.RoomId ?? string.Empty,
+                LastRealtimeMatchId = realtime?.MatchId ?? string.Empty
+            };
+        }
+
+        public void ApplyEndpointForTest(string host, int port, string path)
+        {
+            _host = string.IsNullOrWhiteSpace(host) ? "127.0.0.1" : host;
+            _port = port > 0 ? port : 20000;
+            _path = string.IsNullOrWhiteSpace(path) ? "/ws" : path;
+        }
+
+        public void RequestMultiplayerMatchmakingForTest()
+        {
+            BeginMultiplayerMatchmaking();
+        }
+    }
+
+    public sealed class DotArenaGameTestSnapshot
+    {
+        public string FlowState { get; set; } = string.Empty;
+        public string EntryMenuState { get; set; } = string.Empty;
+        public string SessionMode { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string LocalPlayerId { get; set; } = string.Empty;
+        public bool IsControlConnected { get; set; }
+        public bool IsRealtimeConnected { get; set; }
+        public bool IsConnecting { get; set; }
+        public int LastWorldTick { get; set; }
+        public int ViewCount { get; set; }
+        public string LastRealtimeTransport { get; set; } = string.Empty;
+        public string LastRealtimeHost { get; set; } = string.Empty;
+        public int LastRealtimePort { get; set; }
+        public string LastRealtimeRoomId { get; set; } = string.Empty;
+        public string LastRealtimeMatchId { get; set; } = string.Empty;
+    }
+}
+#endif
