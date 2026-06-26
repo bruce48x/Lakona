@@ -37,6 +37,7 @@ $overrideFile = Join-Path $artifactRoot "docker-compose.local-test.override.yml"
 $testResults = Join-Path $artifactRoot "TestResults.xml"
 $unityLog = Join-Path $artifactRoot "unity-editor.log"
 $composeLog = Join-Path $artifactRoot "docker-compose.log"
+$composeStartupLog = Join-Path $artifactRoot "docker-compose-startup.log"
 $composeJson = Join-Path $artifactRoot "docker-compose.ps.json"
 $deadline = $null
 
@@ -54,6 +55,89 @@ function Invoke-Compose {
     & docker compose -p $ProjectName -f $composeFile -f $overrideFile @Arguments
     if ($LASTEXITCODE -ne 0) {
         throw "docker compose $($Arguments -join ' ') failed with exit code $LASTEXITCODE."
+    }
+}
+
+function Invoke-ComposeStartup {
+    param(
+        [string[]]$Arguments,
+        [int]$Timeout
+    )
+
+    if ($Timeout -le 0) {
+        throw "docker compose up timed out after 0 seconds."
+    }
+
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = "docker"
+    $startInfo.UseShellExecute = $false
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+
+    foreach ($argument in @("compose", "-p", $ProjectName, "-f", $composeFile, "-f", $overrideFile) + $Arguments) {
+        [void]$startInfo.ArgumentList.Add($argument)
+    }
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    $commandLine = "docker " + (($startInfo.ArgumentList | ForEach-Object { $_ }) -join " ")
+    $timedOut = $false
+    $exitCode = $null
+    $stdout = ""
+    $stderr = ""
+
+    try {
+        [void]$process.Start()
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+
+        $timeoutMilliseconds = [Math]::Min(([int64]$Timeout * 1000), [int64][int]::MaxValue)
+        if (-not $process.WaitForExit([int]$timeoutMilliseconds)) {
+            $timedOut = $true
+            try {
+                $process.Kill($true)
+            }
+            catch {
+                try {
+                    $process.Kill()
+                }
+                catch {
+                    Write-Host "  Could not kill docker compose startup process: $($_.Exception.Message)" -ForegroundColor DarkYellow
+                }
+            }
+
+            $process.WaitForExit()
+        }
+        else {
+            $process.WaitForExit()
+            $exitCode = $process.ExitCode
+        }
+
+        $stdout = $stdoutTask.GetAwaiter().GetResult()
+        $stderr = $stderrTask.GetAwaiter().GetResult()
+    }
+    finally {
+        $process.Dispose()
+    }
+
+    @(
+        "Command: $commandLine"
+        "Timed out: $timedOut"
+        "Exit code: $exitCode"
+        ""
+        "STDOUT:"
+        $stdout
+        ""
+        "STDERR:"
+        $stderr
+    ) | Set-Content -LiteralPath $composeStartupLog -Encoding UTF8
+
+    if ($timedOut) {
+        throw "docker compose up timed out after $Timeout seconds. Startup log: $composeStartupLog"
+    }
+
+    if ($exitCode -ne 0) {
+        throw "docker compose $($Arguments -join ' ') failed with exit code $exitCode. Startup log: $composeStartupLog"
     }
 }
 
@@ -336,7 +420,7 @@ try {
     }
 
     $composeStarted = $true
-    Invoke-Compose $upArgs
+    Invoke-ComposeStartup $upArgs (Get-RemainingSeconds)
 
     Write-Banner "Wait for readiness"
     Wait-Until "Postgres healthy" { Test-ServiceHealthy "postgres" } (Get-RemainingSeconds)
