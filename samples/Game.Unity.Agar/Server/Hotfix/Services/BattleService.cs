@@ -114,6 +114,8 @@ internal sealed class BattleService
         var users = call.Services.GetRequiredService<UserActors>();
         var rooms = call.Services.GetRequiredService<RoomActors>();
         var playerId = playerSessionRegistry.GetPlayerIdByConnection(call.ConnectionId);
+        // Direct current-node escape hatches should be named `var nodeLocalActors = call.Actors;`;
+        // use typed selectors when actor placement may be remote.
         if (string.IsNullOrWhiteSpace(playerId))
         {
             return;

@@ -99,6 +99,12 @@ dotnet run --project Server/App/Server.App.csproj
 ### Actor 调用语义
 
 RPC services and actor behaviors use generated behavior-first actor selectors.
+`HotfixServiceCall.Actors` is the node-local actor runtime for the process that
+is currently executing the RPC service or actor behavior. It is only for
+current-node work. When actor placement may be local or remote, Agar code should
+call the generated typed selector instead of treating the node-local runtime as
+a distributed actor facade.
+
 `Get(id)` is the default business path and resolves local or remote placement
 through ActorDirectory. `Local(id)` is reserved for code that has already
 proved current-node ownership, such as battle runtime room input after realtime
