@@ -1,0 +1,21 @@
+{
+  "name": "SampleClient.Gameplay.PlayModeTests",
+  "rootNamespace": "SampleClient.Gameplay.Tests",
+  "references": [
+    "SampleClient.Gameplay",
+    "SampleClient.Rpc",
+    "Shared"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "noEngineReferences": false
+}
