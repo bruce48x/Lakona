@@ -15,6 +15,8 @@ public interface IRoomActorContract
 
     ValueTask<RoomSettlementResult> SetReadyAsync(RoomPlayerReadyRequest request, CancellationToken cancellationToken = default);
 
+    ValueTask<RoomSettlementResult> ClearRealtimeAsync(RoomRealtimeClearRequest request, CancellationToken cancellationToken = default);
+
     ValueTask<RoomSettlementResult> StartAsync(RoomStartRequest request, CancellationToken cancellationToken = default);
 
     ValueTask<RoomSettlementResult> CompleteAsync(RoomMatchCompletion request, CancellationToken cancellationToken = default);

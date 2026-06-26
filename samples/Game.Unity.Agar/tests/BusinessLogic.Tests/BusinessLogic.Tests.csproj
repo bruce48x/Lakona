@@ -25,8 +25,4 @@
     <ProjectReference Include="../../../../src/Lakona.Game.Server/Lakona.Game.Server.csproj" />
     <ProjectReference Include="../../Server/App/Server.App.csproj" />
   </ItemGroup>
-  <ItemGroup>
-    <Compile Include="../../Server/Hotfix/Services/PlayerSessionRegistry.cs" Link="TestHooks/PlayerSessionRegistry.cs" />
-    <Compile Include="../../Server/Hotfix/Services/PlayerSessionRegistration.cs" Link="TestHooks/PlayerSessionRegistration.cs" />
-  </ItemGroup>
 </Project>

@@ -7,6 +7,7 @@ using Agar.Sample.State.Matchmaking;
 using Agar.Sample.State.Rooms;
 using Agar.Sample.State.Users;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.Services;
@@ -237,7 +238,7 @@ public static class MatchmakingBehavior
                     RoomId = roomId,
                     StartedByUserId = batch[0].UserId,
                     StartedAtUtc = nowUtc
-                }).ConfigureAwait(false);
+                }, runtimeGateway).ConfigureAwait(false);
 
                 foreach (var playerAssignment in playerAssignments)
                 {
@@ -269,15 +270,12 @@ public static class MatchmakingBehavior
         return assignments;
     }
 
-    public static async ValueTask<GatewayEndpointDescriptor?> ResolveRuntimeGatewayAsync(
+    public static ValueTask<GatewayEndpointDescriptor?> ResolveRuntimeGatewayAsync(
         this MatchmakingActor self,
         IReadOnlyList<MatchmakingQueueTicket> batch)
     {
         _ = batch;
-        return await self.Context.Services
-            .GetRequiredService<RuntimeGatewaySelector>()
-            .ResolveAsync()
-            .ConfigureAwait(false);
+        return new ValueTask<GatewayEndpointDescriptor?>(ResolveLocalKcpEndpoint(self.Context.Services));
     }
 
     private static ValueTask<PlayerSessionSnapshot> GetSessionSnapshotAsync(MatchmakingActor self, string userId)
@@ -306,6 +304,18 @@ public static class MatchmakingBehavior
 
     private static async ValueTask<RoomSettlementResult> CreateRoomAsync(MatchmakingActor self, RoomCreateRequest request)
     {
+        var localNode = self.Context.Services.GetRequiredService<LocalActorNodeIdentity>().NodeId.Value;
+        if (!string.Equals(request.RuntimeGateway.InstanceId, localNode, StringComparison.Ordinal))
+        {
+            return new RoomSettlementResult
+            {
+                RoomId = request.RoomId,
+                Succeeded = false,
+                Message = $"Room actor '{request.RoomId}' must be created on local actor node '{localNode}'."
+            };
+        }
+
+        var rooms = self.Context.Services.GetRequiredService<RoomActors>();
         var created = await self.Context.Services
             .GetRequiredService<IActorLifecycle>()
             .CreateLocalAsync<RoomActor>(ActorId.From(request.RoomId))
@@ -320,17 +330,74 @@ public static class MatchmakingBehavior
             };
         }
 
-        var rooms = self.Context.Services.GetRequiredService<RoomActors>();
         return await rooms
             .Local(new RoomId(request.RoomId))
             .CreateAsync(request)
             .ConfigureAwait(false);
     }
 
-    private static ValueTask<RoomSettlementResult> StartRoomAsync(MatchmakingActor self, RoomStartRequest request)
+    private static ValueTask<RoomSettlementResult> StartRoomAsync(
+        MatchmakingActor self,
+        RoomStartRequest request,
+        GatewayEndpointDescriptor runtimeGateway)
     {
+        var localNode = self.Context.Services.GetRequiredService<LocalActorNodeIdentity>().NodeId.Value;
+        if (!string.Equals(runtimeGateway.InstanceId, localNode, StringComparison.Ordinal))
+        {
+            return new ValueTask<RoomSettlementResult>(new RoomSettlementResult
+            {
+                RoomId = request.RoomId,
+                Succeeded = false,
+                Message = $"Room actor '{request.RoomId}' must be started on local actor node '{localNode}'."
+            });
+        }
+
         var rooms = self.Context.Services.GetRequiredService<RoomActors>();
         return rooms.Local(new RoomId(request.RoomId)).StartAsync(request);
+    }
+
+    private static GatewayEndpointDescriptor? ResolveLocalKcpEndpoint(IServiceProvider services)
+    {
+        var runtime = services.GetService<LakonaGameRuntimeOptions>();
+        var localNode = services.GetService<LocalActorNodeIdentity>()?.NodeId.Value ?? runtime?.Node.Id;
+        if (!CanOwnBattleRuntime(runtime))
+        {
+            return null;
+        }
+
+        var endpoint = runtime?.Endpoints.FirstOrDefault(IsBattleRuntimeEndpoint);
+        if (endpoint is null || string.IsNullOrWhiteSpace(localNode))
+        {
+            return null;
+        }
+
+        var uri = new Uri(endpoint.ToAdvertisedEndpoint(), UriKind.Absolute);
+        return new GatewayEndpointDescriptor
+        {
+            InstanceId = localNode,
+            Transport = endpoint.Transport,
+            Host = uri.Host,
+            Port = uri.Port,
+            Path = uri.AbsolutePath == "/" ? string.Empty : uri.AbsolutePath
+        };
+    }
+
+    private static bool CanOwnBattleRuntime(LakonaGameRuntimeOptions? runtime)
+    {
+        return runtime?.Feature is null ||
+            runtime.Feature.Contains("battle-runtime", StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static bool IsBattleRuntimeEndpoint(LakonaGameEndpointOptions endpoint)
+    {
+        if (!string.Equals(endpoint.Transport, "kcp", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return endpoint.RpcServices.Count == 0 ||
+            endpoint.RpcServices.Contains("battle", StringComparer.OrdinalIgnoreCase) ||
+            endpoint.RpcServices.Contains("battle-runtime", StringComparer.OrdinalIgnoreCase);
     }
 
     private static void RestoreBatch(MatchmakingActor self, List<MatchmakingQueueTicket> batch)

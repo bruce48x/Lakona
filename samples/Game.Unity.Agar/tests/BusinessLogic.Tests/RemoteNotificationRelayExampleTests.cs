@@ -70,6 +70,58 @@ public sealed class RemoteNotificationRelayExampleTests
     }
 
     [Fact]
+    public async Task RemoteRealtimeNotificationCanRelayToGatewayCallback()
+    {
+        var gatewayPort = GetFreePort();
+        var gatewaySessions = new InMemoryGameSessionRegistry();
+        var session = await gatewaySessions.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
+        var callback = new CapturingBattleCallback();
+        await gatewaySessions.BindSessionAsync(session, "realtime-1", callback, TestContext.Current.CancellationToken);
+        using var stopGateway = new CancellationTokenSource();
+        var builder = RpcServerHostBuilder.Create()
+            .UseSerializer(new JsonRpcSerializer())
+            .UseAcceptor(new TcpConnectionAcceptor(gatewayPort, "127.0.0.1"));
+        ClientNotificationCommandBinder.Bind(
+            builder.ServiceRegistry,
+            new LocalClientNotificationCommandDispatcher(gatewaySessions));
+        var gatewayTask = builder.RunAsync(stopGateway.Token).AsTask();
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+
+        var routes = new InMemoryRouteDirectory();
+        var registrar = new ClientSessionRouteRegistrar(
+            routes,
+            new NodeId("gateway-1"),
+            new NodeEndpoint($"tcp://127.0.0.1:{gatewayPort}"));
+        await registrar.RegisterAsync(session, TestContext.Current.CancellationToken);
+        await using var clientFactory = new ClusterClientFactory(
+            new TcpClusterTransportFactory(),
+            new JsonRpcSerializer());
+        var remoteRelay = new ClientNotificationRelay(
+            new InMemoryGameSessionRegistry(),
+            routes,
+            new ClusterClientNotificationDispatcher(clientFactory),
+            new NodeId("battle-1"));
+
+        var worldState = new WorldState
+        {
+            Tick = 42,
+            RoundRemainingSeconds = 15
+        };
+
+        var status = await remoteRelay.NotifyAsync<IBattleCallback>(
+            session,
+            target => target.OnWorldState(worldState),
+            TestContext.Current.CancellationToken);
+
+        stopGateway.Cancel();
+        await Task.WhenAny(gatewayTask, Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
+
+        Assert.Equal(ClientNotificationStatus.Delivered, status);
+        Assert.Equal(42, callback.LastWorldState?.Tick);
+        Assert.Equal(15, callback.LastWorldState?.RoundRemainingSeconds);
+    }
+
+    [Fact]
     public async Task MissingRouteReturnsRouteNotFound()
     {
         await using var clientFactory = new ClusterClientFactory(
@@ -197,6 +249,24 @@ public sealed class RemoteNotificationRelayExampleTests
         public void OnMatchmakingStatus(MatchmakingStatusUpdate matchmakingStatus)
         {
             LastMatchmakingStatus = matchmakingStatus;
+        }
+    }
+
+    private sealed class CapturingBattleCallback : IBattleCallback
+    {
+        public WorldState? LastWorldState { get; private set; }
+
+        public void OnWorldState(WorldState worldState)
+        {
+            LastWorldState = worldState;
+        }
+
+        public void OnPlayerDead(PlayerDead playerDead)
+        {
+        }
+
+        public void OnMatchEnd(MatchEnd matchEnd)
+        {
         }
     }
 

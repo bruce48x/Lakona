@@ -19,6 +19,10 @@ public static class PlayerSessionBehavior
         var session = self.State.Session;
         session.SessionToken = request.SessionToken;
         session.ConnectionId = request.ConnectionId;
+        session.ControlSessionId = request.ControlSessionId;
+        session.ControlSessionGeneration = request.ControlSessionGeneration;
+        session.RealtimeSessionId = "";
+        session.RealtimeSessionGeneration = 0;
         session.IsOnline = true;
         session.IsQueued = false;
         session.QueueId = "";
@@ -46,11 +50,54 @@ public static class PlayerSessionBehavior
         var session = self.State.Session;
         session.SessionToken = request.SessionToken;
         session.ConnectionId = request.ConnectionId;
+        session.ControlSessionId = request.ControlSessionId;
+        session.ControlSessionGeneration = request.ControlSessionGeneration;
         session.IsOnline = true;
         session.LastConnectedAtUtc = reconnectedAtUtc;
         session.LastHeartbeatAtUtc = reconnectedAtUtc;
         session.ReconnectToken = EnsureReconnectToken(session.ReconnectToken);
         session.ControlGateway = CloneGateway(request.ControlGateway);
+
+        return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
+    }
+
+    public static ValueTask<PlayerSessionSnapshot> AttachRealtimeAsync(this UserActor self, PlayerRealtimeAttachRequest request, CancellationToken cancellationToken = default)
+    {
+        var userId = NormalizeUserId(request.UserId);
+        var attachedAtUtc = NormalizeUtc(request.AttachedAtUtc);
+        EnsureState(self, userId);
+
+        var session = self.State.Session;
+        if (!string.Equals(session.SessionToken, request.SessionToken, StringComparison.Ordinal) ||
+            !string.Equals(session.CurrentRoomId, request.RoomId, StringComparison.Ordinal) ||
+            !string.Equals(session.CurrentMatchId, request.MatchId, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Realtime session attach rejected.");
+        }
+
+        session.RealtimeSessionId = request.RealtimeSessionId;
+        session.RealtimeSessionGeneration = request.RealtimeSessionGeneration;
+        session.LastConnectedAtUtc = attachedAtUtc;
+        session.LastHeartbeatAtUtc = attachedAtUtc;
+
+        return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
+    }
+
+    public static ValueTask<PlayerSessionSnapshot> ClearRealtimeAsync(this UserActor self, PlayerRealtimeClearRequest request, CancellationToken cancellationToken = default)
+    {
+        var userId = NormalizeUserId(request.UserId);
+        var clearedAtUtc = NormalizeUtc(request.ClearedAtUtc);
+        EnsureState(self, userId);
+
+        var session = self.State.Session;
+        if (string.Equals(session.RealtimeSessionId, request.RealtimeSessionId, StringComparison.Ordinal) &&
+            session.RealtimeSessionGeneration == request.RealtimeSessionGeneration)
+        {
+            session.RealtimeSessionId = "";
+            session.RealtimeSessionGeneration = 0;
+            session.LastDisconnectedAtUtc = clearedAtUtc;
+            session.LastHeartbeatAtUtc = clearedAtUtc;
+        }
 
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
@@ -199,6 +246,10 @@ public static class PlayerSessionBehavior
             UserId = session.UserId,
             SessionToken = session.SessionToken,
             ConnectionId = session.ConnectionId,
+            ControlSessionId = session.ControlSessionId,
+            ControlSessionGeneration = session.ControlSessionGeneration,
+            RealtimeSessionId = session.RealtimeSessionId,
+            RealtimeSessionGeneration = session.RealtimeSessionGeneration,
             IsOnline = session.IsOnline,
             IsQueued = session.IsQueued,
             QueueId = session.QueueId,

@@ -260,10 +260,22 @@ public sealed class ToolArchitectureScanTests
             "Hotfix",
             "Chat",
             "ChatService.cs"));
+        var loginService = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "samples",
+            "Game.Godot.Chat",
+            "Server",
+            "Hotfix",
+            "Login",
+            "LoginService.cs"));
 
         Assert.Contains("await call.GameServer.BindCurrentSessionAsync", chatService, StringComparison.Ordinal);
         Assert.Contains("call.Services.GetRequiredService<ChatRoomActors>()", chatService, StringComparison.Ordinal);
         Assert.Contains(".Get(RoomKey)", chatService, StringComparison.Ordinal);
+        Assert.Contains("call.Services.GetRequiredService<ChatRoomActors>()", loginService, StringComparison.Ordinal);
+        Assert.Contains(".Get(RoomKey)", loginService, StringComparison.Ordinal);
+        Assert.Contains(".LoginAsync(new ChatRoomLoginRequest", loginService, StringComparison.Ordinal);
+        Assert.Contains("call.GameServer.StartSessionAsync", loginService, StringComparison.Ordinal);
         Assert.DoesNotContain("var starterNodeLocalActors = call.Actors;", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("call.Actors is node-local", chatService, StringComparison.Ordinal);
         Assert.Contains("call.ConnectionId", chatService, StringComparison.Ordinal);
@@ -271,6 +283,8 @@ public sealed class ToolArchitectureScanTests
         Assert.DoesNotContain("starterLocalActors", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("var localActors = call.Actors;", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain(".AskAsync", chatService, StringComparison.Ordinal);
+        Assert.DoesNotContain(".AskAsync", loginService, StringComparison.Ordinal);
+        Assert.DoesNotContain(".TellAsync", loginService, StringComparison.Ordinal);
         Assert.DoesNotContain("localActors.AskAsync", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("call.Request.Session", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain(ForbiddenGameSessionKeyType, ReadAllTextFiles(Path.Combine(repositoryRoot, "samples", "Game.Godot.Chat", "Shared")), StringComparison.Ordinal);
@@ -344,32 +358,41 @@ public sealed class ToolArchitectureScanTests
         var repositoryRoot = FindRepositoryRoot();
         var sampleRoot = Path.Combine(repositoryRoot, "samples", "Game.Unity.Agar");
         var hotfixServices = ReadAllTextFiles(Path.Combine(sampleRoot, "Server", "Hotfix", "Services"));
-        var sessionDirectory = File.ReadAllText(Path.Combine(
+        var hotfixState = ReadAllTextFiles(Path.Combine(sampleRoot, "Server", "Hotfix", "State"));
+        var hotfixBusinessCode = hotfixServices + hotfixState;
+        var sessionDirectoryPath = Path.Combine(
             sampleRoot,
             "Server",
             "Hotfix",
             "Services",
-            "PlayerSessionRegistry.cs"));
-        var registration = File.ReadAllText(Path.Combine(
+            "PlayerSessionRegistry.cs");
+        var registrationPath = Path.Combine(
             sampleRoot,
             "Server",
             "Hotfix",
             "Services",
-            "PlayerSessionRegistration.cs"));
+            "PlayerSessionRegistration.cs");
 
+        Assert.False(File.Exists(sessionDirectoryPath), "Agar hotfix should not own PlayerSessionRegistry.cs.");
+        Assert.False(File.Exists(registrationPath), "Agar hotfix should not own PlayerSessionRegistration.cs.");
         Assert.Contains("call.GameServer", hotfixServices, StringComparison.Ordinal);
         Assert.Contains(".StartSessionAsync", hotfixServices, StringComparison.Ordinal);
         Assert.Contains(".ResumeSessionAsync", hotfixServices, StringComparison.Ordinal);
-        Assert.Contains(".GetCallbackAsync", hotfixServices, StringComparison.Ordinal);
-        Assert.DoesNotContain("IGameSessionRegistry", hotfixServices, StringComparison.Ordinal);
-        Assert.DoesNotContain("InMemoryGameSessionRegistry", hotfixServices, StringComparison.Ordinal);
-        Assert.DoesNotContain("StartNewSessionAsync", hotfixServices, StringComparison.Ordinal);
-        Assert.DoesNotContain("TryResumeAsync", hotfixServices, StringComparison.Ordinal);
-        Assert.DoesNotContain("BindSessionAsync(", sessionDirectory, StringComparison.Ordinal);
-        Assert.DoesNotContain("ControlCallback", registration, StringComparison.Ordinal);
-        Assert.DoesNotContain("RealtimeCallback", registration, StringComparison.Ordinal);
-        Assert.DoesNotContain("IBattleCallback?", registration, StringComparison.Ordinal);
-        Assert.DoesNotContain("IControlCallback?", registration, StringComparison.Ordinal);
+        Assert.Contains(".TerminateSessionAsync", hotfixServices, StringComparison.Ordinal);
+        Assert.DoesNotContain("IGameSessionRegistry", hotfixBusinessCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("InMemoryGameSessionRegistry", hotfixBusinessCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("StartNewSessionAsync", hotfixBusinessCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("TryResumeAsync", hotfixBusinessCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("PlayerSessionRegistry", hotfixBusinessCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("PlayerSessionRegistration", hotfixBusinessCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetConnection", hotfixBusinessCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetByRoom", hotfixBusinessCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("RegisterControl", hotfixBusinessCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("RuntimeGatewaySelector", hotfixBusinessCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("RuntimeNodeIdentity", hotfixBusinessCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("EndpointDescriptorMapper", hotfixBusinessCode, StringComparison.Ordinal);
+        Assert.DoesNotContain(".AskAsync", hotfixBusinessCode, StringComparison.Ordinal);
+        Assert.DoesNotContain(".TellAsync", hotfixBusinessCode, StringComparison.Ordinal);
     }
 
     [Fact]

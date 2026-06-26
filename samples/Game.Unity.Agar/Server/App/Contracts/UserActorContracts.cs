@@ -23,6 +23,10 @@ public interface IUserActorContract
 
     ValueTask<PlayerSessionSnapshot> ReconnectAsync(PlayerSessionReconnectRequest request, CancellationToken cancellationToken = default);
 
+    ValueTask<PlayerSessionSnapshot> AttachRealtimeAsync(PlayerRealtimeAttachRequest request, CancellationToken cancellationToken = default);
+
+    ValueTask<PlayerSessionSnapshot> ClearRealtimeAsync(PlayerRealtimeClearRequest request, CancellationToken cancellationToken = default);
+
     ValueTask<PlayerSessionSnapshot> MarkQueuedAsync(PlayerSessionQueueRequest request, CancellationToken cancellationToken = default);
 
     ValueTask<PlayerSessionSnapshot> ClearQueueAsync(PlayerSessionQueueClearRequest request, CancellationToken cancellationToken = default);

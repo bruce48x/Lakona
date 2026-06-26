@@ -6,30 +6,121 @@ namespace BusinessLogic.Tests;
 public sealed class AgarHotfixBoundaryTests
 {
     [Fact]
+    public void Agar_hotfix_does_not_reintroduce_process_local_session_registry()
+    {
+        var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
+            .Directory!.Parent!.Parent!.FullName;
+        var scannedRoots = new[]
+        {
+            Path.Combine(sampleRoot, "Server", "Hotfix"),
+            Path.Combine(sampleRoot, "tests", "BusinessLogic.Tests"),
+        };
+        var thisFile = Path.GetFullPath(FindRepositoryFile("samples/Game.Unity.Agar/tests/BusinessLogic.Tests/AgarHotfixBoundaryTests.cs").FullName);
+        var forbiddenTokens = new[]
+        {
+            "Player" + "Session" + "Registry",
+            "Player" + "Session" + "Registration",
+            "Get" + "Connection" + "(",
+            "Get" + "By" + "Room" + "(",
+            "Register" + "Control" + "(",
+            "Player" + "Session" + "Registry.cs",
+            "Player" + "Session" + "Registration.cs",
+        };
+        var violations = scannedRoots
+            .SelectMany(root => Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+            .Where(IsTextSourceFile)
+            .Where(file => !string.Equals(Path.GetFullPath(file), thisFile, StringComparison.OrdinalIgnoreCase))
+            .Select(file => new
+            {
+                File = file,
+                Matches = forbiddenTokens
+                    .Where(token => File.ReadAllText(file).Contains(token, StringComparison.Ordinal))
+                    .ToArray()
+            })
+            .Where(result => result.Matches.Length > 0)
+            .Select(result => $"{Path.GetRelativePath(Directory.GetCurrentDirectory(), result.File)}: {string.Join(", ", result.Matches)}")
+            .ToArray();
+
+        Assert.True(
+            violations.Length == 0,
+            $"Agar hotfix must use actor-owned session state, not a process-local session registry: {string.Join("; ", violations)}");
+    }
+
+    [Fact]
     public void Agar_battle_service_uses_constructor_injection_without_allocating_submit_input_instances()
     {
         var battleServicePath = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Services/BattleService.cs");
         var text = File.ReadAllText(battleServicePath.FullName);
 
-        Assert.Matches(
-            @"public\s+BattleService\s*\([^)]*PlayerSessionRegistry[^)]*RuntimeNodeIdentity[^)]*\)",
-            text);
-        Assert.Matches(
-            @"public\s+(?:async\s+)?ValueTask\s+SubmitInputAsync\s*\(",
-            text);
-
-        var serviceLookups = Regex.Matches(
-                text,
-                @"call\.Services\s*\.\s*GetRequiredService\s*<\s*(?<type>[^>]+)\s*>\s*\(")
-            .Select(match => match.Groups["type"].Value.Trim())
-            .ToArray();
-        Assert.Empty(serviceLookups);
-        Assert.Contains("_playerSessionRegistry.GetPlayerIdByConnection", text, StringComparison.Ordinal);
-        Assert.Contains("_runtimeNodeIdentity.IsRuntimeOwner", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Player" + "Session" + "Registry", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetPlayerIdByConnection", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Get" + "Connection" + "(", text, StringComparison.Ordinal);
+        Assert.Contains("call.CurrentSession", text, StringComparison.Ordinal);
+        Assert.Contains("IsLocalRuntimeOwner", text, StringComparison.Ordinal);
+        Assert.Contains("_localNode", text, StringComparison.Ordinal);
         Assert.Contains("_users", text, StringComparison.Ordinal);
         Assert.Contains("_rooms", text, StringComparison.Ordinal);
-        Assert.DoesNotContain("AgarBattleServiceDependencies.From(call)", text, StringComparison.Ordinal);
-        Assert.DoesNotContain("internal sealed record AgarBattleServiceDependencies", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("call.Services.GetRequiredService", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Agar_hotfix_services_do_not_parse_node_identity_or_pick_arbitrary_runtime_nodes()
+    {
+        var servicesRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Services/PlayerService.cs")
+            .DirectoryName!;
+        var hotfixRoot = Directory.GetParent(servicesRoot)!.FullName;
+        var forbiddenTokens = new[]
+        {
+            "Runtime" + "Gateway" + "Selector",
+            "Runtime" + "Node" + "Identity",
+            "Endpoint" + "Descriptor" + "Mapper",
+            "Environment." + "MachineName",
+            "Environment." + "ProcessId",
+            "." + "AnyAsync" + "(",
+            "Resolve" + "NodeId" + "("
+        };
+
+        var violations = Directory.GetFiles(hotfixRoot, "*.cs", SearchOption.AllDirectories)
+            .Select(file => new
+            {
+                File = file,
+                Matches = forbiddenTokens
+                    .Where(token => File.ReadAllText(file).Contains(token, StringComparison.Ordinal))
+                    .ToArray()
+            })
+            .Where(result => result.Matches.Length > 0)
+            .Select(result => $"{Path.GetRelativePath(Directory.GetCurrentDirectory(), result.File)}: {string.Join(", ", result.Matches)}")
+            .ToArray();
+
+        Assert.True(
+            violations.Length == 0,
+            $"Agar hotfix code must use framework node identity and deterministic runtime placement instead of sample-side identity parsing or arbitrary runtime selection: {string.Join("; ", violations)}");
+    }
+
+    [Fact]
+    public void Matchmaking_room_creation_stays_on_local_actor_runtime()
+    {
+        var matchmaking = File.ReadAllText(FindRepositoryFile(
+            "samples/Game.Unity.Agar/Server/Hotfix/State/Matchmaking/MatchmakingBehavior.cs").FullName);
+
+        Assert.DoesNotContain("IClusterNodeDiscovery", matchmaking, StringComparison.Ordinal);
+        Assert.DoesNotContain(".ListAsync(", matchmaking, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Remote(new NodeId(", matchmaking, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Remote(", ExtractMethodBody(matchmaking, "CreateRoomAsync"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RealtimeConnectionMapper_is_only_a_client_dto_projection()
+    {
+        var mapper = File.ReadAllText(FindRepositoryFile(
+            "samples/Game.Unity.Agar/Server/Hotfix/Services/RealtimeConnectionMapper.cs").FullName);
+
+        Assert.Contains("ToRealtimeConnectionInfo", mapper, StringComparison.Ordinal);
+        Assert.DoesNotContain("IConfiguration", mapper, StringComparison.Ordinal);
+        Assert.DoesNotContain("IClusterNodeDiscovery", mapper, StringComparison.Ordinal);
+        Assert.DoesNotContain("IServiceProvider", mapper, StringComparison.Ordinal);
+        Assert.DoesNotContain("Environment.", mapper, StringComparison.Ordinal);
+        Assert.DoesNotContain("AnyAsync", mapper, StringComparison.Ordinal);
     }
 
     [Fact]

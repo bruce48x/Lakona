@@ -4,6 +4,7 @@ using Agar.Sample.State.Contracts.Sessions;
 using Agar.Sample.State.Contracts.Users;
 using Agar.Sample.State.Rooms;
 using Agar.Sample.State.Users;
+using Lakona.Game.Abstractions;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
@@ -17,21 +18,18 @@ namespace Server.Hotfix.Services;
 [HotfixService(typeof(IBattleService))]
 internal sealed class BattleService
 {
-    private readonly PlayerSessionRegistry _playerSessionRegistry;
+    private readonly LocalActorNodeIdentity _localNode;
     private readonly RoomActors _rooms;
-    private readonly RuntimeNodeIdentity _runtimeNodeIdentity;
     private readonly UserActors _users;
 
     public BattleService(
-        PlayerSessionRegistry playerSessionRegistry,
-        RuntimeNodeIdentity runtimeNodeIdentity,
         UserActors users,
-        RoomActors rooms)
+        RoomActors rooms,
+        LocalActorNodeIdentity localNode)
     {
-        _playerSessionRegistry = playerSessionRegistry;
-        _runtimeNodeIdentity = runtimeNodeIdentity;
         _users = users;
         _rooms = rooms;
+        _localNode = localNode;
     }
 
     public async ValueTask<RealtimeAttachReply> AttachRealtimeAsync(HotfixServiceCall<RealtimeAttachRequest, IBattleCallback> call)
@@ -64,7 +62,7 @@ internal sealed class BattleService
             };
         }
 
-        if (!_runtimeNodeIdentity.IsRuntimeOwner(sessionSnapshot.RuntimeGateway))
+        if (!IsLocalRuntimeOwner(sessionSnapshot.RuntimeGateway))
         {
             return new RealtimeAttachReply
             {
@@ -76,10 +74,30 @@ internal sealed class BattleService
         var realtimeSession = await call.GameServer
             .StartSessionAsync(req.PlayerId, call.ConnectionId, call.Callback)
             .ConfigureAwait(false);
-        var attached = _playerSessionRegistry
-            .AttachRealtime(req.PlayerId, req.Token, req.RoomId, req.MatchId, call.ConnectionId, realtimeSession);
-        if (!attached)
+        try
         {
+            sessionSnapshot = await _users
+                .Get(new UserId(req.PlayerId))
+                .AttachRealtimeAsync(new PlayerRealtimeAttachRequest
+                    {
+                        UserId = req.PlayerId,
+                        SessionToken = req.Token,
+                        RoomId = req.RoomId,
+                        MatchId = req.MatchId,
+                        RealtimeSessionId = realtimeSession.SessionId,
+                        RealtimeSessionGeneration = realtimeSession.Generation,
+                        AttachedAtUtc = DateTime.UtcNow
+                    })
+                .ConfigureAwait(false);
+        }
+        catch (InvalidOperationException)
+        {
+            await call.GameServer
+                .TerminateSessionAsync(
+                    realtimeSession,
+                    SessionTerminationReason.Unauthorized,
+                    "Realtime session attach rejected.")
+                .ConfigureAwait(false);
             return new RealtimeAttachReply
             {
                 Code = 2,
@@ -88,12 +106,14 @@ internal sealed class BattleService
         }
 
         await _rooms
-            .Local(new RoomId(req.RoomId))
+            .Get(new RoomId(req.RoomId))
             .SetReadyAsync(new RoomPlayerReadyRequest
             {
                 UserId = req.PlayerId,
                 RoomId = req.RoomId,
                 IsReady = true,
+                RealtimeSessionId = realtimeSession.SessionId,
+                RealtimeSessionGeneration = realtimeSession.Generation,
                 UpdatedAtUtc = DateTime.UtcNow
             }).ConfigureAwait(false);
 
@@ -110,7 +130,7 @@ internal sealed class BattleService
     public async ValueTask SubmitInputAsync(HotfixServiceCall<InputMessage, IBattleCallback> call)
     {
         var req = call.Request;
-        var playerId = _playerSessionRegistry.GetPlayerIdByConnection(call.ConnectionId);
+        var playerId = call.CurrentSession?.OwnerKey;
         // Direct current-node escape hatches should be named `var nodeLocalActors = call.Actors;`;
         // use typed selectors when actor placement may be remote.
         if (string.IsNullOrWhiteSpace(playerId))
@@ -129,13 +149,13 @@ internal sealed class BattleService
             .GetSnapshotAsync(new PlayerSessionSnapshotRequest())
             .ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(sessionSnapshot.CurrentRoomId) ||
-            !_runtimeNodeIdentity.IsRuntimeOwner(sessionSnapshot.RuntimeGateway))
+            !IsLocalRuntimeOwner(sessionSnapshot.RuntimeGateway))
         {
             return;
         }
 
         await _rooms
-            .Local(new RoomId(sessionSnapshot.CurrentRoomId))
+            .Get(new RoomId(sessionSnapshot.CurrentRoomId))
             .SubmitInputAsync(new RoomInputSubmitRequest
             {
                 RoomId = sessionSnapshot.CurrentRoomId,
@@ -144,5 +164,12 @@ internal sealed class BattleService
                 SubmittedAtUtc = DateTime.UtcNow
             })
             .ConfigureAwait(false);
+    }
+
+    private bool IsLocalRuntimeOwner(GatewayEndpointDescriptor? gateway)
+    {
+        return gateway is not null &&
+            !string.IsNullOrWhiteSpace(gateway.InstanceId) &&
+            string.Equals(gateway.InstanceId, _localNode.NodeId.Value, StringComparison.Ordinal);
     }
 }

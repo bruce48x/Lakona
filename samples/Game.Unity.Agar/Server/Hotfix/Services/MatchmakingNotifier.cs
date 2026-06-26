@@ -1,6 +1,7 @@
 using Shared.Interfaces;
 using Lakona.Game.Server;
 using Lakona.Game.Server.ReliablePush;
+using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.Logging;
 
 namespace Server.Hotfix.Services;
@@ -8,44 +9,38 @@ namespace Server.Hotfix.Services;
 internal sealed class MatchmakingNotifier
 {
     private readonly ILakonaGameServer _gameServer;
-    private readonly PlayerSessionRegistry _playerSessionRegistry;
+    private readonly IClientNotificationRelay _notifications;
     private readonly ILogger<MatchmakingNotifier> _logger;
 
     public MatchmakingNotifier(
         ILakonaGameServer gameServer,
-        PlayerSessionRegistry playerSessionRegistry,
+        IClientNotificationRelay notifications,
         ILogger<MatchmakingNotifier> logger)
     {
         _gameServer = gameServer;
-        _playerSessionRegistry = playerSessionRegistry;
+        _notifications = notifications;
         _logger = logger;
     }
 
-    public async ValueTask PublishAsync(string playerId, MatchmakingStatusUpdate update, CancellationToken cancellationToken = default)
+    public async ValueTask PublishAsync(GameSessionKey controlSession, MatchmakingStatusUpdate update, CancellationToken cancellationToken = default)
     {
-        var registration = _playerSessionRegistry.Get(playerId);
-        if (registration?.ControlSessionKey is not { } controlSession)
-        {
-            return;
-        }
-
         await _gameServer.PublishReliablePushAsync(
             controlSession,
             PushNotificationKinds.MatchmakingStatus,
             Clone(update),
-            DeliverAsync,
+            record => DeliverAsync(controlSession, record, cancellationToken),
             cancellationToken).ConfigureAwait(false);
     }
 
-    public ValueTask ReplayPendingAsync(string playerId, CancellationToken cancellationToken = default)
+    public ValueTask ReplayPendingAsync(GameSessionKey controlSession, CancellationToken cancellationToken = default)
     {
-        var registration = _playerSessionRegistry.Get(playerId);
-        return registration?.ControlSessionKey is not { } controlSession
-            ? default
-            : _gameServer.ReplayReliablePushAsync(controlSession, DeliverAsync, cancellationToken);
+        return _gameServer.ReplayReliablePushAsync(
+            controlSession,
+            record => DeliverAsync(controlSession, record, cancellationToken),
+            cancellationToken);
     }
 
-    private async ValueTask DeliverAsync(ReliablePushRecord record)
+    private async ValueTask DeliverAsync(GameSessionKey controlSession, ReliablePushRecord record, CancellationToken cancellationToken)
     {
         if (!string.Equals(record.Kind, PushNotificationKinds.MatchmakingStatus, StringComparison.Ordinal) ||
             record.Payload is not MatchmakingStatusUpdate update)
@@ -53,33 +48,23 @@ internal sealed class MatchmakingNotifier
             return;
         }
 
-        var registration = _playerSessionRegistry.GetByReliablePushOwnerKey(record.OwnerKey);
-        if (registration?.ControlSessionKey is not { } controlSession)
-        {
-            return;
-        }
-
-        var callback = await _gameServer.GetCallbackAsync<IControlCallback>(controlSession).ConfigureAwait(false);
-        if (callback is null)
-        {
-            return;
-        }
-
         var payload = Clone(update);
         payload.ReliableSequence = record.Sequence;
-        SafeInvoke(callback, target => target.OnMatchmakingStatus(payload));
-    }
+        var status = await _notifications
+            .NotifyAsync<IControlCallback>(
+                controlSession,
+                target => target.OnMatchmakingStatus(payload),
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (status == ClientNotificationStatus.Delivered)
+        {
+            return;
+        }
 
-    private void SafeInvoke(IControlCallback callback, Action<IControlCallback> action)
-    {
-        try
-        {
-            action(callback);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to push reliable matchmaking callback.");
-        }
+        _logger.LogDebug(
+            "Matchmaking notification delivery returned {Status} for session {Session}.",
+            status,
+            controlSession);
     }
 
     private static MatchmakingStatusUpdate Clone(MatchmakingStatusUpdate source)

@@ -43,7 +43,26 @@ namespace Agar.Sample.State.Contracts.Rooms
 
         public bool IsReady { get; set; }
 
+        public string RealtimeSessionId { get; set; } = "";
+
+        public long RealtimeSessionGeneration { get; set; }
+
         public DateTime UpdatedAtUtc { get; set; }
+    }
+
+    public sealed class RoomRealtimeClearRequest
+    {
+        public string UserId { get; set; } = "";
+
+        public string RoomId { get; set; } = "";
+
+        public string RealtimeSessionId { get; set; } = "";
+
+        public long RealtimeSessionGeneration { get; set; }
+
+        public DateTime ClearedAtUtc { get; set; }
+
+        public string Reason { get; set; } = "";
     }
 
     public sealed class RoomStartRequest
@@ -158,6 +177,10 @@ namespace Agar.Sample.State.Contracts.Rooms
 
         public string ConnectionId { get; set; } = "";
 
+        public string RealtimeSessionId { get; set; } = "";
+
+        public long RealtimeSessionGeneration { get; set; }
+
         public int SeatIndex { get; set; } = -1;
 
         public bool IsReady { get; set; }
@@ -221,6 +244,10 @@ namespace Agar.Sample.State.Contracts.Rooms
         public string SessionToken { get; set; } = "";
 
         public string ConnectionId { get; set; } = "";
+
+        public string RealtimeSessionId { get; set; } = "";
+
+        public long RealtimeSessionGeneration { get; set; }
 
         public int SeatIndex { get; set; } = -1;
 

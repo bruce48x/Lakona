@@ -155,11 +155,49 @@ public static class RoomBehavior
 
         player.IsReady = request.IsReady;
         player.LastSeenAtUtc = updatedAtUtc;
+        if (request.IsReady)
+        {
+            player.RealtimeSessionId = request.RealtimeSessionId;
+            player.RealtimeSessionGeneration = request.RealtimeSessionGeneration;
+            player.IsConnected = true;
+        }
 
         self.State.Revision += 1;
         self.State.LastUpdatedAtUtc = updatedAtUtc;
 
         return new ValueTask<RoomSettlementResult>(BuildSuccess(self, "Ready state updated.", updatedAtUtc));
+    }
+
+    public static ValueTask<RoomSettlementResult> ClearRealtimeAsync(this RoomActor self, RoomRealtimeClearRequest request, CancellationToken cancellationToken = default)
+    {
+        var clearedAtUtc = NormalizeUtc(request.ClearedAtUtc);
+
+        if (!self.RecordExists)
+        {
+            return new ValueTask<RoomSettlementResult>(BuildFailure(self, "Room has not been created.", clearedAtUtc));
+        }
+
+        var player = FindPlayer(self, request.UserId);
+        if (player is null)
+        {
+            return new ValueTask<RoomSettlementResult>(BuildFailure(self, "Player is not in the room.", clearedAtUtc));
+        }
+
+        if (string.Equals(player.RealtimeSessionId, request.RealtimeSessionId, StringComparison.Ordinal) &&
+            player.RealtimeSessionGeneration == request.RealtimeSessionGeneration)
+        {
+            player.RealtimeSessionId = "";
+            player.RealtimeSessionGeneration = 0;
+            player.IsReady = false;
+            player.IsConnected = false;
+            player.LastSeenAtUtc = clearedAtUtc;
+            player.LeaveReason = request.Reason;
+            player.LeftAtUtc = clearedAtUtc;
+            self.State.Revision += 1;
+            self.State.LastUpdatedAtUtc = clearedAtUtc;
+        }
+
+        return new ValueTask<RoomSettlementResult>(BuildSuccess(self, "Realtime state updated.", clearedAtUtc));
     }
 
     public static ValueTask<RoomSettlementResult> StartAsync(this RoomActor self, RoomStartRequest request, CancellationToken cancellationToken = default)
@@ -324,10 +362,11 @@ public static class RoomBehavior
         self.State.LastUpdatedAtUtc = tick.ObservedAtUtc == default ? DateTime.UtcNow : tick.ObservedAtUtc;
 
         var publisher = self.Context.Services.GetRequiredService<RoomNotifier>();
-        publisher.PublishWorldState(self.State.RoomId, result.WorldState);
+        var snapshot = BuildSnapshot(self);
+        await publisher.PublishWorldStateAsync(snapshot, result.WorldState).ConfigureAwait(false);
         foreach (var dead in result.Deaths)
         {
-            publisher.PublishPlayerDead(self.State.RoomId, dead);
+            await publisher.PublishPlayerDeadAsync(snapshot, dead).ConfigureAwait(false);
         }
 
         if (result.MatchEnd is null)
@@ -335,7 +374,7 @@ public static class RoomBehavior
             return;
         }
 
-        publisher.PublishMatchEnd(self.State.RoomId, result.MatchEnd);
+        await publisher.PublishMatchEndAsync(snapshot, result.MatchEnd).ConfigureAwait(false);
         self.State.MatchCommitted = true;
         await CommitSettlementAsync(self, result).ConfigureAwait(false);
     }
@@ -370,6 +409,7 @@ public static class RoomBehavior
     private static async Task CommitSettlementAsync(RoomActor self, ArenaStepResult result)
     {
         var settlement = CreateSimulation(self).SettleMatch(result.WorldState);
+        var roomSnapshot = BuildSnapshot(self);
         var tick = result.MatchEnd?.Tick ?? result.WorldState.Tick;
         var settlementId = $"settlement-{self.State.RoomId}-{tick}";
         var finishedAtUtc = DateTime.UtcNow;
@@ -390,17 +430,23 @@ public static class RoomBehavior
             }).ToList()
         }).ConfigureAwait(false);
 
-        var sessions = self.Context.Services.GetRequiredService<PlayerSessionRegistry>();
         var users = self.Context.Services.GetRequiredService<UserActors>();
         var leaderboards = self.Context.Services.GetRequiredService<LeaderboardActors>();
-        foreach (var registration in sessions.GetByRoom(self.State.RoomId))
+        var completedUserIds = roomSnapshot.Players
+            .Select(static player => player.UserId)
+            .Concat(settlement.Entries
+                .Where(static entry => !entry.IsBot)
+                .Select(static entry => entry.PlayerId))
+            .Where(static playerId => !string.IsNullOrWhiteSpace(playerId) && !VictoryPointAwards.IsBotPlayer(playerId))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        foreach (var userId in completedUserIds)
         {
-            sessions.ClearRoom(registration.PlayerId, self.State.RoomId);
             await users
-                .Get(new UserId(registration.PlayerId))
+                .Get(new UserId(userId))
                 .ClearRoomAsync(new PlayerRoomClearRequest
                     {
-                        UserId = registration.PlayerId,
+                        UserId = userId,
                         RoomId = self.State.RoomId,
                         ClearedAtUtc = DateTime.UtcNow,
                         Reason = "Match completed."
@@ -523,6 +569,8 @@ public static class RoomBehavior
                 UserId = player.UserId,
                 SessionToken = player.SessionToken,
                 ConnectionId = player.ConnectionId,
+                RealtimeSessionId = player.RealtimeSessionId,
+                RealtimeSessionGeneration = player.RealtimeSessionGeneration,
                 SeatIndex = player.SeatIndex,
                 IsReady = player.IsReady,
                 IsConnected = player.IsConnected,

@@ -1,63 +1,66 @@
+using Agar.Sample.State.Contracts.Rooms;
 using Microsoft.Extensions.Logging;
 using Shared.Interfaces;
-using Lakona.Game.Server;
+using Lakona.Game.Server.Sessions;
 
 namespace Server.Hotfix.Services;
 
 internal sealed class RoomNotifier
 {
-    private readonly ILakonaGameServer _gameServer;
-    private readonly PlayerSessionRegistry _sessions;
+    private readonly IClientNotificationRelay _notifications;
     private readonly ILogger<RoomNotifier> _logger;
 
-    public RoomNotifier(ILakonaGameServer gameServer, PlayerSessionRegistry sessions, ILogger<RoomNotifier> logger)
+    public RoomNotifier(IClientNotificationRelay notifications, ILogger<RoomNotifier> logger)
     {
-        _gameServer = gameServer;
-        _sessions = sessions;
+        _notifications = notifications;
         _logger = logger;
     }
 
-    public void PublishWorldState(string roomId, WorldState worldState)
+    public ValueTask PublishWorldStateAsync(RoomSnapshot room, WorldState worldState, CancellationToken cancellationToken = default)
     {
-        Publish(roomId, callback => callback.OnWorldState(worldState));
+        return PublishAsync(room, callback => callback.OnWorldState(worldState), cancellationToken);
     }
 
-    public void PublishPlayerDead(string roomId, PlayerDead playerDead)
+    public ValueTask PublishPlayerDeadAsync(RoomSnapshot room, PlayerDead playerDead, CancellationToken cancellationToken = default)
     {
-        Publish(roomId, callback => callback.OnPlayerDead(playerDead));
+        return PublishAsync(room, callback => callback.OnPlayerDead(playerDead), cancellationToken);
     }
 
-    public void PublishMatchEnd(string roomId, MatchEnd matchEnd)
+    public ValueTask PublishMatchEndAsync(RoomSnapshot room, MatchEnd matchEnd, CancellationToken cancellationToken = default)
     {
-        Publish(roomId, callback => callback.OnMatchEnd(matchEnd));
+        return PublishAsync(room, callback => callback.OnMatchEnd(matchEnd), cancellationToken);
     }
 
-    private void Publish(string roomId, Action<IBattleCallback> action)
+    private async ValueTask PublishAsync(
+        RoomSnapshot room,
+        Action<IBattleCallback> notify,
+        CancellationToken cancellationToken)
     {
-        foreach (var registration in _sessions.GetByRoom(roomId))
+        foreach (var player in room.Players)
         {
-            if (registration.RealtimeSessionKey is not { } realtimeSession)
+            if (string.IsNullOrWhiteSpace(player.RealtimeSessionId) ||
+                player.RealtimeSessionGeneration <= 0)
             {
                 continue;
             }
 
-            var callback = _gameServer.GetCallbackAsync<IBattleCallback>(realtimeSession)
-                .AsTask()
-                .GetAwaiter()
-                .GetResult();
-            if (callback is null)
+            var realtimeSession = new GameSessionKey(
+                player.UserId,
+                player.RealtimeSessionId,
+                player.RealtimeSessionGeneration);
+            var status = await _notifications
+                .NotifyAsync(realtimeSession, notify, cancellationToken)
+                .ConfigureAwait(false);
+            if (status == ClientNotificationStatus.Delivered)
             {
                 continue;
             }
 
-            try
-            {
-                action(callback);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to publish room callback for room {RoomId}.", roomId);
-            }
+            _logger.LogDebug(
+                "Room notification delivery returned {Status} for room {RoomId} session {Session}.",
+                status,
+                room.RoomId,
+                realtimeSession);
         }
     }
 }

@@ -619,6 +619,9 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("internal sealed class ChatServiceProxy : global::Shared.Contracts.Chat.IChatService", result.GeneratedSource);
         Assert.Contains("HotfixServiceCall<global::Shared.Contracts.Chat.ChatBindRequest, global::Shared.Contracts.Chat.IChatCallback>", result.GeneratedSource);
         Assert.Contains("var snapshot = _hotfixRuntime.Current;", result.GeneratedSource);
+        Assert.Contains("GetRequiredService<global::Lakona.Game.Server.Sessions.IGameSessionRegistry>(snapshot.Services)", result.GeneratedSource);
+        Assert.Contains("GetCurrentSessionAsync(_connectionId, global::System.Threading.CancellationToken.None)", result.GeneratedSource);
+        Assert.Contains("currentSession,", result.GeneratedSource);
         Assert.Contains("snapshot.Services,", result.GeneratedSource);
         Assert.Contains("snapshot.Invoker.InvokeAsync", result.GeneratedSource);
         Assert.DoesNotContain("_hotfixServices.Current", result.GeneratedSource, StringComparison.Ordinal);
@@ -630,6 +633,50 @@ public sealed class HotfixGeneratorTests
         Assert.DoesNotContain("return builder.BindServices", result.GeneratedSource, StringComparison.Ordinal);
         Assert.DoesNotContain("HotfixRpcService", result.GeneratedSource, StringComparison.Ordinal);
         Assert.DoesNotContain(ForbiddenGameEndpointType, result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Hotfix_service_call_exposes_current_session_constructor_contract()
+    {
+        var currentSessionProperty = typeof(Lakona.Game.Server.Hotfix.HotfixServiceCall<>)
+            .GetProperty("CurrentSession");
+
+        Assert.NotNull(currentSessionProperty);
+        Assert.Equal(
+            typeof(Lakona.Game.Server.Sessions.GameSessionKey?),
+            currentSessionProperty.PropertyType);
+        Assert.NotNull(typeof(Lakona.Game.Server.Hotfix.HotfixServiceCall<object>).GetConstructor([
+            typeof(object),
+            typeof(string),
+            typeof(Lakona.Game.Server.Sessions.GameSessionKey?),
+            typeof(IServiceProvider),
+            typeof(Lakona.Game.Server.Actors.IActorRuntime),
+            typeof(Lakona.Game.Server.ILakonaGameServer)
+        ]));
+        Assert.NotNull(typeof(Lakona.Game.Server.Hotfix.HotfixServiceCall<object>).GetConstructor([
+            typeof(object),
+            typeof(string),
+            typeof(IServiceProvider),
+            typeof(Lakona.Game.Server.Actors.IActorRuntime),
+            typeof(Lakona.Game.Server.ILakonaGameServer)
+        ]));
+        Assert.NotNull(typeof(Lakona.Game.Server.Hotfix.HotfixServiceCall<object, object>).GetConstructor([
+            typeof(object),
+            typeof(string),
+            typeof(object),
+            typeof(Lakona.Game.Server.Sessions.GameSessionKey?),
+            typeof(IServiceProvider),
+            typeof(Lakona.Game.Server.Actors.IActorRuntime),
+            typeof(Lakona.Game.Server.ILakonaGameServer)
+        ]));
+        Assert.NotNull(typeof(Lakona.Game.Server.Hotfix.HotfixServiceCall<object, object>).GetConstructor([
+            typeof(object),
+            typeof(string),
+            typeof(object),
+            typeof(IServiceProvider),
+            typeof(Lakona.Game.Server.Actors.IActorRuntime),
+            typeof(Lakona.Game.Server.ILakonaGameServer)
+        ]));
     }
 
     [Fact]
@@ -660,6 +707,8 @@ public sealed class HotfixGeneratorTests
 
         Assert.Contains("GeneratedHotfixRequiredServiceContracts", generated);
         Assert.Contains("IHotfixRequiredServiceContracts", generated);
+        Assert.Contains("GetCurrentSessionAsync(_connectionId, global::System.Threading.CancellationToken.None)", generated);
+        Assert.Contains("currentSession,", generated);
         Assert.DoesNotContain("UseGeneratedHotfixServices", generated);
     }
 

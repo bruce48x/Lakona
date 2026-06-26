@@ -3,9 +3,11 @@ using Agar.Sample.State.Contracts.Sessions;
 using Agar.Sample.State.Contracts.Users;
 using Agar.Sample.State.Users;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Server.Hotfix.State.Sessions;
 using Server.Hotfix.State.Users;
@@ -29,6 +31,7 @@ public sealed class LoginService
         var req = call.Request;
         var services = AgarServiceDependencies.From(call);
         var logger = services.CreateLogger<LoginService>();
+        var controlGateway = ResolveLocalControlGateway(call.Services);
 
         var account = req.Account;
         var password = req.Password;
@@ -60,9 +63,13 @@ public sealed class LoginService
         GameSessionKey sessionKey;
         if (req.Reconnect)
         {
-            var registration = services.PlayerSessionRegistry.Get(loginResult.UserId);
-            if (registration?.ControlSessionKey is not { } controlSession ||
-                !string.Equals(registration.SessionToken, loginResult.SessionToken, StringComparison.Ordinal))
+            var snapshot = await _users
+                .Get(new UserId(loginResult.UserId))
+                .GetSnapshotAsync(new PlayerSessionSnapshotRequest())
+                .ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(snapshot.ControlSessionId) ||
+                snapshot.ControlSessionGeneration <= 0 ||
+                !string.Equals(snapshot.SessionToken, loginResult.SessionToken, StringComparison.Ordinal))
             {
                 return new LoginReply
                 {
@@ -73,6 +80,10 @@ public sealed class LoginService
                 };
             }
 
+            var controlSession = new GameSessionKey(
+                loginResult.UserId,
+                snapshot.ControlSessionId,
+                snapshot.ControlSessionGeneration);
             var resumeDecision = await call.GameServer
                 .ResumeSessionAsync(
                     new GameSessionResumeRequest(controlSession, loginResult.SessionToken),
@@ -93,11 +104,6 @@ public sealed class LoginService
             }
 
             sessionKey = resumeDecision.Session.Value;
-            services.PlayerSessionRegistry.UpdateControlConnection(
-                loginResult.UserId,
-                loginResult.SessionToken,
-                call.ConnectionId,
-                sessionKey);
             await _users
                 .Get(new UserId(loginResult.UserId))
                 .ReconnectAsync(new PlayerSessionReconnectRequest
@@ -105,8 +111,10 @@ public sealed class LoginService
                         UserId = loginResult.UserId,
                         SessionToken = loginResult.SessionToken,
                         ConnectionId = call.ConnectionId,
+                        ControlSessionId = sessionKey.SessionId,
+                        ControlSessionGeneration = sessionKey.Generation,
                         ReconnectedAtUtc = DateTime.UtcNow,
-                        ControlGateway = CloneGateway(services.RuntimeNodeIdentity.AdvertisedEndpoint)
+                        ControlGateway = CloneGateway(controlGateway)
                     })
                 .ConfigureAwait(false);
         }
@@ -115,11 +123,6 @@ public sealed class LoginService
             sessionKey = await call.GameServer
                 .StartSessionAsync(loginResult.UserId, call.ConnectionId, call.Callback)
                 .ConfigureAwait(false);
-            services.PlayerSessionRegistry.RegisterControl(
-                loginResult.UserId,
-                loginResult.SessionToken,
-                call.ConnectionId,
-                sessionKey);
             await _users
                 .Get(new UserId(loginResult.UserId))
                 .AttachAsync(new PlayerSessionAttachRequest
@@ -127,14 +130,16 @@ public sealed class LoginService
                         UserId = loginResult.UserId,
                         SessionToken = loginResult.SessionToken,
                         ConnectionId = call.ConnectionId,
+                        ControlSessionId = sessionKey.SessionId,
+                        ControlSessionGeneration = sessionKey.Generation,
                         AttachedAtUtc = DateTime.UtcNow,
-                        ControlGateway = CloneGateway(services.RuntimeNodeIdentity.AdvertisedEndpoint)
+                        ControlGateway = CloneGateway(controlGateway)
                     })
                 .ConfigureAwait(false);
         }
 
         await services.MatchmakingNotifier
-            .ReplayPendingAsync(loginResult.UserId)
+            .ReplayPendingAsync(sessionKey)
             .ConfigureAwait(false);
 
         return new LoginReply
@@ -160,6 +165,30 @@ public sealed class LoginService
             Host = gateway.Host,
             Port = gateway.Port,
             Path = gateway.Path
+        };
+    }
+
+    private static GatewayEndpointDescriptor ResolveLocalControlGateway(IServiceProvider services)
+    {
+        var runtime = services.GetRequiredService<LakonaGameRuntimeOptions>();
+        var node = services.GetRequiredService<LocalActorNodeIdentity>().NodeId.Value;
+        var endpoint = runtime.Endpoints.FirstOrDefault(static endpoint =>
+            endpoint.RpcServices.Any(service =>
+                string.Equals(service, "login", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(service, "player", StringComparison.OrdinalIgnoreCase)));
+        if (endpoint is null)
+        {
+            return new GatewayEndpointDescriptor { InstanceId = node };
+        }
+
+        var uri = new Uri(endpoint.ToAdvertisedEndpoint(), UriKind.Absolute);
+        return new GatewayEndpointDescriptor
+        {
+            InstanceId = node,
+            Transport = endpoint.Transport,
+            Host = uri.Host,
+            Port = uri.Port,
+            Path = uri.AbsolutePath == "/" ? string.Empty : uri.AbsolutePath
         };
     }
 

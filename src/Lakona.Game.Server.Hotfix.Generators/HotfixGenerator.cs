@@ -1251,11 +1251,21 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 : "global::Lakona.Game.Server.Hotfix.HotfixServiceCall<" + requestDisplay + ", " + callbackDisplay + ">";
 
             builder.AppendLine();
-            builder.Append("    public ").Append(returnDisplay).Append(' ').Append(method.Name).Append('(')
+            builder.Append("    public async ").Append(returnDisplay).Append(' ').Append(method.Name).Append('(')
                 .Append(requestDisplay).Append(' ').Append(method.Parameters[0].Name).AppendLine(")");
             builder.AppendLine("    {");
             builder.AppendLine("        var snapshot = _hotfixRuntime.Current;");
-            builder.Append("        return snapshot.Invoker.InvokeAsync<").Append(contractDisplay).Append(", ").Append(callType);
+            builder.AppendLine("        var currentSession = await global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions");
+            builder.AppendLine("            .GetRequiredService<global::Lakona.Game.Server.Sessions.IGameSessionRegistry>(snapshot.Services)");
+            builder.AppendLine("            .GetCurrentSessionAsync(_connectionId, global::System.Threading.CancellationToken.None)");
+            builder.AppendLine("            .ConfigureAwait(false);");
+            builder.Append("        ");
+            if (returnsResult)
+            {
+                builder.Append("return ");
+            }
+
+            builder.Append("await snapshot.Invoker.InvokeAsync<").Append(contractDisplay).Append(", ").Append(callType);
             if (returnsResult)
             {
                 builder.Append(", ").Append(resultDisplay);
@@ -1271,9 +1281,11 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 builder.AppendLine("                _callback,");
             }
 
+            builder.AppendLine("                currentSession,");
             builder.AppendLine("                snapshot.Services,");
             builder.AppendLine("                _actors,");
-            builder.AppendLine("                _gameServer));");
+            builder.AppendLine("                _gameServer))");
+            builder.AppendLine("            .ConfigureAwait(false);");
             builder.AppendLine("    }");
         }
 

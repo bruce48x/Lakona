@@ -14,12 +14,15 @@ using Lakona.Rpc.Server;
 using Lakona.Rpc.Transport.Tcp;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Agar.Sample.State;
 using Agar.Sample.State.Contracts.Matchmaking;
 using Agar.Sample.State.Contracts.Rooms;
 using Agar.Sample.State.Contracts.Sessions;
 using Agar.Sample.State.Contracts.Users;
+using Agar.Sample.State.Leaderboard;
 using Agar.Sample.State.Matchmaking;
+using Agar.Sample.State.Rooms;
 using Agar.Sample.State.Users;
 using Server.Hotfix.Services;
 using Server.Hotfix.State.Matchmaking;
@@ -173,7 +176,7 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
-    public async Task MatchmakingSelectsBattleRuntimeEndpointInsteadOfControlGateway()
+    public async Task MatchmakingKeepsTicketsQueuedWhenRemoteBattleIsAdvertisedButLocalFeatureExcludesBattleRuntime()
     {
         await TestHotfix.LoadCurrentAsync(TestContext.Current.CancellationToken);
 
@@ -181,13 +184,29 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddLogging();
         services.AddLakonaGameServer();
         services.AddGeneratedActorSelectorTestDependencies();
-        services.AddSingleton<RuntimeGatewaySelector>();
+        services.AddSingleton(new LocalActorNodeIdentity(new NodeId("gateway-1")));
+        services.AddSingleton(new Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions
+        {
+            Node = new Lakona.Game.Server.Configuration.LakonaGameNodeOptions { Id = "gateway-1" },
+            Feature = [],
+            Endpoints =
+            [
+                new Lakona.Game.Server.Configuration.LakonaGameEndpointOptions
+                {
+                    Transport = "kcp",
+                    Serializer = "memorypack",
+                    Host = "127.0.0.1",
+                    Port = 20001,
+                    RpcServices = ["battle"]
+                }
+            ]
+        });
         services.AddSingleton<INodeDirectory>(provider =>
         {
             var directory = new InMemoryNodeDirectory();
             directory.RegisterAsync(
                 new NodeRegistration(
-                    "local",
+                    "remote",
                     new NodeId("battle-1"),
                     new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal)
                     {
@@ -236,11 +255,11 @@ public sealed class DistributedTopologyConfigurationTests
         }
 
         Assert.NotNull(result);
-        Assert.True(result.Matched);
-        Assert.Equal("battle-1", result.RoomAssignment.RuntimeGateway.InstanceId);
-        Assert.Equal("kcp", result.RoomAssignment.RuntimeGateway.Transport);
-        Assert.Equal("battle-1", result.RoomAssignment.RuntimeGateway.Host);
-        Assert.Equal(20001, result.RoomAssignment.RuntimeGateway.Port);
+        Assert.False(result.Matched);
+        Assert.True(result.Queued);
+
+        var status = await GetMatchmakingStatusAsync(actors);
+        Assert.Equal(10, status.QueuedCount);
     }
 
     [Fact]
@@ -252,7 +271,6 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddLogging();
         services.AddLakonaGameServer();
         services.AddGeneratedActorSelectorTestDependencies();
-        services.AddSingleton<RuntimeGatewaySelector>();
 
         await using var provider = services.BuildServiceProvider();
         var actors = provider.GetRequiredService<IActorRuntime>();
@@ -351,6 +369,62 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Equal("kcp", result.RoomAssignment.RuntimeGateway.Transport);
         Assert.Equal("127.0.0.1", result.RoomAssignment.RuntimeGateway.Host);
         Assert.Equal(20001, result.RoomAssignment.RuntimeGateway.Port);
+    }
+
+    [Fact]
+    public async Task ReleasePlayerCleansUserSessionWhenRemoteRoomLeaveFails()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await TestHotfix.LoadCurrentAsync(cancellationToken);
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddLakonaGameServer();
+        services.AddGeneratedActorSelectorTestDependencies();
+
+        await using var provider = services.BuildServiceProvider();
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        await ((IActorLifecycle)actors).CreateLocalAsync<UserActor>(ActorId.From("player-stale"), cancellationToken: cancellationToken);
+        await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
+            ActorId.From("player-stale"),
+            (actor, _) => actor.AttachAsync(new PlayerSessionAttachRequest
+            {
+                UserId = "player-stale",
+                SessionToken = "token-stale",
+                ConnectionId = "control-stale",
+                ControlSessionId = "control-session-stale",
+                ControlSessionGeneration = 1,
+                AttachedAtUtc = DateTime.UtcNow
+            }),
+            cancellationToken);
+        await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
+            ActorId.From("player-stale"),
+            (actor, _) => actor.AssignRoomAsync(new PlayerRoomAssignment
+            {
+                UserId = "player-stale",
+                SessionToken = "token-stale",
+                ConnectionId = "control-stale",
+                RoomId = "stale-room",
+                MatchId = "stale-match",
+                SeatIndex = 0,
+                AssignedAtUtc = DateTime.UtcNow,
+                RuntimeGateway = new Agar.Sample.State.Contracts.GatewayEndpointDescriptor
+                {
+                    InstanceId = "battle-remote",
+                    Transport = "kcp",
+                    Host = "battle-remote",
+                    Port = 20001
+                }
+            }),
+            cancellationToken);
+
+        await ReleasePlayerThroughInternalBoundaryAsync(provider, "player-stale", "test stale room");
+
+        var snapshot = await GetSessionSnapshotAsync(actors, "player-stale");
+        Assert.False(snapshot.IsOnline);
+        Assert.Equal("", snapshot.ConnectionId);
+        Assert.Equal("", snapshot.CurrentRoomId);
+        Assert.Equal("", snapshot.CurrentMatchId);
     }
 
     [Fact]
@@ -656,6 +730,31 @@ public sealed class DistributedTopologyConfigurationTests
             (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()));
     }
 
+    private static async Task ReleasePlayerThroughInternalBoundaryAsync(IServiceProvider provider, string playerId, string reason)
+    {
+        var hotfixAssembly = typeof(PlayerService).Assembly;
+        var dependenciesType = hotfixAssembly.GetType("Server.Hotfix.Services.AgarServiceDependencies")
+            ?? throw new InvalidOperationException("Could not find Agar service dependency container.");
+        var dependencies = Activator.CreateInstance(
+            dependenciesType,
+            provider.GetRequiredService<UserActors>(),
+            provider.GetRequiredService<RoomActors>(),
+            provider.GetRequiredService<MatchmakingActors>(),
+            provider.GetRequiredService<LeaderboardActors>(),
+            null,
+            new LocalActorNodeIdentity(new NodeId("gateway-1")),
+            provider.GetRequiredService<ILoggerFactory>())
+            ?? throw new InvalidOperationException("Could not create Agar service dependency container.");
+        var method = typeof(PlayerService).GetMethod(
+            "ReleasePlayerAsync",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
+            ?? throw new InvalidOperationException("Could not find PlayerService.ReleasePlayerAsync.");
+        var task = method.Invoke(null, [dependencies, playerId, reason]) as Task
+            ?? throw new InvalidOperationException("PlayerService.ReleasePlayerAsync did not return a Task.");
+
+        await task.ConfigureAwait(false);
+    }
+
     private static ActorId UserId(string userId) => ActorId.From(userId);
 
     private static IServiceCollection BuildFeatureServices(
@@ -686,7 +785,6 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddGeneratedActorSelectorTestDependencies();
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton(runtimeOptions);
-        services.AddSingleton<RuntimeGatewaySelector>();
         services.AddMessageRecording();
         services.AddLakonaGameRuntimeValidation();
         services.AddLakonaGame(configuration, _ => { });

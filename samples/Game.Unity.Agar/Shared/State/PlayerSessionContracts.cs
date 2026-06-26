@@ -11,6 +11,14 @@ namespace Agar.Sample.State.Contracts.Sessions
 
         public string ConnectionId { get; set; } = "";
 
+        public string ControlSessionId { get; set; } = "";
+
+        public long ControlSessionGeneration { get; set; }
+
+        public string RealtimeSessionId { get; set; } = "";
+
+        public long RealtimeSessionGeneration { get; set; }
+
         public DateTime ReconnectedAtUtc { get; set; }
 
         public GatewayEndpointDescriptor ControlGateway { get; set; } = new();
@@ -24,9 +32,47 @@ namespace Agar.Sample.State.Contracts.Sessions
 
         public string ConnectionId { get; set; } = "";
 
+        public string ControlSessionId { get; set; } = "";
+
+        public long ControlSessionGeneration { get; set; }
+
+        public string RealtimeSessionId { get; set; } = "";
+
+        public long RealtimeSessionGeneration { get; set; }
+
         public DateTime AttachedAtUtc { get; set; }
 
         public GatewayEndpointDescriptor ControlGateway { get; set; } = new();
+    }
+
+    public sealed class PlayerRealtimeAttachRequest
+    {
+        public string UserId { get; set; } = "";
+
+        public string SessionToken { get; set; } = "";
+
+        public string RoomId { get; set; } = "";
+
+        public string MatchId { get; set; } = "";
+
+        public string RealtimeSessionId { get; set; } = "";
+
+        public long RealtimeSessionGeneration { get; set; }
+
+        public DateTime AttachedAtUtc { get; set; }
+    }
+
+    public sealed class PlayerRealtimeClearRequest
+    {
+        public string UserId { get; set; } = "";
+
+        public string RealtimeSessionId { get; set; } = "";
+
+        public long RealtimeSessionGeneration { get; set; }
+
+        public DateTime ClearedAtUtc { get; set; }
+
+        public string Reason { get; set; } = "";
     }
 
     public sealed class PlayerSessionQueueRequest
@@ -109,6 +155,14 @@ namespace Agar.Sample.State.Contracts.Sessions
 
         public string ConnectionId { get; set; } = "";
 
+        public string ControlSessionId { get; set; } = "";
+
+        public long ControlSessionGeneration { get; set; }
+
+        public string RealtimeSessionId { get; set; } = "";
+
+        public long RealtimeSessionGeneration { get; set; }
+
         public bool IsOnline { get; set; }
 
         public bool IsQueued { get; set; }
@@ -147,6 +201,14 @@ namespace Agar.Sample.State.Contracts.Sessions
         public string SessionToken { get; set; } = "";
 
         public string ConnectionId { get; set; } = "";
+
+        public string ControlSessionId { get; set; } = "";
+
+        public long ControlSessionGeneration { get; set; }
+
+        public string RealtimeSessionId { get; set; } = "";
+
+        public long RealtimeSessionGeneration { get; set; }
 
         public bool IsOnline { get; set; }
 

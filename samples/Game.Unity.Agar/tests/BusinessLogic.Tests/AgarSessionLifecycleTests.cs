@@ -1,3 +1,8 @@
+using Agar.Sample.State.Contracts.Rooms;
+using Agar.Sample.State.Contracts.Sessions;
+using Agar.Sample.State.Contracts.Users;
+using Agar.Sample.State.Rooms;
+using Agar.Sample.State.Users;
 using Lakona.Game.Abstractions;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
@@ -6,6 +11,9 @@ using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.Services;
+using Server.Hotfix.State.Rooms;
+using Server.Hotfix.State.Sessions;
+using Shared.Interfaces;
 using Xunit;
 
 namespace Agar.Unity.Tests;
@@ -13,25 +21,17 @@ namespace Agar.Unity.Tests;
 public sealed class AgarSessionLifecycleTests
 {
     [Fact]
-    public async Task RealtimeDisconnectOnBattleNodeDoesNotRequireControlPlaneServices()
+    public async Task RealtimeDisconnectDoesNotRequireControlPlaneActorServices()
     {
-        var directory = CreatePlayerSessionRegistry();
-        Assert.True(await AttachRealtimeAsync(
-            directory,
-            "player-1",
-            "session-1",
-            "room-1",
-            "match-1",
-            "realtime-1",
-            new GameSessionKey("player-1", "realtime-session", 1)));
-        var services = BuildLifecycleServices(directory);
-        await using var provider = services.BuildServiceProvider();
-
+        await using var provider = BuildLifecycleServices(includeActors: false).BuildServiceProvider();
         var call = new HotfixLifecycleCall<GameSessionDisconnectedRequest>(
             new GameSessionDisconnectedRequest
             {
                 OwnerKey = "player-1",
-                ConnectionId = "realtime-1"
+                SessionId = "realtime-session",
+                Generation = 1,
+                ConnectionId = "realtime-1",
+                CallbackContractTypeNames = [typeof(IBattleCallback).FullName!]
             },
             "realtime-1",
             provider,
@@ -39,121 +39,230 @@ public sealed class AgarSessionLifecycleTests
             new TestGameServer());
 
         await AgarSessionLifecycle.SessionDisconnectedAsync(call);
-
-        Assert.Null(GetRegistration(directory, "player-1"));
-        Assert.Null(GetConnection(directory, "realtime-1"));
     }
 
     [Fact]
-    public async Task ControlDisconnectClearsDirectoryWhenActorUpdateFails()
+    public async Task ControlDisconnectMarksUserActorFromRequestOwnerAndConnection()
     {
-        var directory = CreatePlayerSessionRegistry();
-        RegisterControl(
-            directory,
-            "player-1",
-            "session-1",
-            "control-1",
-            new GameSessionKey("player-1", "control-session", 1));
-        var services = BuildLifecycleServices(directory);
-        await using var provider = services.BuildServiceProvider();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await TestHotfix.LoadCurrentAsync(cancellationToken);
+        await using var provider = BuildLifecycleServices(includeActors: true).BuildServiceProvider();
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        await ((IActorLifecycle)actors).CreateLocalAsync<UserActor>(ActorId.From("player-1"), cancellationToken: cancellationToken);
+        await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
+            ActorId.From("player-1"),
+            (actor, _) => actor.AttachAsync(new PlayerSessionAttachRequest
+            {
+                UserId = "player-1",
+                SessionToken = "token-1",
+                ConnectionId = "control-1",
+                ControlSessionId = "control-session",
+                ControlSessionGeneration = 1,
+                AttachedAtUtc = DateTime.UtcNow
+            }),
+            cancellationToken);
 
         var call = new HotfixLifecycleCall<GameSessionDisconnectedRequest>(
             new GameSessionDisconnectedRequest
             {
                 OwnerKey = "player-1",
-                ConnectionId = "control-1"
+                SessionId = "control-session",
+                Generation = 1,
+                ConnectionId = "control-1",
+                CallbackContractTypeNames = [typeof(IControlCallback).FullName!]
             },
             "control-1",
             provider,
-            new ThrowingActorRuntime(),
+            actors,
             new TestGameServer());
 
         await AgarSessionLifecycle.SessionDisconnectedAsync(call);
 
-        var registration = GetRegistration(directory, "player-1");
-        Assert.NotNull(registration);
-        var connectionId = Assert.IsType<string>(GetRequiredProperty(registration, "ConnectionId"));
-        Assert.Empty(connectionId);
-        Assert.Null(GetConnection(directory, "control-1"));
+        var snapshot = await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
+            ActorId.From("player-1"),
+            (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()),
+            cancellationToken);
+        Assert.False(snapshot.IsOnline);
+        Assert.Equal("", snapshot.ConnectionId);
+        Assert.Equal("control-session", snapshot.ControlSessionId);
+        Assert.Equal(1, snapshot.ControlSessionGeneration);
     }
 
-    private static ServiceCollection BuildLifecycleServices(object directory)
+    [Fact]
+    public async Task RealtimeDisconnectClearsExactActorOwnedRealtimeState()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await TestHotfix.LoadCurrentAsync(cancellationToken);
+        await using var provider = BuildLifecycleServices(includeActors: true).BuildServiceProvider();
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        await ((IActorLifecycle)actors).CreateLocalAsync<UserActor>(ActorId.From("player-1"), cancellationToken: cancellationToken);
+        await ((IActorLifecycle)actors).CreateLocalAsync<RoomActor>(ActorId.From("room-1"), cancellationToken: cancellationToken);
+
+        await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
+            ActorId.From("player-1"),
+            (actor, _) => actor.AttachAsync(new PlayerSessionAttachRequest
+            {
+                UserId = "player-1",
+                SessionToken = "token-1",
+                ConnectionId = "control-1",
+                ControlSessionId = "control-session",
+                ControlSessionGeneration = 1,
+                AttachedAtUtc = DateTime.UtcNow
+            }),
+            cancellationToken);
+        await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
+            ActorId.From("player-1"),
+            (actor, _) => actor.AssignRoomAsync(new PlayerRoomAssignment
+            {
+                UserId = "player-1",
+                SessionToken = "token-1",
+                RoomId = "room-1",
+                MatchId = "match-1",
+                SeatIndex = 0,
+                AssignedAtUtc = DateTime.UtcNow
+            }),
+            cancellationToken);
+        await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
+            ActorId.From("player-1"),
+            (actor, _) => actor.AttachRealtimeAsync(new PlayerRealtimeAttachRequest
+            {
+                UserId = "player-1",
+                SessionToken = "token-1",
+                RoomId = "room-1",
+                MatchId = "match-1",
+                RealtimeSessionId = "realtime-session",
+                RealtimeSessionGeneration = 1,
+                AttachedAtUtc = DateTime.UtcNow
+            }),
+            cancellationToken);
+        await actors.AskAsync<RoomActor, RoomSettlementResult>(
+            ActorId.From("room-1"),
+            (actor, _) => actor.CreateAsync(new RoomCreateRequest
+            {
+                RoomId = "room-1",
+                MatchId = "match-1",
+                CreatedByUserId = "player-1",
+                CreatedAtUtc = DateTime.UtcNow,
+                Players =
+                [
+                    new PlayerRoomAssignment
+                    {
+                        UserId = "player-1",
+                        SessionToken = "token-1",
+                        ConnectionId = "control-1",
+                        RoomId = "room-1",
+                        MatchId = "match-1",
+                        SeatIndex = 0,
+                        AssignedAtUtc = DateTime.UtcNow
+                    }
+                ]
+            }),
+            cancellationToken);
+        await actors.AskAsync<RoomActor, RoomSettlementResult>(
+            ActorId.From("room-1"),
+            (actor, _) => actor.SetReadyAsync(new RoomPlayerReadyRequest
+            {
+                UserId = "player-1",
+                RoomId = "room-1",
+                IsReady = true,
+                RealtimeSessionId = "realtime-session",
+                RealtimeSessionGeneration = 1,
+                UpdatedAtUtc = DateTime.UtcNow
+            }),
+            cancellationToken);
+
+        var call = new HotfixLifecycleCall<GameSessionDisconnectedRequest>(
+            new GameSessionDisconnectedRequest
+            {
+                OwnerKey = "player-1",
+                SessionId = "realtime-session",
+                Generation = 1,
+                ConnectionId = "realtime-1",
+                CallbackContractTypeNames = [typeof(IBattleCallback).FullName!]
+            },
+            "realtime-1",
+            provider,
+            actors,
+            new TestGameServer());
+
+        await AgarSessionLifecycle.SessionDisconnectedAsync(call);
+
+        var user = await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
+            ActorId.From("player-1"),
+            (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()),
+            cancellationToken);
+        var room = await actors.AskAsync<RoomActor, RoomSnapshot>(
+            ActorId.From("room-1"),
+            (actor, _) => actor.GetSnapshotAsync(new RoomSnapshotRequest()),
+            cancellationToken);
+        var roomPlayer = Assert.Single(room.Players);
+        Assert.Equal("", user.RealtimeSessionId);
+        Assert.Equal(0, user.RealtimeSessionGeneration);
+        Assert.Equal("", roomPlayer.RealtimeSessionId);
+        Assert.Equal(0, roomPlayer.RealtimeSessionGeneration);
+        Assert.False(roomPlayer.IsReady);
+        Assert.False(roomPlayer.IsConnected);
+    }
+
+    [Fact]
+    public async Task StaleControlSessionExpiryDoesNotReleaseNewerUserSession()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await TestHotfix.LoadCurrentAsync(cancellationToken);
+        await using var provider = BuildLifecycleServices(includeActors: true).BuildServiceProvider();
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        await ((IActorLifecycle)actors).CreateLocalAsync<UserActor>(ActorId.From("player-1"), cancellationToken: cancellationToken);
+        await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
+            ActorId.From("player-1"),
+            (actor, _) => actor.AttachAsync(new PlayerSessionAttachRequest
+            {
+                UserId = "player-1",
+                SessionToken = "token-new",
+                ConnectionId = "control-new",
+                ControlSessionId = "control-session-new",
+                ControlSessionGeneration = 2,
+                AttachedAtUtc = DateTime.UtcNow
+            }),
+            cancellationToken);
+
+        var call = new HotfixLifecycleCall<GameSessionExpiredRequest>(
+            new GameSessionExpiredRequest
+            {
+                OwnerKey = "player-1",
+                SessionId = "control-session-old",
+                Generation = 1,
+                ConnectionId = "control-old",
+                CallbackContractTypeNames = [typeof(IControlCallback).FullName!]
+            },
+            "control-old",
+            provider,
+            actors,
+            new TestGameServer());
+
+        await AgarSessionLifecycle.SessionExpiredAsync(call);
+
+        var snapshot = await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
+            ActorId.From("player-1"),
+            (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()),
+            cancellationToken);
+        Assert.True(snapshot.IsOnline);
+        Assert.Equal("control-new", snapshot.ConnectionId);
+        Assert.Equal("control-session-new", snapshot.ControlSessionId);
+        Assert.Equal(2, snapshot.ControlSessionGeneration);
+    }
+
+    private static ServiceCollection BuildLifecycleServices(bool includeActors)
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSingleton(PlayerSessionRegistryType, directory);
+        if (includeActors)
+        {
+            services.AddLakonaGameServer();
+            services.AddGeneratedActorSelectorTestDependencies();
+        }
+
         return services;
     }
-
-    private static object CreatePlayerSessionRegistry()
-    {
-        return Activator.CreateInstance(PlayerSessionRegistryType)
-            ?? throw new InvalidOperationException("Could not create PlayerSessionRegistry.");
-    }
-
-    private static void RegisterControl(
-        object directory,
-        string playerId,
-        string sessionToken,
-        string connectionId,
-        GameSessionKey session)
-    {
-        var method = PlayerSessionRegistryType.GetMethod("RegisterControl")
-            ?? throw new MissingMethodException(PlayerSessionRegistryType.FullName, "RegisterControl");
-        method.Invoke(directory, [
-            playerId,
-            sessionToken,
-            connectionId,
-            session
-        ]);
-    }
-
-    private static ValueTask<bool> AttachRealtimeAsync(
-        object directory,
-        string playerId,
-        string sessionToken,
-        string roomId,
-        string matchId,
-        string connectionId,
-        GameSessionKey session)
-    {
-        var method = PlayerSessionRegistryType.GetMethod("AttachRealtime")
-            ?? throw new MissingMethodException(PlayerSessionRegistryType.FullName, "AttachRealtime");
-        return new ValueTask<bool>((bool)method.Invoke(directory, [
-            playerId,
-            sessionToken,
-            roomId,
-            matchId,
-            connectionId,
-            session
-        ])!);
-    }
-
-    private static object? GetRegistration(object directory, string playerId)
-    {
-        var method = PlayerSessionRegistryType.GetMethod("Get")
-            ?? throw new MissingMethodException(PlayerSessionRegistryType.FullName, "Get");
-        return method.Invoke(directory, [playerId]);
-    }
-
-    private static object? GetConnection(object directory, string connectionId)
-    {
-        var method = PlayerSessionRegistryType.GetMethod("GetConnection")
-            ?? throw new MissingMethodException(PlayerSessionRegistryType.FullName, "GetConnection");
-        return method.Invoke(directory, [connectionId]);
-    }
-
-    private static object? GetRequiredProperty(object instance, string propertyName)
-    {
-        return instance.GetType().GetProperty(propertyName)?.GetValue(instance)
-            ?? (instance.GetType().GetProperty(propertyName) is not null
-                ? null
-                : throw new MissingMemberException(instance.GetType().FullName, propertyName));
-    }
-
-    private static readonly Type PlayerSessionRegistryType =
-        typeof(PlayerService).Assembly.GetType("Server.Hotfix.Services.PlayerSessionRegistry")
-        ?? throw new InvalidOperationException("Could not find Server.Hotfix.Services.PlayerSessionRegistry.");
 
     private sealed class ThrowingActorRuntime : IActorRuntime
     {
@@ -205,7 +314,7 @@ public sealed class AgarSessionLifecycleTests
             CancellationToken cancellationToken = default)
             where TActor : class, IActor
         {
-            throw new InvalidOperationException("Actor runtime failed.");
+            throw new InvalidOperationException("Actor runtime should not be used by this test path.");
         }
 
         public IAsyncDisposable RegisterTimer<TActor>(
