@@ -921,6 +921,11 @@ battle-1
   -> pushes match end to realtime clients
 ```
 
+The local automated acceptance entry point for this topology is
+`scripts/game/ci/test-agar-three-node.ps1`. It is intentionally a local
+developer test because it requires Docker plus a Unity installation; it is not
+part of the default repository CI gate.
+
 ## Agar Acceptance Criteria
 
 - Three independent processes start with `Lakona` configuration.

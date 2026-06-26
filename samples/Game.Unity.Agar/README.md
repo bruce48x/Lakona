@@ -96,6 +96,24 @@ dotnet run --project Server/App/Server.App.csproj
 
 三节点 sample 拓扑可通过 `docker-compose.yml` 启动 `data-1`、`gateway-1`、`battle-1`、Postgres 和 Redis。`data-1` 使用 `Lakona:Cluster:Directory` 把 cluster node directory 接到 Postgres，并在 data 进程内提供共享 route directory；Agar 自身持久化配置位于 `Agar:Persistence`。`gateway-1` 和 `battle-1` 通过 `Lakona:Cluster:Seeds` 使用 seeded directory clients 访问 data 节点。远程客户端通知通过 battle/data 侧的 `ClusterClientNotificationDispatcher` 调用 gateway cluster endpoint 上的 binder，再由 gateway 的本地 session callback 发给客户端。当前阶段 Postgres 用于 cluster membership；route directory 是 sample V1 的 data-local in-memory 实现；完整 gameplay state 持久化和 Redis 排行榜索引仍是后续 sample 工作，不应把回调对象或会话 callback 状态写入 Postgres/Redis。
 
+### 本地三节点一键验收
+
+本地开发机可以用脚本启动真实三节点拓扑并通过 Unity PlayMode 测试驱动现有客户端：
+
+```powershell
+pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1
+```
+
+脚本会启动 Docker Compose 中的 `data-1`、`gateway-1`、`battle-1`、Postgres 和 Redis，然后用 `Client` Unity 项目运行 PlayMode smoke test。测试会走现有 Unity 客户端流程：游客登录、开始匹配、连接 KCP 实时节点、等待 world state 推送。
+
+要求本机已安装 Docker 和 Unity 2022 LTS。如果 Unity 不在默认 Unity Hub 目录，可显式传入路径：
+
+```powershell
+pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 -UnityPath "C:\Program Files\Unity\Hub\Editor\2022.3.62f1\Editor\Unity.exe"
+```
+
+失败时脚本会把 Unity 日志、测试结果和 Docker Compose 日志写到 `.tmp/agar-three-node/`。排查时可加 `-KeepEnvironment` 保留容器和 volume。
+
 ### Actor 调用语义
 
 RPC services and actor behaviors use generated behavior-first actor selectors.
