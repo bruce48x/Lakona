@@ -1,14 +1,14 @@
 using Server.App.Chat;
-using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Server.Hotfix.Chat
 {
     [HotfixLifecycle(typeof(IGameSessionLifecycle))]
     internal sealed class ChatSessionLifecycle
     {
-        private static readonly ActorId RoomId = ActorId.From("chat:global");
+        private const string RoomKey = "global";
 
         public static ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
         {
@@ -22,15 +22,12 @@ namespace Server.Hotfix.Chat
             {
                 return;
             }
-            // call.Actors is node-local. Use typed selectors for actors whose placement may be remote.
-            var starterNodeLocalActors = call.Actors;
-
-            await starterNodeLocalActors.AskAsync<ChatRoomActor, bool>(
-                RoomId,
-                async (room, ct) =>
+            var rooms = call.Services.GetRequiredService<ChatRoomActors>();
+            await rooms
+                .Get(RoomKey)
+                .LeaveAsync(new ChatRoomLeaveRequest
                 {
-                    await room.LeaveAsync(connectionId);
-                    return true;
+                    ConnectionId = connectionId
                 });
         }
     }

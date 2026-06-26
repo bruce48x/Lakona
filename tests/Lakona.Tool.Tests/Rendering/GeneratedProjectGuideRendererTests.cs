@@ -180,8 +180,9 @@ public sealed class GeneratedProjectGuideRendererTests
         var plan = builder.Build();
         var readme = Assert.Single(plan.Files, file => file.RelativePath == "README.md");
         Assert.Contains("node-local actor runtime", readme.Content, StringComparison.Ordinal);
-        Assert.Contains("starterNodeLocalActors.AskAsync", readme.Content, StringComparison.Ordinal);
-        Assert.Contains("This is not a remote actor call", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("call.Services.GetRequiredService<ChatRoomActors>()", readme.Content, StringComparison.Ordinal);
+        Assert.DoesNotContain("starterNodeLocalActors.AskAsync", readme.Content, StringComparison.Ordinal);
+        Assert.DoesNotContain(".AskAsync", readme.Content, StringComparison.Ordinal);
         Assert.Contains("RPC services that target actors whose", readme.Content, StringComparison.Ordinal);
         Assert.DoesNotContain("starterLocalActors", readme.Content, StringComparison.Ordinal);
         Assert.DoesNotContain("localActors.AskAsync", readme.Content, StringComparison.Ordinal);
@@ -223,6 +224,25 @@ public sealed class GeneratedProjectGuideRendererTests
         Assert.Contains("initial deployable server zip", readme.Content, StringComparison.Ordinal);
         Assert.Contains("lakona-tool hotfix pack", readme.Content, StringComparison.Ordinal);
         Assert.Contains("future hotfix zips", readme.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Readme_BuildsBeforeReadinessCheck()
+    {
+        var spec = Spec(ClientEngine.Godot, TransportKind.WebSocket, SerializerKind.Json,
+            DeploymentProfile.None);
+        var builder = new GenerationPlanBuilder("Root");
+
+        new GeneratedProjectGuideRenderer().AddFiles(spec, builder);
+
+        var plan = builder.Build();
+        var readme = Assert.Single(plan.Files, file => file.RelativePath == "README.md");
+        var buildIndex = readme.Content.IndexOf("dotnet build \"Server/Server.slnx\"", StringComparison.Ordinal);
+        var readinessIndex = readme.Content.IndexOf("--readiness-check", StringComparison.Ordinal);
+
+        Assert.True(buildIndex >= 0, "Expected the generated README to include a server build command.");
+        Assert.True(readinessIndex >= 0, "Expected the generated README to include a readiness-check command.");
+        Assert.True(buildIndex < readinessIndex, "Expected the generated README to build before readiness-check.");
     }
 
     private static LakonaProjectSpec Spec(ClientEngine engine, TransportKind transport,

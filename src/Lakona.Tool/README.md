@@ -29,10 +29,11 @@ For a lightweight headless client for smoke and load checks:
 lakona-tool new --name MyGame --client-engine console --transport kcp --serializer memorypack
 ```
 
-After generation, run the printed check command before starting the server:
+After generation, build the server, then run the printed check command before starting it:
 
 ```bash
 cd MyGame
+dotnet build "Server/Server.slnx"
 dotnet run --project "Server/App/Server.App.csproj" -- --readiness-check
 ```
 
@@ -57,7 +58,7 @@ By default, the generated project includes:
 - Hotfix infrastructure
 - Reliable Push infrastructure
 
-Generated server projects reference `Lakona.Game.Server.Generators` as an analyzer so server-side `Actor<TKey>` classes get typed `Local(id)` and `Remote(nodeId, id)` accessors at build time.
+Generated server projects reference `Lakona.Game.Server.Hotfix.Generators` as an analyzer so hotfix actor contracts get behavior-first typed selectors at build time.
 
 For Unity and Tuanjie clients, the tool pins `Lakona.Game.Client` and `Lakona.Game.Abstractions` in `Assets/packages.config` and generates an editor import guard that prevents NuGet analyzer DLLs from being loaded as Unity runtime plugins.
 

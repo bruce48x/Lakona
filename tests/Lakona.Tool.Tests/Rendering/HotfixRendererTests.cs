@@ -34,9 +34,12 @@ public sealed class HotfixRendererTests
         Assert.Contains("[HotfixService(typeof(ILoginService))]", loginService, StringComparison.Ordinal);
         Assert.Contains("internal sealed class LoginService", loginService, StringComparison.Ordinal);
         Assert.Contains("public static async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, ILoginCallback> call)", loginService, StringComparison.Ordinal);
-        Assert.Contains("call.Actors is node-local", loginService, StringComparison.Ordinal);
-        Assert.Contains("var starterNodeLocalActors = call.Actors;", loginService, StringComparison.Ordinal);
-        Assert.Contains("await starterNodeLocalActors.AskAsync<ChatRoomActor, LoginReply>", loginService, StringComparison.Ordinal);
+        Assert.Contains("call.Services.GetRequiredService<ChatRoomActors>()", loginService, StringComparison.Ordinal);
+        Assert.Contains(".Get(RoomKey)", loginService, StringComparison.Ordinal);
+        Assert.Contains("new ChatRoomLoginRequest", loginService, StringComparison.Ordinal);
+        Assert.DoesNotContain(".AskAsync", loginService, StringComparison.Ordinal);
+        Assert.DoesNotContain("call.Actors is node-local", loginService, StringComparison.Ordinal);
+        Assert.DoesNotContain("var starterNodeLocalActors = call.Actors;", loginService, StringComparison.Ordinal);
         Assert.DoesNotContain("starterLocalActors", loginService, StringComparison.Ordinal);
         Assert.DoesNotContain("var localActors = call.Actors;", loginService, StringComparison.Ordinal);
         Assert.DoesNotContain("localActors.AskAsync", loginService, StringComparison.Ordinal);
@@ -54,12 +57,12 @@ public sealed class HotfixRendererTests
         Assert.Contains("await call.GameServer.BindCurrentSessionAsync", chatService, StringComparison.Ordinal);
         Assert.Contains("call.ConnectionId", chatService, StringComparison.Ordinal);
         Assert.Contains("call.Callback", chatService, StringComparison.Ordinal);
-        Assert.Contains("call.Actors is node-local", chatService, StringComparison.Ordinal);
-        Assert.Contains("var starterNodeLocalActors = call.Actors;", chatService, StringComparison.Ordinal);
+        Assert.Contains("call.Services.GetRequiredService<ChatRoomActors>()", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("var localActors = call.Actors;", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("call.Request.Session", chatService, StringComparison.Ordinal);
         Assert.Contains("public static async ValueTask SendAsync(HotfixServiceCall<ChatSendRequest, IChatCallback> call)", chatService, StringComparison.Ordinal);
-        Assert.Contains("starterNodeLocalActors.AskAsync<ChatRoomActor", chatService, StringComparison.Ordinal);
+        Assert.Contains(".Get(RoomKey)", chatService, StringComparison.Ordinal);
+        Assert.DoesNotContain(".AskAsync", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("starterLocalActors", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("localActors.AskAsync", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("call.Actors.AskAsync", chatService, StringComparison.Ordinal);
@@ -70,12 +73,14 @@ public sealed class HotfixRendererTests
         var behavior = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Chat/ChatRoomBehavior.cs").Content;
         Assert.Contains("[HotfixBehaviorOf(typeof(ChatRoomActor))]", behavior, StringComparison.Ordinal);
         Assert.Contains("public static ValueTask<LoginReply> LoginAsync", behavior, StringComparison.Ordinal);
+        Assert.Contains("ChatRoomLoginRequest request", behavior, StringComparison.Ordinal);
         Assert.Contains("public static ValueTask LeaveAsync", behavior, StringComparison.Ordinal);
+        Assert.Contains("ChatRoomLeaveRequest request", behavior, StringComparison.Ordinal);
 
         var feature = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Features/ChatFeature.cs").Content;
         Assert.Contains("[HotfixFeature(\"chat\")]", feature, StringComparison.Ordinal);
         Assert.Contains("public sealed class ChatFeature : HotfixGameFeature", feature, StringComparison.Ordinal);
-        Assert.Contains("context.EnsureLocalActor<ChatRoomActor>(\"chat:global\");", feature, StringComparison.Ordinal);
+        Assert.Contains("context.EnsureLocalActor<ChatRoomActor>(\"chat-room/global\");", feature, StringComparison.Ordinal);
         Assert.DoesNotContain("CreateLocalAsync", feature, StringComparison.Ordinal);
         Assert.DoesNotContain("ScheduleActorTick", feature, StringComparison.Ordinal);
 
@@ -84,14 +89,14 @@ public sealed class HotfixRendererTests
         Assert.Contains("internal sealed class ChatSessionLifecycle", lifecycle, StringComparison.Ordinal);
         Assert.Contains("public static ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)", lifecycle, StringComparison.Ordinal);
         Assert.Contains("public static async ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call)", lifecycle, StringComparison.Ordinal);
-        Assert.Contains("call.Actors is node-local", lifecycle, StringComparison.Ordinal);
-        Assert.Contains("var starterNodeLocalActors = call.Actors;", lifecycle, StringComparison.Ordinal);
-        Assert.Contains("await starterNodeLocalActors.AskAsync<ChatRoomActor, bool>", lifecycle, StringComparison.Ordinal);
+        Assert.Contains("call.Services.GetRequiredService<ChatRoomActors>()", lifecycle, StringComparison.Ordinal);
+        Assert.Contains(".Get(RoomKey)", lifecycle, StringComparison.Ordinal);
+        Assert.DoesNotContain(".AskAsync", lifecycle, StringComparison.Ordinal);
         Assert.DoesNotContain("starterLocalActors", lifecycle, StringComparison.Ordinal);
         Assert.DoesNotContain("var localActors = call.Actors;", lifecycle, StringComparison.Ordinal);
         Assert.DoesNotContain("localActors.AskAsync", lifecycle, StringComparison.Ordinal);
         Assert.DoesNotContain("call.Actors.AskAsync", lifecycle, StringComparison.Ordinal);
-        Assert.Contains("await room.LeaveAsync(connectionId);", lifecycle, StringComparison.Ordinal);
+        Assert.Contains("new ChatRoomLeaveRequest", lifecycle, StringComparison.Ordinal);
         Assert.DoesNotContain("LifecycleService", lifecycle, StringComparison.Ordinal);
         Assert.DoesNotContain("IChatRuntimeService", lifecycle, StringComparison.Ordinal);
         Assert.DoesNotContain("HotfixDispatch", lifecycle, StringComparison.Ordinal);

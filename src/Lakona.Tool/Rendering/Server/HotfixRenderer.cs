@@ -68,28 +68,31 @@ internal sealed class HotfixRenderer : IPlanContributor
         using Server.App.Chat;
         using Server.Hotfix.Chat;
         using Shared.Contracts.Chat;
-        using Lakona.Game.Server.Actors;
         using Lakona.Game.Server.Hotfix;
         using Lakona.Game.Server.Hotfix.Abstractions;
+        using Microsoft.Extensions.DependencyInjection;
 
         namespace Server.Hotfix.Login
         {
             [HotfixService(typeof(ILoginService))]
             internal sealed class LoginService
             {
-                private static readonly ActorId RoomId = ActorId.From("chat:global");
+                private const string RoomKey = "global";
 
                 public static async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, ILoginCallback> call)
                 {
                     var playerName = string.IsNullOrWhiteSpace(call.Request.PlayerName)
                         ? "Player"
                         : call.Request.PlayerName.Trim();
-                    // call.Actors is node-local. Use typed selectors for actors whose placement may be remote.
-                    var starterNodeLocalActors = call.Actors;
-
-                    var reply = await starterNodeLocalActors.AskAsync<ChatRoomActor, LoginReply>(
-                        RoomId,
-                        (room, ct) => room.LoginAsync(call.ConnectionId, playerName, call.Callback));
+                    var rooms = call.Services.GetRequiredService<ChatRoomActors>();
+                    var reply = await rooms
+                        .Get(RoomKey)
+                        .LoginAsync(new ChatRoomLoginRequest
+                        {
+                            ConnectionId = call.ConnectionId,
+                            PlayerName = playerName,
+                            LoginCallback = call.Callback
+                        });
                     await call.GameServer.StartSessionAsync(
                         playerName,
                         call.ConnectionId,
@@ -107,53 +110,49 @@ internal sealed class HotfixRenderer : IPlanContributor
         using System;
         using Server.App.Chat;
         using Shared.Contracts.Chat;
-        using Lakona.Game.Server.Actors;
         using Lakona.Game.Server.Hotfix;
         using Lakona.Game.Server.Hotfix.Abstractions;
+        using Microsoft.Extensions.DependencyInjection;
 
         namespace Server.Hotfix.Chat
         {
             [HotfixService(typeof(IChatService))]
             internal sealed class ChatService
             {
-                private static readonly ActorId RoomId = ActorId.From("chat:global");
+                private const string RoomKey = "global";
 
                 public static async ValueTask BindAsync(HotfixServiceCall<ChatBindRequest, IChatCallback> call)
                 {
                     await call.GameServer.BindCurrentSessionAsync(
                         call.ConnectionId,
                         call.Callback);
-                    // call.Actors is node-local. Use typed selectors for actors whose placement may be remote.
-                    var starterNodeLocalActors = call.Actors;
-
-                    await starterNodeLocalActors.AskAsync<ChatRoomActor, bool>(
-                        RoomId,
-                        (room, ct) =>
+                    var rooms = call.Services.GetRequiredService<ChatRoomActors>();
+                    await rooms
+                        .Get(RoomKey)
+                        .BindChatAsync(new ChatRoomBindRequest
                         {
-                            room.BindChatCallback(call.ConnectionId, call.Callback);
-                            return new ValueTask<bool>(true);
+                            ConnectionId = call.ConnectionId,
+                            ChatCallback = call.Callback
                         });
                 }
 
                 public static async ValueTask SendAsync(HotfixServiceCall<ChatSendRequest, IChatCallback> call)
                 {
-                    // call.Actors is node-local. Use typed selectors for actors whose placement may be remote.
-                    var starterNodeLocalActors = call.Actors;
-
-                    await starterNodeLocalActors.AskAsync<ChatRoomActor, bool>(
-                        RoomId,
-                        (room, ct) =>
+                    var rooms = call.Services.GetRequiredService<ChatRoomActors>();
+                    await rooms
+                        .Get(RoomKey)
+                        .BindChatAsync(new ChatRoomBindRequest
                         {
-                            room.BindChatCallback(call.ConnectionId, call.Callback);
-                            return new ValueTask<bool>(true);
+                            ConnectionId = call.ConnectionId,
+                            ChatCallback = call.Callback
                         });
                     var text = FilterMessage(call.Request.Text ?? "");
-                    await starterNodeLocalActors.AskAsync<ChatRoomActor, bool>(
-                        RoomId,
-                        async (room, ct) =>
+                    await rooms
+                        .Get(RoomKey)
+                        .SendAsync(new ChatRoomSendRequest
                         {
-                            await room.SendAsync(call.ConnectionId, text);
-                            return true;
+                            ConnectionId = call.ConnectionId,
+                            Text = text
                         });
                 }
 
@@ -189,12 +188,12 @@ internal sealed class HotfixRenderer : IPlanContributor
             {
                 public static ValueTask<LoginReply> LoginAsync(
                     this ChatRoomActor self,
-                    string connectionId,
-                    string playerName,
-                    ILoginCallback loginCallback)
+                    ChatRoomLoginRequest request,
+                    CancellationToken cancellationToken = default)
                 {
-                    var member = new ChatMember { Name = playerName };
-                    self.Members[connectionId] = new ChatRoomMember(playerName, loginCallback, null);
+                    _ = cancellationToken;
+                    var member = new ChatMember { Name = request.PlayerName };
+                    self.Members[request.ConnectionId] = new ChatRoomMember(request.PlayerName, request.LoginCallback, null);
 
                     BroadcastLogin(self, callback => callback.OnUserJoined(member));
 
@@ -205,17 +204,27 @@ internal sealed class HotfixRenderer : IPlanContributor
                     });
                 }
 
-                public static void BindChatCallback(this ChatRoomActor self, string connectionId, IChatCallback chatCallback)
+                public static ValueTask BindChatAsync(
+                    this ChatRoomActor self,
+                    ChatRoomBindRequest request,
+                    CancellationToken cancellationToken = default)
                 {
-                    if (self.Members.TryGetValue(connectionId, out var entry))
+                    _ = cancellationToken;
+                    if (self.Members.TryGetValue(request.ConnectionId, out var entry))
                     {
-                        self.Members[connectionId] = entry with { ChatCallback = chatCallback };
+                        self.Members[request.ConnectionId] = entry with { ChatCallback = request.ChatCallback };
                     }
+
+                    return default;
                 }
 
-                public static ValueTask SendAsync(this ChatRoomActor self, string connectionId, string text)
+                public static ValueTask SendAsync(
+                    this ChatRoomActor self,
+                    ChatRoomSendRequest request,
+                    CancellationToken cancellationToken = default)
                 {
-                    if (!self.Members.TryGetValue(connectionId, out var entry))
+                    _ = cancellationToken;
+                    if (!self.Members.TryGetValue(request.ConnectionId, out var entry))
                     {
                         return default;
                     }
@@ -223,7 +232,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                     var msg = new ChatMessage
                     {
                         SenderName = entry.Name,
-                        Text = text,
+                        Text = request.Text,
                         Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
                     };
 
@@ -237,9 +246,13 @@ internal sealed class HotfixRenderer : IPlanContributor
                     return default;
                 }
 
-                public static ValueTask LeaveAsync(this ChatRoomActor self, string connectionId)
+                public static ValueTask LeaveAsync(
+                    this ChatRoomActor self,
+                    ChatRoomLeaveRequest request,
+                    CancellationToken cancellationToken = default)
                 {
-                    if (!self.Members.Remove(connectionId, out var entry))
+                    _ = cancellationToken;
+                    if (!self.Members.Remove(request.ConnectionId, out var entry))
                     {
                         return default;
                     }
@@ -298,7 +311,7 @@ internal sealed class HotfixRenderer : IPlanContributor
             {
                 public override void Configure(HotfixFeatureContext context)
                 {
-                    context.EnsureLocalActor<ChatRoomActor>("chat:global");
+                    context.EnsureLocalActor<ChatRoomActor>("chat-room/global");
                 }
             }
         }
@@ -309,16 +322,16 @@ internal sealed class HotfixRenderer : IPlanContributor
     {
         return """
         using Server.App.Chat;
-        using Lakona.Game.Server.Actors;
         using Lakona.Game.Server.Hotfix;
         using Lakona.Game.Server.Hotfix.Abstractions;
+        using Microsoft.Extensions.DependencyInjection;
 
         namespace Server.Hotfix.Chat
         {
             [HotfixLifecycle(typeof(IGameSessionLifecycle))]
             internal sealed class ChatSessionLifecycle
             {
-                private static readonly ActorId RoomId = ActorId.From("chat:global");
+                private const string RoomKey = "global";
 
                 public static ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
                 {
@@ -332,15 +345,12 @@ internal sealed class HotfixRenderer : IPlanContributor
                     {
                         return;
                     }
-                    // call.Actors is node-local. Use typed selectors for actors whose placement may be remote.
-                    var starterNodeLocalActors = call.Actors;
-
-                    await starterNodeLocalActors.AskAsync<ChatRoomActor, bool>(
-                        RoomId,
-                        async (room, ct) =>
+                    var rooms = call.Services.GetRequiredService<ChatRoomActors>();
+                    await rooms
+                        .Get(RoomKey)
+                        .LeaveAsync(new ChatRoomLeaveRequest
                         {
-                            await room.LeaveAsync(connectionId);
-                            return true;
+                            ConnectionId = connectionId
                         });
                 }
             }

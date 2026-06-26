@@ -288,16 +288,16 @@ internal sealed class ToolText
 
     public string CheckProjectStep => Language switch
     {
-        ToolLanguage.SimplifiedChinese => "  2) dotnet run --project \"Server/App/Server.App.csproj\" -- --readiness-check",
-        ToolLanguage.TraditionalChinese => "  2) dotnet run --project \"Server/App/Server.App.csproj\" -- --readiness-check",
-        _ => "  2) dotnet run --project \"Server/App/Server.App.csproj\" -- --readiness-check"
+        ToolLanguage.SimplifiedChinese => "  3) dotnet run --project \"Server/App/Server.App.csproj\" -- --readiness-check",
+        ToolLanguage.TraditionalChinese => "  3) dotnet run --project \"Server/App/Server.App.csproj\" -- --readiness-check",
+        _ => "  3) dotnet run --project \"Server/App/Server.App.csproj\" -- --readiness-check"
     };
 
     public string BuildSolutionStep => Language switch
     {
-        ToolLanguage.SimplifiedChinese => "  3) dotnet build \"Server/Server.slnx\"",
-        ToolLanguage.TraditionalChinese => "  3) dotnet build \"Server/Server.slnx\"",
-        _ => "  3) dotnet build \"Server/Server.slnx\""
+        ToolLanguage.SimplifiedChinese => "  2) dotnet build \"Server/Server.slnx\"",
+        ToolLanguage.TraditionalChinese => "  2) dotnet build \"Server/Server.slnx\"",
+        _ => "  2) dotnet build \"Server/Server.slnx\""
     };
 
     public string StartServerStep => Language switch

@@ -20,6 +20,7 @@ internal sealed class ServerAppRenderer : IPlanContributor
         builder.AddFile("Server/App/Program.cs", RenderProgram(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/App/appsettings.json", RenderAppSettings(spec), FileWriteMode.Replace, GeneratedFileKind.Json);
         builder.AddFile("Server/App/Chat/ChatRoomActor.cs", RenderChatRoomActor(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Server/App/Chat/ChatRoomActorContracts.cs", RenderChatRoomActorContracts(), FileWriteMode.Replace, GeneratedFileKind.Text);
     }
 
     private static string RenderSolution()
@@ -118,7 +119,7 @@ internal sealed class ServerAppRenderer : IPlanContributor
 
         namespace Server.App.Chat
         {
-            internal sealed class ChatRoomActor : Actor
+            internal sealed class ChatRoomActor : Actor<string>
             {
                 internal const int MaxRecentMessages = 100;
                 internal readonly Dictionary<string, ChatRoomMember> Members = new(StringComparer.Ordinal);
@@ -126,6 +127,59 @@ internal sealed class ServerAppRenderer : IPlanContributor
             }
 
             internal sealed record ChatRoomMember(string Name, ILoginCallback LoginCallback, IChatCallback? ChatCallback);
+        }
+        """;
+    }
+
+    private static string RenderChatRoomActorContracts()
+    {
+        return """
+        using System.Threading;
+        using System.Threading.Tasks;
+        using Shared.Contracts.Chat;
+        using Lakona.Game.Server.Hotfix.Abstractions;
+
+        namespace Server.App.Chat
+        {
+            [HotfixActorContract(typeof(ChatRoomActor))]
+            public interface IChatRoomActorContract
+            {
+                ValueTask<LoginReply> LoginAsync(ChatRoomLoginRequest request, CancellationToken cancellationToken = default);
+
+                ValueTask BindChatAsync(ChatRoomBindRequest request, CancellationToken cancellationToken = default);
+
+                ValueTask SendAsync(ChatRoomSendRequest request, CancellationToken cancellationToken = default);
+
+                ValueTask LeaveAsync(ChatRoomLeaveRequest request, CancellationToken cancellationToken = default);
+            }
+
+            public sealed class ChatRoomLoginRequest
+            {
+                public string ConnectionId { get; set; } = "";
+
+                public string PlayerName { get; set; } = "";
+
+                public ILoginCallback LoginCallback { get; set; } = null!;
+            }
+
+            public sealed class ChatRoomBindRequest
+            {
+                public string ConnectionId { get; set; } = "";
+
+                public IChatCallback ChatCallback { get; set; } = null!;
+            }
+
+            public sealed class ChatRoomSendRequest
+            {
+                public string ConnectionId { get; set; } = "";
+
+                public string Text { get; set; } = "";
+            }
+
+            public sealed class ChatRoomLeaveRequest
+            {
+                public string ConnectionId { get; set; } = "";
+            }
         }
         """;
     }

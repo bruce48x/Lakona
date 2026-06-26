@@ -27,7 +27,7 @@ public static class LakonaGameReadinessProbe
             new HotfixSourceRule()
         };
 
-        if (clusterOptions is not null)
+        if (runtime.Cluster is not null)
         {
             rules.Add(new ClusterEndpointRule());
         }
@@ -143,16 +143,18 @@ public static class LakonaGameReadinessProbe
                 .ToArray(),
             Cluster: new LakonaGameResolvedCluster(
                 AdvertisedEndpoints: clusterOptions?.AdvertisedEndpoints ?? new Dictionary<string, string>()),
-            ClusterEndpoint: new LakonaGameResolvedClusterEndpoint(
-                new LakonaGameResolvedValue<string>(
-                    runtime.Cluster?.Endpoint ?? "",
-                    LakonaGameValueSource.Configuration,
-                    "Lakona:Cluster:Endpoint"),
-                new LakonaGameResolvedValue<string>(
-                    runtime.Cluster?.Serializer ?? "",
-                    LakonaGameValueSource.Configuration,
-                    "Lakona:Cluster:Serializer"),
-                runtime.Cluster?.Seeds ?? Array.Empty<string>()),
+            ClusterEndpoint: runtime.Cluster is null
+                ? null
+                : new LakonaGameResolvedClusterEndpoint(
+                    new LakonaGameResolvedValue<string>(
+                        runtime.Cluster.Endpoint,
+                        LakonaGameValueSource.Configuration,
+                        "Lakona:Cluster:Endpoint"),
+                    new LakonaGameResolvedValue<string>(
+                        runtime.Cluster.Serializer,
+                        LakonaGameValueSource.Configuration,
+                        "Lakona:Cluster:Serializer"),
+                    runtime.Cluster.Seeds),
             Feature: new LakonaGameResolvedFeature(
                 Configured: null,
                 Active: Array.Empty<string>(),

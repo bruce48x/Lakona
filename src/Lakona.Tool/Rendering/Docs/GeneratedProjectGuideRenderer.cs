@@ -36,8 +36,14 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 
         ## Build And Run
 
-        Use the check command first to build the server and print the derived Lakona runtime
-        state. After the check succeeds, run the server normally.
+        Build the generated server first, then run the check command to print the derived
+        Lakona runtime state. After the check succeeds, run the server normally.
+
+        Build the generated server:
+
+        ```powershell
+        dotnet build "Server/Server.slnx"
+        ```
 
         Check the generated server:
 
@@ -101,16 +107,12 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         ## Actor Call Model
 
         `call.Actors` is the node-local actor runtime for the process currently
-        executing the hotfix service. The generated chat vertical slice is a
-        single-node starter, so it names this dependency `starterNodeLocalActors`.
-        This is not a remote actor call. RPC services that target actors whose
+        executing the hotfix service. RPC services that target actors whose
         placement may change should use generated typed actor selectors instead.
 
         ```csharp
-        var starterNodeLocalActors = call.Actors;
-        var reply = await starterNodeLocalActors.AskAsync<ChatRoomActor, LoginReply>(
-            roomId,
-            (room, ct) => room.LoginAsync(connectionId, playerName, callback));
+        var rooms = call.Services.GetRequiredService<ChatRoomActors>();
+        var reply = await rooms.Get("global").LoginAsync(request, ct);
         ```
 
         Use generated typed actor selectors when business code should express

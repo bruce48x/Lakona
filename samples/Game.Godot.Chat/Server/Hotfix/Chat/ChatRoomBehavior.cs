@@ -11,12 +11,12 @@ namespace Server.Hotfix.Chat
     {
         public static ValueTask<LoginReply> LoginAsync(
             this ChatRoomActor self,
-            string connectionId,
-            string playerName,
-            ILoginCallback loginCallback)
+            ChatRoomLoginRequest request,
+            CancellationToken cancellationToken = default)
         {
-            var member = new ChatMember { Name = playerName };
-            self.Members[connectionId] = new ChatRoomMember(playerName, loginCallback, null);
+            _ = cancellationToken;
+            var member = new ChatMember { Name = request.PlayerName };
+            self.Members[request.ConnectionId] = new ChatRoomMember(request.PlayerName, request.LoginCallback, null);
 
             BroadcastLogin(self, callback => callback.OnUserJoined(member));
 
@@ -27,17 +27,27 @@ namespace Server.Hotfix.Chat
             });
         }
 
-        public static void BindChatCallback(this ChatRoomActor self, string connectionId, IChatCallback chatCallback)
+        public static ValueTask BindChatAsync(
+            this ChatRoomActor self,
+            ChatRoomBindRequest request,
+            CancellationToken cancellationToken = default)
         {
-            if (self.Members.TryGetValue(connectionId, out var entry))
+            _ = cancellationToken;
+            if (self.Members.TryGetValue(request.ConnectionId, out var entry))
             {
-                self.Members[connectionId] = entry with { ChatCallback = chatCallback };
+                self.Members[request.ConnectionId] = entry with { ChatCallback = request.ChatCallback };
             }
+
+            return default;
         }
 
-        public static ValueTask SendAsync(this ChatRoomActor self, string connectionId, string text)
+        public static ValueTask SendAsync(
+            this ChatRoomActor self,
+            ChatRoomSendRequest request,
+            CancellationToken cancellationToken = default)
         {
-            if (!self.Members.TryGetValue(connectionId, out var entry))
+            _ = cancellationToken;
+            if (!self.Members.TryGetValue(request.ConnectionId, out var entry))
             {
                 return default;
             }
@@ -45,7 +55,7 @@ namespace Server.Hotfix.Chat
             var msg = new ChatMessage
             {
                 SenderName = entry.Name,
-                Text = text,
+                Text = request.Text,
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
             };
 
@@ -59,9 +69,13 @@ namespace Server.Hotfix.Chat
             return default;
         }
 
-        public static ValueTask LeaveAsync(this ChatRoomActor self, string connectionId)
+        public static ValueTask LeaveAsync(
+            this ChatRoomActor self,
+            ChatRoomLeaveRequest request,
+            CancellationToken cancellationToken = default)
         {
-            if (!self.Members.Remove(connectionId, out var entry))
+            _ = cancellationToken;
+            if (!self.Members.Remove(request.ConnectionId, out var entry))
             {
                 return default;
             }

@@ -1,53 +1,49 @@
 using System;
 using Server.App.Chat;
 using Shared.Contracts.Chat;
-using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Server.Hotfix.Chat
 {
     [HotfixService(typeof(IChatService))]
     internal sealed class ChatService
     {
-        private static readonly ActorId RoomId = ActorId.From("chat:global");
+        private const string RoomKey = "global";
 
         public static async ValueTask BindAsync(HotfixServiceCall<ChatBindRequest, IChatCallback> call)
         {
             await call.GameServer.BindCurrentSessionAsync(
                 call.ConnectionId,
                 call.Callback);
-            // call.Actors is node-local. Use typed selectors for actors whose placement may be remote.
-            var starterNodeLocalActors = call.Actors;
-
-            await starterNodeLocalActors.AskAsync<ChatRoomActor, bool>(
-                RoomId,
-                (room, ct) =>
+            var rooms = call.Services.GetRequiredService<ChatRoomActors>();
+            await rooms
+                .Get(RoomKey)
+                .BindChatAsync(new ChatRoomBindRequest
                 {
-                    room.BindChatCallback(call.ConnectionId, call.Callback);
-                    return new ValueTask<bool>(true);
+                    ConnectionId = call.ConnectionId,
+                    ChatCallback = call.Callback
                 });
         }
 
         public static async ValueTask SendAsync(HotfixServiceCall<ChatSendRequest, IChatCallback> call)
         {
-            // call.Actors is node-local. Use typed selectors for actors whose placement may be remote.
-            var starterNodeLocalActors = call.Actors;
-
-            await starterNodeLocalActors.AskAsync<ChatRoomActor, bool>(
-                RoomId,
-                (room, ct) =>
+            var rooms = call.Services.GetRequiredService<ChatRoomActors>();
+            await rooms
+                .Get(RoomKey)
+                .BindChatAsync(new ChatRoomBindRequest
                 {
-                    room.BindChatCallback(call.ConnectionId, call.Callback);
-                    return new ValueTask<bool>(true);
+                    ConnectionId = call.ConnectionId,
+                    ChatCallback = call.Callback
                 });
             var text = FilterMessage(call.Request.Text ?? "");
-            await starterNodeLocalActors.AskAsync<ChatRoomActor, bool>(
-                RoomId,
-                async (room, ct) =>
+            await rooms
+                .Get(RoomKey)
+                .SendAsync(new ChatRoomSendRequest
                 {
-                    await room.SendAsync(call.ConnectionId, text);
-                    return true;
+                    ConnectionId = call.ConnectionId,
+                    Text = text
                 });
         }
 

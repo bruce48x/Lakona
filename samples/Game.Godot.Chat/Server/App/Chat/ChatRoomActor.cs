@@ -5,7 +5,7 @@ using Lakona.Game.Server.Actors;
 
 namespace Server.App.Chat
 {
-    internal sealed class ChatRoomActor : Actor
+    internal sealed class ChatRoomActor : Actor<string>
     {
         internal const int MaxRecentMessages = 100;
         internal readonly Dictionary<string, ChatRoomMember> Members = new(StringComparer.Ordinal);

@@ -191,7 +191,7 @@ state as the room concurrency model.
 The hotfix Chat feature must declare the fixed local room actor explicitly:
 
 ```csharp
-context.EnsureLocalActor<ChatRoomActor>("chat:global");
+context.EnsureLocalActor<ChatRoomActor>("chat-room/global");
 ```
 
 The user should see Lakona.Game's core capabilities through a working game-server story instead of isolated infrastructure examples.

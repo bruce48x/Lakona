@@ -371,7 +371,7 @@ Rules:
 - Shared owns `Lakona.Rpc.Core`.
 - Shared owns MemoryPack serializer and MemoryPack generator when serializer is
   MemoryPack.
-- ServerApp owns `Lakona.Game.Server`, hotfix runtime, server generators, RPC
+- ServerApp owns `Lakona.Game.Server`, hotfix runtime, hotfix generators, RPC
   server, cluster packages, persistence packages, and RPC analyzers. It does
   not reference the selected client-facing transport package or selected
   serializer package directly.
@@ -393,7 +393,7 @@ Rules:
 | Target | Always Includes | Conditional Includes |
 | --- | --- | --- |
 | Shared | `Lakona.Rpc.Core` | MemoryPack serializer package, `MemoryPack`, `MemoryPack.Generator` when serializer is MemoryPack |
-| ServerApp | `Microsoft.Extensions.Hosting`, `Lakona.Game.Server`, `Lakona.Game.Server.Generators`, `Lakona.Game.Server.Hotfix`, `Lakona.Game.Server.Hotfix.Generators`, `Lakona.Rpc.Server`, `Lakona.Rpc.Analyzers`, cluster packages for default local cluster | Dapper and DB provider for external persistence |
+| ServerApp | `Microsoft.Extensions.Hosting`, `Lakona.Game.Server`, `Lakona.Game.Server.Hotfix`, `Lakona.Game.Server.Hotfix.Generators`, `Lakona.Rpc.Server`, `Lakona.Rpc.Analyzers`, cluster packages for default local cluster | Dapper and DB provider for external persistence |
 | ServerHotfix | project references to Shared and ServerApp | no direct runtime package duplication unless hotfix APIs require it |
 | UnityClient | `Lakona.Rpc.Core`, `Lakona.Rpc.Client`, selected transport, selected serializer, `Lakona.Rpc.Analyzers`, `Lakona.Game.Client`, `Lakona.Game.Abstractions`, `System.Threading.Channels` | Unity KCP dependencies, JSON dependencies, MemoryPack/Roslyn dependencies |
 | GodotClient | `Lakona.Rpc.Core`, `Lakona.Rpc.Client`, selected transport, `Lakona.Rpc.Analyzers`, `Lakona.Game.Client` | JSON serializer for JSON projects, local Godot SDK NuGet source if detected |
@@ -408,7 +408,7 @@ Analyzer references must keep private metadata:
 </PackageReference>
 ```
 
-Server generator references should keep `OutputItemType="Analyzer"` and
+Analyzer package references should keep `OutputItemType="Analyzer"` and
 `PrivateAssets="all"` when rendered as attributes.
 
 ## Rendering Boundaries
@@ -657,7 +657,7 @@ Generated hotfix feature declarations own fixed local actor creation. The Chat
 feature declares:
 
 ```csharp
-context.EnsureLocalActor<ChatRoomActor>("chat:global");
+context.EnsureLocalActor<ChatRoomActor>("chat-room/global");
 ```
 
 Default local generation must not emit these keys:

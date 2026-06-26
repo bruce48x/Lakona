@@ -2,28 +2,31 @@ using System;
 using Server.App.Chat;
 using Server.Hotfix.Chat;
 using Shared.Contracts.Chat;
-using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Server.Hotfix.Login
 {
     [HotfixService(typeof(ILoginService))]
     internal sealed class LoginService
     {
-        private static readonly ActorId RoomId = ActorId.From("chat:global");
+        private const string RoomKey = "global";
 
         public static async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, ILoginCallback> call)
         {
             var playerName = string.IsNullOrWhiteSpace(call.Request.PlayerName)
                 ? "Player"
                 : call.Request.PlayerName.Trim();
-            // call.Actors is node-local. Use typed selectors for actors whose placement may be remote.
-            var starterNodeLocalActors = call.Actors;
-
-            var reply = await starterNodeLocalActors.AskAsync<ChatRoomActor, LoginReply>(
-                RoomId,
-                (room, ct) => room.LoginAsync(call.ConnectionId, playerName, call.Callback));
+            var rooms = call.Services.GetRequiredService<ChatRoomActors>();
+            var reply = await rooms
+                .Get(RoomKey)
+                .LoginAsync(new ChatRoomLoginRequest
+                {
+                    ConnectionId = call.ConnectionId,
+                    PlayerName = playerName,
+                    LoginCallback = call.Callback
+                });
             await call.GameServer.StartSessionAsync(
                 playerName,
                 call.ConnectionId,

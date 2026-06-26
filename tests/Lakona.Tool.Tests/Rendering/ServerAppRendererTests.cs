@@ -72,7 +72,7 @@ public sealed class ServerAppRendererTests
         Assert.DoesNotContain(".Feature<", program, StringComparison.Ordinal);
 
         var chatRoomActor = AssertPath(plan, "Server/App/Chat/ChatRoomActor.cs").Content;
-        Assert.Contains("internal sealed class ChatRoomActor : Actor", chatRoomActor, StringComparison.Ordinal);
+        Assert.Contains("internal sealed class ChatRoomActor : Actor<string>", chatRoomActor, StringComparison.Ordinal);
         Assert.Contains("internal readonly Dictionary<string, ChatRoomMember> Members", chatRoomActor, StringComparison.Ordinal);
         Assert.Contains("internal readonly Queue<ChatMessage> RecentMessages", chatRoomActor, StringComparison.Ordinal);
         Assert.DoesNotContain("ValueTask<LoginReply> LoginAsync", chatRoomActor, StringComparison.Ordinal);
@@ -80,6 +80,14 @@ public sealed class ServerAppRendererTests
         Assert.DoesNotContain("ValueTask SendAsync", chatRoomActor, StringComparison.Ordinal);
         Assert.DoesNotContain("ValueTask.CompletedTask", chatRoomActor, StringComparison.Ordinal);
         Assert.DoesNotContain("ValueTask.FromResult", chatRoomActor, StringComparison.Ordinal);
+
+        var chatRoomContracts = AssertPath(plan, "Server/App/Chat/ChatRoomActorContracts.cs").Content;
+        Assert.Contains("[HotfixActorContract(typeof(ChatRoomActor))]", chatRoomContracts, StringComparison.Ordinal);
+        Assert.Contains("public interface IChatRoomActorContract", chatRoomContracts, StringComparison.Ordinal);
+        Assert.Contains("ValueTask<LoginReply> LoginAsync(ChatRoomLoginRequest request", chatRoomContracts, StringComparison.Ordinal);
+        Assert.Contains("ValueTask BindChatAsync(ChatRoomBindRequest request", chatRoomContracts, StringComparison.Ordinal);
+        Assert.Contains("ValueTask SendAsync(ChatRoomSendRequest request", chatRoomContracts, StringComparison.Ordinal);
+        Assert.Contains("ValueTask LeaveAsync(ChatRoomLeaveRequest request", chatRoomContracts, StringComparison.Ordinal);
 
         Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Chat/LoginServiceProxy.cs");
         Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Chat/ChatServiceProxy.cs");
