@@ -49,13 +49,13 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("public UserLocalRef Local(global::Game.Server.UserId id)", result.GeneratedSource);
         Assert.Contains("public UserRemoteRef Remote(global::Lakona.Game.Cluster.NodeId nodeId, global::Game.Server.UserId id)", result.GeneratedSource);
         Assert.Contains("global::System.IServiceProvider services,", result.GeneratedSource);
-        Assert.Contains(
-            "public UserActors(\r\n        global::Lakona.Game.Server.Actors.IActorRuntime runtime,\r\n        global::System.IServiceProvider services,",
+        AssertContainsNormalized(
+            "public UserActors(\n        global::Lakona.Game.Server.Actors.IActorRuntime runtime,\n        global::System.IServiceProvider services,",
             result.GeneratedSource);
         Assert.Contains("GetRequiredService<global::Lakona.Game.Server.Actors.IRemoteActorInvoker>(_services)", result.GeneratedSource);
         Assert.DoesNotContain(
-            "public UserActors(\r\n        global::Lakona.Game.Server.Actors.IActorRuntime runtime,\r\n        global::Lakona.Game.Server.Actors.IRemoteActorInvoker remote,",
-            result.GeneratedSource,
+            "public UserActors(\n        global::Lakona.Game.Server.Actors.IActorRuntime runtime,\n        global::Lakona.Game.Server.Actors.IRemoteActorInvoker remote,",
+            result.GeneratedSource.ReplaceLineEndings("\n"),
             StringComparison.Ordinal);
         Assert.Contains("global::Lakona.Game.Server.Actors.ActorId.From(_id.ToString())", result.GeneratedSource);
         Assert.Contains("global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync<global::Game.Server.LoginReply>", result.GeneratedSource);
@@ -76,6 +76,11 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("public sealed class GeneratedHotfixActorRegistration", result.GeneratedSource);
         Assert.Contains("TryAddSingleton<global::Game.Server.UserActors>", result.GeneratedSource);
         Assert.DoesNotContain("actor.LoginAsync", result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    private static void AssertContainsNormalized(string expected, string actual)
+    {
+        Assert.Contains(expected.ReplaceLineEndings("\n"), actual.ReplaceLineEndings("\n"), StringComparison.Ordinal);
     }
 
     [Fact]
