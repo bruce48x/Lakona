@@ -20,6 +20,11 @@ public sealed class AgarThreeNodeLocalTestScriptTests
         Assert.Contains("#Requires -Version 7.0", script, StringComparison.Ordinal);
         Assert.Contains("docker compose", script, StringComparison.Ordinal);
         Assert.Contains("Lakona__Endpoints__0__AdvertisedHost", script, StringComparison.Ordinal);
+        Assert.Contains("gateway-1", script, StringComparison.Ordinal);
+        Assert.Contains("battle-1", script, StringComparison.Ordinal);
+        Assert.True(
+            script.Split("Lakona__Endpoints__0__AdvertisedHost", StringSplitOptions.None).Length - 1 >= 2,
+            "The script should override advertised host for both gateway and battle endpoints.");
         Assert.Contains("-runTests", script, StringComparison.Ordinal);
         Assert.Contains("-testPlatform", script, StringComparison.Ordinal);
         Assert.Contains("PlayMode", script, StringComparison.Ordinal);
@@ -43,7 +48,7 @@ public sealed class AgarThreeNodeLocalTestScriptTests
         Assert.True(File.Exists(scriptPath), "The local Agar three-node script should exist.");
         var script = File.ReadAllText(scriptPath);
 
-        Assert.Contains("local", script, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("local-only", script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("github.event", script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("GITHUB_ACTIONS", script, StringComparison.Ordinal);
     }
