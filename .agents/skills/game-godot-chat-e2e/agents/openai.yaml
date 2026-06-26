@@ -1,0 +1,4 @@
+interface:
+  display_name: "Game Godot Chat E2E"
+  short_description: "Run the dedicated Godot chat sample E2E"
+  default_prompt: "Use $game-godot-chat-e2e to verify samples/Game.Godot.Chat end to end."
