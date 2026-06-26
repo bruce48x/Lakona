@@ -7,7 +7,6 @@ using Agar.Sample.State.Users;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
-using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.Services;
 using Server.Hotfix.State.Rooms;
 using Server.Hotfix.State.Sessions;
@@ -106,14 +105,10 @@ internal sealed class BattleService
         };
     }
 
-    public static async ValueTask SubmitInputAsync(HotfixServiceCall<InputMessage, IBattleCallback> call)
+    public async ValueTask SubmitInputAsync(HotfixServiceCall<InputMessage, IBattleCallback> call)
     {
         var req = call.Request;
-        var playerSessionRegistry = call.Services.GetRequiredService<PlayerSessionRegistry>();
-        var runtimeNodeIdentity = call.Services.GetRequiredService<RuntimeNodeIdentity>();
-        var users = call.Services.GetRequiredService<UserActors>();
-        var rooms = call.Services.GetRequiredService<RoomActors>();
-        var playerId = playerSessionRegistry.GetPlayerIdByConnection(call.ConnectionId);
+        var playerId = _playerSessionRegistry.GetPlayerIdByConnection(call.ConnectionId);
         // Direct current-node escape hatches should be named `var nodeLocalActors = call.Actors;`;
         // use typed selectors when actor placement may be remote.
         if (string.IsNullOrWhiteSpace(playerId))
@@ -127,17 +122,17 @@ internal sealed class BattleService
             return;
         }
 
-        var sessionSnapshot = await users
+        var sessionSnapshot = await _users
             .Get(new UserId(playerId))
             .GetSnapshotAsync(new PlayerSessionSnapshotRequest())
             .ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(sessionSnapshot.CurrentRoomId) ||
-            !runtimeNodeIdentity.IsRuntimeOwner(sessionSnapshot.RuntimeGateway))
+            !_runtimeNodeIdentity.IsRuntimeOwner(sessionSnapshot.RuntimeGateway))
         {
             return;
         }
 
-        await rooms
+        await _rooms
             .Local(new RoomId(sessionSnapshot.CurrentRoomId))
             .SubmitInputAsync(new RoomInputSubmitRequest
             {
