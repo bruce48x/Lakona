@@ -261,6 +261,9 @@ function New-E2EClient {
 
     $rpcCoreVersion = Get-LocalPackageVersion $FeedDir "Lakona.Rpc.Core"
     $rpcClientVersion = Get-LocalPackageVersion $FeedDir "Lakona.Rpc.Client"
+    $rpcAnalyzersVersion = Get-LocalPackageVersion $FeedDir "Lakona.Rpc.Analyzers"
+    $gameClientVersion = Get-LocalPackageVersion $FeedDir "Lakona.Game.Client"
+    $gameAbstractionsVersion = Get-LocalPackageVersion $FeedDir "Lakona.Game.Abstractions"
     $transportPackage = Get-TransportPackageName $Transport
     $transportVersion = Get-LocalPackageVersion $FeedDir $transportPackage
     $serializerPackage = Get-SerializerPackageName $Serializer
@@ -274,12 +277,32 @@ function New-E2EClient {
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <LakonaRpcGenerateClient>true</LakonaRpcGenerateClient>
+    <LakonaRpcGeneratedNamespace>Rpc.Generated</LakonaRpcGeneratedNamespace>
+    <LakonaGameGenerateClient>true</LakonaGameGenerateClient>
+    <LakonaGameClientRuntime>dotnet-client</LakonaGameClientRuntime>
+    <LakonaGameClientPlatform>local-e2e</LakonaGameClientPlatform>
+    <LakonaGameClientGameVersion>local-package-e2e</LakonaGameClientGameVersion>
   </PropertyGroup>
+  <ItemGroup>
+    <CompilerVisibleProperty Include="LakonaRpcGenerateClient" />
+    <CompilerVisibleProperty Include="LakonaRpcGeneratedNamespace" />
+    <CompilerVisibleProperty Include="LakonaGameGenerateClient" />
+    <CompilerVisibleProperty Include="LakonaGameClientRuntime" />
+    <CompilerVisibleProperty Include="LakonaGameClientPlatform" />
+    <CompilerVisibleProperty Include="LakonaGameClientGameVersion" />
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Lakona.Rpc.Core" Version="$rpcCoreVersion" />
     <PackageReference Include="Lakona.Rpc.Client" Version="$rpcClientVersion" />
     <PackageReference Include="$transportPackage" Version="$transportVersion" />
     <PackageReference Include="$serializerPackage" Version="$serializerVersion" />
+    <PackageReference Include="Lakona.Rpc.Analyzers" Version="$rpcAnalyzersVersion">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Lakona.Game.Client" Version="$gameClientVersion" />
+    <PackageReference Include="Lakona.Game.Abstractions" Version="$gameAbstractionsVersion" />
     <ProjectReference Include="$sharedProj" />
   </ItemGroup>
 </Project>
@@ -293,9 +316,9 @@ function New-E2EClient {
     $serializerCtor = Get-SerializerConstructor $Serializer
 
     $program = @"
+using Rpc.Generated;
 using Shared.Contracts.Chat;
 using Lakona.Rpc.Client;
-using Lakona.Rpc.Core;
 $transportUsing
 $serializerUsing
 
@@ -303,14 +326,14 @@ try
 {
     var transport = $transportCtor;
     var serializer = $serializerCtor;
-    await using var client = new RpcClientRuntime(transport, serializer);
+    var options = new RpcClientOptions(transport, serializer);
+    await using var client = new LakonaGameClient(options, new E2ECallbacks());
 
     Console.WriteLine("[E2E] Connecting to server...");
-    await client.StartAsync();
+    await client.ConnectAsync();
     Console.WriteLine("[E2E] Connected.");
 
-    var reply = await client.CallAsync(
-        new RpcMethod<LoginRequest, LoginReply>(1, 1),
+    var reply = await client.Api.Shared.Login.LoginAsync(
         new LoginRequest { PlayerName = "E2ETest" });
 
     Console.WriteLine("[E2E] Members={0}, RecentMessages={1}", reply.Members.Count, reply.RecentMessages.Count);
@@ -327,6 +350,21 @@ catch (Exception ex)
 {
     Console.Error.WriteLine("[E2E] FAIL: {0}", ex);
     Environment.Exit(1);
+}
+
+internal sealed class E2ECallbacks : ILoginCallback, IChatCallback
+{
+    public void OnUserJoined(ChatMember member)
+    {
+    }
+
+    public void OnUserLeft(ChatUserLeft evt)
+    {
+    }
+
+    public void OnMessageReceived(ChatMessage msg)
+    {
+    }
 }
 "@
 
