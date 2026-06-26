@@ -1,8 +1,6 @@
 #nullable enable
 
 #if UNITY_INCLUDE_TESTS
-using Shared.Interfaces;
-
 namespace SampleClient.Gameplay
 {
     public sealed partial class DotArenaGame
@@ -10,6 +8,7 @@ namespace SampleClient.Gameplay
         public DotArenaGameTestSnapshot BuildTestSnapshot()
         {
             var realtime = _lastRealtimeConnection;
+            var session = _networkSession;
 
             return new DotArenaGameTestSnapshot
             {
@@ -18,9 +17,9 @@ namespace SampleClient.Gameplay
                 SessionMode = _sessionMode.ToString(),
                 Status = _status,
                 LocalPlayerId = _localPlayerId,
-                IsControlConnected = IsConnected,
-                IsRealtimeConnected = IsRealtimeConnected,
-                IsConnecting = IsConnecting,
+                IsControlConnected = session?.IsConnected ?? false,
+                IsRealtimeConnected = session?.IsRealtimeConnected ?? false,
+                IsConnecting = session?.IsConnecting ?? false,
                 LastWorldTick = _lastWorldTick,
                 ViewCount = _views.Count,
                 LastRealtimeTransport = realtime?.Transport.ToString() ?? string.Empty,
