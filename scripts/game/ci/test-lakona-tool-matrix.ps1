@@ -232,7 +232,6 @@ foreach ($engine in $engines) {
                     --client-engine $engine `
                     --transport $transport `
                     --serializer $ser `
-                    --network-profile cluster `
                     --persistence none `
                     --nugetforunity-source embedded `
                     --deploy-profile none `
