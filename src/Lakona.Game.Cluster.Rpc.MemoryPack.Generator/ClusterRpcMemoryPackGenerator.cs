@@ -295,26 +295,32 @@ public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
         builder.AppendLine();
         builder.Append("public static class ").Append(schema.RegistrationClass).AppendLine();
         builder.AppendLine("{");
-        builder.AppendLine("    private static int s_registered;");
+        builder.AppendLine("    private static readonly object s_gate = new object();");
+        builder.AppendLine("    private static bool s_registered;");
         builder.AppendLine();
         builder.AppendLine("    public static void Register()");
         builder.AppendLine("    {");
-        builder.AppendLine("        if (global::System.Threading.Interlocked.Exchange(ref s_registered, 1) == 1)");
+        builder.AppendLine("        lock (s_gate)");
         builder.AppendLine("        {");
-        builder.AppendLine("            return;");
-        builder.AppendLine("        }");
+        builder.AppendLine("            if (s_registered)");
+        builder.AppendLine("            {");
+        builder.AppendLine("                return;");
+        builder.AppendLine("            }");
         builder.AppendLine();
 
         foreach (var type in resolvedTypes)
         {
             builder
-                .Append("        global::MemoryPack.MemoryPackFormatterProvider.Register<")
+                .Append("            global::MemoryPack.MemoryPackFormatterProvider.Register<")
                 .Append(TypeName(type.Symbol))
                 .Append(">(new ")
                 .Append(FormatterClassName(type.Symbol))
                 .AppendLine("());");
         }
 
+        builder.AppendLine();
+        builder.AppendLine("            s_registered = true;");
+        builder.AppendLine("        }");
         builder.AppendLine("    }");
         builder.AppendLine("}");
         builder.AppendLine();
@@ -403,22 +409,27 @@ public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
             .Append("        global::System.Span<int> offsets = stackalloc int[")
             .Append(properties.Length.ToString(System.Globalization.CultureInfo.InvariantCulture))
             .AppendLine("];");
-        builder.AppendLine("        var tempWriter = new global::MemoryPack.MemoryPackWriter<global::System.Buffers.ArrayBufferWriter<byte>>(ref tempBuffer, writer.OptionalState);");
         builder.AppendLine();
 
         for (var i = 0; i < properties.Length; i++)
         {
+            builder.AppendLine("        {");
+            builder.AppendLine("            var fieldBuffer = new global::System.Buffers.ArrayBufferWriter<byte>();");
+            builder.AppendLine("            var fieldWriter = new global::MemoryPack.MemoryPackWriter<global::System.Buffers.ArrayBufferWriter<byte>>(ref fieldBuffer, writer.OptionalState);");
             builder.Append("        ");
-            AppendWritePayload(builder, encodings[i], "tempWriter", "__field" + i.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            AppendWritePayload(builder, encodings[i], "fieldWriter", "__field" + i.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            builder.AppendLine("            fieldWriter.Flush();");
+            builder.AppendLine("            fieldBuffer.WrittenSpan.CopyTo(tempBuffer.GetSpan(fieldBuffer.WrittenCount));");
+            builder.AppendLine("            tempBuffer.Advance(fieldBuffer.WrittenCount);");
             builder
                 .Append("        offsets[")
                 .Append(i.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                .Append("] = tempWriter.WrittenCount;")
+                .Append("] = tempBuffer.WrittenCount;")
                 .AppendLine();
+            builder.AppendLine("        }");
         }
 
         builder.AppendLine();
-        builder.AppendLine("        tempWriter.Flush();");
         builder
             .Append("        writer.WriteObjectHeader((byte)")
             .Append(properties.Length.ToString(System.Globalization.CultureInfo.InvariantCulture))
