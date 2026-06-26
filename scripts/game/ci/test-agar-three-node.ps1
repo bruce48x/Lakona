@@ -1,0 +1,347 @@
+#Requires -Version 7.0
+<#
+.SYNOPSIS
+    Local-only three-node smoke test for samples/Game.Unity.Agar.
+
+.DESCRIPTION
+    Starts the real Docker Compose topology for data-1, gateway-1, battle-1,
+    Postgres, and Redis, then runs the existing Unity client PlayMode smoke
+    test in batchmode. This script is intentionally local-only and is not a
+    default cloud CI gate.
+
+.EXAMPLE
+    pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1
+
+.EXAMPLE
+    pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 -UnityPath "C:\Program Files\Unity\Hub\Editor\2022.3.62f1\Editor\Unity.exe" -KeepEnvironment
+#>
+
+[CmdletBinding()]
+param(
+    [string]$UnityPath = "",
+    [string]$ProjectName = "lakona-agar-three-node-test",
+    [int]$TimeoutSeconds = 600,
+    [switch]$KeepEnvironment,
+    [switch]$ReuseEnvironment,
+    [switch]$SkipBuild
+)
+
+$ErrorActionPreference = "Stop"
+$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot = (Resolve-Path (Join-Path $scriptRoot "../../..")).Path
+$sampleRoot = Join-Path $repoRoot "samples/Game.Unity.Agar"
+$clientRoot = Join-Path $sampleRoot "Client"
+$composeFile = Join-Path $sampleRoot "docker-compose.yml"
+$artifactRoot = Join-Path $repoRoot ".tmp/agar-three-node"
+$overrideFile = Join-Path $artifactRoot "docker-compose.local-test.override.yml"
+$testResults = Join-Path $artifactRoot "TestResults.xml"
+$unityLog = Join-Path $artifactRoot "unity-editor.log"
+$composeLog = Join-Path $artifactRoot "docker-compose.log"
+$composeJson = Join-Path $artifactRoot "docker-compose.ps.json"
+
+function Write-Banner {
+    param([string]$Text)
+    $line = "=" * 72
+    Write-Host ""
+    Write-Host $line -ForegroundColor Cyan
+    Write-Host "  $Text" -ForegroundColor Cyan
+    Write-Host $line -ForegroundColor Cyan
+}
+
+function Invoke-Compose {
+    param([string[]]$Arguments)
+    & docker compose -p $ProjectName -f $composeFile -f $overrideFile @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "docker compose $($Arguments -join ' ') failed with exit code $LASTEXITCODE."
+    }
+}
+
+function Test-Command {
+    param([string]$Command)
+    $existing = Get-Command $Command -ErrorAction SilentlyContinue
+    return $null -ne $existing
+}
+
+function Resolve-UnityExecutable {
+    param([string]$ExplicitPath)
+
+    $candidates = New-Object System.Collections.Generic.List[string]
+    if (-not [string]::IsNullOrWhiteSpace($ExplicitPath)) {
+        if (-not (Test-Path -LiteralPath $ExplicitPath)) {
+            throw "Unity executable was not found. Pass -UnityPath or set UNITY_PATH."
+        }
+
+        $candidates.Add($ExplicitPath)
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($env:UNITY_PATH)) {
+        $candidates.Add($env:UNITY_PATH)
+    }
+
+    $hubRoot = "C:\Program Files\Unity\Hub\Editor"
+    if (Test-Path $hubRoot) {
+        Get-ChildItem -LiteralPath $hubRoot -Directory -ErrorAction SilentlyContinue |
+            Sort-Object Name -Descending |
+            ForEach-Object {
+                $candidates.Add((Join-Path $_.FullName "Editor\Unity.exe"))
+            }
+    }
+
+    $legacy = "C:\Program Files\Unity\Editor\Unity.exe"
+    $candidates.Add($legacy)
+
+    foreach ($candidate in $candidates) {
+        if (-not [string]::IsNullOrWhiteSpace($candidate) -and (Test-Path -LiteralPath $candidate)) {
+            return (Resolve-Path -LiteralPath $candidate).Path
+        }
+    }
+
+    throw "Unity executable was not found. Pass -UnityPath or set UNITY_PATH."
+}
+
+function Write-OverrideComposeFile {
+    New-Item -ItemType Directory -Force -Path $artifactRoot | Out-Null
+    @"
+services:
+  gateway-1:
+    environment:
+      Lakona__Endpoints__0__AdvertisedHost: "127.0.0.1"
+  battle-1:
+    environment:
+      Lakona__Endpoints__0__AdvertisedHost: "127.0.0.1"
+"@ | Set-Content -LiteralPath $overrideFile -Encoding UTF8
+}
+
+function Wait-Until {
+    param(
+        [string]$Description,
+        [scriptblock]$Predicate,
+        [int]$Timeout
+    )
+
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($Timeout)
+    while ([DateTimeOffset]::UtcNow -lt $deadline) {
+        if (& $Predicate) {
+            Write-Host "  OK: $Description" -ForegroundColor Green
+            return
+        }
+
+        Start-Sleep -Seconds 2
+    }
+
+    throw "Timed out waiting for $Description."
+}
+
+function Get-ContainerId {
+    param([string]$Service)
+    $id = & docker compose -p $ProjectName -f $composeFile -f $overrideFile ps -q $Service
+    if ($LASTEXITCODE -ne 0) {
+        return ""
+    }
+
+    return ($id | Select-Object -First 1)
+}
+
+function Test-ServiceRunning {
+    param([string]$Service)
+    $id = Get-ContainerId $Service
+    if ([string]::IsNullOrWhiteSpace($id)) {
+        return $false
+    }
+
+    $state = & docker inspect --format "{{.State.Status}}" $id 2>$null
+    return $LASTEXITCODE -eq 0 -and $state -eq "running"
+}
+
+function Test-ServiceHealthy {
+    param([string]$Service)
+    $id = Get-ContainerId $Service
+    if ([string]::IsNullOrWhiteSpace($id)) {
+        return $false
+    }
+
+    $health = & docker inspect --format "{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}" $id 2>$null
+    return $LASTEXITCODE -eq 0 -and ($health -eq "healthy" -or $health -eq "running")
+}
+
+function Test-TcpPort {
+    param(
+        [string]$HostName,
+        [int]$Port
+    )
+
+    $client = [System.Net.Sockets.TcpClient]::new()
+    try {
+        $task = $client.ConnectAsync($HostName, $Port)
+        if (-not $task.Wait(1000)) {
+            return $false
+        }
+
+        return $client.Connected
+    }
+    catch {
+        return $false
+    }
+    finally {
+        $client.Dispose()
+    }
+}
+
+function Save-ComposeArtifacts {
+    try {
+        & docker compose -p $ProjectName -f $composeFile -f $overrideFile ps --format json |
+            Set-Content -LiteralPath $composeJson -Encoding UTF8
+    }
+    catch {
+        Write-Host "  Could not write compose status JSON: $($_.Exception.Message)" -ForegroundColor DarkYellow
+    }
+
+    try {
+        & docker compose -p $ProjectName -f $composeFile -f $overrideFile logs --no-color |
+            Set-Content -LiteralPath $composeLog -Encoding UTF8
+    }
+    catch {
+        Write-Host "  Could not write compose logs: $($_.Exception.Message)" -ForegroundColor DarkYellow
+    }
+}
+
+function Show-LogTail {
+    param(
+        [string]$Path,
+        [string]$Label
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return
+    }
+
+    Write-Host ""
+    Write-Host "$Label tail:" -ForegroundColor Yellow
+    Get-Content -LiteralPath $Path -Tail 120
+}
+
+function Run-UnityPlayModeTest {
+    param([string]$UnityExecutable)
+
+    $unityArgs = @(
+        "-batchmode",
+        "-quit",
+        "-projectPath", $clientRoot,
+        "-runTests",
+        "-testPlatform", "PlayMode",
+        "-testResults", $testResults,
+        "-logFile", $unityLog,
+        "--host", "127.0.0.1",
+        "--port", "20000",
+        "--path", "/ws"
+    )
+
+    Write-Host "  Unity: $UnityExecutable"
+    Write-Host "  Project: $clientRoot"
+    $process = Start-Process -FilePath $UnityExecutable -ArgumentList $unityArgs -PassThru -NoNewWindow
+    if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        throw "Unity PlayMode test timed out after $TimeoutSeconds seconds."
+    }
+
+    $process.Refresh()
+    if ($process.ExitCode -ne 0) {
+        throw "Unity PlayMode test failed with exit code $($process.ExitCode)."
+    }
+}
+
+if ($TimeoutSeconds -lt 60) {
+    throw "-TimeoutSeconds must be at least 60."
+}
+
+New-Item -ItemType Directory -Force -Path $artifactRoot | Out-Null
+Write-OverrideComposeFile
+
+$unity = ""
+$failed = $false
+$composeStarted = $false
+
+try {
+    Write-Banner "Preflight"
+    $unity = Resolve-UnityExecutable $UnityPath
+    Write-Host "  Unity executable: $unity" -ForegroundColor Green
+
+    if (-not (Test-Command "docker")) {
+        throw "docker compose is not available because docker was not found on PATH."
+    }
+
+    & docker compose version | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+        throw "docker compose is not available."
+    }
+
+    if (-not (Test-Path -LiteralPath $composeFile)) {
+        throw "Compose file was not found: $composeFile"
+    }
+
+    if (-not (Test-Path -LiteralPath $clientRoot)) {
+        throw "Unity client project was not found: $clientRoot"
+    }
+
+    Write-Banner "Start Agar three-node topology"
+    if (-not $ReuseEnvironment) {
+        & docker compose -p $ProjectName -f $composeFile -f $overrideFile down --volumes --remove-orphans
+        if ($LASTEXITCODE -ne 0) {
+            throw "docker compose down failed before startup."
+        }
+    }
+
+    $upArgs = @("up", "-d")
+    if (-not $SkipBuild) {
+        $upArgs += "--build"
+    }
+
+    Invoke-Compose $upArgs
+    $composeStarted = $true
+
+    Write-Banner "Wait for readiness"
+    Wait-Until "Postgres healthy" { Test-ServiceHealthy "postgres" } $TimeoutSeconds
+    Wait-Until "Redis healthy" { Test-ServiceHealthy "redis" } $TimeoutSeconds
+    Wait-Until "data-1 running" { Test-ServiceRunning "data-1" } $TimeoutSeconds
+    Wait-Until "gateway-1 running" { Test-ServiceRunning "gateway-1" } $TimeoutSeconds
+    Wait-Until "battle-1 running" { Test-ServiceRunning "battle-1" } $TimeoutSeconds
+    Wait-Until "gateway port 20000 reachable" { Test-TcpPort "127.0.0.1" 20000 } $TimeoutSeconds
+
+    Write-Banner "Run Unity PlayMode smoke"
+    Run-UnityPlayModeTest $unity
+
+    Write-Banner "Agar three-node local test passed"
+    Write-Host "  Test results: $testResults" -ForegroundColor Green
+    Write-Host "  Unity log:    $unityLog" -ForegroundColor Green
+    Write-Host "  Compose log:  $composeLog" -ForegroundColor Green
+}
+catch {
+    $failed = $true
+    Write-Host ""
+    Write-Host "Agar three-node local test failed: $($_.Exception.Message)" -ForegroundColor Red
+    if ($composeStarted) {
+        Save-ComposeArtifacts
+        Show-LogTail $unityLog "Unity editor log"
+        Show-LogTail $composeLog "Docker Compose log"
+    }
+
+    Write-Host ""
+    Write-Host "Artifacts: $artifactRoot" -ForegroundColor Yellow
+    throw
+}
+finally {
+    if ($composeStarted -and -not $failed) {
+        Save-ComposeArtifacts
+    }
+
+    if ($KeepEnvironment) {
+        Write-Host "Keeping Docker Compose environment for debugging: project=$ProjectName" -ForegroundColor Yellow
+    }
+    elseif ($composeStarted) {
+        Write-Banner "Cleanup"
+        & docker compose -p $ProjectName -f $composeFile -f $overrideFile down --volumes --remove-orphans
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "docker compose down failed during cleanup." -ForegroundColor Red
+        }
+    }
+}
