@@ -296,8 +296,8 @@ try {
         $upArgs += "--build"
     }
 
-    Invoke-Compose $upArgs
     $composeStarted = $true
+    Invoke-Compose $upArgs
 
     Write-Banner "Wait for readiness"
     Wait-Until "Postgres healthy" { Test-ServiceHealthy "postgres" } $TimeoutSeconds
