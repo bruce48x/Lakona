@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agar Three Node E2E"
+  short_description: "Run the Unity Agar three-node smoke test"
+  default_prompt: "Use $agar-three-node-e2e to run the Game.Unity.Agar three-node local smoke test."
