@@ -38,6 +38,7 @@ $testResults = Join-Path $artifactRoot "TestResults.xml"
 $unityLog = Join-Path $artifactRoot "unity-editor.log"
 $composeLog = Join-Path $artifactRoot "docker-compose.log"
 $composeJson = Join-Path $artifactRoot "docker-compose.ps.json"
+$deadline = $null
 
 function Write-Banner {
     param([string]$Text)
@@ -132,6 +133,19 @@ function Wait-Until {
     throw "Timed out waiting for $Description."
 }
 
+function Get-RemainingSeconds {
+    if ($null -eq $script:deadline) {
+        throw "Timeout deadline has not been initialized."
+    }
+
+    $remaining = [int][Math]::Floor(($script:deadline - [DateTimeOffset]::UtcNow).TotalSeconds)
+    if ($remaining -le 0) {
+        throw "Timed out after $TimeoutSeconds seconds."
+    }
+
+    return $remaining
+}
+
 function Get-ContainerId {
     param([string]$Service)
     $id = & docker compose -p $ProjectName -f $composeFile -f $overrideFile ps -q $Service
@@ -189,16 +203,36 @@ function Test-TcpPort {
 
 function Save-ComposeArtifacts {
     try {
-        & docker compose -p $ProjectName -f $composeFile -f $overrideFile ps --format json |
-            Set-Content -LiteralPath $composeJson -Encoding UTF8
+        $composeStatus = & docker compose -p $ProjectName -f $composeFile -f $overrideFile ps --format json 2>&1
+        $exitCode = $LASTEXITCODE
+        if ($exitCode -eq 0) {
+            $composeStatus | Set-Content -LiteralPath $composeJson -Encoding UTF8
+        }
+        else {
+            @(
+                "WARNING: docker compose ps --format json failed with exit code $exitCode."
+                "Command output:"
+                $composeStatus
+            ) | Set-Content -LiteralPath $composeJson -Encoding UTF8
+        }
     }
     catch {
         Write-Host "  Could not write compose status JSON: $($_.Exception.Message)" -ForegroundColor DarkYellow
     }
 
     try {
-        & docker compose -p $ProjectName -f $composeFile -f $overrideFile logs --no-color |
-            Set-Content -LiteralPath $composeLog -Encoding UTF8
+        $composeLogs = & docker compose -p $ProjectName -f $composeFile -f $overrideFile logs --no-color 2>&1
+        $exitCode = $LASTEXITCODE
+        if ($exitCode -eq 0) {
+            $composeLogs | Set-Content -LiteralPath $composeLog -Encoding UTF8
+        }
+        else {
+            @(
+                "WARNING: docker compose logs --no-color failed with exit code $exitCode."
+                "Command output:"
+                $composeLogs
+            ) | Set-Content -LiteralPath $composeLog -Encoding UTF8
+        }
     }
     catch {
         Write-Host "  Could not write compose logs: $($_.Exception.Message)" -ForegroundColor DarkYellow
@@ -221,7 +255,10 @@ function Show-LogTail {
 }
 
 function Run-UnityPlayModeTest {
-    param([string]$UnityExecutable)
+    param(
+        [string]$UnityExecutable,
+        [int]$Timeout
+    )
 
     $unityArgs = @(
         "-batchmode",
@@ -239,9 +276,9 @@ function Run-UnityPlayModeTest {
     Write-Host "  Unity: $UnityExecutable"
     Write-Host "  Project: $clientRoot"
     $process = Start-Process -FilePath $UnityExecutable -ArgumentList $unityArgs -PassThru -NoNewWindow
-    if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+    if (-not $process.WaitForExit($Timeout * 1000)) {
         Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-        throw "Unity PlayMode test timed out after $TimeoutSeconds seconds."
+        throw "Unity PlayMode test timed out after $Timeout seconds."
     }
 
     $process.Refresh()
@@ -283,6 +320,8 @@ try {
         throw "Unity client project was not found: $clientRoot"
     }
 
+    $script:deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+
     Write-Banner "Start Agar three-node topology"
     if (-not $ReuseEnvironment) {
         & docker compose -p $ProjectName -f $composeFile -f $overrideFile down --volumes --remove-orphans
@@ -300,15 +339,15 @@ try {
     Invoke-Compose $upArgs
 
     Write-Banner "Wait for readiness"
-    Wait-Until "Postgres healthy" { Test-ServiceHealthy "postgres" } $TimeoutSeconds
-    Wait-Until "Redis healthy" { Test-ServiceHealthy "redis" } $TimeoutSeconds
-    Wait-Until "data-1 running" { Test-ServiceRunning "data-1" } $TimeoutSeconds
-    Wait-Until "gateway-1 running" { Test-ServiceRunning "gateway-1" } $TimeoutSeconds
-    Wait-Until "battle-1 running" { Test-ServiceRunning "battle-1" } $TimeoutSeconds
-    Wait-Until "gateway port 20000 reachable" { Test-TcpPort "127.0.0.1" 20000 } $TimeoutSeconds
+    Wait-Until "Postgres healthy" { Test-ServiceHealthy "postgres" } (Get-RemainingSeconds)
+    Wait-Until "Redis healthy" { Test-ServiceHealthy "redis" } (Get-RemainingSeconds)
+    Wait-Until "data-1 running" { Test-ServiceRunning "data-1" } (Get-RemainingSeconds)
+    Wait-Until "gateway-1 running" { Test-ServiceRunning "gateway-1" } (Get-RemainingSeconds)
+    Wait-Until "battle-1 running" { Test-ServiceRunning "battle-1" } (Get-RemainingSeconds)
+    Wait-Until "gateway port 20000 reachable" { Test-TcpPort "127.0.0.1" 20000 } (Get-RemainingSeconds)
 
     Write-Banner "Run Unity PlayMode smoke"
-    Run-UnityPlayModeTest $unity
+    Run-UnityPlayModeTest $unity (Get-RemainingSeconds)
 
     Write-Banner "Agar three-node local test passed"
     Write-Host "  Test results: $testResults" -ForegroundColor Green
@@ -334,8 +373,8 @@ finally {
         Save-ComposeArtifacts
     }
 
-    if ($KeepEnvironment) {
-        Write-Host "Keeping Docker Compose environment for debugging: project=$ProjectName" -ForegroundColor Yellow
+    if ($KeepEnvironment -or $ReuseEnvironment) {
+        Write-Host "Preserving Docker Compose environment: project=$ProjectName" -ForegroundColor Yellow
     }
     elseif ($composeStarted) {
         Write-Banner "Cleanup"
