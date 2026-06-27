@@ -20,10 +20,10 @@ namespace Lakona.Game.Server.Hotfix.Generators
         private const string RpcMethodAttributeName = "Lakona.Rpc.Core.RpcMethodAttribute";
         private const string DefaultGeneratedServerNamespace = "Server.App.Generated";
 
-        private static readonly DiagnosticDescriptor FileLocalHotfixBehaviorNotSupported = new DiagnosticDescriptor(
+        private static readonly DiagnosticDescriptor UnsupportedHotfixBehaviorWrapperTarget = new DiagnosticDescriptor(
             "ULGHOTFIX021",
-            "File-local hotfix behavior is not supported",
-            "Hotfix behavior '{0}' cannot be file-local because generated actor ref wrappers are emitted into a separate source file",
+            "Hotfix behavior cannot receive generated actor ref wrappers",
+            "Hotfix behavior '{0}' cannot receive generated actor ref wrappers because it is nested or file-local",
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
@@ -206,11 +206,11 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     continue;
                 }
 
-                if (IsFileLocalBehavior(behaviors[0]))
+                if (IsUnsupportedBehaviorWrapperTarget(behaviors[0]))
                 {
                     var location = behaviors[0].Behavior.Locations.FirstOrDefault(static item => item.IsInSource);
                     context.ReportDiagnostic(Diagnostic.Create(
-                        FileLocalHotfixBehaviorNotSupported,
+                        UnsupportedHotfixBehaviorWrapperTarget,
                         location,
                         behaviors[0].Behavior.ToDisplayString()));
                     continue;
@@ -221,6 +221,11 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     CreateActorWrapperHintName(behaviors[0].Behavior),
                     SourceText.From(GenerateActorWrapperSource(contract, behaviors[0]), Encoding.UTF8));
             }
+        }
+
+        private static bool IsUnsupportedBehaviorWrapperTarget(HotfixBehaviorInfo behavior)
+        {
+            return behavior.ContainingTypes.Length > 0 || IsFileLocalBehavior(behavior);
         }
 
         private static bool IsFileLocalBehavior(HotfixBehaviorInfo behavior)

@@ -290,7 +290,7 @@ public sealed class HotfixGeneratorTests
     }
 
     [Fact]
-    public void Generator_preserves_private_nested_behavior_accessibility_for_actor_ref_extensions()
+    public void Generator_reports_nested_hotfix_behavior_without_generating_actor_ref_extensions()
     {
         var appSource = """
             using System.Runtime.CompilerServices;
@@ -331,10 +331,8 @@ public sealed class HotfixGeneratorTests
 
         var result = GeneratorTestHost.RunWithGeneratedAppReference(appSource, hotfixSource, appAssemblyName: "Game.Server", hotfixAssemblyName: "Game.Hotfix");
 
-        Assert.Contains("public partial class UserFeature", result.Hotfix.GeneratedSource);
-        Assert.Contains("private static partial class UserBehavior", result.Hotfix.GeneratedSource);
-        Assert.DoesNotContain("internal static partial class UserBehavior", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
-        Assert.Contains("this global::Game.Server.UserRef self", result.Hotfix.GeneratedSource);
+        Assert.Contains(result.Hotfix.GeneratorDiagnostics, diagnostic => diagnostic.Id == "ULGHOTFIX021");
+        Assert.DoesNotContain("this global::Game.Server.UserRef self", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
     }
 
     [Fact]
