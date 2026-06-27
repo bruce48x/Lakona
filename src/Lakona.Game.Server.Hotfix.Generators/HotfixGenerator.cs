@@ -23,7 +23,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
         private static readonly DiagnosticDescriptor UnsupportedHotfixBehaviorWrapperTarget = new DiagnosticDescriptor(
             "ULGHOTFIX021",
             "Hotfix behavior cannot receive generated actor ref wrappers",
-            "Hotfix behavior '{0}' cannot receive generated actor ref wrappers because it is nested or file-local",
+            "Hotfix behavior '{0}' cannot receive generated actor ref wrappers because generated extension methods require a non-file-local, non-generic, top-level static partial class",
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
@@ -225,7 +225,12 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
         private static bool IsUnsupportedBehaviorWrapperTarget(HotfixBehaviorInfo behavior)
         {
-            return behavior.ContainingTypes.Length > 0 || IsFileLocalBehavior(behavior);
+            return IsFileLocalBehavior(behavior) ||
+                behavior.ContainingTypes.Length > 0 ||
+                behavior.Behavior.TypeKind != TypeKind.Class ||
+                !behavior.Behavior.IsStatic ||
+                behavior.Behavior.TypeParameters.Length > 0 ||
+                !IsPartial(behavior.Declaration);
         }
 
         private static bool IsFileLocalBehavior(HotfixBehaviorInfo behavior)
@@ -345,17 +350,10 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 .AppendLine(" self,");
             builder.Append(continuationIndent)
                 .Append(requestType)
-                .Append(method.HasCancellationToken ? " request," : " request")
+                .Append(" request,")
                 .AppendLine();
-            if (method.HasCancellationToken)
-            {
-                builder.Append(continuationIndent)
-                    .AppendLine("global::System.Threading.CancellationToken cancellationToken = default)");
-            }
-            else
-            {
-                builder.AppendLine(")");
-            }
+            builder.Append(continuationIndent)
+                .AppendLine("global::System.Threading.CancellationToken cancellationToken = default)");
 
             builder.Append(indent).AppendLine("{");
             if (method.ResultType == null)
@@ -376,7 +374,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.Append(indent).Append("        \"").Append(EscapeStringLiteral(remoteKind)).AppendLine("\",");
             builder.Append(indent).Append(method.HasCancellationToken ? "        true," : "        false,").AppendLine();
             builder.Append(indent).AppendLine("        request,");
-            builder.Append(indent).AppendLine(method.HasCancellationToken ? "        cancellationToken);" : "        default);");
+            builder.Append(indent).AppendLine("        cancellationToken);");
             builder.Append(indent).AppendLine("}");
         }
 
