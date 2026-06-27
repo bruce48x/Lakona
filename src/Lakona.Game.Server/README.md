@@ -88,6 +88,14 @@ public sealed class JoinRoomReply
     public int PlayerCount { get; init; }
 }
 
+[HotfixActorContract(typeof(RoomActor))]
+public interface IRoomActorContract
+{
+    ValueTask<JoinRoomReply> JoinAsync(
+        JoinRoomRequest request,
+        CancellationToken cancellationToken = default);
+}
+
 // In Server.Hotfix:
 [HotfixBehaviorOf(typeof(RoomActor))]
 public static partial class RoomBehavior
@@ -115,6 +123,9 @@ var routed = await rooms.Get(roomId).JoinAsync(request, cancellationToken);
 var localOnly = await rooms.Local(roomId).JoinAsync(request, cancellationToken);
 var pinned = await rooms.Remote(nodeId, roomId).JoinAsync(request, cancellationToken);
 ```
+
+The contract declares the generated actor ref call surface. `RoomBehavior` owns
+the implementation that runs inside the actor turn.
 
 Stable app generator support emits actor selector types with `Get(id)`,
 `Local(id)`, and `Remote(nodeId, id)` selectors for `Actor<TKey>` classes.

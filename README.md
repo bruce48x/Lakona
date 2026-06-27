@@ -93,6 +93,14 @@ public sealed class RoomActor : Actor<RoomId>
 {
     internal readonly HashSet<string> Players = new(StringComparer.Ordinal);
 }
+
+[HotfixActorContract(typeof(RoomActor))]
+public interface IRoomActorContract
+{
+    ValueTask<JoinRoomReply> JoinAsync(
+        JoinRoomRequest request,
+        CancellationToken cancellationToken = default);
+}
 ```
 
 ```csharp
@@ -215,6 +223,14 @@ public class RoomActor : Actor<RoomId>
     internal readonly HashSet<string> Players = new(StringComparer.Ordinal);
 }
 
+[HotfixActorContract(typeof(RoomActor))]
+public interface IRoomActorContract
+{
+    ValueTask<JoinResult> JoinAsync(
+        JoinRequest request,
+        CancellationToken ct = default);
+}
+
 [HotfixBehaviorOf(typeof(RoomActor))]
 public static partial class RoomBehavior
 {
@@ -235,6 +251,9 @@ await rooms.Get(roomId).JoinAsync(request, ct);            // Distributed
 await rooms.Local(roomId).JoinAsync(request, ct);          // Current node only
 await rooms.Remote(nodeId, roomId).JoinAsync(request, ct); // Pinned to node
 ```
+
+The contract declares the generated actor ref call surface. `RoomBehavior` owns
+the implementation that runs inside the actor turn.
 
 Lower-level `IActorRuntime` calls, including `call.Actors.AskAsync(...)` in
 hotfix services, are process-local. Use the generated selectors above when code
