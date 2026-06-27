@@ -6,7 +6,7 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>Lakona.Game.Abstractions</RootNamespace>
     <PackageId>Lakona.Game.Abstractions</PackageId>
-    <Version>0.2.1</Version>
+    <Version>0.2.2</Version>
     <Description>Shared engine-neutral session and reliable push abstractions for Lakona.Game server and client packages.</Description>
     <PackageTags>lakona-game;game;abstractions;session;reliable-push</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

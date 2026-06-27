@@ -1,6 +1,6 @@
 # Lakona.Rpc Wire Protocol v1
 
-Status: draft stability contract
+Status: draft package-set contract
 
 Date: 2026-06-04
 
@@ -19,7 +19,10 @@ This document does not define:
 - payload serializer formats, such as JSON or MemoryPack DTO bytes
 - optional security transforms, such as compression and encryption wrapping
 
-The current envelope format has no explicit version field. From this document forward, the existing unversioned envelope format is treated as wire protocol v1. Breaking changes to this format require a future protocol version or an explicit migration path.
+The current envelope format has no explicit version field. The framework is
+still early, so this document describes the current package-set contract rather
+than a backwards-compatible public wire standard. Do not mix RPC packages that
+were built against different versions of this document in one deployment.
 
 ## Primitive Encoding
 
@@ -130,6 +133,11 @@ Server-to-client push notification. Push frames do not carry a request id.
 | `FrameType` | `byte` | Must be `3`. |
 | `ServiceId` | `int32` | Stable service id associated with the notification contract. |
 | `MethodId` | `int32` | Stable notification method id from `[RpcNotification]`. |
+| `MetadataCount` | `int32` | Number of metadata entries. Current runtimes accept `0` or `1`. |
+| `MetadataTypeLength` | `int32` | Present for each metadata entry; number of UTF-8 metadata type bytes. |
+| `MetadataTypeUtf8` | `byte[MetadataTypeLength]` | Non-empty metadata type understood by higher-level packages. |
+| `MetadataPayloadLength` | `int32` | Present for each metadata entry; number of opaque metadata payload bytes. |
+| `MetadataPayload` | `byte[MetadataPayloadLength]` | Present for each metadata entry; metadata payload bytes owned by the metadata type. |
 | `PayloadLength` | `int32` | Number of payload bytes. |
 | `Payload` | `byte[PayloadLength]` | Serialized notification DTO bytes. |
 
@@ -139,9 +147,14 @@ Example:
 03                                      FrameType=Push
 00 00 00 02                             ServiceId=2
 00 00 00 03                             MethodId=3
+00 00 00 00                             MetadataCount=0
 00 00 00 02                             PayloadLength=2
 AA BB                                   Payload
 ```
+
+Metadata is placed before the business payload so generated clients and
+engine-neutral runtimes can inspect framework metadata before deserializing or
+invoking the notification callback.
 
 ## Keepalive Frames
 
@@ -170,15 +183,18 @@ The v1 decoder rejects malformed envelopes:
 - negative payload or error string lengths
 - payload or error string lengths above the configured maximum
 - declared lengths that exceed remaining frame bytes
+- unsupported Push metadata counts
+- empty Push metadata type strings
 - extra trailing bytes after a complete envelope
 
 Transport/session code may close the connection after decode failures. Application code should treat malformed envelope bytes as protocol errors, not business failures.
 
-## Compatibility Rules
+## Change Rules
 
-- Existing frame type values must not change.
-- Existing field order, field size, and big-endian integer encoding must not change.
-- `RequestId`, `ServiceId`, `MethodId`, and `PayloadLength` meanings must not change.
-- Published service ids, method ids, and push ids must not be reused for different meanings.
-- New frame types or status values require explicit old-peer behavior documentation.
-- Breaking changes to v1 require a new protocol version or a documented compatibility window.
+- Wire changes are allowed while the framework is early, but they must update
+  this document and the `RpcEnvelopeCodec` golden-byte tests in the same change.
+- Do not add compatibility shims that make the envelope shape less direct unless
+  there is an explicit supported mixed-version deployment requirement.
+- Published service ids, method ids, and push ids must not be reused for
+  different meanings inside a package set.
+- New frame types or status values must document their current runtime behavior.

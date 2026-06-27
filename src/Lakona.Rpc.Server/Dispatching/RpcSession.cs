@@ -238,13 +238,24 @@ namespace Lakona.Rpc.Server
         /// <param name="ct">Cancellation token for the send operation.</param>
         public async ValueTask SendNotificationAsync<TArg>(int serviceId, int methodId, TArg arg, CancellationToken ct = default)
         {
+            await SendNotificationAsync(serviceId, methodId, arg, metadata: null, ct).ConfigureAwait(false);
+        }
+
+        public async ValueTask SendNotificationAsync<TArg>(
+            int serviceId,
+            int methodId,
+            TArg arg,
+            RpcPushMetadata? metadata,
+            CancellationToken ct = default)
+        {
             ThrowIfDisposed();
             using var payload = arg is null ? TransportFrame.Empty : _serializer.SerializeFrame(arg);
             var push = new RpcPushEnvelope
             {
                 ServiceId = serviceId,
                 MethodId = methodId,
-                Payload = payload.Memory
+                Payload = payload.Memory,
+                Metadata = metadata
             };
             using var bytes = RpcEnvelopeCodec.EncodePush(push);
             await SendFrameAsyncSerialized(bytes.Memory, ct).ConfigureAwait(false);
@@ -256,12 +267,28 @@ namespace Lakona.Rpc.Server
             ReadOnlyMemory<byte> payload,
             CancellationToken cancellationToken = default)
         {
+            await SendRawNotificationAsync(
+                serviceId,
+                methodId,
+                payload,
+                metadata: null,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        public async ValueTask SendRawNotificationAsync(
+            int serviceId,
+            int methodId,
+            ReadOnlyMemory<byte> payload,
+            RpcPushMetadata? metadata,
+            CancellationToken cancellationToken = default)
+        {
             ThrowIfDisposed();
             var push = new RpcPushEnvelope
             {
                 ServiceId = serviceId,
                 MethodId = methodId,
-                Payload = payload
+                Payload = payload,
+                Metadata = metadata
             };
             using var bytes = RpcEnvelopeCodec.EncodePush(push);
             await SendFrameAsyncSerialized(bytes.Memory, cancellationToken).ConfigureAwait(false);

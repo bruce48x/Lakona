@@ -3,7 +3,7 @@ using Lakona.Game.Server.Sessions;
 
 namespace Lakona.Game.Server.ReliablePush;
 
-public sealed class ReliablePushAckService : IReliablePushAckService
+internal sealed class ReliablePushAckService : IReliablePushAckService
 {
     private readonly IReliablePushOutbox _outbox;
 

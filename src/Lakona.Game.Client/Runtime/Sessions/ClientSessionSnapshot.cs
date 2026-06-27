@@ -7,18 +7,22 @@ namespace Lakona.Game.Client.Sessions
             string? sessionId,
             long lastReliableSequence,
             Lakona.Game.Abstractions.SessionTerminationNotice? termination = null,
-            ClientConnectionFailure? failure = null)
+            ClientConnectionFailure? failure = null,
+            long sessionGeneration = 0)
         {
             Phase = phase;
             SessionId = sessionId;
             LastReliableSequence = lastReliableSequence;
             Termination = termination;
             Failure = failure;
+            SessionGeneration = sessionGeneration;
         }
 
         public ClientSessionPhase Phase { get; }
 
         public string? SessionId { get; }
+
+        public long SessionGeneration { get; }
 
         public long LastReliableSequence { get; }
 

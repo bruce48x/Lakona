@@ -3,7 +3,7 @@ using Lakona.Game.Server.Sessions;
 
 namespace Lakona.Game.Server.ReliablePush;
 
-public static class ReliablePushOutboxSessionExtensions
+internal static class ReliablePushOutboxSessionExtensions
 {
     public static ValueTask<long> PublishAsync(
         this IReliablePushOutbox outbox,

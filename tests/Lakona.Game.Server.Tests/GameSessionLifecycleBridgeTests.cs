@@ -475,53 +475,6 @@ public sealed class GameSessionLifecycleBridgeTests
             throw new NotSupportedException();
         }
 
-        public ValueTask<long> PublishReliablePushAsync<TCallback, TPayload>(
-            GameSessionKey session,
-            string kind,
-            TPayload payload,
-            ReliablePushDeliver<TCallback, TPayload> deliver,
-            CancellationToken cancellationToken = default)
-            where TCallback : class
-        {
-            throw new NotSupportedException();
-        }
-
-        public ValueTask<long> PublishReliablePushAsync(
-            GameSessionKey session,
-            string kind,
-            object payload,
-            Func<ReliablePushRecord, ValueTask> deliver,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public ValueTask ReplayReliablePushAsync(
-            GameSessionKey session,
-            Func<ReliablePushRecord, ValueTask> deliver,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public ValueTask ReplayReliablePushAsync<TCallback, TPayload>(
-            GameSessionKey session,
-            string kind,
-            ReliablePushDeliver<TCallback, TPayload> deliver,
-            CancellationToken cancellationToken = default)
-            where TCallback : class
-        {
-            throw new NotSupportedException();
-        }
-
-        public ValueTask<ReliablePushAckOutcome> AckReliablePushAsync(
-            GameSessionKey currentSession,
-            GameSessionKey acknowledgedSession,
-            long sequence,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
     }
 
     private sealed class RecordingHotfixServiceInvoker : IHotfixServiceInvoker

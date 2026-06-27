@@ -99,6 +99,22 @@ public sealed class ClusterRpcMemoryPackSchemaTests
         Assert.Empty(formatterFiles);
     }
 
+    [Fact]
+    public void Cluster_rpc_tests_do_not_preserve_legacy_memorypack_wire_contracts()
+    {
+        var testRoot = Path.Combine(RepositoryRoot, "tests", "Lakona.Game.Cluster.Rpc.Tests");
+        var marker = "matches_legacy_memorypack" + "_wire_bytes";
+        var legacyContractFiles = Directory
+            .EnumerateFiles(testRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(path => File.ReadAllText(path).Contains(
+                marker,
+                StringComparison.Ordinal))
+            .Select(path => Path.GetRelativePath(testRoot, path).Replace('\\', '/'))
+            .ToArray();
+
+        Assert.Empty(legacyContractFiles);
+    }
+
     [Theory]
     [InlineData("internal sealed class RouteFormatter : MemoryPackFormatter<RouteRegisterRequest>")]
     [InlineData("internal sealed class RouteFormatter : MemoryPack.MemoryPackFormatter<RouteRegisterRequest>")]

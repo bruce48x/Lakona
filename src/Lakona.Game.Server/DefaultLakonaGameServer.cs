@@ -1,17 +1,15 @@
 using Lakona.Game.Abstractions;
-using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Lakona.Game.Server;
 
-public sealed class DefaultLakonaGameServer : ILakonaGameServer
+internal sealed class DefaultLakonaGameServer : ILakonaGameServer
 {
     private readonly IGameSessionRegistry _sessions;
     private readonly IGameSessionResumeService _resume;
-    private readonly IReliablePushOutbox _reliablePush;
-    private readonly IReliablePushAckService _reliablePushAcks;
+    private readonly IClientSessionRouteRegistrar _clientSessionRoutes;
     private readonly IGameSessionConnectionCloser _connectionCloser;
     private readonly IReadOnlyList<IGameSessionLifecycleHandler> _lifecycleHandlers;
     private readonly ILogger<DefaultLakonaGameServer> _logger;
@@ -19,15 +17,13 @@ public sealed class DefaultLakonaGameServer : ILakonaGameServer
     public DefaultLakonaGameServer(
         IGameSessionRegistry sessions,
         IGameSessionResumeService resume,
-        IReliablePushOutbox reliablePush,
-        IReliablePushAckService reliablePushAcks,
+        IClientSessionRouteRegistrar clientSessionRoutes,
         IGameSessionConnectionCloser connectionCloser,
         IEnumerable<IGameSessionLifecycleHandler> lifecycleHandlers)
         : this(
             sessions,
             resume,
-            reliablePush,
-            reliablePushAcks,
+            clientSessionRoutes,
             connectionCloser,
             lifecycleHandlers,
             NullLogger<DefaultLakonaGameServer>.Instance)
@@ -37,16 +33,14 @@ public sealed class DefaultLakonaGameServer : ILakonaGameServer
     public DefaultLakonaGameServer(
         IGameSessionRegistry sessions,
         IGameSessionResumeService resume,
-        IReliablePushOutbox reliablePush,
-        IReliablePushAckService reliablePushAcks,
+        IClientSessionRouteRegistrar clientSessionRoutes,
         IGameSessionConnectionCloser connectionCloser,
         IEnumerable<IGameSessionLifecycleHandler> lifecycleHandlers,
         ILogger<DefaultLakonaGameServer> logger)
     {
         _sessions = sessions;
         _resume = resume;
-        _reliablePush = reliablePush;
-        _reliablePushAcks = reliablePushAcks;
+        _clientSessionRoutes = clientSessionRoutes ?? throw new ArgumentNullException(nameof(clientSessionRoutes));
         _connectionCloser = connectionCloser;
         _lifecycleHandlers = lifecycleHandlers?.ToArray() ?? throw new ArgumentNullException(nameof(lifecycleHandlers));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -105,6 +99,7 @@ public sealed class DefaultLakonaGameServer : ILakonaGameServer
 
         if (result.SessionBecameActive is { } snapshot)
         {
+            await _clientSessionRoutes.RegisterAsync(snapshot.Session, cancellationToken).ConfigureAwait(false);
             await PublishSessionBoundAsync(snapshot, cancellationToken).ConfigureAwait(false);
         }
     }
@@ -122,6 +117,7 @@ public sealed class DefaultLakonaGameServer : ILakonaGameServer
 
         if (result.SessionBecameActive is { } snapshot)
         {
+            await _clientSessionRoutes.RegisterAsync(snapshot.Session, cancellationToken).ConfigureAwait(false);
             await PublishSessionBoundAsync(snapshot, cancellationToken).ConfigureAwait(false);
         }
     }
@@ -182,103 +178,6 @@ public sealed class DefaultLakonaGameServer : ILakonaGameServer
         await _connectionCloser
             .CloseConnectionAsync(session, binding.ConnectionId, notice, cancellationToken)
             .ConfigureAwait(false);
-    }
-
-    public ValueTask<long> PublishReliablePushAsync<TCallback, TPayload>(
-        GameSessionKey session,
-        string kind,
-        TPayload payload,
-        ReliablePushDeliver<TCallback, TPayload> deliver,
-        CancellationToken cancellationToken = default)
-        where TCallback : class
-    {
-        ArgumentNullException.ThrowIfNull(deliver);
-
-        return _reliablePush.PublishAsync(
-            session,
-            kind,
-            payload ?? throw new ArgumentNullException(nameof(payload)),
-            record => DeliverReliablePushRecordAsync(session, kind, record, deliver, cancellationToken),
-            cancellationToken);
-    }
-
-    public ValueTask<long> PublishReliablePushAsync(
-        GameSessionKey session,
-        string kind,
-        object payload,
-        Func<ReliablePushRecord, ValueTask> deliver,
-        CancellationToken cancellationToken = default)
-    {
-        return _reliablePush.PublishAsync(session, kind, payload, deliver, cancellationToken);
-    }
-
-    public ValueTask ReplayReliablePushAsync(
-        GameSessionKey session,
-        Func<ReliablePushRecord, ValueTask> deliver,
-        CancellationToken cancellationToken = default)
-    {
-        return _reliablePush.ReplayPendingAsync(session, deliver, cancellationToken);
-    }
-
-    public ValueTask ReplayReliablePushAsync<TCallback, TPayload>(
-        GameSessionKey session,
-        string kind,
-        ReliablePushDeliver<TCallback, TPayload> deliver,
-        CancellationToken cancellationToken = default)
-        where TCallback : class
-    {
-        ArgumentNullException.ThrowIfNull(deliver);
-
-        return _reliablePush.ReplayPendingAsync(
-            session,
-            record => DeliverReliablePushRecordAsync(session, kind, record, deliver, cancellationToken),
-            cancellationToken);
-    }
-
-    public ValueTask<ReliablePushAckOutcome> AckReliablePushAsync(
-        GameSessionKey currentSession,
-        GameSessionKey acknowledgedSession,
-        long sequence,
-        CancellationToken cancellationToken = default)
-    {
-        return _reliablePushAcks.AckAsync(
-            currentSession,
-            acknowledgedSession,
-            sequence,
-            cancellationToken);
-    }
-
-    private async ValueTask DeliverReliablePushRecordAsync<TCallback, TPayload>(
-        GameSessionKey session,
-        string kind,
-        ReliablePushRecord record,
-        ReliablePushDeliver<TCallback, TPayload> deliver,
-        CancellationToken cancellationToken)
-        where TCallback : class
-    {
-        if (!string.Equals(record.Kind, kind, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        if (record.Payload is not TPayload payload)
-        {
-            throw new InvalidOperationException(
-                $"Reliable push record '{record.Kind}' payload is not assignable to '{typeof(TPayload).FullName}'.");
-        }
-
-        var callback = await GetCallbackAsync<TCallback>(session, cancellationToken)
-            .ConfigureAwait(false);
-        if (callback is null)
-        {
-            return;
-        }
-
-        await deliver(
-            callback,
-            ReliablePushSequence.From(record.Sequence),
-            payload,
-            cancellationToken).ConfigureAwait(false);
     }
 
     private async ValueTask PublishSessionBoundAsync(

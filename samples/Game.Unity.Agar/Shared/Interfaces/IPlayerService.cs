@@ -169,6 +169,10 @@ namespace Shared.Interfaces
         public string RoomId { get; set; } = "";
         [MemoryPackOrder(4)]
         public string MatchId { get; set; } = "";
+        [MemoryPackOrder(5)]
+        public string SessionId { get; set; } = "";
+        [MemoryPackOrder(6)]
+        public long SessionGeneration { get; set; }
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]
@@ -190,8 +194,6 @@ namespace Shared.Interfaces
         public int MatchedPlayerCount { get; set; }
         [MemoryPackOrder(7)]
         public RealtimeConnectionInfo? RealtimeConnection { get; set; }
-        [MemoryPackOrder(8)]
-        public long ReliableSequence { get; set; }
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]

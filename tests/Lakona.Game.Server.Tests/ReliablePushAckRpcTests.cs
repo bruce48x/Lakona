@@ -22,24 +22,24 @@ public sealed class ReliablePushAckRpcTests
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var fixture = await ReliablePushAckRpcFixture.StartAsync(cancellationToken);
         var server = fixture.Services.GetRequiredService<ILakonaGameServer>();
+        var notifications = fixture.Services.GetRequiredService<IClientNotifications>();
         var session = await server.StartSessionAsync(
             "player-a",
             ReliablePushAckRpcFixture.ConnectionId,
-            new object(),
+            new AckTestCallback(),
             cancellationToken);
-        await server.PublishReliablePushAsync(
-            session,
-            "state",
-            "payload",
-            _ => default,
-            cancellationToken);
+        await notifications
+            .ForSession(session)
+            .NotifyAsync<IAckTestCallback>(
+                target => target.NotifyAsync("payload"),
+                cancellationToken);
         await fixture.HandshakeAsync(cancellationToken);
 
         using var response = await fixture.Client.CallRawAsync(
                 GameReliablePushRpcIds.ServiceId,
                 GameReliablePushRpcIds.AckMethodId,
                 LakonaInternalCodec.EncodeReliablePushAckRequest(
-                    new ReliablePushAckRequest(session.SessionId, ReliablePushSequence.From(1))),
+                    new ReliablePushAckRequest(session.SessionId, session.Generation, ReliablePushSequence.From(1))),
                 cancellationToken)
             .AsTask()
             .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
@@ -69,6 +69,19 @@ public sealed class ReliablePushAckRpcTests
 
         Assert.Equal(RpcStatus.BadRequest, failure.Status);
         Assert.Equal(0, fixture.EndpointSerializer.CallCount);
+    }
+
+    private interface IAckTestCallback
+    {
+        ValueTask NotifyAsync(string payload);
+    }
+
+    private sealed class AckTestCallback : IAckTestCallback
+    {
+        public ValueTask NotifyAsync(string payload)
+        {
+            return default;
+        }
     }
 
     [Fact]

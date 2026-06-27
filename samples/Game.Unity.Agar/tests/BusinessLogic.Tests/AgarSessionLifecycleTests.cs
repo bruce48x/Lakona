@@ -428,52 +428,5 @@ public sealed class AgarSessionLifecycleTests
             return default;
         }
 
-        public ValueTask<long> PublishReliablePushAsync<TCallback, TPayload>(
-            GameSessionKey session,
-            string kind,
-            TPayload payload,
-            ReliablePushDeliver<TCallback, TPayload> deliver,
-            CancellationToken cancellationToken = default)
-            where TCallback : class
-        {
-            return new ValueTask<long>(0);
-        }
-
-        public ValueTask<long> PublishReliablePushAsync(
-            GameSessionKey session,
-            string kind,
-            object payload,
-            Func<ReliablePushRecord, ValueTask> deliver,
-            CancellationToken cancellationToken = default)
-        {
-            return new ValueTask<long>(0);
-        }
-
-        public ValueTask ReplayReliablePushAsync(
-            GameSessionKey session,
-            Func<ReliablePushRecord, ValueTask> deliver,
-            CancellationToken cancellationToken = default)
-        {
-            return default;
-        }
-
-        public ValueTask ReplayReliablePushAsync<TCallback, TPayload>(
-            GameSessionKey session,
-            string kind,
-            ReliablePushDeliver<TCallback, TPayload> deliver,
-            CancellationToken cancellationToken = default)
-            where TCallback : class
-        {
-            return default;
-        }
-
-        public ValueTask<ReliablePushAckOutcome> AckReliablePushAsync(
-            GameSessionKey currentSession,
-            GameSessionKey acknowledgedSession,
-            long sequence,
-            CancellationToken cancellationToken = default)
-        {
-            return new ValueTask<ReliablePushAckOutcome>(ReliablePushAckOutcome.StateLost());
-        }
     }
 }

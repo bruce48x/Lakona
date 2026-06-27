@@ -34,9 +34,9 @@ public sealed class ReliablePushOutboxTests
     {
         var outbox = CreateOutbox();
         var cancellationToken = TestContext.Current.CancellationToken;
-        await outbox.PublishAsync("player-a", "First", "one", _ => ValueTask.CompletedTask, cancellationToken);
-        await outbox.PublishAsync("player-a", "Second", "two", _ => ValueTask.CompletedTask, cancellationToken);
-        await outbox.PublishAsync("player-a", "Third", "three", _ => ValueTask.CompletedTask, cancellationToken);
+        await outbox.PublishAsync("player-a", "First", "one", _ => default, cancellationToken);
+        await outbox.PublishAsync("player-a", "Second", "two", _ => default, cancellationToken);
+        await outbox.PublishAsync("player-a", "Third", "three", _ => default, cancellationToken);
         await outbox.AckAsync("player-a", 1, cancellationToken);
         var replayed = new List<ReliablePushRecord>();
 
@@ -53,9 +53,9 @@ public sealed class ReliablePushOutboxTests
     {
         var outbox = CreateOutbox();
         var cancellationToken = TestContext.Current.CancellationToken;
-        await outbox.PublishAsync("player-a", "First", "one", _ => ValueTask.CompletedTask, cancellationToken);
-        await outbox.PublishAsync("player-a", "Second", "two", _ => ValueTask.CompletedTask, cancellationToken);
-        await outbox.PublishAsync("player-a", "Third", "three", _ => ValueTask.CompletedTask, cancellationToken);
+        await outbox.PublishAsync("player-a", "First", "one", _ => default, cancellationToken);
+        await outbox.PublishAsync("player-a", "Second", "two", _ => default, cancellationToken);
+        await outbox.PublishAsync("player-a", "Third", "three", _ => default, cancellationToken);
 
         await outbox.AckAsync("player-a", 2, cancellationToken);
         var replayed = new List<ReliablePushRecord>();
@@ -70,9 +70,9 @@ public sealed class ReliablePushOutboxTests
     {
         var outbox = CreateOutbox(options => options.MaxPendingPerOwner = 2);
         var cancellationToken = TestContext.Current.CancellationToken;
-        await outbox.PublishAsync("player-a", "First", "one", _ => ValueTask.CompletedTask, cancellationToken);
-        await outbox.PublishAsync("player-a", "Second", "two", _ => ValueTask.CompletedTask, cancellationToken);
-        await outbox.PublishAsync("player-a", "Third", "three", _ => ValueTask.CompletedTask, cancellationToken);
+        await outbox.PublishAsync("player-a", "First", "one", _ => default, cancellationToken);
+        await outbox.PublishAsync("player-a", "Second", "two", _ => default, cancellationToken);
+        await outbox.PublishAsync("player-a", "Third", "three", _ => default, cancellationToken);
         var replayed = new List<ReliablePushRecord>();
 
         await outbox.ReplayPendingAsync("player-a", Capture(replayed), cancellationToken);
@@ -125,7 +125,7 @@ public sealed class ReliablePushOutboxTests
         return record =>
         {
             records.Add(record);
-            return ValueTask.CompletedTask;
+            return default;
         };
     }
 }

@@ -7,15 +7,18 @@ namespace Lakona.Game.Client.ReliablePush
     {
         ValueTask<long> LoadAsync(
             string sessionId,
+            long sessionGeneration,
             CancellationToken cancellationToken = default);
 
         ValueTask SaveAsync(
             string sessionId,
+            long sessionGeneration,
             long sequence,
             CancellationToken cancellationToken = default);
 
         ValueTask ClearAsync(
             string sessionId,
+            long sessionGeneration,
             CancellationToken cancellationToken = default);
     }
 }

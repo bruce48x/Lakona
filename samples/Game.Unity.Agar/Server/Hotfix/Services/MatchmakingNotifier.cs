@@ -1,6 +1,4 @@
 using Shared.Interfaces;
-using Lakona.Game.Server;
-using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.Logging;
 
@@ -8,54 +6,30 @@ namespace Server.Hotfix.Services;
 
 internal sealed class MatchmakingNotifier
 {
-    private readonly ILakonaGameServer _gameServer;
-    private readonly IClientNotificationRelay _notifications;
+    private readonly IClientNotifications _notifications;
     private readonly ILogger<MatchmakingNotifier> _logger;
 
     public MatchmakingNotifier(
-        ILakonaGameServer gameServer,
-        IClientNotificationRelay notifications,
+        IClientNotifications notifications,
         ILogger<MatchmakingNotifier> logger)
     {
-        _gameServer = gameServer;
         _notifications = notifications;
         _logger = logger;
     }
 
     public async ValueTask PublishAsync(GameSessionKey controlSession, MatchmakingStatusUpdate update, CancellationToken cancellationToken = default)
     {
-        await _gameServer.PublishReliablePushAsync(
-            controlSession,
-            PushNotificationKinds.MatchmakingStatus,
-            Clone(update),
-            record => DeliverAsync(controlSession, record, cancellationToken),
-            cancellationToken).ConfigureAwait(false);
-    }
-
-    public ValueTask ReplayPendingAsync(GameSessionKey controlSession, CancellationToken cancellationToken = default)
-    {
-        return _gameServer.ReplayReliablePushAsync(
-            controlSession,
-            record => DeliverAsync(controlSession, record, cancellationToken),
-            cancellationToken);
-    }
-
-    private async ValueTask DeliverAsync(GameSessionKey controlSession, ReliablePushRecord record, CancellationToken cancellationToken)
-    {
-        if (!string.Equals(record.Kind, PushNotificationKinds.MatchmakingStatus, StringComparison.Ordinal) ||
-            record.Payload is not MatchmakingStatusUpdate update)
-        {
-            return;
-        }
-
-        var payload = Clone(update);
-        payload.ReliableSequence = record.Sequence;
         var status = await _notifications
+            .ForSession(controlSession)
             .NotifyAsync<IControlCallback>(
-                controlSession,
-                target => target.OnMatchmakingStatus(payload),
+                target =>
+                {
+                    target.OnMatchmakingStatus(Clone(update));
+                    return default;
+                },
                 cancellationToken)
             .ConfigureAwait(false);
+
         if (status == ClientNotificationStatus.Delivered)
         {
             return;
@@ -65,6 +39,11 @@ internal sealed class MatchmakingNotifier
             "Matchmaking notification delivery returned {Status} for session {Session}.",
             status,
             controlSession);
+    }
+
+    public ValueTask ReplayPendingAsync(GameSessionKey controlSession, CancellationToken cancellationToken = default)
+    {
+        return default;
     }
 
     private static MatchmakingStatusUpdate Clone(MatchmakingStatusUpdate source)
@@ -78,7 +57,6 @@ internal sealed class MatchmakingNotifier
             QueueSize = source.QueueSize,
             RoomCapacity = source.RoomCapacity,
             MatchedPlayerCount = source.MatchedPlayerCount,
-            ReliableSequence = source.ReliableSequence,
             RealtimeConnection = source.RealtimeConnection is null
                 ? null
                 : new RealtimeConnectionInfo

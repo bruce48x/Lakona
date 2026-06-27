@@ -2,100 +2,58 @@ using Lakona.Game.Server.ReliablePush;
 
 namespace Lakona.Game.Server.Sessions;
 
-public sealed class ClientNotifications : IClientNotifications
+internal sealed class ClientNotifications : IClientNotifications
 {
-    private const string ControlSessionKind = "control";
+    private readonly IReliablePushRuntime _reliablePush;
 
-    private readonly IClientSessionIndex _sessions;
-    private readonly IGameSessionRegistry _directory;
-    private readonly IReliablePushOutbox _reliablePush;
-    private readonly ReliablePushOptions _reliablePushOptions;
-
-    public ClientNotifications(
-        IClientSessionIndex sessions,
-        IGameSessionRegistry directory,
-        IReliablePushOutbox reliablePush,
-        ReliablePushOptions reliablePushOptions)
+    public ClientNotifications(IReliablePushRuntime reliablePush)
     {
-        _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
-        _directory = directory ?? throw new ArgumentNullException(nameof(directory));
         _reliablePush = reliablePush ?? throw new ArgumentNullException(nameof(reliablePush));
-        _reliablePushOptions = reliablePushOptions ?? throw new ArgumentNullException(nameof(reliablePushOptions));
     }
 
-    public IClientNotificationTarget ForUser(string userId)
+    public IClientNotificationTarget ForSession(GameSessionKey session)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
-        return new Target(this, userId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(session.OwnerKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(session.SessionId);
+        if (session.Generation <= 0)
+        {
+            throw new ArgumentException("Session generation must be positive.", nameof(session));
+        }
+
+        return new Target(this, session);
     }
 
-    private async ValueTask PublishAsync<TPayload>(
-        string userId,
-        TPayload payload,
+    private async ValueTask<ClientNotificationStatus> NotifyAsync<TCallback>(
+        GameSessionKey session,
+        Func<TCallback, ValueTask> notify,
         CancellationToken cancellationToken)
+        where TCallback : class
     {
-        var current = await _sessions.FindCurrentAsync(userId, ControlSessionKind, cancellationToken)
+        ArgumentNullException.ThrowIfNull(notify);
+
+        var command = await ClientNotificationCommandFactory
+            .CreateAsync(session, notify)
             .ConfigureAwait(false);
-        if (current is null)
+        if (command is null)
         {
-            return;
+            return ClientNotificationStatus.Failed;
         }
 
-        var sink = await _directory
-            .GetCallbackAsync<IClientNotificationSink<TPayload>>(current.Session, cancellationToken)
+        return await _reliablePush.PublishAsync(session, command, cancellationToken)
             .ConfigureAwait(false);
-        if (sink is null)
-        {
-            return;
-        }
-
-        await sink.OnNotificationAsync(payload, cancellationToken).ConfigureAwait(false);
     }
 
-    private async ValueTask PublishReliableAsync<TPayload>(
-        string userId,
-        string kind,
-        TPayload payload,
-        CancellationToken cancellationToken)
+    private sealed class Target(ClientNotifications owner, GameSessionKey session) : IClientNotificationTarget
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(kind);
-
-        if (!_reliablePushOptions.Enabled)
-        {
-            await PublishAsync(userId, payload, cancellationToken).ConfigureAwait(false);
-            return;
-        }
-
-        var current = await _sessions.FindCurrentAsync(userId, ControlSessionKind, cancellationToken)
-            .ConfigureAwait(false);
-        if (current is null)
-        {
-            return;
-        }
-
-        await _reliablePush.PublishAsync(
-            ReliablePushSessionOwnerKey.Create(current.Session),
-            kind,
-            payload!,
-            record => PublishAsync(userId, (TPayload)record.Payload, cancellationToken),
-            cancellationToken).ConfigureAwait(false);
-    }
-
-    private sealed class Target(ClientNotifications owner, string userId) : IClientNotificationTarget
-    {
-        public ValueTask PublishAsync<TPayload>(
-            TPayload payload,
+        public ValueTask<ClientNotificationStatus> NotifyAsync<TCallback>(
+            Func<TCallback, ValueTask> notify,
             CancellationToken cancellationToken = default)
+            where TCallback : class
         {
-            return owner.PublishAsync(userId, payload, cancellationToken);
-        }
-
-        public ValueTask PublishReliableAsync<TPayload>(
-            string kind,
-            TPayload payload,
-            CancellationToken cancellationToken = default)
-        {
-            return owner.PublishReliableAsync(userId, kind, payload, cancellationToken);
+            return owner.NotifyAsync(
+                session,
+                notify,
+                cancellationToken);
         }
     }
 }

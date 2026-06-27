@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Lakona.Game.Abstractions;
 using Lakona.Game.Abstractions.Sessions;
 using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
@@ -162,10 +163,10 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
                 var acknowledgedSession = new GameSessionKey(
                     currentSession.Value.OwnerKey,
                     ack.SessionId,
-                    currentSession.Value.Generation);
-                var gameServer = services.GetRequiredService<ILakonaGameServer>();
-                var outcome = await gameServer
-                    .AckReliablePushAsync(
+                    ack.SessionGeneration);
+                var reliablePush = services.GetRequiredService<IReliablePushRuntime>();
+                var outcome = await reliablePush
+                    .AckAsync(
                         currentSession.Value,
                         acknowledgedSession,
                         ack.Sequence.Value,

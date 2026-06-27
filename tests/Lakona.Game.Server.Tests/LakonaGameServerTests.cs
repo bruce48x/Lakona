@@ -55,6 +55,58 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public void Public_game_server_contract_does_not_expose_reliable_push_protocol_methods()
+    {
+        var methodNames = typeof(ILakonaGameServer)
+            .GetMethods()
+            .Select(static method => method.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.DoesNotContain("PublishReliablePushAsync", methodNames);
+        Assert.DoesNotContain("ReplayReliablePushAsync", methodNames);
+        Assert.DoesNotContain("AckReliablePushAsync", methodNames);
+    }
+
+    [Fact]
+    public void Public_client_notification_api_does_not_expose_reliable_push_delivery_controls()
+    {
+        var method = Assert.Single(typeof(IClientNotificationTarget).GetMethods());
+
+        Assert.Equal(typeof(ValueTask<ClientNotificationStatus>), method.ReturnType);
+        Assert.DoesNotContain(
+            method.GetParameters(),
+            static parameter => parameter.ParameterType.FullName?.Contains(
+                "ClientNotificationIntent",
+                StringComparison.Ordinal) == true);
+    }
+
+    [Fact]
+    public void Public_server_api_does_not_export_reliable_push_control_services()
+    {
+        var forbiddenTypes = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "Lakona.Game.Server.ReliablePush.IReliablePushOutbox",
+            "Lakona.Game.Server.ReliablePush.IReliablePushAckService",
+            "Lakona.Game.Server.ReliablePush.ReliablePushDeliver",
+            "Lakona.Game.Server.ReliablePush.ReliablePushRecord",
+            "Lakona.Game.Server.ReliablePush.ReliablePushSessionOwnerKey",
+            "Lakona.Game.Server.Sessions.ClientNotificationIntent",
+            "Lakona.Game.Server.Sessions.ClientNotificationDelivery",
+            "Lakona.Game.Server.Sessions.ClientNotificationPublishResult",
+            "Lakona.Game.Server.Sessions.ClientNotificationAcceptance",
+            "Lakona.Game.Server.Sessions.ClientNotificationRelay",
+            "Lakona.Game.Server.Sessions.IClientNotificationRelay"
+        };
+        var exported = typeof(ILakonaGameServer)
+            .Assembly
+            .GetExportedTypes()
+            .Select(static type => type.FullName!)
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.Empty(forbiddenTypes.Intersect(exported, StringComparer.Ordinal));
+    }
+
+    [Fact]
     public void AddServices_CanUseHostConfiguration()
     {
         var hostBuilder = Host.CreateApplicationBuilder([]);
@@ -341,7 +393,7 @@ public sealed class LakonaGameServerTests
 
         Assert.NotNull(provider.GetService<Lakona.Game.Server.Actors.IActorRuntime>());
         Assert.NotNull(provider.GetService<Lakona.Game.Server.Sessions.IGameSessionRegistry>());
-        Assert.NotNull(provider.GetService<Lakona.Game.Server.ReliablePush.IReliablePushOutbox>());
+        Assert.NotNull(provider.GetService<ReliablePushOptions>());
         Assert.NotNull(provider.GetService<Lakona.Game.Server.Diagnostics.IMessageLogStore>());
     }
 
@@ -391,7 +443,8 @@ public sealed class LakonaGameServerTests
             .BuildServiceProvider();
 
         Assert.NotNull(provider.GetService<IClientNotifications>());
-        Assert.NotNull(provider.GetService<IClientSessionIndex>());
+        Assert.Null(typeof(ILakonaGameServer).Assembly.GetType("Lakona.Game.Server.Sessions.IClientSessionIndex"));
+        Assert.Null(typeof(ILakonaGameServer).Assembly.GetType("Lakona.Game.Server.Sessions.InMemoryClientSessionIndex"));
     }
 
     [Fact]
@@ -562,64 +615,14 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public async Task MainEntryPublishesReplaysAndAcknowledgesReliablePush()
+    public async Task ClientNotificationsPublishesReplaysAndAcknowledgesReliablePush()
     {
         var services = new ServiceCollection();
         services.AddLakonaGameServer();
         using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
-        var session = new GameSessionKey("player-a", "session-a", 1);
-        var delivered = new List<ReliablePushRecord>();
-
-        await server.PublishReliablePushAsync(
-            session,
-            "matched",
-            "payload",
-            record =>
-            {
-                delivered.Add(record);
-                return ValueTask.CompletedTask;
-            },
-            TestContext.Current.CancellationToken);
-
-        var replayedBeforeAck = new List<ReliablePushRecord>();
-        await server.ReplayReliablePushAsync(
-            session,
-            record =>
-            {
-                replayedBeforeAck.Add(record);
-                return ValueTask.CompletedTask;
-            },
-            TestContext.Current.CancellationToken);
-
-        var outcome = await server.AckReliablePushAsync(
-            session,
-            session,
-            1,
-            TestContext.Current.CancellationToken);
-        var replayedAfterAck = new List<ReliablePushRecord>();
-        await server.ReplayReliablePushAsync(
-            session,
-            record =>
-            {
-                replayedAfterAck.Add(record);
-                return ValueTask.CompletedTask;
-            },
-            TestContext.Current.CancellationToken);
-
-        Assert.Single(delivered);
-        Assert.Single(replayedBeforeAck);
-        Assert.Equal(ReliablePushAckStatus.Accepted, outcome.Status);
-        Assert.Empty(replayedAfterAck);
-    }
-
-    [Fact]
-    public async Task MainEntryPublishesTypedReliablePushThroughSessionCallback()
-    {
-        var services = new ServiceCollection();
-        services.AddLakonaGameServer();
-        using var provider = services.BuildServiceProvider();
-        var server = provider.GetRequiredService<ILakonaGameServer>();
+        var notifications = provider.GetRequiredService<IClientNotifications>();
+        var reliablePush = provider.GetRequiredService<IReliablePushRuntime>();
         var callback = new TestCallback();
         var session = await server.StartSessionAsync(
             "player-a",
@@ -627,28 +630,51 @@ public sealed class LakonaGameServerTests
             callback,
             TestContext.Current.CancellationToken);
 
-        var sequence = await server.PublishReliablePushAsync<TestCallback, string>(
+        var publish = await notifications
+            .ForSession(session)
+            .NotifyAsync<ITestNotificationCallback>(
+                target => target.NotifyAsync("payload"),
+                TestContext.Current.CancellationToken);
+
+        await reliablePush.ReplayPendingAsync(session, TestContext.Current.CancellationToken);
+
+        var outcome = await reliablePush.AckAsync(
             session,
-            "matched",
-            "payload",
-            static (target, reliableSequence, payload, _) =>
-            {
-                target.Delivered.Add((reliableSequence.Value, payload));
-                return ValueTask.CompletedTask;
-            },
+            session,
+            1,
             TestContext.Current.CancellationToken);
-        await server.ReplayReliablePushAsync<TestCallback, string>(
-            session,
-            "matched",
-            static (target, reliableSequence, payload, _) =>
-            {
-                target.Delivered.Add((reliableSequence.Value, payload));
-                return ValueTask.CompletedTask;
-            },
+        await reliablePush.ReplayPendingAsync(session, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientNotificationStatus.Delivered, publish);
+        Assert.Equal([ "payload", "payload" ], callback.Delivered);
+        Assert.Equal(ReliablePushAckStatus.Accepted, outcome.Status);
+    }
+
+    [Fact]
+    public async Task ClientNotificationsPublishesReplayableIntentThroughSessionCallback()
+    {
+        var services = new ServiceCollection();
+        services.AddLakonaGameServer();
+        using var provider = services.BuildServiceProvider();
+        var server = provider.GetRequiredService<ILakonaGameServer>();
+        var notifications = provider.GetRequiredService<IClientNotifications>();
+        var reliablePush = provider.GetRequiredService<IReliablePushRuntime>();
+        var callback = new TestCallback();
+        var session = await server.StartSessionAsync(
+            "player-a",
+            "connection-a",
+            callback,
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(1, sequence);
-        Assert.Equal(new[] { (1L, "payload"), (1L, "payload") }, callback.Delivered);
+        var publish = await notifications
+            .ForSession(session)
+            .NotifyAsync<ITestNotificationCallback>(
+                target => target.NotifyAsync("payload"),
+                TestContext.Current.CancellationToken);
+        await reliablePush.ReplayPendingAsync(session, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientNotificationStatus.Delivered, publish);
+        Assert.Equal([ "payload", "payload" ], callback.Delivered);
     }
 
     [Fact]
@@ -791,9 +817,20 @@ public sealed class LakonaGameServerTests
         Assert.Equal(SessionTerminationReason.Policy, context.Notice.Reason);
     }
 
-    private sealed class TestCallback
+    private interface ITestNotificationCallback
     {
-        public List<(long Sequence, string Payload)> Delivered { get; } = new();
+        ValueTask NotifyAsync(string payload);
+    }
+
+    private sealed class TestCallback : ITestNotificationCallback
+    {
+        public List<string> Delivered { get; } = new();
+
+        public ValueTask NotifyAsync(string payload)
+        {
+            Delivered.Add(payload);
+            return default;
+        }
     }
 
     private sealed class ChatCallback

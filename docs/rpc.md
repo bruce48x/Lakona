@@ -65,8 +65,9 @@ Server-to-client push is modeled through notification contracts. A callback
 contract is not a separate event bus; it is the reverse direction of the same
 typed RPC session.
 
-For reliable game notifications above RPC callbacks, use Lakona reliable push
-and session APIs so replay, acknowledgement, and resume policy remain explicit.
+For replayable game notifications above RPC callbacks, publish notification
+intent through the Lakona game session APIs. The game framework owns reliable
+push sequencing, acknowledgement, and replay policy.
 
 ### Framework Status Is Not Business Failure
 

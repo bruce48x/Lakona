@@ -108,6 +108,48 @@ public sealed class LakonaGameClientCoreTests
     }
 
     [Fact]
+    public async Task ReliablePushMetadataNotificationAppliesCallbackAndSendsGeneratedAck()
+    {
+        var client = new LakonaGameClientCore();
+        client.StartSession("session-a", sessionGeneration: 9, lastReliableSequence: 0);
+        var metadata = new ReliablePushMetadata(
+            "session-a",
+            9,
+            ReliablePushSequence.From(3),
+            "test.notification");
+        var transport = new OneShotReliablePushNotificationTransport(metadata);
+        await using var rpc = new RpcClientRuntime(transport, new NoopSerializer());
+        var handled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        client.BindReliablePush(rpc);
+        rpc.RegisterRawNotificationHandler(
+            42,
+            7,
+            _ =>
+            {
+                handled.TrySetResult();
+                return default;
+            });
+
+        await rpc.StartAsync(TestContext.Current.CancellationToken);
+        await handled.Task.WaitAsync(
+            TimeSpan.FromSeconds(2),
+            TestContext.Current.CancellationToken);
+        var ack = await transport.Acknowledgement.Task.WaitAsync(
+            TimeSpan.FromSeconds(2),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("session-a", ack.SessionId);
+        Assert.Equal(9, ack.SessionGeneration);
+        Assert.Equal(3, ack.Sequence.Value);
+        await WaitForAsync(
+            () => client.Snapshot.LastReliableSequence == 3,
+            TestContext.Current.CancellationToken);
+        Assert.Equal(3, client.Snapshot.LastReliableSequence);
+        Assert.Equal(9, client.Snapshot.SessionGeneration);
+    }
+
+    [Fact]
     public void ApplyServerHello_disables_reliable_push_ack_when_server_reports_immediate_mode()
     {
         var client = new LakonaGameClientCore();
@@ -276,11 +318,27 @@ public sealed class LakonaGameClientCoreTests
 
         client.MarkConnecting();
         client.MarkReady();
-        client.StartSession("session-a", lastReliableSequence: 3);
+        client.StartSession("session-a", sessionGeneration: 7, lastReliableSequence: 3);
 
         Assert.Equal(ClientSessionPhase.Active, client.Snapshot.Phase);
         Assert.Equal("session-a", client.Snapshot.SessionId);
         Assert.Equal(3, client.Snapshot.LastReliableSequence);
+        Assert.Equal(7, client.Snapshot.SessionGeneration);
+    }
+
+    [Fact]
+    public async Task Core_start_session_async_records_session_generation()
+    {
+        var client = new LakonaGameClientCore();
+
+        await client.StartSessionAsync(
+            "session-a",
+            11,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientSessionPhase.Active, client.Snapshot.Phase);
+        Assert.Equal("session-a", client.Snapshot.SessionId);
+        Assert.Equal(11, client.Snapshot.SessionGeneration);
     }
 
     [Fact]
@@ -334,6 +392,29 @@ public sealed class LakonaGameClientCoreTests
         await loop.SendOnceAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(ClientSessionPhase.Reconnecting, client.Snapshot.Phase);
+    }
+
+    [Fact]
+    public async Task Heartbeat_request_carries_active_session_identity()
+    {
+        var client = new LakonaGameClientCore();
+        await client.StartSessionAsync(
+            "session-a",
+            13,
+            TestContext.Current.CancellationToken);
+        await using var rpc = await HeartbeatRuntimeFixture.CreateAsync(
+            new GameHeartbeatReply { Status = GameHeartbeatStatus.Ok },
+            TestContext.Current.CancellationToken);
+        var loop = new LakonaGameHeartbeatLoop(
+            rpc.Client,
+            client,
+            new LakonaGameClientOptions(new RpcClientOptions(new NoopTransport(), new NoopSerializer())));
+
+        await loop.SendOnceAsync(TestContext.Current.CancellationToken);
+
+        Assert.NotNull(rpc.Request);
+        Assert.Equal("session-a", rpc.Request!.SessionId);
+        Assert.Equal(13, rpc.Request.SessionGeneration);
     }
 
     [Fact]
@@ -441,14 +522,35 @@ public sealed class LakonaGameClientCoreTests
         return new RpcClientRuntime(new NoopTransport(), new NoopSerializer());
     }
 
+    private static async Task WaitForAsync(Func<bool> condition, CancellationToken cancellationToken)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(2);
+        while (!condition())
+        {
+            if (DateTimeOffset.UtcNow >= deadline)
+            {
+                throw new TimeoutException("Condition was not reached before the deadline.");
+            }
+
+            await Task.Delay(10, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
     private sealed class HeartbeatRuntimeFixture : IAsyncDisposable
     {
-        private HeartbeatRuntimeFixture(RpcClientRuntime client)
+        private readonly OneShotHeartbeatTransport _transport;
+
+        private HeartbeatRuntimeFixture(
+            RpcClientRuntime client,
+            OneShotHeartbeatTransport transport)
         {
             Client = client;
+            _transport = transport;
         }
 
         public RpcClientRuntime Client { get; }
+
+        public GameHeartbeatRequest? Request => _transport.Request;
 
         public static async Task<HeartbeatRuntimeFixture> CreateAsync(
             GameHeartbeatReply reply,
@@ -480,7 +582,7 @@ public sealed class LakonaGameClientCoreTests
             var transport = new OneShotHeartbeatTransport(status, reply, errorMessage);
             var client = new RpcClientRuntime(transport, new NoopSerializer());
             await client.StartAsync(cancellationToken).ConfigureAwait(false);
-            return new HeartbeatRuntimeFixture(client);
+            return new HeartbeatRuntimeFixture(client, transport);
         }
     }
 
@@ -502,6 +604,8 @@ public sealed class LakonaGameClientCoreTests
 
         public bool IsConnected { get; private set; }
 
+        public GameHeartbeatRequest? Request { get; private set; }
+
         public ValueTask ConnectAsync(CancellationToken ct = default)
         {
             IsConnected = true;
@@ -519,7 +623,7 @@ public sealed class LakonaGameClientCoreTests
             using var request = RpcEnvelopeCodec.DecodeRequest(requestFrame);
             Assert.Equal(GameHeartbeatRpcIds.ServiceId, request.ServiceId);
             Assert.Equal(GameHeartbeatRpcIds.HeartbeatMethodId, request.MethodId);
-            LakonaInternalCodec.DecodeGameHeartbeatRequest(request.Payload.Memory);
+            Request = LakonaInternalCodec.DecodeGameHeartbeatRequest(request.Payload.Memory);
 
             var payload = _status == RpcStatus.Ok
                 ? LakonaInternalCodec.EncodeGameHeartbeatReply(_reply!)
@@ -594,6 +698,82 @@ public sealed class LakonaGameClientCoreTests
         }
     }
 
+    private sealed class OneShotReliablePushNotificationTransport : ITransport
+    {
+        private readonly ReliablePushMetadata _metadata;
+        private readonly TaskCompletionSource<TransportFrame> _notification =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<TransportFrame> _ackResponse =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _received;
+        private int _ackReceived;
+
+        public OneShotReliablePushNotificationTransport(ReliablePushMetadata metadata)
+        {
+            _metadata = metadata;
+        }
+
+        public TaskCompletionSource<ReliablePushAckRequest> Acknowledgement { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool IsConnected { get; private set; }
+
+        public ValueTask ConnectAsync(CancellationToken ct = default)
+        {
+            IsConnected = true;
+            var push = new RpcPushEnvelope
+            {
+                ServiceId = 42,
+                MethodId = 7,
+                Payload = Array.Empty<byte>(),
+                Metadata = new RpcPushMetadata
+                {
+                    Type = LakonaInternalCodec.ReliablePushMetadataType,
+                    Payload = LakonaInternalCodec.EncodeReliablePushMetadata(_metadata)
+                }
+            };
+            _notification.SetResult(RpcEnvelopeCodec.EncodePush(push));
+            return default;
+        }
+
+        public ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken ct = default)
+        {
+            using var requestFrame = TransportFrame.CopyOf(frame.Span);
+            using var request = RpcEnvelopeCodec.DecodeRequest(requestFrame);
+            Assert.Equal(GameReliablePushRpcIds.ServiceId, request.ServiceId);
+            Assert.Equal(GameReliablePushRpcIds.AckMethodId, request.MethodId);
+            var ack = LakonaInternalCodec.DecodeReliablePushAckRequest(request.Payload.Memory);
+            Acknowledgement.TrySetResult(ack);
+            _ackResponse.SetResult(RpcEnvelopeCodec.EncodeResponse(
+                request.RequestId,
+                RpcStatus.Ok,
+                LakonaInternalCodec.EncodeReliablePushAckOutcome(ReliablePushAckOutcome.Accepted())));
+            return default;
+        }
+
+        public async ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
+        {
+            if (Interlocked.Exchange(ref _received, 1) == 0)
+            {
+                return await _notification.Task.WaitAsync(ct).ConfigureAwait(false);
+            }
+
+            if (Interlocked.Exchange(ref _ackReceived, 1) == 0)
+            {
+                return await _ackResponse.Task.WaitAsync(ct).ConfigureAwait(false);
+            }
+
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+            throw new OperationCanceledException(ct);
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            IsConnected = false;
+            return default;
+        }
+    }
+
     private sealed class NoopTransport : ITransport
     {
         public bool IsConnected => false;
@@ -644,6 +824,7 @@ public sealed class LakonaGameClientCoreTests
 
         public async ValueTask<long> LoadAsync(
             string sessionId,
+            long sessionGeneration,
             CancellationToken cancellationToken = default)
         {
             _loadStarted.TrySetResult();
@@ -652,6 +833,7 @@ public sealed class LakonaGameClientCoreTests
 
         public ValueTask SaveAsync(
             string sessionId,
+            long sessionGeneration,
             long sequence,
             CancellationToken cancellationToken = default)
         {
@@ -660,6 +842,7 @@ public sealed class LakonaGameClientCoreTests
 
         public ValueTask ClearAsync(
             string sessionId,
+            long sessionGeneration,
             CancellationToken cancellationToken = default)
         {
             return default;

@@ -87,10 +87,31 @@ public sealed class LakonaInternalCodecTests
     {
         var request = new GameHeartbeatRequest { ProtocolVersion = 1 };
 
+        var payload = LakonaInternalCodec.EncodeGameHeartbeatRequest(request);
+        var decoded = LakonaInternalCodec.DecodeGameHeartbeatRequest(payload);
+
+        Assert.Equal(request.ProtocolVersion, decoded.ProtocolVersion);
+        Assert.Null(decoded.SessionId);
+        Assert.Equal(0, decoded.SessionGeneration);
+        Assert.Equal(10, payload.Length);
+    }
+
+    [Fact]
+    public void GameHeartbeatRequest_roundtrips_session_identity()
+    {
+        var request = new GameHeartbeatRequest
+        {
+            ProtocolVersion = 1,
+            SessionId = "session-a",
+            SessionGeneration = 7
+        };
+
         var decoded = LakonaInternalCodec.DecodeGameHeartbeatRequest(
             LakonaInternalCodec.EncodeGameHeartbeatRequest(request));
 
         Assert.Equal(request.ProtocolVersion, decoded.ProtocolVersion);
+        Assert.Equal("session-a", decoded.SessionId);
+        Assert.Equal(7, decoded.SessionGeneration);
     }
 
     [Theory]
@@ -113,15 +134,34 @@ public sealed class LakonaInternalCodecTests
     }
 
     [Fact]
-    public void ReliablePushAckRequest_roundtrips_sequence()
+    public void ReliablePushAckRequest_roundtrips_session_generation_and_sequence()
     {
-        var request = new ReliablePushAckRequest("session-123", ReliablePushSequence.From(42));
+        var request = new ReliablePushAckRequest("session-123", 7, ReliablePushSequence.From(42));
 
         var decoded = LakonaInternalCodec.DecodeReliablePushAckRequest(
             LakonaInternalCodec.EncodeReliablePushAckRequest(request));
 
         Assert.Equal(request.SessionId, decoded.SessionId);
+        Assert.Equal(7, decoded.SessionGeneration);
         Assert.Equal(42, decoded.Sequence.Value);
+    }
+
+    [Fact]
+    public void ReliablePushMetadata_roundtrips_all_fields()
+    {
+        var metadata = new ReliablePushMetadata(
+            "session-123",
+            7,
+            ReliablePushSequence.From(42),
+            "matchmaking.status");
+
+        var decoded = LakonaInternalCodec.DecodeReliablePushMetadata(
+            LakonaInternalCodec.EncodeReliablePushMetadata(metadata));
+
+        Assert.Equal(metadata.SessionId, decoded.SessionId);
+        Assert.Equal(metadata.SessionGeneration, decoded.SessionGeneration);
+        Assert.Equal(metadata.Sequence.Value, decoded.Sequence.Value);
+        Assert.Equal(metadata.Kind, decoded.Kind);
     }
 
     [Theory]
@@ -356,6 +396,31 @@ public sealed class LakonaInternalCodecTests
         Assert.Throws<InvalidOperationException>(() => LakonaInternalCodec.DecodeGameHeartbeatRequest(payload));
     }
 
+    [Fact]
+    public void Decode_rejects_heartbeat_session_identity_without_positive_generation()
+    {
+        var payload = CreatePayload(GameHeartbeatRequestKind, builder =>
+        {
+            WriteInt32BigEndian(builder, 1);
+            WriteString(builder, "session-a");
+            WriteInt64BigEndian(builder, 0);
+        });
+
+        Assert.Throws<InvalidOperationException>(() => LakonaInternalCodec.DecodeGameHeartbeatRequest(payload));
+    }
+
+    [Fact]
+    public void Encode_rejects_heartbeat_generation_without_session_identity()
+    {
+        var request = new GameHeartbeatRequest
+        {
+            ProtocolVersion = 1,
+            SessionGeneration = 1
+        };
+
+        Assert.Throws<InvalidOperationException>(() => LakonaInternalCodec.EncodeGameHeartbeatRequest(request));
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
@@ -364,7 +429,21 @@ public sealed class LakonaInternalCodecTests
         var payload = CreatePayload(ReliablePushAckRequestKind, builder =>
         {
             WriteString(builder, "session-123");
+            WriteInt64BigEndian(builder, 1);
             WriteInt64BigEndian(builder, sequence);
+        });
+
+        Assert.Throws<InvalidOperationException>(() => LakonaInternalCodec.DecodeReliablePushAckRequest(payload));
+    }
+
+    [Fact]
+    public void Decode_rejects_invalid_reliable_push_ack_request_generation()
+    {
+        var payload = CreatePayload(ReliablePushAckRequestKind, builder =>
+        {
+            WriteString(builder, "session-123");
+            WriteInt64BigEndian(builder, 0);
+            WriteInt64BigEndian(builder, 1);
         });
 
         Assert.Throws<InvalidOperationException>(() => LakonaInternalCodec.DecodeReliablePushAckRequest(payload));

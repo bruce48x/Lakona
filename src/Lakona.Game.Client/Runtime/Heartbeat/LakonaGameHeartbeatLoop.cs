@@ -69,7 +69,12 @@ namespace Lakona.Game.Client
 
             try
             {
-                var requestPayload = LakonaInternalCodec.EncodeGameHeartbeatRequest(new GameHeartbeatRequest());
+                var snapshot = _core.Snapshot;
+                var requestPayload = LakonaInternalCodec.EncodeGameHeartbeatRequest(new GameHeartbeatRequest
+                {
+                    SessionId = snapshot.SessionId,
+                    SessionGeneration = snapshot.SessionGeneration
+                });
                 using var responsePayload = await _rpcClient
                     .CallRawAsync(
                         GameHeartbeatRpcIds.ServiceId,

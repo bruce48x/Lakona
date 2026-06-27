@@ -13,7 +13,7 @@ public sealed class ReliablePushInboxTests
         var session = "session-a";
         var applied = new List<string>();
         var acknowledged = new List<ReliablePushAckRequest>();
-        inbox.StartSession(session);
+        inbox.StartSession(session, sessionGeneration: 7);
 
         var result = await inbox.ProcessAsync(
             ReliablePushSequence.From(1),
@@ -32,7 +32,10 @@ public sealed class ReliablePushInboxTests
 
         Assert.True(result.Decision.ShouldApply);
         Assert.Equal("matched", Assert.Single(applied));
-        Assert.Equal(1, Assert.Single(acknowledged).Sequence.Value);
+        var ack = Assert.Single(acknowledged);
+        Assert.Equal(session, ack.SessionId);
+        Assert.Equal(7, ack.SessionGeneration);
+        Assert.Equal(1, ack.Sequence.Value);
         Assert.Equal(1, inbox.LastAppliedSequence);
     }
 
@@ -73,11 +76,57 @@ public sealed class ReliablePushInboxTests
         var store = new InMemoryReliablePushCursorStore();
         var first = "session-a";
         var second = "session-b";
-        await store.SaveAsync(first, 10, TestContext.Current.CancellationToken);
+        await store.SaveAsync(first, 1, 10, TestContext.Current.CancellationToken);
         var inbox = new ReliablePushInbox(store);
 
         await inbox.StartSessionAsync(second, TestContext.Current.CancellationToken);
 
+        Assert.Equal(0, inbox.LastAppliedSequence);
+    }
+
+    [Fact]
+    public async Task NewSessionGenerationUsesIsolatedCursor()
+    {
+        var store = new InMemoryReliablePushCursorStore();
+        var session = "session-a";
+        await store.SaveAsync(session, 1, 10, TestContext.Current.CancellationToken);
+        var inbox = new ReliablePushInbox(store);
+
+        await inbox.StartSessionAsync(session, 2, TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, inbox.LastAppliedSequence);
+        Assert.Equal(2, inbox.CurrentSessionGeneration);
+    }
+
+    [Fact]
+    public async Task MetadataForDifferentSessionGenerationIsRejectedBeforeApply()
+    {
+        var inbox = new ReliablePushInbox();
+        var applyCount = 0;
+        var ackCount = 0;
+        inbox.StartSession("session-a", sessionGeneration: 2);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await inbox.ProcessAsync(
+                new ReliablePushMetadata(
+                    "session-a",
+                    1,
+                    ReliablePushSequence.From(1),
+                    "test.notification"),
+                _ =>
+                {
+                    applyCount++;
+                    return default;
+                },
+                (_, _) =>
+                {
+                    ackCount++;
+                    return new ValueTask<ReliablePushAckOutcome>(ReliablePushAckOutcome.SessionMismatch());
+                },
+                TestContext.Current.CancellationToken));
+
+        Assert.Equal(0, applyCount);
+        Assert.Equal(0, ackCount);
         Assert.Equal(0, inbox.LastAppliedSequence);
     }
 

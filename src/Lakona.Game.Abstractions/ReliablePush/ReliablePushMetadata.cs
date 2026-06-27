@@ -2,18 +2,18 @@ using System;
 
 namespace Lakona.Game.Abstractions
 {
-    public readonly struct ReliablePushAckRequest
+    public readonly struct ReliablePushMetadata
     {
-        public ReliablePushAckRequest(string sessionId, long sessionGeneration, ReliablePushSequence sequence)
+        public ReliablePushMetadata(
+            string sessionId,
+            long sessionGeneration,
+            ReliablePushSequence sequence,
+            string kind)
         {
             SessionId = sessionId ?? throw new ArgumentNullException(nameof(sessionId));
             SessionGeneration = sessionGeneration;
             Sequence = sequence;
-        }
-
-        public ReliablePushAckRequest(string sessionId, ReliablePushSequence sequence)
-            : this(sessionId, 1, sequence)
-        {
+            Kind = kind ?? throw new ArgumentNullException(nameof(kind));
         }
 
         public string SessionId { get; }
@@ -21,5 +21,7 @@ namespace Lakona.Game.Abstractions
         public long SessionGeneration { get; }
 
         public ReliablePushSequence Sequence { get; }
+
+        public string Kind { get; }
     }
 }

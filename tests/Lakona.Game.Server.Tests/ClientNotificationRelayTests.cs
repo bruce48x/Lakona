@@ -4,6 +4,8 @@ using Lakona.Game.Abstractions;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
+using Lakona.Rpc.Core;
+using Lakona.Rpc.Server;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
 using Xunit;
@@ -38,6 +40,27 @@ public sealed class ClientNotificationRelayTests
 
         Assert.Equal(ClientNotificationStatus.Delivered, status);
         Assert.Equal("hello", callback.LastMessage);
+    }
+
+    [Fact]
+    public async Task RelayPropagatesCallerCancellationFromLocalCallback()
+    {
+        var directory = new InMemoryGameSessionRegistry();
+        var session = await directory.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "conn-1", new TestPlayerCallback(), TestContext.Current.CancellationToken);
+        var relay = new ClientNotificationRelay(directory);
+        using var cts = new CancellationTokenSource();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            await relay.NotifyAsync<TestPlayerCallback>(
+                    session,
+                    _ =>
+                    {
+                        cts.Cancel();
+                        return new ValueTask(Task.FromCanceled(cts.Token));
+                    },
+                    cts.Token)
+                .AsTask());
     }
 
     [Fact]
@@ -126,6 +149,50 @@ public sealed class ClientNotificationRelayTests
     }
 
     [Fact]
+    public async Task LocalCommandDispatcherUsesGeneratedDispatchTargetWithMetadata()
+    {
+        var directory = new InMemoryGameSessionRegistry();
+        var session = await directory.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
+        var callback = new DispatchTargetCallback();
+        await directory.BindSessionAsync(session, "conn-1", callback, TestContext.Current.CancellationToken);
+        var dispatcher = new LocalClientNotificationCommandDispatcher(directory);
+        var command = ClientNotificationCommandFactory.Create<ITestPlayerCallback>(
+            session,
+            cb => cb.Notify("metadata"))!;
+        command.Metadata = new RpcPushMetadata
+        {
+            Type = "lakona.game.reliable-push",
+            Payload = new byte[] { 1, 2, 3 }
+        };
+
+        var status = await dispatcher.DispatchAsync(command, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientNotificationStatus.Delivered, status);
+        Assert.Equal(nameof(ITestPlayerCallback.Notify), callback.LastMethodName);
+        Assert.Equal("metadata", callback.LastArguments.Single());
+        Assert.NotNull(callback.LastMetadata);
+        Assert.Equal("lakona.game.reliable-push", callback.LastMetadata.Type);
+        Assert.Equal(new byte[] { 1, 2, 3 }, callback.LastMetadata.Payload.ToArray());
+    }
+
+    [Fact]
+    public async Task LocalCommandDispatcherPropagatesCallerCancellationFromDispatchTarget()
+    {
+        var directory = new InMemoryGameSessionRegistry();
+        var session = await directory.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
+        using var cts = new CancellationTokenSource();
+        var callback = new CancelingDispatchTargetCallback(cts);
+        await directory.BindSessionAsync(session, "conn-1", callback, TestContext.Current.CancellationToken);
+        var dispatcher = new LocalClientNotificationCommandDispatcher(directory);
+        var command = ClientNotificationCommandFactory.Create<ITestPlayerCallback>(
+            session,
+            cb => cb.Notify("cancel"))!;
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            await dispatcher.DispatchAsync(command, cts.Token).AsTask());
+    }
+
+    [Fact]
     public async Task RegistrarRegistersGatewayOwnedClientSessionRoute()
     {
         var routes = new CapturingRouteDirectory();
@@ -178,14 +245,41 @@ public sealed class ClientNotificationRelayTests
     }
 
     [Fact]
-    public async Task PublishReliableAsync_delivers_immediately_without_outbox_when_reliable_push_is_disabled()
+    public async Task SessionBindFailsWhenClientSessionRouteRegistrationFails()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IRouteDirectory>(new FailingRegisterRouteDirectory());
+        services.AddSingleton(new ClusterOptions
+        {
+            NodeId = "gateway-1",
+            AdvertisedEndpoints = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["cluster"] = "tcp://10.0.0.2:21002"
+            },
+            RouteLeaseSeconds = 30
+        });
+        services.AddLakonaGameServer();
+        await using var provider = services.BuildServiceProvider();
+        var server = provider.GetRequiredService<ILakonaGameServer>();
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await server.StartSessionAsync(
+                "player-1",
+                "conn-1",
+                new TestPlayerCallback(),
+                TestContext.Current.CancellationToken));
+
+        Assert.Equal("route registration failed", ex.Message);
+    }
+
+    [Fact]
+    public async Task ClientNotifications_delivers_immediately_without_outbox_when_reliable_push_is_disabled()
     {
         var services = new ServiceCollection();
         services.AddLakonaGameServerSessions();
         services.AddLakonaGameServerReliablePush(options => options.Enabled = false);
         await using var provider = services.BuildServiceProvider();
         var directory = provider.GetRequiredService<IGameSessionRegistry>();
-        var index = provider.GetRequiredService<IClientSessionIndex>();
         var notifications = provider.GetRequiredService<IClientNotifications>();
         var outbox = provider.GetRequiredService<IReliablePushOutbox>();
         var callback = new NotificationSink();
@@ -196,17 +290,14 @@ public sealed class ClientNotificationRelayTests
             "conn-1",
             callback,
             TestContext.Current.CancellationToken);
-        await index.UpdateAsync(
-            "player-1",
-            "control",
-            session,
-            session.Generation,
-            TestContext.Current.CancellationToken);
 
-        await notifications
-            .ForUser("player-1")
-            .PublishReliableAsync("matched", "payload", TestContext.Current.CancellationToken);
+        var status = await notifications
+            .ForSession(session)
+            .NotifyAsync<IClientNotificationSink<string>>(
+                sink => sink.OnNotificationAsync("payload"),
+                TestContext.Current.CancellationToken);
 
+        Assert.Equal(ClientNotificationStatus.Delivered, status);
         Assert.Equal(["payload"], callback.Delivered);
         var pending = new List<ReliablePushRecord>();
         await outbox.ReplayPendingAsync(
@@ -221,32 +312,15 @@ public sealed class ClientNotificationRelayTests
     }
 
     [Fact]
-    public async Task Session_index_keeps_newer_control_session_when_old_session_disconnects()
+    public async Task Session_index_is_not_registered_by_framework_sessions()
     {
         await using var provider = new ServiceCollection()
             .AddLogging()
             .AddLakonaGameServer()
             .BuildServiceProvider();
-        var server = provider.GetRequiredService<ILakonaGameServer>();
-        var index = provider.GetRequiredService<IClientSessionIndex>();
 
-        var oldSession = await server.StartSessionAsync(
-            "player-1",
-            "old-conn",
-            new NotificationSink(),
-            TestContext.Current.CancellationToken);
-        var newSession = await server.StartSessionAsync(
-            "player-1",
-            "new-conn",
-            new NotificationSink(),
-            TestContext.Current.CancellationToken);
-
-        await server.MarkSessionDisconnectedAsync(oldSession, "old-conn", TestContext.Current.CancellationToken);
-
-        var current = await index.FindCurrentAsync("player-1", "control", TestContext.Current.CancellationToken);
-
-        Assert.NotNull(current);
-        Assert.Equal(newSession, current!.Session);
+        Assert.Null(typeof(ILakonaGameServer).Assembly.GetType("Lakona.Game.Server.Sessions.IClientSessionIndex"));
+        Assert.Null(typeof(ILakonaGameServer).Assembly.GetType("Lakona.Game.Server.Sessions.InMemoryClientSessionIndex"));
     }
 
     private sealed class TestPlayerCallback
@@ -285,6 +359,58 @@ public sealed class ClientNotificationRelayTests
         }
     }
 
+    private sealed class DispatchTargetCallback : ITestPlayerCallback, IRpcNotificationDispatchTarget
+    {
+        public string LastMessage { get; private set; } = "";
+
+        public string LastMethodName { get; private set; } = "";
+
+        public object?[] LastArguments { get; private set; } = [];
+
+        public RpcPushMetadata? LastMetadata { get; private set; }
+
+        public void Notify(string message)
+        {
+            LastMessage = message;
+        }
+
+        public ValueTask DispatchNotificationAsync(
+            string methodName,
+            object?[] arguments,
+            RpcPushMetadata? metadata,
+            CancellationToken cancellationToken = default)
+        {
+            LastMethodName = methodName;
+            LastArguments = arguments;
+            LastMetadata = metadata;
+            return default;
+        }
+    }
+
+    private sealed class CancelingDispatchTargetCallback : ITestPlayerCallback, IRpcNotificationDispatchTarget
+    {
+        private readonly CancellationTokenSource _source;
+
+        public CancelingDispatchTargetCallback(CancellationTokenSource source)
+        {
+            _source = source;
+        }
+
+        public void Notify(string message)
+        {
+        }
+
+        public ValueTask DispatchNotificationAsync(
+            string methodName,
+            object?[] arguments,
+            RpcPushMetadata? metadata,
+            CancellationToken cancellationToken = default)
+        {
+            _source.Cancel();
+            return new ValueTask(Task.FromCanceled(cancellationToken));
+        }
+    }
+
     private sealed class CapturingRouteDirectory : IRouteDirectory
     {
         public string LastRoute { get; private set; } = "";
@@ -310,6 +436,62 @@ public sealed class ClientNotificationRelayTests
             CancellationToken cancellationToken = default)
         {
             LastUnregisteredRoute = route.Value;
+            return new ValueTask<RouteUnregisterStatus>(RouteUnregisterStatus.Removed);
+        }
+
+        public ValueTask<RouteLocation?> ResolveAsync(
+            RouteKey route,
+            DateTimeOffset now,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask<RouteLeaseRefreshStatus> RefreshLeaseAsync(
+            RouteLocation expectedLocation,
+            DateTimeOffset expiresAt,
+            DateTimeOffset now,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask<int> ExpireAsync(
+            DateTimeOffset now,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask<int> ClearByNodeAsync(
+            NodeId node,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask<int> ClearByNodeEpochAsync(
+            NodeId node,
+            long nodeEpoch,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class FailingRegisterRouteDirectory : IRouteDirectory
+    {
+        public ValueTask<RouteRegistrationStatus> RegisterAsync(
+            RouteLocation location,
+            CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("route registration failed");
+        }
+
+        public ValueTask<RouteUnregisterStatus> UnregisterAsync(
+            RouteKey route,
+            CancellationToken cancellationToken = default)
+        {
             return new ValueTask<RouteUnregisterStatus>(RouteUnregisterStatus.Removed);
         }
 

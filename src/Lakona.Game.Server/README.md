@@ -135,7 +135,9 @@ explicit actor management and diagnostics rather than ordinary gameplay calls.
 ## Sessions And Push
 
 `ILakonaGameServer` is the high-level entry point for game sessions, typed
-callback binding, reliable push, replay, and acknowledgements.
+callback binding, and session lifecycle. Publish callback intent through
+`IClientNotifications`; reliable push sequencing, replay, and acknowledgements
+are framework protocol details.
 
 ```csharp
 using Lakona.Game.Abstractions;
@@ -144,10 +146,14 @@ using Lakona.Game.Server;
 public sealed class MatchPushService
 {
     private readonly ILakonaGameServer _server;
+    private readonly IClientNotifications _notifications;
 
-    public MatchPushService(ILakonaGameServer server)
+    public MatchPushService(
+        ILakonaGameServer server,
+        IClientNotifications notifications)
     {
         _server = server;
+        _notifications = notifications;
     }
 
     public ValueTask<GameSessionKey> LoginAsync(
@@ -159,21 +165,16 @@ public sealed class MatchPushService
         return _server.StartSessionAsync(playerId, connectionId, callback, cancellationToken);
     }
 
-    public ValueTask<long> PublishMatchedAsync(
+    public ValueTask<ClientNotificationStatus> PublishMatchedAsync(
         GameSessionKey session,
         MatchmakingStatusUpdate update,
         CancellationToken cancellationToken)
     {
-        return _server.PublishReliablePushAsync<IPlayerCallback, MatchmakingStatusUpdate>(
-            session,
-            "matched",
-            update,
-            static (callback, sequence, payload, ct) =>
-            {
-                payload.ReliableSequence = sequence.Value;
-                return callback.OnMatchmakingStatus(payload);
-            },
-            cancellationToken);
+        return _notifications
+            .ForSession(session)
+            .NotifyAsync<IPlayerCallback>(
+                callback => callback.OnMatchmakingStatus(update),
+                cancellationToken);
     }
 }
 ```
@@ -187,8 +188,9 @@ matchmaking policy, persistence schema, or gameplay DTOs.
 - Runtime validation: run generated projects with `--readiness-check`.
 - Message recording: configure the framework default recorder to store recent
   actor dispatch records in an in-memory ring buffer.
-- Cluster notifications: use `ClientNotificationRelay` from business nodes to
-  send serializable callback commands to the gateway that owns the session.
+- Cluster notifications: use `IClientNotifications` from business nodes; the
+  framework sends serializable callback commands to the gateway that owns the
+  session.
 - Feature startup: use `LakonaGameFeature` classes when a server is composed
   from named startup units.
 

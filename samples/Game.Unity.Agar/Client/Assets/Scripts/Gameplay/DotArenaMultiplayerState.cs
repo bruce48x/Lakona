@@ -1,18 +1,15 @@
 #nullable enable
 
 using Shared.Interfaces;
-using Lakona.Game.Client.ReliablePush;
 using Lakona.Game.Client.Sessions;
 
 namespace SampleClient.Gameplay
 {
     internal sealed class DotArenaMultiplayerState
     {
-        private readonly ReliablePushInbox _reliablePushInbox = new();
-
         public DotArenaMultiplayerState()
         {
-            SessionController = new ClientSessionController(_reliablePushInbox);
+            SessionController = new ClientSessionController();
         }
 
         public SessionMode SessionMode { get; set; } = SessionMode.None;
@@ -24,7 +21,6 @@ namespace SampleClient.Gameplay
         public bool ControlReconnectInProgress { get; set; }
         public float MatchmakingStartedAt { get; set; } = -1f;
         public RealtimeConnectionInfo? LastRealtimeConnection { get; set; }
-        public ReliablePushInbox ReliablePushInbox => _reliablePushInbox;
         public ClientSessionController SessionController { get; }
 
         public bool HasPendingUiRequest => PendingUiRequest != PendingUiRequest.None;
@@ -61,7 +57,7 @@ namespace SampleClient.Gameplay
             LocalPlayerId = playerId;
             SessionMode = SessionMode.Multiplayer;
             ApplyAuthenticatedProfile(playerId, winCount);
-            StartReliablePushSession(playerId, sessionToken, sessionId, sessionGeneration);
+            StartFrameworkSession(playerId, sessionToken, sessionId, sessionGeneration);
         }
 
         public void ApplyControlReconnect(string playerId, string sessionToken, string sessionId, long sessionGeneration, int winCount)
@@ -69,7 +65,7 @@ namespace SampleClient.Gameplay
             LocalPlayerId = playerId;
             SessionMode = SessionMode.Multiplayer;
             ApplyAuthenticatedProfile(playerId, winCount);
-            StartReliablePushSession(playerId, sessionToken, sessionId, sessionGeneration);
+            StartFrameworkSession(playerId, sessionToken, sessionId, sessionGeneration);
         }
 
         public void ClearSession()
@@ -82,17 +78,17 @@ namespace SampleClient.Gameplay
         {
             ClearSession();
             ClearAuthenticatedProfile();
-            ClearRequestState(resetReliablePush: true);
+            ClearRequestState(resetSessionState: true);
         }
 
-        public void ClearRequestState(bool resetReliablePush)
+        public void ClearRequestState(bool resetSessionState)
         {
             PendingUiRequest = PendingUiRequest.None;
             ControlReconnectInProgress = false;
             LastRealtimeConnection = null;
             MatchmakingStartedAt = -1f;
 
-            if (resetReliablePush)
+            if (resetSessionState)
             {
                 SessionController.EndSession();
             }
@@ -103,13 +99,13 @@ namespace SampleClient.Gameplay
             SessionController.MarkStateLost();
         }
 
-        private void StartReliablePushSession(string playerId, string sessionToken, string sessionId, long sessionGeneration)
+        private void StartFrameworkSession(string playerId, string sessionToken, string sessionId, long sessionGeneration)
         {
-            var reliableSessionId = string.IsNullOrWhiteSpace(sessionId)
+            var frameworkSessionId = string.IsNullOrWhiteSpace(sessionId)
                 ? string.IsNullOrWhiteSpace(sessionToken) ? playerId : sessionToken
                 : sessionId;
             var generation = sessionGeneration <= 0 ? 1 : sessionGeneration;
-            SessionController.StartSession($"{reliableSessionId}:{generation}");
+            SessionController.StartSession($"{frameworkSessionId}:{generation}");
         }
     }
 

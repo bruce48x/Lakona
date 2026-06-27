@@ -348,6 +348,99 @@ public class RpcEnvelopeCodecTests
     }
 
     [Fact]
+    public void PushRoundTrip_PreservesPushMetadata()
+    {
+        var original = new RpcPushEnvelope
+        {
+            ServiceId = 5,
+            MethodId = 3,
+            Payload = new byte[] { 10, 20, 30 },
+            Metadata = new RpcPushMetadata
+            {
+                Type = "lakona.game.reliable-push",
+                Payload = new byte[] { 1, 2, 3, 4 }
+            }
+        };
+
+        using var encoded = RpcEnvelopeCodec.EncodePush(original);
+        using var decoded = RpcEnvelopeCodec.DecodePush(encoded);
+
+        Assert.Equal(original.ServiceId, decoded.ServiceId);
+        Assert.Equal(original.MethodId, decoded.MethodId);
+        Assert.Equal(original.Payload.ToArray(), decoded.Payload.ToArray());
+        Assert.NotNull(decoded.Metadata);
+        Assert.Equal("lakona.game.reliable-push", decoded.Metadata.Type);
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, decoded.Metadata.Payload.ToArray());
+    }
+
+    [Fact]
+    public void EncodePush_MatchesMetadataWireBytes()
+    {
+        var push = new RpcPushEnvelope
+        {
+            ServiceId = 2,
+            MethodId = 3,
+            Payload = new byte[] { 0xAA, 0xBB },
+            Metadata = new RpcPushMetadata
+            {
+                Type = "m",
+                Payload = new byte[] { 0x7F }
+            }
+        };
+
+        using var encoded = RpcEnvelopeCodec.EncodePush(push);
+
+        Assert.Equal(new byte[]
+        {
+            0x03,
+            0x00, 0x00, 0x00, 0x02,
+            0x00, 0x00, 0x00, 0x03,
+            0x00, 0x00, 0x00, 0x01,
+            0x00, 0x00, 0x00, 0x01,
+            0x6D,
+            0x00, 0x00, 0x00, 0x01,
+            0x7F,
+            0x00, 0x00, 0x00, 0x02,
+            0xAA, 0xBB
+        }, encoded.ToArray());
+    }
+
+    [Fact]
+    public void DecodePush_RejectsInvalidMetadataType()
+    {
+        using var frame = TransportFrame.CopyOf(new byte[]
+        {
+            0x03,
+            0x00, 0x00, 0x00, 0x02,
+            0x00, 0x00, 0x00, 0x03,
+            0x00, 0x00, 0x00, 0x01,
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x01,
+            0x7F,
+            0x00, 0x00, 0x00, 0x02,
+            0xAA, 0xBB
+        });
+
+        Assert.Throws<InvalidOperationException>(() => RpcEnvelopeCodec.DecodePush(frame));
+    }
+
+    [Fact]
+    public void DecodePush_RejectsUnsupportedMetadataCount()
+    {
+        using var frame = TransportFrame.CopyOf(new byte[]
+        {
+            0x03,
+            0x00, 0x00, 0x00, 0x02,
+            0x00, 0x00, 0x00, 0x03,
+            0x00, 0x00, 0x00, 0x02,
+            0x00, 0x00, 0x00, 0x02,
+            0xAA, 0xBB
+        });
+
+        Assert.Throws<InvalidOperationException>(() => RpcEnvelopeCodec.DecodePush(frame));
+    }
+
+    [Fact]
     public void EncodePush_MatchesWireProtocolV1GoldenBytes()
     {
         var push = new RpcPushEnvelope
@@ -364,6 +457,7 @@ public class RpcEnvelopeCodecTests
             0x03,
             0x00, 0x00, 0x00, 0x02,
             0x00, 0x00, 0x00, 0x03,
+            0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x02,
             0xAA, 0xBB
         }, encoded.ToArray());
@@ -377,6 +471,7 @@ public class RpcEnvelopeCodecTests
             0x03,
             0x00, 0x00, 0x00, 0x02,
             0x00, 0x00, 0x00, 0x03,
+            0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x02,
             0xAA, 0xBB
         });

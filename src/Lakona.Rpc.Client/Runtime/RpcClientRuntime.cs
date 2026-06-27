@@ -12,6 +12,13 @@ namespace Lakona.Rpc.Client
     public delegate ValueTask RpcNotificationPayloadHandler(ReadOnlyMemory<byte> payload);
 
     /// <summary>
+    ///     Wraps server-to-client notification dispatch with optional push metadata processing.
+    /// </summary>
+    /// <param name="metadata">Optional generic push metadata carried by the frame.</param>
+    /// <param name="next">Callback that dispatches the notification to the registered handler.</param>
+    public delegate ValueTask RpcNotificationDispatchMiddleware(RpcPushMetadata? metadata, Func<ValueTask> next);
+
+    /// <summary>
     ///     Default client runtime for Lakona.Rpc request/response calls and server notification dispatch.
     /// </summary>
     /// <remarks>
@@ -33,6 +40,7 @@ namespace Lakona.Rpc.Client
         private readonly ITransport _transport;
         private readonly IRpcSerializer _serializer;
         private readonly RpcKeepAliveOptions _keepAlive;
+        private RpcNotificationDispatchMiddleware? _notificationDispatchMiddleware;
         private int _disposed;
         private int _nextId;
         private int _started;
@@ -90,6 +98,13 @@ namespace Lakona.Rpc.Client
         ///     Raised when a registered notification handler throws.
         /// </summary>
         public event Action<RpcNotificationHandlerExceptionContext>? NotificationHandlerException;
+
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+        public void SetNotificationDispatchMiddleware(RpcNotificationDispatchMiddleware? middleware)
+        {
+            ThrowIfDisposed();
+            _notificationDispatchMiddleware = middleware;
+        }
 
         /// <summary>
         ///     Last UTC timestamp at which the runtime sent a frame.
@@ -410,7 +425,20 @@ namespace Lakona.Rpc.Client
 
                         try
                         {
-                            await registration.Handler(push.Payload.Memory).ConfigureAwait(false);
+                            ValueTask DispatchAsync()
+                            {
+                                return registration.Handler(push.Payload.Memory);
+                            }
+
+                            var middleware = _notificationDispatchMiddleware;
+                            if (middleware is null)
+                            {
+                                await DispatchAsync().ConfigureAwait(false);
+                            }
+                            else
+                            {
+                                await middleware(push.Metadata, DispatchAsync).ConfigureAwait(false);
+                            }
                         }
                         catch (Exception ex)
                         {

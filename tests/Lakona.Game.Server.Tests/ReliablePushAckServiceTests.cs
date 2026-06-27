@@ -18,8 +18,8 @@ public sealed class ReliablePushAckServiceTests
         var ackService = provider.GetRequiredService<IReliablePushAckService>();
         var oldSession = new GameSessionKey("player-a", "session-a", 1);
         var newSession = new GameSessionKey("player-a", "session-b", 2);
-        await outbox.PublishAsync(oldSession, "Old", "old", _ => ValueTask.CompletedTask, TestContext.Current.CancellationToken);
-        await outbox.PublishAsync(newSession, "New", "new", _ => ValueTask.CompletedTask, TestContext.Current.CancellationToken);
+        await outbox.PublishAsync(oldSession, "Old", "old", _ => default, TestContext.Current.CancellationToken);
+        await outbox.PublishAsync(newSession, "New", "new", _ => default, TestContext.Current.CancellationToken);
 
         var outcome = await ackService.AckAsync(
             oldSession,
@@ -46,7 +46,7 @@ public sealed class ReliablePushAckServiceTests
         var ackService = provider.GetRequiredService<IReliablePushAckService>();
         var current = new GameSessionKey("player-a", "session-b", 2);
         var old = new GameSessionKey("player-a", "session-a", 1);
-        await outbox.PublishAsync(current, "New", "new", _ => ValueTask.CompletedTask, TestContext.Current.CancellationToken);
+        await outbox.PublishAsync(current, "New", "new", _ => default, TestContext.Current.CancellationToken);
 
         var outcome = await ackService.AckAsync(
             current,
@@ -76,7 +76,7 @@ public sealed class ReliablePushAckServiceTests
         return record =>
         {
             records.Add(record);
-            return ValueTask.CompletedTask;
+            return default;
         };
     }
 }

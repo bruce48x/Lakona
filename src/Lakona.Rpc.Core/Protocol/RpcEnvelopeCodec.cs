@@ -13,6 +13,8 @@ namespace Lakona.Rpc.Core
     /// </remarks>
     public static class RpcEnvelopeCodec
     {
+        private static readonly UTF8Encoding StrictUtf8 = new UTF8Encoding(false, true);
+
         /// <summary>
         /// Maximum payload length accepted by envelope decoders.
         /// </summary>
@@ -183,7 +185,15 @@ namespace Lakona.Rpc.Core
             if (push is null) throw new ArgumentNullException(nameof(push));
 
             var payload = push.Payload;
-            var total = 1 + 4 + 4 + 4 + payload.Length;
+            var metadata = push.Metadata;
+            var hasMetadata = metadata is not null;
+            if (hasMetadata)
+            {
+                ValidatePushMetadata(metadata!);
+            }
+
+            var metadataPayload = metadata?.Payload ?? ReadOnlyMemory<byte>.Empty;
+            var total = 1 + 4 + 4 + 4 + (hasMetadata ? GetStringSize(metadata!.Type) + 4 + metadataPayload.Length : 0) + 4 + payload.Length;
             var frame = TransportFrame.Allocate(total);
             var data = frame.GetWritableSpan();
             var offset = 0;
@@ -191,6 +201,15 @@ namespace Lakona.Rpc.Core
             data[offset++] = (byte)RpcFrameType.Push;
             WriteInt32(data, ref offset, push.ServiceId);
             WriteInt32(data, ref offset, push.MethodId);
+            WriteInt32(data, ref offset, hasMetadata ? 1 : 0);
+            if (hasMetadata)
+            {
+                WriteString(data, ref offset, metadata!.Type);
+                WriteInt32(data, ref offset, metadataPayload.Length);
+                metadataPayload.Span.CopyTo(data.Slice(offset));
+                offset += metadataPayload.Length;
+            }
+
             WriteInt32(data, ref offset, payload.Length);
             payload.Span.CopyTo(data.Slice(offset));
             return frame;
@@ -212,6 +231,24 @@ namespace Lakona.Rpc.Core
 
             var serviceId = ReadInt32(span, ref offset);
             var methodId = ReadInt32(span, ref offset);
+            RpcPushMetadata? metadata = null;
+            var metadataCount = ReadInt32(span, ref offset);
+            ValidatePushMetadataCount(metadataCount);
+            if (metadataCount == 1)
+            {
+                var metadataType = ReadRequiredString(span, ref offset, "Push metadata type");
+                var metadataPayloadLen = ReadInt32(span, ref offset);
+                ValidateLength(metadataPayloadLen);
+                EnsureRemaining(span, offset, metadataPayloadLen);
+                metadata = new RpcPushMetadata
+                {
+                    Type = metadataType,
+                    Payload = span.Slice(offset, metadataPayloadLen).ToArray()
+                };
+                offset += metadataPayloadLen;
+                ValidatePushMetadata(metadata);
+            }
+
             var payloadLen = ReadInt32(span, ref offset);
             ValidateLength(payloadLen);
             EnsureRemaining(span, offset, payloadLen);
@@ -221,7 +258,7 @@ namespace Lakona.Rpc.Core
             if (offset != data.Length)
                 throw new InvalidOperationException("Push envelope has extra trailing bytes.");
 
-            return new RpcPushFrame(serviceId, methodId, payload);
+            return new RpcPushFrame(serviceId, methodId, payload, metadata);
         }
 
         /// <summary>
@@ -352,6 +389,59 @@ namespace Lakona.Rpc.Core
         {
             BinaryPrimitives.WriteInt64BigEndian(data.Slice(offset, 8), value);
             offset += 8;
+        }
+
+        private static int GetStringSize(string value)
+        {
+            return 4 + StrictUtf8.GetByteCount(value ?? "");
+        }
+
+        private static void WriteString(Span<byte> data, ref int offset, string value)
+        {
+            var bytes = StrictUtf8.GetBytes(value ?? "");
+            WriteInt32(data, ref offset, bytes.Length);
+            bytes.AsSpan().CopyTo(data.Slice(offset));
+            offset += bytes.Length;
+        }
+
+        private static string ReadRequiredString(ReadOnlySpan<byte> data, ref int offset, string name)
+        {
+            var length = ReadInt32(data, ref offset);
+            ValidateLength(length);
+            EnsureRemaining(data, offset, length);
+            string value;
+            try
+            {
+                value = StrictUtf8.GetString(data.Slice(offset, length));
+            }
+            catch (DecoderFallbackException ex)
+            {
+                throw new InvalidOperationException(name + " contains malformed UTF-8.", ex);
+            }
+
+            offset += length;
+            if (string.IsNullOrEmpty(value))
+            {
+                throw new InvalidOperationException(name + " cannot be empty.");
+            }
+
+            return value;
+        }
+
+        private static void ValidatePushMetadata(RpcPushMetadata metadata)
+        {
+            if (string.IsNullOrWhiteSpace(metadata.Type))
+            {
+                throw new InvalidOperationException("Push metadata requires a type.");
+            }
+        }
+
+        private static void ValidatePushMetadataCount(int count)
+        {
+            if (count is < 0 or > 1)
+            {
+                throw new InvalidOperationException("Push metadata count must be 0 or 1.");
+            }
         }
 
         private static void EnsureRemaining(ReadOnlySpan<byte> data, int offset, int count)

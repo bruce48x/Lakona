@@ -35,6 +35,8 @@ public sealed class ClientNotificationCommand
     public string MethodName { get; set; } = "";
 
     public IReadOnlyList<ClientNotificationArgument> Arguments { get; set; } = [];
+
+    public RpcPushMetadata? Metadata { get; set; }
 }
 
 public sealed class ClientNotificationArgument

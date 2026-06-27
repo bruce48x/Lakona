@@ -57,6 +57,33 @@ namespace Lakona.Game.Client
             }
         }
 
+        public void BindReliablePush(RpcClientRuntime rpcClient)
+        {
+            if (rpcClient == null) throw new ArgumentNullException(nameof(rpcClient));
+
+            rpcClient.SetNotificationDispatchMiddleware(async (metadata, next) =>
+            {
+                if (metadata is null ||
+                    !StringComparer.Ordinal.Equals(metadata.Type, LakonaInternalCodec.ReliablePushMetadataType))
+                {
+                    await next().ConfigureAwait(false);
+                    return;
+                }
+
+                var reliableMetadata = LakonaInternalCodec.DecodeReliablePushMetadata(metadata.Payload);
+                var result = await _reliablePush.ProcessAsync(
+                    reliableMetadata,
+                    _ => next(),
+                    (ack, cancellationToken) => SendReliablePushAckAsync(rpcClient, ack, cancellationToken),
+                    CancellationToken.None).ConfigureAwait(false);
+
+                if (result.Acknowledgement.HasValue)
+                {
+                    _sessions.ApplyAckOutcome(result.Acknowledgement.Value);
+                }
+            });
+        }
+
         public async ValueTask<GameServerHello> HandshakeAsync(
             RpcClientRuntime rpcClient,
             GameClientHello hello,
@@ -96,8 +123,22 @@ namespace Lakona.Game.Client
             _sessions.StartSession(sessionId, lastReliableSequence);
         }
 
+        public void StartSession(string sessionId, long sessionGeneration, long lastReliableSequence)
+        {
+            _sessions.StartSessionWithGeneration(sessionId, sessionGeneration, lastReliableSequence);
+        }
+
         public async ValueTask StartSessionAsync(
             string sessionId,
+            CancellationToken cancellationToken = default)
+        {
+            await StartSessionAsync(sessionId, sessionGeneration: 1, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        public async ValueTask StartSessionAsync(
+            string sessionId,
+            long sessionGeneration,
             CancellationToken cancellationToken = default)
         {
             if (Snapshot.Phase == ClientSessionPhase.ConnectionFailed)
@@ -105,14 +146,19 @@ namespace Lakona.Game.Client
                 return;
             }
 
-            await _reliablePush.StartSessionAsync(sessionId, cancellationToken).ConfigureAwait(false);
+            await _reliablePush
+                .StartSessionAsync(sessionId, sessionGeneration, cancellationToken)
+                .ConfigureAwait(false);
             if (Snapshot.Phase == ClientSessionPhase.ConnectionFailed)
             {
                 _reliablePush.Reset();
                 return;
             }
 
-            _sessions.StartSession(sessionId, _reliablePush.LastAppliedSequence);
+            _sessions.StartSessionWithGeneration(
+                sessionId,
+                sessionGeneration,
+                _reliablePush.LastAppliedSequence);
         }
 
         public void MarkReconnecting()
@@ -157,6 +203,20 @@ namespace Lakona.Game.Client
             }
 
             return result;
+        }
+
+        private static async ValueTask<ReliablePushAckOutcome> SendReliablePushAckAsync(
+            RpcClientRuntime rpcClient,
+            ReliablePushAckRequest ack,
+            CancellationToken cancellationToken)
+        {
+            var payload = LakonaInternalCodec.EncodeReliablePushAckRequest(ack);
+            using var response = await rpcClient.CallRawAsync(
+                GameReliablePushRpcIds.ServiceId,
+                GameReliablePushRpcIds.AckMethodId,
+                payload,
+                cancellationToken).ConfigureAwait(false);
+            return LakonaInternalCodec.DecodeReliablePushAckOutcome(response.Memory);
         }
 
         public async ValueTask DisposeAsync()

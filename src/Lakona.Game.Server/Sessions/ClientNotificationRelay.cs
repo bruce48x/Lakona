@@ -2,7 +2,7 @@ using Lakona.Game.Cluster;
 
 namespace Lakona.Game.Server.Sessions;
 
-public sealed class ClientNotificationRelay : IClientNotificationRelay
+internal sealed class ClientNotificationRelay : IClientNotificationRelay
 {
     private readonly IGameSessionRegistry _sessions;
     private readonly IRouteDirectory? _routes;
@@ -28,7 +28,7 @@ public sealed class ClientNotificationRelay : IClientNotificationRelay
 
     public async ValueTask<ClientNotificationStatus> NotifyAsync<TCallback>(
         GameSessionKey session,
-        Action<TCallback> notify,
+        Func<TCallback, ValueTask> notify,
         CancellationToken cancellationToken = default)
         where TCallback : class
     {
@@ -45,8 +45,12 @@ public sealed class ClientNotificationRelay : IClientNotificationRelay
 
         try
         {
-            notify(callback);
+            await notify(callback).ConfigureAwait(false);
             return ClientNotificationStatus.Delivered;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch
         {
@@ -54,9 +58,26 @@ public sealed class ClientNotificationRelay : IClientNotificationRelay
         }
     }
 
-    private async ValueTask<ClientNotificationStatus> TryNotifyRemoteAsync<TCallback>(
+    public ValueTask<ClientNotificationStatus> NotifyAsync<TCallback>(
         GameSessionKey session,
         Action<TCallback> notify,
+        CancellationToken cancellationToken = default)
+        where TCallback : class
+    {
+        ArgumentNullException.ThrowIfNull(notify);
+        return NotifyAsync<TCallback>(
+            session,
+            callback =>
+            {
+                notify(callback);
+                return default;
+            },
+            cancellationToken);
+    }
+
+    private async ValueTask<ClientNotificationStatus> TryNotifyRemoteAsync<TCallback>(
+        GameSessionKey session,
+        Func<TCallback, ValueTask> notify,
         CancellationToken cancellationToken)
         where TCallback : class
     {

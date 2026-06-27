@@ -2,11 +2,8 @@
 
 using System;
 using System.Linq;
-using System.Threading.Tasks;
 using Shared.Gameplay;
 using Shared.Interfaces;
-using Lakona.Game.Abstractions;
-using Lakona.Game.Client.ReliablePush;
 using UnityEngine;
 using static SampleClient.Gameplay.DotArenaTuning;
 
@@ -205,53 +202,7 @@ namespace SampleClient.Gameplay
 
         private void HandleMatchmakingStatus(MatchmakingStatusUpdate matchmakingStatus)
         {
-            if (matchmakingStatus.ReliableSequence <= 0)
-            {
-                ApplyMatchmakingStatus(matchmakingStatus);
-                return;
-            }
-
-            _ = ProcessReliableMatchmakingStatusAsync(matchmakingStatus);
-        }
-
-        private async Task ProcessReliableMatchmakingStatusAsync(MatchmakingStatusUpdate matchmakingStatus)
-        {
-            try
-            {
-                var result = await _multiplayerState.ReliablePushInbox.ProcessAsync(
-                    ReliablePushSequence.From(matchmakingStatus.ReliableSequence),
-                    matchmakingStatus,
-                    (payload, _) =>
-                    {
-                        ApplyMatchmakingStatus(payload);
-                        return default;
-                    },
-                    (_, _) => new ValueTask<ReliablePushAckOutcome>(ReliablePushAckOutcome.Accepted()),
-                    _cts.Token);
-
-                if (result.Acknowledgement is { Status: ReliablePushAckStatus.StateLost or ReliablePushAckStatus.SessionMismatch } acknowledgement)
-                {
-                    _multiplayerState.SessionController.ApplyAckOutcome(acknowledgement);
-                    HandleSessionStateLost(acknowledgement.Reason);
-                    return;
-                }
-
-                if (result.Acknowledgement is { } acknowledgementResult)
-                {
-                    _multiplayerState.SessionController.ApplyAckOutcome(acknowledgementResult);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (InvalidOperationException ex)
-            {
-                Debug.LogWarning($"[DotArena] Reliable push inbox is not ready: {ex.Message}");
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[DotArena] Reliable matchmaking push failed: {ex.Message}");
-            }
+            ApplyMatchmakingStatus(matchmakingStatus);
         }
 
         private void ApplyMatchmakingStatus(MatchmakingStatusUpdate matchmakingStatus)
@@ -299,7 +250,7 @@ namespace SampleClient.Gameplay
                 status: "联机状态已过期",
                 eventMessage: string.IsNullOrWhiteSpace(message) ? "请重新登录后开始新的联机会话" : message,
                 toastMessage: null,
-                resetReliablePush: false);
+                resetSessionState: false);
         }
 
         private async System.Threading.Tasks.Task EnsureRealtimeSessionAsync(RealtimeConnectionInfo realtimeConnection)

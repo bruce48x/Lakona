@@ -18,7 +18,7 @@ For hotfix-backed service binding, see
 - Multiple sessions for the same account, player, character, or room are
   user-managed business state.
 - `EndpointName` and `GameEndpointName` are not user-facing concepts in
-  generated binding, `ILakonaGameServer`, reliable push APIs, hotfix call
+  generated binding, `ILakonaGameServer`, reliable push protocol state, hotfix call
   contexts, or session directory storage.
 - `Lakona:Endpoints[]` remains transport listener configuration. It does not
   define framework session sub-identities.
@@ -225,6 +225,11 @@ Lakona.Game control messages. It covers `GameClientHello`, `GameServerHello`,
 framework-internal payloads must add an explicit codec kind and layout instead
 of routing DTOs through endpoint `IRpcSerializer`.
 
+Lakona.Game control payload layouts are a package-set contract. This early
+framework does not support mixing old and new Lakona.Game protocol packages in
+one deployment; update the generated client, client runtime, abstractions, and
+server runtime together.
+
 `Lakona.Game.Abstractions` must remain free of concrete serializer package
 dependencies such as `Lakona.Rpc.Serializer.Json`,
 `Lakona.Rpc.Serializer.MemoryPack`, `MemoryPack`, or
@@ -254,11 +259,13 @@ build id, platform, and supported capabilities. User code should not construct
 Game heartbeat is a framework RPC, not a business service method. Generated
 `LakonaGameClient` starts one heartbeat loop after the handshake succeeds.
 
-The heartbeat request does not carry `GameSessionKey`. The server interprets it
-as a connection heartbeat before a business session is bound, and as a session
-heartbeat after `StartSessionAsync` or `BindCurrentSessionAsync` binds the
-current connection. This upgrade is automatic; business code should not start a
-second session heartbeat loop.
+The heartbeat request does not carry the full `GameSessionKey` owner identity.
+After the generated client starts a framework session, heartbeat carries the
+client's `SessionId` and `SessionGeneration`. The server treats heartbeats
+without session identity as connection-only heartbeats and only replays pending
+reliable push records after the client reports the matching active session. This
+upgrade is automatic; business code should not start a second session heartbeat
+loop.
 
 Default heartbeat settings are enabled, 15 seconds interval, and 45 seconds
 timeout unless the resolved server/client options say otherwise.
@@ -408,30 +415,30 @@ The default is `true`. Generated development projects usually omit this key
 because the default is derived by the framework. Setting it to `false` is an
 explicit opt-out.
 
-Business services must not expose reliable-push ack RPC methods such as
-`AckReliablePushAsync`. Ack and replay are framework protocol messages
-negotiated by the handshake. The server reports reliable push capability in
-`ServerHello`; clients do not need to know whether the server uses an in-memory
-store, durable store, plugin, or built-in implementation.
+Business services must not expose reliable-push ack RPC methods, and
+`ILakonaGameServer` must not expose reliable-push publish, replay, or ack
+methods. Ack and replay are framework protocol messages negotiated by the
+handshake. The server reports reliable push capability in `ServerHello`;
+clients do not need to know whether the server uses an in-memory store,
+durable store, plugin, or built-in implementation.
 
-Business notification APIs should express the intended target, such as a
-session or user, and let the framework resolve delivery:
+Business notification APIs should express the intended session target and let
+the framework resolve delivery:
 
 ```csharp
 await clientNotifications
     .ForSession(sessionKey)
-    .NotifyAsync(notification, cancellationToken);
-
-await clientNotifications
-    .ForUser(playerId)
-    .PublishReliableAsync(kind, payload, cancellationToken);
+    .NotifyAsync<IPlayerCallback>(
+        callback => callback.OnMatchmakingStatus(update),
+        cancellationToken);
 ```
 
-For user-targeted push, the framework uses its maintained route/session index.
-It must not query a `UserActor` for every notification or ask business code to
-hold callback objects. Reliable notification kinds should be stable typed or
-generated identifiers, not sample-local string catalogs. Games may still keep
-business presence and product session policy in a user actor.
+User-targeted notification policy remains business-layer responsibility in this
+iteration. The framework does not own session kind or expose user-and-kind
+targeting. Games may still keep business presence and product session policy in
+a user actor. Reliable push record identity is derived inside the framework from
+the captured callback command; applications do not choose reliable versus
+immediate delivery per notification.
 
 ## Validation Requirements
 

@@ -23,10 +23,16 @@ await gameClient.ConnectAsync(cancellationToken);
 
 var login = gameClient.Api.Shared.Login;
 var reply = await login.LoginAsync(new LoginRequest { PlayerName = name });
+await gameClient.StartSessionAsync(
+    reply.SessionId,
+    reply.SessionGeneration,
+    cancellationToken);
 ```
 
-`ConnectAsync` owns the framework handshake and heartbeat startup. Business RPC
-services are exposed through `gameClient.Api`.
+`ConnectAsync` owns the framework handshake and heartbeat startup.
+`StartSessionAsync` tells the framework which server-issued session is active;
+reliable push replay and acknowledgements remain framework protocol details.
+Business RPC services are exposed through `gameClient.Api`.
 
 ## Core Client Primitive
 
@@ -43,17 +49,6 @@ uses the framework protocol negotiated by handshake. If the server disables
 reliable push, the wrapper keeps the same public callback path and treats
 notifications as immediate best-effort delivery.
 
-## Lower-level reliable push inbox
-
-Use `ReliablePushInbox` directly only when you want to manage session phase
-separately while building framework or generated-wrapper infrastructure. It is
-not a normal game-client entry point.
-
-`ReliablePushInbox` can decide whether a sequence should be applied and whether
-an acknowledgement is required. Generated wrappers are responsible for wiring
-that acknowledgement to the framework protocol. Game code should receive
-business callbacks after the wrapper has handled sequencing concerns.
-
 ## Engine-neutral session state
 
 `ClientSessionController` is a pure state helper. Unity, Godot, and plain .NET
@@ -61,25 +56,14 @@ clients can render their own UI from the snapshot without the framework
 touching engine APIs or dispatchers.
 
 ```csharp
-using Lakona.Game.Abstractions;
-using Lakona.Game.Client.ReliablePush;
 using Lakona.Game.Client.Sessions;
 
 var controller = new ClientSessionController();
 controller.StartSession(sessionId);
 controller.MarkReconnecting();
 
-controller.ApplyAckOutcome(ReliablePushAckOutcome.StateRefreshRequired());
-
-if (controller.Snapshot.Phase == ClientSessionPhase.RefreshRequired)
+if (controller.Snapshot.Phase == ClientSessionPhase.Reconnecting)
 {
-    // Clear transient view state and fetch an authoritative game snapshot.
-}
-
-controller.ApplyAckOutcome(ReliablePushAckOutcome.StateLost());
-
-if (controller.Snapshot.Phase == ClientSessionPhase.StateLost)
-{
-    // Start a new login/session flow. StateLost remains terminal until StartSession is called again.
+    // Render reconnecting UI until the generated client wrapper reports ready again.
 }
 ```

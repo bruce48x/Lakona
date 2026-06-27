@@ -903,6 +903,10 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             writer.Line("public bool ReliablePushEnabled => _core.ReliablePushEnabled;");
             writer.Line("public bool ReliablePushAckRequired => _core.ReliablePushAckRequired;");
             writer.Line();
+            writer.OpenBlock("public ValueTask StartSessionAsync(string sessionId, long sessionGeneration, CancellationToken cancellationToken = default)");
+            writer.Line("return _core.StartSessionAsync(sessionId, sessionGeneration, cancellationToken);");
+            writer.CloseBlock();
+            writer.Line();
             writer.OpenBlock($"public global::{generatedNamespace}.RpcApi Api");
             writer.OpenBlock("get");
             writer.OpenBlock("if (!_apiReady)");
@@ -923,6 +927,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             writer.Line("await _rpcClient.ConnectAsync(ct).ConfigureAwait(false);");
             writer.Line("failureKind = ClientConnectionFailureKind.HandshakeFailed;");
             writer.Line("await _core.HandshakeAsync(_rpcClient.Runtime, CreateClientHello(), ct).ConfigureAwait(false);");
+            writer.Line("_core.BindReliablePush(_rpcClient.Runtime);");
             writer.Line("_rpcClient.Runtime.RegisterRawNotificationHandler(");
             writer.Line("    GameSessionNotificationRpcIds.ServiceId,");
             writer.Line("    GameSessionNotificationRpcIds.TerminatedNotificationId,");
@@ -1157,7 +1162,10 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
                 .Any(method => IsFrameworkSessionTerminationNotification(service, method));
             var writer = new SourceWriter();
             writer.Header();
+            writer.Line("using System;");
+            writer.Line("using System.Threading;");
             writer.Line("using System.Threading.Tasks;");
+            writer.Line("using Lakona.Rpc.Core;");
             if (emitsFrameworkTerminationNotification)
             {
                 writer.Line("using Lakona.Game.Abstractions;");
@@ -1166,7 +1174,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             writer.Line($"using {ServerRuntimeUsing};");
             writer.Line();
             writer.OpenBlock($"namespace {generatedNamespace}");
-            writer.OpenBlock($"public sealed class {Naming.GetNotificationProxyTypeName(service.NotificationContractInterfaceName!)} : {service.NotificationContractFullName}");
+            writer.OpenBlock($"public sealed class {Naming.GetNotificationProxyTypeName(service.NotificationContractInterfaceName!)} : {service.NotificationContractFullName}, IRpcNotificationDispatchTarget");
             writer.Line($"private const int ServiceId = {service.ServiceId};");
             writer.Line("private readonly RpcSession _session;");
             writer.Line();
@@ -1194,11 +1202,48 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
                         : $"return _session.SendNotificationAsync<{method.PayloadType}>(ServiceId, {method.MethodId}, {method.PayloadValue});");
                 else
                     writer.Line(method.AcceptsCancellationToken
-                        ? $"_ = _session.SendNotificationAsync<{method.PayloadType}>(ServiceId, {method.MethodId}, {method.PayloadValue}, cancellationToken).AsTask();"
-                        : $"_ = _session.SendNotificationAsync<{method.PayloadType}>(ServiceId, {method.MethodId}, {method.PayloadValue}).AsTask();");
+                        ? $"_session.SendNotificationAsync<{method.PayloadType}>(ServiceId, {method.MethodId}, {method.PayloadValue}, cancellationToken).AsTask().GetAwaiter().GetResult();"
+                        : $"_session.SendNotificationAsync<{method.PayloadType}>(ServiceId, {method.MethodId}, {method.PayloadValue}).AsTask().GetAwaiter().GetResult();");
                 writer.CloseBlock();
                 writer.Line();
             }
+
+            writer.OpenBlock("ValueTask IRpcNotificationDispatchTarget.DispatchNotificationAsync(string methodName, object?[] arguments, RpcPushMetadata? metadata, CancellationToken cancellationToken)");
+            writer.Line("if (methodName is null) throw new ArgumentNullException(nameof(methodName));");
+            writer.Line("if (arguments is null) throw new ArgumentNullException(nameof(arguments));");
+            writer.OpenBlock("switch (methodName)");
+            foreach (var method in service.NotificationMethods.OrderBy(static method => method.MethodId))
+            {
+                writer.Line($"case nameof({method.Name}):");
+                writer.Indent();
+                if (IsFrameworkSessionTerminationNotification(service, method))
+                {
+                    writer.Line($"var payload = LakonaInternalCodec.EncodeSessionTerminationNotice(({method.PayloadType})arguments[0]!);");
+                    writer.Line("return _session.SendRawNotificationAsync(");
+                    writer.Line("    GameSessionNotificationRpcIds.ServiceId,");
+                    writer.Line("    GameSessionNotificationRpcIds.TerminatedNotificationId,");
+                    writer.Line("    payload,");
+                    writer.Line("    metadata,");
+                    writer.Line("    cancellationToken);");
+                }
+                else
+                {
+                    writer.Line($"return _session.SendNotificationAsync<{method.PayloadType}>(");
+                    writer.Line("    ServiceId,");
+                    writer.Line($"    {method.MethodId},");
+                    writer.Line($"    ({method.PayloadType})arguments[0]!,");
+                    writer.Line("    metadata,");
+                    writer.Line("    cancellationToken);");
+                }
+                writer.Unindent();
+            }
+
+            writer.Line("default:");
+            writer.Indent();
+            writer.Line("throw new InvalidOperationException(\"Unknown notification method: \" + methodName);");
+            writer.Unindent();
+            writer.CloseBlock();
+            writer.CloseBlock();
             writer.CloseBlock();
             writer.CloseBlock();
             return writer.ToString();
@@ -1537,6 +1582,16 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
         {
             _indent--;
             Line("}" + suffix);
+        }
+
+        public void Indent()
+        {
+            _indent++;
+        }
+
+        public void Unindent()
+        {
+            _indent--;
         }
 
         public override string ToString() => _builder.ToString();

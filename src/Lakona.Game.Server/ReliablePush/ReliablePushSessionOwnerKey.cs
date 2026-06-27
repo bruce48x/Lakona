@@ -4,7 +4,7 @@ using Lakona.Game.Abstractions;
 
 namespace Lakona.Game.Server.ReliablePush;
 
-public static class ReliablePushSessionOwnerKey
+internal static class ReliablePushSessionOwnerKey
 {
     public static string Create(GameSessionKey session)
     {

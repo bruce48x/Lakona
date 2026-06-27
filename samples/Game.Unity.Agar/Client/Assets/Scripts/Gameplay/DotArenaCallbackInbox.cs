@@ -172,7 +172,6 @@ namespace SampleClient.Gameplay
                 QueueSize = source.QueueSize,
                 RoomCapacity = source.RoomCapacity,
                 MatchedPlayerCount = source.MatchedPlayerCount,
-                ReliableSequence = source.ReliableSequence,
                 RealtimeConnection = source.RealtimeConnection is null
                     ? null
                     : new RealtimeConnectionInfo

@@ -3,7 +3,7 @@ using Lakona.Game.Server.Sessions;
 
 namespace Lakona.Game.Server.ReliablePush;
 
-public interface IReliablePushAckService
+internal interface IReliablePushAckService
 {
     ValueTask<ReliablePushAckOutcome> AckAsync(
         GameSessionKey currentSession,

@@ -142,6 +142,17 @@ public sealed class LakonaRpcSourceGeneratorTests
 
         Assert.Contains("receiver.OnNotify(arg);", callbackBinder);
         Assert.Contains("return receiver.OnNotifyAsync(arg);", callbackBinder);
+
+        var proxy = runResult.Results
+            .Single()
+            .GeneratedSources
+            .Single(static source => source.HintName == "PingNotificationsProxy.g.cs")
+            .SourceText
+            .ToString();
+
+        Assert.Contains("IRpcNotificationDispatchTarget", proxy);
+        Assert.Contains("ValueTask IRpcNotificationDispatchTarget.DispatchNotificationAsync(", proxy);
+        Assert.DoesNotContain("_ = _session.SendNotificationAsync", proxy);
     }
 
     [Fact]
@@ -243,6 +254,8 @@ public sealed class LakonaRpcSourceGeneratorTests
         var wrapper = GetGeneratedSource(runResult, "LakonaGameClient.g.cs");
         Assert.Contains("public sealed class LakonaGameClient : IAsyncDisposable", wrapper);
         Assert.Contains("public global::Rpc.Generated.RpcApi Api", wrapper);
+        Assert.Contains("public ValueTask StartSessionAsync(string sessionId, long sessionGeneration, CancellationToken cancellationToken = default)", wrapper);
+        Assert.Contains("return _core.StartSessionAsync(sessionId, sessionGeneration, cancellationToken);", wrapper);
         Assert.Contains("LakonaGameClient is not connected. Call ConnectAsync first.", wrapper);
         Assert.Contains("LakonaGameClient is single-use and has already started connecting.", wrapper);
         Assert.Contains("public event Action<Exception?>? Disconnected", wrapper);
@@ -257,10 +270,12 @@ public sealed class LakonaRpcSourceGeneratorTests
         Assert.Contains("GameSessionNotificationRpcIds.ServiceId", wrapper);
         Assert.Contains("GameSessionNotificationRpcIds.TerminatedNotificationId", wrapper);
         Assert.Contains("LakonaInternalCodec.DecodeSessionTerminationNotice(payload)", wrapper);
+        Assert.Contains("_core.BindReliablePush(_rpcClient.Runtime);", wrapper);
         Assert.DoesNotContain("System.Reflection", wrapper);
         AssertInOrder(wrapper, "_core.MarkConnecting();", "await _rpcClient.ConnectAsync");
         AssertInOrder(wrapper, "await _rpcClient.ConnectAsync", "await _core.HandshakeAsync");
-        AssertInOrder(wrapper, "await _core.HandshakeAsync", "_rpcClient.Runtime.RegisterRawNotificationHandler");
+        AssertInOrder(wrapper, "await _core.HandshakeAsync", "_core.BindReliablePush");
+        AssertInOrder(wrapper, "_core.BindReliablePush", "_rpcClient.Runtime.RegisterRawNotificationHandler");
         AssertInOrder(wrapper, "_rpcClient.Runtime.RegisterRawNotificationHandler", "_core.StartHeartbeat");
         AssertInOrder(wrapper, "_core.StartHeartbeat", "_core.MarkReady();");
         AssertInOrder(wrapper, "_core.MarkReady();", "_apiReady = true;");

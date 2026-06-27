@@ -7,10 +7,10 @@ namespace Server.Hotfix.Services;
 
 internal sealed class RoomNotifier
 {
-    private readonly IClientNotificationRelay _notifications;
+    private readonly IClientNotifications _notifications;
     private readonly ILogger<RoomNotifier> _logger;
 
-    public RoomNotifier(IClientNotificationRelay notifications, ILogger<RoomNotifier> logger)
+    public RoomNotifier(IClientNotifications notifications, ILogger<RoomNotifier> logger)
     {
         _notifications = notifications;
         _logger = logger;
@@ -18,22 +18,43 @@ internal sealed class RoomNotifier
 
     public ValueTask PublishWorldStateAsync(RoomSnapshot room, WorldState worldState, CancellationToken cancellationToken = default)
     {
-        return PublishAsync(room, callback => callback.OnWorldState(worldState), cancellationToken);
+        return PublishAsync(
+            room,
+            callback =>
+            {
+                callback.OnWorldState(worldState);
+                return default;
+            },
+            cancellationToken);
     }
 
     public ValueTask PublishPlayerDeadAsync(RoomSnapshot room, PlayerDead playerDead, CancellationToken cancellationToken = default)
     {
-        return PublishAsync(room, callback => callback.OnPlayerDead(playerDead), cancellationToken);
+        return PublishAsync(
+            room,
+            callback =>
+            {
+                callback.OnPlayerDead(playerDead);
+                return default;
+            },
+            cancellationToken);
     }
 
     public ValueTask PublishMatchEndAsync(RoomSnapshot room, MatchEnd matchEnd, CancellationToken cancellationToken = default)
     {
-        return PublishAsync(room, callback => callback.OnMatchEnd(matchEnd), cancellationToken);
+        return PublishAsync(
+            room,
+            callback =>
+            {
+                callback.OnMatchEnd(matchEnd);
+                return default;
+            },
+            cancellationToken);
     }
 
     private async ValueTask PublishAsync(
         RoomSnapshot room,
-        Action<IBattleCallback> notify,
+        Func<IBattleCallback, ValueTask> notify,
         CancellationToken cancellationToken)
     {
         foreach (var player in room.Players)
@@ -49,7 +70,8 @@ internal sealed class RoomNotifier
                 player.RealtimeSessionId,
                 player.RealtimeSessionGeneration);
             var status = await _notifications
-                .NotifyAsync(realtimeSession, notify, cancellationToken)
+                .ForSession(realtimeSession)
+                .NotifyAsync(notify, cancellationToken)
                 .ConfigureAwait(false);
             if (status == ClientNotificationStatus.Delivered)
             {

@@ -105,7 +105,7 @@
 必须完成：
 
 - `DotArenaGame` 收敛为场景组合根，不再直接拥有大量 UI、网络、模拟和表现字段。
-- 联机登录、匹配、取消匹配、实时绑定、断线恢复和可靠 push ack 继续向单一流程对象收敛；会话状态和可靠 push cursor 已由 `ClientSessionController` / `ReliablePushInbox` 管理。
+- 联机登录、匹配、取消匹配、实时绑定和断线恢复继续向单一流程对象收敛；会话状态由 `ClientSessionController` 管理，可靠 push ack/replay 由框架协议处理。
 - `DotArenaSceneUiPresenter` 拆出入口、登录、匹配、大厅、HUD、局内排名、结算等面板 presenter，避免一个类管理所有控件。
 - 所有按钮在请求中、失败、超时和返回时有明确可点击状态，避免重复请求。
 - UI 只展示玩家可理解状态，不展示 endpoint、tick、内部枚举或调试文本。

@@ -212,6 +212,22 @@ namespace Lakona.Rpc.Core
     }
 
     /// <summary>
+    /// Optional generic metadata carried beside a server-to-client push payload.
+    /// </summary>
+    public sealed class RpcPushMetadata
+    {
+        /// <summary>
+        /// Stable metadata type understood by higher-level packages.
+        /// </summary>
+        public string Type { get; set; } = "";
+
+        /// <summary>
+        /// Opaque metadata payload owned by the metadata type.
+        /// </summary>
+        public ReadOnlyMemory<byte> Payload { get; set; } = ReadOnlyMemory<byte>.Empty;
+    }
+
+    /// <summary>
     /// Mutable push envelope used before encoding a server-to-client notification.
     /// </summary>
     public sealed class RpcPushEnvelope
@@ -230,6 +246,11 @@ namespace Lakona.Rpc.Core
         /// Serialized push payload.
         /// </summary>
         public ReadOnlyMemory<byte> Payload { get; set; } = ReadOnlyMemory<byte>.Empty;
+
+        /// <summary>
+        /// Optional generic metadata for higher-level push processing.
+        /// </summary>
+        public RpcPushMetadata? Metadata { get; set; }
     }
 
     /// <summary>
@@ -243,11 +264,13 @@ namespace Lakona.Rpc.Core
         /// <param name="serviceId">Generated numeric identifier for the target client service.</param>
         /// <param name="methodId">Generated numeric identifier for the target client method.</param>
         /// <param name="payload">Serialized push payload.</param>
-        public RpcPushFrame(int serviceId, int methodId, TransportFrame payload)
+        /// <param name="metadata">Optional generic metadata for higher-level push processing.</param>
+        public RpcPushFrame(int serviceId, int methodId, TransportFrame payload, RpcPushMetadata? metadata = null)
         {
             ServiceId = serviceId;
             MethodId = methodId;
             Payload = payload;
+            Metadata = metadata;
         }
 
         /// <summary>
@@ -259,6 +282,11 @@ namespace Lakona.Rpc.Core
         /// Generated numeric identifier for the target client method.
         /// </summary>
         public int MethodId { get; }
+
+        /// <summary>
+        /// Optional generic metadata for higher-level push processing.
+        /// </summary>
+        public RpcPushMetadata? Metadata { get; }
 
         /// <summary>
         /// Serialized push payload.

@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.ReliablePush;
 using Lakona.Rpc.Server;
 
 namespace Lakona.Game.Server.Sessions;
@@ -16,11 +17,12 @@ public static class SessionServiceCollectionExtensions
         services.TryAddSingleton<IGameSessionResumeService, GameSessionResumeService>();
         services.TryAddSingleton<IGameHeartbeatService, GameHeartbeatService>();
         services.TryAddSingleton<IGameSessionConnectionCloser, NoopGameSessionConnectionCloser>();
-        services.TryAddSingleton<IClientSessionIndex, InMemoryClientSessionIndex>();
         services.TryAddSingleton<IClientNotifications, ClientNotifications>();
         services.TryAddSingleton<IClientNotificationRelay>(CreateClientNotificationRelay);
         services.TryAddSingleton<IClientNotificationRemoteDispatcher, NoopClientNotificationRemoteDispatcher>();
         services.TryAddSingleton<LocalClientNotificationCommandDispatcher>();
+        services.TryAddSingleton<IClientNotificationCommandRouter>(CreateClientNotificationCommandRouter);
+        services.TryAddSingleton<IReliablePushRuntime, ReliablePushRuntime>();
         services.TryAddSingleton<IClientSessionRouteRegistrar>(CreateClientSessionRouteRegistrar);
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IRpcSessionLifecycleObserver, GameSessionRpcLifecycleObserver>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IGameSessionLifecycleHandler, ClientSessionRouteLifecycleHandler>());
@@ -93,5 +95,15 @@ public static class SessionServiceCollectionExtensions
         var cluster = services.GetService<ClusterOptions>();
         NodeId? localNode = cluster is null ? (NodeId?)null : new NodeId(cluster.NodeId);
         return new ClientNotificationRelay(sessions, routes, dispatcher, localNode);
+    }
+
+    private static IClientNotificationCommandRouter CreateClientNotificationCommandRouter(IServiceProvider services)
+    {
+        var dispatcher = services.GetRequiredService<LocalClientNotificationCommandDispatcher>();
+        var routes = services.GetService<IRouteDirectory>();
+        var remoteDispatcher = services.GetService<IClientNotificationRemoteDispatcher>();
+        var cluster = services.GetService<ClusterOptions>();
+        NodeId? localNode = cluster is null ? (NodeId?)null : new NodeId(cluster.NodeId);
+        return new ClientNotificationCommandRouter(dispatcher, routes, remoteDispatcher, localNode);
     }
 }

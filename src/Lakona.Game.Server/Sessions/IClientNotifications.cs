@@ -2,19 +2,15 @@ namespace Lakona.Game.Server.Sessions;
 
 public interface IClientNotifications
 {
-    IClientNotificationTarget ForUser(string userId);
+    IClientNotificationTarget ForSession(GameSessionKey session);
 }
 
 public interface IClientNotificationTarget
 {
-    ValueTask PublishAsync<TPayload>(
-        TPayload payload,
-        CancellationToken cancellationToken = default);
-
-    ValueTask PublishReliableAsync<TPayload>(
-        string kind,
-        TPayload payload,
-        CancellationToken cancellationToken = default);
+    ValueTask<ClientNotificationStatus> NotifyAsync<TCallback>(
+        Func<TCallback, ValueTask> notify,
+        CancellationToken cancellationToken = default)
+        where TCallback : class;
 }
 
 public interface IClientNotificationSink<in TPayload>

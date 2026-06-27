@@ -1,6 +1,6 @@
 namespace Lakona.Game.Server.ReliablePush;
 
-public interface IReliablePushOutbox
+internal interface IReliablePushOutbox
 {
     ValueTask<long> PublishAsync(
         string ownerKey,

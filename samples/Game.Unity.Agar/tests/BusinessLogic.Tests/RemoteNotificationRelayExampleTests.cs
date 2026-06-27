@@ -1,9 +1,12 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
+using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Lakona.Rpc.Serializer.Json;
 using Lakona.Rpc.Server;
 using Lakona.Rpc.Transport.Tcp;
+using Microsoft.Extensions.DependencyInjection;
 using Shared.Interfaces;
 using System.Net;
 using System.Net.Sockets;
@@ -40,11 +43,11 @@ public sealed class RemoteNotificationRelayExampleTests
         await using var clientFactory = new ClusterClientFactory(
             new TcpClusterTransportFactory(),
             new JsonRpcSerializer());
-        var remoteRelay = new ClientNotificationRelay(
-            new InMemoryGameSessionRegistry(),
+        await using var businessServices = CreateBusinessNotificationServices(
             routes,
             new ClusterClientNotificationDispatcher(clientFactory),
-            new NodeId("battle-1"));
+            "battle-1");
+        var notifications = businessServices.GetRequiredService<IClientNotifications>();
 
         var update = new MatchmakingStatusUpdate
         {
@@ -54,10 +57,15 @@ public sealed class RemoteNotificationRelayExampleTests
             Message = "Matched into room room-1"
         };
 
-        var status = await remoteRelay.NotifyAsync<IControlCallback>(
-            session,
-            target => target.OnMatchmakingStatus(update),
-            TestContext.Current.CancellationToken);
+        var status = await notifications
+            .ForSession(session)
+            .NotifyAsync<IControlCallback>(
+                target =>
+                {
+                    target.OnMatchmakingStatus(update);
+                    return default;
+                },
+                TestContext.Current.CancellationToken);
 
         stopGateway.Cancel();
         await Task.WhenAny(gatewayTask, Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
@@ -96,11 +104,11 @@ public sealed class RemoteNotificationRelayExampleTests
         await using var clientFactory = new ClusterClientFactory(
             new TcpClusterTransportFactory(),
             new JsonRpcSerializer());
-        var remoteRelay = new ClientNotificationRelay(
-            new InMemoryGameSessionRegistry(),
+        await using var businessServices = CreateBusinessNotificationServices(
             routes,
             new ClusterClientNotificationDispatcher(clientFactory),
-            new NodeId("battle-1"));
+            "battle-1");
+        var notifications = businessServices.GetRequiredService<IClientNotifications>();
 
         var worldState = new WorldState
         {
@@ -108,10 +116,15 @@ public sealed class RemoteNotificationRelayExampleTests
             RoundRemainingSeconds = 15
         };
 
-        var status = await remoteRelay.NotifyAsync<IBattleCallback>(
-            session,
-            target => target.OnWorldState(worldState),
-            TestContext.Current.CancellationToken);
+        var status = await notifications
+            .ForSession(session)
+            .NotifyAsync<IBattleCallback>(
+                target =>
+                {
+                    target.OnWorldState(worldState);
+                    return default;
+                },
+                TestContext.Current.CancellationToken);
 
         stopGateway.Cancel();
         await Task.WhenAny(gatewayTask, Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
@@ -128,16 +141,21 @@ public sealed class RemoteNotificationRelayExampleTests
             new TcpClusterTransportFactory(),
             new JsonRpcSerializer());
         var session = new GameSessionKey("player-1", "session-a", 1);
-        var relay = new ClientNotificationRelay(
-            new InMemoryGameSessionRegistry(),
+        await using var businessServices = CreateBusinessNotificationServices(
             new InMemoryRouteDirectory(),
             new ClusterClientNotificationDispatcher(clientFactory),
-            new NodeId("battle-1"));
+            "battle-1");
+        var notifications = businessServices.GetRequiredService<IClientNotifications>();
 
-        var status = await relay.NotifyAsync<IControlCallback>(
-            session,
-            callback => callback.OnMatchmakingStatus(new MatchmakingStatusUpdate()),
-            TestContext.Current.CancellationToken);
+        var status = await notifications
+            .ForSession(session)
+            .NotifyAsync<IControlCallback>(
+                callback =>
+                {
+                    callback.OnMatchmakingStatus(new MatchmakingStatusUpdate());
+                    return default;
+                },
+                TestContext.Current.CancellationToken);
 
         Assert.Equal(ClientNotificationStatus.RouteNotFound, status);
     }
@@ -158,16 +176,21 @@ public sealed class RemoteNotificationRelayExampleTests
                 DateTimeOffset.UtcNow.AddMinutes(1),
                 generation: 1),
             TestContext.Current.CancellationToken);
-        var relay = new ClientNotificationRelay(
-            new InMemoryGameSessionRegistry(),
+        await using var businessServices = CreateBusinessNotificationServices(
             routes,
             new ClusterClientNotificationDispatcher(clientFactory),
-            new NodeId("battle-1"));
+            "battle-1");
+        var notifications = businessServices.GetRequiredService<IClientNotifications>();
 
-        var status = await relay.NotifyAsync<IControlCallback>(
-            session,
-            callback => callback.OnMatchmakingStatus(new MatchmakingStatusUpdate()),
-            TestContext.Current.CancellationToken);
+        var status = await notifications
+            .ForSession(session)
+            .NotifyAsync<IControlCallback>(
+                callback =>
+                {
+                    callback.OnMatchmakingStatus(new MatchmakingStatusUpdate());
+                    return default;
+                },
+                TestContext.Current.CancellationToken);
 
         Assert.Equal(ClientNotificationStatus.RouteNotFound, status);
     }
@@ -199,16 +222,21 @@ public sealed class RemoteNotificationRelayExampleTests
                 DateTimeOffset.UtcNow.AddMinutes(1),
                 generation: session.Generation),
             TestContext.Current.CancellationToken);
-        var relay = new ClientNotificationRelay(
-            new InMemoryGameSessionRegistry(),
+        await using var businessServices = CreateBusinessNotificationServices(
             routes,
             new ClusterClientNotificationDispatcher(clientFactory),
-            new NodeId("battle-1"));
+            "battle-1");
+        var notifications = businessServices.GetRequiredService<IClientNotifications>();
 
-        var status = await relay.NotifyAsync<IControlCallback>(
-            session,
-            callback => callback.OnMatchmakingStatus(new MatchmakingStatusUpdate()),
-            TestContext.Current.CancellationToken);
+        var status = await notifications
+            .ForSession(session)
+            .NotifyAsync<IControlCallback>(
+                callback =>
+                {
+                    callback.OnMatchmakingStatus(new MatchmakingStatusUpdate());
+                    return default;
+                },
+                TestContext.Current.CancellationToken);
 
         stopGateway.Cancel();
         await Task.WhenAny(gatewayTask, Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
@@ -250,6 +278,23 @@ public sealed class RemoteNotificationRelayExampleTests
         {
             LastMatchmakingStatus = matchmakingStatus;
         }
+    }
+
+    private static ServiceProvider CreateBusinessNotificationServices(
+        IRouteDirectory routes,
+        IClientNotificationRemoteDispatcher remoteDispatcher,
+        string nodeId)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(routes);
+        services.AddSingleton(remoteDispatcher);
+        services.AddSingleton(new ClusterOptions
+        {
+            NodeId = nodeId
+        });
+        services.AddLakonaGameServerSessions();
+        services.AddLakonaGameServerReliablePush();
+        return services.BuildServiceProvider();
     }
 
     private sealed class CapturingBattleCallback : IBattleCallback

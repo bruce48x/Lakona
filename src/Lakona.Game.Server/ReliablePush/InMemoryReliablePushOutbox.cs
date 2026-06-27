@@ -90,20 +90,20 @@ internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
         ArgumentException.ThrowIfNullOrWhiteSpace(ownerKey);
         if (sequence <= 0)
         {
-            return ValueTask.CompletedTask;
+            return default;
         }
 
         lock (_gate)
         {
             if (!_owners.TryGetValue(ownerKey, out var owner))
             {
-                return ValueTask.CompletedTask;
+                return default;
             }
 
             owner.Pending.RemoveAll(record => record.Sequence <= sequence);
         }
 
-        return ValueTask.CompletedTask;
+        return default;
     }
 
     public long GetLastSequence(string ownerKey)

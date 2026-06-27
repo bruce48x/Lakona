@@ -8,6 +8,8 @@ namespace Lakona.Game.Abstractions
 {
     public static class LakonaInternalCodec
     {
+        public const string ReliablePushMetadataType = "lakona.game.reliable-push";
+
         public const int MaxPayloadSize = 64 * 1024;
 
         private const int Magic = 0x4C4B4943;
@@ -22,6 +24,7 @@ namespace Lakona.Game.Abstractions
         private const byte ReliablePushAckRequestKind = 5;
         private const byte ReliablePushAckOutcomeKind = 6;
         private const byte SessionTerminationNoticeKind = 7;
+        private const byte ReliablePushMetadataKind = 8;
 
         public static byte[] EncodeGameClientHello(GameClientHello value)
         {
@@ -128,6 +131,18 @@ namespace Lakona.Game.Abstractions
 
             var writer = CreateWriter(GameHeartbeatRequestKind);
             writer.WriteInt32(value.ProtocolVersion);
+            if (!string.IsNullOrEmpty(value.SessionId))
+            {
+                ValidatePositiveSessionGeneration(value.SessionGeneration);
+                writer.WriteString(value.SessionId);
+                writer.WriteInt64(value.SessionGeneration);
+            }
+            else if (value.SessionGeneration != 0)
+            {
+                throw new InvalidOperationException(
+                    "Heartbeat session generation requires a session id.");
+            }
+
             return writer.ToArray();
         }
 
@@ -135,7 +150,22 @@ namespace Lakona.Game.Abstractions
         {
             var reader = CreateReader(payload, GameHeartbeatRequestKind);
             var value = new GameHeartbeatRequest { ProtocolVersion = reader.ReadInt32() };
+            if (reader.HasRemaining)
+            {
+                value.SessionId = reader.ReadString();
+                value.SessionGeneration = reader.ReadInt64();
+            }
+
             ValidatePositiveProtocolVersion(value.ProtocolVersion);
+            if (!string.IsNullOrEmpty(value.SessionId))
+            {
+                ValidatePositiveSessionGeneration(value.SessionGeneration);
+            }
+            else
+            {
+                ValidateNonNegative(value.SessionGeneration, nameof(value.SessionGeneration));
+            }
+
             reader.EnsureEnd();
             return value;
         }
@@ -172,10 +202,12 @@ namespace Lakona.Game.Abstractions
         public static byte[] EncodeReliablePushAckRequest(ReliablePushAckRequest value)
         {
             ValidateRequiredString(value.SessionId, nameof(value.SessionId));
+            ValidatePositiveSessionGeneration(value.SessionGeneration);
             ValidatePositiveSequence(value.Sequence.Value);
 
             var writer = CreateWriter(ReliablePushAckRequestKind);
             writer.WriteString(value.SessionId);
+            writer.WriteInt64(value.SessionGeneration);
             writer.WriteInt64(value.Sequence.Value);
             return writer.ToArray();
         }
@@ -184,11 +216,47 @@ namespace Lakona.Game.Abstractions
         {
             var reader = CreateReader(payload, ReliablePushAckRequestKind);
             var sessionId = reader.ReadString();
+            var sessionGeneration = reader.ReadInt64();
             var sequence = reader.ReadInt64();
             ValidateRequiredString(sessionId, nameof(sessionId));
+            ValidatePositiveSessionGeneration(sessionGeneration);
             ValidatePositiveSequence(sequence);
             reader.EnsureEnd();
-            return new ReliablePushAckRequest(sessionId!, ReliablePushSequence.From(sequence));
+            return new ReliablePushAckRequest(sessionId!, sessionGeneration, ReliablePushSequence.From(sequence));
+        }
+
+        public static byte[] EncodeReliablePushMetadata(ReliablePushMetadata value)
+        {
+            ValidateRequiredString(value.SessionId, nameof(value.SessionId));
+            ValidatePositiveSessionGeneration(value.SessionGeneration);
+            ValidatePositiveSequence(value.Sequence.Value);
+            ValidateRequiredString(value.Kind, nameof(value.Kind));
+
+            var writer = CreateWriter(ReliablePushMetadataKind);
+            writer.WriteString(value.SessionId);
+            writer.WriteInt64(value.SessionGeneration);
+            writer.WriteInt64(value.Sequence.Value);
+            writer.WriteString(value.Kind);
+            return writer.ToArray();
+        }
+
+        public static ReliablePushMetadata DecodeReliablePushMetadata(ReadOnlyMemory<byte> payload)
+        {
+            var reader = CreateReader(payload, ReliablePushMetadataKind);
+            var sessionId = reader.ReadString();
+            var sessionGeneration = reader.ReadInt64();
+            var sequence = reader.ReadInt64();
+            var kind = reader.ReadString();
+            ValidateRequiredString(sessionId, nameof(sessionId));
+            ValidatePositiveSessionGeneration(sessionGeneration);
+            ValidatePositiveSequence(sequence);
+            ValidateRequiredString(kind, nameof(kind));
+            reader.EnsureEnd();
+            return new ReliablePushMetadata(
+                sessionId!,
+                sessionGeneration,
+                ReliablePushSequence.From(sequence),
+                kind!);
         }
 
         public static byte[] EncodeReliablePushAckOutcome(ReliablePushAckOutcome value)
@@ -298,6 +366,14 @@ namespace Lakona.Game.Abstractions
             if (value <= 0)
             {
                 throw new InvalidOperationException("Reliable push ack request sequence must be positive.");
+            }
+        }
+
+        private static void ValidatePositiveSessionGeneration(long value)
+        {
+            if (value <= 0)
+            {
+                throw new InvalidOperationException("Reliable push session generation must be positive.");
             }
         }
 
@@ -433,6 +509,11 @@ namespace Lakona.Game.Abstractions
             public PayloadReader(ReadOnlyMemory<byte> payload)
             {
                 this.payload = payload;
+            }
+
+            public bool HasRemaining
+            {
+                get { return offset < payload.Length; }
             }
 
             public byte ReadByte()

@@ -1,6 +1,6 @@
 namespace Lakona.Game.Server.ReliablePush;
 
-public sealed class ReliablePushRecord
+internal sealed class ReliablePushRecord
 {
     public required string OwnerKey { get; init; }
 

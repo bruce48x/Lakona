@@ -123,7 +123,9 @@ internal sealed class BattleService
             Message = "Realtime session attached.",
             PlayerId = req.PlayerId,
             RoomId = req.RoomId,
-            MatchId = req.MatchId
+            MatchId = req.MatchId,
+            SessionId = realtimeSession.SessionId,
+            SessionGeneration = realtimeSession.Generation
         };
     }
 

@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
 using Lakona.Game.Cluster.Rpc;
+using Lakona.Rpc.Server;
 
 namespace Lakona.Game.Server.Sessions;
 
@@ -42,8 +43,34 @@ public sealed class LocalClientNotificationCommandDispatcher
         try
         {
             var arguments = DecodeArguments(method, command);
-            method.Invoke(callback, arguments);
+            if (callback is IRpcNotificationDispatchTarget dispatchTarget)
+            {
+                await dispatchTarget
+                    .DispatchNotificationAsync(
+                        command.MethodName,
+                        arguments,
+                        command.Metadata,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                return ClientNotificationStatus.Delivered;
+            }
+
+            var result = method.Invoke(callback, arguments);
+            if (result is ValueTask valueTask)
+            {
+                await valueTask.ConfigureAwait(false);
+            }
+
             return ClientNotificationStatus.Delivered;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (TargetInvocationException ex)
+            when (ex.InnerException is OperationCanceledException && cancellationToken.IsCancellationRequested)
+        {
+            throw ex.InnerException;
         }
         catch
         {
@@ -77,7 +104,9 @@ public sealed class LocalClientNotificationCommandDispatcher
     {
         return callbackType.GetMethods()
             .Where(method => string.Equals(method.Name, command.MethodName, StringComparison.Ordinal))
-            .FirstOrDefault(method => method.GetParameters().Length == command.Arguments.Count);
+            .FirstOrDefault(method => method
+                .GetParameters()
+                .Count(parameter => parameter.ParameterType != typeof(CancellationToken)) == command.Arguments.Count);
     }
 
     private static object?[] DecodeArguments(
@@ -86,11 +115,19 @@ public sealed class LocalClientNotificationCommandDispatcher
     {
         var parameters = method.GetParameters();
         var arguments = new object?[parameters.Length];
+        var commandArgumentIndex = 0;
         for (var i = 0; i < parameters.Length; i++)
         {
+            if (parameters[i].ParameterType == typeof(CancellationToken))
+            {
+                arguments[i] = CancellationToken.None;
+                continue;
+            }
+
             arguments[i] = JsonSerializer.Deserialize(
-                command.Arguments[i].Payload,
+                command.Arguments[commandArgumentIndex].Payload,
                 parameters[i].ParameterType);
+            commandArgumentIndex++;
         }
 
         return arguments;

@@ -87,6 +87,9 @@ namespace SampleClient.Gameplay
                 _token = reply.Token;
                 _sessionId = reply.SessionId;
                 _sessionGeneration = reply.SessionGeneration;
+                await _controlConnection
+                    .StartSessionAsync(reply.SessionId, reply.SessionGeneration, cancellationToken)
+                    .ConfigureAwait(false);
                 IsConnected = true;
                 return reply;
             }
@@ -214,6 +217,9 @@ namespace SampleClient.Gameplay
                     return false;
                 }
 
+                await _realtimeConnection
+                    .StartSessionAsync(reply.SessionId, reply.SessionGeneration, cancellationToken)
+                    .ConfigureAwait(false);
                 IsRealtimeConnected = true;
                 return true;
             }

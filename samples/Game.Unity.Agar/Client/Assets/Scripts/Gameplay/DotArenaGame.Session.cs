@@ -258,7 +258,7 @@ namespace SampleClient.Gameplay
             _multiplayerState.MarkSessionStateLost();
             ResetSessionPresentation();
             _callbackInbox.Clear();
-            _multiplayerState.ClearRequestState(resetReliablePush: false);
+            _multiplayerState.ClearRequestState(resetSessionState: false);
             _flowState = FrontendFlowState.Entry;
             _entryMenuState = EntryMenuState.MultiplayerAuth;
             _multiplayerState.ClearSession();
@@ -614,14 +614,14 @@ namespace SampleClient.Gameplay
             _eventMessage = "请选择单机或联机";
         }
 
-        private void ResetToModeSelect(string status, string eventMessage, string? toastMessage, bool resetReliablePush = true)
+        private void ResetToModeSelect(string status, string eventMessage, string? toastMessage, bool resetSessionState = true)
         {
             _ = NetworkSession.DisposeRealtimeAsync();
             ResetSessionPresentation();
             _callbackInbox.Clear();
             _settlementSummary = null;
             _lastRewardSummary = null;
-            _multiplayerState.ClearRequestState(resetReliablePush);
+            _multiplayerState.ClearRequestState(resetSessionState);
             _flowState = FrontendFlowState.Entry;
             _entryMenuState = EntryMenuState.ModeSelect;
             _multiplayerState.ClearAuthenticatedProfile();

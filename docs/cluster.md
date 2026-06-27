@@ -184,8 +184,14 @@ remain encoded with `LakonaInternalCodec`.
 Do not add serializer-specific attributes or package references back to
 `Lakona.Game.Cluster.Rpc` DTOs. MemoryPack cluster support belongs in
 `Lakona.Game.Cluster.Rpc.MemoryPack`, where repository-owned generation and the
-committed formatter schema preserve the built-in cluster wire layout without
+committed formatter schema define the built-in cluster wire layout without
 making JSON users restore MemoryPack generator assets.
+
+Built-in cluster RPC payload layouts are package-set contracts. The early
+framework does not support rolling mixed-version cluster nodes that rely on old
+and new built-in cluster DTO bytes being mutually readable; deploy nodes with
+matching `Lakona.Game.Cluster.Rpc` and `Lakona.Game.Cluster.Rpc.MemoryPack`
+packages.
 
 `Lakona:Cluster:Seeds` is the public bootstrap input for directory access. If
 a node has seeds but no local `INodeDirectory` or `IRouteDirectory`
@@ -600,12 +606,12 @@ The remote dispatcher API must not require passing `Action<TCallback>` across
 the cluster boundary; that delegate is only a local capture shape used before
 the command is sent.
 
-The production path is `ClientNotificationRelay` on the business node,
-`ClusterClientNotificationDispatcher` over the route's cluster endpoint, and
-`ClientNotificationCommandBinder` plus `LocalClientNotificationCommandDispatcher`
-inside the gateway process. Missing routes and stale generations return
-`RouteNotFound`, missing gateway callbacks return `CallbackUnavailable`, and
-transport failures return `Failed`.
+The production business entry point is `IClientNotifications` on the business
+node. Internally, the framework uses `ClusterClientNotificationDispatcher` over
+the route's cluster endpoint, and `ClientNotificationCommandBinder` plus
+`LocalClientNotificationCommandDispatcher` inside the gateway process. Missing
+routes and stale generations return `RouteNotFound`, missing gateway callbacks
+return `CallbackUnavailable`, and transport failures return `Failed`.
 
 V1 API shape:
 
@@ -623,13 +629,13 @@ Session routes must include session generation rather than only player id. This
 avoids delivering messages to a stale connection after reconnect or multi-device
 login.
 
-For reliable notifications, business code publishes a notification intent and
-the framework owns the durable or replayable reliable push protocol state. The
-gateway acts as the transport relay:
+For reliable notifications, business code uses the same session notification
+API and the framework owns the durable or replayable reliable push protocol
+state. The gateway acts as the transport relay:
 
 ```txt
 business owner
-  -> publishes notification intent
+  -> publishes a session notification
 framework reliable push
   -> assigns sequence and records pending state when enabled
   -> sends to client-session route
@@ -651,8 +657,8 @@ This keeps ownership explicit:
 
 When reliable push is disabled, the same business publish path degrades to
 best-effort immediate callback delivery with no ack and no replay. Business RPC
-contracts should not expose `AckReliablePushAsync`; ack is a framework protocol
-negotiated during game handshake.
+contracts should not expose reliable-push ack methods; ack is a framework
+protocol negotiated during game handshake.
 
 ## Failure Model
 
