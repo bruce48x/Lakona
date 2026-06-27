@@ -9,6 +9,10 @@ Lakona is a monorepo for the RPC runtime, process-local actor runtime, and
 game-server framework. Treat those parts as one product line with explicit
 package boundaries.
 
+Lakona is still in early development. When solving problems, prefer elegant,
+thorough fixes over compatibility-preserving patches; breaking compatibility is
+acceptable when it leads to a cleaner long-term design.
+
 ## Documentation Map
 
 This file is the single authority for contributor workflow and maintenance
@@ -56,6 +60,15 @@ Use the repository solution for normal validation:
 dotnet build Lakona.slnx
 dotnet test Lakona.slnx --no-build
 ```
+
+Codex agents should run .NET commands that may restore packages or contact
+NuGet with escalated sandbox permissions on the first attempt, instead of first
+trying them inside the network-restricted sandbox. This applies to commands such
+as `dotnet restore`, `dotnet build` without `--no-restore`, `dotnet test`
+without `--no-restore`, `dotnet run` when restore may occur, `dotnet pack` when
+restore may occur, and `dotnet tool install` or `dotnet tool update`. After a
+successful restore in the same workspace, prefer `--no-restore` or `--no-build`
+where appropriate.
 
 For large solution test runs that time out under local tooling, run test
 projects sequentially:

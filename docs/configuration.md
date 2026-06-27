@@ -22,9 +22,9 @@ Supported top-level keys under `Lakona`:
 - `Sessions`: optional framework session cleanup and retention settings.
 - `ReliablePush`: optional reliable push settings.
 
-The legacy `Lakona.Game` root is only a compatibility read path for old
-applications and explicit compatibility tests. New samples, generated projects,
-docs, and diagnostics must use `Lakona`.
+The legacy `Lakona.Game` root is obsolete and is not read by the current
+runtime. Samples, generated projects, docs, diagnostics, and deployments must
+use `Lakona`.
 
 ## Configuration Sources
 
@@ -558,8 +558,7 @@ The JSON parser must:
 - accept arrays only where arrays are expected;
 - fail with a clear configuration error for malformed JSON;
 - bind endpoint property names case-insensitively;
-- preserve the current behavior for indexed .NET configuration arrays;
-- preserve the `Lakona.Game` compatibility read path for legacy applications.
+- preserve the current behavior for indexed .NET configuration arrays.
 
 Tests must cover:
 

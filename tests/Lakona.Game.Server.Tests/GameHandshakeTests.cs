@@ -58,6 +58,26 @@ public sealed class GameHandshakeTests
         Assert.Equal(64, options.MaxPendingPerOwner);
     }
 
+    [Fact]
+    public void ReliablePush_options_ignore_legacy_lakona_game_root()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Lakona.Game:ReliablePush:Enabled"] = "false",
+                ["Lakona.Game:ReliablePush:MaxPendingPerOwner"] = "13"
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddLakonaGameServerReliablePush(configuration);
+        using var provider = services.BuildServiceProvider();
+
+        var options = provider.GetRequiredService<ReliablePushOptions>();
+        Assert.True(options.Enabled);
+        Assert.Equal(256, options.MaxPendingPerOwner);
+    }
+
     private static ServiceProvider CreateProvider(bool reliablePushEnabled, int? maxPending = null)
     {
         var values = new Dictionary<string, string?>

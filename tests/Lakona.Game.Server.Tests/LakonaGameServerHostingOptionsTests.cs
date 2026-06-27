@@ -45,6 +45,23 @@ public sealed class LakonaGameServerHostingOptionsTests
     }
 
     [Fact]
+    public void FromConfiguration_ignores_legacy_lakona_game_root()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Lakona.Game:Actors:MailboxCapacity"] = "64",
+                ["Lakona.Game:Sessions:Cleanup:Enabled"] = "false"
+            })
+            .Build();
+
+        var options = LakonaGameHostingOptions.FromConfiguration(configuration);
+
+        Assert.Equal(4096, options.Actors.MailboxCapacity);
+        Assert.True(options.Sessions.Cleanup.Enabled);
+    }
+
+    [Fact]
     public void Runtime_options_bind_cluster_directory_options()
     {
         var configuration = new ConfigurationBuilder()
