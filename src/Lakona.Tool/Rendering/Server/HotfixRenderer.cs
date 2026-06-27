@@ -1,5 +1,6 @@
 using Lakona.Tool.Domain;
 using Lakona.Tool.Planning;
+using Lakona.Tool.Rendering.Common;
 
 namespace Lakona.Tool.Rendering.Server;
 
@@ -7,7 +8,7 @@ internal sealed class HotfixRenderer : IPlanContributor
 {
     public void AddFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
-        builder.AddFile("Server/Hotfix/Server.Hotfix.csproj", RenderProject(), FileWriteMode.Replace, GeneratedFileKind.Project);
+        builder.AddFile("Server/Hotfix/Server.Hotfix.csproj", RenderProject(spec), FileWriteMode.Replace, GeneratedFileKind.Project);
         builder.AddFile("Server/Hotfix/Login/LoginService.cs", RenderLoginService(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/Hotfix/Chat/ChatService.cs", RenderChatService(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/Hotfix/Chat/ChatSessionLifecycle.cs", RenderChatSessionLifecycle(), FileWriteMode.Replace, GeneratedFileKind.Text);
@@ -15,9 +16,12 @@ internal sealed class HotfixRenderer : IPlanContributor
         builder.AddFile("Server/Hotfix/Features/ChatFeature.cs", RenderChatFeature(), FileWriteMode.Replace, GeneratedFileKind.Text);
     }
 
-    private static string RenderProject()
+    private static string RenderProject(LakonaProjectSpec spec)
     {
-        return """
+        var packageReferences = PackageReferenceRenderer.RenderSdkPackageReferences(
+            DependencyPlanner.Create(ProjectTarget.ServerHotfix, spec).PackageReferences);
+
+        return $$"""
         <Project Sdk="Microsoft.NET.Sdk">
           <Import Project="..\App\BuildTag.props" />
 
@@ -35,6 +39,10 @@ internal sealed class HotfixRenderer : IPlanContributor
               <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
             </ProjectReference>
             <ProjectReference Include="..\App\Server.App.csproj" />
+          </ItemGroup>
+
+          <ItemGroup>
+        {{packageReferences}}
           </ItemGroup>
 
           <Target Name="CopyHotfixOutput" AfterTargets="Build">
@@ -180,7 +188,7 @@ internal sealed class HotfixRenderer : IPlanContributor
         namespace Server.Hotfix.Chat
         {
             [HotfixBehaviorOf(typeof(ChatRoomActor))]
-            internal static class ChatRoomBehavior
+            internal static partial class ChatRoomBehavior
             {
                 public static ValueTask<LoginReply> LoginAsync(
                     this ChatRoomActor self,

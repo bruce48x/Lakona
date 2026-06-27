@@ -29,6 +29,8 @@ public sealed class HotfixRendererTests
         Assert.Contains("Server.Hotfix", project, StringComparison.Ordinal);
         Assert.Contains("..\\App\\Server.App.csproj", project, StringComparison.Ordinal);
         Assert.Contains("<Import Project=\"..\\App\\BuildTag.props\" />", project, StringComparison.Ordinal);
+        Assert.Contains("<PackageReference Include=\"Lakona.Game.Server.Hotfix.Generators\"", project, StringComparison.Ordinal);
+        Assert.Contains("OutputItemType=\"Analyzer\"", project, StringComparison.Ordinal);
 
         var loginService = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Login/LoginService.cs").Content;
         Assert.Contains("[HotfixService(typeof(ILoginService))]", loginService, StringComparison.Ordinal);
@@ -72,6 +74,7 @@ public sealed class HotfixRendererTests
 
         var behavior = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Chat/ChatRoomBehavior.cs").Content;
         Assert.Contains("[HotfixBehaviorOf(typeof(ChatRoomActor))]", behavior, StringComparison.Ordinal);
+        Assert.Contains("internal static partial class ChatRoomBehavior", behavior, StringComparison.Ordinal);
         Assert.Contains("public static ValueTask<LoginReply> LoginAsync", behavior, StringComparison.Ordinal);
         Assert.Contains("ChatRoomLoginRequest request", behavior, StringComparison.Ordinal);
         Assert.Contains("public static ValueTask LeaveAsync", behavior, StringComparison.Ordinal);

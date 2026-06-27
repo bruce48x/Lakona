@@ -53,6 +53,14 @@ public sealed class DependencyPlannerTests
     }
 
     [Fact]
+    public void Create_ServerHotfix_IncludesHotfixGeneratorAnalyzer()
+    {
+        var plan = DependencyPlanner.Create(ProjectTarget.ServerHotfix, Spec());
+
+        AssertPackage(plan.PackageReferences, "Lakona.Game.Server.Hotfix.Generators", privateAssets: "all", outputItemType: "Analyzer");
+    }
+
+    [Fact]
     public void Create_UnityKcpMemoryPack_IncludesUnityRuntimeClosure()
     {
         var references = DependencyPlanner.Create(ProjectTarget.UnityClient, Spec()).PackageReferences;

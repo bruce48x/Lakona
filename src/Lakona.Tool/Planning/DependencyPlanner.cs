@@ -24,7 +24,7 @@ internal static class DependencyPlanner
         {
             ProjectTarget.Shared => CreateSharedPlan(spec, catalog),
             ProjectTarget.ServerApp => CreateServerAppPlan(spec, catalog),
-            ProjectTarget.ServerHotfix => [],
+            ProjectTarget.ServerHotfix => CreateServerHotfixPlan(spec, catalog),
             ProjectTarget.UnityClient => CreateUnityClientPlan(spec, catalog),
             ProjectTarget.GodotClient => CreateGodotClientPlan(spec, catalog),
             ProjectTarget.ConsoleClient => CreateConsoleClientPlan(spec, catalog),
@@ -74,6 +74,15 @@ internal static class DependencyPlanner
         }
 
         return references;
+    }
+
+    private static IReadOnlyList<PackageReferenceSpec> CreateServerHotfixPlan(LakonaProjectSpec spec, DomainPackageCatalog catalog)
+    {
+        _ = spec;
+        return
+        [
+            Sdk("Lakona.Game.Server.Hotfix.Generators", catalog.LakonaGameServerHotfixGenerators, privateAssets: "all", outputItemType: "Analyzer")
+        ];
     }
 
     private static IReadOnlyList<PackageReferenceSpec> CreateUnityClientPlan(LakonaProjectSpec spec, DomainPackageCatalog catalog)
