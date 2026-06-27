@@ -321,6 +321,7 @@ public sealed class LakonaGameServerTests
         Assert.Contains("Shared", names);
         Assert.Contains("Server.App", names);
         Assert.Contains("State.Contracts", names);
+        Assert.Contains(typeof(ILakonaGameServer).Assembly.GetName().Name!, names);
     }
 
     [Fact]

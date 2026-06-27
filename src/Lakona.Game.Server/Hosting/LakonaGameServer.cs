@@ -330,6 +330,7 @@ public static class LakonaGameServer
     {
         var names = new HashSet<string>(StringComparer.Ordinal)
         {
+            typeof(ILakonaGameServer).Assembly.GetName().Name!,
             "Shared",
             "Server.App",
             "State.Contracts"

@@ -8,6 +8,9 @@ that consolidation.
 
 ### Changed
 
+- `Lakona.Game.Server` `0.8.14`: default hotfix loading now shares the
+  framework runtime assembly with hotfix services so host services such as
+  `ILakonaGameServer` resolve through the hotfix service-provider fallback.
 - `Lakona.Game.Server` `0.8.13`: runtime configuration now accepts JSON string
   values for array-shaped environment variables such as `Lakona__Feature`,
   `Lakona__Endpoints`, endpoint `RpcServices`, and

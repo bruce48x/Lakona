@@ -75,6 +75,7 @@ internal static class TestHotfix
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
+        new global::GeneratedHotfixActorRegistration().Register(services);
         services.AddGeneratedActorSelectorTestDependencies();
         return services.BuildServiceProvider();
     }
