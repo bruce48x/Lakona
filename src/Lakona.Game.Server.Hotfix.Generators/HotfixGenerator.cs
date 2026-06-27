@@ -133,29 +133,13 @@ namespace Lakona.Game.Server.Hotfix.Generators
             foreach (var actorGroup in appContracts
                 .GroupBy(static contract => contract.Actor.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
             {
-                var duplicateSignatures = actorGroup
-                    .SelectMany(static contract => contract.Methods.Select(method => new { Contract = contract, Method = method }))
-                    .GroupBy(static item => item.Method.PublicSignatureKey)
-                    .Where(static group => group.Count() > 1)
-                    .ToArray();
-                if (duplicateSignatures.Length > 0)
+                var actorContracts = actorGroup.ToArray();
+                if (ReportDuplicateActorContractSignatures(context, actorContracts))
                 {
-                    foreach (var duplicate in duplicateSignatures)
-                    {
-                        foreach (var duplicateMethod in duplicate.Skip(1))
-                        {
-                            context.ReportDiagnostic(Diagnostic.Create(
-                                HotfixGeneratorDiagnostics.DuplicateHotfixActorContractMethod,
-                                duplicateMethod.Method.Location,
-                                duplicateMethod.Contract.Contract.ToDisplayString(),
-                                duplicate.Key));
-                        }
-                    }
-
                     continue;
                 }
 
-                supported.Add(MergeActorContracts(actorGroup.ToArray()));
+                supported.Add(MergeActorContracts(actorContracts));
             }
 
             var supportedArray = supported
@@ -216,11 +200,45 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     continue;
                 }
 
-                var contract = MergeActorContracts(actorGroup.ToArray());
+                var actorContracts = actorGroup.ToArray();
+                if (ReportDuplicateActorContractSignatures(context, actorContracts))
+                {
+                    continue;
+                }
+
+                var contract = MergeActorContracts(actorContracts);
                 context.AddSource(
                     CreateActorWrapperHintName(behaviors[0].Behavior),
                     SourceText.From(GenerateActorWrapperSource(contract, behaviors[0]), Encoding.UTF8));
             }
+        }
+
+        private static bool ReportDuplicateActorContractSignatures(SourceProductionContext context, IEnumerable<HotfixActorContractInfo> actorGroup)
+        {
+            var duplicateSignatures = actorGroup
+                .SelectMany(static contract => contract.Methods.Select(method => new { Contract = contract, Method = method }))
+                .GroupBy(static item => item.Method.PublicSignatureKey)
+                .Where(static group => group.Count() > 1)
+                .ToArray();
+
+            if (duplicateSignatures.Length == 0)
+            {
+                return false;
+            }
+
+            foreach (var duplicate in duplicateSignatures)
+            {
+                foreach (var duplicateMethod in duplicate.Skip(1))
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        HotfixGeneratorDiagnostics.DuplicateHotfixActorContractMethod,
+                        duplicateMethod.Method.Location,
+                        duplicateMethod.Contract.Contract.ToDisplayString(),
+                        duplicate.Key));
+                }
+            }
+
+            return true;
         }
 
         private static bool IsUnsupportedBehaviorWrapperTarget(HotfixBehaviorInfo behavior)

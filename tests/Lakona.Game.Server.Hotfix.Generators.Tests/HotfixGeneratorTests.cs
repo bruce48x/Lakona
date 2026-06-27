@@ -187,6 +187,56 @@ public sealed class HotfixGeneratorTests
     }
 
     [Fact]
+    public void Generator_reports_diagnostic_for_duplicate_referenced_actor_contract_wrapper_signature()
+    {
+        var appSource = """
+            using System.Runtime.CompilerServices;
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            [assembly: InternalsVisibleTo("Game.Hotfix")]
+
+            namespace Game.Server;
+
+            public readonly record struct UserId(string Value);
+            public sealed class PingRequest { }
+            public sealed class UserActor : Actor<UserId> { }
+
+            [HotfixActorContract(typeof(UserActor))]
+            public interface IUserActorContract
+            {
+                ValueTask PingAsync(PingRequest request);
+            }
+
+            [HotfixActorContract(typeof(UserActor))]
+            public interface IUserActorWithCancellationContract
+            {
+                ValueTask PingAsync(PingRequest request, CancellationToken cancellationToken = default);
+            }
+            """;
+
+        var hotfixSource = """
+            using Game.Server;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Hotfix;
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            public static partial class UserBehavior
+            {
+            }
+            """;
+
+        var result = GeneratorTestHost.RunWithGeneratedAppReference(appSource, hotfixSource, appAssemblyName: "Game.Server", hotfixAssemblyName: "Game.Hotfix");
+
+        var diagnostic = Assert.Single(result.Hotfix.GeneratorDiagnostics, diagnostic => diagnostic.Id == "ULGHOTFIX015");
+        Assert.Contains("PingAsync", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.DoesNotContain("this global::Game.Server.UserRef self", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Generator_emits_behavior_owned_extensions_for_local_and_remote_actor_refs()
     {
         var appSource = """
