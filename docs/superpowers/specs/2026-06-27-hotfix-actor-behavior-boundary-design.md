@@ -82,8 +82,8 @@ Rules:
   assembly.
 - The behavior class must be named `<ActorPrefix>Behavior`, where
   `<ActorPrefix>` is the actor name without the `Actor` suffix.
-- The behavior class must be `partial` so generated behavior-owned wrappers can
-  live in the same class boundary.
+- The behavior class must be `static partial` so generated behavior-owned
+  wrappers can live in the same class boundary.
 - Subdomain code is allowed, but it must be modeled as helpers or policies, not
   as another `*Behavior` for the same actor.
 - The same partial behavior type may be split across files for readability, but
@@ -162,6 +162,33 @@ method would require IDE-specific navigation plugins, fragile source mapping, or
 extra hand-written wrappers. That is intentionally out of scope for this
 change.
 
+## Project Wiring Contract
+
+Behavior-owned wrapper generation runs in the `Server.Hotfix` compilation. That
+means every generated or sample hotfix project must reference
+`Lakona.Game.Server.Hotfix.Generators` as an analyzer, not only the stable
+`Server.App` project.
+
+For project-reference development, Agar's `Server.Hotfix.csproj` should add:
+
+```xml
+<ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Hotfix.Generators\Lakona.Game.Server.Hotfix.Generators.csproj"
+                  PrivateAssets="all"
+                  OutputItemType="Analyzer"
+                  ReferenceOutputAssembly="false" />
+```
+
+For package-based generated projects, `Lakona.Tool` should emit the equivalent
+`PackageReference` analyzer metadata for both `Server.App` and `Server.Hotfix`.
+The same generator package owns both phases:
+
+- In `Server.App`, it emits stable actor selector services, low-level refs,
+  cluster handlers, and registration.
+- In `Server.Hotfix`, it discovers behavior classes and emits behavior-owned
+  wrapper extensions.
+
+Separate generator packages or entry points are not required for this design.
+
 ## Generator And Scanner Changes
 
 `Lakona.Game.Server.Hotfix.Generators` gains authoring diagnostics for behavior
@@ -169,7 +196,7 @@ shape:
 
 - Non-actor `[HotfixBehaviorOf]` targets are errors.
 - Multiple behavior classes for the same actor are errors.
-- Non-partial behavior classes are errors.
+- Non-`static partial` behavior classes are errors.
 - Behavior class names that do not match the target actor prefix are errors.
 
 Generated actor refs are split into two surfaces:
@@ -179,10 +206,27 @@ Generated actor refs are split into two surfaces:
 - Hotfix output emits behavior-owned extension wrappers into matching partial
   behavior classes.
 
+Hotfix wrapper generation discovers behavior classes from the current hotfix
+compilation by reading `[HotfixBehaviorOf(typeof(TActor))]`. For each actor
+contract method:
+
+- The generator finds the single behavior symbol targeting that actor type.
+- It requires that symbol to be a non-generic `static partial` class.
+- It emits generated partial code into that exact namespace and type, including
+  containing type declarations if those are ever supported.
+- It does not rely on name-only namespace guesses.
+
 Generated wrapper methods need an internal marker attribute or equivalent
 metadata so `HotfixBehaviorScanner` does not register them as actor behavior
 methods. The scanner continues to register hand-written public static extension
 methods whose first parameter is `this TActor self`.
+
+The low-level ref dispatch helpers generated in `Server.App` should be internal
+generated-support APIs, not public business APIs. Generated `Server.App`
+projects already grant friend access to `Server.Hotfix`; this remains required
+so hotfix-generated wrappers can call internal ref helpers across the assembly
+boundary. `Lakona.Tool` and the Agar sample must preserve
+`InternalsVisibleTo("Server.Hotfix")` or the configured hotfix assembly name.
 
 ## Agar Sample Changes
 
@@ -197,6 +241,9 @@ The Agar sample adopts the strict shape:
   methods directly.
 - Hotfix service and behavior code keeps using generated behavior-first actor
   selectors for ordinary business calls.
+- Agar's `Server.Hotfix.csproj` references
+  `Lakona.Game.Server.Hotfix.Generators` as an analyzer so behavior-owned
+  wrappers are emitted in the hotfix compilation.
 
 ## Documentation And Template Updates
 
@@ -224,6 +271,10 @@ Generator and analyzer tests:
   longer emitted on low-level refs.
 - Add tests that behavior-owned wrapper methods are generated into the matching
   partial behavior class.
+- Add tests that `Server.Hotfix` compilation discovers the exact behavior symbol
+  by `[HotfixBehaviorOf]` attribute and emits into its namespace.
+- Add tests that hotfix-generated wrappers can call internal low-level ref
+  helpers through `InternalsVisibleTo`.
 
 Runtime scanner tests:
 
@@ -238,6 +289,14 @@ Agar tests:
 - Source-scan that `ArenaSimulation.cs` does not contain `HotfixDispatch`,
   `HotfixState`, or `HotfixBehaviorOf`.
 - Source-scan that removed misleading behavior files do not exist as behaviors.
+- Rewrite or delete `AgarHotfixTests` cases that explicitly assert
+  `ArenaSimulation.SettleMatch` is a standalone hotfix-dispatched method.
+- Add replacement coverage that settlement remains reloadable through
+  `RoomBehavior` and hotfix settlement helpers.
+- Add replacement coverage that failed hotfix reload preserves the previous
+  actor behavior table rather than a standalone shared gameplay hotfix method.
+- Keep coverage for winner points, user updates, and leaderboard updates after
+  room settlement.
 - Existing business logic tests continue to pass.
 
 Validation commands:
@@ -245,6 +304,7 @@ Validation commands:
 ```powershell
 dotnet test tests/Lakona.Game.Server.Hotfix.Generators.Tests/Lakona.Game.Server.Hotfix.Generators.Tests.csproj
 dotnet test tests/Lakona.Game.Server.Hotfix.Tests/Lakona.Game.Server.Hotfix.Tests.csproj
+dotnet test tests/Lakona.Tool.Tests/Lakona.Tool.Tests.csproj
 dotnet test samples/Game.Unity.Agar/tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj
 ```
 
