@@ -51,7 +51,7 @@ public sealed class RoomActor : Actor<RoomId>
 ```csharp
 // Server.Hotfix
 [HotfixBehaviorOf(typeof(RoomActor))]
-public static class RoomBehavior
+public static partial class RoomBehavior
 {
     public static ValueTask<JoinRoomReply> JoinAsync(
         this RoomActor self,

@@ -6,13 +6,17 @@ This package keeps reload mechanics separate from actor runtime, sessions, trans
 
 ## Design model
 
-Lakona.Game hotfix separates stable state from replaceable logic:
+Lakona.Game hotfix separates stable actor state from replaceable logic:
 
 ```txt
-stable actor or state object + reloadable static behavior methods
+stable Actor<TKey> + reloadable static partial behavior methods
 ```
 
-Actors, room loops, timers, persistence, RPC contracts, transports, and long-lived mutable state stay in stable assemblies. Hotfix assemblies contain stateless business rules that operate on stable state objects. A reload replaces the runtime dispatch table; it does not replace existing actor or state instances.
+Actors, room loops, timers, persistence, RPC contracts, transports, and
+long-lived mutable state stay in stable assemblies. Hotfix assemblies contain
+stateless business rules that operate on stable actor instances. A reload
+replaces the runtime dispatch table; it does not replace existing actor
+instances.
 
 Hotfix behaviors should return stable DTOs that describe what happened. Stable runtime code should perform side effects such as persistence writes, leaderboard updates, session cleanup, logging, and network pushes.
 
@@ -24,7 +28,7 @@ Stable code owns state:
 
 ```csharp
 [HotfixState]
-public partial class PlayerActor : Actor
+public sealed partial class PlayerActor : Actor<PlayerId>
 {
     private int level;
     private int exp;
@@ -36,7 +40,7 @@ Hotfix code owns behavior:
 ```csharp
 [FriendOf(typeof(PlayerActor))]
 [HotfixBehaviorOf(typeof(PlayerActor))]
-public static class PlayerActorBehavior
+public static partial class PlayerBehavior
 {
     public static void AddExp(this PlayerActor self, int amount)
     {
@@ -67,7 +71,12 @@ The pointer should change only after the version directory is fully written.
 
 The first implementation uses one process-global dispatch table. Treat it as one hotfix domain per server process; do not register unrelated hotfix managers that should carry independent behavior in the same process.
 
-Generated friend accessors are public members on `[HotfixState]` partial types because the hotfix assembly must be able to call them across an assembly boundary. `[FriendOf]` is metadata and convention for Hotfix behaviors, not a CLR security boundary. Only mark stable state types where exposing generated `__hotfix_` accessors is acceptable, and keep sensitive runtime internals outside those state types.
+Generated friend accessors are public members on `[HotfixState]` partial actor
+types because the hotfix assembly must be able to call them across an assembly
+boundary. `[FriendOf]` is metadata and convention for Hotfix behaviors, not a
+CLR security boundary. Only mark stable actor types where exposing generated
+`__hotfix_` accessors is acceptable, and keep sensitive runtime internals
+outside those actors.
 
 Generated server apps discover `[RpcService]` contracts at build time and emit stable service proxies that call hotfix methods through `HotfixServiceCall<TRequest>` or `HotfixServiceCall<TRequest, TCallback>`. Hotfix assemblies implement those contracts with exactly one `[HotfixService(typeof(IMyService))]` implementation type per generated service contract. Instance methods are activated with the current hotfix service provider and must use call-wrapper arguments; static methods remain supported and may use raw request DTO parameters for allocation-sensitive paths. Reload validation rejects missing or duplicate required service implementations before publishing a new dispatch table.
 

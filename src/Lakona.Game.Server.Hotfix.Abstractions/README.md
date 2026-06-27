@@ -6,9 +6,9 @@ This package is intentionally small so stable model projects, hotfix projects, r
 
 ## Contracts
 
-- `[HotfixState]` marks stable partial state types that can receive generated friend accessors.
-- `[HotfixBehaviorOf]` binds a static Hotfix behavior class to the stable state type it extends.
-- `[FriendOf]` declares that a Hotfix behavior is intended to use generated friend accessors for a stable state type.
+- `[HotfixState]` marks stable partial actor types that can receive generated friend accessors.
+- `[HotfixBehaviorOf]` binds a static partial Hotfix behavior class to the stable actor type it extends.
+- `[FriendOf]` declares that a Hotfix behavior is intended to use generated friend accessors for a stable actor type.
 - `[HotfixService]` marks the single hotfix implementation for a generated RPC service contract.
 - `HotfixMethodKey`, `HotfixSnapshot`, and `HotfixReloadResult` describe loaded method identity and reload outcomes.
 - `IHotfixRequiredServiceContracts` is emitted by generated server apps so the runtime can fail reloads when a required RPC service has zero or multiple hotfix implementations.
