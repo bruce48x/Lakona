@@ -107,5 +107,40 @@ namespace Lakona.Game.Server.Hotfix.Generators
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor HotfixBehaviorTargetMustDeriveActor = new DiagnosticDescriptor(
+            "ULGHOTFIX017",
+            "Hotfix behavior target must derive Actor<TKey>",
+            "Hotfix behavior '{0}' targets type '{1}', which must derive Lakona.Game.Server.Actors.Actor<TKey>",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor DuplicateHotfixBehaviorForActor = new DiagnosticDescriptor(
+            "ULGHOTFIX018",
+            "Actor must have exactly one hotfix behavior",
+            "Actor '{0}' has multiple hotfix behavior classes; keep one '<ActorPrefix>Behavior' class and move subdomain code into helpers or partial files",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true,
+            description: null,
+            helpLinkUri: null,
+            customTags: WellKnownDiagnosticTags.CompilationEnd);
+
+        public static readonly DiagnosticDescriptor HotfixBehaviorMustBeStaticPartial = new DiagnosticDescriptor(
+            "ULGHOTFIX019",
+            "Hotfix behavior must be static partial",
+            "Hotfix behavior '{0}' must be a static partial class so generated behavior-owned actor wrappers can be emitted into the same type",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor HotfixBehaviorNameMustMatchActor = new DiagnosticDescriptor(
+            "ULGHOTFIX020",
+            "Hotfix behavior name must match actor name",
+            "Hotfix behavior '{0}' targets actor '{1}' and must be named '{2}'",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
     }
 }

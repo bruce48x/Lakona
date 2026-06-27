@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
@@ -10,20 +11,57 @@ namespace Lakona.Game.Server.Hotfix.Generators
     public sealed class HotfixActorBoundaryAnalyzer : DiagnosticAnalyzer
     {
         private const string ActorMetadataName = "Lakona.Game.Server.Actors.Actor";
+        private const string HotfixBehaviorOfMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixBehaviorOfAttribute";
 
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-            ImmutableArray.Create(HotfixGeneratorDiagnostics.ActorMustNotDeclareBusinessMethod);
+            ImmutableArray.Create(
+                HotfixGeneratorDiagnostics.ActorMustNotDeclareBusinessMethod,
+                HotfixGeneratorDiagnostics.HotfixBehaviorTargetMustDeriveActor,
+                HotfixGeneratorDiagnostics.DuplicateHotfixBehaviorForActor,
+                HotfixGeneratorDiagnostics.HotfixBehaviorMustBeStaticPartial,
+                HotfixGeneratorDiagnostics.HotfixBehaviorNameMustMatchActor);
 
         public override void Initialize(AnalysisContext context)
         {
             context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
             context.EnableConcurrentExecution();
-            context.RegisterSymbolAction(AnalyzeNamedType, SymbolKind.NamedType);
+            context.RegisterCompilationStartAction(static startContext =>
+            {
+                var behaviorReports = new ConcurrentBag<(string ActorDisplay, INamedTypeSymbol Behavior)>();
+
+                startContext.RegisterSymbolAction(symbolContext =>
+                {
+                    var type = (INamedTypeSymbol)symbolContext.Symbol;
+                    AnalyzeActorType(symbolContext, type);
+                    AnalyzeBehaviorType(symbolContext, type, behaviorReports);
+                }, SymbolKind.NamedType);
+
+                startContext.RegisterCompilationEndAction(endContext =>
+                {
+                    var duplicateGroups = behaviorReports
+                        .GroupBy(static report => report.ActorDisplay, StringComparer.Ordinal)
+                        .Where(static group => group.Count() > 1);
+
+                    foreach (var group in duplicateGroups)
+                    {
+                        foreach (var duplicate in group.Skip(1).Select(static report => report.Behavior))
+                        {
+                            var location = duplicate.Locations.FirstOrDefault(static item => item.IsInSource);
+                            if (location is not null)
+                            {
+                                endContext.ReportDiagnostic(Diagnostic.Create(
+                                    HotfixGeneratorDiagnostics.DuplicateHotfixBehaviorForActor,
+                                    location,
+                                    group.Key));
+                            }
+                        }
+                    }
+                });
+            });
         }
 
-        private static void AnalyzeNamedType(SymbolAnalysisContext context)
+        private static void AnalyzeActorType(SymbolAnalysisContext context, INamedTypeSymbol type)
         {
-            var type = (INamedTypeSymbol)context.Symbol;
             if (!DerivesFromActor(type))
             {
                 return;
@@ -55,18 +93,110 @@ namespace Lakona.Game.Server.Hotfix.Generators
             }
         }
 
+        private static void AnalyzeBehaviorType(
+            SymbolAnalysisContext context,
+            INamedTypeSymbol type,
+            ConcurrentBag<(string ActorDisplay, INamedTypeSymbol Behavior)> behaviorReports)
+        {
+            var attribute = type.GetAttributes()
+                .FirstOrDefault(static attribute => attribute.AttributeClass?.ToDisplayString() == HotfixBehaviorOfMetadataName);
+            if (attribute is null ||
+                attribute.ConstructorArguments.Length != 1 ||
+                attribute.ConstructorArguments[0].Value is not INamedTypeSymbol actor)
+            {
+                return;
+            }
+
+            var location = type.Locations.FirstOrDefault(static item => item.IsInSource);
+            if (!DerivesFromActor(actor))
+            {
+                if (location is not null)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        HotfixGeneratorDiagnostics.HotfixBehaviorTargetMustDeriveActor,
+                        location,
+                        type.ToDisplayString(),
+                        actor.ToDisplayString()));
+                }
+
+                return;
+            }
+
+            var actorDisplay = actor.ToDisplayString();
+            behaviorReports.Add((actorDisplay, type));
+
+            if (!type.IsStatic || !IsPartial(type))
+            {
+                if (location is not null)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        HotfixGeneratorDiagnostics.HotfixBehaviorMustBeStaticPartial,
+                        location,
+                        type.ToDisplayString()));
+                }
+            }
+
+            var expectedName = GetActorPrefix(actor.Name) + "Behavior";
+            if (!string.Equals(type.Name, expectedName, StringComparison.Ordinal))
+            {
+                if (location is not null)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        HotfixGeneratorDiagnostics.HotfixBehaviorNameMustMatchActor,
+                        location,
+                        type.ToDisplayString(),
+                        actor.ToDisplayString(),
+                        expectedName));
+                }
+            }
+        }
+
         private static bool DerivesFromActor(INamedTypeSymbol type)
         {
             for (var current = type.BaseType; current is not null; current = current.BaseType)
             {
                 var original = current.OriginalDefinition;
-                if (string.Equals(original.ToDisplayString(), ActorMetadataName, StringComparison.Ordinal))
+                if (IsActorBaseType(original))
                 {
                     return true;
                 }
             }
 
             return false;
+        }
+
+        private static bool IsActorBaseType(INamedTypeSymbol type)
+        {
+            if (!string.Equals(type.Name, "Actor", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            if (type.Arity is not 0 and not 1)
+            {
+                return false;
+            }
+
+            return string.Equals(
+                type.ContainingNamespace.ToDisplayString() + "." + type.Name,
+                ActorMetadataName,
+                StringComparison.Ordinal);
+        }
+
+        private static bool IsPartial(INamedTypeSymbol type)
+        {
+            return type.DeclaringSyntaxReferences
+                .Select(static reference => reference.GetSyntax())
+                .OfType<Microsoft.CodeAnalysis.CSharp.Syntax.TypeDeclarationSyntax>()
+                .Any(static declaration => declaration.Modifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PartialKeyword));
+        }
+
+        private static string GetActorPrefix(string actorName)
+        {
+            const string suffix = "Actor";
+            return actorName.EndsWith(suffix, StringComparison.Ordinal) && actorName.Length > suffix.Length
+                ? actorName.Substring(0, actorName.Length - suffix.Length)
+                : actorName;
         }
 
         private static bool IsAllowedLifecycleOverride(IMethodSymbol method)
