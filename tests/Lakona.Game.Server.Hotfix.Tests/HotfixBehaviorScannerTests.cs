@@ -91,6 +91,16 @@ public sealed class HotfixBehaviorScannerTests
     }
 
     [Fact]
+    public void Scanner_ignores_generated_actor_ref_wrapper_methods()
+    {
+        var result = HotfixBehaviorScanner.Scan(typeof(GeneratedWrapperIgnoredBehavior).Assembly, [typeof(GeneratedWrapperIgnoredBehavior)]);
+
+        Assert.Empty(result.Diagnostics);
+        Assert.DoesNotContain(result.Methods, binding => binding.Method.Name == nameof(GeneratedWrapperIgnoredBehavior.PingAsync));
+        Assert.Contains(result.Methods, binding => binding.Method.Name == nameof(GeneratedWrapperIgnoredBehavior.ActorPingAsync));
+    }
+
+    [Fact]
     public void Dispatch_table_rejects_null_methods()
     {
         var exception = Assert.Throws<ArgumentNullException>(() => new HotfixDispatchTable(1, null!));
@@ -547,5 +557,28 @@ public sealed class HotfixBehaviorScannerTests
         {
             return default;
         }
+    }
+}
+
+public sealed class GeneratedWrapperIgnoredState
+{
+}
+
+public readonly struct GeneratedWrapperIgnoredRef
+{
+}
+
+[HotfixBehaviorOf(typeof(GeneratedWrapperIgnoredState))]
+public static partial class GeneratedWrapperIgnoredBehavior
+{
+    public static int ActorPingAsync(this GeneratedWrapperIgnoredState self)
+    {
+        return 1;
+    }
+
+    [GeneratedHotfixActorRefMethod]
+    public static int PingAsync(this GeneratedWrapperIgnoredRef self)
+    {
+        return 2;
     }
 }
