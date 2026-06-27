@@ -32,6 +32,7 @@ RUN dotnet build samples/Game.Unity.Agar/Server/Hotfix/Server.Hotfix.csproj \
 FROM runtime AS gateway
 COPY --from=publish-gateway /app/publish/gateway ./
 COPY --from=publish-gateway /src/samples/Game.Unity.Agar/Server/App/bin/Release/net10.0/hotfix ./hotfix/
+RUN rm -f appsettings*.json
 EXPOSE 20000 20001
 USER $APP_UID
 ENTRYPOINT ["dotnet", "Server.App.dll"]

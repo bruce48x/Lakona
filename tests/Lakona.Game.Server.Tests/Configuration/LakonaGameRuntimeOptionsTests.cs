@@ -112,6 +112,82 @@ public sealed class LakonaGameRuntimeOptionsTests
     }
 
     [Fact]
+    public void FromConfiguration_binds_json_string_feature_values()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:Feature"] = """["state-store","matchmaking","leaderboard"]"""
+        });
+
+        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
+
+        Assert.Equal(["state-store", "matchmaking", "leaderboard"], options.Feature);
+    }
+
+    [Fact]
+    public void FromConfiguration_binds_json_string_endpoints_and_rpc_services()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:Endpoints"] =
+                """
+                [
+                  {
+                    "transport": "websocket",
+                    "serializer": "memorypack",
+                    "host": "0.0.0.0",
+                    "advertisedHost": "gateway-1",
+                    "port": 20000,
+                    "path": "/ws",
+                    "rpcServices": [ "login", "player" ]
+                  }
+                ]
+                """
+        });
+
+        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
+
+        var endpoint = Assert.Single(options.Endpoints);
+        Assert.Equal("websocket", endpoint.Transport);
+        Assert.Equal("memorypack", endpoint.Serializer);
+        Assert.Equal("0.0.0.0", endpoint.Host);
+        Assert.Equal("gateway-1", endpoint.AdvertisedHost);
+        Assert.Equal(20000, endpoint.Port);
+        Assert.Equal("/ws", endpoint.Path);
+        Assert.Equal(["login", "player"], endpoint.RpcServices);
+    }
+
+    [Fact]
+    public void FromConfiguration_binds_json_string_cluster_seeds()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.2:21002",
+            ["Lakona:Cluster:Serializer"] = "memorypack",
+            ["Lakona:Cluster:Seeds"] = """["tcp://10.0.0.1:21001"]"""
+        });
+
+        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
+
+        Assert.Equal(["tcp://10.0.0.1:21001"], options.Cluster!.Seeds);
+    }
+
+    [Fact]
+    public void FromConfiguration_rejects_malformed_json_string_array()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:Feature"] = "[\"state-store\""
+        });
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            LakonaGameRuntimeOptions.FromConfiguration(configuration));
+
+        Assert.Contains("Lakona:Feature", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("JSON", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void ToClusterOptions_uses_cluster_endpoint_and_transport_keys()
     {
         var options = new LakonaGameRuntimeOptions

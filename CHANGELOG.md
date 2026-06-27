@@ -4,6 +4,15 @@ Lakona was created on 2026-06-07 by merging the former ULinkGame, ULinkActor,
 and ULinkRpc repositories into a single monorepo. This changelog starts from
 that consolidation.
 
+## 2026-06-27
+
+### Changed
+
+- `Lakona.Game.Server` `0.8.13`: runtime configuration now accepts JSON string
+  values for array-shaped environment variables such as `Lakona__Feature`,
+  `Lakona__Endpoints`, endpoint `RpcServices`, and
+  `Lakona__Cluster__Seeds`, while preserving native .NET indexed array keys.
+
 ## 2026-06-26
 
 ### Changed

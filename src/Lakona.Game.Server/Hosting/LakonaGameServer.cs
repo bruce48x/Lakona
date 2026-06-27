@@ -24,13 +24,13 @@ public static class LakonaGameServer
 
     public static async Task<int> RunAsync(string[] args, Action<LakonaGameServerBuilder> configure)
     {
-        var builder = Host.CreateApplicationBuilder(args);
+        var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
+        {
+            Args = args,
+            ContentRootPath = AppContext.BaseDirectory
+        });
         builder.Logging.ClearProviders();
         builder.Logging.AddConsole();
-        builder.Configuration
-            .SetBasePath(AppContext.BaseDirectory)
-            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-            .AddEnvironmentVariables();
 
         var runtimeOptions = LakonaGameRuntimeOptions.FromConfiguration(builder.Configuration);
 

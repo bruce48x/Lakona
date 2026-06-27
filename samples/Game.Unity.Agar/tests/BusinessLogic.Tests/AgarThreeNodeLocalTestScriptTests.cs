@@ -19,12 +19,26 @@ public sealed class AgarThreeNodeLocalTestScriptTests
 
         Assert.Contains("#Requires -Version 7.0", script, StringComparison.Ordinal);
         Assert.Contains("docker compose", script, StringComparison.Ordinal);
-        Assert.Contains("Lakona__Endpoints__0__AdvertisedHost", script, StringComparison.Ordinal);
+        Assert.Contains("container_name: lakona-agar-three-node-test-gateway-1", script, StringComparison.Ordinal);
+        Assert.Contains("container_name: lakona-agar-three-node-test-battle-1", script, StringComparison.Ordinal);
+        Assert.Contains("subnet: 10.10.0.0/24", script, StringComparison.Ordinal);
+        Assert.Contains("gateway: 10.10.0.254", script, StringComparison.Ordinal);
+        Assert.Contains("ip_range: 10.10.0.128/25", script, StringComparison.Ordinal);
+        Assert.Contains("Test-TcpPortFree", script, StringComparison.Ordinal);
+        Assert.Contains("Test-UdpPortFree", script, StringComparison.Ordinal);
+        Assert.Contains("Test-DockerPublishedPortFree", script, StringComparison.Ordinal);
+        Assert.Contains("Port 20000/tcp is already in use", script, StringComparison.Ordinal);
+        Assert.Contains("Port 20001/udp is already in use", script, StringComparison.Ordinal);
+        Assert.Contains("ipv4_address: 10.10.0.2", script, StringComparison.Ordinal);
+        Assert.Contains("ipv4_address: 10.10.0.3", script, StringComparison.Ordinal);
+        Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.10.0.2:21002", script, StringComparison.Ordinal);
+        Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.10.0.3:21003", script, StringComparison.Ordinal);
+        Assert.Contains("Lakona__Endpoints: >-", script, StringComparison.Ordinal);
+        Assert.Contains("\"AdvertisedHost\": \"127.0.0.1\"", script, StringComparison.Ordinal);
+        Assert.Contains("ports: !reset []", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona__Endpoints__0__AdvertisedHost", script, StringComparison.Ordinal);
         Assert.Contains("gateway-1", script, StringComparison.Ordinal);
         Assert.Contains("battle-1", script, StringComparison.Ordinal);
-        Assert.True(
-            script.Split("Lakona__Endpoints__0__AdvertisedHost", StringSplitOptions.None).Length - 1 >= 2,
-            "The script should override advertised host for both gateway and battle endpoints.");
         Assert.Contains("-runTests", script, StringComparison.Ordinal);
         Assert.Contains("-testPlatform", script, StringComparison.Ordinal);
         Assert.Contains("PlayMode", script, StringComparison.Ordinal);

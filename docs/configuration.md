@@ -5,8 +5,11 @@
 Lakona uses one runtime configuration root for generated projects, repository
 samples, and user applications: `Lakona`.
 
-This document is the compact startup contract. The fuller distributed runtime
-model is documented in [cluster.md](cluster.md).
+This document is the compact startup and configuration contract. It covers the
+runtime schema, configuration provider order, production package selection,
+environment-variable overrides, Docker Compose sample shape, JSON array
+binding, and validation boundary. The fuller distributed runtime model is
+documented in [cluster.md](cluster.md).
 
 ## Configuration Schema
 
@@ -22,6 +25,243 @@ Supported top-level keys under `Lakona`:
 The legacy `Lakona.Game` root is only a compatibility read path for old
 applications and explicit compatibility tests. New samples, generated projects,
 docs, and diagnostics must use `Lakona`.
+
+## Configuration Sources
+
+Lakona server processes must be configurable from deployment configuration
+files and environment variables without changing application binaries.
+
+`LakonaGameServer.RunAsync` uses the default .NET configuration provider order
+with the application base directory as the content root:
+
+```txt
+appsettings.json
+appsettings.{Environment}.json
+user secrets, when applicable
+environment variables
+command line
+```
+
+The host must not append `appsettings.json` after environment variables.
+Appending JSON late lets packaged or container-baked files override deployment
+configuration and breaks the expected .NET precedence model.
+
+Environment variables override both JSON files. Use them for secrets,
+host-specific overrides, and values supplied by deployment automation.
+
+## Production Package Configuration
+
+Production deployment uses `lakona-tool server pack`, not Docker images as the
+primary release artifact. The package is a normal application root after
+extraction:
+
+```txt
+Server.App.dll
+appsettings.json
+appsettings.battle-1.json     # optional deployment-provided node config
+lakona-server.json
+hotfix/
+```
+
+The environment name selects the node-specific JSON file:
+
+```bash
+DOTNET_ENVIRONMENT=battle-1 dotnet Server.App.dll
+```
+
+With that environment variable, the default host reads:
+
+```txt
+appsettings.json
+appsettings.battle-1.json
+environment variables
+command line
+```
+
+The node-specific file must be in the application content root, which is the
+extracted server package directory. Operators may place
+`appsettings.battle-1.json` there during deployment, or package it from their
+deployment project if that project intentionally owns environment-specific
+files.
+
+## Environment Variables
+
+Environment variables use .NET's standard double-underscore hierarchy syntax:
+
+| Environment variable | Configuration key |
+| --- | --- |
+| `Lakona__Node__Id` | `Lakona:Node:Id` |
+| `Lakona__Cluster__Endpoint` | `Lakona:Cluster:Endpoint` |
+| `Lakona__Cluster__Directory__Provider` | `Lakona:Cluster:Directory:Provider` |
+| `Agar__Persistence__Provider` | `Agar:Persistence:Provider` |
+
+Single underscore is ordinary text and must not be treated as hierarchy.
+
+### Array Values
+
+.NET supports arrays with numeric keys such as `Lakona__Feature__0`, but that
+shape is noisy for deployment files and easy to misread. Lakona also supports
+JSON string values for array-shaped configuration sections.
+
+The framework accepts these equivalent forms:
+
+```txt
+Lakona__Feature__0=state-store
+Lakona__Feature__1=matchmaking
+Lakona__Feature__2=leaderboard
+```
+
+```txt
+Lakona__Feature=["state-store","matchmaking","leaderboard"]
+```
+
+The JSON string form is the recommended environment-variable style for arrays.
+The indexed form remains valid because it is native .NET configuration.
+
+An empty JSON array is explicit and meaningful:
+
+```txt
+Lakona__Feature=[]
+Lakona__Endpoints=[]
+```
+
+For `Feature`, omitted and empty are different:
+
+- omitted `Lakona:Feature` enables all discovered features;
+- `Lakona__Feature=[]` enables no application features.
+
+### Complex Lists
+
+`Lakona:Endpoints` is a complex list and can be expressed as one JSON string:
+
+```yaml
+environment:
+  Lakona__Node__Id: gateway-1
+  Lakona__Endpoints: >-
+    [
+      {
+        "Transport": "websocket",
+        "Serializer": "memorypack",
+        "Host": "0.0.0.0",
+        "AdvertisedHost": "gateway-1",
+        "Port": 20000,
+        "Path": "/ws",
+        "RpcServices": [ "login", "player" ]
+      }
+    ]
+```
+
+The framework parses endpoint JSON case-insensitively and binds it to the same
+`LakonaGameEndpointOptions` model used by JSON files.
+
+Indexed endpoint configuration remains valid:
+
+```txt
+Lakona__Endpoints__0__Transport=websocket
+Lakona__Endpoints__0__Serializer=memorypack
+Lakona__Endpoints__0__Host=0.0.0.0
+Lakona__Endpoints__0__Port=20000
+Lakona__Endpoints__0__Path=/ws
+Lakona__Endpoints__0__RpcServices__0=login
+Lakona__Endpoints__0__RpcServices__1=player
+```
+
+The JSON string form is preferred for human-authored deployment manifests.
+
+### Cluster Seeds
+
+`Lakona:Cluster:Seeds` supports both native indexed keys and a JSON string
+array.
+
+Preferred:
+
+```yaml
+environment:
+  Lakona__Cluster__Endpoint: tcp://10.0.0.2:21002
+  Lakona__Cluster__Serializer: memorypack
+  Lakona__Cluster__Seeds: '["tcp://10.0.0.1:21001"]'
+```
+
+Also valid:
+
+```txt
+Lakona__Cluster__Seeds__0=tcp://10.0.0.1:21001
+```
+
+## Docker Compose Configuration
+
+Docker Compose is the local Agar sample and E2E topology, not the primary
+production release flow. Production should use `lakona-tool server pack` plus
+deployment-managed configuration files and environment variables.
+
+For the Agar three-node sample, the final Docker image should remove
+`appsettings*.json` and let `docker-compose.yml` provide the full node runtime
+configuration through environment variables.
+
+Data node:
+
+```yaml
+environment:
+  DOTNET_ENVIRONMENT: data-1
+  Lakona__Node__Id: data-1
+  Lakona__Feature: '["state-store","matchmaking","leaderboard"]'
+  Lakona__Cluster__Endpoint: tcp://10.0.0.1:21001
+  Lakona__Cluster__Serializer: memorypack
+  Lakona__Cluster__Seeds: '["tcp://10.0.0.1:21001"]'
+  Lakona__Cluster__Directory__Provider: postgres
+  Lakona__Cluster__Directory__ConnectionStringName: LakonaClusterPostgres
+  Lakona__Cluster__Directory__NodeTable: lakona_cluster_nodes
+  Lakona__Cluster__Directory__EnsureSchemaOnStartup: "false"
+  Agar__Persistence__Provider: postgres
+  Agar__Persistence__ConnectionStringName: AgarGamePostgres
+```
+
+Gateway node:
+
+```yaml
+environment:
+  DOTNET_ENVIRONMENT: gateway-1
+  Lakona__Node__Id: gateway-1
+  Lakona__Feature: "[]"
+  Lakona__Endpoints: >-
+    [
+      {
+        "Transport": "websocket",
+        "Serializer": "memorypack",
+        "Host": "0.0.0.0",
+        "AdvertisedHost": "gateway-1",
+        "Port": 20000,
+        "Path": "/ws",
+        "RpcServices": [ "login", "player" ]
+      }
+    ]
+  Lakona__Cluster__Endpoint: tcp://10.0.0.2:21002
+  Lakona__Cluster__Serializer: memorypack
+  Lakona__Cluster__Seeds: '["tcp://10.0.0.1:21001"]'
+```
+
+Battle node:
+
+```yaml
+environment:
+  DOTNET_ENVIRONMENT: battle-1
+  Lakona__Node__Id: battle-1
+  Lakona__Feature: '["battle-runtime"]'
+  Lakona__Endpoints: >-
+    [
+      {
+        "Transport": "kcp",
+        "Serializer": "memorypack",
+        "Host": "0.0.0.0",
+        "AdvertisedHost": "battle-1",
+        "Port": 20001,
+        "RpcServices": [ "battle" ]
+      }
+    ]
+  Lakona__Cluster__Endpoint: tcp://10.0.0.3:21003
+  Lakona__Cluster__Serializer: memorypack
+  Lakona__Cluster__Seeds: '["tcp://10.0.0.1:21001"]'
+```
 
 ### Minimal Generated App
 
@@ -274,6 +514,9 @@ Validation covers:
 All communicating cluster nodes must still be operated with the same cluster
 serializer; startup validation only checks local presence and supported values.
 
+Malformed JSON environment values are configuration binding failures before
+semantic validation.
+
 `--readiness-check` is the canonical project readiness command for local
 inspection and deployment automation. Use `--health-check` for liveness-only
 checks.
@@ -299,3 +542,36 @@ fix: set Lakona:Endpoints:0:Path to a path such as /ws
 
 Generated projects should not emit service endpoint marker files, endpoint
 `Name`, hidden `control` or `realtime` endpoint names, or `Services` lists.
+
+## Implementation Requirements
+
+`LakonaGameRuntimeOptions.FromConfiguration` must recognize JSON string values
+for these sections:
+
+- `Lakona:Feature`
+- `Lakona:Endpoints`
+- `Lakona:Endpoints:*:RpcServices`
+- `Lakona:Cluster:Seeds`
+
+The JSON parser must:
+
+- accept arrays only where arrays are expected;
+- fail with a clear configuration error for malformed JSON;
+- bind endpoint property names case-insensitively;
+- preserve the current behavior for indexed .NET configuration arrays;
+- preserve the `Lakona.Game` compatibility read path for legacy applications.
+
+Tests must cover:
+
+- environment variables override `appsettings.json`;
+- `Lakona__Feature` JSON array binds to `Feature`;
+- `Lakona__Feature=[]` binds to an explicit empty array;
+- `Lakona__Endpoints` JSON array binds endpoint transport, serializer, bind
+  host, advertised host, port, path, and RPC services;
+- `Lakona__Cluster__Seeds` JSON array binds seed endpoints;
+- native indexed environment arrays still work;
+- malformed JSON produces a clear error;
+- `DOTNET_ENVIRONMENT=battle-1` loads `appsettings.battle-1.json` from the
+  application content root in package-style deployments;
+- Agar compose expresses data, gateway, and battle topology without
+  node-specific `appsettings.*.json` files.

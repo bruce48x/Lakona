@@ -235,12 +235,66 @@ function Write-OverrideComposeFile {
     New-Item -ItemType Directory -Force -Path $artifactRoot | Out-Null
     @"
 services:
+  data-1:
+    container_name: lakona-agar-three-node-test-data-1
+    environment:
+      Lakona__Cluster__Endpoint: tcp://10.10.0.1:21001
+      Lakona__Cluster__Seeds: '["tcp://10.10.0.1:21001"]'
+    networks:
+      agar-cluster:
+        ipv4_address: 10.10.0.1
   gateway-1:
+    container_name: lakona-agar-three-node-test-gateway-1
     environment:
-      Lakona__Endpoints__0__AdvertisedHost: "127.0.0.1"
+      Lakona__Endpoints: >-
+        [
+          {
+            "Transport": "websocket",
+            "Serializer": "memorypack",
+            "Host": "0.0.0.0",
+            "AdvertisedHost": "127.0.0.1",
+            "Port": 20000,
+            "Path": "/ws",
+            "RpcServices": [ "login", "player" ]
+          }
+        ]
+      Lakona__Cluster__Endpoint: tcp://10.10.0.2:21002
+      Lakona__Cluster__Seeds: '["tcp://10.10.0.1:21001"]'
+    networks:
+      agar-cluster:
+        ipv4_address: 10.10.0.2
   battle-1:
+    container_name: lakona-agar-three-node-test-battle-1
     environment:
-      Lakona__Endpoints__0__AdvertisedHost: "127.0.0.1"
+      Lakona__Endpoints: >-
+        [
+          {
+            "Transport": "kcp",
+            "Serializer": "memorypack",
+            "Host": "0.0.0.0",
+            "AdvertisedHost": "127.0.0.1",
+            "Port": 20001,
+            "RpcServices": [ "battle" ]
+          }
+        ]
+      Lakona__Cluster__Endpoint: tcp://10.10.0.3:21003
+      Lakona__Cluster__Seeds: '["tcp://10.10.0.1:21001"]'
+    networks:
+      agar-cluster:
+        ipv4_address: 10.10.0.3
+  postgres:
+    container_name: lakona-agar-three-node-test-postgres
+    ports: !reset []
+  redis:
+    container_name: lakona-agar-three-node-test-redis
+    ports: !reset []
+networks:
+  agar-cluster:
+    ipam:
+      config:
+        - subnet: 10.10.0.0/24
+          gateway: 10.10.0.254
+          ip_range: 10.10.0.128/25
 "@ | Set-Content -LiteralPath $overrideFile -Encoding UTF8
 }
 
@@ -329,6 +383,91 @@ function Test-TcpPort {
     }
     finally {
         $client.Dispose()
+    }
+}
+
+function Test-TcpPortFree {
+    param([int]$Port)
+    $listener = $null
+    try {
+        $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, $Port)
+        $listener.Start()
+        return $true
+    }
+    catch {
+        return $false
+    }
+    finally {
+        if ($null -ne $listener) {
+            $listener.Stop()
+        }
+    }
+}
+
+function Test-UdpPortFree {
+    param([int]$Port)
+    $client = $null
+    try {
+        $client = [System.Net.Sockets.UdpClient]::new($Port)
+        return $true
+    }
+    catch {
+        return $false
+    }
+    finally {
+        if ($null -ne $client) {
+            $client.Dispose()
+        }
+    }
+}
+
+function Get-DockerPublishedPortOwner {
+    param(
+        [int]$Port,
+        [string]$Protocol
+    )
+
+    $containers = & docker ps --format "{{.Names}}|{{.Ports}}" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        return ""
+    }
+
+    foreach ($container in $containers) {
+        $parts = $container -split "\|", 2
+        if ($parts.Count -ne 2) {
+            continue
+        }
+
+        $ports = $parts[1]
+        if ($ports.Contains(":$Port->", [StringComparison]::Ordinal) -and
+            $ports.Contains("/$Protocol", [StringComparison]::OrdinalIgnoreCase)) {
+            return $parts[0]
+        }
+    }
+
+    return ""
+}
+
+function Test-DockerPublishedPortFree {
+    param(
+        [int]$Port,
+        [string]$Protocol
+    )
+
+    return [string]::IsNullOrWhiteSpace((Get-DockerPublishedPortOwner $Port $Protocol))
+}
+
+function Assert-RequiredPortsFree {
+    $gatewayOwner = Get-DockerPublishedPortOwner 20000 "tcp"
+    if (-not (Test-TcpPortFree 20000) -or -not (Test-DockerPublishedPortFree 20000 "tcp")) {
+        $suffix = [string]::IsNullOrWhiteSpace($gatewayOwner) ? "" : " Docker container '$gatewayOwner' publishes this port."
+        throw "Port 20000/tcp is already in use.$suffix Stop the existing Agar gateway or run the script on a host with that port free."
+    }
+
+    $battleOwner = Get-DockerPublishedPortOwner 20001 "udp"
+    if (-not (Test-UdpPortFree 20001) -or -not (Test-DockerPublishedPortFree 20001 "udp")) {
+        $suffix = [string]::IsNullOrWhiteSpace($battleOwner) ? "" : " Docker container '$battleOwner' publishes this port."
+        throw "Port 20001/udp is already in use.$suffix Stop the existing Agar battle node or run the script on a host with that port free."
     }
 }
 
@@ -451,6 +590,8 @@ try {
     if (-not (Test-Path -LiteralPath $clientRoot)) {
         throw "Unity client project was not found: $clientRoot"
     }
+
+    Assert-RequiredPortsFree
 
     $script:deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
 

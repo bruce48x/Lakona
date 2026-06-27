@@ -102,47 +102,42 @@ public sealed class ZeroTemplateServerShapeTests
     [Fact]
     public void Data_node_does_not_enable_database_as_application_feature()
     {
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(
-            ServerApp,
-            "appsettings.data-1.json")));
+        var compose = File.ReadAllText(Path.Combine(
+            Root,
+            "samples",
+            "Game.Unity.Agar",
+            "docker-compose.yml"));
+        var data = ExtractComposeService(compose, "data-1");
 
-        var lakona = document.RootElement.GetProperty("Lakona");
-        var features = lakona.GetProperty("Feature")
-            .EnumerateArray()
-            .Select(item => item.GetString())
-            .ToArray();
-
-        Assert.DoesNotContain("database", features);
-        Assert.Contains("state-store", features);
-        Assert.Contains("matchmaking", features);
-        Assert.Contains("leaderboard", features);
+        Assert.DoesNotContain("database", data, StringComparison.Ordinal);
+        Assert.Contains("Lakona__Feature: '[\"state-store\",\"matchmaking\",\"leaderboard\"]'", data, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona__Feature__", data, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Data_node_splits_cluster_directory_from_agar_persistence()
     {
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(
-            ServerApp,
-            "appsettings.data-1.json")));
+        var compose = File.ReadAllText(Path.Combine(
+            Root,
+            "samples",
+            "Game.Unity.Agar",
+            "docker-compose.yml"));
+        var data = ExtractComposeService(compose, "data-1");
 
-        var root = document.RootElement;
-        Assert.True(root.GetProperty("ConnectionStrings").TryGetProperty("LakonaClusterPostgres", out _));
-        Assert.True(root.GetProperty("ConnectionStrings").TryGetProperty("AgarGamePostgres", out _));
+        Assert.Contains("ConnectionStrings__LakonaClusterPostgres:", data, StringComparison.Ordinal);
+        Assert.Contains("ConnectionStrings__AgarGamePostgres:", data, StringComparison.Ordinal);
+        Assert.Contains("Lakona__Cluster__Directory__Provider: postgres", data, StringComparison.Ordinal);
+        Assert.Contains("Lakona__Cluster__Directory__ConnectionStringName: LakonaClusterPostgres", data, StringComparison.Ordinal);
+        Assert.Contains("Lakona__Cluster__Directory__NodeTable: lakona_cluster_nodes", data, StringComparison.Ordinal);
+        Assert.Contains("Agar__Persistence__Provider: postgres", data, StringComparison.Ordinal);
+        Assert.Contains("Agar__Persistence__ConnectionStringName: AgarGamePostgres", data, StringComparison.Ordinal);
+        Assert.DoesNotContain("Agar__Database", data, StringComparison.Ordinal);
+    }
 
-        var directory = root
-            .GetProperty("Lakona")
-            .GetProperty("Cluster")
-            .GetProperty("Directory");
-        Assert.Equal("postgres", directory.GetProperty("Provider").GetString());
-        Assert.Equal("LakonaClusterPostgres", directory.GetProperty("ConnectionStringName").GetString());
-        Assert.Equal("lakona_cluster_nodes", directory.GetProperty("NodeTable").GetString());
-
-        var persistence = root
-            .GetProperty("Agar")
-            .GetProperty("Persistence");
-        Assert.Equal("postgres", persistence.GetProperty("Provider").GetString());
-        Assert.Equal("AgarGamePostgres", persistence.GetProperty("ConnectionStringName").GetString());
-        Assert.False(root.TryGetProperty("Agar:" + "Database", out _));
+    [Fact]
+    public void ServerApp_does_not_keep_node_specific_appsettings_files()
+    {
+        Assert.Empty(Directory.GetFiles(ServerApp, "appsettings.*.json"));
     }
 
     private static string FindRepoRoot()
@@ -159,5 +154,35 @@ public sealed class ZeroTemplateServerShapeTests
         }
 
         throw new InvalidOperationException("Could not find repository root from test base directory.");
+    }
+
+    private static string ExtractComposeService(string compose, string serviceName)
+    {
+        var marker = $"  {serviceName}:";
+        var start = compose.IndexOf(marker, StringComparison.Ordinal);
+        if (start < 0)
+        {
+            throw new InvalidOperationException($"Could not find compose service '{serviceName}'.");
+        }
+
+        var next = compose.IndexOf("\n  ", start + marker.Length, StringComparison.Ordinal);
+        while (next >= 0)
+        {
+            var lineEnd = compose.IndexOf('\n', next + 1);
+            var line = lineEnd >= 0
+                ? compose.Substring(next + 1, lineEnd - next - 1)
+                : compose[(next + 1)..];
+            if (!line.StartsWith("  ", StringComparison.Ordinal) || line.StartsWith("    ", StringComparison.Ordinal))
+            {
+                next = compose.IndexOf("\n  ", next + 1, StringComparison.Ordinal);
+                continue;
+            }
+
+            break;
+        }
+
+        return next < 0
+            ? compose[start..]
+            : compose[start..next];
     }
 }

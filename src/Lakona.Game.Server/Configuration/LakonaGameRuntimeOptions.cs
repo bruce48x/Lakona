@@ -1,9 +1,15 @@
+using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 
 namespace Lakona.Game.Server.Configuration;
 
 public sealed class LakonaGameRuntimeOptions
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     public LakonaGameNodeOptions Node { get; init; } = new();
     public IReadOnlyList<LakonaGameEndpointOptions> Endpoints { get; init; } = [];
     public IReadOnlyList<string>? Feature { get; init; }
@@ -95,8 +101,13 @@ public sealed class LakonaGameRuntimeOptions
         return LakonaGameNodeOptions.FromConfiguration(section);
     }
 
-    private static IReadOnlyList<LakonaGameEndpointOptions> BindEndpoints(IConfiguration section)
+    private static IReadOnlyList<LakonaGameEndpointOptions> BindEndpoints(IConfigurationSection section)
     {
+        if (TryReadJsonValue(section, out var json))
+        {
+            return ParseJsonArray<LakonaGameEndpointOptions>(section.Path, json);
+        }
+
         return section
             .GetChildren()
             .Select(endpoint => new LakonaGameEndpointOptions
@@ -122,6 +133,11 @@ public sealed class LakonaGameRuntimeOptions
         if (values.Length > 0)
         {
             return values;
+        }
+
+        if (TryReadJsonValue(section, out var json))
+        {
+            return ParseJsonArray<string>(section.Path, json);
         }
 
         return section.Value is null ? null : Array.Empty<string>();
@@ -154,12 +170,46 @@ public sealed class LakonaGameRuntimeOptions
         };
     }
 
-    private static IReadOnlyList<string> BindStringArray(IConfiguration section)
+    private static IReadOnlyList<string> BindStringArray(IConfigurationSection section)
     {
+        if (TryReadJsonValue(section, out var json))
+        {
+            return ParseJsonArray<string>(section.Path, json);
+        }
+
         return section
             .GetChildren()
             .Select(child => child.Value ?? "")
             .ToArray();
+    }
+
+    private static bool TryReadJsonValue(IConfigurationSection section, out string json)
+    {
+        var value = section.Value;
+        if (!string.IsNullOrWhiteSpace(value)
+            && value.TrimStart().StartsWith("[", StringComparison.Ordinal))
+        {
+            json = value;
+            return true;
+        }
+
+        json = "";
+        return false;
+    }
+
+    private static IReadOnlyList<T> ParseJsonArray<T>(string path, string json)
+    {
+        try
+        {
+            var values = JsonSerializer.Deserialize<T[]>(json, JsonOptions);
+            return values ?? [];
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidOperationException(
+                $"{path} must be a valid JSON array when configured as a string value.",
+                ex);
+        }
     }
 
     private static int ReadInt(string? value)

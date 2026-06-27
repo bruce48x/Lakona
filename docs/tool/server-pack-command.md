@@ -219,6 +219,30 @@ lakona-tool server pack --runtime win-x64 --configuration Release
 `Debug` is still useful for staging, QA, symbol-rich troubleshooting, and local
 package inspection.
 
+Runtime configuration follows the default .NET host provider order. Operators
+select a node-specific package configuration file with `DOTNET_ENVIRONMENT`:
+
+```bash
+DOTNET_ENVIRONMENT=battle-1 ./Server.App
+```
+
+or:
+
+```bash
+DOTNET_ENVIRONMENT=battle-1 dotnet Server.App.dll
+```
+
+The extracted package directory is the application content root. When
+`DOTNET_ENVIRONMENT=battle-1`, the server reads `appsettings.json`, then
+`appsettings.battle-1.json` from that directory, then environment variables,
+then command-line arguments. Environment variables remain the right place for
+secrets and host-specific overrides.
+
+`server pack` does not require node-specific appsettings files. Deployment
+automation may add or replace `appsettings.{Environment}.json` beside
+`Server.App.dll` after extraction, or the project may include those files in
+publish output when that is an explicit deployment choice.
+
 ## Error Handling
 
 Fail with actionable CLI errors when:

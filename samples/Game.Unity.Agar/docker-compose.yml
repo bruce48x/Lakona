@@ -8,6 +8,17 @@ services:
     restart: unless-stopped
     environment:
       DOTNET_ENVIRONMENT: data-1
+      Lakona__Node__Id: data-1
+      Lakona__Feature: '["state-store","matchmaking","leaderboard"]'
+      Lakona__Cluster__Endpoint: tcp://10.0.0.1:21001
+      Lakona__Cluster__Serializer: memorypack
+      Lakona__Cluster__Seeds: '["tcp://10.0.0.1:21001"]'
+      Lakona__Cluster__Directory__Provider: postgres
+      Lakona__Cluster__Directory__ConnectionStringName: LakonaClusterPostgres
+      Lakona__Cluster__Directory__NodeTable: lakona_cluster_nodes
+      Lakona__Cluster__Directory__EnsureSchemaOnStartup: false
+      Agar__Persistence__Provider: postgres
+      Agar__Persistence__ConnectionStringName: AgarGamePostgres
       ConnectionStrings__LakonaClusterPostgres: Host=postgres;Port=5432;Database=${LAKONA_CLUSTER_POSTGRES_DB:-lakona-game};Username=${LAKONA_CLUSTER_POSTGRES_USER:-lakona-game};Password=${LAKONA_CLUSTER_POSTGRES_PASSWORD:-lakona-game_dev_password}
       ConnectionStrings__AgarGamePostgres: Host=postgres;Port=5432;Database=${AGAR_POSTGRES_DB:-agar-game};Username=${AGAR_POSTGRES_USER:-agar};Password=${AGAR_POSTGRES_PASSWORD:-agar_dev_password}
     depends_on:
@@ -28,6 +39,23 @@ services:
     restart: unless-stopped
     environment:
       DOTNET_ENVIRONMENT: gateway-1
+      Lakona__Node__Id: gateway-1
+      Lakona__Feature: '[]'
+      Lakona__Endpoints: >-
+        [
+          {
+            "Transport": "websocket",
+            "Serializer": "memorypack",
+            "Host": "0.0.0.0",
+            "AdvertisedHost": "gateway-1",
+            "Port": 20000,
+            "Path": "/ws",
+            "RpcServices": [ "login", "player" ]
+          }
+        ]
+      Lakona__Cluster__Endpoint: tcp://10.0.0.2:21002
+      Lakona__Cluster__Serializer: memorypack
+      Lakona__Cluster__Seeds: '["tcp://10.0.0.1:21001"]'
     depends_on:
       data-1:
         condition: service_started
@@ -46,6 +74,22 @@ services:
     restart: unless-stopped
     environment:
       DOTNET_ENVIRONMENT: battle-1
+      Lakona__Node__Id: battle-1
+      Lakona__Feature: '["battle-runtime"]'
+      Lakona__Endpoints: >-
+        [
+          {
+            "Transport": "kcp",
+            "Serializer": "memorypack",
+            "Host": "0.0.0.0",
+            "AdvertisedHost": "battle-1",
+            "Port": 20001,
+            "RpcServices": [ "battle" ]
+          }
+        ]
+      Lakona__Cluster__Endpoint: tcp://10.0.0.3:21003
+      Lakona__Cluster__Serializer: memorypack
+      Lakona__Cluster__Seeds: '["tcp://10.0.0.1:21001"]'
     depends_on:
       data-1:
         condition: service_started
