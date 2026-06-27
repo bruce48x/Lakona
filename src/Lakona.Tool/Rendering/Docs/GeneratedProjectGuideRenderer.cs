@@ -112,7 +112,7 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 
         ```csharp
         var rooms = call.Services.GetRequiredService<ChatRoomActors>();
-        var reply = await rooms.Get("global").LoginAsync(request, ct);
+        var reply = await rooms.Get(ChatRoomIds.Global).LoginAsync(request, ct);
         ```
 
         Use generated typed actor selectors when business code should express

@@ -11,8 +11,6 @@ namespace Server.Hotfix.Login
     [HotfixService(typeof(ILoginService))]
     internal sealed class LoginService
     {
-        private const string RoomKey = "global";
-
         public static async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, ILoginCallback> call)
         {
             var playerName = string.IsNullOrWhiteSpace(call.Request.PlayerName)
@@ -20,7 +18,7 @@ namespace Server.Hotfix.Login
                 : call.Request.PlayerName.Trim();
             var rooms = call.Services.GetRequiredService<ChatRoomActors>();
             var reply = await rooms
-                .Get(RoomKey)
+                .Get(ChatRoomIds.Global)
                 .LoginAsync(new ChatRoomLoginRequest
                 {
                     ConnectionId = call.ConnectionId,

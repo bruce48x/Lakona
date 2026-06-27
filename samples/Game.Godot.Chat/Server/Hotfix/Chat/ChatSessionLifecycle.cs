@@ -8,8 +8,6 @@ namespace Server.Hotfix.Chat
     [HotfixLifecycle(typeof(IGameSessionLifecycle))]
     internal sealed class ChatSessionLifecycle
     {
-        private const string RoomKey = "global";
-
         public static ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
         {
             return default;
@@ -24,7 +22,7 @@ namespace Server.Hotfix.Chat
             }
             var rooms = call.Services.GetRequiredService<ChatRoomActors>();
             await rooms
-                .Get(RoomKey)
+                .Get(ChatRoomIds.Global)
                 .LeaveAsync(new ChatRoomLeaveRequest
                 {
                     ConnectionId = connectionId

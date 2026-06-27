@@ -147,7 +147,7 @@ public sealed class ToolArchitectureScanTests
             Assert.Contains("RPC services that target actors whose", generatedText, StringComparison.Ordinal);
             Assert.Contains("[HotfixActorContract(typeof(ChatRoomActor))]", generatedText, StringComparison.Ordinal);
             Assert.Contains("call.Services.GetRequiredService<ChatRoomActors>()", generatedText, StringComparison.Ordinal);
-            Assert.Contains(".Get(RoomKey)", generatedText, StringComparison.Ordinal);
+            Assert.Contains(".Get(ChatRoomIds.Global)", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("call.Actors is node-local", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("var starterNodeLocalActors = call.Actors;", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("starterNodeLocalActors.AskAsync", generatedText, StringComparison.Ordinal);
@@ -174,7 +174,7 @@ public sealed class ToolArchitectureScanTests
             Assert.DoesNotContain("AddLakonaGameSessionHotfixLifecycle", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("UseGeneratedHotfixServices", generatedText, StringComparison.Ordinal);
             Assert.Contains("[HotfixFeature(\"chat\")]", generatedText, StringComparison.Ordinal);
-            Assert.Contains("context.EnsureLocalActor<ChatRoomActor>(\"chat-room/global\");", generatedText, StringComparison.Ordinal);
+            Assert.Contains("context.EnsureLocalActor<ChatRoomActor>(ChatRoomIds.Global);", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("CreateLocalAsync<ChatRoomActor>", generatedText, StringComparison.Ordinal);
             Assert.Contains("ChatSessionLifecycle", generatedText, StringComparison.Ordinal);
             Assert.Contains("[HotfixLifecycle(typeof(IGameSessionLifecycle))]", generatedText, StringComparison.Ordinal);
@@ -271,9 +271,9 @@ public sealed class ToolArchitectureScanTests
 
         Assert.Contains("await call.GameServer.BindCurrentSessionAsync", chatService, StringComparison.Ordinal);
         Assert.Contains("call.Services.GetRequiredService<ChatRoomActors>()", chatService, StringComparison.Ordinal);
-        Assert.Contains(".Get(RoomKey)", chatService, StringComparison.Ordinal);
+        Assert.Contains(".Get(ChatRoomIds.Global)", chatService, StringComparison.Ordinal);
         Assert.Contains("call.Services.GetRequiredService<ChatRoomActors>()", loginService, StringComparison.Ordinal);
-        Assert.Contains(".Get(RoomKey)", loginService, StringComparison.Ordinal);
+        Assert.Contains(".Get(ChatRoomIds.Global)", loginService, StringComparison.Ordinal);
         Assert.Contains(".LoginAsync(new ChatRoomLoginRequest", loginService, StringComparison.Ordinal);
         Assert.Contains("call.GameServer.StartSessionAsync", loginService, StringComparison.Ordinal);
         Assert.DoesNotContain("var starterNodeLocalActors = call.Actors;", chatService, StringComparison.Ordinal);
@@ -314,7 +314,7 @@ public sealed class ToolArchitectureScanTests
         Assert.DoesNotContain("AddLakonaGameSessionHotfixLifecycle", appText, StringComparison.Ordinal);
         Assert.DoesNotContain("UseGeneratedHotfixServices", appText, StringComparison.Ordinal);
         Assert.Contains("[HotfixFeature(\"chat\")]", hotfixText, StringComparison.Ordinal);
-        Assert.Contains("context.EnsureLocalActor<ChatRoomActor>(\"chat-room/global\");", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("context.EnsureLocalActor<ChatRoomActor>(ChatRoomIds.Global);", hotfixText, StringComparison.Ordinal);
         Assert.Contains("ChatSessionLifecycle", hotfixText, StringComparison.Ordinal);
         Assert.Contains("[HotfixLifecycle(typeof(IGameSessionLifecycle))]", hotfixText, StringComparison.Ordinal);
         Assert.Contains("new ChatRoomLeaveRequest", hotfixText, StringComparison.Ordinal);
@@ -328,6 +328,36 @@ public sealed class ToolArchitectureScanTests
         Assert.DoesNotContain("callbacks.Add", loginClient, StringComparison.Ordinal);
         Assert.DoesNotContain("HandshakeAsync", loginClient, StringComparison.Ordinal);
         Assert.DoesNotContain("public RpcClient RpcClient", loginClient, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GeneratedAndSampleChatRoomsUseSingleGlobalActorId()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var parentRoot = Path.Combine(Path.GetTempPath(), "lakona-tool-chat-room-id-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(parentRoot);
+        try
+        {
+            var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+                "MyGame",
+                parentRoot,
+                ClientEngine.Godot,
+                TransportKind.WebSocket,
+                SerializerKind.Json,
+                PersistenceKind.None,
+                NuGetForUnitySource.OpenUpm,
+                DeploymentProfile.None));
+            var generator = CreateGenerator();
+
+            var result = await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
+
+            AssertChatRoomIdContract(spec.Layout.RootPath);
+            AssertChatRoomIdContract(Path.Combine(repositoryRoot, "samples", "Game.Godot.Chat"));
+        }
+        finally
+        {
+            Directory.Delete(parentRoot, recursive: true);
+        }
     }
 
     [Fact]
@@ -511,6 +541,18 @@ public sealed class ToolArchitectureScanTests
     {
         var extension = Path.GetExtension(path);
         return extension is ".cs" or ".csproj" or ".json" or ".md" or ".slnx" or ".props" or ".asmdef" or ".config" or ".tscn" or ".tres" or ".xml" or ".txt";
+    }
+
+    private static void AssertChatRoomIdContract(string projectRoot)
+    {
+        var appChat = ReadAllTextFiles(Path.Combine(projectRoot, "Server", "App", "Chat"));
+        var hotfixChat = ReadAllTextFiles(Path.Combine(projectRoot, "Server", "Hotfix"));
+
+        Assert.Contains("public const string Global = \"chat-room/global\";", appChat, StringComparison.Ordinal);
+        Assert.Contains("context.EnsureLocalActor<ChatRoomActor>(ChatRoomIds.Global);", hotfixChat, StringComparison.Ordinal);
+        Assert.Contains(".Get(ChatRoomIds.Global)", hotfixChat, StringComparison.Ordinal);
+        Assert.DoesNotContain("private const string RoomKey", hotfixChat, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Get(\"global\")", hotfixChat, StringComparison.Ordinal);
     }
 
     private static void AssertBefore(string text, string expectedBefore, string expectedAfter)

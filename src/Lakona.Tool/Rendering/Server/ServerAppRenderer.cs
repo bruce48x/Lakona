@@ -141,6 +141,11 @@ internal sealed class ServerAppRenderer : IPlanContributor
 
         namespace Server.App.Chat
         {
+            public static class ChatRoomIds
+            {
+                public const string Global = "chat-room/global";
+            }
+
             [HotfixActorContract(typeof(ChatRoomActor))]
             public interface IChatRoomActorContract
             {

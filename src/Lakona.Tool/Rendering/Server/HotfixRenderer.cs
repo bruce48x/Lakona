@@ -77,8 +77,6 @@ internal sealed class HotfixRenderer : IPlanContributor
             [HotfixService(typeof(ILoginService))]
             internal sealed class LoginService
             {
-                private const string RoomKey = "global";
-
                 public static async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, ILoginCallback> call)
                 {
                     var playerName = string.IsNullOrWhiteSpace(call.Request.PlayerName)
@@ -86,7 +84,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                         : call.Request.PlayerName.Trim();
                     var rooms = call.Services.GetRequiredService<ChatRoomActors>();
                     var reply = await rooms
-                        .Get(RoomKey)
+                        .Get(ChatRoomIds.Global)
                         .LoginAsync(new ChatRoomLoginRequest
                         {
                             ConnectionId = call.ConnectionId,
@@ -119,8 +117,6 @@ internal sealed class HotfixRenderer : IPlanContributor
             [HotfixService(typeof(IChatService))]
             internal sealed class ChatService
             {
-                private const string RoomKey = "global";
-
                 public static async ValueTask BindAsync(HotfixServiceCall<ChatBindRequest, IChatCallback> call)
                 {
                     await call.GameServer.BindCurrentSessionAsync(
@@ -128,7 +124,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                         call.Callback);
                     var rooms = call.Services.GetRequiredService<ChatRoomActors>();
                     await rooms
-                        .Get(RoomKey)
+                        .Get(ChatRoomIds.Global)
                         .BindChatAsync(new ChatRoomBindRequest
                         {
                             ConnectionId = call.ConnectionId,
@@ -140,7 +136,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                 {
                     var rooms = call.Services.GetRequiredService<ChatRoomActors>();
                     await rooms
-                        .Get(RoomKey)
+                        .Get(ChatRoomIds.Global)
                         .BindChatAsync(new ChatRoomBindRequest
                         {
                             ConnectionId = call.ConnectionId,
@@ -148,7 +144,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                         });
                     var text = FilterMessage(call.Request.Text ?? "");
                     await rooms
-                        .Get(RoomKey)
+                        .Get(ChatRoomIds.Global)
                         .SendAsync(new ChatRoomSendRequest
                         {
                             ConnectionId = call.ConnectionId,
@@ -311,7 +307,7 @@ internal sealed class HotfixRenderer : IPlanContributor
             {
                 public override void Configure(HotfixFeatureContext context)
                 {
-                    context.EnsureLocalActor<ChatRoomActor>("chat-room/global");
+                    context.EnsureLocalActor<ChatRoomActor>(ChatRoomIds.Global);
                 }
             }
         }
@@ -331,8 +327,6 @@ internal sealed class HotfixRenderer : IPlanContributor
             [HotfixLifecycle(typeof(IGameSessionLifecycle))]
             internal sealed class ChatSessionLifecycle
             {
-                private const string RoomKey = "global";
-
                 public static ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
                 {
                     return default;
@@ -347,7 +341,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                     }
                     var rooms = call.Services.GetRequiredService<ChatRoomActors>();
                     await rooms
-                        .Get(RoomKey)
+                        .Get(ChatRoomIds.Global)
                         .LeaveAsync(new ChatRoomLeaveRequest
                         {
                             ConnectionId = connectionId

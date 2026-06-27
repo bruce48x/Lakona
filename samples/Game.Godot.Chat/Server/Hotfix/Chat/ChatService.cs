@@ -10,8 +10,6 @@ namespace Server.Hotfix.Chat
     [HotfixService(typeof(IChatService))]
     internal sealed class ChatService
     {
-        private const string RoomKey = "global";
-
         public static async ValueTask BindAsync(HotfixServiceCall<ChatBindRequest, IChatCallback> call)
         {
             await call.GameServer.BindCurrentSessionAsync(
@@ -19,7 +17,7 @@ namespace Server.Hotfix.Chat
                 call.Callback);
             var rooms = call.Services.GetRequiredService<ChatRoomActors>();
             await rooms
-                .Get(RoomKey)
+                .Get(ChatRoomIds.Global)
                 .BindChatAsync(new ChatRoomBindRequest
                 {
                     ConnectionId = call.ConnectionId,
@@ -31,7 +29,7 @@ namespace Server.Hotfix.Chat
         {
             var rooms = call.Services.GetRequiredService<ChatRoomActors>();
             await rooms
-                .Get(RoomKey)
+                .Get(ChatRoomIds.Global)
                 .BindChatAsync(new ChatRoomBindRequest
                 {
                     ConnectionId = call.ConnectionId,
@@ -39,7 +37,7 @@ namespace Server.Hotfix.Chat
                 });
             var text = FilterMessage(call.Request.Text ?? "");
             await rooms
-                .Get(RoomKey)
+                .Get(ChatRoomIds.Global)
                 .SendAsync(new ChatRoomSendRequest
                 {
                     ConnectionId = call.ConnectionId,

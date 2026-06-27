@@ -8,7 +8,7 @@ namespace Server.Hotfix.Features
     {
         public override void Configure(HotfixFeatureContext context)
         {
-            context.EnsureLocalActor<ChatRoomActor>("chat-room/global");
+            context.EnsureLocalActor<ChatRoomActor>(ChatRoomIds.Global);
         }
     }
 }
