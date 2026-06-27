@@ -20,6 +20,14 @@ namespace Lakona.Game.Server.Hotfix.Generators
         private const string RpcMethodAttributeName = "Lakona.Rpc.Core.RpcMethodAttribute";
         private const string DefaultGeneratedServerNamespace = "Server.App.Generated";
 
+        private static readonly DiagnosticDescriptor FileLocalHotfixBehaviorNotSupported = new DiagnosticDescriptor(
+            "ULGHOTFIX021",
+            "File-local hotfix behavior is not supported",
+            "Hotfix behavior '{0}' cannot be file-local because generated actor ref wrappers are emitted into a separate source file",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
             var states = context.SyntaxProvider
@@ -198,11 +206,33 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     continue;
                 }
 
+                if (IsFileLocalBehavior(behaviors[0]))
+                {
+                    var location = behaviors[0].Behavior.Locations.FirstOrDefault(static item => item.IsInSource);
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        FileLocalHotfixBehaviorNotSupported,
+                        location,
+                        behaviors[0].Behavior.ToDisplayString()));
+                    continue;
+                }
+
                 var contract = MergeActorContracts(actorGroup.ToArray());
                 context.AddSource(
                     CreateActorWrapperHintName(behaviors[0].Behavior),
                     SourceText.From(GenerateActorWrapperSource(contract, behaviors[0]), Encoding.UTF8));
             }
+        }
+
+        private static bool IsFileLocalBehavior(HotfixBehaviorInfo behavior)
+        {
+            return HasFileModifier(behavior.Declaration) ||
+                behavior.ContainingTypes.Any(static containingType => HasFileModifier(containingType.Declaration));
+        }
+
+        private static bool HasFileModifier(TypeDeclarationSyntax declaration)
+        {
+            return declaration.Modifiers.Any(static modifier =>
+                string.Equals(modifier.ValueText, "file", System.StringComparison.Ordinal));
         }
 
         private static string GenerateActorWrapperSource(HotfixActorContractInfo contract, HotfixBehaviorInfo behavior)
@@ -2391,7 +2421,23 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
         private static string GetAccessibility(INamedTypeSymbol symbol)
         {
-            return symbol.DeclaredAccessibility == Accessibility.Public ? "public" : "internal";
+            switch (symbol.DeclaredAccessibility)
+            {
+                case Accessibility.Public:
+                    return "public";
+                case Accessibility.Internal:
+                    return "internal";
+                case Accessibility.Private:
+                    return "private";
+                case Accessibility.Protected:
+                    return "protected";
+                case Accessibility.ProtectedOrInternal:
+                    return "protected internal";
+                case Accessibility.ProtectedAndInternal:
+                    return "private protected";
+                default:
+                    return "internal";
+            }
         }
 
         private static string LowerFirst(string value)

@@ -289,6 +289,101 @@ public sealed class HotfixGeneratorTests
         Assert.DoesNotContain("this global::Game.Server.UserRef self", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Generator_preserves_private_nested_behavior_accessibility_for_actor_ref_extensions()
+    {
+        var appSource = """
+            using System.Runtime.CompilerServices;
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            [assembly: InternalsVisibleTo("Game.Hotfix")]
+
+            namespace Game.Server;
+
+            public readonly record struct UserId(string Value);
+            public sealed class PingRequest { }
+            public sealed class UserActor : Actor<UserId> { }
+
+            [HotfixActorContract(typeof(UserActor))]
+            public interface IUserActorContract
+            {
+                ValueTask PingAsync(PingRequest request);
+            }
+            """;
+
+        var hotfixSource = """
+            using System.Threading.Tasks;
+            using Game.Server;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Hotfix.Users;
+
+            public partial class UserFeature
+            {
+                [HotfixBehaviorOf(typeof(UserActor))]
+                private static partial class UserBehavior
+                {
+                }
+            }
+            """;
+
+        var result = GeneratorTestHost.RunWithGeneratedAppReference(appSource, hotfixSource, appAssemblyName: "Game.Server", hotfixAssemblyName: "Game.Hotfix");
+
+        Assert.Contains("public partial class UserFeature", result.Hotfix.GeneratedSource);
+        Assert.Contains("private static partial class UserBehavior", result.Hotfix.GeneratedSource);
+        Assert.DoesNotContain("internal static partial class UserBehavior", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("this global::Game.Server.UserRef self", result.Hotfix.GeneratedSource);
+    }
+
+    [Fact]
+    public void Generator_reports_file_local_hotfix_behavior_without_generating_actor_ref_extensions()
+    {
+        var appSource = """
+            using System.Runtime.CompilerServices;
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            [assembly: InternalsVisibleTo("Game.Hotfix")]
+
+            namespace Game.Server;
+
+            public readonly record struct UserId(string Value);
+            public sealed class PingRequest { }
+            public sealed class UserActor : Actor<UserId> { }
+
+            [HotfixActorContract(typeof(UserActor))]
+            public interface IUserActorContract
+            {
+                ValueTask PingAsync(PingRequest request);
+            }
+            """;
+
+        var hotfixSource = """
+            using System.Threading.Tasks;
+            using Game.Server;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Hotfix.Users;
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            file static partial class UserBehavior
+            {
+                public static ValueTask PingAsync(this UserActor self, PingRequest request)
+                {
+                    return default;
+                }
+            }
+            """;
+
+        var result = GeneratorTestHost.RunWithGeneratedAppReference(appSource, hotfixSource, appAssemblyName: "Game.Server", hotfixAssemblyName: "Game.Hotfix");
+
+        Assert.Contains(result.Hotfix.GeneratorDiagnostics, diagnostic => diagnostic.Id == "ULGHOTFIX021");
+        Assert.DoesNotContain("this global::Game.Server.UserRef self", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+    }
+
     private static void AssertContainsNormalized(string expected, string actual)
     {
         Assert.Contains(expected.ReplaceLineEndings("\n"), actual.ReplaceLineEndings("\n"), StringComparison.Ordinal);
