@@ -26,6 +26,7 @@ public class PublicApiBoundaryTests
         yield return [typeof(RpcHandler)];
         yield return [typeof(RpcSessionHandler)];
         yield return [typeof(RpcServiceRegistry)];
+        yield return [typeof(RpcMethodDescriptor)];
     }
 
     public static IEnumerable<object[]> HiddenRuntimeSupportMembers()

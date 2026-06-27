@@ -8,6 +8,9 @@ that consolidation.
 
 ### Changed
 
+- `Lakona.Rpc.Server` `0.13.2` and `Lakona.Rpc.Analyzers` `0.3.3`: generated
+  server binders now register RPC service and method names so handler failure
+  logs identify the business RPC, not only numeric service and method ids.
 - `Lakona.Game.Server` `0.8.14`: default hotfix loading now shares the
   framework runtime assembly with hotfix services so host services such as
   `ILakonaGameServer` resolve through the hotfix service-provider fallback.

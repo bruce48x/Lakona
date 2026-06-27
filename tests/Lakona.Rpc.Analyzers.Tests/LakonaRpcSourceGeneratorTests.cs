@@ -36,6 +36,10 @@ public sealed class LakonaRpcSourceGeneratorTests
         Assert.Contains("PingNotificationsProxy.g.cs", generatedHintNames);
         Assert.Contains("AllServicesBinder.g.cs", generatedHintNames);
 
+        var pingServiceBinder = runResult.Results.Single().GeneratedSources.Single(static source => source.HintName == "PingServiceBinder.g.cs").SourceText.ToString();
+        Assert.Contains("serviceName: \"Game.Contracts.IPingService\"", pingServiceBinder);
+        Assert.Contains("methodName: \"PingAsync\"", pingServiceBinder);
+
         var allServicesBinder = runResult.Results.Single().GeneratedSources.Single(static source => source.HintName == "AllServicesBinder.g.cs").SourceText.ToString();
         Assert.Contains("[assembly: RpcGeneratedServicesBinder(typeof(Server.Generated.AllServicesBinder))]", allServicesBinder);
 

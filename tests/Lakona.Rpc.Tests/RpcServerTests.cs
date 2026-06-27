@@ -144,6 +144,52 @@ public class RpcSessionTests
     }
 
     [Fact]
+    public async Task RegistryHandlerThrows_LogsRpcServiceAndMethodNames()
+    {
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        var serializer = new JsonRpcSerializer();
+        var logger = new TestLogger();
+        var registry = new RpcServiceRegistry();
+        registry.Register(
+            1,
+            1,
+            (session, req, ct) => throw new InvalidOperationException("diagnostic failure"),
+            serviceName: "Game.Contracts.ILoginService",
+            methodName: "LoginAsync");
+        var server = new RpcSession(
+            serverTransport,
+            serializer,
+            registry,
+            contextId: "gateway-session",
+            ownsTransport: false,
+            keepAlive: null,
+            logger: logger);
+
+        await server.StartAsync();
+        await clientTransport.ConnectAsync();
+
+        await clientTransport.SendFrameAsync(RpcEnvelopeCodec.EncodeRequest(new RpcRequestEnvelope
+        {
+            RequestId = 2,
+            ServiceId = 1,
+            MethodId = 1,
+            Payload = Array.Empty<byte>()
+        }));
+
+        using var resp = await ReceiveResponseAsync(clientTransport);
+
+        Assert.Equal(RpcStatus.HandlerError, resp.Status);
+        var entry = Assert.Single(logger.Entries, entry => entry.LogLevel == LogLevel.Error);
+        Assert.Contains("Game.Contracts.ILoginService.LoginAsync", entry.Message, StringComparison.Ordinal);
+        Assert.Contains("service 1 method 1", entry.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("gateway-session", entry.Message, StringComparison.Ordinal);
+        Assert.IsType<InvalidOperationException>(entry.Exception);
+
+        await server.StopAsync();
+        await clientTransport.DisposeAsync();
+    }
+
+    [Fact]
     public async Task StartAsync_CalledTwice_Throws()
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);

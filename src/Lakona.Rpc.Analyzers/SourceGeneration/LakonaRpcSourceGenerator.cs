@@ -1110,6 +1110,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
 
             foreach (var method in service.Methods)
             {
+                var serviceDisplayName = StripGlobalPrefix(service.FullName);
                 writer.OpenBlock($"registry.Register(ServiceId, {method.MethodId}, async (server, req, ct) =>");
                 writer.Line($"var impl = server.GetOrAddScopedService(ServiceId, implFactory);");
                 writer.Line($"var arg = server.Serializer.Deserialize<{method.PayloadType}>(req.Payload.Memory)!;");
@@ -1124,7 +1125,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
                     writer.Line("using var payloadFrame = server.Serializer.SerializeFrame(resp);");
                     writer.Line("return RpcEnvelopeCodec.EncodeResponse(req.RequestId, RpcStatus.Ok, payloadFrame.Memory);");
                 }
-                writer.CloseBlock(");");
+                writer.CloseBlock($", serviceName: \"{serviceDisplayName}\", methodName: \"{method.Name}\");");
                 writer.Line();
             }
 
@@ -1141,6 +1142,13 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             writer.CloseBlock();
             writer.CloseBlock();
             return writer.ToString();
+        }
+
+        private static string StripGlobalPrefix(string name)
+        {
+            return name.StartsWith("global::", StringComparison.Ordinal)
+                ? name.Substring("global::".Length)
+                : name;
         }
 
         public static string GenerateNotificationProxy(RpcServiceModel service, string generatedNamespace)

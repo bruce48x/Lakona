@@ -25,17 +25,61 @@ public delegate ValueTask<TransportFrame> RpcSessionHandler(RpcSession session, 
 public sealed class RpcServiceRegistry
 {
     private readonly ConcurrentDictionary<(int serviceId, int methodId), RpcSessionHandler> _handlers = new();
+    private readonly ConcurrentDictionary<(int serviceId, int methodId), RpcMethodDescriptor> _descriptors = new();
 
     public bool IsEmpty => _handlers.IsEmpty;
 
-    public void Register(int serviceId, int methodId, RpcSessionHandler handler)
+    public void Register(
+        int serviceId,
+        int methodId,
+        RpcSessionHandler handler,
+        string? serviceName = null,
+        string? methodName = null)
     {
         if (handler is null) throw new ArgumentNullException(nameof(handler));
-        _handlers[(serviceId, methodId)] = handler;
+        var key = (serviceId, methodId);
+        _handlers[key] = handler;
+        _descriptors[key] = new RpcMethodDescriptor(serviceId, methodId, serviceName, methodName);
     }
 
     public bool TryGetHandler(int serviceId, int methodId, out RpcSessionHandler handler)
     {
         return _handlers.TryGetValue((serviceId, methodId), out handler!);
+    }
+
+    public bool TryGetDescriptor(int serviceId, int methodId, out RpcMethodDescriptor descriptor)
+    {
+        return _descriptors.TryGetValue((serviceId, methodId), out descriptor!);
+    }
+}
+
+[EditorBrowsable(EditorBrowsableState.Never)]
+public sealed record RpcMethodDescriptor(
+    int ServiceId,
+    int MethodId,
+    string? ServiceName,
+    string? MethodName)
+{
+    public string DisplayName
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(ServiceName) && !string.IsNullOrWhiteSpace(MethodName))
+            {
+                return ServiceName + "." + MethodName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(ServiceName))
+            {
+                return ServiceName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(MethodName))
+            {
+                return MethodName;
+            }
+
+            return ServiceId + ":" + MethodId;
+        }
     }
 }

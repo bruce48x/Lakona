@@ -179,10 +179,14 @@ internal sealed class ServerRequestDispatcher
 
     private void LogHandlerFailure(RpcSession session, RpcRequestFrame req, Exception ex)
     {
+        var rpcMethod = _registry is not null && _registry.TryGetDescriptor(req.ServiceId, req.MethodId, out var descriptor)
+            ? descriptor.DisplayName
+            : $"{req.ServiceId}:{req.MethodId}";
         _logger.LogError(
             ex,
-            "RPC handler failed for request {RequestId} service {ServiceId} method {MethodId} in session {ContextId}.",
+            "RPC handler failed for request {RequestId} RPC {RpcMethod} service {ServiceId} method {MethodId} in session {ContextId}.",
             req.RequestId,
+            rpcMethod,
             req.ServiceId,
             req.MethodId,
             session.ContextId);
