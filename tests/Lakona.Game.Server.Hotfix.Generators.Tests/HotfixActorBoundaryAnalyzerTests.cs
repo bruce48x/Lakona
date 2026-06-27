@@ -78,6 +78,27 @@ public sealed class HotfixActorBoundaryAnalyzerTests
     }
 
     [Fact]
+    public async Task Reports_business_methods_on_generic_actor()
+    {
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+
+            public readonly record struct UserId(string Value);
+            public sealed class UserActor : Actor<UserId>
+            {
+                public Task<int> LoginAsync(string password)
+                {
+                    return Task.FromResult(1);
+                }
+            }
+            """);
+
+        var diagnostic = Assert.Single(diagnostics);
+        Assert.Equal("ULGHOTFIX011", diagnostic.Id);
+    }
+
+    [Fact]
     public async Task Reports_non_actor_hotfix_behavior_target()
     {
         var diagnostics = await AnalyzerTestHost.RunAsync("""
@@ -95,6 +116,48 @@ public sealed class HotfixActorBoundaryAnalyzerTests
 
         var diagnostic = Assert.Single(diagnostics, item => item.Id == "ULGHOTFIX017");
         Assert.Contains("ArenaSimulation", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Reports_non_generic_actor_hotfix_behavior_target()
+    {
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            public sealed class LegacyActor : Actor
+            {
+            }
+
+            [HotfixBehaviorOf(typeof(LegacyActor))]
+            public static partial class LegacyBehavior
+            {
+            }
+            """);
+
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "ULGHOTFIX017");
+        Assert.Contains("LegacyActor", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Allows_valid_hotfix_behavior_for_generic_actor()
+    {
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            public readonly record struct UserId(string Value);
+            public sealed class UserActor : Actor<UserId>
+            {
+            }
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            public static partial class UserBehavior
+            {
+            }
+            """);
+
+        Assert.Empty(diagnostics);
     }
 
     [Fact]
@@ -122,6 +185,40 @@ public sealed class HotfixActorBoundaryAnalyzerTests
 
         var diagnostic = Assert.Single(diagnostics, item => item.Id == "ULGHOTFIX018");
         Assert.Contains("UserActor", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Reports_duplicate_hotfix_behavior_without_name_mismatch()
+    {
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            public readonly record struct UserId(string Value);
+            public sealed class UserActor : Actor<UserId>
+            {
+            }
+
+            namespace First
+            {
+                [HotfixBehaviorOf(typeof(UserActor))]
+                public static partial class UserBehavior
+                {
+                }
+            }
+
+            namespace Second
+            {
+                [HotfixBehaviorOf(typeof(UserActor))]
+                public static partial class UserBehavior
+                {
+                }
+            }
+            """);
+
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "ULGHOTFIX018");
+        Assert.Contains("UserActor", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.DoesNotContain(diagnostics, item => item.Id == "ULGHOTFIX020");
     }
 
     [Fact]

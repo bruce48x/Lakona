@@ -27,24 +27,31 @@ namespace Lakona.Game.Server.Hotfix.Generators
             context.EnableConcurrentExecution();
             context.RegisterCompilationStartAction(static startContext =>
             {
+                var hotfixBehaviorOfAttribute = startContext.Compilation.GetTypeByMetadataName(HotfixBehaviorOfMetadataName);
                 var behaviorReports = new ConcurrentBag<(string ActorDisplay, INamedTypeSymbol Behavior)>();
 
                 startContext.RegisterSymbolAction(symbolContext =>
                 {
                     var type = (INamedTypeSymbol)symbolContext.Symbol;
                     AnalyzeActorType(symbolContext, type);
-                    AnalyzeBehaviorType(symbolContext, type, behaviorReports);
+                    AnalyzeBehaviorType(symbolContext, type, hotfixBehaviorOfAttribute, behaviorReports);
                 }, SymbolKind.NamedType);
 
                 startContext.RegisterCompilationEndAction(endContext =>
                 {
                     var duplicateGroups = behaviorReports
                         .GroupBy(static report => report.ActorDisplay, StringComparer.Ordinal)
+                        .OrderBy(static group => group.Key, StringComparer.Ordinal)
                         .Where(static group => group.Count() > 1);
 
                     foreach (var group in duplicateGroups)
                     {
-                        foreach (var duplicate in group.Skip(1).Select(static report => report.Behavior))
+                        var duplicates = group
+                            .OrderBy(static report => GetLocationSortKey(report.Behavior), StringComparer.Ordinal)
+                            .Skip(1)
+                            .Select(static report => report.Behavior);
+
+                        foreach (var duplicate in duplicates)
                         {
                             var location = duplicate.Locations.FirstOrDefault(static item => item.IsInSource);
                             if (location is not null)
@@ -96,10 +103,16 @@ namespace Lakona.Game.Server.Hotfix.Generators
         private static void AnalyzeBehaviorType(
             SymbolAnalysisContext context,
             INamedTypeSymbol type,
+            INamedTypeSymbol? hotfixBehaviorOfAttribute,
             ConcurrentBag<(string ActorDisplay, INamedTypeSymbol Behavior)> behaviorReports)
         {
+            if (hotfixBehaviorOfAttribute is null)
+            {
+                return;
+            }
+
             var attribute = type.GetAttributes()
-                .FirstOrDefault(static attribute => attribute.AttributeClass?.ToDisplayString() == HotfixBehaviorOfMetadataName);
+                .FirstOrDefault(attribute => SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, hotfixBehaviorOfAttribute));
             if (attribute is null ||
                 attribute.ConstructorArguments.Length != 1 ||
                 attribute.ConstructorArguments[0].Value is not INamedTypeSymbol actor)
@@ -108,7 +121,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             }
 
             var location = type.Locations.FirstOrDefault(static item => item.IsInSource);
-            if (!DerivesFromActor(actor))
+            if (!DerivesFromGenericActor(actor))
             {
                 if (location is not null)
                 {
@@ -125,7 +138,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             var actorDisplay = actor.ToDisplayString();
             behaviorReports.Add((actorDisplay, type));
 
-            if (!type.IsStatic || !IsPartial(type))
+            if (!type.IsStatic || !IsPartial(type, context.CancellationToken))
             {
                 if (location is not null)
                 {
@@ -165,6 +178,20 @@ namespace Lakona.Game.Server.Hotfix.Generators
             return false;
         }
 
+        private static bool DerivesFromGenericActor(INamedTypeSymbol type)
+        {
+            for (var current = type.BaseType; current is not null; current = current.BaseType)
+            {
+                var original = current.OriginalDefinition;
+                if (IsActorBaseType(original) && original.Arity == 1)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private static bool IsActorBaseType(INamedTypeSymbol type)
         {
             if (!string.Equals(type.Name, "Actor", StringComparison.Ordinal))
@@ -183,10 +210,10 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 StringComparison.Ordinal);
         }
 
-        private static bool IsPartial(INamedTypeSymbol type)
+        private static bool IsPartial(INamedTypeSymbol type, System.Threading.CancellationToken cancellationToken)
         {
             return type.DeclaringSyntaxReferences
-                .Select(static reference => reference.GetSyntax())
+                .Select(reference => reference.GetSyntax(cancellationToken))
                 .OfType<Microsoft.CodeAnalysis.CSharp.Syntax.TypeDeclarationSyntax>()
                 .Any(static declaration => declaration.Modifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PartialKeyword));
         }
@@ -197,6 +224,24 @@ namespace Lakona.Game.Server.Hotfix.Generators
             return actorName.EndsWith(suffix, StringComparison.Ordinal) && actorName.Length > suffix.Length
                 ? actorName.Substring(0, actorName.Length - suffix.Length)
                 : actorName;
+        }
+
+        private static string GetLocationSortKey(INamedTypeSymbol type)
+        {
+            var location = type.Locations.FirstOrDefault(static item => item.IsInSource);
+            if (location is null)
+            {
+                return type.ToDisplayString();
+            }
+
+            var lineSpan = location.GetLineSpan();
+            return string.Format(
+                System.Globalization.CultureInfo.InvariantCulture,
+                "{0}:{1:D8}:{2:D8}:{3}",
+                lineSpan.Path,
+                lineSpan.StartLinePosition.Line,
+                lineSpan.StartLinePosition.Character,
+                type.ToDisplayString());
         }
 
         private static bool IsAllowedLifecycleOverride(IMethodSymbol method)
