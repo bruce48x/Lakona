@@ -26,7 +26,6 @@ using Agar.Sample.State.Rooms;
 using Agar.Sample.State.Users;
 using Server.Hotfix.Services;
 using Server.Hotfix.State.Matchmaking;
-using Server.Hotfix.State.Sessions;
 using Server.Hotfix.State.Users;
 using System.Net;
 using System.Net.Sockets;

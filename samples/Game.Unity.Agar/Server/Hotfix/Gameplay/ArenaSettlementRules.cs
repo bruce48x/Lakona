@@ -1,14 +1,11 @@
 using Shared.Gameplay;
 using Shared.Interfaces;
-using Lakona.Game.Server.Hotfix.Abstractions;
 
 namespace Server.Hotfix.Gameplay;
 
-[FriendOf(typeof(ArenaSimulation))]
-[HotfixBehaviorOf(typeof(ArenaSimulation))]
-public static class ArenaSettlementBehavior
+internal static class ArenaSettlementRules
 {
-    public static MatchSettlementResult SettleMatch(this ArenaSimulation self, WorldState worldState)
+    public static MatchSettlementResult Settle(WorldState worldState)
     {
         var rankedPlayers = worldState.Players
             .OrderByDescending(static player => player.Mass)

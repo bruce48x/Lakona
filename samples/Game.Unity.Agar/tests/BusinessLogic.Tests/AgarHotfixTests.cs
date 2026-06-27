@@ -1,7 +1,6 @@
 using Shared.Gameplay;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Hotfix;
-using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -47,7 +46,7 @@ public sealed class AgarHotfixTests
     }
 
     [Fact]
-    public async Task SettleMatch_uses_hotfix_rule_to_award_winner_points()
+    public async Task Hotfix_reload_includes_room_behavior_settlement_rules()
     {
         var hotfixAssemblyPath = FindHotfixAssemblyPath();
         var source = new CurrentDirectoryHotfixAssemblySource(
@@ -59,101 +58,13 @@ public sealed class AgarHotfixTests
         var reload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
 
         Assert.True(reload.Succeeded, BuildReloadDiagnostics(reload));
-        var settleMatchKey = Assert.Single(
+        Assert.Contains(
             reload.Current.Methods,
-            key => key.StateTypeName == typeof(ArenaSimulation).FullName &&
-                   key.MethodName == nameof(ArenaSimulation.SettleMatch));
-        var settleMatch = HotfixDispatch.Current.Resolve(settleMatchKey);
-        Assert.Same(typeof(ArenaSimulation), settleMatch.GetParameters()[0].ParameterType);
-
-        var simulation = new ArenaSimulation(new ArenaSimulationOptions
-        {
-            EnableBots = false,
-            FoodTargetCount = 0
-        });
-        simulation.UpsertPlayer(new ArenaPlayerRegistration { PlayerId = "p1", Mass = 50 });
-        simulation.UpsertPlayer(new ArenaPlayerRegistration { PlayerId = "p2", Mass = 25 });
-
-        var settlement = simulation.SettleMatch(simulation.CreateWorldState());
-
-        Assert.Equal("p1", settlement.WinnerPlayerId);
-        Assert.Equal(10, settlement.Entries.Single(entry => entry.PlayerId == "p1").VictoryPoints);
-    }
-
-    [Fact]
-    public async Task Hotfix_reload_keeps_existing_arena_state()
-    {
-        var hotfixAssemblyPath = FindHotfixAssemblyPath();
-        var source = new CurrentDirectoryHotfixAssemblySource(
-            Path.GetDirectoryName(hotfixAssemblyPath)!,
-            Path.GetFileName(hotfixAssemblyPath));
-        await using var rootServices = TestHotfix.CreateRootServiceProvider();
-        var manager = new HotfixManager(source, HotfixSharedAssemblyNames(), rootServices: rootServices);
-
-        var firstReload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
-        Assert.True(firstReload.Succeeded, BuildReloadDiagnostics(firstReload));
-
-        var simulation = new ArenaSimulation(new ArenaSimulationOptions
-        {
-            EnableBots = false,
-            FoodTargetCount = 0
-        });
-        simulation.UpsertPlayer(new ArenaPlayerRegistration { PlayerId = "p1", Mass = 50 });
-        simulation.UpsertPlayer(new ArenaPlayerRegistration { PlayerId = "p2", Mass = 25 });
-
-        var secondReload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
-        Assert.True(secondReload.Succeeded, BuildReloadDiagnostics(secondReload));
-
-        Assert.True(simulation.TryGetPlayerSnapshot("p1", out var snapshot));
-        Assert.Equal("p1", snapshot.PlayerId);
-        Assert.Equal(50, snapshot.Mass);
-
-        var settlement = simulation.SettleMatch(simulation.CreateWorldState());
-
-        Assert.Equal("p1", settlement.WinnerPlayerId);
-        Assert.Equal(10, settlement.Entries.Single(entry => entry.PlayerId == "p1").VictoryPoints);
-        Assert.Equal(7, settlement.Entries.Single(entry => entry.PlayerId == "p2").VictoryPoints);
-    }
-
-    [Fact]
-    public async Task Hotfix_failed_reload_keeps_previous_arena_rules_and_state()
-    {
-        var hotfixAssemblyPath = FindHotfixAssemblyPath();
-        var source = new SwitchableHotfixAssemblySource(hotfixAssemblyPath);
-        await using var rootServices = TestHotfix.CreateRootServiceProvider();
-        var manager = new HotfixManager(source, HotfixSharedAssemblyNames(), rootServices: rootServices);
-
-        var firstReload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
-        Assert.True(firstReload.Succeeded, BuildReloadDiagnostics(firstReload));
-        var settleMatchKey = Assert.Single(
-            firstReload.Current.Methods,
-            key => key.StateTypeName == typeof(ArenaSimulation).FullName &&
-                   key.MethodName == nameof(ArenaSimulation.SettleMatch));
-        var previousMethod = HotfixDispatch.Current.Resolve(settleMatchKey);
-
-        var simulation = new ArenaSimulation(new ArenaSimulationOptions
-        {
-            EnableBots = false,
-            FoodTargetCount = 0
-        });
-        simulation.UpsertPlayer(new ArenaPlayerRegistration { PlayerId = "p1", Mass = 50 });
-        simulation.UpsertPlayer(new ArenaPlayerRegistration { PlayerId = "p2", Mass = 25 });
-
-        source.Path = Path.Combine(Path.GetTempPath(), "LakonaGameMissingHotfix", "Server.Hotfix.dll");
-
-        var failedReload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
-
-        Assert.False(failedReload.Succeeded);
-        Assert.Equal(firstReload.Current.DispatchTableVersion, failedReload.Current.DispatchTableVersion);
-        Assert.Same(previousMethod, HotfixDispatch.Current.Resolve(settleMatchKey));
-        Assert.True(simulation.TryGetPlayerSnapshot("p1", out var snapshot));
-        Assert.Equal(50, snapshot.Mass);
-
-        var settlement = simulation.SettleMatch(simulation.CreateWorldState());
-
-        Assert.Equal("p1", settlement.WinnerPlayerId);
-        Assert.Equal(10, settlement.Entries.Single(entry => entry.PlayerId == "p1").VictoryPoints);
-        Assert.Equal(7, settlement.Entries.Single(entry => entry.PlayerId == "p2").VictoryPoints);
+            key => key.StateTypeName == typeof(Agar.Sample.State.Rooms.RoomActor).FullName &&
+                   key.MethodName == "TickAsync");
+        Assert.DoesNotContain(
+            reload.Current.Methods,
+            key => key.StateTypeName == typeof(ArenaSimulation).FullName);
     }
 
     private static string FindHotfixAssemblyPath(
@@ -234,22 +145,4 @@ public sealed class AgarHotfixTests
             });
     }
 
-    private sealed class SwitchableHotfixAssemblySource : IHotfixAssemblySource
-    {
-        public SwitchableHotfixAssemblySource(string path)
-        {
-            Path = path;
-        }
-
-        public string Path { get; set; }
-
-        public ValueTask<HotfixAssemblySourceResult> ResolveAsync(CancellationToken cancellationToken = default)
-        {
-            return new ValueTask<HotfixAssemblySourceResult>(new HotfixAssemblySourceResult(
-                "switchable",
-                "test",
-                Path,
-                System.IO.Path.GetDirectoryName(Path) ?? Environment.CurrentDirectory));
-        }
-    }
 }

@@ -5,10 +5,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Shared.Interfaces;
 using UnityEngine;
-#if NET10_0_OR_GREATER
-using Lakona.Game.Server.Hotfix.Abstractions;
-using Lakona.Game.Server.Hotfix.Dispatch;
-#endif
 
 namespace Shared.Gameplay
 {
@@ -83,9 +79,6 @@ namespace Shared.Gameplay
         public MatchEnd? MatchEnd { get; }
     }
 
-#if NET10_0_OR_GREATER
-    [HotfixState]
-#endif
     public sealed partial class ArenaSimulation
     {
         private static readonly Vector2 Zero = new(0f, 0f);
@@ -262,24 +255,6 @@ namespace Shared.Gameplay
             SyncState();
             return result;
         }
-
-#if NET10_0_OR_GREATER
-        public ArenaStepResult TickWithHotfix(float deltaTime)
-        {
-            return HotfixDispatch.Invoke<ArenaSimulation, float, ArenaStepResult>(
-                nameof(Tick),
-                this,
-                deltaTime);
-        }
-
-        public MatchSettlementResult SettleMatch(WorldState worldState)
-        {
-            return HotfixDispatch.Invoke<ArenaSimulation, WorldState, MatchSettlementResult>(
-                nameof(SettleMatch),
-                this,
-                worldState);
-        }
-#endif
 
         public WorldState CreateWorldState()
         {

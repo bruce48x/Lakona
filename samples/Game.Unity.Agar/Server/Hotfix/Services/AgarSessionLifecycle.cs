@@ -11,7 +11,7 @@ using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Server.Hotfix.Services;
-using Server.Hotfix.State.Sessions;
+using Server.Hotfix.State.Users;
 using Server.Hotfix.State.Rooms;
 using Shared.Interfaces;
 

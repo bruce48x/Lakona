@@ -2,12 +2,10 @@ using Agar.Sample.State.Contracts;
 using Agar.Sample.State.Contracts.Sessions;
 using Agar.Sample.State.Contracts.Users;
 using Agar.Sample.State.Users;
-using Lakona.Game.Server.Hotfix.Abstractions;
 
-namespace Server.Hotfix.State.Sessions;
+namespace Server.Hotfix.State.Users;
 
-[HotfixBehaviorOf(typeof(UserActor))]
-public static class PlayerSessionBehavior
+public static partial class UserBehavior
 {
     public static ValueTask<PlayerSessionSnapshot> AttachAsync(this UserActor self, PlayerSessionAttachRequest request, CancellationToken cancellationToken = default)
     {

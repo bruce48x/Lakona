@@ -7,7 +7,7 @@ using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
 using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.State.Rooms;
-using Server.Hotfix.State.Sessions;
+using Server.Hotfix.State.Users;
 using Xunit;
 
 namespace Agar.Unity.Tests;

@@ -10,7 +10,7 @@ using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Server.Hotfix.Services;
 using Server.Hotfix.State.Rooms;
-using Server.Hotfix.State.Sessions;
+using Server.Hotfix.State.Users;
 using Shared.Interfaces;
 
 namespace Server.Hotfix.Services;

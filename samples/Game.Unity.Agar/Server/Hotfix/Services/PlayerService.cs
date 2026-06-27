@@ -20,7 +20,6 @@ using Server.Hotfix.Services;
 using Server.Hotfix.State.Leaderboard;
 using Server.Hotfix.State.Matchmaking;
 using Server.Hotfix.State.Rooms;
-using Server.Hotfix.State.Sessions;
 using Server.Hotfix.State.Users;
 using Shared.Interfaces;
 

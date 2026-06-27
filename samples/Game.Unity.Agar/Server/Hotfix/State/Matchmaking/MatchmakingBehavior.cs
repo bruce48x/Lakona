@@ -12,12 +12,12 @@ using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.Services;
 using Server.Hotfix.State.Rooms;
-using Server.Hotfix.State.Sessions;
+using Server.Hotfix.State.Users;
 
 namespace Server.Hotfix.State.Matchmaking;
 
 [HotfixBehaviorOf(typeof(MatchmakingActor))]
-public static class MatchmakingBehavior
+public static partial class MatchmakingBehavior
 {
     public static async ValueTask<MatchmakingEnqueueResult> EnqueueAsync(this MatchmakingActor self, MatchmakingEnqueueRequest request, CancellationToken cancellationToken = default)
     {

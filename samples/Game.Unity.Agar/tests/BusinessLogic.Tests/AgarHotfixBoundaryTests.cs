@@ -6,6 +6,75 @@ namespace BusinessLogic.Tests;
 public sealed class AgarHotfixBoundaryTests
 {
     [Fact]
+    public void Agar_hotfix_has_one_partial_behavior_per_actor()
+    {
+        var hotfixRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Server.Hotfix.csproj")
+            .DirectoryName!;
+        var behaviorPattern = new Regex(
+            @"\[HotfixBehaviorOf\(typeof\((?<target>\w+)\)\)\]\s*(?<access>public|internal)\s+static\s+(?<partial>partial\s+)?class\s+(?<behavior>\w+Behavior)",
+            RegexOptions.CultureInvariant | RegexOptions.Singleline);
+
+        var matches = Directory.GetFiles(hotfixRoot, "*.cs", SearchOption.AllDirectories)
+            .SelectMany(file => behaviorPattern.Matches(File.ReadAllText(file)).Select(match => new
+            {
+                File = Path.GetRelativePath(Directory.GetCurrentDirectory(), file),
+                Target = match.Groups["target"].Value,
+                Behavior = match.Groups["behavior"].Value,
+                IsPartial = match.Groups["partial"].Success
+            }))
+            .ToArray();
+
+        var nonActorTargets = matches
+            .Where(match => !match.Target.EndsWith("Actor", StringComparison.Ordinal))
+            .Select(match => $"{match.File}: {match.Behavior} targets {match.Target}")
+            .ToArray();
+        var duplicateActorBehaviors = matches
+            .Where(match => match.Target.EndsWith("Actor", StringComparison.Ordinal))
+            .GroupBy(match => match.Target, StringComparer.Ordinal)
+            .Where(group => group.Count() > 1)
+            .Select(group => $"{group.Key}: {string.Join(", ", group.Select(match => match.Behavior))}")
+            .ToArray();
+        var nonPartialBehaviors = matches
+            .Where(match => !match.IsPartial)
+            .Select(match => $"{match.File}: {match.Behavior}")
+            .ToArray();
+        var wrongNames = matches
+            .Where(match => match.Target.EndsWith("Actor", StringComparison.Ordinal))
+            .Where(match => !string.Equals(match.Behavior, match.Target[..^"Actor".Length] + "Behavior", StringComparison.Ordinal))
+            .Select(match => $"{match.File}: {match.Target} -> {match.Behavior}")
+            .ToArray();
+
+        Assert.True(nonActorTargets.Length == 0, $"Behavior targets must be actors: {string.Join("; ", nonActorTargets)}");
+        Assert.True(duplicateActorBehaviors.Length == 0, $"Duplicate behavior targets: {string.Join("; ", duplicateActorBehaviors)}");
+        Assert.True(nonPartialBehaviors.Length == 0, $"Behavior classes must be partial: {string.Join("; ", nonPartialBehaviors)}");
+        Assert.True(wrongNames.Length == 0, $"Behavior names must match actor names: {string.Join("; ", wrongNames)}");
+        Assert.Contains(matches, match => match.Target == "UserActor" && match.Behavior == "UserBehavior");
+        Assert.DoesNotContain(matches, match => match.Behavior is "PlayerSessionBehavior" or "ArenaSimulationBehavior" or "ArenaSettlementBehavior");
+    }
+
+    [Fact]
+    public void Agar_shared_code_does_not_reference_server_hotfix()
+    {
+        var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Shared/Shared.csproj")
+            .DirectoryName!;
+        var forbidden = new Regex(
+            @"Lakona\.Game\.Server\.Hotfix|HotfixDispatch|HotfixState|HotfixBehaviorOf",
+            RegexOptions.CultureInvariant);
+
+        var violations = Directory.GetFiles(sampleRoot, "*.cs", SearchOption.AllDirectories)
+            .Select(file => new
+            {
+                File = file,
+                Matches = forbidden.Matches(File.ReadAllText(file)).Select(match => match.Value).Distinct().ToArray()
+            })
+            .Where(result => result.Matches.Length > 0)
+            .Select(result => $"{Path.GetRelativePath(Directory.GetCurrentDirectory(), result.File)}: {string.Join(", ", result.Matches)}")
+            .ToArray();
+
+        Assert.True(violations.Length == 0, $"Shared code must not reference server hotfix APIs: {string.Join("; ", violations)}");
+    }
+
+    [Fact]
     public void Agar_hotfix_does_not_reintroduce_process_local_session_registry()
     {
         var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")

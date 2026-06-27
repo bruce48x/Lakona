@@ -9,17 +9,17 @@ using Agar.Sample.State.Users;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
+using Server.Hotfix.Gameplay;
 using Server.Hotfix.Services;
 using Shared.Gameplay;
 using Shared.Interfaces;
 using Server.Hotfix.State.Leaderboard;
-using Server.Hotfix.State.Sessions;
 using Server.Hotfix.State.Users;
 
 namespace Server.Hotfix.State.Rooms;
 
 [HotfixBehaviorOf(typeof(RoomActor))]
-public static class RoomBehavior
+public static partial class RoomBehavior
 {
     public static ValueTask<RoomSettlementResult> CreateAsync(this RoomActor self, RoomCreateRequest request, CancellationToken cancellationToken = default)
     {
@@ -351,7 +351,7 @@ public static class RoomBehavior
 
         var simulation = CreateSimulation(self);
         var deltaTime = tick.Interval <= TimeSpan.Zero ? 0.05f : (float)tick.Interval.TotalSeconds;
-        var result = simulation.TickWithHotfix(deltaTime);
+        var result = simulation.Tick(deltaTime);
         if (result.MatchEnd is null && result.WorldState.RoundRemainingSeconds <= 0 && result.WorldState.Players.Count > 1)
         {
             result = new ArenaStepResult(result.WorldState, result.Deaths, CreateMatchEnd(result.WorldState));
@@ -408,7 +408,7 @@ public static class RoomBehavior
 
     private static async Task CommitSettlementAsync(RoomActor self, ArenaStepResult result)
     {
-        var settlement = CreateSimulation(self).SettleMatch(result.WorldState);
+        var settlement = ArenaSettlementRules.Settle(result.WorldState);
         var roomSnapshot = BuildSnapshot(self);
         var tick = result.MatchEnd?.Tick ?? result.WorldState.Tick;
         var settlementId = $"settlement-{self.State.RoomId}-{tick}";
