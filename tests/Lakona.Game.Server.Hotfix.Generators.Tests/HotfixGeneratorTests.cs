@@ -58,6 +58,9 @@ public sealed class HotfixGeneratorTests
             result.GeneratedSource.ReplaceLineEndings("\n"),
             StringComparison.Ordinal);
         Assert.Contains("global::Lakona.Game.Server.Actors.ActorId.From(_id.ToString())", result.GeneratedSource);
+        Assert.DoesNotContain("public async global::System.Threading.Tasks.ValueTask<global::Game.Server.LoginReply> LoginAsync", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("internal async global::System.Threading.Tasks.ValueTask<TResult> __lakona_AskAsync<TRequest, TResult>", result.GeneratedSource);
+        Assert.Contains("internal async global::System.Threading.Tasks.ValueTask __lakona_TellAsync", result.GeneratedSource);
         Assert.Contains("global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync<global::Game.Server.LoginReply>", result.GeneratedSource);
         Assert.Contains("\"Game.Server.IUserActorContract.LoginAsync.Game.Server.LoginRequest.", result.GeneratedSource);
         Assert.Contains("case \"Game.Server.IUserActorContract.LoginAsync.Game.Server.LoginRequest.", result.GeneratedSource);
@@ -65,7 +68,7 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("_directory.ResolveAsync(actorId, cancellationToken)", result.GeneratedSource);
         Assert.Contains("_remote.AskAsync(invocation, cancellationToken)", result.GeneratedSource);
         Assert.Contains("global::Lakona.Game.Server.Actors.RemoteActorCall.EnsureReplied", result.GeneratedSource);
-        Assert.Contains("return _serializer.Deserialize<global::Game.Server.LoginReply>(result.Payload);", result.GeneratedSource);
+        Assert.Contains("return _serializer.Deserialize<TResult>(result.Payload);", result.GeneratedSource);
         Assert.Contains("public sealed class UserActorClusterHandler", result.GeneratedSource);
         Assert.Contains("global::Lakona.Game.Server.Actors.RemoteActorGateway.SendReplyAsync(", result.GeneratedSource);
         Assert.Contains("_router,", result.GeneratedSource);
@@ -76,6 +79,52 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("public sealed class GeneratedHotfixActorRegistration", result.GeneratedSource);
         Assert.Contains("TryAddSingleton<global::Game.Server.UserActors>", result.GeneratedSource);
         Assert.DoesNotContain("actor.LoginAsync", result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_does_not_emit_stable_actor_refs_when_actor_is_referenced_from_another_assembly()
+    {
+        var appSource = """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Server;
+
+            public readonly record struct UserId(string Value);
+            public sealed class PingRequest { }
+            public sealed class UserActor : Actor<UserId> { }
+
+            [HotfixActorContract(typeof(UserActor))]
+            public interface IUserActorContract
+            {
+                ValueTask PingAsync(PingRequest request);
+            }
+            """;
+
+        var hotfixSource = """
+            using System.Threading.Tasks;
+            using Game.Server;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Hotfix;
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            public static partial class UserBehavior
+            {
+                public static ValueTask PingAsync(this UserActor self, PingRequest request)
+                {
+                    return default;
+                }
+            }
+            """;
+
+        var result = GeneratorTestHost.RunWithGeneratedAppReference(appSource, hotfixSource, appAssemblyName: "Game.Server", hotfixAssemblyName: "Game.Hotfix");
+
+        Assert.Empty(result.Hotfix.ErrorDiagnostics);
+        Assert.Contains("public sealed class UserActors", result.App.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("public sealed class UserActors", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.Empty(result.Hotfix.GeneratedSource);
     }
 
     private static void AssertContainsNormalized(string expected, string actual)

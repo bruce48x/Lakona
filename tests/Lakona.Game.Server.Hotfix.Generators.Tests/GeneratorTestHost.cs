@@ -32,6 +32,60 @@ internal static class GeneratorTestHost
         return Run(appSource, references.Concat(new[] { sharedReference }).ToArray());
     }
 
+    public static TwoPhaseGeneratorRunResult RunWithGeneratedAppReference(
+        string appSource,
+        string hotfixSource,
+        string appAssemblyName,
+        string hotfixAssemblyName)
+    {
+        var references = CreateDefaultReferences();
+        var appTree = CSharpSyntaxTree.ParseText(appSource);
+        var appCompilation = CSharpCompilation.Create(
+            appAssemblyName,
+            new[] { appTree },
+            references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var generator = new HotfixGenerator();
+        CSharpGeneratorDriver.Create(generator).RunGeneratorsAndUpdateCompilation(
+            appCompilation,
+            out var updatedApp,
+            out var appGeneratorDiagnostics);
+
+        var appResult = new GeneratorRunResult(
+            string.Join(Environment.NewLine, updatedApp.SyntaxTrees.Skip(1).Select(static tree => tree.ToString())),
+            appGeneratorDiagnostics,
+            updatedApp.GetDiagnostics());
+
+        using var appStream = new MemoryStream();
+        var appEmit = updatedApp.Emit(appStream);
+        if (!appEmit.Success)
+        {
+            throw new InvalidOperationException(string.Join(Environment.NewLine, appEmit.Diagnostics));
+        }
+
+        appStream.Position = 0;
+        var hotfixReferences = references.Concat(new[] { MetadataReference.CreateFromStream(appStream) }).ToArray();
+        var hotfixTree = CSharpSyntaxTree.ParseText(hotfixSource);
+        var hotfixCompilation = CSharpCompilation.Create(
+            hotfixAssemblyName,
+            new[] { hotfixTree },
+            hotfixReferences,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        CSharpGeneratorDriver.Create(generator).RunGeneratorsAndUpdateCompilation(
+            hotfixCompilation,
+            out var updatedHotfix,
+            out var hotfixGeneratorDiagnostics);
+
+        var hotfixResult = new GeneratorRunResult(
+            string.Join(Environment.NewLine, updatedHotfix.SyntaxTrees.Skip(1).Select(static tree => tree.ToString())),
+            hotfixGeneratorDiagnostics,
+            updatedHotfix.GetDiagnostics());
+
+        return new TwoPhaseGeneratorRunResult(appResult, hotfixResult);
+    }
+
     public static GeneratorAssemblyRunResult RunAndEmit(string source)
     {
         var references = CreateDefaultReferences();
@@ -141,6 +195,10 @@ internal sealed record GeneratorRunResult(
             .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
             .ToArray();
 }
+
+internal sealed record TwoPhaseGeneratorRunResult(
+    GeneratorRunResult App,
+    GeneratorRunResult Hotfix);
 
 internal sealed record GeneratorAssemblyRunResult(
     GeneratorRunResult Result,
