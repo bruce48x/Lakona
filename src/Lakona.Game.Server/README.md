@@ -90,7 +90,7 @@ public sealed class JoinRoomReply
 
 // In Server.Hotfix:
 [HotfixBehaviorOf(typeof(RoomActor))]
-public static class RoomBehavior
+public static partial class RoomBehavior
 {
     public static ValueTask<JoinRoomReply> JoinAsync(
         this RoomActor room,
@@ -116,9 +116,11 @@ var localOnly = await rooms.Local(roomId).JoinAsync(request, cancellationToken);
 var pinned = await rooms.Remote(nodeId, roomId).JoinAsync(request, cancellationToken);
 ```
 
-For frequent business actor calls, reference `Lakona.Game.Server.Generators` as
-an analyzer. It generates typed actor accessors with `Get(id)`, `Local(id)`,
-and `Remote(nodeId, id)` selectors for `Actor<TKey>` classes.
+Stable app generator support emits actor selector types with `Get(id)`,
+`Local(id)`, and `Remote(nodeId, id)` selectors for `Actor<TKey>` classes.
+Hotfix projects that define behavior methods should reference
+`Lakona.Game.Server.Hotfix.Generators` as an analyzer so business-facing ref
+methods are generated into matching behavior partials.
 
 ## Advanced Local Actor Runtime
 

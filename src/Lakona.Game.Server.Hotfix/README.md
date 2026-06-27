@@ -51,7 +51,7 @@ public static partial class PlayerBehavior
 
 Reload with `IHotfixManager.ReloadAsync()`. Reload failure keeps the previous dispatch table active.
 
-Use `AddLakonaGameHotfix(...)` to register a source such as `CurrentDirectoryHotfixAssemblySource`, and pass stable assembly names as shared assemblies so Hotfix behaviors operate on the same state types as the running server. `AddLakonaGameHotfixFileWatcher(...)` can be added when a host should reload after hotfix DLL changes.
+Use `AddLakonaGameHotfix(...)` to register a source such as `CurrentDirectoryHotfixAssemblySource`, and pass stable assembly names as shared assemblies so Hotfix behaviors operate on the same stable actor types and actor instances as the running server. `AddLakonaGameHotfixFileWatcher(...)` can be added when a host should reload after hotfix DLL changes.
 
 ## Loader safety contract
 
