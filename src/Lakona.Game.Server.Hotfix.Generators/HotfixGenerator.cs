@@ -6,6 +6,7 @@ using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
 
 namespace Lakona.Game.Server.Hotfix.Generators
@@ -19,6 +20,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
         private const string RpcServiceAttributeName = "Lakona.Rpc.Core.RpcServiceAttribute";
         private const string RpcMethodAttributeName = "Lakona.Rpc.Core.RpcMethodAttribute";
         private const string DefaultGeneratedServerNamespace = "Server.App.Generated";
+        private const string StableRpcServicesKey = "build_property.LakonaHotfixGenerateStableRpcServices";
+        private const string StableActorRefsKey = "build_property.LakonaHotfixGenerateStableActorRefs";
 
         private static readonly DiagnosticDescriptor UnsupportedHotfixBehaviorWrapperTarget = new DiagnosticDescriptor(
             "ULGHOTFIX021",
@@ -30,6 +33,12 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
+            var options = context.AnalyzerConfigOptionsProvider.Select(static (provider, cancellationToken) =>
+            {
+                _ = cancellationToken;
+                return HotfixGeneratorOptions.From(provider.GlobalOptions);
+            });
+
             var states = context.SyntaxProvider
                 .CreateSyntaxProvider(
                     IsStateCandidate,
@@ -39,21 +48,35 @@ namespace Lakona.Game.Server.Hotfix.Generators
             context.RegisterSourceOutput(states, GenerateState);
             context.RegisterSourceOutput(states, GenerateStateCaller);
 
-            var services = context.CompilationProvider.Select(static (compilation, cancellationToken) =>
-                DiscoverRpcServiceContracts(compilation, cancellationToken)
+            var services = context.CompilationProvider.Combine(options)
+                .Select(static (input, cancellationToken) =>
+                {
+                    var (compilation, generatorOptions) = input;
+                    if (!generatorOptions.GenerateStableRpcServices)
+                    {
+                        return [];
+                    }
+
+                    return DiscoverRpcServiceContracts(compilation, cancellationToken)
                     .Select(static contract => new HotfixRpcServiceInfo(
                         contract,
                         DefaultGeneratedServerNamespace,
                         DefaultGeneratedServerNamespace))
-                    .ToArray());
+                    .ToArray();
+                });
 
             context.RegisterSourceOutput(services, GenerateRpcServices);
 
-            var actorContracts = context.CompilationProvider.Select(static (compilation, cancellationToken) =>
-                new HotfixActorGenerationInput(
-                    compilation.Assembly.Identity.Name,
-                    DiscoverHotfixActorContracts(compilation, cancellationToken).ToArray(),
-                    DiscoverHotfixBehaviors(compilation, cancellationToken).ToArray()));
+            var actorContracts = context.CompilationProvider.Combine(options)
+                .Select(static (input, cancellationToken) =>
+                {
+                    var (compilation, generatorOptions) = input;
+                    return new HotfixActorGenerationInput(
+                        compilation.Assembly.Identity.Name,
+                        generatorOptions.GenerateStableActorRefs,
+                        DiscoverHotfixActorContracts(compilation, cancellationToken).ToArray(),
+                        DiscoverHotfixBehaviors(compilation, cancellationToken).ToArray());
+                });
 
             context.RegisterSourceOutput(actorContracts, GenerateActorContracts);
         }
@@ -110,45 +133,48 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
         private static void GenerateActorContracts(SourceProductionContext context, HotfixActorGenerationInput input)
         {
-            foreach (var contract in input.Contracts)
+            if (input.GenerateStableActorRefs)
             {
-                foreach (var diagnostic in contract.Diagnostics)
+                foreach (var contract in input.Contracts)
                 {
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        diagnostic.Descriptor,
-                        diagnostic.Location,
-                        diagnostic.Arguments));
-                }
-            }
-
-            var appContracts = input.Contracts
-                .Where(static contract => contract.IsSupported)
-                .Where(contract => string.Equals(
-                    contract.Actor.ContainingAssembly.Identity.Name,
-                    input.AssemblyName,
-                    System.StringComparison.Ordinal))
-                .ToArray();
-
-            var supported = new List<HotfixActorContractInfo>();
-            foreach (var actorGroup in appContracts
-                .GroupBy(static contract => contract.Actor.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
-            {
-                var actorContracts = actorGroup.ToArray();
-                if (ReportDuplicateActorContractSignatures(context, actorContracts))
-                {
-                    continue;
+                    foreach (var diagnostic in contract.Diagnostics)
+                    {
+                        context.ReportDiagnostic(Diagnostic.Create(
+                            diagnostic.Descriptor,
+                            diagnostic.Location,
+                            diagnostic.Arguments));
+                    }
                 }
 
-                supported.Add(MergeActorContracts(actorContracts));
-            }
+                var appContracts = input.Contracts
+                    .Where(static contract => contract.IsSupported)
+                    .Where(contract => string.Equals(
+                        contract.Actor.ContainingAssembly.Identity.Name,
+                        input.AssemblyName,
+                        System.StringComparison.Ordinal))
+                    .ToArray();
 
-            var supportedArray = supported
-                .OrderBy(static contract => contract.Contract.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
-                .ToArray();
+                var supported = new List<HotfixActorContractInfo>();
+                foreach (var actorGroup in appContracts
+                    .GroupBy(static contract => contract.Actor.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
+                {
+                    var actorContracts = actorGroup.ToArray();
+                    if (ReportDuplicateActorContractSignatures(context, actorContracts))
+                    {
+                        continue;
+                    }
 
-            if (supportedArray.Length > 0)
-            {
-                context.AddSource("GeneratedHotfixActorContracts.g.cs", SourceText.From(GenerateActorContractsSource(supportedArray), Encoding.UTF8));
+                    supported.Add(MergeActorContracts(actorContracts));
+                }
+
+                var supportedArray = supported
+                    .OrderBy(static contract => contract.Contract.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
+                    .ToArray();
+
+                if (supportedArray.Length > 0)
+                {
+                    context.AddSource("GeneratedHotfixActorContracts.g.cs", SourceText.From(GenerateActorContractsSource(supportedArray), Encoding.UTF8));
+                }
             }
 
             if (input.Behaviors.Length > 0)
@@ -2573,19 +2599,66 @@ namespace Lakona.Game.Server.Hotfix.Generators
         {
             public HotfixActorGenerationInput(
                 string assemblyName,
+                bool generateStableActorRefs,
                 HotfixActorContractInfo[] contracts,
                 HotfixBehaviorInfo[] behaviors)
             {
                 AssemblyName = assemblyName;
+                GenerateStableActorRefs = generateStableActorRefs;
                 Contracts = contracts;
                 Behaviors = behaviors;
             }
 
             public string AssemblyName { get; }
 
+            public bool GenerateStableActorRefs { get; }
+
             public HotfixActorContractInfo[] Contracts { get; }
 
             public HotfixBehaviorInfo[] Behaviors { get; }
+        }
+
+        private sealed class HotfixGeneratorOptions
+        {
+            private HotfixGeneratorOptions(bool generateStableRpcServices, bool generateStableActorRefs)
+            {
+                GenerateStableRpcServices = generateStableRpcServices;
+                GenerateStableActorRefs = generateStableActorRefs;
+            }
+
+            public bool GenerateStableRpcServices { get; }
+
+            public bool GenerateStableActorRefs { get; }
+
+            public static HotfixGeneratorOptions From(AnalyzerConfigOptions options)
+            {
+                return new HotfixGeneratorOptions(
+                    IsEnabled(options, StableRpcServicesKey, defaultValue: true),
+                    IsEnabled(options, StableActorRefsKey, defaultValue: true));
+            }
+
+            private static bool IsEnabled(AnalyzerConfigOptions options, string key, bool defaultValue)
+            {
+                if (!options.TryGetValue(key, out var value) || string.IsNullOrWhiteSpace(value))
+                {
+                    return defaultValue;
+                }
+
+                var trimmed = value.Trim();
+                if (string.Equals(trimmed, "true", System.StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(trimmed, "1", System.StringComparison.Ordinal))
+                {
+                    return true;
+                }
+
+                if (string.Equals(trimmed, "false", System.StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(trimmed, "0", System.StringComparison.Ordinal))
+                {
+                    return false;
+                }
+
+                return defaultValue;
+            }
         }
 
         private sealed class HotfixActorContractInfo
