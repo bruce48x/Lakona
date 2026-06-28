@@ -80,6 +80,14 @@ Generated hotfix-backed RPC services are selected by endpoint-local
 `IHotfixRequiredServiceContracts` providers; `LakonaGameServer.RunAsync`
 discovers both automatically from the application assembly.
 
+Stable service proxy generation is app-side only. The same hotfix generator
+package may run in both `Server.App` and `Server.Hotfix`, but
+`Server.Hotfix` must not emit another `*ServiceProxy`, endpoint binder, or
+`IHotfixRequiredServiceContracts` provider for shared RPC contracts. Hotfix
+projects compile the replaceable `[HotfixService]` and `[HotfixLifecycle]`
+implementations and any behavior-owned actor wrapper extensions; stable RPC
+binding remains in `Server.App`.
+
 There is no user-authored `.UseGeneratedHotfixServices()` step in generated
 projects. Generated binders and required-contract providers are framework
 discovery artifacts, not fluent host calls that users copy into `Program.cs`.

@@ -27,6 +27,25 @@ Generated server projects opt into server glue with:
 <LakonaRpcServerGeneratedNamespace>Server.App.Generated</LakonaRpcServerGeneratedNamespace>
 ```
 
+Generated Lakona server projects also set hotfix generator role properties.
+The same `Lakona.Game.Server.Hotfix.Generators` analyzer package can run in
+both server projects, but its outputs are role-gated:
+
+```xml
+<!-- Server.App -->
+<LakonaHotfixGenerateStableRpcServices>true</LakonaHotfixGenerateStableRpcServices>
+<LakonaHotfixGenerateStableActorRefs>true</LakonaHotfixGenerateStableActorRefs>
+
+<!-- Server.Hotfix -->
+<LakonaHotfixGenerateStableRpcServices>false</LakonaHotfixGenerateStableRpcServices>
+<LakonaHotfixGenerateStableActorRefs>false</LakonaHotfixGenerateStableActorRefs>
+```
+
+`Server.App` owns stable RPC service proxies, endpoint binders, required
+hotfix service contract providers, actor selectors, and stable actor refs.
+`Server.Hotfix` owns replaceable service implementations, lifecycle
+implementations, behavior code, and hotfix-side behavior wrapper generation.
+
 Generated client projects opt into client glue with the matching client
 generation property or Unity-compatible analyzer configuration.
 
