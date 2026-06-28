@@ -6,16 +6,26 @@ using Agar.Sample.State.Contracts.Users;
 using Agar.Sample.State.Rooms;
 using Agar.Sample.State.Users;
 using Agar.Sample.State.Leaderboard;
+using Lakona.Game.Abstractions;
+using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Configuration;
 using Shared.Gameplay;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Loading;
+using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Server.Hotfix.Services;
 using Server.Hotfix.State.Leaderboard;
 using Server.Hotfix.State.Rooms;
 using Server.Hotfix.State.Users;
+using Shared.Interfaces;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using Xunit;
 
 namespace Agar.Unity.Tests;
@@ -39,6 +49,78 @@ public sealed class AgarHotfixTests
         var reload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
 
         Assert.True(reload.Succeeded, BuildReloadDiagnostics(reload));
+    }
+
+    [Fact]
+    public async Task Guest_login_creates_user_actor_on_hashed_state_store_node()
+    {
+        await TestHotfix.LoadCurrentAsync(TestContext.Current.CancellationToken);
+
+        var stateStoreNodes = new[]
+        {
+            StateStoreNode("state-b", "tcp://127.0.0.1:22002"),
+            StateStoreNode("state-a", "tcp://127.0.0.1:22001")
+        };
+        var featureTransport = new CapturingFeatureMessageTransport();
+        var remoteSerializer = new JsonRemoteActorSerializer();
+        var remoteInvoker = new StateStoreRemoteActorInvoker(remoteSerializer, featureTransport);
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddLakonaGameServer();
+        new global::GeneratedHotfixActorRegistration().Register(services);
+        services.AddGeneratedActorSelectorTestDependencies();
+        services.AddSingleton(new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "gateway-1" },
+            Endpoints =
+            [
+                new LakonaGameEndpointOptions
+                {
+                    Transport = "websocket",
+                    Serializer = "memorypack",
+                    Host = "127.0.0.1",
+                    Port = 20000,
+                    Path = "/ws",
+                    RpcServices = ["login", "player"]
+                }
+            ],
+            Feature = []
+        });
+        services.AddSingleton<IClusterNodeDiscovery>(new FixedClusterNodeDiscovery(stateStoreNodes));
+        services.AddSingleton<IFeatureMessageTransport>(featureTransport);
+        services.RemoveAll<IRemoteActorSerializer>();
+        services.RemoveAll<IRemoteActorInvoker>();
+        services.AddSingleton<IRemoteActorSerializer>(remoteSerializer);
+        services.AddSingleton<IRemoteActorInvoker>(remoteInvoker);
+        var matchmakingNotifierType = typeof(LoginService).Assembly.GetType("Server.Hotfix.Services.MatchmakingNotifier", throwOnError: true)!;
+        services.AddSingleton(matchmakingNotifierType);
+
+        await using var provider = services.BuildServiceProvider();
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        var service = new LoginService(provider.GetRequiredService<UserActors>());
+        var call = new HotfixServiceCall<LoginRequest, IControlCallback>(
+            new LoginRequest { GuestLogin = true },
+            "control-connection-1",
+            new CapturingControlCallback(),
+            provider,
+            actors,
+            new TestGameServer());
+
+        var reply = await service.LoginAsync(call);
+
+        Assert.Equal(LoginResultCodes.Ok, reply.Code);
+        Assert.StartsWith("guest-", reply.Account, StringComparison.Ordinal);
+        Assert.False(string.IsNullOrWhiteSpace(reply.Password));
+        Assert.Equal(reply.Account, reply.PlayerId);
+        Assert.Equal(reply.PlayerId, reply.SessionId);
+        Assert.Equal(1, reply.SessionGeneration);
+
+        var expectedOwner = SelectExpectedStateStoreOwner(reply.PlayerId, stateStoreNodes);
+        Assert.NotNull(featureTransport.LastTarget);
+        Assert.Equal(expectedOwner.Node, featureTransport.LastTarget.Node);
+        Assert.Equal("state-store", featureTransport.LastRequest?.Feature.Value);
+        Assert.Equal("agar.state-store.ensure-user-actor.v1", featureTransport.LastRequest?.Kind);
+        Assert.Equal(ActorState.Dead, actors.GetState(ActorId.From(reply.PlayerId)));
     }
 
     [Fact]
@@ -288,6 +370,263 @@ public sealed class AgarHotfixTests
                 "Diagnostics:",
                 string.Join(Environment.NewLine, reload.Diagnostics)
             });
+    }
+
+    private static ClusterNodeDescriptor StateStoreNode(string nodeId, string clusterEndpoint)
+    {
+        return new ClusterNodeDescriptor(
+            new NodeId(nodeId),
+            NodeState.Ready,
+            new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal)
+            {
+                ["cluster"] = new NodeEndpoint(clusterEndpoint)
+            },
+            [new NodeFeatureDescriptor("state-store")]);
+    }
+
+    private static ClusterNodeDescriptor SelectExpectedStateStoreOwner(
+        string userId,
+        IReadOnlyCollection<ClusterNodeDescriptor> nodes)
+    {
+        var ordered = nodes.OrderBy(node => node.Node.Value, StringComparer.Ordinal).ToArray();
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(userId));
+        var value = 0UL;
+        for (var index = 0; index < sizeof(ulong); index++)
+        {
+            value = (value << 8) | hash[index];
+        }
+
+        return ordered[(int)(value % (ulong)ordered.Length)];
+    }
+
+    private sealed class FixedClusterNodeDiscovery : IClusterNodeDiscovery
+    {
+        private readonly IReadOnlyList<ClusterNodeDescriptor> _nodes;
+
+        public FixedClusterNodeDiscovery(IReadOnlyList<ClusterNodeDescriptor> nodes)
+        {
+            _nodes = nodes;
+        }
+
+        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> ListAsync(
+            FeatureName feature,
+            CancellationToken cancellationToken = default)
+        {
+            var matches = _nodes
+                .Where(node => node.Features.Any(item =>
+                    string.Equals(item.Name, feature.Value, StringComparison.OrdinalIgnoreCase)))
+                .ToArray();
+            return new ValueTask<IReadOnlyList<ClusterNodeDescriptor>>(matches);
+        }
+
+        public async ValueTask<ClusterNodeDescriptor?> AnyAsync(
+            FeatureName feature,
+            CancellationToken cancellationToken = default)
+        {
+            return (await ListAsync(feature, cancellationToken).ConfigureAwait(false)).FirstOrDefault();
+        }
+    }
+
+    private sealed class CapturingFeatureMessageTransport : IFeatureMessageTransport
+    {
+        public ClusterNodeDescriptor? LastTarget { get; private set; }
+
+        public FeatureMessageRequest? LastRequest { get; private set; }
+
+        public bool HasCreatedUserActorOn(NodeId node, string userId)
+        {
+            return LastTarget?.Node == node &&
+                LastRequest is not null &&
+                string.Equals(LastRequest.Kind, "agar.state-store.ensure-user-actor.v1", StringComparison.Ordinal) &&
+                LastRequest.Payload.Length > 0 &&
+                JsonSerializer.Deserialize<EnsureUserActorProbe>(
+                    LastRequest.Payload.Span,
+                    new JsonSerializerOptions(JsonSerializerDefaults.Web))?.UserId == userId;
+        }
+
+        public ValueTask<FeatureMessageReply> SendAsync(
+            ClusterNodeDescriptor target,
+            FeatureMessageRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            LastTarget = target;
+            LastRequest = request;
+            return new ValueTask<FeatureMessageReply>(
+                new FeatureMessageReply(ClusterSendStatus.Accepted, ReadOnlyMemory<byte>.Empty));
+        }
+    }
+
+    private sealed class StateStoreRemoteActorInvoker : IRemoteActorInvoker
+    {
+        private readonly IRemoteActorSerializer _serializer;
+        private readonly CapturingFeatureMessageTransport _featureTransport;
+
+        public StateStoreRemoteActorInvoker(
+            IRemoteActorSerializer serializer,
+            CapturingFeatureMessageTransport featureTransport)
+        {
+            _serializer = serializer;
+            _featureTransport = featureTransport;
+        }
+
+        public ValueTask<RemoteActorInvocationResult> AskAsync(
+            RemoteActorInvocation invocation,
+            CancellationToken cancellationToken = default)
+        {
+            if (!_featureTransport.HasCreatedUserActorOn(invocation.Node, invocation.ActorId.Value))
+            {
+                return new ValueTask<RemoteActorInvocationResult>(RemoteActorInvocationResult.Failed(
+                    RemoteActorStatus.HandlerUnavailable,
+                    $"User actor {invocation.ActorId.Value} was not created on {invocation.Node.Value}."));
+            }
+
+            if (invocation.MethodName.Contains(".LoginAsync.", StringComparison.Ordinal) ||
+                invocation.MethodName.EndsWith(".LoginAsync", StringComparison.Ordinal) ||
+                string.Equals(invocation.MethodName, "LoginAsync", StringComparison.Ordinal))
+            {
+                var result = new UserLoginResult
+                {
+                    UserId = invocation.ActorId.Value,
+                    SessionToken = $"token-{invocation.ActorId.Value}",
+                    LoginCount = 1,
+                    LastLoginAtUtc = DateTime.UtcNow
+                };
+                return new ValueTask<RemoteActorInvocationResult>(
+                    RemoteActorInvocationResult.Replied(_serializer.Serialize(result)));
+            }
+
+            if (invocation.MethodName.Contains(".AttachAsync.", StringComparison.Ordinal) ||
+                invocation.MethodName.EndsWith(".AttachAsync", StringComparison.Ordinal) ||
+                string.Equals(invocation.MethodName, "AttachAsync", StringComparison.Ordinal))
+            {
+                var request = _serializer.Deserialize<PlayerSessionAttachRequest>(invocation.Payload);
+                var snapshot = new PlayerSessionSnapshot
+                {
+                    UserId = request.UserId,
+                    SessionToken = request.SessionToken,
+                    ConnectionId = request.ConnectionId,
+                    ControlSessionId = request.ControlSessionId,
+                    ControlSessionGeneration = request.ControlSessionGeneration,
+                    IsOnline = true,
+                    AttachedAtUtc = request.AttachedAtUtc,
+                    ControlGateway = request.ControlGateway
+                };
+                return new ValueTask<RemoteActorInvocationResult>(
+                    RemoteActorInvocationResult.Replied(_serializer.Serialize(snapshot)));
+            }
+
+            return new ValueTask<RemoteActorInvocationResult>(RemoteActorInvocationResult.Failed(
+                RemoteActorStatus.HandlerUnavailable,
+                $"Unexpected remote actor method {invocation.MethodName}."));
+        }
+
+        public ValueTask<RemoteActorInvocationResult> TellAsync(
+            RemoteActorInvocation invocation,
+            CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<RemoteActorInvocationResult>(RemoteActorInvocationResult.Accepted());
+        }
+    }
+
+    private sealed class JsonRemoteActorSerializer : IRemoteActorSerializer
+    {
+        public ReadOnlyMemory<byte> Serialize<T>(T value)
+        {
+            return JsonSerializer.SerializeToUtf8Bytes(value);
+        }
+
+        public T Deserialize<T>(ReadOnlyMemory<byte> payload)
+        {
+            return JsonSerializer.Deserialize<T>(payload.Span) ??
+                throw new InvalidOperationException($"Could not deserialize {typeof(T).FullName}.");
+        }
+    }
+
+    private sealed class EnsureUserActorProbe
+    {
+        public string UserId { get; set; } = "";
+    }
+
+    private sealed class CapturingControlCallback : IControlCallback
+    {
+        public void OnMatchmakingStatus(MatchmakingStatusUpdate matchmakingStatus)
+        {
+        }
+    }
+
+    private sealed class TestGameServer : ILakonaGameServer
+    {
+        public ValueTask<GameSessionKey> StartSessionAsync(
+            string ownerKey,
+            CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<GameSessionKey>(new GameSessionKey(ownerKey, ownerKey, 1));
+        }
+
+        public ValueTask<GameSessionKey> StartSessionAsync<TCallback>(
+            string ownerKey,
+            string connectionId,
+            TCallback callback,
+            CancellationToken cancellationToken = default)
+            where TCallback : class
+        {
+            return new ValueTask<GameSessionKey>(new GameSessionKey(ownerKey, ownerKey, 1));
+        }
+
+        public ValueTask<SessionResumeDecision> ResumeSessionAsync<TCallback>(
+            GameSessionResumeRequest request,
+            string connectionId,
+            TCallback callback,
+            CancellationToken cancellationToken = default)
+            where TCallback : class
+        {
+            return new ValueTask<SessionResumeDecision>(SessionResumeDecision.StateLost("Not used."));
+        }
+
+        public ValueTask BindSessionAsync<TCallback>(
+            GameSessionKey session,
+            string connectionId,
+            TCallback callback,
+            CancellationToken cancellationToken = default)
+            where TCallback : class
+        {
+            return default;
+        }
+
+        public ValueTask BindCurrentSessionAsync<TCallback>(
+            string connectionId,
+            TCallback callback,
+            CancellationToken cancellationToken = default)
+            where TCallback : class
+        {
+            return default;
+        }
+
+        public ValueTask MarkSessionDisconnectedAsync(
+            GameSessionKey session,
+            string? connectionId = null,
+            CancellationToken cancellationToken = default)
+        {
+            return default;
+        }
+
+        public ValueTask<TCallback?> GetCallbackAsync<TCallback>(
+            GameSessionKey session,
+            CancellationToken cancellationToken = default)
+            where TCallback : class
+        {
+            return new ValueTask<TCallback?>((TCallback?)null);
+        }
+
+        public ValueTask TerminateSessionAsync(
+            GameSessionKey session,
+            SessionTerminationReason reason,
+            string? message = null,
+            SessionTerminationOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            return default;
+        }
     }
 
 }

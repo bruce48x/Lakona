@@ -262,6 +262,26 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public async Task AddLakonaGameClusterEndpoint_registers_feature_message_transport()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "data-1" },
+            Cluster = new LakonaGameClusterOptions
+            {
+                Endpoint = "tcp://127.0.0.1:21001",
+                Serializer = "json"
+            }
+        });
+
+        services.AddLakonaGameClusterEndpoint();
+        await using var provider = services.BuildServiceProvider();
+
+        Assert.IsType<RpcFeatureMessageTransport>(provider.GetRequiredService<IFeatureMessageTransport>());
+    }
+
+    [Fact]
     public async Task AddLakonaGameClusterEndpoint_supports_generated_distributed_actor_accessors()
     {
         var services = new ServiceCollection();

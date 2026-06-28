@@ -35,6 +35,7 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
         services.TryAddSingleton<IClusterClientFactory>(provider => new ClusterClientFactory(
             provider.GetRequiredService<IClusterTransportFactory>(),
             provider.GetRequiredService<LakonaClusterRpcSerializer>().Serializer));
+        services.TryAddSingleton<IFeatureMessageTransport, RpcFeatureMessageTransport>();
         services.TryAddSingleton<ClusterLocalMessageHandler>();
         services.TryAddSingleton<INodeMessenger, ClusterNodeMessenger>();
         services.TryAddSingleton<IClusterNodeSender, ClusterNodeSender>();
