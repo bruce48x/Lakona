@@ -203,13 +203,46 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
         var services = new ServiceCollection();
         foreach (var descriptor in scan.Features.SelectMany(static feature => feature.Services))
         {
-            ((ICollection<ServiceDescriptor>)services).Add(descriptor);
+            ((ICollection<ServiceDescriptor>)services).Add(_rootServices is null
+                ? descriptor
+                : CreateFallbackActivationDescriptor(descriptor, _rootServices));
         }
 
         var hotfixProvider = services.BuildServiceProvider(validateScopes: true);
         return _rootServices is null
             ? hotfixProvider
             : new FallbackServiceProvider(hotfixProvider, _rootServices);
+    }
+
+    private static ServiceDescriptor CreateFallbackActivationDescriptor(
+        ServiceDescriptor descriptor,
+        IServiceProvider rootServices)
+    {
+        if (descriptor.ImplementationInstance is not null)
+        {
+            return descriptor;
+        }
+
+        if (descriptor.ImplementationFactory is not null)
+        {
+            return ServiceDescriptor.Describe(
+                descriptor.ServiceType,
+                provider => descriptor.ImplementationFactory(
+                    new ActivationFallbackServiceProvider(provider, rootServices)),
+                descriptor.Lifetime);
+        }
+
+        if (descriptor.ImplementationType is not null && !descriptor.ServiceType.IsGenericTypeDefinition)
+        {
+            return ServiceDescriptor.Describe(
+                descriptor.ServiceType,
+                provider => ActivatorUtilities.CreateInstance(
+                    new ActivationFallbackServiceProvider(provider, rootServices),
+                    descriptor.ImplementationType),
+                descriptor.Lifetime);
+        }
+
+        return descriptor;
     }
 
     private static void UnloadQuietly(HotfixAssemblyLoadContext? loadContext)
@@ -254,6 +287,18 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
         public object? GetService(Type serviceType)
         {
             return null;
+        }
+    }
+
+    private sealed class ActivationFallbackServiceProvider(
+        IServiceProvider hotfixServices,
+        IServiceProvider rootServices) : IServiceProvider
+    {
+        public object? GetService(Type serviceType)
+        {
+            return serviceType == typeof(IServiceProvider)
+                ? this
+                : hotfixServices.GetService(serviceType) ?? rootServices.GetService(serviceType);
         }
     }
 

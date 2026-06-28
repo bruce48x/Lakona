@@ -8,6 +8,8 @@ internal static class StateStoreUserActorPlacement
 
     public const string EnsureUserActorKind = "agar.state-store.ensure-user-actor.v1";
 
+    public const string EnsureLeaderboardActorKind = "agar.state-store.ensure-leaderboard-actor.v1";
+
     public static readonly TimeSpan EnsureUserActorTimeout = TimeSpan.FromSeconds(5);
 
     public static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -16,4 +18,9 @@ internal static class StateStoreUserActorPlacement
 internal sealed class EnsureUserActorRequest
 {
     public string UserId { get; set; } = "";
+}
+
+internal sealed class EnsureLeaderboardActorRequest
+{
+    public string LeaderboardId { get; set; } = "";
 }

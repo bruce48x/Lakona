@@ -11,6 +11,7 @@ using Agar.Sample.State.Rooms;
 using Agar.Sample.State.Users;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
@@ -22,6 +23,9 @@ using Server.Hotfix.State.Matchmaking;
 using Server.Hotfix.State.Rooms;
 using Server.Hotfix.State.Users;
 using Shared.Interfaces;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 
 namespace Server.Hotfix.Services;
 
@@ -53,8 +57,10 @@ public sealed class PlayerService
         _ = await EnsureControlConnectionAsync(call, services).ConfigureAwait(false);
 
         var topN = req.TopN <= 0 ? 10 : req.TopN;
+        var leaderboardId = new LeaderboardId("current");
+        await EnsureLeaderboardActorAsync(leaderboardId.Value, call.Services, logger).ConfigureAwait(false);
         var snapshot = await _leaderboards
-            .Get(new LeaderboardId("current"))
+            .Get(leaderboardId)
             .GetLeaderboardAsync(new LeaderboardQueryRequest { TopN = topN })
             .ConfigureAwait(false);
 
@@ -131,6 +137,162 @@ public sealed class PlayerService
         AgarServiceDependencies services)
     {
         return new ValueTask<string?>(call.CurrentSession?.OwnerKey);
+    }
+
+    private static async ValueTask EnsureLeaderboardActorAsync(
+        string leaderboardId,
+        IServiceProvider services,
+        ILogger logger)
+    {
+        var actorId = ActorId.From(leaderboardId);
+        var owner = await SelectStateStoreOwnerAsync(leaderboardId, services).ConfigureAwait(false);
+        var ownerNode = owner.Node;
+        var directory = services.GetRequiredService<IActorDirectory>();
+        var directoryCache = services.GetRequiredService<IActorDirectoryCache>();
+
+        var registerStatus = await directory.RegisterAsync(actorId, ownerNode).ConfigureAwait(false);
+        var registeredHere = registerStatus == ActorDirectoryRegisterStatus.Registered;
+        if (registerStatus == ActorDirectoryRegisterStatus.Conflict)
+        {
+            directoryCache.Remove(actorId);
+            logger.LogDebug(
+                "Leaderboard actor {LeaderboardId} was created concurrently on another node; retrying through ActorDirectory.",
+                leaderboardId);
+            return;
+        }
+
+        try
+        {
+            if (ownerNode == services.GetRequiredService<LocalActorNodeIdentity>().NodeId)
+            {
+                await EnsureLocalLeaderboardActorAsync(actorId, leaderboardId, ownerNode, services, logger).ConfigureAwait(false);
+            }
+            else
+            {
+                await SendEnsureLeaderboardActorAsync(owner, leaderboardId, services).ConfigureAwait(false);
+                directoryCache.Set(actorId, ownerNode);
+                logger.LogDebug(
+                    "Requested leaderboard actor {LeaderboardId} creation on state-store node {NodeId}.",
+                    leaderboardId,
+                    ownerNode.Value);
+            }
+        }
+        catch
+        {
+            if (registeredHere)
+            {
+                await directory.UnregisterAsync(actorId, ownerNode).ConfigureAwait(false);
+            }
+
+            directoryCache.Remove(actorId);
+            throw;
+        }
+    }
+
+    private static async ValueTask<ClusterNodeDescriptor> SelectStateStoreOwnerAsync(
+        string placementKey,
+        IServiceProvider services)
+    {
+        var candidates = new List<ClusterNodeDescriptor>();
+        if (services.GetService<IClusterNodeDiscovery>() is IClusterNodeDiscovery discovery)
+        {
+            var discovered = await discovery
+                .ListAsync(new FeatureName(StateStoreUserActorPlacement.FeatureName))
+                .ConfigureAwait(false);
+            candidates.AddRange(discovered.Where(static node =>
+                node.State == NodeState.Ready &&
+                node.Features.Any(static feature => string.Equals(
+                    feature.Name,
+                    StateStoreUserActorPlacement.FeatureName,
+                    StringComparison.OrdinalIgnoreCase))));
+        }
+
+        if (candidates.Count == 0 && LocalNodeCanOwnStateStore(services.GetRequiredService<LakonaGameRuntimeOptions>()))
+        {
+            var localNode = services.GetRequiredService<LocalActorNodeIdentity>().NodeId;
+            candidates.Add(new ClusterNodeDescriptor(
+                localNode,
+                NodeState.Ready,
+                new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal),
+                [new NodeFeatureDescriptor(StateStoreUserActorPlacement.FeatureName)]));
+        }
+
+        if (candidates.Count == 0)
+        {
+            throw new InvalidOperationException("No ready state-store node is available for leaderboard actor placement.");
+        }
+
+        var ordered = candidates
+            .OrderBy(static node => node.Node.Value, StringComparer.Ordinal)
+            .ToArray();
+        return ordered[SelectOwnerIndex(placementKey, ordered.Length)];
+    }
+
+    private static bool LocalNodeCanOwnStateStore(LakonaGameRuntimeOptions runtime)
+    {
+        return runtime.Feature is null ||
+            runtime.Feature.Any(static feature => string.Equals(
+                feature,
+                StateStoreUserActorPlacement.FeatureName,
+                StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static int SelectOwnerIndex(string placementKey, int count)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(placementKey));
+        var value = 0UL;
+        for (var index = 0; index < sizeof(ulong); index++)
+        {
+            value = (value << 8) | hash[index];
+        }
+
+        return (int)(value % (ulong)count);
+    }
+
+    private static async ValueTask SendEnsureLeaderboardActorAsync(
+        ClusterNodeDescriptor owner,
+        string leaderboardId,
+        IServiceProvider services)
+    {
+        var transport = services.GetRequiredService<IFeatureMessageTransport>();
+        var payload = JsonSerializer.SerializeToUtf8Bytes(
+            new EnsureLeaderboardActorRequest { LeaderboardId = leaderboardId },
+            StateStoreUserActorPlacement.JsonOptions);
+        var request = new FeatureMessageRequest(
+            new FeatureName(StateStoreUserActorPlacement.FeatureName),
+            StateStoreUserActorPlacement.EnsureLeaderboardActorKind,
+            payload,
+            DateTimeOffset.UtcNow.Add(StateStoreUserActorPlacement.EnsureUserActorTimeout),
+            services.GetRequiredService<LocalActorNodeIdentity>().NodeId,
+            Guid.NewGuid().ToString("N"));
+        var reply = await transport.SendAsync(owner, request).ConfigureAwait(false);
+        if (reply.Status != ClusterSendStatus.Accepted)
+        {
+            throw new InvalidOperationException(
+                $"State-store node {owner.Node.Value} rejected leaderboard actor creation for '{leaderboardId}'. Status={reply.Status}. {reply.ErrorMessage}");
+        }
+    }
+
+    private static async ValueTask EnsureLocalLeaderboardActorAsync(
+        ActorId actorId,
+        string leaderboardId,
+        NodeId localNode,
+        IServiceProvider services,
+        ILogger logger)
+    {
+        var lifecycle = services.GetRequiredService<IActorLifecycle>();
+
+        var createResult = await lifecycle
+            .CreateLocalAsync<LeaderboardActor>(actorId)
+            .ConfigureAwait(false);
+        if (!createResult.Succeeded)
+        {
+            throw new InvalidOperationException(createResult.Diagnostic ??
+                $"Could not create leaderboard actor '{leaderboardId}'. Status={createResult.Status}.");
+        }
+
+        services.GetRequiredService<IActorDirectoryCache>().Set(actorId, localNode);
+        logger.LogDebug("Created local leaderboard actor {LeaderboardId} on node {NodeId}.", leaderboardId, localNode.Value);
     }
 
     internal static async Task EnqueuePlayerAsync(AgarServiceDependencies services, string playerId)

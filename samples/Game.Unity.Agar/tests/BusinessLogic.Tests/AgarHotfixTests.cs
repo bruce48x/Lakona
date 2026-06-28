@@ -3,6 +3,7 @@ using Agar.Sample.State.Contracts.Leaderboard;
 using Agar.Sample.State.Contracts.Rooms;
 using Agar.Sample.State.Contracts.Sessions;
 using Agar.Sample.State.Contracts.Users;
+using Agar.Sample.State.Matchmaking;
 using Agar.Sample.State.Rooms;
 using Agar.Sample.State.Users;
 using Agar.Sample.State.Leaderboard;
@@ -121,6 +122,76 @@ public sealed class AgarHotfixTests
         Assert.Equal("state-store", featureTransport.LastRequest?.Feature.Value);
         Assert.Equal("agar.state-store.ensure-user-actor.v1", featureTransport.LastRequest?.Kind);
         Assert.Equal(ActorState.Dead, actors.GetState(ActorId.From(reply.PlayerId)));
+    }
+
+    [Fact]
+    public async Task Leaderboard_query_creates_current_leaderboard_actor_on_state_store_node()
+    {
+        await TestHotfix.LoadCurrentAsync(TestContext.Current.CancellationToken);
+
+        var stateStoreNodes = new[]
+        {
+            StateStoreNode("state-b", "tcp://127.0.0.1:22002"),
+            StateStoreNode("state-a", "tcp://127.0.0.1:22001")
+        };
+        var featureTransport = new CapturingFeatureMessageTransport();
+        var remoteSerializer = new JsonRemoteActorSerializer();
+        var remoteInvoker = new StateStoreRemoteActorInvoker(remoteSerializer, featureTransport);
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddLakonaGameServer();
+        new global::GeneratedHotfixActorRegistration().Register(services);
+        services.AddGeneratedActorSelectorTestDependencies();
+        services.AddSingleton(new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "gateway-1" },
+            Endpoints =
+            [
+                new LakonaGameEndpointOptions
+                {
+                    Transport = "websocket",
+                    Serializer = "memorypack",
+                    Host = "127.0.0.1",
+                    Port = 20000,
+                    Path = "/ws",
+                    RpcServices = ["login", "player"]
+                }
+            ],
+            Feature = []
+        });
+        services.AddSingleton<IClusterNodeDiscovery>(new FixedClusterNodeDiscovery(stateStoreNodes));
+        services.AddSingleton<IFeatureMessageTransport>(featureTransport);
+        services.RemoveAll<IRemoteActorSerializer>();
+        services.RemoveAll<IRemoteActorInvoker>();
+        services.AddSingleton<IRemoteActorSerializer>(remoteSerializer);
+        services.AddSingleton<IRemoteActorInvoker>(remoteInvoker);
+        var matchmakingNotifierType = typeof(LoginService).Assembly.GetType("Server.Hotfix.Services.MatchmakingNotifier", throwOnError: true)!;
+        services.AddSingleton(matchmakingNotifierType);
+
+        await using var provider = services.BuildServiceProvider();
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        var service = new PlayerService(
+            provider.GetRequiredService<UserActors>(),
+            provider.GetRequiredService<RoomActors>(),
+            provider.GetRequiredService<MatchmakingActors>(),
+            provider.GetRequiredService<LeaderboardActors>());
+        var call = new HotfixServiceCall<LeaderboardRequest>(
+            new LeaderboardRequest { TopN = 5 },
+            "control-connection-1",
+            new GameSessionKey("player-1", "session-1", 1),
+            provider,
+            actors,
+            new TestGameServer());
+
+        var reply = await service.GetLeaderboardAsync(call);
+
+        Assert.Equal(0, reply.Code);
+        var expectedOwner = SelectExpectedStateStoreOwner("current", stateStoreNodes);
+        Assert.NotNull(featureTransport.LastTarget);
+        Assert.Equal(expectedOwner.Node, featureTransport.LastTarget.Node);
+        Assert.Equal("state-store", featureTransport.LastRequest?.Feature.Value);
+        Assert.Equal("agar.state-store.ensure-leaderboard-actor.v1", featureTransport.LastRequest?.Kind);
+        Assert.Equal(ActorState.Dead, actors.GetState(ActorId.From("current")));
     }
 
     [Fact]
@@ -444,6 +515,17 @@ public sealed class AgarHotfixTests
                     new JsonSerializerOptions(JsonSerializerDefaults.Web))?.UserId == userId;
         }
 
+        public bool HasCreatedLeaderboardActorOn(NodeId node, string leaderboardId)
+        {
+            return LastTarget?.Node == node &&
+                LastRequest is not null &&
+                string.Equals(LastRequest.Kind, "agar.state-store.ensure-leaderboard-actor.v1", StringComparison.Ordinal) &&
+                LastRequest.Payload.Length > 0 &&
+                JsonSerializer.Deserialize<EnsureLeaderboardActorProbe>(
+                    LastRequest.Payload.Span,
+                    new JsonSerializerOptions(JsonSerializerDefaults.Web))?.LeaderboardId == leaderboardId;
+        }
+
         public ValueTask<FeatureMessageReply> SendAsync(
             ClusterNodeDescriptor target,
             FeatureMessageRequest request,
@@ -473,17 +555,17 @@ public sealed class AgarHotfixTests
             RemoteActorInvocation invocation,
             CancellationToken cancellationToken = default)
         {
-            if (!_featureTransport.HasCreatedUserActorOn(invocation.Node, invocation.ActorId.Value))
-            {
-                return new ValueTask<RemoteActorInvocationResult>(RemoteActorInvocationResult.Failed(
-                    RemoteActorStatus.HandlerUnavailable,
-                    $"User actor {invocation.ActorId.Value} was not created on {invocation.Node.Value}."));
-            }
-
             if (invocation.MethodName.Contains(".LoginAsync.", StringComparison.Ordinal) ||
                 invocation.MethodName.EndsWith(".LoginAsync", StringComparison.Ordinal) ||
                 string.Equals(invocation.MethodName, "LoginAsync", StringComparison.Ordinal))
             {
+                if (!_featureTransport.HasCreatedUserActorOn(invocation.Node, invocation.ActorId.Value))
+                {
+                    return new ValueTask<RemoteActorInvocationResult>(RemoteActorInvocationResult.Failed(
+                        RemoteActorStatus.HandlerUnavailable,
+                        $"User actor {invocation.ActorId.Value} was not created on {invocation.Node.Value}."));
+                }
+
                 var result = new UserLoginResult
                 {
                     UserId = invocation.ActorId.Value,
@@ -499,6 +581,13 @@ public sealed class AgarHotfixTests
                 invocation.MethodName.EndsWith(".AttachAsync", StringComparison.Ordinal) ||
                 string.Equals(invocation.MethodName, "AttachAsync", StringComparison.Ordinal))
             {
+                if (!_featureTransport.HasCreatedUserActorOn(invocation.Node, invocation.ActorId.Value))
+                {
+                    return new ValueTask<RemoteActorInvocationResult>(RemoteActorInvocationResult.Failed(
+                        RemoteActorStatus.HandlerUnavailable,
+                        $"User actor {invocation.ActorId.Value} was not created on {invocation.Node.Value}."));
+                }
+
                 var request = _serializer.Deserialize<PlayerSessionAttachRequest>(invocation.Payload);
                 var snapshot = new PlayerSessionSnapshot
                 {
@@ -510,6 +599,28 @@ public sealed class AgarHotfixTests
                     IsOnline = true,
                     AttachedAtUtc = request.AttachedAtUtc,
                     ControlGateway = request.ControlGateway
+                };
+                return new ValueTask<RemoteActorInvocationResult>(
+                    RemoteActorInvocationResult.Replied(_serializer.Serialize(snapshot)));
+            }
+
+            if (invocation.MethodName.Contains(".GetLeaderboardAsync.", StringComparison.Ordinal) ||
+                invocation.MethodName.EndsWith(".GetLeaderboardAsync", StringComparison.Ordinal) ||
+                string.Equals(invocation.MethodName, "GetLeaderboardAsync", StringComparison.Ordinal))
+            {
+                if (!_featureTransport.HasCreatedLeaderboardActorOn(invocation.Node, invocation.ActorId.Value))
+                {
+                    return new ValueTask<RemoteActorInvocationResult>(RemoteActorInvocationResult.Failed(
+                        RemoteActorStatus.HandlerUnavailable,
+                        $"Leaderboard actor {invocation.ActorId.Value} was not created on {invocation.Node.Value}."));
+                }
+
+                var snapshot = new LeaderboardSnapshot
+                {
+                    PeriodStartLocalDate = "2026-06-22",
+                    PeriodStartUtc = "2026-06-22",
+                    SecondsUntilReset = 60,
+                    Entries = []
                 };
                 return new ValueTask<RemoteActorInvocationResult>(
                     RemoteActorInvocationResult.Replied(_serializer.Serialize(snapshot)));
@@ -545,6 +656,11 @@ public sealed class AgarHotfixTests
     private sealed class EnsureUserActorProbe
     {
         public string UserId { get; set; } = "";
+    }
+
+    private sealed class EnsureLeaderboardActorProbe
+    {
+        public string LeaderboardId { get; set; } = "";
     }
 
     private sealed class CapturingControlCallback : IControlCallback

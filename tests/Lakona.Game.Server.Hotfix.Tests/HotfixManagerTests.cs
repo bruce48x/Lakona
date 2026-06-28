@@ -488,6 +488,49 @@ public sealed class HotfixManagerTests
     }
 
     [Fact]
+    public async Task Runtime_services_resolve_feature_local_dependencies_from_root_provider()
+    {
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var requestType = stableAssembly.GetType("StableContracts.ServiceRequest", throwOnError: true)!;
+        var replyType = stableAssembly.GetType("StableContracts.ServiceReply", throwOnError: true)!;
+        var contract = stableAssembly.GetType("StableContracts.IManagerService", throwOnError: true)!;
+        await using var rootServices = new ServiceCollection()
+            .AddSingleton<IRootOnlyMarker, RootOnlyMarker>()
+            .BuildServiceProvider();
+        var manager = new HotfixManager(
+            new FixedAssemblySource(compiled.RootDiFeatureServiceHotfixAssemblyPath),
+            [stableAssembly.GetName().Name!, typeof(IRootOnlyMarker).Assembly.GetName().Name!],
+            requiredServiceContracts: [contract],
+            rootServices: rootServices);
+        var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+        Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
+
+        var request = Activator.CreateInstance(requestType, 7)!;
+        var callType = typeof(HotfixServiceCall<>).MakeGenericType(requestType);
+        var call = Activator.CreateInstance(
+            callType,
+            request,
+            ((IHotfixServiceProviderAccessor)manager).Current)!;
+        var invoke = typeof(HotfixDispatchTable)
+            .GetMethods()
+            .Single(method => method.Name == nameof(HotfixDispatchTable.InvokeServiceAsync)
+                && method.GetGenericArguments().Length == 3
+                && method.GetParameters()[0].ParameterType == typeof(int))
+            .MakeGenericMethod(contract, callType, replyType);
+        var task = invoke.Invoke(HotfixDispatch.Current, [7, call])!;
+
+        var reply = await ((ValueTask<object?>)typeof(HotfixManagerTests)
+            .GetMethod(nameof(AwaitValueTaskAsync), BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(replyType)
+            .Invoke(null, [task])!);
+
+        Assert.NotNull(reply);
+        var value = (int)replyType.GetProperty("Value")!.GetValue(reply)!;
+        Assert.Equal(11, value);
+    }
+
+    [Fact]
     public async Task Reload_fails_before_publish_when_service_has_multiple_unmarked_constructors()
     {
         using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
@@ -689,6 +732,7 @@ public sealed class HotfixManagerTests
             string constructorDiServiceHotfixAssemblyPath,
             string constructorDiLifecycleHotfixAssemblyPath,
             string rootDiServiceHotfixAssemblyPath,
+            string rootDiFeatureServiceHotfixAssemblyPath,
             string missingDiServiceHotfixAssemblyPath,
             string multipleConstructorServiceHotfixAssemblyPath,
             string selectedConstructorDiServiceHotfixAssemblyPath)
@@ -710,6 +754,7 @@ public sealed class HotfixManagerTests
             ConstructorDiServiceHotfixAssemblyPath = constructorDiServiceHotfixAssemblyPath;
             ConstructorDiLifecycleHotfixAssemblyPath = constructorDiLifecycleHotfixAssemblyPath;
             RootDiServiceHotfixAssemblyPath = rootDiServiceHotfixAssemblyPath;
+            RootDiFeatureServiceHotfixAssemblyPath = rootDiFeatureServiceHotfixAssemblyPath;
             MissingDiServiceHotfixAssemblyPath = missingDiServiceHotfixAssemblyPath;
             MultipleConstructorServiceHotfixAssemblyPath = multipleConstructorServiceHotfixAssemblyPath;
             SelectedConstructorDiServiceHotfixAssemblyPath = selectedConstructorDiServiceHotfixAssemblyPath;
@@ -749,6 +794,8 @@ public sealed class HotfixManagerTests
 
         public string RootDiServiceHotfixAssemblyPath { get; }
 
+        public string RootDiFeatureServiceHotfixAssemblyPath { get; }
+
         public string MissingDiServiceHotfixAssemblyPath { get; }
 
         public string MultipleConstructorServiceHotfixAssemblyPath { get; }
@@ -785,6 +832,7 @@ public sealed class HotfixManagerTests
             var constructorDiServiceHotfixAssemblyName = $"ConstructorDiServiceHotfix_{suffix}";
             var constructorDiLifecycleHotfixAssemblyName = $"ConstructorDiLifecycleHotfix_{suffix}";
             var rootDiServiceHotfixAssemblyName = $"RootDiServiceHotfix_{suffix}";
+            var rootDiFeatureServiceHotfixAssemblyName = $"RootDiFeatureServiceHotfix_{suffix}";
             var missingDiServiceHotfixAssemblyName = $"MissingDiServiceHotfix_{suffix}";
             var multipleConstructorServiceHotfixAssemblyName = $"MultipleConstructorServiceHotfix_{suffix}";
             var selectedConstructorDiServiceHotfixAssemblyName = $"SelectedConstructorDiServiceHotfix_{suffix}";
@@ -794,6 +842,7 @@ public sealed class HotfixManagerTests
             var constructorDiServiceHotfixAssemblyPath = Path.Combine(root, "constructor-di-service-hotfix", $"{constructorDiServiceHotfixAssemblyName}.dll");
             var constructorDiLifecycleHotfixAssemblyPath = Path.Combine(root, "constructor-di-lifecycle-hotfix", $"{constructorDiLifecycleHotfixAssemblyName}.dll");
             var rootDiServiceHotfixAssemblyPath = Path.Combine(root, "root-di-service-hotfix", $"{rootDiServiceHotfixAssemblyName}.dll");
+            var rootDiFeatureServiceHotfixAssemblyPath = Path.Combine(root, "root-di-feature-service-hotfix", $"{rootDiFeatureServiceHotfixAssemblyName}.dll");
             var missingDiServiceHotfixAssemblyPath = Path.Combine(root, "missing-di-service-hotfix", $"{missingDiServiceHotfixAssemblyName}.dll");
             var multipleConstructorServiceHotfixAssemblyPath = Path.Combine(root, "multiple-constructor-service-hotfix", $"{multipleConstructorServiceHotfixAssemblyName}.dll");
             var selectedConstructorDiServiceHotfixAssemblyPath = Path.Combine(root, "selected-constructor-di-service-hotfix", $"{selectedConstructorDiServiceHotfixAssemblyName}.dll");
@@ -814,6 +863,7 @@ public sealed class HotfixManagerTests
             Directory.CreateDirectory(Path.GetDirectoryName(constructorDiServiceHotfixAssemblyPath)!);
             Directory.CreateDirectory(Path.GetDirectoryName(constructorDiLifecycleHotfixAssemblyPath)!);
             Directory.CreateDirectory(Path.GetDirectoryName(rootDiServiceHotfixAssemblyPath)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(rootDiFeatureServiceHotfixAssemblyPath)!);
             Directory.CreateDirectory(Path.GetDirectoryName(missingDiServiceHotfixAssemblyPath)!);
             Directory.CreateDirectory(Path.GetDirectoryName(multipleConstructorServiceHotfixAssemblyPath)!);
             Directory.CreateDirectory(Path.GetDirectoryName(selectedConstructorDiServiceHotfixAssemblyPath)!);
@@ -1313,6 +1363,58 @@ public sealed class HotfixManagerTests
                 cancellationToken);
 
             await EmitAssemblyAsync(
+                rootDiFeatureServiceHotfixAssemblyName,
+                rootDiFeatureServiceHotfixAssemblyPath,
+                """
+                using System.Threading.Tasks;
+                using StableContracts;
+                using Lakona.Game.Server.Hotfix;
+                using Lakona.Game.Server.Hotfix.Abstractions;
+                using Lakona.Game.Server.Hotfix.Tests;
+                using Microsoft.Extensions.DependencyInjection;
+
+                namespace RootDiFeatureServiceHotfix;
+
+                public sealed class FeatureLocalUsesRoot
+                {
+                    private readonly IRootOnlyMarker _marker;
+
+                    public FeatureLocalUsesRoot(IRootOnlyMarker marker)
+                    {
+                        _marker = marker;
+                    }
+
+                    public int Offset => _marker.Value.Length;
+                }
+
+                [HotfixFeature("root-di-feature-service")]
+                public sealed class RootDiFeature : HotfixGameFeature
+                {
+                    public override void Configure(HotfixFeatureContext context)
+                    {
+                        context.Services.AddSingleton<FeatureLocalUsesRoot>();
+                    }
+                }
+
+                [HotfixService(typeof(IManagerService))]
+                public sealed class ManagerService
+                {
+                    public ValueTask<ServiceReply> LoginAsync(HotfixServiceCall<ServiceRequest> call)
+                    {
+                        var featureService = call.Services.GetRequiredService<FeatureLocalUsesRoot>();
+                        return new ValueTask<ServiceReply>(new ServiceReply(call.Request!.Value + featureService.Offset));
+                    }
+                }
+                """,
+                [
+                    stableReference,
+                    abstractionsReference,
+                    testsReference,
+                    dependencyInjectionAbstractionsReference
+                ],
+                cancellationToken);
+
+            await EmitAssemblyAsync(
                 missingDiServiceHotfixAssemblyName,
                 missingDiServiceHotfixAssemblyPath,
                 """
@@ -1459,6 +1561,7 @@ public sealed class HotfixManagerTests
                 constructorDiServiceHotfixAssemblyPath,
                 constructorDiLifecycleHotfixAssemblyPath,
                 rootDiServiceHotfixAssemblyPath,
+                rootDiFeatureServiceHotfixAssemblyPath,
                 missingDiServiceHotfixAssemblyPath,
                 multipleConstructorServiceHotfixAssemblyPath,
                 selectedConstructorDiServiceHotfixAssemblyPath);
