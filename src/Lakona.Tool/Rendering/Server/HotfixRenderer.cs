@@ -32,7 +32,14 @@ internal sealed class HotfixRenderer : IPlanContributor
             <AssemblyName>Server.Hotfix</AssemblyName>
             <RootNamespace>Server.Hotfix</RootNamespace>
             <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+            <LakonaHotfixGenerateStableRpcServices>false</LakonaHotfixGenerateStableRpcServices>
+            <LakonaHotfixGenerateStableActorRefs>false</LakonaHotfixGenerateStableActorRefs>
           </PropertyGroup>
+
+          <ItemGroup>
+            <CompilerVisibleProperty Include="LakonaHotfixGenerateStableRpcServices" />
+            <CompilerVisibleProperty Include="LakonaHotfixGenerateStableActorRefs" />
+          </ItemGroup>
 
           <ItemGroup>
             <ProjectReference Include="..\..\Shared\Shared.csproj" TargetFramework="net10.0">

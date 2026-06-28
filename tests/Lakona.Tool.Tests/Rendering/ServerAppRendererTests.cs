@@ -35,6 +35,10 @@ public sealed class ServerAppRendererTests
         Assert.Contains("<LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>", project, StringComparison.Ordinal);
         Assert.Contains("<CompilerVisibleProperty Include=\"LakonaRpcGenerateServer\" />", project, StringComparison.Ordinal);
         Assert.Contains("<CompilerVisibleProperty Include=\"LakonaRpcServerGeneratedNamespace\" />", project, StringComparison.Ordinal);
+        Assert.Contains("<LakonaHotfixGenerateStableRpcServices>true</LakonaHotfixGenerateStableRpcServices>", project, StringComparison.Ordinal);
+        Assert.Contains("<LakonaHotfixGenerateStableActorRefs>true</LakonaHotfixGenerateStableActorRefs>", project, StringComparison.Ordinal);
+        Assert.Contains("<CompilerVisibleProperty Include=\"LakonaHotfixGenerateStableRpcServices\" />", project, StringComparison.Ordinal);
+        Assert.Contains("<CompilerVisibleProperty Include=\"LakonaHotfixGenerateStableActorRefs\" />", project, StringComparison.Ordinal);
         Assert.Contains("<PackageReference Include=\"Lakona.Game.Server\"", project, StringComparison.Ordinal);
         Assert.DoesNotContain("<PackageReference Include=\"Lakona.Rpc.Transport.Kcp\"", project, StringComparison.Ordinal);
         Assert.DoesNotContain("<PackageReference Include=\"Lakona.Rpc.Transport.WebSocket\"", project, StringComparison.Ordinal);
