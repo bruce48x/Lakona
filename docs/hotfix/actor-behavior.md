@@ -60,15 +60,21 @@ Those methods are business behavior. They belong in a matching
 
 ## Behavior Class Rules
 
-Each Behavior corresponds to one actor type and is marked with
-`[HotfixBehaviorOf(typeof(TActor))]`.
+Each user-authored Behavior corresponds to exactly one actor type and is marked
+with `[HotfixBehaviorOf(typeof(TActor))]`. `TActor` must derive from
+`Lakona.Game.Server.Actors.Actor<TKey>`.
+
+The Behavior class must be a `static partial` class named
+`<ActorPrefix>Behavior`, where `<ActorPrefix>` is the actor class name without
+the `Actor` suffix. The same partial type may be split across files, but a
+second Behavior type for the same Actor is invalid.
 
 Behavior methods are public static extension methods whose first parameter is
 `this TActor self`:
 
 ```csharp
 [HotfixBehaviorOf(typeof(RoomActor))]
-internal static class RoomBehavior
+internal static partial class RoomBehavior
 {
     public static ValueTask<RoomSettlementResult> StartAsync(
         this RoomActor self,

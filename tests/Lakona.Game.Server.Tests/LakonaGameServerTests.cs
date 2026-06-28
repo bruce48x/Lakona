@@ -18,6 +18,7 @@ using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.HotfixAdmin;
 using Lakona.Game.Server.Hotfix.Loading;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
@@ -52,6 +53,27 @@ public sealed class LakonaGameServerTests
     {
         Assert.True(Lakona.Game.Server.Hosting.LakonaGameServer.IsReadinessCheckCommandForTesting(["--readiness-check"]));
         Assert.False(Lakona.Game.Server.Hosting.LakonaGameServer.IsReadinessCheckCommandForTesting(["--lakona-game-check"]));
+    }
+
+    [Fact]
+    public void Hotfix_admin_options_ignore_legacy_lakona_game_root()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Lakona.Game:Hotfix:Admin:Enabled"] = "true",
+                ["Lakona.Game:Hotfix:Admin:Port"] = "20091"
+            })
+            .Build();
+        var method = typeof(Lakona.Game.Server.Hosting.LakonaGameServer).GetMethod(
+            "CreateDefaultHotfixAdminOptions",
+            BindingFlags.NonPublic | BindingFlags.Static)!;
+
+        var options = Assert.IsType<HotfixAdminOptions>(
+            method.Invoke(null, [configuration, AppContext.BaseDirectory, "test-build"]));
+
+        Assert.False(options.Enabled);
+        Assert.Equal(20090, options.Port);
     }
 
     [Fact]

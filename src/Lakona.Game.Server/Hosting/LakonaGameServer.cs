@@ -382,11 +382,6 @@ public static class LakonaGameServer
     {
         var options = new HotfixAdminOptions();
         var section = configuration.GetSection("Lakona:Hotfix:Admin");
-        if (!section.Exists())
-        {
-            section = configuration.GetSection("Lakona.Game:Hotfix:Admin");
-        }
-
         section.Bind(options);
         options.HotfixRoot = Path.Combine(baseDirectory, "hotfix");
         options.BuildTag = buildTag;

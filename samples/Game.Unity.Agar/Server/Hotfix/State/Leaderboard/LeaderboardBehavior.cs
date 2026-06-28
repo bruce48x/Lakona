@@ -10,7 +10,7 @@ using Server.Hotfix.State.Users;
 namespace Server.Hotfix.State.Leaderboard;
 
 [HotfixBehaviorOf(typeof(LeaderboardActor))]
-public static class LeaderboardBehavior
+public static partial class LeaderboardBehavior
 {
     public static async ValueTask<LeaderboardSnapshot> GetLeaderboardAsync(this LeaderboardActor self, LeaderboardQueryRequest request, CancellationToken cancellationToken = default)
     {

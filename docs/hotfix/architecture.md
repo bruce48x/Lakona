@@ -105,7 +105,9 @@ the matching Behavior.
 
 ```csharp
 // Server.App
-internal sealed class ChatRoomActor : Actor
+internal readonly record struct ChatRoomId(string Value);
+
+internal sealed class ChatRoomActor : Actor<ChatRoomId>
 {
     internal readonly Dictionary<string, ChatRoomMember> Members = new();
     internal readonly Queue<ChatMessage> RecentMessages = new();
@@ -115,7 +117,7 @@ internal sealed class ChatRoomActor : Actor
 ```csharp
 // Server.Hotfix
 [HotfixBehaviorOf(typeof(ChatRoomActor))]
-internal static class ChatRoomBehavior
+internal static partial class ChatRoomBehavior
 {
     public static ValueTask<LoginReply> LoginAsync(
         this ChatRoomActor self,
@@ -285,6 +287,13 @@ for ordinary business actor calls. `Get(id)` is the default service path and
 resolves local or remote placement through the actor directory. `Local(id)` is
 reserved for code that has already proven current-node ownership. `Remote(nodeId,
 id)` pins a specific target node.
+
+Generated actor selectors expose stable refs and low-level dispatch helpers from
+`Server.App`. Ordinary business method calls are generated into the matching
+`Server.Hotfix` `partial` Behavior type as extension methods on those refs. This
+keeps call-site navigation in the Behavior boundary while preserving stable
+route lookup, local dispatch, remote dispatch, serialization, and actor call
+error mapping in generated app code.
 
 `HotfixServiceCall.Actors` and raw `IActorRuntime.AskAsync` / `TellAsync`
 remain framework-level escape hatches. Samples and generated projects must not

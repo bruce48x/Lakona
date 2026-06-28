@@ -12,7 +12,7 @@ using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.Services;
 using Server.Hotfix.State.Rooms;
-using Server.Hotfix.State.Sessions;
+using Server.Hotfix.State.Users;
 using Shared.Interfaces;
 using Xunit;
 

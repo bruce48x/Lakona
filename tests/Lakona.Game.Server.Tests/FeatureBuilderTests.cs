@@ -118,6 +118,31 @@ public sealed class FeatureBuilderTests
     }
 
     [Fact]
+    public void AddFeatures_extension_ignores_legacy_lakona_game_filter_root()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Lakona.Game:Features:Roles:0"] = "alpha"
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddFeatures(config, builder =>
+        {
+            builder.AddRole(new TestRole("alpha", [new MarkerFeatureA()]));
+            builder.AddRole(new TestRole("beta", [new MarkerFeatureB()]));
+        });
+
+        var configured = services.BuildServiceProvider()
+            .GetServices<FeatureConfiguredMarker>()
+            .Select(m => m.FeatureName)
+            .ToArray();
+
+        Assert.Equal(["MarkerA", "MarkerB"], configured);
+    }
+
+    [Fact]
     public void Add_features_with_no_config_filter_runs_all()
     {
         var config = new ConfigurationBuilder().Build();

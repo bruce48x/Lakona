@@ -24,7 +24,7 @@ path that can fix live logic without disconnecting everyone.
 Lakona is built around that workflow:
 
 1. **🧩 Share C# between frontend and backend.** Put RPC interfaces, DTOs,
-   session types, and stable state definitions in one `Shared` project. The
+   callback contracts, and named protocol ids in one `Shared` project. The
    server and Unity/Godot clients compile the same source, so protocol drift is
    not a normal part of development.
 2. **🔥 Hot-update game logic without losing state.** Keep long-lived mutable state
@@ -61,55 +61,66 @@ into multi-service and multi-node deployments when the game needs it.
 
 ## Shared C#: Define Once 🧩
 
-Server and client share the same network contracts, DTOs, and state types.
-Define them in the `Shared` project; both sides compile from the same source.
+Server and client share the same network contracts and DTOs. Define RPC
+interfaces, callbacks, request/reply payloads, and named contract ids in the
+`Shared` project; both sides compile from the same source.
 
 ```csharp
-// Shared/Gameplay/GameRules.cs - compiled for server AND client
+// Shared/Contracts/Rooms.cs - compiled for server AND client
 
-[HotfixState]
-public sealed partial class GameRulesState
+[RpcService(ApiName = "room")]
+public interface IRoomService
 {
-    private int _minimumScore = 1;
+    [RpcMethod(1)]
+    ValueTask<JoinRoomReply> JoinAsync(JoinRoomRequest request);
+}
 
-    public GameRuleResult Evaluate(GameRuleInput input)
-    {
-        // Server: dispatched to the hotfix assembly at runtime
-        // Client: calls EvaluateStable directly
-        return HotfixDispatch.Invoke<GameRulesState, GameRuleInput, GameRuleResult>(
-            nameof(Evaluate), this, input);
-    }
+public sealed record JoinRoomRequest(string RoomId, string PlayerId);
 
-    internal GameRuleResult EvaluateStable(GameRuleInput input)
-    {
-        if (string.IsNullOrWhiteSpace(input.PlayerId))
-        {
-            return new GameRuleResult { Accepted = false, Reason = "PlayerId required" };
-        }
+public sealed record JoinRoomReply(bool Accepted, int PlayerCount);
+```
 
-        return input.Score >= _minimumScore
-            ? new GameRuleResult { Accepted = true }
-            : new GameRuleResult { Accepted = false, Reason = "Score too low" };
-    }
+The stable server app owns actor state and infrastructure. Hotfix behavior owns
+the replaceable game decisions that run inside actor turns.
+
+```csharp
+// Server.App/Rooms/RoomActor.cs
+
+public readonly record struct RoomId(string Value);
+
+[ActorName("room")]
+public sealed class RoomActor : Actor<RoomId>
+{
+    internal readonly HashSet<string> Players = new(StringComparer.Ordinal);
+}
+
+[HotfixActorContract(typeof(RoomActor))]
+public interface IRoomActorContract
+{
+    ValueTask<JoinRoomReply> JoinAsync(
+        JoinRoomRequest request,
+        CancellationToken cancellationToken = default);
 }
 ```
 
 ```csharp
-// Server.Hotfix/Gameplay/GameRulesSystem.cs - server-only, hot-reloadable
+// Server.Hotfix/Rooms/RoomBehavior.cs - server-only, hot-reloadable
 
-[FriendOf(typeof(GameRulesState))]
-[HotfixSystemOf(typeof(GameRulesState))]
-public static class GameRulesSystem
+[HotfixBehaviorOf(typeof(RoomActor))]
+public static partial class RoomBehavior
 {
-    public static GameRuleResult Evaluate(this GameRulesState self, GameRuleInput input)
+    public static ValueTask<JoinRoomReply> JoinAsync(
+        this RoomActor room,
+        JoinRoomRequest request,
+        CancellationToken cancellationToken = default)
     {
-        // Your live game logic: change this, save, and it reloads automatically.
-        return self.EvaluateStable(input);
+        room.Players.Add(request.PlayerId);
+        return new(new JoinRoomReply(Accepted: true, room.Players.Count));
     }
 }
 ```
 
-Change `GameRulesSystem.Evaluate`, rebuild the hotfix project, and the server
+Change `RoomBehavior.JoinAsync`, rebuild the hotfix project, and the server
 reloads it. No restart. No downtime. Clients never see the hotfix code.
 
 ## Hotfix: Reload Logic, Keep State 🔥
@@ -118,10 +129,10 @@ Lakona loads hotfix assemblies into a collectible `AssemblyLoadContext`. The
 file watcher detects changes, loads the new DLL, rebuilds the dispatch table,
 and unloads the old assembly atomically.
 
-The design separates **stable runtime state** from **replaceable business
-logic**. A live room, player session, or gameplay state object can stay owned by
-the running server while the C# code that evaluates rules, rewards, matchmaking
-decisions, or event behavior is replaced.
+The design separates **stable actor state and runtime infrastructure** from
+**replaceable business logic**. A live room actor, player actor, or matchmaking
+actor can stay owned by the running server while the C# code that evaluates
+rules, rewards, matchmaking decisions, or event behavior is replaced.
 
 ```csharp
 // In Program.cs: register hotfix and file watching.
@@ -139,7 +150,7 @@ builder.Services.AddLakonaGameHotfixFileWatcher();
 | Language | Lua, JS, or custom DSL | C#, same language as the rest of the server |
 | Debugging | Separate debugger, type mismatches at runtime | Same IDE, same debugger, compile-time safety |
 | Deploy | Restart server or reload an entire VM | Save file, auto reload while state remains owned by the runtime |
-| Registration | Manual dispatch wiring | `[HotfixSystemOf]` attribute plus source generator |
+| Registration | Manual dispatch wiring | `[HotfixBehaviorOf]` actor behavior plus generated selectors and wrappers |
 
 ## Flexible Networking 🔌
 
@@ -209,10 +220,26 @@ about than shared mutable objects spread across threads.
 [ActorName("room")]
 public class RoomActor : Actor<RoomId>
 {
-    [ActorMethod("join")]
-    public ValueTask<JoinResult> JoinAsync(JoinRequest request, CancellationToken ct)
+    internal readonly HashSet<string> Players = new(StringComparer.Ordinal);
+}
+
+[HotfixActorContract(typeof(RoomActor))]
+public interface IRoomActorContract
+{
+    ValueTask<JoinResult> JoinAsync(
+        JoinRequest request,
+        CancellationToken ct = default);
+}
+
+[HotfixBehaviorOf(typeof(RoomActor))]
+public static partial class RoomBehavior
+{
+    public static ValueTask<JoinResult> JoinAsync(
+        this RoomActor room,
+        JoinRequest request,
+        CancellationToken ct = default)
     {
-        _players.Add(request.PlayerId);
+        room.Players.Add(request.PlayerId);
         return new(new JoinResult { Accepted = true });
     }
 }
@@ -224,6 +251,9 @@ await rooms.Get(roomId).JoinAsync(request, ct);            // Distributed
 await rooms.Local(roomId).JoinAsync(request, ct);          // Current node only
 await rooms.Remote(nodeId, roomId).JoinAsync(request, ct); // Pinned to node
 ```
+
+The contract declares the generated actor ref call surface. `RoomBehavior` owns
+the implementation that runs inside the actor turn.
 
 Lower-level `IActorRuntime` calls, including `call.Actors.AskAsync(...)` in
 hotfix services, are process-local. Use the generated selectors above when code

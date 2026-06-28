@@ -1,9 +1,21 @@
+using System.Reflection;
+using Agar.Sample.State.Contracts.Leaderboard;
+using Agar.Sample.State.Contracts.Rooms;
+using Agar.Sample.State.Contracts.Sessions;
+using Agar.Sample.State.Contracts.Users;
+using Agar.Sample.State.Rooms;
+using Agar.Sample.State.Users;
+using Agar.Sample.State.Leaderboard;
+using Lakona.Game.Server.Actors;
 using Shared.Gameplay;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Hotfix;
-using Lakona.Game.Server.Hotfix.Dispatch;
+using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Loading;
 using Microsoft.Extensions.DependencyInjection;
+using Server.Hotfix.State.Leaderboard;
+using Server.Hotfix.State.Rooms;
+using Server.Hotfix.State.Users;
 using Xunit;
 
 namespace Agar.Unity.Tests;
@@ -47,7 +59,7 @@ public sealed class AgarHotfixTests
     }
 
     [Fact]
-    public async Task SettleMatch_uses_hotfix_rule_to_award_winner_points()
+    public async Task Hotfix_reload_includes_room_behavior_settlement_rules()
     {
         var hotfixAssemblyPath = FindHotfixAssemblyPath();
         var source = new CurrentDirectoryHotfixAssemblySource(
@@ -59,101 +71,145 @@ public sealed class AgarHotfixTests
         var reload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
 
         Assert.True(reload.Succeeded, BuildReloadDiagnostics(reload));
-        var settleMatchKey = Assert.Single(
+        Assert.Contains(
             reload.Current.Methods,
-            key => key.StateTypeName == typeof(ArenaSimulation).FullName &&
-                   key.MethodName == nameof(ArenaSimulation.SettleMatch));
-        var settleMatch = HotfixDispatch.Current.Resolve(settleMatchKey);
-        Assert.Same(typeof(ArenaSimulation), settleMatch.GetParameters()[0].ParameterType);
+            key => key.StateTypeName == typeof(Agar.Sample.State.Rooms.RoomActor).FullName &&
+                   key.MethodName == "TickAsync");
+        Assert.DoesNotContain(
+            reload.Current.Methods,
+            key => key.StateTypeName == typeof(ArenaSimulation).FullName);
 
-        var simulation = new ArenaSimulation(new ArenaSimulationOptions
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddLakonaGameServer();
+        new global::GeneratedHotfixActorRegistration().Register(services);
+        services.AddGeneratedActorSelectorTestDependencies();
+        var roomNotifierType = typeof(RoomBehavior).Assembly.GetType("Server.Hotfix.Services.RoomNotifier", throwOnError: true)!;
+        services.AddSingleton(roomNotifierType);
+        await using var behaviorServices = services.BuildServiceProvider();
+        var actors = behaviorServices.GetRequiredService<IActorRuntime>();
+        var lifecycle = (IActorLifecycle)actors;
+        var roomId = "settlement-rules-room";
+        var matchId = "settlement-rules-match";
+        var players = new[] { "p1", "p2" };
+
+        foreach (var playerId in players)
         {
-            EnableBots = false,
-            FoodTargetCount = 0
-        });
-        simulation.UpsertPlayer(new ArenaPlayerRegistration { PlayerId = "p1", Mass = 50 });
-        simulation.UpsertPlayer(new ArenaPlayerRegistration { PlayerId = "p2", Mass = 25 });
+            await lifecycle.CreateLocalAsync<UserActor>(ActorId.From(playerId), cancellationToken: TestContext.Current.CancellationToken);
+            await actors.AskAsync<UserActor, UserLoginResult>(
+                ActorId.From(playerId),
+                (actor, _) => actor.LoginAsync(new UserLoginRequest
+                {
+                    Password = "test-password"
+                }),
+                TestContext.Current.CancellationToken);
+        }
 
-        var settlement = simulation.SettleMatch(simulation.CreateWorldState());
+        await lifecycle.CreateLocalAsync<RoomActor>(ActorId.From(roomId), cancellationToken: TestContext.Current.CancellationToken);
+        await lifecycle.CreateLocalAsync<LeaderboardActor>(ActorId.From("current"), cancellationToken: TestContext.Current.CancellationToken);
+        await actors.AskAsync<RoomActor, RoomSettlementResult>(
+            ActorId.From(roomId),
+            (actor, _) => actor.CreateAsync(new RoomCreateRequest
+            {
+                RoomId = roomId,
+                MatchId = matchId,
+                CreatedByUserId = "p1",
+                CreatedAtUtc = DateTime.UtcNow,
+                MaxPlayers = 2,
+                Players =
+                [
+                    BuildAssignment("p1", roomId, matchId, 0),
+                    BuildAssignment("p2", roomId, matchId, 1)
+                ]
+            }),
+            TestContext.Current.CancellationToken);
+        await actors.AskAsync<RoomActor, RoomSettlementResult>(
+            ActorId.From(roomId),
+            (actor, _) => actor.StartAsync(new RoomStartRequest
+            {
+                RoomId = roomId,
+                StartedByUserId = "p1",
+                StartedAtUtc = DateTime.UtcNow
+            }),
+            TestContext.Current.CancellationToken);
+        await actors.TellAsync<RoomActor>(
+            ActorId.From(roomId),
+            (actor, _) =>
+            {
+                SeedSimulationRankingMasses(actor);
+                return default;
+            },
+            TestContext.Current.CancellationToken);
 
-        Assert.Equal("p1", settlement.WinnerPlayerId);
-        Assert.Equal(10, settlement.Entries.Single(entry => entry.PlayerId == "p1").VictoryPoints);
+        await actors.TellAsync<RoomActor>(
+            ActorId.From(roomId),
+            (actor, _) => actor.TickAsync(new HotfixActorTick
+            {
+                ObservedAtUtc = DateTime.UtcNow,
+                Interval = TimeSpan.FromSeconds(121),
+                DispatchTableVersion = reload.Current.DispatchTableVersion
+            }),
+            TestContext.Current.CancellationToken);
+
+        var room = await actors.AskAsync<RoomActor, RoomSnapshot>(
+            ActorId.From(roomId),
+            (actor, _) => actor.GetSnapshotAsync(new RoomSnapshotRequest()),
+            TestContext.Current.CancellationToken);
+        var p1 = await actors.AskAsync<UserActor, UserProfileSnapshot>(
+            ActorId.From("p1"),
+            (actor, _) => actor.GetProfileAsync(new UserProfileRequest()),
+            TestContext.Current.CancellationToken);
+        var p2 = await actors.AskAsync<UserActor, UserProfileSnapshot>(
+            ActorId.From("p2"),
+            (actor, _) => actor.GetProfileAsync(new UserProfileRequest()),
+            TestContext.Current.CancellationToken);
+        var leaderboard = await actors.AskAsync<LeaderboardActor, LeaderboardSnapshot>(
+            ActorId.From("current"),
+            (actor, _) => actor.GetLeaderboardAsync(new LeaderboardQueryRequest { TopN = 10 }),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(RoomStatus.Finished, room.Status);
+        Assert.Equal("p1", room.WinnerUserId);
+        Assert.Equal(1, room.Players.Single(player => player.UserId == "p1").Rank);
+        Assert.Equal(2, room.Players.Single(player => player.UserId == "p2").Rank);
+        Assert.Equal(1, p1.WinCount);
+        Assert.Equal(10, p1.VictoryPoints);
+        Assert.Equal(0, p2.WinCount);
+        Assert.Equal(7, p2.VictoryPoints);
+        Assert.Equal(
+            ["p1", "p2"],
+            leaderboard.Entries.Select(entry => entry.PlayerId).ToArray());
+        Assert.Equal(10, leaderboard.Entries.Single(entry => entry.PlayerId == "p1").VictoryPoints);
+        Assert.Equal(7, leaderboard.Entries.Single(entry => entry.PlayerId == "p2").VictoryPoints);
     }
 
-    [Fact]
-    public async Task Hotfix_reload_keeps_existing_arena_state()
+    private static PlayerRoomAssignment BuildAssignment(string userId, string roomId, string matchId, int seatIndex)
     {
-        var hotfixAssemblyPath = FindHotfixAssemblyPath();
-        var source = new CurrentDirectoryHotfixAssemblySource(
-            Path.GetDirectoryName(hotfixAssemblyPath)!,
-            Path.GetFileName(hotfixAssemblyPath));
-        await using var rootServices = TestHotfix.CreateRootServiceProvider();
-        var manager = new HotfixManager(source, HotfixSharedAssemblyNames(), rootServices: rootServices);
-
-        var firstReload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
-        Assert.True(firstReload.Succeeded, BuildReloadDiagnostics(firstReload));
-
-        var simulation = new ArenaSimulation(new ArenaSimulationOptions
+        return new PlayerRoomAssignment
         {
-            EnableBots = false,
-            FoodTargetCount = 0
-        });
-        simulation.UpsertPlayer(new ArenaPlayerRegistration { PlayerId = "p1", Mass = 50 });
-        simulation.UpsertPlayer(new ArenaPlayerRegistration { PlayerId = "p2", Mass = 25 });
-
-        var secondReload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
-        Assert.True(secondReload.Succeeded, BuildReloadDiagnostics(secondReload));
-
-        Assert.True(simulation.TryGetPlayerSnapshot("p1", out var snapshot));
-        Assert.Equal("p1", snapshot.PlayerId);
-        Assert.Equal(50, snapshot.Mass);
-
-        var settlement = simulation.SettleMatch(simulation.CreateWorldState());
-
-        Assert.Equal("p1", settlement.WinnerPlayerId);
-        Assert.Equal(10, settlement.Entries.Single(entry => entry.PlayerId == "p1").VictoryPoints);
-        Assert.Equal(7, settlement.Entries.Single(entry => entry.PlayerId == "p2").VictoryPoints);
+            UserId = userId,
+            SessionToken = $"token-{userId}",
+            ConnectionId = $"connection-{userId}",
+            RoomId = roomId,
+            MatchId = matchId,
+            SeatIndex = seatIndex,
+            AssignedAtUtc = DateTime.UtcNow
+        };
     }
 
-    [Fact]
-    public async Task Hotfix_failed_reload_keeps_previous_arena_rules_and_state()
+    private static void SeedSimulationRankingMasses(RoomActor actor)
     {
-        var hotfixAssemblyPath = FindHotfixAssemblyPath();
-        var source = new SwitchableHotfixAssemblySource(hotfixAssemblyPath);
-        await using var rootServices = TestHotfix.CreateRootServiceProvider();
-        var manager = new HotfixManager(source, HotfixSharedAssemblyNames(), rootServices: rootServices);
-
-        var firstReload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
-        Assert.True(firstReload.Succeeded, BuildReloadDiagnostics(firstReload));
-        var settleMatchKey = Assert.Single(
-            firstReload.Current.Methods,
-            key => key.StateTypeName == typeof(ArenaSimulation).FullName &&
-                   key.MethodName == nameof(ArenaSimulation.SettleMatch));
-        var previousMethod = HotfixDispatch.Current.Resolve(settleMatchKey);
-
-        var simulation = new ArenaSimulation(new ArenaSimulationOptions
+        var stateField = typeof(RoomActor).GetField("State", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var state = (RoomState)stateField.GetValue(actor)!;
+        foreach (var player in state.Simulation.Players)
         {
-            EnableBots = false,
-            FoodTargetCount = 0
-        });
-        simulation.UpsertPlayer(new ArenaPlayerRegistration { PlayerId = "p1", Mass = 50 });
-        simulation.UpsertPlayer(new ArenaPlayerRegistration { PlayerId = "p2", Mass = 25 });
-
-        source.Path = Path.Combine(Path.GetTempPath(), "LakonaGameMissingHotfix", "Server.Hotfix.dll");
-
-        var failedReload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
-
-        Assert.False(failedReload.Succeeded);
-        Assert.Equal(firstReload.Current.DispatchTableVersion, failedReload.Current.DispatchTableVersion);
-        Assert.Same(previousMethod, HotfixDispatch.Current.Resolve(settleMatchKey));
-        Assert.True(simulation.TryGetPlayerSnapshot("p1", out var snapshot));
-        Assert.Equal(50, snapshot.Mass);
-
-        var settlement = simulation.SettleMatch(simulation.CreateWorldState());
-
-        Assert.Equal("p1", settlement.WinnerPlayerId);
-        Assert.Equal(10, settlement.Entries.Single(entry => entry.PlayerId == "p1").VictoryPoints);
-        Assert.Equal(7, settlement.Entries.Single(entry => entry.PlayerId == "p2").VictoryPoints);
+            player.Mass = player.PlayerId switch
+            {
+                "p1" => 50f,
+                "p2" => 25f,
+                _ => player.Mass
+            };
+        }
     }
 
     private static string FindHotfixAssemblyPath(
@@ -234,22 +290,4 @@ public sealed class AgarHotfixTests
             });
     }
 
-    private sealed class SwitchableHotfixAssemblySource : IHotfixAssemblySource
-    {
-        public SwitchableHotfixAssemblySource(string path)
-        {
-            Path = path;
-        }
-
-        public string Path { get; set; }
-
-        public ValueTask<HotfixAssemblySourceResult> ResolveAsync(CancellationToken cancellationToken = default)
-        {
-            return new ValueTask<HotfixAssemblySourceResult>(new HotfixAssemblySourceResult(
-                "switchable",
-                "test",
-                Path,
-                System.IO.Path.GetDirectoryName(Path) ?? Environment.CurrentDirectory));
-        }
-    }
 }

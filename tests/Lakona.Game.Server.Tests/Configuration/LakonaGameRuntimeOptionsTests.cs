@@ -8,7 +8,7 @@ namespace Lakona.Game.Server.Tests.Configuration;
 public sealed class LakonaGameRuntimeOptionsTests
 {
     [Fact]
-    public void FromConfiguration_prefers_lakona_root()
+    public void FromConfiguration_ignores_legacy_lakona_game_root_when_lakona_root_exists()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>
         {
@@ -35,6 +35,23 @@ public sealed class LakonaGameRuntimeOptionsTests
         Assert.Equal(["login", "player"], endpoint.RpcServices);
         Assert.Equal("tcp://10.0.0.2:21002", options.Cluster!.Endpoint);
         Assert.Equal("memorypack", options.Cluster.Serializer);
+    }
+
+    [Fact]
+    public void FromConfiguration_uses_defaults_when_only_legacy_lakona_game_root_exists()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona.Game:Node:Id"] = "legacy",
+            ["Lakona.Game:Endpoints:0:Transport"] = "websocket",
+            ["Lakona.Game:Cluster:Endpoint"] = "tcp://10.0.0.2:21002"
+        });
+
+        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
+
+        Assert.Equal("dev-1", options.Node.Id);
+        Assert.Empty(options.Endpoints);
+        Assert.Null(options.Cluster);
     }
 
     [Fact]

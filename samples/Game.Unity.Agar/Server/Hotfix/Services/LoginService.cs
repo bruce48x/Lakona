@@ -9,7 +9,6 @@ using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Server.Hotfix.State.Sessions;
 using Server.Hotfix.State.Users;
 using Shared.Interfaces;
 using System.Security.Cryptography;

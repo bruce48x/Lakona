@@ -22,13 +22,7 @@ public sealed class LakonaGameHostingOptions
 
     private static IConfigurationSection GetRuntimeSection(IConfiguration configuration)
     {
-        var lakona = configuration.GetSection("Lakona");
-        if (lakona.GetChildren().Any() || lakona.Value is not null)
-        {
-            return lakona;
-        }
-
-        return configuration.GetSection("Lakona.Game");
+        return configuration.GetSection("Lakona");
     }
 }
 

@@ -7,7 +7,7 @@ using Lakona.Game.Server.Hotfix.Abstractions;
 namespace Server.Hotfix.State.Users;
 
 [HotfixBehaviorOf(typeof(UserActor))]
-public static class UserBehavior
+public static partial class UserBehavior
 {
     public static ValueTask<UserLoginResult> LoginAsync(this UserActor self, UserLoginRequest request, CancellationToken cancellationToken = default)
     {
