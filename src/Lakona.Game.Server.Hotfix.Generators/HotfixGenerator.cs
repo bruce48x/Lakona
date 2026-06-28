@@ -2618,9 +2618,9 @@ namespace Lakona.Game.Server.Hotfix.Generators
             public HotfixBehaviorInfo[] Behaviors { get; }
         }
 
-        private sealed class HotfixGeneratorOptions
+        private readonly struct HotfixGeneratorOptions : System.IEquatable<HotfixGeneratorOptions>
         {
-            private HotfixGeneratorOptions(bool generateStableRpcServices, bool generateStableActorRefs)
+            public HotfixGeneratorOptions(bool generateStableRpcServices, bool generateStableActorRefs)
             {
                 GenerateStableRpcServices = generateStableRpcServices;
                 GenerateStableActorRefs = generateStableActorRefs;
@@ -2658,6 +2658,23 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 }
 
                 return defaultValue;
+            }
+
+            public bool Equals(HotfixGeneratorOptions other)
+            {
+                return GenerateStableRpcServices == other.GenerateStableRpcServices &&
+                    GenerateStableActorRefs == other.GenerateStableActorRefs;
+            }
+
+            public override bool Equals(object? obj)
+            {
+                return obj is HotfixGeneratorOptions other && Equals(other);
+            }
+
+            public override int GetHashCode()
+            {
+                var hash = GenerateStableRpcServices.GetHashCode();
+                return (hash * 397) ^ GenerateStableActorRefs.GetHashCode();
             }
         }
 
