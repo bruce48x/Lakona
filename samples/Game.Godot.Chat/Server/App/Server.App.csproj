@@ -12,11 +12,15 @@
     <RestoreBuildInParallel>false</RestoreBuildInParallel>
     <LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>
     <LakonaRpcServerGeneratedNamespace>Server.App.Generated</LakonaRpcServerGeneratedNamespace>
+    <LakonaHotfixGenerateStableRpcServices>true</LakonaHotfixGenerateStableRpcServices>
+    <LakonaHotfixGenerateStableActorRefs>true</LakonaHotfixGenerateStableActorRefs>
   </PropertyGroup>
 
   <ItemGroup>
     <CompilerVisibleProperty Include="LakonaRpcGenerateServer" />
     <CompilerVisibleProperty Include="LakonaRpcServerGeneratedNamespace" />
+    <CompilerVisibleProperty Include="LakonaHotfixGenerateStableRpcServices" />
+    <CompilerVisibleProperty Include="LakonaHotfixGenerateStableActorRefs" />
   </ItemGroup>
 
   <ItemGroup>

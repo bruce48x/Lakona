@@ -8,7 +8,15 @@
     <AssemblyName>Server.App</AssemblyName>
     <BuildInParallel>false</BuildInParallel>
     <RestoreBuildInParallel>false</RestoreBuildInParallel>
+    <LakonaHotfixGenerateStableRpcServices>true</LakonaHotfixGenerateStableRpcServices>
+    <LakonaHotfixGenerateStableActorRefs>true</LakonaHotfixGenerateStableActorRefs>
   </PropertyGroup>
+
+  <ItemGroup>
+    <CompilerVisibleProperty Include="LakonaHotfixGenerateStableRpcServices" />
+    <CompilerVisibleProperty Include="LakonaHotfixGenerateStableActorRefs" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Npgsql" Version="9.0.4" />
   </ItemGroup>
