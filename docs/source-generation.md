@@ -41,6 +41,13 @@ both server projects, but its outputs are role-gated:
 <LakonaHotfixGenerateStableActorRefs>false</LakonaHotfixGenerateStableActorRefs>
 ```
 
+Generated projects declare `CompilerVisibleProperty` for both
+`LakonaHotfixGenerateStableRpcServices` and
+`LakonaHotfixGenerateStableActorRefs`, so Roslyn exposes them to the analyzer
+as `build_property.*` values. Package consumers also receive those
+compiler-visible property names through the generator package's
+`buildTransitive` props once packaged.
+
 `Server.App` owns stable RPC service proxies, endpoint binders, required
 hotfix service contract providers, actor selectors, and stable actor refs.
 `Server.Hotfix` owns replaceable service implementations, lifecycle
