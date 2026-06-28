@@ -299,11 +299,14 @@ public sealed class ToolArchitectureScanTests
         var sampleRoot = Path.Combine(repositoryRoot, "samples", "Game.Godot.Chat");
         var appText = ReadAllTextFiles(Path.Combine(sampleRoot, "Server", "App"));
         var hotfixText = ReadAllTextFiles(Path.Combine(sampleRoot, "Server", "Hotfix"));
+        var hotfixProject = File.ReadAllText(Path.Combine(sampleRoot, "Server", "Hotfix", "Server.Hotfix.csproj"));
         var program = File.ReadAllText(Path.Combine(sampleRoot, "Server", "App", "Program.cs"));
         var appsettings = File.ReadAllText(Path.Combine(sampleRoot, "Server", "App", "appsettings.json"));
         var loginClient = File.ReadAllText(Path.Combine(sampleRoot, "Client", "Scripts", "Login", "LoginClient.cs"));
 
         Assert.Equal("using Lakona.Game.Server.Hosting;\n\nreturn await LakonaGameServer.RunAsync(args);\n", program);
+        Assert.Contains("Lakona.Game.Server.Hotfix.Generators", hotfixProject, StringComparison.Ordinal);
+        Assert.Contains("OutputItemType=\"Analyzer\"", hotfixProject, StringComparison.Ordinal);
         Assert.DoesNotContain("\"Feature\"", appsettings, StringComparison.Ordinal);
         using var document = JsonDocument.Parse(appsettings);
         var cleanup = document.RootElement.GetProperty("Lakona")
@@ -315,6 +318,7 @@ public sealed class ToolArchitectureScanTests
         Assert.DoesNotContain("UseGeneratedHotfixServices", appText, StringComparison.Ordinal);
         Assert.Contains("[HotfixFeature(\"chat\")]", hotfixText, StringComparison.Ordinal);
         Assert.Contains("context.EnsureLocalActor<ChatRoomActor>(ChatRoomIds.Global);", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("internal static partial class ChatRoomBehavior", hotfixText, StringComparison.Ordinal);
         Assert.Contains("ChatSessionLifecycle", hotfixText, StringComparison.Ordinal);
         Assert.Contains("[HotfixLifecycle(typeof(IGameSessionLifecycle))]", hotfixText, StringComparison.Ordinal);
         Assert.Contains("new ChatRoomLeaveRequest", hotfixText, StringComparison.Ordinal);

@@ -7,7 +7,7 @@ using Lakona.Game.Server.Hotfix.Abstractions;
 namespace Server.Hotfix.Chat
 {
     [HotfixBehaviorOf(typeof(ChatRoomActor))]
-    internal static class ChatRoomBehavior
+    internal static partial class ChatRoomBehavior
     {
         public static ValueTask<LoginReply> LoginAsync(
             this ChatRoomActor self,
