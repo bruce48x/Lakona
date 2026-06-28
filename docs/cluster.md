@@ -606,6 +606,11 @@ The remote dispatcher API must not require passing `Action<TCallback>` across
 the cluster boundary; that delegate is only a local capture shape used before
 the command is sent.
 
+If reliable push is enabled, the command also carries generic RPC push metadata
+for the gateway to attach to the outgoing push frame. The cluster command
+schema, serializer-specific formatter schema, tests, and package versions must
+change together when this command shape changes.
+
 The production business entry point is `IClientNotifications` on the business
 node. Internally, the framework uses `ClusterClientNotificationDispatcher` over
 the route's cluster endpoint, and `ClientNotificationCommandBinder` plus
@@ -659,6 +664,14 @@ When reliable push is disabled, the same business publish path degrades to
 best-effort immediate callback delivery with no ack and no replay. Business RPC
 contracts should not expose reliable-push ack methods; ack is a framework
 protocol negotiated during game handshake.
+
+Feature discovery is not a load balancer. Sample or product code that allocates
+rooms may use `IClusterNodeDiscovery.ListAsync` to apply deterministic
+placement policy such as hashing a room, match, or player batch key across
+ready `battle-runtime` candidates. Do not parse node identity from environment
+variables, process ids, machine names, or advertised endpoint strings in
+hotfix services, and do not use `AnyAsync` when a stable product placement
+decision is required.
 
 ## Failure Model
 

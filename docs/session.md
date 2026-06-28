@@ -299,8 +299,8 @@ connection generations, current room, match ticket, seat, and online state.
 Business actors must not store callback objects, `RpcSession`, transport
 objects, endpoint names, or framework callback binding containers. Framework
 lifecycle requests carry stable data such as owner key, session id, generation,
-connection id, session kind, and callback contract type names so hotfix
-lifecycle code can update business state without holding transport objects.
+connection id, and callback contract type names so hotfix lifecycle code can
+update business state without holding transport objects.
 
 Control and realtime channels are independent framework sessions. If losing one
 channel should affect the other, the business actor applies that product policy.
@@ -429,9 +429,15 @@ the framework resolve delivery:
 await clientNotifications
     .ForSession(sessionKey)
     .NotifyAsync<IPlayerCallback>(
-        callback => callback.OnMatchmakingStatus(update),
+        callback => callback.OnMatchmakingStatusAsync(update),
         cancellationToken);
 ```
+
+The notification lambda is awaitable. Generated or runtime notification
+dispatch must wait for the actual outbound send outcome even when the shared
+callback contract method returns `void`; otherwise a reliable notification can
+be reported as delivered while the transport send is still pending or has
+failed.
 
 User-targeted notification policy remains business-layer responsibility in this
 iteration. The framework does not own session kind or expose user-and-kind
@@ -439,6 +445,13 @@ targeting. Games may still keep business presence and product session policy in
 a user actor. Reliable push record identity is derived inside the framework from
 the captured callback command; applications do not choose reliable versus
 immediate delivery per notification.
+
+`ClientNotificationStatus` reports the immediate dispatch attempt only:
+`Delivered`, `RouteNotFound`, `CallbackUnavailable`, or `Failed`. It does not
+expose outbox acceptance or replay bookkeeping. Business code should treat the
+session notification call as intent publication and should not retry solely
+because the current route is unavailable when reliable push is enabled; retry
+and replay are framework policy.
 
 ## Validation Requirements
 

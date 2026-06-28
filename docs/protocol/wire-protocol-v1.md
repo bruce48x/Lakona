@@ -156,6 +156,13 @@ Metadata is placed before the business payload so generated clients and
 engine-neutral runtimes can inspect framework metadata before deserializing or
 invoking the notification callback.
 
+The envelope layer treats metadata as a generic typed byte payload. Higher-level
+packages own metadata type names and payload layouts. For example,
+Lakona.Game reliable push uses the `lakona.game.reliable-push` metadata type
+and encodes session id, session generation, and sequence with
+`LakonaInternalCodec`; those fields are not business DTO fields and are not
+interpreted by `Lakona.Rpc.Core`.
+
 ## Keepalive Frames
 
 Keepalive timestamps use UTC ticks stored as `int64`.

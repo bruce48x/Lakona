@@ -148,9 +148,10 @@ shared contract source used by both server and client.
 - Keep package README files user-facing.
 - Put maintainer rationale in current `docs/**` files, not in blog posts or
   completed implementation plans.
-- Put review findings and handoff notes for another AI agent under
-  `docs/superpowers/reviews/`, using filenames that identify the reviewed
-  scope, such as `<short-sha>-<topic>-review.md`.
+- Use `docs/superpowers/**` only for temporary agent plans, reviews, and
+  handoff notes while work is active. Before cleanup, move durable rules into
+  the relevant current `docs/**` authority document, then delete the completed
+  plan or review instead of preserving it as history.
 - Do not preserve removed framework branding, old package names, or migration
   history in current documentation unless there is an active compatibility
   reason.
