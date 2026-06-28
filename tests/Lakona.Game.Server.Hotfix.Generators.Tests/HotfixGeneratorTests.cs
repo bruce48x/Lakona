@@ -478,6 +478,59 @@ public sealed class HotfixGeneratorTests
         Assert.DoesNotContain("this global::Game.Server.UserRef self", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
     }
 
+    private static string SharedChatServiceSource()
+    {
+        return """
+            using System.Threading.Tasks;
+            using Lakona.Rpc.Core;
+
+            namespace Shared.Contracts.Chat
+            {
+                public static class RpcContractIds
+                {
+                    public const int ChatService = 1;
+                    public const int Bind = 7;
+                }
+
+                public sealed class ChatBindRequest
+                {
+                }
+
+                public interface IChatCallback
+                {
+                }
+
+                [RpcService(RpcContractIds.ChatService, NotificationContract = typeof(IChatCallback))]
+                public interface IChatService
+                {
+                    [RpcMethod(RpcContractIds.Bind)]
+                    ValueTask BindAsync(ChatBindRequest req);
+                }
+            }
+
+            namespace Server.App.Generated
+            {
+                using System;
+                using Lakona.Rpc.Server;
+                using Shared.Contracts.Chat;
+
+                public sealed class ChatCallbackProxy : IChatCallback
+                {
+                    public ChatCallbackProxy(RpcSession session)
+                    {
+                    }
+                }
+
+                public static class ChatServiceBinder
+                {
+                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcSession, IChatService> implFactory)
+                    {
+                    }
+                }
+            }
+            """;
+    }
+
     private static void AssertContainsNormalized(string expected, string actual)
     {
         Assert.Contains(expected.ReplaceLineEndings("\n"), actual.ReplaceLineEndings("\n"), StringComparison.Ordinal);
@@ -1033,6 +1086,183 @@ public sealed class HotfixGeneratorTests
         Assert.DoesNotContain("return builder.BindServices", result.GeneratedSource, StringComparison.Ordinal);
         Assert.DoesNotContain("HotfixRpcService", result.GeneratedSource, StringComparison.Ordinal);
         Assert.DoesNotContain(ForbiddenGameEndpointType, result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_skips_stable_rpc_service_output_when_role_disabled()
+    {
+        var result = GeneratorTestHost.Run(
+            SharedChatServiceSource(),
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaHotfixGenerateStableRpcServices"] = "false"
+            });
+
+        Assert.Empty(result.ErrorDiagnostics);
+        Assert.DoesNotContain("ChatServiceProxy", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("ChatServiceEndpointBinder", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedHotfixRequiredServiceContracts", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("HotfixServiceCall<global::Shared.Contracts.Chat.ChatBindRequest", result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_keeps_stable_rpc_service_output_when_role_enabled()
+    {
+        var result = GeneratorTestHost.Run(
+            SharedChatServiceSource(),
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaHotfixGenerateStableRpcServices"] = "true"
+            });
+
+        Assert.Empty(result.ErrorDiagnostics);
+        Assert.Contains("internal sealed class ChatServiceProxy : global::Shared.Contracts.Chat.IChatService", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("internal sealed class ChatServiceEndpointBinder : global::Lakona.Game.Server.Hosting.LakonaRpcServiceBinder", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("GeneratedHotfixRequiredServiceContracts", result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_skips_current_compilation_stable_actor_refs_when_role_disabled()
+    {
+        var source = """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Server;
+
+            public readonly record struct UserId(string Value);
+            public sealed class PingRequest { }
+            public sealed class UserActor : Actor<UserId> { }
+
+            [HotfixActorContract(typeof(UserActor))]
+            public interface IUserActorContract
+            {
+                ValueTask PingAsync(PingRequest request);
+            }
+            """;
+
+        var result = GeneratorTestHost.Run(
+            source,
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaHotfixGenerateStableActorRefs"] = "false"
+            });
+
+        Assert.Empty(result.ErrorDiagnostics);
+        Assert.DoesNotContain("public sealed class UserActors", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("public readonly struct UserRef", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("public readonly struct UserLocalRef", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("public readonly struct UserRemoteRef", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("public sealed class UserActorClusterHandler", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("public sealed class GeneratedHotfixActorRegistration", result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_skips_app_side_actor_refs_when_role_disabled_but_keeps_hotfix_wrappers()
+    {
+        var appSource = """
+            using System.Runtime.CompilerServices;
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            [assembly: InternalsVisibleTo("Game.Hotfix")]
+
+            namespace Game.Server;
+
+            public readonly record struct UserId(string Value);
+            public sealed class PingRequest { }
+            public sealed class UserActor : Actor<UserId> { }
+
+            [HotfixActorContract(typeof(UserActor))]
+            public interface IUserActorContract
+            {
+                ValueTask PingAsync(PingRequest request);
+            }
+            """;
+
+        var hotfixSource = """
+            using System.Threading.Tasks;
+            using Game.Server;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Hotfix;
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            public static partial class UserBehavior
+            {
+                public static ValueTask PingAsync(this UserActor self, PingRequest request)
+                {
+                    return default;
+                }
+            }
+            """;
+
+        var result = GeneratorTestHost.RunWithGeneratedAppReference(
+            appSource,
+            hotfixSource,
+            appAssemblyName: "Game.Server",
+            hotfixAssemblyName: "Game.Hotfix",
+            appGlobalOptions: new Dictionary<string, string>
+            {
+                ["build_property.LakonaHotfixGenerateStableActorRefs"] = "true"
+            },
+            hotfixGlobalOptions: new Dictionary<string, string>
+            {
+                ["build_property.LakonaHotfixGenerateStableActorRefs"] = "false",
+                ["build_property.LakonaHotfixGenerateStableRpcServices"] = "false"
+            });
+
+        Assert.Empty(result.App.ErrorDiagnostics);
+        Assert.Empty(result.Hotfix.ErrorDiagnostics);
+        Assert.Contains("public sealed class UserActors", result.App.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("public sealed class UserActors", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("this global::Game.Server.UserRef self", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Hotfix_compilation_does_not_emit_app_owned_service_proxies_when_referencing_generated_app()
+    {
+        var appSource = SharedChatServiceSource();
+        var hotfixSource = """
+            using System.Threading.Tasks;
+            using Shared.Contracts.Chat;
+            using Lakona.Game.Server.Hotfix;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Hotfix;
+
+            [HotfixService(typeof(IChatService))]
+            internal sealed class ChatService
+            {
+                public static ValueTask BindAsync(HotfixServiceCall<ChatBindRequest, IChatCallback> call)
+                {
+                    return default;
+                }
+            }
+            """;
+
+        var result = GeneratorTestHost.RunWithGeneratedAppReference(
+            appSource,
+            hotfixSource,
+            appAssemblyName: "Server.App",
+            hotfixAssemblyName: "Server.Hotfix",
+            appGlobalOptions: new Dictionary<string, string>
+            {
+                ["build_property.LakonaHotfixGenerateStableRpcServices"] = "true"
+            },
+            hotfixGlobalOptions: new Dictionary<string, string>
+            {
+                ["build_property.LakonaHotfixGenerateStableRpcServices"] = "false"
+            });
+
+        Assert.Empty(result.App.ErrorDiagnostics);
+        Assert.Empty(result.Hotfix.ErrorDiagnostics);
+        Assert.Contains("ChatServiceProxy", result.App.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("ChatServiceProxy", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("ChatServiceEndpointBinder", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedHotfixRequiredServiceContracts", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -1,17 +1,23 @@
 using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace Lakona.Game.Server.Hotfix.Generators.Tests;
 
 internal static class GeneratorTestHost
 {
-    public static GeneratorRunResult Run(string source)
+    public static GeneratorRunResult Run(
+        string source,
+        IReadOnlyDictionary<string, string>? globalOptions = null)
     {
-        return Run(source, CreateDefaultReferences());
+        return Run(source, CreateDefaultReferences(), globalOptions);
     }
 
-    public static GeneratorRunResult RunWithReference(string appSource, string referencedSource)
+    public static GeneratorRunResult RunWithReference(
+        string appSource,
+        string referencedSource,
+        IReadOnlyDictionary<string, string>? globalOptions = null)
     {
         var references = CreateDefaultReferences();
         var referencedCompilation = CSharpCompilation.Create(
@@ -29,14 +35,16 @@ internal static class GeneratorTestHost
 
         stream.Position = 0;
         var sharedReference = MetadataReference.CreateFromStream(stream);
-        return Run(appSource, references.Concat(new[] { sharedReference }).ToArray());
+        return Run(appSource, references.Concat(new[] { sharedReference }).ToArray(), globalOptions);
     }
 
     public static TwoPhaseGeneratorRunResult RunWithGeneratedAppReference(
         string appSource,
         string hotfixSource,
         string appAssemblyName,
-        string hotfixAssemblyName)
+        string hotfixAssemblyName,
+        IReadOnlyDictionary<string, string>? appGlobalOptions = null,
+        IReadOnlyDictionary<string, string>? hotfixGlobalOptions = null)
     {
         var references = CreateDefaultReferences();
         var appTree = CSharpSyntaxTree.ParseText(appSource);
@@ -47,7 +55,7 @@ internal static class GeneratorTestHost
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var generator = new HotfixGenerator();
-        CSharpGeneratorDriver.Create(generator).RunGeneratorsAndUpdateCompilation(
+        CreateDriver(generator, appGlobalOptions).RunGeneratorsAndUpdateCompilation(
             appCompilation,
             out var updatedApp,
             out var appGeneratorDiagnostics);
@@ -73,7 +81,7 @@ internal static class GeneratorTestHost
             hotfixReferences,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-        CSharpGeneratorDriver.Create(generator).RunGeneratorsAndUpdateCompilation(
+        CreateDriver(generator, hotfixGlobalOptions).RunGeneratorsAndUpdateCompilation(
             hotfixCompilation,
             out var updatedHotfix,
             out var hotfixGeneratorDiagnostics);
@@ -86,7 +94,9 @@ internal static class GeneratorTestHost
         return new TwoPhaseGeneratorRunResult(appResult, hotfixResult);
     }
 
-    public static GeneratorAssemblyRunResult RunAndEmit(string source)
+    public static GeneratorAssemblyRunResult RunAndEmit(
+        string source,
+        IReadOnlyDictionary<string, string>? globalOptions = null)
     {
         var references = CreateDefaultReferences();
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
@@ -97,7 +107,7 @@ internal static class GeneratorTestHost
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var generator = new HotfixGenerator();
-        CSharpGeneratorDriver.Create(generator).RunGeneratorsAndUpdateCompilation(
+        CreateDriver(generator, globalOptions).RunGeneratorsAndUpdateCompilation(
             compilation,
             out var updated,
             out var diagnostics);
@@ -120,7 +130,10 @@ internal static class GeneratorTestHost
         return new GeneratorAssemblyRunResult(result, Assembly.Load(stream.ToArray()));
     }
 
-    private static GeneratorRunResult Run(string source, IReadOnlyList<MetadataReference> references)
+    private static GeneratorRunResult Run(
+        string source,
+        IReadOnlyList<MetadataReference> references,
+        IReadOnlyDictionary<string, string>? globalOptions)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
         var compilation = CSharpCompilation.Create(
@@ -130,7 +143,7 @@ internal static class GeneratorTestHost
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var generator = new HotfixGenerator();
-        CSharpGeneratorDriver.Create(generator).RunGeneratorsAndUpdateCompilation(
+        CreateDriver(generator, globalOptions).RunGeneratorsAndUpdateCompilation(
             compilation,
             out var updated,
             out var diagnostics);
@@ -167,6 +180,64 @@ internal static class GeneratorTestHost
             .Distinct(MetadataReferencePathComparer.Instance)
             .ToArray();
         return references;
+    }
+
+    private static GeneratorDriver CreateDriver(
+        HotfixGenerator generator,
+        IReadOnlyDictionary<string, string>? globalOptions)
+    {
+        return globalOptions is null
+            ? CSharpGeneratorDriver.Create(generator)
+            : CSharpGeneratorDriver.Create(
+                new ISourceGenerator[] { generator.AsSourceGenerator() },
+                optionsProvider: new TestAnalyzerConfigOptionsProvider(globalOptions));
+    }
+
+    private sealed class TestAnalyzerConfigOptionsProvider : AnalyzerConfigOptionsProvider
+    {
+        private static readonly AnalyzerConfigOptions EmptyOptions = new TestAnalyzerConfigOptions(
+            new Dictionary<string, string>(StringComparer.Ordinal));
+
+        private readonly AnalyzerConfigOptions globalOptions;
+
+        public TestAnalyzerConfigOptionsProvider(IReadOnlyDictionary<string, string> globalOptions)
+        {
+            this.globalOptions = new TestAnalyzerConfigOptions(globalOptions);
+        }
+
+        public override AnalyzerConfigOptions GlobalOptions => globalOptions;
+
+        public override AnalyzerConfigOptions GetOptions(SyntaxTree tree)
+        {
+            return EmptyOptions;
+        }
+
+        public override AnalyzerConfigOptions GetOptions(AdditionalText textFile)
+        {
+            return EmptyOptions;
+        }
+    }
+
+    private sealed class TestAnalyzerConfigOptions : AnalyzerConfigOptions
+    {
+        private readonly IReadOnlyDictionary<string, string> options;
+
+        public TestAnalyzerConfigOptions(IReadOnlyDictionary<string, string> options)
+        {
+            this.options = options;
+        }
+
+        public override bool TryGetValue(string key, out string value)
+        {
+            if (options.TryGetValue(key, out var found))
+            {
+                value = found;
+                return true;
+            }
+
+            value = string.Empty;
+            return false;
+        }
     }
 
     private sealed class MetadataReferencePathComparer : IEqualityComparer<MetadataReference>
