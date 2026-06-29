@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.ExceptionServices;
+using Lakona.Game.Cluster;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -10,10 +11,16 @@ public sealed class HotfixDispatchTable
     private readonly IReadOnlyDictionary<HotfixMethodKey, HotfixMethodBinding> bindings;
     private readonly IReadOnlyDictionary<string, HotfixServiceMethodBinding> serviceBindings;
     private readonly IReadOnlyDictionary<Type, ObjectFactory> serviceActivationFactories;
+    private readonly IReadOnlyDictionary<string, HotfixFeatureCommandBinding> featureCommandBindings;
+    private readonly IReadOnlyDictionary<Type, ObjectFactory> featureActivationFactories;
     private readonly Dictionary<DelegateCacheKey, Delegate> delegates = new();
 
     public HotfixDispatchTable(long version, IEnumerable<HotfixMethodBinding> methods)
-        : this(version, methods, Array.Empty<HotfixServiceMethodBinding>())
+        : this(
+            version,
+            methods,
+            Array.Empty<HotfixServiceMethodBinding>(),
+            Array.Empty<HotfixFeatureDeclaration>())
     {
     }
 
@@ -21,9 +28,19 @@ public sealed class HotfixDispatchTable
         long version,
         IEnumerable<HotfixMethodBinding> methods,
         IEnumerable<HotfixServiceMethodBinding> services)
+        : this(version, methods, services, Array.Empty<HotfixFeatureDeclaration>())
+    {
+    }
+
+    public HotfixDispatchTable(
+        long version,
+        IEnumerable<HotfixMethodBinding> methods,
+        IEnumerable<HotfixServiceMethodBinding> services,
+        IEnumerable<HotfixFeatureDeclaration> features)
     {
         ArgumentNullException.ThrowIfNull(methods);
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(features);
 
         var methodList = new List<HotfixMethodBinding>();
         foreach (var method in methods)
@@ -47,6 +64,46 @@ public sealed class HotfixDispatchTable
             serviceList.Add(service);
         }
 
+        var featureCommandList = new List<HotfixFeatureCommandBinding>();
+        foreach (var feature in features)
+        {
+            if (feature is null)
+            {
+                throw new ArgumentException("Feature declarations cannot contain null.", nameof(features));
+            }
+
+            foreach (var command in feature.Commands)
+            {
+                if (command is null)
+                {
+                    throw new ArgumentException("Feature command declarations cannot contain null.", nameof(features));
+                }
+
+                var commandId = FeatureCommandId.From(command.CommandId);
+                var key = CreateFeatureCommandKey(feature.Name, commandId);
+                var method = ResolveFeatureCommandMethod(feature, command);
+                featureCommandList.Add(new HotfixFeatureCommandBinding(
+                    key,
+                    feature.Name,
+                    commandId,
+                    feature.FeatureType,
+                    command.RequestType,
+                    command.ReplyType,
+                    method));
+            }
+        }
+
+        var featureCommandDictionary = new Dictionary<string, HotfixFeatureCommandBinding>(StringComparer.OrdinalIgnoreCase);
+        foreach (var binding in featureCommandList)
+        {
+            if (featureCommandDictionary.ContainsKey(binding.Key))
+            {
+                throw new InvalidOperationException($"Duplicate hotfix feature command '{binding.Key}'.");
+            }
+
+            featureCommandDictionary.Add(binding.Key, binding);
+        }
+
         Version = version;
         bindings = methodList.ToDictionary(static method => method.Key, static method => method);
         serviceBindings = serviceList.ToDictionary(static service => service.Key, static service => service);
@@ -57,6 +114,14 @@ public sealed class HotfixDispatchTable
             .ToDictionary(
                 static serviceType => serviceType,
                 static serviceType => ActivatorUtilities.CreateFactory(serviceType, Type.EmptyTypes));
+        featureCommandBindings = featureCommandDictionary;
+        featureActivationFactories = featureCommandList
+            .Where(static command => !command.Method.IsStatic)
+            .Select(static command => command.FeatureType)
+            .Distinct()
+            .ToDictionary(
+                static featureType => featureType,
+                static featureType => ActivatorUtilities.CreateFactory(featureType, Type.EmptyTypes));
         MethodKeys = bindings.Keys.OrderBy(static key => key.ToString(), StringComparer.Ordinal).ToArray();
     }
 
@@ -93,6 +158,84 @@ public sealed class HotfixDispatchTable
     {
         var key = HotfixDispatch.CreateServiceKey(typeof(TContract), methodId, typeof(ValueTask), [typeof(TArg)]);
         return InvokeServiceByKeyAsync(key, arg);
+    }
+
+    public bool TryResolveFeatureCommand(
+        string featureName,
+        FeatureCommandId commandId,
+        out HotfixFeatureCommandDescriptor descriptor)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(featureName);
+
+        var key = CreateFeatureCommandKey(featureName, commandId);
+        if (featureCommandBindings.TryGetValue(key, out var binding))
+        {
+            descriptor = new HotfixFeatureCommandDescriptor(
+                binding.Key,
+                binding.FeatureName,
+                binding.CommandId,
+                binding.RequestType,
+                binding.ReplyType);
+            return true;
+        }
+
+        descriptor = null!;
+        return false;
+    }
+
+    public ValueTask<object?> InvokeFeatureCommandAsync(
+        HotfixFeatureCommandDescriptor descriptor,
+        object? request,
+        FeatureMessageRequest message,
+        IServiceProvider services,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+        ArgumentNullException.ThrowIfNull(message);
+        ArgumentNullException.ThrowIfNull(services);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!featureCommandBindings.TryGetValue(descriptor.Key, out var binding))
+        {
+            throw new HotfixMethodNotLoadedException($"Hotfix feature command '{descriptor.Key}' is not loaded.");
+        }
+
+        if (binding.RequestType != descriptor.RequestType || binding.ReplyType != descriptor.ReplyType)
+        {
+            throw new InvalidOperationException($"Hotfix feature command descriptor '{descriptor.Key}' does not match the loaded binding.");
+        }
+
+        if (request is null && binding.RequestType.IsValueType ||
+            request is not null && !binding.RequestType.IsInstanceOfType(request))
+        {
+            throw new ArgumentException(
+                $"Hotfix feature command '{binding.Key}' requires request type '{binding.RequestType.FullName}'.",
+                nameof(request));
+        }
+
+        var target = CreateFeatureCommandTarget(binding, services);
+        object? result;
+        try
+        {
+            var call = CreateFeatureCommandCall(binding, request, message, services, cancellationToken);
+            result = binding.Method.Invoke(target.Instance, [call]);
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException is not null)
+        {
+            DisposeServiceTargetAsync(target).AsTask().GetAwaiter().GetResult();
+            ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+            throw;
+        }
+        catch
+        {
+            DisposeServiceTargetAsync(target).AsTask().GetAwaiter().GetResult();
+            throw;
+        }
+
+        var awaitMethod = typeof(HotfixDispatchTable)
+            .GetMethod(nameof(AwaitFeatureCommandResultAsync), BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(binding.ReplyType);
+        return (ValueTask<object?>)awaitMethod.Invoke(null, [result, target])!;
     }
 
     private ValueTask<TResult> InvokeServiceByKeyAsync<TArg, TResult>(string key, TArg arg)
@@ -216,6 +359,58 @@ public sealed class HotfixDispatchTable
         }
     }
 
+    public void ValidateFeatureCommandMethods()
+    {
+        foreach (var binding in featureCommandBindings.Values)
+        {
+            var callType = typeof(HotfixFeatureCommandCall<>).MakeGenericType(binding.RequestType);
+            var returnType = typeof(ValueTask<>).MakeGenericType(binding.ReplyType);
+            var parameters = binding.Method.GetParameters();
+            if (binding.Method.ReturnType != returnType ||
+                parameters.Length != 1 ||
+                parameters[0].ParameterType != callType)
+            {
+                throw new InvalidOperationException(
+                    $"Hotfix feature command '{binding.Key}' must return {returnType.FullName} and accept {callType.FullName}.");
+            }
+        }
+    }
+
+    public void ValidateFeatureCommandActivation(IServiceProvider services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        var validated = new HashSet<Type>();
+        foreach (var binding in featureCommandBindings.Values)
+        {
+            if (binding.Method.IsStatic || !validated.Add(binding.FeatureType))
+            {
+                continue;
+            }
+
+            if (!featureActivationFactories.TryGetValue(binding.FeatureType, out var factory))
+            {
+                throw new InvalidOperationException($"Hotfix feature '{binding.FeatureType.FullName}' does not have an activation factory.");
+            }
+
+            ServiceTarget target = default;
+            try
+            {
+                target = new ServiceTarget(factory(services, Array.Empty<object?>()));
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(
+                    $"Hotfix feature '{binding.FeatureType.FullName}' constructor activation failed: {ex.Message}",
+                    ex);
+            }
+            finally
+            {
+                DisposeServiceTargetAsync(target).AsTask().GetAwaiter().GetResult();
+            }
+        }
+    }
+
     private ServiceTarget CreateServiceTarget<TArg>(HotfixServiceMethodBinding binding, TArg arg)
     {
         if (binding.Method.IsStatic)
@@ -235,6 +430,55 @@ public sealed class HotfixDispatchTable
         }
 
         return new ServiceTarget(factory(callContext.Services, Array.Empty<object?>()));
+    }
+
+    private ServiceTarget CreateFeatureCommandTarget(HotfixFeatureCommandBinding binding, IServiceProvider services)
+    {
+        if (binding.Method.IsStatic)
+        {
+            return new ServiceTarget(null);
+        }
+
+        if (!featureActivationFactories.TryGetValue(binding.FeatureType, out var factory))
+        {
+            throw new InvalidOperationException($"Hotfix feature '{binding.FeatureType.FullName}' does not have an activation factory.");
+        }
+
+        return new ServiceTarget(factory(services, Array.Empty<object?>()));
+    }
+
+    private static object CreateFeatureCommandCall(
+        HotfixFeatureCommandBinding binding,
+        object? request,
+        FeatureMessageRequest message,
+        IServiceProvider services,
+        CancellationToken cancellationToken)
+    {
+        var callType = typeof(HotfixFeatureCommandCall<>).MakeGenericType(binding.RequestType);
+        return Activator.CreateInstance(
+            callType,
+            request,
+            binding.FeatureName,
+            binding.CommandId,
+            message.CorrelationId,
+            message.SourceNode,
+            message.ExpiresAt,
+            cancellationToken,
+            services)!;
+    }
+
+    private static async ValueTask<object?> AwaitFeatureCommandResultAsync<TReply>(
+        ValueTask<TReply> task,
+        ServiceTarget target)
+    {
+        try
+        {
+            return await task.ConfigureAwait(false);
+        }
+        finally
+        {
+            await DisposeServiceTargetAsync(target).ConfigureAwait(false);
+        }
     }
 
     private static ValueTask DisposeServiceTargetAsync(ServiceTarget target)
@@ -351,6 +595,39 @@ public sealed class HotfixDispatchTable
                 throw new InvalidOperationException($"Hotfix tick method '{key}' must be an extension method returning ValueTask and accepting HotfixActorTick.");
             }
         }
+    }
+
+    private static MethodInfo ResolveFeatureCommandMethod(
+        HotfixFeatureDeclaration feature,
+        HotfixFeatureCommandDeclaration command)
+    {
+        var callType = typeof(HotfixFeatureCommandCall<>).MakeGenericType(command.RequestType);
+        var returnType = typeof(ValueTask<>).MakeGenericType(command.ReplyType);
+        var matches = feature.FeatureType
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(method => string.Equals(method.Name, command.MethodName, StringComparison.Ordinal))
+            .ToArray();
+
+        var method = matches.SingleOrDefault(method =>
+        {
+            var parameters = method.GetParameters();
+            return method.ReturnType == returnType &&
+                parameters.Length == 1 &&
+                parameters[0].ParameterType == callType;
+        });
+
+        if (method is null)
+        {
+            throw new InvalidOperationException(
+                $"Hotfix feature command '{feature.Name}#{command.CommandId}' must map to public instance or static method '{command.MethodName}' returning {returnType.FullName} and accepting {callType.FullName}.");
+        }
+
+        return method;
+    }
+
+    private static string CreateFeatureCommandKey(string featureName, FeatureCommandId commandId)
+    {
+        return $"{featureName}#{commandId.Value}";
     }
 
     public Func<TState, TResult> Resolve<TState, TResult>(HotfixMethodKey key)

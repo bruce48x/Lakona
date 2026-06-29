@@ -1,6 +1,7 @@
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Scanning;
+using Lakona.Game.Cluster;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Rpc.Core;
 using Microsoft.Extensions.DependencyInjection;
@@ -183,6 +184,61 @@ public sealed class HotfixDispatchTests
         Assert.Equal(1, ThrowingDisposableDispatchService.DisposeCount);
     }
 
+    [Fact]
+    public async Task FeatureCommandDispatchActivatesFeatureWithConstructorDiAndDisposesAfterAwait()
+    {
+        DispatchFeature.DisposeCount = 0;
+        var services = new ServiceCollection()
+            .AddSingleton(new FeatureDependency("runtime"))
+            .BuildServiceProvider();
+        var table = new HotfixDispatchTable(
+            1,
+            Array.Empty<HotfixMethodBinding>(),
+            Array.Empty<HotfixServiceMethodBinding>(),
+            [CreateFeatureDeclaration(typeof(DispatchFeature), "ExecuteAsync")]);
+        var invoker = new HotfixFeatureCommandInvoker(table);
+
+        Assert.True(invoker.TryResolve("commands", FeatureCommandId.From(101), out var descriptor));
+        var reply = await invoker.InvokeAsync(
+            descriptor,
+            new DispatchCommand("room-1"),
+            NewFeatureMessage("commands", "101"),
+            services,
+            TestContext.Current.CancellationToken);
+
+        var typed = Assert.IsType<DispatchReply>(reply);
+        Assert.Equal("runtime:room-1", typed.Value);
+        Assert.Equal(1, DispatchFeature.DisposeCount);
+    }
+
+    [Fact]
+    public void FeatureCommandDispatchRejectsDuplicateFeatureCommandIds()
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() => new HotfixDispatchTable(
+            1,
+            Array.Empty<HotfixMethodBinding>(),
+            Array.Empty<HotfixServiceMethodBinding>(),
+            [
+                CreateFeatureDeclaration(typeof(DispatchFeature), "ExecuteAsync"),
+                CreateFeatureDeclaration(typeof(DispatchFeature), "ExecuteAsync")
+            ]));
+
+        Assert.Contains("Duplicate hotfix feature command", exception.Message);
+    }
+
+    [Fact]
+    public void FeatureCommandDispatchValidatesMethodShape()
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() => new HotfixDispatchTable(
+            1,
+            Array.Empty<HotfixMethodBinding>(),
+            Array.Empty<HotfixServiceMethodBinding>(),
+            [CreateFeatureDeclaration(typeof(InvalidDispatchFeature), "ExecuteAsync")]));
+
+        Assert.Contains("Hotfix feature command", exception.Message);
+        Assert.Contains("ValueTask", exception.Message);
+    }
+
     private static void ReplaceDispatchWith(long version, Type serviceType)
     {
         var scan = HotfixBehaviorScanner.Scan(serviceType.Assembly, [serviceType]);
@@ -205,6 +261,30 @@ public sealed class HotfixDispatchTests
         return new HotfixServiceCall<ConstructorInjectedDispatchRequest>(
             new ConstructorInjectedDispatchRequest(),
             services);
+    }
+
+    private static HotfixFeatureDeclaration CreateFeatureDeclaration(Type featureType, string methodName)
+    {
+        return new HotfixFeatureDeclaration(
+            "commands",
+            featureType,
+            true,
+            new Dictionary<string, string>(StringComparer.Ordinal),
+            Array.Empty<HotfixLocalActorDeclaration>(),
+            Array.Empty<HotfixActorTickDeclaration>(),
+            [new HotfixFeatureCommandDeclaration(typeof(DispatchCommand), typeof(DispatchReply), 101, methodName)],
+            Array.Empty<ServiceDescriptor>());
+    }
+
+    private static FeatureMessageRequest NewFeatureMessage(string feature, string kind)
+    {
+        return new FeatureMessageRequest(
+            new FeatureName(feature),
+            kind,
+            ReadOnlyMemory<byte>.Empty,
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            new NodeId("data-1"),
+            "corr-1");
     }
 }
 
@@ -363,6 +443,51 @@ public sealed class AsyncDisposableDispatchService : IAsyncDisposable
         return default;
     }
 }
+
+public sealed class FeatureDependency
+{
+    public FeatureDependency(string value)
+    {
+        Value = value;
+    }
+
+    public string Value { get; }
+}
+
+public sealed class DispatchFeature : HotfixGameFeature, IDisposable
+{
+    private readonly FeatureDependency _dependency;
+
+    public DispatchFeature(FeatureDependency dependency)
+    {
+        _dependency = dependency;
+    }
+
+    public static int DisposeCount { get; set; }
+
+    public ValueTask<DispatchReply> ExecuteAsync(HotfixFeatureCommandCall<DispatchCommand> call)
+    {
+        return new ValueTask<DispatchReply>(new DispatchReply($"{_dependency.Value}:{call.Request.RoomId}"));
+    }
+
+    public void Dispose()
+    {
+        DisposeCount++;
+    }
+}
+
+public sealed class InvalidDispatchFeature : HotfixGameFeature
+{
+    public ValueTask ExecuteAsync(HotfixFeatureCommandCall<DispatchCommand> call)
+    {
+        return default;
+    }
+}
+
+[FeatureCommand(101)]
+public sealed record DispatchCommand(string RoomId);
+
+public sealed record DispatchReply(string Value);
 
 public sealed class DispatchTestState
 {
