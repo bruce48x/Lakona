@@ -2,6 +2,7 @@ using Agar.Sample.State.Users;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
+using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -128,7 +129,24 @@ internal static class AgarTestServiceCollectionExtensions
     {
         services.TryAddSingleton<IRemoteActorInvoker, FailingRemoteActorInvoker>();
         services.TryAddSingleton<IRemoteActorSerializer, FailingRemoteActorSerializer>();
+        return services.AddTestHotfixRuntimeAccessor();
+    }
+
+    public static IServiceCollection AddTestHotfixRuntimeAccessor(this IServiceCollection services)
+    {
+        services.TryAddSingleton<IHotfixRuntimeAccessor>(provider =>
+            new TestHotfixRuntimeAccessor(provider));
         return services;
+    }
+
+    private sealed class TestHotfixRuntimeAccessor : IHotfixRuntimeAccessor
+    {
+        public TestHotfixRuntimeAccessor(IServiceProvider services)
+        {
+            Current = new HotfixRuntimeSnapshot(new HotfixServiceInvoker(), services);
+        }
+
+        public HotfixRuntimeSnapshot Current { get; }
     }
 
     private sealed class FailingRemoteActorInvoker : IRemoteActorInvoker

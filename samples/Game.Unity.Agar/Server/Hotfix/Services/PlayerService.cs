@@ -12,6 +12,7 @@ using Agar.Sample.State.Users;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
@@ -25,7 +26,6 @@ using Server.Hotfix.State.Users;
 using Shared.Interfaces;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 
 namespace Server.Hotfix.Services;
 
@@ -256,22 +256,15 @@ public sealed class PlayerService
         string leaderboardId,
         IServiceProvider services)
     {
-        var transport = services.GetRequiredService<IFeatureMessageTransport>();
-        var payload = JsonSerializer.SerializeToUtf8Bytes(
-            new EnsureLeaderboardActorRequest { LeaderboardId = leaderboardId },
-            StateStoreUserActorPlacement.JsonOptions);
-        var request = new FeatureMessageRequest(
-            new FeatureName(StateStoreUserActorPlacement.FeatureName),
-            StateStoreUserActorPlacement.EnsureLeaderboardActorKind,
-            payload,
-            DateTimeOffset.UtcNow.Add(StateStoreUserActorPlacement.EnsureUserActorTimeout),
-            services.GetRequiredService<LocalActorNodeIdentity>().NodeId,
-            Guid.NewGuid().ToString("N"));
-        var reply = await transport.SendAsync(owner, request).ConfigureAwait(false);
-        if (reply.Status != ClusterSendStatus.Accepted)
+        var client = services.GetRequiredService<IFeatureCommandClient>();
+        var reply = await client.SendToNodeAsync<EnsureLeaderboardActorRequest, EnsureActorReply>(
+            owner,
+            StateStoreUserActorPlacement.FeatureName,
+            new EnsureLeaderboardActorRequest { LeaderboardId = leaderboardId }).ConfigureAwait(false);
+        if (!reply.Succeeded)
         {
             throw new InvalidOperationException(
-                $"State-store node {owner.Node.Value} rejected leaderboard actor creation for '{leaderboardId}'. Status={reply.Status}. {reply.ErrorMessage}");
+                $"State-store node {owner.Node.Value} rejected leaderboard actor creation for '{leaderboardId}'. {reply.Message}");
         }
     }
 

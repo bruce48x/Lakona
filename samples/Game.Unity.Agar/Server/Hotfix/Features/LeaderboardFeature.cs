@@ -5,7 +5,7 @@ namespace Server.Hotfix.Features;
 [HotfixFeature("leaderboard")]
 public sealed class LeaderboardFeature : HotfixGameFeature
 {
-    public override void Configure(HotfixFeatureContext context)
+    public static void Configure(HotfixFeatureContext context)
     {
     }
 }

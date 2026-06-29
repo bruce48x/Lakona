@@ -16,6 +16,7 @@ using Lakona.Game.Server;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Loading;
+using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -33,6 +34,24 @@ namespace Agar.Unity.Tests;
 
 public sealed class AgarHotfixTests
 {
+    [Fact]
+    public void AgarHotfixFeatures_DoNotRegisterFeatureMessageHandlers()
+    {
+        var root = FindRepositoryRoot();
+        var hotfixFiles = Directory.GetFiles(
+            Path.Combine(root, "samples", "Game.Unity.Agar", "Server", "Hotfix"),
+            "*.cs",
+            SearchOption.AllDirectories);
+
+        foreach (var file in hotfixFiles)
+        {
+            var text = File.ReadAllText(file);
+            Assert.DoesNotContain("IFeatureMessageHandler", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("FeatureMessageReply", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("FeatureMessageRequest", text, StringComparison.Ordinal);
+        }
+    }
+
     [Fact]
     public async Task Hotfix_reload_succeeds_without_cluster_remote_actor_services()
     {
@@ -62,9 +81,9 @@ public sealed class AgarHotfixTests
             StateStoreNode("state-b", "tcp://127.0.0.1:22002"),
             StateStoreNode("state-a", "tcp://127.0.0.1:22001")
         };
-        var featureTransport = new CapturingFeatureMessageTransport();
+        var featureCommands = new CapturingFeatureCommandClient();
         var remoteSerializer = new JsonRemoteActorSerializer();
-        var remoteInvoker = new StateStoreRemoteActorInvoker(remoteSerializer, featureTransport);
+        var remoteInvoker = new StateStoreRemoteActorInvoker(remoteSerializer, featureCommands);
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
@@ -88,7 +107,7 @@ public sealed class AgarHotfixTests
             Feature = []
         });
         services.AddSingleton<IClusterNodeDiscovery>(new FixedClusterNodeDiscovery(stateStoreNodes));
-        services.AddSingleton<IFeatureMessageTransport>(featureTransport);
+        services.AddSingleton<IFeatureCommandClient>(featureCommands);
         services.RemoveAll<IRemoteActorSerializer>();
         services.RemoveAll<IRemoteActorInvoker>();
         services.AddSingleton<IRemoteActorSerializer>(remoteSerializer);
@@ -117,10 +136,10 @@ public sealed class AgarHotfixTests
         Assert.Equal(1, reply.SessionGeneration);
 
         var expectedOwner = SelectExpectedStateStoreOwner(reply.PlayerId, stateStoreNodes);
-        Assert.NotNull(featureTransport.LastTarget);
-        Assert.Equal(expectedOwner.Node, featureTransport.LastTarget.Node);
-        Assert.Equal("state-store", featureTransport.LastRequest?.Feature.Value);
-        Assert.Equal("agar.state-store.ensure-user-actor.v1", featureTransport.LastRequest?.Kind);
+        Assert.NotNull(featureCommands.LastTarget);
+        Assert.Equal(expectedOwner.Node, featureCommands.LastTarget.Node);
+        Assert.Equal("state-store", featureCommands.LastFeatureName);
+        Assert.Equal("EnsureUserActorRequest", featureCommands.LastRequestTypeName);
         Assert.Equal(ActorState.Dead, actors.GetState(ActorId.From(reply.PlayerId)));
     }
 
@@ -134,9 +153,9 @@ public sealed class AgarHotfixTests
             StateStoreNode("state-b", "tcp://127.0.0.1:22002"),
             StateStoreNode("state-a", "tcp://127.0.0.1:22001")
         };
-        var featureTransport = new CapturingFeatureMessageTransport();
+        var featureCommands = new CapturingFeatureCommandClient();
         var remoteSerializer = new JsonRemoteActorSerializer();
-        var remoteInvoker = new StateStoreRemoteActorInvoker(remoteSerializer, featureTransport);
+        var remoteInvoker = new StateStoreRemoteActorInvoker(remoteSerializer, featureCommands);
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
@@ -160,7 +179,7 @@ public sealed class AgarHotfixTests
             Feature = []
         });
         services.AddSingleton<IClusterNodeDiscovery>(new FixedClusterNodeDiscovery(stateStoreNodes));
-        services.AddSingleton<IFeatureMessageTransport>(featureTransport);
+        services.AddSingleton<IFeatureCommandClient>(featureCommands);
         services.RemoveAll<IRemoteActorSerializer>();
         services.RemoveAll<IRemoteActorInvoker>();
         services.AddSingleton<IRemoteActorSerializer>(remoteSerializer);
@@ -187,10 +206,10 @@ public sealed class AgarHotfixTests
 
         Assert.Equal(0, reply.Code);
         var expectedOwner = SelectExpectedStateStoreOwner("current", stateStoreNodes);
-        Assert.NotNull(featureTransport.LastTarget);
-        Assert.Equal(expectedOwner.Node, featureTransport.LastTarget.Node);
-        Assert.Equal("state-store", featureTransport.LastRequest?.Feature.Value);
-        Assert.Equal("agar.state-store.ensure-leaderboard-actor.v1", featureTransport.LastRequest?.Kind);
+        Assert.NotNull(featureCommands.LastTarget);
+        Assert.Equal(expectedOwner.Node, featureCommands.LastTarget.Node);
+        Assert.Equal("state-store", featureCommands.LastFeatureName);
+        Assert.Equal("EnsureLeaderboardActorRequest", featureCommands.LastRequestTypeName);
         Assert.Equal(ActorState.Dead, actors.GetState(ActorId.From("current")));
     }
 
@@ -498,57 +517,86 @@ public sealed class AgarHotfixTests
         }
     }
 
-    private sealed class CapturingFeatureMessageTransport : IFeatureMessageTransport
+    private sealed class CapturingFeatureCommandClient : IFeatureCommandClient
     {
         public ClusterNodeDescriptor? LastTarget { get; private set; }
 
-        public FeatureMessageRequest? LastRequest { get; private set; }
+        public string LastFeatureName { get; private set; } = "";
+
+        public string LastRequestTypeName { get; private set; } = "";
+
+        public string LastUserId { get; private set; } = "";
+
+        public string LastLeaderboardId { get; private set; } = "";
 
         public bool HasCreatedUserActorOn(NodeId node, string userId)
         {
             return LastTarget?.Node == node &&
-                LastRequest is not null &&
-                string.Equals(LastRequest.Kind, "agar.state-store.ensure-user-actor.v1", StringComparison.Ordinal) &&
-                LastRequest.Payload.Length > 0 &&
-                JsonSerializer.Deserialize<EnsureUserActorProbe>(
-                    LastRequest.Payload.Span,
-                    new JsonSerializerOptions(JsonSerializerDefaults.Web))?.UserId == userId;
+                string.Equals(LastFeatureName, "state-store", StringComparison.Ordinal) &&
+                string.Equals(LastRequestTypeName, "EnsureUserActorRequest", StringComparison.Ordinal) &&
+                string.Equals(LastUserId, userId, StringComparison.Ordinal);
         }
 
         public bool HasCreatedLeaderboardActorOn(NodeId node, string leaderboardId)
         {
             return LastTarget?.Node == node &&
-                LastRequest is not null &&
-                string.Equals(LastRequest.Kind, "agar.state-store.ensure-leaderboard-actor.v1", StringComparison.Ordinal) &&
-                LastRequest.Payload.Length > 0 &&
-                JsonSerializer.Deserialize<EnsureLeaderboardActorProbe>(
-                    LastRequest.Payload.Span,
-                    new JsonSerializerOptions(JsonSerializerDefaults.Web))?.LeaderboardId == leaderboardId;
+                string.Equals(LastFeatureName, "state-store", StringComparison.Ordinal) &&
+                string.Equals(LastRequestTypeName, "EnsureLeaderboardActorRequest", StringComparison.Ordinal) &&
+                string.Equals(LastLeaderboardId, leaderboardId, StringComparison.Ordinal);
         }
 
-        public ValueTask<FeatureMessageReply> SendAsync(
-            ClusterNodeDescriptor target,
-            FeatureMessageRequest request,
+        public ValueTask<TReply> SendAsync<TRequest, TReply>(
+            string featureName,
+            TRequest request,
             CancellationToken cancellationToken = default)
         {
+            return CaptureAndReply<TRequest, TReply>(null, featureName, request);
+        }
+
+        public ValueTask<TReply> SendToNodeAsync<TRequest, TReply>(
+            ClusterNodeDescriptor target,
+            string featureName,
+            TRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return CaptureAndReply<TRequest, TReply>(target, featureName, request);
+        }
+
+        private ValueTask<TReply> CaptureAndReply<TRequest, TReply>(
+            ClusterNodeDescriptor? target,
+            string featureName,
+            TRequest request)
+        {
             LastTarget = target;
-            LastRequest = request;
-            return new ValueTask<FeatureMessageReply>(
-                new FeatureMessageReply(ClusterSendStatus.Accepted, ReadOnlyMemory<byte>.Empty));
+            LastFeatureName = featureName;
+            LastRequestTypeName = typeof(TRequest).Name;
+            LastUserId = ReadStringProperty(request, "UserId");
+            LastLeaderboardId = ReadStringProperty(request, "LeaderboardId");
+
+            var reply = Activator.CreateInstance(typeof(TReply), nonPublic: true)
+                ?? throw new InvalidOperationException($"Could not create reply type {typeof(TReply).FullName}.");
+            typeof(TReply).GetProperty("Succeeded")?.SetValue(reply, true);
+            typeof(TReply).GetProperty("Message")?.SetValue(reply, "Actor ready.");
+            return new ValueTask<TReply>((TReply)reply);
+        }
+
+        private static string ReadStringProperty<TRequest>(TRequest request, string propertyName)
+        {
+            return typeof(TRequest).GetProperty(propertyName)?.GetValue(request) as string ?? "";
         }
     }
 
     private sealed class StateStoreRemoteActorInvoker : IRemoteActorInvoker
     {
         private readonly IRemoteActorSerializer _serializer;
-        private readonly CapturingFeatureMessageTransport _featureTransport;
+        private readonly CapturingFeatureCommandClient _featureCommands;
 
         public StateStoreRemoteActorInvoker(
             IRemoteActorSerializer serializer,
-            CapturingFeatureMessageTransport featureTransport)
+            CapturingFeatureCommandClient featureCommands)
         {
             _serializer = serializer;
-            _featureTransport = featureTransport;
+            _featureCommands = featureCommands;
         }
 
         public ValueTask<RemoteActorInvocationResult> AskAsync(
@@ -559,7 +607,7 @@ public sealed class AgarHotfixTests
                 invocation.MethodName.EndsWith(".LoginAsync", StringComparison.Ordinal) ||
                 string.Equals(invocation.MethodName, "LoginAsync", StringComparison.Ordinal))
             {
-                if (!_featureTransport.HasCreatedUserActorOn(invocation.Node, invocation.ActorId.Value))
+                if (!_featureCommands.HasCreatedUserActorOn(invocation.Node, invocation.ActorId.Value))
                 {
                     return new ValueTask<RemoteActorInvocationResult>(RemoteActorInvocationResult.Failed(
                         RemoteActorStatus.HandlerUnavailable,
@@ -581,7 +629,7 @@ public sealed class AgarHotfixTests
                 invocation.MethodName.EndsWith(".AttachAsync", StringComparison.Ordinal) ||
                 string.Equals(invocation.MethodName, "AttachAsync", StringComparison.Ordinal))
             {
-                if (!_featureTransport.HasCreatedUserActorOn(invocation.Node, invocation.ActorId.Value))
+                if (!_featureCommands.HasCreatedUserActorOn(invocation.Node, invocation.ActorId.Value))
                 {
                     return new ValueTask<RemoteActorInvocationResult>(RemoteActorInvocationResult.Failed(
                         RemoteActorStatus.HandlerUnavailable,
@@ -608,7 +656,7 @@ public sealed class AgarHotfixTests
                 invocation.MethodName.EndsWith(".GetLeaderboardAsync", StringComparison.Ordinal) ||
                 string.Equals(invocation.MethodName, "GetLeaderboardAsync", StringComparison.Ordinal))
             {
-                if (!_featureTransport.HasCreatedLeaderboardActorOn(invocation.Node, invocation.ActorId.Value))
+                if (!_featureCommands.HasCreatedLeaderboardActorOn(invocation.Node, invocation.ActorId.Value))
                 {
                     return new ValueTask<RemoteActorInvocationResult>(RemoteActorInvocationResult.Failed(
                         RemoteActorStatus.HandlerUnavailable,
@@ -651,16 +699,6 @@ public sealed class AgarHotfixTests
             return JsonSerializer.Deserialize<T>(payload.Span) ??
                 throw new InvalidOperationException($"Could not deserialize {typeof(T).FullName}.");
         }
-    }
-
-    private sealed class EnsureUserActorProbe
-    {
-        public string UserId { get; set; } = "";
-    }
-
-    private sealed class EnsureLeaderboardActorProbe
-    {
-        public string LeaderboardId { get; set; } = "";
     }
 
     private sealed class CapturingControlCallback : IControlCallback

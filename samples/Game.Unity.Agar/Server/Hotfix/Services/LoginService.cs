@@ -5,6 +5,7 @@ using Agar.Sample.State.Users;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
@@ -14,7 +15,6 @@ using Server.Hotfix.State.Users;
 using Shared.Interfaces;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 
 namespace Server.Hotfix.Services;
 
@@ -341,22 +341,15 @@ public sealed class LoginService
         string userId,
         IServiceProvider services)
     {
-        var transport = services.GetRequiredService<IFeatureMessageTransport>();
-        var payload = JsonSerializer.SerializeToUtf8Bytes(
-            new EnsureUserActorRequest { UserId = userId },
-            StateStoreUserActorPlacement.JsonOptions);
-        var request = new FeatureMessageRequest(
-            new FeatureName(StateStoreUserActorPlacement.FeatureName),
-            StateStoreUserActorPlacement.EnsureUserActorKind,
-            payload,
-            DateTimeOffset.UtcNow.Add(StateStoreUserActorPlacement.EnsureUserActorTimeout),
-            services.GetRequiredService<LocalActorNodeIdentity>().NodeId,
-            Guid.NewGuid().ToString("N"));
-        var reply = await transport.SendAsync(owner, request).ConfigureAwait(false);
-        if (reply.Status != ClusterSendStatus.Accepted)
+        var client = services.GetRequiredService<IFeatureCommandClient>();
+        var reply = await client.SendToNodeAsync<EnsureUserActorRequest, EnsureActorReply>(
+            owner,
+            StateStoreUserActorPlacement.FeatureName,
+            new EnsureUserActorRequest { UserId = userId }).ConfigureAwait(false);
+        if (!reply.Succeeded)
         {
             throw new InvalidOperationException(
-                $"State-store node {owner.Node.Value} rejected user actor creation for '{userId}'. Status={reply.Status}. {reply.ErrorMessage}");
+                $"State-store node {owner.Node.Value} rejected user actor creation for '{userId}'. {reply.Message}");
         }
     }
 

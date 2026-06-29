@@ -1,5 +1,6 @@
 using System;
 using Agar.Sample.State.Contracts;
+using MemoryPack;
 
 namespace Agar.Sample.State.Contracts.Sessions
 {
@@ -99,22 +100,31 @@ namespace Agar.Sample.State.Contracts.Sessions
         public string Reason { get; set; } = "";
     }
 
-    public sealed class PlayerRoomAssignment
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class PlayerRoomAssignment
     {
+        [MemoryPackOrder(0)]
         public string UserId { get; set; } = "";
 
+        [MemoryPackOrder(1)]
         public string RoomId { get; set; } = "";
 
+        [MemoryPackOrder(2)]
         public string MatchId { get; set; } = "";
 
+        [MemoryPackOrder(3)]
         public int SeatIndex { get; set; } = -1;
 
+        [MemoryPackOrder(4)]
         public string SessionToken { get; set; } = "";
 
+        [MemoryPackOrder(5)]
         public string ConnectionId { get; set; } = "";
 
+        [MemoryPackOrder(6)]
         public DateTime AssignedAtUtc { get; set; }
 
+        [MemoryPackOrder(7)]
         public GatewayEndpointDescriptor RuntimeGateway { get; set; } = new();
     }
 

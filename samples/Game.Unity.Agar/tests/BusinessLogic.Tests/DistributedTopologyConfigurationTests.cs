@@ -25,6 +25,7 @@ using Agar.Sample.State.Leaderboard;
 using Agar.Sample.State.Matchmaking;
 using Agar.Sample.State.Rooms;
 using Agar.Sample.State.Users;
+using Server.Hotfix.Features;
 using Server.Hotfix.Services;
 using Server.Hotfix.State.Matchmaking;
 using Server.Hotfix.State.Users;
@@ -203,7 +204,7 @@ public sealed class DistributedTopologyConfigurationTests
     {
         await TestHotfix.LoadCurrentAsync(TestContext.Current.CancellationToken);
 
-        var roomAllocator = new CapturingBattleRuntimeFeatureMessages();
+        var roomAllocator = new CapturingBattleRuntimeFeatureCommands();
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
@@ -239,7 +240,7 @@ public sealed class DistributedTopologyConfigurationTests
                 },
                 [new NodeFeatureDescriptor("battle-runtime")])
         ]));
-        services.AddSingleton<IFeatureMessageTransport>(roomAllocator);
+        services.AddSingleton<IFeatureCommandClient>(roomAllocator);
 
         await using var provider = services.BuildServiceProvider();
         var actors = provider.GetRequiredService<IActorRuntime>();
@@ -287,7 +288,7 @@ public sealed class DistributedTopologyConfigurationTests
             TestContext.Current.CancellationToken);
 
         Assert.NotNull(roomAllocator.LastRequest);
-        Assert.Equal("battle-runtime", roomAllocator.LastFeature.Value);
+        Assert.Equal("battle-runtime", roomAllocator.LastFeatureName);
         Assert.Equal(10, roomAllocator.LastRequest.MaxPlayers);
         Assert.Single(roomAllocator.LastRequest.Players);
         Assert.Equal(login.UserId, roomAllocator.LastRequest.Players[0].UserId);
@@ -1004,33 +1005,48 @@ public sealed class DistributedTopologyConfigurationTests
             .Build();
     }
 
-    private sealed class CapturingBattleRuntimeFeatureMessages : IFeatureMessageTransport
+    private sealed class CapturingBattleRuntimeFeatureCommands : IFeatureCommandClient
     {
-        public FeatureName LastFeature { get; private set; }
+        public string LastFeatureName { get; private set; } = "";
 
-        public string LastKind { get; private set; } = "";
+        public BattleRuntimeRoomAllocationRequest? LastRequest { get; private set; }
 
-        public CapturedRoomAllocationRequest? LastRequest { get; private set; }
+        public ValueTask<TReply> SendAsync<TRequest, TReply>(
+            string featureName,
+            TRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return CaptureAndReply<TRequest, TReply>(featureName, request);
+        }
 
-        public ValueTask<FeatureMessageReply> SendAsync(
+        public ValueTask<TReply> SendToNodeAsync<TRequest, TReply>(
             ClusterNodeDescriptor target,
-            FeatureMessageRequest request,
+            string featureName,
+            TRequest request,
             CancellationToken cancellationToken = default)
         {
             _ = target;
-            LastFeature = request.Feature;
-            LastKind = request.Kind;
-            LastRequest = CapturedRoomAllocationRequest.From(request.Payload);
+            return CaptureAndReply<TRequest, TReply>(featureName, request);
+        }
 
-            return new ValueTask<FeatureMessageReply>(new FeatureMessageReply(
-                ClusterSendStatus.Accepted,
-                JsonSerializer.SerializeToUtf8Bytes(new
-                {
-                    Succeeded = true,
-                    LastRequest.RoomId,
-                    LastRequest.MatchId,
-                    LastRequest.RuntimeGateway
-                })));
+        private ValueTask<TReply> CaptureAndReply<TRequest, TReply>(string featureName, TRequest request)
+        {
+            LastFeatureName = featureName;
+            LastRequest = request as BattleRuntimeRoomAllocationRequest;
+            if (LastRequest is null)
+            {
+                throw new InvalidOperationException($"Unexpected request type {typeof(TRequest).FullName}.");
+            }
+
+            object reply = new BattleRuntimeRoomAllocationReply
+            {
+                Succeeded = true,
+                RoomId = LastRequest.RoomId,
+                MatchId = LastRequest.MatchId,
+                RuntimeGateway = LastRequest.RuntimeGateway
+            };
+
+            return new ValueTask<TReply>((TReply)reply);
         }
     }
 
@@ -1059,27 +1075,6 @@ public sealed class DistributedTopologyConfigurationTests
             CancellationToken cancellationToken = default)
         {
             return (await ListAsync(feature, cancellationToken).ConfigureAwait(false)).FirstOrDefault();
-        }
-    }
-
-    private sealed class CapturedRoomAllocationRequest
-    {
-        public string RoomId { get; set; } = "";
-
-        public string MatchId { get; set; } = "";
-
-        public int MaxPlayers { get; set; }
-
-        public List<PlayerRoomAssignment> Players { get; set; } = new();
-
-        public Agar.Sample.State.Contracts.GatewayEndpointDescriptor RuntimeGateway { get; set; } = new();
-
-        public static CapturedRoomAllocationRequest From(ReadOnlyMemory<byte> payload)
-        {
-            return JsonSerializer.Deserialize<CapturedRoomAllocationRequest>(
-                    payload.Span,
-                    new JsonSerializerOptions(JsonSerializerDefaults.Web)) ??
-                new CapturedRoomAllocationRequest();
         }
     }
 

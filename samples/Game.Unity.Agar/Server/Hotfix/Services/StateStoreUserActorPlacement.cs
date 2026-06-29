@@ -1,4 +1,5 @@
-using System.Text.Json;
+using Lakona.Game.Server.Hotfix.Abstractions;
+using MemoryPack;
 
 namespace Server.Hotfix.Services;
 
@@ -6,21 +7,33 @@ internal static class StateStoreUserActorPlacement
 {
     public const string FeatureName = "state-store";
 
-    public const string EnsureUserActorKind = "agar.state-store.ensure-user-actor.v1";
+    public const int EnsureUserActorCommandId = 201;
 
-    public const string EnsureLeaderboardActorKind = "agar.state-store.ensure-leaderboard-actor.v1";
-
-    public static readonly TimeSpan EnsureUserActorTimeout = TimeSpan.FromSeconds(5);
-
-    public static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    public const int EnsureLeaderboardActorCommandId = 202;
 }
 
-internal sealed class EnsureUserActorRequest
+[MemoryPackable(GenerateType.VersionTolerant)]
+[FeatureCommand(StateStoreUserActorPlacement.EnsureUserActorCommandId)]
+public partial class EnsureUserActorRequest
 {
+    [MemoryPackOrder(0)]
     public string UserId { get; set; } = "";
 }
 
-internal sealed class EnsureLeaderboardActorRequest
+[MemoryPackable(GenerateType.VersionTolerant)]
+[FeatureCommand(StateStoreUserActorPlacement.EnsureLeaderboardActorCommandId)]
+public partial class EnsureLeaderboardActorRequest
 {
+    [MemoryPackOrder(0)]
     public string LeaderboardId { get; set; } = "";
+}
+
+[MemoryPackable(GenerateType.VersionTolerant)]
+public partial class EnsureActorReply
+{
+    [MemoryPackOrder(0)]
+    public bool Succeeded { get; set; }
+
+    [MemoryPackOrder(1)]
+    public string Message { get; set; } = "";
 }

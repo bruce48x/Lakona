@@ -6,7 +6,7 @@ namespace Server.Hotfix.Features;
 [HotfixFeature("matchmaking")]
 public sealed class MatchmakingFeature : HotfixGameFeature
 {
-    public override void Configure(HotfixFeatureContext context)
+    public static void Configure(HotfixFeatureContext context)
     {
         context.EnsureLocalActor<MatchmakingActor>("default");
         context.ScheduleActorTick<MatchmakingActor>(

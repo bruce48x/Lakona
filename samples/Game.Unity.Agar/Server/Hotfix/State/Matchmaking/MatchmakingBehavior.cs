@@ -10,6 +10,7 @@ using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,7 +18,6 @@ using Server.Hotfix.Features;
 using Server.Hotfix.Services;
 using Server.Hotfix.State.Rooms;
 using Server.Hotfix.State.Users;
-using System.Text.Json;
 
 namespace Server.Hotfix.State.Matchmaking;
 
@@ -377,13 +377,13 @@ public static partial class MatchmakingBehavior
         RoomCreateRequest request)
     {
         if (self.Context.Services.GetService<IClusterNodeDiscovery>() is not IClusterNodeDiscovery discovery ||
-            self.Context.Services.GetService<IFeatureMessageTransport>() is not IFeatureMessageTransport transport)
+            self.Context.Services.GetService<IFeatureCommandClient>() is not IFeatureCommandClient commands)
         {
             return new RoomSettlementResult
             {
                 RoomId = request.RoomId,
                 Succeeded = false,
-                Message = "Battle runtime feature transport is unavailable."
+                Message = "Battle runtime feature command client is unavailable."
             };
         }
 
@@ -406,58 +406,36 @@ public static partial class MatchmakingBehavior
             };
         }
 
-        var payload = JsonSerializer.SerializeToUtf8Bytes(new BattleRuntimeRoomAllocationRequest
-        {
-            RoomId = request.RoomId,
-            MatchId = request.MatchId,
-            CreatedByUserId = request.CreatedByUserId,
-            CreatedAtUtc = request.CreatedAtUtc,
-            MaxPlayers = request.MaxPlayers,
-            Players = request.Players.Select(CloneAssignment).ToList(),
-            RuntimeGateway = CloneGateway(request.RuntimeGateway)
-        }, BattleRuntimeRoomAllocation.JsonOptions);
-        var message = new FeatureMessageRequest(
-            new FeatureName(BattleRuntimeRoomAllocation.FeatureName),
-            BattleRuntimeRoomAllocation.AllocateRoomKind,
-            payload,
-            DateTimeOffset.UtcNow.AddSeconds(30),
-            self.Context.Services.GetRequiredService<LocalActorNodeIdentity>().NodeId,
-            Guid.NewGuid().ToString("N"));
-        var reply = await transport.SendAsync(target, message).ConfigureAwait(false);
-        if (reply.Status != ClusterSendStatus.Accepted)
+        var reply = await commands.SendToNodeAsync<BattleRuntimeRoomAllocationRequest, BattleRuntimeRoomAllocationReply>(
+            target,
+            BattleRuntimeRoomAllocation.FeatureName,
+            new BattleRuntimeRoomAllocationRequest
+            {
+                RoomId = request.RoomId,
+                MatchId = request.MatchId,
+                CreatedByUserId = request.CreatedByUserId,
+                CreatedAtUtc = request.CreatedAtUtc,
+                MaxPlayers = request.MaxPlayers,
+                Players = request.Players.Select(CloneAssignment).ToList(),
+                RuntimeGateway = CloneGateway(request.RuntimeGateway)
+            }).ConfigureAwait(false);
+        if (!reply.Succeeded)
         {
             return new RoomSettlementResult
             {
                 RoomId = request.RoomId,
                 Succeeded = false,
-                Message = string.IsNullOrWhiteSpace(reply.ErrorMessage)
-                    ? $"Battle runtime allocation failed with status {reply.Status}."
-                    : reply.ErrorMessage
-            };
-        }
-
-        BattleRuntimeRoomAllocationReply? allocation;
-        try
-        {
-            allocation = JsonSerializer.Deserialize<BattleRuntimeRoomAllocationReply>(
-                reply.Payload.Span,
-                BattleRuntimeRoomAllocation.JsonOptions);
-        }
-        catch (JsonException ex)
-        {
-            return new RoomSettlementResult
-            {
-                RoomId = request.RoomId,
-                Succeeded = false,
-                Message = $"Battle runtime allocation reply could not be decoded: {ex.Message}"
+                Message = string.IsNullOrWhiteSpace(reply.Message)
+                    ? "Battle runtime allocation failed."
+                    : reply.Message
             };
         }
 
         return new RoomSettlementResult
         {
-            RoomId = request.RoomId,
-            Succeeded = allocation?.Succeeded == true,
-            Message = allocation?.Message ?? "",
+            RoomId = reply.RoomId,
+            Succeeded = true,
+            Message = reply.Message,
             UpdatedAtUtc = request.CreatedAtUtc
         };
     }
