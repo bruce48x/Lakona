@@ -4,11 +4,11 @@ namespace Lakona.Game.Server.Hotfix;
 
 internal sealed class HotfixFeatureMessageHandler : IFeatureMessageHandler
 {
-    private readonly IHotfixRuntimeAccessor _hotfixRuntime;
+    private readonly IHotfixRuntimeAccessor? _hotfixRuntime;
 
-    public HotfixFeatureMessageHandler(IHotfixRuntimeAccessor hotfixRuntime)
+    public HotfixFeatureMessageHandler(IHotfixRuntimeAccessor? hotfixRuntime = null)
     {
-        _hotfixRuntime = hotfixRuntime ?? throw new ArgumentNullException(nameof(hotfixRuntime));
+        _hotfixRuntime = hotfixRuntime;
     }
 
     public async ValueTask<FeatureMessageReply> HandleAsync(
@@ -16,6 +16,10 @@ internal sealed class HotfixFeatureMessageHandler : IFeatureMessageHandler
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (_hotfixRuntime is null)
+        {
+            return new FeatureMessageReply(ClusterSendStatus.FeatureNotFound, ReadOnlyMemory<byte>.Empty);
+        }
 
         var handlers = _hotfixRuntime.Current.Services.GetService(typeof(IEnumerable<IFeatureMessageHandler>))
             as IEnumerable<IFeatureMessageHandler>;

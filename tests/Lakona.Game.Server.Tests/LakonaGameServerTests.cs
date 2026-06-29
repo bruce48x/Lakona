@@ -453,6 +453,27 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public async Task AddLakonaGameServer_feature_message_handler_is_noop_without_hotfix()
+    {
+        await using var provider = new ServiceCollection()
+            .AddLakonaGameServer()
+            .BuildServiceProvider();
+
+        var handler = provider.GetRequiredService<IFeatureMessageHandler>();
+        var reply = await handler.HandleAsync(
+            new FeatureMessageRequest(
+                new FeatureName("battle-runtime"),
+                "allocate",
+                ReadOnlyMemory<byte>.Empty,
+                DateTimeOffset.UtcNow.AddMinutes(1),
+                new NodeId("data-1"),
+                "corr-1"),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.FeatureNotFound, reply.Status);
+    }
+
+    [Fact]
     public void AddLakonaGameServer_registers_actor_lifecycle_after_lifecycle_api_exists()
     {
         var configuration = new ConfigurationBuilder()
