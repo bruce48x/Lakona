@@ -8,6 +8,7 @@ using Lakona.Game.Server.Diagnostics;
 using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Guardrails;
 using Lakona.Game.Server.Hosting;
+using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 
@@ -79,6 +80,7 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.AddMessageRecording();
         services.AddLakonaGameRuntimeValidation();
         services.AddLakonaGameSessionHotfixLifecycle();
+        services.TryAddSingleton<IFeatureMessageHandler, HotfixFeatureMessageHandler>();
         services.TryAddSingleton<IGameHandshakeService, GameHandshakeService>();
         services.TryAddSingleton<IFeatureCommandClient, FeatureCommandClient>();
         services.TryAddSingleton<ILakonaGameServer, DefaultLakonaGameServer>();

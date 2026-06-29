@@ -18,6 +18,7 @@ using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.HotfixAdmin;
 using Lakona.Game.Server.Hotfix.Loading;
 using Lakona.Game.Server.ReliablePush;
@@ -417,6 +418,38 @@ public sealed class LakonaGameServerTests
         Assert.NotNull(provider.GetService<Lakona.Game.Server.Sessions.IGameSessionRegistry>());
         Assert.NotNull(provider.GetService<ReliablePushOptions>());
         Assert.NotNull(provider.GetService<Lakona.Game.Server.Diagnostics.IMessageLogStore>());
+    }
+
+    [Fact]
+    public async Task AddLakonaGameServer_routes_feature_messages_to_current_hotfix_handlers()
+    {
+        var miss = new RecordingFeatureMessageHandler(acceptedFeature: new FeatureName("state-store"));
+        var hit = new RecordingFeatureMessageHandler(acceptedFeature: new FeatureName("battle-runtime"));
+        await using var hotfixServices = new ServiceCollection()
+            .AddSingleton<IFeatureMessageHandler>(miss)
+            .AddSingleton<IFeatureMessageHandler>(hit)
+            .BuildServiceProvider();
+        var services = new ServiceCollection();
+        services.AddSingleton<IHotfixRuntimeAccessor>(new FixedHotfixRuntimeAccessor(hotfixServices));
+        services.AddLakonaGameServer();
+        await using var provider = services.BuildServiceProvider();
+
+        var handler = provider.GetRequiredService<IFeatureMessageHandler>();
+        var reply = await handler.HandleAsync(
+            new FeatureMessageRequest(
+                new FeatureName("battle-runtime"),
+                "allocate",
+                new byte[] { 1, 2, 3 },
+                DateTimeOffset.UtcNow.AddMinutes(1),
+                new NodeId("data-1"),
+                "corr-1"),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.Accepted, reply.Status);
+        Assert.Single(miss.Requests);
+        var request = Assert.Single(hit.Requests);
+        Assert.Equal("battle-runtime", request.Feature.Value);
+        Assert.Equal("allocate", request.Kind);
     }
 
     [Fact]
@@ -909,6 +942,13 @@ public sealed class LakonaGameServerTests
 
     private sealed class RecordingFeatureMessageHandler : IFeatureMessageHandler
     {
+        private readonly FeatureName? _acceptedFeature;
+
+        public RecordingFeatureMessageHandler(FeatureName? acceptedFeature = null)
+        {
+            _acceptedFeature = acceptedFeature;
+        }
+
         public List<FeatureMessageRequest> Requests { get; } = [];
 
         public ValueTask<FeatureMessageReply> HandleAsync(
@@ -917,9 +957,26 @@ public sealed class LakonaGameServerTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             Requests.Add(request);
+            if (_acceptedFeature is not null &&
+                !string.Equals(request.Feature.Value, _acceptedFeature.Value.Value, StringComparison.OrdinalIgnoreCase))
+            {
+                return new ValueTask<FeatureMessageReply>(
+                    new FeatureMessageReply(ClusterSendStatus.FeatureNotFound, ReadOnlyMemory<byte>.Empty));
+            }
+
             return new ValueTask<FeatureMessageReply>(
                 new FeatureMessageReply(ClusterSendStatus.Accepted, new byte[] { 9 }));
         }
+    }
+
+    private sealed class FixedHotfixRuntimeAccessor : IHotfixRuntimeAccessor
+    {
+        public FixedHotfixRuntimeAccessor(IServiceProvider services)
+        {
+            Current = new HotfixRuntimeSnapshot(new HotfixServiceInvoker(), services);
+        }
+
+        public HotfixRuntimeSnapshot Current { get; }
     }
 
     private sealed class RecordingFeatureMessageBus : IFeatureMessageBus
