@@ -33,6 +33,26 @@ public sealed class FeatureCommandClient : IFeatureCommandClient
         return reply.GetPayload<TReply>(_serializer);
     }
 
+    public async ValueTask<TReply> SendToNodeAsync<TRequest, TReply>(
+        ClusterNodeDescriptor target,
+        string featureName,
+        TRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentException.ThrowIfNullOrWhiteSpace(featureName);
+
+        var commandId = GetCommandId<TRequest>();
+        var reply = await _messages.SendToNodeAsync<TRequest, TReply>(
+            target,
+            new FeatureName(featureName),
+            commandId.ToString(),
+            request,
+            cancellationToken).ConfigureAwait(false);
+
+        return reply.GetPayload<TReply>(_serializer);
+    }
+
     private static FeatureCommandId GetCommandId<TRequest>()
     {
         var attribute = typeof(TRequest).GetCustomAttributes(typeof(FeatureCommandAttribute), inherit: false)

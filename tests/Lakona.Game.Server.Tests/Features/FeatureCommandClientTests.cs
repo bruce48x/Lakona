@@ -27,6 +27,34 @@ public sealed class FeatureCommandClientTests
     }
 
     [Fact]
+    public async Task SendToNodeAsyncUsesFeatureCommandIdAsMessageKindAndDeserializesReply()
+    {
+        var serializer = new TestSerializer();
+        var bus = new RecordingFeatureMessageBus(serializer);
+        var client = new FeatureCommandClient(bus, serializer);
+        var target = new ClusterNodeDescriptor(
+            new NodeId("runtime-1"),
+            NodeState.Ready,
+            new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal)
+            {
+                ["cluster"] = new NodeEndpoint("tcp://127.0.0.1:21001")
+            },
+            [new NodeFeatureDescriptor("battle-runtime")]);
+
+        var reply = await client.SendToNodeAsync<JoinRoomCommand, JoinRoomReply>(
+            target,
+            "battle-runtime",
+            new JoinRoomCommand("room-1"),
+            TestContext.Current.CancellationToken);
+
+        Assert.Same(target, bus.Target);
+        Assert.Equal("battle-runtime", bus.Feature.Value);
+        Assert.Equal("17", bus.Kind);
+        Assert.Equal("room-1", bus.Request?.RoomId);
+        Assert.Equal("joined", reply.Status);
+    }
+
+    [Fact]
     public async Task SendAsyncRequiresFeatureCommandAttribute()
     {
         var serializer = new TestSerializer();
@@ -54,6 +82,8 @@ public sealed class FeatureCommandClientTests
         }
 
         public FeatureName Feature { get; private set; }
+
+        public ClusterNodeDescriptor? Target { get; private set; }
 
         public string Kind { get; private set; } = "";
 
@@ -89,7 +119,14 @@ public sealed class FeatureCommandClientTests
             TRequest request,
             CancellationToken cancellationToken = default)
         {
-            throw new NotSupportedException();
+            cancellationToken.ThrowIfCancellationRequested();
+            Target = target;
+            Feature = feature;
+            Kind = kind;
+            Request = Assert.IsType<JoinRoomCommand>(request);
+            var payload = _serializer.Serialize(new JoinRoomReply("joined"));
+            return new ValueTask<FeatureMessageReply>(
+                new FeatureMessageReply(ClusterSendStatus.Accepted, payload));
         }
     }
 

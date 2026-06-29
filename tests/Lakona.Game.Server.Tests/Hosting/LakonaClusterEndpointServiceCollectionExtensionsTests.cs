@@ -279,6 +279,8 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         await using var provider = services.BuildServiceProvider();
 
         Assert.IsType<RpcFeatureMessageTransport>(provider.GetRequiredService<IFeatureMessageTransport>());
+        Assert.IsType<RpcFeatureMessageSerializer>(provider.GetRequiredService<IFeatureMessageSerializer>());
+        Assert.IsType<FeatureMessageBus>(provider.GetRequiredService<IFeatureMessageBus>());
     }
 
     [Fact]
