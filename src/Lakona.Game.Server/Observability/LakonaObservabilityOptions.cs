@@ -80,6 +80,7 @@ public sealed class LakonaLoggingObservabilityOptions
 {
     public bool Enabled { get; init; } = true;
     public LogLevel MinimumLevel { get; init; } = LogLevel.Information;
+    public string MinimumLevelRaw { get; init; } = nameof(LogLevel.Information);
     public IReadOnlyDictionary<string, string> Categories { get; init; } = CreateDefaultCategoryLevels();
 
     public LakonaConsoleLoggingObservabilityOptions Console { get; init; } = new();
@@ -94,6 +95,10 @@ public sealed class LakonaLoggingObservabilityOptions
                 section,
                 "MinimumLevel",
                 LogLevel.Information),
+            MinimumLevelRaw = LakonaObservabilityOptions.ReadString(
+                section,
+                "MinimumLevel",
+                nameof(LogLevel.Information)),
             Categories = ReadCategoryLevels(section.GetSection("Categories")),
             Console = LakonaConsoleLoggingObservabilityOptions.FromConfiguration(section.GetSection("Console")),
             File = LakonaFileLoggingObservabilityOptions.FromConfiguration(section.GetSection("File"))

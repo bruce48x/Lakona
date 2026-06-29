@@ -103,6 +103,59 @@ public sealed class LakonaGameReadinessProbeTests
         Assert.Contains("fix: Lakona:Observability:Metrics:Prometheus:Path", errors, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Run_TextOutputIncludesObservabilityDiagnosticsWhenHotfixAlsoFails()
+    {
+        DeleteHotfixAssembly();
+        var runtime = RuntimeWithObservability(new LakonaObservabilityOptions
+        {
+            Metrics = new LakonaMetricsObservabilityOptions
+            {
+                Prometheus = new LakonaPrometheusObservabilityOptions
+                {
+                    Path = "metrics"
+                }
+            }
+        });
+
+        var (exitCode, output, errors) = CaptureRun(
+            runtime,
+            runtime.ToClusterOptions(),
+            []);
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains("cluster: ok single-node", output, StringComparison.Ordinal);
+        Assert.Contains("hotfix: failed local build output not found", errors, StringComparison.Ordinal);
+        Assert.Contains("ULINK136", errors, StringComparison.Ordinal);
+        Assert.Contains("fix: Lakona:Observability:Metrics:Prometheus:Path", errors, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Run_JsonOutputIncludesInvalidConfiguredLoggingMinimumLevel()
+    {
+        var runtime = RuntimeFromConfiguration(
+            new Dictionary<string, string?>
+            {
+                ["Lakona:Endpoints:0:Transport"] = "websocket",
+                ["Lakona:Endpoints:0:Serializer"] = "json",
+                ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
+                ["Lakona:Endpoints:0:Port"] = "20000",
+                ["Lakona:Endpoints:0:Path"] = "/ws",
+                ["Lakona:Observability:Logging:MinimumLevel"] = "Verbose"
+            },
+            "Production");
+
+        var (exitCode, output, errors) = CaptureRun(
+            runtime,
+            runtime.ToClusterOptions(),
+            ["--json"]);
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains("\"code\": \"ULINK138\"", output, StringComparison.Ordinal);
+        Assert.Contains("Lakona:Observability:Logging:MinimumLevel", output, StringComparison.Ordinal);
+        Assert.Equal("", errors);
+    }
+
     [Theory]
     [InlineData("Production", LakonaGameRuntimeProfile.Production)]
     [InlineData("battle-1", LakonaGameRuntimeProfile.Production)]
@@ -220,5 +273,14 @@ public sealed class LakonaGameReadinessProbeTests
         var hotfixPath = Path.Combine(AppContext.BaseDirectory, "hotfix", "Server.Hotfix.dll");
         Directory.CreateDirectory(Path.GetDirectoryName(hotfixPath)!);
         File.WriteAllText(hotfixPath, "");
+    }
+
+    private static void DeleteHotfixAssembly()
+    {
+        var hotfixPath = Path.Combine(AppContext.BaseDirectory, "hotfix", "Server.Hotfix.dll");
+        if (File.Exists(hotfixPath))
+        {
+            File.Delete(hotfixPath);
+        }
     }
 }

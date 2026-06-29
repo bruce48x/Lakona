@@ -34,6 +34,7 @@ public sealed class LakonaObservabilityOptionsTests
 
         Assert.True(options.Logging.Enabled);
         Assert.Equal(LogLevel.Information, options.Logging.MinimumLevel);
+        Assert.Equal("Information", options.Logging.MinimumLevelRaw);
         Assert.True(options.Logging.Console.Enabled);
         Assert.Equal("Compact", options.Logging.Console.Format);
         Assert.False(options.Logging.Console.IncludeScopes);
@@ -105,6 +106,7 @@ public sealed class LakonaObservabilityOptionsTests
 
         Assert.False(options.Logging.Enabled);
         Assert.Equal(LogLevel.Debug, options.Logging.MinimumLevel);
+        Assert.Equal("Debug", options.Logging.MinimumLevelRaw);
         Assert.Equal("Trace", options.Logging.Categories["Lakona.Game.Server"]);
         Assert.False(options.Logging.Console.Enabled);
         Assert.Equal("json", options.Logging.Console.Format);
@@ -143,6 +145,22 @@ public sealed class LakonaObservabilityOptionsTests
             .ToArray();
 
         Assert.Equal(["Enabled", "SampleRate"], propertyNames);
+    }
+
+    [Fact]
+    public void FromConfiguration_preserves_invalid_raw_logging_minimum_level()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:Observability:Logging:MinimumLevel"] = "Verbose"
+        });
+
+        var options = LakonaObservabilityOptions.FromConfiguration(
+            configuration,
+            LakonaGameRuntimeProfile.Production);
+
+        Assert.Equal(LogLevel.Information, options.Logging.MinimumLevel);
+        Assert.Equal("Verbose", options.Logging.MinimumLevelRaw);
     }
 
     [Fact]

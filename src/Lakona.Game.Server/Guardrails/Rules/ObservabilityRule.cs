@@ -71,8 +71,7 @@ public sealed class ObservabilityRule : ILakonaGameValidationRule
                 "Disable Lakona:Observability:Metrics:Prometheus:Enabled or register a Prometheus endpoint integration.");
         }
 
-        if (observability.PrometheusEnabled.Value
-            && !IsValidPrometheusPath(observability.PrometheusPath.Value))
+        if (!IsValidPrometheusPath(observability.PrometheusPath.Value))
         {
             yield return new LakonaGameDiagnostic(
                 "ULINK136",
@@ -90,7 +89,11 @@ public sealed class ObservabilityRule : ILakonaGameValidationRule
                 "Lakona:Observability:Diagnostics:EventBuffer:Capacity");
         }
 
-        if (!Enum.IsDefined(typeof(LogLevel), observability.LoggingMinimumLevel.Value))
+        if (!Enum.TryParse<LogLevel>(
+                observability.LoggingMinimumLevel.Value,
+                ignoreCase: true,
+                out var loggingMinimumLevel)
+            || !Enum.IsDefined(typeof(LogLevel), loggingMinimumLevel))
         {
             yield return new LakonaGameDiagnostic(
                 "ULINK138",

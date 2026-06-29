@@ -105,6 +105,20 @@ public sealed class ObservabilityGuardrailTests
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
     }
 
+    [Fact]
+    public void Validate_EmitsError_WhenPrometheusPathIsInvalidEvenWhenPrometheusIsDisabled()
+    {
+        var result = Validate(TestRuntime() with
+        {
+            Observability = TestObservability(
+                prometheusEnabled: false,
+                prometheusPath: "metrics")
+        });
+
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK136");
+        Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
@@ -125,7 +139,7 @@ public sealed class ObservabilityGuardrailTests
         var result = Validate(TestRuntime() with
         {
             Observability = TestObservability(
-                loggingMinimumLevel: (LogLevel)999)
+                loggingMinimumLevel: "Verbose")
         });
 
         var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK138");
@@ -188,7 +202,7 @@ public sealed class ObservabilityGuardrailTests
         bool prometheusEndpointRegistered = false,
         string prometheusPath = "/_lakona/metrics",
         int eventBufferCapacity = 1024,
-        LogLevel loggingMinimumLevel = LogLevel.Information,
+        string loggingMinimumLevel = nameof(LogLevel.Information),
         double traceSampleRate = 1.0)
     {
         return new LakonaGameResolvedObservability(
@@ -204,7 +218,7 @@ public sealed class ObservabilityGuardrailTests
             PrometheusEndpointRegistered: prometheusEndpointRegistered,
             PrometheusPath: new LakonaGameResolvedValue<string>(prometheusPath, LakonaGameValueSource.Configuration, "Lakona:Observability:Metrics:Prometheus:Path"),
             EventBufferCapacity: new LakonaGameResolvedValue<int>(eventBufferCapacity, LakonaGameValueSource.Configuration, "Lakona:Observability:Diagnostics:EventBuffer:Capacity"),
-            LoggingMinimumLevel: new LakonaGameResolvedValue<LogLevel>(loggingMinimumLevel, LakonaGameValueSource.Configuration, "Lakona:Observability:Logging:MinimumLevel"),
+            LoggingMinimumLevel: new LakonaGameResolvedValue<string>(loggingMinimumLevel, LakonaGameValueSource.Configuration, "Lakona:Observability:Logging:MinimumLevel"),
             TraceSampleRate: new LakonaGameResolvedValue<double>(traceSampleRate, LakonaGameValueSource.Configuration, "Lakona:Observability:Tracing:Export:SampleRate"));
     }
 }

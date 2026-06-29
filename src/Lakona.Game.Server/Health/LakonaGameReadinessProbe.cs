@@ -100,10 +100,12 @@ public static class LakonaGameReadinessProbe
         {
             Console.Error.WriteLine("hotfix: failed local build output not found");
             Console.Error.WriteLine($"fix: {hotfixFailure.Repair}");
-            return 1;
+        }
+        else
+        {
+            Console.WriteLine("hotfix: ok local-build Server.Hotfix.dll");
         }
 
-        Console.WriteLine("hotfix: ok local-build Server.Hotfix.dll");
         Console.WriteLine("reliable-push: ok pending limit 256, replay window 120s");
         Console.WriteLine($"rpc: ok {rpcEndpoint}");
 
@@ -118,6 +120,11 @@ public static class LakonaGameReadinessProbe
 
         foreach (var diagnostic in result.Diagnostics.Where(diagnostic => diagnostic.Severity == LakonaGameDiagnosticSeverity.Error))
         {
+            if (diagnostic.Code == "ULINK071")
+            {
+                continue;
+            }
+
             Console.Error.WriteLine($"{diagnostic.Code}: {diagnostic.Message}");
             if (!string.IsNullOrWhiteSpace(diagnostic.Repair))
             {
@@ -232,8 +239,8 @@ public static class LakonaGameReadinessProbe
                 observability.Diagnostics.EventBuffer.Capacity,
                 LakonaGameValueSource.Configuration,
                 "Lakona:Observability:Diagnostics:EventBuffer:Capacity"),
-            LoggingMinimumLevel: new LakonaGameResolvedValue<Microsoft.Extensions.Logging.LogLevel>(
-                observability.Logging.MinimumLevel,
+            LoggingMinimumLevel: new LakonaGameResolvedValue<string>(
+                observability.Logging.MinimumLevelRaw,
                 LakonaGameValueSource.Configuration,
                 "Lakona:Observability:Logging:MinimumLevel"),
             TraceSampleRate: new LakonaGameResolvedValue<double>(

@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging;
-
 namespace Lakona.Game.Server.Guardrails;
 
 public sealed record LakonaGameResolvedObservability(
@@ -15,5 +13,5 @@ public sealed record LakonaGameResolvedObservability(
     bool PrometheusEndpointRegistered,
     LakonaGameResolvedValue<string> PrometheusPath,
     LakonaGameResolvedValue<int> EventBufferCapacity,
-    LakonaGameResolvedValue<LogLevel> LoggingMinimumLevel,
+    LakonaGameResolvedValue<string> LoggingMinimumLevel,
     LakonaGameResolvedValue<double> TraceSampleRate);
