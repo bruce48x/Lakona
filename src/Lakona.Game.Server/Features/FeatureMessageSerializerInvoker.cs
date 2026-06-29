@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using Lakona.Game.Cluster;
 
 namespace Lakona.Game.Server.Features;
@@ -18,9 +19,17 @@ internal static class FeatureMessageSerializerInvoker
         Type payloadType,
         ReadOnlyMemory<byte> payload)
     {
-        return DeserializeMethod
-            .MakeGenericMethod(payloadType)
-            .Invoke(serializer, [payload]);
+        try
+        {
+            return DeserializeMethod
+                .MakeGenericMethod(payloadType)
+                .Invoke(serializer, [payload]);
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException is not null)
+        {
+            ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+            throw;
+        }
     }
 
     public static ReadOnlyMemory<byte> Serialize(
@@ -28,9 +37,19 @@ internal static class FeatureMessageSerializerInvoker
         Type payloadType,
         object? value)
     {
-        var result = SerializeMethod
-            .MakeGenericMethod(payloadType)
-            .Invoke(serializer, [value]);
+        object? result;
+        try
+        {
+            result = SerializeMethod
+                .MakeGenericMethod(payloadType)
+                .Invoke(serializer, [value]);
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException is not null)
+        {
+            ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+            throw;
+        }
+
         return result is ReadOnlyMemory<byte> payload
             ? payload
             : throw new InvalidOperationException("Feature message serializer returned an invalid payload.");

@@ -69,14 +69,44 @@ public sealed class HotfixFeatureMessageHandlerTests
         var invoker = new RecordingCommandInvoker();
         var handler = new HotfixFeatureMessageHandler(
             new FixedAccessor(invoker),
-            new JsonFeatureSerializer());
+            new ThrowingDeserializeSerializer());
 
         var reply = await handler.HandleAsync(
-            NewRequest(payload: new byte[] { 0xff }),
+            NewRequest(),
             TestContext.Current.CancellationToken);
 
         Assert.Equal(ClusterSendStatus.DeserializationFailed, reply.Status);
+        Assert.Contains("test deserializer exploded", reply.ErrorMessage, StringComparison.Ordinal);
         Assert.Empty(invoker.Requests);
+    }
+
+    [Fact]
+    public async Task HandleAsyncMapsSerializerFailureWithOriginalMessage()
+    {
+        var invoker = new RecordingCommandInvoker(new TestReply("accepted"));
+        var handler = new HotfixFeatureMessageHandler(
+            new FixedAccessor(invoker),
+            new ThrowingReplySerializeSerializer());
+
+        var reply = await handler.HandleAsync(
+            NewRequest(),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.SerializationFailed, reply.Status);
+        Assert.Contains("test serializer exploded", reply.ErrorMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task HandleAsyncReturnsHandlerUnavailableWhenSerializerMissing()
+    {
+        var handler = new HotfixFeatureMessageHandler(
+            new FixedAccessor(new RecordingCommandInvoker()));
+
+        var reply = await handler.HandleAsync(
+            NewRequest(),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.HandlerUnavailable, reply.Status);
     }
 
     [Fact]
@@ -166,6 +196,37 @@ public sealed class HotfixFeatureMessageHandlerTests
     {
         public ReadOnlyMemory<byte> Serialize<T>(T value)
         {
+            return JsonSerializer.SerializeToUtf8Bytes(value);
+        }
+
+        public T Deserialize<T>(ReadOnlyMemory<byte> payload)
+        {
+            return JsonSerializer.Deserialize<T>(payload.Span)!;
+        }
+    }
+
+    private sealed class ThrowingDeserializeSerializer : IFeatureMessageSerializer
+    {
+        public ReadOnlyMemory<byte> Serialize<T>(T value)
+        {
+            return JsonSerializer.SerializeToUtf8Bytes(value);
+        }
+
+        public T Deserialize<T>(ReadOnlyMemory<byte> payload)
+        {
+            throw new InvalidOperationException("test deserializer exploded");
+        }
+    }
+
+    private sealed class ThrowingReplySerializeSerializer : IFeatureMessageSerializer
+    {
+        public ReadOnlyMemory<byte> Serialize<T>(T value)
+        {
+            if (typeof(T) == typeof(TestReply))
+            {
+                throw new InvalidOperationException("test serializer exploded");
+            }
+
             return JsonSerializer.SerializeToUtf8Bytes(value);
         }
 
