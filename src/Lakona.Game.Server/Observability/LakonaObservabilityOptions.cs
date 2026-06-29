@@ -124,7 +124,7 @@ public sealed class LakonaLoggingObservabilityOptions
 public sealed class LakonaConsoleLoggingObservabilityOptions
 {
     public bool Enabled { get; init; } = true;
-    public string Format { get; init; } = "compact";
+    public string Format { get; init; } = "Compact";
     public bool IncludeScopes { get; init; }
 
     public static LakonaConsoleLoggingObservabilityOptions FromConfiguration(IConfiguration section)
@@ -132,7 +132,7 @@ public sealed class LakonaConsoleLoggingObservabilityOptions
         return new LakonaConsoleLoggingObservabilityOptions
         {
             Enabled = LakonaObservabilityOptions.ReadBool(section, "Enabled", true),
-            Format = LakonaObservabilityOptions.ReadString(section, "Format", "compact"),
+            Format = LakonaObservabilityOptions.ReadString(section, "Format", "Compact"),
             IncludeScopes = LakonaObservabilityOptions.ReadBool(section, "IncludeScopes", false)
         };
     }
@@ -273,8 +273,6 @@ public sealed class LakonaTracingObservabilityOptions
 public sealed class LakonaTraceExportObservabilityOptions
 {
     public bool Enabled { get; init; }
-    public string Endpoint { get; init; } = "";
-    public string Protocol { get; init; } = "";
     public double SampleRate { get; init; } = 1.0;
 
     public static LakonaTraceExportObservabilityOptions FromConfiguration(IConfiguration section)
@@ -282,8 +280,6 @@ public sealed class LakonaTraceExportObservabilityOptions
         return new LakonaTraceExportObservabilityOptions
         {
             Enabled = LakonaObservabilityOptions.ReadBool(section, "Enabled", false),
-            Endpoint = LakonaObservabilityOptions.ReadString(section, "Endpoint", ""),
-            Protocol = LakonaObservabilityOptions.ReadString(section, "Protocol", ""),
             SampleRate = LakonaObservabilityOptions.ReadDouble(section, "SampleRate", 1.0)
         };
     }

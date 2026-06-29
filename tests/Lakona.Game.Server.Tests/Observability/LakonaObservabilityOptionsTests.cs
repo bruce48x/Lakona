@@ -34,7 +34,7 @@ public sealed class LakonaObservabilityOptionsTests
         Assert.True(options.Logging.Enabled);
         Assert.Equal(LogLevel.Information, options.Logging.MinimumLevel);
         Assert.True(options.Logging.Console.Enabled);
-        Assert.Equal("compact", options.Logging.Console.Format);
+        Assert.Equal("Compact", options.Logging.Console.Format);
         Assert.False(options.Logging.Console.IncludeScopes);
         Assert.False(options.Logging.File.Enabled);
         Assert.Equal("logs/lakona-.log", options.Logging.File.Path);
@@ -95,8 +95,6 @@ public sealed class LakonaObservabilityOptionsTests
             ["Lakona:Observability:Metrics:Prometheus:Enabled"] = "true",
             ["Lakona:Observability:Metrics:Prometheus:Path"] = "/metrics",
             ["Lakona:Observability:Tracing:Export:Enabled"] = "true",
-            ["Lakona:Observability:Tracing:Export:Endpoint"] = "http://collector:4317",
-            ["Lakona:Observability:Tracing:Export:Protocol"] = "otlp",
             ["Lakona:Observability:Tracing:Export:SampleRate"] = "0.25"
         });
 
@@ -131,9 +129,19 @@ public sealed class LakonaObservabilityOptionsTests
         Assert.True(options.Metrics.Prometheus.Enabled);
         Assert.Equal("/metrics", options.Metrics.Prometheus.Path);
         Assert.True(options.Tracing.Export.Enabled);
-        Assert.Equal("http://collector:4317", options.Tracing.Export.Endpoint);
-        Assert.Equal("otlp", options.Tracing.Export.Protocol);
         Assert.Equal(0.25, options.Tracing.Export.SampleRate);
+    }
+
+    [Fact]
+    public void Trace_export_options_expose_only_task_one_schema()
+    {
+        var propertyNames = typeof(LakonaTraceExportObservabilityOptions)
+            .GetProperties()
+            .Select(static property => property.Name)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(["Enabled", "SampleRate"], propertyNames);
     }
 
     [Theory]
