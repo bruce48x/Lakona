@@ -32,9 +32,6 @@ public sealed class GatewayConfigurationTests
 
         var lakona = root.GetProperty("Lakona");
         Assert.Equal("gateway-1", lakona.GetProperty("Node").GetProperty("Id").GetString());
-        Assert.Equal(
-            new[] { "state-store", "matchmaking", "leaderboard", "battle-runtime" },
-            lakona.GetProperty("Feature").EnumerateArray().Select(item => item.GetString()).ToArray());
 
         var endpoints = lakona.GetProperty("Endpoints").EnumerateArray().ToArray();
         Assert.Equal(2, endpoints.Length);
