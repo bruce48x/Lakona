@@ -361,7 +361,7 @@ Server/App/BuildTag.props
 ```xml
 <Project>
   <PropertyGroup>
-    <LakonaHotfixBuildTag>20260612.001</LakonaHotfixBuildTag>
+    <LakonaHotfixBuildTag>20260629.001</LakonaHotfixBuildTag>
   </PropertyGroup>
 </Project>
 ```

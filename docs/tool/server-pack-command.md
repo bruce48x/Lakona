@@ -137,7 +137,7 @@ Minimum fields:
   "selfContained": true,
   "trimmed": false,
   "entryAssembly": "Server.App.dll",
-  "buildTag": "20260612.001",
+  "buildTag": "20260629.001",
   "initialHotfixVersion": "v20260623-153045Z",
   "toolVersion": "0.0.0-local"
 }
