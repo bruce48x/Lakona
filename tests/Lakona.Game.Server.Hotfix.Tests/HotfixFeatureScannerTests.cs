@@ -1,3 +1,4 @@
+using Lakona.Game.Cluster;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Scanning;
 using Microsoft.Extensions.DependencyInjection;
@@ -47,6 +48,8 @@ public sealed class HotfixFeatureScannerTests
 
         Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
         var feature = Assert.Single(result.Features);
+        Assert.False(feature.Discoverable);
+        Assert.Equal("state", feature.Metadata["role"]);
         var descriptor = Assert.Single(feature.Services);
         Assert.Equal(typeof(ISampleHotfixService), descriptor.ServiceType);
         Assert.Equal(typeof(SampleHotfixService), descriptor.ImplementationType);
@@ -68,10 +71,64 @@ public sealed class HotfixFeatureScannerTests
         Assert.Equal("ExecuteAsync", command.MethodName);
     }
 
+    [Fact]
+    public void FeatureCommandCallCarriesRequestAndCommandContext()
+    {
+        var request = new StartMatchCommand("room-7");
+        var commandId = FeatureCommandId.From(17);
+        var sourceNode = new NodeId("gateway-1");
+        var expiresAt = DateTimeOffset.UtcNow.AddSeconds(15);
+        using var cts = new CancellationTokenSource();
+        using var services = new ServiceCollection().BuildServiceProvider();
+
+        var call = new HotfixFeatureCommandCall<StartMatchCommand>(
+            request,
+            "commands",
+            commandId,
+            "correlation-9",
+            sourceNode,
+            expiresAt,
+            cts.Token,
+            services);
+
+        Assert.Same(request, call.Request);
+        Assert.Equal("commands", call.FeatureName);
+        Assert.Equal(commandId, call.CommandId);
+        Assert.Equal("correlation-9", call.CorrelationId);
+        Assert.Equal(sourceNode, call.SourceNode);
+        Assert.Equal(expiresAt, call.ExpiresAt);
+        Assert.Equal(cts.Token, call.CancellationToken);
+        Assert.Same(services, call.Services);
+    }
+
+    [Fact]
+    public void Scanner_rejects_feature_without_static_configure()
+    {
+        var result = HotfixBehaviorScanner.Scan(typeof(MissingConfigureFeature).Assembly, [
+            typeof(MissingConfigureFeature)
+        ]);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Contains("public static Configure", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Scanner_rejects_old_instance_configure()
+    {
+        var result = HotfixBehaviorScanner.Scan(typeof(OldInstanceConfigureFeature).Assembly, [
+            typeof(OldInstanceConfigureFeature)
+        ]);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Contains("must use public static Configure", StringComparison.OrdinalIgnoreCase));
+    }
+
     [HotfixFeature("battle-runtime")]
     private sealed class BattleRuntimeFeature : HotfixGameFeature
     {
-        public override void Configure(HotfixFeatureContext context)
+        public static void Configure(HotfixFeatureContext context)
         {
             context.EnsureLocalActor<MatchmakingActor>("default");
             context.ScheduleActorTick<MatchmakingActor>(
@@ -95,8 +152,10 @@ public sealed class HotfixFeatureScannerTests
     [HotfixFeature("state-store")]
     private sealed class ServiceFeature : HotfixGameFeature
     {
-        public override void Configure(HotfixFeatureContext context)
+        public static void Configure(HotfixFeatureContext context)
         {
+            context.Discoverable = false;
+            context.Metadata["role"] = "state";
             context.Services.AddSingleton<ISampleHotfixService, SampleHotfixService>();
         }
     }
@@ -112,9 +171,39 @@ public sealed class HotfixFeatureScannerTests
     [HotfixFeature("commands")]
     private sealed class CommandFeature : HotfixGameFeature
     {
-        public override void Configure(HotfixFeatureContext context)
+        public CommandFeature(RequiredRuntimeDependency dependency)
+        {
+            Dependency = dependency;
+        }
+
+        public RequiredRuntimeDependency Dependency { get; }
+
+        public static void Configure(HotfixFeatureContext context)
         {
             context.HandleCommand<StartMatchCommand, StartMatchReply>("ExecuteAsync");
+        }
+
+        public ValueTask<StartMatchReply> ExecuteAsync(HotfixFeatureCommandCall<StartMatchCommand> call)
+        {
+            return new ValueTask<StartMatchReply>(new StartMatchReply(true));
+        }
+    }
+
+    private sealed class RequiredRuntimeDependency
+    {
+    }
+
+    [HotfixFeature("missing-configure")]
+    private sealed class MissingConfigureFeature : HotfixGameFeature
+    {
+    }
+
+    [HotfixFeature("old-configure")]
+    private sealed class OldInstanceConfigureFeature : HotfixGameFeature
+    {
+        public void Configure(HotfixFeatureContext context)
+        {
+            context.EnsureLocalActor<MatchmakingActor>("default");
         }
     }
 

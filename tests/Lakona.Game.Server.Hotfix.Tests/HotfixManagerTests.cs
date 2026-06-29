@@ -961,7 +961,7 @@ public sealed class HotfixManagerTests
                 [HotfixFeature("manager-test")]
                 public sealed class ManagerTestFeature : HotfixGameFeature
                 {
-                    public override void Configure(HotfixFeatureContext context)
+                    public static void Configure(HotfixFeatureContext context)
                     {
                         context.Services.AddSingleton<IGenerationMarker, GenerationTwoMarker>();
                     }
@@ -1099,7 +1099,7 @@ public sealed class HotfixManagerTests
                 [HotfixFeature("manager-test")]
                 public sealed class ManagerTestFeature : HotfixGameFeature
                 {
-                    public override void Configure(HotfixFeatureContext context)
+                    public static void Configure(HotfixFeatureContext context)
                     {
                         context.Services.AddSingleton<IGenerationMarker, GenerationOneMarker>();
                     }
@@ -1245,7 +1245,7 @@ public sealed class HotfixManagerTests
                 [HotfixFeature("constructor-di")]
                 public sealed class ConstructorDiFeature : HotfixGameFeature
                 {
-                    public override void Configure(HotfixFeatureContext context)
+                    public static void Configure(HotfixFeatureContext context)
                     {
                         context.Services.AddSingleton<IGenerationMarker, LocalMarker>();
                     }
@@ -1296,7 +1296,7 @@ public sealed class HotfixManagerTests
                 [HotfixFeature("constructor-di-lifecycle")]
                 public sealed class ConstructorDiLifecycleFeature : HotfixGameFeature
                 {
-                    public override void Configure(HotfixFeatureContext context)
+                    public static void Configure(HotfixFeatureContext context)
                     {
                         context.Services.AddSingleton<IGenerationMarker, LifecycleMarker>();
                     }
@@ -1390,7 +1390,7 @@ public sealed class HotfixManagerTests
                 [HotfixFeature("root-di-feature-service")]
                 public sealed class RootDiFeature : HotfixGameFeature
                 {
-                    public override void Configure(HotfixFeatureContext context)
+                    public static void Configure(HotfixFeatureContext context)
                     {
                         context.Services.AddSingleton<FeatureLocalUsesRoot>();
                     }
@@ -1519,7 +1519,7 @@ public sealed class HotfixManagerTests
                 [HotfixFeature("selected-constructor-di")]
                 public sealed class SelectedConstructorDiFeature : HotfixGameFeature
                 {
-                    public override void Configure(HotfixFeatureContext context)
+                    public static void Configure(HotfixFeatureContext context)
                     {
                         context.Services.AddSingleton<IGenerationMarker, SelectedMarker>();
                     }

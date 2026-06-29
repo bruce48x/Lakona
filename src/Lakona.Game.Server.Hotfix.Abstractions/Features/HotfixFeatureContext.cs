@@ -5,6 +5,7 @@ namespace Lakona.Game.Server.Hotfix.Abstractions;
 
 public sealed class HotfixFeatureContext
 {
+    private readonly Dictionary<string, string> _metadata = new(StringComparer.Ordinal);
     private readonly List<HotfixLocalActorDeclaration> _localActors = [];
     private readonly List<HotfixActorTickDeclaration> _actorTicks = [];
     private readonly List<HotfixFeatureCommandDeclaration> _commands = [];
@@ -16,6 +17,10 @@ public sealed class HotfixFeatureContext
     public IReadOnlyList<HotfixFeatureCommandDeclaration> Commands => _commands;
 
     public IServiceCollection Services { get; } = new ServiceCollection();
+
+    public bool Discoverable { get; set; } = true;
+
+    public IDictionary<string, string> Metadata => _metadata;
 
     public void EnsureLocalActor<TActor>(string actorId)
     {

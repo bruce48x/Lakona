@@ -136,9 +136,28 @@ public static class HotfixBehaviorScanner
             return;
         }
 
-        if (featureType.GetConstructor(Type.EmptyTypes) is null)
+        var parameterTypes = new[] { typeof(HotfixFeatureContext) };
+        var instanceConfigure = featureType.GetMethod(
+            "Configure",
+            BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly,
+            binder: null,
+            types: parameterTypes,
+            modifiers: null);
+        if (instanceConfigure is not null)
         {
-            diagnostics.Add($"Hotfix feature '{featureType.FullName}' must have a public parameterless constructor.");
+            diagnostics.Add($"Hotfix feature '{featureType.FullName}' must use public static Configure(HotfixFeatureContext context), not instance Configure.");
+            return;
+        }
+
+        var configure = featureType.GetMethod(
+            "Configure",
+            BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly,
+            binder: null,
+            types: parameterTypes,
+            modifiers: null);
+        if (configure is null)
+        {
+            diagnostics.Add($"Hotfix feature '{featureType.FullName}' must declare public static Configure(HotfixFeatureContext context).");
             return;
         }
 
@@ -148,17 +167,15 @@ public static class HotfixBehaviorScanner
             return;
         }
 
-        var instance = (HotfixGameFeature?)Activator.CreateInstance(featureType);
-        if (instance is null)
-        {
-            diagnostics.Add($"Hotfix feature '{featureType.FullName}' could not be created.");
-            return;
-        }
-
         var context = new HotfixFeatureContext();
         try
         {
-            instance.Configure(context);
+            configure.Invoke(null, [context]);
+        }
+        catch (TargetInvocationException ex)
+        {
+            diagnostics.Add($"Hotfix feature '{featureType.FullName}' Configure failed: {ex.InnerException?.Message ?? ex.Message}");
+            return;
         }
         catch (Exception ex)
         {
@@ -169,8 +186,8 @@ public static class HotfixBehaviorScanner
         features.Add(new HotfixFeatureDeclaration(
             attribute.Name,
             featureType,
-            instance.Discoverable,
-            new Dictionary<string, string>(instance.Metadata, StringComparer.Ordinal),
+            context.Discoverable,
+            new Dictionary<string, string>(context.Metadata, StringComparer.Ordinal),
             context.LocalActors.ToArray(),
             context.ActorTicks.ToArray(),
             context.Commands.ToArray(),
