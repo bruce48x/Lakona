@@ -173,8 +173,12 @@ public sealed class AgarHotfixBoundaryTests
             "samples/Game.Unity.Agar/Server/Hotfix/State/Matchmaking/MatchmakingBehavior.cs").FullName);
 
         Assert.Contains("BattleRuntimeRoomAllocation.FeatureName", matchmaking, StringComparison.Ordinal);
-        Assert.Contains("IFeatureMessageTransport", matchmaking, StringComparison.Ordinal);
+        Assert.Contains("IFeatureCommandClient", matchmaking, StringComparison.Ordinal);
+        Assert.Contains("SendToNodeAsync<BattleRuntimeRoomAllocationRequest, BattleRuntimeRoomAllocationReply>", matchmaking, StringComparison.Ordinal);
         Assert.Contains("AllocateRemoteRoomAsync", matchmaking, StringComparison.Ordinal);
+        Assert.DoesNotContain("IFeatureMessageTransport", matchmaking, StringComparison.Ordinal);
+        Assert.DoesNotContain("FeatureMessageRequest", matchmaking, StringComparison.Ordinal);
+        Assert.DoesNotContain("FeatureMessageReply", matchmaking, StringComparison.Ordinal);
         Assert.DoesNotContain(".Remote(new NodeId(", matchmaking, StringComparison.Ordinal);
         Assert.DoesNotContain(".Remote(", ExtractMethodBody(matchmaking, "CreateRoomAsync"), StringComparison.Ordinal);
     }
@@ -381,12 +385,18 @@ public sealed class AgarHotfixBoundaryTests
         var hotfixRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Server.Hotfix.csproj")
             .DirectoryName!;
         var hotfixText = ReadAllTextFiles(hotfixRoot);
+        var stateStoreFeature = File.ReadAllText(Path.Combine(hotfixRoot, "Features", "StateStoreFeatures.cs"));
+        var stateStorePlacement = File.ReadAllText(Path.Combine(hotfixRoot, "Services", "StateStoreUserActorPlacement.cs"));
+        var battleRuntimeFeature = File.ReadAllText(Path.Combine(hotfixRoot, "Features", "BattleRuntimeFeature.cs"));
+        var battleRuntimePlacement = File.ReadAllText(Path.Combine(hotfixRoot, "Features", "BattleRuntimeRoomAllocation.cs"));
 
         Assert.DoesNotContain("[HotfixFeature(\"database\")]", hotfixText, StringComparison.Ordinal);
-        Assert.Contains("[HotfixFeature(\"state-store\")]", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("[HotfixFeature(StateStoreUserActorPlacement.FeatureName)]", stateStoreFeature, StringComparison.Ordinal);
+        Assert.Contains("public const string FeatureName = \"state-store\";", stateStorePlacement, StringComparison.Ordinal);
         Assert.Contains("[HotfixFeature(\"matchmaking\")]", hotfixText, StringComparison.Ordinal);
         Assert.Contains("[HotfixFeature(\"leaderboard\")]", hotfixText, StringComparison.Ordinal);
-        Assert.Contains("[HotfixFeature(\"battle-runtime\")]", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("[HotfixFeature(BattleRuntimeRoomAllocation.FeatureName)]", battleRuntimeFeature, StringComparison.Ordinal);
+        Assert.Contains("public const string FeatureName = \"battle-runtime\";", battleRuntimePlacement, StringComparison.Ordinal);
         Assert.Contains("ScheduleActorTick<MatchmakingActor>", hotfixText, StringComparison.Ordinal);
         Assert.Contains("ScheduleActiveActorTicks<RoomActor>", hotfixText, StringComparison.Ordinal);
     }
