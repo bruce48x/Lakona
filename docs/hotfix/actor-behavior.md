@@ -128,7 +128,7 @@ Hotfix feature descriptors declare the stable scheduler entry points:
 [HotfixFeature("battle-runtime")]
 public sealed class BattleRuntimeFeature : HotfixGameFeature
 {
-    public override void Configure(HotfixFeatureContext context)
+    public static void Configure(HotfixFeatureContext context)
     {
         context.ScheduleActorTick<MatchmakingActor>(
             "default",

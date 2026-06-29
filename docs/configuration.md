@@ -352,7 +352,7 @@ Hotfix descriptors declare reloadable actor runtime loops:
 [HotfixFeature("battle-runtime")]
 public sealed class BattleRuntimeFeature : HotfixGameFeature
 {
-    public override void Configure(HotfixFeatureContext context)
+    public static void Configure(HotfixFeatureContext context)
     {
         context.ScheduleActorTick<MatchmakingActor>(
             "default",
