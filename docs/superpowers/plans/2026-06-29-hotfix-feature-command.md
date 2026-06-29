@@ -22,7 +22,7 @@
 ### Cluster Messaging
 
 - Modify `src/Lakona.Game.Cluster/Messaging/FeatureCommandId.cs`: add invariant numeric `TryParse`.
-- Modify `src/Lakona.Game.Cluster/Messaging/FeatureMessageRequest.cs`: allow blank `Kind` so wire-level invalid typed command ids can reach the handler and return `Rejected`.
+- Modify `src/Lakona.Game.Cluster/Messaging/FeatureMessageRequest.cs`: normalize null or blank `Kind` so wire-level invalid typed command ids can reach the handler and return `Rejected`.
 - Modify `src/Lakona.Game.Cluster/Messaging/IFeatureMessageBus.cs`: add node-pinned send support.
 - Modify `src/Lakona.Game.Cluster/Messaging/FeatureMessageBus.cs`: implement node-pinned sends with the same serializer, source-node, TTL, status mapping, and transport rules as feature-selected sends.
 
@@ -54,7 +54,7 @@
 ### Stable Handler
 
 - Modify `src/Lakona.Game.Server/Hotfix/HotfixFeatureMessageHandler.cs`: remove fan-out through hotfix `IEnumerable<IFeatureMessageHandler>` and dispatch typed feature commands through `HotfixRuntimeSnapshot.FeatureCommands`.
-- Keep `src/Lakona.Game.Cluster.Rpc/Messaging/FeatureMessageBinder.cs`: it still performs cluster RPC binding and expiration checks. Add tests only if handler status mapping requires binder-level coverage.
+- Keep `src/Lakona.Game.Cluster.Rpc/Messaging/FeatureMessageBinder.cs`: it still performs cluster RPC binding and expiration checks. Task 1 adds binder coverage for null wire `Kind` flowing to typed rejection.
 
 ### Samples And Templates
 
@@ -62,6 +62,7 @@
 - Modify `samples/Game.Unity.Agar/Server/Hotfix/Features/BattleRuntimeRoomAllocation.cs`: keep command DTOs/constants, add `[FeatureCommand]`, remove `BattleRuntimeFeatureMessageHandler`.
 - Modify `samples/Game.Unity.Agar/Server/Hotfix/Features/StateStoreFeatures.cs`: move ensure-user and ensure-leaderboard command handling into `StateStoreFeature`.
 - Modify `samples/Game.Unity.Agar/Server/Hotfix/Services/StateStoreUserActorPlacement.cs`: replace string `Kind` constants with numeric command ids and typed reply DTO.
+- Modify `samples/Game.Unity.Agar/Server/Hotfix/Server.Hotfix.csproj`: add MemoryPack generator/package references for hotfix-owned command DTOs.
 - Modify `samples/Game.Unity.Agar/Server/Hotfix/Services/LoginService.cs`: use `IFeatureCommandClient.SendToNodeAsync`.
 - Modify `samples/Game.Unity.Agar/Server/Hotfix/Services/PlayerService.cs`: use `IFeatureCommandClient.SendToNodeAsync`.
 - Modify `samples/Game.Unity.Agar/Server/Hotfix/State/Matchmaking/MatchmakingBehavior.cs`: use `IFeatureCommandClient.SendToNodeAsync` for battle-runtime allocation.
@@ -107,6 +108,7 @@
 - Modify: `src/Lakona.Game.Cluster/Messaging/IFeatureMessageBus.cs`
 - Modify: `src/Lakona.Game.Cluster/Messaging/FeatureMessageBus.cs`
 - Test: `tests/Lakona.Game.Cluster.Tests/FeatureMessageBusTests.cs`
+- Test: `tests/Lakona.Game.Cluster.Rpc.Tests/FeatureMessageTransportTests.cs`
 
 - [ ] **Step 1: Write failing parser and blank-kind tests**
 
@@ -146,6 +148,20 @@ public void FeatureMessageRequestAllowsBlankKindForWireLevelTypedRejection()
 
     Assert.Equal("", request.Kind);
 }
+
+[Fact]
+public void FeatureMessageRequestNormalizesNullKindForWireLevelTypedRejection()
+{
+    var request = new FeatureMessageRequest(
+        new FeatureName("battle-runtime"),
+        null!,
+        ReadOnlyMemory<byte>.Empty,
+        DateTimeOffset.UtcNow.AddMinutes(1),
+        new NodeId("data-1"),
+        "corr-1");
+
+    Assert.Equal("", request.Kind);
+}
 ```
 
 - [ ] **Step 2: Run tests and verify they fail**
@@ -153,10 +169,10 @@ public void FeatureMessageRequestAllowsBlankKindForWireLevelTypedRejection()
 Run:
 
 ```powershell
-dotnet test tests\Lakona.Game.Cluster.Tests\Lakona.Game.Cluster.Tests.csproj --no-restore --filter "FeatureCommandIdTryParseRejectsInvalidWireValues|FeatureCommandIdTryParseAcceptsInvariantDecimalWireValue|FeatureMessageRequestAllowsBlankKindForWireLevelTypedRejection"
+dotnet test tests\Lakona.Game.Cluster.Tests\Lakona.Game.Cluster.Tests.csproj --no-restore --filter "FeatureCommandIdTryParseRejectsInvalidWireValues|FeatureCommandIdTryParseAcceptsInvariantDecimalWireValue|FeatureMessageRequestAllowsBlankKindForWireLevelTypedRejection|FeatureMessageRequestNormalizesNullKindForWireLevelTypedRejection"
 ```
 
-Expected: fail because `FeatureCommandId.TryParse` does not exist and `FeatureMessageRequest` rejects blank `Kind`.
+Expected: fail because `FeatureCommandId.TryParse` does not exist and `FeatureMessageRequest` rejects blank or null `Kind`.
 
 - [ ] **Step 3: Implement numeric command id parsing**
 
@@ -241,24 +257,90 @@ public readonly struct FeatureCommandId : IEquatable<FeatureCommandId>
 }
 ```
 
-- [ ] **Step 4: Allow blank wire kind at the message object boundary**
+- [ ] **Step 4: Normalize blank and null wire kind at the message object boundary**
 
-Modify only the `kind` validation in `FeatureMessageRequest.cs`:
+Remove the existing `string.IsNullOrWhiteSpace(kind)` rejection in `FeatureMessageRequest.cs`. Keep `kind` as a required constructor argument by convention, but normalize the runtime value before storing it:
 
 ```csharp
-if (kind is null)
+Kind = kind ?? string.Empty;
+```
+
+Keep the existing feature, source node, and correlation id validation. Do not reject blank `Kind` in the message object; typed-command admission happens in `HotfixFeatureMessageHandler`.
+
+- [ ] **Step 5: Add RPC binder coverage for null feature kind**
+
+Add this test to `FeatureMessageTransportTests`:
+
+```csharp
+[Fact]
+public async Task BinderConvertsNullFeatureKindToBlankForTypedRejection()
 {
-    throw new ArgumentNullException(nameof(kind));
+    var registry = new RpcServiceRegistry();
+    var handler = new InvalidKindRejectingFeatureHandler();
+    FeatureMessageBinder.Bind(registry, handler);
+    Assert.True(registry.TryGetHandler(
+        ClusterProtocol.ServiceId,
+        ClusterProtocol.FeatureMessageMethodId,
+        out var rpcHandler));
+
+    var serializer = new JsonTestSerializer();
+    await using var session = new RpcSession(new FakeTransport(), serializer);
+    using var payload = serializer.SerializeFrame(new FeatureSendRequest
+    {
+        Feature = "matchmaking",
+        Kind = null!,
+        Payload = Array.Empty<byte>(),
+        ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(1),
+        SourceNode = "gateway-1",
+        CorrelationId = "corr-1"
+    });
+    using var frame = await rpcHandler!(
+        session,
+        new RpcRequestFrame(
+            1,
+            ClusterProtocol.ServiceId,
+            ClusterProtocol.FeatureMessageMethodId,
+            payload),
+        TestContext.Current.CancellationToken);
+
+    using var response = RpcEnvelopeCodec.DecodeResponse(frame);
+    var reply = serializer.Deserialize<FeatureSendReply>(response.Payload.Memory);
+    var dispatched = Assert.Single(handler.Requests);
+    Assert.Equal(RpcStatus.Ok, response.Status);
+    Assert.Equal(ClusterSendStatus.Rejected, (ClusterSendStatus)reply.Status);
+    Assert.Equal("", dispatched.Kind);
+}
+
+private sealed class InvalidKindRejectingFeatureHandler : IFeatureMessageHandler
+{
+    public List<FeatureMessageRequest> Requests { get; } = new();
+
+    public ValueTask<FeatureMessageReply> HandleAsync(
+        FeatureMessageRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Requests.Add(request);
+        var status = string.IsNullOrWhiteSpace(request.Kind)
+            ? ClusterSendStatus.Rejected
+            : ClusterSendStatus.Accepted;
+        return new ValueTask<FeatureMessageReply>(
+            new FeatureMessageReply(status, ReadOnlyMemory<byte>.Empty));
+    }
 }
 ```
 
-Keep the existing feature, source node, and correlation id validation. Keep this assignment:
+- [ ] **Step 6: Run RPC binder null-kind test**
 
-```csharp
-Kind = kind;
+Run:
+
+```powershell
+dotnet test tests\Lakona.Game.Cluster.Rpc.Tests\Lakona.Game.Cluster.Rpc.Tests.csproj --no-restore --filter "BinderConvertsNullFeatureKindToBlankForTypedRejection"
 ```
 
-- [ ] **Step 5: Add node-pinned bus tests**
+Expected: passes after `FeatureMessageRequest` normalizes null `Kind` to `""`.
+
+- [ ] **Step 7: Add node-pinned bus tests**
 
 Add this test to `FeatureMessageBusTests`:
 
@@ -346,7 +428,7 @@ private sealed record CommandReply(string Status);
 
 While editing the same file, replace any touched helper returns using `ValueTask.FromResult(...)` with `new ValueTask<T>(...)`.
 
-- [ ] **Step 6: Run node-pinned bus tests and verify they fail**
+- [ ] **Step 8: Run node-pinned bus tests and verify they fail**
 
 Run:
 
@@ -356,7 +438,7 @@ dotnet test tests\Lakona.Game.Cluster.Tests\Lakona.Game.Cluster.Tests.csproj --n
 
 Expected: fail because `IFeatureMessageBus.SendToNodeAsync` does not exist.
 
-- [ ] **Step 7: Add node-pinned bus API**
+- [ ] **Step 9: Add node-pinned bus API**
 
 Modify `IFeatureMessageBus.cs`:
 
@@ -389,7 +471,7 @@ namespace Lakona.Game.Cluster
 }
 ```
 
-- [ ] **Step 8: Implement node-pinned bus dispatch**
+- [ ] **Step 10: Implement node-pinned bus dispatch**
 
 Refactor `FeatureMessageBus.SendToFeatureAsync` so discovery selects a target, then both paths share this helper:
 
@@ -481,22 +563,23 @@ return await SendToReadyTargetAsync<TRequest, TReply>(
     cancellationToken).ConfigureAwait(false);
 ```
 
-- [ ] **Step 9: Run cluster messaging tests**
+- [ ] **Step 11: Run cluster messaging tests**
 
 Run:
 
 ```powershell
 dotnet test tests\Lakona.Game.Cluster.Tests\Lakona.Game.Cluster.Tests.csproj --no-restore
+dotnet test tests\Lakona.Game.Cluster.Rpc.Tests\Lakona.Game.Cluster.Rpc.Tests.csproj --no-restore --filter "FeatureMessageTransportTests"
 ```
 
 Expected: all tests pass.
 
-- [ ] **Step 10: Commit cluster messaging changes**
+- [ ] **Step 12: Commit cluster messaging changes**
 
 Run:
 
 ```powershell
-git add src\Lakona.Game.Cluster\Messaging\FeatureCommandId.cs src\Lakona.Game.Cluster\Messaging\FeatureMessageRequest.cs src\Lakona.Game.Cluster\Messaging\IFeatureMessageBus.cs src\Lakona.Game.Cluster\Messaging\FeatureMessageBus.cs tests\Lakona.Game.Cluster.Tests\FeatureMessageBusTests.cs
+git add src\Lakona.Game.Cluster\Messaging\FeatureCommandId.cs src\Lakona.Game.Cluster\Messaging\FeatureMessageRequest.cs src\Lakona.Game.Cluster\Messaging\IFeatureMessageBus.cs src\Lakona.Game.Cluster\Messaging\FeatureMessageBus.cs tests\Lakona.Game.Cluster.Tests\FeatureMessageBusTests.cs tests\Lakona.Game.Cluster.Rpc.Tests\FeatureMessageTransportTests.cs
 git commit -m "Add typed feature command wire helpers"
 ```
 
@@ -933,16 +1016,9 @@ dotnet test tests\Lakona.Game.Server.Hotfix.Tests\Lakona.Game.Server.Hotfix.Test
 
 Expected: `FeatureCommandCallCarriesRequestAndCommandContext` passes. Scanner tests still fail until Task 4 changes scanning.
 
-- [ ] **Step 7: Commit authoring API changes**
+- [ ] **Step 7: Continue directly to scanner implementation**
 
-Run:
-
-```powershell
-git add src\Lakona.Game.Server.Hotfix.Abstractions\Features\HotfixFeatureCommandCall.cs src\Lakona.Game.Server.Hotfix.Abstractions\Features\HotfixGameFeature.cs src\Lakona.Game.Server.Hotfix.Abstractions\Features\HotfixFeatureContext.cs tests\Lakona.Game.Server.Hotfix.Tests\HotfixFeatureScannerTests.cs
-git commit -m "Update hotfix feature authoring API"
-```
-
-Expected: commit succeeds with scanner tests still intentionally failing from the old scanner behavior.
+Do not commit after Task 3. The authoring API change intentionally leaves scanner tests red until Task 4 replaces instance feature scanning. Keep the local changes and proceed directly to Task 4 so the next commit is a passing API-plus-scanner slice.
 
 ---
 
@@ -1123,12 +1199,12 @@ dotnet test tests\Lakona.Game.Server.Hotfix.Tests\Lakona.Game.Server.Hotfix.Test
 
 Expected: selected tests pass.
 
-- [ ] **Step 6: Commit static scanner changes**
+- [ ] **Step 6: Commit authoring API and static scanner changes**
 
 Run:
 
 ```powershell
-git add src\Lakona.Game.Server.Hotfix\Scanning\HotfixBehaviorScanner.cs tests\Lakona.Game.Server.Hotfix.Tests\HotfixFeatureScannerTests.cs tests\Lakona.Game.Server.Hotfix.Tests\HotfixManagerTests.cs
+git add src\Lakona.Game.Server.Hotfix.Abstractions\Features\HotfixFeatureCommandCall.cs src\Lakona.Game.Server.Hotfix.Abstractions\Features\HotfixGameFeature.cs src\Lakona.Game.Server.Hotfix.Abstractions\Features\HotfixFeatureContext.cs src\Lakona.Game.Server.Hotfix\Scanning\HotfixBehaviorScanner.cs tests\Lakona.Game.Server.Hotfix.Tests\HotfixFeatureScannerTests.cs tests\Lakona.Game.Server.Hotfix.Tests\HotfixManagerTests.cs
 git commit -m "Scan hotfix features through static configure"
 ```
 
@@ -1746,13 +1822,14 @@ public async Task Reload_publishes_feature_command_invoker()
     var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
 
     Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
-    Assert.True(manager.CurrentRuntime.FeatureCommands.TryResolve("commands", FeatureCommandId.From(301), out var descriptor));
+    var runtime = ((IHotfixRuntimeAccessor)manager).Current;
+    Assert.True(runtime.FeatureCommands.TryResolve("commands", FeatureCommandId.From(301), out var descriptor));
     var request = Activator.CreateInstance(descriptor.RequestType, [7])!;
-    var reply = await manager.CurrentRuntime.FeatureCommands.InvokeAsync(
+    var reply = await runtime.FeatureCommands.InvokeAsync(
         descriptor,
         request,
         NewFeatureMessage("commands", "301"),
-        manager.CurrentRuntime.Services,
+        runtime.Services,
         TestContext.Current.CancellationToken);
 
     Assert.Equal(12, (int)descriptor.ReplyType.GetProperty("Value")!.GetValue(reply)!);
@@ -1760,6 +1837,59 @@ public async Task Reload_publishes_feature_command_invoker()
 ```
 
 Use the existing fixture pattern to expose `FeatureCommandHotfixAssemblyPath`.
+
+Add a second fixture source where the feature command instance constructor requires an unregistered dependency:
+
+```csharp
+[HotfixFeature("commands")]
+public sealed class MissingDependencyCommandFeature : HotfixGameFeature
+{
+    public MissingDependencyCommandFeature(MissingDependency dependency)
+    {
+    }
+
+    public static void Configure(HotfixFeatureContext context)
+    {
+        context.HandleCommand<ManagerCommand, ManagerReply>(nameof(ExecuteAsync));
+    }
+
+    public ValueTask<ManagerReply> ExecuteAsync(HotfixFeatureCommandCall<ManagerCommand> call)
+    {
+        return new ValueTask<ManagerReply>(new ManagerReply(call.Request.Value));
+    }
+}
+
+public sealed class MissingDependency
+{
+}
+```
+
+Expose it as `MissingFeatureCommandDependencyHotfixAssemblyPath`, then add:
+
+```csharp
+[Fact]
+public async Task Reload_rejects_feature_command_constructor_dependency_failure_and_keeps_previous_generation()
+{
+    using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+    var source = new SwitchableAssemblySource(compiled.FeatureCommandHotfixAssemblyPath);
+    var manager = new HotfixManager(
+        source,
+        [typeof(IGenerationMarker).Assembly.GetName().Name!]);
+
+    var first = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+    Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+    var previousRuntime = ((IHotfixRuntimeAccessor)manager).Current;
+
+    source.AssemblyPath = compiled.MissingFeatureCommandDependencyHotfixAssemblyPath;
+    var failed = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+
+    Assert.False(failed.Succeeded);
+    Assert.Contains(failed.Diagnostics, diagnostic =>
+        diagnostic.Contains("constructor activation failed", StringComparison.OrdinalIgnoreCase));
+    Assert.Same(previousRuntime, ((IHotfixRuntimeAccessor)manager).Current);
+    Assert.Equal(first.Current.DispatchTableVersion, manager.Current.DispatchTableVersion);
+}
+```
 
 - [ ] **Step 2: Run manager test and verify it fails**
 
@@ -1769,7 +1899,7 @@ Run:
 dotnet test tests\Lakona.Game.Server.Hotfix.Tests\Lakona.Game.Server.Hotfix.Tests.csproj --no-restore --filter "Reload_publishes_feature_command_invoker"
 ```
 
-Expected: fail because `HotfixRuntimeSnapshot` does not expose feature command invoker.
+Expected: fail because `HotfixRuntimeSnapshot` does not expose feature command invoker and `HotfixManager` does not validate feature command constructor activation.
 
 - [ ] **Step 3: Extend runtime snapshot without breaking existing test constructors**
 
@@ -1842,7 +1972,7 @@ Do not add feature command DTOs to `HotfixDispatchBoundaryValidator`.
 Run:
 
 ```powershell
-dotnet test tests\Lakona.Game.Server.Hotfix.Tests\Lakona.Game.Server.Hotfix.Tests.csproj --no-restore --filter "Reload_publishes_feature_command_invoker|Reload_keeps_previous_generation_when_validation_fails|Reload_fails_before_publish_when_service_constructor_dependency_is_missing"
+dotnet test tests\Lakona.Game.Server.Hotfix.Tests\Lakona.Game.Server.Hotfix.Tests.csproj --no-restore --filter "Reload_publishes_feature_command_invoker|Reload_rejects_feature_command_constructor_dependency_failure_and_keeps_previous_generation|Reload_keeps_previous_generation_when_validation_fails|Reload_fails_before_publish_when_service_constructor_dependency_is_missing"
 ```
 
 Expected: selected tests pass.
@@ -1887,6 +2017,7 @@ using System.Text.Json;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.Hotfix.Dispatch;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -1957,6 +2088,69 @@ public sealed class HotfixFeatureMessageHandlerTests
         Assert.Equal(ClusterSendStatus.DeserializationFailed, reply.Status);
     }
 
+    [Fact]
+    public async Task HandleAsyncReturnsExpiredBeforeCommandDispatch()
+    {
+        var serializer = new JsonFeatureSerializer();
+        var invoker = new RecordingCommandInvoker();
+        var handler = new HotfixFeatureMessageHandler(new FixedAccessor(invoker), serializer);
+
+        var reply = await handler.HandleAsync(
+            NewExpiredRequest("17", serializer.Serialize(new TestCommand("room-1"))),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.Expired, reply.Status);
+        Assert.Null(invoker.Request);
+    }
+
+    [Fact]
+    public async Task HandleAsyncPropagatesCallerCancellationBeforeDispatch()
+    {
+        var serializer = new JsonFeatureSerializer();
+        var handler = new HotfixFeatureMessageHandler(
+            new FixedAccessor(new RecordingCommandInvoker()),
+            serializer);
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() => handler
+            .HandleAsync(
+                NewRequest("17", serializer.Serialize(new TestCommand("room-1"))),
+                cts.Token)
+            .AsTask());
+    }
+
+    [Fact]
+    public async Task HandleAsyncPropagatesCommandCancellationWhenCallerTokenIsCanceledDuringDispatch()
+    {
+        var serializer = new JsonFeatureSerializer();
+        using var cts = new CancellationTokenSource();
+        var handler = new HotfixFeatureMessageHandler(
+            new FixedAccessor(new CancelingCommandInvoker(cts)),
+            serializer);
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() => handler
+            .HandleAsync(
+                NewRequest("17", serializer.Serialize(new TestCommand("room-1"))),
+                cts.Token)
+            .AsTask());
+    }
+
+    [Fact]
+    public async Task HandleAsyncMapsDetachedOperationCanceledExceptionToFailed()
+    {
+        var serializer = new JsonFeatureSerializer();
+        var handler = new HotfixFeatureMessageHandler(
+            new FixedAccessor(new DetachedCancellationCommandInvoker()),
+            serializer);
+
+        var reply = await handler.HandleAsync(
+            NewRequest("17", serializer.Serialize(new TestCommand("room-1"))),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.Failed, reply.Status);
+    }
+
     private static FeatureMessageRequest NewRequest(string kind, ReadOnlyMemory<byte> payload)
     {
         return new FeatureMessageRequest(
@@ -1964,6 +2158,17 @@ public sealed class HotfixFeatureMessageHandlerTests
             kind,
             payload,
             DateTimeOffset.UtcNow.AddMinutes(1),
+            new NodeId("data-1"),
+            "corr-1");
+    }
+
+    private static FeatureMessageRequest NewExpiredRequest(string kind, ReadOnlyMemory<byte> payload)
+    {
+        return new FeatureMessageRequest(
+            new FeatureName("battle-runtime"),
+            kind,
+            payload,
+            DateTimeOffset.UtcNow.AddMinutes(-1),
             new NodeId("data-1"),
             "corr-1");
     }
@@ -2043,6 +2248,62 @@ public sealed class HotfixFeatureMessageHandlerTests
             CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
+        }
+    }
+
+    private sealed class CancelingCommandInvoker : IHotfixFeatureCommandInvoker
+    {
+        private readonly CancellationTokenSource _source;
+
+        public CancelingCommandInvoker(CancellationTokenSource source)
+        {
+            _source = source;
+        }
+
+        public bool TryResolve(string featureName, FeatureCommandId commandId, out HotfixFeatureCommandDescriptor descriptor)
+        {
+            descriptor = new HotfixFeatureCommandDescriptor(
+                $"{featureName}#{commandId.Value}",
+                featureName,
+                commandId,
+                typeof(TestCommand),
+                typeof(TestReply));
+            return true;
+        }
+
+        public ValueTask<object?> InvokeAsync(
+            HotfixFeatureCommandDescriptor descriptor,
+            object? request,
+            FeatureMessageRequest message,
+            IServiceProvider services,
+            CancellationToken cancellationToken = default)
+        {
+            _source.Cancel();
+            throw new OperationCanceledException(cancellationToken);
+        }
+    }
+
+    private sealed class DetachedCancellationCommandInvoker : IHotfixFeatureCommandInvoker
+    {
+        public bool TryResolve(string featureName, FeatureCommandId commandId, out HotfixFeatureCommandDescriptor descriptor)
+        {
+            descriptor = new HotfixFeatureCommandDescriptor(
+                $"{featureName}#{commandId.Value}",
+                featureName,
+                commandId,
+                typeof(TestCommand),
+                typeof(TestReply));
+            return true;
+        }
+
+        public ValueTask<object?> InvokeAsync(
+            HotfixFeatureCommandDescriptor descriptor,
+            object? request,
+            FeatureMessageRequest message,
+            IServiceProvider services,
+            CancellationToken cancellationToken = default)
+        {
+            throw new OperationCanceledException("Detached cancellation.");
         }
     }
 }
@@ -2277,11 +2538,13 @@ Expected: commit succeeds.
 - Modify: `samples/Game.Unity.Agar/Server/Hotfix/Features/BattleRuntimeRoomAllocation.cs`
 - Modify: `samples/Game.Unity.Agar/Server/Hotfix/Features/StateStoreFeatures.cs`
 - Modify: `samples/Game.Unity.Agar/Server/Hotfix/Services/StateStoreUserActorPlacement.cs`
+- Modify: `samples/Game.Unity.Agar/Server/Hotfix/Server.Hotfix.csproj`
 - Modify: `samples/Game.Unity.Agar/Server/Hotfix/Services/LoginService.cs`
 - Modify: `samples/Game.Unity.Agar/Server/Hotfix/Services/PlayerService.cs`
 - Modify: `samples/Game.Unity.Agar/Server/Hotfix/State/Matchmaking/MatchmakingBehavior.cs`
 - Test: `samples/Game.Unity.Agar/tests/BusinessLogic.Tests/AgarHotfixTests.cs`
 - Test: `samples/Game.Unity.Agar/tests/BusinessLogic.Tests/DistributedTopologyConfigurationTests.cs`
+- Test: `samples/Game.Unity.Agar/tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj`
 
 - [ ] **Step 1: Add source scan tests that reject Agar feature message handlers**
 
@@ -2328,6 +2591,7 @@ using Agar.Sample.State.Contracts;
 using Agar.Sample.State.Contracts.Rooms;
 using Agar.Sample.State.Contracts.Sessions;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using MemoryPack;
 
 namespace Server.Hotfix.Features;
 
@@ -2338,34 +2602,48 @@ internal static class BattleRuntimeRoomAllocation
     public const int AllocateRoomCommandId = 101;
 }
 
+[MemoryPackable(GenerateType.VersionTolerant)]
 [FeatureCommand(BattleRuntimeRoomAllocation.AllocateRoomCommandId)]
-public sealed class BattleRuntimeRoomAllocationRequest
+public partial class BattleRuntimeRoomAllocationRequest
 {
+    [MemoryPackOrder(0)]
     public string RoomId { get; set; } = "";
 
+    [MemoryPackOrder(1)]
     public string MatchId { get; set; } = "";
 
+    [MemoryPackOrder(2)]
     public string CreatedByUserId { get; set; } = "";
 
+    [MemoryPackOrder(3)]
     public DateTime CreatedAtUtc { get; set; }
 
+    [MemoryPackOrder(4)]
     public int MaxPlayers { get; set; } = 10;
 
+    [MemoryPackOrder(5)]
     public List<PlayerRoomAssignment> Players { get; set; } = new();
 
+    [MemoryPackOrder(6)]
     public GatewayEndpointDescriptor RuntimeGateway { get; set; } = new();
 }
 
-public sealed class BattleRuntimeRoomAllocationReply
+[MemoryPackable(GenerateType.VersionTolerant)]
+public partial class BattleRuntimeRoomAllocationReply
 {
+    [MemoryPackOrder(0)]
     public bool Succeeded { get; set; }
 
+    [MemoryPackOrder(1)]
     public string RoomId { get; set; } = "";
 
+    [MemoryPackOrder(2)]
     public string MatchId { get; set; } = "";
 
+    [MemoryPackOrder(3)]
     public string Message { get; set; } = "";
 
+    [MemoryPackOrder(4)]
     public GatewayEndpointDescriptor RuntimeGateway { get; set; } = new();
 }
 ```
@@ -2552,12 +2830,26 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
 }
 ```
 
-- [ ] **Step 5: Convert state store command DTOs**
+- [ ] **Step 5: Add MemoryPack generator references to the Agar hotfix project**
+
+Modify `Server.Hotfix.csproj` and add package references next to the existing project references:
+
+```xml
+<ItemGroup>
+  <PackageReference Include="MemoryPack.UnityShims" Version="1.21.4" />
+  <PackageReference Include="MemoryPack.Generator" Version="1.21.4" PrivateAssets="all" />
+</ItemGroup>
+```
+
+Typed feature command payloads follow the configured cluster serializer. Agar's cluster serializer is memorypack, so hotfix-owned command DTOs must be generated MemoryPack types rather than plain JSON-only classes.
+
+- [ ] **Step 6: Convert state store command DTOs**
 
 Modify `StateStoreUserActorPlacement.cs`:
 
 ```csharp
 using Lakona.Game.Server.Hotfix.Abstractions;
+using MemoryPack;
 
 namespace Server.Hotfix.Services;
 
@@ -2570,27 +2862,34 @@ internal static class StateStoreUserActorPlacement
     public const int EnsureLeaderboardActorCommandId = 202;
 }
 
+[MemoryPackable(GenerateType.VersionTolerant)]
 [FeatureCommand(StateStoreUserActorPlacement.EnsureUserActorCommandId)]
-internal sealed class EnsureUserActorRequest
+internal partial class EnsureUserActorRequest
 {
+    [MemoryPackOrder(0)]
     public string UserId { get; set; } = "";
 }
 
+[MemoryPackable(GenerateType.VersionTolerant)]
 [FeatureCommand(StateStoreUserActorPlacement.EnsureLeaderboardActorCommandId)]
-internal sealed class EnsureLeaderboardActorRequest
+internal partial class EnsureLeaderboardActorRequest
 {
+    [MemoryPackOrder(0)]
     public string LeaderboardId { get; set; } = "";
 }
 
-internal sealed class EnsureActorReply
+[MemoryPackable(GenerateType.VersionTolerant)]
+internal partial class EnsureActorReply
 {
+    [MemoryPackOrder(0)]
     public bool Succeeded { get; set; }
 
+    [MemoryPackOrder(1)]
     public string Message { get; set; } = "";
 }
 ```
 
-- [ ] **Step 6: Move state-store handling into feature class**
+- [ ] **Step 7: Move state-store handling into feature class**
 
 In `StateStoreFeatures.cs`, remove `StateStoreFeatureMessageHandler`, remove `using System.Text.Json;`, and make `StateStoreFeature` constructor-injected:
 
@@ -2711,7 +3010,7 @@ public sealed class StateStoreFeature : HotfixGameFeature
 }
 ```
 
-- [ ] **Step 7: Replace direct feature message transport in LoginService**
+- [ ] **Step 8: Replace direct feature message transport in LoginService**
 
 In `LoginService.cs`, add:
 
@@ -2742,7 +3041,7 @@ private static async ValueTask SendEnsureUserActorAsync(
 
 Remove manual JSON serialization and `FeatureMessageRequest` construction from this method.
 
-- [ ] **Step 8: Replace direct feature message transport in PlayerService**
+- [ ] **Step 9: Replace direct feature message transport in PlayerService**
 
 In `PlayerService.cs`, add:
 
@@ -2771,7 +3070,7 @@ private static async ValueTask SendEnsureLeaderboardActorAsync(
 }
 ```
 
-- [ ] **Step 9: Replace battle-runtime direct transport in matchmaking**
+- [ ] **Step 10: Replace battle-runtime direct transport in matchmaking**
 
 In `MatchmakingBehavior.cs`, add:
 
@@ -2825,22 +3124,124 @@ if (!reply.Succeeded)
 
 Return success using the typed reply fields.
 
-- [ ] **Step 10: Run Agar compile/test slice**
+- [ ] **Step 11: Add MemoryPack roundtrip coverage for typed feature command DTOs**
+
+Add this project reference to `BusinessLogic.Tests.csproj`:
+
+```xml
+<ProjectReference Include="..\..\..\..\src\Lakona.Game.Cluster.Rpc.MemoryPack\Lakona.Game.Cluster.Rpc.MemoryPack.csproj" />
+```
+
+Add a test in the Agar business logic test project:
+
+```csharp
+using Agar.Sample.State.Contracts.Rooms;
+using Agar.Sample.State.Contracts.Sessions;
+using Lakona.Game.Cluster.Rpc.MemoryPack;
+using Server.Hotfix.Features;
+using Xunit;
+
+namespace Agar.Unity.Tests;
+
+public sealed class AgarFeatureCommandSerializationTests
+{
+    [Fact]
+    public void BattleRuntimeFeatureCommandDtosRoundTripWithConfiguredMemoryPackSerializer()
+    {
+        var serializer = ClusterRpcMemoryPack.CreateSerializer();
+        var request = new BattleRuntimeRoomAllocationRequest
+        {
+            RoomId = "room-1",
+            MatchId = "match-1",
+            CreatedByUserId = "user-1",
+            CreatedAtUtc = new DateTime(2026, 6, 29, 8, 0, 0, DateTimeKind.Utc),
+            MaxPlayers = 10,
+            Players =
+            [
+                new PlayerRoomAssignment
+                {
+                    UserId = "user-1",
+                    RoomId = "room-1",
+                    MatchId = "match-1",
+                    SeatIndex = 0,
+                    SessionToken = "session-1",
+                    ConnectionId = "connection-1",
+                    AssignedAtUtc = new DateTime(2026, 6, 29, 8, 0, 1, DateTimeKind.Utc),
+                    RuntimeGateway = new GatewayEndpointDescriptor
+                    {
+                        InstanceId = "runtime-1",
+                        Transport = "kcp",
+                        Host = "127.0.0.1",
+                        Port = 7001,
+                        Path = ""
+                    }
+                }
+            ],
+            RuntimeGateway = new GatewayEndpointDescriptor
+            {
+                InstanceId = "runtime-1",
+                Transport = "kcp",
+                Host = "127.0.0.1",
+                Port = 7001,
+                Path = ""
+            }
+        };
+
+        using var frame = serializer.SerializeFrame(request);
+        var decoded = serializer.Deserialize<BattleRuntimeRoomAllocationRequest>(frame.Memory);
+
+        Assert.Equal("room-1", decoded.RoomId);
+        Assert.Equal("match-1", decoded.MatchId);
+        Assert.Single(decoded.Players);
+        Assert.Equal("runtime-1", decoded.RuntimeGateway.InstanceId);
+    }
+
+    [Fact]
+    public void BattleRuntimeFeatureCommandReplyRoundTripsWithConfiguredMemoryPackSerializer()
+    {
+        var serializer = ClusterRpcMemoryPack.CreateSerializer();
+        var reply = new BattleRuntimeRoomAllocationReply
+        {
+            Succeeded = true,
+            RoomId = "room-1",
+            MatchId = "match-1",
+            Message = "Room allocated.",
+            RuntimeGateway = new GatewayEndpointDescriptor
+            {
+                InstanceId = "runtime-1",
+                Transport = "kcp",
+                Host = "127.0.0.1",
+                Port = 7001,
+                Path = ""
+            }
+        };
+
+        using var frame = serializer.SerializeFrame(reply);
+        var decoded = serializer.Deserialize<BattleRuntimeRoomAllocationReply>(frame.Memory);
+
+        Assert.True(decoded.Succeeded);
+        Assert.Equal("room-1", decoded.RoomId);
+        Assert.Equal("Room allocated.", decoded.Message);
+    }
+}
+```
+
+- [ ] **Step 12: Run Agar compile/test slice**
 
 Run:
 
 ```powershell
-dotnet test samples\Game.Unity.Agar\tests\BusinessLogic.Tests\BusinessLogic.Tests.csproj --no-restore --filter "AgarHotfixFeatures_DoNotRegisterFeatureMessageHandlers|AgarHotfixTests|DistributedTopologyConfigurationTests"
+dotnet test samples\Game.Unity.Agar\tests\BusinessLogic.Tests\BusinessLogic.Tests.csproj --no-restore --filter "AgarHotfixFeatures_DoNotRegisterFeatureMessageHandlers|BattleRuntimeFeatureCommandDtosRoundTripWithConfiguredMemoryPackSerializer|BattleRuntimeFeatureCommandReplyRoundTripsWithConfiguredMemoryPackSerializer|AgarHotfixTests|DistributedTopologyConfigurationTests"
 ```
 
 Expected: selected tests pass.
 
-- [ ] **Step 11: Commit Agar migration**
+- [ ] **Step 13: Commit Agar migration**
 
 Run:
 
 ```powershell
-git add samples\Game.Unity.Agar\Server\Hotfix\Features\BattleRuntimeFeature.cs samples\Game.Unity.Agar\Server\Hotfix\Features\BattleRuntimeRoomAllocation.cs samples\Game.Unity.Agar\Server\Hotfix\Features\StateStoreFeatures.cs samples\Game.Unity.Agar\Server\Hotfix\Services\StateStoreUserActorPlacement.cs samples\Game.Unity.Agar\Server\Hotfix\Services\LoginService.cs samples\Game.Unity.Agar\Server\Hotfix\Services\PlayerService.cs samples\Game.Unity.Agar\Server\Hotfix\State\Matchmaking\MatchmakingBehavior.cs samples\Game.Unity.Agar\tests\BusinessLogic.Tests
+git add samples\Game.Unity.Agar\Server\Hotfix\Features\BattleRuntimeFeature.cs samples\Game.Unity.Agar\Server\Hotfix\Features\BattleRuntimeRoomAllocation.cs samples\Game.Unity.Agar\Server\Hotfix\Features\StateStoreFeatures.cs samples\Game.Unity.Agar\Server\Hotfix\Services\StateStoreUserActorPlacement.cs samples\Game.Unity.Agar\Server\Hotfix\Server.Hotfix.csproj samples\Game.Unity.Agar\Server\Hotfix\Services\LoginService.cs samples\Game.Unity.Agar\Server\Hotfix\Services\PlayerService.cs samples\Game.Unity.Agar\Server\Hotfix\State\Matchmaking\MatchmakingBehavior.cs samples\Game.Unity.Agar\tests\BusinessLogic.Tests
 git commit -m "Migrate Agar feature messages to typed hotfix commands"
 ```
 
@@ -3181,7 +3582,8 @@ unstaged.
 - No hotfix-side `IFeatureMessageHandler` fan-out: Tasks 7, 8, 9, 11.
 - Numeric wire `Kind` parsing and invalid value `Rejected`: Tasks 1, 7, 10.
 - Node-pinned typed command path for Agar placement: Tasks 1, 2, 8.
-- Expiration and cancellation distinction: Task 7 handler mapping and Task 11 verification.
+- Agar MemoryPack compatibility for typed feature command DTOs: Task 8 adds generator references, MemoryPack attributes/orders, and configured serializer roundtrip tests.
+- Expiration and cancellation distinction: Task 7 named handler tests cover expired requests, caller cancellation before dispatch, token-canceled command cancellation propagation, and detached `OperationCanceledException` mapping to `Failed`.
 - BuildTag and package version impact: Tasks 9, 10.
 - Durable docs in current `docs/**`: Task 10.
 - Feature/Actor conceptual separation: Tasks 8 and 10.
