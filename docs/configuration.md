@@ -376,8 +376,14 @@ Business concepts such as `matchmaking` or `battle-runtime` are feature names,
 not endpoint names. RPC service exposure is configured per endpoint through
 `RpcServices`.
 
-Features may opt out of cluster publication with
-`public override bool Discoverable => false`.
+Features may opt out of cluster publication from static `Configure`:
+
+```csharp
+public static void Configure(HotfixFeatureContext context)
+{
+    context.Discoverable = false;
+}
+```
 
 Feature selection is stable process topology. `Lakona:Feature` decides which
 startup adapters and cluster capabilities this process owns. It does not select
