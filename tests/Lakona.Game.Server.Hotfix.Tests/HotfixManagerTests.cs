@@ -140,6 +140,24 @@ public sealed class HotfixManagerTests
             diagnostic.Contains("constructor activation failed", StringComparison.OrdinalIgnoreCase));
         Assert.Same(previousRuntime, ((IHotfixRuntimeAccessor)manager).Current);
         Assert.Equal(first.Current.DispatchTableVersion, manager.Current.DispatchTableVersion);
+        Assert.Equal(first.Current.DispatchTableVersion, HotfixDispatch.Current.Version);
+    }
+
+    [Fact]
+    public async Task Two_argument_runtime_snapshot_does_not_resolve_global_feature_commands()
+    {
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var manager = new HotfixManager(
+            new FixedAssemblySource(compiled.FeatureCommandHotfixAssemblyPath),
+            [typeof(IGenerationMarker).Assembly.GetName().Name!]);
+        var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+        Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
+        Assert.True(HotfixDispatch.Current.TryResolveFeatureCommand("commands", FeatureCommandId.From(301), out _));
+        using var services = new ServiceCollection().BuildServiceProvider();
+
+        var snapshot = new HotfixRuntimeSnapshot(new HotfixServiceInvoker(), services);
+
+        Assert.False(snapshot.FeatureCommands.TryResolve("commands", FeatureCommandId.From(301), out _));
     }
 
 

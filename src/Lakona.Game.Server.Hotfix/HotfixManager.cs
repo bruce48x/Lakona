@@ -16,7 +16,10 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
     private long _nextVersion;
     private HotfixSnapshot _current = new(null, null, null, null, 0, Array.Empty<HotfixMethodKey>(), null, null, null);
     private IServiceProvider _currentProvider = EmptyServiceProvider.Instance;
-    private HotfixRuntimeSnapshot _currentRuntime = new(new HotfixServiceInvoker(HotfixDispatch.Current), EmptyServiceProvider.Instance);
+    private HotfixRuntimeSnapshot _currentRuntime = new(
+        new HotfixServiceInvoker(HotfixDispatch.Current),
+        EmptyHotfixFeatureCommandInvoker.Instance,
+        EmptyServiceProvider.Instance);
     private HotfixAssemblyLoadContext? _loadContext;
 
     public HotfixManager(

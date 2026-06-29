@@ -11,7 +11,7 @@ public interface IHotfixRuntimeAccessor
 public sealed class HotfixRuntimeSnapshot
 {
     public HotfixRuntimeSnapshot(IHotfixServiceInvoker invoker, IServiceProvider services)
-        : this(invoker, new HotfixFeatureCommandInvoker(), services)
+        : this(invoker, EmptyHotfixFeatureCommandInvoker.Instance, services)
     {
     }
 
