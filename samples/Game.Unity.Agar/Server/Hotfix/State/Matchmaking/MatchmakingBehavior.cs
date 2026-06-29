@@ -10,6 +10,7 @@ using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.Features;
@@ -179,10 +180,17 @@ public static partial class MatchmakingBehavior
         }
 
         var assignments = await TryMatchAsync(self, observedAtUtc, allowExpiredPartialBatch: true).ConfigureAwait(false);
-        foreach (var assignment in assignments.Values.DistinctBy(static assignment => assignment.RoomId))
+        var publishedRoomIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var assignment in assignments.Values)
         {
+            if (!publishedRoomIds.Add(assignment.RoomId))
+            {
+                continue;
+            }
+
+            var services = AgarServiceDependencies.From(GetCurrentHotfixServices(self.Context.Services));
             await PlayerService.PublishMatchedAsync(
-                AgarServiceDependencies.From(self.Context.Services),
+                services,
                 assignment).ConfigureAwait(false);
         }
     }
@@ -266,6 +274,11 @@ public static partial class MatchmakingBehavior
         }
 
         return assignments;
+    }
+
+    private static IServiceProvider GetCurrentHotfixServices(IServiceProvider services)
+    {
+        return services.GetRequiredService<IHotfixRuntimeAccessor>().Current.Services;
     }
 
     public static ValueTask<GatewayEndpointDescriptor?> ResolveRuntimeGatewayAsync(

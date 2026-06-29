@@ -165,7 +165,8 @@ public sealed class PlayerService
         {
             if (ownerNode == services.GetRequiredService<LocalActorNodeIdentity>().NodeId)
             {
-                await EnsureLocalLeaderboardActorAsync(actorId, leaderboardId, ownerNode, services, logger).ConfigureAwait(false);
+                await EnsureLocalLeaderboardActorAsync(actorId, leaderboardId, ownerNode, services, logger)
+                    .ConfigureAwait(false);
             }
             else
             {
@@ -219,7 +220,8 @@ public sealed class PlayerService
 
         if (candidates.Count == 0)
         {
-            throw new InvalidOperationException("No ready state-store node is available for leaderboard actor placement.");
+            throw new InvalidOperationException(
+                "No ready state-store node is available for leaderboard actor placement.");
         }
 
         var ordered = candidates
@@ -231,10 +233,10 @@ public sealed class PlayerService
     private static bool LocalNodeCanOwnStateStore(LakonaGameRuntimeOptions runtime)
     {
         return runtime.Feature is null ||
-            runtime.Feature.Any(static feature => string.Equals(
-                feature,
-                StateStoreUserActorPlacement.FeatureName,
-                StringComparison.OrdinalIgnoreCase));
+               runtime.Feature.Any(static feature => string.Equals(
+                   feature,
+                   StateStoreUserActorPlacement.FeatureName,
+                   StringComparison.OrdinalIgnoreCase));
     }
 
     private static int SelectOwnerIndex(string placementKey, int count)
@@ -288,11 +290,12 @@ public sealed class PlayerService
         if (!createResult.Succeeded)
         {
             throw new InvalidOperationException(createResult.Diagnostic ??
-                $"Could not create leaderboard actor '{leaderboardId}'. Status={createResult.Status}.");
+                                                $"Could not create leaderboard actor '{leaderboardId}'. Status={createResult.Status}.");
         }
 
         services.GetRequiredService<IActorDirectoryCache>().Set(actorId, localNode);
-        logger.LogDebug("Created local leaderboard actor {LeaderboardId} on node {NodeId}.", leaderboardId, localNode.Value);
+        logger.LogDebug("Created local leaderboard actor {LeaderboardId} on node {NodeId}.", leaderboardId,
+            localNode.Value);
     }
 
     internal static async Task EnqueuePlayerAsync(AgarServiceDependencies services, string playerId)
@@ -309,11 +312,11 @@ public sealed class PlayerService
         var result = await services.Matchmaking
             .Get(new MatchmakingQueueId("default"))
             .EnqueueAsync(new MatchmakingEnqueueRequest
-                {
-                    UserId = playerId,
-                    SessionToken = snapshot.SessionToken,
-                    EnqueuedAtUtc = DateTime.UtcNow
-                })
+            {
+                UserId = playerId,
+                SessionToken = snapshot.SessionToken,
+                EnqueuedAtUtc = DateTime.UtcNow
+            })
             .ConfigureAwait(false);
 
         if (string.IsNullOrWhiteSpace(result.TicketId))
@@ -321,12 +324,12 @@ public sealed class PlayerService
             await services.Users
                 .Get(new UserId(playerId))
                 .ClearQueueAsync(new PlayerSessionQueueClearRequest
-                    {
-                        UserId = playerId,
-                        QueueId = "default",
-                        ClearedAtUtc = DateTime.UtcNow,
-                        Reason = result.Matched ? "Matched" : "Matchmaking enqueue did not return a ticket."
-                    })
+                {
+                    UserId = playerId,
+                    QueueId = "default",
+                    ClearedAtUtc = DateTime.UtcNow,
+                    Reason = result.Matched ? "Matched" : "Matchmaking enqueue did not return a ticket."
+                })
                 .ConfigureAwait(false);
         }
         else
@@ -334,12 +337,12 @@ public sealed class PlayerService
             await services.Users
                 .Get(new UserId(playerId))
                 .MarkQueuedAsync(new PlayerSessionQueueRequest
-                    {
-                        UserId = playerId,
-                        QueueId = "default",
-                        TicketId = result.TicketId,
-                        QueuedAtUtc = DateTime.UtcNow
-                    })
+                {
+                    UserId = playerId,
+                    QueueId = "default",
+                    TicketId = result.TicketId,
+                    QueuedAtUtc = DateTime.UtcNow
+                })
                 .ConfigureAwait(false);
         }
 
@@ -367,24 +370,24 @@ public sealed class PlayerService
         await services.Matchmaking
             .Get(new MatchmakingQueueId("default"))
             .CancelAsync(new MatchmakingCancelRequest
-                {
-                    UserId = playerId,
-                    TicketId = snapshot.MatchmakingTicketId,
-                    CancelledAtUtc = DateTime.UtcNow,
-                    Reason = reason
-                })
+            {
+                UserId = playerId,
+                TicketId = snapshot.MatchmakingTicketId,
+                CancelledAtUtc = DateTime.UtcNow,
+                Reason = reason
+            })
             .ConfigureAwait(false);
 
         await services.Users
             .Get(new UserId(playerId))
             .ClearQueueAsync(new PlayerSessionQueueClearRequest
-                {
-                    UserId = playerId,
-                    QueueId = string.IsNullOrWhiteSpace(snapshot.QueueId) ? "default" : snapshot.QueueId,
-                    TicketId = snapshot.MatchmakingTicketId,
-                    ClearedAtUtc = DateTime.UtcNow,
-                    Reason = reason
-                })
+            {
+                UserId = playerId,
+                QueueId = string.IsNullOrWhiteSpace(snapshot.QueueId) ? "default" : snapshot.QueueId,
+                TicketId = snapshot.MatchmakingTicketId,
+                ClearedAtUtc = DateTime.UtcNow,
+                Reason = reason
+            })
             .ConfigureAwait(false);
         if (!TryCreateControlSession(snapshot, out var controlSession))
         {
@@ -441,24 +444,24 @@ public sealed class PlayerService
                 await services.Users
                     .Get(new UserId(playerId))
                     .ClearRoomAsync(new PlayerRoomClearRequest
-                        {
-                            UserId = playerId,
-                            RoomId = roomId,
-                            ClearedAtUtc = DateTime.UtcNow,
-                            Reason = reason
-                        })
+                    {
+                        UserId = playerId,
+                        RoomId = roomId,
+                        ClearedAtUtc = DateTime.UtcNow,
+                        Reason = reason
+                    })
                     .ConfigureAwait(false);
             }
 
             await services.Users
                 .Get(new UserId(playerId))
                 .MarkDisconnectedAsync(new PlayerSessionDisconnectRequest
-                    {
-                        UserId = playerId,
-                        ConnectionId = snapshot.ConnectionId,
-                        DisconnectedAtUtc = DateTime.UtcNow,
-                        Reason = reason
-                    })
+                {
+                    UserId = playerId,
+                    ConnectionId = snapshot.ConnectionId,
+                    DisconnectedAtUtc = DateTime.UtcNow,
+                    Reason = reason
+                })
                 .ConfigureAwait(false);
             await services.Users
                 .Get(new UserId(playerId))
@@ -497,19 +500,20 @@ public sealed class PlayerService
             .LeaveAsync(request);
     }
 
-    internal static Task PublishQueuedAsync(AgarServiceDependencies services, PlayerSessionSnapshot snapshot, MatchmakingEnqueueResult result)
+    internal static Task PublishQueuedAsync(AgarServiceDependencies services, PlayerSessionSnapshot snapshot,
+        MatchmakingEnqueueResult result)
     {
         return TryCreateControlSession(snapshot, out var controlSession)
             ? services.MatchmakingNotifier.PublishAsync(controlSession, new MatchmakingStatusUpdate
-        {
-            State = Shared.Interfaces.MatchmakingState.Queued,
-            QueuePosition = result.QueuePosition,
-            QueueSize = Math.Max(result.QueuePosition, 1),
-            RoomCapacity = 10,
-            RoomId = string.Empty,
-            MatchedPlayerCount = 0,
-            Message = string.IsNullOrWhiteSpace(result.Message) ? "Queued for matchmaking" : result.Message
-        }).AsTask()
+            {
+                State = Shared.Interfaces.MatchmakingState.Queued,
+                QueuePosition = result.QueuePosition,
+                QueueSize = Math.Max(result.QueuePosition, 1),
+                RoomCapacity = 10,
+                RoomId = string.Empty,
+                MatchedPlayerCount = 0,
+                Message = string.IsNullOrWhiteSpace(result.Message) ? "Queued for matchmaking" : result.Message
+            }).AsTask()
             : Task.CompletedTask;
     }
 
@@ -522,8 +526,8 @@ public sealed class PlayerService
 
         foreach (var player in assignment.Players)
         {
-            var snapshot = await services.Users
-                .Get(new UserId(player.UserId))
+            var user = services.Users.Get(new UserId(player.UserId));
+            var snapshot = await user
                 .GetSnapshotAsync(new PlayerSessionSnapshotRequest())
                 .ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(snapshot.SessionToken))
@@ -531,30 +535,28 @@ public sealed class PlayerService
                 continue;
             }
 
-            await services.Users
-                .Get(new UserId(player.UserId))
+            await user
                 .ClearQueueAsync(new PlayerSessionQueueClearRequest
-                    {
-                        UserId = player.UserId,
-                        QueueId = string.IsNullOrWhiteSpace(snapshot.QueueId) ? "default" : snapshot.QueueId,
-                        TicketId = snapshot.MatchmakingTicketId,
-                        ClearedAtUtc = DateTime.UtcNow,
-                        Reason = "Matched"
-                    })
+                {
+                    UserId = player.UserId,
+                    QueueId = string.IsNullOrWhiteSpace(snapshot.QueueId) ? "default" : snapshot.QueueId,
+                    TicketId = snapshot.MatchmakingTicketId,
+                    ClearedAtUtc = DateTime.UtcNow,
+                    Reason = "Matched"
+                })
                 .ConfigureAwait(false);
-            await services.Users
-                .Get(new UserId(player.UserId))
+            await user
                 .AssignRoomAsync(new PlayerRoomAssignment
-                    {
-                        UserId = player.UserId,
-                        RoomId = assignment.RoomId,
-                        MatchId = assignment.MatchId,
-                        SeatIndex = player.SeatIndex,
-                        SessionToken = snapshot.SessionToken,
-                        ConnectionId = snapshot.ConnectionId,
-                        AssignedAtUtc = DateTime.UtcNow,
-                        RuntimeGateway = assignment.RuntimeGateway
-                    })
+                {
+                    UserId = player.UserId,
+                    RoomId = assignment.RoomId,
+                    MatchId = assignment.MatchId,
+                    SeatIndex = player.SeatIndex,
+                    SessionToken = snapshot.SessionToken,
+                    ConnectionId = snapshot.ConnectionId,
+                    AssignedAtUtc = DateTime.UtcNow,
+                    RuntimeGateway = assignment.RuntimeGateway
+                })
                 .ConfigureAwait(false);
 
             if (!TryCreateControlSession(snapshot, out var controlSession))
@@ -595,7 +597,6 @@ public sealed class PlayerService
             snapshot.ControlSessionGeneration);
         return true;
     }
-
 }
 
 internal sealed record AgarServiceDependencies(

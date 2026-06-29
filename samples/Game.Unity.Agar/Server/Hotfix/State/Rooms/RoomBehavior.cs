@@ -7,6 +7,7 @@ using Agar.Sample.State.Leaderboard;
 using Agar.Sample.State.Rooms;
 using Agar.Sample.State.Users;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.Gameplay;
@@ -361,7 +362,7 @@ public static partial class RoomBehavior
         self.State.LastPublishedWorldTick = result.WorldState.Tick;
         self.State.LastUpdatedAtUtc = tick.ObservedAtUtc == default ? DateTime.UtcNow : tick.ObservedAtUtc;
 
-        var publisher = self.Context.Services.GetRequiredService<RoomNotifier>();
+        var publisher = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<RoomNotifier>();
         var snapshot = BuildSnapshot(self);
         await publisher.PublishWorldStateAsync(snapshot, result.WorldState).ConfigureAwait(false);
         foreach (var dead in result.Deaths)
@@ -390,6 +391,11 @@ public static partial class RoomBehavior
             MinPlayersToStart = self.State.MaxPlayers,
             EnableBots = true
         }, self.State.Simulation);
+    }
+
+    private static IServiceProvider GetCurrentHotfixServices(IServiceProvider services)
+    {
+        return services.GetRequiredService<IHotfixRuntimeAccessor>().Current.Services;
     }
 
     private static MatchEnd CreateMatchEnd(WorldState worldState)
