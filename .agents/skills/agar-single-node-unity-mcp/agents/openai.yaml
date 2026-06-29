@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agar Single Node Unity MCP"
+  short_description: "Run Agar single-node Unity MCP tests"
+  default_prompt: "Use $agar-single-node-unity-mcp to verify Game.Unity.Agar single-node behavior with Unity MCP."
