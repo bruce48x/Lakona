@@ -164,6 +164,11 @@ hosted matchmaking loops, room runtimes, or feature adapters that raise
 project-specific runtime events. Reloadable runtime loops are actor ticks
 declared by hotfix feature descriptors.
 
+Feature commands are capability-level orchestration points: placement checks,
+route registration, local actor creation, and the first calls into actors. Once
+a concrete actor exists, business logic should use generated actor refs rather
+than treating feature commands as actor mailboxes.
+
 `Server.App` may reference stable framework packages under
 `Lakona.Game.Server.Hotfix*`, including `IHotfixServiceInvoker`. It must not
 reference the reloadable game hotfix project, assembly, or namespace named

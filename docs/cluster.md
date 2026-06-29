@@ -525,6 +525,16 @@ are not the normal permanent proxy for every method on an already-created
 actor. Once a concrete actor exists, callers should use generated actor refs,
 the actor runtime, or route-addressed actor calls.
 
+Typed feature commands encode `FeatureCommandId` as an invariant-culture decimal
+string in `FeatureMessageRequest.Kind`. Blank values, non-integers, zero,
+negative values, and overflow values are rejected before deserialization with
+`ClusterSendStatus.Rejected`.
+
+`IFeatureCommandClient.SendAsync` selects any ready node that advertises the
+feature. `SendToNodeAsync` sends the same typed command to an already selected
+`ClusterNodeDescriptor`, which is the correct path after placement logic has
+chosen a specific owner node.
+
 Do not hard-code business command kind strings such as
 `"agar.user.ensure"` or `"agar.room.allocate"` in services or samples. Stable
 command identity should come from typed command contracts, attributes, or

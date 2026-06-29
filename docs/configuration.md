@@ -421,6 +421,13 @@ RPC service binding is independent from Feature selection. The RPC handler owns
 business dispatch to local services, feature-addressed messages, actors, or
 other project code.
 
+Generated projects and ordinary hotfix business code should not register
+hotfix-side `IFeatureMessageHandler` implementations. The default stable cluster
+endpoint owns the low-level handler and dispatches typed commands into the
+current hotfix feature command table. Advanced hosts may replace the stable
+`IFeatureMessageHandler`, but that replacement owns the whole low-level feature
+message surface.
+
 ## Reliable Push
 
 Reliable push is enabled by default as part of the Lakona game runtime. The

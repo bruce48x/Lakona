@@ -217,6 +217,19 @@ publishes the new hotfix provider, dispatch table, behavior table, lifecycle
 handlers, and descriptor-derived scheduler registrations as one generation.
 If scanning or validation fails, the previous generation remains active.
 
+### Feature Commands
+
+Hotfix feature declarations use `public static void Configure(HotfixFeatureContext context)`.
+The scanner does not construct feature classes during declaration. Runtime feature
+command calls activate a fresh feature instance from the current hotfix service
+provider, invoke a method shaped as
+`ValueTask<TReply> Method(HotfixFeatureCommandCall<TRequest> call)`, and dispose
+the feature instance after the returned `ValueTask` completes.
+
+Feature command request and reply DTOs may be hotfix-owned types. Their wire
+compatibility is governed by the hotfix BuildTag and the active hotfix generation,
+not by the stable RPC service boundary validator.
+
 ## Generated Hotfix Services
 
 `Lakona.Game.Server.Hotfix.Generators` owns stable hotfix service proxy

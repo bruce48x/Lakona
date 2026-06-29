@@ -11,8 +11,8 @@ namespace Lakona.Game.Cluster
         public const string NodeDirectoryHeartbeatMetricName = "lakona-game.cluster.node_directory.heartbeat";
         public const string NodeDirectoryExpiredMetricName = "lakona-game.cluster.node_directory.expired";
 
-        public static readonly Meter Meter = new Meter(MeterName, "0.3.1");
-        public static readonly ActivitySource ActivitySource = new ActivitySource(ActivitySourceName, "0.3.1");
+        public static readonly Meter Meter = new Meter(MeterName, "0.3.2");
+        public static readonly ActivitySource ActivitySource = new ActivitySource(ActivitySourceName, "0.3.2");
 
         internal static readonly Counter<long> RouteLookupCounter = Meter.CreateCounter<long>(
             "lakona-game.cluster.route.lookup");
