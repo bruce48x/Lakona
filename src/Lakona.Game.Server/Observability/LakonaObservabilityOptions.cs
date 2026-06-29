@@ -73,7 +73,7 @@ public sealed class LakonaLoggingObservabilityOptions
 {
     public bool Enabled { get; init; } = true;
     public LogLevel MinimumLevel { get; init; } = LogLevel.Information;
-    public IReadOnlyDictionary<string, string> CategoryLevels { get; init; } = CreateDefaultCategoryLevels();
+    public IReadOnlyDictionary<string, string> Categories { get; init; } = CreateDefaultCategoryLevels();
 
     public LakonaConsoleLoggingObservabilityOptions Console { get; init; } = new();
     public LakonaFileLoggingObservabilityOptions File { get; init; } = new();
@@ -87,7 +87,7 @@ public sealed class LakonaLoggingObservabilityOptions
                 section,
                 "MinimumLevel",
                 LogLevel.Information),
-            CategoryLevels = ReadCategoryLevels(section.GetSection("CategoryLevels")),
+            Categories = ReadCategoryLevels(section.GetSection("Categories")),
             Console = LakonaConsoleLoggingObservabilityOptions.FromConfiguration(section.GetSection("Console")),
             File = LakonaFileLoggingObservabilityOptions.FromConfiguration(section.GetSection("File"))
         };
@@ -143,8 +143,8 @@ public sealed class LakonaFileLoggingObservabilityOptions
     public bool Enabled { get; init; }
     public string Path { get; init; } = "logs/lakona-.log";
     public string RollingInterval { get; init; } = "Day";
-    public int RetainedFileCountLimit { get; init; } = 7;
-    public long FileSizeLimitBytes { get; init; } = 128L * 1024L * 1024L;
+    public int RetainedFileCount { get; init; } = 7;
+    public int FileSizeLimitMB { get; init; } = 128;
 
     public static LakonaFileLoggingObservabilityOptions FromConfiguration(IConfiguration section)
     {
@@ -153,14 +153,14 @@ public sealed class LakonaFileLoggingObservabilityOptions
             Enabled = LakonaObservabilityOptions.ReadBool(section, "Enabled", false),
             Path = LakonaObservabilityOptions.ReadString(section, "Path", "logs/lakona-.log"),
             RollingInterval = LakonaObservabilityOptions.ReadString(section, "RollingInterval", "Day"),
-            RetainedFileCountLimit = LakonaObservabilityOptions.ReadInt(
+            RetainedFileCount = LakonaObservabilityOptions.ReadInt(
                 section,
-                "RetainedFileCountLimit",
+                "RetainedFileCount",
                 7),
-            FileSizeLimitBytes = LakonaObservabilityOptions.ReadLong(
+            FileSizeLimitMB = LakonaObservabilityOptions.ReadInt(
                 section,
-                "FileSizeLimitBytes",
-                128L * 1024L * 1024L)
+                "FileSizeLimitMB",
+                128)
         };
     }
 }
@@ -192,44 +192,18 @@ public sealed class LakonaLocalAdminObservabilityOptions
 
 public sealed class LakonaDiagnosticsObservabilityOptions
 {
-    public LakonaDiagnosticsSummaryOptions Summary { get; init; } = new();
-    public LakonaDiagnosticsDetailOptions Detail { get; init; } = new();
+    public bool SummaryEnabled { get; init; } = true;
+    public bool DetailEnabled { get; init; }
     public LakonaDiagnosticsEventBufferOptions EventBuffer { get; init; } = new();
 
     public static LakonaDiagnosticsObservabilityOptions FromConfiguration(IConfiguration section)
     {
         return new LakonaDiagnosticsObservabilityOptions
         {
-            Summary = LakonaDiagnosticsSummaryOptions.FromConfiguration(section.GetSection("Summary")),
-            Detail = LakonaDiagnosticsDetailOptions.FromConfiguration(section.GetSection("Detail")),
+            SummaryEnabled = LakonaObservabilityOptions.ReadBool(section, "SummaryEnabled", true),
+            DetailEnabled = LakonaObservabilityOptions.ReadBool(section, "DetailEnabled", false),
             EventBuffer = LakonaDiagnosticsEventBufferOptions.FromConfiguration(
                 section.GetSection("EventBuffer"))
-        };
-    }
-}
-
-public sealed class LakonaDiagnosticsSummaryOptions
-{
-    public bool Enabled { get; init; } = true;
-
-    public static LakonaDiagnosticsSummaryOptions FromConfiguration(IConfiguration section)
-    {
-        return new LakonaDiagnosticsSummaryOptions
-        {
-            Enabled = LakonaObservabilityOptions.ReadBool(section, "Enabled", true)
-        };
-    }
-}
-
-public sealed class LakonaDiagnosticsDetailOptions
-{
-    public bool Enabled { get; init; }
-
-    public static LakonaDiagnosticsDetailOptions FromConfiguration(IConfiguration section)
-    {
-        return new LakonaDiagnosticsDetailOptions
-        {
-            Enabled = LakonaObservabilityOptions.ReadBool(section, "Enabled", false)
         };
     }
 }

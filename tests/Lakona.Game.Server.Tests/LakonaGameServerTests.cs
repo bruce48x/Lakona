@@ -163,6 +163,29 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public void Default_feature_discovery_preserves_host_resolved_runtime_options()
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder().Build();
+        var runtime = Lakona.Game.Server.Hosting.LakonaGameServer.CreateRuntimeOptionsForTesting(
+            configuration,
+            "Production");
+
+        services.AddSingleton(runtime);
+        Lakona.Game.Server.Hosting.LakonaGameServer.DiscoverStableFeaturesForTesting(
+            services,
+            configuration,
+            AppContext.BaseDirectory,
+            runtime);
+
+        using var provider = services.BuildServiceProvider();
+        var resolved = provider.GetRequiredService<LakonaGameRuntimeOptions>();
+
+        Assert.Same(runtime, resolved);
+        Assert.Equal(Lakona.Game.Server.Guardrails.LakonaGameRuntimeProfile.Production, resolved.Profile);
+    }
+
+    [Fact]
     public void ClusterEndpointConfigurationRegistersClusterRpcServer()
     {
         var services = new ServiceCollection();

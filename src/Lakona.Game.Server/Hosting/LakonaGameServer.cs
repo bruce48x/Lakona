@@ -91,7 +91,11 @@ public static class LakonaGameServer
         }
         else if (!builder.Services.Any(static service => service.ServiceType == typeof(LakonaGameFeatureCatalog)))
         {
-            DiscoverAndRegisterFeatures(builder.Services, builder.Configuration, AppContext.BaseDirectory);
+            DiscoverAndRegisterFeatures(
+                builder.Services,
+                builder.Configuration,
+                AppContext.BaseDirectory,
+                runtimeOptions);
         }
 
         // Hotfix
@@ -298,16 +302,29 @@ public static class LakonaGameServer
         IConfiguration configuration,
         string baseDirectory)
     {
-        DiscoverAndRegisterFeatures(services, configuration, baseDirectory);
+        DiscoverAndRegisterFeatures(
+            services,
+            configuration,
+            baseDirectory,
+            LakonaGameRuntimeOptions.FromConfiguration(configuration));
+    }
+
+    internal static void DiscoverStableFeaturesForTesting(
+        IServiceCollection services,
+        IConfiguration configuration,
+        string baseDirectory,
+        LakonaGameRuntimeOptions options)
+    {
+        DiscoverAndRegisterFeatures(services, configuration, baseDirectory, options);
     }
 
     internal static void DiscoverAndRegisterFeatures(
         IServiceCollection services,
         IConfiguration configuration,
-        string baseDirectory)
+        string baseDirectory,
+        LakonaGameRuntimeOptions options)
     {
         _ = baseDirectory;
-        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
         var catalogBuilder = new LakonaGameFeatureCatalogBuilder();
         var definitions = DiscoverApplicationAssemblies()
             .Where(static assembly => !IsTestAssembly(assembly))

@@ -39,23 +39,23 @@ public sealed class LakonaObservabilityOptionsTests
         Assert.False(options.Logging.File.Enabled);
         Assert.Equal("logs/lakona-.log", options.Logging.File.Path);
         Assert.Equal("Day", options.Logging.File.RollingInterval);
-        Assert.Equal(7, options.Logging.File.RetainedFileCountLimit);
-        Assert.Equal(128 * 1024 * 1024, options.Logging.File.FileSizeLimitBytes);
-        Assert.Equal("Information", options.Logging.CategoryLevels["Lakona.Rpc"]);
-        Assert.Equal("Information", options.Logging.CategoryLevels["Lakona.Rpc.Transport"]);
-        Assert.Equal("Information", options.Logging.CategoryLevels["Lakona.Game.Server"]);
-        Assert.Equal("Information", options.Logging.CategoryLevels["Lakona.Game.Session"]);
-        Assert.Equal("Information", options.Logging.CategoryLevels["Lakona.Game.Actor"]);
-        Assert.Equal("Information", options.Logging.CategoryLevels["Lakona.Game.Cluster"]);
-        Assert.Equal("Information", options.Logging.CategoryLevels["Lakona.Game.Hotfix"]);
-        Assert.Equal("Information", options.Logging.CategoryLevels["Lakona.Game.Observability"]);
+        Assert.Equal(7, options.Logging.File.RetainedFileCount);
+        Assert.Equal(128, options.Logging.File.FileSizeLimitMB);
+        Assert.Equal("Information", options.Logging.Categories["Lakona.Rpc"]);
+        Assert.Equal("Information", options.Logging.Categories["Lakona.Rpc.Transport"]);
+        Assert.Equal("Information", options.Logging.Categories["Lakona.Game.Server"]);
+        Assert.Equal("Information", options.Logging.Categories["Lakona.Game.Session"]);
+        Assert.Equal("Information", options.Logging.Categories["Lakona.Game.Actor"]);
+        Assert.Equal("Information", options.Logging.Categories["Lakona.Game.Cluster"]);
+        Assert.Equal("Information", options.Logging.Categories["Lakona.Game.Hotfix"]);
+        Assert.Equal("Information", options.Logging.Categories["Lakona.Game.Observability"]);
 
         Assert.Equal("127.0.0.1", options.LocalAdmin.Host);
         Assert.Equal(20090, options.LocalAdmin.Port);
         Assert.True(options.LocalAdmin.RequireLoopback);
 
-        Assert.True(options.Diagnostics.Summary.Enabled);
-        Assert.False(options.Diagnostics.Detail.Enabled);
+        Assert.True(options.Diagnostics.SummaryEnabled);
+        Assert.False(options.Diagnostics.DetailEnabled);
         Assert.True(options.Diagnostics.EventBuffer.Enabled);
         Assert.Equal(1024, options.Diagnostics.EventBuffer.Capacity);
         Assert.Equal(LogLevel.Warning, options.Diagnostics.EventBuffer.MinimumLevel);
@@ -74,21 +74,21 @@ public sealed class LakonaObservabilityOptionsTests
         {
             ["Lakona:Observability:Logging:Enabled"] = "false",
             ["Lakona:Observability:Logging:MinimumLevel"] = "Debug",
-            ["Lakona:Observability:Logging:CategoryLevels:Lakona.Game.Server"] = "Trace",
+            ["Lakona:Observability:Logging:Categories:Lakona.Game.Server"] = "Trace",
             ["Lakona:Observability:Logging:Console:Enabled"] = "false",
             ["Lakona:Observability:Logging:Console:Format"] = "json",
             ["Lakona:Observability:Logging:Console:IncludeScopes"] = "true",
             ["Lakona:Observability:Logging:File:Enabled"] = "true",
             ["Lakona:Observability:Logging:File:Path"] = "logs/custom-.log",
             ["Lakona:Observability:Logging:File:RollingInterval"] = "Hour",
-            ["Lakona:Observability:Logging:File:RetainedFileCountLimit"] = "3",
-            ["Lakona:Observability:Logging:File:FileSizeLimitBytes"] = "4096",
+            ["Lakona:Observability:Logging:File:RetainedFileCount"] = "3",
+            ["Lakona:Observability:Logging:File:FileSizeLimitMB"] = "64",
             ["Lakona:Observability:LocalAdmin:Enabled"] = "true",
             ["Lakona:Observability:LocalAdmin:Host"] = "0.0.0.0",
             ["Lakona:Observability:LocalAdmin:Port"] = "20100",
             ["Lakona:Observability:LocalAdmin:RequireLoopback"] = "false",
-            ["Lakona:Observability:Diagnostics:Summary:Enabled"] = "false",
-            ["Lakona:Observability:Diagnostics:Detail:Enabled"] = "true",
+            ["Lakona:Observability:Diagnostics:SummaryEnabled"] = "false",
+            ["Lakona:Observability:Diagnostics:DetailEnabled"] = "true",
             ["Lakona:Observability:Diagnostics:EventBuffer:Enabled"] = "false",
             ["Lakona:Observability:Diagnostics:EventBuffer:Capacity"] = "2048",
             ["Lakona:Observability:Diagnostics:EventBuffer:MinimumLevel"] = "Error",
@@ -106,15 +106,15 @@ public sealed class LakonaObservabilityOptionsTests
 
         Assert.False(options.Logging.Enabled);
         Assert.Equal(LogLevel.Debug, options.Logging.MinimumLevel);
-        Assert.Equal("Trace", options.Logging.CategoryLevels["Lakona.Game.Server"]);
+        Assert.Equal("Trace", options.Logging.Categories["Lakona.Game.Server"]);
         Assert.False(options.Logging.Console.Enabled);
         Assert.Equal("json", options.Logging.Console.Format);
         Assert.True(options.Logging.Console.IncludeScopes);
         Assert.True(options.Logging.File.Enabled);
         Assert.Equal("logs/custom-.log", options.Logging.File.Path);
         Assert.Equal("Hour", options.Logging.File.RollingInterval);
-        Assert.Equal(3, options.Logging.File.RetainedFileCountLimit);
-        Assert.Equal(4096, options.Logging.File.FileSizeLimitBytes);
+        Assert.Equal(3, options.Logging.File.RetainedFileCount);
+        Assert.Equal(64, options.Logging.File.FileSizeLimitMB);
 
         Assert.True(options.LocalAdmin.Enabled);
         Assert.True(options.LocalAdmin.EffectiveEnabled);
@@ -122,8 +122,8 @@ public sealed class LakonaObservabilityOptionsTests
         Assert.Equal(20100, options.LocalAdmin.Port);
         Assert.False(options.LocalAdmin.RequireLoopback);
 
-        Assert.False(options.Diagnostics.Summary.Enabled);
-        Assert.True(options.Diagnostics.Detail.Enabled);
+        Assert.False(options.Diagnostics.SummaryEnabled);
+        Assert.True(options.Diagnostics.DetailEnabled);
         Assert.False(options.Diagnostics.EventBuffer.Enabled);
         Assert.Equal(2048, options.Diagnostics.EventBuffer.Capacity);
         Assert.Equal(LogLevel.Error, options.Diagnostics.EventBuffer.MinimumLevel);
