@@ -4,6 +4,7 @@ using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Observability;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using System.Globalization;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests.Observability;
@@ -142,6 +143,33 @@ public sealed class LakonaObservabilityOptionsTests
             .ToArray();
 
         Assert.Equal(["Enabled", "SampleRate"], propertyNames);
+    }
+
+    [Fact]
+    public void Trace_export_sample_rate_uses_invariant_decimal_format()
+    {
+        var originalCulture = CultureInfo.CurrentCulture;
+        var originalUICulture = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR");
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("fr-FR");
+            var configuration = BuildConfiguration(new Dictionary<string, string?>
+            {
+                ["Lakona:Observability:Tracing:Export:SampleRate"] = "0.25"
+            });
+
+            var options = LakonaObservabilityOptions.FromConfiguration(
+                configuration,
+                LakonaGameRuntimeProfile.Production);
+
+            Assert.Equal(0.25, options.Tracing.Export.SampleRate);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+            CultureInfo.CurrentUICulture = originalUICulture;
+        }
     }
 
     [Theory]

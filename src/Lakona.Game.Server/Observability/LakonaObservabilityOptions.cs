@@ -1,3 +1,4 @@
+using System.Globalization;
 using Lakona.Game.Server.Guardrails;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -53,7 +54,13 @@ public sealed class LakonaObservabilityOptions
 
     internal static double ReadDouble(IConfiguration section, string name, double fallback)
     {
-        return double.TryParse(section[name], out var parsed) ? parsed : fallback;
+        return double.TryParse(
+            section[name],
+            NumberStyles.Float,
+            CultureInfo.InvariantCulture,
+            out var parsed)
+            ? parsed
+            : fallback;
     }
 
     internal static string ReadString(IConfiguration section, string name, string fallback)

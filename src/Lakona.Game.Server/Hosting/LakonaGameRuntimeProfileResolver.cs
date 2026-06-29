@@ -4,7 +4,7 @@ using Microsoft.Extensions.Hosting;
 
 namespace Lakona.Game.Server.Hosting;
 
-public static class LakonaGameRuntimeProfileResolver
+internal static class LakonaGameRuntimeProfileResolver
 {
     public static LakonaGameRuntimeProfile Resolve(IConfiguration configuration, string? environmentName)
     {
