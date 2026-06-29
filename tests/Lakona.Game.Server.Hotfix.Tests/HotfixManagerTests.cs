@@ -3,6 +3,7 @@ using System.Runtime.Loader;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.DependencyInjection;
+using Lakona.Game.Cluster;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
@@ -92,6 +93,53 @@ public sealed class HotfixManagerTests
 
         Assert.False(failed.Succeeded);
         Assert.Equal("two", accessor.Current.GetRequiredService<IGenerationMarker>().Generation);
+    }
+
+    [Fact]
+    public async Task Reload_publishes_feature_command_invoker()
+    {
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var manager = new HotfixManager(
+            new FixedAssemblySource(compiled.FeatureCommandHotfixAssemblyPath),
+            [typeof(IGenerationMarker).Assembly.GetName().Name!]);
+
+        var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
+        var runtime = ((IHotfixRuntimeAccessor)manager).Current;
+        Assert.True(runtime.FeatureCommands.TryResolve("commands", FeatureCommandId.From(301), out var descriptor));
+        var request = Activator.CreateInstance(descriptor.RequestType, [7])!;
+        var reply = await runtime.FeatureCommands.InvokeAsync(
+            descriptor,
+            request,
+            NewFeatureMessage("commands", "301"),
+            runtime.Services,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(12, (int)descriptor.ReplyType.GetProperty("Value")!.GetValue(reply)!);
+    }
+
+    [Fact]
+    public async Task Reload_rejects_feature_command_constructor_dependency_failure_and_keeps_previous_generation()
+    {
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var source = new SwitchableAssemblySource(compiled.FeatureCommandHotfixAssemblyPath);
+        var manager = new HotfixManager(
+            source,
+            [typeof(IGenerationMarker).Assembly.GetName().Name!]);
+
+        var first = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+        Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+        var previousRuntime = ((IHotfixRuntimeAccessor)manager).Current;
+
+        source.AssemblyPath = compiled.MissingFeatureCommandDependencyHotfixAssemblyPath;
+        var failed = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(failed.Succeeded);
+        Assert.Contains(failed.Diagnostics, diagnostic =>
+            diagnostic.Contains("constructor activation failed", StringComparison.OrdinalIgnoreCase));
+        Assert.Same(previousRuntime, ((IHotfixRuntimeAccessor)manager).Current);
+        Assert.Equal(first.Current.DispatchTableVersion, manager.Current.DispatchTableVersion);
     }
 
 
@@ -620,6 +668,17 @@ public sealed class HotfixManagerTests
         Assert.False(loadContextReference.IsAlive, "Previous hotfix AssemblyLoadContext should be collectible after a successful replacement reload.");
     }
 
+    private static FeatureMessageRequest NewFeatureMessage(string feature, string kind)
+    {
+        return new FeatureMessageRequest(
+            new FeatureName(feature),
+            kind,
+            ReadOnlyMemory<byte>.Empty,
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            new NodeId("data-1"),
+            "corr-1");
+    }
+
     private sealed class FixedAssemblySource : IHotfixAssemblySource
     {
         private readonly string _path;
@@ -647,6 +706,12 @@ public sealed class HotfixManagerTests
         }
 
         public string Path { get; set; }
+
+        public string AssemblyPath
+        {
+            get => Path;
+            set => Path = value;
+        }
 
         public Action? AfterResolve { get; set; }
 
@@ -735,7 +800,9 @@ public sealed class HotfixManagerTests
             string rootDiFeatureServiceHotfixAssemblyPath,
             string missingDiServiceHotfixAssemblyPath,
             string multipleConstructorServiceHotfixAssemblyPath,
-            string selectedConstructorDiServiceHotfixAssemblyPath)
+            string selectedConstructorDiServiceHotfixAssemblyPath,
+            string featureCommandHotfixAssemblyPath,
+            string missingFeatureCommandDependencyHotfixAssemblyPath)
         {
             RootDirectory = rootDirectory;
             StableAssemblyPath = stableAssemblyPath;
@@ -758,6 +825,8 @@ public sealed class HotfixManagerTests
             MissingDiServiceHotfixAssemblyPath = missingDiServiceHotfixAssemblyPath;
             MultipleConstructorServiceHotfixAssemblyPath = multipleConstructorServiceHotfixAssemblyPath;
             SelectedConstructorDiServiceHotfixAssemblyPath = selectedConstructorDiServiceHotfixAssemblyPath;
+            FeatureCommandHotfixAssemblyPath = featureCommandHotfixAssemblyPath;
+            MissingFeatureCommandDependencyHotfixAssemblyPath = missingFeatureCommandDependencyHotfixAssemblyPath;
         }
 
         public string RootDirectory { get; }
@@ -802,6 +871,10 @@ public sealed class HotfixManagerTests
 
         public string SelectedConstructorDiServiceHotfixAssemblyPath { get; }
 
+        public string FeatureCommandHotfixAssemblyPath { get; }
+
+        public string MissingFeatureCommandDependencyHotfixAssemblyPath { get; }
+
         public static async Task<CompiledHotfixFixture> CreateAsync(CancellationToken cancellationToken)
         {
             var root = Path.Combine(Path.GetTempPath(), "LakonaGameHotfixTests", Guid.NewGuid().ToString("N"));
@@ -836,6 +909,8 @@ public sealed class HotfixManagerTests
             var missingDiServiceHotfixAssemblyName = $"MissingDiServiceHotfix_{suffix}";
             var multipleConstructorServiceHotfixAssemblyName = $"MultipleConstructorServiceHotfix_{suffix}";
             var selectedConstructorDiServiceHotfixAssemblyName = $"SelectedConstructorDiServiceHotfix_{suffix}";
+            var featureCommandHotfixAssemblyName = $"FeatureCommandHotfix_{suffix}";
+            var missingFeatureCommandDependencyHotfixAssemblyName = $"MissingFeatureCommandDependencyHotfix_{suffix}";
             var hotfixOwnedServiceReturnAssemblyPath = Path.Combine(root, "hotfix-owned-service-return", $"{hotfixOwnedServiceReturnAssemblyName}.dll");
             var hotfixOwnedServiceArgumentAssemblyPath = Path.Combine(root, "hotfix-owned-service-argument", $"{hotfixOwnedServiceArgumentAssemblyName}.dll");
             var validServiceHotfixAssemblyPath = Path.Combine(root, "valid-service-hotfix", $"{validServiceHotfixAssemblyName}.dll");
@@ -846,6 +921,8 @@ public sealed class HotfixManagerTests
             var missingDiServiceHotfixAssemblyPath = Path.Combine(root, "missing-di-service-hotfix", $"{missingDiServiceHotfixAssemblyName}.dll");
             var multipleConstructorServiceHotfixAssemblyPath = Path.Combine(root, "multiple-constructor-service-hotfix", $"{multipleConstructorServiceHotfixAssemblyName}.dll");
             var selectedConstructorDiServiceHotfixAssemblyPath = Path.Combine(root, "selected-constructor-di-service-hotfix", $"{selectedConstructorDiServiceHotfixAssemblyName}.dll");
+            var featureCommandHotfixAssemblyPath = Path.Combine(root, "feature-command-hotfix", $"{featureCommandHotfixAssemblyName}.dll");
+            var missingFeatureCommandDependencyHotfixAssemblyPath = Path.Combine(root, "missing-feature-command-dependency-hotfix", $"{missingFeatureCommandDependencyHotfixAssemblyName}.dll");
 
             Directory.CreateDirectory(Path.GetDirectoryName(stableAssemblyPath)!);
             Directory.CreateDirectory(Path.GetDirectoryName(hotfixAssemblyPath)!);
@@ -867,6 +944,8 @@ public sealed class HotfixManagerTests
             Directory.CreateDirectory(Path.GetDirectoryName(missingDiServiceHotfixAssemblyPath)!);
             Directory.CreateDirectory(Path.GetDirectoryName(multipleConstructorServiceHotfixAssemblyPath)!);
             Directory.CreateDirectory(Path.GetDirectoryName(selectedConstructorDiServiceHotfixAssemblyPath)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(featureCommandHotfixAssemblyPath)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(missingFeatureCommandDependencyHotfixAssemblyPath)!);
 
             await EmitAssemblyAsync(
                 stableAssemblyName,
@@ -1539,6 +1618,95 @@ public sealed class HotfixManagerTests
                 ],
                 cancellationToken);
 
+            await EmitAssemblyAsync(
+                featureCommandHotfixAssemblyName,
+                featureCommandHotfixAssemblyPath,
+                """
+                using System.Threading.Tasks;
+                using Lakona.Game.Server.Hotfix.Abstractions;
+                using Lakona.Game.Server.Hotfix.Tests;
+                using Microsoft.Extensions.DependencyInjection;
+
+                namespace FeatureCommandHotfix;
+
+                [HotfixFeature("commands")]
+                public sealed class CommandFeature : HotfixGameFeature
+                {
+                    private readonly IGenerationMarker _marker;
+
+                    public CommandFeature(IGenerationMarker marker)
+                    {
+                        _marker = marker;
+                    }
+
+                    public static void Configure(HotfixFeatureContext context)
+                    {
+                        context.HandleCommand<ManagerCommand, ManagerReply>(nameof(ExecuteAsync));
+                        context.Services.AddSingleton<IGenerationMarker, FirstMarker>();
+                    }
+
+                    public ValueTask<ManagerReply> ExecuteAsync(HotfixFeatureCommandCall<ManagerCommand> call)
+                    {
+                        return new ValueTask<ManagerReply>(new ManagerReply(call.Request.Value + _marker.Generation.Length));
+                    }
+                }
+
+                [FeatureCommand(301)]
+                public sealed record ManagerCommand(int Value);
+
+                public sealed record ManagerReply(int Value);
+
+                public sealed class FirstMarker : IGenerationMarker
+                {
+                    public string Generation => "first";
+                }
+                """,
+                [
+                    abstractionsReference,
+                    testsReference,
+                    dependencyInjectionReference
+                ],
+                cancellationToken);
+
+            await EmitAssemblyAsync(
+                missingFeatureCommandDependencyHotfixAssemblyName,
+                missingFeatureCommandDependencyHotfixAssemblyPath,
+                """
+                using System.Threading.Tasks;
+                using Lakona.Game.Server.Hotfix.Abstractions;
+
+                namespace MissingFeatureCommandDependencyHotfix;
+
+                [HotfixFeature("commands")]
+                public sealed class MissingDependencyCommandFeature : HotfixGameFeature
+                {
+                    public MissingDependencyCommandFeature(MissingDependency dependency)
+                    {
+                    }
+
+                    public static void Configure(HotfixFeatureContext context)
+                    {
+                        context.HandleCommand<ManagerCommand, ManagerReply>(nameof(ExecuteAsync));
+                    }
+
+                    public ValueTask<ManagerReply> ExecuteAsync(HotfixFeatureCommandCall<ManagerCommand> call)
+                    {
+                        return new ValueTask<ManagerReply>(new ManagerReply(call.Request.Value));
+                    }
+                }
+
+                [FeatureCommand(301)]
+                public sealed record ManagerCommand(int Value);
+
+                public sealed record ManagerReply(int Value);
+
+                public sealed class MissingDependency
+                {
+                }
+                """,
+                [abstractionsReference],
+                cancellationToken);
+
             // Copy private dependency next to the hotfix assembly so AssemblyDependencyResolver finds it.
             var privateDepNextToHotfix = Path.Combine(Path.GetDirectoryName(hotfixWithPrivateDependencyAssemblyPath)!, Path.GetFileName(privateDependencyAssemblyPath));
             File.Copy(privateDependencyAssemblyPath, privateDepNextToHotfix, overwrite: true);
@@ -1564,7 +1732,9 @@ public sealed class HotfixManagerTests
                 rootDiFeatureServiceHotfixAssemblyPath,
                 missingDiServiceHotfixAssemblyPath,
                 multipleConstructorServiceHotfixAssemblyPath,
-                selectedConstructorDiServiceHotfixAssemblyPath);
+                selectedConstructorDiServiceHotfixAssemblyPath,
+                featureCommandHotfixAssemblyPath,
+                missingFeatureCommandDependencyHotfixAssemblyPath);
         }
 
         public void Dispose()

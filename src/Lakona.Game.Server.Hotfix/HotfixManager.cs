@@ -118,12 +118,14 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             cancellationToken.ThrowIfCancellationRequested();
 
             var tableVersion = publish ? Interlocked.Increment(ref _nextVersion) : Current.DispatchTableVersion;
-            var table = new HotfixDispatchTable(tableVersion, scan.Methods, scan.Services);
+            var table = new HotfixDispatchTable(tableVersion, scan.Methods, scan.Services, scan.Features);
             table.ValidateMethodShapes();
             table.ValidateTypedDispatchDelegates();
             table.ValidateFeatureTickMethods(scan.Features);
+            table.ValidateFeatureCommandMethods();
             hotfixProvider = BuildHotfixProvider(scan);
             table.ValidateServiceActivation(hotfixProvider);
+            table.ValidateFeatureCommandActivation(hotfixProvider);
             var snapshot = new HotfixSnapshot(
                 resolved.Version,
                 resolved.SourceKind,
@@ -145,7 +147,10 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             }
 
             HotfixDispatch.Replace(table);
-            var runtimeSnapshot = new HotfixRuntimeSnapshot(new HotfixServiceInvoker(table), hotfixProvider);
+            var runtimeSnapshot = new HotfixRuntimeSnapshot(
+                new HotfixServiceInvoker(table),
+                new HotfixFeatureCommandInvoker(table),
+                hotfixProvider);
             var oldProvider = Interlocked.Exchange(ref _currentProvider, hotfixProvider);
             hotfixProvider = null;
             var oldContext = Interlocked.Exchange(ref _loadContext, pendingContext);
