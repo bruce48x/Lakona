@@ -421,35 +421,27 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public async Task AddLakonaGameServer_routes_feature_messages_to_current_hotfix_handlers()
+    public async Task AddLakonaGameServer_allows_stable_feature_message_handler_replacement()
     {
-        var miss = new RecordingFeatureMessageHandler(acceptedFeature: new FeatureName("state-store"));
-        var hit = new RecordingFeatureMessageHandler(acceptedFeature: new FeatureName("battle-runtime"));
-        await using var hotfixServices = new ServiceCollection()
-            .AddSingleton<IFeatureMessageHandler>(miss)
-            .AddSingleton<IFeatureMessageHandler>(hit)
+        var custom = new RecordingFeatureMessageHandler();
+        await using var provider = new ServiceCollection()
+            .AddSingleton<IFeatureMessageHandler>(custom)
+            .AddLakonaGameServer()
             .BuildServiceProvider();
-        var services = new ServiceCollection();
-        services.AddSingleton<IHotfixRuntimeAccessor>(new FixedHotfixRuntimeAccessor(hotfixServices));
-        services.AddLakonaGameServer();
-        await using var provider = services.BuildServiceProvider();
 
         var handler = provider.GetRequiredService<IFeatureMessageHandler>();
         var reply = await handler.HandleAsync(
             new FeatureMessageRequest(
                 new FeatureName("battle-runtime"),
-                "allocate",
-                new byte[] { 1, 2, 3 },
+                "17",
+                ReadOnlyMemory<byte>.Empty,
                 DateTimeOffset.UtcNow.AddMinutes(1),
                 new NodeId("data-1"),
                 "corr-1"),
             TestContext.Current.CancellationToken);
 
+        Assert.Same(custom, handler);
         Assert.Equal(ClusterSendStatus.Accepted, reply.Status);
-        Assert.Single(miss.Requests);
-        var request = Assert.Single(hit.Requests);
-        Assert.Equal("battle-runtime", request.Feature.Value);
-        Assert.Equal("allocate", request.Kind);
     }
 
     [Fact]
