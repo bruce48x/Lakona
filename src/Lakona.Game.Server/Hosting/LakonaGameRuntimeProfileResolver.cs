@@ -34,9 +34,19 @@ public static class LakonaGameRuntimeProfileResolver
 
     private static LakonaGameRuntimeProfile ParseConfiguredProfile(string value)
     {
-        if (Enum.TryParse<LakonaGameRuntimeProfile>(value, ignoreCase: true, out var profile))
+        if (string.Equals(value, nameof(LakonaGameRuntimeProfile.Development), StringComparison.OrdinalIgnoreCase))
         {
-            return profile;
+            return LakonaGameRuntimeProfile.Development;
+        }
+
+        if (string.Equals(value, nameof(LakonaGameRuntimeProfile.Compose), StringComparison.OrdinalIgnoreCase))
+        {
+            return LakonaGameRuntimeProfile.Compose;
+        }
+
+        if (string.Equals(value, nameof(LakonaGameRuntimeProfile.Production), StringComparison.OrdinalIgnoreCase))
+        {
+            return LakonaGameRuntimeProfile.Production;
         }
 
         throw new InvalidOperationException(

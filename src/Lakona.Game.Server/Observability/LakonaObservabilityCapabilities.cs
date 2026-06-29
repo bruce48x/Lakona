@@ -1,18 +1,47 @@
 namespace Lakona.Game.Server.Observability;
 
+public interface ILakonaObservabilityCapability
+{
+    LakonaObservabilityCapabilityKind Kind { get; }
+}
+
+public enum LakonaObservabilityCapabilityKind
+{
+    FileLogging,
+    OpenTelemetry,
+    PrometheusEndpoint
+}
+
 public sealed record LakonaObservabilityCapabilities(
     bool FileLogging,
     bool OpenTelemetry,
-    bool Prometheus)
+    bool PrometheusEndpoint)
 {
-    public static LakonaObservabilityCapabilities FromOptions(LakonaObservabilityOptions options)
+    public static LakonaObservabilityCapabilities FromServices(
+        IEnumerable<ILakonaObservabilityCapability> capabilities)
     {
-        var prometheus = options.Metrics.Prometheus.Enabled;
-        var traceExport = options.Tracing.Export.Enabled;
+        var kinds = capabilities
+            .Select(capability => capability.Kind)
+            .ToHashSet();
 
         return new LakonaObservabilityCapabilities(
-            FileLogging: options.Logging.File.Enabled,
-            OpenTelemetry: prometheus || traceExport,
-            Prometheus: prometheus);
+            FileLogging: kinds.Contains(LakonaObservabilityCapabilityKind.FileLogging),
+            OpenTelemetry: kinds.Contains(LakonaObservabilityCapabilityKind.OpenTelemetry),
+            PrometheusEndpoint: kinds.Contains(LakonaObservabilityCapabilityKind.PrometheusEndpoint));
     }
+}
+
+public sealed class FileLoggingObservabilityCapability : ILakonaObservabilityCapability
+{
+    public LakonaObservabilityCapabilityKind Kind => LakonaObservabilityCapabilityKind.FileLogging;
+}
+
+public sealed class OpenTelemetryObservabilityCapability : ILakonaObservabilityCapability
+{
+    public LakonaObservabilityCapabilityKind Kind => LakonaObservabilityCapabilityKind.OpenTelemetry;
+}
+
+public sealed class PrometheusEndpointObservabilityCapability : ILakonaObservabilityCapability
+{
+    public LakonaObservabilityCapabilityKind Kind => LakonaObservabilityCapabilityKind.PrometheusEndpoint;
 }

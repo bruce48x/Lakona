@@ -31,6 +31,11 @@ public sealed class LakonaObservabilityOptions
         };
     }
 
+    public static LakonaObservabilityOptions Defaults(LakonaGameRuntimeProfile profile)
+    {
+        return FromConfiguration(new ConfigurationBuilder().Build(), profile);
+    }
+
     internal static bool ReadBool(IConfiguration section, string name, bool fallback)
     {
         return bool.TryParse(section[name], out var parsed) ? parsed : fallback;
@@ -68,13 +73,7 @@ public sealed class LakonaLoggingObservabilityOptions
 {
     public bool Enabled { get; init; } = true;
     public LogLevel MinimumLevel { get; init; } = LogLevel.Information;
-    public IReadOnlyDictionary<string, string> CategoryLevels { get; init; } =
-        new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["Lakona"] = "Information",
-            ["Lakona.Game"] = "Information",
-            ["Lakona.Rpc"] = "Information"
-        };
+    public IReadOnlyDictionary<string, string> CategoryLevels { get; init; } = CreateDefaultCategoryLevels();
 
     public LakonaConsoleLoggingObservabilityOptions Console { get; init; } = new();
     public LakonaFileLoggingObservabilityOptions File { get; init; } = new();
@@ -96,12 +95,7 @@ public sealed class LakonaLoggingObservabilityOptions
 
     private static IReadOnlyDictionary<string, string> ReadCategoryLevels(IConfigurationSection section)
     {
-        var defaults = new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["Lakona"] = "Information",
-            ["Lakona.Game"] = "Information",
-            ["Lakona.Rpc"] = "Information"
-        };
+        var defaults = CreateDefaultCategoryLevels();
 
         foreach (var child in section.GetChildren())
         {
@@ -109,6 +103,21 @@ public sealed class LakonaLoggingObservabilityOptions
         }
 
         return defaults;
+    }
+
+    private static Dictionary<string, string> CreateDefaultCategoryLevels()
+    {
+        return new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Lakona.Rpc"] = "Information",
+            ["Lakona.Rpc.Transport"] = "Information",
+            ["Lakona.Game.Server"] = "Information",
+            ["Lakona.Game.Session"] = "Information",
+            ["Lakona.Game.Actor"] = "Information",
+            ["Lakona.Game.Cluster"] = "Information",
+            ["Lakona.Game.Hotfix"] = "Information",
+            ["Lakona.Game.Observability"] = "Information"
+        };
     }
 }
 

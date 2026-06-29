@@ -41,7 +41,14 @@ public sealed class LakonaObservabilityOptionsTests
         Assert.Equal("Day", options.Logging.File.RollingInterval);
         Assert.Equal(7, options.Logging.File.RetainedFileCountLimit);
         Assert.Equal(128 * 1024 * 1024, options.Logging.File.FileSizeLimitBytes);
-        Assert.Equal("Information", options.Logging.CategoryLevels["Lakona"]);
+        Assert.Equal("Information", options.Logging.CategoryLevels["Lakona.Rpc"]);
+        Assert.Equal("Information", options.Logging.CategoryLevels["Lakona.Rpc.Transport"]);
+        Assert.Equal("Information", options.Logging.CategoryLevels["Lakona.Game.Server"]);
+        Assert.Equal("Information", options.Logging.CategoryLevels["Lakona.Game.Session"]);
+        Assert.Equal("Information", options.Logging.CategoryLevels["Lakona.Game.Actor"]);
+        Assert.Equal("Information", options.Logging.CategoryLevels["Lakona.Game.Cluster"]);
+        Assert.Equal("Information", options.Logging.CategoryLevels["Lakona.Game.Hotfix"]);
+        Assert.Equal("Information", options.Logging.CategoryLevels["Lakona.Game.Observability"]);
 
         Assert.Equal("127.0.0.1", options.LocalAdmin.Host);
         Assert.Equal(20090, options.LocalAdmin.Port);
@@ -174,6 +181,21 @@ public sealed class LakonaObservabilityOptionsTests
     }
 
     [Fact]
+    public void ProfileResolver_rejects_numeric_configured_profile()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:Profile"] = "1"
+        });
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            LakonaGameRuntimeProfileResolver.Resolve(configuration, "Development"));
+
+        Assert.Contains("Lakona:Profile", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("Development, Compose, or Production", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RuntimeOptions_carry_profile_and_observability()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>
@@ -188,23 +210,29 @@ public sealed class LakonaObservabilityOptionsTests
     }
 
     [Fact]
-    public void Capabilities_aggregate_enabled_observability_markers()
+    public void RuntimeOptions_default_constructor_uses_development_observability_defaults()
     {
-        var configuration = BuildConfiguration(new Dictionary<string, string?>
-        {
-            ["Lakona:Observability:Logging:File:Enabled"] = "true",
-            ["Lakona:Observability:Metrics:Prometheus:Enabled"] = "true",
-            ["Lakona:Observability:Tracing:Export:Enabled"] = "true"
-        });
-        var options = LakonaObservabilityOptions.FromConfiguration(
-            configuration,
-            LakonaGameRuntimeProfile.Production);
+        var options = new LakonaGameRuntimeOptions();
 
-        var capabilities = LakonaObservabilityCapabilities.FromOptions(options);
+        Assert.Equal(LakonaGameRuntimeProfile.Development, options.Profile);
+        Assert.True(options.Observability.LocalAdmin.EffectiveEnabled);
+    }
+
+    [Fact]
+    public void Capabilities_aggregate_observability_marker_services()
+    {
+        ILakonaObservabilityCapability[] services =
+        [
+            new FileLoggingObservabilityCapability(),
+            new OpenTelemetryObservabilityCapability(),
+            new PrometheusEndpointObservabilityCapability()
+        ];
+
+        var capabilities = LakonaObservabilityCapabilities.FromServices(services);
 
         Assert.True(capabilities.FileLogging);
         Assert.True(capabilities.OpenTelemetry);
-        Assert.True(capabilities.Prometheus);
+        Assert.True(capabilities.PrometheusEndpoint);
     }
 
     private static IConfiguration BuildConfiguration(Dictionary<string, string?> values)

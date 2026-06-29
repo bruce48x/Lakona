@@ -19,7 +19,8 @@ public sealed class LakonaGameRuntimeOptions
     public LakonaGameClusterOptions? Cluster { get; init; }
     public string ClusterEndpoint { get; init; } = "tcp://127.0.0.1:21000";
     public LakonaGameRuntimeProfile Profile { get; init; } = LakonaGameRuntimeProfile.Development;
-    public LakonaObservabilityOptions Observability { get; init; } = new();
+    public LakonaObservabilityOptions Observability { get; init; } =
+        LakonaObservabilityOptions.Defaults(LakonaGameRuntimeProfile.Development);
 
     public static LakonaGameRuntimeOptions FromConfiguration(
         IConfiguration configuration,
