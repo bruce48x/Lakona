@@ -110,7 +110,7 @@ public sealed class HotfixFeatureScannerTests
 
         Assert.False(result.Succeeded);
         Assert.Contains(result.Diagnostics, diagnostic =>
-            diagnostic.Contains("public static Configure", StringComparison.OrdinalIgnoreCase));
+            diagnostic.Contains("public static void Configure", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -122,7 +122,31 @@ public sealed class HotfixFeatureScannerTests
 
         Assert.False(result.Succeeded);
         Assert.Contains(result.Diagnostics, diagnostic =>
-            diagnostic.Contains("must use public static Configure", StringComparison.OrdinalIgnoreCase));
+            diagnostic.Contains("must use public static void Configure", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Scanner_rejects_static_configure_with_non_void_return()
+    {
+        var result = HotfixBehaviorScanner.Scan(typeof(NonVoidConfigureFeature).Assembly, [
+            typeof(NonVoidConfigureFeature)
+        ]);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Contains("public static void Configure", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Scanner_rejects_open_generic_feature()
+    {
+        var result = HotfixBehaviorScanner.Scan(typeof(GenericFeature<>).Assembly, [
+            typeof(GenericFeature<>)
+        ]);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Contains("concrete class", StringComparison.OrdinalIgnoreCase));
     }
 
     [HotfixFeature("battle-runtime")]
@@ -204,6 +228,23 @@ public sealed class HotfixFeatureScannerTests
         public void Configure(HotfixFeatureContext context)
         {
             context.EnsureLocalActor<MatchmakingActor>("default");
+        }
+    }
+
+    [HotfixFeature("non-void-configure")]
+    private sealed class NonVoidConfigureFeature : HotfixGameFeature
+    {
+        public static string Configure(HotfixFeatureContext context)
+        {
+            return "configured";
+        }
+    }
+
+    [HotfixFeature("generic")]
+    private sealed class GenericFeature<T> : HotfixGameFeature
+    {
+        public static void Configure(HotfixFeatureContext context)
+        {
         }
     }
 

@@ -130,7 +130,7 @@ public static class HotfixBehaviorScanner
             return;
         }
 
-        if (featureType.IsAbstract || featureType.IsInterface)
+        if (featureType.IsAbstract || featureType.IsInterface || featureType.ContainsGenericParameters)
         {
             diagnostics.Add($"Hotfix feature '{featureType.FullName}' must be a concrete class.");
             return;
@@ -145,7 +145,7 @@ public static class HotfixBehaviorScanner
             modifiers: null);
         if (instanceConfigure is not null)
         {
-            diagnostics.Add($"Hotfix feature '{featureType.FullName}' must use public static Configure(HotfixFeatureContext context), not instance Configure.");
+            diagnostics.Add($"Hotfix feature '{featureType.FullName}' must use public static void Configure(HotfixFeatureContext context), not instance Configure.");
             return;
         }
 
@@ -157,7 +157,13 @@ public static class HotfixBehaviorScanner
             modifiers: null);
         if (configure is null)
         {
-            diagnostics.Add($"Hotfix feature '{featureType.FullName}' must declare public static Configure(HotfixFeatureContext context).");
+            diagnostics.Add($"Hotfix feature '{featureType.FullName}' must declare public static void Configure(HotfixFeatureContext context).");
+            return;
+        }
+
+        if (configure.ReturnType != typeof(void))
+        {
+            diagnostics.Add($"Hotfix feature '{featureType.FullName}' must declare public static void Configure(HotfixFeatureContext context).");
             return;
         }
 
