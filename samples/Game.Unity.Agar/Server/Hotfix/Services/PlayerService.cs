@@ -520,12 +520,7 @@ public sealed class PlayerService
             return;
         }
 
-        var room = await services.Rooms
-            .Get(new RoomId(assignment.RoomId))
-            .GetSnapshotAsync(new RoomSnapshotRequest())
-            .ConfigureAwait(false);
-
-        foreach (var player in room.Players)
+        foreach (var player in assignment.Players)
         {
             var snapshot = await services.Users
                 .Get(new UserId(player.UserId))
@@ -552,8 +547,8 @@ public sealed class PlayerService
                 .AssignRoomAsync(new PlayerRoomAssignment
                     {
                         UserId = player.UserId,
-                        RoomId = room.RoomId,
-                        MatchId = room.MatchId,
+                        RoomId = assignment.RoomId,
+                        MatchId = assignment.MatchId,
                         SeatIndex = player.SeatIndex,
                         SessionToken = snapshot.SessionToken,
                         ConnectionId = snapshot.ConnectionId,
@@ -570,15 +565,15 @@ public sealed class PlayerService
             await services.MatchmakingNotifier.PublishAsync(controlSession, new MatchmakingStatusUpdate
             {
                 State = Shared.Interfaces.MatchmakingState.Matched,
-                QueueSize = room.MemberCount > 0 ? room.MemberCount : room.Players.Count,
-                RoomCapacity = room.MaxPlayers,
-                RoomId = room.RoomId,
-                MatchedPlayerCount = room.Players.Count,
-                Message = $"Matched into room {room.RoomId}",
+                QueueSize = assignment.Players.Count,
+                RoomCapacity = assignment.MaxPlayers,
+                RoomId = assignment.RoomId,
+                MatchedPlayerCount = assignment.Players.Count,
+                Message = $"Matched into room {assignment.RoomId}",
                 RealtimeConnection = RealtimeConnectionMapper.ToRealtimeConnectionInfo(
                     assignment.RuntimeGateway,
-                    room.RoomId,
-                    room.MatchId,
+                    assignment.RoomId,
+                    assignment.MatchId,
                     player.SessionToken)
             }).ConfigureAwait(false);
         }

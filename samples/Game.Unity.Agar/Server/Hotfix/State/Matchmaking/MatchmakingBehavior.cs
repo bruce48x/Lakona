@@ -6,13 +6,17 @@ using Agar.Sample.State.Contracts.Users;
 using Agar.Sample.State.Matchmaking;
 using Agar.Sample.State.Rooms;
 using Agar.Sample.State.Users;
+using Lakona.Game.Cluster;
+using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
+using Server.Hotfix.Features;
 using Server.Hotfix.Services;
 using Server.Hotfix.State.Rooms;
 using Server.Hotfix.State.Users;
+using System.Text.Json;
 
 namespace Server.Hotfix.State.Matchmaking;
 
@@ -216,7 +220,7 @@ public static partial class MatchmakingBehavior
                     RuntimeGateway = CloneGateway(runtimeGateway)
                 }).ToList();
 
-                var createResult = await CreateRoomAsync(self, new RoomCreateRequest
+                var createResult = await AllocateRoomAsync(self, new RoomCreateRequest
                 {
                     RoomId = roomId,
                     MatchId = matchId,
@@ -233,13 +237,6 @@ public static partial class MatchmakingBehavior
                     break;
                 }
 
-                await StartRoomAsync(self, new RoomStartRequest
-                {
-                    RoomId = roomId,
-                    StartedByUserId = batch[0].UserId,
-                    StartedAtUtc = nowUtc
-                }, runtimeGateway).ConfigureAwait(false);
-
                 foreach (var playerAssignment in playerAssignments)
                 {
                     await AssignRoomAsync(self, playerAssignment).ConfigureAwait(false);
@@ -250,6 +247,7 @@ public static partial class MatchmakingBehavior
                     RoomId = roomId,
                     MatchId = matchId,
                     AssignedAtUtc = nowUtc,
+                    MaxPlayers = roomSize,
                     Players = playerAssignments.Select(CloneAssignment).ToList(),
                     RuntimeGateway = CloneGateway(runtimeGateway)
                 };
@@ -275,7 +273,10 @@ public static partial class MatchmakingBehavior
         IReadOnlyList<MatchmakingQueueTicket> batch)
     {
         _ = batch;
-        return new ValueTask<GatewayEndpointDescriptor?>(ResolveLocalKcpEndpoint(self.Context.Services));
+        var local = ResolveLocalKcpEndpoint(self.Context.Services);
+        return local is not null
+            ? new ValueTask<GatewayEndpointDescriptor?>(local)
+            : ResolveRemoteKcpEndpointAsync(self.Context.Services);
     }
 
     private static ValueTask<PlayerSessionSnapshot> GetSessionSnapshotAsync(MatchmakingActor self, string userId)
@@ -336,6 +337,118 @@ public static partial class MatchmakingBehavior
             .ConfigureAwait(false);
     }
 
+    private static async ValueTask<RoomSettlementResult> AllocateRoomAsync(MatchmakingActor self, RoomCreateRequest request)
+    {
+        var localNode = self.Context.Services.GetRequiredService<LocalActorNodeIdentity>().NodeId.Value;
+        if (string.Equals(request.RuntimeGateway.InstanceId, localNode, StringComparison.Ordinal))
+        {
+            var createResult = await CreateRoomAsync(self, request).ConfigureAwait(false);
+            if (!createResult.Succeeded)
+            {
+                return createResult;
+            }
+
+            return await StartRoomAsync(self, new RoomStartRequest
+            {
+                RoomId = request.RoomId,
+                StartedByUserId = request.CreatedByUserId,
+                StartedAtUtc = request.CreatedAtUtc
+            }, request.RuntimeGateway).ConfigureAwait(false);
+        }
+
+        return await AllocateRemoteRoomAsync(self, request).ConfigureAwait(false);
+    }
+
+    private static async ValueTask<RoomSettlementResult> AllocateRemoteRoomAsync(
+        MatchmakingActor self,
+        RoomCreateRequest request)
+    {
+        if (self.Context.Services.GetService<IClusterNodeDiscovery>() is not IClusterNodeDiscovery discovery ||
+            self.Context.Services.GetService<IFeatureMessageTransport>() is not IFeatureMessageTransport transport)
+        {
+            return new RoomSettlementResult
+            {
+                RoomId = request.RoomId,
+                Succeeded = false,
+                Message = "Battle runtime feature transport is unavailable."
+            };
+        }
+
+        var candidates = await discovery
+            .ListAsync(new FeatureName(BattleRuntimeRoomAllocation.FeatureName))
+            .ConfigureAwait(false);
+        var target = candidates
+            .Where(candidate => candidate.State == NodeState.Ready)
+            .Where(candidate => string.Equals(candidate.Node.Value, request.RuntimeGateway.InstanceId, StringComparison.Ordinal))
+            .Where(candidate => candidate.Endpoints.ContainsKey("cluster"))
+            .OrderBy(candidate => candidate.Node.Value, StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (target is null)
+        {
+            return new RoomSettlementResult
+            {
+                RoomId = request.RoomId,
+                Succeeded = false,
+                Message = $"Battle runtime node '{request.RuntimeGateway.InstanceId}' is unavailable."
+            };
+        }
+
+        var payload = JsonSerializer.SerializeToUtf8Bytes(new BattleRuntimeRoomAllocationRequest
+        {
+            RoomId = request.RoomId,
+            MatchId = request.MatchId,
+            CreatedByUserId = request.CreatedByUserId,
+            CreatedAtUtc = request.CreatedAtUtc,
+            MaxPlayers = request.MaxPlayers,
+            Players = request.Players.Select(CloneAssignment).ToList(),
+            RuntimeGateway = CloneGateway(request.RuntimeGateway)
+        }, BattleRuntimeRoomAllocation.JsonOptions);
+        var message = new FeatureMessageRequest(
+            new FeatureName(BattleRuntimeRoomAllocation.FeatureName),
+            BattleRuntimeRoomAllocation.AllocateRoomKind,
+            payload,
+            DateTimeOffset.UtcNow.AddSeconds(30),
+            self.Context.Services.GetRequiredService<LocalActorNodeIdentity>().NodeId,
+            Guid.NewGuid().ToString("N"));
+        var reply = await transport.SendAsync(target, message).ConfigureAwait(false);
+        if (reply.Status != ClusterSendStatus.Accepted)
+        {
+            return new RoomSettlementResult
+            {
+                RoomId = request.RoomId,
+                Succeeded = false,
+                Message = string.IsNullOrWhiteSpace(reply.ErrorMessage)
+                    ? $"Battle runtime allocation failed with status {reply.Status}."
+                    : reply.ErrorMessage
+            };
+        }
+
+        BattleRuntimeRoomAllocationReply? allocation;
+        try
+        {
+            allocation = JsonSerializer.Deserialize<BattleRuntimeRoomAllocationReply>(
+                reply.Payload.Span,
+                BattleRuntimeRoomAllocation.JsonOptions);
+        }
+        catch (JsonException ex)
+        {
+            return new RoomSettlementResult
+            {
+                RoomId = request.RoomId,
+                Succeeded = false,
+                Message = $"Battle runtime allocation reply could not be decoded: {ex.Message}"
+            };
+        }
+
+        return new RoomSettlementResult
+        {
+            RoomId = request.RoomId,
+            Succeeded = allocation?.Succeeded == true,
+            Message = allocation?.Message ?? "",
+            UpdatedAtUtc = request.CreatedAtUtc
+        };
+    }
+
     private static ValueTask<RoomSettlementResult> StartRoomAsync(
         MatchmakingActor self,
         RoomStartRequest request,
@@ -379,6 +492,37 @@ public static partial class MatchmakingBehavior
             Host = uri.Host,
             Port = uri.Port,
             Path = uri.AbsolutePath == "/" ? string.Empty : uri.AbsolutePath
+        };
+    }
+
+    private static async ValueTask<GatewayEndpointDescriptor?> ResolveRemoteKcpEndpointAsync(IServiceProvider services)
+    {
+        if (services.GetService<IClusterNodeDiscovery>() is not IClusterNodeDiscovery discovery)
+        {
+            return null;
+        }
+
+        var nodes = await discovery
+            .ListAsync(new FeatureName(BattleRuntimeRoomAllocation.FeatureName))
+            .ConfigureAwait(false);
+        var candidate = nodes
+            .Where(static node => node.State == NodeState.Ready)
+            .Where(static node => node.Endpoints.ContainsKey("kcp"))
+            .OrderBy(static node => node.Node.Value, StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (candidate is null)
+        {
+            return null;
+        }
+
+        var endpoint = ClusterEndpoint.Parse(candidate.Endpoints["kcp"].Address);
+        return new GatewayEndpointDescriptor
+        {
+            InstanceId = candidate.Node.Value,
+            Transport = endpoint.Scheme,
+            Host = endpoint.Host,
+            Port = endpoint.Port,
+            Path = endpoint.Path == "/" ? string.Empty : endpoint.Path
         };
     }
 
@@ -515,6 +659,7 @@ public static partial class MatchmakingBehavior
             RoomId = sessionSnapshot.CurrentRoomId,
             MatchId = sessionSnapshot.CurrentMatchId,
             AssignedAtUtc = assignedAtUtc,
+            MaxPlayers = MatchmakingActor.DefaultRoomSize,
             RuntimeGateway = CloneGateway(sessionSnapshot.RuntimeGateway),
             Players =
             [

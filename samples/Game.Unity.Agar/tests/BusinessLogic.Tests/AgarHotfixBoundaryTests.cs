@@ -167,13 +167,14 @@ public sealed class AgarHotfixBoundaryTests
     }
 
     [Fact]
-    public void Matchmaking_room_creation_stays_on_local_actor_runtime()
+    public void Matchmaking_allocates_remote_rooms_through_battle_runtime_feature()
     {
         var matchmaking = File.ReadAllText(FindRepositoryFile(
             "samples/Game.Unity.Agar/Server/Hotfix/State/Matchmaking/MatchmakingBehavior.cs").FullName);
 
-        Assert.DoesNotContain("IClusterNodeDiscovery", matchmaking, StringComparison.Ordinal);
-        Assert.DoesNotContain(".ListAsync(", matchmaking, StringComparison.Ordinal);
+        Assert.Contains("BattleRuntimeRoomAllocation.FeatureName", matchmaking, StringComparison.Ordinal);
+        Assert.Contains("IFeatureMessageTransport", matchmaking, StringComparison.Ordinal);
+        Assert.Contains("AllocateRemoteRoomAsync", matchmaking, StringComparison.Ordinal);
         Assert.DoesNotContain(".Remote(new NodeId(", matchmaking, StringComparison.Ordinal);
         Assert.DoesNotContain(".Remote(", ExtractMethodBody(matchmaking, "CreateRoomAsync"), StringComparison.Ordinal);
     }

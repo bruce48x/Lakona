@@ -8,6 +8,7 @@ using Lakona.Game.Server.Diagnostics;
 using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Guardrails;
 using Lakona.Game.Server.Hosting;
+using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
 using Lakona.Rpc.Serializer.Json;
 using Lakona.Rpc.Server;
@@ -198,14 +199,17 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
-    public async Task MatchmakingKeepsTicketsQueuedWhenRemoteBattleIsAdvertisedButLocalFeatureExcludesBattleRuntime()
+    public async Task MatchmakingAllocatesExpiredPartialBatchOnRemoteBattleRuntime()
     {
         await TestHotfix.LoadCurrentAsync(TestContext.Current.CancellationToken);
 
+        var roomAllocator = new CapturingBattleRuntimeFeatureMessages();
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
         services.AddGeneratedActorSelectorTestDependencies();
+        var matchmakingNotifierType = typeof(PlayerService).Assembly.GetType("Server.Hotfix.Services.MatchmakingNotifier", throwOnError: true)!;
+        services.AddSingleton(matchmakingNotifierType);
         services.AddSingleton(new LocalActorNodeIdentity(new NodeId("gateway-1")));
         services.AddSingleton(new Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions
         {
@@ -223,65 +227,81 @@ public sealed class DistributedTopologyConfigurationTests
                 }
             ]
         });
-        services.AddSingleton<INodeDirectory>(provider =>
-        {
-            var directory = new InMemoryNodeDirectory();
-            directory.RegisterAsync(
-                new NodeRegistration(
-                    "remote",
-                    new NodeId("battle-1"),
-                    new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal)
-                    {
-                        ["kcp"] = new NodeEndpoint("kcp://battle-1:20001")
-                    },
-                    [new NodeFeatureDescriptor("battle-runtime")],
-                    DateTimeOffset.UtcNow.AddMinutes(1),
-                    NodeState.Ready),
-                DateTimeOffset.UtcNow,
-                CancellationToken.None).AsTask().GetAwaiter().GetResult();
-            return directory;
-        });
-        services.AddSingleton<IClusterNodeDiscovery, ClusterNodeDiscovery>();
+        services.AddSingleton<IClusterNodeDiscovery>(new FixedClusterNodeDiscovery(
+        [
+            new ClusterNodeDescriptor(
+                new NodeId("battle-1"),
+                NodeState.Ready,
+                new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal)
+                {
+                    ["cluster"] = new NodeEndpoint("tcp://battle-1:21003"),
+                    ["kcp"] = new NodeEndpoint("kcp://battle-1:20001")
+                },
+                [new NodeFeatureDescriptor("battle-runtime")])
+        ]));
+        services.AddSingleton<IFeatureMessageTransport>(roomAllocator);
 
         await using var provider = services.BuildServiceProvider();
         var actors = provider.GetRequiredService<IActorRuntime>();
+        var discoveredBattleNodes = await provider
+            .GetRequiredService<IClusterNodeDiscovery>()
+            .ListAsync(new FeatureName("battle-runtime"), TestContext.Current.CancellationToken);
+        Assert.Single(discoveredBattleNodes);
 
-        MatchmakingEnqueueResult? result = null;
-        for (var i = 0; i < 10; i++)
+        var login = await LoginAsync(actors, "remote-battle-player");
+
+        await AttachSessionAsync(actors, new PlayerSessionAttachRequest
         {
-            var playerId = $"player-{i}";
-            var login = await LoginAsync(actors, playerId);
-
-            await AttachSessionAsync(actors, new PlayerSessionAttachRequest
+            UserId = login.UserId,
+            SessionToken = login.SessionToken,
+            ConnectionId = "control-remote-battle",
+            AttachedAtUtc = DateTime.UtcNow,
+            ControlGateway = new Agar.Sample.State.Contracts.GatewayEndpointDescriptor
             {
-                UserId = login.UserId,
-                SessionToken = login.SessionToken,
-                ConnectionId = $"control-{i}",
-                AttachedAtUtc = DateTime.UtcNow,
-                ControlGateway = new Agar.Sample.State.Contracts.GatewayEndpointDescriptor
-                {
-                    InstanceId = "gateway-1",
-                    Transport = "websocket",
-                    Host = "gateway-1",
-                    Port = 20000,
-                    Path = "/ws"
-                }
-            });
+                InstanceId = "gateway-1",
+                Transport = "websocket",
+                Host = "gateway-1",
+                Port = 20000,
+                Path = "/ws"
+            }
+        });
 
-            result = await EnqueueAsync(actors, new MatchmakingEnqueueRequest
-            {
-                UserId = login.UserId,
-                SessionToken = login.SessionToken,
-                EnqueuedAtUtc = DateTime.UtcNow
-            });
-        }
+        var result = await EnqueueAsync(actors, new MatchmakingEnqueueRequest
+        {
+            UserId = login.UserId,
+            SessionToken = login.SessionToken,
+            EnqueuedAtUtc = DateTime.UtcNow.AddSeconds(-6)
+        });
 
         Assert.NotNull(result);
         Assert.False(result.Matched);
         Assert.True(result.Queued);
 
+        await actors.TellAsync<MatchmakingActor>(
+            ActorId.From("default"),
+            (actor, _) => actor.TickAsync(new HotfixActorTick
+            {
+                ObservedAtUtc = DateTime.UtcNow,
+                Interval = TimeSpan.FromMilliseconds(250)
+            }),
+            TestContext.Current.CancellationToken);
+
+        Assert.NotNull(roomAllocator.LastRequest);
+        Assert.Equal("battle-runtime", roomAllocator.LastFeature.Value);
+        Assert.Equal(10, roomAllocator.LastRequest.MaxPlayers);
+        Assert.Single(roomAllocator.LastRequest.Players);
+        Assert.Equal(login.UserId, roomAllocator.LastRequest.Players[0].UserId);
+
         var status = await GetMatchmakingStatusAsync(actors);
-        Assert.Equal(10, status.QueuedCount);
+        Assert.Equal(0, status.QueuedCount);
+
+        var session = await GetSessionSnapshotAsync(actors, login.UserId);
+        Assert.Equal(roomAllocator.LastRequest.RoomId, session.CurrentRoomId);
+        Assert.Equal(roomAllocator.LastRequest.MatchId, session.CurrentMatchId);
+        Assert.Equal("battle-1", session.RuntimeGateway.InstanceId);
+        Assert.Equal("kcp", session.RuntimeGateway.Transport);
+        Assert.Equal("battle-1", session.RuntimeGateway.Host);
+        Assert.Equal(20001, session.RuntimeGateway.Port);
     }
 
     [Fact]
@@ -982,6 +1002,85 @@ public sealed class DistributedTopologyConfigurationTests
         return new ConfigurationBuilder()
             .AddInMemoryCollection(values)
             .Build();
+    }
+
+    private sealed class CapturingBattleRuntimeFeatureMessages : IFeatureMessageTransport
+    {
+        public FeatureName LastFeature { get; private set; }
+
+        public string LastKind { get; private set; } = "";
+
+        public CapturedRoomAllocationRequest? LastRequest { get; private set; }
+
+        public ValueTask<FeatureMessageReply> SendAsync(
+            ClusterNodeDescriptor target,
+            FeatureMessageRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            _ = target;
+            LastFeature = request.Feature;
+            LastKind = request.Kind;
+            LastRequest = CapturedRoomAllocationRequest.From(request.Payload);
+
+            return new ValueTask<FeatureMessageReply>(new FeatureMessageReply(
+                ClusterSendStatus.Accepted,
+                JsonSerializer.SerializeToUtf8Bytes(new
+                {
+                    Succeeded = true,
+                    LastRequest.RoomId,
+                    LastRequest.MatchId,
+                    LastRequest.RuntimeGateway
+                })));
+        }
+    }
+
+    private sealed class FixedClusterNodeDiscovery : IClusterNodeDiscovery
+    {
+        private readonly IReadOnlyList<ClusterNodeDescriptor> _nodes;
+
+        public FixedClusterNodeDiscovery(IReadOnlyList<ClusterNodeDescriptor> nodes)
+        {
+            _nodes = nodes;
+        }
+
+        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> ListAsync(
+            FeatureName feature,
+            CancellationToken cancellationToken = default)
+        {
+            var matches = _nodes
+                .Where(node => node.Features.Any(item =>
+                    string.Equals(item.Name, feature.Value, StringComparison.OrdinalIgnoreCase)))
+                .ToArray();
+            return new ValueTask<IReadOnlyList<ClusterNodeDescriptor>>(matches);
+        }
+
+        public async ValueTask<ClusterNodeDescriptor?> AnyAsync(
+            FeatureName feature,
+            CancellationToken cancellationToken = default)
+        {
+            return (await ListAsync(feature, cancellationToken).ConfigureAwait(false)).FirstOrDefault();
+        }
+    }
+
+    private sealed class CapturedRoomAllocationRequest
+    {
+        public string RoomId { get; set; } = "";
+
+        public string MatchId { get; set; } = "";
+
+        public int MaxPlayers { get; set; }
+
+        public List<PlayerRoomAssignment> Players { get; set; } = new();
+
+        public Agar.Sample.State.Contracts.GatewayEndpointDescriptor RuntimeGateway { get; set; } = new();
+
+        public static CapturedRoomAllocationRequest From(ReadOnlyMemory<byte> payload)
+        {
+            return JsonSerializer.Deserialize<CapturedRoomAllocationRequest>(
+                    payload.Span,
+                    new JsonSerializerOptions(JsonSerializerDefaults.Web)) ??
+                new CapturedRoomAllocationRequest();
+        }
     }
 
     private static string FindRepositoryRoot()
