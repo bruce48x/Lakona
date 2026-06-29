@@ -81,6 +81,16 @@ public sealed class FeatureCommandClientTests
             return new ValueTask<FeatureMessageReply>(
                 new FeatureMessageReply(ClusterSendStatus.Accepted, payload));
         }
+
+        public ValueTask<FeatureMessageReply> SendToNodeAsync<TRequest, TReply>(
+            ClusterNodeDescriptor target,
+            FeatureName feature,
+            string kind,
+            TRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
     }
 
     private sealed class TestSerializer : IFeatureMessageSerializer

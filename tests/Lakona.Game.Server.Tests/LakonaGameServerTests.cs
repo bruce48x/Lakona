@@ -1018,6 +1018,16 @@ public sealed class LakonaGameServerTests
         {
             throw new NotSupportedException();
         }
+
+        public ValueTask<FeatureMessageReply> SendToNodeAsync<TRequest, TReply>(
+            ClusterNodeDescriptor target,
+            FeatureName feature,
+            string kind,
+            TRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
     }
 
     private sealed class TestFeatureMessageSerializer : IFeatureMessageSerializer

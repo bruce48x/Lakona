@@ -82,7 +82,36 @@ public sealed class FeatureMessageBusTests
         Assert.Equal("battle-runtime", transport.LastRequest?.Feature.Value);
         Assert.Equal("17", transport.LastRequest?.Kind);
         Assert.Equal(new NodeId("matchmaker-1"), transport.LastRequest?.SourceNode);
+        Assert.Equal(
+            new DateTimeOffset(2026, 6, 29, 8, 0, 12, TimeSpan.Zero),
+            transport.LastRequest?.ExpiresAt);
         Assert.Equal("room-1", JsonSerializer.Deserialize<CommandRequest>(transport.LastRequest!.Payload.Span)!.RoomId);
+    }
+
+    [Fact]
+    public async Task SendToNodeReturnsNodeUnavailableWhenExplicitTargetIsNotReady()
+    {
+        var bus = new FeatureMessageBus(
+            new ThrowingDiscovery(),
+            new ThrowingTransport(),
+            new TestSerializer());
+        var target = new ClusterNodeDescriptor(
+            new NodeId("runtime-7"),
+            NodeState.Starting,
+            new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal)
+            {
+                ["cluster"] = new NodeEndpoint("tcp://10.0.0.7:21001")
+            },
+            [new NodeFeatureDescriptor("battle-runtime")]);
+
+        var reply = await bus.SendToNodeAsync<CommandRequest, CommandReply>(
+            target,
+            new FeatureName("battle-runtime"),
+            "17",
+            new CommandRequest("room-1"),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.NodeUnavailable, reply.Status);
     }
 
     [Fact]
