@@ -366,7 +366,8 @@ public sealed class HotfixDispatchTable
             var callType = typeof(HotfixFeatureCommandCall<>).MakeGenericType(binding.RequestType);
             var returnType = typeof(ValueTask<>).MakeGenericType(binding.ReplyType);
             var parameters = binding.Method.GetParameters();
-            if (binding.Method.ReturnType != returnType ||
+            if (binding.Method.ContainsGenericParameters ||
+                binding.Method.ReturnType != returnType ||
                 parameters.Length != 1 ||
                 parameters[0].ParameterType != callType)
             {
@@ -611,7 +612,8 @@ public sealed class HotfixDispatchTable
         var method = matches.SingleOrDefault(method =>
         {
             var parameters = method.GetParameters();
-            return method.ReturnType == returnType &&
+            return !method.ContainsGenericParameters &&
+                method.ReturnType == returnType &&
                 parameters.Length == 1 &&
                 parameters[0].ParameterType == callType;
         });
