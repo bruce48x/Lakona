@@ -68,6 +68,7 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
 
     public static void Configure(HotfixFeatureContext context)
     {
+        context.Metadata["region"] = "cn-east";
         context.HandleCommand<AllocateRoomCommand, AllocateRoomReply>(
             nameof(AllocateRoomAsync));
 
@@ -88,16 +89,16 @@ The public authoring model is:
 
 - `HotfixFeatureAttribute` names the capability.
 - A public static `Configure(HotfixFeatureContext context)` method declares
-  commands, actor ticks, local actors, feature metadata, and hotfix feature
-  services.
+  discoverability, metadata, commands, actor ticks, local actors, and hotfix
+  feature services.
 - Instance command methods implement feature-addressed commands and use
   constructor DI.
 - Command methods receive `HotfixFeatureCommandCall<TRequest>` for
   request-specific context.
 
-`IFeatureMessageHandler` remains a low-level framework adapter and advanced
-escape hatch. It should not appear in generated project code, sample business
-code, or ordinary authoring documentation.
+`IFeatureMessageHandler` remains a stable low-level cluster/RPC adapter and
+test boundary. It should not appear in generated project code, sample business
+code, hotfix feature declarations, or ordinary authoring documentation.
 
 ## Feature Class Lifecycle
 
@@ -112,10 +113,31 @@ constructor. The scanner invokes a public static `Configure(HotfixFeatureContext
 context)` method on the feature type and records the resulting declarations in
 `HotfixFeatureDeclaration`.
 
+`HotfixGameFeature` becomes a marker base class for hotfix feature types. It no
+longer declares instance `Discoverable`, `Metadata`, or `Configure` members.
+The declaration data moves into `HotfixFeatureContext`:
+
+```csharp
+public sealed class HotfixFeatureContext
+{
+    public bool Discoverable { get; set; } = true;
+    public IDictionary<string, string> Metadata { get; }
+    public IServiceCollection Services { get; }
+}
+```
+
+The scanner records `context.Discoverable` and a string-copy of
+`context.Metadata` into `HotfixFeatureDeclaration`. Feature metadata remains
+low-cardinality operational metadata and must not include per-player,
+per-session, per-room, or request-specific values.
+
 The existing instance `override Configure(HotfixFeatureContext context)` shape
 should be replaced rather than kept as a parallel authoring path. Lakona is
 early enough that the cleaner model is worth the breaking change, and keeping
 both forms would preserve the same lifecycle ambiguity this design removes.
+Feature types that define an instance `Configure(HotfixFeatureContext)` method
+should fail scanner validation with a diagnostic that points to the static
+declaration shape.
 
 During command invocation, the runtime activates a fresh feature instance from
 the current hotfix provider with `ActivatorUtilities`, invokes the selected
@@ -139,6 +161,7 @@ public sealed class HotfixFeatureCommandCall<TRequest> : IHotfixCallContext
     public string CorrelationId { get; }
     public NodeId SourceNode { get; }
     public DateTimeOffset ExpiresAt { get; }
+    public CancellationToken CancellationToken { get; }
     public IServiceProvider Services { get; }
 }
 ```
@@ -181,16 +204,31 @@ At runtime, the framework-owned feature message adapter:
 
 1. Receives `FeatureMessageRequest`.
 2. Rejects expired messages before hotfix dispatch.
-3. Resolves the current hotfix command by `(FeatureName, FeatureCommandId)`.
-4. Deserializes the request payload with the configured feature message
+3. Parses `FeatureMessageRequest.Kind` into `FeatureCommandId`.
+4. Resolves the current hotfix command by `(FeatureName, FeatureCommandId)`.
+5. Deserializes the request payload with the configured feature message
    serializer.
-5. Builds `HotfixFeatureCommandCall<TRequest>`.
-6. Invokes the command method through the current hotfix dispatch table.
-7. Serializes the reply DTO.
-8. Maps framework failures to `FeatureMessageReply` status values.
+6. Builds `HotfixFeatureCommandCall<TRequest>`.
+7. Invokes the command method through the current hotfix dispatch table.
+8. Serializes the reply DTO.
+9. Maps framework failures to `FeatureMessageReply` status values.
 
 Business code returns a reply DTO or throws. It does not construct
 `FeatureMessageReply` for normal command outcomes.
+
+Typed feature commands use the invariant-culture decimal representation of
+`FeatureCommandId` as the wire `Kind`. Blank values, non-integer values, zero,
+negative values, and overflow values are invalid typed command ids and return
+`ClusterSendStatus.Rejected` before payload deserialization. Legacy string
+command kinds are not supported by the typed feature-command path.
+
+The default stable cluster endpoint binds one framework-owned
+`IFeatureMessageHandler` that dispatches typed hotfix feature commands. It does
+not fan out through `IEnumerable<IFeatureMessageHandler>` from the hotfix
+provider. Advanced stable hosts may replace the default handler at the stable
+cluster/RPC boundary, but then they own the whole low-level feature-message
+surface. There is no mixed precedence between typed hotfix commands and
+hotfix-registered low-level handlers.
 
 ## Error Model
 
@@ -203,8 +241,10 @@ Framework failures use `ClusterSendStatus`:
 - request serialization or deserialization failure:
   `DeserializationFailed`;
 - reply serialization failure: `SerializationFailed`;
-- command cancellation: cancellation when caller cancellation is active,
-  otherwise `Failed`;
+- command cancellation with `HotfixFeatureCommandCall<TRequest>.CancellationToken`
+  requested: propagate cancellation to the local RPC/caller path;
+- `OperationCanceledException` when the command cancellation token is not
+  requested: `Failed`;
 - unhandled command exception: `Failed` with diagnostic message.
 
 Business rejection should be modeled in the reply DTO. For example,
@@ -212,6 +252,12 @@ Business rejection should be modeled in the reply DTO. For example,
 returning `ClusterSendStatus.Rejected` for ordinary room-capacity or rule
 failures. `Rejected` remains available for framework-level admission failures
 where the request cannot be interpreted as a valid command.
+
+Expiration remains separate from cancellation. An expired request returns
+`Expired` even if the caller token is not canceled. A caller-canceled request
+should stop before dispatch when possible, and a command that observes
+`call.CancellationToken` should throw `OperationCanceledException` rather than
+returning a business failure DTO.
 
 ## Dependency Injection
 
@@ -255,21 +301,32 @@ Actor call: where is this concrete state object currently owned?
 2. Change hotfix feature scanning to use static `Configure` instead of
    parameterless feature construction.
 3. Extend `HotfixDispatchTable` with feature command bindings and validation.
-4. Replace `HotfixFeatureMessageHandler` fan-out over
+4. Add `Discoverable` and `Metadata` declaration state to
+   `HotfixFeatureContext`, and remove instance declaration members from
+   `HotfixGameFeature`.
+5. Replace `HotfixFeatureMessageHandler` fan-out over
    `IEnumerable<IFeatureMessageHandler>` with framework dispatch into the
    current hotfix command table.
-5. Keep `IFeatureMessageHandler` available for low-level framework and advanced
-   tests, but remove it from generated project and sample business code.
-6. Migrate Agar:
+6. Keep `IFeatureMessageHandler` available only for the stable low-level
+   cluster/RPC boundary and tests, and remove it from generated project and
+   sample business code.
+7. Define typed command wire `Kind` parsing as invariant-culture decimal
+   `FeatureCommandId` parsing, with invalid values mapped to `Rejected`.
+8. Migrate Agar:
    - move `BattleRuntimeFeatureMessageHandler.HandleAsync` into
      `BattleRuntimeFeature.AllocateRoomAsync`;
    - move `StateStoreFeatureMessageHandler` command handling into
      `StateStoreFeature`;
    - replace manual JSON and `FeatureMessageReply` handling with typed request
      and reply DTOs.
-7. Update documentation in `docs/cluster.md`, `docs/configuration.md`,
+9. Update the affected sample and generated-project `BuildTag` values because
+   the hotfix-visible dispatch and authoring boundary changes.
+10. Bump versions for every modified shippable package under `src/**`, and
+   update package release constants or templates when generated output depends
+   on the new model.
+11. Update documentation in `docs/cluster.md`, `docs/configuration.md`,
    `docs/hotfix/architecture.md`, and `docs/hotfix/actor-behavior.md`.
-8. Update generated templates so starter features use static `Configure` and
+12. Update generated templates so starter features use static `Configure` and
    no feature message handler class.
 
 ## Compatibility Decision
@@ -277,6 +334,8 @@ Actor call: where is this concrete state object currently owned?
 This is a breaking hotfix authoring change:
 
 - feature classes no longer need a public parameterless constructor;
+- feature discoverability and metadata are declared through
+  `HotfixFeatureContext` instead of instance properties;
 - feature declarations move from instance override `Configure` to public static
   `Configure`;
 - ordinary business code no longer implements `IFeatureMessageHandler`;
@@ -291,11 +350,19 @@ Add focused tests for:
 - scanner accepts feature classes with constructor dependencies when they have
   static `Configure`;
 - scanner rejects missing or malformed static `Configure`;
+- scanner rejects old instance `Configure(HotfixFeatureContext)` declarations;
+- static declarations preserve discoverability and metadata;
 - command declarations validate instance method shape;
 - command declarations validate constructor activation;
 - duplicate `(feature, command id)` fails reload;
+- invalid wire `Kind` values return `Rejected`;
+- caller cancellation before dispatch and during command execution follows the
+  documented cancellation path;
+- expiration remains distinct from cancellation;
 - framework feature message adapter dispatches to the current hotfix feature
   command;
+- stable low-level `IFeatureMessageHandler` replacement does not mix with
+  hotfix command-table dispatch;
 - failed hotfix reload keeps previous command dispatch active;
 - Agar remote room allocation works without
   `BattleRuntimeFeatureMessageHandler`;
