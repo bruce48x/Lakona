@@ -88,6 +88,9 @@ public sealed class HotfixRendererTests
         var feature = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Features/ChatFeature.cs").Content;
         Assert.Contains("[HotfixFeature(\"chat\")]", feature, StringComparison.Ordinal);
         Assert.Contains("public sealed class ChatFeature : HotfixGameFeature", feature, StringComparison.Ordinal);
+        Assert.Contains("public static void Configure(HotfixFeatureContext context)", feature, StringComparison.Ordinal);
+        Assert.DoesNotContain("public override void Configure", feature, StringComparison.Ordinal);
+        Assert.DoesNotContain("IFeatureMessageHandler", feature, StringComparison.Ordinal);
         Assert.Contains("context.EnsureLocalActor<ChatRoomActor>(ChatRoomIds.Global);", feature, StringComparison.Ordinal);
         Assert.DoesNotContain("CreateLocalAsync", feature, StringComparison.Ordinal);
         Assert.DoesNotContain("ScheduleActorTick", feature, StringComparison.Ordinal);

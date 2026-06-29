@@ -317,6 +317,9 @@ public sealed class ToolArchitectureScanTests
         Assert.DoesNotContain("AddLakonaGameSessionHotfixLifecycle", appText, StringComparison.Ordinal);
         Assert.DoesNotContain("UseGeneratedHotfixServices", appText, StringComparison.Ordinal);
         Assert.Contains("[HotfixFeature(\"chat\")]", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("public static void Configure(HotfixFeatureContext context)", hotfixText, StringComparison.Ordinal);
+        Assert.DoesNotContain("public override void Configure", hotfixText, StringComparison.Ordinal);
+        Assert.DoesNotContain("IFeatureMessageHandler", hotfixText, StringComparison.Ordinal);
         Assert.Contains("context.EnsureLocalActor<ChatRoomActor>(ChatRoomIds.Global);", hotfixText, StringComparison.Ordinal);
         Assert.Contains("internal static partial class ChatRoomBehavior", hotfixText, StringComparison.Ordinal);
         Assert.Contains("ChatSessionLifecycle", hotfixText, StringComparison.Ordinal);

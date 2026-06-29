@@ -6,7 +6,7 @@ namespace Server.Hotfix.Features
     [HotfixFeature("chat")]
     public sealed class ChatFeature : HotfixGameFeature
     {
-        public override void Configure(HotfixFeatureContext context)
+        public static void Configure(HotfixFeatureContext context)
         {
             context.EnsureLocalActor<ChatRoomActor>(ChatRoomIds.Global);
         }

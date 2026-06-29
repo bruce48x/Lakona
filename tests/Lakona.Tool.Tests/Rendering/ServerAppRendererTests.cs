@@ -185,7 +185,7 @@ public sealed class ServerAppRendererTests
         var plan = Render(Spec(TransportKind.Kcp, SerializerKind.MemoryPack));
 
         var buildTag = AssertPath(plan, "Server/App/BuildTag.props").Content;
-        Assert.Contains("<LakonaHotfixBuildTag>20260612.001</LakonaHotfixBuildTag>", buildTag, StringComparison.Ordinal);
+        Assert.Contains("<LakonaHotfixBuildTag>20260629.001</LakonaHotfixBuildTag>", buildTag, StringComparison.Ordinal);
 
         var project = AssertPath(plan, "Server/App/Server.App.csproj").Content;
         Assert.Contains("<Import Project=\"BuildTag.props\" />", project, StringComparison.Ordinal);
