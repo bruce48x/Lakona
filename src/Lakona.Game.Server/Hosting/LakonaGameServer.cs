@@ -32,7 +32,7 @@ public static class LakonaGameServer
         builder.Logging.ClearProviders();
         builder.Logging.AddConsole();
 
-        var runtimeOptions = LakonaGameRuntimeOptions.FromConfiguration(builder.Configuration);
+        var runtimeOptions = CreateRuntimeOptions(builder.Configuration, builder.Environment.EnvironmentName);
 
         // Health check commands (exit before full startup)
         if (args.Contains("--health-check", StringComparer.Ordinal))
@@ -133,6 +133,20 @@ public static class LakonaGameServer
     internal static bool IsReadinessCheckCommandForTesting(string[] args)
     {
         return IsReadinessCheckCommand(args);
+    }
+
+    internal static LakonaGameRuntimeOptions CreateRuntimeOptionsForTesting(
+        IConfiguration configuration,
+        string? environmentName)
+    {
+        return CreateRuntimeOptions(configuration, environmentName);
+    }
+
+    private static LakonaGameRuntimeOptions CreateRuntimeOptions(
+        IConfiguration configuration,
+        string? environmentName)
+    {
+        return LakonaGameRuntimeOptions.FromConfiguration(configuration, environmentName);
     }
 
     private static bool IsReadinessCheckCommand(string[] args)

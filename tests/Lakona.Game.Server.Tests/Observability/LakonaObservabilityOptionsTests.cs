@@ -230,9 +230,19 @@ public sealed class LakonaObservabilityOptionsTests
 
         var capabilities = LakonaObservabilityCapabilities.FromServices(services);
 
-        Assert.True(capabilities.FileLogging);
-        Assert.True(capabilities.OpenTelemetry);
-        Assert.True(capabilities.PrometheusEndpoint);
+        Assert.True(capabilities.FileLoggingIntegrationRegistered);
+        Assert.True(capabilities.OpenTelemetryIntegrationRegistered);
+        Assert.True(capabilities.PrometheusEndpointRegistered);
+    }
+
+    [Fact]
+    public void Capabilities_default_to_no_registered_integrations()
+    {
+        var capabilities = new LakonaObservabilityCapabilities();
+
+        Assert.False(capabilities.FileLoggingIntegrationRegistered);
+        Assert.False(capabilities.OpenTelemetryIntegrationRegistered);
+        Assert.False(capabilities.PrometheusEndpointRegistered);
     }
 
     private static IConfiguration BuildConfiguration(Dictionary<string, string?> values)

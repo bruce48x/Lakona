@@ -150,6 +150,19 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public void Runtime_options_binding_uses_host_environment_name()
+    {
+        var configuration = new ConfigurationBuilder().Build();
+
+        var options = Lakona.Game.Server.Hosting.LakonaGameServer.CreateRuntimeOptionsForTesting(
+            configuration,
+            "Production");
+
+        Assert.Equal(Lakona.Game.Server.Guardrails.LakonaGameRuntimeProfile.Production, options.Profile);
+        Assert.False(options.Observability.LocalAdmin.EffectiveEnabled);
+    }
+
+    [Fact]
     public void ClusterEndpointConfigurationRegistersClusterRpcServer()
     {
         var services = new ServiceCollection();
