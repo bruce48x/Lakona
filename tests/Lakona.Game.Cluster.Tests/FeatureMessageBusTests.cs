@@ -50,6 +50,65 @@ public sealed class FeatureMessageBusTests
     }
 
     [Fact]
+    public async Task SendToNodeUsesExplicitTargetAndDoesNotQueryDiscovery()
+    {
+        var transport = new CapturingTransport();
+        var target = new ClusterNodeDescriptor(
+            new NodeId("runtime-7"),
+            NodeState.Ready,
+            new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal)
+            {
+                ["cluster"] = new NodeEndpoint("tcp://10.0.0.7:21001")
+            },
+            [new NodeFeatureDescriptor("battle-runtime")]);
+        var bus = new FeatureMessageBus(
+            new ThrowingDiscovery(),
+            transport,
+            new TestSerializer(),
+            new NodeId("matchmaker-1"),
+            TimeSpan.FromSeconds(12),
+            () => new DateTimeOffset(2026, 6, 29, 8, 0, 0, TimeSpan.Zero));
+
+        var reply = await bus.SendToNodeAsync<CommandRequest, CommandReply>(
+            target,
+            new FeatureName("battle-runtime"),
+            "17",
+            new CommandRequest("room-1"),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.Accepted, reply.Status);
+        Assert.Equal(new NodeId("runtime-7"), transport.LastNode);
+        Assert.Equal("tcp://10.0.0.7:21001", transport.LastEndpoint);
+        Assert.Equal("battle-runtime", transport.LastRequest?.Feature.Value);
+        Assert.Equal("17", transport.LastRequest?.Kind);
+        Assert.Equal(new NodeId("matchmaker-1"), transport.LastRequest?.SourceNode);
+        Assert.Equal("room-1", JsonSerializer.Deserialize<CommandRequest>(transport.LastRequest!.Payload.Span)!.RoomId);
+    }
+
+    [Fact]
+    public async Task SendToNodeReturnsNodeUnavailableWhenExplicitTargetHasNoClusterEndpoint()
+    {
+        var bus = new FeatureMessageBus(
+            new ThrowingDiscovery(),
+            new ThrowingTransport(),
+            new TestSerializer());
+        var target = new ClusterNodeDescriptor(
+            new NodeId("runtime-7"),
+            NodeState.Ready,
+            new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal),
+            [new NodeFeatureDescriptor("battle-runtime")]);
+
+        var reply = await bus.SendToNodeAsync<CommandRequest, CommandReply>(
+            target,
+            new FeatureName("battle-runtime"),
+            "17",
+            new CommandRequest("room-1"),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.NodeUnavailable, reply.Status);
+    }
+
+    [Fact]
     public void FeatureCommandIdRejectsNonPositiveValues()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new FeatureCommandId(0));
@@ -65,6 +124,54 @@ public sealed class FeatureMessageBusTests
         Assert.Equal("42", command.ToString());
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("abc")]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [InlineData("2147483648")]
+    public void FeatureCommandIdTryParseRejectsInvalidWireValues(string value)
+    {
+        Assert.False(FeatureCommandId.TryParse(value, out var commandId));
+        Assert.Equal(default, commandId);
+    }
+
+    [Fact]
+    public void FeatureCommandIdTryParseAcceptsInvariantDecimalWireValue()
+    {
+        Assert.True(FeatureCommandId.TryParse("42", out var commandId));
+        Assert.Equal(42, commandId.Value);
+    }
+
+    [Fact]
+    public void FeatureMessageRequestAllowsBlankKindForWireLevelTypedRejection()
+    {
+        var request = new FeatureMessageRequest(
+            new FeatureName("battle-runtime"),
+            "",
+            ReadOnlyMemory<byte>.Empty,
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            new NodeId("data-1"),
+            "corr-1");
+
+        Assert.Equal("", request.Kind);
+    }
+
+    [Fact]
+    public void FeatureMessageRequestNormalizesNullKindForWireLevelTypedRejection()
+    {
+        var request = new FeatureMessageRequest(
+            new FeatureName("battle-runtime"),
+            null!,
+            ReadOnlyMemory<byte>.Empty,
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            new NodeId("data-1"),
+            "corr-1");
+
+        Assert.Equal("", request.Kind);
+    }
+
     [Fact]
     public void FeatureMessageReplyDeserializesAcceptedPayload()
     {
@@ -75,7 +182,7 @@ public sealed class FeatureMessageBusTests
 
         var payload = reply.GetPayload<CommandReply>(serializer);
 
-        Assert.Equal("ok", payload.Value);
+        Assert.Equal("ok", payload.Status);
     }
 
     [Fact]
@@ -107,7 +214,7 @@ public sealed class FeatureMessageBusTests
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return ValueTask.FromResult<ClusterNodeDescriptor?>(null);
+            return new ValueTask<ClusterNodeDescriptor?>((ClusterNodeDescriptor?)null);
         }
     }
 
@@ -132,7 +239,24 @@ public sealed class FeatureMessageBusTests
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return ValueTask.FromResult<ClusterNodeDescriptor?>(_node);
+            return new ValueTask<ClusterNodeDescriptor?>(_node);
+        }
+    }
+
+    private sealed class ThrowingDiscovery : IClusterNodeDiscovery
+    {
+        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> ListAsync(
+            FeatureName feature,
+            CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("Discovery should not be queried for node-pinned sends.");
+        }
+
+        public ValueTask<ClusterNodeDescriptor?> AnyAsync(
+            FeatureName feature,
+            CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("Discovery should not be queried for node-pinned sends.");
         }
     }
 
@@ -153,7 +277,8 @@ public sealed class FeatureMessageBusTests
             LastNode = target.Node;
             LastEndpoint = target.Endpoints["cluster"].Address;
             LastRequest = request;
-            return ValueTask.FromResult(new FeatureMessageReply(ClusterSendStatus.Accepted, Array.Empty<byte>()));
+            return new ValueTask<FeatureMessageReply>(
+                new FeatureMessageReply(ClusterSendStatus.Accepted, Array.Empty<byte>()));
         }
     }
 
@@ -181,5 +306,7 @@ public sealed class FeatureMessageBusTests
         }
     }
 
-    private sealed record CommandReply(string Value);
+    private sealed record CommandRequest(string RoomId);
+
+    private sealed record CommandReply(string Status);
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 
 namespace Lakona.Game.Cluster;
 
@@ -21,9 +22,31 @@ public readonly struct FeatureCommandId : IEquatable<FeatureCommandId>
         return new FeatureCommandId(value);
     }
 
+    public static bool TryParse(string? value, out FeatureCommandId commandId)
+    {
+        commandId = default;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        if (!int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed))
+        {
+            return false;
+        }
+
+        if (parsed <= 0)
+        {
+            return false;
+        }
+
+        commandId = new FeatureCommandId(parsed);
+        return true;
+    }
+
     public override string ToString()
     {
-        return Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return Value.ToString(CultureInfo.InvariantCulture);
     }
 
     public bool Equals(FeatureCommandId other)

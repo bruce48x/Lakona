@@ -58,6 +58,43 @@ namespace Lakona.Game.Cluster
                 return new FeatureMessageReply(ClusterSendStatus.FeatureNotFound, Array.Empty<byte>());
             }
 
+            return await SendToReadyTargetAsync<TRequest, TReply>(
+                target,
+                feature,
+                kind,
+                request,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        public async ValueTask<FeatureMessageReply> SendToNodeAsync<TRequest, TReply>(
+            ClusterNodeDescriptor target,
+            FeatureName feature,
+            string kind,
+            TRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            if (target is null)
+            {
+                throw new ArgumentNullException(nameof(target));
+            }
+
+            return await SendToReadyTargetAsync<TRequest, TReply>(
+                target,
+                feature,
+                kind,
+                request,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        private async ValueTask<FeatureMessageReply> SendToReadyTargetAsync<TRequest, TReply>(
+            ClusterNodeDescriptor target,
+            FeatureName feature,
+            string kind,
+            TRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
             if (target.State != NodeState.Ready || !target.Endpoints.ContainsKey("cluster"))
             {
                 return new FeatureMessageReply(ClusterSendStatus.NodeUnavailable, Array.Empty<byte>());

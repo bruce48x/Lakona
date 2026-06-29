@@ -90,6 +90,45 @@ public sealed class FeatureMessageTransportTests
         Assert.Equal("corr-1", dispatched.CorrelationId);
     }
 
+    [Fact]
+    public async Task BinderConvertsNullFeatureKindToBlankForTypedRejection()
+    {
+        var registry = new RpcServiceRegistry();
+        var handler = new InvalidKindRejectingFeatureHandler();
+        FeatureMessageBinder.Bind(registry, handler);
+        Assert.True(registry.TryGetHandler(
+            ClusterProtocol.ServiceId,
+            ClusterProtocol.FeatureMessageMethodId,
+            out var rpcHandler));
+
+        var serializer = new JsonTestSerializer();
+        await using var session = new RpcSession(new FakeTransport(), serializer);
+        using var payload = serializer.SerializeFrame(new FeatureSendRequest
+        {
+            Feature = "matchmaking",
+            Kind = null!,
+            Payload = Array.Empty<byte>(),
+            ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(1),
+            SourceNode = "gateway-1",
+            CorrelationId = "corr-1"
+        });
+        using var frame = await rpcHandler!(
+            session,
+            new RpcRequestFrame(
+                1,
+                ClusterProtocol.ServiceId,
+                ClusterProtocol.FeatureMessageMethodId,
+                payload),
+            TestContext.Current.CancellationToken);
+
+        using var response = RpcEnvelopeCodec.DecodeResponse(frame);
+        var reply = serializer.Deserialize<FeatureSendReply>(response.Payload.Memory);
+        var dispatched = Assert.Single(handler.Requests);
+        Assert.Equal(RpcStatus.Ok, response.Status);
+        Assert.Equal(ClusterSendStatus.Rejected, (ClusterSendStatus)reply.Status);
+        Assert.Equal("", dispatched.Kind);
+    }
+
     private static ClusterNodeDescriptor NewTarget()
     {
         return new ClusterNodeDescriptor(
@@ -130,7 +169,7 @@ public sealed class FeatureMessageTransportTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             Targets.Add(target);
-            return ValueTask.FromResult(_client);
+            return new ValueTask<IRpcClient>(_client);
         }
     }
 
@@ -158,7 +197,7 @@ public sealed class FeatureMessageTransportTests
             ServiceId = method.ServiceId;
             MethodId = method.MethodId;
             Request = Assert.IsType<FeatureSendRequest>(arg);
-            return ValueTask.FromResult((TResult)(object)_reply);
+            return new ValueTask<TResult>((TResult)(object)_reply);
         }
 
         public void RegisterNotificationHandler<TArg>(
@@ -185,7 +224,25 @@ public sealed class FeatureMessageTransportTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             Requests.Add(request);
-            return ValueTask.FromResult(_reply);
+            return new ValueTask<FeatureMessageReply>(_reply);
+        }
+    }
+
+    private sealed class InvalidKindRejectingFeatureHandler : IFeatureMessageHandler
+    {
+        public List<FeatureMessageRequest> Requests { get; } = new();
+
+        public ValueTask<FeatureMessageReply> HandleAsync(
+            FeatureMessageRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Requests.Add(request);
+            var status = string.IsNullOrWhiteSpace(request.Kind)
+                ? ClusterSendStatus.Rejected
+                : ClusterSendStatus.Accepted;
+            return new ValueTask<FeatureMessageReply>(
+                new FeatureMessageReply(status, ReadOnlyMemory<byte>.Empty));
         }
     }
 
@@ -229,7 +286,7 @@ public sealed class FeatureMessageTransportTests
         public ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return ValueTask.FromResult(TransportFrame.Empty);
+            return new ValueTask<TransportFrame>(TransportFrame.Empty);
         }
 
         public ValueTask DisposeAsync()

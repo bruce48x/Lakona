@@ -17,11 +17,6 @@ namespace Lakona.Game.Cluster
                 throw new ArgumentException("Feature name is required.", nameof(feature));
             }
 
-            if (string.IsNullOrWhiteSpace(kind))
-            {
-                throw new ArgumentException("Feature message kind is required.", nameof(kind));
-            }
-
             if (string.IsNullOrWhiteSpace(sourceNode.Value))
             {
                 throw new ArgumentException("Source node is required.", nameof(sourceNode));
@@ -33,7 +28,7 @@ namespace Lakona.Game.Cluster
             }
 
             Feature = feature;
-            Kind = kind;
+            Kind = kind ?? string.Empty;
             Payload = payload.ToArray();
             ExpiresAt = expiresAt;
             SourceNode = sourceNode;

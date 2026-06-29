@@ -15,5 +15,12 @@ namespace Lakona.Game.Cluster
             string kind,
             TRequest request,
             CancellationToken cancellationToken = default);
+
+        ValueTask<FeatureMessageReply> SendToNodeAsync<TRequest, TReply>(
+            ClusterNodeDescriptor target,
+            FeatureName feature,
+            string kind,
+            TRequest request,
+            CancellationToken cancellationToken = default);
     }
 }
