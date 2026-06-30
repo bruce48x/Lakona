@@ -244,16 +244,43 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
         var accepted = observer.Accepted;
         var skipped = observer.Skipped;
         var coalesced = observer.Coalesced;
+        var rejected = observer.Rejected;
         var entered = observer.Entered;
 
         Assert.Contains(accepted, observation => observation.ActorId == ActorId.From("skip"));
         Assert.Contains(accepted, observation => observation.ActorId == ActorId.From("coalesce"));
         Assert.Contains(skipped, observation => observation.ActorId == ActorId.From("skip"));
         Assert.Contains(coalesced, observation => observation.ActorId == ActorId.From("coalesce"));
+        Assert.Empty(rejected);
         Assert.Contains(entered, observation => observation.ActorId == ActorId.From("skip") && observation.Sequence == 1);
         Assert.Contains(entered, observation => observation.ActorId == ActorId.From("coalesce") && observation.Sequence == 1);
         Assert.Contains(entered, observation => observation.ActorId == ActorId.From("coalesce") && observation.Sequence == 2);
         Assert.All(entered, observation => Assert.True(observation.QueueLatency >= TimeSpan.Zero));
+    }
+
+    [Fact]
+    public async Task Observer_exceptions_do_not_prevent_fixed_actor_tick_execution()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var runtime = new RecordingActorRuntime();
+        await using var scheduler = new HotfixActorTickScheduler(
+            runtime,
+            NullLogger<HotfixActorTickScheduler>.Instance,
+            new ThrowingTickObserver());
+
+        HotfixDispatch.Replace(CreateTickTable(1));
+        scheduler.Apply(CreateSnapshot(
+            new HotfixActorTickDeclaration(
+                HotfixActorTickMode.FixedActor,
+                typeof(TickActor),
+                "fixed",
+                nameof(TickHotfix.TickAsync),
+                TimeSpan.FromHours(1),
+                TickBacklogPolicy.SkipIfPending)));
+
+        await TickHotfix.WaitForCountAsync(1, cancellationToken);
+
+        Assert.Equal(["fixed"], TickHotfix.ActorIds.Distinct().ToArray());
     }
 
     [Fact]
@@ -655,6 +682,7 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
         private readonly List<HotfixActorTickDispatchObservation> _accepted = [];
         private readonly List<HotfixActorTickDispatchObservation> _skipped = [];
         private readonly List<HotfixActorTickDispatchObservation> _coalesced = [];
+        private readonly List<(HotfixActorTickDispatchObservation Observation, ActorTellResult Result)> _rejected = [];
         private readonly List<HotfixActorTickEntryObservation> _entered = [];
         private readonly TaskCompletionSource _skippedRecorded =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -705,6 +733,17 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
             }
         }
 
+        public IReadOnlyList<(HotfixActorTickDispatchObservation Observation, ActorTellResult Result)> Rejected
+        {
+            get
+            {
+                lock (_sync)
+                {
+                    return _rejected.ToArray();
+                }
+            }
+        }
+
         public void OnDispatchAccepted(HotfixActorTickDispatchObservation observation)
         {
             lock (_sync)
@@ -717,7 +756,10 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
             HotfixActorTickDispatchObservation observation,
             ActorTellResult result)
         {
-            _ = result;
+            lock (_sync)
+            {
+                _rejected.Add((observation, result));
+            }
         }
 
         public void OnDispatchSkipped(HotfixActorTickDispatchObservation observation)
@@ -758,6 +800,36 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
         {
             await _coalescedRecorded.Task.WaitAsync(TimeSpan.FromSeconds(1), cancellationToken)
                 .ConfigureAwait(false);
+        }
+    }
+
+    private sealed class ThrowingTickObserver : IHotfixActorTickSchedulerObserver
+    {
+        public void OnDispatchAccepted(HotfixActorTickDispatchObservation observation)
+        {
+            throw new InvalidOperationException("Observer dispatch accepted failure.");
+        }
+
+        public void OnDispatchRejected(
+            HotfixActorTickDispatchObservation observation,
+            ActorTellResult result)
+        {
+            throw new InvalidOperationException("Observer dispatch rejected failure.");
+        }
+
+        public void OnDispatchSkipped(HotfixActorTickDispatchObservation observation)
+        {
+            throw new InvalidOperationException("Observer dispatch skipped failure.");
+        }
+
+        public void OnDispatchCoalesced(HotfixActorTickDispatchObservation observation)
+        {
+            throw new InvalidOperationException("Observer dispatch coalesced failure.");
+        }
+
+        public void OnTickEntered(HotfixActorTickEntryObservation observation)
+        {
+            throw new InvalidOperationException("Observer tick entered failure.");
         }
     }
 

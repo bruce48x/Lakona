@@ -159,7 +159,10 @@ internal sealed class HotfixActorTickScheduler(
 
         if (coalesced)
         {
-            _observer.OnDispatchCoalesced(observation);
+            NotifyObserver(
+                observer => observer.OnDispatchCoalesced(observation),
+                "dispatch coalesced",
+                observation);
             return;
         }
 
@@ -169,7 +172,10 @@ internal sealed class HotfixActorTickScheduler(
                 "Skipping hotfix actor tick {TickSource} for actor {ActorId}; previous tick is pending.",
                 source.Key,
                 actorId.Value);
-            _observer.OnDispatchSkipped(observation);
+            NotifyObserver(
+                observer => observer.OnDispatchSkipped(observation),
+                "dispatch skipped",
+                observation);
             return;
         }
 
@@ -198,7 +204,7 @@ internal sealed class HotfixActorTickScheduler(
                         Sequence = Interlocked.Increment(ref pending.Sequence),
                         DispatchTableVersion = table.Version
                     };
-                    _observer.OnTickEntered(new HotfixActorTickEntryObservation(
+                    var entryObservation = new HotfixActorTickEntryObservation(
                         observation.SourceKey,
                         observation.ActorType,
                         observation.ActorId,
@@ -207,7 +213,11 @@ internal sealed class HotfixActorTickScheduler(
                         observation.BacklogPolicy,
                         observation.QueuedTimestamp,
                         Stopwatch.GetTimestamp(),
-                        tick.Sequence));
+                        tick.Sequence);
+                    NotifyObserver(
+                        observer => observer.OnTickEntered(entryObservation),
+                        "tick entered",
+                        observation);
 
                     await HotfixDispatch.InvokeValueTaskAsync(
                         source.ActorType,
@@ -224,7 +234,10 @@ internal sealed class HotfixActorTickScheduler(
 
         if (result == ActorTellResult.Accepted)
         {
-            _observer.OnDispatchAccepted(observation);
+            NotifyObserver(
+                observer => observer.OnDispatchAccepted(observation),
+                "dispatch accepted",
+                observation);
             return;
         }
 
@@ -234,7 +247,10 @@ internal sealed class HotfixActorTickScheduler(
             actorId.Value,
             result);
 
-        _observer.OnDispatchRejected(observation, result);
+        NotifyObserver(
+            observer => observer.OnDispatchRejected(observation, result),
+            "dispatch rejected",
+            observation);
         CompletePending(source, actorId, key, pending);
     }
 
@@ -281,6 +297,25 @@ internal sealed class HotfixActorTickScheduler(
             source.Interval,
             source.BacklogPolicy,
             Stopwatch.GetTimestamp());
+    }
+
+    private void NotifyObserver(
+        Action<IHotfixActorTickSchedulerObserver> notify,
+        string eventName,
+        HotfixActorTickDispatchObservation observation)
+    {
+        try
+        {
+            notify(_observer);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(
+                ex,
+                "Hotfix actor tick scheduler observer failed for {ObserverEvent} on tick source {TickSource}.",
+                eventName,
+                observation.SourceKey);
+        }
     }
 
     private sealed record TickSource(
