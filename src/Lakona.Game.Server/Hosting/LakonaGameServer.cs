@@ -127,7 +127,9 @@ public static class LakonaGameServer
             builder.Services,
             runtimeOptions,
             clusterOptions,
-            ResolveDefaultHotfixAssemblyPath(AppContext.BaseDirectory, hotfixAdminOptions));
+            await ResolveDefaultHotfixAssemblyPathAsync(
+                AppContext.BaseDirectory,
+                hotfixAdminOptions).ConfigureAwait(false));
 
         var host = builder.Build();
         await LoadInitialHotfixAsync(host);
@@ -216,14 +218,14 @@ public static class LakonaGameServer
             builder.Environment.EnvironmentName);
     }
 
-    internal static void ValidateStartupRuntimeForTesting(
+    internal static Task ValidateStartupRuntimeForTesting(
         string[] args,
         Action<LakonaGameServerBuilder> configure)
     {
-        ValidateStartupRuntimeForTesting(args, configure, AppContext.BaseDirectory);
+        return ValidateStartupRuntimeForTesting(args, configure, AppContext.BaseDirectory);
     }
 
-    internal static void ValidateStartupRuntimeForTesting(
+    internal static async Task ValidateStartupRuntimeForTesting(
         string[] args,
         Action<LakonaGameServerBuilder> configure,
         string baseDirectory)
@@ -251,7 +253,9 @@ public static class LakonaGameServer
             builder.Services,
             runtimeOptions,
             clusterOptions,
-            ResolveDefaultHotfixAssemblyPath(baseDirectory, hotfixAdminOptions));
+            await ResolveDefaultHotfixAssemblyPathAsync(
+                baseDirectory,
+                hotfixAdminOptions).ConfigureAwait(false));
     }
 
     private static void ValidateStartupRuntime(
@@ -309,29 +313,13 @@ public static class LakonaGameServer
             $"{errors.Length} startup validation {noun}. First error {firstError.Code}: {firstError.Message}");
     }
 
-    private static string ResolveDefaultHotfixAssemblyPath(
+    private static async Task<string> ResolveDefaultHotfixAssemblyPathAsync(
         string baseDirectory,
         HotfixAdminOptions adminOptions)
     {
-        var hotfixDirectory = Path.Combine(baseDirectory, "hotfix");
-        if (!adminOptions.Mode.Equals("production", StringComparison.OrdinalIgnoreCase))
-        {
-            return Path.Combine(hotfixDirectory, "Server.Hotfix.dll");
-        }
-
-        var pointerPath = Path.Combine(hotfixDirectory, "current.txt");
-        if (!File.Exists(pointerPath))
-        {
-            return pointerPath;
-        }
-
-        var version = File.ReadAllText(pointerPath).Trim();
-        if (string.IsNullOrWhiteSpace(version) || version.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-        {
-            return Path.Combine(hotfixDirectory, "versions", "__invalid_hotfix_version__", "Server.Hotfix.dll");
-        }
-
-        return Path.Combine(hotfixDirectory, "versions", version, "Server.Hotfix.dll");
+        var source = CreateDefaultHotfixAssemblySource(baseDirectory, adminOptions);
+        var resolved = await source.ResolveAsync().ConfigureAwait(false);
+        return resolved.AssemblyPath;
     }
 
     private static LakonaGameRuntimeOptions CreateRuntimeOptions(

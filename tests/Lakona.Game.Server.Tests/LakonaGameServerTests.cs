@@ -235,13 +235,13 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public void Startup_validation_fails_before_host_build_when_observability_capability_is_missing()
+    public async Task Startup_validation_fails_before_host_build_when_observability_capability_is_missing()
     {
         var hotfixPath = Path.Combine(AppContext.BaseDirectory, "hotfix", "Server.Hotfix.dll");
         Directory.CreateDirectory(Path.GetDirectoryName(hotfixPath)!);
         File.WriteAllText(hotfixPath, "");
 
-        var error = Assert.Throws<InvalidOperationException>(() =>
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             Lakona.Game.Server.Hosting.LakonaGameServer.ValidateStartupRuntimeForTesting(
                 [],
                 server =>
@@ -265,27 +265,72 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public void Startup_validation_accepts_production_hotfix_version_pointer_layout()
+    public async Task Startup_validation_accepts_production_hotfix_version_pointer_layout()
     {
         var baseDirectory = Path.Combine(
             Path.GetTempPath(),
             "LakonaStartupValidationTests",
             Guid.NewGuid().ToString("N"));
-        var hotfixRoot = Path.Combine(baseDirectory, "hotfix");
-        var version = "2026.06.30.1";
-        var versionDirectory = Path.Combine(hotfixRoot, "versions", version);
-        Directory.CreateDirectory(versionDirectory);
-        File.WriteAllText(Path.Combine(hotfixRoot, "current.txt"), version);
-        File.WriteAllText(Path.Combine(versionDirectory, "Server.Hotfix.dll"), "");
-        Assert.False(File.Exists(Path.Combine(hotfixRoot, "Server.Hotfix.dll")));
+        try
+        {
+            var hotfixRoot = Path.Combine(baseDirectory, "hotfix");
+            var version = "2026.06.30.1";
+            var versionDirectory = Path.Combine(hotfixRoot, "versions", version);
+            Directory.CreateDirectory(versionDirectory);
+            File.WriteAllText(Path.Combine(hotfixRoot, "current.txt"), version);
+            File.WriteAllText(Path.Combine(versionDirectory, "Server.Hotfix.dll"), "");
+            Assert.False(File.Exists(Path.Combine(hotfixRoot, "Server.Hotfix.dll")));
 
-        var error = Record.Exception(() =>
-            Lakona.Game.Server.Hosting.LakonaGameServer.ValidateStartupRuntimeForTesting(
-                [],
-                server =>
-                {
-                    server.ConfigureAppConfiguration(configuration =>
-                        configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            var error = await Record.ExceptionAsync(() =>
+                Lakona.Game.Server.Hosting.LakonaGameServer.ValidateStartupRuntimeForTesting(
+                    [],
+                    server =>
+                    {
+                        server.ConfigureAppConfiguration(configuration =>
+                            configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                            {
+                                ["Lakona:Endpoints:0:Transport"] = "websocket",
+                                ["Lakona:Endpoints:0:Serializer"] = "json",
+                                ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
+                                ["Lakona:Endpoints:0:Port"] = "20000",
+                                ["Lakona:Endpoints:0:Path"] = "/ws",
+                                ["Lakona:Hotfix:Admin:Mode"] = "production"
+                            }));
+                    },
+                    baseDirectory));
+
+            Assert.Null(error);
+        }
+        finally
+        {
+            if (Directory.Exists(baseDirectory))
+            {
+                Directory.Delete(baseDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Startup_validation_rejects_invalid_production_hotfix_pointer_with_stale_dev_dll()
+    {
+        var baseDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "LakonaStartupValidationTests",
+            Guid.NewGuid().ToString("N"));
+        try
+        {
+            var hotfixRoot = Path.Combine(baseDirectory, "hotfix");
+            Directory.CreateDirectory(hotfixRoot);
+            File.WriteAllText(Path.Combine(hotfixRoot, "current.txt"), "..");
+            File.WriteAllText(Path.Combine(hotfixRoot, "Server.Hotfix.dll"), "");
+
+            var error = await Record.ExceptionAsync(() =>
+                Lakona.Game.Server.Hosting.LakonaGameServer.ValidateStartupRuntimeForTesting(
+                    [],
+                    server =>
+                    {
+                        server.ConfigureAppConfiguration(configuration =>
+                            configuration.AddInMemoryCollection(new Dictionary<string, string?>
                         {
                             ["Lakona:Endpoints:0:Transport"] = "websocket",
                             ["Lakona:Endpoints:0:Serializer"] = "json",
@@ -294,10 +339,18 @@ public sealed class LakonaGameServerTests
                             ["Lakona:Endpoints:0:Path"] = "/ws",
                             ["Lakona:Hotfix:Admin:Mode"] = "production"
                         }));
-                },
-                baseDirectory));
+                    },
+                    baseDirectory));
 
-        Assert.Null(error);
+            Assert.NotNull(error);
+        }
+        finally
+        {
+            if (Directory.Exists(baseDirectory))
+            {
+                Directory.Delete(baseDirectory, recursive: true);
+            }
+        }
     }
 
     [Fact]
