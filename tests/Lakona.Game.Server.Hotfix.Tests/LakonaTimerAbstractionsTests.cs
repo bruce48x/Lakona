@@ -14,8 +14,8 @@ public sealed class LakonaTimerAbstractionsTests
             .Select(method => new
             {
                 method.Name,
-                GenericArguments = method.GetGenericArguments().Select(argument => argument.Name).ToArray(),
-                Parameters = method.GetParameters().Select(parameter => parameter.ParameterType).ToArray(),
+                GenericArguments = method.GetGenericArguments(),
+                Parameters = method.GetParameters(),
                 method.ReturnType
             })
             .OrderBy(method => method.Name, StringComparer.Ordinal)
@@ -27,30 +27,36 @@ public sealed class LakonaTimerAbstractionsTests
             method =>
             {
                 Assert.Equal(nameof(LakonaTimer.CreateOnceTimerAsync), method.Name);
-                Assert.Equal(["TCallback", "TArgs"], method.GenericArguments);
+                Assert.Equal(["TCallback", "TArgs"], method.GenericArguments.Select(argument => argument.Name).ToArray());
+                Assert.True((method.GenericArguments[0].GenericParameterAttributes & GenericParameterAttributes.ReferenceTypeConstraint) != 0);
                 Assert.Equal(4, method.Parameters.Length);
-                Assert.Equal([typeof(TimeSpan), typeof(string), typeof(CancellationToken)], [method.Parameters[0], method.Parameters[1], method.Parameters[3]]);
-                Assert.True(method.Parameters[2].IsGenericParameter);
-                Assert.Equal("TArgs", method.Parameters[2].Name);
+                Assert.Equal([typeof(TimeSpan), typeof(string), typeof(CancellationToken)], [method.Parameters[0].ParameterType, method.Parameters[1].ParameterType, method.Parameters[3].ParameterType]);
+                Assert.True(method.Parameters[2].ParameterType.IsGenericParameter);
+                Assert.Equal("TArgs", method.Parameters[2].ParameterType.Name);
+                Assert.True(method.Parameters[3].HasDefaultValue);
+                Assert.Null(method.Parameters[3].DefaultValue);
                 Assert.Equal(typeof(ValueTask<TimerId>), method.ReturnType);
             },
             method =>
             {
                 Assert.Equal(nameof(LakonaTimer.CreatePeriodicTimerAsync), method.Name);
-                Assert.Equal(["TCallback", "TArgs"], method.GenericArguments);
+                Assert.Equal(["TCallback", "TArgs"], method.GenericArguments.Select(argument => argument.Name).ToArray());
+                Assert.True((method.GenericArguments[0].GenericParameterAttributes & GenericParameterAttributes.ReferenceTypeConstraint) != 0);
                 Assert.Equal(5, method.Parameters.Length);
                 Assert.Equal(
                     [typeof(TimeSpan), typeof(TimeSpan), typeof(string), typeof(CancellationToken)],
-                    [method.Parameters[0], method.Parameters[1], method.Parameters[2], method.Parameters[4]]);
-                Assert.True(method.Parameters[3].IsGenericParameter);
-                Assert.Equal("TArgs", method.Parameters[3].Name);
+                    [method.Parameters[0].ParameterType, method.Parameters[1].ParameterType, method.Parameters[2].ParameterType, method.Parameters[4].ParameterType]);
+                Assert.True(method.Parameters[3].ParameterType.IsGenericParameter);
+                Assert.Equal("TArgs", method.Parameters[3].ParameterType.Name);
+                Assert.True(method.Parameters[4].HasDefaultValue);
+                Assert.Null(method.Parameters[4].DefaultValue);
                 Assert.Equal(typeof(ValueTask<TimerId>), method.ReturnType);
             },
             method =>
             {
                 Assert.Equal(nameof(LakonaTimer.DestroyTimerAsync), method.Name);
                 Assert.Empty(method.GenericArguments);
-                Assert.Equal([typeof(TimerId), typeof(CancellationToken)], method.Parameters);
+                Assert.Equal([typeof(TimerId), typeof(CancellationToken)], method.Parameters.Select(parameter => parameter.ParameterType).ToArray());
                 Assert.Equal(typeof(ValueTask), method.ReturnType);
             });
     }
@@ -73,6 +79,54 @@ public sealed class LakonaTimerAbstractionsTests
             .ToArray();
 
         Assert.Empty(publicFactories);
+    }
+
+    [Fact]
+    public void TimerId_rejects_empty_guid_from_internal_factory()
+    {
+        Assert.Throws<ArgumentException>(() => TimerId.FromGuid(Guid.Empty));
+    }
+
+    [Fact]
+    public void TimerId_uses_guid_equality_and_hash_code()
+    {
+        var value = Guid.NewGuid();
+        var first = TimerId.FromGuid(value);
+        var second = TimerId.FromGuid(value);
+        var other = TimerId.FromGuid(Guid.NewGuid());
+
+        Assert.Equal(first, second);
+        Assert.True(first == second);
+        Assert.False(first != second);
+        Assert.Equal(first.GetHashCode(), second.GetHashCode());
+        Assert.NotEqual(first, other);
+        Assert.False(first == other);
+        Assert.True(first != other);
+    }
+
+    [Fact]
+    public void TimerId_valid_value_formats_as_invariant_guid_d()
+    {
+        var value = Guid.Parse("7d9a16f6-1f66-4d01-a861-85081ce0ba4e");
+        var timerId = TimerId.FromGuid(value);
+
+        Assert.Equal(value.ToString("D", System.Globalization.CultureInfo.InvariantCulture), timerId.ToString());
+    }
+
+    [Fact]
+    public void TimerTick_exposes_expected_public_generic_shape()
+    {
+        var type = typeof(TimerTick<TimerArgs>);
+
+        Assert.True(type.IsGenericType);
+        Assert.True(type.IsPublic);
+        Assert.Equal("TimerTick`1", type.GetGenericTypeDefinition().Name);
+        AssertTimerTickProperty<TimerId>(type, nameof(TimerTick<TimerArgs>.TimerId));
+        AssertTimerTickProperty<TimerArgs>(type, nameof(TimerTick<TimerArgs>.Args));
+        AssertTimerTickProperty<IServiceProvider>(type, nameof(TimerTick<TimerArgs>.Services));
+        AssertTimerTickProperty<DateTimeOffset>(type, nameof(TimerTick<TimerArgs>.DueAtUtc));
+        AssertTimerTickProperty<DateTimeOffset>(type, nameof(TimerTick<TimerArgs>.ObservedAtUtc));
+        AssertTimerTickProperty<CancellationToken>(type, nameof(TimerTick<TimerArgs>.CancellationToken));
     }
 
     [Fact]
@@ -240,9 +294,8 @@ public sealed class LakonaTimerAbstractionsTests
 
     private sealed class TimerCallback
     {
-        public static ValueTask HandleAsync(TimerArgs args, TimerTick tick)
+        public static ValueTask HandleAsync(TimerTick<TimerArgs> tick)
         {
-            _ = args;
             _ = tick;
             return default;
         }
@@ -265,6 +318,7 @@ public sealed class LakonaTimerAbstractionsTests
             string methodName,
             TArgs args,
             CancellationToken cancellationToken)
+            where TCallback : class
         {
             _ = args;
             _ = cancellationToken;
@@ -280,6 +334,7 @@ public sealed class LakonaTimerAbstractionsTests
             string methodName,
             TArgs args,
             CancellationToken cancellationToken)
+            where TCallback : class
         {
             _ = args;
             _ = cancellationToken;
@@ -296,5 +351,14 @@ public sealed class LakonaTimerAbstractionsTests
             _ = cancellationToken;
             return default;
         }
+    }
+
+    private static void AssertTimerTickProperty<TProperty>(Type type, string propertyName)
+    {
+        var property = type.GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public);
+        Assert.NotNull(property);
+        Assert.Equal(typeof(TProperty), property.PropertyType);
+        Assert.NotNull(property.GetMethod);
+        Assert.Null(property.SetMethod);
     }
 }

@@ -6,14 +6,16 @@ internal interface ILakonaTimerBackend
         TimeSpan dueTime,
         string methodName,
         TArgs args,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken)
+        where TCallback : class;
 
     ValueTask<TimerId> CreatePeriodicTimerAsync<TCallback, TArgs>(
         TimeSpan dueTime,
         TimeSpan period,
         string methodName,
         TArgs args,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken)
+        where TCallback : class;
 
     ValueTask DestroyTimerAsync(TimerId timerId, CancellationToken cancellationToken);
 }

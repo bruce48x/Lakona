@@ -6,7 +6,8 @@ public static class LakonaTimer
         TimeSpan dueTime,
         string methodName,
         TArgs args,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default)
+        where TCallback : class
     {
         if (dueTime < TimeSpan.Zero)
         {
@@ -22,7 +23,8 @@ public static class LakonaTimer
         TimeSpan period,
         string methodName,
         TArgs args,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default)
+        where TCallback : class
     {
         if (dueTime < TimeSpan.Zero)
         {
