@@ -1,9 +1,22 @@
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 
 namespace Lakona.Game.Server.Observability.Diagnostics;
 
 public sealed class BoundedDiagnosticsEventBuffer : IDiagnosticsEventSink
 {
+    private static readonly Regex WindowsPathPattern = new(
+        @"[A-Za-z]:\\[^\s""']+",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    private static readonly Regex UnixPathPattern = new(
+        @"/(?:home|Users|var|tmp|etc|opt|srv|deploy)/[^\s""']+",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    private static readonly Regex SecretValuePattern = new(
+        @"\b(?:secret|token|password|apikey|api_key|request|payload)(?:[-_:=][^\s""']+)?",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+
     private static readonly HashSet<string> SensitiveDimensionKeys = new(StringComparer.OrdinalIgnoreCase)
     {
         "actor_id",
@@ -51,7 +64,7 @@ public sealed class BoundedDiagnosticsEventBuffer : IDiagnosticsEventSink
         {
             Category = Limit(diagnosticEvent.Category, 160),
             Kind = Limit(diagnosticEvent.Kind, 80),
-            Message = Limit(diagnosticEvent.Message, 240),
+            Message = Limit(SanitizeMessage(diagnosticEvent.Message), 240),
             TraceId = LimitNullable(diagnosticEvent.TraceId, 64),
             CorrelationId = LimitNullable(diagnosticEvent.CorrelationId, 64),
             Dimensions = SanitizeDimensions(diagnosticEvent.Dimensions)
@@ -103,6 +116,14 @@ public sealed class BoundedDiagnosticsEventBuffer : IDiagnosticsEventSink
             sanitized[Limit(key, 80)] = LimitNullable(value, 160);
         }
 
+        return sanitized;
+    }
+
+    private static string SanitizeMessage(string message)
+    {
+        var sanitized = WindowsPathPattern.Replace(message, "[redacted-path]");
+        sanitized = UnixPathPattern.Replace(sanitized, "[redacted-path]");
+        sanitized = SecretValuePattern.Replace(sanitized, "[redacted]");
         return sanitized;
     }
 

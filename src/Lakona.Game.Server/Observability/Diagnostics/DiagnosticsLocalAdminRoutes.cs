@@ -162,10 +162,28 @@ public static class DiagnosticsLocalAdminRoutes
             CancellationToken cancellationToken = default)
         {
             var summary = await _snapshots.CaptureSummaryAsync(cancellationToken).ConfigureAwait(false);
+            var error = summary.Errors.FirstOrDefault(error => StringComparer.Ordinal.Equals(error.Provider, _section));
+            if (error is not null)
+            {
+                return LakonaLocalAdminResponse.Json(
+                    new DiagnosticsSectionErrorResponse(
+                        "partial",
+                        error.Provider,
+                        error.ErrorType,
+                        error.Message),
+                    options: JsonOptions);
+            }
+
             var value = summary.Sections.TryGetValue(_section, out var section) ? section : _empty;
             return LakonaLocalAdminResponse.Json(value, options: JsonOptions);
         }
     }
+
+    private sealed record DiagnosticsSectionErrorResponse(
+        string Status,
+        string Provider,
+        string ErrorType,
+        string Message);
 
     private sealed record EmptyActorsSnapshot(IReadOnlyList<object> ActorTypes)
     {

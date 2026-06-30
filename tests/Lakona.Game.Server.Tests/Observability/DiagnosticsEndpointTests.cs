@@ -145,6 +145,36 @@ public sealed class DiagnosticsEndpointTests
         Assert.Equal(0, sessionsDocument.RootElement.GetProperty("totalSessions").GetInt32());
     }
 
+    [Theory]
+    [InlineData("/_lakona/diagnostics/actors", "actors", "actorTypes")]
+    [InlineData("/_lakona/diagnostics/sessions", "sessions", "totalSessions")]
+    public async Task Section_endpoint_provider_failure_returns_partial_envelope(
+        string path,
+        string providerName,
+        string emptyShapeProperty)
+    {
+        var sink = new BoundedDiagnosticsEventBuffer(8, LogLevel.Trace);
+        var snapshots = new LakonaDiagnosticsSnapshotService(
+        [
+            new ThrowingSnapshotProvider(providerName)
+        ],
+        sink);
+        var router = new LakonaLocalAdminRouter(DiagnosticsLocalAdminRoutes.Create(snapshots, sink));
+
+        var response = await router.RouteAsync(
+            new LakonaLocalAdminRequest("GET", path, Stream.Null, true),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.DoesNotContain("secret-token", response.Body, StringComparison.OrdinalIgnoreCase);
+        using var document = JsonDocument.Parse(response.Body);
+        Assert.Equal("partial", document.RootElement.GetProperty("status").GetString());
+        Assert.Equal(providerName, document.RootElement.GetProperty("provider").GetString());
+        Assert.Equal("InvalidOperationException", document.RootElement.GetProperty("errorType").GetString());
+        Assert.Equal("Diagnostics provider failed.", document.RootElement.GetProperty("message").GetString());
+        Assert.False(document.RootElement.TryGetProperty(emptyShapeProperty, out _));
+    }
+
     [Fact]
     public async Task Observability_registration_exposes_summary_endpoint_with_optional_subsystems_missing()
     {
@@ -188,6 +218,37 @@ public sealed class DiagnosticsEndpointTests
         var hotfix = document.RootElement.GetProperty("sections").GetProperty("hotfix");
         Assert.Equal("Failed", hotfix.GetProperty("lastReloadStatus").GetString());
         Assert.Equal("InvalidOperationException", hotfix.GetProperty("lastFailureExceptionType").GetString());
+    }
+
+    [Fact]
+    public async Task Events_endpoint_redacts_sensitive_message_fragments()
+    {
+        var sink = new BoundedDiagnosticsEventBuffer(8, LogLevel.Trace);
+        sink.Publish(new DiagnosticsEvent(
+            DateTimeOffset.UtcNow,
+            LogLevel.Error,
+            "Lakona.Game.Tests",
+            "hotfix.reload.failed",
+            "reload failed for secret-token at C:\\deploy\\private\\hotfix.dll",
+            TraceId: null,
+            CorrelationId: null,
+            new Dictionary<string, string?> { ["provider"] = "hotfix" }));
+        var router = new LakonaLocalAdminRouter(DiagnosticsLocalAdminRoutes.Create(
+            new LakonaDiagnosticsSnapshotService([], sink),
+            sink));
+
+        var response = await router.RouteAsync(
+            new LakonaLocalAdminRequest("GET", "/_lakona/diagnostics/events", Stream.Null, true),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.DoesNotContain("secret-token", response.Body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("C:\\deploy\\private\\hotfix.dll", response.Body, StringComparison.OrdinalIgnoreCase);
+        using var document = JsonDocument.Parse(response.Body);
+        var evt = Assert.Single(document.RootElement.GetProperty("events").EnumerateArray());
+        Assert.Equal("Lakona.Game.Tests", evt.GetProperty("category").GetString());
+        Assert.Equal("hotfix.reload.failed", evt.GetProperty("kind").GetString());
+        Assert.Contains("[redacted", evt.GetProperty("message").GetString(), StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed class TestSnapshotProvider : ILakonaDiagnosticsSnapshotProvider
