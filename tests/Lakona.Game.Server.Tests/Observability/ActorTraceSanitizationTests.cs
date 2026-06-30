@@ -93,11 +93,12 @@ public sealed class ActorTraceSanitizationTests
 
         Assert.Contains("secret-exception-message", exception.Message, StringComparison.Ordinal);
         Assert.Equal(ActivityStatusCode.Error, activity.Status);
+        Assert.True(string.IsNullOrEmpty(activity.StatusDescription));
         Assert.Equal(typeof(InvalidOperationException).FullName, activity.GetTagItem("exception.type"));
         Assert.Null(activity.GetTagItem("exception.message"));
-        Assert.DoesNotContain("secret-actor-id", EnumerateActivityText(activity), StringComparer.Ordinal);
-        Assert.DoesNotContain("secret-request-payload", EnumerateActivityText(activity), StringComparer.Ordinal);
-        Assert.DoesNotContain("secret-exception-message", EnumerateActivityText(activity), StringComparer.Ordinal);
+        AssertActivityTextDoesNotContainSecret(activity, "secret-actor-id");
+        AssertActivityTextDoesNotContainSecret(activity, "secret-request-payload");
+        AssertActivityTextDoesNotContainSecret(activity, "secret-exception-message");
     }
 
     private sealed class EchoActor : IActor<TraceProbeRequest>
@@ -121,6 +122,14 @@ public sealed class ActorTraceSanitizationTests
     }
 
     private sealed record ThrowSecretRequest(string Value);
+
+    private static void AssertActivityTextDoesNotContainSecret(Activity activity, string secret)
+    {
+        foreach (string text in EnumerateActivityText(activity))
+        {
+            Assert.DoesNotContain(secret, text, StringComparison.Ordinal);
+        }
+    }
 
     private static IEnumerable<string> EnumerateActivityText(Activity activity)
     {
