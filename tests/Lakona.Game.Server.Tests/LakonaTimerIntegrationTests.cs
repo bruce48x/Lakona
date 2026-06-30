@@ -233,6 +233,54 @@ public sealed class LakonaTimerIntegrationTests
         await AssertLoadContextUnloadedAsync(loadContextReference, CancellationToken.None);
     }
 
+    [Fact]
+    public async Task CreateOnceTimerAsync_serializes_collection_nested_enum_and_primitive_timer_args()
+    {
+        await using var fixture = TimerFixture.Create(typeof(ComplexTimerCallback));
+        var backend = new LakonaTimerBackend();
+        using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
+        var args = new ComplexTimerArgs(
+            Numbers: [1, 2, 3],
+            Names: ["one", "two"],
+            Children:
+            [
+                new ComplexNestedArgs("alpha", ComplexTimerMode.Fast),
+                new ComplexNestedArgs("beta", ComplexTimerMode.Slow)
+            ],
+            Mode: ComplexTimerMode.Fast,
+            MaybeCount: 12,
+            SignedByte: -4,
+            UnsignedShort: 65000,
+            UnsignedInt: 4000000000,
+            UnsignedLong: 9000000000000000000,
+            Code: 'Z');
+
+        var timerId = await LakonaTimer.CreateOnceTimerAsync<ComplexTimerCallback, ComplexTimerArgs>(
+            TimeSpan.Zero,
+            nameof(ComplexTimerCallback.HandleAsync),
+            args,
+            CancellationToken.None);
+
+        Assert.True(backend.TryGetDescriptor(timerId, out var descriptor));
+        using var document = JsonDocument.Parse(descriptor.JsonPayload);
+        var root = document.RootElement;
+
+        Assert.Equal([1, 2, 3], root.GetProperty(nameof(ComplexTimerArgs.Numbers)).EnumerateArray().Select(static item => item.GetInt32()).ToArray());
+        Assert.Equal(["one", "two"], root.GetProperty(nameof(ComplexTimerArgs.Names)).EnumerateArray().Select(static item => item.GetString()!).ToArray());
+        Assert.Equal("Fast", root.GetProperty(nameof(ComplexTimerArgs.Mode)).GetString());
+        Assert.Equal(12, root.GetProperty(nameof(ComplexTimerArgs.MaybeCount)).GetInt32());
+        Assert.Equal(-4, root.GetProperty(nameof(ComplexTimerArgs.SignedByte)).GetInt32());
+        Assert.Equal(65000, root.GetProperty(nameof(ComplexTimerArgs.UnsignedShort)).GetInt32());
+        Assert.Equal(4000000000U, root.GetProperty(nameof(ComplexTimerArgs.UnsignedInt)).GetUInt32());
+        Assert.Equal(9000000000000000000UL, root.GetProperty(nameof(ComplexTimerArgs.UnsignedLong)).GetUInt64());
+        Assert.Equal("Z", root.GetProperty(nameof(ComplexTimerArgs.Code)).GetString());
+        var children = root.GetProperty(nameof(ComplexTimerArgs.Children)).EnumerateArray().ToArray();
+        Assert.Equal("alpha", children[0].GetProperty(nameof(ComplexNestedArgs.Label)).GetString());
+        Assert.Equal("Fast", children[0].GetProperty(nameof(ComplexNestedArgs.Mode)).GetString());
+        Assert.Equal("beta", children[1].GetProperty(nameof(ComplexNestedArgs.Label)).GetString());
+        Assert.Equal("Slow", children[1].GetProperty(nameof(ComplexNestedArgs.Mode)).GetString());
+    }
+
     [Theory]
     [InlineData("DoesNotExist", "loaded")]
     [InlineData(nameof(TimerCallback.InstanceAsync), "static")]
@@ -477,6 +525,35 @@ public sealed class LakonaTimerIntegrationTests
     public sealed class RoundTripCallback
     {
         public static ValueTask HandleAsync(TimerTick<RoundTripArgs> tick)
+        {
+            _ = tick;
+            return default;
+        }
+    }
+
+    public enum ComplexTimerMode
+    {
+        Slow,
+        Fast
+    }
+
+    public sealed record ComplexNestedArgs(string Label, ComplexTimerMode Mode);
+
+    public sealed record ComplexTimerArgs(
+        int[] Numbers,
+        List<string> Names,
+        List<ComplexNestedArgs> Children,
+        ComplexTimerMode Mode,
+        int? MaybeCount,
+        sbyte SignedByte,
+        ushort UnsignedShort,
+        uint UnsignedInt,
+        ulong UnsignedLong,
+        char Code);
+
+    public sealed class ComplexTimerCallback
+    {
+        public static ValueTask HandleAsync(TimerTick<ComplexTimerArgs> tick)
         {
             _ = tick;
             return default;

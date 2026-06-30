@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Globalization;
 using System.Reflection;
 using System.Text.Json;
@@ -108,13 +109,29 @@ internal sealed class LakonaTimerArgsSerializer
             throw new NotSupportedException($"Timer args member type '{targetType.FullName}' is not supported.");
         }
 
-        if (targetType == typeof(string))
+        if (targetType.IsArray)
+        {
+            WriteArray(writer, (Array)value, targetType.GetElementType()!);
+        }
+        else if (IsListType(targetType, out var listElementType))
+        {
+            WriteList(writer, (IEnumerable)value, listElementType);
+        }
+        else if (targetType == typeof(string))
         {
             writer.WriteStringValue((string)value);
+        }
+        else if (targetType == typeof(char))
+        {
+            writer.WriteStringValue(((char)value).ToString());
         }
         else if (targetType == typeof(bool))
         {
             writer.WriteBooleanValue((bool)value);
+        }
+        else if (targetType == typeof(sbyte))
+        {
+            writer.WriteNumberValue((sbyte)value);
         }
         else if (targetType == typeof(byte))
         {
@@ -124,13 +141,25 @@ internal sealed class LakonaTimerArgsSerializer
         {
             writer.WriteNumberValue((short)value);
         }
+        else if (targetType == typeof(ushort))
+        {
+            writer.WriteNumberValue((ushort)value);
+        }
         else if (targetType == typeof(int))
         {
             writer.WriteNumberValue((int)value);
         }
+        else if (targetType == typeof(uint))
+        {
+            writer.WriteNumberValue((uint)value);
+        }
         else if (targetType == typeof(long))
         {
             writer.WriteNumberValue((long)value);
+        }
+        else if (targetType == typeof(ulong))
+        {
+            writer.WriteNumberValue((ulong)value);
         }
         else if (targetType == typeof(float))
         {
@@ -174,6 +203,28 @@ internal sealed class LakonaTimerArgsSerializer
         }
     }
 
+    private static void WriteArray(Utf8JsonWriter writer, Array values, Type elementType)
+    {
+        writer.WriteStartArray();
+        foreach (var value in values)
+        {
+            WriteValue(writer, value, elementType);
+        }
+
+        writer.WriteEndArray();
+    }
+
+    private static void WriteList(Utf8JsonWriter writer, IEnumerable values, Type elementType)
+    {
+        writer.WriteStartArray();
+        foreach (var value in values)
+        {
+            WriteValue(writer, value, elementType);
+        }
+
+        writer.WriteEndArray();
+    }
+
     private static void WriteObject(Utf8JsonWriter writer, object value, Type valueType)
     {
         writer.WriteStartObject();
@@ -196,14 +247,37 @@ internal sealed class LakonaTimerArgsSerializer
                 : null;
         }
 
+        if (targetType.IsArray)
+        {
+            return ReadArray(element, targetType.GetElementType()!);
+        }
+
+        if (IsListType(targetType, out var listElementType))
+        {
+            return ReadList(element, targetType, listElementType);
+        }
+
         if (targetType == typeof(string))
         {
             return element.GetString();
         }
 
+        if (targetType == typeof(char))
+        {
+            var value = element.GetString();
+            return value is { Length: 1 }
+                ? value[0]
+                : throw new JsonException($"Expected single-character string for '{valueType.FullName}'.");
+        }
+
         if (targetType == typeof(bool))
         {
             return element.GetBoolean();
+        }
+
+        if (targetType == typeof(sbyte))
+        {
+            return checked((sbyte)element.GetInt32());
         }
 
         if (targetType == typeof(byte))
@@ -216,14 +290,29 @@ internal sealed class LakonaTimerArgsSerializer
             return element.GetInt16();
         }
 
+        if (targetType == typeof(ushort))
+        {
+            return checked((ushort)element.GetInt32());
+        }
+
         if (targetType == typeof(int))
         {
             return element.GetInt32();
         }
 
+        if (targetType == typeof(uint))
+        {
+            return element.GetUInt32();
+        }
+
         if (targetType == typeof(long))
         {
             return element.GetInt64();
+        }
+
+        if (targetType == typeof(ulong))
+        {
+            return element.GetUInt64();
         }
 
         if (targetType == typeof(float))
@@ -272,6 +361,39 @@ internal sealed class LakonaTimerArgsSerializer
         }
 
         throw new NotSupportedException($"Timer args member type '{targetType.FullName}' is not supported.");
+    }
+
+    private static Array ReadArray(JsonElement element, Type elementType)
+    {
+        if (element.ValueKind != JsonValueKind.Array)
+        {
+            throw new JsonException($"Expected JSON array for '{elementType.FullName}[]'.");
+        }
+
+        var values = element.EnumerateArray().ToArray();
+        var array = Array.CreateInstance(elementType, values.Length);
+        for (var index = 0; index < values.Length; index++)
+        {
+            array.SetValue(ReadValue(values[index], elementType), index);
+        }
+
+        return array;
+    }
+
+    private static object ReadList(JsonElement element, Type listType, Type elementType)
+    {
+        if (element.ValueKind != JsonValueKind.Array)
+        {
+            throw new JsonException($"Expected JSON array for '{listType.FullName}'.");
+        }
+
+        var list = (IList)Activator.CreateInstance(listType)!;
+        foreach (var item in element.EnumerateArray())
+        {
+            list.Add(ReadValue(item, elementType));
+        }
+
+        return list;
     }
 
     private static object ReadObject(JsonElement element, Type valueType)
@@ -328,6 +450,18 @@ internal sealed class LakonaTimerArgsSerializer
             .Where(static property => property.GetMethod is not null && property.GetIndexParameters().Length == 0)
             .OrderBy(static property => property.Name, StringComparer.Ordinal)
             .ToArray();
+    }
+
+    private static bool IsListType(Type type, out Type elementType)
+    {
+        if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>))
+        {
+            elementType = type.GetGenericArguments()[0];
+            return true;
+        }
+
+        elementType = null!;
+        return false;
     }
 }
 
