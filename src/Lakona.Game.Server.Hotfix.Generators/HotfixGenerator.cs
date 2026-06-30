@@ -1029,15 +1029,18 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorRuntime _runtime;");
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IRemoteActorSerializer _serializer;");
             builder.AppendLine("    private readonly global::Lakona.Game.Cluster.IClusterRouter _router;");
+            builder.AppendLine("    private readonly global::Lakona.Game.Server.Hotfix.IHotfixRuntimeAccessor _hotfixRuntime;");
             builder.AppendLine();
             builder.Append("    public ").Append(handlerType).AppendLine("(");
             builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorRuntime runtime,");
             builder.AppendLine("        global::Lakona.Game.Server.Actors.IRemoteActorSerializer serializer,");
-            builder.AppendLine("        global::Lakona.Game.Cluster.IClusterRouter router)");
+            builder.AppendLine("        global::Lakona.Game.Cluster.IClusterRouter router,");
+            builder.AppendLine("        global::Lakona.Game.Server.Hotfix.IHotfixRuntimeAccessor hotfixRuntime)");
             builder.AppendLine("    {");
             builder.AppendLine("        _runtime = runtime;");
             builder.AppendLine("        _serializer = serializer;");
             builder.AppendLine("        _router = router;");
+            builder.AppendLine("        _hotfixRuntime = hotfixRuntime;");
             builder.AppendLine("    }");
             builder.AppendLine();
             builder.AppendLine("    public async global::System.Threading.Tasks.ValueTask<global::Lakona.Game.Cluster.ClusterSendStatus> HandleAsync(");
@@ -1082,28 +1085,40 @@ namespace Lakona.Game.Server.Hotfix.Generators
             {
                 builder.Append("                await _runtime.TellAsync<").Append(actorType).AppendLine(">(");
                 builder.AppendLine("                    actorId,");
-                builder.AppendLine("                    (actor, ct) => global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync(");
+                builder.AppendLine("                    async (actor, ct) =>");
+                builder.AppendLine("                    {");
+                builder.AppendLine("                        using var lease = _hotfixRuntime.AcquireCurrent();");
+                builder.AppendLine("                        var snapshot = lease.Snapshot;");
+                builder.AppendLine("                        _ = snapshot;");
+                builder.AppendLine("                        await global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync(");
                 builder.Append("                        typeof(").Append(actorType).AppendLine("),");
                 builder.Append("                        \"").Append(EscapeStringLiteral(method.Name)).AppendLine("\",");
                 builder.AppendLine("                        actor,");
                 AppendParameterTypeArray(builder, method, indentLevel: 6);
                 builder.AppendLine(",");
                 AppendArgumentArray(builder, method, indentLevel: 6);
-                builder.AppendLine("),");
+                builder.AppendLine(").ConfigureAwait(false);");
+                builder.AppendLine("                    },");
                 builder.AppendLine("                    cancellationToken).ConfigureAwait(false);");
             }
             else
             {
                 builder.Append("                var reply = await _runtime.AskAsync<").Append(actorType).Append(", ").Append(resultType).AppendLine(">(");
                 builder.AppendLine("                    actorId,");
-                builder.Append("                    (actor, ct) => global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync<").Append(resultType).AppendLine(">(");
+                builder.AppendLine("                    async (actor, ct) =>");
+                builder.AppendLine("                    {");
+                builder.AppendLine("                        using var lease = _hotfixRuntime.AcquireCurrent();");
+                builder.AppendLine("                        var snapshot = lease.Snapshot;");
+                builder.AppendLine("                        _ = snapshot;");
+                builder.Append("                        return await global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync<").Append(resultType).AppendLine(">(");
                 builder.Append("                        typeof(").Append(actorType).AppendLine("),");
                 builder.Append("                        \"").Append(EscapeStringLiteral(method.Name)).AppendLine("\",");
                 builder.AppendLine("                        actor,");
                 AppendParameterTypeArray(builder, method, indentLevel: 6);
                 builder.AppendLine(",");
                 AppendArgumentArray(builder, method, indentLevel: 6);
-                builder.AppendLine("),");
+                builder.AppendLine(").ConfigureAwait(false);");
+                builder.AppendLine("                    },");
                 builder.AppendLine("                    cancellationToken).ConfigureAwait(false);");
                 builder.AppendLine("                if (envelope.ReplyCorrelationId is not null)");
                 builder.AppendLine("                {");
