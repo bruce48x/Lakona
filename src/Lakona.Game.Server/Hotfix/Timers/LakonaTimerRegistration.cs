@@ -19,6 +19,8 @@ internal sealed class LakonaTimerRegistration
 
     public DateTimeOffset NextDueAtUtc { get; set; }
 
+    public long NextDueTimestamp { get; set; }
+
     public TimeSpan? Period { get; }
 
     public long Generation { get; set; }
@@ -44,7 +46,13 @@ internal sealed class LakonaTimerRegistration
     public void Destroy()
     {
         Destroyed = true;
-        dispatchCancellation?.Cancel();
+    }
+
+    public CancellationTokenSource? TakeDispatchCancellation()
+    {
+        var cancellation = dispatchCancellation;
+        dispatchCancellation = null;
+        return cancellation;
     }
 }
 

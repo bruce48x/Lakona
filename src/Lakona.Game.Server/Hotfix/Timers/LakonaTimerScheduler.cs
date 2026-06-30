@@ -167,6 +167,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         var registration = new LakonaTimerRegistration(descriptor);
         lock (gate)
         {
+            registration.NextDueTimestamp = GetDueTimestamp(descriptor.NextDueAtUtc);
             registrations[descriptor.TimerId] = registration;
             EnqueueHeap(registration);
         }
@@ -177,6 +178,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
     internal void Destroy(TimerId timerId)
     {
         LakonaTimerRegistration? registration;
+        CancellationTokenSource? dispatchCancellation;
         lock (gate)
         {
             if (!registrations.Remove(timerId, out registration))
@@ -185,8 +187,10 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
             }
 
             registration.Destroy();
+            dispatchCancellation = registration.TakeDispatchCancellation();
         }
 
+        CancelDispatch(timerId, dispatchCancellation);
         Signal();
     }
 
@@ -265,8 +269,8 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
                     return;
                 }
 
-                var nowTicks = timeProvider.GetUtcNow().UtcTicks;
-                if (priority > nowTicks)
+                var nowTimestamp = timeProvider.GetTimestamp();
+                if (priority > nowTimestamp)
                 {
                     return;
                 }
@@ -281,11 +285,12 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
                 else
                 {
                     var observedAtUtc = timeProvider.GetUtcNow();
+                    var observedTimestamp = nowTimestamp;
                     var observation = CreateObservation(registration, observedAtUtc);
                     if (registration.Pending)
                     {
                         skippedObservation = observation;
-                        ReschedulePeriodicDueSlot(registration, observedAtUtc);
+                        ReschedulePeriodicDueSlot(registration, observedAtUtc, observedTimestamp);
                     }
                     else
                     {
@@ -308,7 +313,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
                             }
                             else
                             {
-                                ReschedulePeriodicDueSlot(registration, observedAtUtc);
+                                ReschedulePeriodicDueSlot(registration, observedAtUtc, observedTimestamp);
                             }
                         }
                         else if (registration.Period is not null)
@@ -317,6 +322,10 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
                                 registration.NextDueAtUtc,
                                 registration.Period.Value,
                                 observedAtUtc);
+                            registration.NextDueTimestamp = GetNextFutureDueTimestamp(
+                                registration.NextDueTimestamp,
+                                registration.Period.Value,
+                                observedTimestamp);
                             registration.FollowUpScheduled = true;
                             EnqueueHeap(registration);
                             queuedObservation = observation;
@@ -375,8 +384,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
             }
             else
             {
-                var ticks = priority - timeProvider.GetUtcNow().UtcTicks;
-                delay = ticks <= 0 ? TimeSpan.Zero : TimeSpan.FromTicks(ticks);
+                delay = GetDelayUntilTimestamp(priority);
             }
         }
 
@@ -528,13 +536,16 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
 
             if (registration.DispatchGeneration == workItem.DispatchGeneration)
             {
-                ReschedulePeriodicDueSlot(registration, timeProvider.GetUtcNow());
+                ReschedulePeriodicDueSlot(registration, timeProvider.GetUtcNow(), timeProvider.GetTimestamp());
                 Signal();
             }
         }
     }
 
-    private void ReschedulePeriodicDueSlot(LakonaTimerRegistration registration, DateTimeOffset observedAtUtc)
+    private void ReschedulePeriodicDueSlot(
+        LakonaTimerRegistration registration,
+        DateTimeOffset observedAtUtc,
+        long observedTimestamp)
     {
         if (registration.Period is null || registration.Destroyed)
         {
@@ -545,6 +556,10 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
             registration.NextDueAtUtc,
             registration.Period.Value,
             observedAtUtc);
+        registration.NextDueTimestamp = GetNextFutureDueTimestamp(
+            registration.NextDueTimestamp,
+            registration.Period.Value,
+            observedTimestamp);
         registration.Generation++;
         EnqueueHeap(registration);
     }
@@ -568,11 +583,94 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         return currentDueAtUtc.AddTicks(checked(missedSlots * period.Ticks));
     }
 
+    private long GetNextFutureDueTimestamp(
+        long currentDueTimestamp,
+        TimeSpan period,
+        long observedTimestamp)
+    {
+        var periodTimestampDelta = GetTimestampDelta(period);
+        if (periodTimestampDelta <= 0)
+        {
+            periodTimestampDelta = 1;
+        }
+
+        if (currentDueTimestamp > observedTimestamp)
+        {
+            return currentDueTimestamp;
+        }
+
+        var missedSlots = ((observedTimestamp - currentDueTimestamp) / periodTimestampDelta) + 1;
+        return AddTimestampDelta(currentDueTimestamp, checked(missedSlots * periodTimestampDelta));
+    }
+
     private void EnqueueHeap(LakonaTimerRegistration registration)
     {
         heap.Enqueue(
             new LakonaTimerHeapEntry(registration.TimerId, registration.Generation),
-            registration.NextDueAtUtc.UtcTicks);
+            registration.NextDueTimestamp);
+    }
+
+    private long GetDueTimestamp(DateTimeOffset dueAtUtc)
+    {
+        var delay = dueAtUtc - timeProvider.GetUtcNow();
+        return AddTimestampDelta(timeProvider.GetTimestamp(), GetTimestampDelta(delay));
+    }
+
+    private TimeSpan GetDelayUntilTimestamp(long dueTimestamp)
+    {
+        var timestampDelta = dueTimestamp - timeProvider.GetTimestamp();
+        if (timestampDelta <= 0)
+        {
+            return TimeSpan.Zero;
+        }
+
+        var ticks = decimal.Ceiling(
+            (decimal)timestampDelta * TimeSpan.TicksPerSecond / timeProvider.TimestampFrequency);
+        if (ticks >= TimeSpan.MaxValue.Ticks)
+        {
+            return TimeSpan.MaxValue;
+        }
+
+        return TimeSpan.FromTicks((long)ticks);
+    }
+
+    private long GetTimestampDelta(TimeSpan delay)
+    {
+        if (delay <= TimeSpan.Zero)
+        {
+            return 0;
+        }
+
+        var timestampDelta = decimal.Ceiling(
+            (decimal)delay.Ticks * timeProvider.TimestampFrequency / TimeSpan.TicksPerSecond);
+        return timestampDelta >= long.MaxValue ? long.MaxValue : (long)timestampDelta;
+    }
+
+    private static long AddTimestampDelta(long timestamp, long delta)
+    {
+        if (delta <= 0)
+        {
+            return timestamp;
+        }
+
+        return long.MaxValue - timestamp < delta ? long.MaxValue : timestamp + delta;
+    }
+
+    private void CancelDispatch(TimerId timerId, CancellationTokenSource? dispatchCancellation)
+    {
+        if (dispatchCancellation is null)
+        {
+            return;
+        }
+
+        try
+        {
+            dispatchCancellation.Cancel();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Lakona timer {TimerId} cancellation callback failed.", timerId);
+        }
     }
 
     private LakonaTimerDispatchObservation CreateObservation(

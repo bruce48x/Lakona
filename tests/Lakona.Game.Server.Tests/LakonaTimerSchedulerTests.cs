@@ -41,6 +41,40 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
     }
 
     [Fact]
+    public async Task Backward_wall_clock_jump_does_not_stall_due_timer()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
+        await using var fixture = SchedulerFixture.Create(time);
+        await fixture.StartAsync(cancellationToken);
+        fixture.Add("monotonic-backward", time.GetUtcNow().AddSeconds(10));
+
+        time.JumpUtc(TimeSpan.FromHours(-1));
+        time.AdvanceMonotonic(TimeSpan.FromSeconds(10));
+
+        await TimerCallbackLog.WaitForValueAsync("monotonic-backward", cancellationToken);
+    }
+
+    [Fact]
+    public async Task Forward_wall_clock_jump_does_not_dispatch_before_monotonic_due_time()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
+        await using var fixture = SchedulerFixture.Create(time);
+        await fixture.StartAsync(cancellationToken);
+        fixture.Add("monotonic-forward", time.GetUtcNow().AddSeconds(10));
+
+        time.JumpUtc(TimeSpan.FromHours(1));
+        fixture.Add("wake", time.GetUtcNow().AddHours(1));
+        await Task.Delay(50, cancellationToken);
+
+        Assert.DoesNotContain("monotonic-forward", TimerCallbackLog.Values);
+
+        time.AdvanceMonotonic(TimeSpan.FromSeconds(10));
+        await TimerCallbackLog.WaitForValueAsync("monotonic-forward", cancellationToken);
+    }
+
+    [Fact]
     public async Task Stale_heap_entries_are_skipped()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -161,6 +195,33 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         await Task.Delay(50, cancellationToken);
 
         Assert.Equal(["running"], TimerCallbackLog.Values);
+    }
+
+    [Fact]
+    public async Task Destroy_while_running_contains_throwing_cancellation_callback_exception()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
+        await using var fixture = SchedulerFixture.Create(time);
+        await fixture.StartAsync(cancellationToken);
+        TimerCallbackLog.BlockValue = "cancel-throws";
+        TimerCallbackLog.ThrowOnCancellationValue = "cancel-throws";
+        var timerId = fixture.Add("cancel-throws", time.GetUtcNow().AddSeconds(1));
+
+        time.Advance(TimeSpan.FromSeconds(1));
+        await TimerCallbackLog.WaitForValueAsync("cancel-throws", cancellationToken);
+        await TimerCallbackLog.WaitForCancellationRegistrationAsync(cancellationToken);
+
+        var destroyException = Record.Exception(() => fixture.Destroy(timerId));
+
+        TimerCallbackLog.ReleaseBlocked();
+        var afterDestroy = fixture.Add("after-destroy", time.GetUtcNow().AddSeconds(1));
+        time.Advance(TimeSpan.FromSeconds(1));
+        await TimerCallbackLog.WaitForValueAsync("after-destroy", cancellationToken);
+
+        Assert.Null(destroyException);
+        Assert.False(fixture.Contains(timerId));
+        Assert.False(fixture.Contains(afterDestroy));
     }
 
     [Fact]
@@ -640,12 +701,23 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         private readonly object gate = new();
         private readonly List<ManualTimer> timers = [];
         private DateTimeOffset utcNow = initialUtcNow;
+        private long timestamp;
+
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
 
         public override DateTimeOffset GetUtcNow()
         {
             lock (gate)
             {
                 return utcNow;
+            }
+        }
+
+        public override long GetTimestamp()
+        {
+            lock (gate)
+            {
+                return timestamp;
             }
         }
 
@@ -666,12 +738,36 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
             lock (gate)
             {
                 utcNow = utcNow.Add(amount);
-                due = timers.Where(timer => timer.IsDue(utcNow)).ToArray();
+                timestamp = checked(timestamp + amount.Ticks);
+                due = timers.Where(timer => timer.IsDue(timestamp)).ToArray();
             }
 
             foreach (var timer in due)
             {
                 timer.Fire();
+            }
+        }
+
+        public void AdvanceMonotonic(TimeSpan amount)
+        {
+            ManualTimer[] due;
+            lock (gate)
+            {
+                timestamp = checked(timestamp + amount.Ticks);
+                due = timers.Where(timer => timer.IsDue(timestamp)).ToArray();
+            }
+
+            foreach (var timer in due)
+            {
+                timer.Fire();
+            }
+        }
+
+        public void JumpUtc(TimeSpan amount)
+        {
+            lock (gate)
+            {
+                utcNow = utcNow.Add(amount);
             }
         }
 
@@ -689,7 +785,7 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
             private readonly TimerCallback callback;
             private readonly object? state;
             private TimeSpan period;
-            private DateTimeOffset dueAtUtc;
+            private long dueTimestamp;
             private bool disposed;
 
             public ManualTimer(
@@ -703,12 +799,12 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
                 this.callback = callback;
                 this.state = state;
                 this.period = period;
-                dueAtUtc = owner.GetUtcNow().Add(dueTime);
+                dueTimestamp = checked(owner.GetTimestamp() + dueTime.Ticks);
             }
 
-            public bool IsDue(DateTimeOffset now)
+            public bool IsDue(long nowTimestamp)
             {
-                return !disposed && now >= dueAtUtc;
+                return !disposed && nowTimestamp >= dueTimestamp;
             }
 
             public void Fire()
@@ -725,7 +821,7 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
                 }
                 else
                 {
-                    dueAtUtc = owner.GetUtcNow().Add(period);
+                    dueTimestamp = checked(owner.GetTimestamp() + period.Ticks);
                 }
 
                 ThreadPool.QueueUserWorkItem(_ => callback(state), state, preferLocal: false);
@@ -739,7 +835,7 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
                 }
 
                 this.period = period;
-                dueAtUtc = owner.GetUtcNow().Add(dueTime);
+                dueTimestamp = checked(owner.GetTimestamp() + dueTime.Ticks);
                 return true;
             }
 
@@ -781,9 +877,12 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         private static readonly List<string> ValueList = [];
         private static TaskCompletionSource? releaseBlocked;
         private static TaskCompletionSource? cancellationObserved;
+        private static TaskCompletionSource? cancellationRegistrationReady;
         private static int active;
 
         public static string? BlockValue { get; set; }
+
+        public static string? ThrowOnCancellationValue { get; set; }
 
         public static int MaxConcurrent { get; private set; }
 
@@ -818,12 +917,25 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
                     {
                         releaseBlocked ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                         cancellationObserved ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                        cancellationRegistrationReady ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                         release = releaseBlocked;
                         canceled = cancellationObserved;
                     }
 
-                    using var registration = tick.CancellationToken.Register(static state =>
+                    using var observedRegistration = tick.CancellationToken.Register(static state =>
                         ((TaskCompletionSource)state!).TrySetResult(), canceled);
+                    using var throwingRegistration = string.Equals(
+                        ThrowOnCancellationValue,
+                        tick.Args.Value,
+                        StringComparison.Ordinal)
+                        ? tick.CancellationToken.Register(static () =>
+                            throw new InvalidOperationException("Cancellation callback failed."))
+                        : default;
+                    lock (Sync)
+                    {
+                        cancellationRegistrationReady?.TrySetResult();
+                    }
+
                     await release.Task.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
                 }
             }
@@ -855,6 +967,18 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
             await source.Task.WaitAsync(TimeSpan.FromSeconds(1), cancellationToken).ConfigureAwait(false);
         }
 
+        public static async Task WaitForCancellationRegistrationAsync(CancellationToken cancellationToken)
+        {
+            TaskCompletionSource source;
+            lock (Sync)
+            {
+                cancellationRegistrationReady ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                source = cancellationRegistrationReady;
+            }
+
+            await source.Task.WaitAsync(TimeSpan.FromSeconds(1), cancellationToken).ConfigureAwait(false);
+        }
+
         public static void ReleaseBlocked()
         {
             lock (Sync)
@@ -869,8 +993,10 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
             {
                 ValueList.Clear();
                 BlockValue = null;
+                ThrowOnCancellationValue = null;
                 releaseBlocked = null;
                 cancellationObserved = null;
+                cancellationRegistrationReady = null;
                 MaxConcurrent = 0;
                 active = 0;
             }
