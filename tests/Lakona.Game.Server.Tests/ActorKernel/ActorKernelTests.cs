@@ -504,7 +504,10 @@ public sealed class ActorSystemTests
         Activity activity = await stopped.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         Assert.Equal(true, activity.GetTagItem("lakona-game.actor.slow_message"));
+        Assert.Null(activity.GetTagItem("lakona-actor.slow_message"));
+        Assert.Null(activity.GetTagItem("lakona-actor.slow_message.elapsed_ms"));
         Assert.Contains(activity.Events, evt => evt.Name == "Lakona.Game.Actor.SlowMessage");
+        Assert.DoesNotContain(activity.Events, evt => evt.Name == "Lakona.Actor.Actor.SlowMessage");
     }
 
     [Fact]
