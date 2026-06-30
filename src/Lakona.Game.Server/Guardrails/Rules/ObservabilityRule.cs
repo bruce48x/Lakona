@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using Microsoft.Extensions.Logging;
 
@@ -80,7 +81,13 @@ public sealed class ObservabilityRule : ILakonaGameValidationRule
                 "Use an absolute non-root path such as /_lakona/metrics without query or fragment.");
         }
 
-        if (observability.EventBufferCapacity.Value <= 0)
+        if (!int.TryParse(
+                observability.EventBufferCapacityRaw.Value,
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out var eventBufferCapacity)
+            || eventBufferCapacity <= 0
+            || observability.EventBufferCapacity.Value <= 0)
         {
             yield return new LakonaGameDiagnostic(
                 "ULINK137",
@@ -102,7 +109,17 @@ public sealed class ObservabilityRule : ILakonaGameValidationRule
                 "Use Trace, Debug, Information, Warning, Error, Critical, or None.");
         }
 
-        if (observability.TraceSampleRate.Value is < 0.0 or > 1.0)
+        if (!double.TryParse(
+                observability.TraceSampleRateRaw.Value,
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out var traceSampleRate)
+            || double.IsNaN(traceSampleRate)
+            || double.IsInfinity(traceSampleRate)
+            || traceSampleRate is < 0.0 or > 1.0
+            || observability.TraceSampleRate.Value is < 0.0 or > 1.0
+            || double.IsNaN(observability.TraceSampleRate.Value)
+            || double.IsInfinity(observability.TraceSampleRate.Value))
         {
             yield return new LakonaGameDiagnostic(
                 "ULINK139",

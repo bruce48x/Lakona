@@ -160,6 +160,62 @@ public sealed class LakonaGameReadinessProbeTests
     }
 
     [Theory]
+    [InlineData("not-a-number")]
+    [InlineData("999999999999999999999999")]
+    public void Run_JsonOutputIncludesInvalidConfiguredEventBufferCapacity(string capacity)
+    {
+        var runtime = RuntimeFromConfiguration(
+            new Dictionary<string, string?>
+            {
+                ["Lakona:Endpoints:0:Transport"] = "websocket",
+                ["Lakona:Endpoints:0:Serializer"] = "json",
+                ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
+                ["Lakona:Endpoints:0:Port"] = "20000",
+                ["Lakona:Endpoints:0:Path"] = "/ws",
+                ["Lakona:Observability:Diagnostics:EventBuffer:Capacity"] = capacity
+            },
+            "Production");
+
+        var (exitCode, output, errors) = CaptureRun(
+            runtime,
+            runtime.ToClusterOptions(),
+            ["--json"]);
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains("\"code\": \"ULINK137\"", output, StringComparison.Ordinal);
+        Assert.Contains("Lakona:Observability:Diagnostics:EventBuffer:Capacity", output, StringComparison.Ordinal);
+        Assert.Equal("", errors);
+    }
+
+    [Theory]
+    [InlineData("NaN")]
+    [InlineData("not-a-number")]
+    public void Run_JsonOutputIncludesInvalidConfiguredTraceSampleRate(string sampleRate)
+    {
+        var runtime = RuntimeFromConfiguration(
+            new Dictionary<string, string?>
+            {
+                ["Lakona:Endpoints:0:Transport"] = "websocket",
+                ["Lakona:Endpoints:0:Serializer"] = "json",
+                ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
+                ["Lakona:Endpoints:0:Port"] = "20000",
+                ["Lakona:Endpoints:0:Path"] = "/ws",
+                ["Lakona:Observability:Tracing:Export:SampleRate"] = sampleRate
+            },
+            "Production");
+
+        var (exitCode, output, errors) = CaptureRun(
+            runtime,
+            runtime.ToClusterOptions(),
+            ["--json"]);
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains("\"code\": \"ULINK139\"", output, StringComparison.Ordinal);
+        Assert.Contains("Lakona:Observability:Tracing:Export:SampleRate", output, StringComparison.Ordinal);
+        Assert.Equal("", errors);
+    }
+
+    [Theory]
     [InlineData("Production", LakonaGameRuntimeProfile.Production)]
     [InlineData("battle-1", LakonaGameRuntimeProfile.Production)]
     public void Run_DoesNotEnableLocalAdminByDefaultForProductionOrNodeNamedProfiles(

@@ -385,8 +385,10 @@ public sealed class LakonaGameRuntimeValidatorTests
                 PrometheusEndpointRegistered: false,
                 PrometheusPath: new LakonaGameResolvedValue<string>("/_lakona/metrics", LakonaGameValueSource.Default, "Lakona:Observability:Metrics:Prometheus:Path"),
                 EventBufferCapacity: new LakonaGameResolvedValue<int>(1024, LakonaGameValueSource.Default, "Lakona:Observability:Diagnostics:EventBuffer:Capacity"),
+                EventBufferCapacityRaw: new LakonaGameResolvedValue<string>("1024", LakonaGameValueSource.Default, "Lakona:Observability:Diagnostics:EventBuffer:Capacity"),
                 LoggingMinimumLevel: new LakonaGameResolvedValue<string>("Information", LakonaGameValueSource.Default, "Lakona:Observability:Logging:MinimumLevel"),
-                TraceSampleRate: new LakonaGameResolvedValue<double>(1.0, LakonaGameValueSource.Default, "Lakona:Observability:Tracing:Export:SampleRate")),
+                TraceSampleRate: new LakonaGameResolvedValue<double>(1.0, LakonaGameValueSource.Default, "Lakona:Observability:Tracing:Export:SampleRate"),
+                TraceSampleRateRaw: new LakonaGameResolvedValue<string>("1.0", LakonaGameValueSource.Default, "Lakona:Observability:Tracing:Export:SampleRate")),
             Profile: LakonaGameRuntimeProfile.Development);
     }
 

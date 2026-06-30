@@ -48,9 +48,13 @@ public sealed class LakonaLocalAdminRouter
         {
             return await route.HandleAsync(request, cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (OperationCanceledException)
         {
-            return LakonaLocalAdminResponse.Json(new { error = exception.Message }, 400);
+            throw;
+        }
+        catch (Exception)
+        {
+            return LakonaLocalAdminResponse.Json(new { error = "Local admin endpoint failed." }, 400);
         }
     }
 

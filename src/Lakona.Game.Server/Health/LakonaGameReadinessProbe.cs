@@ -12,7 +12,8 @@ public static class LakonaGameReadinessProbe
         LakonaGameRuntimeOptions runtime,
         ClusterOptions? clusterOptions,
         string[] args,
-        LakonaObservabilityCapabilities? observabilityCapabilities = null)
+        LakonaObservabilityCapabilities? observabilityCapabilities = null,
+        string? hotfixAssemblyPath = null)
     {
         // Liveness is a subset of readiness — fail fast if liveness fails
         var livenessExit = LakonaGameLivenessProbe.Run(clusterOptions, runtime);
@@ -35,7 +36,11 @@ public static class LakonaGameReadinessProbe
             rules.Add(new ClusterEndpointRule());
         }
 
-        var resolved = ToResolvedRuntimeForValidation(runtime, clusterOptions, observabilityCapabilities);
+        var resolved = ToResolvedRuntimeForValidation(
+            runtime,
+            clusterOptions,
+            observabilityCapabilities,
+            hotfixAssemblyPath);
         var validator = new LakonaGameRuntimeValidator(rules);
         var result = validator.Validate(resolved);
 
@@ -240,12 +245,20 @@ public static class LakonaGameReadinessProbe
                 observability.Diagnostics.EventBuffer.Capacity,
                 LakonaGameValueSource.Configuration,
                 "Lakona:Observability:Diagnostics:EventBuffer:Capacity"),
+            EventBufferCapacityRaw: new LakonaGameResolvedValue<string>(
+                observability.Diagnostics.EventBuffer.CapacityRaw,
+                LakonaGameValueSource.Configuration,
+                "Lakona:Observability:Diagnostics:EventBuffer:Capacity"),
             LoggingMinimumLevel: new LakonaGameResolvedValue<string>(
                 observability.Logging.MinimumLevelRaw,
                 LakonaGameValueSource.Configuration,
                 "Lakona:Observability:Logging:MinimumLevel"),
             TraceSampleRate: new LakonaGameResolvedValue<double>(
                 observability.Tracing.Export.SampleRate,
+                LakonaGameValueSource.Configuration,
+                "Lakona:Observability:Tracing:Export:SampleRate"),
+            TraceSampleRateRaw: new LakonaGameResolvedValue<string>(
+                observability.Tracing.Export.SampleRateRaw,
                 LakonaGameValueSource.Configuration,
                 "Lakona:Observability:Tracing:Export:SampleRate"));
     }

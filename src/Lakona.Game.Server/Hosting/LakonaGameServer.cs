@@ -20,7 +20,8 @@ namespace Lakona.Game.Server.Hosting;
 internal sealed record LakonaGameReadinessContext(
     LakonaGameRuntimeOptions RuntimeOptions,
     ClusterOptions? ClusterOptions,
-    LakonaObservabilityCapabilities ObservabilityCapabilities);
+    LakonaObservabilityCapabilities ObservabilityCapabilities,
+    string HotfixAssemblyPath);
 
 public static class LakonaGameServer
 {
@@ -36,12 +37,16 @@ public static class LakonaGameServer
         // Health check commands (exit before full startup)
         if (IsReadinessCheckCommand(args))
         {
-            var readiness = CreateReadinessContext(builder, configure);
+            var readiness = await CreateReadinessContext(
+                builder,
+                configure,
+                AppContext.BaseDirectory).ConfigureAwait(false);
             return LakonaGameReadinessProbe.Run(
                 readiness.RuntimeOptions,
                 readiness.ClusterOptions,
                 args,
-                readiness.ObservabilityCapabilities);
+                readiness.ObservabilityCapabilities,
+                readiness.HotfixAssemblyPath);
         }
 
         var serverBuilder = new LakonaGameServerBuilder(builder);
@@ -148,9 +153,10 @@ public static class LakonaGameServer
         return builder;
     }
 
-    private static LakonaGameReadinessContext CreateReadinessContext(
+    private static async Task<LakonaGameReadinessContext> CreateReadinessContext(
         IHostApplicationBuilder builder,
-        Action<LakonaGameServerBuilder> configure)
+        Action<LakonaGameServerBuilder> configure,
+        string baseDirectory)
     {
         var serverBuilder = new LakonaGameServerBuilder(builder);
         configure(serverBuilder);
@@ -164,11 +170,20 @@ public static class LakonaGameServer
         using var provider = builder.Services.BuildServiceProvider();
         var capabilities = LakonaObservabilityCapabilities.FromServices(
             provider.GetServices<ILakonaObservabilityCapability>());
+        var hotfixBuildTag = HotfixBuildTag.Get(Assembly.GetEntryAssembly() ?? typeof(LakonaGameServer).Assembly);
+        var hotfixAdminOptions = CreateDefaultHotfixAdminOptions(
+            builder.Configuration,
+            baseDirectory,
+            hotfixBuildTag);
+        var hotfixAssemblyPath = await ResolveDefaultHotfixAssemblyPathAsync(
+            baseDirectory,
+            hotfixAdminOptions).ConfigureAwait(false);
 
         return new LakonaGameReadinessContext(
             runtimeOptions,
             clusterOptions,
-            capabilities);
+            capabilities,
+            hotfixAssemblyPath);
     }
 
     private static ClusterOptions? TryBuildClusterOptions(
@@ -197,11 +212,19 @@ public static class LakonaGameServer
         return CreateRuntimeOptions(configuration, environmentName);
     }
 
-    internal static LakonaGameReadinessContext CreateReadinessContextForTesting(
+    internal static Task<LakonaGameReadinessContext> CreateReadinessContextForTesting(
         string[] args,
         Action<LakonaGameServerBuilder> configure)
     {
-        return CreateReadinessContext(CreateApplicationBuilder(args), configure);
+        return CreateReadinessContextForTesting(args, configure, AppContext.BaseDirectory);
+    }
+
+    internal static Task<LakonaGameReadinessContext> CreateReadinessContextForTesting(
+        string[] args,
+        Action<LakonaGameServerBuilder> configure,
+        string baseDirectory)
+    {
+        return CreateReadinessContext(CreateApplicationBuilder(args), configure, baseDirectory);
     }
 
     internal static LakonaGameRuntimeOptions CreateFullStartupRuntimeOptionsForTesting(

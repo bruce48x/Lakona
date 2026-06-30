@@ -140,6 +140,22 @@ public sealed class ObservabilityGuardrailTests
     }
 
     [Theory]
+    [InlineData("not-a-number")]
+    [InlineData("999999999999999999999999")]
+    public void Validate_EmitsError_WhenEventBufferCapacityRawValueIsInvalid(string capacity)
+    {
+        var result = Validate(TestRuntime() with
+        {
+            Observability = TestObservability(eventBufferCapacityRaw: capacity)
+        });
+
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK137");
+        Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Contains("Lakona:Observability:Diagnostics:EventBuffer:Capacity", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("positive integer", diagnostic.Repair, StringComparison.Ordinal);
+    }
+
+    [Theory]
     [InlineData("Verbose")]
     [InlineData("")]
     [InlineData("   ")]
@@ -165,6 +181,22 @@ public sealed class ObservabilityGuardrailTests
         var result = Validate(TestRuntime() with
         {
             Observability = TestObservability(traceSampleRate: sampleRate)
+        });
+
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK139");
+        Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Contains("Lakona:Observability:Tracing:Export:SampleRate", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("0.0 and 1.0", diagnostic.Repair, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("NaN")]
+    [InlineData("not-a-number")]
+    public void Validate_EmitsError_WhenTraceSampleRateRawValueIsInvalid(string sampleRate)
+    {
+        var result = Validate(TestRuntime() with
+        {
+            Observability = TestObservability(traceSampleRateRaw: sampleRate)
         });
 
         var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK139");
@@ -215,8 +247,10 @@ public sealed class ObservabilityGuardrailTests
         bool prometheusEndpointRegistered = false,
         string prometheusPath = "/_lakona/metrics",
         int eventBufferCapacity = 1024,
+        string eventBufferCapacityRaw = "1024",
         string loggingMinimumLevel = nameof(LogLevel.Information),
-        double traceSampleRate = 1.0)
+        double traceSampleRate = 1.0,
+        string traceSampleRateRaw = "1.0")
     {
         return new LakonaGameResolvedObservability(
             LocalAdminEnabled: new LakonaGameResolvedValue<bool>(localAdminEnabled, LakonaGameValueSource.Configuration, "Lakona:Observability:LocalAdmin:Enabled"),
@@ -231,7 +265,9 @@ public sealed class ObservabilityGuardrailTests
             PrometheusEndpointRegistered: prometheusEndpointRegistered,
             PrometheusPath: new LakonaGameResolvedValue<string>(prometheusPath, LakonaGameValueSource.Configuration, "Lakona:Observability:Metrics:Prometheus:Path"),
             EventBufferCapacity: new LakonaGameResolvedValue<int>(eventBufferCapacity, LakonaGameValueSource.Configuration, "Lakona:Observability:Diagnostics:EventBuffer:Capacity"),
+            EventBufferCapacityRaw: new LakonaGameResolvedValue<string>(eventBufferCapacityRaw, LakonaGameValueSource.Configuration, "Lakona:Observability:Diagnostics:EventBuffer:Capacity"),
             LoggingMinimumLevel: new LakonaGameResolvedValue<string>(loggingMinimumLevel, LakonaGameValueSource.Configuration, "Lakona:Observability:Logging:MinimumLevel"),
-            TraceSampleRate: new LakonaGameResolvedValue<double>(traceSampleRate, LakonaGameValueSource.Configuration, "Lakona:Observability:Tracing:Export:SampleRate"));
+            TraceSampleRate: new LakonaGameResolvedValue<double>(traceSampleRate, LakonaGameValueSource.Configuration, "Lakona:Observability:Tracing:Export:SampleRate"),
+            TraceSampleRateRaw: new LakonaGameResolvedValue<string>(traceSampleRateRaw, LakonaGameValueSource.Configuration, "Lakona:Observability:Tracing:Export:SampleRate"));
     }
 }

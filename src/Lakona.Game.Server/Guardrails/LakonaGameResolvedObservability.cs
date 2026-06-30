@@ -13,5 +13,7 @@ public sealed record LakonaGameResolvedObservability(
     bool PrometheusEndpointRegistered,
     LakonaGameResolvedValue<string> PrometheusPath,
     LakonaGameResolvedValue<int> EventBufferCapacity,
+    LakonaGameResolvedValue<string> EventBufferCapacityRaw,
     LakonaGameResolvedValue<string> LoggingMinimumLevel,
-    LakonaGameResolvedValue<double> TraceSampleRate);
+    LakonaGameResolvedValue<double> TraceSampleRate,
+    LakonaGameResolvedValue<string> TraceSampleRateRaw);

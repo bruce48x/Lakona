@@ -185,9 +185,11 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public void ReadinessContext_CollectsObservabilityCapabilitiesFromUserServices()
+    public async Task ReadinessContext_CollectsObservabilityCapabilitiesFromUserServices()
     {
-        var context = Lakona.Game.Server.Hosting.LakonaGameServer.CreateReadinessContextForTesting(
+        EnsureDevelopmentHotfixAssemblyExists();
+
+        var context = await Lakona.Game.Server.Hosting.LakonaGameServer.CreateReadinessContextForTesting(
             ["--readiness-check", "--json"],
             server =>
             {
@@ -199,6 +201,7 @@ public sealed class LakonaGameServerTests
                         ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
                         ["Lakona:Endpoints:0:Port"] = "20000",
                         ["Lakona:Endpoints:0:Path"] = "/ws",
+                        ["Lakona:Hotfix:Admin:Mode"] = "development",
                         ["Lakona:Observability:Tracing:Export:Enabled"] = "true"
                     }));
                 server.AddServices(services =>
@@ -222,7 +225,8 @@ public sealed class LakonaGameServerTests
                 context.RuntimeOptions,
                 context.ClusterOptions,
                 ["--json"],
-                context.ObservabilityCapabilities);
+                context.ObservabilityCapabilities,
+                context.HotfixAssemblyPath);
         }
         finally
         {
@@ -232,6 +236,119 @@ public sealed class LakonaGameServerTests
 
         var text = output.ToString() + errors.ToString();
         Assert.DoesNotContain("ULINK134", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Readiness_context_accepts_production_hotfix_version_pointer_layout()
+    {
+        var baseDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "LakonaReadinessContextTests",
+            Guid.NewGuid().ToString("N"));
+        try
+        {
+            var hotfixRoot = Path.Combine(baseDirectory, "hotfix");
+            var version = "2026.06.30.1";
+            var versionDirectory = Path.Combine(hotfixRoot, "versions", version);
+            Directory.CreateDirectory(versionDirectory);
+            File.WriteAllText(Path.Combine(hotfixRoot, "current.txt"), version);
+            File.WriteAllText(Path.Combine(versionDirectory, "Server.Hotfix.dll"), "");
+            Assert.False(File.Exists(Path.Combine(hotfixRoot, "Server.Hotfix.dll")));
+
+            var context = await Lakona.Game.Server.Hosting.LakonaGameServer.CreateReadinessContextForTesting(
+                ["--readiness-check", "--json"],
+                server =>
+                {
+                    server.ConfigureAppConfiguration(configuration =>
+                        configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                        {
+                            ["Lakona:Endpoints:0:Transport"] = "websocket",
+                            ["Lakona:Endpoints:0:Serializer"] = "json",
+                            ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
+                            ["Lakona:Endpoints:0:Port"] = "20000",
+                            ["Lakona:Endpoints:0:Path"] = "/ws",
+                            ["Lakona:Hotfix:Admin:Mode"] = "production"
+                        }));
+                },
+                baseDirectory);
+
+            var output = new StringWriter();
+            var errors = new StringWriter();
+            var originalOutput = Console.Out;
+            var originalError = Console.Error;
+
+            try
+            {
+                Console.SetOut(output);
+                Console.SetError(errors);
+
+                var exitCode = LakonaGameReadinessProbe.Run(
+                    context.RuntimeOptions,
+                    context.ClusterOptions,
+                    ["--json"],
+                    context.ObservabilityCapabilities,
+                    context.HotfixAssemblyPath);
+
+                Assert.Equal(0, exitCode);
+            }
+            finally
+            {
+                Console.SetOut(originalOutput);
+                Console.SetError(originalError);
+            }
+
+            Assert.DoesNotContain("ULINK071", output.ToString() + errors.ToString(), StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(baseDirectory))
+            {
+                Directory.Delete(baseDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Readiness_context_rejects_invalid_production_hotfix_pointer_with_stale_dev_dll()
+    {
+        var baseDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "LakonaReadinessContextTests",
+            Guid.NewGuid().ToString("N"));
+        try
+        {
+            var hotfixRoot = Path.Combine(baseDirectory, "hotfix");
+            Directory.CreateDirectory(hotfixRoot);
+            File.WriteAllText(Path.Combine(hotfixRoot, "current.txt"), "..");
+            File.WriteAllText(Path.Combine(hotfixRoot, "Server.Hotfix.dll"), "");
+
+            var error = await Assert.ThrowsAnyAsync<Exception>(() =>
+                Lakona.Game.Server.Hosting.LakonaGameServer.CreateReadinessContextForTesting(
+                    ["--readiness-check", "--json"],
+                    server =>
+                    {
+                        server.ConfigureAppConfiguration(configuration =>
+                            configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                            {
+                                ["Lakona:Endpoints:0:Transport"] = "websocket",
+                                ["Lakona:Endpoints:0:Serializer"] = "json",
+                                ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
+                                ["Lakona:Endpoints:0:Port"] = "20000",
+                                ["Lakona:Endpoints:0:Path"] = "/ws",
+                                ["Lakona:Hotfix:Admin:Mode"] = "production"
+                            }));
+                    },
+                    baseDirectory));
+
+            Assert.Contains("path", error.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            if (Directory.Exists(baseDirectory))
+            {
+                Directory.Delete(baseDirectory, recursive: true);
+            }
+        }
     }
 
     [Fact]
@@ -1144,6 +1261,13 @@ public sealed class LakonaGameServerTests
         {
             listener.Stop();
         }
+    }
+
+    private static void EnsureDevelopmentHotfixAssemblyExists()
+    {
+        var hotfixPath = Path.Combine(AppContext.BaseDirectory, "hotfix", "Server.Hotfix.dll");
+        Directory.CreateDirectory(Path.GetDirectoryName(hotfixPath)!);
+        File.WriteAllText(hotfixPath, "");
     }
 
     private sealed record ConfiguredValue(string Value);

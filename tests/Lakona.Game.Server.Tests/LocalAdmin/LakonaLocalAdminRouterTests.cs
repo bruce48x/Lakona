@@ -54,7 +54,7 @@ public sealed class LakonaLocalAdminRouterTests
     }
 
     [Fact]
-    public async Task Route_exception_returns_400_with_json_error()
+    public async Task Route_exception_returns_400_with_generic_json_error()
     {
         var router = new LakonaLocalAdminRouter([new ThrowingRoute()]);
 
@@ -65,7 +65,8 @@ public sealed class LakonaLocalAdminRouterTests
         Assert.Equal(400, response.StatusCode);
         Assert.Equal("application/json", response.ContentType);
         using var document = JsonDocument.Parse(response.Body);
-        Assert.Equal("route failed", document.RootElement.GetProperty("error").GetString());
+        Assert.Equal("Local admin endpoint failed.", document.RootElement.GetProperty("error").GetString());
+        Assert.DoesNotContain("route failed secret-token", response.Body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -150,7 +151,7 @@ public sealed class LakonaLocalAdminRouterTests
             LakonaLocalAdminRequest request,
             CancellationToken cancellationToken = default)
         {
-            throw new InvalidOperationException("route failed");
+            throw new InvalidOperationException("route failed secret-token");
         }
     }
 

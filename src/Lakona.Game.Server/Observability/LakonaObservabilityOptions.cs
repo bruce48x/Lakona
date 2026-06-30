@@ -224,6 +224,7 @@ public sealed class LakonaDiagnosticsEventBufferOptions
 {
     public bool Enabled { get; init; } = true;
     public int Capacity { get; init; } = 1024;
+    internal string CapacityRaw { get; init; } = "1024";
     public LogLevel MinimumLevel { get; init; } = LogLevel.Warning;
 
     public static LakonaDiagnosticsEventBufferOptions FromConfiguration(IConfiguration section)
@@ -232,6 +233,7 @@ public sealed class LakonaDiagnosticsEventBufferOptions
         {
             Enabled = LakonaObservabilityOptions.ReadBool(section, "Enabled", true),
             Capacity = LakonaObservabilityOptions.ReadInt(section, "Capacity", 1024),
+            CapacityRaw = section["Capacity"] ?? "1024",
             MinimumLevel = LakonaObservabilityOptions.ReadLogLevel(
                 section,
                 "MinimumLevel",
@@ -286,13 +288,15 @@ public sealed class LakonaTraceExportObservabilityOptions
 {
     public bool Enabled { get; init; }
     public double SampleRate { get; init; } = 1.0;
+    internal string SampleRateRaw { get; init; } = "1.0";
 
     public static LakonaTraceExportObservabilityOptions FromConfiguration(IConfiguration section)
     {
         return new LakonaTraceExportObservabilityOptions
         {
             Enabled = LakonaObservabilityOptions.ReadBool(section, "Enabled", false),
-            SampleRate = LakonaObservabilityOptions.ReadDouble(section, "SampleRate", 1.0)
+            SampleRate = LakonaObservabilityOptions.ReadDouble(section, "SampleRate", 1.0),
+            SampleRateRaw = section["SampleRate"] ?? "1.0"
         };
     }
 }
