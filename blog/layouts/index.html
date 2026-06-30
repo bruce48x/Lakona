@@ -54,9 +54,19 @@
         <p>Rooms, players, lobbies, and matches process messages sequentially instead of fighting shared locks.</p>
       </div>
       <div class="feature-card">
+        <span class="feature-icon">🔎</span>
+        <h3>Inspect live servers</h3>
+        <p>Use readiness checks, framework logs, and loopback diagnostics to inspect process, hotfix, actor, session, and recent event state.</p>
+      </div>
+      <div class="feature-card">
         <span class="feature-icon">⚡</span>
         <h3>Scale deliberately</h3>
         <p>Run everything in one process during development, then split nodes and route actors explicitly in production.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🔀</span>
+        <h3>Flexible transports</h3>
+        <p>Choose TCP, WebSocket, KCP, loopback, JSON, or MemoryPack without binding gameplay code to one wire format.</p>
       </div>
     </div>
   </div>
@@ -72,16 +82,17 @@
         <span class="dot dot-red"></span>
         <span class="dot dot-yel"></span>
         <span class="dot dot-grn"></span>
-        <span class="filename">GameRulesSystem.cs</span>
+        <span class="filename">RoomBehavior.cs</span>
       </div>
       <div class="code-body">
-        <span class="c">// Server-only C# logic that can reload while state remains owned by the runtime</span><br>
-        <span class="na">[HotfixSystemOf(typeof(GameRulesState))]</span><br>
-        <span class="k">public static class</span> <span class="nc">GameRulesSystem</span><br>
+        <span class="c">// Server-only behavior that can reload while actor state stays alive</span><br>
+        <span class="na">[HotfixBehaviorOf(typeof(RoomActor))]</span><br>
+        <span class="k">public static partial class</span> <span class="nc">RoomBehavior</span><br>
         {<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;<span class="k">public static</span> <span class="nc">GameRuleResult</span> <span class="nf">Evaluate</span>(<span class="k">this</span> <span class="nc">GameRulesState</span> self, <span class="nc">GameRuleInput</span> input)<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="k">public static</span> <span class="nc">ValueTask&lt;JoinRoomReply&gt;</span> <span class="nf">JoinAsync</span>(<span class="k">this</span> <span class="nc">RoomActor</span> room, <span class="nc">JoinRoomRequest</span> request)<br>
         &nbsp;&nbsp;&nbsp;&nbsp;{<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">return</span> self.<span class="nf">EvaluateStable</span>(input);<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;room.Players.<span class="nf">Add</span>(request.PlayerId);<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">return</span> <span class="k">new</span>(<span class="k">new</span> <span class="nc">JoinRoomReply</span>(<span class="k">true</span>, room.Players.Count));<br>
         &nbsp;&nbsp;&nbsp;&nbsp;}<br>
         }<span class="code-cursor"></span>
       </div>
@@ -99,6 +110,12 @@
         <span class="guide-icon">📖</span>
         <h3>Create and run a project</h3>
         <p>Install the CLI, generate a Unity or Godot starter, validate it, and start the server.</p>
+        <span class="arrow">Read the guide →</span>
+      </a>
+      <a class="guide-card" href="{{ "posts/observability/" | relURL }}">
+        <span class="guide-icon">OBS</span>
+        <h3>Debug with observability</h3>
+        <p>Use logs, readiness checks, and local diagnostics to inspect a running game server.</p>
         <span class="arrow">Read the guide →</span>
       </a>
       <a class="guide-card" href="{{ .Site.Params.repo }}" target="_blank" rel="noopener">

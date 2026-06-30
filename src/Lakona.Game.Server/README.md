@@ -72,6 +72,9 @@ Diagnostics routes live under the loopback local admin host, including
 `/_lakona/diagnostics/summary`, `/_lakona/diagnostics/events`, and
 `/_lakona/diagnostics/netstat`.
 
+For a task-oriented guide, see
+[Use Lakona Observability](https://bruce48x.github.io/Lakona/posts/observability/).
+
 ## Use Actors
 
 Actors are process-local state owners with mailbox-ordered execution. State for

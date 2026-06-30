@@ -10,6 +10,7 @@ Canonical pages that package READMEs and root docs should link to instead
 of duplicating long explanations:
 
 - [Getting Started](content/getting-started.md)
+- [Use Lakona Observability](content/posts/observability.md)
 
 ## Local Usage
 

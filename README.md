@@ -13,7 +13,8 @@ ship live logic updates without throwing away player state.
 
 Lakona is a C# full-stack game server framework: shared contracts, hotfixable
 business logic, actor-based state execution, typed RPC, reliable push, cluster
-routing, runtime guardrails, and project scaffolding in one product line.
+routing, runtime guardrails, local diagnostics, and project scaffolding in one
+product line.
 
 ## Why Lakona
 
@@ -42,7 +43,11 @@ Lakona is built around that workflow:
 5. **🌐 Scale out deliberately.** Cluster routing lets actors and sessions be
    addressed across nodes through explicit route directories and node
    messaging, without hiding network cost behind magical remote objects.
-6. **🔌 Swap protocols when the game needs it.** Transports and serializers are
+6. **🔎 Diagnose live runtime behavior.** Readiness checks catch configuration
+   problems before listeners open, framework logs expose runtime decisions, and
+   loopback local diagnostics show process, hotfix, actor, session, and recent
+   event state while the server runs.
+7. **🔌 Swap protocols when the game needs it.** Transports and serializers are
    pluggable. Use TCP, WebSocket, KCP, loopback, JSON, or MemoryPack without
    binding gameplay code to one wire format or transport stack.
 
@@ -300,6 +305,30 @@ dotnet run --project "Server/App/Server.App.csproj" -- --readiness-check
 Guardrails catch missing endpoints, invalid cluster topology, production profile
 violations, and hotfix source misconfiguration before they reach production.
 
+## Observability 🔎
+
+Lakona is designed to make server failures inspectable. Framework logging is
+configured under `Lakona:Observability:Logging`, startup validation reports
+guardrail diagnostics through `--readiness-check`, and the development profile
+enables a loopback local admin host for runtime snapshots.
+
+Local diagnostics include:
+
+- process uptime, working set, and GC heap
+- hotfix loaded version, dispatch table size, and last reload status
+- actor type counts and aggregate mailbox state
+- active, disconnected, terminated, and resumable session counts
+- recent warnings and errors from the in-memory diagnostics event buffer
+
+Metrics and traces use standard .NET diagnostics. Actor runtime metrics are
+emitted through the `Lakona.Game.Actor` `Meter`, and actor traces use the
+`Lakona.Game.Actor` `ActivitySource`. File logging, Prometheus serving, and
+trace export are explicit integrations, so startup validation fails clearly if
+they are enabled without the matching integration registered.
+
+Read the task-oriented guide:
+[Use Lakona Observability](https://bruce48x.github.io/Lakona/posts/observability/).
+
 ## Cluster 🌐
 
 Scale beyond a single process when the game is ready. Actors are addressable
@@ -380,6 +409,7 @@ RPC-focused samples:
 - [Cluster](docs/cluster.md)
 - [RPC](docs/rpc.md)
 - [Runtime Guardrails](docs/guardrails.md)
+- [Use Lakona Observability](https://bruce48x.github.io/Lakona/posts/observability/)
 - [Changelog](CHANGELOG.md)
 
 ## Contributing

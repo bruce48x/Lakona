@@ -1,0 +1,26 @@
+{{ define "main" }}
+  <div class="wrap">
+    <article class="article">
+      <header class="article-header">
+        <h1>{{ .Title }}</h1>
+      </header>
+      <div class="content">
+        {{ with .Content }}{{ . }}{{ end }}
+        {{ if .Pages }}
+          <div class="guides-grid" style="margin-top: 20px;">
+            {{ range .Pages.ByDate.Reverse }}
+              <a class="guide-card visible" href="{{ .RelPermalink }}">
+                <span class="guide-icon">DOC</span>
+                <h3>{{ .Title }}</h3>
+                {{ with .Description }}<p>{{ . }}</p>{{ end }}
+                <span class="arrow">Read the guide →</span>
+              </a>
+            {{ end }}
+          </div>
+        {{ else }}
+          <p>No articles have been published here yet.</p>
+        {{ end }}
+      </div>
+    </article>
+  </div>
+{{ end }}

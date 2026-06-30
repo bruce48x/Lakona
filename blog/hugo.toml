@@ -3,7 +3,7 @@ languageCode = "en-us"
 title = "Lakona"
 
 [params]
-description = "A C# full-stack game server framework for shared client/server contracts, typed RPC, actor-owned state, reliable push, and live logic updates."
+description = "A C# full-stack game server framework for shared client/server contracts, typed RPC, actor-owned state, reliable push, live logic updates, and runtime diagnostics."
 repo = "https://github.com/bruce48x/Lakona"
 
 [markup]
