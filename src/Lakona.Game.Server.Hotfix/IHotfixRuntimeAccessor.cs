@@ -124,7 +124,15 @@ public sealed class HotfixRuntimeSnapshot
 
             if (Volatile.Read(ref _retired) == 0)
             {
-                return new HotfixRuntimeSnapshotLease(this);
+                try
+                {
+                    return new HotfixRuntimeSnapshotLease(this);
+                }
+                catch
+                {
+                    ReleaseLease();
+                    throw;
+                }
             }
 
             ReleaseLease();

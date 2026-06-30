@@ -92,6 +92,33 @@ public sealed class HotfixRuntimeSnapshotLeaseTests
     }
 
     [Fact]
+    public void Failed_ambient_scope_creation_releases_snapshot_lease_reference()
+    {
+        var provider = new ThrowingTimerBackendServiceProvider();
+        var retired = false;
+        var snapshot = new HotfixRuntimeSnapshot(
+            new HotfixServiceInvoker(),
+            EmptyHotfixFeatureCommandInvoker.Instance,
+            provider,
+            new HotfixDispatchTable(1, Array.Empty<HotfixMethodBinding>()),
+            provider,
+            mainAssembly: null,
+            loadContext: null,
+            sourceVersion: null,
+            sourceKind: null,
+            sourcePath: null,
+            ownsRuntimeResources: false,
+            onRetired: () => retired = true);
+
+        var exception = Assert.Throws<InvalidOperationException>(() => snapshot.AcquireLease());
+        Assert.Equal("timer backend resolution failed", exception.Message);
+
+        snapshot.Retire();
+
+        Assert.True(retired);
+    }
+
+    [Fact]
     public void Retired_snapshot_rejects_new_leases_before_active_leases_drain()
     {
         var snapshot = new HotfixRuntimeSnapshot(
@@ -171,6 +198,19 @@ public sealed class HotfixRuntimeSnapshotLeaseTests
         public void Dispose()
         {
             Disposed = true;
+        }
+    }
+
+    private sealed class ThrowingTimerBackendServiceProvider : IServiceProvider
+    {
+        public object? GetService(Type serviceType)
+        {
+            if (serviceType == typeof(Lakona.Game.Server.Hotfix.Abstractions.Timers.ILakonaTimerBackend))
+            {
+                throw new InvalidOperationException("timer backend resolution failed");
+            }
+
+            return null;
         }
     }
 

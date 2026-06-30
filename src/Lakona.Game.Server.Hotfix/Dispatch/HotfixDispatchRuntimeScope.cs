@@ -7,17 +7,28 @@ internal sealed class HotfixDispatchRuntimeScope : IDisposable
 {
     private static readonly AsyncLocal<HotfixDispatchRuntimeContext?> CurrentContext = new();
     private readonly HotfixDispatchRuntimeContext? _previousContext;
+    private readonly HotfixDispatchRuntimeContext _context;
     private bool _disposed;
 
     private HotfixDispatchRuntimeScope(HotfixRuntimeSnapshotLease lease, ILakonaTimerBackend? timerBackend)
     {
         _previousContext = CurrentContext.Value;
-        CurrentContext.Value = new HotfixDispatchRuntimeContext(lease, timerBackend);
+        _context = new HotfixDispatchRuntimeContext(lease, timerBackend);
+        CurrentContext.Value = _context;
     }
 
     internal static HotfixDispatchRuntimeContext? Current => CurrentContext.Value;
 
-    internal static HotfixDispatchTable? CurrentTable => Current?.Snapshot.DispatchTable;
+    internal static HotfixDispatchTable? CurrentTable
+    {
+        get
+        {
+            var context = Current;
+            return context is { IsActive: true }
+                ? context.Snapshot.DispatchTable
+                : null;
+        }
+    }
 
     internal static HotfixDispatchRuntimeScope? TryEnter(HotfixRuntimeSnapshotLease lease)
     {
@@ -35,9 +46,9 @@ internal sealed class HotfixDispatchRuntimeScope : IDisposable
     internal static IDisposable? EnterTimerScope()
     {
         var context = Current;
-        return context?.TimerBackend is null
+        return context is not { IsActive: true, TimerBackend: { } timerBackend }
             ? null
-            : LakonaTimerExecutionScope.Enter(context.TimerBackend, context.Lease);
+            : LakonaTimerExecutionScope.Enter(timerBackend, context.Lease);
     }
 
     public void Dispose()
@@ -48,7 +59,14 @@ internal sealed class HotfixDispatchRuntimeScope : IDisposable
         }
 
         _disposed = true;
-        CurrentContext.Value = _previousContext;
+        try
+        {
+            _context.Deactivate();
+        }
+        finally
+        {
+            CurrentContext.Value = _previousContext;
+        }
     }
 }
 
@@ -58,6 +76,7 @@ internal sealed class HotfixDispatchRuntimeContext
     {
         Lease = lease ?? throw new ArgumentNullException(nameof(lease));
         TimerBackend = timerBackend;
+        IsActive = true;
     }
 
     public HotfixRuntimeSnapshotLease Lease { get; }
@@ -65,4 +84,11 @@ internal sealed class HotfixDispatchRuntimeContext
     public HotfixRuntimeSnapshot Snapshot => Lease.Snapshot;
 
     public ILakonaTimerBackend? TimerBackend { get; }
+
+    public bool IsActive { get; private set; }
+
+    public void Deactivate()
+    {
+        IsActive = false;
+    }
 }

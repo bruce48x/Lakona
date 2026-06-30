@@ -233,6 +233,55 @@ public sealed class HotfixDispatchTests
     }
 
     [Fact]
+    public void Captured_execution_context_does_not_use_disposed_scoped_dispatch_table()
+    {
+        var scopedMethod = typeof(DispatchTestStateSystem).GetMethod(nameof(DispatchTestStateSystem.SetValueAsync))!;
+        var fallbackMethod = typeof(DispatchTestStateSystem).GetMethod(nameof(DispatchTestStateSystem.SetFallbackValueAsync))!;
+        var key = HotfixDispatch.CreateKey(
+            typeof(DispatchTestState),
+            nameof(DispatchTestStateSystem.SetValueAsync),
+            typeof(ValueTask),
+            [typeof(int)]);
+        var scopedTable = new HotfixDispatchTable(
+            7,
+            [new HotfixMethodBinding(
+                key,
+                scopedMethod,
+                typeof(DispatchTestState),
+                typeof(ValueTask),
+                [typeof(int)])]);
+        var fallbackTable = new HotfixDispatchTable(
+            9,
+            [new HotfixMethodBinding(
+                key,
+                fallbackMethod,
+                typeof(DispatchTestState),
+                typeof(ValueTask),
+                [typeof(int)])]);
+        HotfixDispatch.Replace(fallbackTable);
+        using var runtime = CreateScopedRuntime(scopedTable, backend: null, publish: false);
+        var lease = runtime.Snapshot.AcquireLease();
+        var captured = ExecutionContext.Capture();
+        lease.Dispose();
+        var state = new DispatchTestState();
+
+        ExecutionContext.Run(
+            captured!,
+            _ => HotfixDispatch.InvokeValueTaskAsync(
+                    typeof(DispatchTestState),
+                    nameof(DispatchTestStateSystem.SetValueAsync),
+                    state,
+                    [typeof(int)],
+                    [23])
+                .AsTask()
+                .GetAwaiter()
+                .GetResult(),
+            null);
+
+        Assert.Equal(123, state.Value);
+    }
+
+    [Fact]
     public void Resolve_throws_specific_exception_when_hotfix_method_is_not_loaded()
     {
         var table = new HotfixDispatchTable(1, Array.Empty<HotfixMethodBinding>());
@@ -1055,6 +1104,12 @@ public static class DispatchTestStateSystem
     public static ValueTask SetValueAsync(this DispatchTestState self, int value)
     {
         self.Value = value;
+        return default;
+    }
+
+    public static ValueTask SetFallbackValueAsync(this DispatchTestState self, int value)
+    {
+        self.Value = value + 100;
         return default;
     }
 }
