@@ -6,9 +6,9 @@ namespace Lakona.Game.Server.Internal.ActorKernel;
 
 internal static class LakonaActorDiagnostics
 {
-    public const string ActivitySourceName = "Lakona.Actor";
+    public const string ActivitySourceName = "Lakona.Game.Actor";
 
-    public const string MeterName = "Lakona.Actor";
+    public const string MeterName = "Lakona.Game.Actor";
 
     public static readonly ActivitySource ActivitySource = new(
         ActivitySourceName,
