@@ -91,6 +91,34 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
     }
 
     [Fact]
+    public async Task Destroy_after_worker_starts_before_lease_prevents_callback_entry()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
+        await using var fixture = SchedulerFixture.Create(
+            time,
+            runtimeAccessorFactory: snapshot => new BlockingRuntimeAccessor(snapshot));
+        await fixture.StartAsync(cancellationToken);
+        var timerId = fixture.Add("destroy-before-lease", time.GetUtcNow().AddSeconds(1));
+        var runtimeAccessor = (BlockingRuntimeAccessor)fixture.RuntimeAccessor;
+
+        time.Advance(TimeSpan.FromSeconds(1));
+        try
+        {
+            await runtimeAccessor.WaitForAcquireStartedAsync(cancellationToken);
+            fixture.Destroy(timerId);
+            runtimeAccessor.ReleaseAcquire();
+            await Task.Delay(50, cancellationToken);
+        }
+        finally
+        {
+            runtimeAccessor.ReleaseAcquire();
+        }
+
+        Assert.Empty(TimerCallbackLog.Values);
+    }
+
+    [Fact]
     public async Task Destroy_while_queued_prevents_callback_entry()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -189,6 +217,34 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
     }
 
     [Fact]
+    public async Task Periodic_queue_full_reports_skipped_due_work_with_period_metadata()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var period = TimeSpan.FromSeconds(5);
+        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
+        await using var fixture = SchedulerFixture.Create(
+            time,
+            options: new LakonaTimerOptions { MaxConcurrentCallbacks = 1, DispatchQueueCapacity = 1 });
+        await fixture.StartAsync(cancellationToken);
+        TimerCallbackLog.BlockValue = "running";
+
+        fixture.Add("running", time.GetUtcNow().AddSeconds(1));
+        fixture.Add("queued", time.GetUtcNow().AddSeconds(2));
+        fixture.Add("periodic-full", time.GetUtcNow().AddSeconds(3), period);
+        time.Advance(TimeSpan.FromSeconds(1));
+        await TimerCallbackLog.WaitForValueAsync("running", cancellationToken);
+        time.Advance(TimeSpan.FromSeconds(2));
+        await fixture.Observer.WaitForQueueFullAsync(cancellationToken);
+
+        TimerCallbackLog.ReleaseBlocked();
+
+        var queueFull = Assert.Single(fixture.Observer.QueueFull);
+        var skipped = Assert.Single(fixture.Observer.Skipped);
+        Assert.Equal(period, queueFull.Period);
+        Assert.Equal(period, skipped.Period);
+    }
+
+    [Fact]
     public async Task Shutdown_cancels_running_callbacks()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -232,12 +288,12 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
     private sealed class SchedulerFixture : IAsyncDisposable
     {
         private readonly ServiceProvider services;
-        private readonly FixedRuntimeAccessor runtimeAccessor;
+        private readonly IHotfixRuntimeAccessor runtimeAccessor;
         private readonly LakonaTimerArgsSerializer serializer = new();
 
         private SchedulerFixture(
             ServiceProvider services,
-            FixedRuntimeAccessor runtimeAccessor,
+            IHotfixRuntimeAccessor runtimeAccessor,
             LakonaTimerScheduler scheduler,
             RecordingTimerSchedulerObserver observer)
         {
@@ -253,7 +309,12 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
 
         public int SchedulerLoopCount => Scheduler.LoopCount;
 
-        public static SchedulerFixture Create(ManualTimeProvider time, LakonaTimerOptions? options = null)
+        public IHotfixRuntimeAccessor RuntimeAccessor => runtimeAccessor;
+
+        public static SchedulerFixture Create(
+            ManualTimeProvider time,
+            LakonaTimerOptions? options = null,
+            Func<HotfixRuntimeSnapshot, IHotfixRuntimeAccessor>? runtimeAccessorFactory = null)
         {
             var observer = new RecordingTimerSchedulerObserver();
             var services = new ServiceCollection().BuildServiceProvider();
@@ -271,7 +332,7 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
                 sourcePath: null,
                 ownsRuntimeResources: false,
                 onRetired: null);
-            var runtimeAccessor = new FixedRuntimeAccessor(snapshot);
+            var runtimeAccessor = runtimeAccessorFactory?.Invoke(snapshot) ?? new FixedRuntimeAccessor(snapshot);
             var scheduler = new LakonaTimerScheduler(
                 runtimeAccessor,
                 time,
@@ -337,11 +398,66 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         }
     }
 
+    private sealed class BlockingRuntimeAccessor(HotfixRuntimeSnapshot current) : IHotfixRuntimeAccessor
+    {
+        private readonly TaskCompletionSource acquireStarted =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource releaseAcquire =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public HotfixRuntimeSnapshot Current { get; } = current;
+
+        public HotfixRuntimeSnapshotLease AcquireCurrent()
+        {
+            acquireStarted.TrySetResult();
+            releaseAcquire.Task.GetAwaiter().GetResult();
+            return Current.AcquireLease();
+        }
+
+        public async Task WaitForAcquireStartedAsync(CancellationToken cancellationToken)
+        {
+            await acquireStarted.Task.WaitAsync(TimeSpan.FromSeconds(1), cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        public void ReleaseAcquire()
+        {
+            releaseAcquire.TrySetResult();
+        }
+    }
+
     private sealed class RecordingTimerSchedulerObserver : ILakonaTimerSchedulerObserver
     {
         public int StaleHeapEntries { get; private set; }
 
         public int SkippedDueSlots { get; private set; }
+
+        public IReadOnlyList<LakonaTimerDispatchObservation> QueueFull
+        {
+            get
+            {
+                lock (queueFull)
+                {
+                    return queueFull.ToArray();
+                }
+            }
+        }
+
+        public IReadOnlyList<LakonaTimerDispatchObservation> Skipped
+        {
+            get
+            {
+                lock (skipped)
+                {
+                    return skipped.ToArray();
+                }
+            }
+        }
+
+        private readonly List<LakonaTimerDispatchObservation> queueFull = [];
+        private readonly List<LakonaTimerDispatchObservation> skipped = [];
+        private readonly TaskCompletionSource queueFullRecorded =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public void OnDispatchQueued(LakonaTimerDispatchObservation observation)
         {
@@ -349,10 +465,21 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
 
         public void OnDispatchQueueFull(LakonaTimerDispatchObservation observation)
         {
+            lock (queueFull)
+            {
+                queueFull.Add(observation);
+            }
+
+            queueFullRecorded.TrySetResult();
         }
 
         public void OnDispatchSkipped(LakonaTimerDispatchObservation observation)
         {
+            lock (skipped)
+            {
+                skipped.Add(observation);
+            }
+
             SkippedDueSlots++;
         }
 
@@ -371,6 +498,12 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         public void OnStaleHeapEntry(LakonaTimerHeapObservation observation)
         {
             StaleHeapEntries++;
+        }
+
+        public async Task WaitForQueueFullAsync(CancellationToken cancellationToken)
+        {
+            await queueFullRecorded.Task.WaitAsync(TimeSpan.FromSeconds(1), cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 

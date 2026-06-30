@@ -242,9 +242,10 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         while (true)
         {
             LakonaTimerDispatchWorkItem? workItem = null;
+            LakonaTimerDispatchObservation? queuedObservation = null;
             LakonaTimerDispatchObservation? skippedObservation = null;
+            LakonaTimerDispatchObservation? queueFullObservation = null;
             LakonaTimerHeapObservation? staleObservation = null;
-            var queueFull = false;
             lock (gate)
             {
                 if (!heap.TryPeek(out var entry, out var priority))
@@ -284,7 +285,8 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
                             observedAtUtc);
                         if (!dispatches.Writer.TryWrite(workItem.Value))
                         {
-                            queueFull = true;
+                            queueFullObservation = observation;
+                            skippedObservation = observation;
                             registration.Pending = false;
                             if (registration.Period is null)
                             {
@@ -301,6 +303,11 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
                             registration.NextDueAtUtc = registration.NextDueAtUtc.Add(registration.Period.Value);
                             registration.FollowUpScheduled = true;
                             EnqueueHeap(registration);
+                            queuedObservation = observation;
+                        }
+                        else
+                        {
+                            queuedObservation = observation;
                         }
                     }
                 }
@@ -312,31 +319,20 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
                 continue;
             }
 
+            if (queueFullObservation is { } full)
+            {
+                NotifyObserver(observer => observer.OnDispatchQueueFull(full), "dispatch queue full");
+            }
+
             if (skippedObservation is { } skipped)
             {
                 NotifyObserver(observer => observer.OnDispatchSkipped(skipped), "dispatch skipped");
                 continue;
             }
 
-            if (queueFull && workItem is { } fullWork)
+            if (queuedObservation is { } queued)
             {
-                NotifyObserver(observer => observer.OnDispatchQueueFull(new LakonaTimerDispatchObservation(
-                    fullWork.TimerId,
-                    fullWork.DueAtUtc,
-                    fullWork.ObservedAtUtc,
-                    Period: null,
-                    fullWork.Generation)), "dispatch queue full");
-                continue;
-            }
-
-            if (workItem is { } queued)
-            {
-                NotifyObserver(observer => observer.OnDispatchQueued(new LakonaTimerDispatchObservation(
-                    queued.TimerId,
-                    queued.DueAtUtc,
-                    queued.ObservedAtUtc,
-                    Period: null,
-                    queued.Generation)), "dispatch queued");
+                NotifyObserver(observer => observer.OnDispatchQueued(queued), "dispatch queued");
             }
         }
     }
@@ -409,6 +405,18 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
             var accessor = runtimeAccessor
                 ?? throw new InvalidOperationException("Lakona timer dispatch requires a hotfix runtime accessor.");
             using var lease = accessor.AcquireCurrent();
+            lock (gate)
+            {
+                if (!registrations.TryGetValue(workItem.TimerId, out var current)
+                    || !ReferenceEquals(current, registration)
+                    || current.Destroyed
+                    || current.Generation != workItem.Generation
+                    || dispatchCancellation.IsCancellationRequested)
+                {
+                    return;
+                }
+            }
+
             await InvokeCallbackAsync(lease.Snapshot, registration.Descriptor, workItem, dispatchCancellation.Token)
                 .ConfigureAwait(false);
             NotifyObserver(observer => observer.OnDispatchCompleted(observation), "dispatch completed");
