@@ -3,7 +3,9 @@ using Lakona.Game.Server.Guardrails;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Observability;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System.Globalization;
 using Xunit;
 
@@ -133,6 +135,98 @@ public sealed class LakonaObservabilityOptionsTests
         Assert.Equal("/metrics", options.Metrics.Prometheus.Path);
         Assert.True(options.Tracing.Export.Enabled);
         Assert.Equal(0.25, options.Tracing.Export.SampleRate);
+    }
+
+    [Fact]
+    public void FromConfiguration_preserves_logging_minimum_and_raw_category_levels()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:Observability:Logging:MinimumLevel"] = "Warning",
+            ["Lakona:Observability:Logging:Categories:Lakona.Game.Server"] = "Debug",
+            ["Lakona:Observability:Logging:Categories:Lakona.Game.Custom"] = "InvalidLevel"
+        });
+
+        var options = LakonaObservabilityOptions.FromConfiguration(
+            configuration,
+            LakonaGameRuntimeProfile.Production);
+
+        Assert.Equal(LogLevel.Warning, options.Logging.MinimumLevel);
+        Assert.Equal("Warning", options.Logging.MinimumLevelRaw);
+        Assert.Equal("Debug", options.Logging.Categories["Lakona.Game.Server"]);
+        Assert.Equal("InvalidLevel", options.Logging.Categories["Lakona.Game.Custom"]);
+    }
+
+    [Fact]
+    public void LoggingConfiguration_clears_providers_when_logging_is_disabled()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging(logging =>
+        {
+            logging.AddProvider(new TestLoggerProvider());
+            LakonaLoggingConfiguration.Apply(
+                logging,
+                new LakonaLoggingObservabilityOptions
+                {
+                    Enabled = false
+                });
+        });
+
+        using var provider = services.BuildServiceProvider();
+
+        Assert.Empty(provider.GetServices<ILoggerProvider>());
+    }
+
+    [Fact]
+    public void LoggingConfiguration_does_not_add_console_provider_when_console_is_disabled()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging(logging =>
+        {
+            LakonaLoggingConfiguration.Apply(
+                logging,
+                new LakonaLoggingObservabilityOptions
+                {
+                    Console = new LakonaConsoleLoggingObservabilityOptions
+                    {
+                        Enabled = false
+                    }
+                });
+        });
+
+        using var provider = services.BuildServiceProvider();
+
+        Assert.Empty(provider.GetServices<ILoggerProvider>());
+    }
+
+    [Fact]
+    public void LoggingConfiguration_falls_back_to_information_for_invalid_category_levels()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging(logging =>
+        {
+            LakonaLoggingConfiguration.Apply(
+                logging,
+                new LakonaLoggingObservabilityOptions
+                {
+                    Console = new LakonaConsoleLoggingObservabilityOptions
+                    {
+                        Enabled = false
+                    },
+                    Categories = new Dictionary<string, string>
+                    {
+                        ["Lakona.Game.Custom"] = "InvalidLevel"
+                    }
+                });
+        });
+
+        using var provider = services.BuildServiceProvider();
+        var filterOptions = provider.GetRequiredService<IOptions<LoggerFilterOptions>>().Value;
+
+        Assert.Contains(
+            filterOptions.Rules,
+            rule => string.Equals(rule.CategoryName, "Lakona.Game.Custom", StringComparison.Ordinal)
+                && rule.LogLevel == LogLevel.Information);
     }
 
     [Fact]
@@ -307,5 +401,17 @@ public sealed class LakonaObservabilityOptionsTests
         return new ConfigurationBuilder()
             .AddInMemoryCollection(values)
             .Build();
+    }
+
+    private sealed class TestLoggerProvider : ILoggerProvider
+    {
+        public ILogger CreateLogger(string categoryName)
+        {
+            return Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+        }
+
+        public void Dispose()
+        {
+        }
     }
 }

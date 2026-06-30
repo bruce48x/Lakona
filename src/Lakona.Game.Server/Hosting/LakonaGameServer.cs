@@ -52,6 +52,7 @@ public static class LakonaGameServer
         }
 
         // Full startup
+        LakonaLoggingConfiguration.Apply(builder.Logging, runtimeOptions.Observability.Logging);
         LakonaBrand.Print();
 
         builder.Services.AddLakonaGameServer(builder.Configuration);
@@ -132,7 +133,6 @@ public static class LakonaGameServer
             ContentRootPath = AppContext.BaseDirectory
         });
         builder.Logging.ClearProviders();
-        builder.Logging.AddConsole();
         return builder;
     }
 
