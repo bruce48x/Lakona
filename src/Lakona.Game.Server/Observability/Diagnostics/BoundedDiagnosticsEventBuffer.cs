@@ -13,8 +13,24 @@ public sealed class BoundedDiagnosticsEventBuffer : IDiagnosticsEventSink
         @"/(?:home|Users|var|tmp|etc|opt|srv|deploy)/[^\s""']+",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
-    private static readonly Regex SecretValuePattern = new(
-        @"\b(?:secret|token|password|apikey|api_key|request|payload)(?:[-_:=][^\s""']+)?",
+    private static readonly Regex BearerTokenPattern = new(
+        @"\bBearer\s+[A-Za-z0-9._~+/\-]+=*",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+
+    private static readonly Regex BracedSensitiveValuePattern = new(
+        @"\b(?:payload|request)\s+\{[^}\r\n]*\}",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+
+    private static readonly Regex SeparatedSensitiveValuePattern = new(
+        @"\b(?:token|password|secret|api[-_]?key|request|payload)\s*[:=]\s*(?:\{[^}\r\n]*\}|[^\s""',;}]+)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+
+    private static readonly Regex SpacedSensitiveValuePattern = new(
+        @"\b(?:token|password|secret|api[-_]?key)\s+[^\s""',;}]+",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+
+    private static readonly Regex HyphenatedSensitiveValuePattern = new(
+        @"\b(?:token|password|secret|api[-_]?key)[-_][^\s""',;}]+",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
     private static readonly HashSet<string> SensitiveDimensionKeys = new(StringComparer.OrdinalIgnoreCase)
@@ -113,7 +129,7 @@ public sealed class BoundedDiagnosticsEventBuffer : IDiagnosticsEventSink
                 continue;
             }
 
-            sanitized[Limit(key, 80)] = LimitNullable(value, 160);
+            sanitized[Limit(key, 80)] = LimitNullable(SanitizeNullable(value), 160);
         }
 
         return sanitized;
@@ -123,8 +139,17 @@ public sealed class BoundedDiagnosticsEventBuffer : IDiagnosticsEventSink
     {
         var sanitized = WindowsPathPattern.Replace(message, "[redacted-path]");
         sanitized = UnixPathPattern.Replace(sanitized, "[redacted-path]");
-        sanitized = SecretValuePattern.Replace(sanitized, "[redacted]");
+        sanitized = BearerTokenPattern.Replace(sanitized, "Bearer [redacted]");
+        sanitized = BracedSensitiveValuePattern.Replace(sanitized, "[redacted]");
+        sanitized = SeparatedSensitiveValuePattern.Replace(sanitized, "[redacted]");
+        sanitized = SpacedSensitiveValuePattern.Replace(sanitized, "[redacted]");
+        sanitized = HyphenatedSensitiveValuePattern.Replace(sanitized, "[redacted]");
         return sanitized;
+    }
+
+    private static string? SanitizeNullable(string? value)
+    {
+        return value is null ? null : SanitizeMessage(value);
     }
 
     private static string Limit(string value, int maxLength)

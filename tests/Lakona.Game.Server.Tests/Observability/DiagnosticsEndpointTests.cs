@@ -232,7 +232,7 @@ public sealed class DiagnosticsEndpointTests
             "reload failed for secret-token at C:\\deploy\\private\\hotfix.dll",
             TraceId: null,
             CorrelationId: null,
-            new Dictionary<string, string?> { ["provider"] = "hotfix" }));
+            new Dictionary<string, string?> { ["provider"] = "hotfix token=abc123 /var/secrets/hotfix.dll" }));
         var router = new LakonaLocalAdminRouter(DiagnosticsLocalAdminRoutes.Create(
             new LakonaDiagnosticsSnapshotService([], sink),
             sink));
@@ -243,12 +243,15 @@ public sealed class DiagnosticsEndpointTests
 
         Assert.Equal(200, response.StatusCode);
         Assert.DoesNotContain("secret-token", response.Body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("abc123", response.Body, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("C:\\deploy\\private\\hotfix.dll", response.Body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("/var/secrets/hotfix.dll", response.Body, StringComparison.OrdinalIgnoreCase);
         using var document = JsonDocument.Parse(response.Body);
         var evt = Assert.Single(document.RootElement.GetProperty("events").EnumerateArray());
         Assert.Equal("Lakona.Game.Tests", evt.GetProperty("category").GetString());
         Assert.Equal("hotfix.reload.failed", evt.GetProperty("kind").GetString());
         Assert.Contains("[redacted", evt.GetProperty("message").GetString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("[redacted", evt.GetProperty("dimensions").GetProperty("provider").GetString(), StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed class TestSnapshotProvider : ILakonaDiagnosticsSnapshotProvider

@@ -82,6 +82,60 @@ public sealed class DiagnosticsEventBufferTests
     }
 
     [Fact]
+    public void Event_messages_redact_spaced_secret_values_bearer_tokens_and_paths()
+    {
+        var buffer = new BoundedDiagnosticsEventBuffer(8, LogLevel.Trace);
+
+        buffer.Publish(CreateEvent(
+            LogLevel.Error,
+            "token: abc123 password hunter2 password=hunter2 Bearer abc.def.ghi payload { \"secret\": true } at C:\\deploy\\private\\hotfix.dll and /var/secrets/hotfix.dll"));
+
+        var evt = Assert.Single(buffer.Snapshot(10));
+        Assert.DoesNotContain("abc123", evt.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("hunter2", evt.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("abc.def.ghi", evt.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"secret\"", evt.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("C:\\deploy\\private\\hotfix.dll", evt.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("/var/secrets/hotfix.dll", evt.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("[redacted", evt.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Event_messages_preserve_benign_sensitive_words_without_values()
+    {
+        var buffer = new BoundedDiagnosticsEventBuffer(8, LogLevel.Trace);
+
+        buffer.Publish(CreateEvent(
+            LogLevel.Information,
+            "request completed; payload size recorded; requestId assigned"));
+
+        var evt = Assert.Single(buffer.Snapshot(10));
+        Assert.Equal("request completed; payload size recorded; requestId assigned", evt.Message);
+    }
+
+    [Fact]
+    public void Event_dimension_values_redact_sensitive_fragments_for_allowed_keys()
+    {
+        var buffer = new BoundedDiagnosticsEventBuffer(8, LogLevel.Trace);
+
+        buffer.Publish(CreateEvent(
+            LogLevel.Error,
+            "sanitized",
+            new Dictionary<string, string?>
+            {
+                ["provider"] = "hotfix token=abc123 C:\\deploy\\private\\hotfix.dll /var/secrets/hotfix.dll",
+                ["message_type"] = "request completed"
+            }));
+
+        var evt = Assert.Single(buffer.Snapshot(10));
+        Assert.DoesNotContain("abc123", evt.Dimensions["provider"], StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("C:\\deploy\\private\\hotfix.dll", evt.Dimensions["provider"], StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("/var/secrets/hotfix.dll", evt.Dimensions["provider"], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("[redacted", evt.Dimensions["provider"], StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("request completed", evt.Dimensions["message_type"]);
+    }
+
+    [Fact]
     public void Logger_provider_captures_Lakona_warnings_without_rendering_templates_or_structured_secrets()
     {
         var buffer = new BoundedDiagnosticsEventBuffer(8, LogLevel.Warning);
