@@ -16,6 +16,18 @@ namespace Lakona.Game.Server.Tests;
 public sealed class LakonaTimerIntegrationTests
 {
     [Fact]
+    public void AddLakonaGameServer_registers_default_timer_backend()
+    {
+        using var provider = new ServiceCollection()
+            .AddLakonaGameServer()
+            .BuildServiceProvider();
+
+        var backend = provider.GetService<ILakonaTimerBackend>();
+
+        Assert.IsType<LakonaTimerBackend>(backend);
+    }
+
+    [Fact]
     public async Task CreateOnceTimerAsync_accepts_zero_due_time_and_stores_reload_safe_json_descriptor()
     {
         HotfixDispatch.Replace(new HotfixDispatchTable(0, Array.Empty<HotfixMethodBinding>()));
