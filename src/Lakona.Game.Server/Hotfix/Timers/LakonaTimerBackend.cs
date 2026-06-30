@@ -127,6 +127,57 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
         CancellationToken cancellationToken)
         where TCallback : class
     {
+        var descriptor = CreateDescriptor<TCallback, TArgs>(
+            dueTime,
+            period,
+            methodName,
+            args,
+            cancellationToken);
+
+        AddDescriptor(descriptor);
+        return new ValueTask<TimerId>(descriptor.TimerId);
+    }
+
+    public ILakonaTimerBackend CreateStagingBackend()
+    {
+        return new StagingTimerBackend(this);
+    }
+
+    public ValueTask CommitStagedTimersAsync(ILakonaTimerBackend stagingBackend, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (stagingBackend is not StagingTimerBackend staging || !ReferenceEquals(staging.Owner, this))
+        {
+            return default;
+        }
+
+        foreach (var descriptor in staging.TakeDescriptors())
+        {
+            AddDescriptor(descriptor);
+        }
+
+        return default;
+    }
+
+    public ValueTask RollbackStagedTimersAsync(ILakonaTimerBackend stagingBackend, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (stagingBackend is StagingTimerBackend staging && ReferenceEquals(staging.Owner, this))
+        {
+            staging.Clear();
+        }
+
+        return default;
+    }
+
+    private LakonaTimerDescriptor CreateDescriptor<TCallback, TArgs>(
+        TimeSpan dueTime,
+        TimeSpan? period,
+        string methodName,
+        TArgs args,
+        CancellationToken cancellationToken)
+        where TCallback : class
+    {
         cancellationToken.ThrowIfCancellationRequested();
         if (dueTime < TimeSpan.Zero)
         {
@@ -148,7 +199,7 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
         var callback = callbackResolver.Validate<TCallback, TArgs>(lease, methodName);
         var serializedArgs = argsSerializer.Serialize(args);
         var timerId = TimerId.FromGuid(Guid.NewGuid());
-        var descriptor = new LakonaTimerDescriptor(
+        return new LakonaTimerDescriptor(
             timerId,
             callback.CallbackAssemblyName,
             callback.CallbackFullName,
@@ -160,7 +211,10 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
             GetUtcNow().Add(dueTime),
             period,
             callback.Generation);
+    }
 
+    private void AddDescriptor(LakonaTimerDescriptor descriptor)
+    {
         if (scheduler is not null)
         {
             scheduler.Add(descriptor);
@@ -169,11 +223,9 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
         {
             lock (gate)
             {
-                descriptors.Add(timerId, descriptor);
+                descriptors.Add(descriptor.TimerId, descriptor);
             }
         }
-
-        return new ValueTask<TimerId>(timerId);
     }
 
     private DateTimeOffset GetUtcNow()
@@ -196,5 +248,90 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
         }
 
         throw new InvalidOperationException($"Timer args type '{argsType.FullName}' must be from the active hotfix assembly or a shared default AssemblyLoadContext assembly.");
+    }
+
+    private sealed class StagingTimerBackend(LakonaTimerBackend owner) : ILakonaTimerBackend
+    {
+        private readonly object gate = new();
+        private readonly Dictionary<TimerId, LakonaTimerDescriptor> descriptors = new();
+
+        public LakonaTimerBackend Owner => owner;
+
+        public ValueTask<TimerId> CreateOnceTimerAsync<TCallback, TArgs>(
+            TimeSpan dueTime,
+            string methodName,
+            TArgs args,
+            CancellationToken cancellationToken)
+            where TCallback : class
+        {
+            var descriptor = owner.CreateDescriptor<TCallback, TArgs>(
+                dueTime,
+                period: null,
+                methodName,
+                args,
+                cancellationToken);
+            lock (gate)
+            {
+                descriptors.Add(descriptor.TimerId, descriptor);
+            }
+
+            return new ValueTask<TimerId>(descriptor.TimerId);
+        }
+
+        public ValueTask<TimerId> CreatePeriodicTimerAsync<TCallback, TArgs>(
+            TimeSpan dueTime,
+            TimeSpan period,
+            string methodName,
+            TArgs args,
+            CancellationToken cancellationToken)
+            where TCallback : class
+        {
+            if (period <= TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException(nameof(period), period, "Period must be greater than zero.");
+            }
+
+            var descriptor = owner.CreateDescriptor<TCallback, TArgs>(
+                dueTime,
+                period,
+                methodName,
+                args,
+                cancellationToken);
+            lock (gate)
+            {
+                descriptors.Add(descriptor.TimerId, descriptor);
+            }
+
+            return new ValueTask<TimerId>(descriptor.TimerId);
+        }
+
+        public ValueTask DestroyTimerAsync(TimerId timerId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (gate)
+            {
+                descriptors.Remove(timerId);
+            }
+
+            return default;
+        }
+
+        public IReadOnlyList<LakonaTimerDescriptor> TakeDescriptors()
+        {
+            lock (gate)
+            {
+                var values = descriptors.Values.ToArray();
+                descriptors.Clear();
+                return values;
+            }
+        }
+
+        public void Clear()
+        {
+            lock (gate)
+            {
+                descriptors.Clear();
+            }
+        }
     }
 }

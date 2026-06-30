@@ -12,8 +12,10 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
     private readonly IReadOnlyList<string> _sharedAssemblyNames;
     private readonly IReadOnlyList<Type> _requiredServiceContracts;
     private readonly IServiceProvider? _rootServices;
+    private readonly HotfixFeatureLifecycleCoordinator _featureLifecycle = new();
     private readonly SemaphoreSlim _reloadLock = new(1, 1);
     private long _nextVersion;
+    private HotfixFeatureLifecycleSnapshot _currentFeatureLifecycle = HotfixFeatureLifecycleSnapshot.Empty;
     private HotfixSnapshot _current = new(null, null, null, null, 0, Array.Empty<HotfixMethodKey>(), null, null, null);
     private HotfixRuntimeSnapshot _currentRuntime = new(
         new HotfixServiceInvoker(HotfixDispatch.Current),
@@ -163,7 +165,6 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 return new HotfixReloadResult(HotfixReloadStatus.Succeeded, snapshot, resolved.Version, resolved.AssemblyPath, Array.Empty<string>());
             }
 
-            HotfixDispatch.Replace(table);
             var runtimeSnapshot = new HotfixRuntimeSnapshot(
                 new HotfixServiceInvoker(table),
                 new HotfixFeatureCommandInvoker(table),
@@ -177,10 +178,25 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 resolved.AssemblyPath,
                 ownsRuntimeResources: true,
                 onRetired: null);
+            var nextFeatureLifecycle = await _featureLifecycle.StartCandidateAsync(
+                Volatile.Read(ref _currentFeatureLifecycle),
+                runtimeSnapshot,
+                scan.Features,
+                cancellationToken).ConfigureAwait(false);
+
+            HotfixDispatch.Replace(table);
             var oldRuntime = Interlocked.Exchange(ref _currentRuntime, runtimeSnapshot);
+            var oldFeatureLifecycle = Interlocked.Exchange(ref _currentFeatureLifecycle, nextFeatureLifecycle);
             hotfixProvider = null;
             pendingContext = null;
             Volatile.Write(ref _current, snapshot);
+            await _featureLifecycle.CommitCandidateTimersAsync(
+                nextFeatureLifecycle,
+                CancellationToken.None).ConfigureAwait(false);
+            await _featureLifecycle.StopRemovedAsync(
+                oldFeatureLifecycle,
+                nextFeatureLifecycle,
+                CancellationToken.None).ConfigureAwait(false);
             oldRuntime.Retire();
 
             var result = new HotfixReloadResult(HotfixReloadStatus.Succeeded, snapshot, resolved.Version, resolved.AssemblyPath, Array.Empty<string>());

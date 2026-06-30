@@ -18,4 +18,19 @@ internal interface ILakonaTimerBackend
         where TCallback : class;
 
     ValueTask DestroyTimerAsync(TimerId timerId, CancellationToken cancellationToken);
+
+    ILakonaTimerBackend CreateStagingBackend()
+    {
+        return this;
+    }
+
+    ValueTask CommitStagedTimersAsync(ILakonaTimerBackend stagingBackend, CancellationToken cancellationToken)
+    {
+        return default;
+    }
+
+    ValueTask RollbackStagedTimersAsync(ILakonaTimerBackend stagingBackend, CancellationToken cancellationToken)
+    {
+        return default;
+    }
 }

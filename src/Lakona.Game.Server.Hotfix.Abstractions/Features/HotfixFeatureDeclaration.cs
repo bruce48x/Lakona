@@ -10,4 +10,9 @@ public sealed record HotfixFeatureDeclaration(
     IReadOnlyList<HotfixLocalActorDeclaration> LocalActors,
     IReadOnlyList<HotfixActorTickDeclaration> ActorTicks,
     IReadOnlyList<HotfixFeatureCommandDeclaration> Commands,
-    IReadOnlyList<ServiceDescriptor> Services);
+    IReadOnlyList<ServiceDescriptor> Services,
+    HotfixFeatureLifecycleDeclaration? Lifecycle = null)
+{
+    public HotfixFeatureLifecycleDeclaration Lifecycle { get; init; } =
+        Lifecycle ?? HotfixFeatureLifecycleDeclaration.Empty;
+}

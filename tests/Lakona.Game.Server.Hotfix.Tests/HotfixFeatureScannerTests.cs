@@ -149,6 +149,53 @@ public sealed class HotfixFeatureScannerTests
             diagnostic.Contains("concrete class", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public void Scanner_accepts_optional_static_start_and_stop_hooks()
+    {
+        var result = HotfixBehaviorScanner.Scan(typeof(LifecycleFeature).Assembly, [
+            typeof(LifecycleFeature)
+        ]);
+
+        Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
+        var lifecycle = Assert.Single(result.Features).Lifecycle;
+        Assert.NotNull(lifecycle.StartMethod);
+        Assert.NotNull(lifecycle.StopMethod);
+        Assert.Equal(nameof(LifecycleFeature.StartAsync), lifecycle.StartMethod!.Name);
+        Assert.Equal(nameof(LifecycleFeature.StopAsync), lifecycle.StopMethod!.Name);
+    }
+
+    [Theory]
+    [InlineData(typeof(InstanceStartFeature), "StartAsync")]
+    [InlineData(typeof(GenericStartFeature), "StartAsync")]
+    [InlineData(typeof(WrongStartReturnFeature), "StartAsync")]
+    [InlineData(typeof(WrongStartParameterFeature), "StartAsync")]
+    [InlineData(typeof(InstanceStopFeature), "StopAsync")]
+    [InlineData(typeof(GenericStopFeature), "StopAsync")]
+    [InlineData(typeof(WrongStopReturnFeature), "StopAsync")]
+    [InlineData(typeof(WrongStopParameterFeature), "StopAsync")]
+    public void Scanner_rejects_invalid_start_and_stop_hooks(Type featureType, string hookName)
+    {
+        var result = HotfixBehaviorScanner.Scan(featureType.Assembly, [featureType]);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Contains(hookName, StringComparison.Ordinal) &&
+            diagnostic.Contains("public static ValueTask", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Scanner_rejects_public_on_reload_hook()
+    {
+        var result = HotfixBehaviorScanner.Scan(typeof(OnReloadFeature).Assembly, [
+            typeof(OnReloadFeature)
+        ]);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Contains("OnReload", StringComparison.Ordinal) &&
+            diagnostic.Contains("not supported", StringComparison.OrdinalIgnoreCase));
+    }
+
     [HotfixFeature("battle-runtime")]
     private sealed class BattleRuntimeFeature : HotfixGameFeature
     {
@@ -264,6 +311,152 @@ public sealed class HotfixFeatureScannerTests
     {
         public static void Configure(HotfixFeatureContext context)
         {
+        }
+    }
+
+    [HotfixFeature("lifecycle")]
+    private sealed class LifecycleFeature : HotfixGameFeature
+    {
+        public static void Configure(HotfixFeatureContext context)
+        {
+        }
+
+        public static ValueTask StartAsync(HotfixFeatureStartCall call)
+        {
+            _ = call;
+            return default;
+        }
+
+        public static ValueTask StopAsync(HotfixFeatureStopCall call)
+        {
+            _ = call;
+            return default;
+        }
+    }
+
+    [HotfixFeature("instance-start")]
+    private sealed class InstanceStartFeature : HotfixGameFeature
+    {
+        public static void Configure(HotfixFeatureContext context)
+        {
+        }
+
+        public ValueTask StartAsync(HotfixFeatureStartCall call)
+        {
+            _ = call;
+            return default;
+        }
+    }
+
+    [HotfixFeature("generic-start")]
+    private sealed class GenericStartFeature : HotfixGameFeature
+    {
+        public static void Configure(HotfixFeatureContext context)
+        {
+        }
+
+        public static ValueTask StartAsync<T>(HotfixFeatureStartCall call)
+        {
+            _ = call;
+            return default;
+        }
+    }
+
+    [HotfixFeature("wrong-start-return")]
+    private sealed class WrongStartReturnFeature : HotfixGameFeature
+    {
+        public static void Configure(HotfixFeatureContext context)
+        {
+        }
+
+        public static Task StartAsync(HotfixFeatureStartCall call)
+        {
+            _ = call;
+            return Task.CompletedTask;
+        }
+    }
+
+    [HotfixFeature("wrong-start-parameter")]
+    private sealed class WrongStartParameterFeature : HotfixGameFeature
+    {
+        public static void Configure(HotfixFeatureContext context)
+        {
+        }
+
+        public static ValueTask StartAsync(HotfixFeatureStopCall call)
+        {
+            _ = call;
+            return default;
+        }
+    }
+
+    [HotfixFeature("instance-stop")]
+    private sealed class InstanceStopFeature : HotfixGameFeature
+    {
+        public static void Configure(HotfixFeatureContext context)
+        {
+        }
+
+        public ValueTask StopAsync(HotfixFeatureStopCall call)
+        {
+            _ = call;
+            return default;
+        }
+    }
+
+    [HotfixFeature("generic-stop")]
+    private sealed class GenericStopFeature : HotfixGameFeature
+    {
+        public static void Configure(HotfixFeatureContext context)
+        {
+        }
+
+        public static ValueTask StopAsync<T>(HotfixFeatureStopCall call)
+        {
+            _ = call;
+            return default;
+        }
+    }
+
+    [HotfixFeature("wrong-stop-return")]
+    private sealed class WrongStopReturnFeature : HotfixGameFeature
+    {
+        public static void Configure(HotfixFeatureContext context)
+        {
+        }
+
+        public static Task StopAsync(HotfixFeatureStopCall call)
+        {
+            _ = call;
+            return Task.CompletedTask;
+        }
+    }
+
+    [HotfixFeature("wrong-stop-parameter")]
+    private sealed class WrongStopParameterFeature : HotfixGameFeature
+    {
+        public static void Configure(HotfixFeatureContext context)
+        {
+        }
+
+        public static ValueTask StopAsync(HotfixFeatureStartCall call)
+        {
+            _ = call;
+            return default;
+        }
+    }
+
+    [HotfixFeature("on-reload")]
+    private sealed class OnReloadFeature : HotfixGameFeature
+    {
+        public static void Configure(HotfixFeatureContext context)
+        {
+        }
+
+        public static ValueTask OnReload(HotfixFeatureStartCall call)
+        {
+            _ = call;
+            return default;
         }
     }
 

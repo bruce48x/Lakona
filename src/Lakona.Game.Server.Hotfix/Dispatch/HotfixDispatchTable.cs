@@ -105,6 +105,7 @@ public sealed class HotfixDispatchTable
         }
 
         Version = version;
+        Features = features.ToArray();
         bindings = methodList.ToDictionary(static method => method.Key, static method => method);
         serviceBindings = serviceList.ToDictionary(static service => service.Key, static service => service);
         serviceActivationFactories = serviceList
@@ -128,6 +129,8 @@ public sealed class HotfixDispatchTable
     public long Version { get; }
 
     public IReadOnlyList<HotfixMethodKey> MethodKeys { get; }
+
+    public IReadOnlyList<HotfixFeatureDeclaration> Features { get; }
 
     public MethodInfo Resolve(HotfixMethodKey key)
     {

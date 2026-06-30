@@ -173,6 +173,17 @@ public static class HotfixBehaviorScanner
             return;
         }
 
+        HotfixFeatureLifecycleDeclaration lifecycle;
+        try
+        {
+            lifecycle = HotfixFeatureLifecycleDeclaration.FromFeatureType(featureType);
+        }
+        catch (InvalidOperationException ex)
+        {
+            diagnostics.Add(ex.Message);
+            return;
+        }
+
         var context = new HotfixFeatureContext();
         try
         {
@@ -197,7 +208,8 @@ public static class HotfixBehaviorScanner
             context.LocalActors.ToArray(),
             context.ActorTicks.ToArray(),
             context.Commands.ToArray(),
-            context.Services.ToArray()));
+            context.Services.ToArray(),
+            lifecycle));
     }
 
     private static bool TryGetHotfixServiceContract(
