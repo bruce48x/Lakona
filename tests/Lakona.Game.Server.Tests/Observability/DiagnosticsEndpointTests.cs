@@ -254,6 +254,41 @@ public sealed class DiagnosticsEndpointTests
         Assert.Contains("[redacted", evt.GetProperty("dimensions").GetProperty("provider").GetString(), StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task Events_endpoint_redacts_sensitive_identity_fields()
+    {
+        var sink = new BoundedDiagnosticsEventBuffer(8, LogLevel.Trace);
+        sink.Publish(new DiagnosticsEvent(
+            DateTimeOffset.UtcNow,
+            LogLevel.Error,
+            "auth token=abc123",
+            "reload C:\\deploy\\private\\kind",
+            "recent event",
+            TraceId: "Bearer abc.def.ghi",
+            CorrelationId: "/var/secrets/correlation",
+            new Dictionary<string, string?> { ["provider"] = "hotfix" }));
+        var router = new LakonaLocalAdminRouter(DiagnosticsLocalAdminRoutes.Create(
+            new LakonaDiagnosticsSnapshotService([], sink),
+            sink));
+
+        var response = await router.RouteAsync(
+            new LakonaLocalAdminRequest("GET", "/_lakona/diagnostics/events", Stream.Null, true),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.DoesNotContain("abc123", response.Body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("C:\\deploy\\private\\kind", response.Body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("abc.def.ghi", response.Body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("/var/secrets/correlation", response.Body, StringComparison.OrdinalIgnoreCase);
+        using var document = JsonDocument.Parse(response.Body);
+        var evt = Assert.Single(document.RootElement.GetProperty("events").EnumerateArray());
+        Assert.Contains("[redacted", evt.GetProperty("category").GetString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("[redacted", evt.GetProperty("kind").GetString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("[redacted", evt.GetProperty("traceId").GetString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("[redacted", evt.GetProperty("correlationId").GetString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("recent event", evt.GetProperty("message").GetString());
+    }
+
     private sealed class TestSnapshotProvider : ILakonaDiagnosticsSnapshotProvider
     {
         private readonly object _snapshot;

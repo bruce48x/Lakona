@@ -78,11 +78,11 @@ public sealed class BoundedDiagnosticsEventBuffer : IDiagnosticsEventSink
 
         var sanitized = diagnosticEvent with
         {
-            Category = Limit(diagnosticEvent.Category, 160),
-            Kind = Limit(diagnosticEvent.Kind, 80),
+            Category = Limit(SanitizeMessage(diagnosticEvent.Category), 160),
+            Kind = Limit(SanitizeMessage(diagnosticEvent.Kind), 80),
             Message = Limit(SanitizeMessage(diagnosticEvent.Message), 240),
-            TraceId = LimitNullable(diagnosticEvent.TraceId, 64),
-            CorrelationId = LimitNullable(diagnosticEvent.CorrelationId, 64),
+            TraceId = LimitNullable(SanitizeNullable(diagnosticEvent.TraceId), 64),
+            CorrelationId = LimitNullable(SanitizeNullable(diagnosticEvent.CorrelationId), 64),
             Dimensions = SanitizeDimensions(diagnosticEvent.Dimensions)
         };
 
