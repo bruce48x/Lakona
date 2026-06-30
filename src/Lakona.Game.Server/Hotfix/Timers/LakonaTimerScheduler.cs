@@ -108,7 +108,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
             return;
         }
 
-        stopping.Cancel();
+        CancelSchedulerStop();
         Signal();
         dispatches.Writer.TryComplete();
         Task[] tasks = loopTask is null ? workers.ToArray() : workers.Append(loopTask).ToArray();
@@ -670,6 +670,18 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Lakona timer {TimerId} cancellation callback failed.", timerId);
+        }
+    }
+
+    private void CancelSchedulerStop()
+    {
+        try
+        {
+            stopping.Cancel();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Lakona timer scheduler shutdown cancellation callback failed.");
         }
     }
 

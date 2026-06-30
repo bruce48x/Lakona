@@ -448,6 +448,29 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
     }
 
     [Fact]
+    public async Task Shutdown_contains_throwing_cancellation_callback_exception()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
+        await using var fixture = SchedulerFixture.Create(time);
+        await fixture.StartAsync(cancellationToken);
+        TimerCallbackLog.BlockValue = "shutdown-cancel-throws";
+        TimerCallbackLog.ThrowOnCancellationValue = "shutdown-cancel-throws";
+        fixture.Add("shutdown-cancel-throws", time.GetUtcNow().AddSeconds(1));
+
+        time.Advance(TimeSpan.FromSeconds(1));
+        await TimerCallbackLog.WaitForValueAsync("shutdown-cancel-throws", cancellationToken);
+        await TimerCallbackLog.WaitForCancellationRegistrationAsync(cancellationToken);
+
+        var stopTask = fixture.StopAsync(cancellationToken);
+        await TimerCallbackLog.WaitForCancellationAsync(cancellationToken);
+        TimerCallbackLog.ReleaseBlocked();
+        var stopException = await Record.ExceptionAsync(() => stopTask);
+
+        Assert.Null(stopException);
+    }
+
+    [Fact]
     public async Task Ten_thousand_timers_share_one_scheduler_loop()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
