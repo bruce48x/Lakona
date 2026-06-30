@@ -60,7 +60,7 @@ RPC service proxies                         ChatRoomBehavior
 Framework lifecycle bridge                  ChatSessionLifecycle
 Actor fields and mailbox ownership          Service helpers
 Hotfix dispatch bridge                      Request orchestration
-Admin hotfix endpoint                       Replaceable rules
+Local admin hotfix route modules            Replaceable rules
 Actor tick scheduler                        Hotfix feature descriptors
 BuildTag metadata
 
@@ -394,6 +394,8 @@ They may be warnings during local iteration.
 ## Production Workflow
 
 Production optimizes for reliability. It does not use file watchers.
+Production hotfix package mode and local admin listener enablement are
+independent.
 
 Normal v1 flow:
 
@@ -412,6 +414,12 @@ target node:
 
 Lakona v1 does not provide remote deploy or multi-node orchestration. Operators
 or deployment systems roll nodes by invoking the local commands on each node.
+
+Production mode selects the active hotfix from `hotfix/versions` through the
+`current.txt` version pointer. If the local admin listener is disabled, startup
+can still read `current.txt` and load the selected hotfix version. Online
+`activate`, `status`, `rollback`, and `reload` operations are unavailable until
+loopback local admin is explicitly enabled.
 
 Production hotfix root:
 
@@ -442,9 +450,10 @@ v20260612-153045Z
 
 ## Local Admin Endpoint
 
-Production activation is explicit and local.
+Hotfix operations are route modules under Lakona's loopback local admin host.
+They do not own a separate listener.
 
-The v1 admin endpoint:
+Production activation is explicit and local. The v1 local admin host:
 
 - uses loopback HTTP JSON
 - binds only to `127.0.0.1` or `::1`

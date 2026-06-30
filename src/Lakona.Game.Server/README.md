@@ -59,6 +59,19 @@ calling `UseSerializer` directly in the game server host; keep client-facing
 endpoint serializers under `Lakona:Endpoints[]:Serializer` and the cluster
 serializer under `Lakona:Cluster:Serializer`.
 
+## Observability
+
+Lakona emits logs, metrics, and traces through standard .NET diagnostics:
+`ILogger`, `Meter`, and `ActivitySource`.
+
+Development enables loopback local admin diagnostics by default. Production and
+Compose disable local admin by default unless `Lakona:Observability:LocalAdmin`
+explicitly enables it.
+
+Diagnostics routes live under the loopback local admin host, including
+`/_lakona/diagnostics`, `/_lakona/diagnostics/events`, and
+`/_lakona/diagnostics/netstat`.
+
 ## Use Actors
 
 Actors are process-local state owners with mailbox-ordered execution. State for
