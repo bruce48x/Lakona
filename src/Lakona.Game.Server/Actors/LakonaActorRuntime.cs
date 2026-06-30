@@ -277,15 +277,17 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
 
     public ActorRuntimeDiagnosticsSnapshot GetDiagnosticsSnapshot()
     {
-        var actorTypes = _actors.Values
-            .Select(static cell => new
+        var actors = new List<ActorDiagnosticsCellSnapshot>();
+        foreach (var cell in _actors.Values)
+        {
+            if (TryCaptureActorDiagnosticsCell(cell, out var actor))
             {
-                cell.ActorType,
-                State = cell.GetState(),
-                Metrics = cell.GetMailboxMetrics()
-            })
-            .Where(static actor => actor.State == ActorState.Active)
-            .GroupBy(static actor => actor.ActorType.FullName ?? actor.ActorType.Name)
+                actors.Add(actor);
+            }
+        }
+
+        var actorTypes = actors
+            .GroupBy(static actor => actor.ActorType)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .Select(static group =>
             {
@@ -327,6 +329,40 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
             .ToArray();
 
         return new ActorRuntimeDiagnosticsSnapshot(actorTypes);
+    }
+
+    private static bool TryCaptureActorDiagnosticsCell(
+        ActorCell cell,
+        out ActorDiagnosticsCellSnapshot snapshot)
+    {
+        snapshot = default;
+
+        try
+        {
+            if (cell.GetState() != ActorState.Active)
+            {
+                return false;
+            }
+
+            var metrics = cell.GetMailboxMetrics();
+            if (cell.GetState() != ActorState.Active)
+            {
+                return false;
+            }
+
+            snapshot = new ActorDiagnosticsCellSnapshot(
+                cell.ActorType.FullName ?? cell.ActorType.Name,
+                metrics);
+            return true;
+        }
+        catch (ObjectDisposedException)
+        {
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     public IReadOnlyList<ActorId> GetActiveActorIds(Type actorType)
@@ -572,6 +608,10 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
             metrics.RejectedCount,
             metrics.IsCompleted);
     }
+
+    private readonly record struct ActorDiagnosticsCellSnapshot(
+        string ActorType,
+        ActorMailboxMetrics Metrics);
 
     private readonly record struct RuntimeState(LakonaActorRuntime Runtime, Type? ActorType = null);
 
