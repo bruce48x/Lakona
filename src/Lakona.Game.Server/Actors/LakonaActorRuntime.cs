@@ -275,6 +275,51 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
         return ActorState.Dead;
     }
 
+    public ActorRuntimeDiagnosticsSnapshot GetDiagnosticsSnapshot()
+    {
+        var actorTypes = _actors.Values
+            .Select(static cell => new
+            {
+                cell.ActorType,
+                State = cell.GetState(),
+                Metrics = cell.GetMailboxMetrics()
+            })
+            .Where(static actor => actor.State == ActorState.Active)
+            .GroupBy(static actor => actor.ActorType.FullName ?? actor.ActorType.Name)
+            .OrderBy(static group => group.Key, StringComparer.Ordinal)
+            .Select(static group =>
+            {
+                var activeCount = 0;
+                var mailboxQueuedSum = 0;
+                var mailboxQueuedMax = 0;
+                long mailboxEnqueuedCount = 0;
+                long mailboxProcessedCount = 0;
+                long mailboxRejectedCount = 0;
+
+                foreach (var actor in group)
+                {
+                    activeCount++;
+                    mailboxQueuedSum += actor.Metrics.QueuedCount;
+                    mailboxQueuedMax = Math.Max(mailboxQueuedMax, actor.Metrics.QueuedCount);
+                    mailboxEnqueuedCount += actor.Metrics.EnqueuedCount;
+                    mailboxProcessedCount += actor.Metrics.ProcessedCount;
+                    mailboxRejectedCount += actor.Metrics.RejectedCount;
+                }
+
+                return new ActorTypeDiagnosticsSnapshot(
+                    group.Key,
+                    activeCount,
+                    mailboxQueuedSum,
+                    mailboxQueuedMax,
+                    mailboxEnqueuedCount,
+                    mailboxProcessedCount,
+                    mailboxRejectedCount);
+            })
+            .ToArray();
+
+        return new ActorRuntimeDiagnosticsSnapshot(actorTypes);
+    }
+
     public IReadOnlyList<ActorId> GetActiveActorIds(Type actorType)
     {
         ArgumentNullException.ThrowIfNull(actorType);

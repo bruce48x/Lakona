@@ -229,6 +229,30 @@ public sealed class GameSessionRegistryTests
     }
 
     [Fact]
+    public async Task Session_diagnostics_snapshot_reports_counts_without_session_or_connection_ids()
+    {
+        var directory = new InMemoryGameSessionRegistry();
+        var playerSecret = "player-secret";
+        var connectionSecret = "connection-secret";
+        var session = await directory.StartNewSessionAsync(playerSecret, TestContext.Current.CancellationToken);
+
+        await directory.BindSessionAsync(
+            session,
+            connectionSecret,
+            new LoginCallback("login"),
+            TestContext.Current.CancellationToken);
+
+        var snapshot = directory.GetDiagnosticsSnapshot();
+        var text = snapshot.ToString();
+
+        Assert.Equal(1, snapshot.ActiveSessions);
+        Assert.Equal(1, snapshot.ActiveConnections);
+        Assert.DoesNotContain(playerSecret, text, StringComparison.Ordinal);
+        Assert.DoesNotContain(connectionSecret, text, StringComparison.Ordinal);
+        Assert.DoesNotContain(session.SessionId, text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Heartbeat_for_connection_that_was_terminated_reports_terminated()
     {
         var directory = new InMemoryGameSessionRegistry();

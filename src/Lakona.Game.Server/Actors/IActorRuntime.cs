@@ -49,6 +49,11 @@ public interface IActorRuntime
         CancellationToken cancellationToken = default)
         where TActor : class, IActor;
 
+    ActorRuntimeDiagnosticsSnapshot GetDiagnosticsSnapshot()
+    {
+        return new ActorRuntimeDiagnosticsSnapshot([]);
+    }
+
     IReadOnlyList<ActorId> GetActiveActorIds(Type actorType);
 
     IAsyncDisposable RegisterTimer<TActor>(

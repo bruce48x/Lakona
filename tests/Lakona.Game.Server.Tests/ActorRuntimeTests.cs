@@ -103,6 +103,25 @@ public sealed class ActorRuntimeTests
     }
 
     [Fact]
+    public async Task Actor_diagnostics_snapshot_groups_active_actors_by_type_without_ids()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = CreateProvider();
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        var secretActorId = "secret-actor-id";
+
+        await lifecycle.CreateLocalAsync<TestActor>(ActorId.From(secretActorId), cancellationToken: cancellationToken);
+
+        var snapshot = runtime.GetDiagnosticsSnapshot();
+        var actorType = Assert.Single(snapshot.ActorTypes);
+
+        Assert.Equal(typeof(TestActor).FullName, actorType.ActorType);
+        Assert.Equal(1, actorType.ActiveCount);
+        Assert.DoesNotContain(secretActorId, snapshot.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Dynamic_TellAsync_dispatches_to_requested_actor_type()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
