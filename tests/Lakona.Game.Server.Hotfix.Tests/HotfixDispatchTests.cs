@@ -3,6 +3,7 @@ using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Scanning;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Hotfix;
+using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Lakona.Rpc.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -83,6 +84,121 @@ public sealed class HotfixDispatchTests
             [7, CancellationToken.None]);
 
         Assert.Equal(12, result);
+    }
+
+    [Fact]
+    public async Task Actor_behavior_dispatch_enters_timer_scope()
+    {
+        var scan = HotfixBehaviorScanner.Scan(typeof(DispatchTestStateSystem).Assembly);
+        var table = new HotfixDispatchTable(1, scan.Methods);
+        var backend = new RecordingTimerBackend();
+        HotfixDispatch.Replace(new HotfixDispatchTable(0, Array.Empty<HotfixMethodBinding>()));
+        using var runtime = CreateScopedRuntime(table, backend, publish: false);
+        using var lease = runtime.Snapshot.AcquireLease();
+
+        await HotfixDispatch.InvokeValueTaskAsync(
+            typeof(DispatchTestState),
+            nameof(DispatchTestStateSystem.CreateTimerAsync),
+            new DispatchTestState(),
+            [typeof(TimerArgs)],
+            [new TimerArgs("actor")]);
+
+        Assert.Equal("actor", backend.LastArgs?.Value);
+    }
+
+    [Fact]
+    public async Task Rpc_service_dispatch_enters_timer_scope()
+    {
+        var table = CreateServiceTable(typeof(TimerDispatchService), typeof(ITimerDispatchContract));
+        var backend = new RecordingTimerBackend();
+        HotfixDispatch.Replace(new HotfixDispatchTable(0, Array.Empty<HotfixMethodBinding>()));
+        using var runtime = CreateScopedRuntime(table, backend, publish: false);
+        using var lease = runtime.Snapshot.AcquireLease();
+
+        await runtime.Snapshot.Invoker.InvokeAsync<ITimerDispatchContract, HotfixServiceCall<TimerArgs>>(
+            21,
+            new HotfixServiceCall<TimerArgs>(new TimerArgs("service"), runtime.Snapshot.Services),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("service", backend.LastArgs?.Value);
+    }
+
+    [Fact]
+    public async Task Feature_command_dispatch_enters_timer_scope()
+    {
+        var table = new HotfixDispatchTable(
+            1,
+            Array.Empty<HotfixMethodBinding>(),
+            Array.Empty<HotfixServiceMethodBinding>(),
+            [CreateFeatureDeclaration(typeof(TimerCommandFeature), "ExecuteAsync")]);
+        var backend = new RecordingTimerBackend();
+        using var runtime = CreateScopedRuntime(
+            table,
+            backend,
+            featureCommands: new HotfixFeatureCommandInvoker(table));
+        using var lease = runtime.Snapshot.AcquireLease();
+
+        Assert.True(runtime.Snapshot.FeatureCommands.TryResolve("commands", FeatureCommandId.From(101), out var descriptor));
+        await runtime.Snapshot.FeatureCommands.InvokeAsync(
+            descriptor,
+            new DispatchCommand("feature-command"),
+            NewFeatureMessage("commands", "101"),
+            runtime.Snapshot.Services,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("feature-command", backend.LastArgs?.Value);
+    }
+
+    [Fact]
+    public async Task Lifecycle_dispatch_enters_timer_scope()
+    {
+        var table = CreateServiceTable(typeof(TimerLifecycleService), typeof(ITimerLifecycleContract));
+        var backend = new RecordingTimerBackend();
+        using var runtime = CreateScopedRuntime(table, backend);
+        using var lease = runtime.Snapshot.AcquireLease();
+
+        await runtime.Snapshot.Invoker.InvokeAsync<ITimerLifecycleContract, HotfixLifecycleCall<TimerArgs>>(
+            31,
+            new HotfixLifecycleCall<TimerArgs>(new TimerArgs("lifecycle"), runtime.Snapshot.Services),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("lifecycle", backend.LastArgs?.Value);
+    }
+
+    [Fact]
+    public async Task Timer_callback_dispatch_enters_timer_scope()
+    {
+        var method = typeof(TimerCallbackBehavior).GetMethod(nameof(TimerCallbackBehavior.HandleAsync))!;
+        var table = new HotfixDispatchTable(
+            1,
+            [new HotfixMethodBinding(
+                HotfixDispatch.CreateKey(
+                    typeof(TimerCallbackTarget),
+                    nameof(TimerCallbackBehavior.HandleAsync),
+                    typeof(ValueTask),
+                    [typeof(TimerTick<TimerArgs>)]),
+                method,
+                typeof(TimerCallbackTarget),
+                typeof(ValueTask),
+                [typeof(TimerTick<TimerArgs>)])]);
+        var backend = new RecordingTimerBackend();
+        using var runtime = CreateScopedRuntime(table, backend);
+        using var lease = runtime.Snapshot.AcquireLease();
+
+        await HotfixDispatch.InvokeValueTaskAsync(
+            typeof(TimerCallbackTarget),
+            nameof(TimerCallbackBehavior.HandleAsync),
+            new TimerCallbackTarget(),
+            [typeof(TimerTick<TimerArgs>)],
+            [new TimerTick<TimerArgs>(
+                TimerId.FromGuid(Guid.NewGuid()),
+                new TimerArgs("timer-callback"),
+                runtime.Snapshot.Services,
+                DateTimeOffset.UtcNow,
+                DateTimeOffset.UtcNow,
+                TestContext.Current.CancellationToken)]);
+
+        Assert.Equal("timer-callback", backend.LastArgs?.Value);
     }
 
     [Fact]
@@ -428,12 +544,47 @@ public sealed class HotfixDispatchTests
 
     private static HotfixDispatchTable CreateServiceTable(Type serviceType)
     {
+        return CreateServiceTable(serviceType, typeof(IConstructorInjectedDispatchContract));
+    }
+
+    private static HotfixDispatchTable CreateServiceTable(Type serviceType, Type contractType)
+    {
         var scan = HotfixBehaviorScanner.Scan(
             serviceType.Assembly,
             [serviceType],
-            requiredServiceContracts: [typeof(IConstructorInjectedDispatchContract)]);
+            requiredServiceContracts: [contractType]);
         Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
         return new HotfixDispatchTable(1, scan.Methods, scan.Services);
+    }
+
+    private static ScopedRuntime CreateScopedRuntime(
+        HotfixDispatchTable table,
+        RecordingTimerBackend backend,
+        IHotfixFeatureCommandInvoker? featureCommands = null,
+        bool publish = true)
+    {
+        if (publish)
+        {
+            HotfixDispatch.Replace(table);
+        }
+
+        var services = new ServiceCollection()
+            .AddSingleton<ILakonaTimerBackend>(backend)
+            .BuildServiceProvider();
+        var snapshot = new HotfixRuntimeSnapshot(
+            new HotfixServiceInvoker(table),
+            featureCommands ?? EmptyHotfixFeatureCommandInvoker.Instance,
+            services,
+            table,
+            services,
+            mainAssembly: null,
+            loadContext: null,
+            sourceVersion: null,
+            sourceKind: null,
+            sourcePath: null,
+            ownsRuntimeResources: false,
+            onRetired: null);
+        return new ScopedRuntime(services, snapshot);
     }
 
     private static HotfixServiceCall<ConstructorInjectedDispatchRequest> CreateDispatchCall(IServiceProvider services)
@@ -855,5 +1006,149 @@ public static class DispatchTestStateSystem
     {
         cancellationToken.ThrowIfCancellationRequested();
         return new ValueTask<int>(self.Value + amount);
+    }
+
+    public static async ValueTask CreateTimerAsync(this DispatchTestState self, TimerArgs args)
+    {
+        _ = self;
+        await LakonaTimer.CreateOnceTimerAsync<TimerCallbackTarget, TimerArgs>(
+            TimeSpan.Zero,
+            nameof(TimerCallbackBehavior.HandleAsync),
+            args).ConfigureAwait(false);
+    }
+}
+
+public sealed record TimerArgs(string Value);
+
+public sealed class TimerCallbackTarget
+{
+}
+
+public static class TimerCallbackBehavior
+{
+    public static async ValueTask HandleAsync(this TimerCallbackTarget target, TimerTick<TimerArgs> tick)
+    {
+        _ = target;
+        await LakonaTimer.CreateOnceTimerAsync<TimerCallbackTarget, TimerArgs>(
+            TimeSpan.Zero,
+            nameof(HandleAsync),
+            tick.Args,
+            tick.CancellationToken).ConfigureAwait(false);
+    }
+}
+
+public interface ITimerDispatchContract
+{
+    [RpcMethod(21)]
+    ValueTask RunAsync(TimerArgs request);
+}
+
+[HotfixService(typeof(ITimerDispatchContract))]
+public sealed class TimerDispatchService
+{
+    public static async ValueTask RunAsync(HotfixServiceCall<TimerArgs> call)
+    {
+        await LakonaTimer.CreateOnceTimerAsync<TimerCallbackTarget, TimerArgs>(
+            TimeSpan.Zero,
+            nameof(TimerCallbackBehavior.HandleAsync),
+            call.Request!).ConfigureAwait(false);
+    }
+}
+
+public interface ITimerLifecycleContract
+{
+    [RpcMethod(31)]
+    ValueTask RunAsync(TimerArgs request);
+}
+
+[HotfixLifecycle(typeof(ITimerLifecycleContract))]
+public sealed class TimerLifecycleService
+{
+    public static async ValueTask RunAsync(HotfixLifecycleCall<TimerArgs> call)
+    {
+        await LakonaTimer.CreateOnceTimerAsync<TimerCallbackTarget, TimerArgs>(
+            TimeSpan.Zero,
+            nameof(TimerCallbackBehavior.HandleAsync),
+            call.Request!).ConfigureAwait(false);
+    }
+}
+
+public sealed class TimerCommandFeature : HotfixGameFeature
+{
+    public static ValueTask<DispatchReply> ExecuteAsync(HotfixFeatureCommandCall<DispatchCommand> call)
+    {
+        return CreateAsync(call);
+    }
+
+    private static async ValueTask<DispatchReply> CreateAsync(HotfixFeatureCommandCall<DispatchCommand> call)
+    {
+        await LakonaTimer.CreateOnceTimerAsync<TimerCallbackTarget, TimerArgs>(
+            TimeSpan.Zero,
+            nameof(TimerCallbackBehavior.HandleAsync),
+            new TimerArgs(call.Request.RoomId),
+            call.CancellationToken).ConfigureAwait(false);
+        return new DispatchReply(call.Request.RoomId);
+    }
+}
+
+internal sealed class ScopedRuntime : IDisposable
+{
+    private readonly ServiceProvider _services;
+
+    public ScopedRuntime(ServiceProvider services, HotfixRuntimeSnapshot snapshot)
+    {
+        _services = services;
+        Snapshot = snapshot;
+    }
+
+    public HotfixRuntimeSnapshot Snapshot { get; }
+
+    public void Dispose()
+    {
+        _services.Dispose();
+    }
+}
+
+internal sealed class RecordingTimerBackend : ILakonaTimerBackend
+{
+    public TimerArgs? LastArgs { get; private set; }
+
+    public ValueTask<TimerId> CreateOnceTimerAsync<TCallback, TArgs>(
+        TimeSpan dueTime,
+        string methodName,
+        TArgs args,
+        CancellationToken cancellationToken)
+        where TCallback : class
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (args is TimerArgs timerArgs)
+        {
+            LastArgs = timerArgs;
+        }
+
+        return new ValueTask<TimerId>(TimerId.FromGuid(Guid.NewGuid()));
+    }
+
+    public ValueTask<TimerId> CreatePeriodicTimerAsync<TCallback, TArgs>(
+        TimeSpan dueTime,
+        TimeSpan period,
+        string methodName,
+        TArgs args,
+        CancellationToken cancellationToken)
+        where TCallback : class
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (args is TimerArgs timerArgs)
+        {
+            LastArgs = timerArgs;
+        }
+
+        return new ValueTask<TimerId>(TimerId.FromGuid(Guid.NewGuid()));
+    }
+
+    public ValueTask DestroyTimerAsync(TimerId timerId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return default;
     }
 }

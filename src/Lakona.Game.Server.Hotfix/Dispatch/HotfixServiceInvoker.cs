@@ -7,7 +7,7 @@ public sealed class HotfixServiceInvoker : IHotfixServiceInvoker
     private readonly Func<HotfixDispatchTable> _current;
 
     public HotfixServiceInvoker()
-        : this(static () => HotfixDispatch.Current)
+        : this(static () => HotfixDispatch.ActiveTable)
     {
     }
 
@@ -22,39 +22,43 @@ public sealed class HotfixServiceInvoker : IHotfixServiceInvoker
         _current = current;
     }
 
-    public ValueTask InvokeAsync<TContract, TArg>(
+    public async ValueTask InvokeAsync<TContract, TArg>(
         int methodId,
         TArg arg,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return _current().InvokeServiceAsync<TContract, TArg>(methodId, arg);
+        using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
+        await _current().InvokeServiceAsync<TContract, TArg>(methodId, arg).ConfigureAwait(false);
     }
 
-    public ValueTask<TResult> InvokeAsync<TContract, TArg, TResult>(
+    public async ValueTask<TResult> InvokeAsync<TContract, TArg, TResult>(
         int methodId,
         TArg arg,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return _current().InvokeServiceAsync<TContract, TArg, TResult>(methodId, arg);
+        using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
+        return await _current().InvokeServiceAsync<TContract, TArg, TResult>(methodId, arg).ConfigureAwait(false);
     }
 
-    public ValueTask InvokeAsync<TContract, TArg>(
+    public async ValueTask InvokeAsync<TContract, TArg>(
         string methodName,
         TArg arg,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return _current().InvokeServiceAsync<TContract, TArg>(methodName, arg);
+        using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
+        await _current().InvokeServiceAsync<TContract, TArg>(methodName, arg).ConfigureAwait(false);
     }
 
-    public ValueTask<TResult> InvokeAsync<TContract, TArg, TResult>(
+    public async ValueTask<TResult> InvokeAsync<TContract, TArg, TResult>(
         string methodName,
         TArg arg,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return _current().InvokeServiceAsync<TContract, TArg, TResult>(methodName, arg);
+        using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
+        return await _current().InvokeServiceAsync<TContract, TArg, TResult>(methodName, arg).ConfigureAwait(false);
     }
 }

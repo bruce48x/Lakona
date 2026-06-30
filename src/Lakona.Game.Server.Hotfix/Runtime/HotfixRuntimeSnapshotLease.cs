@@ -6,10 +6,12 @@ namespace Lakona.Game.Server.Hotfix;
 public sealed class HotfixRuntimeSnapshotLease : IDisposable
 {
     private HotfixRuntimeSnapshot? _snapshot;
+    private readonly IDisposable? _dispatchRuntimeScope;
 
     internal HotfixRuntimeSnapshotLease(HotfixRuntimeSnapshot snapshot)
     {
         _snapshot = snapshot ?? throw new ArgumentNullException(nameof(snapshot));
+        _dispatchRuntimeScope = HotfixDispatchRuntimeScope.TryEnter(this);
     }
 
     public HotfixRuntimeSnapshot Snapshot
@@ -29,6 +31,7 @@ public sealed class HotfixRuntimeSnapshotLease : IDisposable
 
     public void Dispose()
     {
+        _dispatchRuntimeScope?.Dispose();
         var snapshot = Interlocked.Exchange(ref _snapshot, null);
         snapshot?.ReleaseLease();
     }

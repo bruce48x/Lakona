@@ -1755,7 +1755,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.Append("    public async ").Append(returnDisplay).Append(' ').Append(method.Name).Append('(')
                 .Append(requestDisplay).Append(' ').Append(method.Parameters[0].Name).AppendLine(")");
             builder.AppendLine("    {");
-            builder.AppendLine("        var snapshot = _hotfixRuntime.Current;");
+            builder.AppendLine("        using var lease = _hotfixRuntime.AcquireCurrent();");
+            builder.AppendLine("        var snapshot = lease.Snapshot;");
             builder.AppendLine("        var currentSession = await global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions");
             builder.AppendLine("            .GetRequiredService<global::Lakona.Game.Server.Sessions.IGameSessionRegistry>(snapshot.Services)");
             builder.AppendLine("            .GetCurrentSessionAsync(_connectionId, global::System.Threading.CancellationToken.None)");

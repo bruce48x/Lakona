@@ -7,7 +7,7 @@ public sealed class HotfixFeatureCommandInvoker : IHotfixFeatureCommandInvoker
     private readonly Func<HotfixDispatchTable> _current;
 
     public HotfixFeatureCommandInvoker()
-        : this(static () => HotfixDispatch.Current)
+        : this(static () => HotfixDispatch.ActiveTable)
     {
     }
 
@@ -30,7 +30,7 @@ public sealed class HotfixFeatureCommandInvoker : IHotfixFeatureCommandInvoker
         return _current().TryResolveFeatureCommand(featureName, commandId, out descriptor);
     }
 
-    public ValueTask<object?> InvokeAsync(
+    public async ValueTask<object?> InvokeAsync(
         HotfixFeatureCommandDescriptor descriptor,
         object? request,
         FeatureMessageRequest message,
@@ -38,11 +38,12 @@ public sealed class HotfixFeatureCommandInvoker : IHotfixFeatureCommandInvoker
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return _current().InvokeFeatureCommandAsync(
+        using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
+        return await _current().InvokeFeatureCommandAsync(
             descriptor,
             request,
             message,
             services,
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
     }
 }

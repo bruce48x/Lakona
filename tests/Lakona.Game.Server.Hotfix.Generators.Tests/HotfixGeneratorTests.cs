@@ -1071,7 +1071,9 @@ public sealed class HotfixGeneratorTests
         Assert.Empty(result.ErrorDiagnostics);
         Assert.Contains("internal sealed class ChatServiceProxy : global::Shared.Contracts.Chat.IChatService", result.GeneratedSource);
         Assert.Contains("HotfixServiceCall<global::Shared.Contracts.Chat.ChatBindRequest, global::Shared.Contracts.Chat.IChatCallback>", result.GeneratedSource);
-        Assert.Contains("var snapshot = _hotfixRuntime.Current;", result.GeneratedSource);
+        Assert.Contains("using var lease = _hotfixRuntime.AcquireCurrent();", result.GeneratedSource);
+        Assert.Contains("var snapshot = lease.Snapshot;", result.GeneratedSource);
+        Assert.DoesNotContain("_hotfixRuntime.Current", result.GeneratedSource, StringComparison.Ordinal);
         Assert.Contains("GetRequiredService<global::Lakona.Game.Server.Sessions.IGameSessionRegistry>(snapshot.Services)", result.GeneratedSource);
         Assert.Contains("GetCurrentSessionAsync(_connectionId, global::System.Threading.CancellationToken.None)", result.GeneratedSource);
         Assert.Contains("currentSession,", result.GeneratedSource);
