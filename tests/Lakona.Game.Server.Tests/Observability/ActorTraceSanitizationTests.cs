@@ -30,14 +30,15 @@ public sealed class ActorTraceSanitizationTests
         ActivitySource.AddActivityListener(listener);
 
         await using ActorSystem system = new();
-        ActorRef<string> actor = (await system.SpawnAsync("secret-actor-id", new EchoActor())).Ref;
+        ActorRef<TraceProbeRequest> actor = (await system.SpawnAsync("secret-actor-id", new EchoActor())).Ref;
+        string messageType = typeof(TraceProbeRequest).FullName!;
 
-        string response = await actor.Call<string>("trace-me", DefaultCallOptions, TestContext.Current.CancellationToken);
+        string response = await actor.Call<string>(new TraceProbeRequest("trace-me"), DefaultCallOptions, TestContext.Current.CancellationToken);
         await Eventually(() => stopped.Any(static activity =>
-            string.Equals(activity.GetTagItem("lakona-game.actor.message.kind")?.ToString(), "call", StringComparison.Ordinal)));
+            string.Equals(activity.GetTagItem("lakona-game.actor.message.type")?.ToString(), typeof(TraceProbeRequest).FullName, StringComparison.Ordinal)));
 
         Activity activity = stopped.Single(activity =>
-            string.Equals(activity.GetTagItem("lakona-game.actor.message.kind")?.ToString(), "call", StringComparison.Ordinal));
+            string.Equals(activity.GetTagItem("lakona-game.actor.message.type")?.ToString(), messageType, StringComparison.Ordinal));
 
         Assert.Equal("trace-me", response);
         Assert.Null(activity.GetTagItem("lakona-actor.actor.id"));
@@ -48,14 +49,16 @@ public sealed class ActorTraceSanitizationTests
         Assert.Equal("call", activity.GetTagItem("lakona-game.actor.message.kind"));
     }
 
-    private sealed class EchoActor : IActor<string>
+    private sealed class EchoActor : IActor<TraceProbeRequest>
     {
-        public ValueTask OnMessage(ActorKernelContext<string> ctx, string message)
+        public ValueTask OnMessage(ActorKernelContext<TraceProbeRequest> ctx, TraceProbeRequest message)
         {
-            ctx.Respond(message);
+            ctx.Respond(message.Value);
             return default;
         }
     }
+
+    private sealed record TraceProbeRequest(string Value);
 
     private static async Task Eventually(Func<bool> condition)
     {
