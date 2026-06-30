@@ -13,6 +13,17 @@ namespace Lakona.Game.Server.Hotfix.Tests;
 public sealed class HotfixRuntimeSnapshotLeaseTests
 {
     [Fact]
+    public void Runtime_snapshot_exposes_no_public_retirement_control()
+    {
+        Assert.Null(typeof(HotfixRuntimeSnapshot).GetMethod(
+            "Retire",
+            BindingFlags.Instance | BindingFlags.Public));
+        Assert.DoesNotContain(
+            typeof(HotfixRuntimeSnapshot).GetConstructors(BindingFlags.Instance | BindingFlags.Public),
+            constructor => constructor.GetParameters().Any(static parameter => parameter.ParameterType == typeof(Action)));
+    }
+
+    [Fact]
     public void AcquireCurrent_pins_provider_until_last_lease_is_disposed()
     {
         var provider = new TrackingServiceProvider();

@@ -32,7 +32,7 @@ public sealed class HotfixRuntimeSnapshot
     {
     }
 
-    public HotfixRuntimeSnapshot(
+    internal HotfixRuntimeSnapshot(
         IHotfixServiceInvoker invoker,
         IHotfixFeatureCommandInvoker featureCommands,
         IServiceProvider services,
@@ -132,7 +132,7 @@ public sealed class HotfixRuntimeSnapshot
         }
     }
 
-    public void Retire()
+    internal void Retire()
     {
         if (Interlocked.Exchange(ref _retired, 1) == 0 && Volatile.Read(ref _referenceCount) == 0)
         {
