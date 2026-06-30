@@ -23,8 +23,8 @@ Supported top-level keys under `Lakona`:
 - `Cluster`: optional node-to-node cluster settings.
 - `Sessions`: optional framework session cleanup and retention settings.
 - `ReliablePush`: optional reliable push settings.
-- `Observability`: optional framework logging, local admin, diagnostics,
-  metrics, and tracing settings.
+- `Observability`: optional framework logging, local admin, framework
+  diagnostics, metrics, and tracing settings.
 
 The legacy `Lakona.Game` root is obsolete and is not read by the current
 runtime. Samples, generated projects, docs, diagnostics, and deployments must
@@ -465,8 +465,8 @@ mode is sent to clients during the framework game handshake.
 Lakona emits logs, metrics, and traces through the standard .NET diagnostics
 stack: `ILogger`, `Meter`, and `ActivitySource`. Framework defaults live under
 `Lakona:Observability`. This root controls framework log defaults, the
-loopback local admin host, diagnostics endpoints, event buffering, metrics
-endpoint exposure, and tracing export.
+loopback local admin host, event buffering, diagnostics detail guardrails,
+metrics endpoint exposure, and tracing export.
 
 `Lakona:Observability:LocalAdmin:Enabled` is optional. When it is omitted, the
 default comes from the resolved `Lakona:Profile`, not directly from the raw
@@ -482,6 +482,14 @@ default comes from the resolved `Lakona:Profile`, not directly from the raw
 omitted, the host maps `DOTNET_ENVIRONMENT=Development` to `Development`,
 `DOTNET_ENVIRONMENT=Compose` to `Compose`, and other environment names to
 `Production`.
+
+When local admin is enabled, the framework registers safe core diagnostics
+routes on the local admin host, including `/_lakona/diagnostics/summary`,
+`/_lakona/diagnostics/events`, `/_lakona/diagnostics/netstat`,
+`/_lakona/diagnostics/actors`, and `/_lakona/diagnostics/sessions`.
+`Lakona:Observability:Diagnostics:DetailEnabled` controls whether detail
+exposure passes the framework guardrails. It is not required for the safe core
+summary routes.
 
 Example:
 
@@ -550,6 +558,11 @@ Example:
   }
 }
 ```
+
+`SummaryEnabled` is parsed for compatibility with the observability options
+shape, but in this slice the framework registers core summary diagnostics routes
+whenever local admin is enabled. Treat it as a compatibility/default field, not
+as a route switch.
 
 File logging, Prometheus endpoint serving, and tracing export are integration
 points. Enabling them without registering the corresponding implementation is a

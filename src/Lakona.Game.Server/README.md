@@ -65,11 +65,11 @@ Lakona emits logs, metrics, and traces through standard .NET diagnostics:
 `ILogger`, `Meter`, and `ActivitySource`.
 
 Development enables loopback local admin diagnostics by default. Production and
-Compose disable local admin by default unless `Lakona:Observability:LocalAdmin`
-explicitly enables it.
+Compose disable local admin by default unless
+`Lakona:Observability:LocalAdmin:Enabled` explicitly enables it.
 
 Diagnostics routes live under the loopback local admin host, including
-`/_lakona/diagnostics`, `/_lakona/diagnostics/events`, and
+`/_lakona/diagnostics/summary`, `/_lakona/diagnostics/events`, and
 `/_lakona/diagnostics/netstat`.
 
 ## Use Actors
