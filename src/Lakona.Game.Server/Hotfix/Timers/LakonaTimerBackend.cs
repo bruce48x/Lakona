@@ -19,6 +19,7 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
     internal LakonaTimerBackend(LakonaTimerScheduler scheduler)
         : this(new LakonaTimerCallbackResolver(), new LakonaTimerArgsSerializer(), scheduler)
     {
+        scheduler.AttachBackend(this);
     }
 
     internal LakonaTimerBackend(LakonaTimerCallbackResolver callbackResolver, LakonaTimerArgsSerializer argsSerializer)
@@ -156,7 +157,7 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
             serializedArgs.ArgsFullName,
             serializedArgs.SerializerId,
             serializedArgs.JsonPayload,
-            DateTimeOffset.UtcNow.Add(dueTime),
+            GetUtcNow().Add(dueTime),
             period,
             callback.Generation);
 
@@ -173,6 +174,11 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
         }
 
         return new ValueTask<TimerId>(timerId);
+    }
+
+    private DateTimeOffset GetUtcNow()
+    {
+        return scheduler?.GetUtcNow() ?? DateTimeOffset.UtcNow;
     }
 
     private static void ValidateArgsAssembly<TArgs>(HotfixRuntimeSnapshotLease lease)
