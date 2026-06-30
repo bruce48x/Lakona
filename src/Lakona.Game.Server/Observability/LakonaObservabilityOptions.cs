@@ -72,7 +72,10 @@ public sealed class LakonaObservabilityOptions
     internal static LogLevel ReadLogLevel(IConfiguration section, string name, LogLevel fallback)
     {
         var value = section[name];
-        return Enum.TryParse<LogLevel>(value, ignoreCase: true, out var parsed) ? parsed : fallback;
+        return Enum.TryParse<LogLevel>(value, ignoreCase: true, out var parsed)
+            && Enum.IsDefined(parsed)
+            ? parsed
+            : fallback;
     }
 }
 

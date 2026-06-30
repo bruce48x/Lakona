@@ -43,6 +43,10 @@ public static class LakonaGameServer
                 readiness.ObservabilityCapabilities);
         }
 
+        var serverBuilder = new LakonaGameServerBuilder(builder);
+        configure(serverBuilder);
+        serverBuilder.ApplyConfigurationToHostBuilder();
+
         var runtimeOptions = CreateRuntimeOptions(builder.Configuration, builder.Environment.EnvironmentName);
 
         if (args.Contains("--health-check", StringComparer.Ordinal))
@@ -59,9 +63,7 @@ public static class LakonaGameServer
         builder.Services.AddSingleton(runtimeOptions);
         builder.Services.AddSingleton(DiscoverRpcServiceCatalog());
 
-        var serverBuilder = new LakonaGameServerBuilder(builder);
-        configure(serverBuilder);
-        serverBuilder.ApplyToHostBuilder();
+        serverBuilder.ApplyServiceRegistrationsToHostBuilder();
 
         var serviceBinder = serverBuilder.GetServiceBinder();
         foreach (var endpoint in runtimeOptions.Endpoints)
@@ -190,6 +192,20 @@ public static class LakonaGameServer
         Action<LakonaGameServerBuilder> configure)
     {
         return CreateReadinessContext(CreateApplicationBuilder(args), configure);
+    }
+
+    internal static LakonaGameRuntimeOptions CreateFullStartupRuntimeOptionsForTesting(
+        string[] args,
+        Action<LakonaGameServerBuilder> configure)
+    {
+        var builder = CreateApplicationBuilder(args);
+        var serverBuilder = new LakonaGameServerBuilder(builder);
+        configure(serverBuilder);
+        serverBuilder.ApplyConfigurationToHostBuilder();
+
+        return CreateRuntimeOptions(
+            builder.Configuration,
+            builder.Environment.EnvironmentName);
     }
 
     private static LakonaGameRuntimeOptions CreateRuntimeOptions(

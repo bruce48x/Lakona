@@ -165,6 +165,26 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public void Full_startup_runtime_options_apply_user_configuration_before_logging_options_are_resolved()
+    {
+        var options = Lakona.Game.Server.Hosting.LakonaGameServer.CreateFullStartupRuntimeOptionsForTesting(
+            [],
+            server =>
+            {
+                server.ConfigureAppConfiguration(configuration =>
+                    configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        ["Lakona:Observability:Logging:MinimumLevel"] = "Warning",
+                        ["Lakona:Observability:Logging:Console:Enabled"] = "false"
+                    }));
+            });
+
+        Assert.Equal(LogLevel.Warning, options.Observability.Logging.MinimumLevel);
+        Assert.Equal("Warning", options.Observability.Logging.MinimumLevelRaw);
+        Assert.False(options.Observability.Logging.Console.Enabled);
+    }
+
+    [Fact]
     public void ReadinessContext_CollectsObservabilityCapabilitiesFromUserServices()
     {
         var context = Lakona.Game.Server.Hosting.LakonaGameServer.CreateReadinessContextForTesting(

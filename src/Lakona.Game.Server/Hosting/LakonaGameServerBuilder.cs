@@ -63,11 +63,20 @@ public sealed class LakonaGameServerBuilder
 
     internal void ApplyToHostBuilder()
     {
+        ApplyConfigurationToHostBuilder();
+        ApplyServiceRegistrationsToHostBuilder();
+    }
+
+    internal void ApplyConfigurationToHostBuilder()
+    {
         foreach (var configure in _configActions)
         {
             configure(HostBuilder.Configuration);
         }
+    }
 
+    internal void ApplyServiceRegistrationsToHostBuilder()
+    {
         foreach (var register in _serviceRegistrations)
         {
             register(HostBuilder.Services, HostBuilder.Configuration);

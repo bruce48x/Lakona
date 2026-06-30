@@ -248,6 +248,7 @@ public sealed class LakonaObservabilityOptionsTests
 
     [Theory]
     [InlineData("Verbose")]
+    [InlineData("999")]
     [InlineData("")]
     [InlineData("   ")]
     public void FromConfiguration_preserves_invalid_raw_logging_minimum_level(string minimumLevel)
