@@ -56,7 +56,10 @@ public sealed class LakonaTimerAbstractionsTests
             {
                 Assert.Equal(nameof(LakonaTimer.DestroyTimerAsync), method.Name);
                 Assert.Empty(method.GenericArguments);
+                Assert.Equal(2, method.Parameters.Length);
                 Assert.Equal([typeof(TimerId), typeof(CancellationToken)], method.Parameters.Select(parameter => parameter.ParameterType).ToArray());
+                Assert.True(method.Parameters[1].HasDefaultValue);
+                Assert.Null(method.Parameters[1].DefaultValue);
                 Assert.Equal(typeof(ValueTask), method.ReturnType);
             });
     }
@@ -120,6 +123,9 @@ public sealed class LakonaTimerAbstractionsTests
 
         Assert.True(type.IsGenericType);
         Assert.True(type.IsPublic);
+        Assert.True(type.IsClass);
+        Assert.False(type.IsValueType);
+        Assert.True(type.IsSealed);
         Assert.Equal("TimerTick`1", type.GetGenericTypeDefinition().Name);
         AssertTimerTickProperty<TimerId>(type, nameof(TimerTick<TimerArgs>.TimerId));
         AssertTimerTickProperty<TimerArgs>(type, nameof(TimerTick<TimerArgs>.Args));
@@ -127,6 +133,19 @@ public sealed class LakonaTimerAbstractionsTests
         AssertTimerTickProperty<DateTimeOffset>(type, nameof(TimerTick<TimerArgs>.DueAtUtc));
         AssertTimerTickProperty<DateTimeOffset>(type, nameof(TimerTick<TimerArgs>.ObservedAtUtc));
         AssertTimerTickProperty<CancellationToken>(type, nameof(TimerTick<TimerArgs>.CancellationToken));
+    }
+
+    [Fact]
+    public void TimerTick_rejects_null_services()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            new TimerTick<TimerArgs>(
+                TimerId.FromGuid(Guid.NewGuid()),
+                new TimerArgs("args"),
+                null!,
+                DateTimeOffset.UnixEpoch,
+                DateTimeOffset.UnixEpoch,
+                CancellationToken.None));
     }
 
     [Fact]

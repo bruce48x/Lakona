@@ -1,6 +1,6 @@
 namespace Lakona.Game.Server.Hotfix.Abstractions.Timers;
 
-public readonly struct TimerTick<TArgs>
+public sealed class TimerTick<TArgs>
 {
     public TimerTick(
         TimerId timerId,
@@ -10,6 +10,8 @@ public readonly struct TimerTick<TArgs>
         DateTimeOffset observedAtUtc,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         TimerId = timerId;
         Args = args;
         Services = services;

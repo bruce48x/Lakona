@@ -40,7 +40,7 @@ public static class LakonaTimer
         return context.Backend.CreatePeriodicTimerAsync<TCallback, TArgs>(dueTime, period, methodName, args, cancellationToken);
     }
 
-    public static ValueTask DestroyTimerAsync(TimerId timerId, CancellationToken cancellationToken)
+    public static ValueTask DestroyTimerAsync(TimerId timerId, CancellationToken cancellationToken = default)
     {
         var context = GetActiveContext();
         return context.Backend.DestroyTimerAsync(timerId, cancellationToken);
