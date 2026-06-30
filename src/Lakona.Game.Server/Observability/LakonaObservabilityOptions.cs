@@ -95,10 +95,7 @@ public sealed class LakonaLoggingObservabilityOptions
                 section,
                 "MinimumLevel",
                 LogLevel.Information),
-            MinimumLevelRaw = LakonaObservabilityOptions.ReadString(
-                section,
-                "MinimumLevel",
-                nameof(LogLevel.Information)),
+            MinimumLevelRaw = section["MinimumLevel"] ?? nameof(LogLevel.Information),
             Categories = ReadCategoryLevels(section.GetSection("Categories")),
             Console = LakonaConsoleLoggingObservabilityOptions.FromConfiguration(section.GetSection("Console")),
             File = LakonaFileLoggingObservabilityOptions.FromConfiguration(section.GetSection("File"))

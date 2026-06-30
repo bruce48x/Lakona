@@ -20,7 +20,8 @@ public sealed class ObservabilityGuardrailTests
 
         var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK130");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
-        Assert.Equal("Lakona:Observability:LocalAdmin:Host", diagnostic.Repair);
+        Assert.Contains("Lakona:Observability:LocalAdmin:Host", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("127.0.0.1", diagnostic.Repair, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -89,6 +90,7 @@ public sealed class ObservabilityGuardrailTests
     [Theory]
     [InlineData("")]
     [InlineData("metrics")]
+    [InlineData("/")]
     [InlineData("/metrics?format=json")]
     [InlineData("/metrics#debug")]
     public void Validate_EmitsError_WhenPrometheusPathIsInvalid(string path)
@@ -103,6 +105,8 @@ public sealed class ObservabilityGuardrailTests
 
         var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK136");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Contains("Lakona:Observability:Metrics:Prometheus:Path", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("/_lakona/metrics", diagnostic.Repair, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -131,19 +135,26 @@ public sealed class ObservabilityGuardrailTests
 
         var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK137");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Contains("Lakona:Observability:Diagnostics:EventBuffer:Capacity", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("positive integer", diagnostic.Repair, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void Validate_EmitsError_WhenLoggingMinimumLevelIsInvalid()
+    [Theory]
+    [InlineData("Verbose")]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Validate_EmitsError_WhenLoggingMinimumLevelIsInvalid(string minimumLevel)
     {
         var result = Validate(TestRuntime() with
         {
             Observability = TestObservability(
-                loggingMinimumLevel: "Verbose")
+                loggingMinimumLevel: minimumLevel)
         });
 
         var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK138");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Contains("Lakona:Observability:Logging:MinimumLevel", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("Information", diagnostic.Repair, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -158,6 +169,8 @@ public sealed class ObservabilityGuardrailTests
 
         var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK139");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Contains("Lakona:Observability:Tracing:Export:SampleRate", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("0.0 and 1.0", diagnostic.Repair, StringComparison.Ordinal);
     }
 
     private static LakonaGameValidationResult Validate(LakonaGameResolvedRuntime runtime)

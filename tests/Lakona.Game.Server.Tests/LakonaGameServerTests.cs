@@ -15,12 +15,14 @@ using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Cluster.Rpc.MemoryPack;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Features;
+using Lakona.Game.Server.Health;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.HotfixAdmin;
 using Lakona.Game.Server.Hotfix.Loading;
+using Lakona.Game.Server.Observability;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Lakona.Rpc.Core;
@@ -160,6 +162,56 @@ public sealed class LakonaGameServerTests
 
         Assert.Equal(Lakona.Game.Server.Guardrails.LakonaGameRuntimeProfile.Production, options.Profile);
         Assert.False(options.Observability.LocalAdmin.EffectiveEnabled);
+    }
+
+    [Fact]
+    public void ReadinessContext_CollectsObservabilityCapabilitiesFromUserServices()
+    {
+        var context = Lakona.Game.Server.Hosting.LakonaGameServer.CreateReadinessContextForTesting(
+            ["--readiness-check", "--json"],
+            server =>
+            {
+                server.ConfigureAppConfiguration(configuration =>
+                    configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        ["Lakona:Endpoints:0:Transport"] = "websocket",
+                        ["Lakona:Endpoints:0:Serializer"] = "json",
+                        ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
+                        ["Lakona:Endpoints:0:Port"] = "20000",
+                        ["Lakona:Endpoints:0:Path"] = "/ws",
+                        ["Lakona:Observability:Tracing:Export:Enabled"] = "true"
+                    }));
+                server.AddServices(services =>
+                    services.AddSingleton<ILakonaObservabilityCapability>(
+                        new OpenTelemetryObservabilityCapability()));
+            });
+
+        Assert.True(context.ObservabilityCapabilities.OpenTelemetryIntegrationRegistered);
+
+        var output = new StringWriter();
+        var errors = new StringWriter();
+        var originalOutput = Console.Out;
+        var originalError = Console.Error;
+
+        try
+        {
+            Console.SetOut(output);
+            Console.SetError(errors);
+
+            _ = LakonaGameReadinessProbe.Run(
+                context.RuntimeOptions,
+                context.ClusterOptions,
+                ["--json"],
+                context.ObservabilityCapabilities);
+        }
+        finally
+        {
+            Console.SetOut(originalOutput);
+            Console.SetError(originalError);
+        }
+
+        var text = output.ToString() + errors.ToString();
+        Assert.DoesNotContain("ULINK134", text, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -100,7 +100,7 @@ public sealed class LakonaGameReadinessProbeTests
         Assert.Contains("rpc: ok", output, StringComparison.Ordinal);
         Assert.Contains("ULINK135", errors, StringComparison.Ordinal);
         Assert.Contains("ULINK136", errors, StringComparison.Ordinal);
-        Assert.Contains("fix: Lakona:Observability:Metrics:Prometheus:Path", errors, StringComparison.Ordinal);
+        Assert.Contains("fix: Use an absolute non-root path such as /_lakona/metrics without query or fragment.", errors, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -127,11 +127,14 @@ public sealed class LakonaGameReadinessProbeTests
         Assert.Contains("cluster: ok single-node", output, StringComparison.Ordinal);
         Assert.Contains("hotfix: failed local build output not found", errors, StringComparison.Ordinal);
         Assert.Contains("ULINK136", errors, StringComparison.Ordinal);
-        Assert.Contains("fix: Lakona:Observability:Metrics:Prometheus:Path", errors, StringComparison.Ordinal);
+        Assert.Contains("fix: Use an absolute non-root path such as /_lakona/metrics without query or fragment.", errors, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void Run_JsonOutputIncludesInvalidConfiguredLoggingMinimumLevel()
+    [Theory]
+    [InlineData("Verbose")]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Run_JsonOutputIncludesInvalidConfiguredLoggingMinimumLevel(string minimumLevel)
     {
         var runtime = RuntimeFromConfiguration(
             new Dictionary<string, string?>
@@ -141,7 +144,7 @@ public sealed class LakonaGameReadinessProbeTests
                 ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
                 ["Lakona:Endpoints:0:Port"] = "20000",
                 ["Lakona:Endpoints:0:Path"] = "/ws",
-                ["Lakona:Observability:Logging:MinimumLevel"] = "Verbose"
+                ["Lakona:Observability:Logging:MinimumLevel"] = minimumLevel
             },
             "Production");
 

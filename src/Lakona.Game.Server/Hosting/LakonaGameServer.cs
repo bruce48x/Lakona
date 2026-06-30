@@ -12,8 +12,14 @@ using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.BuildTag;
 using Lakona.Game.Server.HotfixAdmin;
 using Lakona.Game.Server.Hotfix.Loading;
+using Lakona.Game.Server.Observability;
 
 namespace Lakona.Game.Server.Hosting;
+
+internal sealed record LakonaGameReadinessContext(
+    LakonaGameRuntimeOptions RuntimeOptions,
+    ClusterOptions? ClusterOptions,
+    LakonaObservabilityCapabilities ObservabilityCapabilities);
 
 public static class LakonaGameServer
 {
@@ -24,27 +30,25 @@ public static class LakonaGameServer
 
     public static async Task<int> RunAsync(string[] args, Action<LakonaGameServerBuilder> configure)
     {
-        var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
+        var builder = CreateApplicationBuilder(args);
+
+        // Health check commands (exit before full startup)
+        if (IsReadinessCheckCommand(args))
         {
-            Args = args,
-            ContentRootPath = AppContext.BaseDirectory
-        });
-        builder.Logging.ClearProviders();
-        builder.Logging.AddConsole();
+            var readiness = CreateReadinessContext(builder, configure);
+            return LakonaGameReadinessProbe.Run(
+                readiness.RuntimeOptions,
+                readiness.ClusterOptions,
+                args,
+                readiness.ObservabilityCapabilities);
+        }
 
         var runtimeOptions = CreateRuntimeOptions(builder.Configuration, builder.Environment.EnvironmentName);
 
-        // Health check commands (exit before full startup)
         if (args.Contains("--health-check", StringComparer.Ordinal))
         {
             var clusterOptions = TryBuildClusterOptions(runtimeOptions, builder.Configuration);
             return LakonaGameLivenessProbe.Run(clusterOptions, runtimeOptions);
-        }
-
-        if (IsReadinessCheckCommand(args))
-        {
-            var clusterOptions = TryBuildClusterOptions(runtimeOptions, builder.Configuration);
-            return LakonaGameReadinessProbe.Run(runtimeOptions, clusterOptions, args);
         }
 
         // Full startup
@@ -120,6 +124,41 @@ public static class LakonaGameServer
         return 0;
     }
 
+    private static HostApplicationBuilder CreateApplicationBuilder(string[] args)
+    {
+        var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
+        {
+            Args = args,
+            ContentRootPath = AppContext.BaseDirectory
+        });
+        builder.Logging.ClearProviders();
+        builder.Logging.AddConsole();
+        return builder;
+    }
+
+    private static LakonaGameReadinessContext CreateReadinessContext(
+        IHostApplicationBuilder builder,
+        Action<LakonaGameServerBuilder> configure)
+    {
+        var serverBuilder = new LakonaGameServerBuilder(builder);
+        configure(serverBuilder);
+        serverBuilder.ApplyToHostBuilder();
+
+        var runtimeOptions = CreateRuntimeOptions(
+            builder.Configuration,
+            builder.Environment.EnvironmentName);
+        var clusterOptions = TryBuildClusterOptions(runtimeOptions, builder.Configuration);
+
+        using var provider = builder.Services.BuildServiceProvider();
+        var capabilities = LakonaObservabilityCapabilities.FromServices(
+            provider.GetServices<ILakonaObservabilityCapability>());
+
+        return new LakonaGameReadinessContext(
+            runtimeOptions,
+            clusterOptions,
+            capabilities);
+    }
+
     private static ClusterOptions? TryBuildClusterOptions(
         LakonaGameRuntimeOptions runtimeOptions,
         IConfiguration configuration)
@@ -144,6 +183,13 @@ public static class LakonaGameServer
         string? environmentName)
     {
         return CreateRuntimeOptions(configuration, environmentName);
+    }
+
+    internal static LakonaGameReadinessContext CreateReadinessContextForTesting(
+        string[] args,
+        Action<LakonaGameServerBuilder> configure)
+    {
+        return CreateReadinessContext(CreateApplicationBuilder(args), configure);
     }
 
     private static LakonaGameRuntimeOptions CreateRuntimeOptions(

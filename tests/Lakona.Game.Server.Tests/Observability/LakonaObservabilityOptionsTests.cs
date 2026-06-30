@@ -147,12 +147,15 @@ public sealed class LakonaObservabilityOptionsTests
         Assert.Equal(["Enabled", "SampleRate"], propertyNames);
     }
 
-    [Fact]
-    public void FromConfiguration_preserves_invalid_raw_logging_minimum_level()
+    [Theory]
+    [InlineData("Verbose")]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void FromConfiguration_preserves_invalid_raw_logging_minimum_level(string minimumLevel)
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>
         {
-            ["Lakona:Observability:Logging:MinimumLevel"] = "Verbose"
+            ["Lakona:Observability:Logging:MinimumLevel"] = minimumLevel
         });
 
         var options = LakonaObservabilityOptions.FromConfiguration(
@@ -160,7 +163,7 @@ public sealed class LakonaObservabilityOptionsTests
             LakonaGameRuntimeProfile.Production);
 
         Assert.Equal(LogLevel.Information, options.Logging.MinimumLevel);
-        Assert.Equal("Verbose", options.Logging.MinimumLevelRaw);
+        Assert.Equal(minimumLevel, options.Logging.MinimumLevelRaw);
     }
 
     [Fact]

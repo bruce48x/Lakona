@@ -17,8 +17,8 @@ public sealed class ObservabilityRule : ILakonaGameValidationRule
             yield return new LakonaGameDiagnostic(
                 "ULINK130",
                 LakonaGameDiagnosticSeverity.Error,
-                "Local admin is enabled with loopback required but binds to a non-loopback host.",
-                "Lakona:Observability:LocalAdmin:Host");
+                "Lakona:Observability:LocalAdmin:Host binds local admin to a non-loopback host while Lakona:Observability:LocalAdmin:RequireLoopback is true.",
+                "Set Lakona:Observability:LocalAdmin:Host to 127.0.0.1, localhost, or ::1, or disable Lakona:Observability:LocalAdmin:RequireLoopback only in trusted local environments.");
         }
 
         if (observability.DetailEnabled.Value)
@@ -76,8 +76,8 @@ public sealed class ObservabilityRule : ILakonaGameValidationRule
             yield return new LakonaGameDiagnostic(
                 "ULINK136",
                 LakonaGameDiagnosticSeverity.Error,
-                "Prometheus path must be an absolute path without query or fragment.",
-                "Lakona:Observability:Metrics:Prometheus:Path");
+                "Lakona:Observability:Metrics:Prometheus:Path must be an absolute non-root path without query or fragment.",
+                "Use an absolute non-root path such as /_lakona/metrics without query or fragment.");
         }
 
         if (observability.EventBufferCapacity.Value <= 0)
@@ -85,8 +85,8 @@ public sealed class ObservabilityRule : ILakonaGameValidationRule
             yield return new LakonaGameDiagnostic(
                 "ULINK137",
                 LakonaGameDiagnosticSeverity.Error,
-                "Diagnostics event buffer capacity must be greater than zero.",
-                "Lakona:Observability:Diagnostics:EventBuffer:Capacity");
+                "Lakona:Observability:Diagnostics:EventBuffer:Capacity must be greater than zero.",
+                "Set Lakona:Observability:Diagnostics:EventBuffer:Capacity to a positive integer.");
         }
 
         if (!Enum.TryParse<LogLevel>(
@@ -98,8 +98,8 @@ public sealed class ObservabilityRule : ILakonaGameValidationRule
             yield return new LakonaGameDiagnostic(
                 "ULINK138",
                 LakonaGameDiagnosticSeverity.Error,
-                "Logging minimum level is invalid.",
-                "Lakona:Observability:Logging:MinimumLevel");
+                "Lakona:Observability:Logging:MinimumLevel is invalid.",
+                "Use Trace, Debug, Information, Warning, Error, Critical, or None.");
         }
 
         if (observability.TraceSampleRate.Value is < 0.0 or > 1.0)
@@ -107,8 +107,8 @@ public sealed class ObservabilityRule : ILakonaGameValidationRule
             yield return new LakonaGameDiagnostic(
                 "ULINK139",
                 LakonaGameDiagnosticSeverity.Error,
-                "Trace sample rate must be between 0.0 and 1.0.",
-                "Lakona:Observability:Tracing:Export:SampleRate");
+                "Lakona:Observability:Tracing:Export:SampleRate must be between 0.0 and 1.0.",
+                "Set Lakona:Observability:Tracing:Export:SampleRate between 0.0 and 1.0.");
         }
     }
 
@@ -127,6 +127,7 @@ public sealed class ObservabilityRule : ILakonaGameValidationRule
     {
         return !string.IsNullOrWhiteSpace(path)
             && path.StartsWith("/", StringComparison.Ordinal)
+            && path.Length > 1
             && !path.Contains('?', StringComparison.Ordinal)
             && !path.Contains('#', StringComparison.Ordinal);
     }
