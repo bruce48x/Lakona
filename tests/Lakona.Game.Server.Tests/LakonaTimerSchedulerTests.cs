@@ -357,6 +357,40 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
     }
 
     [Fact]
+    public async Task One_shot_queue_full_expires_timer_and_reports_skipped_due_work()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
+        await using var fixture = SchedulerFixture.Create(
+            time,
+            options: new LakonaTimerOptions { MaxConcurrentCallbacks = 1, DispatchQueueCapacity = 1 });
+        await fixture.StartAsync(cancellationToken);
+        TimerCallbackLog.BlockValue = "running";
+
+        fixture.Add("running", time.GetUtcNow().AddSeconds(1));
+        fixture.Add("queued", time.GetUtcNow().AddSeconds(2));
+        var full = fixture.Add("one-shot-full", time.GetUtcNow().AddSeconds(3));
+        time.Advance(TimeSpan.FromSeconds(1));
+        await TimerCallbackLog.WaitForValueAsync("running", cancellationToken);
+        time.Advance(TimeSpan.FromSeconds(2));
+        await fixture.Observer.WaitForQueueFullAsync(cancellationToken);
+
+        Assert.False(fixture.Contains(full));
+
+        TimerCallbackLog.ReleaseBlocked();
+        await TimerCallbackLog.WaitForValueAsync("queued", cancellationToken);
+        time.Advance(TimeSpan.FromSeconds(10));
+        await Task.Delay(50, cancellationToken);
+
+        var queueFull = Assert.Single(fixture.Observer.QueueFull);
+        var skipped = Assert.Single(fixture.Observer.Skipped);
+        Assert.Null(queueFull.Period);
+        Assert.Null(skipped.Period);
+        Assert.Empty(fixture.Observer.Failed);
+        Assert.DoesNotContain("one-shot-full", TimerCallbackLog.Values);
+    }
+
+    [Fact]
     public async Task Timer_callback_can_create_timer_inside_active_execution_scope()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -610,8 +644,20 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
             }
         }
 
+        public IReadOnlyList<LakonaTimerDispatchObservation> Failed
+        {
+            get
+            {
+                lock (failed)
+                {
+                    return failed.ToArray();
+                }
+            }
+        }
+
         private readonly List<LakonaTimerDispatchObservation> queueFull = [];
         private readonly List<LakonaTimerDispatchObservation> skipped = [];
+        private readonly List<LakonaTimerDispatchObservation> failed = [];
         private readonly TaskCompletionSource queueFullRecorded =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource skippedRecorded =
@@ -661,6 +707,10 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
 
         public void OnDispatchFailed(LakonaTimerDispatchObservation observation, Exception exception)
         {
+            lock (failed)
+            {
+                failed.Add(observation);
+            }
         }
 
         public void OnDispatchCompleted(LakonaTimerDispatchObservation observation)
