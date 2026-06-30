@@ -118,6 +118,11 @@ public sealed class ActorRuntimeTests
 
         Assert.Equal(typeof(TestActor).FullName, actorType.ActorType);
         Assert.Equal(1, actorType.ActiveCount);
+        Assert.True(actorType.MailboxEnqueuedCount > 0);
+        Assert.True(actorType.MailboxProcessedCount > 0);
+        Assert.Equal(actorType.MailboxEnqueuedCount, actorType.MailboxEnqueuedMax);
+        Assert.Equal(actorType.MailboxProcessedCount, actorType.MailboxProcessedMax);
+        Assert.Equal(actorType.MailboxRejectedCount, actorType.MailboxRejectedMax);
         Assert.DoesNotContain(secretActorId, snapshot.ToString(), StringComparison.Ordinal);
     }
 

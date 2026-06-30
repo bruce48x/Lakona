@@ -9,5 +9,8 @@ public sealed record ActorTypeDiagnosticsSnapshot(
     int MailboxQueuedSum,
     int MailboxQueuedMax,
     long MailboxEnqueuedCount,
+    long MailboxEnqueuedMax,
     long MailboxProcessedCount,
-    long MailboxRejectedCount);
+    long MailboxProcessedMax,
+    long MailboxRejectedCount,
+    long MailboxRejectedMax);

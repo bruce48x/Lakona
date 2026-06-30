@@ -293,8 +293,11 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
                 var mailboxQueuedSum = 0;
                 var mailboxQueuedMax = 0;
                 long mailboxEnqueuedCount = 0;
+                long mailboxEnqueuedMax = 0;
                 long mailboxProcessedCount = 0;
+                long mailboxProcessedMax = 0;
                 long mailboxRejectedCount = 0;
+                long mailboxRejectedMax = 0;
 
                 foreach (var actor in group)
                 {
@@ -302,8 +305,11 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
                     mailboxQueuedSum += actor.Metrics.QueuedCount;
                     mailboxQueuedMax = Math.Max(mailboxQueuedMax, actor.Metrics.QueuedCount);
                     mailboxEnqueuedCount += actor.Metrics.EnqueuedCount;
+                    mailboxEnqueuedMax = Math.Max(mailboxEnqueuedMax, actor.Metrics.EnqueuedCount);
                     mailboxProcessedCount += actor.Metrics.ProcessedCount;
+                    mailboxProcessedMax = Math.Max(mailboxProcessedMax, actor.Metrics.ProcessedCount);
                     mailboxRejectedCount += actor.Metrics.RejectedCount;
+                    mailboxRejectedMax = Math.Max(mailboxRejectedMax, actor.Metrics.RejectedCount);
                 }
 
                 return new ActorTypeDiagnosticsSnapshot(
@@ -312,8 +318,11 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
                     mailboxQueuedSum,
                     mailboxQueuedMax,
                     mailboxEnqueuedCount,
+                    mailboxEnqueuedMax,
                     mailboxProcessedCount,
-                    mailboxRejectedCount);
+                    mailboxProcessedMax,
+                    mailboxRejectedCount,
+                    mailboxRejectedMax);
             })
             .ToArray();
 
