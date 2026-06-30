@@ -9,22 +9,42 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
     private readonly Dictionary<TimerId, LakonaTimerDescriptor> descriptors = new();
     private readonly LakonaTimerCallbackResolver callbackResolver;
     private readonly LakonaTimerArgsSerializer argsSerializer;
+    private readonly LakonaTimerScheduler? scheduler;
 
     public LakonaTimerBackend()
         : this(new LakonaTimerCallbackResolver(), new LakonaTimerArgsSerializer())
     {
     }
 
+    internal LakonaTimerBackend(LakonaTimerScheduler scheduler)
+        : this(new LakonaTimerCallbackResolver(), new LakonaTimerArgsSerializer(), scheduler)
+    {
+    }
+
     internal LakonaTimerBackend(LakonaTimerCallbackResolver callbackResolver, LakonaTimerArgsSerializer argsSerializer)
+        : this(callbackResolver, argsSerializer, scheduler: null)
+    {
+    }
+
+    private LakonaTimerBackend(
+        LakonaTimerCallbackResolver callbackResolver,
+        LakonaTimerArgsSerializer argsSerializer,
+        LakonaTimerScheduler? scheduler)
     {
         this.callbackResolver = callbackResolver ?? throw new ArgumentNullException(nameof(callbackResolver));
         this.argsSerializer = argsSerializer ?? throw new ArgumentNullException(nameof(argsSerializer));
+        this.scheduler = scheduler;
     }
 
     public IReadOnlyCollection<LakonaTimerDescriptor> Descriptors
     {
         get
         {
+            if (scheduler is not null)
+            {
+                return scheduler.Descriptors;
+            }
+
             lock (gate)
             {
                 return descriptors.Values.ToArray();
@@ -71,6 +91,12 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
     public ValueTask DestroyTimerAsync(TimerId timerId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (scheduler is not null)
+        {
+            scheduler.Destroy(timerId);
+            return default;
+        }
+
         lock (gate)
         {
             descriptors.Remove(timerId);
@@ -81,6 +107,11 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
 
     public bool TryGetDescriptor(TimerId timerId, out LakonaTimerDescriptor descriptor)
     {
+        if (scheduler is not null)
+        {
+            return scheduler.TryGetDescriptor(timerId, out descriptor);
+        }
+
         lock (gate)
         {
             return descriptors.TryGetValue(timerId, out descriptor!);
@@ -129,9 +160,16 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
             period,
             callback.Generation);
 
-        lock (gate)
+        if (scheduler is not null)
         {
-            descriptors.Add(timerId, descriptor);
+            scheduler.Add(descriptor);
+        }
+        else
+        {
+            lock (gate)
+            {
+                descriptors.Add(timerId, descriptor);
+            }
         }
 
         return new ValueTask<TimerId>(timerId);
