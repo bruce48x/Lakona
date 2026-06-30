@@ -357,11 +357,13 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
         context.ScheduleActorTick<MatchmakingActor>(
             "default",
             TimeSpan.FromMilliseconds(250),
-            TickBacklogPolicy.Coalesce);
+            TickBacklogPolicy.Coalesce,
+            nameof(MatchmakingBehavior.TickAsync));
 
         context.ScheduleActiveActorTicks<RoomActor>(
             TimeSpan.FromMilliseconds(50),
-            TickBacklogPolicy.SkipIfPending);
+            TickBacklogPolicy.SkipIfPending,
+            nameof(RoomBehavior.TickAsync));
     }
 }
 ```

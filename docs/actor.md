@@ -285,11 +285,13 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
         context.ScheduleActorTick<MatchmakingActor>(
             "default",
             TimeSpan.FromMilliseconds(250),
-            TickBacklogPolicy.Coalesce);
+            TickBacklogPolicy.Coalesce,
+            nameof(MatchmakingBehavior.TickAsync));
 
         context.ScheduleActiveActorTicks<RoomActor>(
             TimeSpan.FromMilliseconds(50),
-            TickBacklogPolicy.SkipIfPending);
+            TickBacklogPolicy.SkipIfPending,
+            nameof(RoomBehavior.TickAsync));
     }
 }
 ```
@@ -297,6 +299,12 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
 The descriptor is a reloadable declaration, not a long-lived runtime loop
 object. The framework owns timers, cancellation, mailbox entry, skipped-tick
 diagnostics, slow-tick diagnostics, and shutdown.
+
+The method name is explicit on purpose. Use `nameof(...)` so the call site shows
+which behavior method will run and normal refactoring tools keep the declaration
+in sync. The scheduler stores the method name rather than a delegate because a
+delegate could keep an old reloadable hotfix assembly generation alive after
+reload.
 
 Tick execution follows actor turn rules:
 
@@ -306,6 +314,21 @@ Tick execution follows actor turn rules:
 - a thrown tick logs diagnostics and leaves actor state at the last completed
   turn;
 - a failed hotfix reload keeps the previous tick behavior table active.
+
+### Actor Tick Performance Checks
+
+Actor tick performance coverage lives in `Lakona.Game.Server.Tests`. CI runs a
+short smoke path. Maintainers can run the larger local benchmark with:
+
+```powershell
+$env:LAKONA_TIMER_BENCHMARK_FULL='1'
+dotnet test tests\Lakona.Game.Server.Tests\Lakona.Game.Server.Tests.csproj --filter HotfixActorTickSchedulerPerformanceTests --logger "console;verbosity=detailed"
+Remove-Item Env:\LAKONA_TIMER_BENCHMARK_FULL
+```
+
+Treat benchmark output as evidence for future scheduler optimization. Do not
+optimize actor tick internals without before/after numbers from this path or an
+equivalent focused benchmark.
 
 ## Analyzer Boundary
 
