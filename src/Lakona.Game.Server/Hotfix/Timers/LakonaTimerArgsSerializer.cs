@@ -4,7 +4,7 @@ namespace Lakona.Game.Server.Hotfix.Timers;
 
 internal sealed class LakonaTimerArgsSerializer
 {
-    public const string SystemTextJsonSerializerId = "system-text-json";
+    public const string SystemTextJsonSerializerId = "system-text-json-v1";
 
     public SerializedTimerArgs Serialize<TArgs>(TArgs args)
     {

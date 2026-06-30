@@ -28,16 +28,10 @@ internal sealed class LakonaTimerCallbackResolver
         }
 
         var argsType = ResolveArgsType(snapshot, descriptor);
-        var method = callbackType.GetMethod(
+        return ResolveTimerCallbackMethod(
+            callbackType,
             descriptor.MethodName,
-            BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.DeclaredOnly);
-        if (method is null)
-        {
-            throw new InvalidOperationException($"Timer callback method '{descriptor.CallbackFullName}.{descriptor.MethodName}' is not loaded.");
-        }
-
-        ValidateMethodShape(callbackType, method, argsType);
-        return method;
+            argsType);
     }
 
     public ResolvedTimerCallback Validate<TCallback, TArgs>(HotfixRuntimeSnapshotLease lease, string methodName)
@@ -68,15 +62,10 @@ internal sealed class LakonaTimerCallbackResolver
             throw new InvalidOperationException($"Timer callback type '{callbackType.FullName}' must be from the active hotfix assembly.");
         }
 
-        var method = callbackType.GetMethod(
+        var method = ResolveTimerCallbackMethod(
+            callbackType,
             methodName,
-            BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.DeclaredOnly);
-        if (method is null)
-        {
-            throw new InvalidOperationException($"Timer callback method '{callbackType.FullName}.{methodName}' is not loaded.");
-        }
-
-        ValidateMethodShape(callbackType, method, typeof(TArgs));
+            typeof(TArgs));
 
         return new ResolvedTimerCallback(
             callbackType.Assembly.GetName().Name ?? callbackType.Assembly.FullName!,
@@ -85,29 +74,43 @@ internal sealed class LakonaTimerCallbackResolver
             snapshot.DispatchTable.Version);
     }
 
-    private static void ValidateMethodShape(Type callbackType, MethodInfo method, Type argsType)
+    private static MethodInfo ResolveTimerCallbackMethod(Type callbackType, string methodName, Type argsType)
+    {
+        var matches = callbackType
+            .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(method => string.Equals(method.Name, methodName, StringComparison.Ordinal))
+            .Where(method => IsTimerCallbackMethod(method, argsType))
+            .ToArray();
+
+        if (matches.Length == 1)
+        {
+            return matches[0];
+        }
+
+        throw new InvalidOperationException(
+            $"Timer callback method '{callbackType.FullName}.{methodName}' must resolve to exactly one non-generic public static ValueTask method accepting {typeof(TimerTick<>).MakeGenericType(argsType).FullName}; found {matches.Length} loaded matches.");
+    }
+
+    private static bool IsTimerCallbackMethod(MethodInfo method, Type argsType)
     {
         if (!method.IsStatic)
         {
-            throw new InvalidOperationException($"Timer callback method '{callbackType.FullName}.{method.Name}' must be static.");
+            return false;
         }
 
         if (method.ContainsGenericParameters || method.IsGenericMethodDefinition)
         {
-            throw new InvalidOperationException($"Timer callback method '{callbackType.FullName}.{method.Name}' must not be generic.");
+            return false;
         }
 
         if (method.ReturnType != typeof(ValueTask))
         {
-            throw new InvalidOperationException($"Timer callback method '{callbackType.FullName}.{method.Name}' must return ValueTask.");
+            return false;
         }
 
         var expectedParameterType = typeof(TimerTick<>).MakeGenericType(argsType);
         var parameters = method.GetParameters();
-        if (parameters.Length != 1 || parameters[0].ParameterType != expectedParameterType)
-        {
-            throw new InvalidOperationException($"Timer callback method '{callbackType.FullName}.{method.Name}' must accept {expectedParameterType.FullName}.");
-        }
+        return parameters.Length == 1 && parameters[0].ParameterType == expectedParameterType;
     }
 
     private static Type ResolveArgsType(HotfixRuntimeSnapshot snapshot, LakonaTimerDescriptor descriptor)
@@ -120,6 +123,8 @@ internal sealed class LakonaTimerCallbackResolver
             {
                 return hotfixArgsType;
             }
+
+            throw new InvalidOperationException($"Timer args type '{descriptor.ArgsFullName}' is not loaded in the active hotfix assembly.");
         }
 
         var argsAssembly = AppDomain.CurrentDomain.GetAssemblies()

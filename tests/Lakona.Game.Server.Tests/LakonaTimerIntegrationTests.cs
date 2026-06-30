@@ -1,10 +1,13 @@
 using System.Reflection;
+using System.Runtime.Loader;
 using System.Text;
 using System.Text.Json;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Timers;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -34,7 +37,7 @@ public sealed class LakonaTimerIntegrationTests
         Assert.Equal(nameof(TimerCallback.HandleAsync), descriptor.MethodName);
         Assert.Equal(typeof(TimerArgs).Assembly.GetName().Name, descriptor.ArgsAssemblyName);
         Assert.Equal(typeof(TimerArgs).FullName, descriptor.ArgsFullName);
-        Assert.Equal("system-text-json", descriptor.SerializerId);
+        Assert.Equal("system-text-json-v1", descriptor.SerializerId);
         Assert.Equal(fixture.Table.Version, descriptor.Generation);
         Assert.Null(descriptor.Period);
         Assert.InRange(descriptor.NextDueAtUtc, DateTimeOffset.UtcNow.AddSeconds(-5), DateTimeOffset.UtcNow.AddSeconds(5));
@@ -122,6 +125,91 @@ public sealed class LakonaTimerIntegrationTests
         var method = new LakonaTimerCallbackResolver().Resolve(fixture.Lease.Snapshot, descriptor);
 
         Assert.Equal(typeof(TimerCallback).GetMethod(nameof(TimerCallback.HandleAsync)), method);
+    }
+
+    [Fact]
+    public async Task CreateOnceTimerAsync_accepts_same_name_overloads_when_exactly_one_matches_timer_signature()
+    {
+        await using var fixture = TimerFixture.Create(typeof(OverloadedTimerCallback));
+        var backend = new LakonaTimerBackend();
+        using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
+
+        var timerId = await LakonaTimer.CreateOnceTimerAsync<OverloadedTimerCallback, TimerArgs>(
+            TimeSpan.Zero,
+            nameof(OverloadedTimerCallback.HandleAsync),
+            new TimerArgs("overload", 1),
+            CancellationToken.None);
+
+        Assert.True(backend.TryGetDescriptor(timerId, out var descriptor));
+        Assert.Equal(nameof(OverloadedTimerCallback.HandleAsync), descriptor.MethodName);
+    }
+
+    [Fact]
+    public async Task CreateOnceTimerAsync_rejects_same_name_overloads_when_none_match_timer_signature()
+    {
+        await using var fixture = TimerFixture.Create(typeof(InvalidOverloadedTimerCallback));
+        var backend = new LakonaTimerBackend();
+        using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await LakonaTimer.CreateOnceTimerAsync<InvalidOverloadedTimerCallback, TimerArgs>(
+                TimeSpan.Zero,
+                nameof(InvalidOverloadedTimerCallback.HandleAsync),
+                new TimerArgs("overload", 1),
+                CancellationToken.None));
+
+        Assert.Contains("exactly one", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("TimerTick", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CallbackResolver_does_not_resolve_hotfix_args_type_from_stale_assembly()
+    {
+        const string assemblyName = "TimerHotfixArgsCollision";
+        var staleAssembly = CompileHotfixAssembly(
+            assemblyName,
+            """
+            namespace Collision;
+            public sealed record MissingArgs(string Value);
+            """);
+        _ = staleAssembly.GetType("Collision.MissingArgs", throwOnError: true);
+        var activeAssembly = CompileHotfixAssembly(
+            assemblyName,
+            """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+            namespace Collision;
+            public sealed record OtherArgs(string Value);
+            public sealed class Callback
+            {
+                public static ValueTask HandleAsync(TimerTick<OtherArgs> tick)
+                {
+                    _ = tick;
+                    return default;
+                }
+            }
+            """);
+        await using var fixture = TimerFixture.Create(
+            activeAssembly.GetType("Collision.Callback", throwOnError: true)!,
+            mainAssembly: activeAssembly);
+        var descriptor = new LakonaTimerDescriptor(
+            TimerId.FromGuid(Guid.NewGuid()),
+            assemblyName,
+            "Collision.Callback",
+            "HandleAsync",
+            assemblyName,
+            "Collision.MissingArgs",
+            "system-text-json-v1",
+            Encoding.UTF8.GetBytes("""{"Value":"stale"}"""),
+            DateTimeOffset.UtcNow,
+            period: null,
+            generation: fixture.Table.Version);
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            new LakonaTimerCallbackResolver().Resolve(fixture.Lease.Snapshot, descriptor));
+
+        Assert.Contains("not loaded", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Collision.MissingArgs", exception.Message, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -278,6 +366,36 @@ public sealed class LakonaTimerIntegrationTests
         }
     }
 
+    public sealed class OverloadedTimerCallback
+    {
+        public static ValueTask HandleAsync(TimerTick<TimerArgs> tick)
+        {
+            _ = tick;
+            return default;
+        }
+
+        public static ValueTask HandleAsync(TimerArgs args)
+        {
+            _ = args;
+            return default;
+        }
+    }
+
+    public sealed class InvalidOverloadedTimerCallback
+    {
+        public static ValueTask HandleAsync(TimerArgs args)
+        {
+            _ = args;
+            return default;
+        }
+
+        public static int HandleAsync(TimerTick<TimerArgs> tick)
+        {
+            _ = tick;
+            return 1;
+        }
+    }
+
     public sealed record GenericTimerArgs<T>(T Value);
 
     public sealed class GenericArgsCallback
@@ -385,5 +503,30 @@ public sealed class LakonaTimerIntegrationTests
             Snapshot.Retire();
             return default;
         }
+    }
+
+    private static Assembly CompileHotfixAssembly(string assemblyName, string source)
+    {
+        var syntaxTree = CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.CSharp10));
+        var references = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(static assembly => !assembly.IsDynamic && !string.IsNullOrWhiteSpace(assembly.Location))
+            .Select(static assembly => MetadataReference.CreateFromFile(assembly.Location))
+            .ToArray();
+        var compilation = CSharpCompilation.Create(
+            assemblyName,
+            [syntaxTree],
+            references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        using var stream = new MemoryStream();
+        var result = compilation.Emit(stream);
+        if (!result.Success)
+        {
+            var diagnostics = string.Join(Environment.NewLine, result.Diagnostics);
+            throw new InvalidOperationException(diagnostics);
+        }
+
+        stream.Position = 0;
+        return new AssemblyLoadContext($"{assemblyName}-{Guid.NewGuid():N}", isCollectible: true)
+            .LoadFromStream(stream);
     }
 }
