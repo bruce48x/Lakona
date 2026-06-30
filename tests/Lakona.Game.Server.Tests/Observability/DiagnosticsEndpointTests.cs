@@ -1,4 +1,7 @@
 using System.Text.Json;
+using Lakona.Game.Server.Hotfix;
+using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.Hotfix.Loading;
 using Lakona.Game.Server.LocalAdmin;
 using Lakona.Game.Server.Observability;
 using Lakona.Game.Server.Observability.Diagnostics;
@@ -163,6 +166,30 @@ public sealed class DiagnosticsEndpointTests
         Assert.True(document.RootElement.GetProperty("sections").TryGetProperty("hotfix", out _));
     }
 
+    [Fact]
+    public async Task Hotfix_diagnostics_do_not_expose_raw_failure_message()
+    {
+        using var provider = new ServiceCollection()
+            .AddSingleton<IHotfixManager>(new SensitiveFailureHotfixManager())
+            .BuildServiceProvider();
+        var sink = new BoundedDiagnosticsEventBuffer(8, LogLevel.Trace);
+        var router = new LakonaLocalAdminRouter(DiagnosticsLocalAdminRoutes.Create(
+            new LakonaDiagnosticsSnapshotService([new HotfixDiagnosticsProvider(provider)], sink),
+            sink));
+
+        var response = await router.RouteAsync(
+            new LakonaLocalAdminRequest("GET", "/_lakona/diagnostics/summary", Stream.Null, true),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.DoesNotContain("secret-hotfix-message", response.Body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("lastFailureMessage", response.Body, StringComparison.OrdinalIgnoreCase);
+        using var document = JsonDocument.Parse(response.Body);
+        var hotfix = document.RootElement.GetProperty("sections").GetProperty("hotfix");
+        Assert.Equal("Failed", hotfix.GetProperty("lastReloadStatus").GetString());
+        Assert.Equal("InvalidOperationException", hotfix.GetProperty("lastFailureExceptionType").GetString());
+    }
+
     private sealed class TestSnapshotProvider : ILakonaDiagnosticsSnapshotProvider
     {
         private readonly object _snapshot;
@@ -193,6 +220,60 @@ public sealed class DiagnosticsEndpointTests
         public ValueTask<object> CaptureAsync(CancellationToken cancellationToken)
         {
             throw new InvalidOperationException("failed with secret-token");
+        }
+    }
+
+    private sealed class SensitiveFailureHotfixManager : IHotfixManager
+    {
+        public SensitiveFailureHotfixManager()
+        {
+            Current = new HotfixSnapshot(
+                "loaded-v1",
+                SourceKind: null,
+                SourcePath: null,
+                DateTimeOffset.UtcNow,
+                DispatchTableVersion: 42,
+                Methods: null,
+                HotfixReloadStatus.Failed,
+                "secret-hotfix-message from C:\\deploy\\private\\hotfix.dll",
+                "InvalidOperationException");
+        }
+
+        public HotfixSnapshot Current { get; }
+
+        public event EventHandler<HotfixReloadResult>? Reloaded
+        {
+            add { }
+            remove { }
+        }
+
+        public ValueTask<HotfixReloadResult> ValidateAsync(CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<HotfixReloadResult>(CreateResult());
+        }
+
+        public ValueTask<HotfixReloadResult> ValidateAsync(
+            IHotfixAssemblySource source,
+            CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<HotfixReloadResult>(CreateResult());
+        }
+
+        public ValueTask<HotfixReloadResult> ReloadAsync(CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<HotfixReloadResult>(CreateResult());
+        }
+
+        private HotfixReloadResult CreateResult()
+        {
+            return new HotfixReloadResult(
+                HotfixReloadStatus.Failed,
+                Current,
+                RequestedVersion: null,
+                RequestedPath: null,
+                Diagnostics: null,
+                ErrorMessage: "secret-hotfix-message",
+                ExceptionType: "InvalidOperationException");
         }
     }
 }

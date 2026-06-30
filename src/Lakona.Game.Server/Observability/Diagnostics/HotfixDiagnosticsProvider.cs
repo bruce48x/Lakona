@@ -29,8 +29,7 @@ public sealed class HotfixDiagnosticsProvider : ILakonaDiagnosticsSnapshotProvid
                 MethodCount: 0,
                 FeatureCount: 0,
                 LastReloadStatus: null,
-                LastFailureExceptionType: null,
-                LastFailureMessage: null));
+                LastFailureExceptionType: null));
         }
 
         var current = _manager.Current;
@@ -42,8 +41,7 @@ public sealed class HotfixDiagnosticsProvider : ILakonaDiagnosticsSnapshotProvid
             MethodCount: current.Methods.Count,
             FeatureCount: current.Features.Count,
             LastReloadStatus: current.LastReloadStatus?.ToString(),
-            LastFailureExceptionType: current.LastFailureExceptionType,
-            LastFailureMessage: current.LastFailureMessage));
+            LastFailureExceptionType: current.LastFailureExceptionType));
     }
 
     private sealed record HotfixDiagnosticsSnapshot(
@@ -54,6 +52,5 @@ public sealed class HotfixDiagnosticsProvider : ILakonaDiagnosticsSnapshotProvid
         int MethodCount,
         int FeatureCount,
         string? LastReloadStatus,
-        string? LastFailureExceptionType,
-        string? LastFailureMessage);
+        string? LastFailureExceptionType);
 }
