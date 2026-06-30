@@ -12,6 +12,7 @@ using GameActor = Lakona.Game.Server.Actors.Actor;
 
 namespace Lakona.Game.Server.Tests;
 
+[Collection(HotfixDispatchCollectionNames.GlobalState)]
 public sealed class HotfixActorTickSchedulerTests : IDisposable
 {
     public HotfixActorTickSchedulerTests()
@@ -186,6 +187,73 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
         await TickHotfix.WaitForCountAsync(2, cancellationToken);
 
         Assert.Equal(1, runtime.MaxQueuedWhileBlocked);
+    }
+
+    [Fact]
+    public async Task Observer_records_accepted_entered_skipped_and_coalesced_ticks()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var observer = new RecordingTickObserver();
+
+        var skipRuntime = new RecordingActorRuntime { BlockedActorId = ActorId.From("skip") };
+        await using (var skipScheduler = new HotfixActorTickScheduler(
+            skipRuntime,
+            NullLogger<HotfixActorTickScheduler>.Instance,
+            observer))
+        {
+            HotfixDispatch.Replace(CreateTickTable(1));
+            skipScheduler.Apply(CreateSnapshot(
+                new HotfixActorTickDeclaration(
+                    HotfixActorTickMode.FixedActor,
+                    typeof(TickActor),
+                    "skip",
+                    nameof(TickHotfix.TickAsync),
+                    TimeSpan.FromMilliseconds(10),
+                    TickBacklogPolicy.SkipIfPending)));
+
+            await skipRuntime.BlockedStarted.Task.WaitAsync(TimeSpan.FromSeconds(1), cancellationToken);
+            await observer.WaitForSkippedAsync(cancellationToken);
+            skipRuntime.ReleaseBlocked();
+            await TickHotfix.WaitForCountAsync(1, cancellationToken);
+        }
+
+        TickHotfix.Reset();
+
+        var coalesceRuntime = new RecordingActorRuntime { BlockedActorId = ActorId.From("coalesce") };
+        await using (var coalesceScheduler = new HotfixActorTickScheduler(
+            coalesceRuntime,
+            NullLogger<HotfixActorTickScheduler>.Instance,
+            observer))
+        {
+            HotfixDispatch.Replace(CreateTickTable(2));
+            coalesceScheduler.Apply(CreateSnapshot(
+                new HotfixActorTickDeclaration(
+                    HotfixActorTickMode.FixedActor,
+                    typeof(TickActor),
+                    "coalesce",
+                    nameof(TickHotfix.TickAsync),
+                    TimeSpan.FromMilliseconds(10),
+                    TickBacklogPolicy.Coalesce)));
+
+            await coalesceRuntime.BlockedStarted.Task.WaitAsync(TimeSpan.FromSeconds(1), cancellationToken);
+            await observer.WaitForCoalescedAsync(cancellationToken);
+            coalesceRuntime.ReleaseBlocked();
+            await TickHotfix.WaitForCountAsync(2, cancellationToken);
+        }
+
+        var accepted = observer.Accepted;
+        var skipped = observer.Skipped;
+        var coalesced = observer.Coalesced;
+        var entered = observer.Entered;
+
+        Assert.Contains(accepted, observation => observation.ActorId == ActorId.From("skip"));
+        Assert.Contains(accepted, observation => observation.ActorId == ActorId.From("coalesce"));
+        Assert.Contains(skipped, observation => observation.ActorId == ActorId.From("skip"));
+        Assert.Contains(coalesced, observation => observation.ActorId == ActorId.From("coalesce"));
+        Assert.Contains(entered, observation => observation.ActorId == ActorId.From("skip") && observation.Sequence == 1);
+        Assert.Contains(entered, observation => observation.ActorId == ActorId.From("coalesce") && observation.Sequence == 1);
+        Assert.Contains(entered, observation => observation.ActorId == ActorId.From("coalesce") && observation.Sequence == 2);
+        Assert.All(entered, observation => Assert.True(observation.QueueLatency >= TimeSpan.Zero));
     }
 
     [Fact]
@@ -578,6 +646,118 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
             }
 
             return actor;
+        }
+    }
+
+    private sealed class RecordingTickObserver : IHotfixActorTickSchedulerObserver
+    {
+        private readonly object _sync = new();
+        private readonly List<HotfixActorTickDispatchObservation> _accepted = [];
+        private readonly List<HotfixActorTickDispatchObservation> _skipped = [];
+        private readonly List<HotfixActorTickDispatchObservation> _coalesced = [];
+        private readonly List<HotfixActorTickEntryObservation> _entered = [];
+        private readonly TaskCompletionSource _skippedRecorded =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _coalescedRecorded =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public IReadOnlyList<HotfixActorTickDispatchObservation> Accepted
+        {
+            get
+            {
+                lock (_sync)
+                {
+                    return _accepted.ToArray();
+                }
+            }
+        }
+
+        public IReadOnlyList<HotfixActorTickDispatchObservation> Skipped
+        {
+            get
+            {
+                lock (_sync)
+                {
+                    return _skipped.ToArray();
+                }
+            }
+        }
+
+        public IReadOnlyList<HotfixActorTickDispatchObservation> Coalesced
+        {
+            get
+            {
+                lock (_sync)
+                {
+                    return _coalesced.ToArray();
+                }
+            }
+        }
+
+        public IReadOnlyList<HotfixActorTickEntryObservation> Entered
+        {
+            get
+            {
+                lock (_sync)
+                {
+                    return _entered.ToArray();
+                }
+            }
+        }
+
+        public void OnDispatchAccepted(HotfixActorTickDispatchObservation observation)
+        {
+            lock (_sync)
+            {
+                _accepted.Add(observation);
+            }
+        }
+
+        public void OnDispatchRejected(
+            HotfixActorTickDispatchObservation observation,
+            ActorTellResult result)
+        {
+            _ = result;
+        }
+
+        public void OnDispatchSkipped(HotfixActorTickDispatchObservation observation)
+        {
+            lock (_sync)
+            {
+                _skipped.Add(observation);
+            }
+
+            _skippedRecorded.TrySetResult();
+        }
+
+        public void OnDispatchCoalesced(HotfixActorTickDispatchObservation observation)
+        {
+            lock (_sync)
+            {
+                _coalesced.Add(observation);
+            }
+
+            _coalescedRecorded.TrySetResult();
+        }
+
+        public void OnTickEntered(HotfixActorTickEntryObservation observation)
+        {
+            lock (_sync)
+            {
+                _entered.Add(observation);
+            }
+        }
+
+        public async Task WaitForSkippedAsync(CancellationToken cancellationToken)
+        {
+            await _skippedRecorded.Task.WaitAsync(TimeSpan.FromSeconds(1), cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        public async Task WaitForCoalescedAsync(CancellationToken cancellationToken)
+        {
+            await _coalescedRecorded.Task.WaitAsync(TimeSpan.FromSeconds(1), cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 
