@@ -35,7 +35,7 @@ public static class LakonaGameReadinessProbe
             rules.Add(new ClusterEndpointRule());
         }
 
-        var resolved = ToResolvedRuntime(runtime, clusterOptions, observabilityCapabilities);
+        var resolved = ToResolvedRuntimeForValidation(runtime, clusterOptions, observabilityCapabilities);
         var validator = new LakonaGameRuntimeValidator(rules);
         var result = validator.Validate(resolved);
 
@@ -135,7 +135,7 @@ public static class LakonaGameReadinessProbe
         return result.Succeeded ? 0 : 1;
     }
 
-    private static LakonaGameResolvedRuntime ToResolvedRuntime(
+    internal static LakonaGameResolvedRuntime ToResolvedRuntimeForValidation(
         LakonaGameRuntimeOptions runtime,
         ClusterOptions? clusterOptions,
         LakonaObservabilityCapabilities? observabilityCapabilities)

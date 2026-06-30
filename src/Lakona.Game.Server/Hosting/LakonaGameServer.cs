@@ -6,6 +6,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Features;
+using Lakona.Game.Server.Guardrails;
 using Lakona.Game.Server.Health;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
@@ -51,8 +52,8 @@ public static class LakonaGameServer
 
         if (args.Contains("--health-check", StringComparer.Ordinal))
         {
-            var clusterOptions = TryBuildClusterOptions(runtimeOptions, builder.Configuration);
-            return LakonaGameLivenessProbe.Run(clusterOptions, runtimeOptions);
+            var healthClusterOptions = TryBuildClusterOptions(runtimeOptions, builder.Configuration);
+            return LakonaGameLivenessProbe.Run(healthClusterOptions, runtimeOptions);
         }
 
         // Full startup
@@ -73,10 +74,11 @@ public static class LakonaGameServer
         }
 
         // Cluster options (may throw for standalone — wrap gracefully)
+        ClusterOptions? clusterOptions = null;
         try
         {
-            builder.Services.AddSingleton(
-                runtimeOptions.ToClusterOptions(builder.Configuration));
+            clusterOptions = runtimeOptions.ToClusterOptions(builder.Configuration);
+            builder.Services.AddSingleton(clusterOptions);
             builder.Services.AddLakonaGameClusterEndpoint();
         }
         catch (InvalidOperationException)
@@ -120,6 +122,8 @@ public static class LakonaGameServer
 
         // Gateway (registers RpcServersHostedService)
         builder.Services.AddLakonaGameServerGateway();
+
+        ValidateStartupRuntime(builder.Services, runtimeOptions, clusterOptions);
 
         var host = builder.Build();
         await LoadInitialHotfixAsync(host);
@@ -206,6 +210,81 @@ public static class LakonaGameServer
         return CreateRuntimeOptions(
             builder.Configuration,
             builder.Environment.EnvironmentName);
+    }
+
+    internal static void ValidateStartupRuntimeForTesting(
+        string[] args,
+        Action<LakonaGameServerBuilder> configure)
+    {
+        var builder = CreateApplicationBuilder(args);
+        var serverBuilder = new LakonaGameServerBuilder(builder);
+        configure(serverBuilder);
+        serverBuilder.ApplyConfigurationToHostBuilder();
+
+        var runtimeOptions = CreateRuntimeOptions(
+            builder.Configuration,
+            builder.Environment.EnvironmentName);
+
+        builder.Services.AddLakonaGameServer(builder.Configuration);
+        builder.Services.AddSingleton(runtimeOptions);
+        serverBuilder.ApplyServiceRegistrationsToHostBuilder();
+
+        var clusterOptions = TryBuildClusterOptions(runtimeOptions, builder.Configuration);
+
+        ValidateStartupRuntime(builder.Services, runtimeOptions, clusterOptions);
+    }
+
+    private static void ValidateStartupRuntime(
+        IServiceCollection services,
+        LakonaGameRuntimeOptions runtimeOptions,
+        ClusterOptions? clusterOptions)
+    {
+        using var provider = services.BuildServiceProvider();
+        var capabilities = LakonaObservabilityCapabilities.FromServices(
+            provider.GetServices<ILakonaObservabilityCapability>());
+        var resolved = LakonaGameReadinessProbe.ToResolvedRuntimeForValidation(
+            runtimeOptions,
+            clusterOptions,
+            capabilities);
+        var result = provider
+            .GetRequiredService<LakonaGameRuntimeValidator>()
+            .Validate(resolved);
+
+        if (result.Succeeded)
+        {
+            return;
+        }
+
+        var logger = provider
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger("Server.StartupValidation");
+        foreach (var diagnostic in result.Diagnostics)
+        {
+            if (diagnostic.Severity == LakonaGameDiagnosticSeverity.Error)
+            {
+                logger.LogError(
+                    "{Code}: {Message} Repair: {Repair}",
+                    diagnostic.Code,
+                    diagnostic.Message,
+                    diagnostic.Repair);
+            }
+            else
+            {
+                logger.LogWarning(
+                    "{Code}: {Message} Repair: {Repair}",
+                    diagnostic.Code,
+                    diagnostic.Message,
+                    diagnostic.Repair);
+            }
+        }
+
+        var errors = result.Diagnostics
+            .Where(static diagnostic => diagnostic.Severity == LakonaGameDiagnosticSeverity.Error)
+            .ToArray();
+        var firstError = errors[0];
+        var noun = errors.Length == 1 ? "error" : "errors";
+        throw new InvalidOperationException(
+            $"{errors.Length} startup validation {noun}. First error {firstError.Code}: {firstError.Message}");
     }
 
     private static LakonaGameRuntimeOptions CreateRuntimeOptions(

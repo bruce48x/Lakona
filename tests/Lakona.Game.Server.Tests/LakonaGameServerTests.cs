@@ -235,6 +235,35 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public void Startup_validation_fails_before_host_build_when_observability_capability_is_missing()
+    {
+        var hotfixPath = Path.Combine(AppContext.BaseDirectory, "hotfix", "Server.Hotfix.dll");
+        Directory.CreateDirectory(Path.GetDirectoryName(hotfixPath)!);
+        File.WriteAllText(hotfixPath, "");
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            Lakona.Game.Server.Hosting.LakonaGameServer.ValidateStartupRuntimeForTesting(
+                [],
+                server =>
+                {
+                    server.ConfigureAppConfiguration(configuration =>
+                        configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                        {
+                            ["Lakona:Endpoints:0:Transport"] = "websocket",
+                            ["Lakona:Endpoints:0:Serializer"] = "json",
+                            ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
+                            ["Lakona:Endpoints:0:Port"] = "20000",
+                            ["Lakona:Endpoints:0:Path"] = "/ws",
+                            ["Lakona:Observability:Tracing:Export:Enabled"] = "true"
+                        }));
+                }));
+
+        Assert.Contains("ULINK134", error.Message, StringComparison.Ordinal);
+        Assert.Contains("Trace export is enabled but no OpenTelemetry integration is registered.", error.Message, StringComparison.Ordinal);
+        Assert.Contains("1 startup validation error", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Default_feature_discovery_preserves_host_resolved_runtime_options()
     {
         var services = new ServiceCollection();

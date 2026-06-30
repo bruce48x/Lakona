@@ -338,7 +338,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     }
 
     [Fact]
-    public void AddLakonaGameRuntimeValidation_RegistersDefaultValidator()
+    public void RuntimeValidator_includes_observability_rule_by_default()
     {
         var services = new ServiceCollection();
 
@@ -346,8 +346,10 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         using var provider = services.BuildServiceProvider();
         var validator = provider.GetRequiredService<LakonaGameRuntimeValidator>();
+        var rules = provider.GetServices<ILakonaGameValidationRule>();
 
         Assert.NotNull(validator);
+        Assert.Contains(rules, rule => rule is ObservabilityRule);
     }
 
     private static LakonaGameResolvedRuntime TestRuntime()
