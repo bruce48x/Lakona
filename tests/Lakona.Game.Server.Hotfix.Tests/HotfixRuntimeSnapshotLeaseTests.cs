@@ -81,6 +81,20 @@ public sealed class HotfixRuntimeSnapshotLeaseTests
     }
 
     [Fact]
+    public void Retired_snapshot_rejects_new_leases_before_active_leases_drain()
+    {
+        var snapshot = new HotfixRuntimeSnapshot(
+            new HotfixServiceInvoker(),
+            EmptyHotfixFeatureCommandInvoker.Instance,
+            new TrackingServiceProvider());
+        using var lease = snapshot.AcquireLease();
+
+        snapshot.Retire();
+
+        Assert.Throws<ObjectDisposedException>(() => snapshot.AcquireLease());
+    }
+
+    [Fact]
     public async Task Failed_reload_leaves_old_runtime_snapshot_current()
     {
         using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);

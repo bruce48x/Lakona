@@ -111,7 +111,7 @@ public sealed class HotfixRuntimeSnapshot
     {
         while (true)
         {
-            if (Volatile.Read(ref _retirementCompleted) != 0)
+            if (Volatile.Read(ref _retired) != 0)
             {
                 throw new ObjectDisposedException(nameof(HotfixRuntimeSnapshot));
             }
@@ -122,7 +122,7 @@ public sealed class HotfixRuntimeSnapshot
                 continue;
             }
 
-            if (Volatile.Read(ref _retirementCompleted) == 0)
+            if (Volatile.Read(ref _retired) == 0)
             {
                 return new HotfixRuntimeSnapshotLease(this);
             }
