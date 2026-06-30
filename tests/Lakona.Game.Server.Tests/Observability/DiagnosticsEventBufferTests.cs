@@ -2,6 +2,7 @@ using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Observability;
 using Lakona.Game.Server.Observability.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Xunit;
 using GameActor = Lakona.Game.Server.Actors.Actor;
@@ -61,6 +62,7 @@ public sealed class DiagnosticsEventBufferTests
             {
                 ["actor_id"] = "actor/secret",
                 ["session_id"] = "session-secret",
+                ["connection_id"] = "connection-secret",
                 ["token"] = "token-secret",
                 ["payload"] = "payload-secret",
                 ["call_chain"] = "call-chain-secret",
@@ -72,6 +74,7 @@ public sealed class DiagnosticsEventBufferTests
         var evt = Assert.Single(buffer.Snapshot(10));
         Assert.DoesNotContain("actor_id", evt.Dimensions.Keys);
         Assert.DoesNotContain("session_id", evt.Dimensions.Keys);
+        Assert.DoesNotContain("connection_id", evt.Dimensions.Keys);
         Assert.DoesNotContain("token", evt.Dimensions.Keys);
         Assert.DoesNotContain("payload", evt.Dimensions.Keys);
         Assert.DoesNotContain("call_chain", evt.Dimensions.Keys);
@@ -158,9 +161,127 @@ public sealed class DiagnosticsEventBufferTests
             static (actor, ct) => actor.DelayAsync(TimeSpan.FromMilliseconds(50), ct),
             cancellationToken);
 
-        var evt = Assert.Single(buffer.Snapshot(10), static evt => evt.Kind == "actor.slow_message");
+        var evt = await WaitForEventAsync(
+            buffer,
+            static evt => evt.Kind == "actor.slow_message",
+            cancellationToken);
         Assert.DoesNotContain("slow/secret", evt.Message, StringComparison.Ordinal);
         Assert.DoesNotContain(evt.Dimensions.Keys, IsSensitiveKey);
+    }
+
+    [Fact]
+    public async Task Actor_observer_preserves_runtime_message_type_name()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var buffer = new BoundedDiagnosticsEventBuffer(8, LogLevel.Trace);
+        var id = ActorId.From("slow/type-name");
+
+        await using var provider = new ServiceCollection()
+            .AddSingleton<IDiagnosticsEventSink>(buffer)
+            .AddSingleton<IActorDiagnosticsObserver, ActorDiagnosticsEventBridge>()
+            .AddLakonaGameServerActors(options => options.SlowMessageThreshold = TimeSpan.FromMilliseconds(1))
+            .BuildServiceProvider();
+
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        await lifecycle.CreateLocalAsync<SlowActor>(id, cancellationToken: cancellationToken);
+
+        await runtime.TellAsync<SlowActor>(
+            id,
+            static (actor, ct) => actor.DelayAsync(TimeSpan.FromMilliseconds(50), ct),
+            cancellationToken);
+
+        var evt = await WaitForEventAsync(
+            buffer,
+            static evt => evt.Kind == "actor.slow_message",
+            cancellationToken);
+        Assert.Contains("ActorRuntimeEnvelope", evt.Dimensions["message_type"], StringComparison.Ordinal);
+        Assert.NotEqual("String", evt.Dimensions["message_type"]);
+    }
+
+    [Fact]
+    public void LakonaActorRuntime_preserves_two_argument_constructor()
+    {
+        var constructor = typeof(LakonaActorRuntime).GetConstructor(
+            [typeof(IServiceProvider), typeof(ActorRuntimeOptions)]);
+
+        Assert.NotNull(constructor);
+    }
+
+    [Fact]
+    public void Disabled_event_buffer_does_not_retain_published_events_or_capture_logs()
+    {
+        using var provider = new ServiceCollection()
+            .AddLakonaGameObservability(new LakonaObservabilityOptions
+            {
+                Diagnostics = new LakonaDiagnosticsObservabilityOptions
+                {
+                    EventBuffer = new LakonaDiagnosticsEventBufferOptions { Enabled = false }
+                }
+            })
+            .BuildServiceProvider();
+        var sink = provider.GetRequiredService<IDiagnosticsEventSink>();
+        var logger = provider.GetRequiredService<ILoggerFactory>().CreateLogger("Lakona.Game.Server.Tests");
+
+        sink.Publish(CreateEvent(LogLevel.Critical, "direct"));
+        logger.LogCritical("diagnostic secret {Token}", "secret-token");
+
+        Assert.Empty(sink.Snapshot(10));
+    }
+
+    [Fact]
+    public void Registered_event_buffer_honors_configured_capacity_and_minimum_level_from_final_options()
+    {
+        using var provider = new ServiceCollection()
+            .AddLakonaGameObservability(new LakonaObservabilityOptions
+            {
+                Diagnostics = new LakonaDiagnosticsObservabilityOptions
+                {
+                    EventBuffer = new LakonaDiagnosticsEventBufferOptions
+                    {
+                        Capacity = 2,
+                        MinimumLevel = LogLevel.Error
+                    }
+                }
+            })
+            .BuildServiceProvider();
+        var sink = provider.GetRequiredService<IDiagnosticsEventSink>();
+
+        sink.Publish(CreateEvent(LogLevel.Warning, "ignored"));
+        sink.Publish(CreateEvent(LogLevel.Error, "first"));
+        sink.Publish(CreateEvent(LogLevel.Critical, "second"));
+        sink.Publish(CreateEvent(LogLevel.Critical, "third"));
+
+        Assert.Equal(["third", "second"], sink.Snapshot(10).Select(static evt => evt.Message));
+    }
+
+    [Fact]
+    public void Event_buffer_uses_later_explicit_observability_options()
+    {
+        var services = new ServiceCollection()
+            .AddLakonaGameObservability();
+        services.RemoveAll<LakonaObservabilityOptions>();
+        services.AddSingleton(new LakonaObservabilityOptions
+        {
+            Diagnostics = new LakonaDiagnosticsObservabilityOptions
+            {
+                EventBuffer = new LakonaDiagnosticsEventBufferOptions
+                {
+                    Capacity = 1,
+                    MinimumLevel = LogLevel.Critical
+                }
+            }
+        });
+
+        using var provider = services.BuildServiceProvider();
+        var sink = provider.GetRequiredService<IDiagnosticsEventSink>();
+
+        sink.Publish(CreateEvent(LogLevel.Error, "ignored"));
+        sink.Publish(CreateEvent(LogLevel.Critical, "kept"));
+        sink.Publish(CreateEvent(LogLevel.Critical, "newest"));
+
+        var evt = Assert.Single(sink.Snapshot(10));
+        Assert.Equal("newest", evt.Message);
     }
 
     private static DiagnosticsEvent CreateEvent(
@@ -181,7 +302,27 @@ public sealed class DiagnosticsEventBufferTests
 
     private static bool IsSensitiveKey(string key)
     {
-        return key is "actor_id" or "session_id" or "token" or "payload" or "call_chain";
+        return key is "actor_id" or "session_id" or "connection_id" or "token" or "payload" or "call_chain";
+    }
+
+    private static async Task<DiagnosticsEvent> WaitForEventAsync(
+        IDiagnosticsEventSink sink,
+        Func<DiagnosticsEvent, bool> predicate,
+        CancellationToken cancellationToken)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
+
+        while (true)
+        {
+            var evt = sink.Snapshot(10).FirstOrDefault(predicate);
+            if (evt is not null)
+            {
+                return evt;
+            }
+
+            await Task.Delay(10, linked.Token);
+        }
     }
 
     private sealed record PayloadProbe(string Value);

@@ -16,6 +16,11 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
     private readonly IReadOnlyList<IActorDiagnosticsObserver> _diagnosticsObservers;
     private readonly K.ActorSystem _actorSystem;
 
+    public LakonaActorRuntime(IServiceProvider services, ActorRuntimeOptions options)
+        : this(services, options, null)
+    {
+    }
+
     public LakonaActorRuntime(
         IServiceProvider services,
         ActorRuntimeOptions options,

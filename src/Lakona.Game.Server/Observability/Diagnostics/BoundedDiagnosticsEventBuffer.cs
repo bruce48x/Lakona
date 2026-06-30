@@ -9,6 +9,7 @@ public sealed class BoundedDiagnosticsEventBuffer : IDiagnosticsEventSink
         "actor_id",
         "actor_name",
         "session_id",
+        "connection_id",
         "token",
         "payload",
         "request",

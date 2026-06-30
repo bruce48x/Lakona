@@ -40,31 +40,15 @@ public static class LakonaObservabilityServiceCollectionExtensions
 
     private static void AddLakonaDiagnosticsEventBuffer(this IServiceCollection services)
     {
-        var options = ResolveObservabilityOptions(services).Diagnostics.EventBuffer;
-
-        if (!options.Enabled)
-        {
-            return;
-        }
-
         services.TryAddSingleton<IDiagnosticsEventSink>(
-            _ => new BoundedDiagnosticsEventBuffer(options.Capacity, options.MinimumLevel));
+            sp =>
+            {
+                var options = sp.GetRequiredService<LakonaObservabilityOptions>().Diagnostics.EventBuffer;
+                return options.Enabled
+                    ? new BoundedDiagnosticsEventBuffer(options.Capacity, options.MinimumLevel)
+                    : DisabledDiagnosticsEventSink.Instance;
+            });
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ILoggerProvider, DiagnosticsEventLoggerProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IActorDiagnosticsObserver, ActorDiagnosticsEventBridge>());
-    }
-
-    private static LakonaObservabilityOptions ResolveObservabilityOptions(IServiceCollection services)
-    {
-        using var provider = services.BuildServiceProvider();
-
-        try
-        {
-            return provider.GetService<LakonaObservabilityOptions>()
-                ?? LakonaObservabilityOptions.Defaults(Guardrails.LakonaGameRuntimeProfile.Development);
-        }
-        catch (InvalidOperationException)
-        {
-            return LakonaObservabilityOptions.Defaults(Guardrails.LakonaGameRuntimeProfile.Development);
-        }
     }
 }

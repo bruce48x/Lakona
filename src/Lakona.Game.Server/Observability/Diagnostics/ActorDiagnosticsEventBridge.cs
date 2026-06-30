@@ -81,7 +81,9 @@ public sealed class ActorDiagnosticsEventBridge : IActorDiagnosticsObserver
 
     private static string TypeName(object value)
     {
-        return LowCardinality(value.GetType().Name);
+        return value is string typeName
+            ? LowCardinality(typeName)
+            : LowCardinality(value.GetType().Name);
     }
 
     private static string LowCardinality(string value)
