@@ -398,7 +398,9 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("[HotfixFeature(BattleRuntimeRoomAllocation.FeatureName)]", battleRuntimeFeature, StringComparison.Ordinal);
         Assert.Contains("public const string FeatureName = \"battle-runtime\";", battleRuntimePlacement, StringComparison.Ordinal);
         Assert.Contains("ScheduleActorTick<MatchmakingActor>", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("nameof(MatchmakingBehavior.TickAsync)", hotfixText, StringComparison.Ordinal);
         Assert.Contains("ScheduleActiveActorTicks<RoomActor>", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("nameof(RoomBehavior.TickAsync)", hotfixText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -414,8 +416,10 @@ public sealed class AgarHotfixBoundaryTests
         Assert.False(Directory.Exists(Path.Combine(sampleRoot, "Server", "App", "Hosting")));
         Assert.Contains("EnsureLocalActor<MatchmakingActor>", matchmakingFeature, StringComparison.Ordinal);
         Assert.Contains("ScheduleActorTick<MatchmakingActor>", matchmakingFeature, StringComparison.Ordinal);
+        Assert.Contains("nameof(MatchmakingBehavior.TickAsync)", matchmakingFeature, StringComparison.Ordinal);
         Assert.Contains("\"default\"", matchmakingFeature, StringComparison.Ordinal);
         Assert.DoesNotContain("ScheduleActorTick<MatchmakingActor>", battleRuntimeFeature, StringComparison.Ordinal);
+        Assert.Contains("nameof(RoomBehavior.TickAsync)", battleRuntimeFeature, StringComparison.Ordinal);
     }
 
     [Fact]
