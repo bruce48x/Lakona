@@ -21,6 +21,9 @@ public static class LakonaObservabilityServiceCollectionExtensions
         services.AddLakonaDiagnosticsEventBuffer();
         services.TryAddSingleton(sp => LakonaObservabilityCapabilities.FromServices(
             sp.GetServices<ILakonaObservabilityCapability>()));
+        services.TryAddSingleton<LakonaDiagnosticsSnapshotService>();
+        services.AddLakonaDiagnosticsSnapshotProviders();
+        services.AddLakonaDiagnosticsLocalAdminRoutes();
         services.TryAddSingleton<LakonaLocalAdminRouter>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, LakonaLocalAdminHostedService>());
         return services;
@@ -50,5 +53,22 @@ public static class LakonaObservabilityServiceCollectionExtensions
             });
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ILoggerProvider, DiagnosticsEventLoggerProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IActorDiagnosticsObserver, ActorDiagnosticsEventBridge>());
+    }
+
+    private static void AddLakonaDiagnosticsSnapshotProviders(this IServiceCollection services)
+    {
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaDiagnosticsSnapshotProvider, ProcessDiagnosticsProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaDiagnosticsSnapshotProvider, ActorDiagnosticsProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaDiagnosticsSnapshotProvider, SessionDiagnosticsProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaDiagnosticsSnapshotProvider, HotfixDiagnosticsProvider>());
+    }
+
+    private static void AddLakonaDiagnosticsLocalAdminRoutes(this IServiceCollection services)
+    {
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaLocalAdminRoute, DiagnosticsLocalAdminRoutes.SummaryRoute>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaLocalAdminRoute, DiagnosticsLocalAdminRoutes.EventsRoute>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaLocalAdminRoute, DiagnosticsLocalAdminRoutes.NetstatRoute>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaLocalAdminRoute, DiagnosticsLocalAdminRoutes.ActorsRoute>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaLocalAdminRoute, DiagnosticsLocalAdminRoutes.SessionsRoute>());
     }
 }
