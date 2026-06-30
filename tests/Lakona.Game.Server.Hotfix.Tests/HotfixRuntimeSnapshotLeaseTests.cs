@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.Loader;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,23 +37,29 @@ public sealed class HotfixRuntimeSnapshotLeaseTests
     }
 
     [Fact]
-    public void AcquireCurrent_pins_load_context_until_last_lease_is_disposed()
+    public async Task AcquireCurrent_pins_load_context_until_last_lease_is_disposed()
     {
-        var retired = 0;
-        var snapshot = new HotfixRuntimeSnapshot(
-            new HotfixServiceInvoker(),
-            EmptyHotfixFeatureCommandInvoker.Instance,
-            new TrackingServiceProvider(),
-            onRetired: () => retired++);
-        var accessor = new FixedRuntimeAccessor(snapshot);
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var source = new SwitchableAssemblySource(compiled.FirstHotfixAssemblyPath);
+        var manager = new HotfixManager(source, [typeof(IGenerationMarker).Assembly.GetName().Name!]);
+        var accessor = Assert.IsAssignableFrom<IHotfixRuntimeAccessor>(manager);
 
-        using var lease = accessor.AcquireCurrent();
-        snapshot.Retire();
+        var first = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+        Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+        var lease = accessor.AcquireCurrent();
+        var oldContext = AssemblyLoadContext.GetLoadContext(lease.Snapshot.MainAssembly!);
+        Assert.NotNull(oldContext);
+        var unloading = false;
+        oldContext.Unloading += _ => unloading = true;
+        source.AssemblyPath = compiled.SecondHotfixAssemblyPath;
 
-        Assert.Equal(0, retired);
+        var second = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(second.Succeeded, string.Join(Environment.NewLine, second.Diagnostics));
+        Assert.False(unloading);
 
         lease.Dispose();
-        Assert.Equal(1, retired);
+        Assert.True(unloading);
     }
 
     [Fact]

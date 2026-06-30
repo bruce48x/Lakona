@@ -33,7 +33,6 @@ internal sealed class HotfixFeatureMessageHandler : IFeatureMessageHandler
             return new FeatureMessageReply(ClusterSendStatus.FeatureNotFound, ReadOnlyMemory<byte>.Empty);
         }
 
-        var snapshot = _hotfixRuntime.Current;
         if (!FeatureCommandId.TryParse(request.Kind, out var commandId))
         {
             return new FeatureMessageReply(
@@ -42,6 +41,8 @@ internal sealed class HotfixFeatureMessageHandler : IFeatureMessageHandler
                 "Feature message kind must be a positive feature command id.");
         }
 
+        using var lease = _hotfixRuntime.AcquireCurrent();
+        var snapshot = lease.Snapshot;
         if (!snapshot.FeatureCommands.TryResolve(request.Feature.Value, commandId, out var descriptor))
         {
             return new FeatureMessageReply(ClusterSendStatus.FeatureNotFound, ReadOnlyMemory<byte>.Empty);

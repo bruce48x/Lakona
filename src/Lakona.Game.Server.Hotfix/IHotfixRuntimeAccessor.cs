@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Reflection;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
+using Lakona.Game.Server.Hotfix.Loading;
 
 namespace Lakona.Game.Server.Hotfix;
 
@@ -43,9 +44,11 @@ public sealed class HotfixRuntimeSnapshot
             dispatchTable: null,
             hotfixServices: services,
             mainAssembly: null,
+            loadContext: null,
             sourceVersion: null,
             sourceKind: null,
             sourcePath: null,
+            ownsRuntimeResources: false,
             onRetired)
     {
     }
@@ -57,9 +60,11 @@ public sealed class HotfixRuntimeSnapshot
         HotfixDispatchTable? dispatchTable,
         IServiceProvider? hotfixServices,
         Assembly? mainAssembly,
+        HotfixAssemblyLoadContext? loadContext,
         string? sourceVersion,
         string? sourceKind,
         string? sourcePath,
+        bool ownsRuntimeResources,
         Action? onRetired)
     {
         Invoker = invoker ?? throw new ArgumentNullException(nameof(invoker));
@@ -68,13 +73,16 @@ public sealed class HotfixRuntimeSnapshot
         DispatchTable = dispatchTable;
         HotfixServices = hotfixServices ?? services;
         MainAssembly = mainAssembly;
+        LoadContext = loadContext;
         SourceVersion = sourceVersion;
         SourceKind = sourceKind;
         SourcePath = sourcePath;
+        _ownsRuntimeResources = ownsRuntimeResources;
         _onRetired = onRetired;
     }
 
     private readonly Action? _onRetired;
+    private readonly bool _ownsRuntimeResources;
     private int _referenceCount;
     private int _retired;
     private int _retirementCompleted;
@@ -90,6 +98,8 @@ public sealed class HotfixRuntimeSnapshot
     public IServiceProvider HotfixServices { get; }
 
     public Assembly? MainAssembly { get; }
+
+    internal HotfixAssemblyLoadContext? LoadContext { get; }
 
     public string? SourceVersion { get; }
 
@@ -151,6 +161,42 @@ public sealed class HotfixRuntimeSnapshot
             return;
         }
 
+        if (_ownsRuntimeResources)
+        {
+            DisposeQuietly(HotfixServices);
+            UnloadQuietly(LoadContext);
+        }
+
         _onRetired?.Invoke();
+    }
+
+    private static void UnloadQuietly(HotfixAssemblyLoadContext? loadContext)
+    {
+        try
+        {
+            loadContext?.Unload();
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+
+    private static void DisposeQuietly(IServiceProvider? provider)
+    {
+        try
+        {
+            switch (provider)
+            {
+                case IAsyncDisposable asyncDisposable:
+                    asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                    break;
+                case IDisposable disposable:
+                    disposable.Dispose();
+                    break;
+            }
+        }
+        catch (InvalidOperationException)
+        {
+        }
     }
 }

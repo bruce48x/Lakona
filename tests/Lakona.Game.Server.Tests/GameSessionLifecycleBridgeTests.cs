@@ -4,6 +4,7 @@ using Lakona.Game.Abstractions;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Lakona.Rpc.Server;
@@ -78,6 +79,48 @@ public sealed class GameSessionLifecycleBridgeTests
         Assert.Same(snapshotServices, call.Services);
         Assert.Same(actorRuntime, call.Actors);
         Assert.Same(gameServer, call.GameServer);
+    }
+
+    [Fact]
+    public async Task SessionHotfixLifecycleHoldsRuntimeLeaseUntilExpiredInvocationCompletes()
+    {
+        var invoker = new BlockingHotfixServiceInvoker();
+        var actorRuntime = new SnapshotActorRuntime();
+        var gameServer = new SnapshotGameServer();
+        var innerServices = new ServiceCollection()
+            .AddSingleton<IActorRuntime>(actorRuntime)
+            .AddSingleton<ILakonaGameServer>(gameServer)
+            .BuildServiceProvider();
+        var snapshotServices = new TrackingServiceProvider(innerServices);
+        var snapshot = new HotfixRuntimeSnapshot(
+            invoker,
+            EmptyHotfixFeatureCommandInvoker.Instance,
+            snapshotServices,
+            onRetired: snapshotServices.Dispose);
+        var services = new ServiceCollection();
+        services.AddSingleton<IHotfixRuntimeAccessor>(new FixedHotfixRuntimeAccessor(snapshot));
+        services.AddLakonaGameSessionHotfixLifecycle();
+
+        using var provider = services.BuildServiceProvider();
+        var handler = provider.GetServices<IGameSessionLifecycleHandler>()
+            .OfType<GameSessionHotfixLifecycleHandler>()
+            .Single();
+
+        var expired = handler.OnSessionExpiredAsync(
+            new GameSessionBindingContext(
+                new GameSessionKey("player-a", "session-a", 3),
+                "connection-a",
+                [typeof(LoginCallback)]),
+            TestContext.Current.CancellationToken).AsTask();
+        await invoker.Invoked.Task.WaitAsync(TestContext.Current.CancellationToken);
+
+        snapshot.Retire();
+        Assert.False(snapshotServices.Disposed);
+
+        invoker.Release.SetResult();
+        await expired;
+
+        Assert.True(snapshotServices.Disposed);
     }
 
     [Fact]
@@ -309,6 +352,22 @@ public sealed class GameSessionLifecycleBridgeTests
         public HotfixRuntimeSnapshot Current { get; }
     }
 
+    private sealed class TrackingServiceProvider(IServiceProvider inner) : IServiceProvider, IDisposable
+    {
+        public bool Disposed { get; private set; }
+
+        public object? GetService(Type serviceType)
+        {
+            return inner.GetService(serviceType);
+        }
+
+        public void Dispose()
+        {
+            Disposed = true;
+            (inner as IDisposable)?.Dispose();
+        }
+    }
+
     private sealed class SnapshotActorRuntime : IActorRuntime
     {
         public ValueTask<TActor> GetOrCreateAsync<TActor>(
@@ -497,6 +556,46 @@ public sealed class GameSessionLifecycleBridgeTests
             MethodId = methodId;
             Argument = arg;
             return default;
+        }
+
+        public ValueTask<TResult> InvokeAsync<TContract, TArg, TResult>(
+            int methodId,
+            TArg arg,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask InvokeAsync<TContract, TArg>(
+            string methodName,
+            TArg arg,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask<TResult> InvokeAsync<TContract, TArg, TResult>(
+            string methodName,
+            TArg arg,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class BlockingHotfixServiceInvoker : IHotfixServiceInvoker
+    {
+        public TaskCompletionSource Invoked { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async ValueTask InvokeAsync<TContract, TArg>(
+            int methodId,
+            TArg arg,
+            CancellationToken cancellationToken = default)
+        {
+            Invoked.SetResult();
+            await Release.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public ValueTask<TResult> InvokeAsync<TContract, TArg, TResult>(

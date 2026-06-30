@@ -163,8 +163,6 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             }
 
             HotfixDispatch.Replace(table);
-            var publishedProvider = hotfixProvider;
-            var publishedContext = pendingContext;
             var runtimeSnapshot = new HotfixRuntimeSnapshot(
                 new HotfixServiceInvoker(table),
                 new HotfixFeatureCommandInvoker(table),
@@ -172,14 +170,12 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 table,
                 hotfixProvider,
                 assembly,
+                pendingContext,
                 resolved.Version,
                 resolved.SourceKind,
                 resolved.AssemblyPath,
-                () =>
-                {
-                    DisposeQuietly(publishedProvider);
-                    UnloadQuietly(publishedContext);
-                });
+                ownsRuntimeResources: true,
+                onRetired: null);
             var oldRuntime = Interlocked.Exchange(ref _currentRuntime, runtimeSnapshot);
             hotfixProvider = null;
             pendingContext = null;
