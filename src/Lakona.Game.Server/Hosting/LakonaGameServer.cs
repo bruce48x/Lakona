@@ -444,12 +444,26 @@ public static class LakonaGameServer
         string baseDirectory,
         HotfixAdminOptions adminOptions)
     {
-        var hotfixDirectory = Path.Combine(baseDirectory, "hotfix");
-        IHotfixAssemblySource source = adminOptions.Enabled && adminOptions.Mode.Equals("production", StringComparison.OrdinalIgnoreCase)
-            ? new VersionPointerHotfixAssemblySource(hotfixDirectory, "current.txt", "Server.Hotfix.dll")
-            : new CurrentDirectoryHotfixAssemblySource(hotfixDirectory, "Server.Hotfix.dll");
+        var source = CreateDefaultHotfixAssemblySource(baseDirectory, adminOptions);
         services.AddLakonaGameHotfix(source, sharedAssemblyNames: GetDefaultHotfixSharedAssemblyNames());
         services.AddLakonaGameHotfixActorTicks();
+    }
+
+    internal static IHotfixAssemblySource CreateDefaultHotfixAssemblySourceForTesting(
+        string baseDirectory,
+        HotfixAdminOptions adminOptions)
+    {
+        return CreateDefaultHotfixAssemblySource(baseDirectory, adminOptions);
+    }
+
+    private static IHotfixAssemblySource CreateDefaultHotfixAssemblySource(
+        string baseDirectory,
+        HotfixAdminOptions adminOptions)
+    {
+        var hotfixDirectory = Path.Combine(baseDirectory, "hotfix");
+        return adminOptions.Mode.Equals("production", StringComparison.OrdinalIgnoreCase)
+            ? new VersionPointerHotfixAssemblySource(hotfixDirectory, "current.txt", "Server.Hotfix.dll")
+            : new CurrentDirectoryHotfixAssemblySource(hotfixDirectory, "Server.Hotfix.dll");
     }
 
     private static HotfixAdminOptions CreateDefaultHotfixAdminOptions(

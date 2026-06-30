@@ -4,10 +4,16 @@ namespace Lakona.Game.Server.HotfixAdmin;
 
 public sealed class HotfixAdminOptions
 {
+    // Legacy listener binding knob during the observability local admin migration.
+    // This does not control hotfix assembly source selection.
     public bool Enabled { get; set; }
 
+    // Legacy listener binding knob during the observability local admin migration.
+    // This does not control hotfix assembly source selection.
     public string Host { get; set; } = "127.0.0.1";
 
+    // Legacy listener binding knob during the observability local admin migration.
+    // This does not control hotfix assembly source selection.
     public int Port { get; set; } = 20090;
 
     public string HotfixRoot { get; set; } = "hotfix";
