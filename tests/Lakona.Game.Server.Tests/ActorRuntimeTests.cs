@@ -138,7 +138,7 @@ public sealed class ActorRuntimeTests
             static (actor, _) =>
             {
                 actor.Count++;
-                return ValueTask.CompletedTask;
+                return default;
             },
             cancellationToken);
         var firstRejected = runtime.TryTell<BlockingActor>(
@@ -146,7 +146,7 @@ public sealed class ActorRuntimeTests
             static (actor, _) =>
             {
                 actor.Count++;
-                return ValueTask.CompletedTask;
+                return default;
             },
             cancellationToken);
         var secondAccepted = runtime.TryTell<BlockingActor>(
@@ -154,7 +154,7 @@ public sealed class ActorRuntimeTests
             static (actor, _) =>
             {
                 actor.Count++;
-                return ValueTask.CompletedTask;
+                return default;
             },
             cancellationToken);
         var secondRejected = runtime.TryTell<BlockingActor>(
@@ -162,7 +162,7 @@ public sealed class ActorRuntimeTests
             static (actor, _) =>
             {
                 actor.Count++;
-                return ValueTask.CompletedTask;
+                return default;
             },
             cancellationToken);
         var secondRejectedAgain = runtime.TryTell<BlockingActor>(
@@ -170,7 +170,7 @@ public sealed class ActorRuntimeTests
             static (actor, _) =>
             {
                 actor.Count++;
-                return ValueTask.CompletedTask;
+                return default;
             },
             cancellationToken);
 
