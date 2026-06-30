@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using System.Runtime.Loader;
 using System.Text;
 using System.Text.Json;
@@ -282,6 +283,133 @@ public sealed class LakonaTimerIntegrationTests
     }
 
     [Theory]
+    [MemberData(nameof(UnsupportedTimerArgsCases))]
+    public async Task CreateOnceTimerAsync_rejects_unsupported_declared_timer_args_shapes(
+        Type callbackType,
+        Type argsType,
+        object args,
+        string expectedMessage)
+    {
+        await using var fixture = TimerFixture.Create(callbackType);
+        var backend = new LakonaTimerBackend();
+        using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await InvokeCreateOnceTimerAsync(callbackType, argsType, args));
+
+        Assert.Contains(expectedMessage, exception.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(backend.Descriptors);
+    }
+
+    [Fact]
+    public async Task CreateOnceTimerAsync_rejects_cyclic_timer_args()
+    {
+        await using var fixture = TimerFixture.Create(typeof(CyclicTimerCallback));
+        var backend = new LakonaTimerBackend();
+        using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
+        var args = new CyclicTimerArgs { Name = "cycle" };
+        args.Next = args;
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await LakonaTimer.CreateOnceTimerAsync<CyclicTimerCallback, CyclicTimerArgs>(
+                TimeSpan.Zero,
+                nameof(CyclicTimerCallback.HandleAsync),
+                args,
+                CancellationToken.None));
+
+        Assert.Contains("cycle", exception.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(backend.Descriptors);
+    }
+
+    [Fact]
+    public void CallbackResolver_resolves_non_hotfix_args_only_from_default_load_context()
+    {
+        const string assemblyName = "TimerStableArgsCollision";
+        var staleAssembly = CompileHotfixAssembly(
+            assemblyName,
+            """
+            namespace StableCollision;
+            public sealed record Args(string Value);
+            """);
+        _ = staleAssembly.GetType("StableCollision.Args", throwOnError: true);
+        var activeAssembly = CompileHotfixAssembly(
+            "TimerStableCallback",
+            """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+            namespace StableCollision;
+            public sealed record OtherArgs(string Value);
+            public sealed class Callback
+            {
+                public static ValueTask HandleAsync(TimerTick<OtherArgs> tick)
+                {
+                    _ = tick;
+                    return default;
+                }
+            }
+            """);
+        var descriptor = new LakonaTimerDescriptor(
+            TimerId.FromGuid(Guid.NewGuid()),
+            activeAssembly.GetName().Name!,
+            "StableCollision.Callback",
+            "HandleAsync",
+            assemblyName,
+            "StableCollision.Args",
+            "system-text-json-v1",
+            Encoding.UTF8.GetBytes("""{"Value":"stale"}"""),
+            DateTimeOffset.UtcNow,
+            period: null,
+            generation: 1);
+        var snapshot = CreateSnapshotForAssembly(activeAssembly);
+
+        var exception = Assert.IsType<InvalidOperationException>(
+            Record.Exception(() => new LakonaTimerCallbackResolver().Resolve(snapshot, descriptor)));
+
+        Assert.Contains("not loaded", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("StableCollision.Args", exception.Message, StringComparison.Ordinal);
+        snapshot.Retire();
+    }
+
+    [Fact]
+    public async Task CreateOnceTimerAsync_rejects_args_from_non_main_collectible_assembly()
+    {
+        var callbackAssembly = CompileHotfixAssembly(
+            "TimerCallbackOnly",
+            """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+            namespace SplitHotfix;
+            public sealed class Callback
+            {
+                public static ValueTask HandleAsync(TimerTick<ExternalArgs> tick)
+                {
+                    _ = tick;
+                    return default;
+                }
+            }
+            public sealed record ExternalArgs(string Value);
+            """);
+        var argsAssembly = CompileHotfixAssembly(
+            "TimerArgsOnly",
+            """
+            namespace SplitHotfixArgs;
+            public sealed record ExternalArgs(string Value);
+            """);
+        var callbackType = callbackAssembly.GetType("SplitHotfix.Callback", throwOnError: true)!;
+        var argsType = argsAssembly.GetType("SplitHotfixArgs.ExternalArgs", throwOnError: true)!;
+        var args = Activator.CreateInstance(argsType, "external")!;
+        var backend = new LakonaTimerBackend();
+        await using var fixture = TimerFixture.Create(callbackType, mainAssembly: callbackAssembly);
+        using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await InvokeCreateOnceTimerAsync(callbackType, argsType, args));
+
+        Assert.Contains("active hotfix assembly", exception.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(backend.Descriptors);
+    }
+
+    [Theory]
     [InlineData("DoesNotExist", "loaded")]
     [InlineData(nameof(TimerCallback.InstanceAsync), "static")]
     [InlineData(nameof(TimerCallback.ReturnsInt32), "ValueTask")]
@@ -560,6 +688,120 @@ public sealed class LakonaTimerIntegrationTests
         }
     }
 
+    public static TheoryData<Type, Type, object, string> UnsupportedTimerArgsCases()
+    {
+        return new TheoryData<Type, Type, object, string>
+        {
+            { typeof(ObjectRootCallback), typeof(object), new object(), "object" },
+            { typeof(ObjectMemberCallback), typeof(ObjectMemberArgs), new ObjectMemberArgs(new ComplexNestedArgs("value", ComplexTimerMode.Fast)), "object" },
+            { typeof(ObjectArrayCallback), typeof(ObjectArrayArgs), new ObjectArrayArgs([new ComplexNestedArgs("value", ComplexTimerMode.Fast)]), "object" },
+            { typeof(ObjectListCallback), typeof(ObjectListArgs), new ObjectListArgs([new ComplexNestedArgs("value", ComplexTimerMode.Fast)]), "object" },
+            { typeof(ObjectDelegateCallback), typeof(ObjectMemberArgs), new ObjectMemberArgs((Func<int>)(() => 1)), "object" },
+            { typeof(InterfaceMemberCallback), typeof(InterfaceMemberArgs), new InterfaceMemberArgs(new InterfaceImplementation("value")), "interface" },
+            { typeof(AbstractMemberCallback), typeof(AbstractMemberArgs), new AbstractMemberArgs(new ConcreteAbstractValue("value")), "abstract" }
+        };
+    }
+
+    public sealed class ObjectRootCallback
+    {
+        public static ValueTask HandleAsync(TimerTick<object> tick)
+        {
+            _ = tick;
+            return default;
+        }
+    }
+
+    public sealed record ObjectMemberArgs(object Value);
+
+    public sealed class ObjectMemberCallback
+    {
+        public static ValueTask HandleAsync(TimerTick<ObjectMemberArgs> tick)
+        {
+            _ = tick;
+            return default;
+        }
+    }
+
+    public sealed record ObjectArrayArgs(object[] Values);
+
+    public sealed class ObjectArrayCallback
+    {
+        public static ValueTask HandleAsync(TimerTick<ObjectArrayArgs> tick)
+        {
+            _ = tick;
+            return default;
+        }
+    }
+
+    public sealed record ObjectListArgs(List<object> Values);
+
+    public sealed class ObjectListCallback
+    {
+        public static ValueTask HandleAsync(TimerTick<ObjectListArgs> tick)
+        {
+            _ = tick;
+            return default;
+        }
+    }
+
+    public sealed class ObjectDelegateCallback
+    {
+        public static ValueTask HandleAsync(TimerTick<ObjectMemberArgs> tick)
+        {
+            _ = tick;
+            return default;
+        }
+    }
+
+    public interface IInterfaceValue
+    {
+        string Value { get; }
+    }
+
+    public sealed record InterfaceImplementation(string Value) : IInterfaceValue;
+
+    public sealed record InterfaceMemberArgs(IInterfaceValue Value);
+
+    public sealed class InterfaceMemberCallback
+    {
+        public static ValueTask HandleAsync(TimerTick<InterfaceMemberArgs> tick)
+        {
+            _ = tick;
+            return default;
+        }
+    }
+
+    public abstract record AbstractValue(string Value);
+
+    public sealed record ConcreteAbstractValue(string Value) : AbstractValue(Value);
+
+    public sealed record AbstractMemberArgs(AbstractValue Value);
+
+    public sealed class AbstractMemberCallback
+    {
+        public static ValueTask HandleAsync(TimerTick<AbstractMemberArgs> tick)
+        {
+            _ = tick;
+            return default;
+        }
+    }
+
+    public sealed class CyclicTimerArgs
+    {
+        public string? Name { get; set; }
+
+        public CyclicTimerArgs? Next { get; set; }
+    }
+
+    public sealed class CyclicTimerCallback
+    {
+        public static ValueTask HandleAsync(TimerTick<CyclicTimerArgs> tick)
+        {
+            _ = tick;
+            return default;
+        }
+    }
+
     private sealed class TimerFixture : IAsyncDisposable
     {
         private TimerFixture(HotfixRuntimeSnapshot snapshot, HotfixRuntimeSnapshotLease lease, HotfixDispatchTable table)
@@ -626,6 +868,50 @@ public sealed class LakonaTimerIntegrationTests
         stream.Position = 0;
         return new AssemblyLoadContext($"{assemblyName}-{Guid.NewGuid():N}", isCollectible: true)
             .LoadFromStream(stream);
+    }
+
+    private static HotfixRuntimeSnapshot CreateSnapshotForAssembly(Assembly assembly)
+    {
+        var table = new HotfixDispatchTable(1, Array.Empty<HotfixMethodBinding>());
+        var services = new ServiceCollection().BuildServiceProvider();
+        return new HotfixRuntimeSnapshot(
+            new HotfixServiceInvoker(table),
+            EmptyHotfixFeatureCommandInvoker.Instance,
+            services,
+            table,
+            services,
+            assembly,
+            loadContext: null,
+            sourceVersion: "test",
+            sourceKind: "test",
+            sourcePath: null,
+            ownsRuntimeResources: true,
+            onRetired: null);
+    }
+
+    private static async ValueTask<TimerId> InvokeCreateOnceTimerAsync(
+        Type callbackType,
+        Type argsType,
+        object args)
+    {
+        var method = typeof(LakonaTimer)
+            .GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .Single(static method => method.Name == nameof(LakonaTimer.CreateOnceTimerAsync))
+            .MakeGenericMethod(callbackType, argsType);
+        object? result;
+        try
+        {
+            result = method.Invoke(
+                obj: null,
+                [TimeSpan.Zero, "HandleAsync", args, CancellationToken.None]);
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException is not null)
+        {
+            ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+            throw;
+        }
+
+        return await ((ValueTask<TimerId>)result!).ConfigureAwait(false);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

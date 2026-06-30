@@ -9,6 +9,8 @@ internal sealed class LakonaTimerArgsSerializer
 {
     public const string SystemTextJsonSerializerId = "system-text-json-v1";
 
+    private const int MaxDepth = 32;
+
     public SerializedTimerArgs Serialize<TArgs>(TArgs args)
     {
         var argsType = typeof(TArgs);
@@ -54,7 +56,8 @@ internal sealed class LakonaTimerArgsSerializer
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream))
         {
-            WriteValue(writer, value, valueType);
+            var activeReferences = new HashSet<object>(ReferenceEqualityComparer.Instance);
+            WriteValue(writer, value, valueType, depth: 0, activeReferences);
         }
 
         return stream.ToArray();
@@ -63,7 +66,7 @@ internal sealed class LakonaTimerArgsSerializer
     private static object? DeserializeObject(byte[] payload, Type valueType)
     {
         using var document = JsonDocument.Parse(payload);
-        return ReadValue(document.RootElement, valueType);
+        return ReadValue(document.RootElement, valueType, depth: 0);
     }
 
     private static bool RoundTripMatches(object? args, object? roundTrip, Type argsType)
@@ -95,27 +98,29 @@ internal sealed class LakonaTimerArgsSerializer
         }
     }
 
-    private static void WriteValue(Utf8JsonWriter writer, object? value, Type valueType)
+    private static void WriteValue(
+        Utf8JsonWriter writer,
+        object? value,
+        Type valueType,
+        int depth,
+        HashSet<object> activeReferences)
     {
+        ThrowIfDepthExceeded(valueType, depth);
         var targetType = Nullable.GetUnderlyingType(valueType) ?? valueType;
+        ValidateDeclaredShape(targetType);
         if (value is null)
         {
             writer.WriteNullValue();
             return;
         }
 
-        if (typeof(Delegate).IsAssignableFrom(targetType))
-        {
-            throw new NotSupportedException($"Timer args member type '{targetType.FullName}' is not supported.");
-        }
-
         if (targetType.IsArray)
         {
-            WriteArray(writer, (Array)value, targetType.GetElementType()!);
+            WriteArray(writer, (Array)value, targetType.GetElementType()!, depth, activeReferences);
         }
         else if (IsListType(targetType, out var listElementType))
         {
-            WriteList(writer, (IEnumerable)value, listElementType);
+            WriteList(writer, (IEnumerable)value, listElementType, depth, activeReferences);
         }
         else if (targetType == typeof(string))
         {
@@ -193,53 +198,90 @@ internal sealed class LakonaTimerArgsSerializer
         {
             writer.WriteStringValue(value.ToString());
         }
-        else if (targetType.IsClass)
-        {
-            WriteObject(writer, value, targetType);
-        }
         else
         {
-            throw new NotSupportedException($"Timer args member type '{targetType.FullName}' is not supported.");
+            WriteObject(writer, value, targetType, depth, activeReferences);
         }
     }
 
-    private static void WriteArray(Utf8JsonWriter writer, Array values, Type elementType)
+    private static void WriteArray(
+        Utf8JsonWriter writer,
+        Array values,
+        Type elementType,
+        int depth,
+        HashSet<object> activeReferences)
     {
-        writer.WriteStartArray();
-        foreach (var value in values)
+        EnterReference(values, activeReferences);
+        try
         {
-            WriteValue(writer, value, elementType);
+            writer.WriteStartArray();
+            foreach (var value in values)
+            {
+                WriteValue(writer, value, elementType, depth + 1, activeReferences);
+            }
+
+            writer.WriteEndArray();
         }
-
-        writer.WriteEndArray();
-    }
-
-    private static void WriteList(Utf8JsonWriter writer, IEnumerable values, Type elementType)
-    {
-        writer.WriteStartArray();
-        foreach (var value in values)
+        finally
         {
-            WriteValue(writer, value, elementType);
+            activeReferences.Remove(values);
         }
-
-        writer.WriteEndArray();
     }
 
-    private static void WriteObject(Utf8JsonWriter writer, object value, Type valueType)
+    private static void WriteList(
+        Utf8JsonWriter writer,
+        IEnumerable values,
+        Type elementType,
+        int depth,
+        HashSet<object> activeReferences)
     {
-        writer.WriteStartObject();
-        foreach (var property in GetSerializableProperties(valueType))
+        EnterReference(values, activeReferences);
+        try
         {
-            writer.WritePropertyName(property.Name);
-            WriteValue(writer, property.GetValue(value), property.PropertyType);
-        }
+            writer.WriteStartArray();
+            foreach (var value in values)
+            {
+                WriteValue(writer, value, elementType, depth + 1, activeReferences);
+            }
 
-        writer.WriteEndObject();
+            writer.WriteEndArray();
+        }
+        finally
+        {
+            activeReferences.Remove(values);
+        }
     }
 
-    private static object? ReadValue(JsonElement element, Type valueType)
+    private static void WriteObject(
+        Utf8JsonWriter writer,
+        object value,
+        Type valueType,
+        int depth,
+        HashSet<object> activeReferences)
     {
+        EnterReference(value, activeReferences);
+        try
+        {
+            writer.WriteStartObject();
+            foreach (var property in GetSerializableProperties(valueType))
+            {
+                writer.WritePropertyName(property.Name);
+                WriteValue(writer, property.GetValue(value), property.PropertyType, depth + 1, activeReferences);
+            }
+
+            writer.WriteEndObject();
+        }
+        finally
+        {
+            activeReferences.Remove(value);
+        }
+    }
+
+    private static object? ReadValue(JsonElement element, Type valueType, int depth)
+    {
+        ThrowIfDepthExceeded(valueType, depth);
         var targetType = Nullable.GetUnderlyingType(valueType) ?? valueType;
+        ValidateDeclaredShape(targetType);
         if (element.ValueKind == JsonValueKind.Null)
         {
             return valueType.IsValueType && Nullable.GetUnderlyingType(valueType) is null
@@ -249,12 +291,12 @@ internal sealed class LakonaTimerArgsSerializer
 
         if (targetType.IsArray)
         {
-            return ReadArray(element, targetType.GetElementType()!);
+            return ReadArray(element, targetType.GetElementType()!, depth);
         }
 
         if (IsListType(targetType, out var listElementType))
         {
-            return ReadList(element, targetType, listElementType);
+            return ReadList(element, targetType, listElementType, depth);
         }
 
         if (targetType == typeof(string))
@@ -355,15 +397,10 @@ internal sealed class LakonaTimerArgsSerializer
             return Enum.Parse(targetType, element.GetString()!, ignoreCase: false);
         }
 
-        if (targetType.IsClass)
-        {
-            return ReadObject(element, targetType);
-        }
-
-        throw new NotSupportedException($"Timer args member type '{targetType.FullName}' is not supported.");
+        return ReadObject(element, targetType, depth);
     }
 
-    private static Array ReadArray(JsonElement element, Type elementType)
+    private static Array ReadArray(JsonElement element, Type elementType, int depth)
     {
         if (element.ValueKind != JsonValueKind.Array)
         {
@@ -374,13 +411,13 @@ internal sealed class LakonaTimerArgsSerializer
         var array = Array.CreateInstance(elementType, values.Length);
         for (var index = 0; index < values.Length; index++)
         {
-            array.SetValue(ReadValue(values[index], elementType), index);
+            array.SetValue(ReadValue(values[index], elementType, depth + 1), index);
         }
 
         return array;
     }
 
-    private static object ReadList(JsonElement element, Type listType, Type elementType)
+    private static object ReadList(JsonElement element, Type listType, Type elementType, int depth)
     {
         if (element.ValueKind != JsonValueKind.Array)
         {
@@ -390,13 +427,13 @@ internal sealed class LakonaTimerArgsSerializer
         var list = (IList)Activator.CreateInstance(listType)!;
         foreach (var item in element.EnumerateArray())
         {
-            list.Add(ReadValue(item, elementType));
+            list.Add(ReadValue(item, elementType, depth + 1));
         }
 
         return list;
     }
 
-    private static object ReadObject(JsonElement element, Type valueType)
+    private static object ReadObject(JsonElement element, Type valueType, int depth)
     {
         if (element.ValueKind != JsonValueKind.Object)
         {
@@ -412,7 +449,7 @@ internal sealed class LakonaTimerArgsSerializer
             {
                 if (element.TryGetProperty(property.Name, out var propertyElement))
                 {
-                    property.SetValue(instance, ReadValue(propertyElement, property.PropertyType));
+                    property.SetValue(instance, ReadValue(propertyElement, property.PropertyType, depth + 1));
                 }
             }
 
@@ -437,7 +474,7 @@ internal sealed class LakonaTimerArgsSerializer
                         : throw new JsonException($"Missing JSON property for constructor parameter '{parameter.Name}'.");
                 }
 
-                return ReadValue(propertyElement, parameter.ParameterType);
+                return ReadValue(propertyElement, parameter.ParameterType, depth + 1);
             })
             .ToArray();
         return constructor.Invoke(arguments);
@@ -450,6 +487,103 @@ internal sealed class LakonaTimerArgsSerializer
             .Where(static property => property.GetMethod is not null && property.GetIndexParameters().Length == 0)
             .OrderBy(static property => property.Name, StringComparer.Ordinal)
             .ToArray();
+    }
+
+    private static void ValidateDeclaredShape(Type type)
+    {
+        if (IsSupportedScalarType(type))
+        {
+            return;
+        }
+
+        if (type == typeof(object))
+        {
+            throw new NotSupportedException("Timer args declared member type 'System.Object' is not supported.");
+        }
+
+        if (typeof(Delegate).IsAssignableFrom(type))
+        {
+            throw new NotSupportedException($"Timer args member type '{type.FullName}' is not supported.");
+        }
+
+        if (type.IsInterface)
+        {
+            throw new NotSupportedException($"Timer args interface member type '{type.FullName}' is not supported.");
+        }
+
+        if (type.IsArray)
+        {
+            ValidateDeclaredShape(type.GetElementType()!);
+            return;
+        }
+
+        if (IsListType(type, out var elementType))
+        {
+            ValidateDeclaredShape(elementType);
+            return;
+        }
+
+        if (type.IsAbstract)
+        {
+            throw new NotSupportedException($"Timer args abstract member type '{type.FullName}' is not supported.");
+        }
+
+        if (!type.IsClass)
+        {
+            throw new NotSupportedException($"Timer args member type '{type.FullName}' is not supported.");
+        }
+
+        if (IsFrameworkReferenceType(type))
+        {
+            throw new NotSupportedException($"Timer args framework reference type '{type.FullName}' is not supported.");
+        }
+    }
+
+    private static bool IsSupportedScalarType(Type type)
+    {
+        return type.IsEnum
+            || type == typeof(string)
+            || type == typeof(char)
+            || type == typeof(bool)
+            || type == typeof(sbyte)
+            || type == typeof(byte)
+            || type == typeof(short)
+            || type == typeof(ushort)
+            || type == typeof(int)
+            || type == typeof(uint)
+            || type == typeof(long)
+            || type == typeof(ulong)
+            || type == typeof(float)
+            || type == typeof(double)
+            || type == typeof(decimal)
+            || type == typeof(Guid)
+            || type == typeof(DateTime)
+            || type == typeof(DateTimeOffset)
+            || type == typeof(TimeSpan);
+    }
+
+    private static bool IsFrameworkReferenceType(Type type)
+    {
+        return type.Namespace is not null
+            && (string.Equals(type.Namespace, "System", StringComparison.Ordinal)
+                || type.Namespace.StartsWith("System.", StringComparison.Ordinal)
+                || type.Namespace.StartsWith("Microsoft.", StringComparison.Ordinal));
+    }
+
+    private static void ThrowIfDepthExceeded(Type type, int depth)
+    {
+        if (depth > MaxDepth)
+        {
+            throw new NotSupportedException($"Timer args type '{type.FullName}' exceeds the maximum supported JSON depth of {MaxDepth}.");
+        }
+    }
+
+    private static void EnterReference(object value, HashSet<object> activeReferences)
+    {
+        if (!activeReferences.Add(value))
+        {
+            throw new NotSupportedException($"Timer args contain a reference cycle at '{value.GetType().FullName}'.");
+        }
     }
 
     private static bool IsListType(Type type, out Type elementType)

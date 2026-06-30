@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.Loader;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 
 namespace Lakona.Game.Server.Hotfix.Timers;
@@ -127,7 +128,7 @@ internal sealed class LakonaTimerCallbackResolver
             throw new InvalidOperationException($"Timer args type '{descriptor.ArgsFullName}' is not loaded in the active hotfix assembly.");
         }
 
-        var argsAssembly = AppDomain.CurrentDomain.GetAssemblies()
+        var argsAssembly = AssemblyLoadContext.Default.Assemblies
             .FirstOrDefault(assembly =>
                 StringComparer.Ordinal.Equals(assembly.GetName().Name, descriptor.ArgsAssemblyName));
         var argsType = argsAssembly?.GetType(descriptor.ArgsFullName, throwOnError: false);

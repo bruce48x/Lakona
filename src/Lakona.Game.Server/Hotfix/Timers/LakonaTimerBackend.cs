@@ -1,3 +1,4 @@
+using System.Runtime.Loader;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 
 namespace Lakona.Game.Server.Hotfix.Timers;
@@ -111,6 +112,7 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
             throw new InvalidOperationException("Lakona timer creation requires a hotfix runtime snapshot lease.");
         }
 
+        ValidateArgsAssembly<TArgs>(lease);
         var callback = callbackResolver.Validate<TCallback, TArgs>(lease, methodName);
         var serializedArgs = argsSerializer.Serialize(args);
         var timerId = TimerId.FromGuid(Guid.NewGuid());
@@ -133,5 +135,22 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
         }
 
         return new ValueTask<TimerId>(timerId);
+    }
+
+    private static void ValidateArgsAssembly<TArgs>(HotfixRuntimeSnapshotLease lease)
+    {
+        var snapshot = lease.Snapshot;
+        var argsType = typeof(TArgs);
+        if (ReferenceEquals(argsType.Assembly, snapshot.MainAssembly))
+        {
+            return;
+        }
+
+        if (AssemblyLoadContext.GetLoadContext(argsType.Assembly) == AssemblyLoadContext.Default)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException($"Timer args type '{argsType.FullName}' must be from the active hotfix assembly or a shared default AssemblyLoadContext assembly.");
     }
 }
