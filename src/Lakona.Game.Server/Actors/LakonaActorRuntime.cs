@@ -337,7 +337,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
     {
         snapshot = default;
 
-        if (cell.GetState() != ActorState.Active)
+        if (!cell.TryGetState(out var state) || state != ActorState.Active)
         {
             return false;
         }
@@ -347,7 +347,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
             return false;
         }
 
-        if (cell.GetState() != ActorState.Active)
+        if (!cell.TryGetState(out state) || state != ActorState.Active)
         {
             return false;
         }
@@ -802,7 +802,9 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
         public bool TryGetMailboxMetrics(out ActorMailboxMetrics metrics)
         {
             var actorHandle = _actorHandle;
-            if (actorHandle is null || MapActorState(actorHandle.GetState()) != ActorState.Active)
+            if (actorHandle is null ||
+                !TryGetState(actorHandle, out var state) ||
+                state != ActorState.Active)
             {
                 metrics = default;
                 return false;
@@ -812,6 +814,11 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
             try
             {
                 kernelMetrics = actorHandle.GetMailboxMetrics();
+            }
+            catch (ObjectDisposedException)
+            {
+                metrics = default;
+                return false;
             }
             catch (InvalidOperationException)
             {
@@ -823,10 +830,36 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
             return true;
         }
 
+        public bool TryGetState(out ActorState state)
+        {
+            var actorHandle = _actorHandle;
+            if (actorHandle is null)
+            {
+                state = ActorState.Dead;
+                return true;
+            }
+
+            return TryGetState(actorHandle, out state);
+        }
+
         public ActorState GetState()
         {
             var actorHandle = _actorHandle;
             return actorHandle is null ? ActorState.Dead : MapActorState(actorHandle.GetState());
+        }
+
+        private static bool TryGetState(K.ActorHandle<ActorRuntimeEnvelope> actorHandle, out ActorState state)
+        {
+            try
+            {
+                state = MapActorState(actorHandle.GetState());
+                return true;
+            }
+            catch (ObjectDisposedException)
+            {
+                state = ActorState.Dead;
+                return false;
+            }
         }
 
         public IAsyncDisposable RegisterTimer(ActorRuntimeEnvelope tick, TimeSpan dueTime, TimeSpan? period)
