@@ -147,6 +147,43 @@ public sealed class HotfixManagerTests
     }
 
     [Fact]
+    public async Task ServiceProviderAccessor_uses_current_services_for_disposed_captured_dispatch_scope()
+    {
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var source = new SwitchableAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
+        var manager = new HotfixManager(source, [
+            stableAssembly.GetName().Name!,
+            typeof(IGenerationMarker).Assembly.GetName().Name!
+        ]);
+        var servicesAccessor = Assert.IsAssignableFrom<IHotfixServiceProviderAccessor>(manager);
+        var runtimeAccessor = Assert.IsAssignableFrom<IHotfixRuntimeAccessor>(manager);
+        var first = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+        Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+
+        var lease = runtimeAccessor.AcquireCurrent();
+        var captured = ExecutionContext.Capture();
+        HotfixDispatchRuntimeContext? capturedContext = null;
+        ExecutionContext.Run(
+            captured!,
+            _ => capturedContext = HotfixDispatchRuntimeScope.Current,
+            null);
+        source.Path = compiled.SecondHotfixAssemblyPath;
+        var second = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+        Assert.True(second.Succeeded, string.Join(Environment.NewLine, second.Diagnostics));
+        lease.Dispose();
+        ForceStaleActiveFlag(capturedContext!);
+        string? generation = null;
+
+        ExecutionContext.Run(
+            captured!,
+            _ => generation = servicesAccessor.Current.GetRequiredService<IGenerationMarker>().Generation,
+            null);
+
+        Assert.Equal("two", generation);
+    }
+
+    [Fact]
     public async Task Reload_publishes_feature_command_invoker()
     {
         using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
@@ -746,6 +783,16 @@ public sealed class HotfixManagerTests
             DateTimeOffset.UtcNow.AddMinutes(1),
             new NodeId("data-1"),
             "corr-1");
+    }
+
+    private static void ForceStaleActiveFlag(HotfixDispatchRuntimeContext context)
+    {
+        var field = typeof(HotfixDispatchRuntimeContext).GetField("_isActive", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? typeof(HotfixDispatchRuntimeContext).GetField(
+                "<IsActive>k__BackingField",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        field.SetValue(context, field.FieldType == typeof(int) ? 1 : true);
     }
 
     private sealed class FixedAssemblySource : IHotfixAssemblySource

@@ -24,8 +24,8 @@ internal sealed class HotfixDispatchRuntimeScope : IDisposable
         get
         {
             var context = Current;
-            return context is { IsActive: true }
-                ? context.Snapshot.Services
+            return context is not null && context.TryGetServices(out var services)
+                ? services
                 : null;
         }
     }
@@ -35,8 +35,8 @@ internal sealed class HotfixDispatchRuntimeScope : IDisposable
         get
         {
             var context = Current;
-            return context is { IsActive: true }
-                ? context.Snapshot.DispatchTable
+            return context is not null && context.TryGetSnapshot(out var snapshot)
+                ? snapshot.DispatchTable
                 : null;
         }
     }
@@ -57,7 +57,7 @@ internal sealed class HotfixDispatchRuntimeScope : IDisposable
     internal static IDisposable? EnterTimerScope()
     {
         var context = Current;
-        return context is not { IsActive: true, TimerBackend: { } timerBackend }
+        return context is not { TimerBackend: { } timerBackend } || !context.TryGetSnapshot(out _)
             ? null
             : LakonaTimerExecutionScope.Enter(timerBackend, context.Lease);
     }
@@ -83,11 +83,13 @@ internal sealed class HotfixDispatchRuntimeScope : IDisposable
 
 internal sealed class HotfixDispatchRuntimeContext
 {
+    private int _isActive;
+
     public HotfixDispatchRuntimeContext(HotfixRuntimeSnapshotLease lease, ILakonaTimerBackend? timerBackend)
     {
         Lease = lease ?? throw new ArgumentNullException(nameof(lease));
         TimerBackend = timerBackend;
-        IsActive = true;
+        _isActive = 1;
     }
 
     public HotfixRuntimeSnapshotLease Lease { get; }
@@ -96,10 +98,48 @@ internal sealed class HotfixDispatchRuntimeContext
 
     public ILakonaTimerBackend? TimerBackend { get; }
 
-    public bool IsActive { get; private set; }
+    public bool IsActive => Volatile.Read(ref _isActive) != 0;
+
+    public bool TryGetSnapshot(out HotfixRuntimeSnapshot snapshot)
+    {
+        snapshot = null!;
+        if (Volatile.Read(ref _isActive) == 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            snapshot = Lease.Snapshot;
+        }
+        catch (ObjectDisposedException)
+        {
+            return false;
+        }
+
+        if (Volatile.Read(ref _isActive) != 0)
+        {
+            return true;
+        }
+
+        snapshot = null!;
+        return false;
+    }
+
+    public bool TryGetServices(out IServiceProvider services)
+    {
+        if (TryGetSnapshot(out var snapshot))
+        {
+            services = snapshot.Services;
+            return true;
+        }
+
+        services = null!;
+        return false;
+    }
 
     public void Deactivate()
     {
-        IsActive = false;
+        Interlocked.Exchange(ref _isActive, 0);
     }
 }
