@@ -14,7 +14,7 @@ internal sealed class LakonaTimerArgsSerializer
     public SerializedTimerArgs Serialize<TArgs>(TArgs args)
     {
         var argsType = typeof(TArgs);
-        if (argsType.IsGenericType)
+        if (argsType.IsGenericType && Nullable.GetUnderlyingType(argsType) is null)
         {
             throw new InvalidOperationException($"Timer args root type '{argsType.FullName}' must not be generic.");
         }
@@ -51,6 +51,25 @@ internal sealed class LakonaTimerArgsSerializer
             payload);
     }
 
+    public object? Deserialize(string serializerId, ReadOnlyMemory<byte> jsonPayload, Type argsType)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serializerId);
+        ArgumentNullException.ThrowIfNull(argsType);
+        if (!StringComparer.Ordinal.Equals(serializerId, SystemTextJsonSerializerId))
+        {
+            throw new InvalidOperationException($"Timer args serializer id '{serializerId}' is not supported.");
+        }
+
+        try
+        {
+            return DeserializeObject(jsonPayload.ToArray(), argsType);
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException or ArgumentException)
+        {
+            throw new InvalidOperationException($"Timer args type '{argsType.FullName}' could not be deserialized.", ex);
+        }
+    }
+
     private static byte[] SerializeObject(object? value, Type valueType)
     {
         using var stream = new MemoryStream();
@@ -76,14 +95,9 @@ internal sealed class LakonaTimerArgsSerializer
             return roundTrip is null;
         }
 
-        if (roundTrip is null || !argsType.IsInstanceOfType(roundTrip))
+        if (roundTrip is null)
         {
             return false;
-        }
-
-        if (args.Equals(roundTrip))
-        {
-            return true;
         }
 
         try

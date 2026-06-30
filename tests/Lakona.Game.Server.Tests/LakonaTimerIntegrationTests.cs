@@ -283,6 +283,125 @@ public sealed class LakonaTimerIntegrationTests
     }
 
     [Theory]
+    [InlineData(5)]
+    [InlineData(null)]
+    public async Task CreateOnceTimerAsync_accepts_nullable_primitive_root_args(int? value)
+    {
+        await using var fixture = TimerFixture.Create(typeof(NullableIntCallback));
+        var backend = new LakonaTimerBackend();
+        using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
+
+        var timerId = await LakonaTimer.CreateOnceTimerAsync<NullableIntCallback, int?>(
+            TimeSpan.Zero,
+            nameof(NullableIntCallback.HandleAsync),
+            value,
+            CancellationToken.None);
+
+        Assert.True(backend.TryGetDescriptor(timerId, out var descriptor));
+        using var document = JsonDocument.Parse(descriptor.JsonPayload);
+        if (value is null)
+        {
+            Assert.Equal(JsonValueKind.Null, document.RootElement.ValueKind);
+        }
+        else
+        {
+            Assert.Equal(value.Value, document.RootElement.GetInt32());
+        }
+    }
+
+    [Fact]
+    public void ArgsSerializer_rejects_unknown_descriptor_serializer_id()
+    {
+        var serializer = new LakonaTimerArgsSerializer();
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            serializer.Deserialize(
+                serializerId: "system-text-json-v2",
+                Encoding.UTF8.GetBytes("5"),
+                typeof(int)));
+
+        Assert.Contains("serializer", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("system-text-json-v2", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ArgsSerializer_deserializes_supported_descriptor_payload()
+    {
+        var serializer = new LakonaTimerArgsSerializer();
+
+        var value = serializer.Deserialize(
+            LakonaTimerArgsSerializer.SystemTextJsonSerializerId,
+            Encoding.UTF8.GetBytes("""{"Name":"payload","Count":42}"""),
+            typeof(TimerArgs));
+
+        Assert.Equal(new TimerArgs("payload", 42), Assert.IsType<TimerArgs>(value));
+    }
+
+    [Fact]
+    public void CallbackResolver_resolves_descriptor_against_active_reloaded_snapshot()
+    {
+        const string assemblyName = "TimerReloadPositive";
+        var v1Assembly = CompileHotfixAssembly(
+            assemblyName,
+            """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+            namespace Reload;
+            public sealed record Args(string Value);
+            public sealed class Callback
+            {
+                public static ValueTask HandleAsync(TimerTick<Args> tick)
+                {
+                    _ = tick;
+                    return default;
+                }
+            }
+            """);
+        var v2Assembly = CompileHotfixAssembly(
+            assemblyName,
+            """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+            namespace Reload;
+            public sealed record Args(string Value);
+            public sealed class Callback
+            {
+                public static ValueTask HandleAsync(TimerTick<Args> tick)
+                {
+                    _ = tick;
+                    return default;
+                }
+            }
+            """);
+        var v1CallbackType = v1Assembly.GetType("Reload.Callback", throwOnError: true)!;
+        var v2CallbackType = v2Assembly.GetType("Reload.Callback", throwOnError: true)!;
+        var descriptor = new LakonaTimerDescriptor(
+            TimerId.FromGuid(Guid.NewGuid()),
+            v1Assembly.GetName().Name!,
+            v1CallbackType.FullName!,
+            "HandleAsync",
+            v1Assembly.GetName().Name!,
+            "Reload.Args",
+            "system-text-json-v1",
+            Encoding.UTF8.GetBytes("""{"Value":"from-v1"}"""),
+            DateTimeOffset.UtcNow,
+            period: null,
+            generation: 1);
+        var snapshot = CreateSnapshotForAssembly(v2Assembly);
+        try
+        {
+            var method = new LakonaTimerCallbackResolver().Resolve(snapshot, descriptor);
+
+            Assert.Same(v2Assembly, method.DeclaringType!.Assembly);
+            Assert.Equal(v2CallbackType, method.DeclaringType);
+        }
+        finally
+        {
+            snapshot.Retire();
+        }
+    }
+
+    [Theory]
     [MemberData(nameof(UnsupportedTimerArgsCases))]
     public async Task CreateOnceTimerAsync_rejects_unsupported_declared_timer_args_shapes(
         Type callbackType,
@@ -519,6 +638,24 @@ public sealed class LakonaTimerIntegrationTests
         Assert.Empty(backend.Descriptors);
     }
 
+    [Fact]
+    public async Task CreateOnceTimerAsync_rejects_round_trip_failure_even_when_equality_is_permissive()
+    {
+        await using var fixture = TimerFixture.Create(typeof(PermissiveRoundTripCallback));
+        var backend = new LakonaTimerBackend();
+        using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await LakonaTimer.CreateOnceTimerAsync<PermissiveRoundTripCallback, PermissiveRoundTripArgs>(
+                TimeSpan.Zero,
+                nameof(PermissiveRoundTripCallback.HandleAsync),
+                new PermissiveRoundTripArgs("original"),
+                CancellationToken.None));
+
+        Assert.Contains("round-trip", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(backend.Descriptors);
+    }
+
     public sealed record TimerArgs(string Name, int Count);
 
     public sealed class TimerCallback
@@ -659,6 +796,50 @@ public sealed class LakonaTimerIntegrationTests
         }
     }
 
+    public sealed class PermissiveRoundTripArgs : IEquatable<PermissiveRoundTripArgs>
+    {
+        private string value = string.Empty;
+
+        public PermissiveRoundTripArgs()
+        {
+        }
+
+        public PermissiveRoundTripArgs(string value)
+        {
+            this.value = value;
+        }
+
+        public string Value
+        {
+            get => value;
+            set => this.value = value + "-roundtrip";
+        }
+
+        public bool Equals(PermissiveRoundTripArgs? other)
+        {
+            return other is not null;
+        }
+
+        public override bool Equals(object? obj)
+        {
+            return Equals(obj as PermissiveRoundTripArgs);
+        }
+
+        public override int GetHashCode()
+        {
+            return 0;
+        }
+    }
+
+    public sealed class PermissiveRoundTripCallback
+    {
+        public static ValueTask HandleAsync(TimerTick<PermissiveRoundTripArgs> tick)
+        {
+            _ = tick;
+            return default;
+        }
+    }
+
     public enum ComplexTimerMode
     {
         Slow,
@@ -682,6 +863,15 @@ public sealed class LakonaTimerIntegrationTests
     public sealed class ComplexTimerCallback
     {
         public static ValueTask HandleAsync(TimerTick<ComplexTimerArgs> tick)
+        {
+            _ = tick;
+            return default;
+        }
+    }
+
+    public sealed class NullableIntCallback
+    {
+        public static ValueTask HandleAsync(TimerTick<int?> tick)
         {
             _ = tick;
             return default;
