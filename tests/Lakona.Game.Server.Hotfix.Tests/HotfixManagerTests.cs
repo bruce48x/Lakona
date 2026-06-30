@@ -55,12 +55,15 @@ public sealed class HotfixManagerTests
         var source = new SwitchableAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
         var manager = new HotfixManager(source, [stableAssembly.GetName().Name!]);
         var first = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+        var previousRuntime = ((IHotfixRuntimeAccessor)manager).Current;
         source.Path = @"Z:\missing\Missing.Hotfix.dll";
 
         var second = await manager.ReloadAsync(TestContext.Current.CancellationToken);
 
         Assert.True(first.Succeeded);
         Assert.False(second.Succeeded);
+        Assert.Same(previousRuntime, ((IHotfixRuntimeAccessor)manager).Current);
+        Assert.Equal(HotfixReloadStatus.Failed, manager.Current.LastReloadStatus);
         Assert.Equal(first.Current.DispatchTableVersion, second.Current.DispatchTableVersion);
         Assert.Equal(first.Current.SourcePath, manager.Current.SourcePath);
         Assert.NotEmpty(manager.Current.Methods);

@@ -209,6 +209,10 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 ex.Message,
                 ex.GetType().FullName,
                 previous.Features);
+            if (publish)
+            {
+                Volatile.Write(ref _current, snapshot);
+            }
 
             return new HotfixReloadResult(
                 HotfixReloadStatus.Failed,
