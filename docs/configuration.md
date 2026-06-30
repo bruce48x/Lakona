@@ -15,12 +15,16 @@ documented in [cluster.md](cluster.md).
 
 Supported top-level keys under `Lakona`:
 
+- `Profile`: optional runtime profile override. Supported values are
+  `Development`, `Compose`, and `Production`.
 - `Node`: required node identity.
 - `Feature`: optional array selecting discovered `LakonaGameFeature` names.
 - `Endpoints`: optional array of client-facing RPC listeners.
 - `Cluster`: optional node-to-node cluster settings.
 - `Sessions`: optional framework session cleanup and retention settings.
 - `ReliablePush`: optional reliable push settings.
+- `Observability`: optional framework logging, local admin, framework
+  diagnostics, metrics, and tracing settings.
 
 The legacy `Lakona.Game` root is obsolete and is not read by the current
 runtime. Samples, generated projects, docs, diagnostics, and deployments must
@@ -458,6 +462,114 @@ Explicit configuration may opt out:
 immediate best-effort callback delivery with no ack and no replay. The resolved
 mode is sent to clients during the framework game handshake.
 
+## Observability
+
+Lakona emits logs, metrics, and traces through the standard .NET diagnostics
+stack: `ILogger`, `Meter`, and `ActivitySource`. Framework defaults live under
+`Lakona:Observability`. This root controls framework log defaults, the
+loopback local admin host, event buffering, diagnostics detail guardrails,
+metrics endpoint exposure, and tracing export.
+
+`Lakona:Observability:LocalAdmin:Enabled` is optional. When it is omitted, the
+default comes from the resolved `Lakona:Profile`, not directly from the raw
+`DOTNET_ENVIRONMENT` string:
+
+- `Development` enables the loopback local admin host by default.
+- `Compose` and `Production` disable it by default.
+- any profile may explicitly set `LocalAdmin:Enabled`, but enabled local admin
+  must bind to loopback unless `RequireLoopback` is intentionally disabled for a
+  trusted local environment.
+
+`Lakona:Profile` may override the host environment name. If `Lakona:Profile` is
+omitted, the host maps `DOTNET_ENVIRONMENT=Development` to `Development`,
+`DOTNET_ENVIRONMENT=Compose` to `Compose`, and other environment names to
+`Production`.
+
+When local admin is enabled, the framework registers safe core diagnostics
+routes on the local admin host, including `/_lakona/diagnostics/summary`,
+`/_lakona/diagnostics/events`, `/_lakona/diagnostics/netstat`,
+`/_lakona/diagnostics/actors`, and `/_lakona/diagnostics/sessions`.
+`Lakona:Observability:Diagnostics:DetailEnabled` controls whether detail
+exposure passes the framework guardrails. It is not required for the safe core
+summary routes.
+
+Example:
+
+```json
+{
+  "Lakona": {
+    "Profile": "Development",
+    "Node": {
+      "Id": "dev-1"
+    },
+    "Observability": {
+      "Logging": {
+        "Enabled": true,
+        "MinimumLevel": "Information",
+        "Categories": {
+          "Lakona.Rpc": "Information",
+          "Lakona.Rpc.Transport": "Information",
+          "Lakona.Game.Server": "Information",
+          "Lakona.Game.Session": "Information",
+          "Lakona.Game.Actor": "Information",
+          "Lakona.Game.Cluster": "Information",
+          "Lakona.Game.Hotfix": "Information",
+          "Lakona.Game.Observability": "Information"
+        },
+        "Console": {
+          "Enabled": true,
+          "Format": "Compact",
+          "IncludeScopes": false
+        },
+        "File": {
+          "Enabled": false,
+          "Path": "logs/lakona-.log",
+          "RollingInterval": "Day",
+          "RetainedFileCount": 7,
+          "FileSizeLimitMB": 128
+        }
+      },
+      "LocalAdmin": {
+        "Enabled": true,
+        "Host": "127.0.0.1",
+        "Port": 20090,
+        "RequireLoopback": true
+      },
+      "Diagnostics": {
+        "SummaryEnabled": true,
+        "DetailEnabled": false,
+        "EventBuffer": {
+          "Enabled": true,
+          "Capacity": 1024,
+          "MinimumLevel": "Warning"
+        }
+      },
+      "Metrics": {
+        "Prometheus": {
+          "Enabled": false,
+          "Path": "/_lakona/metrics"
+        }
+      },
+      "Tracing": {
+        "Export": {
+          "Enabled": false,
+          "SampleRate": 1.0
+        }
+      }
+    }
+  }
+}
+```
+
+`SummaryEnabled` is parsed for compatibility with the observability options
+shape, but in this slice the framework registers core summary diagnostics routes
+whenever local admin is enabled. Treat it as a compatibility/default field, not
+as a route switch.
+
+File logging, Prometheus endpoint serving, and tracing export are integration
+points. Enabling them without registering the corresponding implementation is a
+validation error.
+
 ## Cluster Rules
 
 `Lakona:Cluster` is node-to-node configuration:
@@ -524,7 +636,12 @@ Validation covers:
 - endpoint-local `RpcServices`;
 - feature names, duplicates, and dependency/order constraints;
 - cluster endpoint and seed shape when cluster is configured;
-- required cluster serializer and supported values.
+- required cluster serializer and supported values;
+- observability local admin loopback safety;
+- diagnostics detail mode exposure;
+- file logging, Prometheus, and tracing exporter integration requirements;
+- observability metrics path, event buffer capacity, log level, and trace
+  sample rate.
 
 All communicating cluster nodes must still be operated with the same cluster
 serializer; startup validation only checks local presence and supported values.

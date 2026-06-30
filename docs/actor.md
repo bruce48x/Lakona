@@ -211,6 +211,22 @@ route not found, expired route, timeout, backpressure, handler unavailable,
 node unavailable, serialization failure, deserialization failure, and
 cancellation.
 
+## Actor Diagnostics Privacy
+
+Default actor diagnostics expose aggregate actor type counts and mailbox
+counters. They must not expose per-actor identity or request state.
+
+Default diagnostics JSON, metric tags, and trace attributes must not include
+actor ids, actor names, call chains, message payloads, request values, session
+ids, tokens, or user-specific identifiers.
+
+Allowed low-cardinality fields include actor type, message type, timeout
+reason, mailbox queue totals, processed counts, rejected counts, and
+slow-message counters.
+
+Detail endpoints are disabled by default. Any endpoint that exposes more than
+aggregate actor diagnostics requires explicit diagnostics detail mode.
+
 ## Runtime Layers
 
 The generated typed API sits above existing cluster primitives:

@@ -49,6 +49,8 @@ public interface IGameSessionRegistry
         DateTimeOffset heartbeatAt,
         CancellationToken cancellationToken = default);
 
+    GameSessionDiagnosticsSnapshot GetDiagnosticsSnapshot();
+
     ValueTask<TCallback?> GetCallbackAsync<TCallback>(
         GameSessionKey session,
         CancellationToken cancellationToken = default)

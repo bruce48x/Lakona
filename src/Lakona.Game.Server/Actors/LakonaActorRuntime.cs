@@ -13,12 +13,22 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
     private readonly ConcurrentDictionary<K.ActorId, ActorId> _actorIds = new();
     private readonly IServiceProvider _services;
     private readonly ActorRuntimeOptions _options;
+    private readonly IReadOnlyList<IActorDiagnosticsObserver> _diagnosticsObservers;
     private readonly K.ActorSystem _actorSystem;
 
     public LakonaActorRuntime(IServiceProvider services, ActorRuntimeOptions options)
+        : this(services, options, null)
+    {
+    }
+
+    public LakonaActorRuntime(
+        IServiceProvider services,
+        ActorRuntimeOptions options,
+        IEnumerable<IActorDiagnosticsObserver>? diagnosticsObservers = null)
     {
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _options = options ?? throw new ArgumentNullException(nameof(options));
+        _diagnosticsObservers = diagnosticsObservers?.ToArray() ?? [];
         _actorSystem = new K.ActorSystem(new K.ActorSystemOptions
         {
             MailboxCapacity = Math.Max(1, options.MailboxCapacity),
@@ -265,6 +275,89 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
         return ActorState.Dead;
     }
 
+    public ActorRuntimeDiagnosticsSnapshot GetDiagnosticsSnapshot()
+    {
+        var actors = new List<ActorDiagnosticsCellSnapshot>();
+        foreach (var cell in _actors.Values)
+        {
+            if (TryCaptureActorDiagnosticsCell(cell, out var actor))
+            {
+                actors.Add(actor);
+            }
+        }
+
+        var actorTypes = actors
+            .GroupBy(static actor => actor.ActorType)
+            .OrderBy(static group => group.Key, StringComparer.Ordinal)
+            .Select(static group =>
+            {
+                var activeCount = 0;
+                var mailboxQueuedSum = 0;
+                var mailboxQueuedMax = 0;
+                long mailboxEnqueuedCount = 0;
+                long mailboxEnqueuedMax = 0;
+                long mailboxProcessedCount = 0;
+                long mailboxProcessedMax = 0;
+                long mailboxRejectedCount = 0;
+                long mailboxRejectedMax = 0;
+
+                foreach (var actor in group)
+                {
+                    activeCount++;
+                    mailboxQueuedSum += actor.Metrics.QueuedCount;
+                    mailboxQueuedMax = Math.Max(mailboxQueuedMax, actor.Metrics.QueuedCount);
+                    mailboxEnqueuedCount += actor.Metrics.EnqueuedCount;
+                    mailboxEnqueuedMax = Math.Max(mailboxEnqueuedMax, actor.Metrics.EnqueuedCount);
+                    mailboxProcessedCount += actor.Metrics.ProcessedCount;
+                    mailboxProcessedMax = Math.Max(mailboxProcessedMax, actor.Metrics.ProcessedCount);
+                    mailboxRejectedCount += actor.Metrics.RejectedCount;
+                    mailboxRejectedMax = Math.Max(mailboxRejectedMax, actor.Metrics.RejectedCount);
+                }
+
+                return new ActorTypeDiagnosticsSnapshot(
+                    group.Key,
+                    activeCount,
+                    mailboxQueuedSum,
+                    mailboxQueuedMax,
+                    mailboxEnqueuedCount,
+                    mailboxEnqueuedMax,
+                    mailboxProcessedCount,
+                    mailboxProcessedMax,
+                    mailboxRejectedCount,
+                    mailboxRejectedMax);
+            })
+            .ToArray();
+
+        return new ActorRuntimeDiagnosticsSnapshot(actorTypes);
+    }
+
+    private static bool TryCaptureActorDiagnosticsCell(
+        ActorCell cell,
+        out ActorDiagnosticsCellSnapshot snapshot)
+    {
+        snapshot = default;
+
+        if (!cell.TryGetState(out var state) || state != ActorState.Active)
+        {
+            return false;
+        }
+
+        if (!cell.TryGetMailboxMetrics(out var metrics))
+        {
+            return false;
+        }
+
+        if (!cell.TryGetState(out state) || state != ActorState.Active)
+        {
+            return false;
+        }
+
+        snapshot = new ActorDiagnosticsCellSnapshot(
+            cell.ActorType.FullName ?? cell.ActorType.Name,
+            metrics);
+        return true;
+    }
+
     public IReadOnlyList<ActorId> GetActiveActorIds(Type actorType)
     {
         ArgumentNullException.ThrowIfNull(actorType);
@@ -399,29 +492,68 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
 
     private void OnDeadLetterPublished(K.DeadLetter deadLetter)
     {
-        _options.DeadLetterHandler?.Invoke(new ActorDeadLetterDiagnostic(
+        var diagnostic = new ActorDeadLetterDiagnostic(
             MapActorId(deadLetter.Target),
             deadLetter.MessageType,
-            deadLetter.Reason));
+            deadLetter.Reason);
+
+        foreach (var observer in _diagnosticsObservers)
+        {
+            try
+            {
+                observer.OnDeadLetter(diagnostic);
+            }
+            catch
+            {
+            }
+        }
+
+        _options.DeadLetterHandler?.Invoke(diagnostic);
     }
 
     private void OnSlowMessageDetected(K.SlowMessage slowMessage)
     {
-        _options.SlowMessageHandler?.Invoke(new ActorSlowMessageDiagnostic(
+        var diagnostic = new ActorSlowMessageDiagnostic(
             MapActorId(slowMessage.ActorId),
             slowMessage.MessageType,
-            slowMessage.Elapsed));
+            slowMessage.Elapsed);
+
+        foreach (var observer in _diagnosticsObservers)
+        {
+            try
+            {
+                observer.OnSlowMessage(diagnostic);
+            }
+            catch
+            {
+            }
+        }
+
+        _options.SlowMessageHandler?.Invoke(diagnostic);
     }
 
     private void OnCallTimedOut(K.ActorCallTimeout timeout)
     {
-        _options.CallTimeoutHandler?.Invoke(new ActorCallTimeoutDiagnostic(
+        var diagnostic = new ActorCallTimeoutDiagnostic(
             timeout.Caller is { } caller ? MapActorId(caller) : null,
             MapActorId(timeout.Target),
             timeout.RequestType,
             MapCallTimeout(timeout),
             MapCallTimeoutReason(timeout.Reason),
-            timeout.CallChain.Select(MapActorId).ToArray()));
+            timeout.CallChain.Select(MapActorId).ToArray());
+
+        foreach (var observer in _diagnosticsObservers)
+        {
+            try
+            {
+                observer.OnCallTimeout(diagnostic);
+            }
+            catch
+            {
+            }
+        }
+
+        _options.CallTimeoutHandler?.Invoke(diagnostic);
     }
 
     internal ActorId MapActorId(K.ActorId id)
@@ -469,6 +601,10 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
             metrics.RejectedCount,
             metrics.IsCompleted);
     }
+
+    private readonly record struct ActorDiagnosticsCellSnapshot(
+        string ActorType,
+        ActorMailboxMetrics Metrics);
 
     private readonly record struct RuntimeState(LakonaActorRuntime Runtime, Type? ActorType = null);
 
@@ -663,10 +799,67 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
             return MapMailboxMetrics(actorHandle.GetMailboxMetrics());
         }
 
+        public bool TryGetMailboxMetrics(out ActorMailboxMetrics metrics)
+        {
+            var actorHandle = _actorHandle;
+            if (actorHandle is null ||
+                !TryGetState(actorHandle, out var state) ||
+                state != ActorState.Active)
+            {
+                metrics = default;
+                return false;
+            }
+
+            K.MailboxMetrics kernelMetrics;
+            try
+            {
+                kernelMetrics = actorHandle.GetMailboxMetrics();
+            }
+            catch (ObjectDisposedException)
+            {
+                metrics = default;
+                return false;
+            }
+            catch (InvalidOperationException)
+            {
+                metrics = default;
+                return false;
+            }
+
+            metrics = MapMailboxMetrics(kernelMetrics);
+            return true;
+        }
+
+        public bool TryGetState(out ActorState state)
+        {
+            var actorHandle = _actorHandle;
+            if (actorHandle is null)
+            {
+                state = ActorState.Dead;
+                return true;
+            }
+
+            return TryGetState(actorHandle, out state);
+        }
+
         public ActorState GetState()
         {
             var actorHandle = _actorHandle;
             return actorHandle is null ? ActorState.Dead : MapActorState(actorHandle.GetState());
+        }
+
+        private static bool TryGetState(K.ActorHandle<ActorRuntimeEnvelope> actorHandle, out ActorState state)
+        {
+            try
+            {
+                state = MapActorState(actorHandle.GetState());
+                return true;
+            }
+            catch (ObjectDisposedException)
+            {
+                state = ActorState.Dead;
+                return false;
+            }
         }
 
         public IAsyncDisposable RegisterTimer(ActorRuntimeEnvelope tick, TimeSpan dueTime, TimeSpan? period)
@@ -682,7 +875,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
 
             var registration = new ActorTimerRegistration(tick, dueTime, period, handle);
             var envelope = new ActorRuntimeEnvelope(
-                static (_, _, _) => ValueTask.FromResult<object?>(null),
+                static (_, _, _) => new ValueTask<object?>((object?)null),
                 registration,
                 CancellationToken.None);
 
@@ -874,7 +1067,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
                 timer?.Dispose();
             }
 
-            return ValueTask.CompletedTask;
+            return default;
         }
     }
 }

@@ -483,8 +483,8 @@ public sealed class ActorSystemTests
             ActivityStopped = activity =>
             {
                 if (activity.OperationName == "Lakona.Actor.Actor.Dispatch" &&
-                    (Equals(activity.GetTagItem("lakona-actor.slow_message"), true) ||
-                     activity.Events.Any(evt => evt.Name == "Lakona.Actor.Actor.SlowMessage")))
+                    (Equals(activity.GetTagItem("lakona-game.actor.slow_message"), true) ||
+                     activity.Events.Any(evt => evt.Name == "Lakona.Game.Actor.SlowMessage")))
                 {
                     stopped.TrySetResult(activity);
                 }
@@ -503,8 +503,11 @@ public sealed class ActorSystemTests
 
         Activity activity = await stopped.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
-        Assert.Equal(true, activity.GetTagItem("lakona-actor.slow_message"));
-        Assert.Contains(activity.Events, evt => evt.Name == "Lakona.Actor.Actor.SlowMessage");
+        Assert.Equal(true, activity.GetTagItem("lakona-game.actor.slow_message"));
+        Assert.Null(activity.GetTagItem("lakona-actor.slow_message"));
+        Assert.Null(activity.GetTagItem("lakona-actor.slow_message.elapsed_ms"));
+        Assert.Contains(activity.Events, evt => evt.Name == "Lakona.Game.Actor.SlowMessage");
+        Assert.DoesNotContain(activity.Events, evt => evt.Name == "Lakona.Actor.Actor.SlowMessage");
     }
 
     [Fact]
@@ -713,8 +716,8 @@ public sealed class ActorSystemTests
             ActivityStopped = activity =>
             {
                 if (activity.OperationName == "Lakona.Actor.Actor.Dispatch" &&
-                    string.Equals(activity.GetTagItem("lakona-actor.message.type")?.ToString(), typeof(string).FullName, StringComparison.Ordinal) &&
-                    string.Equals(activity.GetTagItem("lakona-actor.message.kind")?.ToString(), "call", StringComparison.Ordinal))
+                    string.Equals(activity.GetTagItem("lakona-game.actor.message.type")?.ToString(), typeof(string).FullName, StringComparison.Ordinal) &&
+                    string.Equals(activity.GetTagItem("lakona-game.actor.message.kind")?.ToString(), "call", StringComparison.Ordinal))
                 {
                     stopped.TrySetResult(activity);
                 }
@@ -731,9 +734,11 @@ public sealed class ActorSystemTests
 
         Assert.Equal("trace-me", response);
         Assert.Equal(ActivityStatusCode.Ok, activity.Status);
-        Assert.Equal(actorRef.Id.Value, activity.GetTagItem("lakona-actor.actor.id"));
-        Assert.Equal(typeof(string).FullName, activity.GetTagItem("lakona-actor.message.type"));
-        Assert.Equal("call", activity.GetTagItem("lakona-actor.message.kind"));
+        Assert.Null(activity.GetTagItem("lakona-actor.actor.id"));
+        Assert.Null(activity.GetTagItem("lakona-actor.call.chain"));
+        Assert.NotNull(activity.GetTagItem("lakona-game.actor.type"));
+        Assert.Equal(typeof(string).FullName, activity.GetTagItem("lakona-game.actor.message.type"));
+        Assert.Equal("call", activity.GetTagItem("lakona-game.actor.message.kind"));
     }
 
     [Fact]
@@ -748,7 +753,7 @@ public sealed class ActorSystemTests
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
             ActivityStopped = activity =>
             {
-                string? messageType = activity.GetTagItem("lakona-actor.message.type")?.ToString();
+                string? messageType = activity.GetTagItem("lakona-game.actor.message.type")?.ToString();
 
                 if (activity.OperationName == "Lakona.Actor.Actor.Dispatch" &&
                     messageType is not null &&
@@ -796,7 +801,7 @@ public sealed class ActorSystemTests
                     return;
                 }
 
-                string? messageType = activity.GetTagItem("lakona-actor.message.type")?.ToString();
+                string? messageType = activity.GetTagItem("lakona-game.actor.message.type")?.ToString();
 
                 if (messageType?.Contains(nameof(StartTimer), StringComparison.Ordinal) == true)
                 {

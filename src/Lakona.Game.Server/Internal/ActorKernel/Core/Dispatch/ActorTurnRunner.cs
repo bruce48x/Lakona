@@ -39,10 +39,9 @@ internal sealed class ActorTurnRunner
 
         using Activity? activity = StartDispatchActivity(envelope);
 
-        activity?.SetTag("lakona-actor.actor.id", self.Id.Value);
-        activity?.SetTag("lakona-actor.message.type", messageType);
-        activity?.SetTag("lakona-actor.message.kind", envelope.Response is null ? "send" : "call");
-        activity?.SetTag("lakona-actor.call.chain", string.Join(">", callChain.Select(id => id.Value)));
+        activity?.SetTag("lakona-game.actor.type", actor.GetType().FullName ?? actor.GetType().Name);
+        activity?.SetTag("lakona-game.actor.message.type", messageType);
+        activity?.SetTag("lakona-game.actor.message.kind", envelope.Response is null ? "send" : "call");
 
         Exception? error = null;
 
@@ -70,9 +69,8 @@ internal sealed class ActorTurnRunner
         catch (Exception ex)
         {
             error = ex;
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.SetStatus(ActivityStatusCode.Error);
             activity?.SetTag("exception.type", ex.GetType().FullName);
-            activity?.SetTag("exception.message", ex.Message);
         }
         finally
         {
@@ -87,13 +85,13 @@ internal sealed class ActorTurnRunner
                 if (elapsed >= slowMessageThreshold.Value)
                 {
                     activity?.AddEvent(new ActivityEvent(
-                        "Lakona.Actor.Actor.SlowMessage",
+                        "Lakona.Game.Actor.SlowMessage",
                         tags: new ActivityTagsCollection
                         {
-                            ["lakona-actor.slow_message.elapsed_ms"] = elapsed.TotalMilliseconds
+                            ["lakona-game.actor.slow_message.elapsed_ms"] = elapsed.TotalMilliseconds
                         }));
-                    activity?.SetTag("lakona-actor.slow_message", true);
-                    activity?.SetTag("lakona-actor.slow_message.elapsed_ms", elapsed.TotalMilliseconds);
+                    activity?.SetTag("lakona-game.actor.slow_message", true);
+                    activity?.SetTag("lakona-game.actor.slow_message.elapsed_ms", elapsed.TotalMilliseconds);
                     system.Diagnostics.PublishSlowMessage(self.Id, envelope.Message, elapsed);
                 }
             }

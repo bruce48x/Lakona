@@ -229,6 +229,86 @@ public sealed class GameSessionRegistryTests
     }
 
     [Fact]
+    public async Task Session_diagnostics_snapshot_reports_counts_without_session_or_connection_ids()
+    {
+        var directory = new InMemoryGameSessionRegistry();
+        var playerSecret = "player-secret";
+        var connectionSecret = "connection-secret";
+        var session = await directory.StartNewSessionAsync(playerSecret, TestContext.Current.CancellationToken);
+
+        await directory.BindSessionAsync(
+            session,
+            connectionSecret,
+            new LoginCallback("login"),
+            TestContext.Current.CancellationToken);
+
+        var snapshot = directory.GetDiagnosticsSnapshot();
+        var text = snapshot.ToString();
+
+        Assert.Equal(1, snapshot.ActiveSessions);
+        Assert.Equal(1, snapshot.ActiveConnections);
+        Assert.DoesNotContain(playerSecret, text, StringComparison.Ordinal);
+        Assert.DoesNotContain(connectionSecret, text, StringComparison.Ordinal);
+        Assert.DoesNotContain(session.SessionId, text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Session_diagnostics_snapshot_counts_mixed_states_without_secrets()
+    {
+        var directory = new InMemoryGameSessionRegistry();
+        var activeOwner = "active-player-secret";
+        var disconnectedOwner = "disconnected-player-secret";
+        var retainedOwner = "retained-player-secret";
+        var droppedOwner = "dropped-player-secret";
+        var activeConnection = "active-connection-secret";
+        var disconnectedConnection = "disconnected-connection-secret";
+        var retainedConnection = "retained-connection-secret";
+        var droppedConnection = "dropped-connection-secret";
+        var active = await directory.StartNewSessionAsync(activeOwner, TestContext.Current.CancellationToken);
+        var disconnected = await directory.StartNewSessionAsync(disconnectedOwner, TestContext.Current.CancellationToken);
+        var retained = await directory.StartNewSessionAsync(retainedOwner, TestContext.Current.CancellationToken);
+        var dropped = await directory.StartNewSessionAsync(droppedOwner, TestContext.Current.CancellationToken);
+
+        await directory.BindSessionAsync(active, activeConnection, new LoginCallback("active"), TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(disconnected, disconnectedConnection, new LoginCallback("disconnected"), TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(retained, retainedConnection, new LoginCallback("retained"), TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(dropped, droppedConnection, new LoginCallback("dropped"), TestContext.Current.CancellationToken);
+        await directory.MarkConnectionDisconnectedAsync(disconnectedConnection, TestContext.Current.CancellationToken);
+        await directory.MarkSessionTerminatedAsync(
+            retained,
+            new SessionTerminationNotice(SessionTerminationReason.Policy, "retained"),
+            keepForResume: true,
+            TestContext.Current.CancellationToken);
+        await directory.MarkSessionTerminatedAsync(
+            dropped,
+            new SessionTerminationNotice(SessionTerminationReason.Policy, "dropped"),
+            keepForResume: false,
+            TestContext.Current.CancellationToken);
+
+        var snapshot = directory.GetDiagnosticsSnapshot();
+        var text = snapshot.ToString();
+
+        Assert.Equal(4, snapshot.TotalSessions);
+        Assert.Equal(1, snapshot.ActiveSessions);
+        Assert.Equal(1, snapshot.ActiveConnections);
+        Assert.Equal(1, snapshot.DisconnectedSessions);
+        Assert.Equal(2, snapshot.TerminatedSessions);
+        Assert.Equal(3, snapshot.ResumableSessions);
+        Assert.DoesNotContain(activeOwner, text, StringComparison.Ordinal);
+        Assert.DoesNotContain(disconnectedOwner, text, StringComparison.Ordinal);
+        Assert.DoesNotContain(retainedOwner, text, StringComparison.Ordinal);
+        Assert.DoesNotContain(droppedOwner, text, StringComparison.Ordinal);
+        Assert.DoesNotContain(activeConnection, text, StringComparison.Ordinal);
+        Assert.DoesNotContain(disconnectedConnection, text, StringComparison.Ordinal);
+        Assert.DoesNotContain(retainedConnection, text, StringComparison.Ordinal);
+        Assert.DoesNotContain(droppedConnection, text, StringComparison.Ordinal);
+        Assert.DoesNotContain(active.SessionId, text, StringComparison.Ordinal);
+        Assert.DoesNotContain(disconnected.SessionId, text, StringComparison.Ordinal);
+        Assert.DoesNotContain(retained.SessionId, text, StringComparison.Ordinal);
+        Assert.DoesNotContain(dropped.SessionId, text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Heartbeat_for_connection_that_was_terminated_reports_terminated()
     {
         var directory = new InMemoryGameSessionRegistry();

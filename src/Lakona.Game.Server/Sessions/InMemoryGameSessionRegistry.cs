@@ -240,6 +240,54 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         }
     }
 
+    public GameSessionDiagnosticsSnapshot GetDiagnosticsSnapshot()
+    {
+        lock (_gate)
+        {
+            var totalSessions = _sessions.Count;
+            var activeSessions = 0;
+            var activeConnections = 0;
+            var disconnectedSessions = 0;
+            var terminatedSessions = 0;
+            var resumableSessions = 0;
+
+            foreach (var state in _sessions.Values)
+            {
+                if (state.Termination is not null)
+                {
+                    terminatedSessions++;
+
+                    if (state.KeepTerminationForResume)
+                    {
+                        resumableSessions++;
+                    }
+
+                    continue;
+                }
+
+                resumableSessions++;
+
+                if (state.ConnectionId is not null && state.DisconnectedAt is null)
+                {
+                    activeSessions++;
+                    activeConnections++;
+                }
+                else if (state.DisconnectedAt is not null)
+                {
+                    disconnectedSessions++;
+                }
+            }
+
+            return new GameSessionDiagnosticsSnapshot(
+                totalSessions,
+                activeSessions,
+                activeConnections,
+                disconnectedSessions,
+                terminatedSessions,
+                resumableSessions);
+        }
+    }
+
     public ValueTask<TCallback?> GetCallbackAsync<TCallback>(
         GameSessionKey session,
         CancellationToken cancellationToken = default)

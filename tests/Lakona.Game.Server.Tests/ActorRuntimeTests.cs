@@ -103,6 +103,107 @@ public sealed class ActorRuntimeTests
     }
 
     [Fact]
+    public async Task Actor_diagnostics_snapshot_aggregates_by_actor_type_without_actor_ids()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = new ServiceCollection()
+            .AddLakonaGameServerActors(options => options.MailboxCapacity = 2)
+            .BuildServiceProvider();
+        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        var firstSecretActorId = "secret-actor-id-a";
+        var secondSecretActorId = "secret-actor-id-b";
+        var firstId = ActorId.From(firstSecretActorId);
+        var secondId = ActorId.From(secondSecretActorId);
+        var firstEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await lifecycle.CreateLocalAsync<BlockingActor>(firstId, cancellationToken: cancellationToken);
+        await lifecycle.CreateLocalAsync<BlockingActor>(secondId, cancellationToken: cancellationToken);
+
+        var firstBlocking = runtime.TellAsync<BlockingActor>(
+            firstId,
+            (actor, ct) => actor.BlockAsync(firstEntered, release.Task, ct),
+            cancellationToken).AsTask();
+        var secondBlocking = runtime.TellAsync<BlockingActor>(
+            secondId,
+            (actor, ct) => actor.BlockAsync(secondEntered, release.Task, ct),
+            cancellationToken).AsTask();
+        await firstEntered.Task.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+        await secondEntered.Task.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+
+        var firstAccepted = runtime.TryTell<BlockingActor>(
+            firstId,
+            static (actor, _) =>
+            {
+                actor.Count++;
+                return default;
+            },
+            cancellationToken);
+        var firstRejected = runtime.TryTell<BlockingActor>(
+            firstId,
+            static (actor, _) =>
+            {
+                actor.Count++;
+                return default;
+            },
+            cancellationToken);
+        var secondAccepted = runtime.TryTell<BlockingActor>(
+            secondId,
+            static (actor, _) =>
+            {
+                actor.Count++;
+                return default;
+            },
+            cancellationToken);
+        var secondRejected = runtime.TryTell<BlockingActor>(
+            secondId,
+            static (actor, _) =>
+            {
+                actor.Count++;
+                return default;
+            },
+            cancellationToken);
+        var secondRejectedAgain = runtime.TryTell<BlockingActor>(
+            secondId,
+            static (actor, _) =>
+            {
+                actor.Count++;
+                return default;
+            },
+            cancellationToken);
+
+        var snapshot = runtime.GetDiagnosticsSnapshot();
+        release.SetResult();
+        await Task.WhenAll(firstBlocking, secondBlocking);
+
+        var actorType = Assert.Single(snapshot.ActorTypes);
+
+        Assert.Equal(ActorTellResult.Accepted, firstAccepted);
+        Assert.Equal(ActorTellResult.MailboxFull, firstRejected);
+        Assert.Equal(ActorTellResult.Accepted, secondAccepted);
+        Assert.Equal(ActorTellResult.MailboxFull, secondRejected);
+        Assert.Equal(ActorTellResult.MailboxFull, secondRejectedAgain);
+        Assert.Equal(typeof(BlockingActor).FullName, actorType.ActorType);
+        Assert.Equal(2, actorType.ActiveCount);
+        Assert.Equal(2, actorType.MailboxQueuedSum);
+        Assert.Equal(1, actorType.MailboxQueuedMax);
+        Assert.Equal(6, actorType.MailboxEnqueuedCount);
+        Assert.Equal(3, actorType.MailboxEnqueuedMax);
+        Assert.Equal(2, actorType.MailboxProcessedCount);
+        Assert.Equal(1, actorType.MailboxProcessedMax);
+        Assert.Equal(3, actorType.MailboxRejectedCount);
+        Assert.Equal(2, actorType.MailboxRejectedMax);
+        Assert.NotEqual(actorType.MailboxQueuedSum, actorType.MailboxQueuedMax);
+        Assert.NotEqual(actorType.MailboxEnqueuedCount, actorType.MailboxEnqueuedMax);
+        Assert.NotEqual(actorType.MailboxProcessedCount, actorType.MailboxProcessedMax);
+        Assert.NotEqual(actorType.MailboxRejectedCount, actorType.MailboxRejectedMax);
+        Assert.DoesNotContain(firstSecretActorId, snapshot.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain(secondSecretActorId, snapshot.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Dynamic_TellAsync_dispatches_to_requested_actor_type()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

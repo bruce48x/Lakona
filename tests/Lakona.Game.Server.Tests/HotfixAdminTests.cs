@@ -4,6 +4,7 @@ using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Loading;
 using Lakona.Game.Server.HotfixAdmin;
 using Lakona.Game.Server.Hotfix.BuildTag;
+using Lakona.Game.Server.Hosting;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests;
@@ -18,6 +19,34 @@ public sealed class HotfixAdminTests
         var exception = Assert.Throws<InvalidOperationException>(() => options.Validate());
 
         Assert.Contains("loopback", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Production_hotfix_mode_uses_version_pointer_source_even_when_local_admin_is_disabled()
+    {
+        var source = LakonaGameServer.CreateDefaultHotfixAssemblySourceForTesting(
+            AppContext.BaseDirectory,
+            new HotfixAdminOptions
+            {
+                Enabled = false,
+                Mode = "production"
+            });
+
+        Assert.IsType<VersionPointerHotfixAssemblySource>(source);
+    }
+
+    [Fact]
+    public void Development_hotfix_mode_uses_current_directory_source()
+    {
+        var source = LakonaGameServer.CreateDefaultHotfixAssemblySourceForTesting(
+            AppContext.BaseDirectory,
+            new HotfixAdminOptions
+            {
+                Enabled = true,
+                Mode = "development"
+            });
+
+        Assert.IsType<CurrentDirectoryHotfixAssemblySource>(source);
     }
 
     [Fact]

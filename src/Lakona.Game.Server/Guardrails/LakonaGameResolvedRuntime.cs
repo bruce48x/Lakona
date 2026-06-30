@@ -8,4 +8,5 @@ public sealed record LakonaGameResolvedRuntime(
     LakonaGameResolvedFeature Feature,
     LakonaGameResolvedHotfix Hotfix,
     LakonaGameResolvedReliablePush ReliablePush,
+    LakonaGameResolvedObservability Observability,
     LakonaGameRuntimeProfile Profile);

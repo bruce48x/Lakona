@@ -249,6 +249,8 @@ Initial code families:
 - `ULINK070-ULINK089`: hotfix loading and dispatch
 - `ULINK090-ULINK109`: Reliable Push and session identity
 - `ULINK110-ULINK129`: production readiness
+- `ULINK130-ULINK139`: observability, local admin, diagnostics, and exporter
+  safety
 
 Messages should be short and actionable. Repairs should tell the user what to change or what command to run.
 
@@ -269,6 +271,21 @@ ULINK111 error Production profile cannot advertise 127.0.0.1.
 `ULINK044` covers both missing and unknown cluster serializer values. It checks
 local configuration only; deployment configuration must still keep every
 communicating cluster node on the same serializer value.
+
+Observability diagnostics:
+
+```txt
+ULINK130 error Observability local admin host must bind to loopback.
+ULINK131 warning Diagnostics detail mode is enabled.
+ULINK132 error Diagnostics detail mode cannot be exposed on non-loopback local admin.
+ULINK133 error File logging requires a registered file logging integration.
+ULINK134 error Tracing export requires a registered OpenTelemetry integration.
+ULINK135 error Prometheus metrics endpoint requires a registered endpoint implementation.
+ULINK136 error Observability metrics path is invalid.
+ULINK137 error Observability event buffer capacity is invalid.
+ULINK138 error Observability log level is invalid.
+ULINK139 error Observability trace sample rate is invalid.
+```
 
 ## Hotfix Operational Guardrails
 
@@ -314,6 +331,11 @@ ULINK075 error Production hotfix reload cannot be triggered by file watcher.
 
 Server startup should run runtime validation after configuration has been bound and derived, but before the server starts accepting traffic.
 
+Startup validation includes observability guardrails. Invalid local admin
+binding, unsafe diagnostics exposure, missing exporter integrations, or invalid
+observability values fail before client-facing listeners or local admin routes
+start accepting traffic.
+
 If validation returns errors:
 
 - log all diagnostics
@@ -338,6 +360,11 @@ Generated readiness checks should call the same runtime validation pipeline used
 Liveness failure must imply readiness failure. Readiness failure does not necessarily imply liveness failure; for example, a missing hotfix assembly means the process is alive but not ready.
 
 Cluster profile liveness validates node id, advertised endpoints, configured feature descriptors, and non-empty endpoint keys/values. Standalone liveness validates node id and configured business endpoints, and skips cluster feature discovery requirements.
+
+`--readiness-check` also runs observability guardrails, including local admin
+loopback requirements, diagnostics detail exposure, file logging integration,
+Prometheus endpoint integration, tracing export integration, metrics path,
+event buffer capacity, log level, and trace sample rate.
 
 Readiness output should format diagnostics for humans:
 

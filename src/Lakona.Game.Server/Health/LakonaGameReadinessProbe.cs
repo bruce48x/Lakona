@@ -2,6 +2,7 @@ using System.Text.Json;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Guardrails;
 using Lakona.Game.Server.Guardrails.Rules;
+using Lakona.Game.Server.Observability;
 
 namespace Lakona.Game.Server.Health;
 
@@ -10,7 +11,9 @@ public static class LakonaGameReadinessProbe
     public static int Run(
         LakonaGameRuntimeOptions runtime,
         ClusterOptions? clusterOptions,
-        string[] args)
+        string[] args,
+        LakonaObservabilityCapabilities? observabilityCapabilities = null,
+        string? hotfixAssemblyPath = null)
     {
         // Liveness is a subset of readiness — fail fast if liveness fails
         var livenessExit = LakonaGameLivenessProbe.Run(clusterOptions, runtime);
@@ -24,7 +27,8 @@ public static class LakonaGameReadinessProbe
         {
             new NodeIdentityRule(),
             new EndpointRule(),
-            new HotfixSourceRule()
+            new HotfixSourceRule(),
+            new ObservabilityRule()
         };
 
         if (runtime.Cluster is not null)
@@ -32,7 +36,11 @@ public static class LakonaGameReadinessProbe
             rules.Add(new ClusterEndpointRule());
         }
 
-        var resolved = ToResolvedRuntime(runtime, clusterOptions);
+        var resolved = ToResolvedRuntimeForValidation(
+            runtime,
+            clusterOptions,
+            observabilityCapabilities,
+            hotfixAssemblyPath);
         var validator = new LakonaGameRuntimeValidator(rules);
         var result = validator.Validate(resolved);
 
@@ -97,15 +105,31 @@ public static class LakonaGameReadinessProbe
         {
             Console.Error.WriteLine("hotfix: failed local build output not found");
             Console.Error.WriteLine($"fix: {hotfixFailure.Repair}");
-            return 1;
+        }
+        else
+        {
+            Console.WriteLine("hotfix: ok local-build Server.Hotfix.dll");
         }
 
-        Console.WriteLine("hotfix: ok local-build Server.Hotfix.dll");
         Console.WriteLine("reliable-push: ok pending limit 256, replay window 120s");
         Console.WriteLine($"rpc: ok {rpcEndpoint}");
 
+        foreach (var diagnostic in result.Diagnostics.Where(diagnostic => diagnostic.Severity != LakonaGameDiagnosticSeverity.Error))
+        {
+            Console.WriteLine($"{diagnostic.Code}: {diagnostic.Message}");
+            if (!string.IsNullOrWhiteSpace(diagnostic.Repair))
+            {
+                Console.WriteLine($"fix: {diagnostic.Repair}");
+            }
+        }
+
         foreach (var diagnostic in result.Diagnostics.Where(diagnostic => diagnostic.Severity == LakonaGameDiagnosticSeverity.Error))
         {
+            if (diagnostic.Code == "ULINK071")
+            {
+                continue;
+            }
+
             Console.Error.WriteLine($"{diagnostic.Code}: {diagnostic.Message}");
             if (!string.IsNullOrWhiteSpace(diagnostic.Repair))
             {
@@ -116,11 +140,13 @@ public static class LakonaGameReadinessProbe
         return result.Succeeded ? 0 : 1;
     }
 
-    private static LakonaGameResolvedRuntime ToResolvedRuntime(
+    internal static LakonaGameResolvedRuntime ToResolvedRuntimeForValidation(
         LakonaGameRuntimeOptions runtime,
-        ClusterOptions? clusterOptions)
+        ClusterOptions? clusterOptions,
+        LakonaObservabilityCapabilities? observabilityCapabilities,
+        string? hotfixAssemblyPath = null)
     {
-        var hotfixPath = Path.Combine(
+        hotfixAssemblyPath ??= Path.Combine(
             AppContext.BaseDirectory,
             "hotfix",
             "Server.Hotfix.dll");
@@ -160,13 +186,80 @@ public static class LakonaGameReadinessProbe
                 Active: Array.Empty<string>(),
                 StartupOrder: Array.Empty<string>()),
             Hotfix: new LakonaGameResolvedHotfix(
-                AssemblyPath: new LakonaGameResolvedValue<string>(hotfixPath, LakonaGameValueSource.GeneratedConvention),
+                AssemblyPath: new LakonaGameResolvedValue<string>(hotfixAssemblyPath, LakonaGameValueSource.GeneratedConvention),
                 AssemblyFileName: new LakonaGameResolvedValue<string>("Server.Hotfix.dll", LakonaGameValueSource.GeneratedConvention)),
             ReliablePush: new LakonaGameResolvedReliablePush(
                 StorageMode: new LakonaGameResolvedValue<string>("InMemory", LakonaGameValueSource.Default),
                 PendingLimit: new LakonaGameResolvedValue<int>(256, LakonaGameValueSource.Default),
                 ReplayWindowSeconds: new LakonaGameResolvedValue<int>(120, LakonaGameValueSource.Default),
                 HasSessionIdentityResolver: true),
-            Profile: LakonaGameRuntimeProfile.Development);
+            Observability: ToResolvedObservability(runtime.Observability, observabilityCapabilities),
+            Profile: runtime.Profile);
+    }
+
+    private static LakonaGameResolvedObservability ToResolvedObservability(
+        LakonaObservabilityOptions observability,
+        LakonaObservabilityCapabilities? capabilities)
+    {
+        capabilities ??= new LakonaObservabilityCapabilities();
+
+        return new LakonaGameResolvedObservability(
+            LocalAdminEnabled: new LakonaGameResolvedValue<bool>(
+                observability.LocalAdmin.EffectiveEnabled,
+                observability.LocalAdmin.Enabled.HasValue
+                    ? LakonaGameValueSource.Configuration
+                    : LakonaGameValueSource.Default,
+                "Lakona:Observability:LocalAdmin:Enabled"),
+            LocalAdminHost: new LakonaGameResolvedValue<string>(
+                observability.LocalAdmin.Host,
+                LakonaGameValueSource.Configuration,
+                "Lakona:Observability:LocalAdmin:Host"),
+            LocalAdminRequireLoopback: new LakonaGameResolvedValue<bool>(
+                observability.LocalAdmin.RequireLoopback,
+                LakonaGameValueSource.Configuration,
+                "Lakona:Observability:LocalAdmin:RequireLoopback"),
+            DetailEnabled: new LakonaGameResolvedValue<bool>(
+                observability.Diagnostics.DetailEnabled,
+                LakonaGameValueSource.Configuration,
+                "Lakona:Observability:Diagnostics:DetailEnabled"),
+            FileLoggingEnabled: new LakonaGameResolvedValue<bool>(
+                observability.Logging.File.Enabled,
+                LakonaGameValueSource.Configuration,
+                "Lakona:Observability:Logging:File:Enabled"),
+            FileLoggingIntegrationRegistered: capabilities.FileLoggingIntegrationRegistered,
+            TraceExportEnabled: new LakonaGameResolvedValue<bool>(
+                observability.Tracing.Export.Enabled,
+                LakonaGameValueSource.Configuration,
+                "Lakona:Observability:Tracing:Export:Enabled"),
+            OpenTelemetryIntegrationRegistered: capabilities.OpenTelemetryIntegrationRegistered,
+            PrometheusEnabled: new LakonaGameResolvedValue<bool>(
+                observability.Metrics.Prometheus.Enabled,
+                LakonaGameValueSource.Configuration,
+                "Lakona:Observability:Metrics:Prometheus:Enabled"),
+            PrometheusEndpointRegistered: capabilities.PrometheusEndpointRegistered,
+            PrometheusPath: new LakonaGameResolvedValue<string>(
+                observability.Metrics.Prometheus.Path,
+                LakonaGameValueSource.Configuration,
+                "Lakona:Observability:Metrics:Prometheus:Path"),
+            EventBufferCapacity: new LakonaGameResolvedValue<int>(
+                observability.Diagnostics.EventBuffer.Capacity,
+                LakonaGameValueSource.Configuration,
+                "Lakona:Observability:Diagnostics:EventBuffer:Capacity"),
+            EventBufferCapacityRaw: new LakonaGameResolvedValue<string>(
+                observability.Diagnostics.EventBuffer.CapacityRaw,
+                LakonaGameValueSource.Configuration,
+                "Lakona:Observability:Diagnostics:EventBuffer:Capacity"),
+            LoggingMinimumLevel: new LakonaGameResolvedValue<string>(
+                observability.Logging.MinimumLevelRaw,
+                LakonaGameValueSource.Configuration,
+                "Lakona:Observability:Logging:MinimumLevel"),
+            TraceSampleRate: new LakonaGameResolvedValue<double>(
+                observability.Tracing.Export.SampleRate,
+                LakonaGameValueSource.Configuration,
+                "Lakona:Observability:Tracing:Export:SampleRate"),
+            TraceSampleRateRaw: new LakonaGameResolvedValue<string>(
+                observability.Tracing.Export.SampleRateRaw,
+                LakonaGameValueSource.Configuration,
+                "Lakona:Observability:Tracing:Export:SampleRate"));
     }
 }

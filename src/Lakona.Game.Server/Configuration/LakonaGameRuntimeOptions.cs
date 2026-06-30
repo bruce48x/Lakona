@@ -1,4 +1,7 @@
 using System.Text.Json;
+using Lakona.Game.Server.Guardrails;
+using Lakona.Game.Server.Hosting;
+using Lakona.Game.Server.Observability;
 using Microsoft.Extensions.Configuration;
 
 namespace Lakona.Game.Server.Configuration;
@@ -15,17 +18,25 @@ public sealed class LakonaGameRuntimeOptions
     public IReadOnlyList<string>? Feature { get; init; }
     public LakonaGameClusterOptions? Cluster { get; init; }
     public string ClusterEndpoint { get; init; } = "tcp://127.0.0.1:21000";
+    public LakonaGameRuntimeProfile Profile { get; init; } = LakonaGameRuntimeProfile.Development;
+    public LakonaObservabilityOptions Observability { get; init; } =
+        LakonaObservabilityOptions.Defaults(LakonaGameRuntimeProfile.Development);
 
-    public static LakonaGameRuntimeOptions FromConfiguration(IConfiguration configuration)
+    public static LakonaGameRuntimeOptions FromConfiguration(
+        IConfiguration configuration,
+        string? environmentName = null)
     {
         var section = GetRuntimeSection(configuration);
+        var profile = LakonaGameRuntimeProfileResolver.Resolve(configuration, environmentName);
 
         return new LakonaGameRuntimeOptions
         {
             Node = BindNode(section.GetSection("Node")),
             Endpoints = BindEndpoints(section.GetSection("Endpoints")),
             Feature = BindOptionalStringArray(section.GetSection("Feature")),
-            Cluster = BindCluster(section.GetSection("Cluster"))
+            Cluster = BindCluster(section.GetSection("Cluster")),
+            Profile = profile,
+            Observability = LakonaObservabilityOptions.FromConfiguration(configuration, profile)
         };
     }
 

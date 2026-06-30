@@ -42,7 +42,10 @@ public static class ActorServiceCollectionExtensions
         services.TryAddSingleton(new LocalActorNodeIdentity("local"));
         services.TryAddSingleton<RemoteActorGateway>();
         services.TryAddSingleton<RemoteActorOptions>();
-        services.TryAddSingleton<LakonaActorRuntime>();
+        services.TryAddSingleton(provider => new LakonaActorRuntime(
+            provider,
+            provider.GetRequiredService<ActorRuntimeOptions>(),
+            provider.GetServices<IActorDiagnosticsObserver>()));
         services.TryAddSingleton<IActorRuntime>(provider => provider.GetRequiredService<LakonaActorRuntime>());
         services.TryAddSingleton<IActorLifecycle>(provider => provider.GetRequiredService<LakonaActorRuntime>());
         services.TryAddSingleton<IActorDirectory, InMemoryActorDirectory>();
