@@ -290,9 +290,10 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
                     else
                     {
                         registration.Pending = true;
+                        registration.DispatchGeneration++;
                         workItem = new LakonaTimerDispatchWorkItem(
                             registration.TimerId,
-                            registration.Generation,
+                            registration.DispatchGeneration,
                             registration.NextDueAtUtc,
                             observedAtUtc);
                         if (!dispatches.Writer.TryWrite(workItem.Value))
@@ -414,7 +415,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         {
             if (!registrations.TryGetValue(workItem.TimerId, out registration!)
                 || registration.Destroyed
-                || registration.Generation != workItem.Generation)
+                || registration.DispatchGeneration != workItem.DispatchGeneration)
             {
                 return;
             }
@@ -428,7 +429,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
             workItem.DueAtUtc,
             workItem.ObservedAtUtc,
             registration.Period,
-            workItem.Generation);
+            workItem.DispatchGeneration);
         NotifyObserver(observer => observer.OnDispatchStarted(observation), "dispatch started");
         try
         {
@@ -440,7 +441,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
                 if (!registrations.TryGetValue(workItem.TimerId, out var current)
                     || !ReferenceEquals(current, registration)
                     || current.Destroyed
-                    || current.Generation != workItem.Generation
+                    || current.DispatchGeneration != workItem.DispatchGeneration
                     || dispatchCancellation.IsCancellationRequested)
                 {
                     return;
@@ -525,7 +526,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
                 return;
             }
 
-            if (registration.Generation == workItem.Generation)
+            if (registration.DispatchGeneration == workItem.DispatchGeneration)
             {
                 ReschedulePeriodicDueSlot(registration, timeProvider.GetUtcNow());
                 Signal();
@@ -613,7 +614,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
 
     private readonly record struct LakonaTimerDispatchWorkItem(
         TimerId TimerId,
-        long Generation,
+        long DispatchGeneration,
         DateTimeOffset DueAtUtc,
         DateTimeOffset ObservedAtUtc);
 }

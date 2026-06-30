@@ -217,6 +217,31 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
     }
 
     [Fact]
+    public async Task Periodic_pending_skip_does_not_stale_queued_callback()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
+        await using var fixture = SchedulerFixture.Create(
+            time,
+            options: new LakonaTimerOptions { MaxConcurrentCallbacks = 1, DispatchQueueCapacity = 8 });
+        await fixture.StartAsync(cancellationToken);
+        TimerCallbackLog.BlockValue = "running";
+
+        fixture.Add("running", time.GetUtcNow().AddSeconds(1));
+        fixture.Add("periodic-queued", time.GetUtcNow().AddSeconds(2), TimeSpan.FromSeconds(1));
+        time.Advance(TimeSpan.FromSeconds(2));
+        await TimerCallbackLog.WaitForValueAsync("running", cancellationToken);
+        time.Advance(TimeSpan.FromSeconds(1));
+        await fixture.Observer.WaitForSkippedAsync(cancellationToken);
+
+        TimerCallbackLog.ReleaseBlocked();
+        await TimerCallbackLog.WaitForValueAsync("periodic-queued", cancellationToken);
+
+        Assert.Contains("periodic-queued", TimerCallbackLog.Values);
+        Assert.True(fixture.Observer.SkippedDueSlots >= 1);
+    }
+
+    [Fact]
     public async Task Periodic_timer_does_not_dispatch_historical_slots_after_large_time_jump()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -528,6 +553,8 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         private readonly List<LakonaTimerDispatchObservation> skipped = [];
         private readonly TaskCompletionSource queueFullRecorded =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource skippedRecorded =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource queuedEntered =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource releaseQueued =
@@ -564,6 +591,7 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
             }
 
             SkippedDueSlots++;
+            skippedRecorded.TrySetResult();
         }
 
         public void OnDispatchStarted(LakonaTimerDispatchObservation observation)
@@ -592,6 +620,12 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         public async Task WaitForQueuedAsync(CancellationToken cancellationToken)
         {
             await queuedEntered.Task.WaitAsync(TimeSpan.FromSeconds(1), cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        public async Task WaitForSkippedAsync(CancellationToken cancellationToken)
+        {
+            await skippedRecorded.Task.WaitAsync(TimeSpan.FromSeconds(1), cancellationToken)
                 .ConfigureAwait(false);
         }
 

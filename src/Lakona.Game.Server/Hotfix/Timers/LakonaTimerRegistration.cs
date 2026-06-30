@@ -23,6 +23,8 @@ internal sealed class LakonaTimerRegistration
 
     public long Generation { get; set; }
 
+    public long DispatchGeneration { get; set; }
+
     public bool Pending { get; set; }
 
     public bool FollowUpScheduled { get; set; }
