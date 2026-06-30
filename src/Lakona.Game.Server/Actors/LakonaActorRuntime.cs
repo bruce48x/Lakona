@@ -13,12 +13,17 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
     private readonly ConcurrentDictionary<K.ActorId, ActorId> _actorIds = new();
     private readonly IServiceProvider _services;
     private readonly ActorRuntimeOptions _options;
+    private readonly IReadOnlyList<IActorDiagnosticsObserver> _diagnosticsObservers;
     private readonly K.ActorSystem _actorSystem;
 
-    public LakonaActorRuntime(IServiceProvider services, ActorRuntimeOptions options)
+    public LakonaActorRuntime(
+        IServiceProvider services,
+        ActorRuntimeOptions options,
+        IEnumerable<IActorDiagnosticsObserver>? diagnosticsObservers = null)
     {
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _options = options ?? throw new ArgumentNullException(nameof(options));
+        _diagnosticsObservers = diagnosticsObservers?.ToArray() ?? [];
         _actorSystem = new K.ActorSystem(new K.ActorSystemOptions
         {
             MailboxCapacity = Math.Max(1, options.MailboxCapacity),
@@ -399,29 +404,68 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
 
     private void OnDeadLetterPublished(K.DeadLetter deadLetter)
     {
-        _options.DeadLetterHandler?.Invoke(new ActorDeadLetterDiagnostic(
+        var diagnostic = new ActorDeadLetterDiagnostic(
             MapActorId(deadLetter.Target),
             deadLetter.MessageType,
-            deadLetter.Reason));
+            deadLetter.Reason);
+
+        foreach (var observer in _diagnosticsObservers)
+        {
+            try
+            {
+                observer.OnDeadLetter(diagnostic);
+            }
+            catch
+            {
+            }
+        }
+
+        _options.DeadLetterHandler?.Invoke(diagnostic);
     }
 
     private void OnSlowMessageDetected(K.SlowMessage slowMessage)
     {
-        _options.SlowMessageHandler?.Invoke(new ActorSlowMessageDiagnostic(
+        var diagnostic = new ActorSlowMessageDiagnostic(
             MapActorId(slowMessage.ActorId),
             slowMessage.MessageType,
-            slowMessage.Elapsed));
+            slowMessage.Elapsed);
+
+        foreach (var observer in _diagnosticsObservers)
+        {
+            try
+            {
+                observer.OnSlowMessage(diagnostic);
+            }
+            catch
+            {
+            }
+        }
+
+        _options.SlowMessageHandler?.Invoke(diagnostic);
     }
 
     private void OnCallTimedOut(K.ActorCallTimeout timeout)
     {
-        _options.CallTimeoutHandler?.Invoke(new ActorCallTimeoutDiagnostic(
+        var diagnostic = new ActorCallTimeoutDiagnostic(
             timeout.Caller is { } caller ? MapActorId(caller) : null,
             MapActorId(timeout.Target),
             timeout.RequestType,
             MapCallTimeout(timeout),
             MapCallTimeoutReason(timeout.Reason),
-            timeout.CallChain.Select(MapActorId).ToArray()));
+            timeout.CallChain.Select(MapActorId).ToArray());
+
+        foreach (var observer in _diagnosticsObservers)
+        {
+            try
+            {
+                observer.OnCallTimeout(diagnostic);
+            }
+            catch
+            {
+            }
+        }
+
+        _options.CallTimeoutHandler?.Invoke(diagnostic);
     }
 
     internal ActorId MapActorId(K.ActorId id)
@@ -682,7 +726,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
 
             var registration = new ActorTimerRegistration(tick, dueTime, period, handle);
             var envelope = new ActorRuntimeEnvelope(
-                static (_, _, _) => ValueTask.FromResult<object?>(null),
+                static (_, _, _) => new ValueTask<object?>((object?)null),
                 registration,
                 CancellationToken.None);
 
@@ -874,7 +918,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
                 timer?.Dispose();
             }
 
-            return ValueTask.CompletedTask;
+            return default;
         }
     }
 }
