@@ -138,9 +138,10 @@ public static class LakonaGameReadinessProbe
     internal static LakonaGameResolvedRuntime ToResolvedRuntimeForValidation(
         LakonaGameRuntimeOptions runtime,
         ClusterOptions? clusterOptions,
-        LakonaObservabilityCapabilities? observabilityCapabilities)
+        LakonaObservabilityCapabilities? observabilityCapabilities,
+        string? hotfixAssemblyPath = null)
     {
-        var hotfixPath = Path.Combine(
+        hotfixAssemblyPath ??= Path.Combine(
             AppContext.BaseDirectory,
             "hotfix",
             "Server.Hotfix.dll");
@@ -180,7 +181,7 @@ public static class LakonaGameReadinessProbe
                 Active: Array.Empty<string>(),
                 StartupOrder: Array.Empty<string>()),
             Hotfix: new LakonaGameResolvedHotfix(
-                AssemblyPath: new LakonaGameResolvedValue<string>(hotfixPath, LakonaGameValueSource.GeneratedConvention),
+                AssemblyPath: new LakonaGameResolvedValue<string>(hotfixAssemblyPath, LakonaGameValueSource.GeneratedConvention),
                 AssemblyFileName: new LakonaGameResolvedValue<string>("Server.Hotfix.dll", LakonaGameValueSource.GeneratedConvention)),
             ReliablePush: new LakonaGameResolvedReliablePush(
                 StorageMode: new LakonaGameResolvedValue<string>("InMemory", LakonaGameValueSource.Default),

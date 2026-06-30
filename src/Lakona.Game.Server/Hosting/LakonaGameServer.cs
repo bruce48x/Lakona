@@ -123,7 +123,11 @@ public static class LakonaGameServer
         // Gateway (registers RpcServersHostedService)
         builder.Services.AddLakonaGameServerGateway();
 
-        ValidateStartupRuntime(builder.Services, runtimeOptions, clusterOptions);
+        ValidateStartupRuntime(
+            builder.Services,
+            runtimeOptions,
+            clusterOptions,
+            ResolveDefaultHotfixAssemblyPath(AppContext.BaseDirectory, hotfixAdminOptions));
 
         var host = builder.Build();
         await LoadInitialHotfixAsync(host);
@@ -216,6 +220,14 @@ public static class LakonaGameServer
         string[] args,
         Action<LakonaGameServerBuilder> configure)
     {
+        ValidateStartupRuntimeForTesting(args, configure, AppContext.BaseDirectory);
+    }
+
+    internal static void ValidateStartupRuntimeForTesting(
+        string[] args,
+        Action<LakonaGameServerBuilder> configure,
+        string baseDirectory)
+    {
         var builder = CreateApplicationBuilder(args);
         var serverBuilder = new LakonaGameServerBuilder(builder);
         configure(serverBuilder);
@@ -230,14 +242,23 @@ public static class LakonaGameServer
         serverBuilder.ApplyServiceRegistrationsToHostBuilder();
 
         var clusterOptions = TryBuildClusterOptions(runtimeOptions, builder.Configuration);
+        var hotfixAdminOptions = CreateDefaultHotfixAdminOptions(
+            builder.Configuration,
+            baseDirectory,
+            "test-build");
 
-        ValidateStartupRuntime(builder.Services, runtimeOptions, clusterOptions);
+        ValidateStartupRuntime(
+            builder.Services,
+            runtimeOptions,
+            clusterOptions,
+            ResolveDefaultHotfixAssemblyPath(baseDirectory, hotfixAdminOptions));
     }
 
     private static void ValidateStartupRuntime(
         IServiceCollection services,
         LakonaGameRuntimeOptions runtimeOptions,
-        ClusterOptions? clusterOptions)
+        ClusterOptions? clusterOptions,
+        string hotfixAssemblyPath)
     {
         using var provider = services.BuildServiceProvider();
         var capabilities = LakonaObservabilityCapabilities.FromServices(
@@ -245,7 +266,8 @@ public static class LakonaGameServer
         var resolved = LakonaGameReadinessProbe.ToResolvedRuntimeForValidation(
             runtimeOptions,
             clusterOptions,
-            capabilities);
+            capabilities,
+            hotfixAssemblyPath);
         var result = provider
             .GetRequiredService<LakonaGameRuntimeValidator>()
             .Validate(resolved);
@@ -285,6 +307,31 @@ public static class LakonaGameServer
         var noun = errors.Length == 1 ? "error" : "errors";
         throw new InvalidOperationException(
             $"{errors.Length} startup validation {noun}. First error {firstError.Code}: {firstError.Message}");
+    }
+
+    private static string ResolveDefaultHotfixAssemblyPath(
+        string baseDirectory,
+        HotfixAdminOptions adminOptions)
+    {
+        var hotfixDirectory = Path.Combine(baseDirectory, "hotfix");
+        if (!adminOptions.Mode.Equals("production", StringComparison.OrdinalIgnoreCase))
+        {
+            return Path.Combine(hotfixDirectory, "Server.Hotfix.dll");
+        }
+
+        var pointerPath = Path.Combine(hotfixDirectory, "current.txt");
+        if (!File.Exists(pointerPath))
+        {
+            return pointerPath;
+        }
+
+        var version = File.ReadAllText(pointerPath).Trim();
+        if (string.IsNullOrWhiteSpace(version) || version.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            return Path.Combine(hotfixDirectory, "versions", "__invalid_hotfix_version__", "Server.Hotfix.dll");
+        }
+
+        return Path.Combine(hotfixDirectory, "versions", version, "Server.Hotfix.dll");
     }
 
     private static LakonaGameRuntimeOptions CreateRuntimeOptions(

@@ -254,6 +254,7 @@ public sealed class LakonaGameServerTests
                             ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
                             ["Lakona:Endpoints:0:Port"] = "20000",
                             ["Lakona:Endpoints:0:Path"] = "/ws",
+                            ["Lakona:Hotfix:Admin:Mode"] = "development",
                             ["Lakona:Observability:Tracing:Export:Enabled"] = "true"
                         }));
                 }));
@@ -261,6 +262,42 @@ public sealed class LakonaGameServerTests
         Assert.Contains("ULINK134", error.Message, StringComparison.Ordinal);
         Assert.Contains("Trace export is enabled but no OpenTelemetry integration is registered.", error.Message, StringComparison.Ordinal);
         Assert.Contains("1 startup validation error", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Startup_validation_accepts_production_hotfix_version_pointer_layout()
+    {
+        var baseDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "LakonaStartupValidationTests",
+            Guid.NewGuid().ToString("N"));
+        var hotfixRoot = Path.Combine(baseDirectory, "hotfix");
+        var version = "2026.06.30.1";
+        var versionDirectory = Path.Combine(hotfixRoot, "versions", version);
+        Directory.CreateDirectory(versionDirectory);
+        File.WriteAllText(Path.Combine(hotfixRoot, "current.txt"), version);
+        File.WriteAllText(Path.Combine(versionDirectory, "Server.Hotfix.dll"), "");
+        Assert.False(File.Exists(Path.Combine(hotfixRoot, "Server.Hotfix.dll")));
+
+        var error = Record.Exception(() =>
+            Lakona.Game.Server.Hosting.LakonaGameServer.ValidateStartupRuntimeForTesting(
+                [],
+                server =>
+                {
+                    server.ConfigureAppConfiguration(configuration =>
+                        configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                        {
+                            ["Lakona:Endpoints:0:Transport"] = "websocket",
+                            ["Lakona:Endpoints:0:Serializer"] = "json",
+                            ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
+                            ["Lakona:Endpoints:0:Port"] = "20000",
+                            ["Lakona:Endpoints:0:Path"] = "/ws",
+                            ["Lakona:Hotfix:Admin:Mode"] = "production"
+                        }));
+                },
+                baseDirectory));
+
+        Assert.Null(error);
     }
 
     [Fact]
