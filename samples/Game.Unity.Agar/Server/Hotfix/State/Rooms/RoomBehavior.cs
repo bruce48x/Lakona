@@ -395,7 +395,7 @@ public static partial class RoomBehavior
 
     private static IServiceProvider GetCurrentHotfixServices(IServiceProvider services)
     {
-        return services.GetRequiredService<IHotfixRuntimeAccessor>().Current.Services;
+        return services.GetRequiredService<IHotfixServiceProviderAccessor>().Current;
     }
 
     private static MatchEnd CreateMatchEnd(WorldState worldState)

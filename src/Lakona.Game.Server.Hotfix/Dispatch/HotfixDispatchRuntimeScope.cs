@@ -19,6 +19,17 @@ internal sealed class HotfixDispatchRuntimeScope : IDisposable
 
     internal static HotfixDispatchRuntimeContext? Current => CurrentContext.Value;
 
+    internal static IServiceProvider? CurrentServices
+    {
+        get
+        {
+            var context = Current;
+            return context is { IsActive: true }
+                ? context.Snapshot.Services
+                : null;
+        }
+    }
+
     internal static HotfixDispatchTable? CurrentTable
     {
         get

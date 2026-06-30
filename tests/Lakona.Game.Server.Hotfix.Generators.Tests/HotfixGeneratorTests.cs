@@ -8,6 +8,28 @@ public sealed class HotfixGeneratorTests
     private static readonly string ForbiddenGameEndpointType = string.Concat("Game", "Endpoint", "Name");
 
     [Fact]
+    public void Production_and_sample_hotfix_code_does_not_bypass_scoped_service_accessor()
+    {
+        var root = FindRepositoryRoot();
+        var offenders = new[] { "src", "samples" }
+            .Select(path => Path.Combine(root, path))
+            .Where(Directory.Exists)
+            .SelectMany(static path => Directory.EnumerateFiles(path, "*.cs", SearchOption.AllDirectories))
+            .Where(static path => !IsBuildOutputPath(path))
+            .Select(static path => new
+            {
+                Path = path,
+                Text = File.ReadAllText(path)
+            })
+            .Where(static file => file.Text.Contains(".Current.Services", StringComparison.Ordinal))
+            .Select(file => Path.GetRelativePath(root, file.Path))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Empty(offenders);
+    }
+
+    [Fact]
     public void Generator_emits_behavior_first_actor_refs_from_hotfix_actor_contract()
     {
         var source = """
@@ -556,6 +578,26 @@ public sealed class HotfixGeneratorTests
     private static void AssertContainsNormalized(string expected, string actual)
     {
         Assert.Contains(expected.ReplaceLineEndings("\n"), actual.ReplaceLineEndings("\n"), StringComparison.Ordinal);
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "CONTRIBUTING.md")))
+        {
+            directory = directory.Parent;
+        }
+
+        return directory?.FullName
+            ?? throw new InvalidOperationException("Could not locate repository root.");
+    }
+
+    private static bool IsBuildOutputPath(string path)
+    {
+        return path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Any(static part =>
+                string.Equals(part, "bin", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(part, "obj", StringComparison.OrdinalIgnoreCase));
     }
 
     private static string ExtractBetween(string source, string startMarker, string endMarker)

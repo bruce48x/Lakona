@@ -41,7 +41,8 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
 
     public HotfixSnapshot Current => Volatile.Read(ref _current);
 
-    IServiceProvider IHotfixServiceProviderAccessor.Current => Volatile.Read(ref _currentRuntime).Services;
+    IServiceProvider IHotfixServiceProviderAccessor.Current =>
+        HotfixDispatchRuntimeScope.CurrentServices ?? Volatile.Read(ref _currentRuntime).Services;
 
     HotfixRuntimeSnapshot IHotfixRuntimeAccessor.Current => Volatile.Read(ref _currentRuntime);
 

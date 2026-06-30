@@ -278,7 +278,7 @@ public static partial class MatchmakingBehavior
 
     private static IServiceProvider GetCurrentHotfixServices(IServiceProvider services)
     {
-        return services.GetRequiredService<IHotfixRuntimeAccessor>().Current.Services;
+        return services.GetRequiredService<IHotfixServiceProviderAccessor>().Current;
     }
 
     public static ValueTask<GatewayEndpointDescriptor?> ResolveRuntimeGatewayAsync(
