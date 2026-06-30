@@ -202,6 +202,37 @@ public sealed class HotfixDispatchTests
     }
 
     [Fact]
+    public async Task Scoped_dispatch_table_is_used_without_timer_backend()
+    {
+        var method = typeof(DispatchTestStateSystem).GetMethod(nameof(DispatchTestStateSystem.SetValueAsync))!;
+        var scopedTable = new HotfixDispatchTable(
+            7,
+            [new HotfixMethodBinding(
+                HotfixDispatch.CreateKey(
+                    typeof(DispatchTestState),
+                    nameof(DispatchTestStateSystem.SetValueAsync),
+                    typeof(ValueTask),
+                    [typeof(int)]),
+                method,
+                typeof(DispatchTestState),
+                typeof(ValueTask),
+                [typeof(int)])]);
+        HotfixDispatch.Replace(new HotfixDispatchTable(0, Array.Empty<HotfixMethodBinding>()));
+        using var runtime = CreateScopedRuntime(scopedTable, backend: null, publish: false);
+        using var lease = runtime.Snapshot.AcquireLease();
+        var state = new DispatchTestState();
+
+        await HotfixDispatch.InvokeValueTaskAsync(
+            typeof(DispatchTestState),
+            nameof(DispatchTestStateSystem.SetValueAsync),
+            state,
+            [typeof(int)],
+            [23]);
+
+        Assert.Equal(23, state.Value);
+    }
+
+    [Fact]
     public void Resolve_throws_specific_exception_when_hotfix_method_is_not_loaded()
     {
         var table = new HotfixDispatchTable(1, Array.Empty<HotfixMethodBinding>());
@@ -559,7 +590,7 @@ public sealed class HotfixDispatchTests
 
     private static ScopedRuntime CreateScopedRuntime(
         HotfixDispatchTable table,
-        RecordingTimerBackend backend,
+        RecordingTimerBackend? backend,
         IHotfixFeatureCommandInvoker? featureCommands = null,
         bool publish = true)
     {
@@ -568,9 +599,13 @@ public sealed class HotfixDispatchTests
             HotfixDispatch.Replace(table);
         }
 
-        var services = new ServiceCollection()
-            .AddSingleton<ILakonaTimerBackend>(backend)
-            .BuildServiceProvider();
+        var serviceBuilder = new ServiceCollection();
+        if (backend is not null)
+        {
+            serviceBuilder.AddSingleton<ILakonaTimerBackend>(backend);
+        }
+
+        var services = serviceBuilder.BuildServiceProvider();
         var snapshot = new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(table),
             featureCommands ?? EmptyHotfixFeatureCommandInvoker.Instance,
@@ -1015,6 +1050,12 @@ public static class DispatchTestStateSystem
             TimeSpan.Zero,
             nameof(TimerCallbackBehavior.HandleAsync),
             args).ConfigureAwait(false);
+    }
+
+    public static ValueTask SetValueAsync(this DispatchTestState self, int value)
+    {
+        self.Value = value;
+        return default;
     }
 }
 

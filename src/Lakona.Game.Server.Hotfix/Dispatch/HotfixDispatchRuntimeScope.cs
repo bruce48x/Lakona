@@ -9,7 +9,7 @@ internal sealed class HotfixDispatchRuntimeScope : IDisposable
     private readonly HotfixDispatchRuntimeContext? _previousContext;
     private bool _disposed;
 
-    private HotfixDispatchRuntimeScope(HotfixRuntimeSnapshotLease lease, ILakonaTimerBackend timerBackend)
+    private HotfixDispatchRuntimeScope(HotfixRuntimeSnapshotLease lease, ILakonaTimerBackend? timerBackend)
     {
         _previousContext = CurrentContext.Value;
         CurrentContext.Value = new HotfixDispatchRuntimeContext(lease, timerBackend);
@@ -23,16 +23,19 @@ internal sealed class HotfixDispatchRuntimeScope : IDisposable
     {
         ArgumentNullException.ThrowIfNull(lease);
 
+        if (lease.Snapshot.DispatchTable is null)
+        {
+            return null;
+        }
+
         var timerBackend = lease.Snapshot.Services.GetService<ILakonaTimerBackend>();
-        return timerBackend is null
-            ? null
-            : new HotfixDispatchRuntimeScope(lease, timerBackend);
+        return new HotfixDispatchRuntimeScope(lease, timerBackend);
     }
 
     internal static IDisposable? EnterTimerScope()
     {
         var context = Current;
-        return context is null
+        return context?.TimerBackend is null
             ? null
             : LakonaTimerExecutionScope.Enter(context.TimerBackend, context.Lease);
     }
@@ -51,15 +54,15 @@ internal sealed class HotfixDispatchRuntimeScope : IDisposable
 
 internal sealed class HotfixDispatchRuntimeContext
 {
-    public HotfixDispatchRuntimeContext(HotfixRuntimeSnapshotLease lease, ILakonaTimerBackend timerBackend)
+    public HotfixDispatchRuntimeContext(HotfixRuntimeSnapshotLease lease, ILakonaTimerBackend? timerBackend)
     {
         Lease = lease ?? throw new ArgumentNullException(nameof(lease));
-        TimerBackend = timerBackend ?? throw new ArgumentNullException(nameof(timerBackend));
+        TimerBackend = timerBackend;
     }
 
     public HotfixRuntimeSnapshotLease Lease { get; }
 
     public HotfixRuntimeSnapshot Snapshot => Lease.Snapshot;
 
-    public ILakonaTimerBackend TimerBackend { get; }
+    public ILakonaTimerBackend? TimerBackend { get; }
 }

@@ -6,16 +6,50 @@ using Microsoft.Extensions.Logging;
 
 namespace Lakona.Game.Server.Hotfix;
 
-internal sealed class HotfixActorTickScheduler(
-    IActorRuntime actors,
-    ILogger<HotfixActorTickScheduler> logger,
-    IHotfixActorTickSchedulerObserver? observer = null) : IAsyncDisposable
+internal sealed class HotfixActorTickScheduler : IAsyncDisposable
 {
+    private readonly IActorRuntime actors;
+    private readonly ILogger<HotfixActorTickScheduler> logger;
+    private readonly IHotfixRuntimeAccessor? hotfixRuntime;
     private readonly object _sync = new();
     private readonly Dictionary<string, TickLoop> _loops = [];
     private readonly Dictionary<PendingKey, PendingState> _pending = [];
-    private readonly IHotfixActorTickSchedulerObserver _observer =
-        observer ?? NullHotfixActorTickSchedulerObserver.Instance;
+    private readonly IHotfixActorTickSchedulerObserver _observer;
+
+    public HotfixActorTickScheduler(
+        IActorRuntime actors,
+        ILogger<HotfixActorTickScheduler> logger)
+        : this(actors, logger, hotfixRuntime: null, observer: null)
+    {
+    }
+
+    public HotfixActorTickScheduler(
+        IActorRuntime actors,
+        ILogger<HotfixActorTickScheduler> logger,
+        IHotfixActorTickSchedulerObserver? observer)
+        : this(actors, logger, hotfixRuntime: null, observer)
+    {
+    }
+
+    public HotfixActorTickScheduler(
+        IActorRuntime actors,
+        ILogger<HotfixActorTickScheduler> logger,
+        IHotfixRuntimeAccessor? hotfixRuntime)
+        : this(actors, logger, hotfixRuntime, observer: null)
+    {
+    }
+
+    public HotfixActorTickScheduler(
+        IActorRuntime actors,
+        ILogger<HotfixActorTickScheduler> logger,
+        IHotfixRuntimeAccessor? hotfixRuntime,
+        IHotfixActorTickSchedulerObserver? observer)
+    {
+        this.actors = actors ?? throw new ArgumentNullException(nameof(actors));
+        this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        this.hotfixRuntime = hotfixRuntime;
+        _observer = observer ?? NullHotfixActorTickSchedulerObserver.Instance;
+    }
 
     public void Apply(HotfixSnapshot snapshot)
     {
@@ -196,7 +230,8 @@ internal sealed class HotfixActorTickScheduler(
             {
                 try
                 {
-                    var table = HotfixDispatch.Current;
+                    using var lease = hotfixRuntime?.AcquireCurrent();
+                    var table = lease?.Snapshot.DispatchTable ?? HotfixDispatch.Current;
                     var tick = new HotfixActorTick
                     {
                         ObservedAtUtc = DateTime.UtcNow,

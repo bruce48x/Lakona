@@ -3,6 +3,7 @@ using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
 using Microsoft.Extensions.DependencyInjection;
@@ -51,6 +52,49 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
         await TickHotfix.WaitForVersionAsync(2, cancellationToken);
 
         Assert.Equal(["fixed"], TickHotfix.ActorIds.Distinct().ToArray());
+    }
+
+    [Fact]
+    public async Task Fixed_actor_tick_dispatch_enters_runtime_timer_scope()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var runtime = new RecordingActorRuntime();
+        var backend = new RecordingTimerBackend();
+        var table = CreateTimerTickTable(5);
+        HotfixDispatch.Replace(new HotfixDispatchTable(0, Array.Empty<HotfixMethodBinding>()));
+        await using var services = new ServiceCollection()
+            .AddSingleton<ILakonaTimerBackend>(backend)
+            .BuildServiceProvider();
+        var accessor = new FixedRuntimeAccessor(new HotfixRuntimeSnapshot(
+            new HotfixServiceInvoker(table),
+            EmptyHotfixFeatureCommandInvoker.Instance,
+            services,
+            table,
+            services,
+            mainAssembly: null,
+            loadContext: null,
+            sourceVersion: null,
+            sourceKind: null,
+            sourcePath: null,
+            ownsRuntimeResources: false,
+            onRetired: null));
+        await using var scheduler = new HotfixActorTickScheduler(
+            runtime,
+            NullLogger<HotfixActorTickScheduler>.Instance,
+            accessor);
+
+        scheduler.Apply(CreateSnapshot(
+            new HotfixActorTickDeclaration(
+                HotfixActorTickMode.FixedActor,
+                typeof(TickActor),
+                "fixed",
+                nameof(TickHotfix.TickWithTimerAsync),
+                TimeSpan.FromHours(1),
+                TickBacklogPolicy.SkipIfPending)));
+
+        await TickHotfix.WaitForVersionAsync(5, cancellationToken);
+
+        Assert.Equal("fixed", backend.LastArgs?.Value);
     }
 
     [Fact]
@@ -460,6 +504,82 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
             [typeof(HotfixActorTick)]);
         return new HotfixDispatchTable(version, [binding]);
     }
+
+    private static HotfixDispatchTable CreateTimerTickTable(long version)
+    {
+        var method = typeof(TickHotfix).GetMethod(
+            nameof(TickHotfix.TickWithTimerAsync),
+            BindingFlags.Public | BindingFlags.Static)!;
+        var binding = new HotfixMethodBinding(
+            HotfixDispatch.CreateKey(
+                typeof(TickActor),
+                nameof(TickHotfix.TickWithTimerAsync),
+                typeof(ValueTask),
+                [typeof(HotfixActorTick)]),
+            method,
+            typeof(TickActor),
+            typeof(ValueTask),
+            [typeof(HotfixActorTick)]);
+        return new HotfixDispatchTable(version, [binding]);
+    }
+
+    private sealed class FixedRuntimeAccessor(HotfixRuntimeSnapshot current) : IHotfixRuntimeAccessor
+    {
+        public HotfixRuntimeSnapshot Current { get; } = current;
+
+        public HotfixRuntimeSnapshotLease AcquireCurrent()
+        {
+            return Current.AcquireLease();
+        }
+    }
+
+    private sealed class RecordingTimerBackend : ILakonaTimerBackend
+    {
+        public TimerArgs? LastArgs { get; private set; }
+
+        public ValueTask<TimerId> CreateOnceTimerAsync<TCallback, TArgs>(
+            TimeSpan dueTime,
+            string methodName,
+            TArgs args,
+            CancellationToken cancellationToken)
+            where TCallback : class
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (args is TimerArgs timerArgs)
+            {
+                LastArgs = timerArgs;
+            }
+
+            return new ValueTask<TimerId>(TimerId.FromGuid(Guid.NewGuid()));
+        }
+
+        public ValueTask<TimerId> CreatePeriodicTimerAsync<TCallback, TArgs>(
+            TimeSpan dueTime,
+            TimeSpan period,
+            string methodName,
+            TArgs args,
+            CancellationToken cancellationToken)
+            where TCallback : class
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (args is TimerArgs timerArgs)
+            {
+                LastArgs = timerArgs;
+            }
+
+            return new ValueTask<TimerId>(TimerId.FromGuid(Guid.NewGuid()));
+        }
+
+        public ValueTask DestroyTimerAsync(TimerId timerId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return default;
+        }
+    }
+
+    private sealed record TimerArgs(string Value);
+
+    private sealed class TimerCallbackTarget;
 
     private sealed class RecordingActorRuntime : IActorRuntime, IActorLifecycle
     {
@@ -921,6 +1041,20 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
             }
 
             return default;
+        }
+
+        public static async ValueTask TickWithTimerAsync(TickActor actor, HotfixActorTick tick)
+        {
+            lock (Sync)
+            {
+                ActorIdList.Add(actor.Id);
+                VersionList.Add(tick.DispatchTableVersion);
+            }
+
+            await LakonaTimer.CreateOnceTimerAsync<TimerCallbackTarget, TimerArgs>(
+                TimeSpan.Zero,
+                "HandleAsync",
+                new TimerArgs(actor.Id)).ConfigureAwait(false);
         }
 
         public static async Task WaitForCountAsync(int count, CancellationToken cancellationToken)
