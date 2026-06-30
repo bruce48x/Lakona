@@ -1,12 +1,24 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace Lakona.Game.Server.LocalAdmin;
 
 public sealed class LakonaLocalAdminRouter
 {
     private readonly IReadOnlyDictionary<RouteKey, ILakonaLocalAdminRoute> _routes;
+    private readonly ILogger<LakonaLocalAdminRouter> _logger;
 
     public LakonaLocalAdminRouter(IEnumerable<ILakonaLocalAdminRoute> routes)
+        : this(routes, NullLogger<LakonaLocalAdminRouter>.Instance)
+    {
+    }
+
+    public LakonaLocalAdminRouter(
+        IEnumerable<ILakonaLocalAdminRoute> routes,
+        ILogger<LakonaLocalAdminRouter> logger)
     {
         ArgumentNullException.ThrowIfNull(routes);
+        ArgumentNullException.ThrowIfNull(logger);
 
         var map = new Dictionary<RouteKey, ILakonaLocalAdminRoute>();
         foreach (var route in routes)
@@ -20,6 +32,7 @@ public sealed class LakonaLocalAdminRouter
         }
 
         _routes = map;
+        _logger = logger;
     }
 
     public async ValueTask<LakonaLocalAdminResponse> RouteAsync(
@@ -52,8 +65,13 @@ public sealed class LakonaLocalAdminRouter
         {
             throw;
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            _logger.LogError(
+                exception,
+                "Local admin route failed for {Method} {Path}.",
+                key.Method,
+                key.Path);
             return LakonaLocalAdminResponse.Json(new { error = "Local admin endpoint failed." }, 400);
         }
     }

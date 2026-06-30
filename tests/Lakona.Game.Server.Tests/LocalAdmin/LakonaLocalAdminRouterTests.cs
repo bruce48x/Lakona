@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Lakona.Game.Server.LocalAdmin;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests.LocalAdmin;
@@ -56,7 +57,8 @@ public sealed class LakonaLocalAdminRouterTests
     [Fact]
     public async Task Route_exception_returns_400_with_generic_json_error()
     {
-        var router = new LakonaLocalAdminRouter([new ThrowingRoute()]);
+        var logger = new RecordingLogger<LakonaLocalAdminRouter>();
+        var router = new LakonaLocalAdminRouter([new ThrowingRoute()], logger);
 
         var response = await router.RouteAsync(
             new LakonaLocalAdminRequest("POST", "/_lakona/throw", Stream.Null, RemoteAddressIsLoopback: true),
@@ -67,6 +69,13 @@ public sealed class LakonaLocalAdminRouterTests
         using var document = JsonDocument.Parse(response.Body);
         Assert.Equal("Local admin endpoint failed.", document.RootElement.GetProperty("error").GetString());
         Assert.DoesNotContain("route failed secret-token", response.Body, StringComparison.Ordinal);
+
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Error, entry.Level);
+        Assert.IsType<InvalidOperationException>(entry.Exception);
+        Assert.Contains("POST", entry.Message, StringComparison.Ordinal);
+        Assert.Contains("/_lakona/throw", entry.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("route failed secret-token", entry.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -179,4 +188,32 @@ public sealed class LakonaLocalAdminRouterTests
             return base.ReadAsync(buffer, cancellationToken);
         }
     }
+
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        public List<LogEntry> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull
+        {
+            return null;
+        }
+
+        public bool IsEnabled(LogLevel logLevel)
+        {
+            return true;
+        }
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Entries.Add(new LogEntry(logLevel, formatter(state, exception), exception));
+        }
+    }
+
+    private sealed record LogEntry(LogLevel Level, string Message, Exception? Exception);
 }
