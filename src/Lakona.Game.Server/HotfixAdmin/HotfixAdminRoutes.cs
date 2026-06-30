@@ -42,9 +42,10 @@ internal sealed class HotfixAdminActivateRoute : ILakonaLocalAdminRoute
         LakonaLocalAdminRequest request,
         CancellationToken cancellationToken = default)
     {
-        var activateRequest = JsonSerializer.Deserialize<HotfixActivateRequest>(
+        var activateRequest = await JsonSerializer.DeserializeAsync<HotfixActivateRequest>(
             request.Body,
-            HotfixAdminJson.Options)
+            HotfixAdminJson.Options,
+            cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException("Request body is required.");
         var response = await _controller.ActivateAsync(activateRequest, cancellationToken).ConfigureAwait(false);
         return LakonaLocalAdminResponse.Json(response, options: HotfixAdminJson.Options);

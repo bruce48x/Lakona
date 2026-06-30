@@ -29,7 +29,7 @@ public sealed class LakonaLocalAdminRouter
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (!request.RemoteAddressIsLoopback)
+        if (request.RequireLoopback && !request.RemoteAddressIsLoopback)
         {
             return LakonaLocalAdminResponse.Json(
                 new { error = "Local admin accepts loopback requests only." },

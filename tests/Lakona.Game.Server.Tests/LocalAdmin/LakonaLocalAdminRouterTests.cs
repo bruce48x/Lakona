@@ -13,7 +13,7 @@ public sealed class LakonaLocalAdminRouterTests
         var router = new LakonaLocalAdminRouter([route]);
 
         var response = await router.RouteAsync(
-            new LakonaLocalAdminRequest("GET", "/_lakona/test", "", RemoteAddressIsLoopback: true),
+            new LakonaLocalAdminRequest("GET", "/_lakona/test", Stream.Null, RemoteAddressIsLoopback: true),
             TestContext.Current.CancellationToken);
 
         Assert.Equal(202, response.StatusCode);
@@ -27,13 +27,15 @@ public sealed class LakonaLocalAdminRouterTests
     {
         var route = new TestRoute("GET", "/_lakona/test", LakonaLocalAdminResponse.Json(new { ok = true }));
         var router = new LakonaLocalAdminRouter([route]);
+        var body = new CountingStream();
 
         var response = await router.RouteAsync(
-            new LakonaLocalAdminRequest("GET", "/_lakona/test", "", RemoteAddressIsLoopback: false),
+            new LakonaLocalAdminRequest("GET", "/_lakona/test", body, RemoteAddressIsLoopback: false),
             TestContext.Current.CancellationToken);
 
         Assert.Equal(403, response.StatusCode);
         Assert.Empty(route.Requests);
+        Assert.Equal(0, body.ReadCount);
     }
 
     [Fact]
@@ -41,12 +43,14 @@ public sealed class LakonaLocalAdminRouterTests
     {
         var router = new LakonaLocalAdminRouter(
             [new TestRoute("GET", "/_lakona/test", LakonaLocalAdminResponse.Json(new { ok = true }))]);
+        var body = new CountingStream();
 
         var response = await router.RouteAsync(
-            new LakonaLocalAdminRequest("GET", "/_lakona/missing", "", RemoteAddressIsLoopback: true),
+            new LakonaLocalAdminRequest("GET", "/_lakona/missing", body, RemoteAddressIsLoopback: true),
             TestContext.Current.CancellationToken);
 
         Assert.Equal(404, response.StatusCode);
+        Assert.Equal(0, body.ReadCount);
     }
 
     [Fact]
@@ -55,7 +59,7 @@ public sealed class LakonaLocalAdminRouterTests
         var router = new LakonaLocalAdminRouter([new ThrowingRoute()]);
 
         var response = await router.RouteAsync(
-            new LakonaLocalAdminRequest("POST", "/_lakona/throw", "{}", RemoteAddressIsLoopback: true),
+            new LakonaLocalAdminRequest("POST", "/_lakona/throw", Stream.Null, RemoteAddressIsLoopback: true),
             TestContext.Current.CancellationToken);
 
         Assert.Equal(400, response.StatusCode);
@@ -71,11 +75,43 @@ public sealed class LakonaLocalAdminRouterTests
         var router = new LakonaLocalAdminRouter([route]);
 
         var response = await router.RouteAsync(
-            new LakonaLocalAdminRequest("get", "/_lakona/test", "", RemoteAddressIsLoopback: true),
+            new LakonaLocalAdminRequest("get", "/_lakona/test", Stream.Null, RemoteAddressIsLoopback: true),
             TestContext.Current.CancellationToken);
 
         Assert.Equal(204, response.StatusCode);
         Assert.Single(route.Requests);
+    }
+
+    [Fact]
+    public async Task Explicit_loopback_policy_false_allows_non_loopback_dispatch()
+    {
+        var route = new TestRoute("GET", "/_lakona/test", new LakonaLocalAdminResponse(200, "text/plain", "ok"));
+        var router = new LakonaLocalAdminRouter([route]);
+
+        var response = await router.RouteAsync(
+            new LakonaLocalAdminRequest(
+                "GET",
+                "/_lakona/test",
+                Stream.Null,
+                RemoteAddressIsLoopback: false,
+                RequireLoopback: false),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.Single(route.Requests);
+    }
+
+    [Fact]
+    public void Duplicate_routes_throw_during_router_construction()
+    {
+        var first = new TestRoute("GET", "/_lakona/test", LakonaLocalAdminResponse.Json(new { ok = true }));
+        var second = new TestRoute("get", "/_lakona/test", LakonaLocalAdminResponse.Json(new { ok = true }));
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            new LakonaLocalAdminRouter([first, second]));
+
+        Assert.Contains("Duplicate", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("/_lakona/test", exception.Message, StringComparison.Ordinal);
     }
 
     private sealed class TestRoute : ILakonaLocalAdminRoute
@@ -115,6 +151,31 @@ public sealed class LakonaLocalAdminRouterTests
             CancellationToken cancellationToken = default)
         {
             throw new InvalidOperationException("route failed");
+        }
+    }
+
+    private sealed class CountingStream : MemoryStream
+    {
+        public int ReadCount { get; private set; }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            ReadCount++;
+            return base.Read(buffer, offset, count);
+        }
+
+        public override int Read(Span<byte> buffer)
+        {
+            ReadCount++;
+            return base.Read(buffer);
+        }
+
+        public override ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            ReadCount++;
+            return base.ReadAsync(buffer, cancellationToken);
         }
     }
 }
