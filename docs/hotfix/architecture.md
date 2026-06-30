@@ -222,15 +222,42 @@ If scanning or validation fails, the previous generation remains active.
 ### Feature Commands
 
 Hotfix feature declarations use `public static void Configure(HotfixFeatureContext context)`.
-The scanner does not construct feature classes during declaration. Runtime feature
-command calls activate a fresh feature instance from the current hotfix service
-provider, invoke a method shaped as
+Static `Configure` is the declaration surface for discoverability, metadata,
+hotfix-generation services, local actor declarations, actor ticks, and typed
+feature commands. The scanner does not construct feature classes during
+declaration.
+
+Runtime feature command calls activate a fresh feature instance from the current
+hotfix service provider, invoke a method shaped as
 `ValueTask<TReply> Method(HotfixFeatureCommandCall<TRequest> call)`, and dispose
 the feature instance after the returned `ValueTask` completes.
+`HotfixFeatureCommandCall<TRequest>` carries the request DTO, feature name,
+`FeatureCommandId`, correlation id, source node, expiration timestamp,
+cancellation token, and current generation service provider.
 
 Feature command request and reply DTOs may be hotfix-owned types. Their wire
 compatibility is governed by the hotfix BuildTag and the active hotfix generation,
 not by the stable RPC service boundary validator.
+
+Feature command request and reply payloads use the configured
+`Lakona:Cluster:Serializer` because feature commands travel over the
+node-to-node cluster channel. If that serializer is `memorypack`, hotfix-owned
+command DTOs must be MemoryPack-serializable in the current hotfix generation.
+
+The stable cluster boundary owns the low-level `IFeatureMessageHandler`. It
+parses `FeatureMessageRequest.Kind` as an invariant-culture positive
+`FeatureCommandId`, rejects blank, null, non-integer, zero, negative, or
+overflow values with `ClusterSendStatus.Rejected`, and dispatches valid
+commands into the current hotfix feature command table. Generated projects,
+samples, and ordinary hotfix business code must not register hotfix-side
+`IFeatureMessageHandler` implementations.
+
+Caller cancellation propagates through `HotfixFeatureCommandCall<TRequest>`.
+If the caller-provided cancellation token is canceled during dispatch, the
+handler propagates `OperationCanceledException` to the local caller. If a
+command throws `OperationCanceledException` without that token being canceled,
+the failure is treated as a command failure and maps to
+`ClusterSendStatus.Failed`.
 
 ## Generated Hotfix Services
 
