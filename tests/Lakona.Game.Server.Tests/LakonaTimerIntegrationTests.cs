@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using System.Text;
 using System.Text.Json;
@@ -222,6 +223,14 @@ public sealed class LakonaTimerIntegrationTests
 
         Assert.Contains("not loaded", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Collision.MissingArgs", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CreateOnceTimerAsync_does_not_pin_collectible_hotfix_args_metadata()
+    {
+        var loadContextReference = CreateTimerAndReleaseHotfixContextOnIsolatedThread();
+
+        await AssertLoadContextUnloadedAsync(loadContextReference, CancellationToken.None);
     }
 
     [Theory]
@@ -540,5 +549,111 @@ public sealed class LakonaTimerIntegrationTests
         stream.Position = 0;
         return new AssemblyLoadContext($"{assemblyName}-{Guid.NewGuid():N}", isCollectible: true)
             .LoadFromStream(stream);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static WeakReference CreateTimerAndReleaseHotfixContextOnIsolatedThread()
+    {
+        WeakReference? loadContextReference = null;
+        Exception? exception = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                loadContextReference = CreateTimerAndReleaseHotfixContext();
+            }
+            catch (Exception ex)
+            {
+                exception = ex;
+            }
+        });
+        thread.Start();
+        thread.Join();
+
+        if (exception is not null)
+        {
+            throw exception;
+        }
+
+        return loadContextReference ?? throw new InvalidOperationException("Unload test did not capture a load context reference.");
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static WeakReference CreateTimerAndReleaseHotfixContext()
+    {
+        const string assemblyName = "TimerHotfixUnload";
+        var assembly = CompileHotfixAssembly(
+            assemblyName,
+            """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+            namespace Unload;
+            public sealed record TimerArgs(string Name, int Count);
+            public sealed class TimerCallback
+            {
+                public static ValueTask HandleAsync(TimerTick<TimerArgs> tick)
+                {
+                    _ = tick;
+                    return default;
+                }
+            }
+            public static class TimerStarter
+            {
+                public static ValueTask<TimerId> StartAsync()
+                {
+                    return LakonaTimer.CreateOnceTimerAsync<TimerCallback, TimerArgs>(
+                        System.TimeSpan.Zero,
+                        nameof(TimerCallback.HandleAsync),
+                        new TimerArgs("hotfix", 5),
+                        default);
+                }
+            }
+            """);
+        var loadContext = AssemblyLoadContext.GetLoadContext(assembly)!;
+        var loadContextReference = new WeakReference(loadContext);
+        var starterType = assembly.GetType("Unload.TimerStarter", throwOnError: true)!;
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var table = new HotfixDispatchTable(44, Array.Empty<HotfixMethodBinding>());
+        var snapshot = new HotfixRuntimeSnapshot(
+            new HotfixServiceInvoker(table),
+            EmptyHotfixFeatureCommandInvoker.Instance,
+            services,
+            table,
+            services,
+            assembly,
+            loadContext: null,
+            sourceVersion: "unload-test",
+            sourceKind: "test",
+            sourcePath: null,
+            ownsRuntimeResources: false,
+            onRetired: null);
+        var backend = new LakonaTimerBackend();
+        using (var lease = snapshot.AcquireLease())
+        using (LakonaTimerExecutionScope.Enter(backend, lease))
+        {
+            var startMethod = starterType.GetMethod("StartAsync", BindingFlags.Public | BindingFlags.Static)!;
+            var result = startMethod.Invoke(null, []);
+            var timerId = ((ValueTask<TimerId>)result!).GetAwaiter().GetResult();
+            Assert.True(backend.TryGetDescriptor(timerId, out var descriptor));
+            Assert.Equal("Unload.TimerArgs", descriptor.ArgsFullName);
+        }
+
+        snapshot.Retire();
+        loadContext.Unload();
+        return loadContextReference;
+    }
+
+    private static async Task AssertLoadContextUnloadedAsync(WeakReference loadContextReference, CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 100 && loadContextReference.IsAlive; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+            await Task.Delay(50, cancellationToken).ConfigureAwait(false);
+        }
+
+        Assert.False(loadContextReference.IsAlive, "Hotfix timer creation should not retain collectible hotfix AssemblyLoadContext metadata.");
     }
 }
