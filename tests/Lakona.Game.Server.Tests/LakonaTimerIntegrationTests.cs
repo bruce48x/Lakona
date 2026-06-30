@@ -698,7 +698,8 @@ public sealed class LakonaTimerIntegrationTests
             { typeof(ObjectListCallback), typeof(ObjectListArgs), new ObjectListArgs([new ComplexNestedArgs("value", ComplexTimerMode.Fast)]), "object" },
             { typeof(ObjectDelegateCallback), typeof(ObjectMemberArgs), new ObjectMemberArgs((Func<int>)(() => 1)), "object" },
             { typeof(InterfaceMemberCallback), typeof(InterfaceMemberArgs), new InterfaceMemberArgs(new InterfaceImplementation("value")), "interface" },
-            { typeof(AbstractMemberCallback), typeof(AbstractMemberArgs), new AbstractMemberArgs(new ConcreteAbstractValue("value")), "abstract" }
+            { typeof(AbstractMemberCallback), typeof(AbstractMemberArgs), new AbstractMemberArgs(new ConcreteAbstractValue("value")), "abstract" },
+            { typeof(FieldBearingCallback), typeof(FieldBearingArgs), new FieldBearingArgs { Count = 7 }, "field" }
         };
     }
 
@@ -800,6 +801,38 @@ public sealed class LakonaTimerIntegrationTests
             _ = tick;
             return default;
         }
+    }
+
+    public sealed class FieldBearingArgs
+    {
+        public int Count;
+    }
+
+    public sealed class FieldBearingCallback
+    {
+        public static ValueTask HandleAsync(TimerTick<FieldBearingArgs> tick)
+        {
+            _ = tick;
+            return default;
+        }
+    }
+
+    [Fact]
+    public async Task CreateOnceTimerAsync_rejects_null_root_with_unsupported_declared_members()
+    {
+        await using var fixture = TimerFixture.Create(typeof(ObjectMemberCallback));
+        var backend = new LakonaTimerBackend();
+        using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await LakonaTimer.CreateOnceTimerAsync<ObjectMemberCallback, ObjectMemberArgs>(
+                TimeSpan.Zero,
+                nameof(ObjectMemberCallback.HandleAsync),
+                args: null!,
+                CancellationToken.None));
+
+        Assert.Contains("object", exception.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(backend.Descriptors);
     }
 
     private sealed class TimerFixture : IAsyncDisposable

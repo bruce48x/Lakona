@@ -491,6 +491,12 @@ internal sealed class LakonaTimerArgsSerializer
 
     private static void ValidateDeclaredShape(Type type)
     {
+        ValidateDeclaredShape(type, new HashSet<Type>());
+    }
+
+    private static void ValidateDeclaredShape(Type type, HashSet<Type> activeTypes)
+    {
+        type = Nullable.GetUnderlyingType(type) ?? type;
         if (IsSupportedScalarType(type))
         {
             return;
@@ -513,13 +519,13 @@ internal sealed class LakonaTimerArgsSerializer
 
         if (type.IsArray)
         {
-            ValidateDeclaredShape(type.GetElementType()!);
+            ValidateDeclaredShape(type.GetElementType()!, activeTypes);
             return;
         }
 
         if (IsListType(type, out var elementType))
         {
-            ValidateDeclaredShape(elementType);
+            ValidateDeclaredShape(elementType, activeTypes);
             return;
         }
 
@@ -536,6 +542,31 @@ internal sealed class LakonaTimerArgsSerializer
         if (IsFrameworkReferenceType(type))
         {
             throw new NotSupportedException($"Timer args framework reference type '{type.FullName}' is not supported.");
+        }
+
+        if (!activeTypes.Add(type))
+        {
+            return;
+        }
+
+        try
+        {
+            var publicField = type
+                .GetFields(BindingFlags.Instance | BindingFlags.Public)
+                .FirstOrDefault();
+            if (publicField is not null)
+            {
+                throw new NotSupportedException($"Timer args type '{type.FullName}' declares public field '{publicField.Name}', which is not supported. Use public properties for timer DTO state.");
+            }
+
+            foreach (var property in GetSerializableProperties(type))
+            {
+                ValidateDeclaredShape(property.PropertyType, activeTypes);
+            }
+        }
+        finally
+        {
+            activeTypes.Remove(type);
         }
     }
 
