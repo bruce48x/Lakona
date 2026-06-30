@@ -80,6 +80,20 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public void Hotfix_admin_options_default_to_development_mode_when_unconfigured()
+    {
+        var configuration = new ConfigurationBuilder().Build();
+        var method = typeof(Lakona.Game.Server.Hosting.LakonaGameServer).GetMethod(
+            "CreateDefaultHotfixAdminOptions",
+            BindingFlags.NonPublic | BindingFlags.Static)!;
+
+        var options = Assert.IsType<HotfixAdminOptions>(
+            method.Invoke(null, [configuration, AppContext.BaseDirectory, "test-build"]));
+
+        Assert.Equal("development", options.Mode);
+    }
+
+    [Fact]
     public void Public_game_server_contract_does_not_expose_reliable_push_protocol_methods()
     {
         var methodNames = typeof(ILakonaGameServer)
@@ -236,6 +250,48 @@ public sealed class LakonaGameServerTests
 
         var text = output.ToString() + errors.ToString();
         Assert.DoesNotContain("ULINK134", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Startup_validation_accepts_default_development_hotfix_layout()
+    {
+        var baseDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "LakonaStartupValidationTests",
+            Guid.NewGuid().ToString("N"));
+        try
+        {
+            var hotfixRoot = Path.Combine(baseDirectory, "hotfix");
+            Directory.CreateDirectory(hotfixRoot);
+            File.WriteAllText(Path.Combine(hotfixRoot, "Server.Hotfix.dll"), "");
+            Assert.False(File.Exists(Path.Combine(hotfixRoot, "current.txt")));
+
+            var error = await Record.ExceptionAsync(() =>
+                Lakona.Game.Server.Hosting.LakonaGameServer.ValidateStartupRuntimeForTesting(
+                    [],
+                    server =>
+                    {
+                        server.ConfigureAppConfiguration(configuration =>
+                            configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                            {
+                                ["Lakona:Endpoints:0:Transport"] = "websocket",
+                                ["Lakona:Endpoints:0:Serializer"] = "json",
+                                ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
+                                ["Lakona:Endpoints:0:Port"] = "20000",
+                                ["Lakona:Endpoints:0:Path"] = "/ws"
+                            }));
+                    },
+                    baseDirectory));
+
+            Assert.Null(error);
+        }
+        finally
+        {
+            if (Directory.Exists(baseDirectory))
+            {
+                Directory.Delete(baseDirectory, recursive: true);
+            }
+        }
     }
 
     [Fact]
