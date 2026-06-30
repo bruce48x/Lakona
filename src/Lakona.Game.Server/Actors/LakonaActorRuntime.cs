@@ -337,32 +337,25 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
     {
         snapshot = default;
 
-        try
-        {
-            if (cell.GetState() != ActorState.Active)
-            {
-                return false;
-            }
-
-            var metrics = cell.GetMailboxMetrics();
-            if (cell.GetState() != ActorState.Active)
-            {
-                return false;
-            }
-
-            snapshot = new ActorDiagnosticsCellSnapshot(
-                cell.ActorType.FullName ?? cell.ActorType.Name,
-                metrics);
-            return true;
-        }
-        catch (ObjectDisposedException)
+        if (cell.GetState() != ActorState.Active)
         {
             return false;
         }
-        catch (InvalidOperationException)
+
+        if (!cell.TryGetMailboxMetrics(out var metrics))
         {
             return false;
         }
+
+        if (cell.GetState() != ActorState.Active)
+        {
+            return false;
+        }
+
+        snapshot = new ActorDiagnosticsCellSnapshot(
+            cell.ActorType.FullName ?? cell.ActorType.Name,
+            metrics);
+        return true;
     }
 
     public IReadOnlyList<ActorId> GetActiveActorIds(Type actorType)
@@ -804,6 +797,30 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
         {
             var actorHandle = _actorHandle ?? throw new InvalidOperationException($"Actor '{_id}' is not bound.");
             return MapMailboxMetrics(actorHandle.GetMailboxMetrics());
+        }
+
+        public bool TryGetMailboxMetrics(out ActorMailboxMetrics metrics)
+        {
+            var actorHandle = _actorHandle;
+            if (actorHandle is null || MapActorState(actorHandle.GetState()) != ActorState.Active)
+            {
+                metrics = default;
+                return false;
+            }
+
+            K.MailboxMetrics kernelMetrics;
+            try
+            {
+                kernelMetrics = actorHandle.GetMailboxMetrics();
+            }
+            catch (InvalidOperationException)
+            {
+                metrics = default;
+                return false;
+            }
+
+            metrics = MapMailboxMetrics(kernelMetrics);
+            return true;
         }
 
         public ActorState GetState()
