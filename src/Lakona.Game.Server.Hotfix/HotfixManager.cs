@@ -15,12 +15,10 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
     private readonly SemaphoreSlim _reloadLock = new(1, 1);
     private long _nextVersion;
     private HotfixSnapshot _current = new(null, null, null, null, 0, Array.Empty<HotfixMethodKey>(), null, null, null);
-    private IServiceProvider _currentProvider = EmptyServiceProvider.Instance;
     private HotfixRuntimeSnapshot _currentRuntime = new(
         new HotfixServiceInvoker(HotfixDispatch.Current),
         EmptyHotfixFeatureCommandInvoker.Instance,
         EmptyServiceProvider.Instance);
-    private HotfixAssemblyLoadContext? _loadContext;
 
     public HotfixManager(
         IHotfixAssemblySource source,
@@ -46,6 +44,21 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
     IServiceProvider IHotfixServiceProviderAccessor.Current => Volatile.Read(ref _currentRuntime).Services;
 
     HotfixRuntimeSnapshot IHotfixRuntimeAccessor.Current => Volatile.Read(ref _currentRuntime);
+
+    HotfixRuntimeSnapshotLease IHotfixRuntimeAccessor.AcquireCurrent()
+    {
+        while (true)
+        {
+            var snapshot = Volatile.Read(ref _currentRuntime);
+            try
+            {
+                return snapshot.AcquireLease();
+            }
+            catch (ObjectDisposedException) when (!ReferenceEquals(snapshot, Volatile.Read(ref _currentRuntime)))
+            {
+            }
+        }
+    }
 
     public async ValueTask<HotfixReloadResult> ValidateAsync(CancellationToken cancellationToken = default)
     {
@@ -150,18 +163,28 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             }
 
             HotfixDispatch.Replace(table);
+            var publishedProvider = hotfixProvider;
+            var publishedContext = pendingContext;
             var runtimeSnapshot = new HotfixRuntimeSnapshot(
                 new HotfixServiceInvoker(table),
                 new HotfixFeatureCommandInvoker(table),
-                hotfixProvider);
-            var oldProvider = Interlocked.Exchange(ref _currentProvider, hotfixProvider);
+                hotfixProvider,
+                table,
+                hotfixProvider,
+                assembly,
+                resolved.Version,
+                resolved.SourceKind,
+                resolved.AssemblyPath,
+                () =>
+                {
+                    DisposeQuietly(publishedProvider);
+                    UnloadQuietly(publishedContext);
+                });
+            var oldRuntime = Interlocked.Exchange(ref _currentRuntime, runtimeSnapshot);
             hotfixProvider = null;
-            var oldContext = Interlocked.Exchange(ref _loadContext, pendingContext);
             pendingContext = null;
-            Volatile.Write(ref _currentRuntime, runtimeSnapshot);
             Volatile.Write(ref _current, snapshot);
-            DisposeQuietly(oldProvider);
-            UnloadQuietly(oldContext);
+            oldRuntime.Retire();
 
             var result = new HotfixReloadResult(HotfixReloadStatus.Succeeded, snapshot, resolved.Version, resolved.AssemblyPath, Array.Empty<string>());
             Reloaded?.Invoke(this, result);
@@ -190,10 +213,6 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 ex.Message,
                 ex.GetType().FullName,
                 previous.Features);
-            if (publish)
-            {
-                Volatile.Write(ref _current, snapshot);
-            }
 
             return new HotfixReloadResult(
                 HotfixReloadStatus.Failed,
