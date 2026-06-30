@@ -50,7 +50,7 @@ public sealed class HotfixFeatureContext
         string actorId,
         TimeSpan interval,
         TickBacklogPolicy backlogPolicy,
-        string methodName = "TickAsync")
+        string methodName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(actorId);
         AddTick(typeof(TActor), HotfixActorTickMode.FixedActor, actorId, interval, backlogPolicy, methodName);
@@ -59,7 +59,7 @@ public sealed class HotfixFeatureContext
     public void ScheduleActiveActorTicks<TActor>(
         TimeSpan interval,
         TickBacklogPolicy backlogPolicy,
-        string methodName = "TickAsync")
+        string methodName)
     {
         AddTick(typeof(TActor), HotfixActorTickMode.ActiveActors, "", interval, backlogPolicy, methodName);
     }

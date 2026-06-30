@@ -1,5 +1,6 @@
 using Agar.Sample.State.Matchmaking;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Server.Hotfix.State.Matchmaking;
 
 namespace Server.Hotfix.Features;
 
@@ -12,6 +13,7 @@ public sealed class MatchmakingFeature : HotfixGameFeature
         context.ScheduleActorTick<MatchmakingActor>(
             "default",
             TimeSpan.FromMilliseconds(250),
-            TickBacklogPolicy.Coalesce);
+            TickBacklogPolicy.Coalesce,
+            nameof(MatchmakingBehavior.TickAsync));
     }
 }

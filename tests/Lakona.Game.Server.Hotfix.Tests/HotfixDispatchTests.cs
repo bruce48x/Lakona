@@ -253,6 +253,45 @@ public sealed class HotfixDispatchTests
     }
 
     [Fact]
+    public void FeatureTickValidationRejectsMissingTickMethod()
+    {
+        var table = new HotfixDispatchTable(1, Array.Empty<HotfixMethodBinding>());
+
+        var exception = Assert.Throws<HotfixMethodNotLoadedException>(() =>
+            table.ValidateFeatureTickMethods([
+                CreateTickFeatureDeclaration(typeof(TickDispatchActor), "MissingTickAsync")
+            ]));
+
+        Assert.Contains("MissingTickAsync", exception.Message);
+        Assert.Contains("is not loaded", exception.Message);
+    }
+
+    [Fact]
+    public void FeatureTickValidationRejectsMalformedTickMethod()
+    {
+        var method = typeof(MalformedTickBehavior).GetMethod(nameof(MalformedTickBehavior.TickAsync))!;
+        var binding = new HotfixMethodBinding(
+            HotfixDispatch.CreateKey(
+                typeof(TickDispatchActor),
+                nameof(MalformedTickBehavior.TickAsync),
+                typeof(ValueTask),
+                [typeof(HotfixActorTick)]),
+            method,
+            typeof(TickDispatchActor),
+            typeof(ValueTask),
+            [typeof(HotfixActorTick)]);
+        var table = new HotfixDispatchTable(1, [binding]);
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            table.ValidateFeatureTickMethods([
+                CreateTickFeatureDeclaration(typeof(TickDispatchActor), nameof(MalformedTickBehavior.TickAsync))
+            ]));
+
+        Assert.Contains("Hotfix tick method", exception.Message);
+        Assert.Contains("HotfixActorTick", exception.Message);
+    }
+
+    [Fact]
     public async Task FeatureCommandDispatchUnwrapsSynchronousExceptionAndDisposesFeature()
     {
         ThrowingDispatchFeature.DisposeCount = 0;
@@ -433,6 +472,25 @@ public sealed class HotfixDispatchTests
             Array.Empty<HotfixActorTickDeclaration>(),
             commands,
             Array.Empty<ServiceDescriptor>());
+    }
+
+    private static HotfixFeatureDeclaration CreateTickFeatureDeclaration(Type actorType, string methodName)
+    {
+        return new HotfixFeatureDeclaration(
+            "tick-feature",
+            typeof(DispatchFeature),
+            Discoverable: true,
+            new Dictionary<string, string>(),
+            [],
+            [new HotfixActorTickDeclaration(
+                HotfixActorTickMode.FixedActor,
+                actorType,
+                "default",
+                methodName,
+                TimeSpan.FromMilliseconds(250),
+                TickBacklogPolicy.Coalesce)],
+            [],
+            []);
     }
 
     private static FeatureMessageRequest NewFeatureMessage(string feature, string kind)
@@ -746,6 +804,19 @@ public sealed class ActivationCountingDispatchFeature : HotfixGameFeature, IDisp
     public void Dispose()
     {
         DisposeCount++;
+    }
+}
+
+public sealed class TickDispatchActor
+{
+}
+
+public static class MalformedTickBehavior
+{
+    public static ValueTask TickAsync(TickDispatchActor actor)
+    {
+        _ = actor;
+        return default;
     }
 }
 

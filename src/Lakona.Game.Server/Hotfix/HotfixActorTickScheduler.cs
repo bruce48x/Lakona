@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
@@ -7,11 +8,14 @@ namespace Lakona.Game.Server.Hotfix;
 
 internal sealed class HotfixActorTickScheduler(
     IActorRuntime actors,
-    ILogger<HotfixActorTickScheduler> logger) : IAsyncDisposable
+    ILogger<HotfixActorTickScheduler> logger,
+    IHotfixActorTickSchedulerObserver? observer = null) : IAsyncDisposable
 {
     private readonly object _sync = new();
     private readonly Dictionary<string, TickLoop> _loops = [];
     private readonly Dictionary<PendingKey, PendingState> _pending = [];
+    private readonly IHotfixActorTickSchedulerObserver _observer =
+        observer ?? NullHotfixActorTickSchedulerObserver.Instance;
 
     public void Apply(HotfixSnapshot snapshot)
     {
@@ -128,7 +132,10 @@ internal sealed class HotfixActorTickScheduler(
     private void Dispatch(TickSource source, ActorId actorId)
     {
         var key = new PendingKey(source.Key, actorId);
+        var observation = CreateDispatchObservation(source, actorId);
         PendingState pending;
+        var skipped = false;
+        var coalesced = false;
         lock (_sync)
         {
             if (_pending.TryGetValue(key, out pending!))
@@ -136,30 +143,51 @@ internal sealed class HotfixActorTickScheduler(
                 if (source.BacklogPolicy == TickBacklogPolicy.Coalesce)
                 {
                     pending.Coalesced = true;
+                    coalesced = true;
                 }
                 else
                 {
-                    logger.LogDebug(
-                        "Skipping hotfix actor tick {TickSource} for actor {ActorId}; previous tick is pending.",
-                        source.Key,
-                        actorId.Value);
+                    skipped = true;
                 }
-
-                return;
             }
-
-            pending = new PendingState();
-            _pending.Add(key, pending);
+            else
+            {
+                pending = new PendingState();
+                _pending.Add(key, pending);
+            }
         }
 
-        DispatchPending(source, actorId, key, pending);
+        if (coalesced)
+        {
+            NotifyObserver(
+                observer => observer.OnDispatchCoalesced(observation),
+                "dispatch coalesced",
+                observation);
+            return;
+        }
+
+        if (skipped)
+        {
+            logger.LogDebug(
+                "Skipping hotfix actor tick {TickSource} for actor {ActorId}; previous tick is pending.",
+                source.Key,
+                actorId.Value);
+            NotifyObserver(
+                observer => observer.OnDispatchSkipped(observation),
+                "dispatch skipped",
+                observation);
+            return;
+        }
+
+        DispatchPending(source, actorId, key, pending, observation);
     }
 
     private void DispatchPending(
         TickSource source,
         ActorId actorId,
         PendingKey key,
-        PendingState pending)
+        PendingState pending,
+        HotfixActorTickDispatchObservation observation)
     {
         var result = actors.TryTell(
             source.ActorType,
@@ -176,6 +204,20 @@ internal sealed class HotfixActorTickScheduler(
                         Sequence = Interlocked.Increment(ref pending.Sequence),
                         DispatchTableVersion = table.Version
                     };
+                    var entryObservation = new HotfixActorTickEntryObservation(
+                        observation.SourceKey,
+                        observation.ActorType,
+                        observation.ActorId,
+                        observation.MethodName,
+                        observation.Interval,
+                        observation.BacklogPolicy,
+                        observation.QueuedTimestamp,
+                        Stopwatch.GetTimestamp(),
+                        tick.Sequence);
+                    NotifyObserver(
+                        observer => observer.OnTickEntered(entryObservation),
+                        "tick entered",
+                        observation);
 
                     await HotfixDispatch.InvokeValueTaskAsync(
                         source.ActorType,
@@ -192,6 +234,10 @@ internal sealed class HotfixActorTickScheduler(
 
         if (result == ActorTellResult.Accepted)
         {
+            NotifyObserver(
+                observer => observer.OnDispatchAccepted(observation),
+                "dispatch accepted",
+                observation);
             return;
         }
 
@@ -201,6 +247,10 @@ internal sealed class HotfixActorTickScheduler(
             actorId.Value,
             result);
 
+        NotifyObserver(
+            observer => observer.OnDispatchRejected(observation, result),
+            "dispatch rejected",
+            observation);
         CompletePending(source, actorId, key, pending);
     }
 
@@ -231,7 +281,40 @@ internal sealed class HotfixActorTickScheduler(
 
         if (dispatchFollowUp)
         {
-            DispatchPending(source, actorId, key, pending);
+            DispatchPending(source, actorId, key, pending, CreateDispatchObservation(source, actorId));
+        }
+    }
+
+    private static HotfixActorTickDispatchObservation CreateDispatchObservation(
+        TickSource source,
+        ActorId actorId)
+    {
+        return new HotfixActorTickDispatchObservation(
+            source.Key,
+            source.ActorType,
+            actorId,
+            source.MethodName,
+            source.Interval,
+            source.BacklogPolicy,
+            Stopwatch.GetTimestamp());
+    }
+
+    private void NotifyObserver(
+        Action<IHotfixActorTickSchedulerObserver> notify,
+        string eventName,
+        HotfixActorTickDispatchObservation observation)
+    {
+        try
+        {
+            notify(_observer);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(
+                ex,
+                "Hotfix actor tick scheduler observer failed for {ObserverEvent} on tick source {TickSource}.",
+                eventName,
+                observation.SourceKey);
         }
     }
 

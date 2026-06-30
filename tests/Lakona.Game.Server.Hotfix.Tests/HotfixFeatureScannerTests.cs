@@ -158,10 +158,12 @@ public sealed class HotfixFeatureScannerTests
             context.ScheduleActorTick<MatchmakingActor>(
                 "default",
                 TimeSpan.FromMilliseconds(250),
-                TickBacklogPolicy.Coalesce);
+                TickBacklogPolicy.Coalesce,
+                nameof(TickBehavior.TickAsync));
             context.ScheduleActiveActorTicks<RoomActor>(
                 TimeSpan.FromMilliseconds(50),
-                TickBacklogPolicy.SkipIfPending);
+                TickBacklogPolicy.SkipIfPending,
+                nameof(TickBehavior.TickAsync));
         }
     }
 
@@ -171,6 +173,23 @@ public sealed class HotfixFeatureScannerTests
 
     private sealed class RoomActor
     {
+    }
+
+    private static class TickBehavior
+    {
+        public static ValueTask TickAsync(MatchmakingActor actor, HotfixActorTick tick)
+        {
+            _ = actor;
+            _ = tick;
+            return default;
+        }
+
+        public static ValueTask TickAsync(RoomActor actor, HotfixActorTick tick)
+        {
+            _ = actor;
+            _ = tick;
+            return default;
+        }
     }
 
     [HotfixFeature("state-store")]
