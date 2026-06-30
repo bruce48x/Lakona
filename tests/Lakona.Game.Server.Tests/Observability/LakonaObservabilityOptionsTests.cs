@@ -215,7 +215,8 @@ public sealed class LakonaObservabilityOptionsTests
                     },
                     Categories = new Dictionary<string, string>
                     {
-                        ["Lakona.Game.Custom"] = "InvalidLevel"
+                        ["Lakona.Game.Custom"] = "InvalidLevel",
+                        ["Lakona.Game.Numeric"] = "999"
                     }
                 });
         });
@@ -226,6 +227,10 @@ public sealed class LakonaObservabilityOptionsTests
         Assert.Contains(
             filterOptions.Rules,
             rule => string.Equals(rule.CategoryName, "Lakona.Game.Custom", StringComparison.Ordinal)
+                && rule.LogLevel == LogLevel.Information);
+        Assert.Contains(
+            filterOptions.Rules,
+            rule => string.Equals(rule.CategoryName, "Lakona.Game.Numeric", StringComparison.Ordinal)
                 && rule.LogLevel == LogLevel.Information);
     }
 

@@ -38,6 +38,7 @@ internal static class LakonaLoggingConfiguration
     private static LogLevel ParseCategoryLevel(string value)
     {
         return Enum.TryParse<LogLevel>(value, ignoreCase: true, out var parsed)
+            && Enum.IsDefined(parsed)
             ? parsed
             : LogLevel.Information;
     }
