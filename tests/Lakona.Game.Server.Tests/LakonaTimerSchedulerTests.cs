@@ -109,6 +109,37 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
     }
 
     [Fact]
+    public async Task CommitStagedTimersAsync_rolls_back_scheduler_registration_when_add_fails_after_registration()
+    {
+        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
+        var fixture = SchedulerFixture.Create(time);
+        try
+        {
+            var stagingBackend = fixture.Backend.CreateStagingBackend();
+            TimerId stagedTimerId;
+            using (var lease = fixture.RuntimeAccessor.AcquireCurrent())
+            using (LakonaTimerExecutionScope.Enter(stagingBackend, lease))
+            {
+                stagedTimerId = await LakonaTimer.CreateOnceTimerAsync<TimerCallbackTarget, TimerArgs>(
+                    TimeSpan.Zero,
+                    nameof(TimerCallbackTarget.TickAsync),
+                    new TimerArgs("staged"),
+                    CancellationToken.None);
+            }
+
+            fixture.Scheduler.Dispose();
+
+            await Assert.ThrowsAsync<ObjectDisposedException>(async () =>
+                await fixture.Backend.CommitStagedTimersAsync(stagingBackend, CancellationToken.None));
+            Assert.False(fixture.Contains(stagedTimerId));
+        }
+        finally
+        {
+            await fixture.DisposeAsync();
+        }
+    }
+
+    [Fact]
     public async Task Destroy_before_lease_prevents_dispatch()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

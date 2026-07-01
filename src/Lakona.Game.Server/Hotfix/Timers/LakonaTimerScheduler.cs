@@ -165,14 +165,22 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
     {
         ArgumentNullException.ThrowIfNull(descriptor);
         var registration = new LakonaTimerRegistration(descriptor);
-        lock (gate)
+        try
         {
-            registration.NextDueTimestamp = GetDueTimestamp(descriptor.NextDueAtUtc);
-            registrations[descriptor.TimerId] = registration;
-            EnqueueHeap(registration);
-        }
+            lock (gate)
+            {
+                registration.NextDueTimestamp = GetDueTimestamp(descriptor.NextDueAtUtc);
+                registrations[descriptor.TimerId] = registration;
+                EnqueueHeap(registration);
+            }
 
-        Signal();
+            Signal();
+        }
+        catch
+        {
+            RollbackAddedRegistration(registration);
+            throw;
+        }
     }
 
     internal void Destroy(TimerId timerId)
@@ -671,6 +679,23 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         {
             logger.LogWarning(ex, "Lakona timer {TimerId} cancellation callback failed.", timerId);
         }
+    }
+
+    private void RollbackAddedRegistration(LakonaTimerRegistration registration)
+    {
+        CancellationTokenSource? dispatchCancellation = null;
+        lock (gate)
+        {
+            if (registrations.TryGetValue(registration.TimerId, out var current)
+                && ReferenceEquals(current, registration))
+            {
+                registrations.Remove(registration.TimerId);
+                registration.Destroy();
+                dispatchCancellation = registration.TakeDispatchCancellation();
+            }
+        }
+
+        CancelDispatch(registration.TimerId, dispatchCancellation);
     }
 
     private void CancelSchedulerStop()
