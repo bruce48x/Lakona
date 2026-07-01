@@ -30,6 +30,7 @@ contracts:
 | [docs/recording.md](./docs/recording.md) | Actor message recording and replay diagnostics model |
 | [docs/rpc.md](./docs/rpc.md) | RPC design principles and maintainer reference index |
 | [docs/source-generation.md](./docs/source-generation.md) | RPC source-generation policy and generated-code boundary |
+| [docs/agent-workflows/large-cross-cutting-change.md](./docs/agent-workflows/large-cross-cutting-change.md) | Platform-neutral AI-agent workflow for large cross-package or high-risk changes |
 | [docs/hotfix/architecture.md](./docs/hotfix/architecture.md) | Hotfix architecture, operational boundary, BuildTag, and deployment model |
 | [docs/hotfix/actor-behavior.md](./docs/hotfix/actor-behavior.md) | Mandatory actor state and hotfix behavior authoring rules |
 | [docs/hotfix/service-binding.md](./docs/hotfix/service-binding.md) | Generated service binding model for shared RPC contracts and hotfix services |
@@ -92,6 +93,32 @@ Before committing:
 - If a change modifies shippable package content under `src/**`, apply the
   version bump rules in [NuGet Publishing](#nuget-publishing).
 
+## Large Cross-Cutting Changes
+
+AI agents and human contributors must treat a change as large and
+cross-cutting when it is likely to touch multiple packages, public APIs,
+runtime lifecycle, hot reload, scheduling, concurrency, source generation,
+generated project templates, or sample migrations.
+
+Before implementing a large cross-cutting change:
+
+- Read [docs/agent-workflows/large-cross-cutting-change.md](./docs/agent-workflows/large-cross-cutting-change.md).
+- Produce a scope and risk checkpoint that names the packages, tests, public
+  APIs, migration work, and integration risks involved.
+- Split the work into small, reviewable milestones that can be merged or
+  rebased against the base branch regularly.
+- Keep strongly coupled runtime work under one continuity-preserving
+  implementation owner. Use helper agents only for independent, low-coupling
+  slices.
+- Match review effort to risk: use the strongest available reviewer for
+  architecture, concurrency, lifecycle, and final integration gates; use
+  checklist-based review for mechanical migrations.
+- Run the hygiene checklist in the workflow before requesting final review.
+
+Do not start a broad implementation as many isolated fresh-agent tasks by
+default. That pattern is appropriate only when the slices are genuinely
+independent and have disjoint write scopes.
+
 ## Repository Layout
 
 ```txt
@@ -118,6 +145,7 @@ samples/
 
 docs/
   *.md                             Active design docs and maintainer references by topic
+  agent-workflows/                 Platform-neutral AI-agent workflows for repository work
   hotfix/                          Hotfix architecture and authoring rules
   protocol/                        RPC protocol and status contracts
   api-stability/                   Public API compatibility boundaries
