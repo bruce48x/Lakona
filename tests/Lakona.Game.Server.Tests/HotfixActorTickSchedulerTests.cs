@@ -395,6 +395,7 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
         using var hotfixRuntime = CreateRuntime(manager.Current.Features, "1");
         var participant = new HotfixLocalActorPublicationParticipant(lifecycle);
         await participant.BeforePublishAsync(hotfixRuntime.Snapshot, cancellationToken);
+        await participant.AfterPublishAsync(hotfixRuntime.Snapshot, hotfixRuntime.Snapshot, cancellationToken);
         var service = new HotfixActorTickHostedService(
             manager,
             scheduler,
@@ -426,12 +427,9 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
     }
 
     [Fact]
-    public async Task Local_actor_publication_failure_keeps_old_hotfix_publication()
+    public async Task Local_actor_preflight_failure_keeps_old_publication_and_does_not_create_candidate_actors()
     {
-        var actorLifecycle = new RecordingActorRuntime
-        {
-            CreateLocalFailureDiagnostic = "local actor create failed"
-        };
+        var actorLifecycle = new RecordingActorRuntime();
         var participant = new HotfixLocalActorPublicationParticipant(actorLifecycle);
         var manager = new HotfixManager(
             new UnusedAssemblySource(),
@@ -440,7 +438,10 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
         using var candidateRuntime = CreateRuntime([
             CreateFeature(
                 "candidate",
-                [new HotfixLocalActorDeclaration(typeof(TickActor), "fixed")],
+                [
+                    new HotfixLocalActorDeclaration(typeof(TickActor), "created-before-failure"),
+                    new HotfixLocalActorDeclaration(typeof(NotActor), "invalid")
+                ],
                 [])
         ], "2");
         var first = await manager.PublishCandidateAsync(
@@ -460,7 +461,9 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
             TestContext.Current.CancellationToken);
 
         Assert.False(failed.Succeeded);
-        Assert.Contains("local actor create failed", failed.Diagnostics);
+        Assert.Contains(failed.Diagnostics, diagnostic =>
+            diagnostic.Contains(nameof(NotActor), StringComparison.Ordinal) &&
+            diagnostic.Contains(nameof(IActor), StringComparison.Ordinal));
         Assert.Same(oldPublishedRuntime, ((IHotfixRuntimeAccessor)manager).Current);
         Assert.Same(oldPublishedSnapshot, manager.Current);
         Assert.Same(oldPublishedDispatch, HotfixDispatch.Current);
@@ -1111,6 +1114,8 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
                 ? _recordingRuntimeId
                 : Context.Id.Value;
     }
+
+    private sealed class NotActor;
 
     private sealed class TestFeature;
 
