@@ -18,7 +18,6 @@ public sealed class HotfixAdminController
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _manager = manager ?? throw new ArgumentNullException(nameof(manager));
-        _options.Validate();
     }
 
     public async Task<HotfixStatusResponse> GetStatusAsync(CancellationToken cancellationToken = default)

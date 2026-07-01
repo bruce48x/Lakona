@@ -52,27 +52,6 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public void Hotfix_admin_options_ignore_legacy_lakona_game_root()
-    {
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Lakona.Game:Hotfix:Admin:Enabled"] = "true",
-                ["Lakona.Game:Hotfix:Admin:Port"] = "20091"
-            })
-            .Build();
-        var method = typeof(Lakona.Game.Server.Hosting.LakonaGameServer).GetMethod(
-            "CreateDefaultHotfixAdminOptions",
-            BindingFlags.NonPublic | BindingFlags.Static)!;
-
-        var options = Assert.IsType<HotfixAdminOptions>(
-            method.Invoke(null, [configuration, AppContext.BaseDirectory, "test-build"]));
-
-        Assert.False(options.Enabled);
-        Assert.Equal(20090, options.Port);
-    }
-
-    [Fact]
     public void Hotfix_admin_options_default_to_development_mode_when_unconfigured()
     {
         var configuration = new ConfigurationBuilder().Build();

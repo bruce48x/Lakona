@@ -13,7 +13,6 @@ public static class HotfixAdminServiceCollectionExtensions
     {
         var options = new HotfixAdminOptions();
         configure?.Invoke(options);
-        options.Validate();
 
         services.AddSingleton(options);
         services.AddSingleton(sp => new HotfixVersionStore(options.HotfixRoot));

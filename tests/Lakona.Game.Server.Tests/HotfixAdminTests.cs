@@ -12,23 +12,12 @@ namespace Lakona.Game.Server.Tests;
 public sealed class HotfixAdminTests
 {
     [Fact]
-    public void Options_reject_non_loopback_binding_configuration()
-    {
-        var options = new HotfixAdminOptions { Host = "10.0.0.5" };
-
-        var exception = Assert.Throws<InvalidOperationException>(() => options.Validate());
-
-        Assert.Contains("loopback", exception.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
     public void Production_hotfix_mode_uses_version_pointer_source_even_when_local_admin_is_disabled()
     {
         var source = LakonaGameServer.CreateDefaultHotfixAssemblySourceForTesting(
             AppContext.BaseDirectory,
             new HotfixAdminOptions
             {
-                Enabled = false,
                 Mode = "production"
             });
 
@@ -42,7 +31,6 @@ public sealed class HotfixAdminTests
             AppContext.BaseDirectory,
             new HotfixAdminOptions
             {
-                Enabled = true,
                 Mode = "development"
             });
 

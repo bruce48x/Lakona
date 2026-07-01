@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -11,12 +10,6 @@ public static class LakonaGameServerGatewayExtensions
     {
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, RpcServersHostedService>());
         return services;
-    }
-
-    [Obsolete("Register project-specific options directly and call AddLakonaGameServerGateway().")]
-    public static IServiceCollection AddLakonaGameServerGateway(this IServiceCollection services, IConfiguration configuration)
-    {
-        return services.AddLakonaGameServerGateway();
     }
 
     public static IServiceCollection AddRpcServer<TConfigurator>(this IServiceCollection services)

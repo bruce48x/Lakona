@@ -574,7 +574,6 @@ public static class LakonaGameServer
             baseDirectory,
             new HotfixAdminOptions
             {
-                Enabled = true,
                 Mode = "production",
                 HotfixRoot = Path.Combine(baseDirectory, "hotfix"),
                 BuildTag = buildTag
@@ -623,9 +622,6 @@ public static class LakonaGameServer
 
     private static void CopyHotfixAdminOptions(HotfixAdminOptions source, HotfixAdminOptions target)
     {
-        target.Enabled = source.Enabled;
-        target.Host = source.Host;
-        target.Port = source.Port;
         target.HotfixRoot = source.HotfixRoot;
         target.BuildTag = source.BuildTag;
         target.Mode = source.Mode;
