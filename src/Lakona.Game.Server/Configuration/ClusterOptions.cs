@@ -58,14 +58,9 @@ public sealed class ClusterNodeDirectoryOptions
     {
         return new ClusterNodeDirectoryOptions
         {
-            Enabled = ReadBool(section, "Enabled", defaults.Enabled),
+            Enabled = LakonaConfigurationReader.ReadBool(section, "Enabled", defaults.Enabled),
             Storage = ClusterNodeDirectoryStorageOptions.FromConfiguration(section.GetSection("Storage"), defaults.Storage)
         };
-    }
-
-    private static bool ReadBool(IConfiguration section, string name, bool fallback)
-    {
-        return bool.TryParse(section[name], out var value) ? value : fallback;
     }
 }
 
@@ -81,15 +76,9 @@ public sealed class ClusterNodeDirectoryStorageOptions
     {
         return new ClusterNodeDirectoryStorageOptions
         {
-            Mode = ReadString(section, "Mode", defaults.Mode),
-            Provider = ReadString(section, "Provider", defaults.Provider),
-            ConnectionStringName = ReadString(section, "ConnectionStringName", defaults.ConnectionStringName)
+            Mode = LakonaConfigurationReader.ReadString(section, "Mode", defaults.Mode),
+            Provider = LakonaConfigurationReader.ReadString(section, "Provider", defaults.Provider),
+            ConnectionStringName = LakonaConfigurationReader.ReadString(section, "ConnectionStringName", defaults.ConnectionStringName)
         };
-    }
-
-    private static string ReadString(IConfiguration section, string name, string fallback)
-    {
-        var value = section[name];
-        return string.IsNullOrWhiteSpace(value) ? fallback : value;
     }
 }

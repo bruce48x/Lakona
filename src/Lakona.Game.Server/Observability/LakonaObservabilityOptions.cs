@@ -1,4 +1,4 @@
-using System.Globalization;
+using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Guardrails;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -36,47 +36,6 @@ public sealed class LakonaObservabilityOptions
     {
         return FromConfiguration(new ConfigurationBuilder().Build(), profile);
     }
-
-    internal static bool ReadBool(IConfiguration section, string name, bool fallback)
-    {
-        return bool.TryParse(section[name], out var parsed) ? parsed : fallback;
-    }
-
-    internal static int ReadInt(IConfiguration section, string name, int fallback)
-    {
-        return int.TryParse(section[name], out var parsed) ? parsed : fallback;
-    }
-
-    internal static long ReadLong(IConfiguration section, string name, long fallback)
-    {
-        return long.TryParse(section[name], out var parsed) ? parsed : fallback;
-    }
-
-    internal static double ReadDouble(IConfiguration section, string name, double fallback)
-    {
-        return double.TryParse(
-            section[name],
-            NumberStyles.Float,
-            CultureInfo.InvariantCulture,
-            out var parsed)
-            ? parsed
-            : fallback;
-    }
-
-    internal static string ReadString(IConfiguration section, string name, string fallback)
-    {
-        var value = section[name];
-        return string.IsNullOrWhiteSpace(value) ? fallback : value;
-    }
-
-    internal static LogLevel ReadLogLevel(IConfiguration section, string name, LogLevel fallback)
-    {
-        var value = section[name];
-        return Enum.TryParse<LogLevel>(value, ignoreCase: true, out var parsed)
-            && Enum.IsDefined(parsed)
-            ? parsed
-            : fallback;
-    }
 }
 
 public sealed class LakonaLoggingObservabilityOptions
@@ -93,8 +52,8 @@ public sealed class LakonaLoggingObservabilityOptions
     {
         return new LakonaLoggingObservabilityOptions
         {
-            Enabled = LakonaObservabilityOptions.ReadBool(section, "Enabled", true),
-            MinimumLevel = LakonaObservabilityOptions.ReadLogLevel(
+            Enabled = LakonaConfigurationReader.ReadBool(section, "Enabled", true),
+            MinimumLevel = LakonaConfigurationReader.ReadLogLevel(
                 section,
                 "MinimumLevel",
                 LogLevel.Information),
@@ -143,9 +102,9 @@ public sealed class LakonaConsoleLoggingObservabilityOptions
     {
         return new LakonaConsoleLoggingObservabilityOptions
         {
-            Enabled = LakonaObservabilityOptions.ReadBool(section, "Enabled", true),
-            Format = LakonaObservabilityOptions.ReadString(section, "Format", "Compact"),
-            IncludeScopes = LakonaObservabilityOptions.ReadBool(section, "IncludeScopes", false)
+            Enabled = LakonaConfigurationReader.ReadBool(section, "Enabled", true),
+            Format = LakonaConfigurationReader.ReadString(section, "Format", "Compact"),
+            IncludeScopes = LakonaConfigurationReader.ReadBool(section, "IncludeScopes", false)
         };
     }
 }
@@ -162,14 +121,14 @@ public sealed class LakonaFileLoggingObservabilityOptions
     {
         return new LakonaFileLoggingObservabilityOptions
         {
-            Enabled = LakonaObservabilityOptions.ReadBool(section, "Enabled", false),
-            Path = LakonaObservabilityOptions.ReadString(section, "Path", "logs/lakona-.log"),
-            RollingInterval = LakonaObservabilityOptions.ReadString(section, "RollingInterval", "Day"),
-            RetainedFileCount = LakonaObservabilityOptions.ReadInt(
+            Enabled = LakonaConfigurationReader.ReadBool(section, "Enabled", false),
+            Path = LakonaConfigurationReader.ReadString(section, "Path", "logs/lakona-.log"),
+            RollingInterval = LakonaConfigurationReader.ReadString(section, "RollingInterval", "Day"),
+            RetainedFileCount = LakonaConfigurationReader.ReadInt(
                 section,
                 "RetainedFileCount",
                 7),
-            FileSizeLimitMB = LakonaObservabilityOptions.ReadInt(
+            FileSizeLimitMB = LakonaConfigurationReader.ReadInt(
                 section,
                 "FileSizeLimitMB",
                 128)
@@ -195,9 +154,9 @@ public sealed class LakonaLocalAdminObservabilityOptions
         {
             Enabled = enabled,
             EffectiveEnabled = enabled ?? profile == LakonaGameRuntimeProfile.Development,
-            Host = LakonaObservabilityOptions.ReadString(section, "Host", "127.0.0.1"),
-            Port = LakonaObservabilityOptions.ReadInt(section, "Port", 20090),
-            RequireLoopback = LakonaObservabilityOptions.ReadBool(section, "RequireLoopback", true)
+            Host = LakonaConfigurationReader.ReadString(section, "Host", "127.0.0.1"),
+            Port = LakonaConfigurationReader.ReadInt(section, "Port", 20090),
+            RequireLoopback = LakonaConfigurationReader.ReadBool(section, "RequireLoopback", true)
         };
     }
 }
@@ -212,8 +171,8 @@ public sealed class LakonaDiagnosticsObservabilityOptions
     {
         return new LakonaDiagnosticsObservabilityOptions
         {
-            SummaryEnabled = LakonaObservabilityOptions.ReadBool(section, "SummaryEnabled", true),
-            DetailEnabled = LakonaObservabilityOptions.ReadBool(section, "DetailEnabled", false),
+            SummaryEnabled = LakonaConfigurationReader.ReadBool(section, "SummaryEnabled", true),
+            DetailEnabled = LakonaConfigurationReader.ReadBool(section, "DetailEnabled", false),
             EventBuffer = LakonaDiagnosticsEventBufferOptions.FromConfiguration(
                 section.GetSection("EventBuffer"))
         };
@@ -231,10 +190,10 @@ public sealed class LakonaDiagnosticsEventBufferOptions
     {
         return new LakonaDiagnosticsEventBufferOptions
         {
-            Enabled = LakonaObservabilityOptions.ReadBool(section, "Enabled", true),
-            Capacity = LakonaObservabilityOptions.ReadInt(section, "Capacity", 1024),
+            Enabled = LakonaConfigurationReader.ReadBool(section, "Enabled", true),
+            Capacity = LakonaConfigurationReader.ReadInt(section, "Capacity", 1024),
             CapacityRaw = section["Capacity"] ?? "1024",
-            MinimumLevel = LakonaObservabilityOptions.ReadLogLevel(
+            MinimumLevel = LakonaConfigurationReader.ReadLogLevel(
                 section,
                 "MinimumLevel",
                 LogLevel.Warning)
@@ -265,8 +224,8 @@ public sealed class LakonaPrometheusObservabilityOptions
     {
         return new LakonaPrometheusObservabilityOptions
         {
-            Enabled = LakonaObservabilityOptions.ReadBool(section, "Enabled", false),
-            Path = LakonaObservabilityOptions.ReadString(section, "Path", "/_lakona/metrics")
+            Enabled = LakonaConfigurationReader.ReadBool(section, "Enabled", false),
+            Path = LakonaConfigurationReader.ReadString(section, "Path", "/_lakona/metrics")
         };
     }
 }
@@ -294,8 +253,8 @@ public sealed class LakonaTraceExportObservabilityOptions
     {
         return new LakonaTraceExportObservabilityOptions
         {
-            Enabled = LakonaObservabilityOptions.ReadBool(section, "Enabled", false),
-            SampleRate = LakonaObservabilityOptions.ReadDouble(section, "SampleRate", 1.0),
+            Enabled = LakonaConfigurationReader.ReadBool(section, "Enabled", false),
+            SampleRate = LakonaConfigurationReader.ReadDouble(section, "SampleRate", 1.0),
             SampleRateRaw = section["SampleRate"] ?? "1.0"
         };
     }

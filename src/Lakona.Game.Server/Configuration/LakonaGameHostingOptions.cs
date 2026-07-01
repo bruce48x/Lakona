@@ -39,9 +39,9 @@ public sealed class LakonaActorHostingOptions
         var defaults = new LakonaActorHostingOptions();
         return new LakonaActorHostingOptions
         {
-            MailboxCapacity = ReadInt(section, "MailboxCapacity", defaults.MailboxCapacity),
-            CallTimeout = ReadSeconds(section, "CallTimeoutSeconds", defaults.CallTimeout),
-            SlowMessageThreshold = ReadNullableSeconds(
+            MailboxCapacity = LakonaConfigurationReader.ReadInt(section, "MailboxCapacity", defaults.MailboxCapacity),
+            CallTimeout = LakonaConfigurationReader.ReadSeconds(section, "CallTimeoutSeconds", defaults.CallTimeout),
+            SlowMessageThreshold = LakonaConfigurationReader.ReadNullableSeconds(
                 section,
                 "SlowMessageThresholdSeconds",
                 defaults.SlowMessageThreshold)
@@ -53,21 +53,6 @@ public sealed class LakonaActorHostingOptions
         options.MailboxCapacity = MailboxCapacity;
         options.CallTimeout = CallTimeout;
         options.SlowMessageThreshold = SlowMessageThreshold;
-    }
-
-    private static int ReadInt(IConfiguration section, string key, int fallback)
-    {
-        return int.TryParse(section[key], out var value) ? value : fallback;
-    }
-
-    private static TimeSpan ReadSeconds(IConfiguration section, string key, TimeSpan fallback)
-    {
-        return double.TryParse(section[key], out var value) ? TimeSpan.FromSeconds(value) : fallback;
-    }
-
-    private static TimeSpan? ReadNullableSeconds(IConfiguration section, string key, TimeSpan? fallback)
-    {
-        return double.TryParse(section[key], out var value) ? TimeSpan.FromSeconds(value) : fallback;
     }
 }
 
@@ -97,9 +82,9 @@ public sealed class LakonaSessionCleanupHostingOptions
         var defaults = new LakonaSessionCleanupHostingOptions();
         return new LakonaSessionCleanupHostingOptions
         {
-            Enabled = bool.TryParse(section["Enabled"], out var enabled) ? enabled : defaults.Enabled,
-            Interval = ReadSeconds(section, "IntervalSeconds", defaults.Interval),
-            DisconnectedSessionRetention = ReadSeconds(
+            Enabled = LakonaConfigurationReader.ReadBool(section, "Enabled", defaults.Enabled),
+            Interval = LakonaConfigurationReader.ReadSeconds(section, "IntervalSeconds", defaults.Interval),
+            DisconnectedSessionRetention = LakonaConfigurationReader.ReadSeconds(
                 section,
                 "DisconnectedRetentionSeconds",
                 defaults.DisconnectedSessionRetention)
@@ -110,10 +95,5 @@ public sealed class LakonaSessionCleanupHostingOptions
     {
         options.Interval = Interval;
         options.DisconnectedSessionRetention = DisconnectedSessionRetention;
-    }
-
-    private static TimeSpan ReadSeconds(IConfiguration section, string key, TimeSpan fallback)
-    {
-        return double.TryParse(section[key], out var value) ? TimeSpan.FromSeconds(value) : fallback;
     }
 }

@@ -84,15 +84,15 @@ public sealed class LakonaGameRuntimeOptions
 
         return new ClusterOptions
         {
-            NodeId = ReadString(section, "NodeId", defaults.NodeId),
-            AdvertisedEndpoints = ReadDictionary(
+            NodeId = LakonaConfigurationReader.ReadString(section, "NodeId", defaults.NodeId),
+            AdvertisedEndpoints = LakonaConfigurationReader.ReadDictionary(
                 section.GetSection("AdvertisedEndpoints"), defaults.AdvertisedEndpoints),
             Bootstrap = ClusterBootstrapOptions.FromConfiguration(
                 section.GetSection("Bootstrap"), defaults.Bootstrap),
             NodeDirectory = ClusterNodeDirectoryOptions.FromConfiguration(
                 section.GetSection("NodeDirectory"), defaults.NodeDirectory),
-            RouteLeaseSeconds = ReadInt(section, "RouteLeaseSeconds", defaults.RouteLeaseSeconds),
-            SendTimeoutMilliseconds = ReadInt(section, "SendTimeoutMilliseconds", defaults.SendTimeoutMilliseconds)
+            RouteLeaseSeconds = LakonaConfigurationReader.ReadInt(section, "RouteLeaseSeconds", defaults.RouteLeaseSeconds),
+            SendTimeoutMilliseconds = LakonaConfigurationReader.ReadInt(section, "SendTimeoutMilliseconds", defaults.SendTimeoutMilliseconds)
         };
     }
 
@@ -120,7 +120,7 @@ public sealed class LakonaGameRuntimeOptions
                 Transport = endpoint["Transport"] ?? "",
                 Serializer = endpoint["Serializer"] ?? "",
                 Host = endpoint["Host"] ?? "",
-                Port = ReadInt(endpoint["Port"]),
+                Port = LakonaConfigurationReader.ReadInt(endpoint["Port"]),
                 Path = endpoint["Path"] ?? "",
                 AdvertisedHost = endpoint["AdvertisedHost"] ?? "",
                 RpcServices = BindStringArray(endpoint.GetSection("RpcServices"))
@@ -170,7 +170,7 @@ public sealed class LakonaGameRuntimeOptions
         {
             Provider = section["Provider"] ?? "",
             ConnectionStringName = section["ConnectionStringName"] ?? "",
-            NodeTable = ReadString(section, "NodeTable", "lakona_cluster_nodes"),
+            NodeTable = LakonaConfigurationReader.ReadString(section, "NodeTable", "lakona_cluster_nodes"),
             EnsureSchemaOnStartup = bool.TryParse(section["EnsureSchemaOnStartup"], out var parsed) && parsed
         };
     }
@@ -217,35 +217,6 @@ public sealed class LakonaGameRuntimeOptions
         }
     }
 
-    private static int ReadInt(string? value)
-    {
-        return int.TryParse(value, out var parsed) ? parsed : 0;
-    }
-
-    private static string ReadString(IConfiguration section, string name, string fallback)
-    {
-        var value = section[name];
-        return string.IsNullOrWhiteSpace(value) ? fallback : value;
-    }
-
-    private static int ReadInt(IConfiguration section, string name, int fallback)
-    {
-        return int.TryParse(section[name], out var parsed) ? parsed : fallback;
-    }
-
-    private static IReadOnlyDictionary<string, string> ReadDictionary(
-        IConfigurationSection section,
-        IReadOnlyDictionary<string, string> fallback)
-    {
-        var children = section.GetChildren().ToList();
-        if (children.Count == 0)
-        {
-            return fallback;
-        }
-
-        return children.ToDictionary(child => child.Key, child => child.Value ?? "");
-    }
-
 }
 
 public sealed class LakonaGameNodeOptions
@@ -256,13 +227,7 @@ public sealed class LakonaGameNodeOptions
     {
         return new LakonaGameNodeOptions
         {
-            Id = ReadString(section, "Id", "dev-1")
+            Id = LakonaConfigurationReader.ReadString(section, "Id", "dev-1")
         };
-    }
-
-    private static string ReadString(IConfiguration section, string name, string fallback)
-    {
-        var value = section[name];
-        return string.IsNullOrWhiteSpace(value) ? fallback : value;
     }
 }
