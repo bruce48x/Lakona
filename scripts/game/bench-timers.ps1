@@ -11,6 +11,20 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..')
+$benchmarkEnvNames = @(
+    'LAKONA_TIMER_BENCHMARK_SMOKE',
+    'LAKONA_TIMER_BENCHMARK_TIMER_COUNTS',
+    'LAKONA_TIMER_BENCHMARK_PERIOD_MS',
+    'LAKONA_TIMER_BENCHMARK_CALLBACK_COSTS',
+    'LAKONA_TIMER_BENCHMARK_DURATION_MS',
+    'LAKONA_TIMER_BENCHMARK_MAX_WORKERS',
+    'LAKONA_TIMER_BENCHMARK_QUEUE_CAPACITY'
+)
+$previousEnv = @{}
+foreach ($name in $benchmarkEnvNames) {
+    $previousEnv[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+}
+
 Push-Location $repoRoot
 try {
     if ($Smoke) {
@@ -44,11 +58,21 @@ try {
         $env:LAKONA_TIMER_BENCHMARK_QUEUE_CAPACITY = $QueueCapacity.ToString([Globalization.CultureInfo]::InvariantCulture)
     }
 
-    dotnet test tests\Lakona.Game.Server.Tests\Lakona.Game.Server.Tests.csproj --filter LakonaTimerPerformanceTests --no-restore --logger "console;verbosity=detailed"
+    $testProject = Join-Path (Join-Path 'tests' 'Lakona.Game.Server.Tests') 'Lakona.Game.Server.Tests.csproj'
+    dotnet test $testProject --filter LakonaTimerPerformanceTests --no-restore --logger "console;verbosity=detailed"
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }
 }
 finally {
+    foreach ($name in $benchmarkEnvNames) {
+        if ($null -eq $previousEnv[$name]) {
+            Remove-Item -LiteralPath "Env:\$name" -ErrorAction SilentlyContinue
+        }
+        else {
+            Set-Item -LiteralPath "Env:\$name" -Value $previousEnv[$name]
+        }
+    }
+
     Pop-Location
 }

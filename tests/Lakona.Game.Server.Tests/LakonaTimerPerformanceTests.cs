@@ -1,5 +1,6 @@
-using System.Collections.Concurrent;
+using System.Buffers;
 using System.Diagnostics;
+using System.Globalization;
 using System.Runtime;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -32,6 +33,7 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
             Assert.True(scenario.EnteredTicks > 0);
             Assert.True(scenario.MaxQueueDepth <= scenario.Options.DispatchQueueCapacity);
             Assert.True(scenario.MaxActiveWorkers <= scenario.Options.MaxConcurrentCallbacks);
+            Assert.Equal(0, scenario.HeapStaleEntryCount);
         });
         Assert.Contains("runtime version", results.Report, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("benchmark options", results.Report, StringComparison.OrdinalIgnoreCase);
@@ -78,7 +80,17 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
         private static int GetInt(string name, int defaultValue)
         {
             var value = Environment.GetEnvironmentVariable(name);
-            return int.TryParse(value, out var parsed) && parsed > 0 ? parsed : defaultValue;
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return defaultValue;
+            }
+
+            if (!int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) || parsed <= 0)
+            {
+                throw new InvalidOperationException($"{name} must be a positive integer.");
+            }
+
+            return parsed;
         }
 
         private static bool GetBool(string name, bool defaultValue)
@@ -89,9 +101,21 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
                 return defaultValue;
             }
 
-            return string.Equals(value, "1", StringComparison.OrdinalIgnoreCase)
+            if (string.Equals(value, "1", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(value, "true", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(value, "yes", StringComparison.OrdinalIgnoreCase);
+                || string.Equals(value, "yes", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (string.Equals(value, "0", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "false", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "no", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            throw new InvalidOperationException($"{name} must be true, false, 1, 0, yes, or no.");
         }
 
         private static IReadOnlyList<int> GetIntList(string name, int[] defaultValue)
@@ -103,7 +127,7 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
             }
 
             var parsed = value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(static item => int.Parse(item, System.Globalization.CultureInfo.InvariantCulture))
+                .Select(item => ParsePositiveInteger(name, item))
                 .ToArray();
             return parsed.Length == 0 ? defaultValue : parsed;
         }
@@ -129,9 +153,19 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
             return parsed.Length == 0 ? defaultValue : parsed;
         }
 
+        private static int ParsePositiveInteger(string name, string value)
+        {
+            if (!int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) || parsed <= 0)
+            {
+                throw new InvalidOperationException($"{name} values must be positive integers. Invalid value: '{value}'.");
+            }
+
+            return parsed;
+        }
+
         private static TimerCallbackCost ParseCallbackCost(string value)
         {
-            return value switch
+            return value.ToLowerInvariant() switch
             {
                 "empty" => TimerCallbackCost.Empty,
                 "actor" => TimerCallbackCost.Actor,
@@ -217,6 +251,7 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
             var cpuAfter = Process.GetCurrentProcess().TotalProcessorTime;
             var allocatedAfter = GC.GetTotalAllocatedBytes(precise: true);
             var activeTimerCount = fixture.Scheduler.Descriptors.Count;
+            var heapStaleEntryCount = observer.HeapStaleEntryCount;
 
             var destroyStart = Stopwatch.GetTimestamp();
             foreach (var timerId in timerIds)
@@ -234,6 +269,8 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
                 P50DispatchLatency: observer.GetLatencyPercentile(0.50),
                 P95DispatchLatency: observer.GetLatencyPercentile(0.95),
                 P99DispatchLatency: observer.GetLatencyPercentile(0.99),
+                LatencyObservationCount: observer.LatencyObservationCount,
+                LatencySampleCount: observer.LatencySampleCount,
                 ThroughputPerSecond: enteredTicks / Math.Max(options.Duration.TotalSeconds, 0.001),
                 SkippedTicks: observer.SkippedTicks,
                 CallbackFailures: observer.CallbackFailures,
@@ -245,7 +282,7 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
                 CreateLatency: createElapsed,
                 DestroyLatency: destroyElapsed,
                 ActiveTimerCount: activeTimerCount,
-                HeapStaleEntryCount: observer.HeapStaleEntryCount);
+                HeapStaleEntryCount: heapStaleEntryCount);
         }
 
         private static string BuildReport(TimerBenchmarkRun run)
@@ -257,14 +294,16 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
             builder.AppendLine($"processor count: {run.ProcessorCount}");
             builder.AppendLine($"GC mode: {run.GCMode}");
             builder.AppendLine($"benchmark options: smoke={run.Options.Smoke}; timerCounts={string.Join(",", run.Options.TimerCounts)}; periodsMs={string.Join(",", run.Options.Periods.Select(static period => period.TotalMilliseconds))}; callbackCosts={string.Join(",", run.Options.CallbackCosts.Select(FormatCallbackCost))}; durationMs={run.Options.Duration.TotalMilliseconds}; maxWorkers={run.Options.MaxConcurrentCallbacks}; queueCapacity={run.Options.DispatchQueueCapacity}");
+            builder.AppendLine("callback cost model: synthetic benchmark work; names are stable comparison labels, not production actor or network implementations");
             foreach (var scenario in run.Scenarios)
             {
                 builder.AppendLine(
                     $"scenario timerCount={scenario.Options.TimerCount} periodMs={scenario.Options.Period.TotalMilliseconds} callbackCost={FormatCallbackCost(scenario.Options.CallbackCost)} " +
                     $"p50DispatchLatencyMs={scenario.P50DispatchLatency.TotalMilliseconds:F3} p95DispatchLatencyMs={scenario.P95DispatchLatency.TotalMilliseconds:F3} p99DispatchLatencyMs={scenario.P99DispatchLatency.TotalMilliseconds:F3} " +
+                    $"latencyObservations={scenario.LatencyObservationCount} latencySamples={scenario.LatencySampleCount} " +
                     $"throughput={scenario.ThroughputPerSecond:F2}/s skippedTicks={scenario.SkippedTicks} callbackFailures={scenario.CallbackFailures} queueDepth={scenario.MaxQueueDepth} queueFullSkips={scenario.QueueFullSkips} " +
-                    $"activeWorkerCount={scenario.MaxActiveWorkers} allocatedBytesPerTick={scenario.AllocatedBytesPerTick} cpuTimeMs={scenario.CpuTime.TotalMilliseconds:F3} " +
-                    $"createLatencyMs={scenario.CreateLatency.TotalMilliseconds:F3} destroyLatencyMs={scenario.DestroyLatency.TotalMilliseconds:F3} activeTimerCount={scenario.ActiveTimerCount} heapStaleEntryCount={scenario.HeapStaleEntryCount}");
+                    $"activeWorkerCount={scenario.MaxActiveWorkers} allocatedBytesPerTickApproxProcess={scenario.AllocatedBytesPerTick} cpuTimeMsApproxProcess={scenario.CpuTime.TotalMilliseconds:F3} " +
+                    $"schedulerRegistrationCreateLatencyMs={scenario.CreateLatency.TotalMilliseconds:F3} destroyLatencyMs={scenario.DestroyLatency.TotalMilliseconds:F3} activeTimerCount={scenario.ActiveTimerCount} heapStaleEntryCount={scenario.HeapStaleEntryCount}");
             }
 
             return builder.ToString();
@@ -381,7 +420,11 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
 
     private sealed class BenchmarkTimerSchedulerObserver : ILakonaTimerSchedulerObserver
     {
-        private readonly ConcurrentBag<double> latencyMilliseconds = [];
+        private readonly object gate = new();
+        private readonly HashSet<DispatchKey> queued = [];
+        private readonly HashSet<DispatchKey> startedBeforeQueued = [];
+        private readonly HashSet<DispatchKey> completedBeforeQueued = [];
+        private readonly BoundedLatencySampler latencySampler = new(8192);
         private int queueDepth;
         private int activeWorkers;
         private int maxQueueDepth;
@@ -403,10 +446,23 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
 
         public long HeapStaleEntryCount => Volatile.Read(ref heapStaleEntryCount);
 
+        public long LatencyObservationCount => latencySampler.ObservationCount;
+
+        public int LatencySampleCount => latencySampler.SampleCount;
+
         public void OnDispatchQueued(LakonaTimerDispatchObservation observation)
         {
-            var current = Interlocked.Increment(ref queueDepth);
-            UpdateMax(ref maxQueueDepth, current);
+            var key = DispatchKey.FromObservation(observation);
+            lock (gate)
+            {
+                if (startedBeforeQueued.Remove(key) || completedBeforeQueued.Remove(key) || !queued.Add(key))
+                {
+                    return;
+                }
+
+                queueDepth++;
+                UpdateMax(ref maxQueueDepth, queueDepth);
+            }
         }
 
         public void OnDispatchQueueFull(LakonaTimerDispatchObservation observation)
@@ -421,21 +477,35 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
 
         public void OnDispatchStarted(LakonaTimerDispatchObservation observation)
         {
-            Interlocked.Decrement(ref queueDepth);
+            var key = DispatchKey.FromObservation(observation);
+            lock (gate)
+            {
+                if (queued.Remove(key))
+                {
+                    queueDepth--;
+                }
+                else
+                {
+                    startedBeforeQueued.Add(key);
+                }
+            }
+
             var current = Interlocked.Increment(ref activeWorkers);
             UpdateMax(ref maxActiveWorkers, current);
-            latencyMilliseconds.Add(Math.Max(0, (DateTimeOffset.UtcNow - observation.DueAtUtc).TotalMilliseconds));
+            latencySampler.Add(Math.Max(0, (DateTimeOffset.UtcNow - observation.DueAtUtc).TotalMilliseconds));
         }
 
         public void OnDispatchFailed(LakonaTimerDispatchObservation observation, Exception exception)
         {
             Interlocked.Increment(ref callbackFailures);
             Interlocked.Decrement(ref activeWorkers);
+            RemoveStarted(DispatchKey.FromObservation(observation));
         }
 
         public void OnDispatchCompleted(LakonaTimerDispatchObservation observation)
         {
             Interlocked.Decrement(ref activeWorkers);
+            RemoveStarted(DispatchKey.FromObservation(observation));
         }
 
         public void OnStaleHeapEntry(LakonaTimerHeapObservation observation)
@@ -445,7 +515,7 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
 
         public TimeSpan GetLatencyPercentile(double percentile)
         {
-            var values = latencyMilliseconds.ToArray();
+            var values = latencySampler.GetSamples();
             if (values.Length == 0)
             {
                 return TimeSpan.Zero;
@@ -454,6 +524,17 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
             Array.Sort(values);
             var index = Math.Clamp((int)Math.Ceiling(values.Length * percentile) - 1, 0, values.Length - 1);
             return TimeSpan.FromMilliseconds(values[index]);
+        }
+
+        private void RemoveStarted(DispatchKey key)
+        {
+            lock (gate)
+            {
+                if (startedBeforeQueued.Remove(key))
+                {
+                    completedBeforeQueued.Add(key);
+                }
+            }
         }
 
         private static void UpdateMax(ref int target, int value)
@@ -466,6 +547,68 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
                     return;
                 }
             }
+        }
+    }
+
+    private readonly record struct DispatchKey(TimerId TimerId, long Generation)
+    {
+        public static DispatchKey FromObservation(LakonaTimerDispatchObservation observation)
+        {
+            return new DispatchKey(observation.TimerId, observation.Generation);
+        }
+    }
+
+    private sealed class BoundedLatencySampler(int capacity)
+    {
+        private readonly object gate = new();
+        private readonly double[] samples = new double[capacity];
+        private long observations;
+        private int count;
+
+        public long ObservationCount => Volatile.Read(ref observations);
+
+        public int SampleCount
+        {
+            get
+            {
+                lock (gate)
+                {
+                    return count;
+                }
+            }
+        }
+
+        public void Add(double latencyMilliseconds)
+        {
+            lock (gate)
+            {
+                var observed = ++observations;
+                if (count < samples.Length)
+                {
+                    samples[count++] = latencyMilliseconds;
+                    return;
+                }
+
+                var replacementIndex = GetReservoirReplacementIndex(observed);
+                if (replacementIndex < (ulong)samples.Length)
+                {
+                    samples[(int)replacementIndex] = latencyMilliseconds;
+                }
+            }
+        }
+
+        public double[] GetSamples()
+        {
+            lock (gate)
+            {
+                return samples.Take(count).ToArray();
+            }
+        }
+
+        private static ulong GetReservoirReplacementIndex(long observed)
+        {
+            var mixed = unchecked((ulong)observed * 11400714819323198485UL);
+            return mixed % (ulong)observed;
         }
     }
 
@@ -494,6 +637,8 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
         TimeSpan P50DispatchLatency,
         TimeSpan P95DispatchLatency,
         TimeSpan P99DispatchLatency,
+        long LatencyObservationCount,
+        int LatencySampleCount,
         double ThroughputPerSecond,
         long SkippedTicks,
         long CallbackFailures,
@@ -511,24 +656,26 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
 
     public sealed class TimerBenchmarkCallback
     {
+        private const int ActorShardCount = 64;
+        private static readonly object[] ActorGates = Enumerable.Range(0, ActorShardCount).Select(static _ => new object()).ToArray();
+        private static readonly long[] ActorState = new long[ActorShardCount];
         private static long enteredTicks;
-        private static long actorState;
+        private static long broadcastChecksum;
 
         public static long EnteredTicks => Volatile.Read(ref enteredTicks);
 
         public static ValueTask TickAsync(TimerTick<TimerBenchmarkArgs> tick)
         {
-            Interlocked.Increment(ref enteredTicks);
+            var currentTick = Interlocked.Increment(ref enteredTicks);
             switch (tick.Args.Cost)
             {
                 case TimerCallbackCost.Empty:
                     break;
                 case TimerCallbackCost.Actor:
-                    Interlocked.Increment(ref actorState);
+                    RunSyntheticActorCost(tick.TimerId, currentTick);
                     break;
                 case TimerCallbackCost.SimulatedRoomBroadcast:
-                    Span<byte> payload = stackalloc byte[256];
-                    payload.Fill((byte)(enteredTicks & 0xFF));
+                    RunSyntheticRoomBroadcastCost(currentTick);
                     break;
                 default:
                     throw new InvalidOperationException($"Unsupported callback cost '{tick.Args.Cost}'.");
@@ -540,7 +687,47 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
         public static void Reset()
         {
             Volatile.Write(ref enteredTicks, 0);
-            Volatile.Write(ref actorState, 0);
+            Volatile.Write(ref broadcastChecksum, 0);
+            Array.Clear(ActorState, 0, ActorState.Length);
+        }
+
+        private static void RunSyntheticActorCost(TimerId timerId, long currentTick)
+        {
+            var shard = (timerId.GetHashCode() & int.MaxValue) % ActorShardCount;
+            lock (ActorGates[shard])
+            {
+                var state = ActorState[shard];
+                for (var step = 0; step < 8; step++)
+                {
+                    state = long.RotateLeft(state ^ currentTick ^ step, 7) + 0x9E3779B9;
+                }
+
+                ActorState[shard] = state;
+            }
+        }
+
+        private static void RunSyntheticRoomBroadcastCost(long currentTick)
+        {
+            var rented = ArrayPool<byte>.Shared.Rent(512);
+            try
+            {
+                rented.AsSpan(0, 512).Fill((byte)(currentTick & 0xFF));
+                long checksum = 0;
+                for (var recipient = 0; recipient < 32; recipient++)
+                {
+                    var recipientSalt = recipient * 31;
+                    for (var index = 0; index < 512; index += 32)
+                    {
+                        checksum += rented[index] ^ recipientSalt;
+                    }
+                }
+
+                Interlocked.Add(ref broadcastChecksum, checksum);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(rented);
+            }
         }
     }
 }
