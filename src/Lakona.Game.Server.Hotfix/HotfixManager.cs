@@ -280,10 +280,6 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 await participant.BeforePublishAsync(runtimeSnapshot, cancellationToken)
                     .ConfigureAwait(false);
             }
-
-            await _featureLifecycle.CommitCandidateTimersAsync(
-                nextFeatureLifecycle,
-                cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -310,6 +306,9 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             runtimeSnapshot.DispatchTable ?? previousPublication.DispatchTable);
         HotfixDispatch.ReplaceProvider(() => Volatile.Read(ref _publication).DispatchTable);
         Volatile.Write(ref _publication, nextPublication);
+        await _featureLifecycle.CommitCandidateTimersAsync(
+            nextFeatureLifecycle,
+            CancellationToken.None).ConfigureAwait(false);
 
         try
         {

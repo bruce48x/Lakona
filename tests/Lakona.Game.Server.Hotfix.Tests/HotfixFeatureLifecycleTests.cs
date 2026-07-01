@@ -87,6 +87,33 @@ public sealed class HotfixFeatureLifecycleTests
     }
 
     [Fact]
+    public async Task Renamed_feature_stops_old_name_under_previous_snapshot_and_starts_new_name()
+    {
+        LifecycleRecorder.Reset();
+        var coordinator = new HotfixFeatureLifecycleCoordinator();
+        using var previousRuntime = CreateRuntime([Feature("old-name", typeof(SnapshotObservingFeature))], "previous");
+        var previous = await coordinator.StartCandidateAsync(
+            HotfixFeatureLifecycleSnapshot.Empty,
+            previousRuntime.Snapshot,
+            previousRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+
+        LifecycleRecorder.Reset();
+        using var candidateRuntime = CreateRuntime([Feature("new-name", typeof(StatefulFeature))], "candidate");
+        var next = await coordinator.StartCandidateAsync(
+            previous,
+            candidateRuntime.Snapshot,
+            candidateRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+        await coordinator.StopRemovedAsync(previous, next, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["start:new-name"], LifecycleRecorder.Events);
+        Assert.Equal("previous", LifecycleRecorder.StopServiceMarker);
+        Assert.DoesNotContain("old-name", next.FeatureNames);
+        Assert.Contains("new-name", next.FeatureNames);
+    }
+
+    [Fact]
     public async Task Start_failure_stops_already_started_candidates_rolls_back_timers_and_preserves_old_state()
     {
         LifecycleRecorder.Reset();
@@ -235,6 +262,36 @@ public sealed class HotfixFeatureLifecycleTests
         Assert.Equal(2, observations.AfterSnapshotVersion);
         Assert.Equal(2, observations.AfterRuntimeVersion);
         Assert.Equal(2, observations.AfterDispatchVersion);
+    }
+
+    [Fact]
+    public async Task Staged_timers_are_committed_only_after_candidate_publication_is_current()
+    {
+        LifecycleRecorder.Reset();
+        using var oldRuntime = CreateRuntime([Feature("old", typeof(StatefulFeature))], "1");
+        var backend = new RecordingLifecycleTimerBackend();
+        using var candidateRuntime = CreateRuntime([Feature("new-a", typeof(TimerStartFeature))], "2", backend);
+        var manager = new HotfixManager(new UnusedAssemblySource());
+        backend.ReadCurrentVersionDuringCommit = () => manager.Current.Version;
+
+        var first = await manager.PublishCandidateAsync(
+            oldRuntime.Snapshot,
+            CreateSnapshot(1, oldRuntime.Snapshot.DispatchTable!.Features),
+            oldRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+        Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+        LifecycleRecorder.Reset();
+
+        var second = await manager.PublishCandidateAsync(
+            candidateRuntime.Snapshot,
+            CreateSnapshot(2, candidateRuntime.Snapshot.DispatchTable!.Features),
+            candidateRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+
+        Assert.True(second.Succeeded, string.Join(Environment.NewLine, second.Diagnostics));
+        Assert.Equal("2", backend.CurrentVersionObservedDuringCommit);
+        Assert.Equal(1, backend.CommitCount);
+        Assert.Single(backend.ActiveTimers);
     }
 
     private static ScopedRuntime CreateRuntime(
@@ -528,6 +585,10 @@ public sealed class HotfixFeatureLifecycleTests
 
         public int RollbackCount { get; private set; }
 
+        public Func<string?>? ReadCurrentVersionDuringCommit { get; set; }
+
+        public string? CurrentVersionObservedDuringCommit { get; private set; }
+
         public ValueTask<TimerId> CreateOnceTimerAsync<TCallback, TArgs>(
             TimeSpan dueTime,
             string methodName,
@@ -565,6 +626,7 @@ public sealed class HotfixFeatureLifecycleTests
         public ValueTask CommitStagedTimersAsync(ILakonaTimerBackend stagingBackend, CancellationToken cancellationToken)
         {
             CommitCount++;
+            CurrentVersionObservedDuringCommit = ReadCurrentVersionDuringCommit?.Invoke();
             foreach (var timerId in ((StagingBackend)stagingBackend).Timers)
             {
                 activeTimers.Add(timerId);
