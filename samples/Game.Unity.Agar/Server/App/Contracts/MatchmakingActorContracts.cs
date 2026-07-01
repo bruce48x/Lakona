@@ -18,10 +18,17 @@ public interface IMatchmakingActorContract
     ValueTask<MatchmakingStatusSnapshot> GetStatusAsync(
         MatchmakingStatusRequest request,
         CancellationToken cancellationToken = default);
+
+    ValueTask RunTickAsync(MatchmakingTickRequest request, CancellationToken cancellationToken = default);
 }
 
 public sealed class MatchmakingStatusRequest
 {
+}
+
+public sealed class MatchmakingTickRequest
+{
+    public DateTime ObservedAtUtc { get; set; }
 }
 
 public sealed class MatchmakingState

@@ -164,6 +164,14 @@ public static partial class MatchmakingBehavior
         });
     }
 
+    public static async ValueTask RunTickAsync(this MatchmakingActor self, MatchmakingTickRequest request, CancellationToken cancellationToken = default)
+    {
+        EnsureState(self);
+        var observedAtUtc = NormalizeUtc(request.ObservedAtUtc);
+        var assignments = await TryMatchAsync(self, observedAtUtc, allowExpiredPartialBatch: true).ConfigureAwait(false);
+        await PublishMatchedAsync(self, assignments.Values).ConfigureAwait(false);
+    }
+
     public static async ValueTask<Dictionary<string, RoomAssignment>> TryMatchAsync(
         this MatchmakingActor self,
         DateTime nowUtc,
@@ -248,6 +256,23 @@ public static partial class MatchmakingBehavior
     private static IServiceProvider GetCurrentHotfixServices(IServiceProvider services)
     {
         return services.GetRequiredService<IHotfixServiceProviderAccessor>().Current;
+    }
+
+    private static async Task PublishMatchedAsync(MatchmakingActor self, IEnumerable<RoomAssignment> assignments)
+    {
+        if (self.Context.Services.GetService<MatchmakingNotifier>() is null)
+        {
+            return;
+        }
+
+        var services = AgarServiceDependencies.From(self.Context.Services);
+        foreach (var assignment in assignments
+            .Where(static assignment => !string.IsNullOrWhiteSpace(assignment.RoomId))
+            .GroupBy(static assignment => assignment.RoomId, StringComparer.Ordinal)
+            .Select(static group => group.First()))
+        {
+            await PlayerService.PublishMatchedAsync(services, assignment).ConfigureAwait(false);
+        }
     }
 
     public static ValueTask<GatewayEndpointDescriptor?> ResolveRuntimeGatewayAsync(

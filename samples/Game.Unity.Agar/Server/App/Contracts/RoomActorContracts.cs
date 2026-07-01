@@ -24,8 +24,17 @@ public interface IRoomActorContract
     ValueTask<RoomSnapshot> GetSnapshotAsync(RoomSnapshotRequest request, CancellationToken cancellationToken = default);
 
     ValueTask SubmitInputAsync(RoomInputSubmitRequest request, CancellationToken cancellationToken = default);
+
+    ValueTask RunTickAsync(RoomTickRequest request, CancellationToken cancellationToken = default);
 }
 
 public sealed class RoomSnapshotRequest
 {
+}
+
+public sealed class RoomTickRequest
+{
+    public DateTime ObservedAtUtc { get; set; }
+
+    public float DeltaSeconds { get; set; } = 1f / 20f;
 }

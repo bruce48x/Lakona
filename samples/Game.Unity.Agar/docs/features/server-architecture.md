@@ -67,7 +67,7 @@ PostgreSQL 是状态持久化后端，状态服务通过 sample-local Dapper sto
 2. 客户端用玩家、会话、房间和对局令牌调用 `AttachRealtimeAsync`。
 3. actor owner 网关登记实时回调。
 4. 客户端通过实时 RPC 发送输入。
-5. battle runtime 的 periodic runtime loop 将由后续 LakonaTimer migration 接回，负责向房间 actor mailbox 投递 room tick request；actor 行为通过实时回调广播世界状态。
+5. battle runtime 的 LakonaTimer periodic runtime loop 扫描活跃房间，向房间 actor mailbox 投递 room tick request；actor 行为通过实时回调广播世界状态。
 
 排行榜查询流程：
 
