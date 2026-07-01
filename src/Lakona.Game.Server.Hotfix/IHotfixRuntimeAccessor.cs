@@ -175,7 +175,13 @@ public sealed class HotfixRuntimeSnapshot
             UnloadQuietly(LoadContext);
         }
 
-        _onRetired?.Invoke();
+        try
+        {
+            _onRetired?.Invoke();
+        }
+        catch
+        {
+        }
     }
 
     private static void UnloadQuietly(HotfixAssemblyLoadContext? loadContext)
@@ -184,7 +190,7 @@ public sealed class HotfixRuntimeSnapshot
         {
             loadContext?.Unload();
         }
-        catch (InvalidOperationException)
+        catch
         {
         }
     }
@@ -203,7 +209,7 @@ public sealed class HotfixRuntimeSnapshot
                     break;
             }
         }
-        catch (InvalidOperationException)
+        catch
         {
         }
     }

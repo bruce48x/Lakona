@@ -277,6 +277,24 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                     .ConfigureAwait(false);
             }
         }
+        catch (OperationCanceledException)
+        {
+            try
+            {
+                await RollbackPublicationParticipantsAsync(runtimeSnapshot).ConfigureAwait(false);
+                if (nextFeatureLifecycle is not null)
+                {
+                    await _featureLifecycle.RollbackCandidateAsync(nextFeatureLifecycle, CancellationToken.None)
+                        .ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                runtimeSnapshot.Retire();
+            }
+
+            throw;
+        }
         catch (Exception ex)
         {
             try

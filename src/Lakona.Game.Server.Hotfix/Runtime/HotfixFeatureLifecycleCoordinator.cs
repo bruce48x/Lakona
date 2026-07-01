@@ -130,12 +130,18 @@ internal sealed class HotfixFeatureLifecycleCoordinator
                 continue;
             }
 
-            await invoker.StopAsync(
-                feature,
-                state,
-                previous.Runtime.Services,
-                timerBackend,
-                cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await invoker.StopAsync(
+                    feature,
+                    state,
+                    previous.Runtime.Services,
+                    timerBackend,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+            }
         }
     }
 

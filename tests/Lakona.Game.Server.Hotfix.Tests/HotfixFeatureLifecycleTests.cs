@@ -91,6 +91,31 @@ public sealed class HotfixFeatureLifecycleTests
     }
 
     [Fact]
+    public async Task Removed_feature_stop_failure_does_not_skip_later_removed_features()
+    {
+        LifecycleRecorder.Reset();
+        var coordinator = new HotfixFeatureLifecycleCoordinator();
+        using var previousRuntime = CreateRuntime(
+            [Feature("second-removed", typeof(StatefulFeature)), Feature("first-removed", typeof(ThrowingStopFeature))]);
+        var previous = await coordinator.StartCandidateAsync(
+            HotfixFeatureLifecycleSnapshot.Empty,
+            previousRuntime.Snapshot,
+            previousRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+
+        LifecycleRecorder.Reset();
+        using var candidateRuntime = CreateRuntime([]);
+        var next = await coordinator.StartCandidateAsync(
+            previous,
+            candidateRuntime.Snapshot,
+            candidateRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+        await coordinator.StopRemovedAsync(previous, next, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["stop:first-removed", "stop:second-removed"], LifecycleRecorder.Events);
+    }
+
+    [Fact]
     public async Task Renamed_feature_stops_old_name_under_previous_snapshot_and_starts_new_name()
     {
         LifecycleRecorder.Reset();
@@ -386,6 +411,74 @@ public sealed class HotfixFeatureLifecycleTests
     }
 
     [Fact]
+    public async Task Successful_publication_suppresses_previous_runtime_retirement_failures()
+    {
+        var oldRuntime = CreateOwnedRuntime(
+            [Feature("old", typeof(StatefulFeature))],
+            "1",
+            onRetired: () => throw new InvalidOperationException("old retirement failed"));
+        using var candidateRuntime = CreateOwnedRuntime([Feature("new-a", typeof(AlphaFeature))], "2");
+        var manager = new HotfixManager(new UnusedAssemblySource());
+
+        try
+        {
+            var first = await manager.PublishCandidateAsync(
+                oldRuntime.Snapshot,
+                CreateSnapshot(1, oldRuntime.Snapshot.DispatchTable!.Features),
+                oldRuntime.Snapshot.DispatchTable!.Features,
+                TestContext.Current.CancellationToken);
+            Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+
+            var second = await manager.PublishCandidateAsync(
+                candidateRuntime.Snapshot,
+                CreateSnapshot(2, candidateRuntime.Snapshot.DispatchTable!.Features),
+                candidateRuntime.Snapshot.DispatchTable!.Features,
+                TestContext.Current.CancellationToken);
+
+            Assert.True(second.Succeeded, string.Join(Environment.NewLine, second.Diagnostics));
+            Assert.Same(candidateRuntime.Snapshot, ((IHotfixRuntimeAccessor)manager).Current);
+            Assert.False(candidateRuntime.Provider.Disposed);
+        }
+        finally
+        {
+            oldRuntime.Dispose();
+            candidateRuntime.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task Before_publish_cancellation_rolls_back_candidate_and_propagates_cancellation()
+    {
+        LifecycleRecorder.Reset();
+        using var oldRuntime = CreateRuntime([Feature("old", typeof(StatefulFeature))], "old");
+        var backend = new RecordingLifecycleTimerBackend();
+        using var candidateRuntime = CreateRuntime([Feature("new-a", typeof(TimerStartFeature))], "candidate", backend);
+        var participant = new CancelingBeforePublishParticipant();
+        var manager = new HotfixManager(new UnusedAssemblySource(), participants: [participant]);
+        var first = await manager.PublishCandidateAsync(
+            oldRuntime.Snapshot,
+            CreateSnapshot(1, oldRuntime.Snapshot.DispatchTable!.Features),
+            oldRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+        Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+        LifecycleRecorder.Reset();
+        participant.Enabled = true;
+        var oldPublishedRuntime = ((IHotfixRuntimeAccessor)manager).Current;
+
+        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+            await manager.PublishCandidateAsync(
+                candidateRuntime.Snapshot,
+                CreateSnapshot(2, candidateRuntime.Snapshot.DispatchTable!.Features),
+                candidateRuntime.Snapshot.DispatchTable!.Features,
+                TestContext.Current.CancellationToken));
+
+        Assert.Same(oldPublishedRuntime, ((IHotfixRuntimeAccessor)manager).Current);
+        Assert.Equal(1, backend.RollbackCount);
+        Assert.Empty(backend.ActiveTimers);
+        Assert.Equal(["start:new-a", "stop:new-a"], LifecycleRecorder.Events);
+    }
+
+    [Fact]
     public async Task Staged_timers_are_committed_only_after_candidate_publication_is_current()
     {
         LifecycleRecorder.Reset();
@@ -645,6 +738,37 @@ public sealed class HotfixFeatureLifecycleTests
         return new ScopedRuntime(provider, snapshot);
     }
 
+    private static OwnedRuntime CreateOwnedRuntime(
+        IReadOnlyList<HotfixFeatureDeclaration> features,
+        string marker,
+        Action? onRetired = null)
+    {
+        var tableVersion = long.TryParse(marker, out var parsedVersion) ? parsedVersion : 1;
+        var table = new HotfixDispatchTable(
+            tableVersion,
+            Array.Empty<HotfixMethodBinding>(),
+            Array.Empty<HotfixServiceMethodBinding>(),
+            features);
+        var provider = new TrackingServiceProvider(new ServiceCollection()
+            .AddSingleton(new RuntimeMarker(marker))
+            .AddSingleton<IHotfixServiceInvoker>(new HotfixServiceInvoker(table))
+            .BuildServiceProvider());
+        var snapshot = new HotfixRuntimeSnapshot(
+            new HotfixServiceInvoker(table),
+            EmptyHotfixFeatureCommandInvoker.Instance,
+            provider,
+            table,
+            provider,
+            mainAssembly: typeof(HotfixFeatureLifecycleTests).Assembly,
+            loadContext: null,
+            sourceVersion: marker,
+            sourceKind: "test",
+            sourcePath: null,
+            ownsRuntimeResources: true,
+            onRetired);
+        return new OwnedRuntime(provider, snapshot);
+    }
+
     private static HotfixServiceMethodBinding CreateNestedStartTimerServiceBinding()
     {
         var method = typeof(NestedStartTimerService).GetMethod(nameof(NestedStartTimerService.CreateTimerAsync))!;
@@ -761,6 +885,22 @@ public sealed class HotfixFeatureLifecycleTests
             }
 
             return default;
+        }
+    }
+
+    private sealed class CancelingBeforePublishParticipant : IHotfixRuntimePublicationParticipant
+    {
+        public bool Enabled { get; set; }
+
+        public ValueTask BeforePublishAsync(HotfixRuntimeSnapshot candidate, CancellationToken cancellationToken = default)
+        {
+            _ = candidate;
+            if (!Enabled)
+            {
+                return default;
+            }
+
+            throw new OperationCanceledException(cancellationToken);
         }
     }
 
@@ -921,6 +1061,21 @@ public sealed class HotfixFeatureLifecycleTests
         {
             LifecycleRecorder.Events.Add($"stop-v2:{call.FeatureName}");
             return default;
+        }
+    }
+
+    private sealed class ThrowingStopFeature : HotfixGameFeature
+    {
+        public static ValueTask StartAsync(HotfixFeatureStartCall call)
+        {
+            LifecycleRecorder.Events.Add($"start:{call.FeatureName}");
+            return default;
+        }
+
+        public static ValueTask StopAsync(HotfixFeatureStopCall call)
+        {
+            LifecycleRecorder.Events.Add($"stop:{call.FeatureName}");
+            throw new InvalidOperationException("removed stop failed");
         }
     }
 
@@ -1194,6 +1349,21 @@ public sealed class HotfixFeatureLifecycleTests
         {
             Disposed = true;
             inner.Dispose();
+        }
+    }
+
+    private sealed class OwnedRuntime(TrackingServiceProvider provider, HotfixRuntimeSnapshot snapshot) : IDisposable
+    {
+        public TrackingServiceProvider Provider { get; } = provider;
+
+        public HotfixRuntimeSnapshot Snapshot { get; } = snapshot;
+
+        public void Dispose()
+        {
+            if (!Provider.Disposed)
+            {
+                Snapshot.Retire();
+            }
         }
     }
 }

@@ -92,6 +92,30 @@ public sealed class HotfixRuntimeSnapshotLeaseTests
     }
 
     [Fact]
+    public void Runtime_snapshot_retirement_suppresses_cleanup_failures()
+    {
+        var snapshot = new HotfixRuntimeSnapshot(
+            new HotfixServiceInvoker(),
+            EmptyHotfixFeatureCommandInvoker.Instance,
+            new ThrowingDisposeServiceProvider(),
+            dispatchTable: null,
+            hotfixServices: new ThrowingDisposeServiceProvider(),
+            mainAssembly: null,
+            loadContext: null,
+            sourceVersion: null,
+            sourceKind: null,
+            sourcePath: null,
+            ownsRuntimeResources: true,
+            onRetired: () => throw new ApplicationException("retired callback failed"));
+        var lease = snapshot.AcquireLease();
+
+        snapshot.Retire();
+        var exception = Record.Exception(lease.Dispose);
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
     public void Failed_ambient_scope_creation_releases_snapshot_lease_reference()
     {
         var provider = new ThrowingTimerBackendServiceProvider();
@@ -211,6 +235,19 @@ public sealed class HotfixRuntimeSnapshotLeaseTests
             }
 
             return null;
+        }
+    }
+
+    private sealed class ThrowingDisposeServiceProvider : IServiceProvider, IDisposable
+    {
+        public object? GetService(Type serviceType)
+        {
+            return null;
+        }
+
+        public void Dispose()
+        {
+            throw new ApplicationException("dispose failed");
         }
     }
 

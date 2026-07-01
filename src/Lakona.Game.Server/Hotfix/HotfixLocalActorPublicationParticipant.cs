@@ -70,7 +70,7 @@ public sealed class HotfixLocalActorPublicationParticipant(IActorLifecycle actor
         await RollbackPreparedActorsAsync(prepared, cancellationToken).ConfigureAwait(false);
     }
 
-    public async ValueTask AfterPublishAsync(
+    public ValueTask AfterPublishAsync(
         HotfixRuntimeSnapshot previous,
         HotfixRuntimeSnapshot current,
         CancellationToken cancellationToken = default)
@@ -82,6 +82,8 @@ public sealed class HotfixLocalActorPublicationParticipant(IActorLifecycle actor
         {
             preparedActors.Remove(current);
         }
+
+        return default;
     }
 
     private static IEnumerable<HotfixLocalActorDeclaration> EnumerateLocalActors(HotfixRuntimeSnapshot snapshot)
