@@ -143,20 +143,34 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
         return new StagingTimerBackend(this);
     }
 
-    public ValueTask CommitStagedTimersAsync(ILakonaTimerBackend stagingBackend, CancellationToken cancellationToken)
+    public async ValueTask CommitStagedTimersAsync(ILakonaTimerBackend stagingBackend, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (stagingBackend is not StagingTimerBackend staging || !ReferenceEquals(staging.Owner, this))
         {
-            return default;
+            return;
         }
 
-        foreach (var descriptor in staging.TakeDescriptors())
+        var committedTimerIds = new List<TimerId>();
+        try
         {
-            AddDescriptor(descriptor);
+            foreach (var descriptor in staging.TakeDescriptors())
+            {
+                AddDescriptor(descriptor);
+                committedTimerIds.Add(descriptor.TimerId);
+            }
+        }
+        catch
+        {
+            foreach (var timerId in committedTimerIds)
+            {
+                await DestroyTimerAsync(timerId, CancellationToken.None).ConfigureAwait(false);
+            }
+
+            throw;
         }
 
-        return default;
+        return;
     }
 
     public ValueTask RollbackStagedTimersAsync(ILakonaTimerBackend stagingBackend, CancellationToken cancellationToken)

@@ -62,6 +62,46 @@ public sealed class LakonaTimerIntegrationTests
     }
 
     [Fact]
+    public async Task CommitStagedTimersAsync_rolls_back_partially_activated_timers_when_commit_fails()
+    {
+        await using var fixture = TimerFixture.Create(typeof(TimerCallback));
+        var backend = new LakonaTimerBackend();
+        TimerId existingTimerId;
+        using (LakonaTimerExecutionScope.Enter(backend, fixture.Lease))
+        {
+            existingTimerId = await LakonaTimer.CreateOnceTimerAsync<TimerCallback, TimerArgs>(
+                TimeSpan.Zero,
+                nameof(TimerCallback.HandleAsync),
+                new TimerArgs("existing", 1),
+                CancellationToken.None);
+        }
+
+        var stagingBackend = backend.CreateStagingBackend();
+        using (LakonaTimerExecutionScope.Enter(stagingBackend, fixture.Lease))
+        {
+            var firstStagedTimerId = await LakonaTimer.CreateOnceTimerAsync<TimerCallback, TimerArgs>(
+                TimeSpan.Zero,
+                nameof(TimerCallback.HandleAsync),
+                new TimerArgs("first-staged", 2),
+                CancellationToken.None);
+            var secondStagedTimerId = await LakonaTimer.CreateOnceTimerAsync<TimerCallback, TimerArgs>(
+                TimeSpan.Zero,
+                nameof(TimerCallback.HandleAsync),
+                new TimerArgs("second-staged", 3),
+                CancellationToken.None);
+            ReplaceStagedTimerId(stagingBackend, secondStagedTimerId, existingTimerId);
+
+            var exception = await Assert.ThrowsAsync<ArgumentException>(async () =>
+                await backend.CommitStagedTimersAsync(stagingBackend, CancellationToken.None));
+
+            Assert.Contains("same key", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.True(backend.TryGetDescriptor(existingTimerId, out _));
+            Assert.False(backend.TryGetDescriptor(firstStagedTimerId, out _));
+            Assert.Single(backend.Descriptors);
+        }
+    }
+
+    [Fact]
     public async Task CreatePeriodicTimerAsync_stores_period_and_rejects_non_positive_period()
     {
         await using var fixture = TimerFixture.Create(typeof(TimerCallback));
@@ -1241,5 +1281,32 @@ public sealed class LakonaTimerIntegrationTests
         }
 
         Assert.False(loadContextReference.IsAlive, "Hotfix timer creation should not retain collectible hotfix AssemblyLoadContext metadata.");
+    }
+
+    private static void ReplaceStagedTimerId(
+        ILakonaTimerBackend stagingBackend,
+        TimerId stagedTimerId,
+        TimerId replacementTimerId)
+    {
+        var descriptorsField = stagingBackend.GetType().GetField(
+            "descriptors",
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var descriptors = (IDictionary<TimerId, LakonaTimerDescriptor>)descriptorsField.GetValue(stagingBackend)!;
+        var stagedDescriptor = descriptors[stagedTimerId];
+        descriptors.Remove(stagedTimerId);
+        descriptors.Add(
+            replacementTimerId,
+            new LakonaTimerDescriptor(
+                replacementTimerId,
+                stagedDescriptor.CallbackAssemblyName,
+                stagedDescriptor.CallbackFullName,
+                stagedDescriptor.MethodName,
+                stagedDescriptor.ArgsAssemblyName,
+                stagedDescriptor.ArgsFullName,
+                stagedDescriptor.SerializerId,
+                stagedDescriptor.JsonPayload,
+                stagedDescriptor.NextDueAtUtc,
+                stagedDescriptor.Period,
+                stagedDescriptor.Generation));
     }
 }

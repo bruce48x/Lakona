@@ -192,17 +192,13 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 cancellationToken,
                 resolved.Version,
                 resolved.AssemblyPath).ConfigureAwait(false);
+            hotfixProvider = null;
+            pendingContext = null;
             if (!result.Succeeded)
             {
-                DisposeQuietly(hotfixProvider);
-                hotfixProvider = null;
-                pendingContext?.Unload();
-                pendingContext = null;
                 return result;
             }
 
-            hotfixProvider = null;
-            pendingContext = null;
             Reloaded?.Invoke(this, result);
             return result;
         }
@@ -283,11 +279,18 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
         }
         catch (Exception ex)
         {
-            await RollbackPublicationParticipantsAsync(runtimeSnapshot).ConfigureAwait(false);
-            if (nextFeatureLifecycle is not null)
+            try
             {
-                await _featureLifecycle.RollbackCandidateAsync(nextFeatureLifecycle, CancellationToken.None)
-                    .ConfigureAwait(false);
+                await RollbackPublicationParticipantsAsync(runtimeSnapshot).ConfigureAwait(false);
+                if (nextFeatureLifecycle is not null)
+                {
+                    await _featureLifecycle.RollbackCandidateAsync(nextFeatureLifecycle, CancellationToken.None)
+                        .ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                runtimeSnapshot.Retire();
             }
 
             return new HotfixReloadResult(
@@ -316,9 +319,16 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
         catch (Exception ex)
         {
             Volatile.Write(ref _publication, previousPublication);
-            await RollbackPublicationParticipantsAsync(runtimeSnapshot).ConfigureAwait(false);
-            await _featureLifecycle.RollbackCandidateAsync(nextFeatureLifecycle, CancellationToken.None)
-                .ConfigureAwait(false);
+            try
+            {
+                await RollbackPublicationParticipantsAsync(runtimeSnapshot).ConfigureAwait(false);
+                await _featureLifecycle.RollbackCandidateAsync(nextFeatureLifecycle, CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                runtimeSnapshot.Retire();
+            }
 
             return new HotfixReloadResult(
                 HotfixReloadStatus.Failed,

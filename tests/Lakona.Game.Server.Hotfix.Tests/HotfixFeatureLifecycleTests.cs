@@ -455,6 +455,82 @@ public sealed class HotfixFeatureLifecycleTests
     }
 
     [Fact]
+    public async Task Staged_timer_commit_failure_retires_candidate_runtime_after_candidate_lease_drains()
+    {
+        LifecycleRecorder.Reset();
+        using var oldRuntime = CreateRuntime([Feature("old", typeof(StatefulFeature))], "1");
+        var backend = new RecordingLifecycleTimerBackend { ThrowOnCommit = true };
+        var candidateFeatures = new[] { Feature("new-a", typeof(TimerStartFeature)) };
+        var table = new HotfixDispatchTable(
+            2,
+            Array.Empty<HotfixMethodBinding>(),
+            Array.Empty<HotfixServiceMethodBinding>(),
+            candidateFeatures);
+        var trackingProvider = new TrackingServiceProvider(new ServiceCollection()
+            .AddSingleton(new RuntimeMarker("2"))
+            .AddSingleton<IHotfixServiceInvoker>(new HotfixServiceInvoker(table))
+            .AddSingleton<ILakonaTimerBackend>(backend)
+            .BuildServiceProvider());
+        var candidateRuntime = new HotfixRuntimeSnapshot(
+            new HotfixServiceInvoker(table),
+            EmptyHotfixFeatureCommandInvoker.Instance,
+            trackingProvider,
+            table,
+            trackingProvider,
+            typeof(HotfixFeatureLifecycleTests).Assembly,
+            loadContext: null,
+            sourceVersion: "2",
+            sourceKind: "test",
+            sourcePath: null,
+            ownsRuntimeResources: true,
+            onRetired: null);
+        var manager = new HotfixManager(new UnusedAssemblySource());
+        HotfixRuntimeSnapshotLease? candidateLease = null;
+        backend.AcquireLeaseDuringCommit = () => ((IHotfixRuntimeAccessor)manager).AcquireCurrent();
+
+        var first = await manager.PublishCandidateAsync(
+            oldRuntime.Snapshot,
+            CreateSnapshot(1, oldRuntime.Snapshot.DispatchTable!.Features),
+            oldRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+        Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+        var oldPublishedRuntime = ((IHotfixRuntimeAccessor)manager).Current;
+
+        try
+        {
+            var failed = await manager.PublishCandidateAsync(
+                candidateRuntime,
+                CreateSnapshot(2, candidateFeatures),
+                candidateFeatures,
+                TestContext.Current.CancellationToken);
+            candidateLease = backend.LeaseAcquiredDuringCommit;
+
+            Assert.False(failed.Succeeded);
+            Assert.Same(oldPublishedRuntime, ((IHotfixRuntimeAccessor)manager).Current);
+            Assert.NotNull(candidateLease);
+            Assert.False(trackingProvider.Disposed);
+            var newLeaseException = Record.Exception(() =>
+            {
+                using var unexpected = candidateRuntime.AcquireLease();
+            });
+            Assert.IsType<ObjectDisposedException>(newLeaseException);
+
+            candidateLease.Dispose();
+            candidateLease = null;
+
+            Assert.True(trackingProvider.Disposed);
+        }
+        finally
+        {
+            candidateLease?.Dispose();
+            if (!trackingProvider.Disposed)
+            {
+                candidateRuntime.Retire();
+            }
+        }
+    }
+
+    [Fact]
     public async Task Hotfix_owned_feature_state_value_rejects_candidate_publication_and_keeps_old_publication()
     {
         LifecycleRecorder.Reset();
@@ -1004,6 +1080,10 @@ public sealed class HotfixFeatureLifecycleTests
 
         public string? CurrentVersionObservedDuringCommit { get; private set; }
 
+        public Func<HotfixRuntimeSnapshotLease>? AcquireLeaseDuringCommit { get; set; }
+
+        public HotfixRuntimeSnapshotLease? LeaseAcquiredDuringCommit { get; private set; }
+
         public bool ThrowOnCommit { get; init; }
 
         public ValueTask<TimerId> CreateOnceTimerAsync<TCallback, TArgs>(
@@ -1044,6 +1124,7 @@ public sealed class HotfixFeatureLifecycleTests
         {
             CommitCount++;
             CurrentVersionObservedDuringCommit = ReadCurrentVersionDuringCommit?.Invoke();
+            LeaseAcquiredDuringCommit = AcquireLeaseDuringCommit?.Invoke();
             if (ThrowOnCommit)
             {
                 throw new InvalidOperationException("timer commit failed");
@@ -1097,6 +1178,22 @@ public sealed class HotfixFeatureLifecycleTests
                 Timers.Remove(timerId);
                 return default;
             }
+        }
+    }
+
+    private sealed class TrackingServiceProvider(ServiceProvider inner) : IServiceProvider, IDisposable
+    {
+        public bool Disposed { get; private set; }
+
+        public object? GetService(Type serviceType)
+        {
+            return inner.GetService(serviceType);
+        }
+
+        public void Dispose()
+        {
+            Disposed = true;
+            inner.Dispose();
         }
     }
 }
