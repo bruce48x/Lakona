@@ -359,9 +359,56 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 {
                     AppendBehaviorWrapperMethod(builder, contract, method, refType, indentLevel + 1);
                     builder.AppendLine();
+                    if (method.ResultType == null && string.Equals(refType, prefix + "LocalRef", StringComparison.Ordinal))
+                    {
+                        AppendBehaviorTryTellWrapperMethod(builder, contract, method, refType, indentLevel + 1);
+                        builder.AppendLine();
+                    }
                 }
             }
 
+            builder.Append(indent).AppendLine("}");
+        }
+
+        private static void AppendBehaviorTryTellWrapperMethod(
+            StringBuilder builder,
+            HotfixActorContractInfo contract,
+            HotfixActorMethodInfo method,
+            string refType,
+            int indentLevel)
+        {
+            var indent = Indent(indentLevel);
+            var continuationIndent = Indent(indentLevel + 1);
+            var actorNamespace = contract.Actor.ContainingNamespace.IsGlobalNamespace
+                ? string.Empty
+                : contract.Actor.ContainingNamespace.ToDisplayString() + ".";
+            var receiverType = "global::" + actorNamespace + refType;
+            var requestType = method.RequestType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            var remoteKind = GetRemoteKind(method);
+
+            builder.Append(indent).AppendLine("[global::Lakona.Game.Server.Hotfix.Abstractions.GeneratedHotfixActorRefMethodAttribute]");
+            builder.Append(indent)
+                .Append("public static global::Lakona.Game.Server.Actors.ActorTellResult Try")
+                .Append(method.Name)
+                .AppendLine("(");
+            builder.Append(continuationIndent)
+                .Append("this ")
+                .Append(receiverType)
+                .AppendLine(" self,");
+            builder.Append(continuationIndent)
+                .Append(requestType)
+                .Append(" request,")
+                .AppendLine();
+            builder.Append(continuationIndent)
+                .AppendLine("global::System.Threading.CancellationToken cancellationToken = default)");
+
+            builder.Append(indent).AppendLine("{");
+            builder.Append(indent).Append("    return self.__lakona_TryTell<").Append(requestType).AppendLine(">(");
+            builder.Append(indent).Append("        \"").Append(EscapeStringLiteral(method.Name)).AppendLine("\",");
+            builder.Append(indent).Append("        \"").Append(EscapeStringLiteral(remoteKind)).AppendLine("\",");
+            builder.Append(indent).Append(method.HasCancellationToken ? "        true," : "        false,").AppendLine();
+            builder.Append(indent).AppendLine("        request,");
+            builder.Append(indent).AppendLine("        cancellationToken);");
             builder.Append(indent).AppendLine("}");
         }
 
@@ -607,6 +654,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine();
             AppendHotfixLocalTellHelper(builder, contract);
             builder.AppendLine();
+            AppendHotfixLocalTryTellHelper(builder, contract);
+            builder.AppendLine();
             AppendHotfixLocalAskHelper(builder, contract);
 
             builder.AppendLine("}");
@@ -637,6 +686,34 @@ namespace Lakona.Game.Server.Hotfix.Generators
             AppendGenericArgumentArray(builder, indentLevel: 4);
             builder.AppendLine("),");
             builder.AppendLine("            cancellationToken).ConfigureAwait(false);");
+            builder.AppendLine("    }");
+        }
+
+        private static void AppendHotfixLocalTryTellHelper(
+            StringBuilder builder,
+            HotfixActorContractInfo contract)
+        {
+            var actorType = contract.Actor.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
+            builder.AppendLine("    internal global::Lakona.Game.Server.Actors.ActorTellResult __lakona_TryTell<TRequest>(");
+            builder.AppendLine("        string behaviorMethodName,");
+            builder.AppendLine("        string remoteKind,");
+            builder.AppendLine("        bool passCancellationToken,");
+            builder.AppendLine("        TRequest request,");
+            builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
+            builder.AppendLine("    {");
+            AppendHotfixActorIdSetup(builder, indentLevel: 2);
+            builder.Append("        return _runtime.TryTell<").Append(actorType).AppendLine(">(");
+            builder.AppendLine("            actorId,");
+            builder.AppendLine("            (actor, ct) => global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync(");
+            builder.Append("                typeof(").Append(actorType).AppendLine("),");
+            builder.AppendLine("                behaviorMethodName,");
+            builder.AppendLine("                actor,");
+            AppendGenericParameterTypeArray(builder, indentLevel: 4);
+            builder.AppendLine(",");
+            AppendGenericArgumentArray(builder, indentLevel: 4);
+            builder.AppendLine("),");
+            builder.AppendLine("            cancellationToken);");
             builder.AppendLine("    }");
         }
 

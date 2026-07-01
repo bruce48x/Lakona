@@ -332,6 +332,11 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("global::System.Threading.CancellationToken cancellationToken = default)", result.Hotfix.GeneratedSource);
         Assert.Contains("__lakona_TellAsync<global::Game.Server.PingRequest>", result.Hotfix.GeneratedSource);
         Assert.Matches(@"false,\s*request,\s*cancellationToken\);", result.Hotfix.GeneratedSource);
+        Assert.Contains("public static global::Lakona.Game.Server.Actors.ActorTellResult TryPingAsync(", result.Hotfix.GeneratedSource);
+        Assert.Contains("this global::Game.Server.RoomLocalRef self", result.Hotfix.GeneratedSource);
+        Assert.Contains("__lakona_TryTell<global::Game.Server.PingRequest>", result.Hotfix.GeneratedSource);
+        Assert.Contains("internal global::Lakona.Game.Server.Actors.ActorTellResult __lakona_TryTell<TRequest>", result.App.GeneratedSource);
+        Assert.Contains("_runtime.TryTell<global::Game.Server.RoomActor>", result.App.GeneratedSource);
         Assert.DoesNotContain("        default);", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
     }
 
