@@ -296,7 +296,7 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
 
 public sealed record BattleRuntimeTick(string QueueId);
 
-public static class BattleRuntimeTimers
+public sealed class BattleRuntimeTimers
 {
     public static ValueTask TickAsync(TimerTick<BattleRuntimeTick> tick)
     {
