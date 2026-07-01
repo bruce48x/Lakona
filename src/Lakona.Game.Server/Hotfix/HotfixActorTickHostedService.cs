@@ -1,5 +1,4 @@
 using Lakona.Game.Server.Configuration;
-using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.Hosting;
 
@@ -8,7 +7,6 @@ namespace Lakona.Game.Server.Hotfix;
 internal sealed class HotfixActorTickHostedService(
     IHotfixManager hotfix,
     HotfixActorTickScheduler scheduler,
-    IActorLifecycle actorLifecycle,
     LakonaGameRuntimeOptions runtimeOptions) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -34,34 +32,11 @@ internal sealed class HotfixActorTickHostedService(
         }
     }
 
-    private async Task ApplySnapshotAsync(HotfixSnapshot snapshot, CancellationToken cancellationToken)
+    private Task ApplySnapshotAsync(HotfixSnapshot snapshot, CancellationToken cancellationToken)
     {
-        foreach (var actor in snapshot.Features.SelectMany(static feature => feature.LocalActors))
-        {
-            await CreateLocalActorAsync(actor, cancellationToken).ConfigureAwait(false);
-        }
-
+        _ = cancellationToken;
         scheduler.Apply(snapshot);
-    }
-
-    private async ValueTask CreateLocalActorAsync(
-        HotfixLocalActorDeclaration declaration,
-        CancellationToken cancellationToken)
-    {
-        if (!typeof(IActor).IsAssignableFrom(declaration.ActorType))
-        {
-            throw new InvalidOperationException(
-                $"Hotfix local actor type '{declaration.ActorType.FullName}' must implement {typeof(IActor).FullName}.");
-        }
-
-        var result = await actorLifecycle
-            .CreateLocalAsync(declaration.ActorType, ActorId.From(declaration.ActorId), cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
-        if (!result.Succeeded)
-        {
-            throw new InvalidOperationException(result.Diagnostic ??
-                $"Hotfix local actor '{declaration.ActorId}' could not be created as '{declaration.ActorType.FullName}'.");
-        }
+        return Task.CompletedTask;
     }
 
     private HotfixSnapshot FilterSnapshot(HotfixSnapshot snapshot)

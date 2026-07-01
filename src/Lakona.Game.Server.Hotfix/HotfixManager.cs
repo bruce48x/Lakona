@@ -320,10 +320,6 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
         catch
         {
         }
-        finally
-        {
-            previousPublication.Runtime.Retire();
-        }
 
         foreach (var participant in _publicationParticipants)
         {
@@ -336,6 +332,8 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             {
             }
         }
+
+        previousPublication.Runtime.Retire();
 
         return new HotfixReloadResult(
             HotfixReloadStatus.Succeeded,

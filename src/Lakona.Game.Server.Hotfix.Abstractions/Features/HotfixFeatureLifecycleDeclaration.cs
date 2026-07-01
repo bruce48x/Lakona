@@ -35,22 +35,26 @@ public sealed record HotfixFeatureLifecycleDeclaration(MethodInfo? StartMethod, 
             return null;
         }
 
-        var method = matches.SingleOrDefault(method =>
+        static bool IsValidLifecycleMethod(MethodInfo method, Type expectedCallType)
         {
             var parameters = method.GetParameters();
             return method.IsStatic &&
                 !method.ContainsGenericParameters &&
                 method.ReturnType == typeof(ValueTask) &&
                 parameters.Length == 1 &&
-                parameters[0].ParameterType == callType;
-        });
-        if (method is null)
+                parameters[0].ParameterType == expectedCallType;
+        }
+
+        var valid = matches
+            .Where(method => IsValidLifecycleMethod(method, callType))
+            .ToArray();
+        if (valid.Length != matches.Length || valid.Length != 1)
         {
             throw new InvalidOperationException(
                 $"Hotfix feature '{featureType.FullName}' lifecycle hook '{methodName}' must declare public static ValueTask {methodName}({callType.Name} call).");
         }
 
-        return method;
+        return valid[0];
     }
 
     private static void RejectPublicOnReload(Type featureType)

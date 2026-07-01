@@ -341,7 +341,6 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
         var service = new HotfixActorTickHostedService(
             manager,
             scheduler,
-            runtime,
             new LakonaGameRuntimeOptions { Feature = [] });
 
         HotfixDispatch.Replace(CreateTickTable(1));
@@ -366,7 +365,6 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
         var service = new HotfixActorTickHostedService(
             manager,
             scheduler,
-            runtime,
             new LakonaGameRuntimeOptions { Feature = ["battle-runtime"] });
 
         HotfixDispatch.Replace(CreateTickTable(1));
@@ -378,7 +376,7 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
     }
 
     [Fact]
-    public async Task Hosted_service_creates_declared_local_actors_before_fixed_ticks()
+    public async Task Hosted_service_dispatches_ticks_for_participant_created_local_actors()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = new ServiceCollection()
@@ -394,10 +392,12 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
             "battle-runtime",
             [new HotfixLocalActorDeclaration(typeof(TickActor), actorId.Value)],
             [CreateFixedTick(actorId.Value, TimeSpan.FromMilliseconds(10))]));
+        using var hotfixRuntime = CreateRuntime(manager.Current.Features, "1");
+        var participant = new HotfixLocalActorPublicationParticipant(lifecycle);
+        await participant.BeforePublishAsync(hotfixRuntime.Snapshot, cancellationToken);
         var service = new HotfixActorTickHostedService(
             manager,
             scheduler,
-            lifecycle,
             new LakonaGameRuntimeOptions { Feature = ["battle-runtime"] });
 
         HotfixDispatch.Replace(CreateTickTable(1));
@@ -407,6 +407,64 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
 
         Assert.Contains(actorId, runtime.GetActiveActorIds(typeof(TickActor)));
         Assert.Contains(actorId.Value, TickHotfix.ActorIds);
+    }
+
+    [Fact]
+    public void Production_feature_activation_policy_respects_configured_feature_order()
+    {
+        var policy = new HotfixFeatureActivationPolicy(new LakonaGameRuntimeOptions
+        {
+            Feature = ["beta", "alpha"]
+        });
+        var alpha = CreateFeature("alpha", [], []);
+        var beta = CreateFeature("beta", [], []);
+        var gamma = CreateFeature("gamma", [], []);
+
+        var selected = policy.SelectActiveFeatures([alpha, beta, gamma]);
+
+        Assert.Equal(["beta", "alpha"], selected.Select(static feature => feature.Name).ToArray());
+    }
+
+    [Fact]
+    public async Task Local_actor_publication_failure_keeps_old_hotfix_publication()
+    {
+        var actorLifecycle = new RecordingActorRuntime
+        {
+            CreateLocalFailureDiagnostic = "local actor create failed"
+        };
+        var participant = new HotfixLocalActorPublicationParticipant(actorLifecycle);
+        var manager = new HotfixManager(
+            new UnusedAssemblySource(),
+            participants: [participant]);
+        using var oldRuntime = CreateRuntime([CreateFeature("old", [], [])], "1");
+        using var candidateRuntime = CreateRuntime([
+            CreateFeature(
+                "candidate",
+                [new HotfixLocalActorDeclaration(typeof(TickActor), "fixed")],
+                [])
+        ], "2");
+        var first = await manager.PublishCandidateAsync(
+            oldRuntime.Snapshot,
+            CreateSnapshot(1, oldRuntime.Snapshot.DispatchTable!.Features),
+            oldRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+        Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+        var oldPublishedRuntime = ((IHotfixRuntimeAccessor)manager).Current;
+        var oldPublishedSnapshot = manager.Current;
+        var oldPublishedDispatch = HotfixDispatch.Current;
+
+        var failed = await manager.PublishCandidateAsync(
+            candidateRuntime.Snapshot,
+            CreateSnapshot(2, candidateRuntime.Snapshot.DispatchTable!.Features),
+            candidateRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+
+        Assert.False(failed.Succeeded);
+        Assert.Contains("local actor create failed", failed.Diagnostics);
+        Assert.Same(oldPublishedRuntime, ((IHotfixRuntimeAccessor)manager).Current);
+        Assert.Same(oldPublishedSnapshot, manager.Current);
+        Assert.Same(oldPublishedDispatch, HotfixDispatch.Current);
+        Assert.Empty(actorLifecycle.GetActiveActorIds(typeof(TickActor)));
     }
 
     [Fact]
@@ -423,7 +481,6 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
         var service = new HotfixActorTickHostedService(
             manager,
             scheduler,
-            runtime,
             new LakonaGameRuntimeOptions { Feature = ["battle-runtime"] });
 
         HotfixDispatch.Replace(CreateTickTable(1));
@@ -465,15 +522,7 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
         IReadOnlyList<HotfixLocalActorDeclaration> localActors,
         IReadOnlyList<HotfixActorTickDeclaration> ticks)
     {
-        var feature = new HotfixFeatureDeclaration(
-            featureName,
-            typeof(TestFeature),
-            Discoverable: true,
-            new Dictionary<string, string>(),
-            localActors,
-            ticks,
-            [],
-            []);
+        var feature = CreateFeature(featureName, localActors, ticks);
         return new HotfixSnapshot(
             "test",
             "test.dll",
@@ -485,6 +534,66 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
             null,
             null,
             [feature]);
+    }
+
+    private static HotfixSnapshot CreateSnapshot(
+        long tableVersion,
+        IReadOnlyList<HotfixFeatureDeclaration> features)
+    {
+        return new HotfixSnapshot(
+            tableVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            "test",
+            $"test-{tableVersion}.dll",
+            DateTimeOffset.UtcNow,
+            tableVersion,
+            [],
+            HotfixReloadStatus.Succeeded,
+            null,
+            null,
+            features);
+    }
+
+    private static HotfixFeatureDeclaration CreateFeature(
+        string featureName,
+        IReadOnlyList<HotfixLocalActorDeclaration> localActors,
+        IReadOnlyList<HotfixActorTickDeclaration> ticks)
+    {
+        return new HotfixFeatureDeclaration(
+            featureName,
+            typeof(TestFeature),
+            Discoverable: true,
+            new Dictionary<string, string>(),
+            localActors,
+            ticks,
+            [],
+            []);
+    }
+
+    private static ScopedRuntime CreateRuntime(
+        IReadOnlyList<HotfixFeatureDeclaration> features,
+        string marker)
+    {
+        var tableVersion = long.Parse(marker, System.Globalization.CultureInfo.InvariantCulture);
+        var table = new HotfixDispatchTable(
+            tableVersion,
+            Array.Empty<HotfixMethodBinding>(),
+            Array.Empty<HotfixServiceMethodBinding>(),
+            features);
+        var provider = new ServiceCollection().BuildServiceProvider();
+        var snapshot = new HotfixRuntimeSnapshot(
+            new HotfixServiceInvoker(table),
+            EmptyHotfixFeatureCommandInvoker.Instance,
+            provider,
+            table,
+            provider,
+            mainAssembly: typeof(HotfixActorTickSchedulerTests).Assembly,
+            loadContext: null,
+            sourceVersion: marker,
+            sourceKind: null,
+            sourcePath: null,
+            ownsRuntimeResources: false,
+            onRetired: null);
+        return new ScopedRuntime(provider, snapshot);
     }
 
     private static HotfixDispatchTable CreateTickTable(long version)
@@ -530,6 +639,24 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
         public HotfixRuntimeSnapshotLease AcquireCurrent()
         {
             return Current.AcquireLease();
+        }
+    }
+
+    private sealed class UnusedAssemblySource : IHotfixAssemblySource
+    {
+        public ValueTask<HotfixAssemblySourceResult> ResolveAsync(CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class ScopedRuntime(ServiceProvider provider, HotfixRuntimeSnapshot snapshot) : IDisposable
+    {
+        public HotfixRuntimeSnapshot Snapshot { get; } = snapshot;
+
+        public void Dispose()
+        {
+            provider.Dispose();
         }
     }
 
@@ -590,6 +717,8 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
 
         public Dictionary<Type, IReadOnlyList<ActorId>> ActiveActorIds { get; } = [];
 
+        public string? CreateLocalFailureDiagnostic { get; set; }
+
         public ActorId? BlockedActorId { get; set; }
 
         public TaskCompletionSource BlockedStarted { get; } =
@@ -620,6 +749,16 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
         {
             _ = options;
             cancellationToken.ThrowIfCancellationRequested();
+            if (CreateLocalFailureDiagnostic is not null)
+            {
+                return new ValueTask<ActorCreateLocalResult>(
+                    new ActorCreateLocalResult(
+                        ActorCreateLocalStatus.AlreadyExistsDifferentType,
+                        actorId,
+                        actorType,
+                        CreateLocalFailureDiagnostic));
+            }
+
             GetOrCreate(actorId);
             ActiveActorIds[actorType] = _actors.Keys.OrderBy(static id => id.Value).ToArray();
             return new ValueTask<ActorCreateLocalResult>(

@@ -1,3 +1,5 @@
+using System.Runtime.ExceptionServices;
+using System.Runtime.Loader;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Microsoft.Extensions.DependencyInjection;
@@ -56,7 +58,13 @@ internal sealed class HotfixFeatureLifecycleCoordinator
                     candidateRuntime.Services,
                     stagingTimerBackend,
                     cancellationToken).ConfigureAwait(false);
+                ValidateFeatureState(feature, states[feature.Name]);
                 started.Add(feature);
+            }
+
+            foreach (var feature in candidateFeatures)
+            {
+                ValidateFeatureState(feature, states[feature.Name]);
             }
 
             return new HotfixFeatureLifecycleSnapshot(
@@ -67,25 +75,26 @@ internal sealed class HotfixFeatureLifecycleCoordinator
                 stagingTimerBackend,
                 started.ToArray());
         }
-        catch
+        catch (Exception ex)
         {
-            for (var index = started.Count - 1; index >= 0; index--)
+            try
             {
-                var feature = started[index];
-                await invoker.StopAsync(
-                    feature,
-                    states[feature.Name],
+                await StopStartedFeaturesSuppressingAsync(
+                    started,
+                    states,
                     candidateRuntime.Services,
-                    stagingTimerBackend,
-                    CancellationToken.None).ConfigureAwait(false);
+                    stagingTimerBackend).ConfigureAwait(false);
             }
-
-            if (rootTimerBackend is not null && stagingTimerBackend is not null)
+            finally
             {
-                await rootTimerBackend.RollbackStagedTimersAsync(stagingTimerBackend, CancellationToken.None)
-                    .ConfigureAwait(false);
+                if (rootTimerBackend is not null && stagingTimerBackend is not null)
+                {
+                    await rootTimerBackend.RollbackStagedTimersAsync(stagingTimerBackend, CancellationToken.None)
+                        .ConfigureAwait(false);
+                }
             }
 
+            ExceptionDispatchInfo.Capture(ex).Throw();
             throw;
         }
     }
@@ -151,27 +160,79 @@ internal sealed class HotfixFeatureLifecycleCoordinator
         if (snapshot.Runtime is not null)
         {
             using var lease = snapshot.Runtime.AcquireLease();
-            for (var index = snapshot.StartedFeatures.Count - 1; index >= 0; index--)
+            try
             {
-                var feature = snapshot.StartedFeatures[index];
-                if (!snapshot.States.TryGetValue(feature.Name, out var state))
-                {
-                    continue;
-                }
-
-                await invoker.StopAsync(
-                    feature,
-                    state,
+                await StopStartedFeaturesSuppressingAsync(
+                    snapshot.StartedFeatures,
+                    snapshot.States,
                     snapshot.Runtime.Services,
-                    snapshot.StagingTimerBackend,
-                    CancellationToken.None).ConfigureAwait(false);
+                    snapshot.StagingTimerBackend).ConfigureAwait(false);
             }
+            finally
+            {
+                if (snapshot.RootTimerBackend is not null && snapshot.StagingTimerBackend is not null)
+                {
+                    await snapshot.RootTimerBackend.RollbackStagedTimersAsync(snapshot.StagingTimerBackend, CancellationToken.None)
+                        .ConfigureAwait(false);
+                }
+            }
+            return;
         }
 
         if (snapshot.RootTimerBackend is not null && snapshot.StagingTimerBackend is not null)
         {
             await snapshot.RootTimerBackend.RollbackStagedTimersAsync(snapshot.StagingTimerBackend, CancellationToken.None)
                 .ConfigureAwait(false);
+        }
+    }
+
+    private async ValueTask StopStartedFeaturesSuppressingAsync(
+        IReadOnlyList<HotfixFeatureDeclaration> started,
+        IReadOnlyDictionary<string, HotfixFeatureState> states,
+        IServiceProvider services,
+        ILakonaTimerBackend? timerBackend)
+    {
+        for (var index = started.Count - 1; index >= 0; index--)
+        {
+            var feature = started[index];
+            if (!states.TryGetValue(feature.Name, out var state))
+            {
+                continue;
+            }
+
+            try
+            {
+                await invoker.StopAsync(
+                    feature,
+                    state,
+                    services,
+                    timerBackend,
+                    CancellationToken.None).ConfigureAwait(false);
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private static void ValidateFeatureState(
+        HotfixFeatureDeclaration feature,
+        HotfixFeatureState state)
+    {
+        foreach (var item in state.Items)
+        {
+            var value = item.Value;
+            if (value is null)
+            {
+                continue;
+            }
+
+            var loadContext = AssemblyLoadContext.GetLoadContext(value.GetType().Assembly);
+            if (loadContext?.IsCollectible == true)
+            {
+                throw new InvalidOperationException(
+                    $"HotfixFeatureState item '{item.Key}' for feature '{feature.Name}' contains value type '{value.GetType().FullName}' from a collectible hotfix AssemblyLoadContext. Feature state values must be reload-safe values from the default or shared non-collectible AssemblyLoadContext.");
+            }
         }
     }
 }

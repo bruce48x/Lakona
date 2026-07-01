@@ -1,7 +1,11 @@
+using System.Reflection;
+using System.Runtime.Loader;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -145,6 +149,30 @@ public sealed class HotfixFeatureLifecycleTests
     }
 
     [Fact]
+    public async Task Start_failure_rolls_back_timers_even_when_candidate_stop_fails_and_preserves_original_failure()
+    {
+        LifecycleRecorder.Reset();
+        var coordinator = new HotfixFeatureLifecycleCoordinator();
+        var backend = new RecordingLifecycleTimerBackend();
+        using var candidate = CreateRuntime(
+            [Feature("new-a", typeof(ThrowingStopTimerStartFeature)), Feature("new-b", typeof(FailingStartFeature))],
+            timerBackend: backend);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await coordinator.StartCandidateAsync(
+                HotfixFeatureLifecycleSnapshot.Empty,
+                candidate.Snapshot,
+                candidate.Snapshot.DispatchTable!.Features,
+                TestContext.Current.CancellationToken));
+
+        Assert.Equal("start failed", ex.Message);
+        Assert.Equal(["start:throwing-stop", "start:new-b", "stop:throwing-stop"], LifecycleRecorder.Events);
+        Assert.Equal(1, backend.StagedCreateCount);
+        Assert.Equal(1, backend.RollbackCount);
+        Assert.Empty(backend.ActiveTimers);
+    }
+
+    [Fact]
     public async Task Disabled_candidate_feature_does_not_start()
     {
         LifecycleRecorder.Reset();
@@ -231,6 +259,48 @@ public sealed class HotfixFeatureLifecycleTests
     }
 
     [Fact]
+    public async Task Publication_participant_failure_rolls_back_timers_even_when_candidate_stop_fails()
+    {
+        LifecycleRecorder.Reset();
+        using var oldRuntime = CreateRuntime([Feature("old", typeof(StatefulFeature))], "old");
+        var backend = new RecordingLifecycleTimerBackend();
+        using var candidateRuntime = CreateRuntime(
+            [Feature("new-a", typeof(ThrowingStopTimerStartFeature))],
+            "candidate",
+            backend);
+        var participant = new FailingBeforePublishParticipant();
+        var manager = new HotfixManager(
+            new UnusedAssemblySource(),
+            participants: [participant]);
+        var first = await manager.PublishCandidateAsync(
+            oldRuntime.Snapshot,
+            CreateSnapshot(1, oldRuntime.Snapshot.DispatchTable!.Features),
+            oldRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+        Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+        LifecycleRecorder.Reset();
+        participant.Fail = true;
+        var oldPublishedRuntime = ((IHotfixRuntimeAccessor)manager).Current;
+        var oldPublishedSnapshot = manager.Current;
+        var oldPublishedDispatch = HotfixDispatch.Current;
+
+        var failed = await manager.PublishCandidateAsync(
+            candidateRuntime.Snapshot,
+            CreateSnapshot(2, candidateRuntime.Snapshot.DispatchTable!.Features),
+            candidateRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+
+        Assert.False(failed.Succeeded);
+        Assert.Contains("participant failed", failed.Diagnostics);
+        Assert.Same(oldPublishedRuntime, ((IHotfixRuntimeAccessor)manager).Current);
+        Assert.Same(oldPublishedSnapshot, manager.Current);
+        Assert.Same(oldPublishedDispatch, HotfixDispatch.Current);
+        Assert.Equal(1, backend.RollbackCount);
+        Assert.Empty(backend.ActiveTimers);
+        Assert.Equal(["start:throwing-stop", "stop:throwing-stop"], LifecycleRecorder.Events);
+    }
+
+    [Fact]
     public async Task Publication_participants_observe_old_state_before_publish_and_consistent_new_state_after_publish()
     {
         LifecycleRecorder.Reset();
@@ -265,6 +335,32 @@ public sealed class HotfixFeatureLifecycleTests
     }
 
     [Fact]
+    public async Task Publication_participants_can_lease_previous_runtime_during_after_publish()
+    {
+        using var oldRuntime = CreateRuntime([Feature("old", typeof(StatefulFeature))], "1");
+        using var candidateRuntime = CreateRuntime([Feature("new-a", typeof(AlphaFeature))], "2");
+        var participant = new PreviousRuntimeLeaseParticipant();
+        var manager = new HotfixManager(new UnusedAssemblySource(), participants: [participant]);
+
+        var first = await manager.PublishCandidateAsync(
+            oldRuntime.Snapshot,
+            CreateSnapshot(1, oldRuntime.Snapshot.DispatchTable!.Features),
+            oldRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+        Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+        participant.Enabled = true;
+
+        var second = await manager.PublishCandidateAsync(
+            candidateRuntime.Snapshot,
+            CreateSnapshot(2, candidateRuntime.Snapshot.DispatchTable!.Features),
+            candidateRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+
+        Assert.True(second.Succeeded, string.Join(Environment.NewLine, second.Diagnostics));
+        Assert.True(participant.LeasedPreviousRuntime);
+    }
+
+    [Fact]
     public async Task Staged_timers_are_committed_only_after_candidate_publication_is_current()
     {
         LifecycleRecorder.Reset();
@@ -292,6 +388,48 @@ public sealed class HotfixFeatureLifecycleTests
         Assert.Equal("2", backend.CurrentVersionObservedDuringCommit);
         Assert.Equal(1, backend.CommitCount);
         Assert.Single(backend.ActiveTimers);
+    }
+
+    [Fact]
+    public async Task Hotfix_owned_feature_state_value_rejects_candidate_publication_and_keeps_old_publication()
+    {
+        LifecycleRecorder.Reset();
+        using var oldRuntime = CreateRuntime([Feature("old", typeof(StatefulFeature))], "1");
+        using var candidateRuntime = CreateRuntime([Feature("state", typeof(CollectibleStateFeature))], "2");
+        var manager = new HotfixManager(new UnusedAssemblySource());
+        var first = await manager.PublishCandidateAsync(
+            oldRuntime.Snapshot,
+            CreateSnapshot(1, oldRuntime.Snapshot.DispatchTable!.Features),
+            oldRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+        Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+        var oldPublishedRuntime = ((IHotfixRuntimeAccessor)manager).Current;
+        var oldPublishedSnapshot = manager.Current;
+        var oldPublishedDispatch = HotfixDispatch.Current;
+        var stateValue = CreateCollectibleStateValue(out var loadContext);
+        CollectibleStateFeature.Value = stateValue;
+
+        try
+        {
+            var failed = await manager.PublishCandidateAsync(
+                candidateRuntime.Snapshot,
+                CreateSnapshot(2, candidateRuntime.Snapshot.DispatchTable!.Features),
+                candidateRuntime.Snapshot.DispatchTable!.Features,
+                TestContext.Current.CancellationToken);
+
+            Assert.False(failed.Succeeded);
+            Assert.Contains(failed.Diagnostics, diagnostic =>
+                diagnostic.Contains("HotfixFeatureState", StringComparison.Ordinal) &&
+                diagnostic.Contains("reload-safe", StringComparison.OrdinalIgnoreCase));
+            Assert.Same(oldPublishedRuntime, ((IHotfixRuntimeAccessor)manager).Current);
+            Assert.Same(oldPublishedSnapshot, manager.Current);
+            Assert.Same(oldPublishedDispatch, HotfixDispatch.Current);
+        }
+        finally
+        {
+            CollectibleStateFeature.Value = null;
+            loadContext.Unload();
+        }
     }
 
     private static ScopedRuntime CreateRuntime(
@@ -352,6 +490,52 @@ public sealed class HotfixFeatureLifecycleTests
             null,
             null,
             features);
+    }
+
+    private static object CreateCollectibleStateValue(out AssemblyLoadContext loadContext)
+    {
+        var assemblyName = $"HotfixStateValue_{Guid.NewGuid():N}";
+        var syntaxTree = CSharpSyntaxTree.ParseText(
+            """
+            namespace HotfixStateValue;
+
+            public sealed class Payload
+            {
+            }
+            """);
+        var references = GetTrustedPlatformReferences()
+            .GroupBy(static reference => reference.Display, StringComparer.OrdinalIgnoreCase)
+            .Select(static group => group.First())
+            .ToArray();
+        var compilation = CSharpCompilation.Create(
+            assemblyName,
+            [syntaxTree],
+            references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        using var stream = new MemoryStream();
+        var emit = compilation.Emit(stream);
+        if (!emit.Success)
+        {
+            throw new InvalidOperationException(string.Join(Environment.NewLine, emit.Diagnostics));
+        }
+
+        stream.Position = 0;
+        loadContext = new AssemblyLoadContext(assemblyName, isCollectible: true);
+        var assembly = loadContext.LoadFromStream(stream);
+        return Activator.CreateInstance(assembly.GetType("HotfixStateValue.Payload", throwOnError: true)!)!;
+    }
+
+    private static IEnumerable<MetadataReference> GetTrustedPlatformReferences()
+    {
+        var trustedPlatformAssemblies = (string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES");
+        if (trustedPlatformAssemblies is null)
+        {
+            throw new InvalidOperationException("TRUSTED_PLATFORM_ASSEMBLIES is not available.");
+        }
+
+        return trustedPlatformAssemblies
+            .Split(Path.PathSeparator)
+            .Select(static path => MetadataReference.CreateFromFile(path));
     }
 
     private sealed record RuntimeMarker(string Value);
@@ -438,6 +622,27 @@ public sealed class HotfixFeatureLifecycleTests
         }
 
         public HotfixManager? CurrentManager { get; set; }
+    }
+
+    private sealed class PreviousRuntimeLeaseParticipant : IHotfixRuntimePublicationParticipant
+    {
+        public bool Enabled { get; set; }
+
+        public bool LeasedPreviousRuntime { get; private set; }
+
+        public ValueTask AfterPublishAsync(HotfixRuntimeSnapshot previous, HotfixRuntimeSnapshot current, CancellationToken cancellationToken = default)
+        {
+            _ = current;
+            _ = cancellationToken;
+            if (!Enabled)
+            {
+                return default;
+            }
+
+            using var lease = previous.AcquireLease();
+            LeasedPreviousRuntime = ReferenceEquals(previous, lease.Snapshot);
+            return default;
+        }
     }
 
     private sealed class UnusedAssemblySource : IHotfixAssemblySource
@@ -554,12 +759,42 @@ public sealed class HotfixFeatureLifecycleTests
         }
     }
 
+    private sealed class ThrowingStopTimerStartFeature : HotfixGameFeature
+    {
+        public static async ValueTask StartAsync(HotfixFeatureStartCall call)
+        {
+            LifecycleRecorder.Events.Add("start:throwing-stop");
+            await LakonaTimer.CreateOnceTimerAsync<TimerCallbackTarget, TimerArgs>(
+                TimeSpan.Zero,
+                nameof(TimerCallbackTarget.TickAsync),
+                new TimerArgs("candidate"),
+                call.CancellationToken).ConfigureAwait(false);
+        }
+
+        public static ValueTask StopAsync(HotfixFeatureStopCall call)
+        {
+            LifecycleRecorder.Events.Add("stop:throwing-stop");
+            throw new InvalidOperationException("stop failed");
+        }
+    }
+
     private sealed class FailingStartFeature : HotfixGameFeature
     {
         public static ValueTask StartAsync(HotfixFeatureStartCall call)
         {
             LifecycleRecorder.Events.Add("start:new-b");
             throw new InvalidOperationException("start failed");
+        }
+    }
+
+    private sealed class CollectibleStateFeature : HotfixGameFeature
+    {
+        public static object? Value { get; set; }
+
+        public static ValueTask StartAsync(HotfixFeatureStartCall call)
+        {
+            call.State.Items["payload"] = Value;
+            return default;
         }
     }
 

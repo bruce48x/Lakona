@@ -184,6 +184,19 @@ public sealed class HotfixFeatureScannerTests
     }
 
     [Fact]
+    public void Scanner_rejects_public_lifecycle_overload_even_when_valid_hook_exists()
+    {
+        var result = HotfixBehaviorScanner.Scan(typeof(MixedStartOverloadFeature).Assembly, [
+            typeof(MixedStartOverloadFeature)
+        ]);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Contains(nameof(MixedStartOverloadFeature.StartAsync), StringComparison.Ordinal) &&
+            diagnostic.Contains("public static ValueTask", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Scanner_rejects_public_on_reload_hook()
     {
         var result = HotfixBehaviorScanner.Scan(typeof(OnReloadFeature).Assembly, [
@@ -440,6 +453,26 @@ public sealed class HotfixFeatureScannerTests
         }
 
         public static ValueTask StopAsync(HotfixFeatureStartCall call)
+        {
+            _ = call;
+            return default;
+        }
+    }
+
+    [HotfixFeature("mixed-start-overload")]
+    private sealed class MixedStartOverloadFeature : HotfixGameFeature
+    {
+        public static void Configure(HotfixFeatureContext context)
+        {
+        }
+
+        public static ValueTask StartAsync(HotfixFeatureStartCall call)
+        {
+            _ = call;
+            return default;
+        }
+
+        public static ValueTask StartAsync(HotfixFeatureStopCall call)
         {
             _ = call;
             return default;
