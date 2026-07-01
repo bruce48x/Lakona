@@ -62,14 +62,14 @@ dotnet build Lakona.slnx
 dotnet test Lakona.slnx --no-build
 ```
 
-Codex agents should run .NET commands that may restore packages or contact
-NuGet with escalated sandbox permissions on the first attempt, instead of first
-trying them inside the network-restricted sandbox. This applies to commands such
-as `dotnet restore`, `dotnet build` without `--no-restore`, `dotnet test`
-without `--no-restore`, `dotnet run` when restore may occur, `dotnet pack` when
-restore may occur, and `dotnet tool install` or `dotnet tool update`. After a
-successful restore in the same workspace, prefer `--no-restore` or `--no-build`
-where appropriate.
+AI agents running in network-restricted sandboxes should request the
+environment's external-network or escalated permission on the first attempt for
+.NET commands that may restore packages or contact NuGet. This applies to
+commands such as `dotnet restore`, `dotnet build` without `--no-restore`,
+`dotnet test` without `--no-restore`, `dotnet run` when restore may occur,
+`dotnet pack` when restore may occur, and `dotnet tool install` or
+`dotnet tool update`. After a successful restore in the same workspace, prefer
+`--no-restore` or `--no-build` where appropriate.
 
 For large solution test runs that time out under local tooling, run test
 projects sequentially:
@@ -95,29 +95,17 @@ Before committing:
 
 ## Large Cross-Cutting Changes
 
-AI agents and human contributors must treat a change as large and
-cross-cutting when it is likely to touch multiple packages, public APIs,
-runtime lifecycle, hot reload, scheduling, concurrency, source generation,
-generated project templates, or sample migrations.
+AI agents and human contributors must treat work as large and cross-cutting
+when it is likely to touch multiple packages, public APIs, runtime lifecycle,
+hot reload, scheduling, concurrency, source generation, generated project
+templates, or sample migrations.
 
-Before implementing a large cross-cutting change:
-
-- Read [docs/agent-workflows/large-cross-cutting-change.md](./docs/agent-workflows/large-cross-cutting-change.md).
-- Produce a scope and risk checkpoint that names the packages, tests, public
-  APIs, migration work, and integration risks involved.
-- Split the work into small, reviewable milestones that can be merged or
-  rebased against the base branch regularly.
-- Keep strongly coupled runtime work under one continuity-preserving
-  implementation owner. Use helper agents only for independent, low-coupling
-  slices.
-- Match review effort to risk: use the strongest available reviewer for
-  architecture, concurrency, lifecycle, and final integration gates; use
-  checklist-based review for mechanical migrations.
-- Run the hygiene checklist in the workflow before requesting final review.
-
-Do not start a broad implementation as many isolated fresh-agent tasks by
-default. That pattern is appropriate only when the slices are genuinely
-independent and have disjoint write scopes.
+Before implementation, read
+[docs/agent-workflows/large-cross-cutting-change.md](./docs/agent-workflows/large-cross-cutting-change.md)
+and produce the workflow's scope and risk checkpoint. Keep strongly coupled
+runtime work under one continuity-preserving owner, use helper agents only for
+independent low-coupling slices, and run the workflow's hygiene checklist
+before final review.
 
 ## Repository Layout
 
