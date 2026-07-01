@@ -173,6 +173,31 @@ public sealed class HotfixFeatureLifecycleTests
     }
 
     [Fact]
+    public async Task Start_failure_rolls_back_timers_created_by_nested_candidate_dispatch()
+    {
+        LifecycleRecorder.Reset();
+        var coordinator = new HotfixFeatureLifecycleCoordinator();
+        var backend = new RecordingLifecycleTimerBackend();
+        using var candidate = CreateRuntime(
+            [Feature("new-a", typeof(NestedDispatchTimerStartFeature)), Feature("new-b", typeof(FailingStartFeature))],
+            timerBackend: backend,
+            serviceBindings: [CreateNestedStartTimerServiceBinding()]);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await coordinator.StartCandidateAsync(
+                HotfixFeatureLifecycleSnapshot.Empty,
+                candidate.Snapshot,
+                candidate.Snapshot.DispatchTable!.Features,
+                TestContext.Current.CancellationToken));
+
+        Assert.Equal("start failed", ex.Message);
+        Assert.Equal(["start:nested-dispatch", "service:nested-dispatch", "start:new-b", "stop:nested-dispatch"], LifecycleRecorder.Events);
+        Assert.Equal(1, backend.StagedCreateCount);
+        Assert.Equal(1, backend.RollbackCount);
+        Assert.Empty(backend.ActiveTimers);
+    }
+
+    [Fact]
     public async Task Disabled_candidate_feature_does_not_start()
     {
         LifecycleRecorder.Reset();
@@ -435,12 +460,18 @@ public sealed class HotfixFeatureLifecycleTests
     private static ScopedRuntime CreateRuntime(
         IReadOnlyList<HotfixFeatureDeclaration> features,
         string marker = "runtime",
-        ILakonaTimerBackend? timerBackend = null)
+        ILakonaTimerBackend? timerBackend = null,
+        IReadOnlyList<HotfixServiceMethodBinding>? serviceBindings = null)
     {
         var tableVersion = long.TryParse(marker, out var parsedVersion) ? parsedVersion : 1;
-        var table = new HotfixDispatchTable(tableVersion, Array.Empty<HotfixMethodBinding>(), Array.Empty<HotfixServiceMethodBinding>(), features);
+        var table = new HotfixDispatchTable(
+            tableVersion,
+            Array.Empty<HotfixMethodBinding>(),
+            serviceBindings ?? Array.Empty<HotfixServiceMethodBinding>(),
+            features);
         var services = new ServiceCollection()
-            .AddSingleton(new RuntimeMarker(marker));
+            .AddSingleton(new RuntimeMarker(marker))
+            .AddSingleton<IHotfixServiceInvoker>(new HotfixServiceInvoker(table));
         if (timerBackend is not null)
         {
             services.AddSingleton(timerBackend);
@@ -461,6 +492,22 @@ public sealed class HotfixFeatureLifecycleTests
             ownsRuntimeResources: false,
             onRetired: null);
         return new ScopedRuntime(provider, snapshot);
+    }
+
+    private static HotfixServiceMethodBinding CreateNestedStartTimerServiceBinding()
+    {
+        var method = typeof(NestedStartTimerService).GetMethod(nameof(NestedStartTimerService.CreateTimerAsync))!;
+        return new HotfixServiceMethodBinding(
+            HotfixDispatch.CreateServiceKey(
+                typeof(INestedStartTimerContract),
+                71,
+                typeof(ValueTask),
+                [typeof(HotfixServiceCall<TimerArgs>)]),
+            method,
+            typeof(NestedStartTimerService),
+            typeof(INestedStartTimerContract),
+            typeof(ValueTask),
+            [typeof(HotfixServiceCall<TimerArgs>)]);
     }
 
     private static HotfixFeatureDeclaration Feature(string name, Type type)
@@ -756,6 +803,42 @@ public sealed class HotfixFeatureLifecycleTests
         {
             LifecycleRecorder.Events.Add("stop:new-a");
             return default;
+        }
+    }
+
+    private sealed class NestedDispatchTimerStartFeature : HotfixGameFeature
+    {
+        public static async ValueTask StartAsync(HotfixFeatureStartCall call)
+        {
+            LifecycleRecorder.Events.Add("start:nested-dispatch");
+            var invoker = call.Services.GetRequiredService<IHotfixServiceInvoker>();
+            await invoker.InvokeAsync<INestedStartTimerContract, HotfixServiceCall<TimerArgs>>(
+                71,
+                new HotfixServiceCall<TimerArgs>(new TimerArgs("nested-dispatch"), call.Services),
+                call.CancellationToken).ConfigureAwait(false);
+        }
+
+        public static ValueTask StopAsync(HotfixFeatureStopCall call)
+        {
+            LifecycleRecorder.Events.Add("stop:nested-dispatch");
+            return default;
+        }
+    }
+
+    private interface INestedStartTimerContract
+    {
+    }
+
+    private sealed class NestedStartTimerService
+    {
+        public static async ValueTask CreateTimerAsync(HotfixServiceCall<TimerArgs> call)
+        {
+            LifecycleRecorder.Events.Add($"service:{call.Request!.Value}");
+            await LakonaTimer.CreateOnceTimerAsync<TimerCallbackTarget, TimerArgs>(
+                TimeSpan.Zero,
+                nameof(TimerCallbackTarget.TickAsync),
+                call.Request,
+                CancellationToken.None).ConfigureAwait(false);
         }
     }
 

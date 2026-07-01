@@ -2,6 +2,7 @@ using System.Runtime.ExceptionServices;
 using System.Runtime.Loader;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+using Lakona.Game.Server.Hotfix.Dispatch;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Lakona.Game.Server.Hotfix;
@@ -43,6 +44,9 @@ internal sealed class HotfixFeatureLifecycleCoordinator
         var rootTimerBackend = candidateRuntime.Services.GetService<ILakonaTimerBackend>();
         var stagingTimerBackend = rootTimerBackend?.CreateStagingBackend();
         using var lease = candidateRuntime.AcquireLease();
+        using var dispatchTimerScope = stagingTimerBackend is null
+            ? null
+            : HotfixDispatchRuntimeScope.Enter(lease, stagingTimerBackend);
         try
         {
             foreach (var feature in candidateFeatures)

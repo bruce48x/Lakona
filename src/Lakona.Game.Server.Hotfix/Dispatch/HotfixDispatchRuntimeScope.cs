@@ -54,6 +54,20 @@ internal sealed class HotfixDispatchRuntimeScope : IDisposable
         return new HotfixDispatchRuntimeScope(lease, timerBackend);
     }
 
+    internal static HotfixDispatchRuntimeScope Enter(
+        HotfixRuntimeSnapshotLease lease,
+        ILakonaTimerBackend? timerBackend)
+    {
+        ArgumentNullException.ThrowIfNull(lease);
+
+        if (lease.Snapshot.DispatchTable is null)
+        {
+            throw new InvalidOperationException("A hotfix dispatch runtime scope requires a dispatch table.");
+        }
+
+        return new HotfixDispatchRuntimeScope(lease, timerBackend);
+    }
+
     internal static IDisposable? EnterTimerScope()
     {
         var context = Current;
