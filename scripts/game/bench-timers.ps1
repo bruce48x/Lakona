@@ -32,6 +32,19 @@ function Assert-PositiveIntegerArray {
     }
 }
 
+function Assert-PeriodsWithinDuration {
+    param(
+        [int[]]$Periods,
+        [int]$Duration
+    )
+
+    foreach ($period in $Periods) {
+        if ($period -gt $Duration) {
+            throw "PeriodMs value $period must be less than or equal to DurationMs value $Duration."
+        }
+    }
+}
+
 $repoRoot = Resolve-Path (Join-Path (Join-Path $PSScriptRoot '..') '..')
 $benchmarkEnvNames = @(
     'LAKONA_TIMER_BENCHMARK_SMOKE',
@@ -67,6 +80,11 @@ try {
 
     if ($PSBoundParameters.ContainsKey('QueueCapacity')) {
         Assert-PositiveInteger -Name 'QueueCapacity' -Value $QueueCapacity
+    }
+
+    if ($PSBoundParameters.ContainsKey('PeriodMs')) {
+        $effectiveDurationMs = if ($PSBoundParameters.ContainsKey('DurationMs')) { $DurationMs } else { 2000 }
+        Assert-PeriodsWithinDuration -Periods $PeriodMs -Duration $effectiveDurationMs
     }
 
     if ($Smoke) {
