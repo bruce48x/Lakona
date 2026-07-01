@@ -101,8 +101,8 @@ Stable app code must not expose application-specific state-store bridges such as
 `IUserStateStore` or `IRoomStateStore` for business actor behavior. Stable
 framework services that need to react to runtime facts should use
 framework-owned lifecycle bridges. User-authored runtime loops such as
-matchmaking ticks, room ticks, and room settlement are actor ticks declared by
-hotfix feature descriptors and implemented in actor behaviors.
+matchmaking, room updates, and room settlement are created by feature lifecycle
+as LakonaTimer callbacks that enqueue actor behavior methods.
 
 Generated framework RPC service proxies may also call hotfix services through
 `IHotfixServiceInvoker`; that is the supported service binding model. The
@@ -167,8 +167,8 @@ runtime packages. User-authored game feature declarations live in
 `Server.Hotfix` as `HotfixGameFeature` descriptors. Generated and sample
 `Server.App` projects must not contain application-specific Feature classes,
 hosted matchmaking loops, room runtimes, or feature adapters that raise
-project-specific runtime events. Reloadable runtime loops are actor ticks
-declared by hotfix feature descriptors.
+project-specific runtime events. Reloadable runtime loops are created by
+feature lifecycle as LakonaTimer callbacks that invoke actor behavior methods.
 
 Feature commands are capability-level orchestration points: placement checks,
 route registration, local actor creation, and the first calls into actors. Once
@@ -232,10 +232,10 @@ Move the following business logic to `samples/Game.Unity.Agar/Server/Hotfix`:
 - settlement commit rules in hotfix room actor behavior
 
 The Agar sample must not contain `Server/App/State/StateStores.cs` or replacement
-`I*StateStore` business bridges. User-authored runtime loops are actor ticks
-declared by hotfix feature descriptors. Stable App code must not define
-application-specific hotfix event adapters, room runtimes, matchmaking hosted
-services, or game Feature classes.
+`I*StateStore` business bridges. User-authored runtime loops are created by
+hotfix feature lifecycle as LakonaTimer callbacks. Stable App code must not
+define application-specific hotfix event adapters, room runtimes, matchmaking
+hosted services, or game Feature classes.
 
 ## Typed Actor Generation Rule
 

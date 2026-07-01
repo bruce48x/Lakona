@@ -35,7 +35,9 @@ public sealed class HotfixFeatureContextTests
             string.Concat("Schedule", "ActiveActorTicks"),
             string.Concat("Hotfix", "ActorTick"),
             string.Concat("Register", "Timer"),
-            string.Concat("Tick", "BacklogPolicy")
+            string.Concat("Tick", "BacklogPolicy"),
+            string.Concat("actor", " tick"),
+            string.Concat("actor", " ticks")
         };
         var scannedFiles = new[] { "src", "tests", "samples", "docs" }
             .Select(root => Path.Combine(repositoryRoot, root))
@@ -52,7 +54,7 @@ public sealed class HotfixFeatureContextTests
             {
                 var text = File.ReadAllText(path);
                 return forbidden
-                    .Where(token => text.Contains(token, StringComparison.Ordinal))
+                    .Where(token => text.Contains(token, StringComparison.OrdinalIgnoreCase))
                     .Select(token => $"{Path.GetRelativePath(repositoryRoot, path)} contains {token}");
             })
             .ToArray();

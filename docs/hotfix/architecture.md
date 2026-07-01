@@ -30,7 +30,7 @@ use Entity, Component, or System for the game-facing model.
 | Service contract | `Shared` | `IChatService` | RPC interface shared by client and server |
 | Service | `Server.Hotfix` | `ChatService` | Request business logic for a Shared service contract |
 | Lifecycle | `Server.Hotfix` | `ChatSessionLifecycle` | Replaceable business reaction to framework-owned lifecycle events |
-| Feature descriptor | `Server.Hotfix` | `BattleRuntimeFeature` | Reloadable game feature declaration and actor tick schedule |
+| Feature descriptor | `Server.Hotfix` | `BattleRuntimeFeature` | Reloadable game feature declaration and LakonaTimer-backed feature timers |
 | Actor | `Server.App` | `ChatRoomActor` | Stable mailbox, fields, and stable infrastructure dependencies only |
 | Behavior | `Server.Hotfix` | `ChatRoomBehavior` | Hot-reloadable behavior for one actor type |
 | Service proxy | `Server.App` | `ChatServiceProxy` | Stable RPC binding that forwards each call to current hotfix service logic |
@@ -43,7 +43,7 @@ The Service, Lifecycle, and Behavior concepts are deliberately separate:
   as game session disconnect or expiration. It handles replaceable business
   reactions without adding app-owned RPC lifecycle subscriptions.
 - A Feature Descriptor names a user-authored game capability and declares
-  actor runtime ticks for the stable scheduler.
+  feature lifecycle and timer callbacks for the stable scheduler.
 - A Behavior corresponds one-to-one with an Actor. It runs inside an actor turn
   and reads or writes that actor's fields.
 - A Service must not be named `*Behavior`.
@@ -61,7 +61,7 @@ Framework lifecycle bridge                  ChatSessionLifecycle
 Actor fields and mailbox ownership          Service helpers
 Hotfix dispatch bridge                      Request orchestration
 Local admin hotfix route modules            Replaceable rules
-Actor tick scheduler                        Hotfix feature descriptors
+Timer scheduler                             Hotfix feature descriptors
 BuildTag metadata
 
 Reference direction: Server.Hotfix -> Server.App and Shared
@@ -225,9 +225,9 @@ If scanning or validation fails, the previous generation remains active.
 
 Hotfix feature declarations use `public static void Configure(HotfixFeatureContext context)`.
 Static `Configure` is the declaration surface for discoverability, metadata,
-hotfix-generation services, local actor declarations, actor ticks, and typed
-feature commands. The scanner does not construct feature classes during
-declaration.
+hotfix-generation services, local actor declarations, LakonaTimer-backed
+feature timers, and typed feature commands. The scanner does not construct
+feature classes during declaration.
 
 Runtime feature command calls activate a fresh feature instance from the current
 hotfix service provider, invoke a method shaped as

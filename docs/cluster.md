@@ -316,8 +316,8 @@ Features support both dependency registration and runtime lifecycle hooks.
 Those hooks are stable process lifecycle hooks. They are not hotfix reload
 hooks and they do not make Feature classes replaceable. Stable
 `LakonaGameFeature` is framework infrastructure; user-authored game feature
-declarations live in the hotfix assembly and declare actor ticks through
-`HotfixGameFeature`.
+declarations live in the hotfix assembly and use `HotfixGameFeature` lifecycle
+to create timers or LakonaTimer-backed runtime loops.
 
 ```csharp
 public abstract class LakonaGameFeature
@@ -362,7 +362,8 @@ Lifecycle semantics:
 
 `StartAsync` and `StopAsync` must not contain replaceable game decisions.
 They may verify infrastructure, warm caches, or register routes. User-authored
-runtime loops are actor ticks declared by hotfix feature descriptors.
+runtime loops are created by feature lifecycle as timers or LakonaTimer-backed
+runtime loops.
 
 Features that are startup dependencies but must not be cluster-discoverable
 can opt out:

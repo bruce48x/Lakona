@@ -400,7 +400,8 @@ startup adapters and cluster capabilities this process owns. It does not select
 which hotfix business rules are loaded. Hotfix services and actor behaviors are
 loaded by the hotfix manager after the stable host shape is known.
 
-The descriptor may declare actor ticks and other reloadable game capabilities.
+The descriptor may declare feature lifecycle, timers, and other reloadable game
+capabilities backed by LakonaTimer-driven runtime loops.
 It must not decide matchmaking batches, room results, leaderboard ranks, login
 policy, presence cleanup, or product DTO projection directly; those decisions
 belong in hotfix services and actor behaviors.
