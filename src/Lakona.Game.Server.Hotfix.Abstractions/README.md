@@ -41,13 +41,13 @@ public static async ValueTask StopAsync(HotfixFeatureStopCall call)
     if (call.State.Items.TryGetValue("battle.timer", out var value) &&
         value is TimerId timerId)
     {
-        await LakonaTimer.DestroyTimerAsync(timerId, call.CancellationToken);
+        await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None);
     }
 
     call.State.Items.Remove("battle.timer");
 }
 
-public static class BattleTimers
+public sealed class BattleTimers
 {
     public static ValueTask TickAsync(TimerTick<BattleTick> tick)
     {
@@ -62,3 +62,5 @@ Use `LakonaTimer.CreateOnceTimerAsync<TCallback, TArgs>(dueTime,
 nameof(TCallback.Method), args, cancellationToken)` for one-shot work and
 `LakonaTimer.CreatePeriodicTimerAsync<TCallback, TArgs>(dueTime, period,
 nameof(TCallback.Method), args, cancellationToken)` for periodic work.
+Feature `StopAsync` should destroy timers with noncancelable cleanup when the
+timer must not leak after a canceled stop token.

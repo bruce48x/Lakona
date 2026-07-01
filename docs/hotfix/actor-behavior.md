@@ -151,7 +151,7 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
         if (call.State.Items.TryGetValue("battle-runtime.timer", out var value) &&
             value is TimerId timerId)
         {
-            await LakonaTimer.DestroyTimerAsync(timerId, call.CancellationToken);
+            await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None);
         }
 
         call.State.Items.Remove("battle-runtime.timer");
@@ -160,6 +160,10 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
 
 public sealed record BattleRuntimeTick(string QueueId);
 ```
+
+Feature `StopAsync` should destroy timers even if the stop request token has
+already been canceled. Use a noncancelable cleanup token, such as
+`CancellationToken.None`, when deleting feature-owned timers.
 
 The timer scheduler supplies stable context and resolves callbacks against the
 current hotfix behavior table. Stable App code does not validate passwords,

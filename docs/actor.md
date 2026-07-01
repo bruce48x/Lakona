@@ -319,14 +319,14 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
         if (call.State.Items.TryGetValue("battle-runtime.timer", out var value) &&
             value is TimerId timerId)
         {
-            await LakonaTimer.DestroyTimerAsync(timerId, call.CancellationToken);
+            await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None);
         }
     }
 }
 
 public sealed record BattleRuntimeTick(string QueueId);
 
-public static class BattleRuntimeTimers
+public sealed class BattleRuntimeTimers
 {
     public static ValueTask TickAsync(TimerTick<BattleRuntimeTick> tick)
     {

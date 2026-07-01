@@ -212,7 +212,7 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
         if (call.State.Items.TryGetValue("battle-runtime.timer", out var value) &&
             value is TimerId timerId)
         {
-            await LakonaTimer.DestroyTimerAsync(timerId, call.CancellationToken);
+            await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None);
         }
 
         call.State.Items.Remove("battle-runtime.timer");
@@ -225,9 +225,11 @@ public sealed record BattleRuntimeTick(string QueueId);
 The stable timer scheduler resolves callback names against the current hotfix
 behavior table. Feature-owned timers are created from `StartAsync`, the
 returned `TimerId` is stored in `HotfixFeatureState`, and `StopAsync` destroys
-the timer before removing the state entry. Stable App code must not define application-specific hotfix
-event adapters, room runtimes, matchmaking hosted services, or game Feature
-classes.
+the timer before removing the state entry. Stop cleanup must not be skipped only
+because the stop request token was canceled; use a noncancelable cleanup token
+when deleting feature-owned timers. Stable App code must not define
+application-specific hotfix event adapters, room runtimes, matchmaking hosted
+services, or game Feature classes.
 
 Feature descriptors are scanned and validated with the rest of the hotfix
 assembly. They are not retained as long-lived runtime objects from the

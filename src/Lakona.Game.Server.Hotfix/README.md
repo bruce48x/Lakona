@@ -46,7 +46,7 @@ public static async ValueTask StopAsync(HotfixFeatureStopCall call)
     if (call.State.Items.TryGetValue("battle.timer", out var value) &&
         value is TimerId timerId)
     {
-        await LakonaTimer.DestroyTimerAsync(timerId, call.CancellationToken);
+        await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None);
     }
 
     call.State.Items.Remove("battle.timer");
@@ -56,7 +56,7 @@ public static async ValueTask StopAsync(HotfixFeatureStopCall call)
 Timer callbacks are static methods referenced by name:
 
 ```csharp
-public static class BattleTimers
+public sealed class BattleTimers
 {
     public static ValueTask TickAsync(TimerTick<BattleTick> tick)
     {
@@ -64,6 +64,9 @@ public static class BattleTimers
     }
 }
 ```
+
+Use noncancelable cleanup for feature timer destruction when a canceled stop
+token must not leave a timer registered.
 
 ## Server hotfix flow
 

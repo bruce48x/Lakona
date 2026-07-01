@@ -437,15 +437,15 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("nameof(MatchmakingTimerCallbacks.TickAsync)", matchmakingFeature, StringComparison.Ordinal);
         Assert.Contains("FeatureTimerKeys.MatchmakingTimerId", matchmakingFeature, StringComparison.Ordinal);
         Assert.Contains("DestroyTimerAsync", matchmakingFeature, StringComparison.Ordinal);
-        Assert.Contains("DestroyTimerAsync(timerId, call.CancellationToken)", matchmakingFeature, StringComparison.Ordinal);
-        Assert.DoesNotContain("DestroyTimerAsync(timerId, CancellationToken.None)", matchmakingFeature, StringComparison.Ordinal);
+        Assert.Contains("DestroyTimerAsync(timerId, CancellationToken.None)", matchmakingFeature, StringComparison.Ordinal);
+        Assert.DoesNotContain("DestroyTimerAsync(timerId, call.CancellationToken)", matchmakingFeature, StringComparison.Ordinal);
 
         Assert.Contains("CreatePeriodicTimerAsync<BattleRuntimeTimerCallbacks, BattleRuntimeTimerArgs>", battleRuntimeFeature, StringComparison.Ordinal);
         Assert.Contains("nameof(BattleRuntimeTimerCallbacks.TickAsync)", battleRuntimeFeature, StringComparison.Ordinal);
         Assert.Contains("FeatureTimerKeys.BattleRuntimeScanTimerId", battleRuntimeFeature, StringComparison.Ordinal);
         Assert.Contains("DestroyTimerAsync", battleRuntimeFeature, StringComparison.Ordinal);
-        Assert.Contains("DestroyTimerAsync(timerId, call.CancellationToken)", battleRuntimeFeature, StringComparison.Ordinal);
-        Assert.DoesNotContain("DestroyTimerAsync(timerId, CancellationToken.None)", battleRuntimeFeature, StringComparison.Ordinal);
+        Assert.Contains("DestroyTimerAsync(timerId, CancellationToken.None)", battleRuntimeFeature, StringComparison.Ordinal);
+        Assert.DoesNotContain("DestroyTimerAsync(timerId, call.CancellationToken)", battleRuntimeFeature, StringComparison.Ordinal);
 
         Assert.Contains("public const string MatchmakingTimerId", timerKeys, StringComparison.Ordinal);
         Assert.Contains("public const string BattleRuntimeScanTimerId", timerKeys, StringComparison.Ordinal);
