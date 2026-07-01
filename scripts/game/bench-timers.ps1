@@ -10,7 +10,29 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..')
+function Assert-PositiveInteger {
+    param(
+        [string]$Name,
+        [int]$Value
+    )
+
+    if ($Value -le 0) {
+        throw "$Name must be a positive integer."
+    }
+}
+
+function Assert-PositiveIntegerArray {
+    param(
+        [string]$Name,
+        [int[]]$Values
+    )
+
+    foreach ($value in $Values) {
+        Assert-PositiveInteger -Name $Name -Value $value
+    }
+}
+
+$repoRoot = Resolve-Path (Join-Path (Join-Path $PSScriptRoot '..') '..')
 $benchmarkEnvNames = @(
     'LAKONA_TIMER_BENCHMARK_SMOKE',
     'LAKONA_TIMER_BENCHMARK_TIMER_COUNTS',
@@ -27,6 +49,26 @@ foreach ($name in $benchmarkEnvNames) {
 
 Push-Location $repoRoot
 try {
+    if ($PSBoundParameters.ContainsKey('TimerCounts')) {
+        Assert-PositiveIntegerArray -Name 'TimerCounts' -Values $TimerCounts
+    }
+
+    if ($PSBoundParameters.ContainsKey('PeriodMs')) {
+        Assert-PositiveIntegerArray -Name 'PeriodMs' -Values $PeriodMs
+    }
+
+    if ($PSBoundParameters.ContainsKey('DurationMs')) {
+        Assert-PositiveInteger -Name 'DurationMs' -Value $DurationMs
+    }
+
+    if ($PSBoundParameters.ContainsKey('MaxWorkers')) {
+        Assert-PositiveInteger -Name 'MaxWorkers' -Value $MaxWorkers
+    }
+
+    if ($PSBoundParameters.ContainsKey('QueueCapacity')) {
+        Assert-PositiveInteger -Name 'QueueCapacity' -Value $QueueCapacity
+    }
+
     if ($Smoke) {
         $env:LAKONA_TIMER_BENCHMARK_SMOKE = 'true'
     }
@@ -34,27 +76,27 @@ try {
         $env:LAKONA_TIMER_BENCHMARK_SMOKE = 'false'
     }
 
-    if ($TimerCounts) {
+    if ($PSBoundParameters.ContainsKey('TimerCounts')) {
         $env:LAKONA_TIMER_BENCHMARK_TIMER_COUNTS = $TimerCounts -join ','
     }
 
-    if ($PeriodMs) {
+    if ($PSBoundParameters.ContainsKey('PeriodMs')) {
         $env:LAKONA_TIMER_BENCHMARK_PERIOD_MS = $PeriodMs -join ','
     }
 
-    if ($CallbackCosts) {
+    if ($PSBoundParameters.ContainsKey('CallbackCosts')) {
         $env:LAKONA_TIMER_BENCHMARK_CALLBACK_COSTS = $CallbackCosts -join ','
     }
 
-    if ($DurationMs -gt 0) {
+    if ($PSBoundParameters.ContainsKey('DurationMs')) {
         $env:LAKONA_TIMER_BENCHMARK_DURATION_MS = $DurationMs.ToString([Globalization.CultureInfo]::InvariantCulture)
     }
 
-    if ($MaxWorkers -gt 0) {
+    if ($PSBoundParameters.ContainsKey('MaxWorkers')) {
         $env:LAKONA_TIMER_BENCHMARK_MAX_WORKERS = $MaxWorkers.ToString([Globalization.CultureInfo]::InvariantCulture)
     }
 
-    if ($QueueCapacity -gt 0) {
+    if ($PSBoundParameters.ContainsKey('QueueCapacity')) {
         $env:LAKONA_TIMER_BENCHMARK_QUEUE_CAPACITY = $QueueCapacity.ToString([Globalization.CultureInfo]::InvariantCulture)
     }
 
