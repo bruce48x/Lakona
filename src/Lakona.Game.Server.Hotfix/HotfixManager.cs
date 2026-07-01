@@ -283,6 +283,7 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
         }
         catch (Exception ex)
         {
+            await RollbackPublicationParticipantsAsync(runtimeSnapshot).ConfigureAwait(false);
             if (nextFeatureLifecycle is not null)
             {
                 await _featureLifecycle.RollbackCandidateAsync(nextFeatureLifecycle, CancellationToken.None)
@@ -306,9 +307,28 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             runtimeSnapshot.DispatchTable ?? previousPublication.DispatchTable);
         HotfixDispatch.ReplaceProvider(() => Volatile.Read(ref _publication).DispatchTable);
         Volatile.Write(ref _publication, nextPublication);
-        await _featureLifecycle.CommitCandidateTimersAsync(
-            nextFeatureLifecycle,
-            CancellationToken.None).ConfigureAwait(false);
+        try
+        {
+            await _featureLifecycle.CommitCandidateTimersAsync(
+                nextFeatureLifecycle,
+                CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Volatile.Write(ref _publication, previousPublication);
+            await RollbackPublicationParticipantsAsync(runtimeSnapshot).ConfigureAwait(false);
+            await _featureLifecycle.RollbackCandidateAsync(nextFeatureLifecycle, CancellationToken.None)
+                .ConfigureAwait(false);
+
+            return new HotfixReloadResult(
+                HotfixReloadStatus.Failed,
+                previousPublication.Snapshot,
+                requestedVersion ?? snapshot.Version,
+                requestedPath ?? snapshot.SourcePath,
+                [ex.Message],
+                ex.Message,
+                ex.GetType().FullName);
+        }
 
         try
         {
@@ -341,6 +361,21 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             requestedVersion ?? snapshot.Version,
             requestedPath ?? snapshot.SourcePath,
             Array.Empty<string>());
+    }
+
+    private async ValueTask RollbackPublicationParticipantsAsync(HotfixRuntimeSnapshot candidate)
+    {
+        for (var index = _publicationParticipants.Count - 1; index >= 0; index--)
+        {
+            try
+            {
+                await _publicationParticipants[index].RollbackPublishAsync(candidate, CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+            catch
+            {
+            }
+        }
     }
 
     private IServiceProvider BuildHotfixProvider(IReadOnlyList<HotfixFeatureDeclaration> features)

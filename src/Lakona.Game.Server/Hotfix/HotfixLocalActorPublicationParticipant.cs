@@ -5,20 +5,69 @@ namespace Lakona.Game.Server.Hotfix;
 
 public sealed class HotfixLocalActorPublicationParticipant(IActorLifecycle actorLifecycle) : IHotfixRuntimePublicationParticipant
 {
-    public ValueTask BeforePublishAsync(
+    private readonly object gate = new();
+    private readonly Dictionary<HotfixRuntimeSnapshot, List<PreparedLocalActor>> preparedActors = [];
+
+    public async ValueTask BeforePublishAsync(
         HotfixRuntimeSnapshot candidate,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(candidate);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var actorTypesById = new Dictionary<string, Type>(StringComparer.Ordinal);
-        foreach (var actor in EnumerateLocalActors(candidate))
+        var localActors = EnumerateLocalActors(candidate).ToArray();
+        if (localActors.Length != 0 && actorLifecycle is not IActorRuntime)
         {
-            ValidateLocalActorDeclaration(actor, actorTypesById);
+            throw new InvalidOperationException(
+                $"Hotfix local actor publication requires {typeof(IActorLifecycle).FullName} to also implement {typeof(IActorRuntime).FullName} so prepared actors can be rolled back before publication.");
         }
 
-        return default;
+        var prepared = new List<PreparedLocalActor>();
+        var actorTypesById = new Dictionary<string, Type>(StringComparer.Ordinal);
+        try
+        {
+            foreach (var actor in localActors)
+            {
+                ValidateLocalActorDeclaration(actor, actorTypesById);
+                var result = await CreateLocalActorAsync(actor, cancellationToken).ConfigureAwait(false);
+                if (result.Status == ActorCreateLocalStatus.Created)
+                {
+                    prepared.Add(new PreparedLocalActor(ActorId.From(actor.ActorId)));
+                }
+            }
+        }
+        catch
+        {
+            await RollbackPreparedActorsAsync(prepared, CancellationToken.None).ConfigureAwait(false);
+            throw;
+        }
+
+        if (prepared.Count != 0)
+        {
+            lock (gate)
+            {
+                preparedActors[candidate] = prepared;
+            }
+        }
+
+        return;
+    }
+
+    public async ValueTask RollbackPublishAsync(
+        HotfixRuntimeSnapshot candidate,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(candidate);
+        List<PreparedLocalActor>? prepared;
+        lock (gate)
+        {
+            if (!preparedActors.Remove(candidate, out prepared))
+            {
+                return;
+            }
+        }
+
+        await RollbackPreparedActorsAsync(prepared, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask AfterPublishAsync(
@@ -28,10 +77,10 @@ public sealed class HotfixLocalActorPublicationParticipant(IActorLifecycle actor
     {
         _ = previous;
         ArgumentNullException.ThrowIfNull(current);
-
-        foreach (var actor in EnumerateLocalActors(current))
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (gate)
         {
-            await CreateLocalActorAsync(actor, cancellationToken).ConfigureAwait(false);
+            preparedActors.Remove(current);
         }
     }
 
@@ -61,7 +110,7 @@ public sealed class HotfixLocalActorPublicationParticipant(IActorLifecycle actor
         actorTypesById[declaration.ActorId] = declaration.ActorType;
     }
 
-    private async ValueTask CreateLocalActorAsync(
+    private async ValueTask<ActorCreateLocalResult> CreateLocalActorAsync(
         HotfixLocalActorDeclaration declaration,
         CancellationToken cancellationToken)
     {
@@ -73,5 +122,30 @@ public sealed class HotfixLocalActorPublicationParticipant(IActorLifecycle actor
             throw new InvalidOperationException(result.Diagnostic ??
                 $"Hotfix local actor '{declaration.ActorId}' could not be created as '{declaration.ActorType.FullName}'.");
         }
+
+        return result;
     }
+
+    private async ValueTask RollbackPreparedActorsAsync(
+        IReadOnlyList<PreparedLocalActor> prepared,
+        CancellationToken cancellationToken)
+    {
+        if (actorLifecycle is not IActorRuntime actorRuntime)
+        {
+            return;
+        }
+
+        for (var index = prepared.Count - 1; index >= 0; index--)
+        {
+            try
+            {
+                await actorRuntime.StopAsync(prepared[index].ActorId).ConfigureAwait(false);
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private sealed record PreparedLocalActor(ActorId ActorId);
 }

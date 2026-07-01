@@ -471,6 +471,58 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
     }
 
     [Fact]
+    public async Task Local_actor_create_failure_keeps_old_publication_and_reports_diagnostic()
+    {
+        await using var provider = new ServiceCollection()
+            .AddLakonaGameServerActors()
+            .BuildServiceProvider();
+        var actorLifecycle = provider.GetRequiredService<IActorLifecycle>();
+        var actorRuntime = provider.GetRequiredService<IActorRuntime>();
+        var actorId = ActorId.From("candidate");
+        var existing = await actorLifecycle.CreateLocalAsync(
+            typeof(OtherActor),
+            actorId,
+            cancellationToken: TestContext.Current.CancellationToken);
+        Assert.True(existing.Succeeded, existing.Diagnostic);
+        var participant = new HotfixLocalActorPublicationParticipant(actorLifecycle);
+        var manager = new HotfixManager(
+            new UnusedAssemblySource(),
+            participants: [participant]);
+        using var oldRuntime = CreateRuntime([CreateFeature("old", [], [])], "1");
+        using var candidateRuntime = CreateRuntime([
+            CreateFeature(
+                "candidate",
+                [new HotfixLocalActorDeclaration(typeof(TickActor), actorId.Value)],
+                [])
+        ], "2");
+        var first = await manager.PublishCandidateAsync(
+            oldRuntime.Snapshot,
+            CreateSnapshot(1, oldRuntime.Snapshot.DispatchTable!.Features),
+            oldRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+        Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+        var oldPublishedRuntime = ((IHotfixRuntimeAccessor)manager).Current;
+        var oldPublishedSnapshot = manager.Current;
+        var oldPublishedDispatch = HotfixDispatch.Current;
+
+        var failed = await manager.PublishCandidateAsync(
+            candidateRuntime.Snapshot,
+            CreateSnapshot(2, candidateRuntime.Snapshot.DispatchTable!.Features),
+            candidateRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+
+        Assert.False(failed.Succeeded);
+        Assert.Contains(failed.Diagnostics, diagnostic =>
+            diagnostic.Contains(actorId.Value, StringComparison.Ordinal) &&
+            diagnostic.Contains(nameof(OtherActor), StringComparison.Ordinal));
+        Assert.Same(oldPublishedRuntime, ((IHotfixRuntimeAccessor)manager).Current);
+        Assert.Same(oldPublishedSnapshot, manager.Current);
+        Assert.Same(oldPublishedDispatch, HotfixDispatch.Current);
+        Assert.Empty(actorRuntime.GetActiveActorIds(typeof(TickActor)));
+        Assert.Contains(actorId, actorRuntime.GetActiveActorIds(typeof(OtherActor)));
+    }
+
+    [Fact]
     public async Task Hosted_service_filters_successful_reload_feature_ticks()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -882,12 +934,14 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
         public ValueTask StopAsync(ActorId id)
         {
             _actors.Remove(id);
+            RemoveActiveActorId(id);
             return default;
         }
 
         public ValueTask<ActorStopOutcome> StopAsync(ActorId id, TimeSpan drainTimeout)
         {
             _actors.Remove(id);
+            RemoveActiveActorId(id);
             return new ValueTask<ActorStopOutcome>(ActorStopOutcome.Drained);
         }
 
@@ -935,6 +989,17 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
             }
 
             return actor;
+        }
+
+        private void RemoveActiveActorId(ActorId id)
+        {
+            foreach (var entry in ActiveActorIds.ToArray())
+            {
+                ActiveActorIds[entry.Key] = entry.Value
+                    .Where(activeId => activeId != id)
+                    .OrderBy(static activeId => activeId.Value)
+                    .ToArray();
+            }
         }
     }
 
@@ -1114,6 +1179,8 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
                 ? _recordingRuntimeId
                 : Context.Id.Value;
     }
+
+    public sealed class OtherActor : GameActor;
 
     private sealed class NotActor;
 

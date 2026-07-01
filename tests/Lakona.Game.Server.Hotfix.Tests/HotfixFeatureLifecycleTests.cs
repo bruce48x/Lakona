@@ -416,6 +416,45 @@ public sealed class HotfixFeatureLifecycleTests
     }
 
     [Fact]
+    public async Task Staged_timer_commit_failure_keeps_old_publication_and_rolls_back_candidate()
+    {
+        LifecycleRecorder.Reset();
+        using var oldRuntime = CreateRuntime([Feature("old", typeof(StatefulFeature))], "1");
+        var backend = new RecordingLifecycleTimerBackend { ThrowOnCommit = true };
+        using var candidateRuntime = CreateRuntime([Feature("new-a", typeof(TimerStartFeature))], "2", backend);
+        var manager = new HotfixManager(new UnusedAssemblySource());
+
+        var first = await manager.PublishCandidateAsync(
+            oldRuntime.Snapshot,
+            CreateSnapshot(1, oldRuntime.Snapshot.DispatchTable!.Features),
+            oldRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+        Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+        LifecycleRecorder.Reset();
+        var oldPublishedRuntime = ((IHotfixRuntimeAccessor)manager).Current;
+        var oldPublishedSnapshot = manager.Current;
+        var oldPublishedDispatch = HotfixDispatch.Current;
+
+        var failed = await manager.PublishCandidateAsync(
+            candidateRuntime.Snapshot,
+            CreateSnapshot(2, candidateRuntime.Snapshot.DispatchTable!.Features),
+            candidateRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+
+        Assert.False(failed.Succeeded);
+        Assert.Contains("timer commit failed", failed.Diagnostics);
+        Assert.Same(oldPublishedRuntime, ((IHotfixRuntimeAccessor)manager).Current);
+        Assert.Same(oldPublishedSnapshot, manager.Current);
+        Assert.Same(oldPublishedDispatch, HotfixDispatch.Current);
+        using var lease = ((IHotfixRuntimeAccessor)manager).AcquireCurrent();
+        Assert.Same(oldPublishedRuntime, lease.Snapshot);
+        Assert.Equal(1, backend.CommitCount);
+        Assert.Equal(1, backend.RollbackCount);
+        Assert.Empty(backend.ActiveTimers);
+        Assert.Equal(["start:new-a", "stop:new-a"], LifecycleRecorder.Events);
+    }
+
+    [Fact]
     public async Task Hotfix_owned_feature_state_value_rejects_candidate_publication_and_keeps_old_publication()
     {
         LifecycleRecorder.Reset();
@@ -965,6 +1004,8 @@ public sealed class HotfixFeatureLifecycleTests
 
         public string? CurrentVersionObservedDuringCommit { get; private set; }
 
+        public bool ThrowOnCommit { get; init; }
+
         public ValueTask<TimerId> CreateOnceTimerAsync<TCallback, TArgs>(
             TimeSpan dueTime,
             string methodName,
@@ -1003,6 +1044,11 @@ public sealed class HotfixFeatureLifecycleTests
         {
             CommitCount++;
             CurrentVersionObservedDuringCommit = ReadCurrentVersionDuringCommit?.Invoke();
+            if (ThrowOnCommit)
+            {
+                throw new InvalidOperationException("timer commit failed");
+            }
+
             foreach (var timerId in ((StagingBackend)stagingBackend).Timers)
             {
                 activeTimers.Add(timerId);
