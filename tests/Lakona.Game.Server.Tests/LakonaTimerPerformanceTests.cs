@@ -30,13 +30,17 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
         });
         Assert.All(results.Scenarios, static scenario =>
         {
-            Assert.True(scenario.EnteredTicks > 0);
+            Assert.True(scenario.DispatchStarts > 0);
+            Assert.Equal(scenario.DispatchStarts, scenario.LatencyObservationCount);
+            Assert.Equal(scenario.DispatchStarts / scenario.Options.Duration.TotalSeconds, scenario.ThroughputPerSecond);
             Assert.True(scenario.MaxQueueDepth <= scenario.Options.DispatchQueueCapacity);
             Assert.True(scenario.MaxActiveWorkers <= scenario.Options.MaxConcurrentCallbacks);
             Assert.Equal(0, scenario.HeapStaleEntryCount);
         });
         Assert.Contains("runtime version", results.Report, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("benchmark options", results.Report, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("timerDescriptorRegistrationLatencyMs", results.Report, StringComparison.Ordinal);
+        Assert.DoesNotContain("schedulerRegistrationCreateLatencyMs", results.Report, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -368,21 +372,22 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
 
             return new TimerBenchmarkScenarioResult(
                 options,
-                EnteredTicks: enteredTicks,
+                DispatchStarts: measuredObserver.DispatchStarts,
+                CallbackEnteredTicks: enteredTicks,
                 P50DispatchLatency: measuredObserver.GetLatencyPercentile(0.50),
                 P95DispatchLatency: measuredObserver.GetLatencyPercentile(0.95),
                 P99DispatchLatency: measuredObserver.GetLatencyPercentile(0.99),
                 LatencyObservationCount: measuredObserver.LatencyObservationCount,
                 LatencySampleCount: measuredObserver.LatencySampleCount,
-                ThroughputPerSecond: enteredTicks / Math.Max(options.Duration.TotalSeconds, 0.001),
+                ThroughputPerSecond: measuredObserver.DispatchStarts / Math.Max(options.Duration.TotalSeconds, 0.001),
                 SkippedTicks: measuredObserver.SkippedTicks,
                 CallbackFailures: measuredObserver.CallbackFailures,
                 MaxQueueDepth: measuredObserver.MaxQueueDepth,
                 QueueFullSkips: measuredObserver.QueueFullSkips,
                 MaxActiveWorkers: measuredObserver.MaxActiveWorkers,
-                AllocatedBytesPerTick: enteredTicks == 0 ? 0 : (allocatedAfter - allocatedBefore) / enteredTicks,
+                AllocatedBytesPerTick: measuredObserver.DispatchStarts == 0 ? 0 : (allocatedAfter - allocatedBefore) / measuredObserver.DispatchStarts,
                 CpuTime: cpuAfter - cpuBefore,
-                CreateLatency: createElapsed,
+                DescriptorRegistrationLatency: createElapsed,
                 DestroyLatency: destroyElapsed,
                 ActiveTimerCount: activeTimerCount,
                 HeapStaleEntryCount: measuredObserver.HeapStaleEntryCount);
@@ -404,9 +409,9 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
                     $"scenario timerCount={scenario.Options.TimerCount} periodMs={scenario.Options.Period.TotalMilliseconds} callbackCost={FormatCallbackCost(scenario.Options.CallbackCost)} " +
                     $"p50DispatchLatencyMsSampledApprox={scenario.P50DispatchLatency.TotalMilliseconds:F3} p95DispatchLatencyMsSampledApprox={scenario.P95DispatchLatency.TotalMilliseconds:F3} p99DispatchLatencyMsSampledApprox={scenario.P99DispatchLatency.TotalMilliseconds:F3} " +
                     $"latencyObservations={scenario.LatencyObservationCount} latencySamples={scenario.LatencySampleCount} " +
-                    $"throughput={scenario.ThroughputPerSecond:F2}/s skippedTicks={scenario.SkippedTicks} callbackFailures={scenario.CallbackFailures} maxObservedQueueDepth={scenario.MaxQueueDepth} queueFullSkips={scenario.QueueFullSkips} " +
+                    $"dispatchStarts={scenario.DispatchStarts} callbackEnteredTicks={scenario.CallbackEnteredTicks} throughputDispatchStarts={scenario.ThroughputPerSecond:F2}/s skippedTicks={scenario.SkippedTicks} callbackFailures={scenario.CallbackFailures} maxObservedQueueDepth={scenario.MaxQueueDepth} queueFullSkips={scenario.QueueFullSkips} " +
                     $"activeWorkerCount={scenario.MaxActiveWorkers} allocatedBytesPerTickApproxProcess={scenario.AllocatedBytesPerTick} cpuTimeMsApproxProcess={scenario.CpuTime.TotalMilliseconds:F3} " +
-                    $"schedulerRegistrationCreateLatencyMs={scenario.CreateLatency.TotalMilliseconds:F3} destroyLatencyMs={scenario.DestroyLatency.TotalMilliseconds:F3} activeTimerCount={scenario.ActiveTimerCount} heapStaleEntryCount={scenario.HeapStaleEntryCount}");
+                    $"timerDescriptorRegistrationLatencyMs={scenario.DescriptorRegistrationLatency.TotalMilliseconds:F3} destroyLatencyMs={scenario.DestroyLatency.TotalMilliseconds:F3} activeTimerCount={scenario.ActiveTimerCount} heapStaleEntryCount={scenario.HeapStaleEntryCount}");
             }
 
             return builder.ToString();
@@ -579,6 +584,7 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
             }
 
             return new BenchmarkTimerObserverSnapshot(
+                startedObservations,
                 SkippedTicks,
                 CallbackFailures,
                 queueDepthSnapshot,
@@ -703,6 +709,7 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
     }
 
     private sealed record BenchmarkTimerObserverSnapshot(
+        long DispatchStarts,
         long SkippedTicks,
         long CallbackFailures,
         int MaxQueueDepth,
@@ -831,7 +838,8 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
 
     private sealed record TimerBenchmarkScenarioResult(
         TimerBenchmarkScenarioOptions Options,
-        long EnteredTicks,
+        long DispatchStarts,
+        long CallbackEnteredTicks,
         TimeSpan P50DispatchLatency,
         TimeSpan P95DispatchLatency,
         TimeSpan P99DispatchLatency,
@@ -845,7 +853,7 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
         int MaxActiveWorkers,
         long AllocatedBytesPerTick,
         TimeSpan CpuTime,
-        TimeSpan CreateLatency,
+        TimeSpan DescriptorRegistrationLatency,
         TimeSpan DestroyLatency,
         int ActiveTimerCount,
         long HeapStaleEntryCount);

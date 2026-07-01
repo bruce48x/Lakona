@@ -82,10 +82,18 @@ try {
         Assert-PositiveInteger -Name 'QueueCapacity' -Value $QueueCapacity
     }
 
-    if ($PSBoundParameters.ContainsKey('PeriodMs')) {
-        $effectiveDurationMs = if ($PSBoundParameters.ContainsKey('DurationMs')) { $DurationMs } else { 2000 }
-        Assert-PeriodsWithinDuration -Periods $PeriodMs -Duration $effectiveDurationMs
+    $effectiveDurationMs = if ($PSBoundParameters.ContainsKey('DurationMs')) { $DurationMs } elseif ($Smoke) { 250 } else { 2000 }
+    $effectivePeriodMs = if ($PSBoundParameters.ContainsKey('PeriodMs')) {
+        $PeriodMs
     }
+    elseif ($Smoke) {
+        @(16)
+    }
+    else {
+        @(16, 50, 250, 1000)
+    }
+
+    Assert-PeriodsWithinDuration -Periods $effectivePeriodMs -Duration $effectiveDurationMs
 
     if ($Smoke) {
         $env:LAKONA_TIMER_BENCHMARK_SMOKE = 'true'
