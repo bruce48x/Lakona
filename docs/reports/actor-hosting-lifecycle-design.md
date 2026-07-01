@@ -15,7 +15,7 @@ The old generated lifecycle surface should be removed, not maintained in
 parallel. That includes `[ActorSpawn]`, `[ActorDestroy]`, generated
 `RoomActors.SpawnAsync` and `RoomActors.DestroyAsync`, public
 `IActorLifecycle`, public local lifecycle result/status types, and
-`IActorRuntime.GetOrCreateAsync`.
+`IActorRuntime.GetOrCreateAsync` / `StopAsync`.
 
 Actor calls remain separate from actor hosting. Generated actor collections such
 as `RoomActors` should only expose selectors such as `Get`, `Local`, and
@@ -156,6 +156,28 @@ hosting. Cross-node creation is not part of this API.
 Framework-only type-based helpers may exist internally if needed, but the daily
 public API should be the generic API above.
 
+## Public Surface Closure
+
+`ActorHosting` is not the only lifecycle API if users can still reach lifecycle
+methods through runtime escape hatches. The implementation must close these
+surfaces in the same change:
+
+- `IActorRuntime` should keep call, diagnostics, and query operations needed by
+  generated refs and framework integrations, but it must not expose
+  `GetOrCreateAsync` or `StopAsync`.
+- `LakonaActorRuntime` should not expose public create, get-or-create, destroy,
+  or stop lifecycle methods. If the concrete class remains public for DI or
+  diagnostics, lifecycle methods must move behind internal interfaces.
+- `ActorContext.Runtime` must not let actor code create or stop other actors.
+  Actor-to-actor interaction remains ordinary generated selector calls.
+- `ActorHosting` may depend on internal runtime interfaces such as
+  `IActorHostingRuntime` for local cell activation, state checks, forced local
+  cleanup, and diagnostics. Those interfaces should be internal to the runtime
+  assembly and test-visible only where needed.
+
+Source scans should fail the implementation if public code still exposes or
+recommends direct lifecycle calls outside `ActorHosting`.
+
 ## Semantics
 
 ### CreateAsync
@@ -178,6 +200,13 @@ Expected transaction for non-local-only actors:
 5. Set `ActorDirectoryCache`.
 6. On failure, stop any partially created local actor, unregister the route
    when this call registered it, remove cache state, and rethrow.
+
+Registering before local activation prevents two nodes from concurrently
+creating the same distributed actor. It creates a short window where directory
+resolution can point to a not-yet-active actor. That window is acceptable, and
+callers may see a structured `ActorNotFound` failure until activation finishes.
+Business code should create actors before publishing user-visible ids that
+would immediately receive traffic.
 
 For `[ActorLocalOnly]` actors, skip directory and cache work and only create the
 local actor.
@@ -202,20 +231,27 @@ startup declarations.
 `DestroyAsync<TActor>` deletes local hosting for the actor id.
 
 - It is idempotent when the actor and local route are already gone.
-- It fails if the directory says the actor is owned by another node.
 - It should remove route/cache state before stopping the actor so new calls stop
   routing to this node.
 - If local stop fails or times out after route removal, it should best-effort
   re-register the route and restore local cache before throwing.
+- If `ActorDirectory` says another node owns the actor, `DestroyAsync` must not
+  unregister that remote route. It should still remove stale current-node cache
+  entries and stop a stale local actor cell of the requested type, because
+  `ActorHosting` is current-node hosting cleanup, not global actor deletion.
 
 Expected transaction for non-local-only actors:
 
 1. Acquire the same per-actor-id operation gate.
 2. Validate local actor type if an actor is active.
-3. Unregister `actorId -> localNode` from `ActorDirectory`.
-4. Remove `ActorDirectoryCache`.
-5. Stop and remove the local actor.
-6. On stop failure, best-effort restore route/cache if the actor may still be
+3. Resolve or unregister `actorId -> localNode` from `ActorDirectory`.
+4. If the route belongs to another node, leave the remote route intact and
+   continue with stale local cleanup only.
+5. Remove `ActorDirectoryCache` entries that point to the local node or are
+   known stale.
+6. Stop and remove the local actor.
+7. On stop failure after local-route removal, best-effort restore route/cache
+   if the actor may still be
    active, then rethrow.
 
 For `[ActorLocalOnly]` actors, skip directory and cache work and only stop the
@@ -226,13 +262,22 @@ local actor.
 The public methods return `ValueTask`. Success is represented by normal
 completion. Failure is represented by typed exceptions.
 
-Implementation should avoid preserving public result/status types purely for
-deleted lifecycle APIs. The preferred shape is:
+Implementation should avoid preserving public result/status types for deleted
+lifecycle APIs. Add a small hosting-specific exception family instead of
+requiring users to inspect status enums:
 
-- Keep existing actor call exceptions only where they still fit actor call
-  behavior.
-- Add or reuse minimal typed exceptions for actor hosting failures.
-- Include actor id, actor type, operation, and local node where relevant.
+| Case | Exception |
+| --- | --- |
+| Base type for create/ensure/destroy failures | `ActorHostingException` |
+| `CreateAsync` finds an already active same-type actor | `ActorAlreadyHostedException` |
+| local actor id is bound to a different actor type | `ActorHostingTypeMismatchException` |
+| `CreateAsync` or `EnsureAsync` finds a directory owner on another node | `ActorHostedElsewhereException` |
+| directory registration, resolution, or unregister is unavailable | `ActorDirectoryUnavailableException` |
+| local stop times out or fails during destroy | `ActorHostingStopException` |
+
+Each exception should include actor id, actor type, operation, and local node
+where relevant. Existing actor call exceptions remain for actor calls, not
+hosting operations.
 
 No public API should require users to inspect `ActorCreateLocalStatus` or
 `ActorDestroyLocalStatus`.
@@ -246,6 +291,10 @@ rooms.Get(roomId);
 rooms.Local(roomId);
 rooms.Remote(nodeId, roomId);
 ```
+
+Distributed actors expose `Get`, `Local`, and `Remote`. `[ActorLocalOnly]`
+actors expose `Local` only and must not grow distributed selectors as part of
+this cleanup.
 
 The generator should stop producing:
 
@@ -279,16 +328,34 @@ not hidden framework hook behavior.
 removed as a public creation path.
 
 Features that need startup-local actors should inject `ActorHosting` and call
-`EnsureAsync` from the feature start hook:
+`CreateAsync` from the feature start hook, then destroy the actor from the
+feature stop hook. Hotfix feature lifecycle methods are currently static, so
+the example uses `call.Services`:
 
 ```csharp
-public sealed class MatchmakingFeature(ActorHosting actorHosting) : HotfixGameFeature
+public sealed class MatchmakingFeature : HotfixGameFeature
 {
-    public ValueTask StartAsync(HotfixFeatureStartCall call)
+    private const string ActorIdValue = "matchmaking/default";
+
+    public static async ValueTask StartAsync(HotfixFeatureStartCall call)
     {
-        return actorHosting.EnsureAsync<MatchmakingActor>(
-            ActorId.From("matchmaking/default"),
-            call.CancellationToken);
+        var actorHosting = call.Services.GetRequiredService<ActorHosting>();
+        await actorHosting
+            .CreateAsync<MatchmakingActor>(ActorId.From(ActorIdValue), call.CancellationToken)
+            .ConfigureAwait(false);
+        call.State.Items["matchmaking.actor"] = ActorIdValue;
+    }
+
+    public static async ValueTask StopAsync(HotfixFeatureStopCall call)
+    {
+        if (call.State.Items.Remove("matchmaking.actor", out var value) &&
+            value is string actorId)
+        {
+            var actorHosting = call.Services.GetRequiredService<ActorHosting>();
+            await actorHosting
+                .DestroyAsync<MatchmakingActor>(ActorId.From(actorId), CancellationToken.None)
+                .ConfigureAwait(false);
+        }
     }
 }
 ```
@@ -296,10 +363,18 @@ public sealed class MatchmakingFeature(ActorHosting actorHosting) : HotfixGameFe
 This removes the `HotfixLocalActorDeclaration` publication path and makes
 feature startup use the same lifecycle API as services and RPC handlers.
 
-The tradeoff is that actor creation failure moves from hotfix publication-time
-validation to feature startup-time validation. That tradeoff is acceptable
-because it removes a separate declarative lifecycle mechanism and keeps the
-runtime model consistent.
+Feature-owned startup actors are lifecycle resources. They should use
+`CreateAsync` rather than `EnsureAsync` so a feature does not accidentally
+claim and later destroy an actor that another feature or service created.
+
+The hotfix runtime must also preserve rollback safety. Candidate feature
+startup should run inside an internal actor-hosting rollback scope. Any actor
+created by `ActorHosting` during a candidate `StartAsync` must be destroyed if
+the start method throws before the feature is marked started. After a start
+method completes, the existing candidate rollback path can call the feature's
+`StopAsync`; that stop hook must destroy feature-owned actors recorded in
+feature state. On successful publication, the actors remain hosted until the
+feature is removed or the host stops.
 
 ## Cross-Node Creation
 
@@ -345,9 +420,12 @@ Delete these public or generated lifecycle surfaces:
 - public `ActorCreateOptions` if no remaining public API uses it
 - public `ActorDestroyOptions` if no remaining public API uses it
 - public `IActorRuntime.GetOrCreateAsync<TActor>`
+- public `IActorRuntime.StopAsync`
 - `HotfixFeatureContext.EnsureLocalActor`
 - `HotfixLocalActorDeclaration`
-- `HotfixLocalActorPublicationParticipant`
+- the old `HotfixLocalActorPublicationParticipant` declaration-based
+  implementation; replace it with internal actor-hosting rollback integration
+  if rollback cannot be handled entirely by feature lifecycle
 - docs and README snippets that recommend any deleted API
 - starter templates that emit any deleted API
 
@@ -422,7 +500,8 @@ Update `docs/actor.md` to say:
 - generated actor collections expose only `Get`, `Local`, and `Remote`.
 
 Update hotfix and tool docs to remove `EnsureLocalActor` examples and replace
-them with feature `StartAsync` plus `ActorHosting.EnsureAsync`.
+them with feature `StartAsync` / `StopAsync` plus `ActorHosting.CreateAsync` /
+`DestroyAsync` for feature-owned startup actors.
 
 ## Testing Strategy
 
@@ -438,19 +517,23 @@ Runtime tests:
   another node.
 - `DestroyAsync` unregisters route, clears cache, and stops local actor.
 - `DestroyAsync` is idempotent when actor and route are absent.
-- `DestroyAsync` fails on ownership mismatch without stopping a remote-owned
-  local actor.
+- `DestroyAsync` leaves remote-owned directory routes intact while removing
+  stale current-node cache and stale current-node actor cells.
 - concurrent create/ensure/destroy calls for the same actor id are serialized.
 
 Generator tests:
 
 - generated collections include `Get`, `Local`, and `Remote`.
+- local-only generated collections include only `Local`.
 - generated collections do not include `SpawnAsync` or `DestroyAsync`.
 - `[ActorSpawn]` and `[ActorDestroy]` no longer appear in generated API tests.
 
 Hotfix/tool/sample tests:
 
-- feature startup examples call `ActorHosting.EnsureAsync`.
+- feature startup examples call `ActorHosting.CreateAsync` and
+  `ActorHosting.DestroyAsync` for feature-owned actors.
+- feature-owned startup actors are destroyed by feature `StopAsync`.
+- actors created during failed candidate `StartAsync` are rolled back.
 - generated starter templates do not emit `EnsureLocalActor`.
 - Agar business logic tests use `ActorHosting`.
 - source scans fail on deleted public API names.
@@ -460,9 +543,12 @@ Hotfix/tool/sample tests:
 The change is complete when:
 
 - `ActorHosting` is the only user-facing actor lifecycle entry point.
+- public runtime and actor context APIs no longer expose create/get-or-create or
+  stop lifecycle methods.
 - generated actor collections no longer contain lifecycle methods.
 - hook attributes and their generator handling are deleted.
-- hotfix feature startup uses `ActorHosting` instead of `EnsureLocalActor`.
+- hotfix feature startup uses `ActorHosting` instead of `EnsureLocalActor` and
+  preserves rollback/stop cleanup for feature-owned actors.
 - samples and starter templates compile with the new API.
 - source scans find no references to deleted lifecycle APIs outside changelog or
   intentional migration notes for the active branch.
