@@ -14,7 +14,7 @@ Tooling and runtime validation have different responsibilities:
 
 - `Lakona.Tool` hides unnecessary choices and generates safe defaults.
 - Lakona runtime packages enforce invariants that must hold for a server to run correctly.
-- `--health-check` and `--readiness-check` explain runtime state at the right operational boundary.
+- `--liveness-check` and `--readiness-check` explain runtime state at the right operational boundary.
 
 Do not make Cluster, Hotfix, or Reliable Push ordinary optional modules in generated projects. They are part of the Lakona application model. Users may change their source, storage, topology, or deployment profile, but generated projects should not teach users to disable the core model.
 
@@ -354,7 +354,7 @@ Startup exceptions should preserve diagnostic codes so tests and tools can asser
 
 Generated readiness checks should call the same runtime validation pipeline used by startup. Deployment automation and local inspection should use the explicit probes:
 
-- `--health-check`: liveness only. It is fast, does not perform network calls, and answers whether the process is alive and minimally configured.
+- `--liveness-check`: liveness only. It is fast, does not perform network calls, and answers whether the process is alive and minimally configured.
 - `--readiness-check`: liveness plus applicable guardrails. It answers whether the node is ready to receive traffic. It supports `--json`.
 
 Liveness failure must imply readiness failure. Readiness failure does not necessarily imply liveness failure; for example, a missing hotfix assembly means the process is alive but not ready.

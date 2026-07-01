@@ -34,8 +34,19 @@ public static class LakonaGameServer
     {
         var builder = CreateApplicationBuilder(args);
 
-        // Health check commands (exit before full startup)
-        if (IsReadinessCheckCommand(args))
+        // Liveness and readiness check commands (exit before full startup)
+        var serverBuilder = new LakonaGameServerBuilder(builder);
+        configure(serverBuilder);
+        serverBuilder.ApplyConfigurationToHostBuilder();
+
+        var runtimeOptions = CreateRuntimeOptions(builder.Configuration, builder.Environment.EnvironmentName);
+
+        if (args.Contains("--liveness-check", StringComparer.Ordinal))
+        {
+            var livenessClusterOptions = TryBuildClusterOptions(runtimeOptions, builder.Configuration);
+            return LakonaGameLivenessProbe.Run(livenessClusterOptions, runtimeOptions);
+        }
+        if (args.Contains("--readiness-check", StringComparer.Ordinal))
         {
             var readiness = await CreateReadinessContext(
                 builder,
@@ -47,18 +58,6 @@ public static class LakonaGameServer
                 args,
                 readiness.ObservabilityCapabilities,
                 readiness.HotfixAssemblyPath);
-        }
-
-        var serverBuilder = new LakonaGameServerBuilder(builder);
-        configure(serverBuilder);
-        serverBuilder.ApplyConfigurationToHostBuilder();
-
-        var runtimeOptions = CreateRuntimeOptions(builder.Configuration, builder.Environment.EnvironmentName);
-
-        if (args.Contains("--health-check", StringComparer.Ordinal))
-        {
-            var healthClusterOptions = TryBuildClusterOptions(runtimeOptions, builder.Configuration);
-            return LakonaGameLivenessProbe.Run(healthClusterOptions, runtimeOptions);
         }
 
         // Full startup
@@ -198,11 +197,6 @@ public static class LakonaGameServer
         {
             return null;
         }
-    }
-
-    internal static bool IsReadinessCheckCommandForTesting(string[] args)
-    {
-        return IsReadinessCheckCommand(args);
     }
 
     internal static LakonaGameRuntimeOptions CreateRuntimeOptionsForTesting(
@@ -350,11 +344,6 @@ public static class LakonaGameServer
         string? environmentName)
     {
         return LakonaGameRuntimeOptions.FromConfiguration(configuration, environmentName);
-    }
-
-    private static bool IsReadinessCheckCommand(string[] args)
-    {
-        return args.Contains("--readiness-check", StringComparer.Ordinal);
     }
 
     public static async Task LoadInitialHotfixAsync(IHost host)

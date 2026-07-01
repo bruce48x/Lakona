@@ -650,7 +650,7 @@ Malformed JSON environment values are configuration binding failures before
 semantic validation.
 
 `--readiness-check` is the canonical project readiness command for local
-inspection and deployment automation. Use `--health-check` for liveness-only
+inspection and deployment automation. Use `--liveness-check` for liveness-only
 checks.
 
 Example diagnostic wording:
