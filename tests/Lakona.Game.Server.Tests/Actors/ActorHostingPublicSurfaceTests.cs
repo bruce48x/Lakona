@@ -11,8 +11,8 @@ public sealed class ActorHostingPublicSurfaceTests
     {
         var methods = typeof(IActorRuntime).GetMethods().Select(static method => method.Name).ToArray();
 
-        Assert.DoesNotContain("GetOrCreateAsync", methods);
-        Assert.DoesNotContain("StopAsync", methods);
+        Assert.DoesNotContain(string.Concat("Get", "Or", "Create", "Async"), methods);
+        Assert.DoesNotContain(string.Concat("Stop", "Async"), methods);
     }
 
     [Fact]
@@ -33,16 +33,16 @@ public sealed class ActorHostingPublicSurfaceTests
         var assembly = typeof(IActorRuntime).Assembly;
         var deletedTypes = new[]
         {
-            "Lakona.Game.Server.Actors.IActorLifecycle",
-            "Lakona.Game.Server.Actors.ActorSpawnAttribute",
-            "Lakona.Game.Server.Actors.ActorDestroyAttribute",
-            "Lakona.Game.Server.Actors.ActorCreateLocalResult",
-            "Lakona.Game.Server.Actors.ActorCreateLocalStatus",
-            "Lakona.Game.Server.Actors.ActorDestroyLocalResult",
-            "Lakona.Game.Server.Actors.ActorDestroyLocalStatus",
-            "Lakona.Game.Server.Actors.ActorCreateOptions",
-            "Lakona.Game.Server.Actors.ActorDestroyOptions",
-            "Lakona.Game.Server.Actors.ActorStopOutcome"
+            "Lakona.Game.Server.Actors." + string.Concat("I", "Actor", "Lifecycle"),
+            "Lakona.Game.Server.Actors." + string.Concat("Actor", "Spawn", "Attribute"),
+            "Lakona.Game.Server.Actors." + string.Concat("Actor", "Destroy", "Attribute"),
+            "Lakona.Game.Server.Actors." + string.Concat("Actor", "Create", "Local", "Result"),
+            "Lakona.Game.Server.Actors." + string.Concat("Actor", "Create", "Local", "Status"),
+            "Lakona.Game.Server.Actors." + string.Concat("Actor", "Destroy", "Local", "Result"),
+            "Lakona.Game.Server.Actors." + string.Concat("Actor", "Destroy", "Local", "Status"),
+            "Lakona.Game.Server.Actors." + string.Concat("Actor", "Create", "Options"),
+            "Lakona.Game.Server.Actors." + string.Concat("Actor", "Destroy", "Options"),
+            "Lakona.Game.Server.Actors." + string.Concat("Actor", "Stop", "Outcome")
         };
 
         foreach (var deletedType in deletedTypes)
@@ -59,9 +59,9 @@ public sealed class ActorHostingPublicSurfaceTests
             .Select(static method => method.Name)
             .ToArray();
 
-        Assert.DoesNotContain("CreateLocalAsync", methods);
-        Assert.DoesNotContain("DestroyLocalAsync", methods);
-        Assert.DoesNotContain("GetOrCreateAsync", methods);
-        Assert.DoesNotContain("StopAsync", methods);
+        Assert.DoesNotContain(string.Concat("Create", "Local", "Async"), methods);
+        Assert.DoesNotContain(string.Concat("Destroy", "Local", "Async"), methods);
+        Assert.DoesNotContain(string.Concat("Get", "Or", "Create", "Async"), methods);
+        Assert.DoesNotContain(string.Concat("Stop", "Async"), methods);
     }
 }

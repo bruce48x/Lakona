@@ -324,19 +324,10 @@ public static partial class MatchmakingBehavior
         }
 
         var rooms = self.Context.Services.GetRequiredService<RoomActors>();
-        var created = await self.Context.Services
-            .GetRequiredService<IActorLifecycle>()
-            .CreateLocalAsync<RoomActor>(ActorId.From(request.RoomId))
+        await self.Context.Services
+            .GetRequiredService<ActorHosting>()
+            .CreateAsync<RoomActor>(ActorId.From(request.RoomId))
             .ConfigureAwait(false);
-        if (!created.Succeeded)
-        {
-            return new RoomSettlementResult
-            {
-                RoomId = request.RoomId,
-                Succeeded = false,
-                Message = created.Diagnostic ?? $"Could not create room actor '{request.RoomId}'."
-            };
-        }
 
         return await rooms
             .Local(new RoomId(request.RoomId))

@@ -15,7 +15,7 @@ namespace Server.Hotfix.Features;
 [HotfixFeature(BattleRuntimeRoomAllocation.FeatureName)]
 public sealed class BattleRuntimeFeature : HotfixGameFeature
 {
-    private readonly IActorLifecycle _lifecycle;
+    private readonly ActorHosting _actorHosting;
     private readonly IActorDirectory _directory;
     private readonly IActorDirectoryCache _directoryCache;
     private readonly LocalActorNodeIdentity _localNode;
@@ -23,14 +23,14 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
     private readonly ILogger<BattleRuntimeFeature> _logger;
 
     public BattleRuntimeFeature(
-        IActorLifecycle lifecycle,
+        ActorHosting actorHosting,
         IActorDirectory directory,
         IActorDirectoryCache directoryCache,
         LocalActorNodeIdentity localNode,
         RoomActors rooms,
         ILogger<BattleRuntimeFeature> logger)
     {
-        _lifecycle = lifecycle;
+        _actorHosting = actorHosting;
         _directory = directory;
         _directoryCache = directoryCache;
         _localNode = localNode;
@@ -92,19 +92,9 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
 
         try
         {
-            var createResult = await _lifecycle
-                .CreateLocalAsync<RoomActor>(actorId, cancellationToken: call.CancellationToken)
+            await _actorHosting
+                .CreateAsync<RoomActor>(actorId, call.CancellationToken)
                 .ConfigureAwait(false);
-            if (!createResult.Succeeded)
-            {
-                if (registeredHere)
-                {
-                    await _directory.UnregisterAsync(actorId, _localNode.NodeId, call.CancellationToken).ConfigureAwait(false);
-                }
-
-                _directoryCache.Remove(actorId);
-                return CreateReply(payload, false, createResult.Diagnostic ?? $"Could not create room actor '{payload.RoomId}'.");
-            }
 
             var roomId = new RoomId(payload.RoomId);
             var create = await _rooms.Local(roomId).CreateAsync(new RoomCreateRequest

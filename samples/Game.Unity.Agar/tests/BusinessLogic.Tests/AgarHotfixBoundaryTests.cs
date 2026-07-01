@@ -416,7 +416,9 @@ public sealed class AgarHotfixBoundaryTests
         var activeScheduleCall = string.Concat("Schedule", "ActiveActorTicks<RoomActor>");
 
         Assert.False(Directory.Exists(Path.Combine(sampleRoot, "Server", "App", "Hosting")));
-        Assert.Contains("EnsureLocalActor<MatchmakingActor>", matchmakingFeature, StringComparison.Ordinal);
+        Assert.Contains(".GetRequiredService<ActorHosting>()", matchmakingFeature, StringComparison.Ordinal);
+        Assert.Contains(".EnsureAsync<MatchmakingActor>(ActorId.From(MatchmakingActorId), call.CancellationToken)", matchmakingFeature, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("Ensure", "Local", "Actor"), matchmakingFeature, StringComparison.Ordinal);
         Assert.DoesNotContain(fixedScheduleCall, matchmakingFeature, StringComparison.Ordinal);
         Assert.Contains("\"default\"", matchmakingFeature, StringComparison.Ordinal);
         Assert.DoesNotContain(fixedScheduleCall, battleRuntimeFeature, StringComparison.Ordinal);

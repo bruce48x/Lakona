@@ -138,12 +138,12 @@ public sealed class LeaderboardActorTests
 
         await using var provider = services.BuildServiceProvider();
         var actors = provider.GetRequiredService<IActorRuntime>();
-        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
+        var hosting = provider.GetRequiredService<ActorHosting>();
         var cancellationToken = TestContext.Current.CancellationToken;
 
         const string userId = "weekly-reset-player";
-        await lifecycle.CreateLocalAsync<UserActor>(ActorId.From(userId), cancellationToken: cancellationToken);
-        await lifecycle.CreateLocalAsync<LeaderboardActor>(ActorId.From("current"), cancellationToken: cancellationToken);
+        await hosting.EnsureAsync<UserActor>(ActorId.From(userId), cancellationToken);
+        await hosting.EnsureAsync<LeaderboardActor>(ActorId.From("current"), cancellationToken);
         var login = await actors.AskAsync<UserActor, UserLoginResult>(
             ActorId.From(userId),
             (actor, _) => actor.LoginAsync(new UserLoginRequest { Password = "pw", Reconnect = false }),
@@ -201,10 +201,10 @@ public sealed class LeaderboardActorTests
 
         await using var provider = services.BuildServiceProvider();
         var actors = provider.GetRequiredService<IActorRuntime>();
-        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
+        var hosting = provider.GetRequiredService<ActorHosting>();
         var cancellationToken = TestContext.Current.CancellationToken;
 
-        await lifecycle.CreateLocalAsync<LeaderboardActor>(ActorId.From("current"), cancellationToken: cancellationToken);
+        await hosting.EnsureAsync<LeaderboardActor>(ActorId.From("current"), cancellationToken);
         await actors.TellAsync<LeaderboardActor>(
             ActorId.From("current"),
             (actor, _) => actor.RecordVictoryPointsAsync(new LeaderboardVictoryPointsRequest

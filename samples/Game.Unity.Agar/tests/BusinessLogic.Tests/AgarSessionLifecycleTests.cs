@@ -48,7 +48,7 @@ public sealed class AgarSessionLifecycleTests
         await TestHotfix.LoadCurrentAsync(cancellationToken);
         await using var provider = BuildLifecycleServices(includeActors: true).BuildServiceProvider();
         var actors = provider.GetRequiredService<IActorRuntime>();
-        await ((IActorLifecycle)actors).CreateLocalAsync<UserActor>(ActorId.From("player-1"), cancellationToken: cancellationToken);
+        await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorId.From("player-1"), cancellationToken);
         await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
             ActorId.From("player-1"),
             (actor, _) => actor.AttachAsync(new PlayerSessionAttachRequest
@@ -95,8 +95,9 @@ public sealed class AgarSessionLifecycleTests
         await TestHotfix.LoadCurrentAsync(cancellationToken);
         await using var provider = BuildLifecycleServices(includeActors: true).BuildServiceProvider();
         var actors = provider.GetRequiredService<IActorRuntime>();
-        await ((IActorLifecycle)actors).CreateLocalAsync<UserActor>(ActorId.From("player-1"), cancellationToken: cancellationToken);
-        await ((IActorLifecycle)actors).CreateLocalAsync<RoomActor>(ActorId.From("room-1"), cancellationToken: cancellationToken);
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        await hosting.EnsureAsync<UserActor>(ActorId.From("player-1"), cancellationToken);
+        await hosting.EnsureAsync<RoomActor>(ActorId.From("room-1"), cancellationToken);
 
         await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
             ActorId.From("player-1"),
@@ -211,7 +212,7 @@ public sealed class AgarSessionLifecycleTests
         await TestHotfix.LoadCurrentAsync(cancellationToken);
         await using var provider = BuildLifecycleServices(includeActors: true).BuildServiceProvider();
         var actors = provider.GetRequiredService<IActorRuntime>();
-        await ((IActorLifecycle)actors).CreateLocalAsync<UserActor>(ActorId.From("player-1"), cancellationToken: cancellationToken);
+        await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorId.From("player-1"), cancellationToken);
         await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
             ActorId.From("player-1"),
             (actor, _) => actor.AttachAsync(new PlayerSessionAttachRequest
@@ -266,12 +267,6 @@ public sealed class AgarSessionLifecycleTests
 
     private sealed class ThrowingActorRuntime : IActorRuntime
     {
-        public ValueTask<TActor> GetOrCreateAsync<TActor>(ActorId id, CancellationToken cancellationToken = default)
-            where TActor : class, IActor
-        {
-            throw new InvalidOperationException("Actor runtime should not be used by this test path.");
-        }
-
         public ValueTask TellAsync<TActor>(
             ActorId id,
             Func<TActor, CancellationToken, ValueTask> message,
@@ -333,15 +328,6 @@ public sealed class AgarSessionLifecycleTests
             return ActorState.Dead;
         }
 
-        public ValueTask StopAsync(ActorId id)
-        {
-            return default;
-        }
-
-        public ValueTask<ActorStopOutcome> StopAsync(ActorId id, TimeSpan drainTimeout)
-        {
-            return new ValueTask<ActorStopOutcome>(ActorStopOutcome.Drained);
-        }
     }
 
     private sealed class TestGameServer : ILakonaGameServer

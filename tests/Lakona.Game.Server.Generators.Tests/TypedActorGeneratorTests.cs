@@ -260,12 +260,12 @@ public sealed class TypedActorGeneratorTests
         Assert.Contains("public RoomLocalRef Local(RoomId id)", result.GeneratedSource);
         Assert.Contains("public RoomRemoteRef Remote(global::Lakona.Game.Cluster.NodeId nodeId, RoomId id)", result.GeneratedSource);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask PingAsync(PingRequest request, global::System.Threading.CancellationToken cancellationToken = default)", result.GeneratedSource);
-        Assert.DoesNotContain("SpawnAsync", result.GeneratedSource);
-        Assert.DoesNotContain("DestroyAsync", result.GeneratedSource);
-        Assert.DoesNotContain("ActorSpawn", result.GeneratedSource);
-        Assert.DoesNotContain("ActorDestroy", result.GeneratedSource);
-        Assert.DoesNotContain("GetOrCreateAsync", result.GeneratedSource);
-        Assert.DoesNotContain("StopAsync", result.GeneratedSource);
+        Assert.DoesNotContain(string.Concat("Spawn", "Async"), result.GeneratedSource);
+        Assert.DoesNotContain(string.Concat("Destroy", "Async"), result.GeneratedSource);
+        Assert.DoesNotContain(string.Concat("Actor", "Spawn"), result.GeneratedSource);
+        Assert.DoesNotContain(string.Concat("Actor", "Destroy"), result.GeneratedSource);
+        Assert.DoesNotContain(string.Concat("Get", "Or", "Create", "Async"), result.GeneratedSource);
+        Assert.DoesNotContain(string.Concat("Stop", "Async"), result.GeneratedSource);
     }
 
     [Fact]

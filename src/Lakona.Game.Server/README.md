@@ -158,8 +158,8 @@ route to another node. Business code should prefer generated selectors so local
 versus distributed actor intent stays visible.
 
 Use `TryTell` only when a framework boundary must fail fast on local mailbox
-pressure. Use `IActorLifecycle`, mailbox metrics, and state queries for
-explicit actor management and diagnostics rather than ordinary gameplay calls.
+pressure. Use `ActorHosting`, mailbox metrics, and state queries for explicit
+actor management and diagnostics rather than ordinary gameplay calls.
 
 ## Sessions And Push
 

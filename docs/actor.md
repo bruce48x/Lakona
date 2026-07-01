@@ -257,12 +257,13 @@ remote placement intent remains visible at the call site.
 
 ## Managed Lifecycle
 
-Actor creation and destruction are local framework lifecycle operations exposed
-through `IActorLifecycle.CreateLocalAsync` and `DestroyLocalAsync`. `AskAsync`,
-`TellAsync`, generated actor refs, and timer callbacks do not create actors.
+Actor creation and destruction are current-node framework lifecycle operations
+exposed through `ActorHosting.CreateAsync`, `ActorHosting.EnsureAsync`, and
+`ActorHosting.DestroyAsync`. `AskAsync`, `TellAsync`, generated actor refs, and
+timer callbacks do not create actors.
 
 Cross-node creation is a feature command to the owning feature; the owning
-feature calls `CreateLocalAsync` on its own node.
+feature calls `ActorHosting` on its own node.
 
 Creation, placement, capacity, and idempotency belong at the feature-command
 boundary. Once an actor exists, services and gateways should call ordinary
@@ -299,11 +300,14 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
 {
     public static void Configure(HotfixFeatureContext context)
     {
-        context.EnsureLocalActor<MatchmakingActor>("default");
     }
 
     public static async ValueTask StartAsync(HotfixFeatureStartCall call)
     {
+        await call.Services
+            .GetRequiredService<ActorHosting>()
+            .EnsureAsync<MatchmakingActor>(ActorId.From("default"), call.CancellationToken);
+
         var timerId = await LakonaTimer.CreatePeriodicTimerAsync<BattleRuntimeTimers, BattleRuntimeTick>(
             TimeSpan.Zero,
             TimeSpan.FromMilliseconds(50),
@@ -316,6 +320,10 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
 
     public static async ValueTask StopAsync(HotfixFeatureStopCall call)
     {
+        await call.Services
+            .GetRequiredService<ActorHosting>()
+            .DestroyAsync<MatchmakingActor>(ActorId.From("default"), CancellationToken.None);
+
         if (call.State.Items.TryGetValue("battle-runtime.timer", out var value) &&
             value is TimerId timerId)
         {

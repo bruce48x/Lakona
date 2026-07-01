@@ -653,11 +653,13 @@ drives node-to-node cluster RPC payloads and remote actor payloads. It does not
 change the `LakonaInternalCodec` used for framework handshake, heartbeat,
 reliable push ack, and session termination notice payloads.
 
-Generated hotfix feature declarations own fixed local actor creation. The Chat
-feature declares:
+Generated hotfix features own fixed local actor creation through lifecycle
+methods. The Chat feature starts its room actor with:
 
 ```csharp
-context.EnsureLocalActor<ChatRoomActor>("chat-room/global");
+await call.Services
+    .GetRequiredService<ActorHosting>()
+    .EnsureAsync<ChatRoomActor>(ActorId.From("chat-room/global"), call.CancellationToken);
 ```
 
 Default local generation must not emit these keys:

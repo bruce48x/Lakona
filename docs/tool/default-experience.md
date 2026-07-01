@@ -188,10 +188,15 @@ RPC enters generated hotfix-backed service binding, the current
 hotfix behavior. The generated project must not use static mutable process
 state as the room concurrency model.
 
-The hotfix Chat feature must declare the fixed local room actor explicitly:
+The hotfix Chat feature must own the fixed local room actor explicitly:
 
 ```csharp
-context.EnsureLocalActor<ChatRoomActor>("chat-room/global");
+public static async ValueTask StartAsync(HotfixFeatureStartCall call)
+{
+    await call.Services
+        .GetRequiredService<ActorHosting>()
+        .EnsureAsync<ChatRoomActor>(ActorId.From("chat-room/global"), call.CancellationToken);
+}
 ```
 
 The user should see Lakona.Game's core capabilities through a working game-server story instead of isolated infrastructure examples.

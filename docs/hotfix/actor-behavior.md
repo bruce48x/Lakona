@@ -122,8 +122,10 @@ var result = await users
     });
 ```
 
-Hotfix feature descriptors declare local actors. Periodic work is created from
-feature lifecycle hooks through the stable timer entry point:
+Hotfix feature descriptors configure feature services and command handlers.
+Feature-owned startup actors are created from lifecycle hooks through the
+current-node `ActorHosting` entry point. Periodic work is created through the
+stable timer entry point:
 
 ```csharp
 [HotfixFeature("battle-runtime")]
@@ -131,11 +133,14 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
 {
     public static void Configure(HotfixFeatureContext context)
     {
-        context.EnsureLocalActor<MatchmakingActor>("default");
     }
 
     public static async ValueTask StartAsync(HotfixFeatureStartCall call)
     {
+        await call.Services
+            .GetRequiredService<ActorHosting>()
+            .EnsureAsync<MatchmakingActor>(ActorId.From("default"), call.CancellationToken);
+
         var timerId = await LakonaTimer.CreatePeriodicTimerAsync<BattleRuntimeTimers, BattleRuntimeTick>(
             TimeSpan.Zero,
             TimeSpan.FromMilliseconds(50),
@@ -148,6 +153,10 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
 
     public static async ValueTask StopAsync(HotfixFeatureStopCall call)
     {
+        await call.Services
+            .GetRequiredService<ActorHosting>()
+            .DestroyAsync<MatchmakingActor>(ActorId.From("default"), CancellationToken.None);
+
         if (call.State.Items.TryGetValue("battle-runtime.timer", out var value) &&
             value is TimerId timerId)
         {

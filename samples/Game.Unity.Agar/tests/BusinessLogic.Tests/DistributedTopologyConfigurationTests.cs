@@ -249,9 +249,9 @@ public sealed class DistributedTopologyConfigurationTests
             .ListAsync(new FeatureName("battle-runtime"), TestContext.Current.CancellationToken);
         Assert.Single(discoveredBattleNodes);
 
-        var login = await LoginAsync(actors, "remote-battle-player");
+        var login = await LoginAsync(provider, "remote-battle-player");
 
-        await AttachSessionAsync(actors, new PlayerSessionAttachRequest
+        await AttachSessionAsync(provider, new PlayerSessionAttachRequest
         {
             UserId = login.UserId,
             SessionToken = login.SessionToken,
@@ -267,7 +267,7 @@ public sealed class DistributedTopologyConfigurationTests
             }
         });
 
-        var result = await EnqueueAsync(actors, new MatchmakingEnqueueRequest
+        var result = await EnqueueAsync(provider, new MatchmakingEnqueueRequest
         {
             UserId = login.UserId,
             SessionToken = login.SessionToken,
@@ -289,10 +289,10 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Single(roomAllocator.LastRequest.Players);
         Assert.Equal(login.UserId, roomAllocator.LastRequest.Players[0].UserId);
 
-        var status = await GetMatchmakingStatusAsync(actors);
+        var status = await GetMatchmakingStatusAsync(provider);
         Assert.Equal(0, status.QueuedCount);
 
-        var session = await GetSessionSnapshotAsync(actors, login.UserId);
+        var session = await GetSessionSnapshotAsync(provider, login.UserId);
         Assert.Equal(roomAllocator.LastRequest.RoomId, session.CurrentRoomId);
         Assert.Equal(roomAllocator.LastRequest.MatchId, session.CurrentMatchId);
         Assert.Equal("battle-1", session.RuntimeGateway.InstanceId);
@@ -320,9 +320,9 @@ public sealed class DistributedTopologyConfigurationTests
         {
             var playerId = $"no-runtime-player-{i}";
             playerIds.Add(playerId);
-            var login = await LoginAsync(actors, playerId);
+            var login = await LoginAsync(provider, playerId);
 
-            await AttachSessionAsync(actors, new PlayerSessionAttachRequest
+            await AttachSessionAsync(provider, new PlayerSessionAttachRequest
             {
                 UserId = login.UserId,
                 SessionToken = login.SessionToken,
@@ -338,7 +338,7 @@ public sealed class DistributedTopologyConfigurationTests
                 }
             });
 
-            result = await EnqueueAsync(actors, new MatchmakingEnqueueRequest
+            result = await EnqueueAsync(provider, new MatchmakingEnqueueRequest
             {
                 UserId = login.UserId,
                 SessionToken = login.SessionToken,
@@ -350,11 +350,11 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.False(result.Matched);
         Assert.True(result.Queued);
 
-        var status = await GetMatchmakingStatusAsync(actors);
+        var status = await GetMatchmakingStatusAsync(provider);
         Assert.Equal(10, status.QueuedCount);
         foreach (var playerId in playerIds)
         {
-            var snapshot = await GetSessionSnapshotAsync(actors, playerId);
+            var snapshot = await GetSessionSnapshotAsync(provider, playerId);
             Assert.True(string.IsNullOrWhiteSpace(snapshot.CurrentRoomId));
             Assert.True(string.IsNullOrWhiteSpace(snapshot.CurrentMatchId));
             Assert.True(string.IsNullOrWhiteSpace(snapshot.RuntimeGateway.Host));
@@ -376,9 +376,9 @@ public sealed class DistributedTopologyConfigurationTests
         for (var i = 0; i < 10; i++)
         {
             var playerId = $"local-runtime-player-{i}";
-            var login = await LoginAsync(actors, playerId);
+            var login = await LoginAsync(provider, playerId);
 
-            await AttachSessionAsync(actors, new PlayerSessionAttachRequest
+            await AttachSessionAsync(provider, new PlayerSessionAttachRequest
             {
                 UserId = login.UserId,
                 SessionToken = login.SessionToken,
@@ -394,7 +394,7 @@ public sealed class DistributedTopologyConfigurationTests
                 }
             });
 
-            result = await EnqueueAsync(actors, new MatchmakingEnqueueRequest
+            result = await EnqueueAsync(provider, new MatchmakingEnqueueRequest
             {
                 UserId = login.UserId,
                 SessionToken = login.SessionToken,
@@ -423,7 +423,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         await using var provider = services.BuildServiceProvider();
         var actors = provider.GetRequiredService<IActorRuntime>();
-        await ((IActorLifecycle)actors).CreateLocalAsync<UserActor>(ActorId.From("player-stale"), cancellationToken: cancellationToken);
+        await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorId.From("player-stale"), cancellationToken);
         await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
             ActorId.From("player-stale"),
             (actor, _) => actor.AttachAsync(new PlayerSessionAttachRequest
@@ -459,7 +459,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         await ReleasePlayerThroughInternalBoundaryAsync(provider, "player-stale", "test stale room");
 
-        var snapshot = await GetSessionSnapshotAsync(actors, "player-stale");
+        var snapshot = await GetSessionSnapshotAsync(provider, "player-stale");
         Assert.False(snapshot.IsOnline);
         Assert.Equal("", snapshot.ConnectionId);
         Assert.Equal("", snapshot.CurrentRoomId);
@@ -795,41 +795,46 @@ public sealed class DistributedTopologyConfigurationTests
             ?? throw new InvalidOperationException($"Could not find server type '{typeName}'.");
     }
 
-    private static async ValueTask<UserLoginResult> LoginAsync(IActorRuntime actors, string playerId)
+    private static async ValueTask<UserLoginResult> LoginAsync(IServiceProvider provider, string playerId)
     {
-        await ((IActorLifecycle)actors).CreateLocalAsync<UserActor>(ActorId.From(playerId));
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorId.From(playerId));
         return await actors.AskAsync<UserActor, UserLoginResult>(
             ActorId.From(playerId),
             (actor, _) => actor.LoginAsync(new UserLoginRequest { Password = "pw", Reconnect = false }));
     }
 
-    private static async ValueTask<PlayerSessionSnapshot> AttachSessionAsync(IActorRuntime actors, PlayerSessionAttachRequest request)
+    private static async ValueTask<PlayerSessionSnapshot> AttachSessionAsync(IServiceProvider provider, PlayerSessionAttachRequest request)
     {
-        await ((IActorLifecycle)actors).CreateLocalAsync<UserActor>(UserId(request.UserId));
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(UserId(request.UserId));
         return await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
             UserId(request.UserId),
             (actor, _) => actor.AttachAsync(request));
     }
 
-    private static async ValueTask<MatchmakingEnqueueResult> EnqueueAsync(IActorRuntime actors, MatchmakingEnqueueRequest request)
+    private static async ValueTask<MatchmakingEnqueueResult> EnqueueAsync(IServiceProvider provider, MatchmakingEnqueueRequest request)
     {
-        await ((IActorLifecycle)actors).CreateLocalAsync<MatchmakingActor>(ActorId.From("default"));
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        await provider.GetRequiredService<ActorHosting>().EnsureAsync<MatchmakingActor>(ActorId.From("default"));
         return await actors.AskAsync<MatchmakingActor, MatchmakingEnqueueResult>(
             ActorId.From("default"),
             (actor, _) => actor.EnqueueAsync(request));
     }
 
-    private static async ValueTask<MatchmakingStatusSnapshot> GetMatchmakingStatusAsync(IActorRuntime actors)
+    private static async ValueTask<MatchmakingStatusSnapshot> GetMatchmakingStatusAsync(IServiceProvider provider)
     {
-        await ((IActorLifecycle)actors).CreateLocalAsync<MatchmakingActor>(ActorId.From("default"));
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        await provider.GetRequiredService<ActorHosting>().EnsureAsync<MatchmakingActor>(ActorId.From("default"));
         return await actors.AskAsync<MatchmakingActor, MatchmakingStatusSnapshot>(
             ActorId.From("default"),
             (actor, _) => actor.GetStatusAsync(new MatchmakingStatusRequest()));
     }
 
-    private static async ValueTask<PlayerSessionSnapshot> GetSessionSnapshotAsync(IActorRuntime actors, string playerId)
+    private static async ValueTask<PlayerSessionSnapshot> GetSessionSnapshotAsync(IServiceProvider provider, string playerId)
     {
-        await ((IActorLifecycle)actors).CreateLocalAsync<UserActor>(UserId(playerId));
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(UserId(playerId));
         return await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
             UserId(playerId),
             (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()));

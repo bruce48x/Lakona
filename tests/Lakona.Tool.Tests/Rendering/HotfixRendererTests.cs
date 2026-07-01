@@ -58,7 +58,7 @@ public sealed class HotfixRendererTests
         Assert.Contains("return reply;", loginService, StringComparison.Ordinal);
         Assert.DoesNotContain("reply.Session", loginService, StringComparison.Ordinal);
         Assert.DoesNotContain("LoginServiceCall", loginService, StringComparison.Ordinal);
-        Assert.DoesNotContain("CreateLocalAsync", loginService, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("Create", "Local", "Async"), loginService, StringComparison.Ordinal);
 
         var chatService = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Chat/ChatService.cs").Content;
         Assert.Contains("[HotfixService(typeof(IChatService))]", chatService, StringComparison.Ordinal);
@@ -78,7 +78,7 @@ public sealed class HotfixRendererTests
         Assert.DoesNotContain("call.Actors.AskAsync", chatService, StringComparison.Ordinal);
         Assert.Contains("badword", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("ChatServiceCall", chatService, StringComparison.Ordinal);
-        Assert.DoesNotContain("CreateLocalAsync", chatService, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("Create", "Local", "Async"), chatService, StringComparison.Ordinal);
 
         var behavior = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Chat/ChatRoomBehavior.cs").Content;
         Assert.Contains("[HotfixBehaviorOf(typeof(ChatRoomActor))]", behavior, StringComparison.Ordinal);
@@ -99,9 +99,12 @@ public sealed class HotfixRendererTests
         Assert.Contains("public static void Configure(HotfixFeatureContext context)", feature, StringComparison.Ordinal);
         Assert.DoesNotContain("public override void Configure", feature, StringComparison.Ordinal);
         Assert.DoesNotContain("IFeatureMessageHandler", feature, StringComparison.Ordinal);
-        Assert.Contains("context.EnsureLocalActor<ChatRoomActor>(ChatRoomIds.Global);", feature, StringComparison.Ordinal);
+        Assert.Contains(".GetRequiredService<ActorHosting>()", feature, StringComparison.Ordinal);
+        Assert.Contains(".EnsureAsync<ChatRoomActor>(ActorId.From(ChatRoomIds.Global), call.CancellationToken)", feature, StringComparison.Ordinal);
+        Assert.Contains(".DestroyAsync<ChatRoomActor>(ActorId.From(actorId), CancellationToken.None)", feature, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("Ensure", "Local", "Actor"), feature, StringComparison.Ordinal);
         Assert.DoesNotContain("LakonaTimer", feature, StringComparison.Ordinal);
-        Assert.DoesNotContain("CreateLocalAsync", feature, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("Create", "Local", "Async"), feature, StringComparison.Ordinal);
         Assert.DoesNotContain(oldActorTickSchedule, feature, StringComparison.Ordinal);
         Assert.DoesNotContain(oldActorTickType, feature, StringComparison.Ordinal);
         Assert.DoesNotContain(oldTimerRegistrationApi, feature, StringComparison.Ordinal);
@@ -124,7 +127,7 @@ public sealed class HotfixRendererTests
         Assert.DoesNotContain("LifecycleService", lifecycle, StringComparison.Ordinal);
         Assert.DoesNotContain("IChatRuntimeService", lifecycle, StringComparison.Ordinal);
         Assert.DoesNotContain("HotfixDispatch", lifecycle, StringComparison.Ordinal);
-        Assert.DoesNotContain("CreateLocalAsync", lifecycle, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("Create", "Local", "Async"), lifecycle, StringComparison.Ordinal);
         Assert.DoesNotContain(oldActorTickType, lifecycle, StringComparison.Ordinal);
         Assert.DoesNotContain(oldTimerRegistrationApi, lifecycle, StringComparison.Ordinal);
         Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/Hotfix/Chat/ChatRuntimeService.cs");

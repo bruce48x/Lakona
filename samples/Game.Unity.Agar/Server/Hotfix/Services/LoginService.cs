@@ -360,16 +360,10 @@ public sealed class LoginService
         IServiceProvider services,
         ILogger logger)
     {
-        var lifecycle = services.GetRequiredService<IActorLifecycle>();
-
-        var createResult = await lifecycle
-            .CreateLocalAsync<UserActor>(actorId)
+        await services
+            .GetRequiredService<ActorHosting>()
+            .EnsureAsync<UserActor>(actorId)
             .ConfigureAwait(false);
-        if (!createResult.Succeeded)
-        {
-            throw new InvalidOperationException(createResult.Diagnostic ??
-                $"Could not create user actor '{account}'. Status={createResult.Status}.");
-        }
 
         services.GetRequiredService<IActorDirectoryCache>().Set(actorId, localNode);
         logger.LogDebug("Created local user actor {UserId} on node {NodeId}.", account, localNode.Value);

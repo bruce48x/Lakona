@@ -12,20 +12,20 @@ namespace Server.Hotfix.Features;
 [HotfixFeature(StateStoreUserActorPlacement.FeatureName)]
 public sealed class StateStoreFeature : HotfixGameFeature
 {
-    private readonly IActorLifecycle _lifecycle;
+    private readonly ActorHosting _actorHosting;
     private readonly IActorDirectory _directory;
     private readonly IActorDirectoryCache _directoryCache;
     private readonly LocalActorNodeIdentity _localNode;
     private readonly ILogger<StateStoreFeature> _logger;
 
     public StateStoreFeature(
-        IActorLifecycle lifecycle,
+        ActorHosting actorHosting,
         IActorDirectory directory,
         IActorDirectoryCache directoryCache,
         LocalActorNodeIdentity localNode,
         ILogger<StateStoreFeature> logger)
     {
-        _lifecycle = lifecycle;
+        _actorHosting = actorHosting;
         _directory = directory;
         _directoryCache = directoryCache;
         _localNode = localNode;
@@ -91,23 +91,9 @@ public sealed class StateStoreFeature : HotfixGameFeature
 
         try
         {
-            var createResult = await _lifecycle
-                .CreateLocalAsync<TActor>(actorId, cancellationToken: cancellationToken)
+            await _actorHosting
+                .EnsureAsync<TActor>(actorId, cancellationToken)
                 .ConfigureAwait(false);
-            if (!createResult.Succeeded)
-            {
-                if (registeredHere)
-                {
-                    await _directory.UnregisterAsync(actorId, _localNode.NodeId, cancellationToken).ConfigureAwait(false);
-                }
-
-                _directoryCache.Remove(actorId);
-                return new EnsureActorReply
-                {
-                    Succeeded = false,
-                    Message = createResult.Diagnostic ?? $"Could not create {description}. Status={createResult.Status}."
-                };
-            }
 
             _directoryCache.Set(actorId, _localNode.NodeId);
             _logger.LogDebug("Created state-store {Description} on node {NodeId}.", description, _localNode.NodeId.Value);

@@ -275,16 +275,10 @@ public sealed class PlayerService
         IServiceProvider services,
         ILogger logger)
     {
-        var lifecycle = services.GetRequiredService<IActorLifecycle>();
-
-        var createResult = await lifecycle
-            .CreateLocalAsync<LeaderboardActor>(actorId)
+        await services
+            .GetRequiredService<ActorHosting>()
+            .EnsureAsync<LeaderboardActor>(actorId)
             .ConfigureAwait(false);
-        if (!createResult.Succeeded)
-        {
-            throw new InvalidOperationException(createResult.Diagnostic ??
-                                                $"Could not create leaderboard actor '{leaderboardId}'. Status={createResult.Status}.");
-        }
 
         services.GetRequiredService<IActorDirectoryCache>().Set(actorId, localNode);
         logger.LogDebug("Created local leaderboard actor {LeaderboardId} on node {NodeId}.", leaderboardId,

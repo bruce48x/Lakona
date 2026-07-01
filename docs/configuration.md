@@ -350,8 +350,10 @@ session lifecycle bridges, reliable push defaults, cluster startup, and
 endpoint listener startup. Application behavior belongs in configuration,
 shared contracts, stable actor state shells, and `Server.Hotfix`.
 
-Hotfix descriptors declare local actors and lifecycle hooks. Periodic work uses
-the framework-owned timer API from feature lifecycle methods:
+Hotfix descriptors configure services and command handlers. Startup actors are
+owned by feature lifecycle methods through the current-node `ActorHosting` API.
+Periodic work uses the framework-owned timer API from the same lifecycle
+methods:
 
 ```csharp
 [HotfixFeature("battle-runtime")]
@@ -359,11 +361,14 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
 {
     public static void Configure(HotfixFeatureContext context)
     {
-        context.EnsureLocalActor<MatchmakingActor>("default");
     }
 
     public static async ValueTask StartAsync(HotfixFeatureStartCall call)
     {
+        await call.Services
+            .GetRequiredService<ActorHosting>()
+            .EnsureAsync<MatchmakingActor>(ActorId.From("default"), call.CancellationToken);
+
         var timerId = await LakonaTimer.CreatePeriodicTimerAsync<BattleRuntimeTimers, BattleRuntimeTick>(
             TimeSpan.Zero,
             TimeSpan.FromMilliseconds(50),
@@ -376,6 +381,10 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
 
     public static async ValueTask StopAsync(HotfixFeatureStopCall call)
     {
+        await call.Services
+            .GetRequiredService<ActorHosting>()
+            .DestroyAsync<MatchmakingActor>(ActorId.From("default"), CancellationToken.None);
+
         if (call.State.Items.TryGetValue("battle-runtime.timer", out var value) &&
             value is TimerId timerId)
         {
