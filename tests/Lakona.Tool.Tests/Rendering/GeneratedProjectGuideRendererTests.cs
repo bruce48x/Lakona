@@ -180,7 +180,8 @@ public sealed class GeneratedProjectGuideRendererTests
         var plan = builder.Build();
         var readme = Assert.Single(plan.Files, file => file.RelativePath == "README.md");
         Assert.Contains("node-local actor runtime", readme.Content, StringComparison.Ordinal);
-        Assert.Contains("call.Services.GetRequiredService<ChatRoomActors>()", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("public LoginService(ChatRoomActors rooms, ILakonaGameServer gameServer)", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("await _rooms.Get(ChatRoomIds.Global)", readme.Content, StringComparison.Ordinal);
         Assert.DoesNotContain("starterNodeLocalActors.AskAsync", readme.Content, StringComparison.Ordinal);
         Assert.DoesNotContain(".AskAsync", readme.Content, StringComparison.Ordinal);
         Assert.Contains("RPC services that target actors whose", readme.Content, StringComparison.Ordinal);

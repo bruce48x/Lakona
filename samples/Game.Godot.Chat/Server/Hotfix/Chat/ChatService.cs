@@ -4,7 +4,6 @@ using Server.App.Chat;
 using Shared.Contracts.Chat;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Server.Hotfix.Chat
@@ -16,7 +15,7 @@ namespace Server.Hotfix.Chat
         private readonly ILakonaGameServer _gameServer;
         private readonly ILogger<ChatService> _logger;
 
-        public ChatService(ChatRoomActors rooms, ILakonaGameServer gameServer,  ILogger<ChatService> logger)
+        public ChatService(ChatRoomActors rooms, ILakonaGameServer gameServer, ILogger<ChatService> logger)
         {
             _rooms = rooms;
             _gameServer = gameServer;
@@ -28,8 +27,7 @@ namespace Server.Hotfix.Chat
             await _gameServer.BindCurrentSessionAsync(
                 call.ConnectionId,
                 call.Callback);
-            var rooms = call.Services.GetRequiredService<ChatRoomActors>();
-            await rooms
+            await _rooms
                 .Get(ChatRoomIds.Global)
                 .BindChatAsync(new ChatRoomBindRequest
                 {

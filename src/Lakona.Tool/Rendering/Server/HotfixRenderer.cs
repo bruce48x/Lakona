@@ -80,25 +80,33 @@ internal sealed class HotfixRenderer : IPlanContributor
     {
         return """
         using System;
+        using Lakona.Game.Server;
         using Server.App.Chat;
         using Server.Hotfix.Chat;
         using Shared.Contracts.Chat;
         using Lakona.Game.Server.Hotfix;
         using Lakona.Game.Server.Hotfix.Abstractions;
-        using Microsoft.Extensions.DependencyInjection;
 
         namespace Server.Hotfix.Login
         {
             [HotfixService(typeof(ILoginService))]
             internal sealed class LoginService
             {
-                public static async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, ILoginCallback> call)
+                private readonly ChatRoomActors _rooms;
+                private readonly ILakonaGameServer _gameServer;
+
+                public LoginService(ChatRoomActors rooms, ILakonaGameServer gameServer)
+                {
+                    _rooms = rooms;
+                    _gameServer = gameServer;
+                }
+
+                public async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, ILoginCallback> call)
                 {
                     var playerName = string.IsNullOrWhiteSpace(call.Request.PlayerName)
                         ? "Player"
                         : call.Request.PlayerName.Trim();
-                    var rooms = call.Services.GetRequiredService<ChatRoomActors>();
-                    var reply = await rooms
+                    var reply = await _rooms
                         .Get(ChatRoomIds.Global)
                         .LoginAsync(new ChatRoomLoginRequest
                         {
@@ -106,7 +114,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                             PlayerName = playerName,
                             LoginCallback = call.Callback
                         });
-                    await call.GameServer.StartSessionAsync(
+                    await _gameServer.StartSessionAsync(
                         playerName,
                         call.ConnectionId,
                         call.Callback);
@@ -121,24 +129,35 @@ internal sealed class HotfixRenderer : IPlanContributor
     {
         return """
         using System;
+        using Lakona.Game.Server;
         using Server.App.Chat;
         using Shared.Contracts.Chat;
         using Lakona.Game.Server.Hotfix;
         using Lakona.Game.Server.Hotfix.Abstractions;
-        using Microsoft.Extensions.DependencyInjection;
+        using Microsoft.Extensions.Logging;
 
         namespace Server.Hotfix.Chat
         {
             [HotfixService(typeof(IChatService))]
             internal sealed class ChatService
             {
-                public static async ValueTask BindAsync(HotfixServiceCall<ChatBindRequest, IChatCallback> call)
+                private readonly ChatRoomActors _rooms;
+                private readonly ILakonaGameServer _gameServer;
+                private readonly ILogger<ChatService> _logger;
+
+                public ChatService(ChatRoomActors rooms, ILakonaGameServer gameServer, ILogger<ChatService> logger)
                 {
-                    await call.GameServer.BindCurrentSessionAsync(
+                    _rooms = rooms;
+                    _gameServer = gameServer;
+                    _logger = logger;
+                }
+
+                public async ValueTask BindAsync(HotfixServiceCall<ChatBindRequest, IChatCallback> call)
+                {
+                    await _gameServer.BindCurrentSessionAsync(
                         call.ConnectionId,
                         call.Callback);
-                    var rooms = call.Services.GetRequiredService<ChatRoomActors>();
-                    await rooms
+                    await _rooms
                         .Get(ChatRoomIds.Global)
                         .BindChatAsync(new ChatRoomBindRequest
                         {
@@ -147,10 +166,10 @@ internal sealed class HotfixRenderer : IPlanContributor
                         });
                 }
 
-                public static async ValueTask SendAsync(HotfixServiceCall<ChatSendRequest, IChatCallback> call)
+                public async ValueTask SendAsync(HotfixServiceCall<ChatSendRequest, IChatCallback> call)
                 {
-                    var rooms = call.Services.GetRequiredService<ChatRoomActors>();
-                    await rooms
+                    _logger.LogInformation($"Sending {call.Request.Text.Length} characters");
+                    await _rooms
                         .Get(ChatRoomIds.Global)
                         .BindChatAsync(new ChatRoomBindRequest
                         {
@@ -158,7 +177,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                             ChatCallback = call.Callback
                         });
                     var text = FilterMessage(call.Request.Text ?? "");
-                    await rooms
+                    await _rooms
                         .Get(ChatRoomIds.Global)
                         .SendAsync(new ChatRoomSendRequest
                         {
@@ -335,27 +354,33 @@ internal sealed class HotfixRenderer : IPlanContributor
         using Server.App.Chat;
         using Lakona.Game.Server.Hotfix;
         using Lakona.Game.Server.Hotfix.Abstractions;
-        using Microsoft.Extensions.DependencyInjection;
 
         namespace Server.Hotfix.Chat
         {
             [HotfixLifecycle(typeof(IGameSessionLifecycle))]
             internal sealed class ChatSessionLifecycle
             {
-                public static ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
+                private readonly ChatRoomActors _rooms;
+
+                public ChatSessionLifecycle(ChatRoomActors rooms)
+                {
+                    _rooms = rooms;
+                }
+
+                public ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
                 {
                     return default;
                 }
 
-                public static async ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call)
+                public async ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call)
                 {
                     var connectionId = call.Request.ConnectionId;
                     if (string.IsNullOrWhiteSpace(connectionId))
                     {
                         return;
                     }
-                    var rooms = call.Services.GetRequiredService<ChatRoomActors>();
-                    await rooms
+
+                    await _rooms
                         .Get(ChatRoomIds.Global)
                         .LeaveAsync(new ChatRoomLeaveRequest
                         {

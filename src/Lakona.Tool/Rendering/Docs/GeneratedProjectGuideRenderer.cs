@@ -111,8 +111,13 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         placement may change should use generated typed actor selectors instead.
 
         ```csharp
-        var rooms = call.Services.GetRequiredService<ChatRoomActors>();
-        var reply = await rooms.Get(ChatRoomIds.Global).LoginAsync(request, ct);
+        public LoginService(ChatRoomActors rooms, ILakonaGameServer gameServer)
+        {
+            _rooms = rooms;
+            _gameServer = gameServer;
+        }
+
+        var reply = await _rooms.Get(ChatRoomIds.Global).LoginAsync(request, ct);
         ```
 
         Use generated typed actor selectors when business code should express

@@ -5,7 +5,6 @@ using Server.Hotfix.Chat;
 using Shared.Contracts.Chat;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Server.Hotfix.Login
 {

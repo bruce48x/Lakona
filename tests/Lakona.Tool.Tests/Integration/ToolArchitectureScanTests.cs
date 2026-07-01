@@ -143,10 +143,11 @@ public sealed class ToolArchitectureScanTests
             var generatedSharedText = ReadAllTextFiles(Path.Combine(spec.Layout.RootPath, "Shared"));
             Assert.Contains("<CompilerVisibleProperty Include=\"LakonaRpcGenerateServer\" />", generatedText, StringComparison.Ordinal);
             Assert.Contains("<CompilerVisibleProperty Include=\"LakonaRpcServerGeneratedNamespace\" />", generatedText, StringComparison.Ordinal);
-            Assert.Contains("await call.GameServer.BindCurrentSessionAsync", generatedText, StringComparison.Ordinal);
+            Assert.Contains("await _gameServer.BindCurrentSessionAsync", generatedText, StringComparison.Ordinal);
             Assert.Contains("RPC services that target actors whose", generatedText, StringComparison.Ordinal);
             Assert.Contains("[HotfixActorContract(typeof(ChatRoomActor))]", generatedText, StringComparison.Ordinal);
-            Assert.Contains("call.Services.GetRequiredService<ChatRoomActors>()", generatedText, StringComparison.Ordinal);
+            Assert.Contains("public LoginService(ChatRoomActors rooms, ILakonaGameServer gameServer)", generatedText, StringComparison.Ordinal);
+            Assert.Contains("private readonly ChatRoomActors _rooms;", generatedText, StringComparison.Ordinal);
             Assert.Contains(".Get(ChatRoomIds.Global)", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("call.Actors is node-local", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("var starterNodeLocalActors = call.Actors;", generatedText, StringComparison.Ordinal);
@@ -269,13 +270,15 @@ public sealed class ToolArchitectureScanTests
             "Login",
             "LoginService.cs"));
 
-        Assert.Contains("await call.GameServer.BindCurrentSessionAsync", chatService, StringComparison.Ordinal);
-        Assert.Contains("call.Services.GetRequiredService<ChatRoomActors>()", chatService, StringComparison.Ordinal);
+        Assert.Contains("public ChatService(ChatRoomActors rooms, ILakonaGameServer gameServer, ILogger<ChatService> logger)", chatService, StringComparison.Ordinal);
+        Assert.Contains("private readonly ChatRoomActors _rooms;", chatService, StringComparison.Ordinal);
+        Assert.Contains("await _gameServer.BindCurrentSessionAsync", chatService, StringComparison.Ordinal);
         Assert.Contains(".Get(ChatRoomIds.Global)", chatService, StringComparison.Ordinal);
-        Assert.Contains("call.Services.GetRequiredService<ChatRoomActors>()", loginService, StringComparison.Ordinal);
+        Assert.Contains("public LoginService(ChatRoomActors rooms, ILakonaGameServer gameServer)", loginService, StringComparison.Ordinal);
+        Assert.Contains("private readonly ChatRoomActors _rooms;", loginService, StringComparison.Ordinal);
         Assert.Contains(".Get(ChatRoomIds.Global)", loginService, StringComparison.Ordinal);
         Assert.Contains(".LoginAsync(new ChatRoomLoginRequest", loginService, StringComparison.Ordinal);
-        Assert.Contains("call.GameServer.StartSessionAsync", loginService, StringComparison.Ordinal);
+        Assert.Contains("await _gameServer.StartSessionAsync", loginService, StringComparison.Ordinal);
         Assert.DoesNotContain("var starterNodeLocalActors = call.Actors;", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("call.Actors is node-local", chatService, StringComparison.Ordinal);
         Assert.Contains("call.ConnectionId", chatService, StringComparison.Ordinal);
