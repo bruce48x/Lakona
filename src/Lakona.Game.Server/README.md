@@ -225,7 +225,7 @@ matchmaking policy, persistence schema, or gameplay DTOs.
 - Hotfix timers: use `LakonaTimer.CreateOnceTimerAsync<TCallback, TArgs>` or
   `LakonaTimer.CreatePeriodicTimerAsync<TCallback, TArgs>` from hotfix feature
   `StartAsync`, store the returned `TimerId` in feature state, and call
-  `LakonaTimer.DestroyTimerAsync(timerId, cancellationToken)` from `StopAsync`.
+  `LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None)` from `StopAsync`.
 
 ## Actor Runtime Configuration
 
