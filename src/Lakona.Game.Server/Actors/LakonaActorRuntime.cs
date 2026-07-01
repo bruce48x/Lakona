@@ -5,7 +5,7 @@ using K = Lakona.Game.Server.Internal.ActorKernel;
 
 namespace Lakona.Game.Server.Actors;
 
-public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDisposable, IAsyncDisposable
+public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, IDisposable, IAsyncDisposable
 {
     private static readonly AsyncLocal<ActorCell?> CurrentCell = new();
 
@@ -42,79 +42,71 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
         _actorSystem.CallTimedOut += OnCallTimedOut;
     }
 
-    public async ValueTask<TActor> GetOrCreateAsync<TActor>(
-        ActorId id,
-        CancellationToken cancellationToken = default)
-        where TActor : class, IActor
+    bool IActorHostingRuntime.TryGetLocalActor(ActorId actorId, out Type actorType, out ActorState state)
     {
-        var cell = GetOrCreateCell<TActor>(id);
-        await cell.EnsureActivatedAsync(cancellationToken).ConfigureAwait(false);
-        return (TActor)cell.Actor;
+        if (_actors.TryGetValue(actorId, out var cell))
+        {
+            actorType = cell.ActorType;
+            state = cell.GetState();
+            return true;
+        }
+
+        actorType = typeof(IActor);
+        state = ActorState.Dead;
+        return false;
     }
 
-    public async ValueTask<ActorCreateLocalResult> CreateLocalAsync<TActor>(
-        ActorId actorId,
-        ActorCreateOptions? options = null,
-        CancellationToken cancellationToken = default)
-        where TActor : class, IActor
-    {
-        return await CreateLocalAsync(typeof(TActor), actorId, options, cancellationToken).ConfigureAwait(false);
-    }
-
-    public async ValueTask<ActorCreateLocalResult> CreateLocalAsync(
+    async ValueTask<ActorHostingLocalCreateResult> IActorHostingRuntime.CreateLocalAsync(
         Type actorType,
         ActorId actorId,
-        ActorCreateOptions? options = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actorType);
-        _ = options ?? ActorCreateOptions.Default;
         cancellationToken.ThrowIfCancellationRequested();
 
         if (_actors.TryGetValue(actorId, out var existing))
         {
             return IsCompatibleActorType(existing.ActorType, actorType)
-                ? new ActorCreateLocalResult(ActorCreateLocalStatus.AlreadyExistsSameType, actorId, actorType)
-                : new ActorCreateLocalResult(
-                    ActorCreateLocalStatus.AlreadyExistsDifferentType,
+                ? new ActorHostingLocalCreateResult(ActorHostingLocalCreateStatus.AlreadyExistsSameType, actorId, actorType)
+                : new ActorHostingLocalCreateResult(
+                    ActorHostingLocalCreateStatus.AlreadyExistsDifferentType,
                     actorId,
                     actorType,
-                    $"Actor id '{actorId.Value}' is already bound to '{existing.ActorType.FullName}'.");
+                    existing.ActorType);
         }
 
         var cell = GetOrCreateCell(actorType, actorId);
         await cell.EnsureActivatedAsync(cancellationToken).ConfigureAwait(false);
-        return new ActorCreateLocalResult(ActorCreateLocalStatus.Created, actorId, actorType);
+        return new ActorHostingLocalCreateResult(ActorHostingLocalCreateStatus.Created, actorId, actorType);
     }
 
-    public async ValueTask<ActorDestroyLocalResult> DestroyLocalAsync<TActor>(
+    async ValueTask<ActorHostingLocalDestroyResult> IActorHostingRuntime.DestroyLocalAsync(
+        Type actorType,
         ActorId actorId,
-        ActorDestroyOptions? options = null,
-        CancellationToken cancellationToken = default)
-        where TActor : class, IActor
+        TimeSpan drainTimeout,
+        CancellationToken cancellationToken)
     {
-        options ??= new ActorDestroyOptions();
+        ArgumentNullException.ThrowIfNull(actorType);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var actorType = typeof(TActor);
         if (!_actors.TryGetValue(actorId, out var cell))
         {
-            return new ActorDestroyLocalResult(ActorDestroyLocalStatus.NotFound, actorId, actorType);
+            return new ActorHostingLocalDestroyResult(ActorHostingLocalDestroyStatus.NotFound, actorId, actorType);
         }
 
         if (!IsCompatibleActorType(cell.ActorType, actorType))
         {
-            return new ActorDestroyLocalResult(
-                ActorDestroyLocalStatus.TypeMismatch,
+            return new ActorHostingLocalDestroyResult(
+                ActorHostingLocalDestroyStatus.TypeMismatch,
                 actorId,
                 actorType,
-                $"Actor id '{actorId.Value}' is bound to '{cell.ActorType.FullName}'.");
+                cell.ActorType);
         }
 
-        var outcome = await StopAsync(actorId, options.DrainTimeout).ConfigureAwait(false);
-        return outcome == ActorStopOutcome.TimedOut
-            ? new ActorDestroyLocalResult(ActorDestroyLocalStatus.TimedOut, actorId, actorType)
-            : new ActorDestroyLocalResult(ActorDestroyLocalStatus.Destroyed, actorId, actorType);
+        var timedOut = await StopCoreAsync(actorId, drainTimeout).ConfigureAwait(false);
+        return timedOut
+            ? new ActorHostingLocalDestroyResult(ActorHostingLocalDestroyStatus.TimedOut, actorId, actorType)
+            : new ActorHostingLocalDestroyResult(ActorHostingLocalDestroyStatus.Destroyed, actorId, actorType);
     }
 
     public async ValueTask TellAsync<TActor>(
@@ -345,29 +337,22 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
             .ToArray();
     }
 
-    public async ValueTask StopAsync(ActorId id)
+    private async ValueTask<bool> StopCoreAsync(ActorId id, TimeSpan drainTimeout)
     {
         if (!_actors.TryGetValue(id, out var cell))
         {
-            return;
-        }
-
-        await cell.StopAsync().ConfigureAwait(false);
-        _actors.TryRemove(id, out _);
-        _actorIds.TryRemove(cell.RuntimeActorId, out _);
-    }
-
-    public async ValueTask<ActorStopOutcome> StopAsync(ActorId id, TimeSpan drainTimeout)
-    {
-        if (!_actors.TryGetValue(id, out var cell))
-        {
-            return ActorStopOutcome.Drained;
+            return false;
         }
 
         var result = await cell.StopAsync(drainTimeout).ConfigureAwait(false);
-        _actors.TryRemove(id, out _);
-        _actorIds.TryRemove(cell.RuntimeActorId, out _);
-        return MapStopOutcome(result);
+        if (result != K.ActorStopResult.TimedOut)
+        {
+            _actors.TryRemove(id, out _);
+            _actorIds.TryRemove(cell.RuntimeActorId, out _);
+            return false;
+        }
+
+        return true;
     }
 
     public async ValueTask DisposeAsync()
@@ -383,12 +368,6 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
     public void Dispose()
     {
         DisposeAsync().AsTask().GetAwaiter().GetResult();
-    }
-
-    private ActorCell GetOrCreateCell<TActor>(ActorId id)
-        where TActor : class, IActor
-    {
-        return GetOrCreateCell(typeof(TActor), id);
     }
 
     private ActorCell GetOrCreateCell(Type actorType, ActorId id)
@@ -559,13 +538,6 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
     private static K.ActorCallOptions CreateCallOptions(TimeSpan timeout)
     {
         return new K.ActorCallOptions(timeout, timeout);
-    }
-
-    private static ActorStopOutcome MapStopOutcome(K.ActorStopResult result)
-    {
-        return result == K.ActorStopResult.TimedOut
-            ? ActorStopOutcome.TimedOut
-            : ActorStopOutcome.Drained;
     }
 
     private static ActorMailboxMetrics MapMailboxMetrics(K.MailboxMetrics metrics)

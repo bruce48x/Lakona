@@ -47,7 +47,15 @@ public static class ActorServiceCollectionExtensions
             provider.GetRequiredService<ActorRuntimeOptions>(),
             provider.GetServices<IActorDiagnosticsObserver>()));
         services.TryAddSingleton<IActorRuntime>(provider => provider.GetRequiredService<LakonaActorRuntime>());
-        services.TryAddSingleton<IActorLifecycle>(provider => provider.GetRequiredService<LakonaActorRuntime>());
+        services.TryAddSingleton<IActorHostingRuntime>(provider => provider.GetRequiredService<LakonaActorRuntime>());
+        services.TryAddSingleton<ActorHostingRollbackRecorder>();
+        services.TryAddSingleton(provider => new ActorHosting(
+            provider.GetRequiredService<IActorHostingRuntime>(),
+            provider.GetRequiredService<IActorDirectory>(),
+            provider.GetRequiredService<IActorDirectoryCache>(),
+            provider.GetRequiredService<LocalActorNodeIdentity>(),
+            provider.GetRequiredService<ActorHostingRollbackRecorder>(),
+            provider.GetService<Microsoft.Extensions.Logging.ILogger<ActorHosting>>()));
         services.TryAddSingleton<IActorDirectory, InMemoryActorDirectory>();
         services.TryAddSingleton<IActorDirectoryCache, InMemoryActorDirectoryCache>();
         return services;

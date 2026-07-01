@@ -13,6 +13,7 @@ using Lakona.Game.Abstractions;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Cluster.Rpc.MemoryPack;
+using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Health;
@@ -838,7 +839,7 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public void AddLakonaGameServer_registers_actor_lifecycle_after_lifecycle_api_exists()
+    public void AddLakonaGameServer_registers_actor_hosting_lifecycle_api()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -851,7 +852,7 @@ public sealed class LakonaGameServerTests
             .AddLakonaGameServer(configuration)
             .BuildServiceProvider();
 
-        Assert.NotNull(provider.GetService<Lakona.Game.Server.Actors.IActorLifecycle>());
+        Assert.NotNull(provider.GetService<ActorHosting>());
     }
 
     [Fact]

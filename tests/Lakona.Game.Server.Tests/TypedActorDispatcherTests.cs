@@ -319,14 +319,6 @@ public sealed partial class TypedActorDispatcherTests
 
         public ActorId? LastActorId { get; private set; }
 
-        public ValueTask<TActor> GetOrCreateAsync<TActor>(
-            ActorId id,
-            CancellationToken cancellationToken = default)
-            where TActor : class, IActor
-        {
-            throw new NotSupportedException();
-        }
-
         public ValueTask TellAsync<TActor>(
             ActorId id,
             Func<TActor, CancellationToken, ValueTask> message,
@@ -389,14 +381,5 @@ public sealed partial class TypedActorDispatcherTests
             throw new NotSupportedException();
         }
 
-        public ValueTask StopAsync(ActorId id)
-        {
-            throw new NotSupportedException();
-        }
-
-        public ValueTask<ActorStopOutcome> StopAsync(ActorId id, TimeSpan drainTimeout)
-        {
-            throw new NotSupportedException();
-        }
     }
 }

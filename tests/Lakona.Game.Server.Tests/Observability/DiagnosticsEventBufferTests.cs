@@ -206,9 +206,9 @@ public sealed class DiagnosticsEventBufferTests
             })
             .BuildServiceProvider();
 
-        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
+        var hosting = provider.GetRequiredService<ActorHosting>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
-        await lifecycle.CreateLocalAsync<SlowActor>(id, cancellationToken: cancellationToken);
+        await hosting.CreateAsync<SlowActor>(id, cancellationToken);
 
         await runtime.TellAsync<SlowActor>(
             id,
@@ -236,9 +236,9 @@ public sealed class DiagnosticsEventBufferTests
             .AddLakonaGameServerActors(options => options.SlowMessageThreshold = TimeSpan.FromMilliseconds(1))
             .BuildServiceProvider();
 
-        var lifecycle = provider.GetRequiredService<IActorLifecycle>();
+        var hosting = provider.GetRequiredService<ActorHosting>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
-        await lifecycle.CreateLocalAsync<SlowActor>(id, cancellationToken: cancellationToken);
+        await hosting.CreateAsync<SlowActor>(id, cancellationToken);
 
         await runtime.TellAsync<SlowActor>(
             id,

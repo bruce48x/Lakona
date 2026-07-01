@@ -14,11 +14,6 @@ namespace Lakona.Game.Server.Actors;
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
 public interface IActorRuntime
 {
-    ValueTask<TActor> GetOrCreateAsync<TActor>(
-        ActorId id,
-        CancellationToken cancellationToken = default)
-        where TActor : class, IActor;
-
     ValueTask TellAsync<TActor>(
         ActorId id,
         Func<TActor, CancellationToken, ValueTask> message,
@@ -59,8 +54,4 @@ public interface IActorRuntime
     bool TryGetMailboxMetrics(ActorId id, out ActorMailboxMetrics metrics);
 
     ActorState GetState(ActorId id);
-
-    ValueTask StopAsync(ActorId id);
-
-    ValueTask<ActorStopOutcome> StopAsync(ActorId id, TimeSpan drainTimeout);
 }
