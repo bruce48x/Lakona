@@ -62,8 +62,8 @@ internal sealed class HotfixFeatureLifecycleCoordinator
                     candidateRuntime.Services,
                     stagingTimerBackend,
                     cancellationToken).ConfigureAwait(false);
-                ValidateFeatureState(feature, states[feature.Name]);
                 started.Add(feature);
+                ValidateFeatureState(feature, states[feature.Name]);
             }
 
             foreach (var feature in candidateFeatures)

@@ -457,6 +457,42 @@ public sealed class HotfixFeatureLifecycleTests
         }
     }
 
+    [Fact]
+    public async Task Invalid_state_validation_failure_stops_started_feature_and_rolls_back_timers()
+    {
+        LifecycleRecorder.Reset();
+        var coordinator = new HotfixFeatureLifecycleCoordinator();
+        var backend = new RecordingLifecycleTimerBackend();
+        var stateValue = CreateCollectibleStateValue(out var loadContext);
+        CollectibleTimerStartFeature.Value = stateValue;
+
+        try
+        {
+            using var candidateRuntime = CreateRuntime(
+                [Feature("state", typeof(CollectibleTimerStartFeature))],
+                "candidate",
+                backend);
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                await coordinator.StartCandidateAsync(
+                    HotfixFeatureLifecycleSnapshot.Empty,
+                    candidateRuntime.Snapshot,
+                    candidateRuntime.Snapshot.DispatchTable!.Features,
+                    TestContext.Current.CancellationToken));
+
+            Assert.Contains("reload-safe", ex.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(["start:collectible-timer", "stop:collectible-timer"], LifecycleRecorder.Events);
+            Assert.Equal(1, backend.StagedCreateCount);
+            Assert.Equal(1, backend.RollbackCount);
+            Assert.Empty(backend.ActiveTimers);
+        }
+        finally
+        {
+            CollectibleTimerStartFeature.Value = null;
+            loadContext.Unload();
+        }
+    }
+
     private static ScopedRuntime CreateRuntime(
         IReadOnlyList<HotfixFeatureDeclaration> features,
         string marker = "runtime",
@@ -877,6 +913,28 @@ public sealed class HotfixFeatureLifecycleTests
         public static ValueTask StartAsync(HotfixFeatureStartCall call)
         {
             call.State.Items["payload"] = Value;
+            return default;
+        }
+    }
+
+    private sealed class CollectibleTimerStartFeature : HotfixGameFeature
+    {
+        public static object? Value { get; set; }
+
+        public static async ValueTask StartAsync(HotfixFeatureStartCall call)
+        {
+            LifecycleRecorder.Events.Add("start:collectible-timer");
+            await LakonaTimer.CreateOnceTimerAsync<TimerCallbackTarget, TimerArgs>(
+                TimeSpan.Zero,
+                nameof(TimerCallbackTarget.TickAsync),
+                new TimerArgs("candidate"),
+                call.CancellationToken).ConfigureAwait(false);
+            call.State.Items["payload"] = Value;
+        }
+
+        public static ValueTask StopAsync(HotfixFeatureStopCall call)
+        {
+            LifecycleRecorder.Events.Add("stop:collectible-timer");
             return default;
         }
     }
