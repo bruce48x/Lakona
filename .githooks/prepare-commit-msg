@@ -1,0 +1,11 @@
+#!/bin/sh
+# Remove Cursor agent Co-authored-by trailers from every commit message.
+MSG_FILE="$1"
+
+if [ -z "$MSG_FILE" ] || [ ! -f "$MSG_FILE" ]; then
+  exit 0
+fi
+
+sed -i '/^[Cc]o-[Aa]uthored-[Bb]y:[[:space:]]*Cursor[[:space:]]*</d' "$MSG_FILE"
+
+exit 0
