@@ -265,6 +265,26 @@ public sealed class HotfixManagerTests
     }
 
     [Fact]
+    public async Task Reload_uses_default_load_context_for_hotfix_abstractions()
+    {
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var manager = new HotfixManager(
+            new FixedAssemblySource(compiled.HotfixAssemblyPath),
+            [stableAssembly.GetName().Name!]);
+
+        var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
+        var abstractionsAssembly = typeof(HotfixServiceAttribute).Assembly;
+        var abstractionsName = abstractionsAssembly.GetName().Name;
+        Assert.Same(AssemblyLoadContext.Default, AssemblyLoadContext.GetLoadContext(abstractionsAssembly));
+        Assert.DoesNotContain(
+            AssemblyLoadContext.All.Where(context => !ReferenceEquals(context, AssemblyLoadContext.Default)),
+            context => context.Assemblies.Any(assembly => string.Equals(assembly.GetName().Name, abstractionsName, StringComparison.Ordinal)));
+    }
+
+    [Fact]
     public async Task Reload_does_not_hold_source_dll_file_lock()
     {
         using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);

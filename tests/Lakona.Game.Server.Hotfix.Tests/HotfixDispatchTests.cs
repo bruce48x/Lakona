@@ -212,6 +212,48 @@ public sealed class HotfixDispatchTests
     }
 
     [Fact]
+    public async Task LakonaTimer_from_TaskRun_after_scope_exit_throws()
+    {
+        EscapedTimerUse.Reset();
+        var method = typeof(EscapedTimerCallbackBehavior).GetMethod(nameof(EscapedTimerCallbackBehavior.HandleAsync))!;
+        var table = new HotfixDispatchTable(
+            1,
+            [new HotfixMethodBinding(
+                HotfixDispatch.CreateKey(
+                    typeof(TimerCallbackTarget),
+                    nameof(EscapedTimerCallbackBehavior.HandleAsync),
+                    typeof(ValueTask),
+                    [typeof(TimerTick<TimerArgs>)]),
+                method,
+                typeof(TimerCallbackTarget),
+                typeof(ValueTask),
+                [typeof(TimerTick<TimerArgs>)])]);
+        var backend = new RecordingTimerBackend();
+        using var runtime = CreateScopedRuntime(table, backend);
+        using var lease = runtime.Snapshot.AcquireLease();
+
+        await HotfixDispatch.InvokeValueTaskAsync(
+            typeof(TimerCallbackTarget),
+            nameof(EscapedTimerCallbackBehavior.HandleAsync),
+            new TimerCallbackTarget(),
+            [typeof(TimerTick<TimerArgs>)],
+            [new TimerTick<TimerArgs>(
+                TimerId.FromGuid(Guid.NewGuid()),
+                new TimerArgs("escaped"),
+                runtime.Snapshot.Services,
+                DateTimeOffset.UtcNow,
+                DateTimeOffset.UtcNow,
+                TestContext.Current.CancellationToken)]);
+
+        EscapedTimerUse.Release();
+        var exception = await EscapedTimerUse.WaitForExceptionAsync(TestContext.Current.CancellationToken);
+
+        Assert.IsType<InvalidOperationException>(exception);
+        Assert.Contains("active hotfix execution scope", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(backend.LastArgs);
+    }
+
+    [Fact]
     public async Task Scoped_dispatch_table_is_used_without_timer_backend()
     {
         var method = typeof(DispatchTestStateSystem).GetMethod(nameof(DispatchTestStateSystem.SetValueAsync))!;
@@ -1081,6 +1123,83 @@ public static class TimerCallbackBehavior
             nameof(HandleAsync),
             tick.Args,
             tick.CancellationToken).ConfigureAwait(false);
+    }
+}
+
+public static class EscapedTimerCallbackBehavior
+{
+    public static ValueTask HandleAsync(this TimerCallbackTarget target, TimerTick<TimerArgs> tick)
+    {
+        _ = target;
+        _ = tick;
+        EscapedTimerUse.Start();
+        return default;
+    }
+}
+
+public static class EscapedTimerUse
+{
+    private static readonly object Sync = new();
+    private static TaskCompletionSource? release;
+    private static TaskCompletionSource<Exception>? exception;
+
+    public static void Start()
+    {
+        TaskCompletionSource releaseSource;
+        lock (Sync)
+        {
+            release ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            exception ??= new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+            releaseSource = release;
+        }
+
+        Task.Run(async () =>
+        {
+            try
+            {
+                await releaseSource.Task.ConfigureAwait(false);
+                await LakonaTimer.CreateOnceTimerAsync<TimerCallbackTarget, TimerArgs>(
+                    TimeSpan.Zero,
+                    nameof(TimerCallbackBehavior.HandleAsync),
+                    new TimerArgs("escaped-after-scope")).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                lock (Sync)
+                {
+                    exception?.TrySetResult(ex);
+                }
+            }
+        });
+    }
+
+    public static void Release()
+    {
+        lock (Sync)
+        {
+            release?.TrySetResult();
+        }
+    }
+
+    public static async Task<Exception> WaitForExceptionAsync(CancellationToken cancellationToken)
+    {
+        TaskCompletionSource<Exception> source;
+        lock (Sync)
+        {
+            exception ??= new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+            source = exception;
+        }
+
+        return await source.Task.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken).ConfigureAwait(false);
+    }
+
+    public static void Reset()
+    {
+        lock (Sync)
+        {
+            release = null;
+            exception = null;
+        }
     }
 }
 

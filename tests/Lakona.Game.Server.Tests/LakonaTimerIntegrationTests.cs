@@ -11,6 +11,7 @@ using Lakona.Game.Server.Hotfix.Timers;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests;
@@ -439,6 +440,256 @@ public sealed class LakonaTimerIntegrationTests
         {
             snapshot.Retire();
         }
+    }
+
+    [Fact]
+    public async Task Periodic_timer_created_by_v1_invokes_v2_after_reload_without_recreating_timer_id()
+    {
+        TimerRuntimeCallbackLog.Reset();
+        const string assemblyName = "TimerRuntimeReload";
+        var v1Assembly = CompileReloadTimerAssembly(assemblyName, "v1");
+        var v2Assembly = CompileReloadTimerAssembly(assemblyName, "v2");
+        await using var v1 = TimerFixture.Create(
+            v1Assembly.GetType("ReloadRuntime.Callback", throwOnError: true)!,
+            version: 1,
+            mainAssembly: v1Assembly);
+        await using var v2 = TimerFixture.Create(
+            v2Assembly.GetType("ReloadRuntime.Callback", throwOnError: true)!,
+            version: 2,
+            mainAssembly: v2Assembly);
+        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
+        await using var schedulerFixture = RuntimeSchedulerFixture.Create(time, v1.Snapshot);
+        TimerId timerId;
+        using (LakonaTimerExecutionScope.Enter(schedulerFixture.Backend, v1.Lease))
+        {
+            var callbackType = v1Assembly.GetType("ReloadRuntime.Callback", throwOnError: true)!;
+            var argsType = v1Assembly.GetType("ReloadRuntime.Args", throwOnError: true)!;
+            var args = Activator.CreateInstance(argsType, "periodic")!;
+            timerId = await InvokeCreatePeriodicTimerAsync(
+                callbackType,
+                argsType,
+                TimeSpan.FromSeconds(1),
+                TimeSpan.FromSeconds(1),
+                args);
+        }
+
+        schedulerFixture.Current = v2.Snapshot;
+        await schedulerFixture.StartAsync(TestContext.Current.CancellationToken);
+        time.Advance(TimeSpan.FromSeconds(1));
+        var record = await TimerRuntimeCallbackLog.WaitForCountAsync(1, TestContext.Current.CancellationToken);
+
+        Assert.Equal("v2", record[0].Generation);
+        Assert.Equal(timerId.ToString(), record[0].TimerId);
+        Assert.True(schedulerFixture.Backend.TryGetDescriptor(timerId, out _));
+    }
+
+    [Fact]
+    public async Task Timer_created_by_old_in_flight_callback_after_reload_validates_against_old_leased_snapshot()
+    {
+        TimerRuntimeCallbackLog.Reset();
+        const string assemblyName = "TimerRuntimeInFlightReload";
+        var v1Assembly = CompileHotfixAssembly(
+            assemblyName,
+            """
+            using System;
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+            using Lakona.Game.Server.Tests;
+            namespace InFlightReload;
+            public sealed record Args(string Value);
+            public sealed class ParentCallback
+            {
+                public static async ValueTask HandleAsync(TimerTick<Args> tick)
+                {
+                    await LakonaTimerIntegrationTests.TimerRuntimeCallbackLog.RecordAsync("v1-parent", tick.TimerId.ToString());
+                    await LakonaTimerIntegrationTests.TimerRuntimeCallbackLog.WaitForReleaseAsync();
+                    await LakonaTimer.CreateOnceTimerAsync<ChildCallback, Args>(
+                        TimeSpan.FromSeconds(1),
+                        nameof(ChildCallback.HandleAsync),
+                        new Args("child"),
+                        tick.CancellationToken);
+                    await LakonaTimerIntegrationTests.TimerRuntimeCallbackLog.RecordAsync("v1-created-child", tick.TimerId.ToString());
+                }
+            }
+            public sealed class ChildCallback
+            {
+                public static async ValueTask HandleAsync(TimerTick<Args> tick)
+                {
+                    await LakonaTimerIntegrationTests.TimerRuntimeCallbackLog.RecordAsync("v1-child", tick.TimerId.ToString());
+                }
+            }
+            """);
+        var v2Assembly = CompileHotfixAssembly(
+            assemblyName,
+            """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+            namespace InFlightReload;
+            public sealed record Args(string Value);
+            public sealed class ParentCallback
+            {
+                public static ValueTask HandleAsync(TimerTick<Args> tick)
+                {
+                    _ = tick;
+                    return default;
+                }
+            }
+            """);
+        await using var v1 = TimerFixture.Create(
+            v1Assembly.GetType("InFlightReload.ParentCallback", throwOnError: true)!,
+            version: 1,
+            mainAssembly: v1Assembly);
+        await using var v2 = TimerFixture.Create(
+            v2Assembly.GetType("InFlightReload.ParentCallback", throwOnError: true)!,
+            version: 2,
+            mainAssembly: v2Assembly);
+        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
+        await using var schedulerFixture = RuntimeSchedulerFixture.Create(time, v1.Snapshot);
+        var callbackType = v1Assembly.GetType("InFlightReload.ParentCallback", throwOnError: true)!;
+        var argsType = v1Assembly.GetType("InFlightReload.Args", throwOnError: true)!;
+        using (LakonaTimerExecutionScope.Enter(schedulerFixture.Backend, v1.Lease))
+        {
+            var args = Activator.CreateInstance(argsType, "parent")!;
+            await InvokeCreateOnceTimerAsync(callbackType, argsType, args);
+        }
+
+        await schedulerFixture.StartAsync(TestContext.Current.CancellationToken);
+        time.Advance(TimeSpan.FromSeconds(1));
+        await TimerRuntimeCallbackLog.WaitForGenerationAsync("v1-parent", TestContext.Current.CancellationToken);
+        schedulerFixture.Current = v2.Snapshot;
+
+        TimerRuntimeCallbackLog.Release();
+        await TimerRuntimeCallbackLog.WaitForGenerationAsync("v1-created-child", TestContext.Current.CancellationToken);
+
+        Assert.Contains(schedulerFixture.Backend.Descriptors, descriptor =>
+            descriptor.CallbackFullName == "InFlightReload.ChildCallback"
+            && descriptor.Generation == 1);
+    }
+
+    [Fact]
+    public async Task Runtime_timer_resolution_deserialization_and_callback_failures_are_reported_and_skipped()
+    {
+        TimerRuntimeCallbackLog.Reset();
+        var assembly = CompileHotfixAssembly(
+            "TimerRuntimeFailures",
+            """
+            using System;
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+            namespace RuntimeFailures;
+            public sealed record Args(string Value);
+            public sealed class Callback
+            {
+                public static ValueTask HandleAsync(TimerTick<Args> tick)
+                {
+                    _ = tick;
+                    return default;
+                }
+
+                public static ValueTask WrongSignatureAsync(string value)
+                {
+                    _ = value;
+                    return default;
+                }
+
+                public static ValueTask ThrowAsync(TimerTick<Args> tick)
+                {
+                    _ = tick;
+                    throw new InvalidOperationException("callback failed");
+                }
+            }
+            """);
+        await using var fixture = TimerFixture.Create(
+            assembly.GetType("RuntimeFailures.Callback", throwOnError: true)!,
+            mainAssembly: assembly);
+        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
+        await using var schedulerFixture = RuntimeSchedulerFixture.Create(time, fixture.Snapshot);
+        var dueAt = time.GetUtcNow().AddSeconds(1);
+        var callbackAssemblyName = assembly.GetName().Name!;
+        var cases = new[]
+        {
+            CreateDescriptor(callbackAssemblyName, "RuntimeFailures.MissingCallback", "HandleAsync", callbackAssemblyName, "RuntimeFailures.Args", """{"Value":"missing-type"}""", dueAt),
+            CreateDescriptor(callbackAssemblyName, "RuntimeFailures.Callback", "MissingAsync", callbackAssemblyName, "RuntimeFailures.Args", """{"Value":"missing-method"}""", dueAt),
+            CreateDescriptor(callbackAssemblyName, "RuntimeFailures.Callback", "WrongSignatureAsync", callbackAssemblyName, "RuntimeFailures.Args", """{"Value":"signature"}""", dueAt),
+            CreateDescriptor(callbackAssemblyName, "RuntimeFailures.Callback", "HandleAsync", callbackAssemblyName, "RuntimeFailures.Args", """{"Value":""", dueAt),
+            CreateDescriptor(callbackAssemblyName, "RuntimeFailures.Callback", "ThrowAsync", callbackAssemblyName, "RuntimeFailures.Args", """{"Value":"throw"}""", dueAt)
+        };
+        foreach (var descriptor in cases)
+        {
+            schedulerFixture.Scheduler.Add(descriptor);
+        }
+
+        await schedulerFixture.StartAsync(TestContext.Current.CancellationToken);
+        time.Advance(TimeSpan.FromSeconds(1));
+        var failures = await schedulerFixture.Observer.WaitForFailedCountAsync(5, TestContext.Current.CancellationToken);
+
+        Assert.All(cases, descriptor => Assert.False(schedulerFixture.Scheduler.Contains(descriptor.TimerId)));
+        Assert.Equal(
+            cases.Select(static descriptor => descriptor.TimerId).OrderBy(static id => id.ToString()),
+            failures.Select(static failure => failure.Observation.TimerId).OrderBy(static id => id.ToString()));
+    }
+
+    [Fact]
+    public async Task One_shot_runtime_failures_do_not_retry_but_periodic_runtime_failures_retry_next_period()
+    {
+        TimerRuntimeCallbackLog.Reset();
+        var assembly = CompileHotfixAssembly(
+            "TimerRuntimeRetryFailures",
+            """
+            using System;
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+            namespace RuntimeRetryFailures;
+            public sealed record Args(string Value);
+            public sealed class Callback
+            {
+                public static ValueTask HandleAsync(TimerTick<Args> tick)
+                {
+                    _ = tick;
+                    return default;
+                }
+
+                public static ValueTask ThrowAsync(TimerTick<Args> tick)
+                {
+                    _ = tick;
+                    throw new InvalidOperationException("callback failed");
+                }
+            }
+            """);
+        await using var fixture = TimerFixture.Create(
+            assembly.GetType("RuntimeRetryFailures.Callback", throwOnError: true)!,
+            mainAssembly: assembly);
+        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
+        await using var schedulerFixture = RuntimeSchedulerFixture.Create(time, fixture.Snapshot);
+        var dueAt = time.GetUtcNow().AddSeconds(1);
+        var callbackAssemblyName = assembly.GetName().Name!;
+        var oneShots = new[]
+        {
+            CreateDescriptor(callbackAssemblyName, "RuntimeRetryFailures.Missing", "HandleAsync", callbackAssemblyName, "RuntimeRetryFailures.Args", """{"Value":"missing"}""", dueAt),
+            CreateDescriptor(callbackAssemblyName, "RuntimeRetryFailures.Callback", "HandleAsync", callbackAssemblyName, "RuntimeRetryFailures.Args", """{"Value":""", dueAt),
+            CreateDescriptor(callbackAssemblyName, "RuntimeRetryFailures.Callback", "ThrowAsync", callbackAssemblyName, "RuntimeRetryFailures.Args", """{"Value":"throw"}""", dueAt)
+        };
+        var periodic = new[]
+        {
+            CreateDescriptor(callbackAssemblyName, "RuntimeRetryFailures.Missing", "HandleAsync", callbackAssemblyName, "RuntimeRetryFailures.Args", """{"Value":"missing"}""", dueAt, TimeSpan.FromSeconds(1)),
+            CreateDescriptor(callbackAssemblyName, "RuntimeRetryFailures.Callback", "HandleAsync", callbackAssemblyName, "RuntimeRetryFailures.Args", """{"Value":""", dueAt, TimeSpan.FromSeconds(1)),
+            CreateDescriptor(callbackAssemblyName, "RuntimeRetryFailures.Callback", "ThrowAsync", callbackAssemblyName, "RuntimeRetryFailures.Args", """{"Value":"throw"}""", dueAt, TimeSpan.FromSeconds(1))
+        };
+        foreach (var descriptor in oneShots.Concat(periodic))
+        {
+            schedulerFixture.Scheduler.Add(descriptor);
+        }
+
+        await schedulerFixture.StartAsync(TestContext.Current.CancellationToken);
+        time.Advance(TimeSpan.FromSeconds(1));
+        await schedulerFixture.Observer.WaitForFailedCountAsync(6, TestContext.Current.CancellationToken);
+        time.Advance(TimeSpan.FromSeconds(1));
+        var failures = await schedulerFixture.Observer.WaitForFailedCountAsync(9, TestContext.Current.CancellationToken);
+
+        Assert.All(oneShots, descriptor => Assert.False(schedulerFixture.Scheduler.Contains(descriptor.TimerId)));
+        Assert.All(periodic, descriptor => Assert.True(schedulerFixture.Scheduler.Contains(descriptor.TimerId)));
+        Assert.All(oneShots, descriptor => Assert.Single(failures, failure => failure.Observation.TimerId == descriptor.TimerId));
+        Assert.All(periodic, descriptor => Assert.Equal(2, failures.Count(failure => failure.Observation.TimerId == descriptor.TimerId)));
     }
 
     [Theory]
@@ -1176,6 +1427,429 @@ public sealed class LakonaTimerIntegrationTests
 
         return await ((ValueTask<TimerId>)result!).ConfigureAwait(false);
     }
+
+    private static async ValueTask<TimerId> InvokeCreatePeriodicTimerAsync(
+        Type callbackType,
+        Type argsType,
+        TimeSpan dueTime,
+        TimeSpan period,
+        object args)
+    {
+        var method = typeof(LakonaTimer)
+            .GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .Single(static method => method.Name == nameof(LakonaTimer.CreatePeriodicTimerAsync))
+            .MakeGenericMethod(callbackType, argsType);
+        object? result;
+        try
+        {
+            result = method.Invoke(
+                obj: null,
+                [dueTime, period, "HandleAsync", args, CancellationToken.None]);
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException is not null)
+        {
+            ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+            throw;
+        }
+
+        return await ((ValueTask<TimerId>)result!).ConfigureAwait(false);
+    }
+
+    private static Assembly CompileReloadTimerAssembly(string assemblyName, string generation)
+    {
+        return CompileHotfixAssembly(
+            assemblyName,
+            $$"""
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+            using Lakona.Game.Server.Tests;
+            namespace ReloadRuntime;
+            public sealed record Args(string Value);
+            public sealed class Callback
+            {
+                public static async ValueTask HandleAsync(TimerTick<Args> tick)
+                {
+                    await LakonaTimerIntegrationTests.TimerRuntimeCallbackLog.RecordAsync("{{generation}}", tick.TimerId.ToString());
+                }
+            }
+            """);
+    }
+
+    private static LakonaTimerDescriptor CreateDescriptor(
+        string callbackAssemblyName,
+        string callbackFullName,
+        string methodName,
+        string argsAssemblyName,
+        string argsFullName,
+        string jsonPayload,
+        DateTimeOffset dueAt,
+        TimeSpan? period = null)
+    {
+        return new LakonaTimerDescriptor(
+            TimerId.FromGuid(Guid.NewGuid()),
+            callbackAssemblyName,
+            callbackFullName,
+            methodName,
+            argsAssemblyName,
+            argsFullName,
+            LakonaTimerArgsSerializer.SystemTextJsonSerializerId,
+            Encoding.UTF8.GetBytes(jsonPayload),
+            dueAt,
+            period,
+            generation: 1);
+    }
+
+    private sealed class RuntimeSchedulerFixture : IAsyncDisposable
+    {
+        private RuntimeSchedulerFixture(
+            ServiceProvider services,
+            MutableRuntimeAccessor accessor,
+            LakonaTimerScheduler scheduler,
+            LakonaTimerBackend backend,
+            RecordingRuntimeTimerSchedulerObserver observer)
+        {
+            Services = services;
+            Accessor = accessor;
+            Scheduler = scheduler;
+            Backend = backend;
+            Observer = observer;
+        }
+
+        public ServiceProvider Services { get; }
+
+        public MutableRuntimeAccessor Accessor { get; }
+
+        public LakonaTimerScheduler Scheduler { get; }
+
+        public LakonaTimerBackend Backend { get; }
+
+        public RecordingRuntimeTimerSchedulerObserver Observer { get; }
+
+        public HotfixRuntimeSnapshot Current
+        {
+            get => Accessor.Current;
+            set => Accessor.Current = value;
+        }
+
+        public static RuntimeSchedulerFixture Create(ManualTimeProvider time, HotfixRuntimeSnapshot current)
+        {
+            var services = new ServiceCollection().BuildServiceProvider();
+            var observer = new RecordingRuntimeTimerSchedulerObserver();
+            var accessor = new MutableRuntimeAccessor(current);
+            var scheduler = new LakonaTimerScheduler(
+                accessor,
+                time,
+                new LakonaTimerOptions { MaxConcurrentCallbacks = 4, DispatchQueueCapacity = 32 },
+                observer,
+                NullLogger<LakonaTimerScheduler>.Instance);
+            var backend = new LakonaTimerBackend(scheduler);
+            return new RuntimeSchedulerFixture(services, accessor, scheduler, backend, observer);
+        }
+
+        public Task StartAsync(CancellationToken cancellationToken)
+        {
+            return Scheduler.StartAsync(cancellationToken);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await Scheduler.DisposeAsync().ConfigureAwait(false);
+            await Services.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    private sealed class MutableRuntimeAccessor(HotfixRuntimeSnapshot current) : IHotfixRuntimeAccessor
+    {
+        public HotfixRuntimeSnapshot Current { get; set; } = current;
+
+        public HotfixRuntimeSnapshotLease AcquireCurrent()
+        {
+            return Current.AcquireLease();
+        }
+    }
+
+    private sealed class RecordingRuntimeTimerSchedulerObserver : ILakonaTimerSchedulerObserver
+    {
+        private readonly object gate = new();
+        private readonly List<RuntimeTimerFailure> failed = [];
+
+        public IReadOnlyList<RuntimeTimerFailure> Failed
+        {
+            get
+            {
+                lock (gate)
+                {
+                    return failed.ToArray();
+                }
+            }
+        }
+
+        public void OnDispatchQueued(LakonaTimerDispatchObservation observation)
+        {
+        }
+
+        public void OnDispatchQueueFull(LakonaTimerDispatchObservation observation)
+        {
+        }
+
+        public void OnDispatchSkipped(LakonaTimerDispatchObservation observation)
+        {
+        }
+
+        public void OnDispatchStarted(LakonaTimerDispatchObservation observation)
+        {
+        }
+
+        public void OnDispatchFailed(LakonaTimerDispatchObservation observation, Exception exception)
+        {
+            lock (gate)
+            {
+                failed.Add(new RuntimeTimerFailure(observation, exception));
+                Monitor.PulseAll(gate);
+            }
+        }
+
+        public void OnDispatchCompleted(LakonaTimerDispatchObservation observation)
+        {
+        }
+
+        public void OnStaleHeapEntry(LakonaTimerHeapObservation observation)
+        {
+        }
+
+        public async Task<IReadOnlyList<RuntimeTimerFailure>> WaitForFailedCountAsync(int count, CancellationToken cancellationToken)
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(2));
+            while (true)
+            {
+                lock (gate)
+                {
+                    if (failed.Count >= count)
+                    {
+                        return failed.ToArray();
+                    }
+                }
+
+                await Task.Delay(5, timeout.Token).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private sealed record RuntimeTimerFailure(LakonaTimerDispatchObservation Observation, Exception Exception);
+
+    private sealed class ManualTimeProvider(DateTimeOffset initialUtcNow) : TimeProvider
+    {
+        private readonly object gate = new();
+        private readonly List<ManualTimer> timers = [];
+        private DateTimeOffset utcNow = initialUtcNow;
+        private long timestamp;
+
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+        public override DateTimeOffset GetUtcNow()
+        {
+            lock (gate)
+            {
+                return utcNow;
+            }
+        }
+
+        public override long GetTimestamp()
+        {
+            lock (gate)
+            {
+                return timestamp;
+            }
+        }
+
+        public override ITimer CreateTimer(System.Threading.TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var timer = new ManualTimer(this, callback, state, dueTime, period);
+            lock (gate)
+            {
+                timers.Add(timer);
+            }
+
+            return timer;
+        }
+
+        public void Advance(TimeSpan amount)
+        {
+            ManualTimer[] due;
+            lock (gate)
+            {
+                utcNow = utcNow.Add(amount);
+                timestamp = checked(timestamp + amount.Ticks);
+                due = timers.Where(timer => timer.IsDue(timestamp)).ToArray();
+            }
+
+            foreach (var timer in due)
+            {
+                timer.Fire();
+            }
+        }
+
+        private void Remove(ManualTimer timer)
+        {
+            lock (gate)
+            {
+                timers.Remove(timer);
+            }
+        }
+
+        private sealed class ManualTimer : ITimer
+        {
+            private readonly ManualTimeProvider owner;
+            private readonly System.Threading.TimerCallback callback;
+            private readonly object? state;
+            private TimeSpan period;
+            private long dueTimestamp;
+            private bool disposed;
+
+            public ManualTimer(
+                ManualTimeProvider owner,
+                System.Threading.TimerCallback callback,
+                object? state,
+                TimeSpan dueTime,
+                TimeSpan period)
+            {
+                this.owner = owner;
+                this.callback = callback;
+                this.state = state;
+                this.period = period;
+                dueTimestamp = checked(owner.GetTimestamp() + dueTime.Ticks);
+            }
+
+            public bool IsDue(long nowTimestamp)
+            {
+                return !disposed && nowTimestamp >= dueTimestamp;
+            }
+
+            public void Fire()
+            {
+                if (disposed)
+                {
+                    return;
+                }
+
+                if (period == Timeout.InfiniteTimeSpan)
+                {
+                    disposed = true;
+                    owner.Remove(this);
+                }
+                else
+                {
+                    dueTimestamp = checked(owner.GetTimestamp() + period.Ticks);
+                }
+
+                ThreadPool.QueueUserWorkItem(_ => callback(state), state, preferLocal: false);
+            }
+
+            public bool Change(TimeSpan dueTime, TimeSpan period)
+            {
+                if (disposed)
+                {
+                    return false;
+                }
+
+                this.period = period;
+                dueTimestamp = checked(owner.GetTimestamp() + dueTime.Ticks);
+                return true;
+            }
+
+            public void Dispose()
+            {
+                disposed = true;
+                owner.Remove(this);
+            }
+
+            public ValueTask DisposeAsync()
+            {
+                Dispose();
+                return default;
+            }
+        }
+    }
+
+    public static class TimerRuntimeCallbackLog
+    {
+        private static readonly object Sync = new();
+        private static readonly List<TimerRuntimeCallbackRecord> Records = [];
+        private static TaskCompletionSource? release;
+
+        public static async ValueTask RecordAsync(string generation, string timerId)
+        {
+            lock (Sync)
+            {
+                Records.Add(new TimerRuntimeCallbackRecord(generation, timerId));
+                Monitor.PulseAll(Sync);
+            }
+
+            await Task.Yield();
+        }
+
+        public static async ValueTask WaitForReleaseAsync()
+        {
+            TaskCompletionSource source;
+            lock (Sync)
+            {
+                release ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                source = release;
+            }
+
+            await source.Task.ConfigureAwait(false);
+        }
+
+        public static void Release()
+        {
+            lock (Sync)
+            {
+                release?.TrySetResult();
+            }
+        }
+
+        public static Task<IReadOnlyList<TimerRuntimeCallbackRecord>> WaitForCountAsync(int count, CancellationToken cancellationToken)
+        {
+            return WaitUntilAsync(() => Records.Count >= count, cancellationToken);
+        }
+
+        public static Task<IReadOnlyList<TimerRuntimeCallbackRecord>> WaitForGenerationAsync(string generation, CancellationToken cancellationToken)
+        {
+            return WaitUntilAsync(() => Records.Any(record => string.Equals(record.Generation, generation, StringComparison.Ordinal)), cancellationToken);
+        }
+
+        public static void Reset()
+        {
+            lock (Sync)
+            {
+                Records.Clear();
+                release = null;
+            }
+        }
+
+        private static async Task<IReadOnlyList<TimerRuntimeCallbackRecord>> WaitUntilAsync(
+            Func<bool> predicate,
+            CancellationToken cancellationToken)
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(2));
+            while (true)
+            {
+                lock (Sync)
+                {
+                    if (predicate())
+                    {
+                        return Records.ToArray();
+                    }
+                }
+
+                await Task.Delay(5, timeout.Token).ConfigureAwait(false);
+            }
+        }
+    }
+
+    public sealed record TimerRuntimeCallbackRecord(string Generation, string TimerId);
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static WeakReference CreateTimerAndReleaseHotfixContextOnIsolatedThread()
