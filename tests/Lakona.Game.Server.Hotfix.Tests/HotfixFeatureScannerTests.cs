@@ -9,7 +9,7 @@ namespace Lakona.Game.Server.Hotfix.Tests;
 public sealed class HotfixFeatureScannerTests
 {
     [Fact]
-    public void Scanner_discovers_hotfix_feature_declarations_without_actor_ticks()
+    public void Scanner_discovers_hotfix_feature_declarations()
     {
         var result = HotfixBehaviorScanner.Scan(typeof(BattleRuntimeFeature).Assembly, [
             typeof(BattleRuntimeFeature)
@@ -19,10 +19,6 @@ public sealed class HotfixFeatureScannerTests
         var feature = Assert.Single(result.Features);
         Assert.Equal("battle-runtime", feature.Name);
         Assert.Equal(typeof(BattleRuntimeFeature), feature.FeatureType);
-
-        var localActor = Assert.Single(feature.LocalActors);
-        Assert.Equal(typeof(MatchmakingActor), localActor.ActorType);
-        Assert.Equal("default", localActor.ActorId);
     }
 
     [Fact]
@@ -200,7 +196,6 @@ public sealed class HotfixFeatureScannerTests
     {
         public static void Configure(HotfixFeatureContext context)
         {
-            context.EnsureLocalActor<MatchmakingActor>("default");
         }
     }
 
@@ -262,7 +257,6 @@ public sealed class HotfixFeatureScannerTests
     {
         public void Configure(HotfixFeatureContext context)
         {
-            context.EnsureLocalActor<MatchmakingActor>("default");
         }
     }
 

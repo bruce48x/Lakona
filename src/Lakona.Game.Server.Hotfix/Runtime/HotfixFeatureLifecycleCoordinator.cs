@@ -43,6 +43,7 @@ internal sealed class HotfixFeatureLifecycleCoordinator
         var started = new List<HotfixFeatureDeclaration>();
         var rootTimerBackend = candidateRuntime.Services.GetService<ILakonaTimerBackend>();
         var stagingTimerBackend = rootTimerBackend?.CreateStagingBackend();
+        var rollbackScopes = new List<HotfixCandidateRollbackScope>();
         using var lease = candidateRuntime.AcquireLease();
         using var dispatchTimerScope = stagingTimerBackend is null
             ? null
@@ -56,14 +57,28 @@ internal sealed class HotfixFeatureLifecycleCoordinator
                     continue;
                 }
 
-                await invoker.StartAsync(
-                    feature,
-                    states[feature.Name],
-                    candidateRuntime.Services,
-                    stagingTimerBackend,
-                    cancellationToken).ConfigureAwait(false);
-                started.Add(feature);
-                ValidateFeatureState(feature, states[feature.Name]);
+                var rollbackScope = await HotfixCandidateRollbackScope
+                    .BeginAsync(feature.Name, candidateRuntime.Services, cancellationToken)
+                    .ConfigureAwait(false);
+                try
+                {
+                    await invoker.StartAsync(
+                        feature,
+                        states[feature.Name],
+                        candidateRuntime.Services,
+                        stagingTimerBackend,
+                        cancellationToken).ConfigureAwait(false);
+                    started.Add(feature);
+                    ValidateFeatureState(feature, states[feature.Name]);
+                    await rollbackScope.CommitAsync(cancellationToken).ConfigureAwait(false);
+                    rollbackScopes.Add(rollbackScope);
+                }
+                catch
+                {
+                    await rollbackScope.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                    await rollbackScope.DisposeAsync().ConfigureAwait(false);
+                    throw;
+                }
             }
 
             foreach (var feature in candidateFeatures)
@@ -77,7 +92,8 @@ internal sealed class HotfixFeatureLifecycleCoordinator
                 states,
                 rootTimerBackend,
                 stagingTimerBackend,
-                started.ToArray());
+                started.ToArray(),
+                rollbackScopes.ToArray());
         }
         catch (Exception ex)
         {
@@ -88,6 +104,7 @@ internal sealed class HotfixFeatureLifecycleCoordinator
                     states,
                     candidateRuntime.Services,
                     stagingTimerBackend).ConfigureAwait(false);
+                await RollbackScopesSuppressingAsync(rollbackScopes).ConfigureAwait(false);
             }
             finally
             {
@@ -177,6 +194,7 @@ internal sealed class HotfixFeatureLifecycleCoordinator
                     snapshot.States,
                     snapshot.Runtime.Services,
                     snapshot.StagingTimerBackend).ConfigureAwait(false);
+                await RollbackScopesSuppressingAsync(snapshot.RollbackScopes).ConfigureAwait(false);
             }
             finally
             {
@@ -193,6 +211,25 @@ internal sealed class HotfixFeatureLifecycleCoordinator
         {
             await snapshot.RootTimerBackend.RollbackStagedTimersAsync(snapshot.StagingTimerBackend, CancellationToken.None)
                 .ConfigureAwait(false);
+        }
+    }
+
+    private static async ValueTask RollbackScopesSuppressingAsync(
+        IReadOnlyList<HotfixCandidateRollbackScope> scopes)
+    {
+        for (var index = scopes.Count - 1; index >= 0; index--)
+        {
+            try
+            {
+                await scopes[index].RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            catch
+            {
+            }
+            finally
+            {
+                await scopes[index].DisposeAsync().ConfigureAwait(false);
+            }
         }
     }
 
@@ -260,7 +297,8 @@ internal sealed class HotfixFeatureLifecycleSnapshot
         IReadOnlyDictionary<string, HotfixFeatureState> states,
         ILakonaTimerBackend? rootTimerBackend = null,
         ILakonaTimerBackend? stagingTimerBackend = null,
-        IReadOnlyList<HotfixFeatureDeclaration>? startedFeatures = null)
+        IReadOnlyList<HotfixFeatureDeclaration>? startedFeatures = null,
+        IReadOnlyList<HotfixCandidateRollbackScope>? rollbackScopes = null)
     {
         Runtime = runtime;
         Features = features ?? throw new ArgumentNullException(nameof(features));
@@ -268,6 +306,7 @@ internal sealed class HotfixFeatureLifecycleSnapshot
         RootTimerBackend = rootTimerBackend;
         StagingTimerBackend = stagingTimerBackend;
         StartedFeatures = startedFeatures ?? Array.Empty<HotfixFeatureDeclaration>();
+        RollbackScopes = rollbackScopes ?? Array.Empty<HotfixCandidateRollbackScope>();
     }
 
     public HotfixRuntimeSnapshot? Runtime { get; }
@@ -281,6 +320,8 @@ internal sealed class HotfixFeatureLifecycleSnapshot
     internal ILakonaTimerBackend? StagingTimerBackend { get; }
 
     internal IReadOnlyList<HotfixFeatureDeclaration> StartedFeatures { get; }
+
+    internal IReadOnlyList<HotfixCandidateRollbackScope> RollbackScopes { get; }
 
     public IReadOnlyList<string> FeatureNames => Features.Select(static feature => feature.Name).ToArray();
 

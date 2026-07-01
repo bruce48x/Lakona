@@ -86,6 +86,7 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.AddLakonaGameSessionHotfixLifecycle();
         services.AddLakonaTimers();
         services.TryAddSingleton<IHotfixFeatureActivationPolicy, HotfixFeatureActivationPolicy>();
+        services.TryAddSingleton<IHotfixCandidateRollbackParticipant, ActorHostingHotfixRollbackParticipant>();
         services.TryAddSingleton<IFeatureMessageHandler, HotfixFeatureMessageHandler>();
         services.TryAddSingleton<IGameHandshakeService, GameHandshakeService>();
         services.TryAddSingleton<IFeatureCommandClient, FeatureCommandClient>();

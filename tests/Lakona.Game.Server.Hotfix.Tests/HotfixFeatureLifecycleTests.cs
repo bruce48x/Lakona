@@ -791,7 +791,6 @@ public sealed class HotfixFeatureLifecycleTests
             new Dictionary<string, string>(StringComparer.Ordinal),
             [],
             [],
-            [],
             HotfixFeatureLifecycleDeclaration.FromFeatureType(type));
     }
 

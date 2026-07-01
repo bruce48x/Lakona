@@ -715,7 +715,6 @@ public sealed class HotfixDispatchTests
             featureType,
             true,
             new Dictionary<string, string>(StringComparer.Ordinal),
-            Array.Empty<HotfixLocalActorDeclaration>(),
             commands,
             Array.Empty<ServiceDescriptor>());
     }
