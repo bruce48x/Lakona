@@ -65,7 +65,7 @@
 
 ### 清理与恢复语义
 
-`PlayerService`、`PlayerSessionRegistration` 和 `PlayerSessionRegistry` 已接入 `Lakona.Game.Server.Sessions`，可靠推送 ack 已接入框架 outcome。上线前仍必须集中验证这些路径、断线清理、房间 timer callback、tick request 和结算的业务清理语义。
+`PlayerService`、`PlayerSessionRegistration` 和 `PlayerSessionRegistry` 已接入 `Lakona.Game.Server.Sessions`，可靠推送 ack 已接入框架 outcome。上线前仍必须集中验证这些路径、断线清理、房间 periodic runtime loop、tick request 和结算的业务清理语义。
 
 必须完成：
 

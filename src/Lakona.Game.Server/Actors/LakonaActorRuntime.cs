@@ -839,60 +839,6 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
             }
         }
 
-        public IAsyncDisposable CreateNativeTimer(ActorRuntimeEnvelope tick, TimeSpan dueTime, TimeSpan? period)
-        {
-            var actorRef = (_actorHandle ?? throw new InvalidOperationException($"Actor '{_id}' is not bound.")).Ref;
-            var handle = new TimerRegistrationHandle();
-
-            if (Volatile.Read(ref _stopping) != 0)
-            {
-                handle.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                return handle;
-            }
-
-            var registration = new ActorTimerRegistration(tick, dueTime, period, handle);
-            var envelope = new ActorRuntimeEnvelope(
-                static (_, _, _) => new ValueTask<object?>((object?)null),
-                registration,
-                CancellationToken.None);
-
-            _ = actorRef.Send(envelope);
-            return handle;
-        }
-
-        public async ValueTask RegisterNativeTimerAsync(
-            K.ActorKernelContext<ActorRuntimeEnvelope> ctx,
-            ActorTimerRegistration registration,
-            CancellationToken cancellationToken)
-        {
-            if (Volatile.Read(ref _stopping) != 0)
-            {
-                await registration.Handle.DisposeAsync().ConfigureAwait(false);
-                return;
-            }
-
-            try
-            {
-                CurrentCell.Value = this;
-                await ActivateCoreAsync(Actor, cancellationToken).ConfigureAwait(false);
-
-                if (Volatile.Read(ref _stopping) != 0)
-                {
-                    await registration.Handle.DisposeAsync().ConfigureAwait(false);
-                    return;
-                }
-
-                var timer = registration.Period is null
-                    ? ctx.ScheduleOnce(registration.Tick, registration.DueTime)
-                    : ctx.ScheduleRepeated(registration.Tick, registration.DueTime, registration.Period.Value);
-                registration.Handle.Bind(timer);
-            }
-            finally
-            {
-                CurrentCell.Value = null;
-            }
-        }
-
         public async ValueTask<object?> DispatchAsync(ActorRuntimeEnvelope envelope)
         {
             if (envelope.CancellationToken.IsCancellationRequested)
@@ -968,12 +914,6 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
         object State,
         CancellationToken CancellationToken);
 
-    private sealed record ActorTimerRegistration(
-        ActorRuntimeEnvelope Tick,
-        TimeSpan DueTime,
-        TimeSpan? Period,
-        TimerRegistrationHandle Handle);
-
     private sealed class ActorAdapter : K.IActor<ActorRuntimeEnvelope>
     {
         private readonly ActorCell _cell;
@@ -987,64 +927,11 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
             K.ActorKernelContext<ActorRuntimeEnvelope> ctx,
             ActorRuntimeEnvelope message)
         {
-            if (message.State is ActorTimerRegistration registration)
-            {
-                await _cell.RegisterNativeTimerAsync(ctx, registration, message.CancellationToken).ConfigureAwait(false);
-                return;
-            }
-
             var result = await _cell.DispatchAsync(message).ConfigureAwait(false);
             if (ctx.HasPendingResponse)
             {
                 ctx.Respond(result);
             }
-        }
-    }
-
-    private sealed class TimerRegistrationHandle : IAsyncDisposable
-    {
-        private readonly object _gate = new();
-        private IDisposable? _timer;
-        private int _disposed;
-
-        public void Bind(IDisposable timer)
-        {
-            var disposeNow = false;
-
-            lock (_gate)
-            {
-                if (Volatile.Read(ref _disposed) != 0)
-                {
-                    disposeNow = true;
-                }
-                else
-                {
-                    _timer = timer;
-                }
-            }
-
-            if (disposeNow)
-            {
-                timer.Dispose();
-            }
-        }
-
-        public ValueTask DisposeAsync()
-        {
-            if (Interlocked.Exchange(ref _disposed, 1) == 0)
-            {
-                IDisposable? timer;
-
-                lock (_gate)
-                {
-                    timer = _timer;
-                    _timer = null;
-                }
-
-                timer?.Dispose();
-            }
-
-            return default;
         }
     }
 }

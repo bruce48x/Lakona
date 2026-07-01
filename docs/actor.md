@@ -259,7 +259,7 @@ remote placement intent remains visible at the call site.
 
 Actor creation and destruction are local framework lifecycle operations exposed
 through `IActorLifecycle.CreateLocalAsync` and `DestroyLocalAsync`. `AskAsync`,
-`TellAsync`, generated actor refs, and scheduler ticks do not create actors.
+`TellAsync`, generated actor refs, and timer callbacks do not create actors.
 
 Cross-node creation is a feature command to the owning feature; the owning
 feature calls `CreateLocalAsync` on its own node.
@@ -274,7 +274,8 @@ Missing actor behavior is deterministic:
 
 - `AskAsync`, `TellAsync`, and generated actor refs return or throw structured
   `ActorNotFound` failures.
-- scheduler ticks skip missing actors and report diagnostics.
+- timer callbacks target existing actors through normal actor calls and report
+  diagnostics when the actor is missing.
 - no normal actor call path implicitly creates the actor.
 
 Destroy order is:
