@@ -83,7 +83,6 @@ internal sealed class HotfixActorTickHostedService(
 
         return new HotfixSnapshot(
             snapshot.Version,
-            snapshot.SourceKind,
             snapshot.SourcePath,
             snapshot.LoadedAtUtc,
             snapshot.DispatchTableVersion,

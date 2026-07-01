@@ -160,7 +160,6 @@ public sealed class HotfixFileWatcherTests
             null,
             null,
             null,
-            null,
             0,
             Array.Empty<HotfixMethodKey>(),
             null,
@@ -180,7 +179,6 @@ public sealed class HotfixFileWatcherTests
         public ValueTask<HotfixAssemblySourceResult> ResolveAsync(CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult(new HotfixAssemblySourceResult(
-                "fixed",
                 "test",
                 _path,
                 Path.GetDirectoryName(_path)!));

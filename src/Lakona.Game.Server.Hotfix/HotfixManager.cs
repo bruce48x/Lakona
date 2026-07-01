@@ -14,7 +14,7 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
     private readonly IServiceProvider? _rootServices;
     private readonly SemaphoreSlim _reloadLock = new(1, 1);
     private long _nextVersion;
-    private HotfixSnapshot _current = new(null, null, null, null, 0, Array.Empty<HotfixMethodKey>(), null, null, null);
+    private HotfixSnapshot _current = new(null, null, null, 0, Array.Empty<HotfixMethodKey>(), null, null, null);
     private IServiceProvider _currentProvider = EmptyServiceProvider.Instance;
     private HotfixRuntimeSnapshot _currentRuntime = new(
         new HotfixServiceInvoker(HotfixDispatch.Current),
@@ -131,7 +131,6 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             table.ValidateFeatureCommandActivation(hotfixProvider);
             var snapshot = new HotfixSnapshot(
                 resolved.Version,
-                resolved.SourceKind,
                 resolved.AssemblyPath,
                 DateTimeOffset.UtcNow,
                 tableVersion,
@@ -181,7 +180,6 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             var previous = Current;
             var snapshot = new HotfixSnapshot(
                 previous.Version,
-                previous.SourceKind,
                 previous.SourcePath,
                 previous.LoadedAtUtc,
                 previous.DispatchTableVersion,

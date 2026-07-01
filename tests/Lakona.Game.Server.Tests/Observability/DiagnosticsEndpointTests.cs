@@ -328,7 +328,6 @@ public sealed class DiagnosticsEndpointTests
         {
             Current = new HotfixSnapshot(
                 "loaded-v1",
-                SourceKind: null,
                 SourcePath: null,
                 DateTimeOffset.UtcNow,
                 DispatchTableVersion: 42,

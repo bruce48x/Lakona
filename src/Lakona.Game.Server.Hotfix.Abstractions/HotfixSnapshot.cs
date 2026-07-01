@@ -4,7 +4,6 @@ public sealed record HotfixSnapshot
 {
     public HotfixSnapshot(
         string? Version,
-        string? SourceKind,
         string? SourcePath,
         DateTimeOffset? LoadedAtUtc,
         long DispatchTableVersion,
@@ -15,7 +14,6 @@ public sealed record HotfixSnapshot
         IReadOnlyList<HotfixFeatureDeclaration>? Features = null)
     {
         this.Version = Version;
-        this.SourceKind = SourceKind;
         this.SourcePath = SourcePath;
         this.LoadedAtUtc = LoadedAtUtc;
         this.DispatchTableVersion = DispatchTableVersion;
@@ -27,8 +25,6 @@ public sealed record HotfixSnapshot
     }
 
     public string? Version { get; }
-
-    public string? SourceKind { get; }
 
     public string? SourcePath { get; }
 

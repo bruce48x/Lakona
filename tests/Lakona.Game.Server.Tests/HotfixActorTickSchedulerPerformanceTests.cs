@@ -334,7 +334,6 @@ public sealed class HotfixActorTickSchedulerPerformanceTests : IDisposable
         return new HotfixSnapshot(
             "benchmark",
             "benchmark.dll",
-            null,
             DateTimeOffset.UtcNow,
             1,
             [],

@@ -709,7 +709,6 @@ public sealed class HotfixManagerTests
         public ValueTask<HotfixAssemblySourceResult> ResolveAsync(CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult(new HotfixAssemblySourceResult(
-                "fixed",
                 "test",
                 _path,
                 Path.GetDirectoryName(_path)!));
@@ -736,7 +735,6 @@ public sealed class HotfixManagerTests
         public ValueTask<HotfixAssemblySourceResult> ResolveAsync(CancellationToken cancellationToken = default)
         {
             var result = new HotfixAssemblySourceResult(
-                "switchable",
                 "test",
                 Path,
                 System.IO.Path.GetDirectoryName(Path) ?? Environment.CurrentDirectory);
@@ -788,7 +786,6 @@ public sealed class HotfixManagerTests
             }
 
             return new HotfixAssemblySourceResult(
-                "blocking",
                 start.ToString(),
                 _path,
                 Path.GetDirectoryName(_path)!);

@@ -28,6 +28,6 @@ public sealed class VersionPointerHotfixAssemblySource : IHotfixAssemblySource
         var versionsDirectory = PathValidation.GetContainedPath(root, "versions", "versions");
         var versionDirectory = PathValidation.GetContainedPath(versionsDirectory, version, "version");
         var assemblyPath = PathValidation.GetContainedPath(versionDirectory, assemblyFileName, nameof(_assemblyFileName));
-        return new HotfixAssemblySourceResult("version-pointer", version, assemblyPath, versionDirectory);
+        return new HotfixAssemblySourceResult(version, assemblyPath, versionDirectory);
     }
 }

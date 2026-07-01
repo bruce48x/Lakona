@@ -419,7 +419,7 @@ public sealed class HotfixAdminTests
 
         private static HotfixSnapshot Snapshot(string? version, HotfixReloadStatus status)
         {
-            return new HotfixSnapshot(version, "test", null, DateTimeOffset.UtcNow, 7, [], status, null, null);
+            return new HotfixSnapshot(version, null, DateTimeOffset.UtcNow, 7, [], status, null, null);
         }
     }
 

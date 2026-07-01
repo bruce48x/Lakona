@@ -16,6 +16,6 @@ public sealed class CurrentDirectoryHotfixAssemblySource : IHotfixAssemblySource
         var fullDirectory = Path.GetFullPath(_directory);
         var assemblyFileName = PathValidation.RequireSafeFileName(_assemblyFileName, nameof(_assemblyFileName));
         var assemblyPath = PathValidation.GetContainedPath(fullDirectory, assemblyFileName, nameof(_assemblyFileName));
-        return ValueTask.FromResult(new HotfixAssemblySourceResult("current-directory", null, assemblyPath, fullDirectory));
+        return ValueTask.FromResult(new HotfixAssemblySourceResult(null, assemblyPath, fullDirectory));
     }
 }

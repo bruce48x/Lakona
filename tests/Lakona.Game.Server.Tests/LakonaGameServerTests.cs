@@ -1527,7 +1527,6 @@ public sealed class LakonaGameServerTests
 
         public HotfixSnapshot Current => new(
             Version: null,
-            SourceKind: null,
             SourcePath: "",
             LoadedAtUtc: null,
             DispatchTableVersion: 0,

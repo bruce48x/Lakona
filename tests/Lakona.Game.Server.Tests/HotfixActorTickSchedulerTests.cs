@@ -433,7 +433,6 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
         return new HotfixSnapshot(
             "test",
             "test.dll",
-            null,
             DateTimeOffset.UtcNow,
             1,
             [],
@@ -889,7 +888,7 @@ public sealed class HotfixActorTickSchedulerTests : IDisposable
             return new HotfixReloadResult(
                 HotfixReloadStatus.Succeeded,
                 snapshot,
-                snapshot.SourceKind,
+                snapshot.Version,
                 snapshot.SourcePath,
                 []);
         }

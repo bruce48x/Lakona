@@ -354,7 +354,6 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
     {
         return new HotfixSnapshot(
             Version: "test",
-            SourceKind: "test",
             SourcePath: null,
             LoadedAtUtc: DateTimeOffset.UtcNow,
             DispatchTableVersion: 1,
@@ -501,7 +500,6 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
 
         public HotfixSnapshot Current { get; } = new(
             Version: "test",
-            SourceKind: "test",
             SourcePath: null,
             LoadedAtUtc: DateTimeOffset.UtcNow,
             DispatchTableVersion: 1,
@@ -533,8 +531,8 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
             return new HotfixReloadResult(
                 HotfixReloadStatus.Succeeded,
                 Current,
+                Current.Version,
                 Current.SourcePath,
-                Current.SourceKind,
                 [],
                 null);
         }
@@ -579,7 +577,7 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
             return new HotfixReloadResult(
                 status,
                 snapshot,
-                snapshot.SourceKind,
+                snapshot.Version,
                 snapshot.SourcePath,
                 [],
                 status == HotfixReloadStatus.Failed ? "reload failed" : null);
