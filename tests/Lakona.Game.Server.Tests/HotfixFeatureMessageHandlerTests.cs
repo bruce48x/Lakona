@@ -50,6 +50,29 @@ public sealed class HotfixFeatureMessageHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsyncHoldsRuntimeLeaseUntilCommandInvocationCompletes()
+    {
+        var serializer = new JsonFeatureSerializer();
+        var invoker = new BlockingCommandInvoker();
+        var accessor = new FixedAccessor(invoker);
+        var handler = new HotfixFeatureMessageHandler(accessor, serializer);
+
+        var handling = handler.HandleAsync(
+            NewRequest(payload: serializer.Serialize(new TestCommand("room-1"))),
+            TestContext.Current.CancellationToken).AsTask();
+        await invoker.Invoked.Task.WaitAsync(TestContext.Current.CancellationToken);
+
+        accessor.Current.Retire();
+        Assert.False(accessor.Provider.Disposed);
+
+        invoker.Release.SetResult();
+        var reply = await handling;
+
+        Assert.Equal(ClusterSendStatus.Accepted, reply.Status);
+        Assert.True(accessor.Provider.Disposed);
+    }
+
+    [Fact]
     public async Task HandleAsyncReturnsFeatureNotFoundForUnknownCommand()
     {
         var handler = new HotfixFeatureMessageHandler(
@@ -238,13 +261,38 @@ public sealed class HotfixFeatureMessageHandlerTests
 
     private sealed class FixedAccessor : IHotfixRuntimeAccessor
     {
+        private readonly ServiceProvider _provider;
+
         public FixedAccessor(IHotfixFeatureCommandInvoker featureCommands)
         {
-            var services = new ServiceCollection().BuildServiceProvider();
-            Current = new HotfixRuntimeSnapshot(new HotfixServiceInvoker(), featureCommands, services);
+            _provider = new ServiceCollection().BuildServiceProvider();
+            Provider = new TrackingServiceProvider(_provider);
+            Current = new HotfixRuntimeSnapshot(
+                new HotfixServiceInvoker(),
+                featureCommands,
+                Provider,
+                onRetired: Provider.Dispose);
         }
 
         public HotfixRuntimeSnapshot Current { get; }
+
+        public TrackingServiceProvider Provider { get; }
+    }
+
+    private sealed class TrackingServiceProvider(IServiceProvider inner) : IServiceProvider, IDisposable
+    {
+        public bool Disposed { get; private set; }
+
+        public object? GetService(Type serviceType)
+        {
+            return inner.GetService(serviceType);
+        }
+
+        public void Dispose()
+        {
+            Disposed = true;
+            (inner as IDisposable)?.Dispose();
+        }
     }
 
     private sealed class RecordingCommandInvoker : IHotfixFeatureCommandInvoker
@@ -350,6 +398,41 @@ public sealed class HotfixFeatureMessageHandlerTests
             await _cancel.CancelAsync();
             cancellationToken.ThrowIfCancellationRequested();
             return new TestReply("never");
+        }
+    }
+
+    private sealed class BlockingCommandInvoker : IHotfixFeatureCommandInvoker
+    {
+        private static readonly HotfixFeatureCommandDescriptor TestDescriptor = new(
+            "battle-runtime:17",
+            "battle-runtime",
+            FeatureCommandId.From(17),
+            typeof(TestCommand),
+            typeof(TestReply));
+
+        public TaskCompletionSource Invoked { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool TryResolve(
+            string featureName,
+            FeatureCommandId commandId,
+            out HotfixFeatureCommandDescriptor descriptor)
+        {
+            descriptor = TestDescriptor;
+            return true;
+        }
+
+        public async ValueTask<object?> InvokeAsync(
+            HotfixFeatureCommandDescriptor descriptor,
+            object? request,
+            FeatureMessageRequest message,
+            IServiceProvider services,
+            CancellationToken cancellationToken = default)
+        {
+            Invoked.SetResult();
+            await Release.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            return new TestReply("accepted");
         }
     }
 

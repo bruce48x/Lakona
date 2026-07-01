@@ -343,41 +343,52 @@ public static partial class RoomBehavior
         return default;
     }
 
-    public static async ValueTask TickAsync(this RoomActor self, HotfixActorTick tick)
+    public static async ValueTask RunTickAsync(this RoomActor self, RoomTickRequest request, CancellationToken cancellationToken = default)
     {
-        if (!self.RecordExists || self.State.Status != RoomStatus.InProgress || self.State.MatchCommitted)
+        if (!self.RecordExists || self.State.Status != RoomStatus.InProgress)
         {
             return;
         }
 
+        var deltaSeconds = request.DeltaSeconds <= 0f ? 1f / 20f : request.DeltaSeconds;
+        var observedAtUtc = NormalizeUtc(request.ObservedAtUtc);
         var simulation = CreateSimulation(self);
-        var deltaTime = tick.Interval <= TimeSpan.Zero ? 0.05f : (float)tick.Interval.TotalSeconds;
-        var result = simulation.Tick(deltaTime);
-        if (result.MatchEnd is null && result.WorldState.RoundRemainingSeconds <= 0 && result.WorldState.Players.Count > 1)
-        {
-            result = new ArenaStepResult(result.WorldState, result.Deaths, CreateMatchEnd(result.WorldState));
-        }
-
+        var result = simulation.Tick(deltaSeconds);
         self.State.LastWorldState = result.WorldState;
-        self.State.LastPublishedWorldTick = result.WorldState.Tick;
-        self.State.LastUpdatedAtUtc = tick.ObservedAtUtc == default ? DateTime.UtcNow : tick.ObservedAtUtc;
+        self.State.LastUpdatedAtUtc = observedAtUtc;
+        self.State.Revision += 1;
 
-        var publisher = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<RoomNotifier>();
-        var snapshot = BuildSnapshot(self);
-        await publisher.PublishWorldStateAsync(snapshot, result.WorldState).ConfigureAwait(false);
-        foreach (var dead in result.Deaths)
+        var room = BuildSnapshot(self);
+        var notifier = self.Context.Services.GetService<RoomNotifier>();
+        if (notifier is not null)
         {
-            await publisher.PublishPlayerDeadAsync(snapshot, dead).ConfigureAwait(false);
+            if (self.State.LastPublishedWorldTick != result.WorldState.Tick)
+            {
+                await notifier
+                    .PublishWorldStateAsync(room, result.WorldState, cancellationToken)
+                    .ConfigureAwait(false);
+                self.State.LastPublishedWorldTick = result.WorldState.Tick;
+            }
+
+            foreach (var death in result.Deaths)
+            {
+                await notifier
+                    .PublishPlayerDeadAsync(room, death, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            if (result.MatchEnd is not null)
+            {
+                await notifier
+                    .PublishMatchEndAsync(room, result.MatchEnd, cancellationToken)
+                    .ConfigureAwait(false);
+            }
         }
 
-        if (result.MatchEnd is null)
+        if (result.MatchEnd is not null)
         {
-            return;
+            await CommitSettlementAsync(self, result).ConfigureAwait(false);
         }
-
-        await publisher.PublishMatchEndAsync(snapshot, result.MatchEnd).ConfigureAwait(false);
-        self.State.MatchCommitted = true;
-        await CommitSettlementAsync(self, result).ConfigureAwait(false);
     }
 
     private static ArenaSimulation CreateSimulation(RoomActor self)
@@ -395,7 +406,7 @@ public static partial class RoomBehavior
 
     private static IServiceProvider GetCurrentHotfixServices(IServiceProvider services)
     {
-        return services.GetRequiredService<IHotfixRuntimeAccessor>().Current.Services;
+        return services.GetRequiredService<IHotfixServiceProviderAccessor>().Current;
     }
 
     private static MatchEnd CreateMatchEnd(WorldState worldState)

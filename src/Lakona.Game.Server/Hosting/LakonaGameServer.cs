@@ -587,7 +587,6 @@ public static class LakonaGameServer
     {
         var source = CreateDefaultHotfixAssemblySource(baseDirectory, adminOptions);
         services.AddLakonaGameHotfix(source, sharedAssemblyNames: GetDefaultHotfixSharedAssemblyNames());
-        services.AddLakonaGameHotfixActorTicks();
     }
 
     internal static IHotfixAssemblySource CreateDefaultHotfixAssemblySourceForTesting(

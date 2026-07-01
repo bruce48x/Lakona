@@ -101,8 +101,8 @@ Stable app code must not expose application-specific state-store bridges such as
 `IUserStateStore` or `IRoomStateStore` for business actor behavior. Stable
 framework services that need to react to runtime facts should use
 framework-owned lifecycle bridges. User-authored runtime loops such as
-matchmaking ticks, room ticks, and room settlement are actor ticks declared by
-hotfix feature descriptors and implemented in actor behaviors.
+matchmaking, room updates, and room settlement are created by feature lifecycle
+as LakonaTimer callbacks that enqueue actor behavior methods.
 
 Generated framework RPC service proxies may also call hotfix services through
 `IHotfixServiceInvoker`; that is the supported service binding model. The
@@ -122,7 +122,8 @@ var result = await users
     });
 ```
 
-Hotfix feature descriptors declare the stable scheduler entry points:
+Hotfix feature descriptors declare local actors. Periodic work is created from
+feature lifecycle hooks through the stable timer entry point:
 
 ```csharp
 [HotfixFeature("battle-runtime")]
@@ -130,24 +131,44 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
 {
     public static void Configure(HotfixFeatureContext context)
     {
-        context.ScheduleActorTick<MatchmakingActor>(
-            "default",
-            TimeSpan.FromMilliseconds(250),
-            TickBacklogPolicy.Coalesce,
-            nameof(MatchmakingBehavior.TickAsync));
+        context.EnsureLocalActor<MatchmakingActor>("default");
+    }
 
-        context.ScheduleActiveActorTicks<RoomActor>(
+    public static async ValueTask StartAsync(HotfixFeatureStartCall call)
+    {
+        var timerId = await LakonaTimer.CreatePeriodicTimerAsync<BattleRuntimeTimers, BattleRuntimeTick>(
+            TimeSpan.Zero,
             TimeSpan.FromMilliseconds(50),
-            TickBacklogPolicy.SkipIfPending,
-            nameof(RoomBehavior.TickAsync));
+            nameof(BattleRuntimeTimers.TickAsync),
+            new BattleRuntimeTick("default"),
+            call.CancellationToken);
+
+        call.State.Items["battle-runtime.timer"] = timerId;
+    }
+
+    public static async ValueTask StopAsync(HotfixFeatureStopCall call)
+    {
+        if (call.State.Items.TryGetValue("battle-runtime.timer", out var value) &&
+            value is TimerId timerId)
+        {
+            await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None);
+        }
+
+        call.State.Items.Remove("battle-runtime.timer");
     }
 }
+
+public sealed record BattleRuntimeTick(string QueueId);
 ```
 
-The scheduler supplies stable context and enters the current hotfix behavior
-table. Stable App code does not validate passwords, choose match batches,
-compute ranks, award points, build user-facing replies, or call actor behavior
-one step at a time.
+Feature `StopAsync` should destroy timers even if the stop request token has
+already been canceled. Use a noncancelable cleanup token, such as
+`CancellationToken.None`, when deleting feature-owned timers.
+
+The timer scheduler supplies stable context and resolves callbacks against the
+current hotfix behavior table. Stable App code does not validate passwords,
+choose match batches, compute ranks, award points, build user-facing replies, or
+call actor behavior one step at a time.
 
 Framework-owned lifecycle bridges follow the same rule. The zero-template host
 enables stable lifecycle bridges through framework defaults; generated and
@@ -163,8 +184,8 @@ runtime packages. User-authored game feature declarations live in
 `Server.Hotfix` as `HotfixGameFeature` descriptors. Generated and sample
 `Server.App` projects must not contain application-specific Feature classes,
 hosted matchmaking loops, room runtimes, or feature adapters that raise
-project-specific runtime events. Reloadable runtime loops are actor ticks
-declared by hotfix feature descriptors.
+project-specific runtime events. Reloadable runtime loops are created by
+feature lifecycle as LakonaTimer callbacks that invoke actor behavior methods.
 
 Feature commands are capability-level orchestration points: placement checks,
 route registration, local actor creation, and the first calls into actors. Once
@@ -228,10 +249,10 @@ Move the following business logic to `samples/Game.Unity.Agar/Server/Hotfix`:
 - settlement commit rules in hotfix room actor behavior
 
 The Agar sample must not contain `Server/App/State/StateStores.cs` or replacement
-`I*StateStore` business bridges. User-authored runtime loops are actor ticks
-declared by hotfix feature descriptors. Stable App code must not define
-application-specific hotfix event adapters, room runtimes, matchmaking hosted
-services, or game Feature classes.
+`I*StateStore` business bridges. User-authored runtime loops are created by
+hotfix feature lifecycle as LakonaTimer callbacks. Stable App code must not
+define application-specific hotfix event adapters, room runtimes, matchmaking
+hosted services, or game Feature classes.
 
 ## Typed Actor Generation Rule
 

@@ -164,35 +164,12 @@ public static partial class MatchmakingBehavior
         });
     }
 
-    public static async ValueTask TickAsync(this MatchmakingActor self, HotfixActorTick tick)
+    public static async ValueTask RunTickAsync(this MatchmakingActor self, MatchmakingTickRequest request, CancellationToken cancellationToken = default)
     {
         EnsureState(self);
-        if (self.State.PendingTickets.Count == 0)
-        {
-            return;
-        }
-
-        var observedAtUtc = tick.ObservedAtUtc == default ? DateTime.UtcNow : tick.ObservedAtUtc;
-        var roomSize = MatchmakingQueuePolicy.NormalizeRoomSize(self.State.DefaultRoomSize);
-        if (MatchmakingQueuePolicy.GetMatchBatchSize(self.State.PendingTickets, roomSize, observedAtUtc, allowExpiredPartialBatch: true) <= 0)
-        {
-            return;
-        }
-
+        var observedAtUtc = NormalizeUtc(request.ObservedAtUtc);
         var assignments = await TryMatchAsync(self, observedAtUtc, allowExpiredPartialBatch: true).ConfigureAwait(false);
-        var publishedRoomIds = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var assignment in assignments.Values)
-        {
-            if (!publishedRoomIds.Add(assignment.RoomId))
-            {
-                continue;
-            }
-
-            var services = AgarServiceDependencies.From(GetCurrentHotfixServices(self.Context.Services));
-            await PlayerService.PublishMatchedAsync(
-                services,
-                assignment).ConfigureAwait(false);
-        }
+        await PublishMatchedAsync(self, assignments.Values).ConfigureAwait(false);
     }
 
     public static async ValueTask<Dictionary<string, RoomAssignment>> TryMatchAsync(
@@ -278,7 +255,24 @@ public static partial class MatchmakingBehavior
 
     private static IServiceProvider GetCurrentHotfixServices(IServiceProvider services)
     {
-        return services.GetRequiredService<IHotfixRuntimeAccessor>().Current.Services;
+        return services.GetRequiredService<IHotfixServiceProviderAccessor>().Current;
+    }
+
+    private static async Task PublishMatchedAsync(MatchmakingActor self, IEnumerable<RoomAssignment> assignments)
+    {
+        if (self.Context.Services.GetService<MatchmakingNotifier>() is null)
+        {
+            return;
+        }
+
+        var services = AgarServiceDependencies.From(self.Context.Services);
+        foreach (var assignment in assignments
+            .Where(static assignment => !string.IsNullOrWhiteSpace(assignment.RoomId))
+            .GroupBy(static assignment => assignment.RoomId, StringComparer.Ordinal)
+            .Select(static group => group.First()))
+        {
+            await PlayerService.PublishMatchedAsync(services, assignment).ConfigureAwait(false);
+        }
     }
 
     public static ValueTask<GatewayEndpointDescriptor?> ResolveRuntimeGatewayAsync(

@@ -105,6 +105,7 @@ public sealed class HotfixDispatchTable
         }
 
         Version = version;
+        Features = features.ToArray();
         bindings = methodList.ToDictionary(static method => method.Key, static method => method);
         serviceBindings = serviceList.ToDictionary(static service => service.Key, static service => service);
         serviceActivationFactories = serviceList
@@ -128,6 +129,8 @@ public sealed class HotfixDispatchTable
     public long Version { get; }
 
     public IReadOnlyList<HotfixMethodKey> MethodKeys { get; }
+
+    public IReadOnlyList<HotfixFeatureDeclaration> Features { get; }
 
     public MethodInfo Resolve(HotfixMethodKey key)
     {
@@ -574,27 +577,6 @@ public sealed class HotfixDispatchTable
                 ? typeof(Func<,>).MakeGenericType(binding.StateType, binding.ReturnType)
                 : typeof(Func<,,>).MakeGenericType(binding.StateType, binding.ParameterTypes[0], binding.ReturnType);
             binding.Method.CreateDelegate(delegateType);
-        }
-    }
-
-    public void ValidateFeatureTickMethods(IEnumerable<HotfixFeatureDeclaration> features)
-    {
-        foreach (var tick in features.SelectMany(static feature => feature.ActorTicks))
-        {
-            var key = HotfixDispatch.CreateKey(
-                tick.ActorType,
-                tick.MethodName,
-                typeof(ValueTask),
-                [typeof(HotfixActorTick)]);
-            var method = Resolve(key);
-            var parameters = method.GetParameters();
-            if (method.ReturnType != typeof(ValueTask) ||
-                parameters.Length != 2 ||
-                parameters[0].ParameterType != tick.ActorType ||
-                parameters[1].ParameterType != typeof(HotfixActorTick))
-            {
-                throw new InvalidOperationException($"Hotfix tick method '{key}' must be an extension method returning ValueTask and accepting HotfixActorTick.");
-            }
         }
     }
 

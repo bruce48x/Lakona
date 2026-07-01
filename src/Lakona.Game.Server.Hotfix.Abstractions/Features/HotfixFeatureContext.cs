@@ -7,12 +7,9 @@ public sealed class HotfixFeatureContext
 {
     private readonly Dictionary<string, string> _metadata = new(StringComparer.Ordinal);
     private readonly List<HotfixLocalActorDeclaration> _localActors = [];
-    private readonly List<HotfixActorTickDeclaration> _actorTicks = [];
     private readonly List<HotfixFeatureCommandDeclaration> _commands = [];
 
     public IReadOnlyList<HotfixLocalActorDeclaration> LocalActors => _localActors;
-
-    public IReadOnlyList<HotfixActorTickDeclaration> ActorTicks => _actorTicks;
 
     public IReadOnlyList<HotfixFeatureCommandDeclaration> Commands => _commands;
 
@@ -44,47 +41,5 @@ public sealed class HotfixFeatureContext
             typeof(TReply),
             commandId,
             methodName));
-    }
-
-    public void ScheduleActorTick<TActor>(
-        string actorId,
-        TimeSpan interval,
-        TickBacklogPolicy backlogPolicy,
-        string methodName)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(actorId);
-        AddTick(typeof(TActor), HotfixActorTickMode.FixedActor, actorId, interval, backlogPolicy, methodName);
-    }
-
-    public void ScheduleActiveActorTicks<TActor>(
-        TimeSpan interval,
-        TickBacklogPolicy backlogPolicy,
-        string methodName)
-    {
-        AddTick(typeof(TActor), HotfixActorTickMode.ActiveActors, "", interval, backlogPolicy, methodName);
-    }
-
-    private void AddTick(
-        Type actorType,
-        HotfixActorTickMode mode,
-        string actorId,
-        TimeSpan interval,
-        TickBacklogPolicy backlogPolicy,
-        string methodName)
-    {
-        ArgumentNullException.ThrowIfNull(actorType);
-        ArgumentException.ThrowIfNullOrWhiteSpace(methodName);
-        if (interval <= TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(nameof(interval), "Tick interval must be greater than zero.");
-        }
-
-        _actorTicks.Add(new HotfixActorTickDeclaration(
-            mode,
-            actorType,
-            actorId,
-            methodName,
-            interval,
-            backlogPolicy));
     }
 }

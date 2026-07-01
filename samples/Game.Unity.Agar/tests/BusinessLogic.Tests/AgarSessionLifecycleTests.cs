@@ -317,16 +317,6 @@ public sealed class AgarSessionLifecycleTests
             throw new InvalidOperationException("Actor runtime should not be used by this test path.");
         }
 
-        public IAsyncDisposable RegisterTimer<TActor>(
-            ActorId id,
-            TimeSpan dueTime,
-            TimeSpan? period,
-            Func<TActor, CancellationToken, ValueTask> callback)
-            where TActor : class, IActor
-        {
-            throw new InvalidOperationException("Actor runtime should not be used by this test path.");
-        }
-
         public bool TryGetMailboxMetrics(ActorId id, out ActorMailboxMetrics metrics)
         {
             metrics = default;

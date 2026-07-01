@@ -75,8 +75,8 @@ samples/Game.Unity.Agar
 - `Shared/Gameplay/ArenaSimulationState.cs`：服务端房间 tick 可跨 hotfix reload 保留的模拟状态。
 - `Shared/Interfaces/IPlayerService.cs`：客户端和服务端共用的 RPC 协议。
 - `Server/Hotfix/Services/PlayerService.cs`：可热更的控制面 RPC 业务服务，直接编排 actor 行为。
-- `Server/Hotfix/Features/MatchmakingFeature.cs`：声明 `matchmaking` 业务 feature；`matchmaking` feature 拥有默认匹配队列 actor 的固定 tick。
-- `Server/Hotfix/Features/BattleRuntimeFeature.cs`：声明 battle runtime 节点上的活跃房间 actor tick。
+- `Server/Hotfix/Features/MatchmakingFeature.cs`：声明 `matchmaking` 业务 feature，并通过 LakonaTimer 驱动默认匹配队列的 periodic runtime loop。
+- `Server/Hotfix/Features/BattleRuntimeFeature.cs`：声明 battle runtime feature，并通过 LakonaTimer 扫描活跃房间、向 room actor mailbox 投递 tick request。
 - `Server/App/State/Users/UserActor.cs`：用户资料和胜利积分的稳定状态 shell。
 - `Server/App/State/Leaderboard/LeaderboardActor.cs`：胜利积分排行榜的稳定状态 shell。
 - `Client/Assets/Scripts/Gameplay/DotArenaGame.cs`：客户端主流程、输入、渲染、模式切换和网络会话编排。
@@ -150,9 +150,8 @@ await rooms.Remote(nodeId, roomId).JoinAsync(request, ct); // 固定调指定远
 
 Matchmaking 是 remote-capable actor 的示例。单进程默认配置启用
 `matchmaking` feature，`Server.Hotfix` 中的 `MatchmakingFeature` 声明
-`MatchmakingActor("default")` 的本地 actor 创建和固定 tick。固定 actor tick 只向
-已经存在的 actor 投递 tick，不负责隐式创建；默认匹配队列 actor 的创建由 feature
-lifecycle 中的显式 actor 声明完成。三节点拓扑中 `data-1` 启用 `matchmaking`
+`MatchmakingActor("default")` 的本地 actor 创建，并从 feature lifecycle 创建
+LakonaTimer periodic timer 驱动默认匹配队列。三节点拓扑中 `data-1` 启用 `matchmaking`
 feature，因此默认匹配队列属于 data 节点。RPC service 不应在每次 enqueue/cancel
 前调用 `EnsureCreatedAsync`；创建、放置和迁移是 feature/业务 lifecycle 的职责，
 普通调用只应该路由到已经存在的 actor。

@@ -222,6 +222,10 @@ matchmaking policy, persistence schema, or gameplay DTOs.
   session.
 - Feature startup: use `LakonaGameFeature` classes when a server is composed
   from named startup units.
+- Hotfix timers: use `LakonaTimer.CreateOnceTimerAsync<TCallback, TArgs>` or
+  `LakonaTimer.CreatePeriodicTimerAsync<TCallback, TArgs>` from hotfix feature
+  `StartAsync`, store the returned `TimerId` in feature state, and call
+  `LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None)` from `StopAsync`.
 
 ## Actor Runtime Configuration
 

@@ -278,13 +278,9 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.False(result.Matched);
         Assert.True(result.Queued);
 
-        await actors.TellAsync<MatchmakingActor>(
+        await actors.AskAsync<MatchmakingActor, Dictionary<string, RoomAssignment>>(
             ActorId.From("default"),
-            (actor, _) => actor.TickAsync(new HotfixActorTick
-            {
-                ObservedAtUtc = DateTime.UtcNow,
-                Interval = TimeSpan.FromMilliseconds(250)
-            }),
+            (actor, _) => actor.TryMatchAsync(DateTime.UtcNow, allowExpiredPartialBatch: true),
             TestContext.Current.CancellationToken);
 
         Assert.NotNull(roomAllocator.LastRequest);

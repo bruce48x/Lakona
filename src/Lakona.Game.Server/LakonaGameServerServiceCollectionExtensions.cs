@@ -9,6 +9,8 @@ using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Guardrails;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Hotfix;
+using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+using Lakona.Game.Server.Hotfix.Timers;
 using Lakona.Game.Server.Observability;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
@@ -82,6 +84,9 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.AddLakonaGameObservability();
         services.AddLakonaGameRuntimeValidation();
         services.AddLakonaGameSessionHotfixLifecycle();
+        services.AddLakonaTimers();
+        services.TryAddSingleton<IHotfixFeatureActivationPolicy, HotfixFeatureActivationPolicy>();
+        services.TryAddSingleton<IHotfixRuntimePublicationParticipant, HotfixLocalActorPublicationParticipant>();
         services.TryAddSingleton<IFeatureMessageHandler, HotfixFeatureMessageHandler>();
         services.TryAddSingleton<IGameHandshakeService, GameHandshakeService>();
         services.TryAddSingleton<IFeatureCommandClient, FeatureCommandClient>();

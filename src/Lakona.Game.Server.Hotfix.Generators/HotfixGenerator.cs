@@ -241,18 +241,53 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
         private static bool ReportDuplicateActorContractSignatures(SourceProductionContext context, IEnumerable<HotfixActorContractInfo> actorGroup)
         {
-            var duplicateSignatures = actorGroup
-                .SelectMany(static contract => contract.Methods.Select(method => new { Contract = contract, Method = method }))
-                .GroupBy(static item => item.Method.PublicSignatureKey)
+            var methods = actorGroup
+                .SelectMany(static contract => contract.Methods.SelectMany(method => method.GeneratedPublicSignatureKeys.Select(signature => new
+                {
+                    Contract = contract,
+                    Method = method,
+                    Signature = signature
+                })))
+                .ToArray();
+            var duplicatePublicSignatures = actorGroup
+                .SelectMany(static contract => contract.Methods.Select(method => new
+                {
+                    Contract = contract,
+                    Method = method,
+                    Signature = method.PublicSignatureKey
+                }))
+                .GroupBy(static item => item.Signature)
                 .Where(static group => group.Count() > 1)
                 .ToArray();
 
-            if (duplicateSignatures.Length == 0)
+            if (duplicatePublicSignatures.Length > 0)
+            {
+                foreach (var duplicate in duplicatePublicSignatures)
+                {
+                    foreach (var duplicateMethod in duplicate.Skip(1))
+                    {
+                        context.ReportDiagnostic(Diagnostic.Create(
+                            HotfixGeneratorDiagnostics.DuplicateHotfixActorContractMethod,
+                            duplicateMethod.Method.Location,
+                            duplicateMethod.Contract.Contract.ToDisplayString(),
+                            duplicate.Key));
+                    }
+                }
+
+                return true;
+            }
+
+            var duplicateGeneratedSignatures = methods
+                .GroupBy(static item => item.Signature)
+                .Where(static group => group.Count() > 1)
+                .ToArray();
+
+            if (duplicateGeneratedSignatures.Length == 0)
             {
                 return false;
             }
 
-            foreach (var duplicate in duplicateSignatures)
+            foreach (var duplicate in duplicateGeneratedSignatures)
             {
                 foreach (var duplicateMethod in duplicate.Skip(1))
                 {
@@ -359,9 +394,56 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 {
                     AppendBehaviorWrapperMethod(builder, contract, method, refType, indentLevel + 1);
                     builder.AppendLine();
+                    if (method.ResultType == null && string.Equals(refType, prefix + "LocalRef", StringComparison.Ordinal))
+                    {
+                        AppendBehaviorTryTellWrapperMethod(builder, contract, method, refType, indentLevel + 1);
+                        builder.AppendLine();
+                    }
                 }
             }
 
+            builder.Append(indent).AppendLine("}");
+        }
+
+        private static void AppendBehaviorTryTellWrapperMethod(
+            StringBuilder builder,
+            HotfixActorContractInfo contract,
+            HotfixActorMethodInfo method,
+            string refType,
+            int indentLevel)
+        {
+            var indent = Indent(indentLevel);
+            var continuationIndent = Indent(indentLevel + 1);
+            var actorNamespace = contract.Actor.ContainingNamespace.IsGlobalNamespace
+                ? string.Empty
+                : contract.Actor.ContainingNamespace.ToDisplayString() + ".";
+            var receiverType = "global::" + actorNamespace + refType;
+            var requestType = method.RequestType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            var remoteKind = GetRemoteKind(method);
+
+            builder.Append(indent).AppendLine("[global::Lakona.Game.Server.Hotfix.Abstractions.GeneratedHotfixActorRefMethodAttribute]");
+            builder.Append(indent)
+                .Append("public static global::Lakona.Game.Server.Actors.ActorTellResult Try")
+                .Append(method.Name)
+                .AppendLine("(");
+            builder.Append(continuationIndent)
+                .Append("this ")
+                .Append(receiverType)
+                .AppendLine(" self,");
+            builder.Append(continuationIndent)
+                .Append(requestType)
+                .Append(" request,")
+                .AppendLine();
+            builder.Append(continuationIndent)
+                .AppendLine("global::System.Threading.CancellationToken cancellationToken = default)");
+
+            builder.Append(indent).AppendLine("{");
+            builder.Append(indent).Append("    return self.__lakona_TryTell<").Append(requestType).AppendLine(">(");
+            builder.Append(indent).Append("        \"").Append(EscapeStringLiteral(method.Name)).AppendLine("\",");
+            builder.Append(indent).Append("        \"").Append(EscapeStringLiteral(remoteKind)).AppendLine("\",");
+            builder.Append(indent).Append(method.HasCancellationToken ? "        true," : "        false,").AppendLine();
+            builder.Append(indent).AppendLine("        request,");
+            builder.Append(indent).AppendLine("        cancellationToken);");
             builder.Append(indent).AppendLine("}");
         }
 
@@ -607,6 +689,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine();
             AppendHotfixLocalTellHelper(builder, contract);
             builder.AppendLine();
+            AppendHotfixLocalTryTellHelper(builder, contract);
+            builder.AppendLine();
             AppendHotfixLocalAskHelper(builder, contract);
 
             builder.AppendLine("}");
@@ -637,6 +721,34 @@ namespace Lakona.Game.Server.Hotfix.Generators
             AppendGenericArgumentArray(builder, indentLevel: 4);
             builder.AppendLine("),");
             builder.AppendLine("            cancellationToken).ConfigureAwait(false);");
+            builder.AppendLine("    }");
+        }
+
+        private static void AppendHotfixLocalTryTellHelper(
+            StringBuilder builder,
+            HotfixActorContractInfo contract)
+        {
+            var actorType = contract.Actor.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
+            builder.AppendLine("    internal global::Lakona.Game.Server.Actors.ActorTellResult __lakona_TryTell<TRequest>(");
+            builder.AppendLine("        string behaviorMethodName,");
+            builder.AppendLine("        string remoteKind,");
+            builder.AppendLine("        bool passCancellationToken,");
+            builder.AppendLine("        TRequest request,");
+            builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
+            builder.AppendLine("    {");
+            AppendHotfixActorIdSetup(builder, indentLevel: 2);
+            builder.Append("        return _runtime.TryTell<").Append(actorType).AppendLine(">(");
+            builder.AppendLine("            actorId,");
+            builder.AppendLine("            (actor, ct) => global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync(");
+            builder.Append("                typeof(").Append(actorType).AppendLine("),");
+            builder.AppendLine("                behaviorMethodName,");
+            builder.AppendLine("                actor,");
+            AppendGenericParameterTypeArray(builder, indentLevel: 4);
+            builder.AppendLine(",");
+            AppendGenericArgumentArray(builder, indentLevel: 4);
+            builder.AppendLine("),");
+            builder.AppendLine("            cancellationToken);");
             builder.AppendLine("    }");
         }
 
@@ -1029,15 +1141,18 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorRuntime _runtime;");
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IRemoteActorSerializer _serializer;");
             builder.AppendLine("    private readonly global::Lakona.Game.Cluster.IClusterRouter _router;");
+            builder.AppendLine("    private readonly global::Lakona.Game.Server.Hotfix.IHotfixRuntimeAccessor _hotfixRuntime;");
             builder.AppendLine();
             builder.Append("    public ").Append(handlerType).AppendLine("(");
             builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorRuntime runtime,");
             builder.AppendLine("        global::Lakona.Game.Server.Actors.IRemoteActorSerializer serializer,");
-            builder.AppendLine("        global::Lakona.Game.Cluster.IClusterRouter router)");
+            builder.AppendLine("        global::Lakona.Game.Cluster.IClusterRouter router,");
+            builder.AppendLine("        global::Lakona.Game.Server.Hotfix.IHotfixRuntimeAccessor hotfixRuntime)");
             builder.AppendLine("    {");
             builder.AppendLine("        _runtime = runtime;");
             builder.AppendLine("        _serializer = serializer;");
             builder.AppendLine("        _router = router;");
+            builder.AppendLine("        _hotfixRuntime = hotfixRuntime;");
             builder.AppendLine("    }");
             builder.AppendLine();
             builder.AppendLine("    public async global::System.Threading.Tasks.ValueTask<global::Lakona.Game.Cluster.ClusterSendStatus> HandleAsync(");
@@ -1082,28 +1197,40 @@ namespace Lakona.Game.Server.Hotfix.Generators
             {
                 builder.Append("                await _runtime.TellAsync<").Append(actorType).AppendLine(">(");
                 builder.AppendLine("                    actorId,");
-                builder.AppendLine("                    (actor, ct) => global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync(");
+                builder.AppendLine("                    async (actor, ct) =>");
+                builder.AppendLine("                    {");
+                builder.AppendLine("                        using var lease = _hotfixRuntime.AcquireCurrent();");
+                builder.AppendLine("                        var snapshot = lease.Snapshot;");
+                builder.AppendLine("                        _ = snapshot;");
+                builder.AppendLine("                        await global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync(");
                 builder.Append("                        typeof(").Append(actorType).AppendLine("),");
                 builder.Append("                        \"").Append(EscapeStringLiteral(method.Name)).AppendLine("\",");
                 builder.AppendLine("                        actor,");
                 AppendParameterTypeArray(builder, method, indentLevel: 6);
                 builder.AppendLine(",");
                 AppendArgumentArray(builder, method, indentLevel: 6);
-                builder.AppendLine("),");
+                builder.AppendLine(").ConfigureAwait(false);");
+                builder.AppendLine("                    },");
                 builder.AppendLine("                    cancellationToken).ConfigureAwait(false);");
             }
             else
             {
                 builder.Append("                var reply = await _runtime.AskAsync<").Append(actorType).Append(", ").Append(resultType).AppendLine(">(");
                 builder.AppendLine("                    actorId,");
-                builder.Append("                    (actor, ct) => global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync<").Append(resultType).AppendLine(">(");
+                builder.AppendLine("                    async (actor, ct) =>");
+                builder.AppendLine("                    {");
+                builder.AppendLine("                        using var lease = _hotfixRuntime.AcquireCurrent();");
+                builder.AppendLine("                        var snapshot = lease.Snapshot;");
+                builder.AppendLine("                        _ = snapshot;");
+                builder.Append("                        return await global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync<").Append(resultType).AppendLine(">(");
                 builder.Append("                        typeof(").Append(actorType).AppendLine("),");
                 builder.Append("                        \"").Append(EscapeStringLiteral(method.Name)).AppendLine("\",");
                 builder.AppendLine("                        actor,");
                 AppendParameterTypeArray(builder, method, indentLevel: 6);
                 builder.AppendLine(",");
                 AppendArgumentArray(builder, method, indentLevel: 6);
-                builder.AppendLine("),");
+                builder.AppendLine(").ConfigureAwait(false);");
+                builder.AppendLine("                    },");
                 builder.AppendLine("                    cancellationToken).ConfigureAwait(false);");
                 builder.AppendLine("                if (envelope.ReplyCorrelationId is not null)");
                 builder.AppendLine("                {");
@@ -1507,17 +1634,43 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 }
             }
 
-            foreach (var duplicate in methods
+            var duplicatePublicSignatures = methods
                 .GroupBy(static method => method.PublicSignatureKey)
-                .Where(static group => group.Count() > 1))
+                .Where(static group => group.Count() > 1)
+                .ToArray();
+            if (duplicatePublicSignatures.Length > 0)
             {
-                foreach (var duplicateMethod in duplicate.Skip(1))
+                foreach (var duplicate in duplicatePublicSignatures)
                 {
-                    diagnostics.Add(new HotfixGeneratorDiagnosticInfo(
-                        HotfixGeneratorDiagnostics.DuplicateHotfixActorContractMethod,
-                        duplicateMethod.Location,
-                        contract.ToDisplayString(),
-                        duplicate.Key));
+                    foreach (var duplicateMethod in duplicate.Skip(1))
+                    {
+                        diagnostics.Add(new HotfixGeneratorDiagnosticInfo(
+                            HotfixGeneratorDiagnostics.DuplicateHotfixActorContractMethod,
+                            duplicateMethod.Location,
+                            contract.ToDisplayString(),
+                            duplicate.Key));
+                    }
+                }
+            }
+            else
+            {
+                foreach (var duplicate in methods
+                    .SelectMany(static method => method.GeneratedPublicSignatureKeys.Select(signature => new
+                    {
+                        Method = method,
+                        Signature = signature
+                    }))
+                    .GroupBy(static item => item.Signature)
+                    .Where(static group => group.Count() > 1))
+                {
+                    foreach (var duplicateMethod in duplicate.Skip(1))
+                    {
+                        diagnostics.Add(new HotfixGeneratorDiagnosticInfo(
+                            HotfixGeneratorDiagnostics.DuplicateHotfixActorContractMethod,
+                            duplicateMethod.Method.Location,
+                            contract.ToDisplayString(),
+                            duplicate.Key));
+                    }
                 }
             }
 
@@ -1755,7 +1908,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.Append("    public async ").Append(returnDisplay).Append(' ').Append(method.Name).Append('(')
                 .Append(requestDisplay).Append(' ').Append(method.Parameters[0].Name).AppendLine(")");
             builder.AppendLine("    {");
-            builder.AppendLine("        var snapshot = _hotfixRuntime.Current;");
+            builder.AppendLine("        using var lease = _hotfixRuntime.AcquireCurrent();");
+            builder.AppendLine("        var snapshot = lease.Snapshot;");
             builder.AppendLine("        var currentSession = await global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions");
             builder.AppendLine("            .GetRequiredService<global::Lakona.Game.Server.Sessions.IGameSessionRegistry>(snapshot.Services)");
             builder.AppendLine("            .GetCurrentSessionAsync(_connectionId, global::System.Threading.CancellationToken.None)");
@@ -2761,6 +2915,18 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
             public string PublicSignatureKey =>
                 Name + "(" + RequestType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ")";
+
+            public IEnumerable<string> GeneratedPublicSignatureKeys
+            {
+                get
+                {
+                    yield return PublicSignatureKey;
+                    if (ResultType == null)
+                    {
+                        yield return "Try" + PublicSignatureKey;
+                    }
+                }
+            }
 
             public static HotfixActorMethodInfo Create(IMethodSymbol method)
             {

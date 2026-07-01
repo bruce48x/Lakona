@@ -5,13 +5,32 @@ namespace Lakona.Game.Server.Hotfix.Dispatch;
 public static class HotfixDispatch
 {
     private static HotfixDispatchTable current = new(0, Array.Empty<HotfixMethodBinding>());
+    private static Func<HotfixDispatchTable>? currentProvider;
 
-    public static HotfixDispatchTable Current => Volatile.Read(ref current);
+    public static HotfixDispatchTable Current
+    {
+        get
+        {
+            var provider = Volatile.Read(ref currentProvider);
+            return provider is null ? CurrentFallback : provider();
+        }
+    }
+
+    internal static HotfixDispatchTable CurrentFallback => Volatile.Read(ref current);
+
+    internal static HotfixDispatchTable ActiveTable => HotfixDispatchRuntimeScope.CurrentTable ?? Current;
 
     public static void Replace(HotfixDispatchTable table)
     {
         ArgumentNullException.ThrowIfNull(table);
+        Volatile.Write(ref currentProvider, null);
         Interlocked.Exchange(ref current, table);
+    }
+
+    internal static void ReplaceProvider(Func<HotfixDispatchTable> provider)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+        Volatile.Write(ref currentProvider, provider);
     }
 
     public static HotfixMethodKey CreateKey<TState, TResult>(string methodName, params Type[] parameterTypes)
@@ -33,8 +52,9 @@ public static class HotfixDispatch
     {
         ArgumentNullException.ThrowIfNull(state);
 
-        var table = Current;
+        var table = ActiveTable;
         var key = CreateKey<TState, TResult>(methodName);
+        using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
         return table.Resolve<TState, TResult>(key)(state);
     }
 
@@ -42,8 +62,9 @@ public static class HotfixDispatch
     {
         ArgumentNullException.ThrowIfNull(state);
 
-        var table = Current;
+        var table = ActiveTable;
         var key = CreateKey<TState, TResult>(methodName, typeof(TArg));
+        using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
         return table.Resolve<TState, TArg, TResult>(key)(state, arg);
     }
 
@@ -61,6 +82,7 @@ public static class HotfixDispatch
                 $"Hotfix method '{invocation.Key}' returns '{invocation.Method.ReturnType.FullName ?? invocation.Method.ReturnType.Name}' and cannot be invoked through the void dispatch overload.");
         }
 
+        using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
         var result = invocation.Method.Invoke(null, invocation.Arguments);
         if (result is not null)
         {
@@ -75,6 +97,7 @@ public static class HotfixDispatch
         object?[] arguments)
     {
         var invocation = PrepareInvocation<TState>(methodName, state, typeof(TResult), parameterTypes, arguments);
+        using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
         var result = invocation.Method.Invoke(null, invocation.Arguments);
         if (result is TResult typedResult)
         {
@@ -97,6 +120,7 @@ public static class HotfixDispatch
         object?[] arguments)
     {
         var invocation = PrepareInvocation(stateType, methodName, state, typeof(ValueTask), parameterTypes, arguments);
+        using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
         var result = invocation.Method.Invoke(null, invocation.Arguments);
         if (result is ValueTask valueTask)
         {
@@ -120,6 +144,7 @@ public static class HotfixDispatch
         object?[] arguments)
     {
         var invocation = PrepareInvocation(stateType, methodName, state, typeof(ValueTask<TResult>), parameterTypes, arguments);
+        using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
         var result = invocation.Method.Invoke(null, invocation.Arguments);
         if (result is ValueTask<TResult> valueTask)
         {
@@ -172,7 +197,7 @@ public static class HotfixDispatch
             throw new ArgumentException("Parameter types cannot contain null.", nameof(parameterTypes));
         }
 
-        var table = Current;
+        var table = ActiveTable;
         var key = CreateKey(stateType, methodName, returnType, parameterTypes);
         var method = table.Resolve(key);
         var invokeArguments = new object?[arguments.Length + 1];

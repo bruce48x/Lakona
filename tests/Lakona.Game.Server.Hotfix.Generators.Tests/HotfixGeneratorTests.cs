@@ -8,6 +8,28 @@ public sealed class HotfixGeneratorTests
     private static readonly string ForbiddenGameEndpointType = string.Concat("Game", "Endpoint", "Name");
 
     [Fact]
+    public void Production_and_sample_hotfix_code_does_not_bypass_scoped_service_accessor()
+    {
+        var root = FindRepositoryRoot();
+        var offenders = new[] { "src", "samples" }
+            .Select(path => Path.Combine(root, path))
+            .Where(Directory.Exists)
+            .SelectMany(static path => Directory.EnumerateFiles(path, "*.cs", SearchOption.AllDirectories))
+            .Where(static path => !IsBuildOutputPath(path))
+            .Select(static path => new
+            {
+                Path = path,
+                Text = File.ReadAllText(path)
+            })
+            .Where(static file => file.Text.Contains(".Current.Services", StringComparison.Ordinal))
+            .Select(file => Path.GetRelativePath(root, file.Path))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Empty(offenders);
+    }
+
+    [Fact]
     public void Generator_emits_behavior_first_actor_refs_from_hotfix_actor_contract()
     {
         var source = """
@@ -38,6 +60,7 @@ public sealed class HotfixGeneratorTests
             public interface IUserActorContract
             {
                 ValueTask<LoginReply> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default);
+                ValueTask TouchAsync(LoginRequest request, CancellationToken cancellationToken = default);
             }
             """;
 
@@ -70,6 +93,27 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("global::Lakona.Game.Server.Actors.RemoteActorCall.EnsureReplied", result.GeneratedSource);
         Assert.Contains("return _serializer.Deserialize<TResult>(result.Payload);", result.GeneratedSource);
         Assert.Contains("public sealed class UserActorClusterHandler", result.GeneratedSource);
+        var clusterHandler = ExtractBetween(
+            result.GeneratedSource,
+            "public sealed class UserActorClusterHandler",
+            "public sealed class GeneratedHotfixActorRegistration");
+        Assert.Contains("private readonly global::Lakona.Game.Server.Hotfix.IHotfixRuntimeAccessor _hotfixRuntime;", clusterHandler);
+        Assert.Contains("global::Lakona.Game.Server.Hotfix.IHotfixRuntimeAccessor hotfixRuntime", clusterHandler);
+        Assert.Contains("_hotfixRuntime = hotfixRuntime;", clusterHandler);
+        AssertContainsNormalized(
+            "async (actor, ct) =>\n                    {\n                        using var lease = _hotfixRuntime.AcquireCurrent();\n                        var snapshot = lease.Snapshot;\n                        _ = snapshot;\n                        return await global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync<global::Game.Server.LoginReply>",
+            clusterHandler);
+        AssertContainsNormalized(
+            "async (actor, ct) =>\n                    {\n                        using var lease = _hotfixRuntime.AcquireCurrent();\n                        var snapshot = lease.Snapshot;\n                        _ = snapshot;\n                        await global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync(",
+            clusterHandler);
+        Assert.DoesNotContain(
+            "(actor, ct) => global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync<global::Game.Server.LoginReply>",
+            clusterHandler,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "(actor, ct) => global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync(",
+            clusterHandler,
+            StringComparison.Ordinal);
         Assert.Contains("global::Lakona.Game.Server.Actors.RemoteActorGateway.SendReplyAsync(", result.GeneratedSource);
         Assert.Contains("_router,", result.GeneratedSource);
         Assert.Contains("envelope.SourceNode,", result.GeneratedSource);
@@ -237,6 +281,39 @@ public sealed class HotfixGeneratorTests
     }
 
     [Fact]
+    public void Generator_reports_diagnostic_when_try_tell_wrapper_collides_with_contract_method()
+    {
+        var appSource = """
+            using System.Runtime.CompilerServices;
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            [assembly: InternalsVisibleTo("Game.Hotfix")]
+
+            namespace Game.Server;
+
+            public readonly record struct RoomId(string Value);
+            public sealed class TickRequest { }
+            public sealed class TickReply { }
+            public sealed class RoomActor : Actor<RoomId> { }
+
+            [HotfixActorContract(typeof(RoomActor))]
+            public interface IRoomActorContract
+            {
+                ValueTask RunAsync(TickRequest request);
+                ValueTask<TickReply> TryRunAsync(TickRequest request);
+            }
+            """;
+
+        var result = GeneratorTestHost.Run(appSource);
+
+        var diagnostic = Assert.Single(result.GeneratorDiagnostics, diagnostic => diagnostic.Id == "ULGHOTFIX015");
+        Assert.Contains("TryRunAsync", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.DoesNotContain("public readonly struct RoomLocalRef", result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Generator_emits_behavior_owned_extensions_for_local_and_remote_actor_refs()
     {
         var appSource = """
@@ -288,6 +365,11 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("global::System.Threading.CancellationToken cancellationToken = default)", result.Hotfix.GeneratedSource);
         Assert.Contains("__lakona_TellAsync<global::Game.Server.PingRequest>", result.Hotfix.GeneratedSource);
         Assert.Matches(@"false,\s*request,\s*cancellationToken\);", result.Hotfix.GeneratedSource);
+        Assert.Contains("public static global::Lakona.Game.Server.Actors.ActorTellResult TryPingAsync(", result.Hotfix.GeneratedSource);
+        Assert.Contains("this global::Game.Server.RoomLocalRef self", result.Hotfix.GeneratedSource);
+        Assert.Contains("__lakona_TryTell<global::Game.Server.PingRequest>", result.Hotfix.GeneratedSource);
+        Assert.Contains("internal global::Lakona.Game.Server.Actors.ActorTellResult __lakona_TryTell<TRequest>", result.App.GeneratedSource);
+        Assert.Contains("_runtime.TryTell<global::Game.Server.RoomActor>", result.App.GeneratedSource);
         Assert.DoesNotContain("        default);", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
     }
 
@@ -534,6 +616,37 @@ public sealed class HotfixGeneratorTests
     private static void AssertContainsNormalized(string expected, string actual)
     {
         Assert.Contains(expected.ReplaceLineEndings("\n"), actual.ReplaceLineEndings("\n"), StringComparison.Ordinal);
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "CONTRIBUTING.md")))
+        {
+            directory = directory.Parent;
+        }
+
+        return directory?.FullName
+            ?? throw new InvalidOperationException("Could not locate repository root.");
+    }
+
+    private static bool IsBuildOutputPath(string path)
+    {
+        return path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Any(static part =>
+                string.Equals(part, "bin", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(part, "obj", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string ExtractBetween(string source, string startMarker, string endMarker)
+    {
+        var start = source.IndexOf(startMarker, StringComparison.Ordinal);
+        Assert.True(start >= 0, $"Missing start marker: {startMarker}");
+
+        var end = source.IndexOf(endMarker, start, StringComparison.Ordinal);
+        Assert.True(end > start, $"Missing end marker after {startMarker}: {endMarker}");
+
+        return source[start..end];
     }
 
     [Fact]
@@ -1071,7 +1184,9 @@ public sealed class HotfixGeneratorTests
         Assert.Empty(result.ErrorDiagnostics);
         Assert.Contains("internal sealed class ChatServiceProxy : global::Shared.Contracts.Chat.IChatService", result.GeneratedSource);
         Assert.Contains("HotfixServiceCall<global::Shared.Contracts.Chat.ChatBindRequest, global::Shared.Contracts.Chat.IChatCallback>", result.GeneratedSource);
-        Assert.Contains("var snapshot = _hotfixRuntime.Current;", result.GeneratedSource);
+        Assert.Contains("using var lease = _hotfixRuntime.AcquireCurrent();", result.GeneratedSource);
+        Assert.Contains("var snapshot = lease.Snapshot;", result.GeneratedSource);
+        Assert.DoesNotContain("_hotfixRuntime.Current", result.GeneratedSource, StringComparison.Ordinal);
         Assert.Contains("GetRequiredService<global::Lakona.Game.Server.Sessions.IGameSessionRegistry>(snapshot.Services)", result.GeneratedSource);
         Assert.Contains("GetCurrentSessionAsync(_connectionId, global::System.Threading.CancellationToken.None)", result.GeneratedSource);
         Assert.Contains("currentSession,", result.GeneratedSource);

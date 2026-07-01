@@ -24,14 +24,15 @@ internal sealed class GameSessionHotfixLifecycleHandler : IGameSessionLifecycleH
         return default;
     }
 
-    public ValueTask OnSessionDisconnectedAsync(GameSessionBindingContext context, CancellationToken cancellationToken = default)
+    public async ValueTask OnSessionDisconnectedAsync(GameSessionBindingContext context, CancellationToken cancellationToken = default)
     {
-        var snapshot = _hotfixRuntime?.Current;
-        if (snapshot is null)
+        if (_hotfixRuntime is null)
         {
-            return default;
+            return;
         }
 
+        using var lease = _hotfixRuntime.AcquireCurrent();
+        var snapshot = lease.Snapshot;
         var request = new GameSessionDisconnectedRequest
         {
             OwnerKey = context.Session.OwnerKey,
@@ -43,7 +44,7 @@ internal sealed class GameSessionHotfixLifecycleHandler : IGameSessionLifecycleH
                 .ToList()
         };
 
-        return snapshot.Invoker.InvokeAsync<IGameSessionLifecycle, HotfixLifecycleCall<GameSessionDisconnectedRequest>>(
+        await snapshot.Invoker.InvokeAsync<IGameSessionLifecycle, HotfixLifecycleCall<GameSessionDisconnectedRequest>>(
             GameSessionLifecycleMethodIds.SessionDisconnected,
             new HotfixLifecycleCall<GameSessionDisconnectedRequest>(
                 request,
@@ -51,17 +52,18 @@ internal sealed class GameSessionHotfixLifecycleHandler : IGameSessionLifecycleH
                 snapshot.Services,
                 snapshot.Services.GetRequiredService<IActorRuntime>(),
                 snapshot.Services.GetRequiredService<ILakonaGameServer>()),
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
     }
 
-    public ValueTask OnSessionExpiredAsync(GameSessionBindingContext context, CancellationToken cancellationToken = default)
+    public async ValueTask OnSessionExpiredAsync(GameSessionBindingContext context, CancellationToken cancellationToken = default)
     {
-        var snapshot = _hotfixRuntime?.Current;
-        if (snapshot is null)
+        if (_hotfixRuntime is null)
         {
-            return default;
+            return;
         }
 
+        using var lease = _hotfixRuntime.AcquireCurrent();
+        var snapshot = lease.Snapshot;
         var request = new GameSessionExpiredRequest
         {
             OwnerKey = context.Session.OwnerKey,
@@ -73,7 +75,7 @@ internal sealed class GameSessionHotfixLifecycleHandler : IGameSessionLifecycleH
                 .ToList()
         };
 
-        return snapshot.Invoker.InvokeAsync<IGameSessionLifecycle, HotfixLifecycleCall<GameSessionExpiredRequest>>(
+        await snapshot.Invoker.InvokeAsync<IGameSessionLifecycle, HotfixLifecycleCall<GameSessionExpiredRequest>>(
             GameSessionLifecycleMethodIds.SessionExpired,
             new HotfixLifecycleCall<GameSessionExpiredRequest>(
                 request,
@@ -81,7 +83,7 @@ internal sealed class GameSessionHotfixLifecycleHandler : IGameSessionLifecycleH
                 snapshot.Services,
                 snapshot.Services.GetRequiredService<IActorRuntime>(),
                 snapshot.Services.GetRequiredService<ILakonaGameServer>()),
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
     }
 
     public ValueTask OnSessionTerminatedAsync(GameSessionTerminationContext context, CancellationToken cancellationToken = default)

@@ -55,12 +55,15 @@ public sealed class HotfixManagerTests
         var source = new SwitchableAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
         var manager = new HotfixManager(source, [stableAssembly.GetName().Name!]);
         var first = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+        var previousRuntime = ((IHotfixRuntimeAccessor)manager).Current;
         source.Path = @"Z:\missing\Missing.Hotfix.dll";
 
         var second = await manager.ReloadAsync(TestContext.Current.CancellationToken);
 
         Assert.True(first.Succeeded);
         Assert.False(second.Succeeded);
+        Assert.Same(previousRuntime, ((IHotfixRuntimeAccessor)manager).Current);
+        Assert.Equal(HotfixReloadStatus.Failed, manager.Current.LastReloadStatus);
         Assert.Equal(first.Current.DispatchTableVersion, second.Current.DispatchTableVersion);
         Assert.Equal(first.Current.SourcePath, manager.Current.SourcePath);
         Assert.NotEmpty(manager.Current.Methods);
@@ -93,6 +96,91 @@ public sealed class HotfixManagerTests
 
         Assert.False(failed.Succeeded);
         Assert.Equal("two", accessor.Current.GetRequiredService<IGenerationMarker>().Generation);
+    }
+
+    [Fact]
+    public async Task ServiceProviderAccessor_uses_leased_snapshot_services_inside_dispatch_scope()
+    {
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var source = new SwitchableAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
+        var manager = new HotfixManager(source, [
+            stableAssembly.GetName().Name!,
+            typeof(IGenerationMarker).Assembly.GetName().Name!
+        ]);
+        var servicesAccessor = Assert.IsAssignableFrom<IHotfixServiceProviderAccessor>(manager);
+        var runtimeAccessor = Assert.IsAssignableFrom<IHotfixRuntimeAccessor>(manager);
+        var first = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+        Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+        using var lease = runtimeAccessor.AcquireCurrent();
+
+        source.Path = compiled.SecondHotfixAssemblyPath;
+        var second = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(second.Succeeded, string.Join(Environment.NewLine, second.Diagnostics));
+        Assert.Equal("one", servicesAccessor.Current.GetRequiredService<IGenerationMarker>().Generation);
+    }
+
+    [Fact]
+    public async Task ServiceProviderAccessor_uses_volatile_current_services_outside_dispatch_scope()
+    {
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var source = new SwitchableAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
+        var manager = new HotfixManager(source, [
+            stableAssembly.GetName().Name!,
+            typeof(IGenerationMarker).Assembly.GetName().Name!
+        ]);
+        var servicesAccessor = Assert.IsAssignableFrom<IHotfixServiceProviderAccessor>(manager);
+        var runtimeAccessor = Assert.IsAssignableFrom<IHotfixRuntimeAccessor>(manager);
+        var first = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+        Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+
+        using (runtimeAccessor.AcquireCurrent())
+        {
+            source.Path = compiled.SecondHotfixAssemblyPath;
+            var second = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+            Assert.True(second.Succeeded, string.Join(Environment.NewLine, second.Diagnostics));
+        }
+
+        Assert.Equal("two", servicesAccessor.Current.GetRequiredService<IGenerationMarker>().Generation);
+    }
+
+    [Fact]
+    public async Task ServiceProviderAccessor_uses_current_services_for_disposed_captured_dispatch_scope()
+    {
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var source = new SwitchableAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
+        var manager = new HotfixManager(source, [
+            stableAssembly.GetName().Name!,
+            typeof(IGenerationMarker).Assembly.GetName().Name!
+        ]);
+        var servicesAccessor = Assert.IsAssignableFrom<IHotfixServiceProviderAccessor>(manager);
+        var runtimeAccessor = Assert.IsAssignableFrom<IHotfixRuntimeAccessor>(manager);
+        var first = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+        Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+
+        var lease = runtimeAccessor.AcquireCurrent();
+        var captured = ExecutionContext.Capture();
+        HotfixDispatchRuntimeContext? capturedContext = null;
+        ExecutionContext.Run(
+            captured!,
+            _ => capturedContext = HotfixDispatchRuntimeScope.Current,
+            null);
+        source.Path = compiled.SecondHotfixAssemblyPath;
+        var second = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+        Assert.True(second.Succeeded, string.Join(Environment.NewLine, second.Diagnostics));
+        lease.Dispose();
+        ForceStaleActiveFlag(capturedContext!);
+        string? generation = null;
+
+        ExecutionContext.Run(
+            captured!,
+            _ => generation = servicesAccessor.Current.GetRequiredService<IGenerationMarker>().Generation,
+            null);
+
+        Assert.Equal("two", generation);
     }
 
     [Fact]
@@ -174,6 +262,26 @@ public sealed class HotfixManagerTests
         Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
         var method = HotfixDispatch.Current.Resolve(result.Current.Methods.Single());
         Assert.Same(stableAssembly, method.GetParameters()[0].ParameterType.Assembly);
+    }
+
+    [Fact]
+    public async Task Reload_uses_default_load_context_for_hotfix_abstractions()
+    {
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var manager = new HotfixManager(
+            new FixedAssemblySource(compiled.HotfixAssemblyPath),
+            [stableAssembly.GetName().Name!]);
+
+        var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
+        var abstractionsAssembly = typeof(HotfixServiceAttribute).Assembly;
+        var abstractionsName = abstractionsAssembly.GetName().Name;
+        Assert.Same(AssemblyLoadContext.Default, AssemblyLoadContext.GetLoadContext(abstractionsAssembly));
+        Assert.DoesNotContain(
+            AssemblyLoadContext.All.Where(context => !ReferenceEquals(context, AssemblyLoadContext.Default)),
+            context => context.Assemblies.Any(assembly => string.Equals(assembly.GetName().Name, abstractionsName, StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -695,6 +803,16 @@ public sealed class HotfixManagerTests
             DateTimeOffset.UtcNow.AddMinutes(1),
             new NodeId("data-1"),
             "corr-1");
+    }
+
+    private static void ForceStaleActiveFlag(HotfixDispatchRuntimeContext context)
+    {
+        var field = typeof(HotfixDispatchRuntimeContext).GetField("_isActive", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? typeof(HotfixDispatchRuntimeContext).GetField(
+                "<IsActive>k__BackingField",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        field.SetValue(context, field.FieldType == typeof(int) ? 1 : true);
     }
 
     private sealed class FixedAssemblySource : IHotfixAssemblySource

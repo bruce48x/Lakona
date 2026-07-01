@@ -20,15 +20,6 @@ public sealed class ActorContext
 
     public IActorRuntime Runtime { get; }
 
-    public IAsyncDisposable RegisterTimer<TActor>(
-        TimeSpan dueTime,
-        TimeSpan? period,
-        Func<TActor, CancellationToken, ValueTask> callback)
-        where TActor : class, IActor
-    {
-        return Runtime.RegisterTimer(Id, dueTime, period, callback);
-    }
-
     private sealed class EmptyServiceProvider : IServiceProvider
     {
         public static readonly EmptyServiceProvider Instance = new();
@@ -95,16 +86,6 @@ public sealed class ActorContext
         }
 
         public IReadOnlyList<ActorId> GetActiveActorIds(Type actorType)
-        {
-            throw new InvalidOperationException("Actor context is not initialized.");
-        }
-
-        public IAsyncDisposable RegisterTimer<TActor>(
-            ActorId id,
-            TimeSpan dueTime,
-            TimeSpan? period,
-            Func<TActor, CancellationToken, ValueTask> callback)
-            where TActor : class, IActor
         {
             throw new InvalidOperationException("Actor context is not initialized.");
         }

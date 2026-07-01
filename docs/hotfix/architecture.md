@@ -30,7 +30,7 @@ use Entity, Component, or System for the game-facing model.
 | Service contract | `Shared` | `IChatService` | RPC interface shared by client and server |
 | Service | `Server.Hotfix` | `ChatService` | Request business logic for a Shared service contract |
 | Lifecycle | `Server.Hotfix` | `ChatSessionLifecycle` | Replaceable business reaction to framework-owned lifecycle events |
-| Feature descriptor | `Server.Hotfix` | `BattleRuntimeFeature` | Reloadable game feature declaration and actor tick schedule |
+| Feature descriptor | `Server.Hotfix` | `BattleRuntimeFeature` | Reloadable game feature declaration and LakonaTimer-backed feature timers |
 | Actor | `Server.App` | `ChatRoomActor` | Stable mailbox, fields, and stable infrastructure dependencies only |
 | Behavior | `Server.Hotfix` | `ChatRoomBehavior` | Hot-reloadable behavior for one actor type |
 | Service proxy | `Server.App` | `ChatServiceProxy` | Stable RPC binding that forwards each call to current hotfix service logic |
@@ -43,7 +43,7 @@ The Service, Lifecycle, and Behavior concepts are deliberately separate:
   as game session disconnect or expiration. It handles replaceable business
   reactions without adding app-owned RPC lifecycle subscriptions.
 - A Feature Descriptor names a user-authored game capability and declares
-  actor runtime ticks for the stable scheduler.
+  feature lifecycle and timer callbacks for the stable scheduler.
 - A Behavior corresponds one-to-one with an Actor. It runs inside an actor turn
   and reads or writes that actor's fields.
 - A Service must not be named `*Behavior`.
@@ -61,7 +61,7 @@ Framework lifecycle bridge                  ChatSessionLifecycle
 Actor fields and mailbox ownership          Service helpers
 Hotfix dispatch bridge                      Request orchestration
 Local admin hotfix route modules            Replaceable rules
-Actor tick scheduler                        Hotfix feature descriptors
+Timer scheduler                             Hotfix feature descriptors
 BuildTag metadata
 
 Reference direction: Server.Hotfix -> Server.App and Shared
@@ -192,23 +192,42 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
 {
     public static void Configure(HotfixFeatureContext context)
     {
-        context.ScheduleActorTick<MatchmakingActor>(
-            "default",
-            TimeSpan.FromMilliseconds(250),
-            TickBacklogPolicy.Coalesce,
-            nameof(MatchmakingBehavior.TickAsync));
+        context.EnsureLocalActor<MatchmakingActor>("default");
+    }
 
-        context.ScheduleActiveActorTicks<RoomActor>(
+    public static async ValueTask StartAsync(HotfixFeatureStartCall call)
+    {
+        var timerId = await LakonaTimer.CreatePeriodicTimerAsync<BattleRuntimeTimers, BattleRuntimeTick>(
+            TimeSpan.Zero,
             TimeSpan.FromMilliseconds(50),
-            TickBacklogPolicy.SkipIfPending,
-            nameof(RoomBehavior.TickAsync));
+            nameof(BattleRuntimeTimers.TickAsync),
+            new BattleRuntimeTick("default"),
+            call.CancellationToken);
+
+        call.State.Items["battle-runtime.timer"] = timerId;
+    }
+
+    public static async ValueTask StopAsync(HotfixFeatureStopCall call)
+    {
+        if (call.State.Items.TryGetValue("battle-runtime.timer", out var value) &&
+            value is TimerId timerId)
+        {
+            await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None);
+        }
+
+        call.State.Items.Remove("battle-runtime.timer");
     }
 }
+
+public sealed record BattleRuntimeTick(string QueueId);
 ```
 
-The stable scheduler converts descriptor declarations into actor turns against
-the current hotfix behavior table. User-authored runtime loops are actor ticks
-declared by these descriptors. Stable App code must not define
+The stable timer scheduler resolves callback names against the current hotfix
+behavior table. Feature-owned timers are created from `StartAsync`, the
+returned `TimerId` is stored in `HotfixFeatureState`, and `StopAsync` destroys
+the timer before removing the state entry. Stop cleanup must not be skipped only
+because the stop request token was canceled; use a noncancelable cleanup token
+when deleting feature-owned timers. Stable App code must not define
 application-specific hotfix event adapters, room runtimes, matchmaking hosted
 services, or game Feature classes.
 
@@ -216,16 +235,16 @@ Feature descriptors are scanned and validated with the rest of the hotfix
 assembly. They are not retained as long-lived runtime objects from the
 collectible hotfix load context. After a successful reload, the framework
 publishes the new hotfix provider, dispatch table, behavior table, lifecycle
-handlers, and descriptor-derived scheduler registrations as one generation.
+handlers, and timer registrations as one generation.
 If scanning or validation fails, the previous generation remains active.
 
 ### Feature Commands
 
 Hotfix feature declarations use `public static void Configure(HotfixFeatureContext context)`.
 Static `Configure` is the declaration surface for discoverability, metadata,
-hotfix-generation services, local actor declarations, actor ticks, and typed
-feature commands. The scanner does not construct feature classes during
-declaration.
+hotfix-generation services, local actor declarations, LakonaTimer-backed
+feature timers, and typed feature commands. The scanner does not construct
+feature classes during declaration.
 
 Runtime feature command calls activate a fresh feature instance from the current
 hotfix service provider, invoke a method shaped as

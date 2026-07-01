@@ -5,6 +5,7 @@ using Agar.Sample.State.Rooms;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Server.Hotfix.State.Rooms;
@@ -42,10 +43,31 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
         context.Services.AddLogging();
         context.HandleCommand<BattleRuntimeRoomAllocationRequest, BattleRuntimeRoomAllocationReply>(
             nameof(AllocateRoomAsync));
-        context.ScheduleActiveActorTicks<RoomActor>(
-            TimeSpan.FromMilliseconds(50),
-            TickBacklogPolicy.SkipIfPending,
-            nameof(RoomBehavior.TickAsync));
+    }
+
+    public static async ValueTask StartAsync(HotfixFeatureStartCall call)
+    {
+        var timerId = await LakonaTimer
+            .CreatePeriodicTimerAsync<BattleRuntimeTimerCallbacks, BattleRuntimeTimerArgs>(
+                TimeSpan.Zero,
+                TimeSpan.FromMilliseconds(50),
+                nameof(BattleRuntimeTimerCallbacks.TickAsync),
+                new BattleRuntimeTimerArgs(),
+                call.CancellationToken)
+            .ConfigureAwait(false);
+        call.State.Items[FeatureTimerKeys.BattleRuntimeScanTimerId] = timerId;
+    }
+
+    public static async ValueTask StopAsync(HotfixFeatureStopCall call)
+    {
+        if (call.State.Items.TryGetValue(FeatureTimerKeys.BattleRuntimeScanTimerId, out var value) &&
+            value is TimerId timerId &&
+            timerId.IsValid)
+        {
+            await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None).ConfigureAwait(false);
+        }
+
+        call.State.Items.Remove(FeatureTimerKeys.BattleRuntimeScanTimerId);
     }
 
     public async ValueTask<BattleRuntimeRoomAllocationReply> AllocateRoomAsync(
