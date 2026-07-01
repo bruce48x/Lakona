@@ -649,6 +649,12 @@ public sealed class LakonaTimerIntegrationTests
                     return default;
                 }
 
+                public static ValueTask WrongSignatureAsync(string value)
+                {
+                    _ = value;
+                    return default;
+                }
+
                 public static ValueTask ThrowAsync(TimerTick<Args> tick)
                 {
                     _ = tick;
@@ -666,12 +672,16 @@ public sealed class LakonaTimerIntegrationTests
         var oneShots = new[]
         {
             CreateDescriptor(callbackAssemblyName, "RuntimeRetryFailures.Missing", "HandleAsync", callbackAssemblyName, "RuntimeRetryFailures.Args", """{"Value":"missing"}""", dueAt),
+            CreateDescriptor(callbackAssemblyName, "RuntimeRetryFailures.Callback", "MissingAsync", callbackAssemblyName, "RuntimeRetryFailures.Args", """{"Value":"missing-method"}""", dueAt),
+            CreateDescriptor(callbackAssemblyName, "RuntimeRetryFailures.Callback", "WrongSignatureAsync", callbackAssemblyName, "RuntimeRetryFailures.Args", """{"Value":"signature"}""", dueAt),
             CreateDescriptor(callbackAssemblyName, "RuntimeRetryFailures.Callback", "HandleAsync", callbackAssemblyName, "RuntimeRetryFailures.Args", """{"Value":""", dueAt),
             CreateDescriptor(callbackAssemblyName, "RuntimeRetryFailures.Callback", "ThrowAsync", callbackAssemblyName, "RuntimeRetryFailures.Args", """{"Value":"throw"}""", dueAt)
         };
         var periodic = new[]
         {
             CreateDescriptor(callbackAssemblyName, "RuntimeRetryFailures.Missing", "HandleAsync", callbackAssemblyName, "RuntimeRetryFailures.Args", """{"Value":"missing"}""", dueAt, TimeSpan.FromSeconds(1)),
+            CreateDescriptor(callbackAssemblyName, "RuntimeRetryFailures.Callback", "MissingAsync", callbackAssemblyName, "RuntimeRetryFailures.Args", """{"Value":"missing-method"}""", dueAt, TimeSpan.FromSeconds(1)),
+            CreateDescriptor(callbackAssemblyName, "RuntimeRetryFailures.Callback", "WrongSignatureAsync", callbackAssemblyName, "RuntimeRetryFailures.Args", """{"Value":"signature"}""", dueAt, TimeSpan.FromSeconds(1)),
             CreateDescriptor(callbackAssemblyName, "RuntimeRetryFailures.Callback", "HandleAsync", callbackAssemblyName, "RuntimeRetryFailures.Args", """{"Value":""", dueAt, TimeSpan.FromSeconds(1)),
             CreateDescriptor(callbackAssemblyName, "RuntimeRetryFailures.Callback", "ThrowAsync", callbackAssemblyName, "RuntimeRetryFailures.Args", """{"Value":"throw"}""", dueAt, TimeSpan.FromSeconds(1))
         };
@@ -682,9 +692,9 @@ public sealed class LakonaTimerIntegrationTests
 
         await schedulerFixture.StartAsync(TestContext.Current.CancellationToken);
         time.Advance(TimeSpan.FromSeconds(1));
-        await schedulerFixture.Observer.WaitForFailedCountAsync(6, TestContext.Current.CancellationToken);
+        await schedulerFixture.Observer.WaitForFailedCountAsync(10, TestContext.Current.CancellationToken);
         time.Advance(TimeSpan.FromSeconds(1));
-        var failures = await schedulerFixture.Observer.WaitForFailedCountAsync(9, TestContext.Current.CancellationToken);
+        var failures = await schedulerFixture.Observer.WaitForFailedCountAsync(15, TestContext.Current.CancellationToken);
 
         Assert.All(oneShots, descriptor => Assert.False(schedulerFixture.Scheduler.Contains(descriptor.TimerId)));
         Assert.All(periodic, descriptor => Assert.True(schedulerFixture.Scheduler.Contains(descriptor.TimerId)));
