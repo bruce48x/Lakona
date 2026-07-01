@@ -22,6 +22,49 @@ Hotfix behaviors should return stable DTOs that describe what happened. Stable r
 
 Reload uses next-entry semantics: a method already executing keeps the version it resolved, while the next dispatch call sees the new table after a successful reload. If reload fails, the previous dispatch table remains active.
 
+## Timers
+
+Feature-owned timers use the stable `LakonaTimer` facade from
+`Lakona.Game.Server.Hotfix.Abstractions`. Create timers in feature `StartAsync`,
+store the returned `TimerId` in feature state, and destroy them in `StopAsync`:
+
+```csharp
+public static async ValueTask StartAsync(HotfixFeatureStartCall call)
+{
+    var timerId = await LakonaTimer.CreatePeriodicTimerAsync<BattleTimers, BattleTick>(
+        TimeSpan.Zero,
+        TimeSpan.FromMilliseconds(50),
+        nameof(BattleTimers.TickAsync),
+        new BattleTick("default"),
+        call.CancellationToken);
+
+    call.State.Items["battle.timer"] = timerId;
+}
+
+public static async ValueTask StopAsync(HotfixFeatureStopCall call)
+{
+    if (call.State.Items.TryGetValue("battle.timer", out var value) &&
+        value is TimerId timerId)
+    {
+        await LakonaTimer.DestroyTimerAsync(timerId, call.CancellationToken);
+    }
+
+    call.State.Items.Remove("battle.timer");
+}
+```
+
+Timer callbacks are static methods referenced by name:
+
+```csharp
+public static class BattleTimers
+{
+    public static ValueTask TickAsync(TimerTick<BattleTick> tick)
+    {
+        return default;
+    }
+}
+```
+
 ## Server hotfix flow
 
 Stable code owns state:

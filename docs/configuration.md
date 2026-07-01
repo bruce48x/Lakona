@@ -364,12 +364,25 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
 
     public static async ValueTask StartAsync(HotfixFeatureStartCall call)
     {
-        await LakonaTimer.CreatePeriodicTimerAsync<BattleRuntimeTimers, BattleRuntimeTick>(
+        var timerId = await LakonaTimer.CreatePeriodicTimerAsync<BattleRuntimeTimers, BattleRuntimeTick>(
             TimeSpan.Zero,
             TimeSpan.FromMilliseconds(50),
             nameof(BattleRuntimeTimers.TickAsync),
             new BattleRuntimeTick("default"),
             call.CancellationToken);
+
+        call.State.Items["battle-runtime.timer"] = timerId;
+    }
+
+    public static async ValueTask StopAsync(HotfixFeatureStopCall call)
+    {
+        if (call.State.Items.TryGetValue("battle-runtime.timer", out var value) &&
+            value is TimerId timerId)
+        {
+            await LakonaTimer.DestroyTimerAsync(timerId, call.CancellationToken);
+        }
+
+        call.State.Items.Remove("battle-runtime.timer");
     }
 }
 

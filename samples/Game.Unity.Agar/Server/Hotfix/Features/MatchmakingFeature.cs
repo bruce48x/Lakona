@@ -32,7 +32,7 @@ public sealed class MatchmakingFeature : HotfixGameFeature
             value is TimerId timerId &&
             timerId.IsValid)
         {
-            await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None).ConfigureAwait(false);
+            await LakonaTimer.DestroyTimerAsync(timerId, call.CancellationToken).ConfigureAwait(false);
         }
 
         call.State.Items.Remove(FeatureTimerKeys.MatchmakingTimerId);
