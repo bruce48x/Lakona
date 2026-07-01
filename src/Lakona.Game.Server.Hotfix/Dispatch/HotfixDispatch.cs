@@ -5,15 +5,32 @@ namespace Lakona.Game.Server.Hotfix.Dispatch;
 public static class HotfixDispatch
 {
     private static HotfixDispatchTable current = new(0, Array.Empty<HotfixMethodBinding>());
+    private static Func<HotfixDispatchTable>? currentProvider;
 
-    public static HotfixDispatchTable Current => Volatile.Read(ref current);
+    public static HotfixDispatchTable Current
+    {
+        get
+        {
+            var provider = Volatile.Read(ref currentProvider);
+            return provider is null ? CurrentFallback : provider();
+        }
+    }
+
+    internal static HotfixDispatchTable CurrentFallback => Volatile.Read(ref current);
 
     internal static HotfixDispatchTable ActiveTable => HotfixDispatchRuntimeScope.CurrentTable ?? Current;
 
     public static void Replace(HotfixDispatchTable table)
     {
         ArgumentNullException.ThrowIfNull(table);
+        Volatile.Write(ref currentProvider, null);
         Interlocked.Exchange(ref current, table);
+    }
+
+    internal static void ReplaceProvider(Func<HotfixDispatchTable> provider)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+        Volatile.Write(ref currentProvider, provider);
     }
 
     public static HotfixMethodKey CreateKey<TState, TResult>(string methodName, params Type[] parameterTypes)

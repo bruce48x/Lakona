@@ -1,6 +1,7 @@
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Lakona.Game.Server.Hotfix.Dispatch;
+using Lakona.Game.Server.Hotfix.Loading;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -116,12 +117,133 @@ public sealed class HotfixFeatureLifecycleTests
         Assert.Empty(backend.ActiveTimers);
     }
 
+    [Fact]
+    public async Task Disabled_candidate_feature_does_not_start()
+    {
+        LifecycleRecorder.Reset();
+        var coordinator = new HotfixFeatureLifecycleCoordinator();
+        var policy = new ConfiguredHotfixFeatureActivationPolicy(["enabled"]);
+        using var candidate = CreateRuntime([Feature("enabled", typeof(AlphaFeature)), Feature("disabled", typeof(BetaFeature))]);
+
+        var published = await coordinator.StartCandidateAsync(
+            HotfixFeatureLifecycleSnapshot.Empty,
+            candidate.Snapshot,
+            policy.SelectActiveFeatures(candidate.Snapshot.DispatchTable!.Features),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(["start:alpha"], LifecycleRecorder.Events);
+        Assert.Equal(["enabled"], published.FeatureNames);
+        Assert.True(published.States.ContainsKey("enabled"));
+        Assert.False(published.States.ContainsKey("disabled"));
+    }
+
+    [Fact]
+    public async Task Previously_active_feature_stops_when_disabled_under_previous_snapshot()
+    {
+        LifecycleRecorder.Reset();
+        var coordinator = new HotfixFeatureLifecycleCoordinator();
+        using var previousRuntime = CreateRuntime([Feature("kept", typeof(AlphaFeature)), Feature("disabled", typeof(SnapshotObservingFeature))], "previous");
+        var previous = await coordinator.StartCandidateAsync(
+            HotfixFeatureLifecycleSnapshot.Empty,
+            previousRuntime.Snapshot,
+            previousRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+
+        using var candidateRuntime = CreateRuntime([Feature("kept", typeof(AlphaFeature)), Feature("disabled", typeof(SnapshotObservingFeature))], "candidate");
+        var policy = new ConfiguredHotfixFeatureActivationPolicy(["kept"]);
+        var next = await coordinator.StartCandidateAsync(
+            previous,
+            candidateRuntime.Snapshot,
+            policy.SelectActiveFeatures(candidateRuntime.Snapshot.DispatchTable!.Features),
+            TestContext.Current.CancellationToken);
+        await coordinator.StopRemovedAsync(previous, next, TestContext.Current.CancellationToken);
+
+        Assert.Equal("previous", LifecycleRecorder.StopServiceMarker);
+        Assert.DoesNotContain("disabled", next.FeatureNames);
+    }
+
+    [Fact]
+    public async Task Publication_participant_failure_before_publish_keeps_old_publication_and_rolls_back_candidate()
+    {
+        LifecycleRecorder.Reset();
+        using var oldRuntime = CreateRuntime([Feature("old", typeof(StatefulFeature))], "old");
+        using var candidateRuntime = CreateRuntime(
+            [Feature("new-a", typeof(TimerStartFeature))],
+            "candidate",
+            new RecordingLifecycleTimerBackend());
+        var participant = new FailingBeforePublishParticipant();
+        var manager = new HotfixManager(
+            new UnusedAssemblySource(),
+            participants: [participant]);
+        var firstSnapshot = CreateSnapshot(1, oldRuntime.Snapshot.DispatchTable!.Features);
+        await manager.PublishCandidateAsync(
+            oldRuntime.Snapshot,
+            firstSnapshot,
+            oldRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+        LifecycleRecorder.Reset();
+        participant.Fail = true;
+        var oldPublishedRuntime = ((IHotfixRuntimeAccessor)manager).Current;
+        var oldPublishedSnapshot = manager.Current;
+        var oldPublishedDispatch = HotfixDispatch.Current;
+
+        var failed = await manager.PublishCandidateAsync(
+            candidateRuntime.Snapshot,
+            CreateSnapshot(2, candidateRuntime.Snapshot.DispatchTable!.Features),
+            candidateRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+
+        var backend = Assert.IsType<RecordingLifecycleTimerBackend>(
+            candidateRuntime.Snapshot.Services.GetRequiredService<ILakonaTimerBackend>());
+        Assert.False(failed.Succeeded);
+        Assert.Same(oldPublishedRuntime, ((IHotfixRuntimeAccessor)manager).Current);
+        Assert.Same(oldPublishedSnapshot, manager.Current);
+        Assert.Same(oldPublishedDispatch, HotfixDispatch.Current);
+        Assert.Equal(1, backend.RollbackCount);
+        Assert.Equal(["start:new-a", "stop:new-a"], LifecycleRecorder.Events);
+    }
+
+    [Fact]
+    public async Task Publication_participants_observe_old_state_before_publish_and_consistent_new_state_after_publish()
+    {
+        LifecycleRecorder.Reset();
+        using var oldRuntime = CreateRuntime([Feature("old", typeof(StatefulFeature))], "1");
+        using var candidateRuntime = CreateRuntime([Feature("new-a", typeof(AlphaFeature))], "2");
+        var observations = new PublicationObservationParticipant();
+        var manager = new HotfixManager(new UnusedAssemblySource(), participants: [observations]);
+        observations.CurrentManager = manager;
+
+        var first = await manager.PublishCandidateAsync(
+            oldRuntime.Snapshot,
+            CreateSnapshot(1, oldRuntime.Snapshot.DispatchTable!.Features),
+            oldRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+        Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+        observations.Enabled = true;
+        observations.Reset();
+
+        var second = await manager.PublishCandidateAsync(
+            candidateRuntime.Snapshot,
+            CreateSnapshot(2, candidateRuntime.Snapshot.DispatchTable!.Features),
+            candidateRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+        Assert.True(second.Succeeded, string.Join(Environment.NewLine, second.Diagnostics));
+
+        Assert.Equal(1, observations.BeforeSnapshotVersion);
+        Assert.Equal(1, observations.BeforeRuntimeVersion);
+        Assert.Equal(1, observations.BeforeDispatchVersion);
+        Assert.Equal(2, observations.AfterSnapshotVersion);
+        Assert.Equal(2, observations.AfterRuntimeVersion);
+        Assert.Equal(2, observations.AfterDispatchVersion);
+    }
+
     private static ScopedRuntime CreateRuntime(
         IReadOnlyList<HotfixFeatureDeclaration> features,
         string marker = "runtime",
         ILakonaTimerBackend? timerBackend = null)
     {
-        var table = new HotfixDispatchTable(1, Array.Empty<HotfixMethodBinding>(), Array.Empty<HotfixServiceMethodBinding>(), features);
+        var tableVersion = long.TryParse(marker, out var parsedVersion) ? parsedVersion : 1;
+        var table = new HotfixDispatchTable(tableVersion, Array.Empty<HotfixMethodBinding>(), Array.Empty<HotfixServiceMethodBinding>(), features);
         var services = new ServiceCollection()
             .AddSingleton(new RuntimeMarker(marker));
         if (timerBackend is not null)
@@ -160,7 +282,114 @@ public sealed class HotfixFeatureLifecycleTests
             HotfixFeatureLifecycleDeclaration.FromFeatureType(type));
     }
 
+    private static HotfixSnapshot CreateSnapshot(long tableVersion, IReadOnlyList<HotfixFeatureDeclaration> features)
+    {
+        return new HotfixSnapshot(
+            tableVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            "test",
+            $"test-{tableVersion}.dll",
+            DateTimeOffset.UtcNow,
+            tableVersion,
+            [],
+            HotfixReloadStatus.Succeeded,
+            null,
+            null,
+            features);
+    }
+
     private sealed record RuntimeMarker(string Value);
+
+    private sealed class ConfiguredHotfixFeatureActivationPolicy(IReadOnlyList<string> names) : IHotfixFeatureActivationPolicy
+    {
+        public IReadOnlyList<HotfixFeatureDeclaration> SelectActiveFeatures(IReadOnlyList<HotfixFeatureDeclaration> scannedFeatures)
+        {
+            var allowed = names.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            return scannedFeatures
+                .Where(feature => allowed.Contains(feature.Name))
+                .ToArray();
+        }
+    }
+
+    private sealed class FailingBeforePublishParticipant : IHotfixRuntimePublicationParticipant
+    {
+        public bool Fail { get; set; }
+
+        public ValueTask BeforePublishAsync(HotfixRuntimeSnapshot candidate, CancellationToken cancellationToken = default)
+        {
+            if (Fail)
+            {
+                throw new InvalidOperationException("participant failed");
+            }
+
+            return default;
+        }
+    }
+
+    private sealed class PublicationObservationParticipant : IHotfixRuntimePublicationParticipant
+    {
+        public int? BeforeSnapshotVersion { get; private set; }
+
+        public int? BeforeRuntimeVersion { get; private set; }
+
+        public int? BeforeDispatchVersion { get; private set; }
+
+        public int? AfterSnapshotVersion { get; private set; }
+
+        public int? AfterRuntimeVersion { get; private set; }
+
+        public int? AfterDispatchVersion { get; private set; }
+
+        public bool Enabled { get; set; }
+
+        public void Reset()
+        {
+            BeforeSnapshotVersion = null;
+            BeforeRuntimeVersion = null;
+            BeforeDispatchVersion = null;
+            AfterSnapshotVersion = null;
+            AfterRuntimeVersion = null;
+            AfterDispatchVersion = null;
+        }
+
+        public ValueTask BeforePublishAsync(HotfixRuntimeSnapshot candidate, CancellationToken cancellationToken = default)
+        {
+            _ = candidate;
+            if (!Enabled)
+            {
+                return default;
+            }
+
+            BeforeSnapshotVersion = int.Parse(CurrentManager!.Current.Version!, System.Globalization.CultureInfo.InvariantCulture);
+            BeforeRuntimeVersion = int.Parse(((IHotfixRuntimeAccessor)CurrentManager).Current.SourceVersion!, System.Globalization.CultureInfo.InvariantCulture);
+            BeforeDispatchVersion = (int)HotfixDispatch.Current.Version;
+            return default;
+        }
+
+        public ValueTask AfterPublishAsync(HotfixRuntimeSnapshot previous, HotfixRuntimeSnapshot current, CancellationToken cancellationToken = default)
+        {
+            _ = previous;
+            _ = current;
+            if (!Enabled)
+            {
+                return default;
+            }
+
+            AfterSnapshotVersion = int.Parse(CurrentManager!.Current.Version!, System.Globalization.CultureInfo.InvariantCulture);
+            AfterRuntimeVersion = int.Parse(((IHotfixRuntimeAccessor)CurrentManager).Current.SourceVersion!, System.Globalization.CultureInfo.InvariantCulture);
+            AfterDispatchVersion = (int)HotfixDispatch.Current.Version;
+            return default;
+        }
+
+        public HotfixManager? CurrentManager { get; set; }
+    }
+
+    private sealed class UnusedAssemblySource : IHotfixAssemblySource
+    {
+        public ValueTask<HotfixAssemblySourceResult> ResolveAsync(CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+    }
 
     private static class LifecycleRecorder
     {

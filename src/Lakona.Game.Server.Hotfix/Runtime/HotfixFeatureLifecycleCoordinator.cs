@@ -64,7 +64,8 @@ internal sealed class HotfixFeatureLifecycleCoordinator
                 candidateFeatures,
                 states,
                 rootTimerBackend,
-                stagingTimerBackend);
+                stagingTimerBackend,
+                started.ToArray());
         }
         catch
         {
@@ -139,6 +140,40 @@ internal sealed class HotfixFeatureLifecycleCoordinator
         await snapshot.RootTimerBackend.CommitStagedTimersAsync(snapshot.StagingTimerBackend, cancellationToken)
             .ConfigureAwait(false);
     }
+
+    public async ValueTask RollbackCandidateAsync(
+        HotfixFeatureLifecycleSnapshot snapshot,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (snapshot.Runtime is not null)
+        {
+            using var lease = snapshot.Runtime.AcquireLease();
+            for (var index = snapshot.StartedFeatures.Count - 1; index >= 0; index--)
+            {
+                var feature = snapshot.StartedFeatures[index];
+                if (!snapshot.States.TryGetValue(feature.Name, out var state))
+                {
+                    continue;
+                }
+
+                await invoker.StopAsync(
+                    feature,
+                    state,
+                    snapshot.Runtime.Services,
+                    snapshot.StagingTimerBackend,
+                    CancellationToken.None).ConfigureAwait(false);
+            }
+        }
+
+        if (snapshot.RootTimerBackend is not null && snapshot.StagingTimerBackend is not null)
+        {
+            await snapshot.RootTimerBackend.RollbackStagedTimersAsync(snapshot.StagingTimerBackend, CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+    }
 }
 
 internal sealed class HotfixFeatureLifecycleSnapshot
@@ -153,13 +188,15 @@ internal sealed class HotfixFeatureLifecycleSnapshot
         IReadOnlyList<HotfixFeatureDeclaration> features,
         IReadOnlyDictionary<string, HotfixFeatureState> states,
         ILakonaTimerBackend? rootTimerBackend = null,
-        ILakonaTimerBackend? stagingTimerBackend = null)
+        ILakonaTimerBackend? stagingTimerBackend = null,
+        IReadOnlyList<HotfixFeatureDeclaration>? startedFeatures = null)
     {
         Runtime = runtime;
         Features = features ?? throw new ArgumentNullException(nameof(features));
         States = states ?? throw new ArgumentNullException(nameof(states));
         RootTimerBackend = rootTimerBackend;
         StagingTimerBackend = stagingTimerBackend;
+        StartedFeatures = startedFeatures ?? Array.Empty<HotfixFeatureDeclaration>();
     }
 
     public HotfixRuntimeSnapshot? Runtime { get; }
@@ -171,6 +208,8 @@ internal sealed class HotfixFeatureLifecycleSnapshot
     internal ILakonaTimerBackend? RootTimerBackend { get; }
 
     internal ILakonaTimerBackend? StagingTimerBackend { get; }
+
+    internal IReadOnlyList<HotfixFeatureDeclaration> StartedFeatures { get; }
 
     public IReadOnlyList<string> FeatureNames => Features.Select(static feature => feature.Name).ToArray();
 
