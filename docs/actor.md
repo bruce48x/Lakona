@@ -286,11 +286,11 @@ draining -> drain mailbox -> deactivate -> remove local actor -> unregister rout
 Failure to unregister a route is a routing/diagnostic problem; it does not
 resurrect a destroyed actor or keep it callable in the local runtime.
 
-## Actor Ticks
+## Timers
 
-Actor ticks are framework-scheduled actor turns. They are declared by hotfix
-feature descriptors and executed by the stable scheduler against the latest
-loaded hotfix behavior table:
+Hotfix timers are framework-owned callbacks created through `LakonaTimer`.
+Features usually create periodic timers from `StartAsync`, where the framework
+installs the current hotfix execution scope:
 
 ```csharp
 [HotfixFeature("battle-runtime")]
@@ -298,53 +298,48 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
 {
     public static void Configure(HotfixFeatureContext context)
     {
-        context.ScheduleActorTick<MatchmakingActor>(
-            "default",
-            TimeSpan.FromMilliseconds(250),
-            TickBacklogPolicy.Coalesce,
-            nameof(MatchmakingBehavior.TickAsync));
+        context.EnsureLocalActor<MatchmakingActor>("default");
+    }
 
-        context.ScheduleActiveActorTicks<RoomActor>(
+    public static async ValueTask StartAsync(HotfixFeatureStartCall call)
+    {
+        var timerId = await LakonaTimer.CreatePeriodicTimerAsync<BattleRuntimeTimers, BattleRuntimeTick>(
+            TimeSpan.Zero,
             TimeSpan.FromMilliseconds(50),
-            TickBacklogPolicy.SkipIfPending,
-            nameof(RoomBehavior.TickAsync));
+            nameof(BattleRuntimeTimers.TickAsync),
+            new BattleRuntimeTick("default"),
+            call.CancellationToken);
+
+        call.State.Items["battle-runtime.timer"] = timerId;
+    }
+
+    public static async ValueTask StopAsync(HotfixFeatureStopCall call)
+    {
+        if (call.State.Items.TryGetValue("battle-runtime.timer", out var value) &&
+            value is TimerId timerId)
+        {
+            await LakonaTimer.DestroyTimerAsync(timerId, call.CancellationToken);
+        }
+    }
+}
+
+public sealed record BattleRuntimeTick(string QueueId);
+
+public static class BattleRuntimeTimers
+{
+    public static ValueTask TickAsync(TimerTick<BattleRuntimeTick> tick)
+    {
+        // Enter generated actor selectors or services here.
+        return default;
     }
 }
 ```
 
-The descriptor is a reloadable declaration, not a long-lived runtime loop
-object. The framework owns timers, cancellation, mailbox entry, skipped-tick
-diagnostics, slow-tick diagnostics, and shutdown.
-
 The method name is explicit on purpose. Use `nameof(...)` so the call site shows
-which behavior method will run and normal refactoring tools keep the declaration
-in sync. The scheduler stores the method name rather than a delegate because a
+which callback will run and normal refactoring tools keep the declaration in
+sync. The scheduler stores the method name rather than a delegate because a
 delegate could keep an old reloadable hotfix assembly generation alive after
 reload.
-
-Tick execution follows actor turn rules:
-
-- one actor turn runs at a time for a given actor;
-- at most one pending tick per tick source should exist;
-- backlog policy must coalesce or skip instead of growing without bound;
-- a thrown tick logs diagnostics and leaves actor state at the last completed
-  turn;
-- a failed hotfix reload keeps the previous tick behavior table active.
-
-### Actor Tick Performance Checks
-
-Actor tick performance coverage lives in `Lakona.Game.Server.Tests`. CI runs a
-short smoke path. Maintainers can run the larger local benchmark with:
-
-```powershell
-$env:LAKONA_TIMER_BENCHMARK_FULL='1'
-dotnet test tests\Lakona.Game.Server.Tests\Lakona.Game.Server.Tests.csproj --filter HotfixActorTickSchedulerPerformanceTests --logger "console;verbosity=detailed"
-Remove-Item Env:\LAKONA_TIMER_BENCHMARK_FULL
-```
-
-Treat benchmark output as evidence for future scheduler optimization. Do not
-optimize actor tick internals without before/after numbers from this path or an
-equivalent focused benchmark.
 
 ## Analyzer Boundary
 

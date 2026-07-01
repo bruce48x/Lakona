@@ -122,7 +122,8 @@ var result = await users
     });
 ```
 
-Hotfix feature descriptors declare the stable scheduler entry points:
+Hotfix feature descriptors declare local actors. Periodic work is created from
+feature lifecycle hooks through the stable timer entry point:
 
 ```csharp
 [HotfixFeature("battle-runtime")]
@@ -130,24 +131,27 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
 {
     public static void Configure(HotfixFeatureContext context)
     {
-        context.ScheduleActorTick<MatchmakingActor>(
-            "default",
-            TimeSpan.FromMilliseconds(250),
-            TickBacklogPolicy.Coalesce,
-            nameof(MatchmakingBehavior.TickAsync));
+        context.EnsureLocalActor<MatchmakingActor>("default");
+    }
 
-        context.ScheduleActiveActorTicks<RoomActor>(
+    public static async ValueTask StartAsync(HotfixFeatureStartCall call)
+    {
+        await LakonaTimer.CreatePeriodicTimerAsync<BattleRuntimeTimers, BattleRuntimeTick>(
+            TimeSpan.Zero,
             TimeSpan.FromMilliseconds(50),
-            TickBacklogPolicy.SkipIfPending,
-            nameof(RoomBehavior.TickAsync));
+            nameof(BattleRuntimeTimers.TickAsync),
+            new BattleRuntimeTick("default"),
+            call.CancellationToken);
     }
 }
+
+public sealed record BattleRuntimeTick(string QueueId);
 ```
 
-The scheduler supplies stable context and enters the current hotfix behavior
-table. Stable App code does not validate passwords, choose match batches,
-compute ranks, award points, build user-facing replies, or call actor behavior
-one step at a time.
+The timer scheduler supplies stable context and resolves callbacks against the
+current hotfix behavior table. Stable App code does not validate passwords,
+choose match batches, compute ranks, award points, build user-facing replies, or
+call actor behavior one step at a time.
 
 Framework-owned lifecycle bridges follow the same rule. The zero-template host
 enables stable lifecycle bridges through framework defaults; generated and

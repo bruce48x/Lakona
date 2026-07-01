@@ -280,14 +280,28 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
 {
     public static void Configure(HotfixFeatureContext context)
     {
-        context.ScheduleActorTick<MatchmakingActor>(
-            "default",
-            TimeSpan.FromMilliseconds(250),
-            TickBacklogPolicy.Coalesce);
+        context.EnsureLocalActor<MatchmakingActor>("default");
+    }
 
-        context.ScheduleActiveActorTicks<RoomActor>(
+    public static async ValueTask StartAsync(HotfixFeatureStartCall call)
+    {
+        await LakonaTimer.CreatePeriodicTimerAsync<BattleRuntimeTimers, BattleRuntimeTick>(
+            TimeSpan.Zero,
             TimeSpan.FromMilliseconds(50),
-            TickBacklogPolicy.SkipIfPending);
+            nameof(BattleRuntimeTimers.TickAsync),
+            new BattleRuntimeTick("default"),
+            call.CancellationToken);
+    }
+}
+
+public sealed record BattleRuntimeTick(string QueueId);
+
+public static class BattleRuntimeTimers
+{
+    public static ValueTask TickAsync(TimerTick<BattleRuntimeTick> tick)
+    {
+        // Enter generated actor selectors or services here.
+        return default;
     }
 }
 

@@ -350,7 +350,8 @@ session lifecycle bridges, reliable push defaults, cluster startup, and
 endpoint listener startup. Application behavior belongs in configuration,
 shared contracts, stable actor state shells, and `Server.Hotfix`.
 
-Hotfix descriptors declare reloadable actor runtime loops:
+Hotfix descriptors declare local actors and lifecycle hooks. Periodic work uses
+the framework-owned timer API from feature lifecycle methods:
 
 ```csharp
 [HotfixFeature("battle-runtime")]
@@ -358,18 +359,21 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
 {
     public static void Configure(HotfixFeatureContext context)
     {
-        context.ScheduleActorTick<MatchmakingActor>(
-            "default",
-            TimeSpan.FromMilliseconds(250),
-            TickBacklogPolicy.Coalesce,
-            nameof(MatchmakingBehavior.TickAsync));
+        context.EnsureLocalActor<MatchmakingActor>("default");
+    }
 
-        context.ScheduleActiveActorTicks<RoomActor>(
+    public static async ValueTask StartAsync(HotfixFeatureStartCall call)
+    {
+        await LakonaTimer.CreatePeriodicTimerAsync<BattleRuntimeTimers, BattleRuntimeTick>(
+            TimeSpan.Zero,
             TimeSpan.FromMilliseconds(50),
-            TickBacklogPolicy.SkipIfPending,
-            nameof(RoomBehavior.TickAsync));
+            nameof(BattleRuntimeTimers.TickAsync),
+            new BattleRuntimeTick("default"),
+            call.CancellationToken);
     }
 }
+
+public sealed record BattleRuntimeTick(string QueueId);
 ```
 
 `Lakona:Feature` controls activation:

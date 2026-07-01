@@ -34,14 +34,20 @@ public sealed class HotfixFeatureContextTests
             string.Concat("Schedule", "ActorTick"),
             string.Concat("Schedule", "ActiveActorTicks"),
             string.Concat("Hotfix", "ActorTick"),
-            string.Concat("Register", "Timer")
+            string.Concat("Register", "Timer"),
+            string.Concat("Tick", "BacklogPolicy")
         };
-        var roots = new[] { "src", "tests", "samples" };
-        var matches = roots
+        var scannedFiles = new[] { "src", "tests", "samples", "docs" }
             .Select(root => Path.Combine(repositoryRoot, root))
             .Where(Directory.Exists)
-            .SelectMany(root => Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
+            .SelectMany(root => Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories))
+            .Concat([Path.Combine(repositoryRoot, "README.md")])
             .Where(static path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Where(static path => Path.GetExtension(path) is ".cs" or ".md")
+            .Where(static path => !path.Contains($"{Path.DirectorySeparatorChar}docs{Path.DirectorySeparatorChar}superpowers{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .ToArray();
+
+        var matches = scannedFiles
             .SelectMany(path =>
             {
                 var text = File.ReadAllText(path);

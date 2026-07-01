@@ -192,31 +192,33 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
 {
     public static void Configure(HotfixFeatureContext context)
     {
-        context.ScheduleActorTick<MatchmakingActor>(
-            "default",
-            TimeSpan.FromMilliseconds(250),
-            TickBacklogPolicy.Coalesce,
-            nameof(MatchmakingBehavior.TickAsync));
+        context.EnsureLocalActor<MatchmakingActor>("default");
+    }
 
-        context.ScheduleActiveActorTicks<RoomActor>(
+    public static async ValueTask StartAsync(HotfixFeatureStartCall call)
+    {
+        await LakonaTimer.CreatePeriodicTimerAsync<BattleRuntimeTimers, BattleRuntimeTick>(
+            TimeSpan.Zero,
             TimeSpan.FromMilliseconds(50),
-            TickBacklogPolicy.SkipIfPending,
-            nameof(RoomBehavior.TickAsync));
+            nameof(BattleRuntimeTimers.TickAsync),
+            new BattleRuntimeTick("default"),
+            call.CancellationToken);
     }
 }
+
+public sealed record BattleRuntimeTick(string QueueId);
 ```
 
-The stable scheduler converts descriptor declarations into actor turns against
-the current hotfix behavior table. User-authored runtime loops are actor ticks
-declared by these descriptors. Stable App code must not define
-application-specific hotfix event adapters, room runtimes, matchmaking hosted
-services, or game Feature classes.
+The stable timer scheduler resolves callback names against the current hotfix
+behavior table. Stable App code must not define application-specific hotfix
+event adapters, room runtimes, matchmaking hosted services, or game Feature
+classes.
 
 Feature descriptors are scanned and validated with the rest of the hotfix
 assembly. They are not retained as long-lived runtime objects from the
 collectible hotfix load context. After a successful reload, the framework
 publishes the new hotfix provider, dispatch table, behavior table, lifecycle
-handlers, and descriptor-derived scheduler registrations as one generation.
+handlers, and timer registrations as one generation.
 If scanning or validation fails, the previous generation remains active.
 
 ### Feature Commands
