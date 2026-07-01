@@ -8,7 +8,6 @@ public sealed record HotfixFeatureDeclaration(
     bool Discoverable,
     IReadOnlyDictionary<string, string> Metadata,
     IReadOnlyList<HotfixLocalActorDeclaration> LocalActors,
-    IReadOnlyList<HotfixActorTickDeclaration> ActorTicks,
     IReadOnlyList<HotfixFeatureCommandDeclaration> Commands,
     IReadOnlyList<ServiceDescriptor> Services,
     HotfixFeatureLifecycleDeclaration? Lifecycle = null)

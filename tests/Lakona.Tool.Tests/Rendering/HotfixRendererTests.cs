@@ -86,6 +86,9 @@ public sealed class HotfixRendererTests
         Assert.Contains("ChatRoomLeaveRequest request", behavior, StringComparison.Ordinal);
 
         var feature = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Features/ChatFeature.cs").Content;
+        var oldActorTickType = string.Concat("Hotfix", "ActorTick");
+        var oldActorTickSchedule = string.Concat("Schedule", "ActorTick");
+        var oldTimerRegistrationApi = string.Concat("Register", "Timer");
         Assert.Contains("[HotfixFeature(\"chat\")]", feature, StringComparison.Ordinal);
         Assert.Contains("public sealed class ChatFeature : HotfixGameFeature", feature, StringComparison.Ordinal);
         Assert.Contains("public static void Configure(HotfixFeatureContext context)", feature, StringComparison.Ordinal);
@@ -93,7 +96,9 @@ public sealed class HotfixRendererTests
         Assert.DoesNotContain("IFeatureMessageHandler", feature, StringComparison.Ordinal);
         Assert.Contains("context.EnsureLocalActor<ChatRoomActor>(ChatRoomIds.Global);", feature, StringComparison.Ordinal);
         Assert.DoesNotContain("CreateLocalAsync", feature, StringComparison.Ordinal);
-        Assert.DoesNotContain("ScheduleActorTick", feature, StringComparison.Ordinal);
+        Assert.DoesNotContain(oldActorTickSchedule, feature, StringComparison.Ordinal);
+        Assert.DoesNotContain(oldActorTickType, feature, StringComparison.Ordinal);
+        Assert.DoesNotContain(oldTimerRegistrationApi, feature, StringComparison.Ordinal);
 
         var lifecycle = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Chat/ChatSessionLifecycle.cs").Content;
         Assert.Contains("[HotfixLifecycle(typeof(IGameSessionLifecycle))]", lifecycle, StringComparison.Ordinal);
@@ -112,8 +117,12 @@ public sealed class HotfixRendererTests
         Assert.DoesNotContain("IChatRuntimeService", lifecycle, StringComparison.Ordinal);
         Assert.DoesNotContain("HotfixDispatch", lifecycle, StringComparison.Ordinal);
         Assert.DoesNotContain("CreateLocalAsync", lifecycle, StringComparison.Ordinal);
+        Assert.DoesNotContain(oldActorTickType, lifecycle, StringComparison.Ordinal);
+        Assert.DoesNotContain(oldTimerRegistrationApi, lifecycle, StringComparison.Ordinal);
         Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/Hotfix/Chat/ChatRuntimeService.cs");
 
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("static event", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains(oldActorTickType, StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains(oldTimerRegistrationApi, StringComparison.Ordinal));
     }
 }

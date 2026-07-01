@@ -42,10 +42,6 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
         context.Services.AddLogging();
         context.HandleCommand<BattleRuntimeRoomAllocationRequest, BattleRuntimeRoomAllocationReply>(
             nameof(AllocateRoomAsync));
-        context.ScheduleActiveActorTicks<RoomActor>(
-            TimeSpan.FromMilliseconds(50),
-            TickBacklogPolicy.SkipIfPending,
-            nameof(RoomBehavior.TickAsync));
     }
 
     public async ValueTask<BattleRuntimeRoomAllocationReply> AllocateRoomAsync(

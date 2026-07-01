@@ -10,10 +10,5 @@ public sealed class MatchmakingFeature : HotfixGameFeature
     public static void Configure(HotfixFeatureContext context)
     {
         context.EnsureLocalActor<MatchmakingActor>("default");
-        context.ScheduleActorTick<MatchmakingActor>(
-            "default",
-            TimeSpan.FromMilliseconds(250),
-            TickBacklogPolicy.Coalesce,
-            nameof(MatchmakingBehavior.TickAsync));
     }
 }

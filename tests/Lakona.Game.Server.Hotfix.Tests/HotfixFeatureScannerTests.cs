@@ -9,7 +9,7 @@ namespace Lakona.Game.Server.Hotfix.Tests;
 public sealed class HotfixFeatureScannerTests
 {
     [Fact]
-    public void Scanner_discovers_hotfix_feature_actor_tick_declarations()
+    public void Scanner_discovers_hotfix_feature_declarations_without_actor_ticks()
     {
         var result = HotfixBehaviorScanner.Scan(typeof(BattleRuntimeFeature).Assembly, [
             typeof(BattleRuntimeFeature)
@@ -23,20 +23,6 @@ public sealed class HotfixFeatureScannerTests
         var localActor = Assert.Single(feature.LocalActors);
         Assert.Equal(typeof(MatchmakingActor), localActor.ActorType);
         Assert.Equal("default", localActor.ActorId);
-
-        var fixedTick = Assert.Single(feature.ActorTicks, tick => tick.Mode == HotfixActorTickMode.FixedActor);
-        Assert.Equal(typeof(MatchmakingActor), fixedTick.ActorType);
-        Assert.Equal("default", fixedTick.ActorId);
-        Assert.Equal("TickAsync", fixedTick.MethodName);
-        Assert.Equal(TimeSpan.FromMilliseconds(250), fixedTick.Interval);
-        Assert.Equal(TickBacklogPolicy.Coalesce, fixedTick.BacklogPolicy);
-
-        var activeTick = Assert.Single(feature.ActorTicks, tick => tick.Mode == HotfixActorTickMode.ActiveActors);
-        Assert.Equal(typeof(RoomActor), activeTick.ActorType);
-        Assert.Equal("", activeTick.ActorId);
-        Assert.Equal("TickAsync", activeTick.MethodName);
-        Assert.Equal(TimeSpan.FromMilliseconds(50), activeTick.Interval);
-        Assert.Equal(TickBacklogPolicy.SkipIfPending, activeTick.BacklogPolicy);
     }
 
     [Fact]
@@ -215,41 +201,11 @@ public sealed class HotfixFeatureScannerTests
         public static void Configure(HotfixFeatureContext context)
         {
             context.EnsureLocalActor<MatchmakingActor>("default");
-            context.ScheduleActorTick<MatchmakingActor>(
-                "default",
-                TimeSpan.FromMilliseconds(250),
-                TickBacklogPolicy.Coalesce,
-                nameof(TickBehavior.TickAsync));
-            context.ScheduleActiveActorTicks<RoomActor>(
-                TimeSpan.FromMilliseconds(50),
-                TickBacklogPolicy.SkipIfPending,
-                nameof(TickBehavior.TickAsync));
         }
     }
 
     private sealed class MatchmakingActor
     {
-    }
-
-    private sealed class RoomActor
-    {
-    }
-
-    private static class TickBehavior
-    {
-        public static ValueTask TickAsync(MatchmakingActor actor, HotfixActorTick tick)
-        {
-            _ = actor;
-            _ = tick;
-            return default;
-        }
-
-        public static ValueTask TickAsync(RoomActor actor, HotfixActorTick tick)
-        {
-            _ = actor;
-            _ = tick;
-            return default;
-        }
     }
 
     [HotfixFeature("state-store")]

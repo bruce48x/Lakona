@@ -56,13 +56,6 @@ public interface IActorRuntime
 
     IReadOnlyList<ActorId> GetActiveActorIds(Type actorType);
 
-    IAsyncDisposable RegisterTimer<TActor>(
-        ActorId id,
-        TimeSpan dueTime,
-        TimeSpan? period,
-        Func<TActor, CancellationToken, ValueTask> callback)
-        where TActor : class, IActor;
-
     bool TryGetMailboxMetrics(ActorId id, out ActorMailboxMetrics metrics);
 
     ActorState GetState(ActorId id);

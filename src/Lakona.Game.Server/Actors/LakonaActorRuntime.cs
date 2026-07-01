@@ -230,29 +230,6 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
             cancellationToken);
     }
 
-    public IAsyncDisposable RegisterTimer<TActor>(
-        ActorId id,
-        TimeSpan dueTime,
-        TimeSpan? period,
-        Func<TActor, CancellationToken, ValueTask> callback)
-        where TActor : class, IActor
-    {
-        ArgumentNullException.ThrowIfNull(callback);
-
-        var cell = GetRequiredCell(typeof(TActor), id, nameof(RegisterTimer));
-        var envelope = new ActorRuntimeEnvelope(
-            static async (actor, state, ct) =>
-            {
-                var callback = (Func<TActor, CancellationToken, ValueTask>)state;
-                await callback((TActor)actor, ct).ConfigureAwait(false);
-                return null;
-            },
-            callback,
-            CancellationToken.None);
-
-        return cell.RegisterTimer(envelope, dueTime, period);
-    }
-
     public bool TryGetMailboxMetrics(ActorId id, out ActorMailboxMetrics metrics)
     {
         if (_actors.TryGetValue(id, out var cell))
@@ -862,7 +839,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorLifecycle, IDispos
             }
         }
 
-        public IAsyncDisposable RegisterTimer(ActorRuntimeEnvelope tick, TimeSpan dueTime, TimeSpan? period)
+        public IAsyncDisposable CreateNativeTimer(ActorRuntimeEnvelope tick, TimeSpan dueTime, TimeSpan? period)
         {
             var actorRef = (_actorHandle ?? throw new InvalidOperationException($"Actor '{_id}' is not bound.")).Ref;
             var handle = new TimerRegistrationHandle();

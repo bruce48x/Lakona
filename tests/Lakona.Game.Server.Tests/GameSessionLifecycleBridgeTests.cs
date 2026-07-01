@@ -428,16 +428,6 @@ public sealed class GameSessionLifecycleBridgeTests
             throw new NotSupportedException();
         }
 
-        public IAsyncDisposable RegisterTimer<TActor>(
-            ActorId id,
-            TimeSpan dueTime,
-            TimeSpan? period,
-            Func<TActor, CancellationToken, ValueTask> callback)
-            where TActor : class, IActor
-        {
-            throw new NotSupportedException();
-        }
-
         public bool TryGetMailboxMetrics(ActorId id, out ActorMailboxMetrics metrics)
         {
             metrics = default;

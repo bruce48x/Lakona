@@ -580,27 +580,6 @@ public sealed class HotfixDispatchTable
         }
     }
 
-    public void ValidateFeatureTickMethods(IEnumerable<HotfixFeatureDeclaration> features)
-    {
-        foreach (var tick in features.SelectMany(static feature => feature.ActorTicks))
-        {
-            var key = HotfixDispatch.CreateKey(
-                tick.ActorType,
-                tick.MethodName,
-                typeof(ValueTask),
-                [typeof(HotfixActorTick)]);
-            var method = Resolve(key);
-            var parameters = method.GetParameters();
-            if (method.ReturnType != typeof(ValueTask) ||
-                parameters.Length != 2 ||
-                parameters[0].ParameterType != tick.ActorType ||
-                parameters[1].ParameterType != typeof(HotfixActorTick))
-            {
-                throw new InvalidOperationException($"Hotfix tick method '{key}' must be an extension method returning ValueTask and accepting HotfixActorTick.");
-            }
-        }
-    }
-
     private static MethodInfo ResolveFeatureCommandMethod(
         HotfixFeatureDeclaration feature,
         HotfixFeatureCommandDeclaration command)

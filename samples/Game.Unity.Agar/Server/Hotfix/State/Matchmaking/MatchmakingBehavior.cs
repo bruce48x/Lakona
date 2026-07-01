@@ -164,37 +164,6 @@ public static partial class MatchmakingBehavior
         });
     }
 
-    public static async ValueTask TickAsync(this MatchmakingActor self, HotfixActorTick tick)
-    {
-        EnsureState(self);
-        if (self.State.PendingTickets.Count == 0)
-        {
-            return;
-        }
-
-        var observedAtUtc = tick.ObservedAtUtc == default ? DateTime.UtcNow : tick.ObservedAtUtc;
-        var roomSize = MatchmakingQueuePolicy.NormalizeRoomSize(self.State.DefaultRoomSize);
-        if (MatchmakingQueuePolicy.GetMatchBatchSize(self.State.PendingTickets, roomSize, observedAtUtc, allowExpiredPartialBatch: true) <= 0)
-        {
-            return;
-        }
-
-        var assignments = await TryMatchAsync(self, observedAtUtc, allowExpiredPartialBatch: true).ConfigureAwait(false);
-        var publishedRoomIds = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var assignment in assignments.Values)
-        {
-            if (!publishedRoomIds.Add(assignment.RoomId))
-            {
-                continue;
-            }
-
-            var services = AgarServiceDependencies.From(GetCurrentHotfixServices(self.Context.Services));
-            await PlayerService.PublishMatchedAsync(
-                services,
-                assignment).ConfigureAwait(false);
-        }
-    }
-
     public static async ValueTask<Dictionary<string, RoomAssignment>> TryMatchAsync(
         this MatchmakingActor self,
         DateTime nowUtc,

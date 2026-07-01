@@ -147,7 +147,6 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             var table = new HotfixDispatchTable(tableVersion, scan.Methods, scan.Services, activeFeatures);
             table.ValidateMethodShapes();
             table.ValidateTypedDispatchDelegates();
-            table.ValidateFeatureTickMethods(activeFeatures);
             table.ValidateFeatureCommandMethods();
             hotfixProvider = BuildHotfixProvider(activeFeatures);
             table.ValidateServiceActivation(hotfixProvider);

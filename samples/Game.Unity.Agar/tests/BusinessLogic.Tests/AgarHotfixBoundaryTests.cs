@@ -389,6 +389,8 @@ public sealed class AgarHotfixBoundaryTests
         var stateStorePlacement = File.ReadAllText(Path.Combine(hotfixRoot, "Services", "StateStoreUserActorPlacement.cs"));
         var battleRuntimeFeature = File.ReadAllText(Path.Combine(hotfixRoot, "Features", "BattleRuntimeFeature.cs"));
         var battleRuntimePlacement = File.ReadAllText(Path.Combine(hotfixRoot, "Features", "BattleRuntimeRoomAllocation.cs"));
+        var fixedScheduleCall = string.Concat("Schedule", "ActorTick<MatchmakingActor>");
+        var activeScheduleCall = string.Concat("Schedule", "ActiveActorTicks<RoomActor>");
 
         Assert.DoesNotContain("[HotfixFeature(\"database\")]", hotfixText, StringComparison.Ordinal);
         Assert.Contains("[HotfixFeature(StateStoreUserActorPlacement.FeatureName)]", stateStoreFeature, StringComparison.Ordinal);
@@ -397,10 +399,8 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("[HotfixFeature(\"leaderboard\")]", hotfixText, StringComparison.Ordinal);
         Assert.Contains("[HotfixFeature(BattleRuntimeRoomAllocation.FeatureName)]", battleRuntimeFeature, StringComparison.Ordinal);
         Assert.Contains("public const string FeatureName = \"battle-runtime\";", battleRuntimePlacement, StringComparison.Ordinal);
-        Assert.Contains("ScheduleActorTick<MatchmakingActor>", hotfixText, StringComparison.Ordinal);
-        Assert.Contains("nameof(MatchmakingBehavior.TickAsync)", hotfixText, StringComparison.Ordinal);
-        Assert.Contains("ScheduleActiveActorTicks<RoomActor>", hotfixText, StringComparison.Ordinal);
-        Assert.Contains("nameof(RoomBehavior.TickAsync)", hotfixText, StringComparison.Ordinal);
+        Assert.DoesNotContain(fixedScheduleCall, hotfixText, StringComparison.Ordinal);
+        Assert.DoesNotContain(activeScheduleCall, hotfixText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -412,14 +412,15 @@ public sealed class AgarHotfixBoundaryTests
 
         var matchmakingFeature = File.ReadAllText(Path.Combine(featureRoot, "MatchmakingFeature.cs"));
         var battleRuntimeFeature = File.ReadAllText(Path.Combine(featureRoot, "BattleRuntimeFeature.cs"));
+        var fixedScheduleCall = string.Concat("Schedule", "ActorTick<MatchmakingActor>");
+        var activeScheduleCall = string.Concat("Schedule", "ActiveActorTicks<RoomActor>");
 
         Assert.False(Directory.Exists(Path.Combine(sampleRoot, "Server", "App", "Hosting")));
         Assert.Contains("EnsureLocalActor<MatchmakingActor>", matchmakingFeature, StringComparison.Ordinal);
-        Assert.Contains("ScheduleActorTick<MatchmakingActor>", matchmakingFeature, StringComparison.Ordinal);
-        Assert.Contains("nameof(MatchmakingBehavior.TickAsync)", matchmakingFeature, StringComparison.Ordinal);
+        Assert.DoesNotContain(fixedScheduleCall, matchmakingFeature, StringComparison.Ordinal);
         Assert.Contains("\"default\"", matchmakingFeature, StringComparison.Ordinal);
-        Assert.DoesNotContain("ScheduleActorTick<MatchmakingActor>", battleRuntimeFeature, StringComparison.Ordinal);
-        Assert.Contains("nameof(RoomBehavior.TickAsync)", battleRuntimeFeature, StringComparison.Ordinal);
+        Assert.DoesNotContain(fixedScheduleCall, battleRuntimeFeature, StringComparison.Ordinal);
+        Assert.DoesNotContain(activeScheduleCall, battleRuntimeFeature, StringComparison.Ordinal);
     }
 
     [Fact]

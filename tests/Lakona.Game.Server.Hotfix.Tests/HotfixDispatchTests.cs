@@ -13,6 +13,16 @@ namespace Lakona.Game.Server.Hotfix.Tests;
 public sealed class HotfixDispatchTests
 {
     [Fact]
+    public void Dispatch_table_public_methods_do_not_validate_actor_tick_declarations()
+    {
+        var legacyMethod = string.Concat("ValidateFeature", "TickMethods");
+
+        Assert.DoesNotContain(
+            typeof(HotfixDispatchTable).GetMethods(),
+            method => method.Name == legacyMethod);
+    }
+
+    [Fact]
     public async Task Stable_proxy_uses_replaced_hotfix_service_logic_on_next_call()
     {
         var proxy = new ChatServiceProxy(new HotfixServiceInvoker());
@@ -449,45 +459,6 @@ public sealed class HotfixDispatchTests
     }
 
     [Fact]
-    public void FeatureTickValidationRejectsMissingTickMethod()
-    {
-        var table = new HotfixDispatchTable(1, Array.Empty<HotfixMethodBinding>());
-
-        var exception = Assert.Throws<HotfixMethodNotLoadedException>(() =>
-            table.ValidateFeatureTickMethods([
-                CreateTickFeatureDeclaration(typeof(TickDispatchActor), "MissingTickAsync")
-            ]));
-
-        Assert.Contains("MissingTickAsync", exception.Message);
-        Assert.Contains("is not loaded", exception.Message);
-    }
-
-    [Fact]
-    public void FeatureTickValidationRejectsMalformedTickMethod()
-    {
-        var method = typeof(MalformedTickBehavior).GetMethod(nameof(MalformedTickBehavior.TickAsync))!;
-        var binding = new HotfixMethodBinding(
-            HotfixDispatch.CreateKey(
-                typeof(TickDispatchActor),
-                nameof(MalformedTickBehavior.TickAsync),
-                typeof(ValueTask),
-                [typeof(HotfixActorTick)]),
-            method,
-            typeof(TickDispatchActor),
-            typeof(ValueTask),
-            [typeof(HotfixActorTick)]);
-        var table = new HotfixDispatchTable(1, [binding]);
-
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            table.ValidateFeatureTickMethods([
-                CreateTickFeatureDeclaration(typeof(TickDispatchActor), nameof(MalformedTickBehavior.TickAsync))
-            ]));
-
-        Assert.Contains("Hotfix tick method", exception.Message);
-        Assert.Contains("HotfixActorTick", exception.Message);
-    }
-
-    [Fact]
     public async Task FeatureCommandDispatchUnwrapsSynchronousExceptionAndDisposesFeature()
     {
         ThrowingDispatchFeature.DisposeCount = 0;
@@ -704,28 +675,8 @@ public sealed class HotfixDispatchTests
             true,
             new Dictionary<string, string>(StringComparer.Ordinal),
             Array.Empty<HotfixLocalActorDeclaration>(),
-            Array.Empty<HotfixActorTickDeclaration>(),
             commands,
             Array.Empty<ServiceDescriptor>());
-    }
-
-    private static HotfixFeatureDeclaration CreateTickFeatureDeclaration(Type actorType, string methodName)
-    {
-        return new HotfixFeatureDeclaration(
-            "tick-feature",
-            typeof(DispatchFeature),
-            Discoverable: true,
-            new Dictionary<string, string>(),
-            [],
-            [new HotfixActorTickDeclaration(
-                HotfixActorTickMode.FixedActor,
-                actorType,
-                "default",
-                methodName,
-                TimeSpan.FromMilliseconds(250),
-                TickBacklogPolicy.Coalesce)],
-            [],
-            []);
     }
 
     private static FeatureMessageRequest NewFeatureMessage(string feature, string kind)

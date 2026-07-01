@@ -795,7 +795,6 @@ public sealed class HotfixFeatureLifecycleTests
             [],
             [],
             [],
-            [],
             HotfixFeatureLifecycleDeclaration.FromFeatureType(type));
     }
 
