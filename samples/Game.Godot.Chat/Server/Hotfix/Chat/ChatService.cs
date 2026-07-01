@@ -1,18 +1,31 @@
 using System;
+using Lakona.Game.Server;
 using Server.App.Chat;
 using Shared.Contracts.Chat;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Server.Hotfix.Chat
 {
     [HotfixService(typeof(IChatService))]
     internal sealed class ChatService
     {
-        public static async ValueTask BindAsync(HotfixServiceCall<ChatBindRequest, IChatCallback> call)
+        private readonly ChatRoomActors _rooms;
+        private readonly ILakonaGameServer _gameServer;
+        private readonly ILogger<ChatService> _logger;
+
+        public ChatService(ChatRoomActors rooms, ILakonaGameServer gameServer,  ILogger<ChatService> logger)
         {
-            await call.GameServer.BindCurrentSessionAsync(
+            _rooms = rooms;
+            _gameServer = gameServer;
+            _logger = logger;
+        }
+
+        public async ValueTask BindAsync(HotfixServiceCall<ChatBindRequest, IChatCallback> call)
+        {
+            await _gameServer.BindCurrentSessionAsync(
                 call.ConnectionId,
                 call.Callback);
             var rooms = call.Services.GetRequiredService<ChatRoomActors>();
@@ -25,10 +38,10 @@ namespace Server.Hotfix.Chat
                 });
         }
 
-        public static async ValueTask SendAsync(HotfixServiceCall<ChatSendRequest, IChatCallback> call)
+        public async ValueTask SendAsync(HotfixServiceCall<ChatSendRequest, IChatCallback> call)
         {
-            var rooms = call.Services.GetRequiredService<ChatRoomActors>();
-            await rooms
+            _logger.LogInformation($"Sending {call.Request.Text.Length} characters");
+            await _rooms
                 .Get(ChatRoomIds.Global)
                 .BindChatAsync(new ChatRoomBindRequest
                 {
@@ -36,7 +49,7 @@ namespace Server.Hotfix.Chat
                     ChatCallback = call.Callback
                 });
             var text = FilterMessage(call.Request.Text ?? "");
-            await rooms
+            await _rooms
                 .Get(ChatRoomIds.Global)
                 .SendAsync(new ChatRoomSendRequest
                 {

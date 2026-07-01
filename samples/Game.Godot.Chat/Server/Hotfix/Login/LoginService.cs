@@ -1,4 +1,5 @@
 using System;
+using Lakona.Game.Server;
 using Server.App.Chat;
 using Server.Hotfix.Chat;
 using Shared.Contracts.Chat;
@@ -11,13 +12,21 @@ namespace Server.Hotfix.Login
     [HotfixService(typeof(ILoginService))]
     internal sealed class LoginService
     {
-        public static async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, ILoginCallback> call)
+        private readonly ChatRoomActors _rooms;
+        private readonly ILakonaGameServer _gameServer;
+
+        public LoginService(ChatRoomActors rooms, ILakonaGameServer gameServer)
+        {
+            _rooms = rooms;
+            _gameServer = gameServer;
+        }
+
+        public async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, ILoginCallback> call)
         {
             var playerName = string.IsNullOrWhiteSpace(call.Request.PlayerName)
                 ? "Player"
                 : call.Request.PlayerName.Trim();
-            var rooms = call.Services.GetRequiredService<ChatRoomActors>();
-            var reply = await rooms
+            var reply = await _rooms
                 .Get(ChatRoomIds.Global)
                 .LoginAsync(new ChatRoomLoginRequest
                 {
@@ -25,7 +34,7 @@ namespace Server.Hotfix.Login
                     PlayerName = playerName,
                     LoginCallback = call.Callback
                 });
-            await call.GameServer.StartSessionAsync(
+            await _gameServer.StartSessionAsync(
                 playerName,
                 call.ConnectionId,
                 call.Callback);
