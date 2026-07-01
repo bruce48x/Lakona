@@ -281,6 +281,39 @@ public sealed class HotfixGeneratorTests
     }
 
     [Fact]
+    public void Generator_reports_diagnostic_when_try_tell_wrapper_collides_with_contract_method()
+    {
+        var appSource = """
+            using System.Runtime.CompilerServices;
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            [assembly: InternalsVisibleTo("Game.Hotfix")]
+
+            namespace Game.Server;
+
+            public readonly record struct RoomId(string Value);
+            public sealed class TickRequest { }
+            public sealed class TickReply { }
+            public sealed class RoomActor : Actor<RoomId> { }
+
+            [HotfixActorContract(typeof(RoomActor))]
+            public interface IRoomActorContract
+            {
+                ValueTask RunAsync(TickRequest request);
+                ValueTask<TickReply> TryRunAsync(TickRequest request);
+            }
+            """;
+
+        var result = GeneratorTestHost.Run(appSource);
+
+        var diagnostic = Assert.Single(result.GeneratorDiagnostics, diagnostic => diagnostic.Id == "ULGHOTFIX015");
+        Assert.Contains("TryRunAsync", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.DoesNotContain("public readonly struct RoomLocalRef", result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Generator_emits_behavior_owned_extensions_for_local_and_remote_actor_refs()
     {
         var appSource = """

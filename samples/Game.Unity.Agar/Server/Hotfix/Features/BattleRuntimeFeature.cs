@@ -64,7 +64,7 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
             value is TimerId timerId &&
             timerId.IsValid)
         {
-            await LakonaTimer.DestroyTimerAsync(timerId, call.CancellationToken).ConfigureAwait(false);
+            await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None).ConfigureAwait(false);
         }
 
         call.State.Items.Remove(FeatureTimerKeys.BattleRuntimeScanTimerId);

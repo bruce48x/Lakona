@@ -241,18 +241,53 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
         private static bool ReportDuplicateActorContractSignatures(SourceProductionContext context, IEnumerable<HotfixActorContractInfo> actorGroup)
         {
-            var duplicateSignatures = actorGroup
-                .SelectMany(static contract => contract.Methods.Select(method => new { Contract = contract, Method = method }))
-                .GroupBy(static item => item.Method.PublicSignatureKey)
+            var methods = actorGroup
+                .SelectMany(static contract => contract.Methods.SelectMany(method => method.GeneratedPublicSignatureKeys.Select(signature => new
+                {
+                    Contract = contract,
+                    Method = method,
+                    Signature = signature
+                })))
+                .ToArray();
+            var duplicatePublicSignatures = actorGroup
+                .SelectMany(static contract => contract.Methods.Select(method => new
+                {
+                    Contract = contract,
+                    Method = method,
+                    Signature = method.PublicSignatureKey
+                }))
+                .GroupBy(static item => item.Signature)
                 .Where(static group => group.Count() > 1)
                 .ToArray();
 
-            if (duplicateSignatures.Length == 0)
+            if (duplicatePublicSignatures.Length > 0)
+            {
+                foreach (var duplicate in duplicatePublicSignatures)
+                {
+                    foreach (var duplicateMethod in duplicate.Skip(1))
+                    {
+                        context.ReportDiagnostic(Diagnostic.Create(
+                            HotfixGeneratorDiagnostics.DuplicateHotfixActorContractMethod,
+                            duplicateMethod.Method.Location,
+                            duplicateMethod.Contract.Contract.ToDisplayString(),
+                            duplicate.Key));
+                    }
+                }
+
+                return true;
+            }
+
+            var duplicateGeneratedSignatures = methods
+                .GroupBy(static item => item.Signature)
+                .Where(static group => group.Count() > 1)
+                .ToArray();
+
+            if (duplicateGeneratedSignatures.Length == 0)
             {
                 return false;
             }
 
-            foreach (var duplicate in duplicateSignatures)
+            foreach (var duplicate in duplicateGeneratedSignatures)
             {
                 foreach (var duplicateMethod in duplicate.Skip(1))
                 {
@@ -1599,17 +1634,43 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 }
             }
 
-            foreach (var duplicate in methods
+            var duplicatePublicSignatures = methods
                 .GroupBy(static method => method.PublicSignatureKey)
-                .Where(static group => group.Count() > 1))
+                .Where(static group => group.Count() > 1)
+                .ToArray();
+            if (duplicatePublicSignatures.Length > 0)
             {
-                foreach (var duplicateMethod in duplicate.Skip(1))
+                foreach (var duplicate in duplicatePublicSignatures)
                 {
-                    diagnostics.Add(new HotfixGeneratorDiagnosticInfo(
-                        HotfixGeneratorDiagnostics.DuplicateHotfixActorContractMethod,
-                        duplicateMethod.Location,
-                        contract.ToDisplayString(),
-                        duplicate.Key));
+                    foreach (var duplicateMethod in duplicate.Skip(1))
+                    {
+                        diagnostics.Add(new HotfixGeneratorDiagnosticInfo(
+                            HotfixGeneratorDiagnostics.DuplicateHotfixActorContractMethod,
+                            duplicateMethod.Location,
+                            contract.ToDisplayString(),
+                            duplicate.Key));
+                    }
+                }
+            }
+            else
+            {
+                foreach (var duplicate in methods
+                    .SelectMany(static method => method.GeneratedPublicSignatureKeys.Select(signature => new
+                    {
+                        Method = method,
+                        Signature = signature
+                    }))
+                    .GroupBy(static item => item.Signature)
+                    .Where(static group => group.Count() > 1))
+                {
+                    foreach (var duplicateMethod in duplicate.Skip(1))
+                    {
+                        diagnostics.Add(new HotfixGeneratorDiagnosticInfo(
+                            HotfixGeneratorDiagnostics.DuplicateHotfixActorContractMethod,
+                            duplicateMethod.Method.Location,
+                            contract.ToDisplayString(),
+                            duplicate.Key));
+                    }
                 }
             }
 
@@ -2854,6 +2915,18 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
             public string PublicSignatureKey =>
                 Name + "(" + RequestType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ")";
+
+            public IEnumerable<string> GeneratedPublicSignatureKeys
+            {
+                get
+                {
+                    yield return PublicSignatureKey;
+                    if (ResultType == null)
+                    {
+                        yield return "Try" + PublicSignatureKey;
+                    }
+                }
+            }
 
             public static HotfixActorMethodInfo Create(IMethodSymbol method)
             {
