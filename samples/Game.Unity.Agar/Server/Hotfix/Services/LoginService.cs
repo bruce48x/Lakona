@@ -234,19 +234,7 @@ public sealed class LoginService
         var actorId = ActorId.From(account);
         var owner = await SelectStateStoreOwnerAsync(account, services).ConfigureAwait(false);
         var ownerNode = owner.Node;
-        var directory = services.GetRequiredService<IActorDirectory>();
         var directoryCache = services.GetRequiredService<IActorDirectoryCache>();
-
-        var registerStatus = await directory.RegisterAsync(actorId, ownerNode).ConfigureAwait(false);
-        var registeredHere = registerStatus == ActorDirectoryRegisterStatus.Registered;
-        if (registerStatus == ActorDirectoryRegisterStatus.Conflict)
-        {
-            directoryCache.Remove(actorId);
-            logger.LogDebug(
-                "User actor {UserId} was created concurrently on another node; retrying through ActorDirectory.",
-                account);
-            return;
-        }
 
         try
         {
@@ -266,11 +254,6 @@ public sealed class LoginService
         }
         catch
         {
-            if (registeredHere)
-            {
-                await directory.UnregisterAsync(actorId, ownerNode).ConfigureAwait(false);
-            }
-
             directoryCache.Remove(actorId);
             throw;
         }

@@ -2,15 +2,15 @@ using Lakona.Game.Cluster;
 
 namespace Lakona.Game.Server.Actors;
 
-public sealed class ActorDirectoryUnavailableException : Exception
+public sealed class ActorDirectoryUnavailableException : ActorHostingException
 {
     public ActorDirectoryUnavailableException(string message)
-        : base(message)
+        : base(ActorId.From("directory/unavailable"), typeof(IActor), "ActorDirectory", message)
     {
     }
 
     public ActorDirectoryUnavailableException(string message, Exception innerException)
-        : base(message, innerException)
+        : base(ActorId.From("directory/unavailable"), typeof(IActor), "ActorDirectory", message, innerException)
     {
     }
 
@@ -21,19 +21,10 @@ public sealed class ActorDirectoryUnavailableException : Exception
         NodeId localNode,
         string message,
         Exception? innerException = null)
-        : base(message, innerException)
+        : base(actorId, actorType, operation, message, innerException)
     {
-        ActorId = actorId;
-        ActorType = actorType;
-        Operation = operation;
         LocalNode = localNode;
     }
-
-    public ActorId? ActorId { get; }
-
-    public Type? ActorType { get; }
-
-    public string? Operation { get; }
 
     public NodeId? LocalNode { get; }
 }

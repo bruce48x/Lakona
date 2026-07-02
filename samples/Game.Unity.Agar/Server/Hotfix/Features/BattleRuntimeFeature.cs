@@ -90,11 +90,13 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
             return CreateReply(payload, false, $"Room actor {payload.RoomId} is owned by another node.");
         }
 
+        var actorCreated = false;
         try
         {
             await _actorHosting
                 .CreateAsync<RoomActor>(actorId, call.CancellationToken)
                 .ConfigureAwait(false);
+            actorCreated = true;
 
             var roomId = new RoomId(payload.RoomId);
             var create = await _rooms.Local(roomId).CreateAsync(new RoomCreateRequest
@@ -109,6 +111,8 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
             }).ConfigureAwait(false);
             if (!create.Succeeded)
             {
+                await DestroyCreatedRoomActorAsync(actorId).ConfigureAwait(false);
+                actorCreated = false;
                 return CreateReply(payload, false, create.Message);
             }
 
@@ -120,6 +124,8 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
             }).ConfigureAwait(false);
             if (!start.Succeeded)
             {
+                await DestroyCreatedRoomActorAsync(actorId).ConfigureAwait(false);
+                actorCreated = false;
                 return CreateReply(payload, false, start.Message);
             }
 
@@ -129,6 +135,11 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
         }
         catch
         {
+            if (actorCreated)
+            {
+                await DestroyCreatedRoomActorAsync(actorId).ConfigureAwait(false);
+            }
+
             if (registeredHere)
             {
                 await _directory.UnregisterAsync(actorId, _localNode.NodeId, call.CancellationToken).ConfigureAwait(false);
@@ -136,6 +147,18 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
 
             _directoryCache.Remove(actorId);
             throw;
+        }
+    }
+
+    private async ValueTask DestroyCreatedRoomActorAsync(ActorId actorId)
+    {
+        try
+        {
+            await _actorHosting.DestroyAsync<RoomActor>(actorId, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to compensate room actor {RoomId} creation.", actorId.Value);
         }
     }
 

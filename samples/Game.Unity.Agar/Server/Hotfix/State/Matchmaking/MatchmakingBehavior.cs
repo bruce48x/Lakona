@@ -324,15 +324,37 @@ public static partial class MatchmakingBehavior
         }
 
         var rooms = self.Context.Services.GetRequiredService<RoomActors>();
-        await self.Context.Services
-            .GetRequiredService<ActorHosting>()
-            .CreateAsync<RoomActor>(ActorId.From(request.RoomId))
-            .ConfigureAwait(false);
+        var actorHosting = self.Context.Services.GetRequiredService<ActorHosting>();
+        var actorId = ActorId.From(request.RoomId);
+        var actorCreated = false;
+        try
+        {
+            await actorHosting
+                .CreateAsync<RoomActor>(actorId)
+                .ConfigureAwait(false);
+            actorCreated = true;
 
-        return await rooms
-            .Local(new RoomId(request.RoomId))
-            .CreateAsync(request)
-            .ConfigureAwait(false);
+            var create = await rooms
+                .Local(new RoomId(request.RoomId))
+                .CreateAsync(request)
+                .ConfigureAwait(false);
+            if (!create.Succeeded)
+            {
+                await DestroyCreatedRoomActorAsync(self, actorId).ConfigureAwait(false);
+                actorCreated = false;
+            }
+
+            return create;
+        }
+        catch
+        {
+            if (actorCreated)
+            {
+                await DestroyCreatedRoomActorAsync(self, actorId).ConfigureAwait(false);
+            }
+
+            throw;
+        }
     }
 
     private static async ValueTask<RoomSettlementResult> AllocateRoomAsync(MatchmakingActor self, RoomCreateRequest request)
@@ -346,12 +368,26 @@ public static partial class MatchmakingBehavior
                 return createResult;
             }
 
-            return await StartRoomAsync(self, new RoomStartRequest
+            try
             {
-                RoomId = request.RoomId,
-                StartedByUserId = request.CreatedByUserId,
-                StartedAtUtc = request.CreatedAtUtc
-            }, request.RuntimeGateway).ConfigureAwait(false);
+                var startResult = await StartRoomAsync(self, new RoomStartRequest
+                {
+                    RoomId = request.RoomId,
+                    StartedByUserId = request.CreatedByUserId,
+                    StartedAtUtc = request.CreatedAtUtc
+                }, request.RuntimeGateway).ConfigureAwait(false);
+                if (!startResult.Succeeded)
+                {
+                    await DestroyCreatedRoomActorAsync(self, ActorId.From(request.RoomId)).ConfigureAwait(false);
+                }
+
+                return startResult;
+            }
+            catch
+            {
+                await DestroyCreatedRoomActorAsync(self, ActorId.From(request.RoomId)).ConfigureAwait(false);
+                throw;
+            }
         }
 
         return await AllocateRemoteRoomAsync(self, request).ConfigureAwait(false);
@@ -443,6 +479,20 @@ public static partial class MatchmakingBehavior
 
         var rooms = self.Context.Services.GetRequiredService<RoomActors>();
         return rooms.Local(new RoomId(request.RoomId)).StartAsync(request);
+    }
+
+    private static async ValueTask DestroyCreatedRoomActorAsync(MatchmakingActor self, ActorId actorId)
+    {
+        try
+        {
+            await self.Context.Services
+                .GetRequiredService<ActorHosting>()
+                .DestroyAsync<RoomActor>(actorId, CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+        catch
+        {
+        }
     }
 
     private static GatewayEndpointDescriptor? ResolveLocalKcpEndpoint(IServiceProvider services)

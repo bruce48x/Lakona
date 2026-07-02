@@ -232,6 +232,46 @@ public sealed class AgarHotfixBoundaryTests
     }
 
     [Fact]
+    public void State_store_actor_placement_does_not_pre_register_or_rollback_remote_routes_from_caller()
+    {
+        var servicesRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Services/PlayerService.cs")
+            .DirectoryName!;
+        var loginService = File.ReadAllText(Path.Combine(servicesRoot, "LoginService.cs"));
+        var playerService = File.ReadAllText(Path.Combine(servicesRoot, "PlayerService.cs"));
+
+        foreach (var service in new[] { loginService, playerService })
+        {
+            Assert.DoesNotContain("RegisterAsync(actorId, ownerNode", service, StringComparison.Ordinal);
+            Assert.DoesNotContain("UnregisterAsync(actorId, ownerNode", service, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void Room_actor_creation_paths_destroy_actor_when_create_or_start_fails()
+    {
+        var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
+            .Directory!.Parent!.Parent!.FullName;
+        var battleRuntime = File.ReadAllText(Path.Combine(
+            sampleRoot,
+            "Server",
+            "Hotfix",
+            "Features",
+            "BattleRuntimeFeature.cs"));
+        var matchmaking = File.ReadAllText(Path.Combine(
+            sampleRoot,
+            "Server",
+            "Hotfix",
+            "State",
+            "Matchmaking",
+            "MatchmakingBehavior.cs"));
+
+        Assert.Contains(".DestroyAsync<RoomActor>(actorId, CancellationToken.None)", battleRuntime, StringComparison.Ordinal);
+        Assert.Contains(".DestroyAsync<RoomActor>(actorId, CancellationToken.None)", matchmaking, StringComparison.Ordinal);
+        Assert.Contains("actorCreated", battleRuntime, StringComparison.Ordinal);
+        Assert.Contains("actorCreated", matchmaking, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Agar_app_does_not_define_stable_state_store_bridges_or_hand_written_hotfix_dispatch()
     {
         var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")

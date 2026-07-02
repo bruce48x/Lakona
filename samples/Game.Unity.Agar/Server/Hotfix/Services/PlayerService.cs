@@ -147,19 +147,7 @@ public sealed class PlayerService
         var actorId = ActorId.From(leaderboardId);
         var owner = await SelectStateStoreOwnerAsync(leaderboardId, services).ConfigureAwait(false);
         var ownerNode = owner.Node;
-        var directory = services.GetRequiredService<IActorDirectory>();
         var directoryCache = services.GetRequiredService<IActorDirectoryCache>();
-
-        var registerStatus = await directory.RegisterAsync(actorId, ownerNode).ConfigureAwait(false);
-        var registeredHere = registerStatus == ActorDirectoryRegisterStatus.Registered;
-        if (registerStatus == ActorDirectoryRegisterStatus.Conflict)
-        {
-            directoryCache.Remove(actorId);
-            logger.LogDebug(
-                "Leaderboard actor {LeaderboardId} was created concurrently on another node; retrying through ActorDirectory.",
-                leaderboardId);
-            return;
-        }
 
         try
         {
@@ -180,11 +168,6 @@ public sealed class PlayerService
         }
         catch
         {
-            if (registeredHere)
-            {
-                await directory.UnregisterAsync(actorId, ownerNode).ConfigureAwait(false);
-            }
-
             directoryCache.Remove(actorId);
             throw;
         }

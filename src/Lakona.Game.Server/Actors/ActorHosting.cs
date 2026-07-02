@@ -273,7 +273,18 @@ public sealed class ActorHosting
         if (registerStatus == ActorDirectoryRegisterStatus.Conflict)
         {
             var record = await _directory.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
-            if (record is not null && record.Node != _localNode.NodeId)
+            if (record is null)
+            {
+                _directoryCache.Remove(actorId);
+                throw new ActorDirectoryUnavailableException(
+                    actorId,
+                    actorType,
+                    operation,
+                    _localNode.NodeId,
+                    "Actor directory returned a conflicting state without a resolvable owner.");
+            }
+
+            if (record.Node != _localNode.NodeId)
             {
                 _directoryCache.Remove(actorId);
                 throw new ActorHostedElsewhereException(actorId, actorType, operation, _localNode.NodeId, record.Node);
@@ -320,11 +331,38 @@ public sealed class ActorHosting
     {
         try
         {
-            await _directory.RegisterAsync(actorId, _localNode.NodeId, cancellationToken).ConfigureAwait(false);
-            _directoryCache.Set(actorId, _localNode.NodeId);
+            var registerStatus = await _directory
+                .RegisterAsync(actorId, _localNode.NodeId, cancellationToken)
+                .ConfigureAwait(false);
+            if (registerStatus == ActorDirectoryRegisterStatus.Registered)
+            {
+                _directoryCache.Set(actorId, _localNode.NodeId);
+                return;
+            }
+
+            var record = await _directory.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
+            if (record is not null && record.Node == _localNode.NodeId)
+            {
+                _directoryCache.Set(actorId, _localNode.NodeId);
+                return;
+            }
+
+            _directoryCache.Remove(actorId);
+            if (record is null)
+            {
+                _logger?.LogWarning("Actor route restore for {ActorId} conflicted without a resolvable owner.", actorId.Value);
+            }
+            else
+            {
+                _logger?.LogWarning(
+                    "Actor route restore for {ActorId} found remote owner {OwnerNode}.",
+                    actorId.Value,
+                    record.Node.Value);
+            }
         }
         catch (Exception ex)
         {
+            _directoryCache.Remove(actorId);
             _logger?.LogWarning(ex, "Failed to restore actor route for {ActorId}.", actorId.Value);
         }
     }

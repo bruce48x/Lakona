@@ -280,6 +280,30 @@ public sealed class ActorHostingTests
     }
 
     [Fact]
+    public async Task DestroyAsync_does_not_restore_local_cache_when_remote_owner_appears_after_stop_timeout()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var directory = new RemoteOwnerAfterLocalUnregisterDirectory(RemoteNode);
+        await using var provider = CreateProvider(
+            options => options.CallTimeout = TimeSpan.FromMilliseconds(20),
+            directory);
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        var cache = provider.GetRequiredService<IActorDirectoryCache>();
+        var actorId = ActorId.From("hosting/timeout-remote-steals");
+
+        await hosting.CreateAsync<BlockingDeactivateActor>(actorId, cancellationToken);
+
+        await Assert.ThrowsAsync<ActorHostingStopException>(async () =>
+            await hosting.DestroyAsync<BlockingDeactivateActor>(actorId, cancellationToken));
+
+        var record = await directory.ResolveAsync(actorId, cancellationToken);
+        Assert.NotNull(record);
+        Assert.Equal(RemoteNode, record.Node);
+        Assert.False(cache.TryGet(actorId, out _));
+        BlockingDeactivateActor.ReleaseAll();
+    }
+
+    [Fact]
     public async Task DestroyAsync_restores_local_route_cache_and_preserves_actor_when_deactivation_throws()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -303,6 +327,47 @@ public sealed class ActorHostingTests
         Assert.Equal(LocalNode, cachedNode);
         Assert.Contains(actorId, runtime.GetActiveActorIds(typeof(ThrowingDeactivateActor)));
         Assert.Equal(ActorState.Active, runtime.GetState(actorId));
+    }
+
+    [Fact]
+    public async Task DestroyAsync_does_not_restore_local_cache_when_remote_owner_appears_after_stop_exception()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var directory = new RemoteOwnerAfterLocalUnregisterDirectory(RemoteNode);
+        await using var provider = CreateProvider(directory: directory);
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        var cache = provider.GetRequiredService<IActorDirectoryCache>();
+        var actorId = ActorId.From("hosting/throw-remote-steals");
+
+        await hosting.CreateAsync<ThrowingDeactivateActor>(actorId, cancellationToken);
+
+        await Assert.ThrowsAsync<ActorHostingStopException>(async () =>
+            await hosting.DestroyAsync<ThrowingDeactivateActor>(actorId, cancellationToken));
+
+        var record = await directory.ResolveAsync(actorId, cancellationToken);
+        Assert.NotNull(record);
+        Assert.Equal(RemoteNode, record.Node);
+        Assert.False(cache.TryGet(actorId, out _));
+    }
+
+    [Fact]
+    public async Task EnsureAsync_throws_directory_unavailable_and_clears_cache_when_conflict_has_no_owner()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var directory = new ConflictWithoutOwnerOnNextRegisterDirectory();
+        await using var provider = CreateProvider(directory: directory);
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        var cache = provider.GetRequiredService<IActorDirectoryCache>();
+        var actorId = ActorId.From("hosting/ensure-conflict-null");
+
+        await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken);
+        cache.Set(actorId, LocalNode);
+        directory.ConflictWithoutOwnerOnNextRegister = true;
+
+        await Assert.ThrowsAsync<ActorDirectoryUnavailableException>(async () =>
+            await hosting.EnsureAsync<HostedTestActor>(actorId, cancellationToken));
+
+        Assert.False(cache.TryGet(actorId, out _));
     }
 
     [Fact]
@@ -444,6 +509,77 @@ public sealed class ActorHostingTests
             {
                 Interlocked.Decrement(ref directory._currentOperations);
             }
+        }
+    }
+
+    private sealed class RemoteOwnerAfterLocalUnregisterDirectory(NodeId remoteNode) : IActorDirectory
+    {
+        private readonly InMemoryActorDirectory _inner = new();
+
+        public ValueTask<ActorDirectoryRecord?> ResolveAsync(
+            ActorId actorId,
+            CancellationToken cancellationToken = default)
+        {
+            return _inner.ResolveAsync(actorId, cancellationToken);
+        }
+
+        public ValueTask<ActorDirectoryRegisterStatus> RegisterAsync(
+            ActorId actorId,
+            NodeId node,
+            CancellationToken cancellationToken = default)
+        {
+            return _inner.RegisterAsync(actorId, node, cancellationToken);
+        }
+
+        public async ValueTask<ActorDirectoryUnregisterStatus> UnregisterAsync(
+            ActorId actorId,
+            NodeId node,
+            CancellationToken cancellationToken = default)
+        {
+            var status = await _inner.UnregisterAsync(actorId, node, cancellationToken).ConfigureAwait(false);
+            if (status == ActorDirectoryUnregisterStatus.Unregistered)
+            {
+                await _inner.RegisterAsync(actorId, remoteNode, cancellationToken).ConfigureAwait(false);
+            }
+
+            return status;
+        }
+    }
+
+    private sealed class ConflictWithoutOwnerOnNextRegisterDirectory : IActorDirectory
+    {
+        private readonly InMemoryActorDirectory _inner = new();
+
+        public bool ConflictWithoutOwnerOnNextRegister { get; set; }
+
+        public ValueTask<ActorDirectoryRecord?> ResolveAsync(
+            ActorId actorId,
+            CancellationToken cancellationToken = default)
+        {
+            return ConflictWithoutOwnerOnNextRegister
+                ? new ValueTask<ActorDirectoryRecord?>((ActorDirectoryRecord?)null)
+                : _inner.ResolveAsync(actorId, cancellationToken);
+        }
+
+        public ValueTask<ActorDirectoryRegisterStatus> RegisterAsync(
+            ActorId actorId,
+            NodeId node,
+            CancellationToken cancellationToken = default)
+        {
+            if (ConflictWithoutOwnerOnNextRegister)
+            {
+                return new ValueTask<ActorDirectoryRegisterStatus>(ActorDirectoryRegisterStatus.Conflict);
+            }
+
+            return _inner.RegisterAsync(actorId, node, cancellationToken);
+        }
+
+        public ValueTask<ActorDirectoryUnregisterStatus> UnregisterAsync(
+            ActorId actorId,
+            NodeId node,
+            CancellationToken cancellationToken = default)
+        {
+            return _inner.UnregisterAsync(actorId, node, cancellationToken);
         }
     }
 }
