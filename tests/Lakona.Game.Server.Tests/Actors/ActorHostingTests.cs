@@ -162,6 +162,27 @@ public sealed class ActorHostingTests
     }
 
     [Fact]
+    public async Task EnsureAsync_and_DestroyAsync_require_exact_actor_type_for_existing_local_actor()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = CreateProvider();
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        var directory = provider.GetRequiredService<IActorDirectory>();
+        var cache = provider.GetRequiredService<IActorDirectoryCache>();
+        var actorId = ActorId.From("hosting/exact-type");
+
+        await hosting.CreateAsync<LocalOnlyHostedTestActor>(actorId, cancellationToken);
+
+        await Assert.ThrowsAsync<ActorHostingTypeMismatchException>(async () =>
+            await hosting.EnsureAsync<HostedTestActor>(actorId, cancellationToken));
+        await Assert.ThrowsAsync<ActorHostingTypeMismatchException>(async () =>
+            await hosting.DestroyAsync<HostedTestActor>(actorId, cancellationToken));
+
+        Assert.Null(await directory.ResolveAsync(actorId, cancellationToken));
+        Assert.False(cache.TryGet(actorId, out _));
+    }
+
+    [Fact]
     public async Task EnsureAsync_fails_and_clears_stale_cache_when_directory_owner_is_remote()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -259,6 +280,32 @@ public sealed class ActorHostingTests
     }
 
     [Fact]
+    public async Task DestroyAsync_restores_local_route_cache_and_preserves_actor_when_deactivation_throws()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = CreateProvider();
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        var directory = provider.GetRequiredService<IActorDirectory>();
+        var cache = provider.GetRequiredService<IActorDirectoryCache>();
+        var actorId = ActorId.From("hosting/deactivate-throws");
+
+        await hosting.CreateAsync<ThrowingDeactivateActor>(actorId, cancellationToken);
+
+        var exception = await Assert.ThrowsAsync<ActorHostingStopException>(async () =>
+            await hosting.DestroyAsync<ThrowingDeactivateActor>(actorId, cancellationToken));
+
+        Assert.IsType<InvalidOperationException>(exception.InnerException);
+        var record = await directory.ResolveAsync(actorId, cancellationToken);
+        Assert.NotNull(record);
+        Assert.Equal(LocalNode, record.Node);
+        Assert.True(cache.TryGet(actorId, out var cachedNode));
+        Assert.Equal(LocalNode, cachedNode);
+        Assert.Contains(actorId, runtime.GetActiveActorIds(typeof(ThrowingDeactivateActor)));
+        Assert.Equal(ActorState.Active, runtime.GetState(actorId));
+    }
+
+    [Fact]
     public async Task CreateEnsureDestroy_for_same_actor_id_are_serialized()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -339,6 +386,14 @@ public sealed class ActorHostingTests
         private static TaskCompletionSource NewRelease()
         {
             return new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+    }
+
+    private sealed class ThrowingDeactivateActor : GameActor
+    {
+        protected override ValueTask OnDeactivateAsync(CancellationToken cancellationToken)
+        {
+            throw new InvalidOperationException("deactivation failed");
         }
     }
 

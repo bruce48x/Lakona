@@ -66,7 +66,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
 
         if (_actors.TryGetValue(actorId, out var existing))
         {
-            return IsCompatibleActorType(existing.ActorType, actorType)
+            return IsExactActorType(existing.ActorType, actorType)
                 ? new ActorHostingLocalCreateResult(ActorHostingLocalCreateStatus.AlreadyExistsSameType, actorId, actorType)
                 : new ActorHostingLocalCreateResult(
                     ActorHostingLocalCreateStatus.AlreadyExistsDifferentType,
@@ -94,7 +94,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             return new ActorHostingLocalDestroyResult(ActorHostingLocalDestroyStatus.NotFound, actorId, actorType);
         }
 
-        if (!IsCompatibleActorType(cell.ActorType, actorType))
+        if (!IsExactActorType(cell.ActorType, actorType))
         {
             return new ActorHostingLocalDestroyResult(
                 ActorHostingLocalDestroyStatus.TypeMismatch,
@@ -396,7 +396,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             return cell;
         }, new RuntimeState(this, actorType));
 
-        if (!IsCompatibleActorType(cell.ActorType, actorType))
+        if (!IsExactActorType(cell.ActorType, actorType))
         {
             throw new InvalidOperationException(
                 $"Actor id '{id}' is already bound to '{cell.ActorType.FullName}', not '{actorType.FullName}'.");
@@ -444,6 +444,11 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
     private static bool IsCompatibleActorType(Type existingActorType, Type requestedActorType)
     {
         return existingActorType.IsAssignableTo(requestedActorType) || requestedActorType.IsAssignableFrom(existingActorType);
+    }
+
+    private static bool IsExactActorType(Type existingActorType, Type requestedActorType)
+    {
+        return existingActorType == requestedActorType;
     }
 
     private void OnDeadLetterPublished(K.DeadLetter deadLetter)

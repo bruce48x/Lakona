@@ -367,7 +367,7 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
     {
         await call.Services
             .GetRequiredService<ActorHosting>()
-            .EnsureAsync<MatchmakingActor>(ActorId.From("default"), call.CancellationToken);
+            .CreateAsync<MatchmakingActor>(ActorId.From("default"), call.CancellationToken);
 
         var timerId = await LakonaTimer.CreatePeriodicTimerAsync<BattleRuntimeTimers, BattleRuntimeTick>(
             TimeSpan.Zero,

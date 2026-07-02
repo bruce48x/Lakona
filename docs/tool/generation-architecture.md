@@ -657,9 +657,9 @@ Generated hotfix features own fixed local actor creation through lifecycle
 methods. The Chat feature starts its room actor with:
 
 ```csharp
-await call.Services
-    .GetRequiredService<ActorHosting>()
-    .EnsureAsync<ChatRoomActor>(ActorId.From("chat-room/global"), call.CancellationToken);
+    await call.Services
+        .GetRequiredService<ActorHosting>()
+        .CreateAsync<ChatRoomActor>(ActorId.From("chat-room/global"), call.CancellationToken);
 ```
 
 Default local generation must not emit these keys:

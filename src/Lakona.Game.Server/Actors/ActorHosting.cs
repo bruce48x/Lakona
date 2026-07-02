@@ -50,7 +50,7 @@ public sealed class ActorHosting
 
         if (_runtime.TryGetLocalActor(actorId, out var existingActorType, out var state) && state == ActorState.Active)
         {
-            if (!IsCompatibleActorType(existingActorType, actorType))
+            if (!IsExactActorType(existingActorType, actorType))
             {
                 throw new ActorHostingTypeMismatchException(actorId, actorType, existingActorType, nameof(EnsureAsync));
             }
@@ -76,7 +76,7 @@ public sealed class ActorHosting
         await using var gate = await _operationGate.EnterAsync(actorId, cancellationToken).ConfigureAwait(false);
 
         if (_runtime.TryGetLocalActor(actorId, out var existingActorType, out _) &&
-            !IsCompatibleActorType(existingActorType, actorType))
+            !IsExactActorType(existingActorType, actorType))
         {
             throw new ActorHostingTypeMismatchException(actorId, actorType, existingActorType, nameof(DestroyAsync));
         }
@@ -91,12 +91,35 @@ public sealed class ActorHosting
             _directoryCache.Remove(actorId);
         }
 
-        var destroyResult = await _runtime
-            .DestroyLocalAsync(actorType, actorId, DestroyDrainTimeout, cancellationToken)
-            .ConfigureAwait(false);
+        ActorHostingLocalDestroyResult destroyResult;
+        try
+        {
+            destroyResult = await _runtime
+                .DestroyLocalAsync(actorType, actorId, DestroyDrainTimeout, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            if (localRouteRemoved)
+            {
+                await RestoreLocalRouteAsync(actorId, CancellationToken.None).ConfigureAwait(false);
+            }
+
+            throw new ActorHostingStopException(
+                actorId,
+                actorType,
+                nameof(DestroyAsync),
+                $"Failed while stopping actor id '{actorId.Value}' as '{actorType.FullName}'.",
+                ex);
+        }
 
         if (destroyResult.Status == ActorHostingLocalDestroyStatus.TypeMismatch)
         {
+            if (localRouteRemoved)
+            {
+                await RestoreLocalRouteAsync(actorId, CancellationToken.None).ConfigureAwait(false);
+            }
+
             throw new ActorHostingTypeMismatchException(
                 actorId,
                 actorType,
@@ -108,7 +131,7 @@ public sealed class ActorHosting
         {
             if (localRouteRemoved)
             {
-                await RestoreLocalRouteAsync(actorId, cancellationToken).ConfigureAwait(false);
+                await RestoreLocalRouteAsync(actorId, CancellationToken.None).ConfigureAwait(false);
             }
 
             throw new ActorHostingStopException(
@@ -132,7 +155,7 @@ public sealed class ActorHosting
     {
         if (_runtime.TryGetLocalActor(actorId, out var existingActorType, out var state) && state == ActorState.Active)
         {
-            if (!IsCompatibleActorType(existingActorType, actorType))
+            if (!IsExactActorType(existingActorType, actorType))
             {
                 throw new ActorHostingTypeMismatchException(
                     actorId,
@@ -311,8 +334,8 @@ public sealed class ActorHosting
         return actorType.GetCustomAttributes(typeof(ActorLocalOnlyAttribute), inherit: false).Length > 0;
     }
 
-    private static bool IsCompatibleActorType(Type existingActorType, Type requestedActorType)
+    private static bool IsExactActorType(Type existingActorType, Type requestedActorType)
     {
-        return existingActorType.IsAssignableTo(requestedActorType) || requestedActorType.IsAssignableFrom(existingActorType);
+        return existingActorType == requestedActorType;
     }
 }

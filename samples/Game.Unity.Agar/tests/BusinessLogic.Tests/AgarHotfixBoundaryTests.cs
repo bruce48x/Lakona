@@ -417,7 +417,8 @@ public sealed class AgarHotfixBoundaryTests
 
         Assert.False(Directory.Exists(Path.Combine(sampleRoot, "Server", "App", "Hosting")));
         Assert.Contains(".GetRequiredService<ActorHosting>()", matchmakingFeature, StringComparison.Ordinal);
-        Assert.Contains(".EnsureAsync<MatchmakingActor>(ActorId.From(MatchmakingActorId), call.CancellationToken)", matchmakingFeature, StringComparison.Ordinal);
+        Assert.Contains(".CreateAsync<MatchmakingActor>(ActorId.From(MatchmakingActorId), call.CancellationToken)", matchmakingFeature, StringComparison.Ordinal);
+        Assert.DoesNotContain(".EnsureAsync<MatchmakingActor>", matchmakingFeature, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Ensure", "Local", "Actor"), matchmakingFeature, StringComparison.Ordinal);
         Assert.DoesNotContain(fixedScheduleCall, matchmakingFeature, StringComparison.Ordinal);
         Assert.Contains("\"default\"", matchmakingFeature, StringComparison.Ordinal);

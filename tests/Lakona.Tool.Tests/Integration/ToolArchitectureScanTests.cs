@@ -176,7 +176,8 @@ public sealed class ToolArchitectureScanTests
             Assert.DoesNotContain("UseGeneratedHotfixServices", generatedText, StringComparison.Ordinal);
             Assert.Contains("[HotfixFeature(\"chat\")]", generatedText, StringComparison.Ordinal);
             Assert.Contains(".GetRequiredService<ActorHosting>()", generatedText, StringComparison.Ordinal);
-            Assert.Contains(".EnsureAsync<ChatRoomActor>(ActorId.From(ChatRoomIds.Global), call.CancellationToken)", generatedText, StringComparison.Ordinal);
+            Assert.Contains(".CreateAsync<ChatRoomActor>(ActorId.From(ChatRoomIds.Global), call.CancellationToken)", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain(".EnsureAsync<ChatRoomActor>", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(string.Concat("Ensure", "Local", "Actor"), generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(string.Concat("Create", "Local", "Async<ChatRoomActor>"), generatedText, StringComparison.Ordinal);
             Assert.Contains("ChatSessionLifecycle", generatedText, StringComparison.Ordinal);
@@ -326,7 +327,8 @@ public sealed class ToolArchitectureScanTests
         Assert.DoesNotContain("public override void Configure", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain("IFeatureMessageHandler", hotfixText, StringComparison.Ordinal);
         Assert.Contains(".GetRequiredService<ActorHosting>()", hotfixText, StringComparison.Ordinal);
-        Assert.Contains(".EnsureAsync<ChatRoomActor>(ActorId.From(ChatRoomIds.Global), call.CancellationToken)", hotfixText, StringComparison.Ordinal);
+        Assert.Contains(".CreateAsync<ChatRoomActor>(ActorId.From(ChatRoomIds.Global), call.CancellationToken)", hotfixText, StringComparison.Ordinal);
+        Assert.DoesNotContain(".EnsureAsync<ChatRoomActor>", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Ensure", "Local", "Actor"), hotfixText, StringComparison.Ordinal);
         Assert.Contains("internal static partial class ChatRoomBehavior", hotfixText, StringComparison.Ordinal);
         Assert.Contains("ChatSessionLifecycle", hotfixText, StringComparison.Ordinal);
@@ -564,7 +566,8 @@ public sealed class ToolArchitectureScanTests
 
         Assert.Contains("public const string Global = \"chat-room/global\";", appChat, StringComparison.Ordinal);
         Assert.Contains(".GetRequiredService<ActorHosting>()", hotfixChat, StringComparison.Ordinal);
-        Assert.Contains(".EnsureAsync<ChatRoomActor>(ActorId.From(ChatRoomIds.Global), call.CancellationToken)", hotfixChat, StringComparison.Ordinal);
+        Assert.Contains(".CreateAsync<ChatRoomActor>(ActorId.From(ChatRoomIds.Global), call.CancellationToken)", hotfixChat, StringComparison.Ordinal);
+        Assert.DoesNotContain(".EnsureAsync<ChatRoomActor>", hotfixChat, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Ensure", "Local", "Actor"), hotfixChat, StringComparison.Ordinal);
         Assert.Contains(".Get(ChatRoomIds.Global)", hotfixChat, StringComparison.Ordinal);
         Assert.DoesNotContain("private const string RoomKey", hotfixChat, StringComparison.Ordinal);

@@ -14,3 +14,8 @@ public interface IHotfixCandidateRollbackHandle : IAsyncDisposable
 
     ValueTask RollbackAsync(CancellationToken cancellationToken = default);
 }
+
+public interface IHotfixCandidateRollbackActivationHandle
+{
+    IDisposable ActivateCandidateRollback();
+}

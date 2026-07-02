@@ -46,6 +46,32 @@ internal sealed class HotfixCandidateRollbackScope : IAsyncDisposable
         }
     }
 
+    public IDisposable Activate()
+    {
+        var activations = new List<IDisposable>();
+        try
+        {
+            foreach (var handle in _handles)
+            {
+                if (handle is IHotfixCandidateRollbackActivationHandle activationHandle)
+                {
+                    activations.Add(activationHandle.ActivateCandidateRollback());
+                }
+            }
+
+            return new ActivationScope(activations);
+        }
+        catch
+        {
+            for (var index = activations.Count - 1; index >= 0; index--)
+            {
+                activations[index].Dispose();
+            }
+
+            throw;
+        }
+    }
+
     public async ValueTask RollbackAsync(CancellationToken cancellationToken)
     {
         for (var index = _handles.Count - 1; index >= 0; index--)
@@ -76,6 +102,25 @@ internal sealed class HotfixCandidateRollbackScope : IAsyncDisposable
             }
             catch
             {
+            }
+        }
+    }
+
+    private sealed class ActivationScope(IReadOnlyList<IDisposable> activations) : IDisposable
+    {
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            for (var index = activations.Count - 1; index >= 0; index--)
+            {
+                activations[index].Dispose();
             }
         }
     }

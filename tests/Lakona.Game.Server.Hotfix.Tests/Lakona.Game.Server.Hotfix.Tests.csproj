@@ -15,6 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../../src/Lakona.Game.Server/Lakona.Game.Server.csproj" Aliases="GameServer" />
     <ProjectReference Include="../../src/Lakona.Game.Server.Hotfix/Lakona.Game.Server.Hotfix.csproj" />
     <ProjectReference Include="../../src/Lakona.Game.Server.Hotfix.Abstractions/Lakona.Game.Server.Hotfix.Abstractions.csproj" />
   </ItemGroup>

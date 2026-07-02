@@ -195,7 +195,7 @@ public static async ValueTask StartAsync(HotfixFeatureStartCall call)
 {
     await call.Services
         .GetRequiredService<ActorHosting>()
-        .EnsureAsync<ChatRoomActor>(ActorId.From("chat-room/global"), call.CancellationToken);
+        .CreateAsync<ChatRoomActor>(ActorId.From("chat-room/global"), call.CancellationToken);
 }
 ```
 

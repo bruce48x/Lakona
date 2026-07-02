@@ -62,12 +62,16 @@ internal sealed class HotfixFeatureLifecycleCoordinator
                     .ConfigureAwait(false);
                 try
                 {
-                    await invoker.StartAsync(
-                        feature,
-                        states[feature.Name],
-                        candidateRuntime.Services,
-                        stagingTimerBackend,
-                        cancellationToken).ConfigureAwait(false);
+                    using (rollbackScope.Activate())
+                    {
+                        await invoker.StartAsync(
+                            feature,
+                            states[feature.Name],
+                            candidateRuntime.Services,
+                            stagingTimerBackend,
+                            cancellationToken).ConfigureAwait(false);
+                    }
+
                     started.Add(feature);
                     ValidateFeatureState(feature, states[feature.Name]);
                     await rollbackScope.CommitAsync(cancellationToken).ConfigureAwait(false);

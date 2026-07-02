@@ -100,7 +100,8 @@ public sealed class HotfixRendererTests
         Assert.DoesNotContain("public override void Configure", feature, StringComparison.Ordinal);
         Assert.DoesNotContain("IFeatureMessageHandler", feature, StringComparison.Ordinal);
         Assert.Contains(".GetRequiredService<ActorHosting>()", feature, StringComparison.Ordinal);
-        Assert.Contains(".EnsureAsync<ChatRoomActor>(ActorId.From(ChatRoomIds.Global), call.CancellationToken)", feature, StringComparison.Ordinal);
+        Assert.Contains(".CreateAsync<ChatRoomActor>(ActorId.From(ChatRoomIds.Global), call.CancellationToken)", feature, StringComparison.Ordinal);
+        Assert.DoesNotContain(".EnsureAsync<ChatRoomActor>", feature, StringComparison.Ordinal);
         Assert.Contains(".DestroyAsync<ChatRoomActor>(ActorId.From(actorId), CancellationToken.None)", feature, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Ensure", "Local", "Actor"), feature, StringComparison.Ordinal);
         Assert.DoesNotContain("LakonaTimer", feature, StringComparison.Ordinal);

@@ -1926,6 +1926,10 @@ public sealed class HotfixManagerTests
 
             return trustedPlatformAssemblies
                 .Split(Path.PathSeparator)
+                .Where(static path => !string.Equals(
+                    Path.GetFileName(path),
+                    "Lakona.Game.Server.dll",
+                    StringComparison.OrdinalIgnoreCase))
                 .Select(static path => MetadataReference.CreateFromFile(path));
         }
     }

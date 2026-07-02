@@ -16,7 +16,7 @@ namespace Server.Hotfix.Features
         {
             await call.Services
                 .GetRequiredService<ActorHosting>()
-                .EnsureAsync<ChatRoomActor>(ActorId.From(ChatRoomIds.Global), call.CancellationToken)
+                .CreateAsync<ChatRoomActor>(ActorId.From(ChatRoomIds.Global), call.CancellationToken)
                 .ConfigureAwait(false);
             call.State.Items[nameof(ChatRoomIds.Global)] = ChatRoomIds.Global;
         }

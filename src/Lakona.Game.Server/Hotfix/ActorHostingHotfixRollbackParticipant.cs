@@ -15,14 +15,14 @@ internal sealed class ActorHostingHotfixRollbackParticipant(
         IServiceProvider services,
         CancellationToken cancellationToken = default)
     {
-        var scope = rollbackRecorder.BeginScope();
+        var scope = rollbackRecorder.CreateScope();
         return new ValueTask<IHotfixCandidateRollbackHandle>(new Handle(actorHosting, scope, logger));
     }
 
     private sealed class Handle(
         ActorHosting actorHosting,
         ActorHostingRollbackRecorder.Scope scope,
-        ILogger? logger) : IHotfixCandidateRollbackHandle
+        ILogger? logger) : IHotfixCandidateRollbackHandle, IHotfixCandidateRollbackActivationHandle
     {
         private static readonly MethodInfo DestroyMethod = typeof(ActorHosting)
             .GetMethods(BindingFlags.Public | BindingFlags.Instance)
@@ -30,9 +30,14 @@ internal sealed class ActorHostingHotfixRollbackParticipant(
 
         private bool _disposed;
 
-        public async ValueTask CommitAsync(CancellationToken cancellationToken = default)
+        public IDisposable ActivateCandidateRollback()
         {
-            await scope.DisposeAsync().ConfigureAwait(false);
+            return scope.Activate();
+        }
+
+        public ValueTask CommitAsync(CancellationToken cancellationToken = default)
+        {
+            return default;
         }
 
         public async ValueTask RollbackAsync(CancellationToken cancellationToken = default)

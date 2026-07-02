@@ -21,7 +21,7 @@ public sealed class MatchmakingFeature : HotfixGameFeature
     {
         await call.Services
             .GetRequiredService<ActorHosting>()
-            .EnsureAsync<MatchmakingActor>(ActorId.From(MatchmakingActorId), call.CancellationToken)
+            .CreateAsync<MatchmakingActor>(ActorId.From(MatchmakingActorId), call.CancellationToken)
             .ConfigureAwait(false);
         call.State.Items[MatchmakingActorStateKey] = MatchmakingActorId;
 

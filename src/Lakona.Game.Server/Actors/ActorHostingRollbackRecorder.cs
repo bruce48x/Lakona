@@ -6,9 +6,14 @@ internal sealed class ActorHostingRollbackRecorder
 
     public Scope BeginScope()
     {
-        var scope = new Scope(this, _current.Value);
-        _current.Value = scope;
+        var scope = CreateScope();
+        scope.ActivateUntilDisposed();
         return scope;
+    }
+
+    public Scope CreateScope()
+    {
+        return new Scope(this);
     }
 
     public void RecordCreated(Type actorType, ActorId actorId)
@@ -24,14 +29,13 @@ internal sealed class ActorHostingRollbackRecorder
     internal sealed class Scope : IAsyncDisposable
     {
         private readonly ActorHostingRollbackRecorder _owner;
-        private readonly Scope? _parent;
         private readonly List<Record> _created = [];
+        private IDisposable? _activation;
         private bool _disposed;
 
-        public Scope(ActorHostingRollbackRecorder owner, Scope? parent)
+        public Scope(ActorHostingRollbackRecorder owner)
         {
             _owner = owner;
-            _parent = parent;
         }
 
         public IReadOnlyList<Record> Created => _created;
@@ -46,15 +50,43 @@ internal sealed class ActorHostingRollbackRecorder
             _created.RemoveAll(record => record.ActorType == actorType && record.ActorId == actorId);
         }
 
+        public IDisposable Activate()
+        {
+            var parent = _owner._current.Value;
+            _owner._current.Value = this;
+            return new Activation(_owner, parent);
+        }
+
+        internal void ActivateUntilDisposed()
+        {
+            _activation = Activate();
+        }
+
         public ValueTask DisposeAsync()
         {
             if (!_disposed)
             {
-                _owner._current.Value = _parent;
+                _activation?.Dispose();
                 _disposed = true;
             }
 
             return default;
+        }
+
+        private sealed class Activation(ActorHostingRollbackRecorder owner, Scope? parent) : IDisposable
+        {
+            private bool _disposed;
+
+            public void Dispose()
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                owner._current.Value = parent;
+                _disposed = true;
+            }
         }
     }
 

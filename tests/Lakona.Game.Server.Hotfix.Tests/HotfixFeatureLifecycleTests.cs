@@ -1,5 +1,9 @@
+extern alias GameServer;
+
 using System.Reflection;
 using System.Runtime.Loader;
+using GameServer::Lakona.Game.Server;
+using GameServer::Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Lakona.Game.Server.Hotfix.Dispatch;
@@ -223,6 +227,29 @@ public sealed class HotfixFeatureLifecycleTests
     }
 
     [Fact]
+    public async Task Start_failure_rolls_back_actors_created_by_candidate_start()
+    {
+        LifecycleRecorder.Reset();
+        var coordinator = new HotfixFeatureLifecycleCoordinator();
+        using var candidate = CreateRuntime(
+            [Feature("actor", typeof(ActorCreatingFeature)), Feature("failing", typeof(FailingStartFeature))],
+            includeActorHostingRollback: true);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await coordinator.StartCandidateAsync(
+                HotfixFeatureLifecycleSnapshot.Empty,
+                candidate.Snapshot,
+                candidate.Snapshot.DispatchTable!.Features,
+                TestContext.Current.CancellationToken));
+
+        Assert.Equal("start failed", ex.Message);
+        Assert.Equal(["start:actor", "start:new-b", "stop:actor"], LifecycleRecorder.Events);
+        Assert.Empty(candidate.Snapshot.Services
+            .GetRequiredService<IActorRuntime>()
+            .GetActiveActorIds(typeof(RollbackHostedActor)));
+    }
+
+    [Fact]
     public async Task Disabled_candidate_feature_does_not_start()
     {
         LifecycleRecorder.Reset();
@@ -306,6 +333,41 @@ public sealed class HotfixFeatureLifecycleTests
         Assert.Same(oldPublishedDispatch, HotfixDispatch.Current);
         Assert.Equal(1, backend.RollbackCount);
         Assert.Equal(["start:new-a", "stop:new-a"], LifecycleRecorder.Events);
+    }
+
+    [Fact]
+    public async Task Publication_participant_failure_before_publish_rolls_back_actors_created_by_candidate_start()
+    {
+        LifecycleRecorder.Reset();
+        using var oldRuntime = CreateRuntime([Feature("old", typeof(StatefulFeature))], "old");
+        using var candidateRuntime = CreateRuntime(
+            [Feature("actor", typeof(ActorCreatingFeature))],
+            "candidate",
+            includeActorHostingRollback: true);
+        var participant = new FailingBeforePublishParticipant();
+        var manager = new HotfixManager(
+            new UnusedAssemblySource(),
+            participants: [participant]);
+        var first = await manager.PublishCandidateAsync(
+            oldRuntime.Snapshot,
+            CreateSnapshot(1, oldRuntime.Snapshot.DispatchTable!.Features),
+            oldRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+        Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+        LifecycleRecorder.Reset();
+
+        participant.Fail = true;
+        var failed = await manager.PublishCandidateAsync(
+            candidateRuntime.Snapshot,
+            CreateSnapshot(2, candidateRuntime.Snapshot.DispatchTable!.Features),
+            candidateRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+
+        Assert.False(failed.Succeeded);
+        Assert.Equal(["start:actor", "stop:actor"], LifecycleRecorder.Events);
+        Assert.Empty(candidateRuntime.Snapshot.Services
+            .GetRequiredService<IActorRuntime>()
+            .GetActiveActorIds(typeof(RollbackHostedActor)));
     }
 
     [Fact]
@@ -548,6 +610,42 @@ public sealed class HotfixFeatureLifecycleTests
     }
 
     [Fact]
+    public async Task Staged_timer_commit_failure_rolls_back_actors_created_by_candidate_start()
+    {
+        LifecycleRecorder.Reset();
+        using var oldRuntime = CreateRuntime([Feature("old", typeof(StatefulFeature))], "1");
+        var backend = new RecordingLifecycleTimerBackend { ThrowOnCommit = true };
+        using var candidateRuntime = CreateRuntime(
+            [Feature("actor", typeof(ActorAndTimerCreatingFeature))],
+            "2",
+            backend,
+            includeActorHostingRollback: true);
+        var manager = new HotfixManager(new UnusedAssemblySource());
+
+        var first = await manager.PublishCandidateAsync(
+            oldRuntime.Snapshot,
+            CreateSnapshot(1, oldRuntime.Snapshot.DispatchTable!.Features),
+            oldRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+        Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+        LifecycleRecorder.Reset();
+
+        var failed = await manager.PublishCandidateAsync(
+            candidateRuntime.Snapshot,
+            CreateSnapshot(2, candidateRuntime.Snapshot.DispatchTable!.Features),
+            candidateRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+
+        Assert.False(failed.Succeeded);
+        Assert.Contains("timer commit failed", failed.Diagnostics);
+        Assert.Equal(1, backend.RollbackCount);
+        Assert.Equal(["start:actor-timer", "stop:actor-timer"], LifecycleRecorder.Events);
+        Assert.Empty(candidateRuntime.Snapshot.Services
+            .GetRequiredService<IActorRuntime>()
+            .GetActiveActorIds(typeof(RollbackHostedActor)));
+    }
+
+    [Fact]
     public async Task Staged_timer_commit_failure_retires_candidate_runtime_after_candidate_lease_drains()
     {
         LifecycleRecorder.Reset();
@@ -704,7 +802,8 @@ public sealed class HotfixFeatureLifecycleTests
         IReadOnlyList<HotfixFeatureDeclaration> features,
         string marker = "runtime",
         ILakonaTimerBackend? timerBackend = null,
-        IReadOnlyList<HotfixServiceMethodBinding>? serviceBindings = null)
+        IReadOnlyList<HotfixServiceMethodBinding>? serviceBindings = null,
+        bool includeActorHostingRollback = false)
     {
         var tableVersion = long.TryParse(marker, out var parsedVersion) ? parsedVersion : 1;
         var table = new HotfixDispatchTable(
@@ -712,7 +811,17 @@ public sealed class HotfixFeatureLifecycleTests
             Array.Empty<HotfixMethodBinding>(),
             serviceBindings ?? Array.Empty<HotfixServiceMethodBinding>(),
             features);
-        var services = new ServiceCollection()
+        var services = new ServiceCollection();
+        if (includeActorHostingRollback)
+        {
+            var rollbackParticipantType = typeof(ActorHosting).Assembly.GetType(
+                "Lakona.Game.Server.Hotfix.ActorHostingHotfixRollbackParticipant",
+                throwOnError: true)!;
+            services.AddLakonaGameServerActors();
+            services.AddSingleton(typeof(IHotfixCandidateRollbackParticipant), rollbackParticipantType);
+        }
+
+        services
             .AddSingleton(new RuntimeMarker(marker))
             .AddSingleton<IHotfixServiceInvoker>(new HotfixServiceInvoker(table));
         if (timerBackend is not null)
@@ -849,10 +958,14 @@ public sealed class HotfixFeatureLifecycleTests
             throw new InvalidOperationException("TRUSTED_PLATFORM_ASSEMBLIES is not available.");
         }
 
-        return trustedPlatformAssemblies
-            .Split(Path.PathSeparator)
-            .Select(static path => MetadataReference.CreateFromFile(path));
-    }
+            return trustedPlatformAssemblies
+                .Split(Path.PathSeparator)
+                .Where(static path => !string.Equals(
+                    Path.GetFileName(path),
+                    "Lakona.Game.Server.dll",
+                    StringComparison.OrdinalIgnoreCase))
+                .Select(static path => MetadataReference.CreateFromFile(path));
+        }
 
     private sealed record RuntimeMarker(string Value);
 
@@ -1105,6 +1218,49 @@ public sealed class HotfixFeatureLifecycleTests
             return default;
         }
     }
+
+    private sealed class ActorCreatingFeature : HotfixGameFeature
+    {
+        public static async ValueTask StartAsync(HotfixFeatureStartCall call)
+        {
+            LifecycleRecorder.Events.Add("start:actor");
+            await call.Services
+                .GetRequiredService<ActorHosting>()
+                .CreateAsync<RollbackHostedActor>(ActorId.From("rollback/actor"), call.CancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        public static ValueTask StopAsync(HotfixFeatureStopCall call)
+        {
+            LifecycleRecorder.Events.Add("stop:actor");
+            return default;
+        }
+    }
+
+    private sealed class ActorAndTimerCreatingFeature : HotfixGameFeature
+    {
+        public static async ValueTask StartAsync(HotfixFeatureStartCall call)
+        {
+            LifecycleRecorder.Events.Add("start:actor-timer");
+            await call.Services
+                .GetRequiredService<ActorHosting>()
+                .CreateAsync<RollbackHostedActor>(ActorId.From("rollback/actor-timer"), call.CancellationToken)
+                .ConfigureAwait(false);
+            await LakonaTimer.CreateOnceTimerAsync<TimerCallbackTarget, TimerArgs>(
+                TimeSpan.Zero,
+                nameof(TimerCallbackTarget.TickAsync),
+                new TimerArgs("candidate"),
+                call.CancellationToken).ConfigureAwait(false);
+        }
+
+        public static ValueTask StopAsync(HotfixFeatureStopCall call)
+        {
+            LifecycleRecorder.Events.Add("stop:actor-timer");
+            return default;
+        }
+    }
+
+    private sealed class RollbackHostedActor : Actor;
 
     private sealed class NestedDispatchTimerStartFeature : HotfixGameFeature
     {
