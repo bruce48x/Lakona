@@ -145,7 +145,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
         public static readonly DiagnosticDescriptor HotfixFeatureMustInheritHotfixGameFeature = new DiagnosticDescriptor(
             "ULGHOTFIX022",
-            "HotfixFeatureMustInheritHotfixGameFeature",
+            "Hotfix feature must inherit HotfixGameFeature",
             "Hotfix feature '{0}' must inherit Lakona.Game.Server.Hotfix.Abstractions.HotfixGameFeature",
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
@@ -153,7 +153,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
         public static readonly DiagnosticDescriptor HotfixFeatureConfigureShape = new DiagnosticDescriptor(
             "ULGHOTFIX023",
-            "HotfixFeatureConfigureShape",
+            "Hotfix feature Configure must use the supported static shape",
             "Hotfix feature '{0}' must declare exactly one public static void Configure(HotfixFeatureContext context) and no other public Configure overloads",
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
@@ -161,7 +161,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
         public static readonly DiagnosticDescriptor HotfixFeatureLifecycleHookShape = new DiagnosticDescriptor(
             "ULGHOTFIX024",
-            "HotfixFeatureLifecycleHookShape",
+            "Hotfix feature lifecycle hook must use the supported static shape",
             "Hotfix feature '{0}' lifecycle hook '{1}' must declare public static ValueTask {1}({2} call)",
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
@@ -169,7 +169,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
         public static readonly DiagnosticDescriptor HotfixFeatureOnReloadUnsupported = new DiagnosticDescriptor(
             "ULGHOTFIX025",
-            "HotfixFeatureOnReloadUnsupported",
+            "Hotfix feature OnReload is not supported",
             "Hotfix feature '{0}' declares public OnReload, which is not supported",
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,

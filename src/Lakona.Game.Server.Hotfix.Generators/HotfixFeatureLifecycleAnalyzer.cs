@@ -198,6 +198,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 !method.IsGenericMethod &&
                 method.ReturnsVoid &&
                 method.Parameters.Length == 1 &&
+                method.Parameters[0].RefKind == RefKind.None &&
                 SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, hotfixFeatureContext);
         }
 
@@ -212,6 +213,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 returnType.Arity == 0 &&
                 SymbolEqualityComparer.Default.Equals(returnType, valueTask) &&
                 method.Parameters.Length == 1 &&
+                method.Parameters[0].RefKind == RefKind.None &&
                 SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, callType);
         }
 

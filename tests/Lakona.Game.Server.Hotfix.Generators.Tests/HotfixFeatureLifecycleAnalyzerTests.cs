@@ -92,6 +92,25 @@ public sealed class HotfixFeatureLifecycleAnalyzerTests
     }
 
     [Fact]
+    public async Task Reports_by_ref_configure_parameter()
+    {
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            [HotfixFeature("arena")]
+            public sealed class ArenaFeature : HotfixGameFeature
+            {
+                public static void Configure(ref HotfixFeatureContext context)
+                {
+                }
+            }
+            """);
+
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "ULGHOTFIX023");
+        Assert.Contains("Configure(HotfixFeatureContext context)", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Reports_invalid_start_and_stop_hooks()
     {
         var diagnostics = await AnalyzerTestHost.RunAsync("""
@@ -120,6 +139,31 @@ public sealed class HotfixFeatureLifecycleAnalyzerTests
         Assert.Equal(2, diagnostics.Count(static item => item.Id == "ULGHOTFIX024"));
         Assert.Contains(diagnostics, item => item.Id == "ULGHOTFIX024" && item.GetMessage().Contains("StartAsync", StringComparison.Ordinal));
         Assert.Contains(diagnostics, item => item.Id == "ULGHOTFIX024" && item.GetMessage().Contains("StopAsync", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Reports_by_ref_start_hook_parameter()
+    {
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            [HotfixFeature("arena")]
+            public sealed class ArenaFeature : HotfixGameFeature
+            {
+                public static void Configure(HotfixFeatureContext context)
+                {
+                }
+
+                public static ValueTask StartAsync(ref HotfixFeatureStartCall call)
+                {
+                    return default;
+                }
+            }
+            """);
+
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "ULGHOTFIX024");
+        Assert.Contains("StartAsync", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
     [Fact]
