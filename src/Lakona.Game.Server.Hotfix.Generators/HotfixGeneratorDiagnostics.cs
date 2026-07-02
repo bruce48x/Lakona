@@ -174,5 +174,13 @@ namespace Lakona.Game.Server.Hotfix.Generators
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor HotfixFeatureMustBeConcrete = new DiagnosticDescriptor(
+            "ULGHOTFIX026",
+            "Hotfix feature must be concrete",
+            "Hotfix feature '{0}' must be a concrete class",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
     }
 }

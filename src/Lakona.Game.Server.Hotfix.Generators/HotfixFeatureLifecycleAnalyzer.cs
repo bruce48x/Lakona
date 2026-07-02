@@ -21,7 +21,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 HotfixGeneratorDiagnostics.HotfixFeatureMustInheritHotfixGameFeature,
                 HotfixGeneratorDiagnostics.HotfixFeatureConfigureShape,
                 HotfixGeneratorDiagnostics.HotfixFeatureLifecycleHookShape,
-                HotfixGeneratorDiagnostics.HotfixFeatureOnReloadUnsupported);
+                HotfixGeneratorDiagnostics.HotfixFeatureOnReloadUnsupported,
+                HotfixGeneratorDiagnostics.HotfixFeatureMustBeConcrete);
 
         public override void Initialize(AnalysisContext context)
         {
@@ -77,6 +78,14 @@ namespace Lakona.Game.Server.Hotfix.Generators
             }
 
             var typeLocation = type.Locations.FirstOrDefault(static item => item.IsInSource);
+            if ((type.IsAbstract || type.TypeParameters.Length > 0) && typeLocation is not null)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    HotfixGeneratorDiagnostics.HotfixFeatureMustBeConcrete,
+                    typeLocation,
+                    type.ToDisplayString()));
+            }
+
             if (!DerivesFrom(type, hotfixGameFeature) && typeLocation is not null)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
@@ -103,7 +112,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 return;
             }
 
-            var location = GetDiagnosticLocation(methods, typeLocation);
+            var location = GetShapeDiagnosticLocation(methods, method => IsValidConfigure(method, hotfixFeatureContext), typeLocation);
             if (location is not null)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
@@ -132,7 +141,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 return;
             }
 
-            var location = GetDiagnosticLocation(methods, typeLocation);
+            var location = GetShapeDiagnosticLocation(methods, method => IsValidLifecycleHook(method, callType, valueTask), typeLocation);
             if (location is not null)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
@@ -217,11 +226,52 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, callType);
         }
 
+        private static Location? GetShapeDiagnosticLocation(
+            ImmutableArray<IMethodSymbol> methods,
+            Func<IMethodSymbol, bool> isValid,
+            Location? typeLocation)
+        {
+            var orderedMethods = GetMethodsInSourceOrder(methods);
+            var invalidMethodLocation = orderedMethods
+                .Where(method => !isValid(method))
+                .SelectMany(static method => method.Locations)
+                .FirstOrDefault(static location => location.IsInSource);
+            if (invalidMethodLocation is not null)
+            {
+                return invalidMethodLocation;
+            }
+
+            var duplicateMethodLocation = orderedMethods
+                .Skip(1)
+                .SelectMany(static method => method.Locations)
+                .FirstOrDefault(static location => location.IsInSource);
+            return duplicateMethodLocation ?? typeLocation;
+        }
+
         private static Location? GetDiagnosticLocation(ImmutableArray<IMethodSymbol> methods, Location? typeLocation)
         {
             return methods
                 .SelectMany(static method => method.Locations)
                 .FirstOrDefault(static location => location.IsInSource) ?? typeLocation;
+        }
+
+        private static ImmutableArray<IMethodSymbol> GetMethodsInSourceOrder(ImmutableArray<IMethodSymbol> methods)
+        {
+            return methods
+                .OrderBy(static method => GetLocationSortKey(method), StringComparer.Ordinal)
+                .ToImmutableArray();
+        }
+
+        private static string GetLocationSortKey(IMethodSymbol method)
+        {
+            var location = method.Locations.FirstOrDefault(static item => item.IsInSource);
+            if (location is null)
+            {
+                return method.ToDisplayString();
+            }
+
+            var lineSpan = location.GetLineSpan();
+            return $"{lineSpan.Path}:{lineSpan.StartLinePosition.Line:D8}:{lineSpan.StartLinePosition.Character:D8}:{method.ToDisplayString()}";
         }
     }
 }

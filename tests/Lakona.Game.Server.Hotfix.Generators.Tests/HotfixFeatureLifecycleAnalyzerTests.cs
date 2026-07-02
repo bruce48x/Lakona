@@ -69,9 +69,47 @@ public sealed class HotfixFeatureLifecycleAnalyzerTests
     }
 
     [Fact]
-    public async Task Reports_public_configure_overload()
+    public async Task Reports_abstract_hotfix_feature()
     {
         var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            [HotfixFeature("arena")]
+            public abstract class ArenaFeature : HotfixGameFeature
+            {
+                public static void Configure(HotfixFeatureContext context)
+                {
+                }
+            }
+            """);
+
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "ULGHOTFIX026");
+        Assert.Contains("must be a concrete class", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Reports_open_generic_hotfix_feature()
+    {
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            [HotfixFeature("arena")]
+            public sealed class ArenaFeature<T> : HotfixGameFeature
+            {
+                public static void Configure(HotfixFeatureContext context)
+                {
+                }
+            }
+            """);
+
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "ULGHOTFIX026");
+        Assert.Contains("must be a concrete class", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Reports_public_configure_overload()
+    {
+        var source = """
             using Lakona.Game.Server.Hotfix.Abstractions;
 
             [HotfixFeature("arena")]
@@ -85,10 +123,15 @@ public sealed class HotfixFeatureLifecycleAnalyzerTests
                 {
                 }
             }
-            """);
+            """;
+
+        var diagnostics = await AnalyzerTestHost.RunAsync(source);
 
         var diagnostic = Assert.Single(diagnostics, item => item.Id == "ULGHOTFIX023");
         Assert.Contains("no other public Configure overloads", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Equal(
+            GetLineNumber(source, "public static void Configure(string name)"),
+            diagnostic.Location.GetLineSpan().StartLinePosition.Line);
     }
 
     [Fact]
@@ -189,5 +232,12 @@ public sealed class HotfixFeatureLifecycleAnalyzerTests
 
         var diagnostic = Assert.Single(diagnostics, item => item.Id == "ULGHOTFIX025");
         Assert.Contains("declares public OnReload", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    private static int GetLineNumber(string source, string text)
+    {
+        var index = source.IndexOf(text, StringComparison.Ordinal);
+        Assert.True(index >= 0, $"Could not find '{text}' in source.");
+        return source[..index].Count(static item => item == '\n');
     }
 }
