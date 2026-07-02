@@ -11,11 +11,9 @@ using Agar.Sample.State.Rooms;
 using Agar.Sample.State.Users;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
-using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Server.Hotfix.Services;
 using Server.Hotfix.State.Leaderboard;
@@ -30,7 +28,10 @@ namespace Server.Hotfix.Services;
 public sealed class PlayerService
 {
     private readonly LeaderboardActors _leaderboards;
+    private readonly LocalActorNodeIdentity _localNode;
+    private readonly ILogger<PlayerService> _logger;
     private readonly MatchmakingActors _matchmaking;
+    private readonly MatchmakingNotifier _matchmakingNotifier;
     private readonly RoomActors _rooms;
     private readonly UserActors _users;
 
@@ -38,20 +39,24 @@ public sealed class PlayerService
         UserActors users,
         RoomActors rooms,
         MatchmakingActors matchmaking,
-        LeaderboardActors leaderboards)
+        LeaderboardActors leaderboards,
+        MatchmakingNotifier matchmakingNotifier,
+        LocalActorNodeIdentity localNode,
+        ILogger<PlayerService> logger)
     {
         _users = users;
         _rooms = rooms;
         _matchmaking = matchmaking;
         _leaderboards = leaderboards;
+        _matchmakingNotifier = matchmakingNotifier;
+        _localNode = localNode;
+        _logger = logger;
     }
 
     public async ValueTask<LeaderboardReply> GetLeaderboardAsync(HotfixServiceCall<LeaderboardRequest> call)
     {
         var req = call.Request;
-        var services = CreateDependencies(call.Services);
-        var logger = services.CreateLogger<PlayerService>();
-        _ = await EnsureControlConnectionAsync(call, services).ConfigureAwait(false);
+        _ = await EnsureControlConnectionAsync(call).ConfigureAwait(false);
 
         var topN = req.TopN <= 0 ? 10 : req.TopN;
         var leaderboardId = new LeaderboardId("current");
@@ -60,7 +65,7 @@ public sealed class PlayerService
             .GetLeaderboardAsync(new LeaderboardQueryRequest { TopN = topN })
             .ConfigureAwait(false);
 
-        logger.LogInformation("Leaderboard queried. TopN={TopN} Returned={Returned} Period={PeriodStartUtc}.",
+        _logger.LogInformation("Leaderboard queried. TopN={TopN} Returned={Returned} Period={PeriodStartUtc}.",
             topN,
             snapshot.Entries.Count,
             snapshot.PeriodStartUtc);
@@ -82,62 +87,59 @@ public sealed class PlayerService
 
     public async ValueTask StartMatchmakingAsync(HotfixServiceCall<MatchmakingRequest> call)
     {
-        var services = CreateDependencies(call.Services);
-        var playerId = await EnsureControlConnectionAsync(call, services).ConfigureAwait(false);
+        var playerId = await EnsureControlConnectionAsync(call).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(playerId))
         {
             return;
         }
 
-        await EnqueuePlayerAsync(services, playerId).ConfigureAwait(false);
+        await EnqueuePlayerAsync(playerId).ConfigureAwait(false);
     }
 
     public async ValueTask CancelMatchmakingAsync(HotfixServiceCall<CancelMatchmakingRequest> call)
     {
-        var services = CreateDependencies(call.Services);
-        var playerId = await EnsureControlConnectionAsync(call, services).ConfigureAwait(false);
+        var playerId = await EnsureControlConnectionAsync(call).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(playerId))
         {
             return;
         }
 
-        await CancelMatchmakingAsync(services, playerId, "Matchmaking cancelled").ConfigureAwait(false);
+        await CancelMatchmakingAsync(playerId, "Matchmaking cancelled").ConfigureAwait(false);
     }
 
     public async ValueTask LogoutAsync(HotfixServiceCall<LogoutRequest> call)
     {
-        var services = CreateDependencies(call.Services);
-        var playerId = await EnsureControlConnectionAsync(call, services).ConfigureAwait(false);
+        var playerId = await EnsureControlConnectionAsync(call).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(playerId))
         {
             return;
         }
 
-        await ReleasePlayerAsync(services, playerId, "Logout").ConfigureAwait(false);
-    }
-
-    private AgarServiceDependencies CreateDependencies(IServiceProvider services)
-    {
-        return new AgarServiceDependencies(
-            _users,
-            _rooms,
-            _matchmaking,
-            _leaderboards,
-            services.GetRequiredService<MatchmakingNotifier>(),
-            services.GetRequiredService<LocalActorNodeIdentity>(),
-            services.GetRequiredService<ILoggerFactory>());
+        await ReleasePlayerAsync(playerId, "Logout").ConfigureAwait(false);
     }
 
     private static ValueTask<string?> EnsureControlConnectionAsync<TRequest>(
-        HotfixServiceCall<TRequest> call,
-        AgarServiceDependencies services)
+        HotfixServiceCall<TRequest> call)
     {
         return new ValueTask<string?>(call.CurrentSession?.OwnerKey);
     }
 
-    internal static async Task EnqueuePlayerAsync(AgarServiceDependencies services, string playerId)
+    private Task EnqueuePlayerAsync(string playerId)
     {
-        var snapshot = await services.Users
+        return EnqueuePlayerAsync(
+            _users,
+            _matchmaking,
+            _matchmakingNotifier,
+            playerId);
+    }
+
+    private static async Task EnqueuePlayerAsync(
+        UserActors users,
+        MatchmakingActors matchmaking,
+        MatchmakingNotifier matchmakingNotifier,
+        string playerId)
+    {
+        var snapshot = await users
             .Get(new UserId(playerId))
             .GetSnapshotAsync(new PlayerSessionSnapshotRequest())
             .ConfigureAwait(false);
@@ -146,7 +148,7 @@ public sealed class PlayerService
             throw new InvalidOperationException($"Player '{playerId}' does not have an attached control session.");
         }
 
-        var result = await services.Matchmaking
+        var result = await matchmaking
             .Get(new MatchmakingQueueId("default"))
             .EnqueueAsync(new MatchmakingEnqueueRequest
             {
@@ -158,7 +160,7 @@ public sealed class PlayerService
 
         if (string.IsNullOrWhiteSpace(result.TicketId))
         {
-            await services.Users
+            await users
                 .Get(new UserId(playerId))
                 .ClearQueueAsync(new PlayerSessionQueueClearRequest
                 {
@@ -171,7 +173,7 @@ public sealed class PlayerService
         }
         else
         {
-            await services.Users
+            await users
                 .Get(new UserId(playerId))
                 .MarkQueuedAsync(new PlayerSessionQueueRequest
                 {
@@ -185,16 +187,31 @@ public sealed class PlayerService
 
         if (result.Matched)
         {
-            await PublishMatchedAsync(services, result.RoomAssignment).ConfigureAwait(false);
+            await PublishMatchedAsync(users, matchmakingNotifier, result.RoomAssignment).ConfigureAwait(false);
             return;
         }
 
-        await PublishQueuedAsync(services, snapshot, result).ConfigureAwait(false);
+        await PublishQueuedAsync(matchmakingNotifier, snapshot, result).ConfigureAwait(false);
     }
 
-    internal static async Task CancelMatchmakingAsync(AgarServiceDependencies services, string playerId, string reason)
+    private Task CancelMatchmakingAsync(string playerId, string reason)
     {
-        var snapshot = await services.Users
+        return CancelMatchmakingAsync(
+            _users,
+            _matchmaking,
+            _matchmakingNotifier,
+            playerId,
+            reason);
+    }
+
+    private static async Task CancelMatchmakingAsync(
+        UserActors users,
+        MatchmakingActors matchmaking,
+        MatchmakingNotifier matchmakingNotifier,
+        string playerId,
+        string reason)
+    {
+        var snapshot = await users
             .Get(new UserId(playerId))
             .GetSnapshotAsync(new PlayerSessionSnapshotRequest())
             .ConfigureAwait(false);
@@ -204,7 +221,7 @@ public sealed class PlayerService
             return;
         }
 
-        await services.Matchmaking
+        await matchmaking
             .Get(new MatchmakingQueueId("default"))
             .CancelAsync(new MatchmakingCancelRequest
             {
@@ -215,7 +232,7 @@ public sealed class PlayerService
             })
             .ConfigureAwait(false);
 
-        await services.Users
+        await users
             .Get(new UserId(playerId))
             .ClearQueueAsync(new PlayerSessionQueueClearRequest
             {
@@ -231,7 +248,7 @@ public sealed class PlayerService
             return;
         }
 
-        await services.MatchmakingNotifier.PublishAsync(controlSession, new MatchmakingStatusUpdate
+        await matchmakingNotifier.PublishAsync(controlSession, new MatchmakingStatusUpdate
         {
             State = Shared.Interfaces.MatchmakingState.Canceled,
             QueueSize = 0,
@@ -242,20 +259,40 @@ public sealed class PlayerService
         }).ConfigureAwait(false);
     }
 
-    internal static async Task ReleasePlayerAsync(AgarServiceDependencies services, string playerId, string reason)
+    private Task ReleasePlayerAsync(string playerId, string reason)
     {
-        var logger = services.CreateLogger<PlayerService>();
+        return ReleasePlayerAsync(
+            _users,
+            _rooms,
+            _matchmaking,
+            _matchmakingNotifier,
+            _localNode,
+            _logger,
+            playerId,
+            reason);
+    }
+
+    internal static async Task ReleasePlayerAsync(
+        UserActors users,
+        RoomActors rooms,
+        MatchmakingActors matchmaking,
+        MatchmakingNotifier matchmakingNotifier,
+        LocalActorNodeIdentity localNode,
+        ILogger<PlayerService> logger,
+        string playerId,
+        string reason)
+    {
         try
         {
-            var snapshot = await services.Users
+            var snapshot = await users
                 .Get(new UserId(playerId))
                 .GetSnapshotAsync(new PlayerSessionSnapshotRequest())
                 .ConfigureAwait(false);
 
             if (!string.IsNullOrWhiteSpace(snapshot.MatchmakingTicketId))
             {
-                await CancelMatchmakingAsync(services, playerId, reason).ConfigureAwait(false);
-                snapshot = await services.Users
+                await CancelMatchmakingAsync(users, matchmaking, matchmakingNotifier, playerId, reason).ConfigureAwait(false);
+                snapshot = await users
                     .Get(new UserId(playerId))
                     .GetSnapshotAsync(new PlayerSessionSnapshotRequest())
                     .ConfigureAwait(false);
@@ -266,7 +303,7 @@ public sealed class PlayerService
             {
                 try
                 {
-                    await LeaveAssignedRoomAsync(services, snapshot, reason).ConfigureAwait(false);
+                    await LeaveAssignedRoomAsync(rooms, localNode, snapshot, reason).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -278,7 +315,7 @@ public sealed class PlayerService
                         reason);
                 }
 
-                await services.Users
+                await users
                     .Get(new UserId(playerId))
                     .ClearRoomAsync(new PlayerRoomClearRequest
                     {
@@ -290,7 +327,7 @@ public sealed class PlayerService
                     .ConfigureAwait(false);
             }
 
-            await services.Users
+            await users
                 .Get(new UserId(playerId))
                 .MarkDisconnectedAsync(new PlayerSessionDisconnectRequest
                 {
@@ -300,7 +337,7 @@ public sealed class PlayerService
                     Reason = reason
                 })
                 .ConfigureAwait(false);
-            await services.Users
+            await users
                 .Get(new UserId(playerId))
                 .SetOnlineAsync(new UserOnlineStatusRequest { IsOnline = false })
                 .ConfigureAwait(false);
@@ -312,7 +349,8 @@ public sealed class PlayerService
     }
 
     private static ValueTask<RoomSettlementResult> LeaveAssignedRoomAsync(
-        AgarServiceDependencies services,
+        RoomActors rooms,
+        LocalActorNodeIdentity localNode,
         PlayerSessionSnapshot snapshot,
         string reason)
     {
@@ -324,24 +362,24 @@ public sealed class PlayerService
             Reason = reason
         };
         var roomId = new RoomId(snapshot.CurrentRoomId);
-        var localNode = services.LocalNode.NodeId.Value;
+        var localNodeId = localNode.NodeId.Value;
 
         if (string.IsNullOrWhiteSpace(snapshot.RuntimeGateway.InstanceId) ||
-            string.Equals(snapshot.RuntimeGateway.InstanceId, localNode, StringComparison.Ordinal))
+            string.Equals(snapshot.RuntimeGateway.InstanceId, localNodeId, StringComparison.Ordinal))
         {
-            return services.Rooms.Local(roomId).LeaveAsync(request);
+            return rooms.Local(roomId).LeaveAsync(request);
         }
 
-        return services.Rooms
+        return rooms
             .Remote(new NodeId(snapshot.RuntimeGateway.InstanceId), roomId)
             .LeaveAsync(request);
     }
 
-    internal static Task PublishQueuedAsync(AgarServiceDependencies services, PlayerSessionSnapshot snapshot,
+    private static Task PublishQueuedAsync(MatchmakingNotifier matchmakingNotifier, PlayerSessionSnapshot snapshot,
         MatchmakingEnqueueResult result)
     {
         return TryCreateControlSession(snapshot, out var controlSession)
-            ? services.MatchmakingNotifier.PublishAsync(controlSession, new MatchmakingStatusUpdate
+            ? matchmakingNotifier.PublishAsync(controlSession, new MatchmakingStatusUpdate
             {
                 State = Shared.Interfaces.MatchmakingState.Queued,
                 QueuePosition = result.QueuePosition,
@@ -354,7 +392,10 @@ public sealed class PlayerService
             : Task.CompletedTask;
     }
 
-    internal static async Task PublishMatchedAsync(AgarServiceDependencies services, RoomAssignment assignment)
+    internal static async Task PublishMatchedAsync(
+        UserActors users,
+        MatchmakingNotifier matchmakingNotifier,
+        RoomAssignment assignment)
     {
         if (string.IsNullOrWhiteSpace(assignment.RoomId))
         {
@@ -363,7 +404,7 @@ public sealed class PlayerService
 
         foreach (var player in assignment.Players)
         {
-            var user = services.Users.Get(new UserId(player.UserId));
+            var user = users.Get(new UserId(player.UserId));
             var snapshot = await user
                 .GetSnapshotAsync(new PlayerSessionSnapshotRequest())
                 .ConfigureAwait(false);
@@ -401,7 +442,7 @@ public sealed class PlayerService
                 continue;
             }
 
-            await services.MatchmakingNotifier.PublishAsync(controlSession, new MatchmakingStatusUpdate
+            await matchmakingNotifier.PublishAsync(controlSession, new MatchmakingStatusUpdate
             {
                 State = Shared.Interfaces.MatchmakingState.Matched,
                 QueueSize = assignment.Players.Count,
@@ -433,37 +474,5 @@ public sealed class PlayerService
             snapshot.ControlSessionId,
             snapshot.ControlSessionGeneration);
         return true;
-    }
-}
-
-internal sealed record AgarServiceDependencies(
-    UserActors Users,
-    RoomActors Rooms,
-    MatchmakingActors Matchmaking,
-    LeaderboardActors Leaderboards,
-    MatchmakingNotifier MatchmakingNotifier,
-    LocalActorNodeIdentity LocalNode,
-    ILoggerFactory LoggerFactory)
-{
-    public ILogger<T> CreateLogger<T>()
-    {
-        return LoggerFactory.CreateLogger<T>();
-    }
-
-    public static AgarServiceDependencies From<TRequest>(HotfixServiceCall<TRequest> call)
-    {
-        return From(call.Services);
-    }
-
-    public static AgarServiceDependencies From(IServiceProvider services)
-    {
-        return new AgarServiceDependencies(
-            services.GetRequiredService<UserActors>(),
-            services.GetRequiredService<RoomActors>(),
-            services.GetRequiredService<MatchmakingActors>(),
-            services.GetRequiredService<LeaderboardActors>(),
-            services.GetRequiredService<MatchmakingNotifier>(),
-            services.GetRequiredService<LocalActorNodeIdentity>(),
-            services.GetRequiredService<ILoggerFactory>());
     }
 }

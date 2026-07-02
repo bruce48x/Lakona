@@ -842,24 +842,21 @@ public sealed class DistributedTopologyConfigurationTests
 
     private static async Task ReleasePlayerThroughInternalBoundaryAsync(IServiceProvider provider, string playerId, string reason)
     {
-        var hotfixAssembly = typeof(PlayerService).Assembly;
-        var dependenciesType = hotfixAssembly.GetType("Server.Hotfix.Services.AgarServiceDependencies")
-            ?? throw new InvalidOperationException("Could not find Agar service dependency container.");
-        var dependencies = Activator.CreateInstance(
-            dependenciesType,
-            provider.GetRequiredService<UserActors>(),
-            provider.GetRequiredService<RoomActors>(),
-            provider.GetRequiredService<MatchmakingActors>(),
-            provider.GetRequiredService<LeaderboardActors>(),
-            null,
-            new LocalActorNodeIdentity(new NodeId("gateway-1")),
-            provider.GetRequiredService<ILoggerFactory>())
-            ?? throw new InvalidOperationException("Could not create Agar service dependency container.");
         var method = typeof(PlayerService).GetMethod(
             "ReleasePlayerAsync",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
             ?? throw new InvalidOperationException("Could not find PlayerService.ReleasePlayerAsync.");
-        var task = method.Invoke(null, [dependencies, playerId, reason]) as Task
+        var task = method.Invoke(null, [
+            provider.GetRequiredService<UserActors>(),
+            provider.GetRequiredService<RoomActors>(),
+            provider.GetRequiredService<MatchmakingActors>(),
+            provider.GetService<MatchmakingNotifier>() ??
+                ActivatorUtilities.CreateInstance<MatchmakingNotifier>(provider),
+            new LocalActorNodeIdentity(new NodeId("gateway-1")),
+            provider.GetRequiredService<ILogger<PlayerService>>(),
+            playerId,
+            reason
+        ]) as Task
             ?? throw new InvalidOperationException("PlayerService.ReleasePlayerAsync did not return a Task.");
 
         await task.ConfigureAwait(false);

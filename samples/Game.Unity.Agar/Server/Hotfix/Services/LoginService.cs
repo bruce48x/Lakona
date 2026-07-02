@@ -5,11 +5,9 @@ using Agar.Sample.State.Users;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
-using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Server.Hotfix.State.Users;
 using Shared.Interfaces;
@@ -21,19 +19,39 @@ namespace Server.Hotfix.Services;
 [HotfixService(typeof(ILoginService))]
 public sealed class LoginService
 {
+    private readonly ActorHosting _actorHosting;
+    private readonly IClusterNodeDiscovery? _clusterDiscovery;
+    private readonly LocalActorNodeIdentity _localNode;
+    private readonly StateStoreUserActorPlacementClient _placementClient;
     private readonly UserActors _users;
+    private readonly ILogger<LoginService> _logger;
+    private readonly MatchmakingNotifier _matchmakingNotifier;
+    private readonly LakonaGameRuntimeOptions _runtime;
 
-    public LoginService(UserActors users)
+    public LoginService(
+        UserActors users,
+        MatchmakingNotifier matchmakingNotifier,
+        LakonaGameRuntimeOptions runtime,
+        LocalActorNodeIdentity localNode,
+        ActorHosting actorHosting,
+        StateStoreUserActorPlacementClient placementClient,
+        IEnumerable<IClusterNodeDiscovery> clusterDiscovery,
+        ILogger<LoginService> logger)
     {
         _users = users;
+        _matchmakingNotifier = matchmakingNotifier;
+        _runtime = runtime;
+        _localNode = localNode;
+        _actorHosting = actorHosting;
+        _placementClient = placementClient;
+        _clusterDiscovery = clusterDiscovery.FirstOrDefault();
+        _logger = logger;
     }
 
     public async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, IControlCallback> call)
     {
         var req = call.Request;
-        var services = AgarServiceDependencies.From(call);
-        var logger = services.CreateLogger<LoginService>();
-        var controlGateway = ResolveLocalControlGateway(call.Services);
+        var controlGateway = ResolveLocalControlGateway();
 
         var account = req.Account;
         var password = req.Password;
@@ -52,11 +70,11 @@ public sealed class LoginService
         var loginRequest = new UserLoginRequest { Password = password, Reconnect = req.Reconnect };
         try
         {
-            loginResult = await LoginUserAsync(account, loginRequest, call.Services, logger).ConfigureAwait(false);
+            loginResult = await LoginUserAsync(account, loginRequest).ConfigureAwait(false);
         }
         catch (InvalidOperationException ex)
         {
-            logger.LogWarning(ex, "Login rejected for account {Account}.", account);
+            _logger.LogWarning(ex, "Login rejected for account {Account}.", account);
             return new LoginReply { Code = LoginResultCodes.Rejected, Message = "Login rejected." };
         }
 
@@ -138,7 +156,7 @@ public sealed class LoginService
                 .ConfigureAwait(false);
         }
 
-        await services.MatchmakingNotifier
+        await _matchmakingNotifier
             .ReplayPendingAsync(sessionKey)
             .ConfigureAwait(false);
 
@@ -168,11 +186,10 @@ public sealed class LoginService
         };
     }
 
-    private static GatewayEndpointDescriptor ResolveLocalControlGateway(IServiceProvider services)
+    private GatewayEndpointDescriptor ResolveLocalControlGateway()
     {
-        var runtime = services.GetRequiredService<LakonaGameRuntimeOptions>();
-        var node = services.GetRequiredService<LocalActorNodeIdentity>().NodeId.Value;
-        var endpoint = runtime.Endpoints.FirstOrDefault(static endpoint =>
+        var node = _localNode.NodeId.Value;
+        var endpoint = _runtime.Endpoints.FirstOrDefault(static endpoint =>
             endpoint.RpcServices.Any(service =>
                 string.Equals(service, "login", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(service, "player", StringComparison.OrdinalIgnoreCase)));
@@ -204,9 +221,7 @@ public sealed class LoginService
 
     private async ValueTask<UserLoginResult> LoginUserAsync(
         string account,
-        UserLoginRequest request,
-        IServiceProvider services,
-        ILogger logger)
+        UserLoginRequest request)
     {
         var userId = new UserId(account);
         try
@@ -218,7 +233,7 @@ public sealed class LoginService
         }
         catch (ActorNotFoundException)
         {
-            await CreateUserActorOnStateStoreAsync(account, services, logger).ConfigureAwait(false);
+            await CreateUserActorOnStateStoreAsync(account).ConfigureAwait(false);
             return await _users
                 .Get(userId)
                 .LoginAsync(request)
@@ -226,37 +241,33 @@ public sealed class LoginService
         }
     }
 
-    private static async ValueTask CreateUserActorOnStateStoreAsync(
-        string account,
-        IServiceProvider services,
-        ILogger logger)
+    private async ValueTask CreateUserActorOnStateStoreAsync(
+        string account)
     {
         var actorId = ActorId.From(account);
-        var owner = await SelectStateStoreOwnerAsync(account, services).ConfigureAwait(false);
+        var owner = await SelectStateStoreOwnerAsync(account).ConfigureAwait(false);
         var ownerNode = owner.Node;
 
-        if (ownerNode == services.GetRequiredService<LocalActorNodeIdentity>().NodeId)
+        if (ownerNode == _localNode.NodeId)
         {
-            await CreateLocalUserActorAsync(actorId, account, ownerNode, services, logger).ConfigureAwait(false);
+            await CreateLocalUserActorAsync(actorId, account, ownerNode).ConfigureAwait(false);
         }
         else
         {
-            await SendCreateUserActorAsync(owner, account, services).ConfigureAwait(false);
-            logger.LogDebug(
+            await SendCreateUserActorAsync(owner, account).ConfigureAwait(false);
+            _logger.LogDebug(
                 "Requested user actor {UserId} creation on state-store node {NodeId}.",
                 account,
                 ownerNode.Value);
         }
     }
 
-    private static async ValueTask<ClusterNodeDescriptor> SelectStateStoreOwnerAsync(
-        string userId,
-        IServiceProvider services)
+    private async ValueTask<ClusterNodeDescriptor> SelectStateStoreOwnerAsync(string userId)
     {
         var candidates = new List<ClusterNodeDescriptor>();
-        if (services.GetService<IClusterNodeDiscovery>() is IClusterNodeDiscovery discovery)
+        if (_clusterDiscovery is not null)
         {
-            var discovered = await discovery
+            var discovered = await _clusterDiscovery
                 .ListAsync(new FeatureName(StateStoreUserActorPlacement.FeatureName))
                 .ConfigureAwait(false);
             candidates.AddRange(discovered.Where(static node =>
@@ -267,11 +278,10 @@ public sealed class LoginService
                     StringComparison.OrdinalIgnoreCase))));
         }
 
-        if (candidates.Count == 0 && LocalNodeCanOwnStateStore(services.GetRequiredService<LakonaGameRuntimeOptions>()))
+        if (candidates.Count == 0 && LocalNodeCanOwnStateStore(_runtime))
         {
-            var localNode = services.GetRequiredService<LocalActorNodeIdentity>().NodeId;
             candidates.Add(new ClusterNodeDescriptor(
-                localNode,
+                _localNode.NodeId,
                 NodeState.Ready,
                 new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal),
                 [new NodeFeatureDescriptor(StateStoreUserActorPlacement.FeatureName)]));
@@ -309,35 +319,22 @@ public sealed class LoginService
         return (int)(value % (ulong)count);
     }
 
-    private static async ValueTask SendCreateUserActorAsync(
+    private async ValueTask SendCreateUserActorAsync(
         ClusterNodeDescriptor owner,
-        string userId,
-        IServiceProvider services)
+        string userId)
     {
-        var client = services.GetRequiredService<IFeatureCommandClient>();
-        var reply = await client.SendToNodeAsync<CreateUserActorRequest, CreateActorReply>(
-            owner,
-            StateStoreUserActorPlacement.FeatureName,
-            new CreateUserActorRequest { UserId = userId }).ConfigureAwait(false);
-        if (!reply.Succeeded)
-        {
-            throw new InvalidOperationException(
-                $"State-store node {owner.Node.Value} rejected user actor creation for '{userId}'. {reply.Message}");
-        }
+        await _placementClient.SendCreateUserActorAsync(owner, userId).ConfigureAwait(false);
     }
 
-    private static async ValueTask CreateLocalUserActorAsync(
+    private async ValueTask CreateLocalUserActorAsync(
         ActorId actorId,
         string account,
-        NodeId localNode,
-        IServiceProvider services,
-        ILogger logger)
+        NodeId localNode)
     {
-        await services
-            .GetRequiredService<ActorHosting>()
+        await _actorHosting
             .EnsureAsync<UserActor>(actorId)
             .ConfigureAwait(false);
 
-        logger.LogDebug("Created local user actor {UserId} on node {NodeId}.", account, localNode.Value);
+        _logger.LogDebug("Created local user actor {UserId} on node {NodeId}.", account, localNode.Value);
     }
 }

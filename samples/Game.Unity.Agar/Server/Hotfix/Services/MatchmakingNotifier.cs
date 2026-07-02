@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Server.Hotfix.Services;
 
-internal sealed class MatchmakingNotifier
+public sealed class MatchmakingNotifier
 {
     private readonly IClientNotifications _notifications;
     private readonly ILogger<MatchmakingNotifier> _logger;

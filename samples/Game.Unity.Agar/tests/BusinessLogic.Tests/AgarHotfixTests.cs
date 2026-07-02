@@ -20,6 +20,7 @@ using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Server.Hotfix.Services;
 using Server.Hotfix.Features;
 using Server.Hotfix.State.Leaderboard;
@@ -119,7 +120,15 @@ public sealed class AgarHotfixTests
         await using var provider = services.BuildServiceProvider();
         featureCommands.UseActorDirectory(provider.GetRequiredService<IActorDirectory>());
         var actors = provider.GetRequiredService<IActorRuntime>();
-        var service = new LoginService(provider.GetRequiredService<UserActors>());
+        var service = new LoginService(
+            provider.GetRequiredService<UserActors>(),
+            provider.GetRequiredService<MatchmakingNotifier>(),
+            provider.GetRequiredService<LakonaGameRuntimeOptions>(),
+            provider.GetRequiredService<LocalActorNodeIdentity>(),
+            provider.GetRequiredService<ActorHosting>(),
+            new StateStoreUserActorPlacementClient(provider),
+            provider.GetServices<IClusterNodeDiscovery>(),
+            provider.GetRequiredService<ILogger<LoginService>>());
         var call = new HotfixServiceCall<LoginRequest, IControlCallback>(
             new LoginRequest { GuestLogin = true },
             "control-connection-1",
@@ -200,7 +209,10 @@ public sealed class AgarHotfixTests
             provider.GetRequiredService<UserActors>(),
             provider.GetRequiredService<RoomActors>(),
             provider.GetRequiredService<MatchmakingActors>(),
-            provider.GetRequiredService<LeaderboardActors>());
+            provider.GetRequiredService<LeaderboardActors>(),
+            provider.GetRequiredService<MatchmakingNotifier>(),
+            provider.GetRequiredService<LocalActorNodeIdentity>(),
+            provider.GetRequiredService<ILogger<PlayerService>>());
         var call = new HotfixServiceCall<LeaderboardRequest>(
             new LeaderboardRequest { TopN = 5 },
             "control-connection-1",

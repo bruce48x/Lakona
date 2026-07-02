@@ -1,5 +1,8 @@
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Cluster;
+using Lakona.Game.Server.Features;
 using MemoryPack;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Server.Hotfix.Services;
 
@@ -16,6 +19,30 @@ public partial class CreateUserActorRequest
 {
     [MemoryPackOrder(0)]
     public string UserId { get; set; } = "";
+}
+
+public sealed class StateStoreUserActorPlacementClient
+{
+    private readonly IServiceProvider _services;
+
+    public StateStoreUserActorPlacementClient(IServiceProvider services)
+    {
+        _services = services;
+    }
+
+    public async ValueTask SendCreateUserActorAsync(ClusterNodeDescriptor owner, string userId)
+    {
+        var client = _services.GetRequiredService<IFeatureCommandClient>();
+        var reply = await client.SendToNodeAsync<CreateUserActorRequest, CreateActorReply>(
+            owner,
+            StateStoreUserActorPlacement.FeatureName,
+            new CreateUserActorRequest { UserId = userId }).ConfigureAwait(false);
+        if (!reply.Succeeded)
+        {
+            throw new InvalidOperationException(
+                $"State-store node {owner.Node.Value} rejected user actor creation for '{userId}'. {reply.Message}");
+        }
+    }
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]

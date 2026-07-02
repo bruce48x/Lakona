@@ -3,6 +3,7 @@ using Agar.Sample.State.Contracts.Sessions;
 using Agar.Sample.State.Contracts.Users;
 using Agar.Sample.State.Users;
 using Agar.Sample.State.Contracts;
+using Agar.Sample.State.Matchmaking;
 using Agar.Sample.State.Rooms;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
@@ -22,7 +23,7 @@ public sealed class AgarSessionLifecycle
 {
     public static async ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
     {
-        var services = AgarLifecycleDependencies.From(call);
+        var logger = call.Services.GetRequiredService<ILogger<AgarSessionLifecycle>>();
         var playerId = call.Request.OwnerKey;
         if (string.IsNullOrWhiteSpace(playerId))
         {
@@ -33,7 +34,7 @@ public sealed class AgarSessionLifecycle
         {
             await ClearRealtimeStateAsync(
                     call.Services,
-                    services.Logger,
+                    logger,
                     playerId,
                     call.Request.SessionId,
                     call.Request.Generation,
@@ -45,7 +46,7 @@ public sealed class AgarSessionLifecycle
         var users = call.Services.GetService<UserActors>();
         if (users is null)
         {
-            services.Logger.LogWarning(
+            logger.LogWarning(
                 "Cannot mark player {PlayerId} disconnected for control connection {ConnectionId} because UserActors is unavailable.",
                 playerId,
                 call.Request.ConnectionId);
@@ -71,7 +72,7 @@ public sealed class AgarSessionLifecycle
         }
         catch (Exception ex)
         {
-            services.Logger.LogError(
+            logger.LogError(
                 ex,
                 "Failed to mark player {PlayerId} disconnected for control connection {ConnectionId}.",
                 playerId,
@@ -81,7 +82,7 @@ public sealed class AgarSessionLifecycle
 
     public static async ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call)
     {
-        var lifecycleServices = AgarLifecycleDependencies.From(call);
+        var logger = call.Services.GetRequiredService<ILogger<AgarSessionLifecycle>>();
         var playerId = call.Request.OwnerKey;
         if (string.IsNullOrWhiteSpace(playerId))
         {
@@ -91,7 +92,7 @@ public sealed class AgarSessionLifecycle
         var users = call.Services.GetService<UserActors>();
         if (users is null)
         {
-            lifecycleServices.Logger.LogWarning(
+            logger.LogWarning(
                 "Cannot expire session {SessionId}/{Generation} for player {PlayerId} because UserActors is unavailable.",
                 call.Request.SessionId,
                 call.Request.Generation,
@@ -112,7 +113,7 @@ public sealed class AgarSessionLifecycle
         {
             await ClearRealtimeStateAsync(
                     call.Services,
-                    lifecycleServices.Logger,
+                    logger,
                     playerId,
                     expiredSession.SessionId,
                     expiredSession.Generation,
@@ -126,9 +127,16 @@ public sealed class AgarSessionLifecycle
             return;
         }
 
-        var services = AgarServiceDependencies.From(call);
         await PlayerService
-            .ReleasePlayerAsync(services, playerId, "Reconnect grace period expired")
+            .ReleasePlayerAsync(
+                call.Services.GetRequiredService<UserActors>(),
+                call.Services.GetRequiredService<RoomActors>(),
+                call.Services.GetRequiredService<MatchmakingActors>(),
+                call.Services.GetRequiredService<MatchmakingNotifier>(),
+                call.Services.GetRequiredService<LocalActorNodeIdentity>(),
+                call.Services.GetRequiredService<ILogger<PlayerService>>(),
+                playerId,
+                "Reconnect grace period expired")
             .ConfigureAwait(false);
     }
 
@@ -227,16 +235,5 @@ public sealed class AgarSessionLifecycle
         return string.Equals(snapshot.UserId, session.OwnerKey, StringComparison.Ordinal) &&
             string.Equals(snapshot.RealtimeSessionId, session.SessionId, StringComparison.Ordinal) &&
             snapshot.RealtimeSessionGeneration == session.Generation;
-    }
-}
-
-internal sealed record AgarLifecycleDependencies(
-    ILogger<AgarSessionLifecycle> Logger)
-{
-    public static AgarLifecycleDependencies From<TRequest>(HotfixLifecycleCall<TRequest> call)
-    {
-        var loggerFactory = call.Services.GetRequiredService<ILoggerFactory>();
-        return new AgarLifecycleDependencies(
-            loggerFactory.CreateLogger<AgarSessionLifecycle>());
     }
 }

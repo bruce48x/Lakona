@@ -133,6 +133,58 @@ public sealed class AgarHotfixBoundaryTests
     }
 
     [Fact]
+    public void Agar_hotfix_service_code_does_not_resolve_loggers_through_logger_factory()
+    {
+        var servicesRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Services/PlayerService.cs")
+            .DirectoryName!;
+        var violations = Directory.GetFiles(servicesRoot, "*.cs", SearchOption.TopDirectoryOnly)
+            .Select(file => new
+            {
+                File = file,
+                Text = File.ReadAllText(file)
+            })
+            .Where(result =>
+                result.Text.Contains("ILoggerFactory", StringComparison.Ordinal) ||
+                result.Text.Contains("CreateLogger<", StringComparison.Ordinal))
+            .Select(result => Path.GetRelativePath(Directory.GetCurrentDirectory(), result.File))
+            .ToArray();
+
+        Assert.True(
+            violations.Length == 0,
+            $"Hotfix service code should use typed ILogger<T> dependencies instead of resolving ILoggerFactory per call: {string.Join("; ", violations)}");
+    }
+
+    [Fact]
+    public void Agar_hotfix_services_do_not_build_ad_hoc_dependency_containers_from_calls()
+    {
+        var servicesRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Services/PlayerService.cs")
+            .DirectoryName!;
+        var forbiddenTokens = new[]
+        {
+            "AgarServiceDependencies",
+            "AgarLifecycleDependencies",
+            ".From(call)",
+            ".From(call.Services)",
+            "CreateDependencies("
+        };
+        var violations = Directory.GetFiles(servicesRoot, "*.cs", SearchOption.TopDirectoryOnly)
+            .Select(file => new
+            {
+                File = file,
+                Matches = forbiddenTokens
+                    .Where(token => File.ReadAllText(file).Contains(token, StringComparison.Ordinal))
+                    .ToArray()
+            })
+            .Where(result => result.Matches.Length > 0)
+            .Select(result => $"{Path.GetRelativePath(Directory.GetCurrentDirectory(), result.File)}: {string.Join(", ", result.Matches)}")
+            .ToArray();
+
+        Assert.True(
+            violations.Length == 0,
+            $"Hotfix services should use constructor injection instead of call-derived dependency containers: {string.Join("; ", violations)}");
+    }
+
+    [Fact]
     public void Agar_hotfix_services_do_not_parse_node_identity_or_pick_arbitrary_runtime_nodes()
     {
         var servicesRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Services/PlayerService.cs")

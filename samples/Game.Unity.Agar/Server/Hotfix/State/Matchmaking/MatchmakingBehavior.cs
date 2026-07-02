@@ -260,18 +260,18 @@ public static partial class MatchmakingBehavior
 
     private static async Task PublishMatchedAsync(MatchmakingActor self, IEnumerable<RoomAssignment> assignments)
     {
-        if (self.Context.Services.GetService<MatchmakingNotifier>() is null)
+        if (self.Context.Services.GetService<MatchmakingNotifier>() is not { } matchmakingNotifier)
         {
             return;
         }
 
-        var services = AgarServiceDependencies.From(self.Context.Services);
+        var users = self.Context.Services.GetRequiredService<UserActors>();
         foreach (var assignment in assignments
             .Where(static assignment => !string.IsNullOrWhiteSpace(assignment.RoomId))
             .GroupBy(static assignment => assignment.RoomId, StringComparer.Ordinal)
             .Select(static group => group.First()))
         {
-            await PlayerService.PublishMatchedAsync(services, assignment).ConfigureAwait(false);
+            await PlayerService.PublishMatchedAsync(users, matchmakingNotifier, assignment).ConfigureAwait(false);
         }
     }
 
