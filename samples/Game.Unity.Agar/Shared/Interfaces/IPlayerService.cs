@@ -8,14 +8,21 @@ using UnityEngine;
 
 namespace Shared.Interfaces
 {
-    [RpcService(1, NotificationContract = typeof(IControlCallback))]
+    [RpcService(1, NotificationContract = typeof(ILoginCallback))]
     public interface ILoginService
     {
         [RpcMethod(1)]
         ValueTask<LoginReply> LoginAsync(LoginRequest req);
     }
+    
+    [RpcNotificationContract(typeof(ILoginService))]
+    public interface ILoginCallback
+    {
+        [RpcNotification(1)]
+        void OnPlaceHolder(MatchmakingStatusUpdate matchmakingStatus);
+    }
 
-    [RpcService(2)]
+    [RpcService(2, NotificationContract = typeof(IPlayerCallback))]
     public interface IPlayerService
     {
         [RpcMethod(1)]
@@ -31,8 +38,8 @@ namespace Shared.Interfaces
         ValueTask LogoutAsync(LogoutRequest req);
     }
 
-    [RpcNotificationContract(typeof(ILoginService))]
-    public interface IControlCallback
+    [RpcNotificationContract(typeof(IPlayerService))]
+    public interface IPlayerCallback
     {
         [RpcNotification(1)]
         void OnMatchmakingStatus(MatchmakingStatusUpdate matchmakingStatus);

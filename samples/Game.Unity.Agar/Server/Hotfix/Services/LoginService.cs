@@ -48,7 +48,7 @@ public sealed class LoginService
         _logger = logger;
     }
 
-    public async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, IControlCallback> call)
+    public async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, ILoginCallback> call)
     {
         var req = call.Request;
         var controlGateway = ResolveLocalControlGateway();

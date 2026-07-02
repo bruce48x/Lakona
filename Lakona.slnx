@@ -8,11 +8,13 @@
     <Project Path="samples/Game.Cluster.TwoNode/Cluster.TwoNode.csproj" />
   </Folder>
   <Folder Name="/samples/Game.Unity.Agar/">
-    <Project Path="samples/Game.Unity.Agar/Server/App/Server.App.csproj" />
+    <Project Path="samples/Game.Unity.Agar/Shared/Shared.csproj" />
+      <Project Path="samples/Game.Unity.Agar/Server/App/Server.App.csproj" />
     <Project Path="samples/Game.Unity.Agar/Server/Hotfix/Server.Hotfix.csproj" />
   </Folder>
   <Folder Name="/samples/Game.Godot.Chat/">
-    <Project Path="samples/Game.Godot.Chat/Server/App/Server.App.csproj" />
+    <Project Path="samples/Game.Godot.Chat/Shared/Shared.csproj" />
+      <Project Path="samples/Game.Godot.Chat/Server/App/Server.App.csproj" />
     <Project Path="samples/Game.Godot.Chat/Server/Hotfix/Server.Hotfix.csproj" />
   </Folder>
   <Folder Name="/src/">

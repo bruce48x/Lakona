@@ -21,7 +21,7 @@ public sealed class MatchmakingNotifier
     {
         var status = await _notifications
             .ForSession(controlSession)
-            .NotifyAsync<IControlCallback>(
+            .NotifyAsync<IPlayerCallback>(
                 target =>
                 {
                     target.OnMatchmakingStatus(Clone(update));
