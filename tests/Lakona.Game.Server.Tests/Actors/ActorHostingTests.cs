@@ -387,6 +387,20 @@ public sealed class ActorHostingTests
         Assert.Equal(1, directory.MaxConcurrentOperations);
     }
 
+    [Fact]
+    public async Task Operation_gate_rejects_references_to_retired_entries()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var gate = new ActorHostingOperationGate();
+        var actorId = ActorId.From("hosting/gate-retired-entry");
+
+        var lease = await gate.EnterAsync(actorId, cancellationToken);
+        var entry = GetGateEntry(gate, actorId);
+        await lease.DisposeAsync();
+
+        Assert.False(TryAddGateEntryReference(entry));
+    }
+
     private static ServiceProvider CreateProvider(
         Action<ActorRuntimeOptions>? configure = null,
         IActorDirectory? directory = null)
@@ -401,6 +415,29 @@ public sealed class ActorHostingTests
         }
 
         return services.BuildServiceProvider();
+    }
+
+    private static object GetGateEntry(ActorHostingOperationGate gate, ActorId actorId)
+    {
+        var entries = typeof(ActorHostingOperationGate)
+            .GetField("_entries", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .GetValue(gate)!;
+        var arguments = new object?[] { actorId, null };
+        var found = (bool)entries.GetType().GetMethod("TryGetValue")!.Invoke(entries, arguments)!;
+        Assert.True(found);
+        return arguments[1]!;
+    }
+
+    private static bool TryAddGateEntryReference(object entry)
+    {
+        var method = entry.GetType()
+            .GetMethod(
+                "TryAddRef",
+                System.Reflection.BindingFlags.Instance |
+                System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(method);
+        return (bool)method.Invoke(entry, [])!;
     }
 
     private class HostedTestActor : GameActor

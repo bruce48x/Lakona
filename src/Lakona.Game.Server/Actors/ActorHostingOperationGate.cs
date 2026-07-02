@@ -10,8 +10,13 @@ internal sealed class ActorHostingOperationGate
         ActorId actorId,
         CancellationToken cancellationToken)
     {
-        var entry = _entries.GetOrAdd(actorId, static _ => new Entry());
-        entry.AddRef();
+        Entry entry;
+        do
+        {
+            entry = _entries.GetOrAdd(actorId, static _ => new Entry());
+        }
+        while (!entry.TryAddRef());
+
         try
         {
             await entry.Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -32,7 +37,7 @@ internal sealed class ActorHostingOperationGate
 
     private void ReleaseRef(ActorId actorId, Entry entry)
     {
-        if (entry.ReleaseRef() == 0)
+        if (entry.ReleaseRefAndRetireIfUnused())
         {
             _entries.TryRemove(new KeyValuePair<ActorId, Entry>(actorId, entry));
         }
@@ -40,18 +45,32 @@ internal sealed class ActorHostingOperationGate
 
     private sealed class Entry
     {
+        private const int Retired = -1;
         private int _refCount;
 
         public SemaphoreSlim Semaphore { get; } = new(1, 1);
 
-        public void AddRef()
+        public bool TryAddRef()
         {
-            Interlocked.Increment(ref _refCount);
+            while (true)
+            {
+                var current = Volatile.Read(ref _refCount);
+                if (current == Retired)
+                {
+                    return false;
+                }
+
+                if (Interlocked.CompareExchange(ref _refCount, current + 1, current) == current)
+                {
+                    return true;
+                }
+            }
         }
 
-        public int ReleaseRef()
+        public bool ReleaseRefAndRetireIfUnused()
         {
-            return Interlocked.Decrement(ref _refCount);
+            return Interlocked.Decrement(ref _refCount) == 0 &&
+                Interlocked.CompareExchange(ref _refCount, Retired, 0) == 0;
         }
     }
 

@@ -51,36 +51,6 @@ public sealed class ActorNotFoundException : ActorCallException
     }
 }
 
-public sealed class ActorAlreadyExistsException : ActorCallException
-{
-    public ActorAlreadyExistsException(
-        ActorId actorId,
-        string actorName,
-        string methodName,
-        string message,
-        NodeId? node = null,
-        string? correlationId = null,
-        Exception? innerException = null)
-        : base(ActorCallStatus.ActorAlreadyExists, actorId, actorName, methodName, message, node, correlationId, innerException)
-    {
-    }
-}
-
-public sealed class ActorOwnershipMismatchException : ActorCallException
-{
-    public ActorOwnershipMismatchException(
-        ActorId actorId,
-        string actorName,
-        string methodName,
-        string message,
-        NodeId? node = null,
-        string? correlationId = null,
-        Exception? innerException = null)
-        : base(ActorCallStatus.ActorOwnershipMismatch, actorId, actorName, methodName, message, node, correlationId, innerException)
-    {
-    }
-}
-
 public sealed class NodeUnavailableException : ActorCallException
 {
     public NodeUnavailableException(

@@ -485,8 +485,13 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
     {
         public object? GetService(Type serviceType)
         {
-            return serviceType == typeof(IServiceProvider)
-                ? this
+            if (serviceType == typeof(IServiceProvider))
+            {
+                return this;
+            }
+
+            return TryGetCombinedEnumerable(serviceType, hotfixServices, rootServices, out var services)
+                ? services
                 : hotfixServices.GetService(serviceType) ?? rootServices.GetService(serviceType);
         }
     }
@@ -497,7 +502,9 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
     {
         public object? GetService(Type serviceType)
         {
-            return hotfixServices.GetService(serviceType) ?? rootServices.GetService(serviceType);
+            return TryGetCombinedEnumerable(serviceType, hotfixServices, rootServices, out var services)
+                ? services
+                : hotfixServices.GetService(serviceType) ?? rootServices.GetService(serviceType);
         }
 
         public void Dispose()
@@ -515,5 +522,51 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
 
             (hotfixServices as IDisposable)?.Dispose();
         }
+    }
+
+    private static bool TryGetCombinedEnumerable(
+        Type serviceType,
+        IServiceProvider hotfixServices,
+        IServiceProvider rootServices,
+        out object? services)
+    {
+        services = null;
+        if (!serviceType.IsGenericType ||
+            serviceType.GetGenericTypeDefinition() != typeof(IEnumerable<>))
+        {
+            return false;
+        }
+
+        var elementType = serviceType.GetGenericArguments()[0];
+        var hotfixItems = ToList(hotfixServices.GetService(serviceType));
+        var rootItems = ToList(rootServices.GetService(serviceType));
+        var combined = Array.CreateInstance(elementType, hotfixItems.Count + rootItems.Count);
+        var index = 0;
+        foreach (var item in hotfixItems)
+        {
+            combined.SetValue(item, index++);
+        }
+
+        foreach (var item in rootItems)
+        {
+            combined.SetValue(item, index++);
+        }
+
+        services = combined;
+        return true;
+    }
+
+    private static List<object?> ToList(object? services)
+    {
+        var list = new List<object?>();
+        if (services is System.Collections.IEnumerable enumerable)
+        {
+            foreach (var service in enumerable)
+            {
+                list.Add(service);
+            }
+        }
+
+        return list;
     }
 }

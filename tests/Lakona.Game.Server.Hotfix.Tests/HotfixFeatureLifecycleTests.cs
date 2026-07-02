@@ -250,6 +250,24 @@ public sealed class HotfixFeatureLifecycleTests
     }
 
     [Fact]
+    public async Task Candidate_rollback_scope_uses_root_participants_through_manager_fallback_provider()
+    {
+        var participant = new RecordingRollbackParticipant();
+        await using var rootServices = new ServiceCollection()
+            .AddSingleton<IHotfixCandidateRollbackParticipant>(participant)
+            .BuildServiceProvider();
+        var manager = new HotfixManager(new UnusedAssemblySource(), rootServices: rootServices);
+        var services = BuildHotfixProvider(manager, []);
+
+        await using var scope = await HotfixCandidateRollbackScope
+            .BeginAsync("fallback", services, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["begin:fallback"], participant.Events);
+        await scope.RollbackAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(["begin:fallback", "rollback"], participant.Events);
+    }
+
+    [Fact]
     public async Task Disabled_candidate_feature_does_not_start()
     {
         LifecycleRecorder.Reset();
@@ -875,6 +893,15 @@ public sealed class HotfixFeatureLifecycleTests
         return new OwnedRuntime(provider, snapshot);
     }
 
+    private static IServiceProvider BuildHotfixProvider(
+        HotfixManager manager,
+        IReadOnlyList<HotfixFeatureDeclaration> features)
+    {
+        return (IServiceProvider)typeof(HotfixManager)
+            .GetMethod("BuildHotfixProvider", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(manager, [features])!;
+    }
+
     private static HotfixServiceMethodBinding CreateNestedStartTimerServiceBinding()
     {
         var method = typeof(NestedStartTimerService).GetMethod(nameof(NestedStartTimerService.CreateTimerAsync))!;
@@ -1008,6 +1035,40 @@ public sealed class HotfixFeatureLifecycleTests
             }
 
             throw new OperationCanceledException(cancellationToken);
+        }
+    }
+
+    private sealed class RecordingRollbackParticipant : IHotfixCandidateRollbackParticipant
+    {
+        public List<string> Events { get; } = [];
+
+        public ValueTask<IHotfixCandidateRollbackHandle> BeginCandidateFeatureStartAsync(
+            string featureName,
+            IServiceProvider services,
+            CancellationToken cancellationToken)
+        {
+            Events.Add($"begin:{featureName}");
+            return new ValueTask<IHotfixCandidateRollbackHandle>(new Handle(this));
+        }
+
+        private sealed class Handle(RecordingRollbackParticipant owner) : IHotfixCandidateRollbackHandle
+        {
+            public ValueTask CommitAsync(CancellationToken cancellationToken)
+            {
+                owner.Events.Add("commit");
+                return default;
+            }
+
+            public ValueTask RollbackAsync(CancellationToken cancellationToken)
+            {
+                owner.Events.Add("rollback");
+                return default;
+            }
+
+            public ValueTask DisposeAsync()
+            {
+                return default;
+            }
         }
     }
 
