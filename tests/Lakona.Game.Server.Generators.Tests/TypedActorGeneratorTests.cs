@@ -53,6 +53,7 @@ public sealed class TypedActorGeneratorTests
         Assert.Contains("return new RoomRemoteRef(_remote, _serializer, _options, nodeId, id);", result.GeneratedSource);
         Assert.Contains("private readonly global::Lakona.Game.Server.Actors.IActorDirectory _directory;", result.GeneratedSource);
         Assert.Contains("private readonly global::Lakona.Game.Server.Actors.IActorDirectoryCache _directoryCache;", result.GeneratedSource);
+        Assert.DoesNotContain("LocalActorNodeIdentity", result.GeneratedSource);
         Assert.Contains("global::Lakona.Game.Cluster.NodeId nodeId,", result.GeneratedSource);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask<JoinRoomReply> JoinAsync", result.GeneratedSource);
         Assert.Contains("private readonly global::Lakona.Game.Server.Actors.IActorRuntime _runtime;", result.GeneratedSource);

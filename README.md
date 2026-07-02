@@ -278,19 +278,27 @@ actor runtime loops stay with reloadable game behavior.
 [HotfixFeature("battle-runtime")]
 public sealed class BattleRuntimeFeature : HotfixGameFeature
 {
-    public static void Configure(HotfixFeatureContext context)
-    {
-        context.EnsureLocalActor<MatchmakingActor>("default");
-    }
-
     public static async ValueTask StartAsync(HotfixFeatureStartCall call)
     {
+        var actorHosting = call.Services.GetRequiredService<ActorHosting>();
+        await actorHosting.CreateAsync<MatchmakingActor>(
+            ActorId.From("default"),
+            call.CancellationToken);
+
         await LakonaTimer.CreatePeriodicTimerAsync<BattleRuntimeTimers, BattleRuntimeTick>(
             TimeSpan.Zero,
             TimeSpan.FromMilliseconds(50),
             nameof(BattleRuntimeTimers.TickAsync),
             new BattleRuntimeTick("default"),
             call.CancellationToken);
+    }
+
+    public static async ValueTask StopAsync(HotfixFeatureStopCall call)
+    {
+        var actorHosting = call.Services.GetRequiredService<ActorHosting>();
+        await actorHosting.DestroyAsync<MatchmakingActor>(
+            ActorId.From("default"),
+            CancellationToken.None);
     }
 }
 

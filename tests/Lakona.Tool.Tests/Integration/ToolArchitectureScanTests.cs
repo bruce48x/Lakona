@@ -48,6 +48,17 @@ public sealed class ToolArchitectureScanTests
     }
 
     [Fact]
+    public void RootReadme_DoesNotDocumentRemovedActorLifecycleApis()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var readme = File.ReadAllText(Path.Combine(repositoryRoot, "README.md"));
+
+        Assert.DoesNotContain(string.Concat("Ensure", "Local", "Actor"), readme, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("Actor", "Spawn", "Attribute"), readme, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("Actor", "Destroy", "Attribute"), readme, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task NewProject_UsesReadinessCheckAndDoesNotGenerateLegacyLakonaGameCheck()
     {
         var repositoryRoot = FindRepositoryRoot();

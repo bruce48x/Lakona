@@ -246,7 +246,6 @@ namespace Lakona.Game.Server.Generators
                 builder.Append(indent).AppendLine("    private readonly global::Lakona.Game.Server.Actors.RemoteActorOptions _options;");
                 builder.Append(indent).AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorDirectory _directory;");
                 builder.Append(indent).AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorDirectoryCache _directoryCache;");
-                builder.Append(indent).AppendLine("    private readonly global::Lakona.Game.Server.Actors.LocalActorNodeIdentity _localNode;");
             }
 
             builder.AppendLine();
@@ -263,8 +262,7 @@ namespace Lakona.Game.Server.Generators
                 builder.Append(indent).AppendLine("        global::Lakona.Game.Server.Actors.IRemoteActorSerializer serializer,");
                 builder.Append(indent).AppendLine("        global::Lakona.Game.Server.Actors.RemoteActorOptions options,");
                 builder.Append(indent).AppendLine("        global::Lakona.Game.Server.Actors.IActorDirectory directory,");
-                builder.Append(indent).AppendLine("        global::Lakona.Game.Server.Actors.IActorDirectoryCache directoryCache,");
-                builder.Append(indent).AppendLine("        global::Lakona.Game.Server.Actors.LocalActorNodeIdentity localNode)");
+                builder.Append(indent).AppendLine("        global::Lakona.Game.Server.Actors.IActorDirectoryCache directoryCache)");
             }
 
             builder.Append(indent).AppendLine("    {");
@@ -276,7 +274,6 @@ namespace Lakona.Game.Server.Generators
                 builder.Append(indent).AppendLine("        _options = options;");
                 builder.Append(indent).AppendLine("        _directory = directory;");
                 builder.Append(indent).AppendLine("        _directoryCache = directoryCache;");
-                builder.Append(indent).AppendLine("        _localNode = localNode;");
             }
 
             builder.Append(indent).AppendLine("    }");
