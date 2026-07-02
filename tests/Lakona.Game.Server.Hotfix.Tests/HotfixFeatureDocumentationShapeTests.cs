@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Xunit;
 
 namespace Lakona.Game.Server.Hotfix.Tests;
@@ -21,13 +22,13 @@ public sealed class HotfixFeatureDocumentationShapeTests
         var combinedText = string.Join(
             Environment.NewLine,
             ActiveDocumentationAndTemplateFiles
-                .Select(ReadIfPresent)
-                .Where(text => text is not null));
+                .Select(ReadRequired));
 
         Assert.Contains("public static void Configure(HotfixFeatureContext context)", combinedText, StringComparison.Ordinal);
         Assert.Contains("public static async ValueTask StartAsync(HotfixFeatureStartCall call)", combinedText, StringComparison.Ordinal);
         Assert.Contains("public static async ValueTask StopAsync(HotfixFeatureStopCall call)", combinedText, StringComparison.Ordinal);
         Assert.Contains("[HotfixFeature(", combinedText, StringComparison.Ordinal);
+        Assert.Contains(": HotfixGameFeature", combinedText, StringComparison.Ordinal);
 
         Assert.DoesNotContain("IHotfixFeatureConfigure", combinedText, StringComparison.Ordinal);
         Assert.DoesNotContain("IHotfixFeatureStart", combinedText, StringComparison.Ordinal);
@@ -35,24 +36,43 @@ public sealed class HotfixFeatureDocumentationShapeTests
         Assert.DoesNotContain("public override void Configure(HotfixFeatureContext", combinedText, StringComparison.Ordinal);
         Assert.DoesNotContain("public override ValueTask StartAsync(HotfixFeatureStartCall", combinedText, StringComparison.Ordinal);
         Assert.DoesNotContain("public override ValueTask StopAsync(HotfixFeatureStopCall", combinedText, StringComparison.Ordinal);
+        Assert.DoesNotContain("public override async ValueTask StartAsync(HotfixFeatureStartCall", combinedText, StringComparison.Ordinal);
+        Assert.DoesNotContain("public override async ValueTask StopAsync(HotfixFeatureStopCall", combinedText, StringComparison.Ordinal);
+        Assert.DoesNotMatch(new Regex(@"public\s+.*\bOnReload\b", RegexOptions.CultureInvariant), combinedText);
+        Assert.DoesNotContain("feature singleton", combinedText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("singleton feature", combinedText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("lifecycle object", combinedText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("lifecycle-object", combinedText, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
     public void Hotfix_architecture_documents_stable_feature_lifecycle_rules()
     {
-        var architecture = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "docs/hotfix/architecture.md"));
+        var architecture = NormalizeWhitespace(File.ReadAllText(Path.Combine(FindRepositoryRoot(), "docs/hotfix/architecture.md")));
 
         Assert.Contains("activation and removal hooks", architecture, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("not every-reload hooks", architecture, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("retains the same feature name", architecture, StringComparison.Ordinal);
+        Assert.Contains("retained feature", architecture, StringComparison.Ordinal);
         Assert.Contains("preserves `HotfixFeatureState`", architecture, StringComparison.Ordinal);
+        Assert.Contains("does not rerun `StartAsync` or `StopAsync`", architecture, StringComparison.Ordinal);
+        Assert.Contains("framework ids", architecture, StringComparison.Ordinal);
+        Assert.Contains("timer ids", architecture, StringComparison.Ordinal);
+        Assert.Contains("strings", architecture, StringComparison.Ordinal);
+        Assert.Contains("primitive values", architecture, StringComparison.Ordinal);
+        Assert.Contains("DTOs from shared non-collectible assemblies", architecture, StringComparison.Ordinal);
         Assert.Contains("must not contain hotfix-owned DTOs, services, delegates, or instances", architecture, StringComparison.Ordinal);
         Assert.Contains("no other public `Configure` overloads", architecture, StringComparison.Ordinal);
     }
 
-    private static string? ReadIfPresent(string relativePath)
+    private static string ReadRequired(string relativePath)
     {
-        var path = Path.Combine(FindRepositoryRoot(), relativePath);
-        return File.Exists(path) ? File.ReadAllText(path) : null;
+        return File.ReadAllText(Path.Combine(FindRepositoryRoot(), relativePath));
+    }
+
+    private static string NormalizeWhitespace(string text)
+    {
+        return Regex.Replace(text, @"\s+", " ", RegexOptions.CultureInvariant);
     }
 
     private static string FindRepositoryRoot()
