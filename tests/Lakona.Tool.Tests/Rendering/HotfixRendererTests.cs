@@ -77,6 +77,12 @@ public sealed class HotfixRendererTests
         Assert.DoesNotContain("localActors.AskAsync", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("call.Actors.AskAsync", chatService, StringComparison.Ordinal);
         Assert.Contains("badword", chatService, StringComparison.Ordinal);
+        Assert.Contains("var text = call.Request.Text ?? \"\";", chatService, StringComparison.Ordinal);
+        Assert.Contains("_logger.LogInformation(\"Sending {CharacterCount} characters\", text.Length);", chatService, StringComparison.Ordinal);
+        Assert.Contains("await BindChatCallbackAsync(call.ConnectionId, call.Callback);", chatService, StringComparison.Ordinal);
+        Assert.Contains("private async ValueTask BindChatCallbackAsync(string connectionId, IChatCallback callback)", chatService, StringComparison.Ordinal);
+        Assert.DoesNotContain("call.Request.Text.Length", chatService, StringComparison.Ordinal);
+        Assert.DoesNotContain("FilterMessage(call.Request.Text ?? \"\")", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("ChatServiceCall", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Create", "Local", "Async"), chatService, StringComparison.Ordinal);
 
@@ -87,6 +93,8 @@ public sealed class HotfixRendererTests
         Assert.Contains("ChatRoomLoginRequest request", behavior, StringComparison.Ordinal);
         Assert.Contains("public static ValueTask LeaveAsync", behavior, StringComparison.Ordinal);
         Assert.Contains("ChatRoomLeaveRequest request", behavior, StringComparison.Ordinal);
+        Assert.Contains("Callback exceptions are ignored so one stale client does not prevent other clients from receiving room events.", behavior, StringComparison.Ordinal);
+        Assert.Contains("catch (Exception)", behavior, StringComparison.Ordinal);
 
         var feature = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Features/ChatFeature.cs").Content;
         var oldActorTickType = string.Concat("Hotfix", "ActorTick");
@@ -116,6 +124,7 @@ public sealed class HotfixRendererTests
         Assert.Contains("internal sealed class ChatSessionLifecycle", lifecycle, StringComparison.Ordinal);
         Assert.Contains("public ChatSessionLifecycle(ChatRoomActors rooms)", lifecycle, StringComparison.Ordinal);
         Assert.Contains("public ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)", lifecycle, StringComparison.Ordinal);
+        Assert.Contains("Disconnected sessions stay in the room during the retention window so a client can reconnect without flickering presence.", lifecycle, StringComparison.Ordinal);
         Assert.Contains("public async ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call)", lifecycle, StringComparison.Ordinal);
         Assert.Contains("private readonly ChatRoomActors _rooms;", lifecycle, StringComparison.Ordinal);
         Assert.Contains(".Get(ChatRoomIds.Global)", lifecycle, StringComparison.Ordinal);

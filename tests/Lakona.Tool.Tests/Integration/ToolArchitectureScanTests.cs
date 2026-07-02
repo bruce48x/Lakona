@@ -288,6 +288,12 @@ public sealed class ToolArchitectureScanTests
         Assert.Contains("private readonly ChatRoomActors _rooms;", chatService, StringComparison.Ordinal);
         Assert.Contains("await _gameServer.BindCurrentSessionAsync", chatService, StringComparison.Ordinal);
         Assert.Contains(".Get(ChatRoomIds.Global)", chatService, StringComparison.Ordinal);
+        Assert.Contains("var text = call.Request.Text ?? \"\";", chatService, StringComparison.Ordinal);
+        Assert.Contains("_logger.LogInformation(\"Sending {CharacterCount} characters\", text.Length);", chatService, StringComparison.Ordinal);
+        Assert.Contains("await BindChatCallbackAsync(call.ConnectionId, call.Callback);", chatService, StringComparison.Ordinal);
+        Assert.Contains("private async ValueTask BindChatCallbackAsync(string connectionId, IChatCallback callback)", chatService, StringComparison.Ordinal);
+        Assert.DoesNotContain("call.Request.Text.Length", chatService, StringComparison.Ordinal);
+        Assert.DoesNotContain("FilterMessage(call.Request.Text ?? \"\")", chatService, StringComparison.Ordinal);
         Assert.Contains("public LoginService(ChatRoomActors rooms, ILakonaGameServer gameServer)", loginService, StringComparison.Ordinal);
         Assert.Contains("private readonly ChatRoomActors _rooms;", loginService, StringComparison.Ordinal);
         Assert.Contains(".Get(ChatRoomIds.Global)", loginService, StringComparison.Ordinal);
@@ -343,6 +349,8 @@ public sealed class ToolArchitectureScanTests
         Assert.DoesNotContain(string.Concat("Ensure", "Local", "Actor"), hotfixText, StringComparison.Ordinal);
         Assert.Contains("internal static partial class ChatRoomBehavior", hotfixText, StringComparison.Ordinal);
         Assert.Contains("ChatSessionLifecycle", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("Disconnected sessions stay in the room during the retention window so a client can reconnect without flickering presence.", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("Callback exceptions are ignored so one stale client does not prevent other clients from receiving room events.", hotfixText, StringComparison.Ordinal);
         Assert.Contains("[HotfixLifecycle(typeof(IGameSessionLifecycle))]", hotfixText, StringComparison.Ordinal);
         Assert.Contains("new ChatRoomLeaveRequest", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain(".AskAsync", hotfixText, StringComparison.Ordinal);

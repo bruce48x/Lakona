@@ -27,32 +27,31 @@ namespace Server.Hotfix.Chat
             await _gameServer.BindCurrentSessionAsync(
                 call.ConnectionId,
                 call.Callback);
-            await _rooms
-                .Get(ChatRoomIds.Global)
-                .BindChatAsync(new ChatRoomBindRequest
-                {
-                    ConnectionId = call.ConnectionId,
-                    ChatCallback = call.Callback
-                });
+            await BindChatCallbackAsync(call.ConnectionId, call.Callback);
         }
 
         public async ValueTask SendAsync(HotfixServiceCall<ChatSendRequest, IChatCallback> call)
         {
-            _logger.LogInformation($"Sending {call.Request.Text.Length} characters");
-            await _rooms
-                .Get(ChatRoomIds.Global)
-                .BindChatAsync(new ChatRoomBindRequest
-                {
-                    ConnectionId = call.ConnectionId,
-                    ChatCallback = call.Callback
-                });
-            var text = FilterMessage(call.Request.Text ?? "");
+            var text = call.Request.Text ?? "";
+            _logger.LogInformation("Sending {CharacterCount} characters", text.Length);
+            await BindChatCallbackAsync(call.ConnectionId, call.Callback);
             await _rooms
                 .Get(ChatRoomIds.Global)
                 .SendAsync(new ChatRoomSendRequest
                 {
                     ConnectionId = call.ConnectionId,
-                    Text = text
+                    Text = FilterMessage(text)
+                });
+        }
+
+        private async ValueTask BindChatCallbackAsync(string connectionId, IChatCallback callback)
+        {
+            await _rooms
+                .Get(ChatRoomIds.Global)
+                .BindChatAsync(new ChatRoomBindRequest
+                {
+                    ConnectionId = connectionId,
+                    ChatCallback = callback
                 });
         }
 

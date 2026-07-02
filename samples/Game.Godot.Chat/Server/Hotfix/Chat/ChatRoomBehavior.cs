@@ -92,8 +92,9 @@ namespace Server.Hotfix.Chat
                 {
                     action(entry.LoginCallback);
                 }
-                catch
+                catch (Exception)
                 {
+                    // Callback exceptions are ignored so one stale client does not prevent other clients from receiving room events.
                 }
             }
         }
@@ -111,8 +112,9 @@ namespace Server.Hotfix.Chat
                 {
                     action(entry.ChatCallback);
                 }
-                catch
+                catch (Exception)
                 {
+                    // Callback exceptions are ignored so one stale client does not prevent other clients from receiving room events.
                 }
             }
         }

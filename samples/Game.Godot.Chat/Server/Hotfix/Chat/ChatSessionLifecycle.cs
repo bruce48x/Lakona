@@ -16,6 +16,7 @@ namespace Server.Hotfix.Chat
 
         public ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
         {
+            // Disconnected sessions stay in the room during the retention window so a client can reconnect without flickering presence.
             return default;
         }
 
