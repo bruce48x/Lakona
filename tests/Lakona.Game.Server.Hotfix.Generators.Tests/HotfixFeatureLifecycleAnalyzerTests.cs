@@ -107,6 +107,28 @@ public sealed class HotfixFeatureLifecycleAnalyzerTests
     }
 
     [Fact]
+    public async Task Reports_hotfix_feature_nested_in_generic_type()
+    {
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            public sealed class FeatureContainer<T>
+            {
+                [HotfixFeature("arena")]
+                public sealed class ArenaFeature : HotfixGameFeature
+                {
+                    public static void Configure(HotfixFeatureContext context)
+                    {
+                    }
+                }
+            }
+            """);
+
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "ULGHOTFIX026");
+        Assert.Contains("must be a concrete class", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Reports_public_configure_overload()
     {
         var source = """

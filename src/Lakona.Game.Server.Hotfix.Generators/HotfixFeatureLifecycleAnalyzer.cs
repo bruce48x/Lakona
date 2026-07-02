@@ -78,7 +78,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             }
 
             var typeLocation = type.Locations.FirstOrDefault(static item => item.IsInSource);
-            if ((type.IsAbstract || type.TypeParameters.Length > 0) && typeLocation is not null)
+            if ((type.IsAbstract || type.IsGenericType) && typeLocation is not null)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     HotfixGeneratorDiagnostics.HotfixFeatureMustBeConcrete,
