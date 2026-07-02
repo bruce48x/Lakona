@@ -150,13 +150,6 @@ namespace Agar.Sample.State.Contracts.Sessions
         public string Reason { get; set; } = "";
     }
 
-    public sealed class PlayerSessionHeartbeatRequest
-    {
-        public string UserId { get; set; } = "";
-
-        public DateTime ObservedAtUtc { get; set; }
-    }
-
     public sealed class PlayerSessionSnapshot
     {
         public string UserId { get; set; } = "";

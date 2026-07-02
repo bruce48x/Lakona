@@ -37,8 +37,6 @@ public interface IUserActorContract
 
     ValueTask<PlayerSessionSnapshot> MarkDisconnectedAsync(PlayerSessionDisconnectRequest request, CancellationToken cancellationToken = default);
 
-    ValueTask<PlayerSessionSnapshot> HeartbeatAsync(PlayerSessionHeartbeatRequest request, CancellationToken cancellationToken = default);
-
     ValueTask<PlayerSessionSnapshot> GetSnapshotAsync(PlayerSessionSnapshotRequest request, CancellationToken cancellationToken = default);
 }
 
