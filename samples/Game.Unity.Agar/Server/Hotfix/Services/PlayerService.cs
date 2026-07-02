@@ -11,7 +11,6 @@ using Agar.Sample.State.Rooms;
 using Agar.Sample.State.Users;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
-using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
@@ -24,8 +23,6 @@ using Server.Hotfix.State.Matchmaking;
 using Server.Hotfix.State.Rooms;
 using Server.Hotfix.State.Users;
 using Shared.Interfaces;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace Server.Hotfix.Services;
 
@@ -58,8 +55,6 @@ public sealed class PlayerService
 
         var topN = req.TopN <= 0 ? 10 : req.TopN;
         var leaderboardId = new LeaderboardId("current");
-        await CreateLeaderboardActorOnStateStoreAsync(leaderboardId.Value, call.Services, logger)
-            .ConfigureAwait(false);
         var snapshot = await _leaderboards
             .Get(leaderboardId)
             .GetLeaderboardAsync(new LeaderboardQueryRequest { TopN = topN })
@@ -138,124 +133,6 @@ public sealed class PlayerService
         AgarServiceDependencies services)
     {
         return new ValueTask<string?>(call.CurrentSession?.OwnerKey);
-    }
-
-    private static async ValueTask CreateLeaderboardActorOnStateStoreAsync(
-        string leaderboardId,
-        IServiceProvider services,
-        ILogger logger)
-    {
-        var actorId = ActorId.From(leaderboardId);
-        var owner = await SelectStateStoreOwnerAsync(leaderboardId, services).ConfigureAwait(false);
-        var ownerNode = owner.Node;
-
-        if (ownerNode == services.GetRequiredService<LocalActorNodeIdentity>().NodeId)
-        {
-            await CreateLocalLeaderboardActorAsync(actorId, leaderboardId, ownerNode, services, logger)
-                .ConfigureAwait(false);
-        }
-        else
-        {
-            await SendCreateLeaderboardActorAsync(owner, leaderboardId, services).ConfigureAwait(false);
-            logger.LogDebug(
-                "Requested leaderboard actor {LeaderboardId} creation on state-store node {NodeId}.",
-                leaderboardId,
-                ownerNode.Value);
-        }
-    }
-
-    private static async ValueTask<ClusterNodeDescriptor> SelectStateStoreOwnerAsync(
-        string placementKey,
-        IServiceProvider services)
-    {
-        var candidates = new List<ClusterNodeDescriptor>();
-        if (services.GetService<IClusterNodeDiscovery>() is IClusterNodeDiscovery discovery)
-        {
-            var discovered = await discovery
-                .ListAsync(new FeatureName(StateStoreUserActorPlacement.FeatureName))
-                .ConfigureAwait(false);
-            candidates.AddRange(discovered.Where(static node =>
-                node.State == NodeState.Ready &&
-                node.Features.Any(static feature => string.Equals(
-                    feature.Name,
-                    StateStoreUserActorPlacement.FeatureName,
-                    StringComparison.OrdinalIgnoreCase))));
-        }
-
-        if (candidates.Count == 0 && LocalNodeCanOwnStateStore(services.GetRequiredService<LakonaGameRuntimeOptions>()))
-        {
-            var localNode = services.GetRequiredService<LocalActorNodeIdentity>().NodeId;
-            candidates.Add(new ClusterNodeDescriptor(
-                localNode,
-                NodeState.Ready,
-                new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal),
-                [new NodeFeatureDescriptor(StateStoreUserActorPlacement.FeatureName)]));
-        }
-
-        if (candidates.Count == 0)
-        {
-            throw new InvalidOperationException(
-                "No ready state-store node is available for leaderboard actor placement.");
-        }
-
-        var ordered = candidates
-            .OrderBy(static node => node.Node.Value, StringComparer.Ordinal)
-            .ToArray();
-        return ordered[SelectOwnerIndex(placementKey, ordered.Length)];
-    }
-
-    private static bool LocalNodeCanOwnStateStore(LakonaGameRuntimeOptions runtime)
-    {
-        return runtime.Feature is null ||
-               runtime.Feature.Any(static feature => string.Equals(
-                   feature,
-                   StateStoreUserActorPlacement.FeatureName,
-                   StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static int SelectOwnerIndex(string placementKey, int count)
-    {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(placementKey));
-        var value = 0UL;
-        for (var index = 0; index < sizeof(ulong); index++)
-        {
-            value = (value << 8) | hash[index];
-        }
-
-        return (int)(value % (ulong)count);
-    }
-
-    private static async ValueTask SendCreateLeaderboardActorAsync(
-        ClusterNodeDescriptor owner,
-        string leaderboardId,
-        IServiceProvider services)
-    {
-        var client = services.GetRequiredService<IFeatureCommandClient>();
-        var reply = await client.SendToNodeAsync<CreateLeaderboardActorRequest, CreateActorReply>(
-            owner,
-            StateStoreUserActorPlacement.FeatureName,
-            new CreateLeaderboardActorRequest { LeaderboardId = leaderboardId }).ConfigureAwait(false);
-        if (!reply.Succeeded)
-        {
-            throw new InvalidOperationException(
-                $"State-store node {owner.Node.Value} rejected leaderboard actor creation for '{leaderboardId}'. {reply.Message}");
-        }
-    }
-
-    private static async ValueTask CreateLocalLeaderboardActorAsync(
-        ActorId actorId,
-        string leaderboardId,
-        NodeId localNode,
-        IServiceProvider services,
-        ILogger logger)
-    {
-        await services
-            .GetRequiredService<ActorHosting>()
-            .EnsureAsync<LeaderboardActor>(actorId)
-            .ConfigureAwait(false);
-
-        logger.LogDebug("Created local leaderboard actor {LeaderboardId} on node {NodeId}.", leaderboardId,
-            localNode.Value);
     }
 
     internal static async Task EnqueuePlayerAsync(AgarServiceDependencies services, string playerId)

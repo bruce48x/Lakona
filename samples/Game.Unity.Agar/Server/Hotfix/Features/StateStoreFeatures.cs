@@ -1,4 +1,3 @@
-using Agar.Sample.State.Leaderboard;
 using Agar.Sample.State.Users;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
@@ -32,7 +31,6 @@ public sealed class StateStoreFeature : HotfixGameFeature
         context.Services.AddSingleton<MatchmakingNotifier>();
         context.Services.AddSingleton<RoomNotifier>();
         context.HandleCommand<CreateUserActorRequest, CreateActorReply>(nameof(CreateUserActorAsync));
-        context.HandleCommand<CreateLeaderboardActorRequest, CreateActorReply>(nameof(CreateLeaderboardActorAsync));
     }
 
     public async ValueTask<CreateActorReply> CreateUserActorAsync(
@@ -46,20 +44,6 @@ public sealed class StateStoreFeature : HotfixGameFeature
         return await CreateActorAsync<UserActor>(
             ActorId.From(call.Request.UserId),
             $"user actor {call.Request.UserId}",
-            call.CancellationToken).ConfigureAwait(false);
-    }
-
-    public async ValueTask<CreateActorReply> CreateLeaderboardActorAsync(
-        HotfixFeatureCommandCall<CreateLeaderboardActorRequest> call)
-    {
-        if (string.IsNullOrWhiteSpace(call.Request.LeaderboardId))
-        {
-            return new CreateActorReply { Succeeded = false, Message = "LeaderboardId is required." };
-        }
-
-        return await CreateActorAsync<LeaderboardActor>(
-            ActorId.From(call.Request.LeaderboardId),
-            $"leaderboard actor {call.Request.LeaderboardId}",
             call.CancellationToken).ConfigureAwait(false);
     }
 

@@ -21,6 +21,7 @@ using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Server.Hotfix.Services;
+using Server.Hotfix.Features;
 using Server.Hotfix.State.Leaderboard;
 using Server.Hotfix.State.Rooms;
 using Server.Hotfix.State.Users;
@@ -145,7 +146,7 @@ public sealed class AgarHotfixTests
     }
 
     [Fact]
-    public async Task Leaderboard_query_creates_current_leaderboard_actor_on_state_store_node()
+    public async Task Leaderboard_query_uses_existing_global_leaderboard_actor()
     {
         await TestHotfix.LoadCurrentAsync(TestContext.Current.CancellationToken);
 
@@ -190,6 +191,10 @@ public sealed class AgarHotfixTests
 
         await using var provider = services.BuildServiceProvider();
         featureCommands.UseActorDirectory(provider.GetRequiredService<IActorDirectory>());
+        var expectedOwner = SelectExpectedStateStoreOwner("current", stateStoreNodes);
+        featureCommands.RegisterExistingLeaderboardActor(expectedOwner.Node, "current");
+        await provider.GetRequiredService<IActorDirectory>()
+            .RegisterAsync(ActorId.From("current"), expectedOwner.Node, TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
         var service = new PlayerService(
             provider.GetRequiredService<UserActors>(),
@@ -207,12 +212,37 @@ public sealed class AgarHotfixTests
         var reply = await service.GetLeaderboardAsync(call);
 
         Assert.Equal(0, reply.Code);
-        var expectedOwner = SelectExpectedStateStoreOwner("current", stateStoreNodes);
-        Assert.NotNull(featureCommands.LastTarget);
-        Assert.Equal(expectedOwner.Node, featureCommands.LastTarget.Node);
-        Assert.Equal("state-store", featureCommands.LastFeatureName);
-        Assert.Equal("CreateLeaderboardActorRequest", featureCommands.LastRequestTypeName);
+        Assert.Null(featureCommands.LastTarget);
+        Assert.Equal("", featureCommands.LastFeatureName);
+        Assert.Equal("", featureCommands.LastRequestTypeName);
         Assert.Equal(ActorState.Dead, actors.GetState(ActorId.From("current")));
+    }
+
+    [Fact]
+    public async Task Leaderboard_feature_start_creates_current_leaderboard_actor()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddLakonaGameServer();
+        new global::GeneratedHotfixActorRegistration().Register(services);
+        services.AddGeneratedActorSelectorTestDependencies();
+        services.AddSingleton(new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "state-store-1" },
+            Feature = ["leaderboard"]
+        });
+
+        await using var provider = services.BuildServiceProvider();
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        var call = new HotfixFeatureStartCall(
+            "leaderboard",
+            new HotfixFeatureState(),
+            provider,
+            TestContext.Current.CancellationToken);
+
+        await LeaderboardFeature.StartAsync(call);
+
+        Assert.Equal(ActorState.Active, actors.GetState(ActorId.From("current")));
     }
 
     [Fact]
@@ -396,6 +426,8 @@ public sealed class AgarHotfixTests
 
     private sealed class CapturingFeatureCommandClient : IFeatureCommandClient
     {
+        private readonly HashSet<(NodeId Node, string ActorId)> _createdLeaderboardActors = [];
+        private readonly HashSet<(NodeId Node, string ActorId)> _createdUserActors = [];
         private IActorDirectory? _directory;
 
         public ClusterNodeDescriptor? LastTarget { get; private set; }
@@ -415,18 +447,17 @@ public sealed class AgarHotfixTests
 
         public bool HasCreatedUserActorOn(NodeId node, string userId)
         {
-            return LastTarget?.Node == node &&
-                string.Equals(LastFeatureName, "state-store", StringComparison.Ordinal) &&
-                string.Equals(LastRequestTypeName, "CreateUserActorRequest", StringComparison.Ordinal) &&
-                string.Equals(LastUserId, userId, StringComparison.Ordinal);
+            return _createdUserActors.Contains((node, userId));
         }
 
         public bool HasCreatedLeaderboardActorOn(NodeId node, string leaderboardId)
         {
-            return LastTarget?.Node == node &&
-                string.Equals(LastFeatureName, "state-store", StringComparison.Ordinal) &&
-                string.Equals(LastRequestTypeName, "CreateLeaderboardActorRequest", StringComparison.Ordinal) &&
-                string.Equals(LastLeaderboardId, leaderboardId, StringComparison.Ordinal);
+            return _createdLeaderboardActors.Contains((node, leaderboardId));
+        }
+
+        public void RegisterExistingLeaderboardActor(NodeId node, string leaderboardId)
+        {
+            _createdLeaderboardActors.Add((node, leaderboardId));
         }
 
         public ValueTask<TReply> SendAsync<TRequest, TReply>(
@@ -466,6 +497,16 @@ public sealed class AgarHotfixTests
                         : default;
                 if (!string.IsNullOrWhiteSpace(createdActorId.Value))
                 {
+                    if (!string.IsNullOrWhiteSpace(LastUserId))
+                    {
+                        _createdUserActors.Add((target.Node, LastUserId));
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(LastLeaderboardId))
+                    {
+                        _createdLeaderboardActors.Add((target.Node, LastLeaderboardId));
+                    }
+
                     await _directory.RegisterAsync(createdActorId, target.Node, cancellationToken)
                         .ConfigureAwait(false);
                 }

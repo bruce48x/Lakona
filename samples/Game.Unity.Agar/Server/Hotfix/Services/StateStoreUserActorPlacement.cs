@@ -8,8 +8,6 @@ internal static class StateStoreUserActorPlacement
     public const string FeatureName = "state-store";
 
     public const int CreateUserActorCommandId = 201;
-
-    public const int CreateLeaderboardActorCommandId = 202;
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
@@ -18,14 +16,6 @@ public partial class CreateUserActorRequest
 {
     [MemoryPackOrder(0)]
     public string UserId { get; set; } = "";
-}
-
-[MemoryPackable(GenerateType.VersionTolerant)]
-[FeatureCommand(StateStoreUserActorPlacement.CreateLeaderboardActorCommandId)]
-public partial class CreateLeaderboardActorRequest
-{
-    [MemoryPackOrder(0)]
-    public string LeaderboardId { get; set; } = "";
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
