@@ -234,28 +234,18 @@ public sealed class LoginService
         var actorId = ActorId.From(account);
         var owner = await SelectStateStoreOwnerAsync(account, services).ConfigureAwait(false);
         var ownerNode = owner.Node;
-        var directoryCache = services.GetRequiredService<IActorDirectoryCache>();
 
-        try
+        if (ownerNode == services.GetRequiredService<LocalActorNodeIdentity>().NodeId)
         {
-            if (ownerNode == services.GetRequiredService<LocalActorNodeIdentity>().NodeId)
-            {
-                await CreateLocalUserActorAsync(actorId, account, ownerNode, services, logger).ConfigureAwait(false);
-            }
-            else
-            {
-                await SendCreateUserActorAsync(owner, account, services).ConfigureAwait(false);
-                directoryCache.Set(actorId, ownerNode);
-                logger.LogDebug(
-                    "Requested user actor {UserId} creation on state-store node {NodeId}.",
-                    account,
-                    ownerNode.Value);
-            }
+            await CreateLocalUserActorAsync(actorId, account, ownerNode, services, logger).ConfigureAwait(false);
         }
-        catch
+        else
         {
-            directoryCache.Remove(actorId);
-            throw;
+            await SendCreateUserActorAsync(owner, account, services).ConfigureAwait(false);
+            logger.LogDebug(
+                "Requested user actor {UserId} creation on state-store node {NodeId}.",
+                account,
+                ownerNode.Value);
         }
     }
 
@@ -348,7 +338,6 @@ public sealed class LoginService
             .EnsureAsync<UserActor>(actorId)
             .ConfigureAwait(false);
 
-        services.GetRequiredService<IActorDirectoryCache>().Set(actorId, localNode);
         logger.LogDebug("Created local user actor {UserId} on node {NodeId}.", account, localNode.Value);
     }
 }

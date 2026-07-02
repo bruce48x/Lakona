@@ -148,29 +148,19 @@ public sealed class PlayerService
         var actorId = ActorId.From(leaderboardId);
         var owner = await SelectStateStoreOwnerAsync(leaderboardId, services).ConfigureAwait(false);
         var ownerNode = owner.Node;
-        var directoryCache = services.GetRequiredService<IActorDirectoryCache>();
 
-        try
+        if (ownerNode == services.GetRequiredService<LocalActorNodeIdentity>().NodeId)
         {
-            if (ownerNode == services.GetRequiredService<LocalActorNodeIdentity>().NodeId)
-            {
-                await CreateLocalLeaderboardActorAsync(actorId, leaderboardId, ownerNode, services, logger)
-                    .ConfigureAwait(false);
-            }
-            else
-            {
-                await SendCreateLeaderboardActorAsync(owner, leaderboardId, services).ConfigureAwait(false);
-                directoryCache.Set(actorId, ownerNode);
-                logger.LogDebug(
-                    "Requested leaderboard actor {LeaderboardId} creation on state-store node {NodeId}.",
-                    leaderboardId,
-                    ownerNode.Value);
-            }
+            await CreateLocalLeaderboardActorAsync(actorId, leaderboardId, ownerNode, services, logger)
+                .ConfigureAwait(false);
         }
-        catch
+        else
         {
-            directoryCache.Remove(actorId);
-            throw;
+            await SendCreateLeaderboardActorAsync(owner, leaderboardId, services).ConfigureAwait(false);
+            logger.LogDebug(
+                "Requested leaderboard actor {LeaderboardId} creation on state-store node {NodeId}.",
+                leaderboardId,
+                ownerNode.Value);
         }
     }
 
@@ -264,7 +254,6 @@ public sealed class PlayerService
             .EnsureAsync<LeaderboardActor>(actorId)
             .ConfigureAwait(false);
 
-        services.GetRequiredService<IActorDirectoryCache>().Set(actorId, localNode);
         logger.LogDebug("Created local leaderboard actor {LeaderboardId} on node {NodeId}.", leaderboardId,
             localNode.Value);
     }

@@ -116,6 +116,7 @@ public sealed class AgarHotfixTests
         services.AddSingleton(matchmakingNotifierType);
 
         await using var provider = services.BuildServiceProvider();
+        featureCommands.UseActorDirectory(provider.GetRequiredService<IActorDirectory>());
         var actors = provider.GetRequiredService<IActorRuntime>();
         var service = new LoginService(provider.GetRequiredService<UserActors>());
         var call = new HotfixServiceCall<LoginRequest, IControlCallback>(
@@ -188,6 +189,7 @@ public sealed class AgarHotfixTests
         services.AddSingleton(matchmakingNotifierType);
 
         await using var provider = services.BuildServiceProvider();
+        featureCommands.UseActorDirectory(provider.GetRequiredService<IActorDirectory>());
         var actors = provider.GetRequiredService<IActorRuntime>();
         var service = new PlayerService(
             provider.GetRequiredService<UserActors>(),
@@ -394,6 +396,8 @@ public sealed class AgarHotfixTests
 
     private sealed class CapturingFeatureCommandClient : IFeatureCommandClient
     {
+        private IActorDirectory? _directory;
+
         public ClusterNodeDescriptor? LastTarget { get; private set; }
 
         public string LastFeatureName { get; private set; } = "";
@@ -403,6 +407,11 @@ public sealed class AgarHotfixTests
         public string LastUserId { get; private set; } = "";
 
         public string LastLeaderboardId { get; private set; } = "";
+
+        public void UseActorDirectory(IActorDirectory directory)
+        {
+            _directory = directory;
+        }
 
         public bool HasCreatedUserActorOn(NodeId node, string userId)
         {
@@ -425,7 +434,7 @@ public sealed class AgarHotfixTests
             TRequest request,
             CancellationToken cancellationToken = default)
         {
-            return CaptureAndReply<TRequest, TReply>(null, featureName, request);
+            return CaptureAndReply<TRequest, TReply>(null, featureName, request, cancellationToken);
         }
 
         public ValueTask<TReply> SendToNodeAsync<TRequest, TReply>(
@@ -434,25 +443,39 @@ public sealed class AgarHotfixTests
             TRequest request,
             CancellationToken cancellationToken = default)
         {
-            return CaptureAndReply<TRequest, TReply>(target, featureName, request);
+            return CaptureAndReply<TRequest, TReply>(target, featureName, request, cancellationToken);
         }
 
-        private ValueTask<TReply> CaptureAndReply<TRequest, TReply>(
+        private async ValueTask<TReply> CaptureAndReply<TRequest, TReply>(
             ClusterNodeDescriptor? target,
             string featureName,
-            TRequest request)
+            TRequest request,
+            CancellationToken cancellationToken)
         {
             LastTarget = target;
             LastFeatureName = featureName;
             LastRequestTypeName = typeof(TRequest).Name;
             LastUserId = ReadStringProperty(request, "UserId");
             LastLeaderboardId = ReadStringProperty(request, "LeaderboardId");
+            if (target is not null && _directory is not null)
+            {
+                var createdActorId = !string.IsNullOrWhiteSpace(LastUserId)
+                    ? ActorId.From(LastUserId)
+                    : !string.IsNullOrWhiteSpace(LastLeaderboardId)
+                        ? ActorId.From(LastLeaderboardId)
+                        : default;
+                if (!string.IsNullOrWhiteSpace(createdActorId.Value))
+                {
+                    await _directory.RegisterAsync(createdActorId, target.Node, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+            }
 
             var reply = Activator.CreateInstance(typeof(TReply), nonPublic: true)
                 ?? throw new InvalidOperationException($"Could not create reply type {typeof(TReply).FullName}.");
             typeof(TReply).GetProperty("Succeeded")?.SetValue(reply, true);
             typeof(TReply).GetProperty("Message")?.SetValue(reply, "Actor ready.");
-            return new ValueTask<TReply>((TReply)reply);
+            return (TReply)reply;
         }
 
         private static string ReadStringProperty<TRequest>(TRequest request, string propertyName)

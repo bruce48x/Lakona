@@ -247,6 +247,35 @@ public sealed class AgarHotfixBoundaryTests
     }
 
     [Fact]
+    public void Agar_hotfix_business_code_does_not_manually_update_actor_directory_cache()
+    {
+        var hotfixRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Server.Hotfix.csproj")
+            .DirectoryName!;
+        var forbiddenTokens = new[]
+        {
+            "IActorDirectoryCache",
+            "directoryCache.Set",
+            "directoryCache.Remove",
+            ".GetRequiredService<IActorDirectoryCache>()",
+        };
+        var violations = Directory.GetFiles(hotfixRoot, "*.cs", SearchOption.AllDirectories)
+            .Select(file => new
+            {
+                File = file,
+                Matches = forbiddenTokens
+                    .Where(token => File.ReadAllText(file).Contains(token, StringComparison.Ordinal))
+                    .ToArray()
+            })
+            .Where(result => result.Matches.Length > 0)
+            .Select(result => $"{Path.GetRelativePath(Directory.GetCurrentDirectory(), result.File)}: {string.Join(", ", result.Matches)}")
+            .ToArray();
+
+        Assert.True(
+            violations.Length == 0,
+            $"Agar hotfix business code must let ActorHosting and generated selectors own directory cache updates: {string.Join("; ", violations)}");
+    }
+
+    [Fact]
     public void State_store_actor_placement_does_not_keep_legacy_ensure_actor_protocol_names()
     {
         var hotfixRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Server.Hotfix.csproj")
