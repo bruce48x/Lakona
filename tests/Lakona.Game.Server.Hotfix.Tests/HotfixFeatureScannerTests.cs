@@ -120,6 +120,19 @@ public sealed class HotfixFeatureScannerTests
     }
 
     [Fact]
+    public void Scanner_rejects_public_configure_overload_even_when_valid_configure_exists()
+    {
+        var result = HotfixBehaviorScanner.Scan(typeof(MixedConfigureOverloadFeature).Assembly, [
+            typeof(MixedConfigureOverloadFeature)
+        ]);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Contains(nameof(MixedConfigureOverloadFeature.Configure), StringComparison.Ordinal) &&
+            diagnostic.Contains("public static void Configure", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Scanner_rejects_open_generic_feature()
     {
         var result = HotfixBehaviorScanner.Scan(typeof(GenericFeature<>).Assembly, [
@@ -266,6 +279,20 @@ public sealed class HotfixFeatureScannerTests
         public static string Configure(HotfixFeatureContext context)
         {
             return "configured";
+        }
+    }
+
+    [HotfixFeature("mixed-configure-overload")]
+    private sealed class MixedConfigureOverloadFeature : HotfixGameFeature
+    {
+        public static void Configure(HotfixFeatureContext context)
+        {
+            _ = context;
+        }
+
+        public static void Configure(string value)
+        {
+            _ = value;
         }
     }
 
