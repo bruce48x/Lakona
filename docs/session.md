@@ -308,8 +308,8 @@ channel should affect the other, the business actor applies that product policy.
 ## Gate / Watchdog / Agent
 
 Gate / Watchdog / Agent is a recommended composition pattern, not a framework
-class. It comes from skynet and maps cleanly onto Lakona's session and actor
-model.
+class. It separates connection ownership, admission policy, and player-facing
+state so each role can fail and scale independently.
 
 ```txt
 Client -> Gate -> Watchdog -> Agent

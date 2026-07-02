@@ -21,7 +21,7 @@ contracts:
 
 | Document | Purpose |
 | --- | --- |
-| [docs/design-philosophy.md](./docs/design-philosophy.md) | Product principles, skynet lineage, and framework scope boundaries |
+| [docs/design-philosophy.md](./docs/design-philosophy.md) | Product principles, runtime design principles, and framework scope boundaries |
 | [docs/actor.md](./docs/actor.md) | Actor model, actor kernel boundary, generated selectors, and distributed actor calls |
 | [docs/session.md](./docs/session.md) | Session identity, callback binding, disconnect, resume, termination, and Gate / Watchdog / Agent composition |
 | [docs/cluster.md](./docs/cluster.md) | Feature, endpoint, RPC service, cluster discovery, routing, and Agar acceptance model |

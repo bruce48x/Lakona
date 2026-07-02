@@ -14,14 +14,11 @@ Everything above those foundations exists to make game-server work simpler:
 sessions, reliable delivery, cluster routing, hotfix loading, runtime
 guardrails, and generated project scaffolding.
 
-## Skynet Lineage
+## Runtime Design Principles
 
-Lakona is openly influenced by skynet. Skynet is the teacher here: a small
-core, explicit service boundaries, isolated mutable state, fail-fast behavior,
-and operationally practical hot updates.
-
-Lakona is not a C#/Lua clone of skynet. It keeps the lessons that fit the .NET
-and Unity/Godot ecosystem:
+Lakona is designed for a small runtime core, explicit service boundaries,
+isolated mutable state, fail-fast behavior, and operationally practical hot
+updates. These principles are adapted for the .NET and Unity/Godot ecosystem:
 
 - keep the runtime core small and understandable
 - make process and network boundaries visible
