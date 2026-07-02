@@ -17,14 +17,34 @@ using Lakona.Game.Server.Sessions;
 
 namespace Lakona.Game.Server;
 
+/// <summary>
+/// Registers Lakona game-server framework services in dependency injection.
+/// </summary>
 public static class LakonaGameServerServiceCollectionExtensions
 {
+    /// <summary>
+    /// Adds game-server services using default framework options.
+    /// </summary>
+    /// <param name="services">The service collection to update.</param>
+    /// <returns>The same service collection for chaining.</returns>
+    /// <remarks>
+    /// This registers actors, sessions, reliable push, hotfix lifecycle support,
+    /// timers, observability, guardrails, and the default <see cref="ILakonaGameServer"/>.
+    /// Hosts that use <c>LakonaGameServer.RunAsync</c> normally do not need to call
+    /// this method directly.
+    /// </remarks>
     public static IServiceCollection AddLakonaGameServer(this IServiceCollection services)
     {
         services.TryAddSingleton(new LakonaGameRuntimeOptions());
         return services.AddLakonaGameServer(new LakonaGameHostingOptions());
     }
 
+    /// <summary>
+    /// Adds game-server services using options bound from configuration.
+    /// </summary>
+    /// <param name="services">The service collection to update.</param>
+    /// <param name="configuration">The configuration source for Lakona game-server options.</param>
+    /// <returns>The same service collection for chaining.</returns>
     public static IServiceCollection AddLakonaGameServer(
         this IServiceCollection services,
         IConfiguration configuration)
@@ -36,6 +56,12 @@ public static class LakonaGameServerServiceCollectionExtensions
             configuration);
     }
 
+    /// <summary>
+    /// Adds game-server services using an explicit options object.
+    /// </summary>
+    /// <param name="services">The service collection to update.</param>
+    /// <param name="options">The game-server hosting options to apply.</param>
+    /// <returns>The same service collection for chaining.</returns>
     public static IServiceCollection AddLakonaGameServer(
         this IServiceCollection services,
         LakonaGameHostingOptions options)

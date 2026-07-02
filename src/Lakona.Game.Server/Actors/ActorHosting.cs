@@ -2,6 +2,15 @@ using Microsoft.Extensions.Logging;
 
 namespace Lakona.Game.Server.Actors;
 
+/// <summary>
+/// Creates and destroys local actors while keeping the actor directory and local cache consistent.
+/// </summary>
+/// <remarks>
+/// Use this service from startup hooks, hotfix feature lifecycle hooks, or game
+/// services that explicitly own actor lifetime. Ordinary gameplay calls should
+/// normally use generated actor references instead of manually touching actor
+/// directory or cache services.
+/// </remarks>
 public sealed class ActorHosting
 {
     private static readonly TimeSpan DestroyDrainTimeout = TimeSpan.FromMilliseconds(100);
@@ -31,6 +40,17 @@ public sealed class ActorHosting
         _logger = logger;
     }
 
+    /// <summary>
+    /// Creates a new local actor with the specified id.
+    /// </summary>
+    /// <typeparam name="TActor">The actor implementation type to host locally.</typeparam>
+    /// <param name="actorId">The stable actor id.</param>
+    /// <param name="cancellationToken">A token that cancels route registration or local actor creation.</param>
+    /// <remarks>
+    /// This method is strict: it fails when the same actor id is already hosted
+    /// locally or registered to another node. Use <see cref="EnsureAsync{TActor}"/>
+    /// when idempotent startup is desired.
+    /// </remarks>
     public async ValueTask CreateAsync<TActor>(
         ActorId actorId,
         CancellationToken cancellationToken = default)
@@ -40,6 +60,17 @@ public sealed class ActorHosting
         await CreateCoreAsync(typeof(TActor), actorId, strict: true, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Ensures that a local actor with the specified id exists and is active.
+    /// </summary>
+    /// <typeparam name="TActor">The actor implementation type that must be hosted.</typeparam>
+    /// <param name="actorId">The stable actor id.</param>
+    /// <param name="cancellationToken">A token that cancels route registration or local actor creation.</param>
+    /// <remarks>
+    /// This method is idempotent for an already active local actor of the exact
+    /// requested type. It still fails when the id is hosted by a different actor
+    /// type, is in a non-active local state, or is registered to another node.
+    /// </remarks>
     public async ValueTask EnsureAsync<TActor>(
         ActorId actorId,
         CancellationToken cancellationToken = default)
@@ -76,6 +107,17 @@ public sealed class ActorHosting
         await CreateCoreAsync(actorType, actorId, strict: false, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Stops a locally hosted actor and removes its local actor-directory route.
+    /// </summary>
+    /// <typeparam name="TActor">The actor implementation type expected for the id.</typeparam>
+    /// <param name="actorId">The stable actor id.</param>
+    /// <param name="cancellationToken">A token that cancels route removal or local actor stop.</param>
+    /// <remarks>
+    /// Destroying a missing actor is treated as success. If the id is currently
+    /// hosted by a different actor type, the method fails instead of stopping the
+    /// wrong actor.
+    /// </remarks>
     public async ValueTask DestroyAsync<TActor>(
         ActorId actorId,
         CancellationToken cancellationToken = default)
