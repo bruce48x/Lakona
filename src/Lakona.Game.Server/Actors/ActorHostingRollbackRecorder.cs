@@ -30,6 +30,7 @@ internal sealed class ActorHostingRollbackRecorder
     {
         private readonly ActorHostingRollbackRecorder _owner;
         private readonly List<Record> _created = [];
+        private readonly object _gate = new();
         private IDisposable? _activation;
         private bool _disposed;
 
@@ -38,16 +39,31 @@ internal sealed class ActorHostingRollbackRecorder
             _owner = owner;
         }
 
-        public IReadOnlyList<Record> Created => _created;
+        public IReadOnlyList<Record> Created
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _created.ToArray();
+                }
+            }
+        }
 
         public void RecordCreated(Type actorType, ActorId actorId)
         {
-            _created.Add(new Record(actorType, actorId));
+            lock (_gate)
+            {
+                _created.Add(new Record(actorType, actorId));
+            }
         }
 
         public void RecordDestroyed(Type actorType, ActorId actorId)
         {
-            _created.RemoveAll(record => record.ActorType == actorType && record.ActorId == actorId);
+            lock (_gate)
+            {
+                _created.RemoveAll(record => record.ActorType == actorType && record.ActorId == actorId);
+            }
         }
 
         public IDisposable Activate()

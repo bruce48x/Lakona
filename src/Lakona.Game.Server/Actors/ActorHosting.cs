@@ -48,11 +48,20 @@ public sealed class ActorHosting
         var actorType = typeof(TActor);
         await using var gate = await _operationGate.EnterAsync(actorId, cancellationToken).ConfigureAwait(false);
 
-        if (_runtime.TryGetLocalActor(actorId, out var existingActorType, out var state) && state == ActorState.Active)
+        if (_runtime.TryGetLocalActor(actorId, out var existingActorType, out var state))
         {
             if (!IsExactActorType(existingActorType, actorType))
             {
                 throw new ActorHostingTypeMismatchException(actorId, actorType, existingActorType, nameof(EnsureAsync));
+            }
+
+            if (state != ActorState.Active)
+            {
+                throw new ActorHostingStopException(
+                    actorId,
+                    actorType,
+                    nameof(EnsureAsync),
+                    $"Actor id '{actorId.Value}' is locally hosted but not active.");
             }
 
             if (!IsLocalOnly(actorType))
@@ -100,7 +109,7 @@ public sealed class ActorHosting
         }
         catch (Exception ex)
         {
-            if (localRouteRemoved)
+            if (localRouteRemoved && IsStillHosted(actorType, actorId))
             {
                 await RestoreLocalRouteAsync(actorId, CancellationToken.None).ConfigureAwait(false);
             }
@@ -115,7 +124,7 @@ public sealed class ActorHosting
 
         if (destroyResult.Status == ActorHostingLocalDestroyStatus.TypeMismatch)
         {
-            if (localRouteRemoved)
+            if (localRouteRemoved && IsStillHosted(actorType, actorId))
             {
                 await RestoreLocalRouteAsync(actorId, CancellationToken.None).ConfigureAwait(false);
             }
@@ -129,7 +138,7 @@ public sealed class ActorHosting
 
         if (destroyResult.Status == ActorHostingLocalDestroyStatus.TimedOut)
         {
-            if (localRouteRemoved)
+            if (localRouteRemoved && IsStillHosted(actorType, actorId))
             {
                 await RestoreLocalRouteAsync(actorId, CancellationToken.None).ConfigureAwait(false);
             }
@@ -153,7 +162,7 @@ public sealed class ActorHosting
         bool strict,
         CancellationToken cancellationToken)
     {
-        if (_runtime.TryGetLocalActor(actorId, out var existingActorType, out var state) && state == ActorState.Active)
+        if (_runtime.TryGetLocalActor(actorId, out var existingActorType, out var state))
         {
             if (!IsExactActorType(existingActorType, actorType))
             {
@@ -162,6 +171,15 @@ public sealed class ActorHosting
                     actorType,
                     existingActorType,
                     strict ? nameof(CreateAsync) : nameof(EnsureAsync));
+            }
+
+            if (state != ActorState.Active)
+            {
+                throw new ActorHostingStopException(
+                    actorId,
+                    actorType,
+                    strict ? nameof(CreateAsync) : nameof(EnsureAsync),
+                    $"Actor id '{actorId.Value}' is locally hosted but not active.");
             }
 
             if (strict)
@@ -222,11 +240,6 @@ public sealed class ActorHosting
 
             var cleanupActorType = actorType;
             var shouldCleanupLocal = localCreated;
-            if (!shouldCleanupLocal && _runtime.TryGetLocalActor(actorId, out var rollbackActorType, out _))
-            {
-                cleanupActorType = rollbackActorType;
-                shouldCleanupLocal = true;
-            }
 
             if (shouldCleanupLocal)
             {
@@ -258,6 +271,13 @@ public sealed class ActorHosting
 
             throw;
         }
+    }
+
+    private bool IsStillHosted(Type actorType, ActorId actorId)
+    {
+        return _runtime.TryGetLocalActor(actorId, out var existingActorType, out var state) &&
+            IsExactActorType(existingActorType, actorType) &&
+            state != ActorState.Dead;
     }
 
     private async ValueTask EnsureLocalRouteAsync(

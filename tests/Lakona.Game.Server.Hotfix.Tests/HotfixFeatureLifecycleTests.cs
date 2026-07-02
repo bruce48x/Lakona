@@ -250,6 +250,29 @@ public sealed class HotfixFeatureLifecycleTests
     }
 
     [Fact]
+    public async Task Start_failure_rolls_back_actors_created_concurrently_by_candidate_start()
+    {
+        LifecycleRecorder.Reset();
+        var coordinator = new HotfixFeatureLifecycleCoordinator();
+        using var candidate = CreateRuntime(
+            [Feature("actor", typeof(ConcurrentActorCreatingFeature)), Feature("failing", typeof(FailingStartFeature))],
+            includeActorHostingRollback: true);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await coordinator.StartCandidateAsync(
+                HotfixFeatureLifecycleSnapshot.Empty,
+                candidate.Snapshot,
+                candidate.Snapshot.DispatchTable!.Features,
+                TestContext.Current.CancellationToken));
+
+        Assert.Equal("start failed", ex.Message);
+        Assert.Equal(["start:concurrent-actors", "start:new-b", "stop:concurrent-actors"], LifecycleRecorder.Events);
+        Assert.Empty(candidate.Snapshot.Services
+            .GetRequiredService<IActorRuntime>()
+            .GetActiveActorIds(typeof(RollbackHostedActor)));
+    }
+
+    [Fact]
     public async Task Candidate_rollback_scope_uses_root_participants_through_manager_fallback_provider()
     {
         var participant = new RecordingRollbackParticipant();
@@ -1317,6 +1340,29 @@ public sealed class HotfixFeatureLifecycleTests
         public static ValueTask StopAsync(HotfixFeatureStopCall call)
         {
             LifecycleRecorder.Events.Add("stop:actor-timer");
+            return default;
+        }
+    }
+
+    private sealed class ConcurrentActorCreatingFeature : HotfixGameFeature
+    {
+        public static async ValueTask StartAsync(HotfixFeatureStartCall call)
+        {
+            LifecycleRecorder.Events.Add("start:concurrent-actors");
+            var actorHosting = call.Services.GetRequiredService<ActorHosting>();
+            var tasks = Enumerable.Range(0, 256)
+                .Select(index => actorHosting
+                    .CreateAsync<RollbackHostedActor>(
+                        ActorId.From($"rollback/concurrent/{index}"),
+                        call.CancellationToken)
+                    .AsTask())
+                .ToArray();
+            await Task.WhenAll(tasks).ConfigureAwait(false);
+        }
+
+        public static ValueTask StopAsync(HotfixFeatureStopCall call)
+        {
+            LifecycleRecorder.Events.Add("stop:concurrent-actors");
             return default;
         }
     }

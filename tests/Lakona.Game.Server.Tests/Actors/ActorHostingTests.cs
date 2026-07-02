@@ -257,26 +257,23 @@ public sealed class ActorHostingTests
     }
 
     [Fact]
-    public async Task DestroyAsync_restores_local_route_and_cache_when_stop_times_out_or_fails()
+    public async Task DestroyAsync_does_not_restore_local_route_when_deactivation_times_out_but_kernel_stop_drains()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider(options => options.CallTimeout = TimeSpan.FromMilliseconds(20));
         var hosting = provider.GetRequiredService<ActorHosting>();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
         var directory = provider.GetRequiredService<IActorDirectory>();
         var cache = provider.GetRequiredService<IActorDirectoryCache>();
         var actorId = ActorId.From("hosting/stop-timeout");
 
         await hosting.CreateAsync<BlockingDeactivateActor>(actorId, cancellationToken);
+        await hosting.DestroyAsync<BlockingDeactivateActor>(actorId, cancellationToken);
 
-        await Assert.ThrowsAsync<ActorHostingStopException>(async () =>
-            await hosting.DestroyAsync<BlockingDeactivateActor>(actorId, cancellationToken));
-
-        var record = await directory.ResolveAsync(actorId, cancellationToken);
-        Assert.NotNull(record);
-        Assert.Equal(LocalNode, record.Node);
-        Assert.True(cache.TryGet(actorId, out var cachedNode));
-        Assert.Equal(LocalNode, cachedNode);
-        BlockingDeactivateActor.ReleaseAll();
+        Assert.Null(await directory.ResolveAsync(actorId, cancellationToken));
+        Assert.False(cache.TryGet(actorId, out _));
+        Assert.DoesNotContain(actorId, runtime.GetActiveActorIds(typeof(BlockingDeactivateActor)));
+        Assert.Equal(ActorState.Dead, runtime.GetState(actorId));
     }
 
     [Fact]
@@ -288,19 +285,19 @@ public sealed class ActorHostingTests
             options => options.CallTimeout = TimeSpan.FromMilliseconds(20),
             directory);
         var hosting = provider.GetRequiredService<ActorHosting>();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
         var cache = provider.GetRequiredService<IActorDirectoryCache>();
         var actorId = ActorId.From("hosting/timeout-remote-steals");
 
         await hosting.CreateAsync<BlockingDeactivateActor>(actorId, cancellationToken);
-
-        await Assert.ThrowsAsync<ActorHostingStopException>(async () =>
-            await hosting.DestroyAsync<BlockingDeactivateActor>(actorId, cancellationToken));
+        await hosting.DestroyAsync<BlockingDeactivateActor>(actorId, cancellationToken);
 
         var record = await directory.ResolveAsync(actorId, cancellationToken);
         Assert.NotNull(record);
         Assert.Equal(RemoteNode, record.Node);
         Assert.False(cache.TryGet(actorId, out _));
-        BlockingDeactivateActor.ReleaseAll();
+        Assert.DoesNotContain(actorId, runtime.GetActiveActorIds(typeof(BlockingDeactivateActor)));
+        Assert.Equal(ActorState.Dead, runtime.GetState(actorId));
     }
 
     [Fact]
@@ -399,6 +396,25 @@ public sealed class ActorHostingTests
         await lease.DisposeAsync();
 
         Assert.False(TryAddGateEntryReference(entry));
+    }
+
+    [Fact]
+    public async Task CreateAsync_does_not_destroy_preexisting_local_entry_when_runtime_create_reports_conflict()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var actorId = ActorId.From("hosting/create-conflict-residue");
+        var runtime = new ConflictingCreateRuntime(typeof(OtherHostedTestActor));
+        var hosting = new ActorHosting(
+            runtime,
+            new InMemoryActorDirectory(),
+            new InMemoryActorDirectoryCache(),
+            new LocalActorNodeIdentity(LocalNode),
+            new ActorHostingRollbackRecorder());
+
+        await Assert.ThrowsAsync<ActorHostingTypeMismatchException>(async () =>
+            await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken));
+
+        Assert.Equal(0, runtime.DestroyLocalCalls);
     }
 
     private static ServiceProvider CreateProvider(
@@ -617,6 +633,46 @@ public sealed class ActorHostingTests
             CancellationToken cancellationToken = default)
         {
             return _inner.UnregisterAsync(actorId, node, cancellationToken);
+        }
+    }
+
+    private sealed class ConflictingCreateRuntime(Type existingType) : IActorHostingRuntime
+    {
+        private bool _createAttempted;
+
+        public int DestroyLocalCalls { get; private set; }
+
+        public bool TryGetLocalActor(ActorId actorId, out Type actorType, out ActorState state)
+        {
+            actorType = _createAttempted ? existingType : typeof(IActor);
+            state = _createAttempted ? ActorState.Draining : ActorState.Dead;
+            return _createAttempted;
+        }
+
+        public ValueTask<ActorHostingLocalCreateResult> CreateLocalAsync(
+            Type actorType,
+            ActorId actorId,
+            CancellationToken cancellationToken = default)
+        {
+            _createAttempted = true;
+            return new ValueTask<ActorHostingLocalCreateResult>(new ActorHostingLocalCreateResult(
+                ActorHostingLocalCreateStatus.AlreadyExistsDifferentType,
+                actorId,
+                actorType,
+                existingType));
+        }
+
+        public ValueTask<ActorHostingLocalDestroyResult> DestroyLocalAsync(
+            Type actorType,
+            ActorId actorId,
+            TimeSpan drainTimeout,
+            CancellationToken cancellationToken = default)
+        {
+            DestroyLocalCalls++;
+            return new ValueTask<ActorHostingLocalDestroyResult>(new ActorHostingLocalDestroyResult(
+                ActorHostingLocalDestroyStatus.Destroyed,
+                actorId,
+                actorType));
         }
     }
 }

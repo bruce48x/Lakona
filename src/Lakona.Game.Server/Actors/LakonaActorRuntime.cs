@@ -75,9 +75,44 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
                     existing.ActorType);
         }
 
-        var cell = GetOrCreateCell(actorType, actorId);
-        await cell.EnsureActivatedAsync(cancellationToken).ConfigureAwait(false);
-        return new ActorHostingLocalCreateResult(ActorHostingLocalCreateStatus.Created, actorId, actorType);
+        var cell = CreateCell(actorType, actorId);
+        if (!_actors.TryAdd(actorId, cell))
+        {
+            _actorIds.TryRemove(cell.RuntimeActorId, out _);
+            await cell.StopAsync().ConfigureAwait(false);
+            if (_actors.TryGetValue(actorId, out existing))
+            {
+                return IsExactActorType(existing.ActorType, actorType)
+                    ? new ActorHostingLocalCreateResult(ActorHostingLocalCreateStatus.AlreadyExistsSameType, actorId, actorType)
+                    : new ActorHostingLocalCreateResult(
+                        ActorHostingLocalCreateStatus.AlreadyExistsDifferentType,
+                        actorId,
+                        actorType,
+                        existing.ActorType);
+            }
+
+            throw new InvalidOperationException($"Actor id '{actorId.Value}' could not be reserved.");
+        }
+
+        try
+        {
+            await cell.EnsureActivatedAsync(cancellationToken).ConfigureAwait(false);
+            return new ActorHostingLocalCreateResult(ActorHostingLocalCreateStatus.Created, actorId, actorType);
+        }
+        catch
+        {
+            _actors.TryRemove(new KeyValuePair<ActorId, ActorCell>(actorId, cell));
+            _actorIds.TryRemove(cell.RuntimeActorId, out _);
+            try
+            {
+                await cell.StopAsync().ConfigureAwait(false);
+            }
+            catch
+            {
+            }
+
+            throw;
+        }
     }
 
     async ValueTask<ActorHostingLocalDestroyResult> IActorHostingRuntime.DestroyLocalAsync(
@@ -370,7 +405,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
         DisposeAsync().AsTask().GetAwaiter().GetResult();
     }
 
-    private ActorCell GetOrCreateCell(Type actorType, ActorId id)
+    private ActorCell CreateCell(Type actorType, ActorId id)
     {
         ArgumentNullException.ThrowIfNull(actorType);
         if (!typeof(IActor).IsAssignableFrom(actorType))
@@ -378,30 +413,17 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             throw new InvalidOperationException($"Actor type '{actorType.FullName}' must implement {typeof(IActor).FullName}.");
         }
 
-        var cell = _actors.GetOrAdd(id, static (actorId, state) =>
-        {
-            var runtime = state.Runtime;
-            var actorType = state.ActorType ?? throw new InvalidOperationException("Actor type is required.");
-            var actor = (IActor)ActivatorUtilities.CreateInstance(runtime._services, actorType);
-            var cell = new ActorCell(actorId, actor, actorType, runtime._services, runtime, runtime._options);
-            var actorHandle = runtime._actorSystem.SpawnAsync(
-                actorId.Value,
-                new ActorAdapter(cell),
-                new K.ActorSpawnOptions
-                {
-                    MailboxCapacity = Math.Max(1, runtime._options.MailboxCapacity)
-                }).AsTask().GetAwaiter().GetResult();
-            runtime._actorIds[actorHandle.Id] = actorId;
-            cell.Bind(actorHandle);
-            return cell;
-        }, new RuntimeState(this, actorType));
-
-        if (!IsExactActorType(cell.ActorType, actorType))
-        {
-            throw new InvalidOperationException(
-                $"Actor id '{id}' is already bound to '{cell.ActorType.FullName}', not '{actorType.FullName}'.");
-        }
-
+        var actor = (IActor)ActivatorUtilities.CreateInstance(_services, actorType);
+        var cell = new ActorCell(id, actor, actorType, _services, this, _options);
+        var actorHandle = _actorSystem.SpawnAsync(
+            id.Value,
+            new ActorAdapter(cell),
+            new K.ActorSpawnOptions
+            {
+                MailboxCapacity = Math.Max(1, _options.MailboxCapacity)
+            }).AsTask().GetAwaiter().GetResult();
+        _actorIds[actorHandle.Id] = id;
+        cell.Bind(actorHandle);
         return cell;
     }
 
@@ -559,8 +581,6 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
     private readonly record struct ActorDiagnosticsCellSnapshot(
         string ActorType,
         ActorMailboxMetrics Metrics);
-
-    private readonly record struct RuntimeState(LakonaActorRuntime Runtime, Type? ActorType = null);
 
     private sealed class KernelMessageInterceptorAdapter : K.IActorMessageInterceptor
     {
@@ -739,12 +759,10 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
         {
             var actorHandle = _actorHandle ?? throw new InvalidOperationException($"Actor '{_id}' is not bound.");
             Volatile.Write(ref _stopping, 1);
-            var deactivated = await TryDeactivateAsync(drainTimeout).ConfigureAwait(false);
+            await TryDeactivateAsync(drainTimeout).ConfigureAwait(false);
             var stopResult = await actorHandle.Stop(drainTimeout).ConfigureAwait(false);
 
-            return !deactivated || stopResult == K.ActorStopResult.TimedOut
-                ? K.ActorStopResult.TimedOut
-                : K.ActorStopResult.Drained;
+            return stopResult;
         }
 
         public ActorMailboxMetrics GetMailboxMetrics()
