@@ -2,15 +2,28 @@ using Lakona.Game.Server.Configuration;
 
 namespace Lakona.Game.Server.Features;
 
+/// <summary>
+/// Provides access to the resolved client-facing endpoint configuration.
+/// </summary>
 public sealed class LakonaGameEndpointCatalog
 {
     private readonly IReadOnlyList<LakonaGameEndpointOptions> _endpoints;
 
+    /// <summary>
+    /// Initializes a new endpoint catalog.
+    /// </summary>
+    /// <param name="endpoints">The resolved endpoint options.</param>
     public LakonaGameEndpointCatalog(IReadOnlyList<LakonaGameEndpointOptions> endpoints)
     {
         _endpoints = endpoints;
     }
 
+    /// <summary>
+    /// Gets the configured endpoint for a required transport.
+    /// </summary>
+    /// <param name="transport">The required transport name.</param>
+    /// <returns>The endpoint configured for <paramref name="transport"/>.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the transport is not configured.</exception>
     public LakonaGameEndpointOptions RequireTransport(string transport)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(transport);

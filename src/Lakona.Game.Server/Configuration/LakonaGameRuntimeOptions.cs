@@ -6,6 +6,15 @@ using Microsoft.Extensions.Configuration;
 
 namespace Lakona.Game.Server.Configuration;
 
+/// <summary>
+/// Represents the runtime configuration bound from the <c>Lakona</c> configuration root.
+/// </summary>
+/// <remarks>
+/// These options describe the node identity, client-facing endpoints, feature
+/// selection, cluster endpoint, runtime profile, and observability settings for
+/// one server process. <see cref="LakonaGameServer"/> binds this type during
+/// startup.
+/// </remarks>
 public sealed class LakonaGameRuntimeOptions
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -13,15 +22,52 @@ public sealed class LakonaGameRuntimeOptions
         PropertyNameCaseInsensitive = true
     };
 
+    /// <summary>
+    /// Gets the identity of the current server process.
+    /// </summary>
     public LakonaGameNodeOptions Node { get; init; } = new();
+
+    /// <summary>
+    /// Gets the client-facing RPC listener configuration.
+    /// </summary>
     public IReadOnlyList<LakonaGameEndpointOptions> Endpoints { get; init; } = [];
+
+    /// <summary>
+    /// Gets the active stable feature names, or <see langword="null"/> when all discovered features are active.
+    /// </summary>
+    /// <remarks>
+    /// An empty list is meaningful: it disables all application features while
+    /// still allowing the process to expose RPC endpoints or framework services.
+    /// </remarks>
     public IReadOnlyList<string>? Feature { get; init; }
+
+    /// <summary>
+    /// Gets node-to-node cluster configuration, or <see langword="null"/> for a single-node process.
+    /// </summary>
     public LakonaGameClusterOptions? Cluster { get; init; }
+
+    /// <summary>
+    /// Gets the compatibility cluster endpoint value retained for older callers.
+    /// </summary>
     public string ClusterEndpoint { get; init; } = "tcp://127.0.0.1:21000";
+
+    /// <summary>
+    /// Gets the resolved runtime profile that controls framework defaults and guardrails.
+    /// </summary>
     public LakonaGameRuntimeProfile Profile { get; init; } = LakonaGameRuntimeProfile.Development;
+
+    /// <summary>
+    /// Gets logging, diagnostics, metrics, tracing, and local-admin settings.
+    /// </summary>
     public LakonaObservabilityOptions Observability { get; init; } =
         LakonaObservabilityOptions.Defaults(LakonaGameRuntimeProfile.Development);
 
+    /// <summary>
+    /// Binds runtime options from the <c>Lakona</c> configuration root.
+    /// </summary>
+    /// <param name="configuration">The host configuration to read.</param>
+    /// <param name="environmentName">The optional host environment name used to resolve the runtime profile.</param>
+    /// <returns>The bound runtime options.</returns>
     public static LakonaGameRuntimeOptions FromConfiguration(
         IConfiguration configuration,
         string? environmentName = null)
@@ -40,6 +86,10 @@ public sealed class LakonaGameRuntimeOptions
         };
     }
 
+    /// <summary>
+    /// Converts game runtime options into cluster runtime options.
+    /// </summary>
+    /// <returns>The cluster options derived from the current node and endpoint configuration.</returns>
     public ClusterOptions ToClusterOptions()
     {
         var advertisedEndpoints = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -77,6 +127,11 @@ public sealed class LakonaGameRuntimeOptions
         };
     }
 
+    /// <summary>
+    /// Converts game runtime options into cluster runtime options, applying cluster-specific overrides.
+    /// </summary>
+    /// <param name="configuration">The host configuration that may contain <c>Lakona:Cluster</c> overrides.</param>
+    /// <returns>The cluster options used by node-to-node framework services.</returns>
     public ClusterOptions ToClusterOptions(IConfiguration configuration)
     {
         var defaults = ToClusterOptions();
@@ -219,10 +274,21 @@ public sealed class LakonaGameRuntimeOptions
 
 }
 
+/// <summary>
+/// Configures the stable identity of one Lakona server process.
+/// </summary>
 public sealed class LakonaGameNodeOptions
 {
+    /// <summary>
+    /// Gets the node id used for cluster membership, diagnostics, and route ownership.
+    /// </summary>
     public string Id { get; init; } = "dev-1";
 
+    /// <summary>
+    /// Binds node options from a <c>Lakona:Node</c> configuration section.
+    /// </summary>
+    /// <param name="section">The node configuration section.</param>
+    /// <returns>The bound node options.</returns>
     public static LakonaGameNodeOptions FromConfiguration(IConfiguration section)
     {
         return new LakonaGameNodeOptions
