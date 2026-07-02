@@ -555,7 +555,7 @@ public sealed class ToolArchitectureScanTests
     {
         var builder = new StringBuilder();
         foreach (var path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
-                     .Where(IsTextSourceFile)
+                     .Where(path => IsTextSourceFile(path) && !IsBuildOutputPath(root, path))
                      .Order(StringComparer.Ordinal))
         {
             builder.AppendLine(File.ReadAllText(path));
@@ -568,6 +568,22 @@ public sealed class ToolArchitectureScanTests
     {
         var extension = Path.GetExtension(path);
         return extension is ".cs" or ".csproj" or ".json" or ".md" or ".slnx" or ".props" or ".asmdef" or ".config" or ".tscn" or ".tres" or ".xml" or ".txt";
+    }
+
+    private static bool IsBuildOutputPath(string root, string path)
+    {
+        var relativePath = Path.GetRelativePath(root, path);
+        var segments = relativePath.Split(
+            [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+            StringSplitOptions.RemoveEmptyEntries);
+
+        return segments.Any(segment =>
+            StringComparer.OrdinalIgnoreCase.Equals(segment, "bin")
+            || StringComparer.OrdinalIgnoreCase.Equals(segment, "obj")
+            || StringComparer.OrdinalIgnoreCase.Equals(segment, "Library")
+            || StringComparer.OrdinalIgnoreCase.Equals(segment, "Temp")
+            || StringComparer.Ordinal.Equals(segment, ".godot")
+            || StringComparer.Ordinal.Equals(segment, ".import"));
     }
 
     private static void AssertChatRoomIdContract(string projectRoot)
