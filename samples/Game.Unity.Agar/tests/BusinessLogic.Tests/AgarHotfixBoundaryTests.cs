@@ -272,6 +272,26 @@ public sealed class AgarHotfixBoundaryTests
     }
 
     [Fact]
+    public void Feature_handlers_route_actor_lifecycle_publication_through_ActorHosting()
+    {
+        var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
+            .Directory!.Parent!.Parent!.FullName;
+        var featureRoot = Path.Combine(sampleRoot, "Server", "Hotfix", "Features");
+        var stateStoreFeature = File.ReadAllText(Path.Combine(featureRoot, "StateStoreFeatures.cs"));
+        var battleRuntimeFeature = File.ReadAllText(Path.Combine(featureRoot, "BattleRuntimeFeature.cs"));
+
+        foreach (var feature in new[] { stateStoreFeature, battleRuntimeFeature })
+        {
+            Assert.DoesNotContain("IActorDirectory", feature, StringComparison.Ordinal);
+            Assert.DoesNotContain("RegisterAsync(actorId", feature, StringComparison.Ordinal);
+            Assert.DoesNotContain("UnregisterAsync(actorId", feature, StringComparison.Ordinal);
+        }
+
+        Assert.Contains(".EnsureAsync<TActor>(actorId, cancellationToken)", stateStoreFeature, StringComparison.Ordinal);
+        Assert.Contains(".CreateAsync<RoomActor>(actorId, call.CancellationToken)", battleRuntimeFeature, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Agar_app_does_not_define_stable_state_store_bridges_or_hand_written_hotfix_dispatch()
     {
         var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")

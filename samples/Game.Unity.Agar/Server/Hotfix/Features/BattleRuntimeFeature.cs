@@ -16,23 +16,17 @@ namespace Server.Hotfix.Features;
 public sealed class BattleRuntimeFeature : HotfixGameFeature
 {
     private readonly ActorHosting _actorHosting;
-    private readonly IActorDirectory _directory;
-    private readonly IActorDirectoryCache _directoryCache;
     private readonly LocalActorNodeIdentity _localNode;
     private readonly RoomActors _rooms;
     private readonly ILogger<BattleRuntimeFeature> _logger;
 
     public BattleRuntimeFeature(
         ActorHosting actorHosting,
-        IActorDirectory directory,
-        IActorDirectoryCache directoryCache,
         LocalActorNodeIdentity localNode,
         RoomActors rooms,
         ILogger<BattleRuntimeFeature> logger)
     {
         _actorHosting = actorHosting;
-        _directory = directory;
-        _directoryCache = directoryCache;
         _localNode = localNode;
         _rooms = rooms;
         _logger = logger;
@@ -80,16 +74,6 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
         }
 
         var actorId = ActorId.From(payload.RoomId);
-        var registerStatus = await _directory
-            .RegisterAsync(actorId, _localNode.NodeId, call.CancellationToken)
-            .ConfigureAwait(false);
-        var registeredHere = registerStatus == ActorDirectoryRegisterStatus.Registered;
-        if (registerStatus == ActorDirectoryRegisterStatus.Conflict)
-        {
-            _directoryCache.Remove(actorId);
-            return CreateReply(payload, false, $"Room actor {payload.RoomId} is owned by another node.");
-        }
-
         var actorCreated = false;
         try
         {
@@ -129,9 +113,16 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
                 return CreateReply(payload, false, start.Message);
             }
 
-            _directoryCache.Set(actorId, _localNode.NodeId);
             _logger.LogDebug("Allocated battle-runtime room {RoomId} on node {NodeId}.", payload.RoomId, _localNode.NodeId.Value);
             return CreateReply(payload, true, "Room allocated.");
+        }
+        catch (ActorAlreadyHostedException) when (!actorCreated)
+        {
+            return CreateReply(payload, false, $"Room actor {payload.RoomId} already exists.");
+        }
+        catch (ActorHostedElsewhereException) when (!actorCreated)
+        {
+            return CreateReply(payload, false, $"Room actor {payload.RoomId} is owned by another node.");
         }
         catch
         {
@@ -140,12 +131,6 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
                 await DestroyCreatedRoomActorAsync(actorId).ConfigureAwait(false);
             }
 
-            if (registeredHere)
-            {
-                await _directory.UnregisterAsync(actorId, _localNode.NodeId, call.CancellationToken).ConfigureAwait(false);
-            }
-
-            _directoryCache.Remove(actorId);
             throw;
         }
     }

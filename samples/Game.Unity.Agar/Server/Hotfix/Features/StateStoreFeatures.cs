@@ -13,21 +13,15 @@ namespace Server.Hotfix.Features;
 public sealed class StateStoreFeature : HotfixGameFeature
 {
     private readonly ActorHosting _actorHosting;
-    private readonly IActorDirectory _directory;
-    private readonly IActorDirectoryCache _directoryCache;
     private readonly LocalActorNodeIdentity _localNode;
     private readonly ILogger<StateStoreFeature> _logger;
 
     public StateStoreFeature(
         ActorHosting actorHosting,
-        IActorDirectory directory,
-        IActorDirectoryCache directoryCache,
         LocalActorNodeIdentity localNode,
         ILogger<StateStoreFeature> logger)
     {
         _actorHosting = actorHosting;
-        _directory = directory;
-        _directoryCache = directoryCache;
         _localNode = localNode;
         _logger = logger;
     }
@@ -75,39 +69,22 @@ public sealed class StateStoreFeature : HotfixGameFeature
         CancellationToken cancellationToken)
         where TActor : class, IActor
     {
-        var registerStatus = await _directory
-            .RegisterAsync(actorId, _localNode.NodeId, cancellationToken)
-            .ConfigureAwait(false);
-        var registeredHere = registerStatus == ActorDirectoryRegisterStatus.Registered;
-        if (registerStatus == ActorDirectoryRegisterStatus.Conflict)
-        {
-            _directoryCache.Remove(actorId);
-            return new EnsureActorReply
-            {
-                Succeeded = false,
-                Message = $"{description} is owned by another node."
-            };
-        }
-
         try
         {
             await _actorHosting
                 .EnsureAsync<TActor>(actorId, cancellationToken)
                 .ConfigureAwait(false);
 
-            _directoryCache.Set(actorId, _localNode.NodeId);
             _logger.LogDebug("Created state-store {Description} on node {NodeId}.", description, _localNode.NodeId.Value);
             return new EnsureActorReply { Succeeded = true, Message = "Actor ready." };
         }
-        catch
+        catch (ActorHostedElsewhereException)
         {
-            if (registeredHere)
+            return new EnsureActorReply
             {
-                await _directory.UnregisterAsync(actorId, _localNode.NodeId, cancellationToken).ConfigureAwait(false);
-            }
-
-            _directoryCache.Remove(actorId);
-            throw;
+                Succeeded = false,
+                Message = $"{description} is owned by another node."
+            };
         }
     }
 }
