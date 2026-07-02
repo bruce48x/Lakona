@@ -139,7 +139,7 @@ public sealed class AgarHotfixTests
         Assert.NotNull(featureCommands.LastTarget);
         Assert.Equal(expectedOwner.Node, featureCommands.LastTarget.Node);
         Assert.Equal("state-store", featureCommands.LastFeatureName);
-        Assert.Equal("EnsureUserActorRequest", featureCommands.LastRequestTypeName);
+        Assert.Equal("CreateUserActorRequest", featureCommands.LastRequestTypeName);
         Assert.Equal(ActorState.Dead, actors.GetState(ActorId.From(reply.PlayerId)));
     }
 
@@ -209,7 +209,7 @@ public sealed class AgarHotfixTests
         Assert.NotNull(featureCommands.LastTarget);
         Assert.Equal(expectedOwner.Node, featureCommands.LastTarget.Node);
         Assert.Equal("state-store", featureCommands.LastFeatureName);
-        Assert.Equal("EnsureLeaderboardActorRequest", featureCommands.LastRequestTypeName);
+        Assert.Equal("CreateLeaderboardActorRequest", featureCommands.LastRequestTypeName);
         Assert.Equal(ActorState.Dead, actors.GetState(ActorId.From("current")));
     }
 
@@ -408,7 +408,7 @@ public sealed class AgarHotfixTests
         {
             return LastTarget?.Node == node &&
                 string.Equals(LastFeatureName, "state-store", StringComparison.Ordinal) &&
-                string.Equals(LastRequestTypeName, "EnsureUserActorRequest", StringComparison.Ordinal) &&
+                string.Equals(LastRequestTypeName, "CreateUserActorRequest", StringComparison.Ordinal) &&
                 string.Equals(LastUserId, userId, StringComparison.Ordinal);
         }
 
@@ -416,7 +416,7 @@ public sealed class AgarHotfixTests
         {
             return LastTarget?.Node == node &&
                 string.Equals(LastFeatureName, "state-store", StringComparison.Ordinal) &&
-                string.Equals(LastRequestTypeName, "EnsureLeaderboardActorRequest", StringComparison.Ordinal) &&
+                string.Equals(LastRequestTypeName, "CreateLeaderboardActorRequest", StringComparison.Ordinal) &&
                 string.Equals(LastLeaderboardId, leaderboardId, StringComparison.Ordinal);
         }
 

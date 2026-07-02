@@ -58,7 +58,8 @@ public sealed class PlayerService
 
         var topN = req.TopN <= 0 ? 10 : req.TopN;
         var leaderboardId = new LeaderboardId("current");
-        await EnsureLeaderboardActorAsync(leaderboardId.Value, call.Services, logger).ConfigureAwait(false);
+        await CreateLeaderboardActorOnStateStoreAsync(leaderboardId.Value, call.Services, logger)
+            .ConfigureAwait(false);
         var snapshot = await _leaderboards
             .Get(leaderboardId)
             .GetLeaderboardAsync(new LeaderboardQueryRequest { TopN = topN })
@@ -139,7 +140,7 @@ public sealed class PlayerService
         return new ValueTask<string?>(call.CurrentSession?.OwnerKey);
     }
 
-    private static async ValueTask EnsureLeaderboardActorAsync(
+    private static async ValueTask CreateLeaderboardActorOnStateStoreAsync(
         string leaderboardId,
         IServiceProvider services,
         ILogger logger)
@@ -153,12 +154,12 @@ public sealed class PlayerService
         {
             if (ownerNode == services.GetRequiredService<LocalActorNodeIdentity>().NodeId)
             {
-                await EnsureLocalLeaderboardActorAsync(actorId, leaderboardId, ownerNode, services, logger)
+                await CreateLocalLeaderboardActorAsync(actorId, leaderboardId, ownerNode, services, logger)
                     .ConfigureAwait(false);
             }
             else
             {
-                await SendEnsureLeaderboardActorAsync(owner, leaderboardId, services).ConfigureAwait(false);
+                await SendCreateLeaderboardActorAsync(owner, leaderboardId, services).ConfigureAwait(false);
                 directoryCache.Set(actorId, ownerNode);
                 logger.LogDebug(
                     "Requested leaderboard actor {LeaderboardId} creation on state-store node {NodeId}.",
@@ -234,16 +235,16 @@ public sealed class PlayerService
         return (int)(value % (ulong)count);
     }
 
-    private static async ValueTask SendEnsureLeaderboardActorAsync(
+    private static async ValueTask SendCreateLeaderboardActorAsync(
         ClusterNodeDescriptor owner,
         string leaderboardId,
         IServiceProvider services)
     {
         var client = services.GetRequiredService<IFeatureCommandClient>();
-        var reply = await client.SendToNodeAsync<EnsureLeaderboardActorRequest, EnsureActorReply>(
+        var reply = await client.SendToNodeAsync<CreateLeaderboardActorRequest, CreateActorReply>(
             owner,
             StateStoreUserActorPlacement.FeatureName,
-            new EnsureLeaderboardActorRequest { LeaderboardId = leaderboardId }).ConfigureAwait(false);
+            new CreateLeaderboardActorRequest { LeaderboardId = leaderboardId }).ConfigureAwait(false);
         if (!reply.Succeeded)
         {
             throw new InvalidOperationException(
@@ -251,7 +252,7 @@ public sealed class PlayerService
         }
     }
 
-    private static async ValueTask EnsureLocalLeaderboardActorAsync(
+    private static async ValueTask CreateLocalLeaderboardActorAsync(
         ActorId actorId,
         string leaderboardId,
         NodeId localNode,

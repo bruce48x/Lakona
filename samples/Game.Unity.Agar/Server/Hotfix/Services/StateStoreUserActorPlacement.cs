@@ -7,29 +7,29 @@ internal static class StateStoreUserActorPlacement
 {
     public const string FeatureName = "state-store";
 
-    public const int EnsureUserActorCommandId = 201;
+    public const int CreateUserActorCommandId = 201;
 
-    public const int EnsureLeaderboardActorCommandId = 202;
+    public const int CreateLeaderboardActorCommandId = 202;
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
-[FeatureCommand(StateStoreUserActorPlacement.EnsureUserActorCommandId)]
-public partial class EnsureUserActorRequest
+[FeatureCommand(StateStoreUserActorPlacement.CreateUserActorCommandId)]
+public partial class CreateUserActorRequest
 {
     [MemoryPackOrder(0)]
     public string UserId { get; set; } = "";
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
-[FeatureCommand(StateStoreUserActorPlacement.EnsureLeaderboardActorCommandId)]
-public partial class EnsureLeaderboardActorRequest
+[FeatureCommand(StateStoreUserActorPlacement.CreateLeaderboardActorCommandId)]
+public partial class CreateLeaderboardActorRequest
 {
     [MemoryPackOrder(0)]
     public string LeaderboardId { get; set; } = "";
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
-public partial class EnsureActorReply
+public partial class CreateActorReply
 {
     [MemoryPackOrder(0)]
     public bool Succeeded { get; set; }

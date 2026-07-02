@@ -247,6 +247,34 @@ public sealed class AgarHotfixBoundaryTests
     }
 
     [Fact]
+    public void State_store_actor_placement_does_not_keep_legacy_ensure_actor_protocol_names()
+    {
+        var hotfixRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Server.Hotfix.csproj")
+            .DirectoryName!;
+        var forbiddenTokens = new[]
+        {
+            string.Concat("Ensure", "User", "Actor"),
+            string.Concat("Ensure", "Leaderboard", "Actor"),
+            string.Concat("Ensure", "Actor", "Reply"),
+        };
+        var violations = Directory.GetFiles(hotfixRoot, "*.cs", SearchOption.AllDirectories)
+            .Select(file => new
+            {
+                File = file,
+                Matches = forbiddenTokens
+                    .Where(token => File.ReadAllText(file).Contains(token, StringComparison.Ordinal))
+                    .ToArray()
+            })
+            .Where(result => result.Matches.Length > 0)
+            .Select(result => $"{Path.GetRelativePath(Directory.GetCurrentDirectory(), result.File)}: {string.Join(", ", result.Matches)}")
+            .ToArray();
+
+        Assert.True(
+            violations.Length == 0,
+            $"State-store actor placement must use current Create*Actor protocol names: {string.Join("; ", violations)}");
+    }
+
+    [Fact]
     public void Room_actor_creation_paths_destroy_actor_when_create_or_start_fails()
     {
         var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")

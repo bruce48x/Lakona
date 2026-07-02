@@ -31,39 +31,39 @@ public sealed class StateStoreFeature : HotfixGameFeature
         context.Services.AddLogging();
         context.Services.AddSingleton<MatchmakingNotifier>();
         context.Services.AddSingleton<RoomNotifier>();
-        context.HandleCommand<EnsureUserActorRequest, EnsureActorReply>(nameof(EnsureUserActorAsync));
-        context.HandleCommand<EnsureLeaderboardActorRequest, EnsureActorReply>(nameof(EnsureLeaderboardActorAsync));
+        context.HandleCommand<CreateUserActorRequest, CreateActorReply>(nameof(CreateUserActorAsync));
+        context.HandleCommand<CreateLeaderboardActorRequest, CreateActorReply>(nameof(CreateLeaderboardActorAsync));
     }
 
-    public async ValueTask<EnsureActorReply> EnsureUserActorAsync(
-        HotfixFeatureCommandCall<EnsureUserActorRequest> call)
+    public async ValueTask<CreateActorReply> CreateUserActorAsync(
+        HotfixFeatureCommandCall<CreateUserActorRequest> call)
     {
         if (string.IsNullOrWhiteSpace(call.Request.UserId))
         {
-            return new EnsureActorReply { Succeeded = false, Message = "UserId is required." };
+            return new CreateActorReply { Succeeded = false, Message = "UserId is required." };
         }
 
-        return await EnsureActorAsync<UserActor>(
+        return await CreateActorAsync<UserActor>(
             ActorId.From(call.Request.UserId),
             $"user actor {call.Request.UserId}",
             call.CancellationToken).ConfigureAwait(false);
     }
 
-    public async ValueTask<EnsureActorReply> EnsureLeaderboardActorAsync(
-        HotfixFeatureCommandCall<EnsureLeaderboardActorRequest> call)
+    public async ValueTask<CreateActorReply> CreateLeaderboardActorAsync(
+        HotfixFeatureCommandCall<CreateLeaderboardActorRequest> call)
     {
         if (string.IsNullOrWhiteSpace(call.Request.LeaderboardId))
         {
-            return new EnsureActorReply { Succeeded = false, Message = "LeaderboardId is required." };
+            return new CreateActorReply { Succeeded = false, Message = "LeaderboardId is required." };
         }
 
-        return await EnsureActorAsync<LeaderboardActor>(
+        return await CreateActorAsync<LeaderboardActor>(
             ActorId.From(call.Request.LeaderboardId),
             $"leaderboard actor {call.Request.LeaderboardId}",
             call.CancellationToken).ConfigureAwait(false);
     }
 
-    private async ValueTask<EnsureActorReply> EnsureActorAsync<TActor>(
+    private async ValueTask<CreateActorReply> CreateActorAsync<TActor>(
         ActorId actorId,
         string description,
         CancellationToken cancellationToken)
@@ -76,11 +76,11 @@ public sealed class StateStoreFeature : HotfixGameFeature
                 .ConfigureAwait(false);
 
             _logger.LogDebug("Created state-store {Description} on node {NodeId}.", description, _localNode.NodeId.Value);
-            return new EnsureActorReply { Succeeded = true, Message = "Actor ready." };
+            return new CreateActorReply { Succeeded = true, Message = "Actor ready." };
         }
         catch (ActorHostedElsewhereException)
         {
-            return new EnsureActorReply
+            return new CreateActorReply
             {
                 Succeeded = false,
                 Message = $"{description} is owned by another node."

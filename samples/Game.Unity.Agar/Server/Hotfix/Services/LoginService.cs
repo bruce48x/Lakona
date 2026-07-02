@@ -218,7 +218,7 @@ public sealed class LoginService
         }
         catch (ActorNotFoundException)
         {
-            await EnsureUserActorAsync(account, services, logger).ConfigureAwait(false);
+            await CreateUserActorOnStateStoreAsync(account, services, logger).ConfigureAwait(false);
             return await _users
                 .Get(userId)
                 .LoginAsync(request)
@@ -226,7 +226,7 @@ public sealed class LoginService
         }
     }
 
-    private static async ValueTask EnsureUserActorAsync(
+    private static async ValueTask CreateUserActorOnStateStoreAsync(
         string account,
         IServiceProvider services,
         ILogger logger)
@@ -240,11 +240,11 @@ public sealed class LoginService
         {
             if (ownerNode == services.GetRequiredService<LocalActorNodeIdentity>().NodeId)
             {
-                await EnsureLocalUserActorAsync(actorId, account, ownerNode, services, logger).ConfigureAwait(false);
+                await CreateLocalUserActorAsync(actorId, account, ownerNode, services, logger).ConfigureAwait(false);
             }
             else
             {
-                await SendEnsureUserActorAsync(owner, account, services).ConfigureAwait(false);
+                await SendCreateUserActorAsync(owner, account, services).ConfigureAwait(false);
                 directoryCache.Set(actorId, ownerNode);
                 logger.LogDebug(
                     "Requested user actor {UserId} creation on state-store node {NodeId}.",
@@ -319,16 +319,16 @@ public sealed class LoginService
         return (int)(value % (ulong)count);
     }
 
-    private static async ValueTask SendEnsureUserActorAsync(
+    private static async ValueTask SendCreateUserActorAsync(
         ClusterNodeDescriptor owner,
         string userId,
         IServiceProvider services)
     {
         var client = services.GetRequiredService<IFeatureCommandClient>();
-        var reply = await client.SendToNodeAsync<EnsureUserActorRequest, EnsureActorReply>(
+        var reply = await client.SendToNodeAsync<CreateUserActorRequest, CreateActorReply>(
             owner,
             StateStoreUserActorPlacement.FeatureName,
-            new EnsureUserActorRequest { UserId = userId }).ConfigureAwait(false);
+            new CreateUserActorRequest { UserId = userId }).ConfigureAwait(false);
         if (!reply.Succeeded)
         {
             throw new InvalidOperationException(
@@ -336,7 +336,7 @@ public sealed class LoginService
         }
     }
 
-    private static async ValueTask EnsureLocalUserActorAsync(
+    private static async ValueTask CreateLocalUserActorAsync(
         ActorId actorId,
         string account,
         NodeId localNode,
