@@ -1,5 +1,8 @@
 namespace Lakona.Game.Server.Actors;
 
+/// <summary>
+/// Provides runtime services to a hosted actor instance.
+/// </summary>
 public sealed class ActorContext
 {
     internal static readonly ActorContext Uninitialized = new(
@@ -7,6 +10,12 @@ public sealed class ActorContext
         EmptyServiceProvider.Instance,
         NullActorRuntime.Instance);
 
+    /// <summary>
+    /// Initializes a new actor context.
+    /// </summary>
+    /// <param name="id">The hosted actor id.</param>
+    /// <param name="services">The service provider available to the actor.</param>
+    /// <param name="runtime">The local actor runtime.</param>
     public ActorContext(ActorId id, IServiceProvider services, IActorRuntime runtime)
     {
         Id = id;
@@ -14,10 +23,23 @@ public sealed class ActorContext
         Runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
     }
 
+    /// <summary>
+    /// Gets the stable id of the hosted actor instance.
+    /// </summary>
     public ActorId Id { get; }
 
+    /// <summary>
+    /// Gets the service provider available to actor behavior and lifecycle code.
+    /// </summary>
     public IServiceProvider Services { get; }
 
+    /// <summary>
+    /// Gets the process-local actor runtime.
+    /// </summary>
+    /// <remarks>
+    /// Ordinary gameplay code should prefer generated actor references. The raw
+    /// runtime is mainly for framework integration and advanced local dispatch.
+    /// </remarks>
     public IActorRuntime Runtime { get; }
 
     private sealed class EmptyServiceProvider : IServiceProvider

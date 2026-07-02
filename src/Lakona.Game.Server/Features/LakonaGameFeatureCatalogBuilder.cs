@@ -2,11 +2,20 @@ using Lakona.Game.Server.Configuration;
 
 namespace Lakona.Game.Server.Features;
 
+/// <summary>
+/// Builds the catalog of stable game-server features available to the host.
+/// </summary>
 public sealed class LakonaGameFeatureCatalogBuilder
 {
     private readonly List<LakonaGameFeatureDefinition> _definitions = [];
     private readonly Dictionary<string, LakonaGameFeatureDefinition> _byName = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Registers a stable feature implementation under an explicit feature name.
+    /// </summary>
+    /// <typeparam name="TFeature">The feature implementation type.</typeparam>
+    /// <param name="name">The feature name used by <c>Lakona:Feature</c> and cluster discovery.</param>
+    /// <returns>The feature definition for dependency and requirement configuration.</returns>
     public LakonaGameFeatureDefinition Feature<TFeature>(string name)
         where TFeature : LakonaGameFeature
     {
