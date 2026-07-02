@@ -10,6 +10,7 @@ This package is intentionally small so stable model projects, hotfix projects, r
 - `[HotfixBehaviorOf]` binds a static partial Hotfix behavior class to the stable actor type it extends.
 - `[FriendOf]` declares that a Hotfix behavior is intended to use generated friend accessors for a stable actor type.
 - `[HotfixService]` marks the single hotfix implementation for a generated RPC service contract.
+- `[HotfixFeature]`, `HotfixGameFeature`, `HotfixFeatureContext`, `HotfixFeatureStartCall`, `HotfixFeatureStopCall`, and `HotfixFeatureState` define the supported hotfix feature descriptor lifecycle.
 - `HotfixMethodKey`, `HotfixSnapshot`, and `HotfixReloadResult` describe loaded method identity and reload outcomes.
 - `IHotfixRequiredServiceContracts` is emitted by generated server apps so the runtime can fail reloads when a required RPC service has zero or multiple hotfix implementations.
 - `LakonaTimer`, `TimerId`, and `TimerTick<TArgs>` define the hotfix-safe timer surface used by feature lifecycle methods and timer callbacks.
@@ -17,6 +18,46 @@ This package is intentionally small so stable model projects, hotfix projects, r
 `[FriendOf]` is metadata for the hotfix model and tooling. It is not an access-control mechanism; generated accessors are normal public members on the stable type in the first implementation.
 
 Keep actor identity, serialized state, persistence schema, RPC contracts, and transport contracts outside the hotfix assembly.
+
+## Feature Lifecycle
+
+Hotfix feature descriptors use a single public authoring shape:
+
+```csharp
+[HotfixFeature("battle-runtime")]
+public sealed class BattleRuntimeFeature : HotfixGameFeature
+{
+    public static void Configure(HotfixFeatureContext context)
+    {
+    }
+
+    public static async ValueTask StartAsync(HotfixFeatureStartCall call)
+    {
+        await Task.CompletedTask;
+    }
+
+    public static async ValueTask StopAsync(HotfixFeatureStopCall call)
+    {
+        await Task.CompletedTask;
+    }
+}
+```
+
+Only `Configure` is required. `StartAsync` and `StopAsync` are optional
+activation and removal hooks. They are not every-reload hooks: a successful
+reload that retains the same feature name preserves `HotfixFeatureState` and
+does not rerun `StartAsync` or `StopAsync` for that retained feature.
+
+The only supported public configure member is
+`public static void Configure(HotfixFeatureContext context)`. No other public
+`Configure` overloads are supported. Feature descriptors are not singletons;
+the runtime does not construct them for `Configure`, `StartAsync`, or
+`StopAsync`.
+
+`HotfixFeatureState` may store stable values such as framework ids, timer ids,
+strings, primitive values, and DTOs from shared non-collectible assemblies. It
+must not contain hotfix-owned DTOs, services, delegates, or instances because
+those values can keep the collectible hotfix load context alive.
 
 ## Timers
 

@@ -136,34 +136,9 @@ public static class HotfixBehaviorScanner
             return;
         }
 
-        var parameterTypes = new[] { typeof(HotfixFeatureContext) };
-        var instanceConfigure = featureType.GetMethod(
-            "Configure",
-            BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly,
-            binder: null,
-            types: parameterTypes,
-            modifiers: null);
-        if (instanceConfigure is not null)
-        {
-            diagnostics.Add($"Hotfix feature '{featureType.FullName}' must use public static void Configure(HotfixFeatureContext context), not instance Configure.");
-            return;
-        }
-
-        var configure = featureType.GetMethod(
-            "Configure",
-            BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly,
-            binder: null,
-            types: parameterTypes,
-            modifiers: null);
+        var configure = ResolveFeatureConfigureMethod(featureType, diagnostics);
         if (configure is null)
         {
-            diagnostics.Add($"Hotfix feature '{featureType.FullName}' must declare public static void Configure(HotfixFeatureContext context).");
-            return;
-        }
-
-        if (configure.ReturnType != typeof(void))
-        {
-            diagnostics.Add($"Hotfix feature '{featureType.FullName}' must declare public static void Configure(HotfixFeatureContext context).");
             return;
         }
 
@@ -208,6 +183,45 @@ public static class HotfixBehaviorScanner
             context.Commands.ToArray(),
             context.Services.ToArray(),
             lifecycle));
+    }
+
+    private static MethodInfo? ResolveFeatureConfigureMethod(Type featureType, List<string> diagnostics)
+    {
+        var configureMethods = featureType
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(static method => string.Equals(method.Name, "Configure", StringComparison.Ordinal))
+            .ToArray();
+
+        if (configureMethods.Length == 0)
+        {
+            diagnostics.Add($"Hotfix feature '{featureType.FullName}' must declare public static void Configure(HotfixFeatureContext context).");
+            return null;
+        }
+
+        if (configureMethods.Length != 1)
+        {
+            diagnostics.Add($"Hotfix feature '{featureType.FullName}' must declare exactly one public static void Configure(HotfixFeatureContext context) and no other public Configure overloads.");
+            return null;
+        }
+
+        var configure = configureMethods[0];
+        if (!configure.IsStatic)
+        {
+            diagnostics.Add($"Hotfix feature '{featureType.FullName}' must use public static void Configure(HotfixFeatureContext context), not instance Configure.");
+            return null;
+        }
+
+        var parameters = configure.GetParameters();
+        if (configure.IsGenericMethod ||
+            configure.ReturnType != typeof(void) ||
+            parameters.Length != 1 ||
+            parameters[0].ParameterType != typeof(HotfixFeatureContext))
+        {
+            diagnostics.Add($"Hotfix feature '{featureType.FullName}' must declare public static void Configure(HotfixFeatureContext context).");
+            return null;
+        }
+
+        return configure;
     }
 
     private static bool TryGetHotfixServiceContract(

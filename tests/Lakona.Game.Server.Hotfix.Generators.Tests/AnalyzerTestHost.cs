@@ -17,7 +17,9 @@ internal static class AnalyzerTestHost
             CreateDefaultReferences(),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-        var analyzers = ImmutableArray.Create<DiagnosticAnalyzer>(new HotfixActorBoundaryAnalyzer());
+        var analyzers = ImmutableArray.Create<DiagnosticAnalyzer>(
+            new HotfixActorBoundaryAnalyzer(),
+            new HotfixFeatureLifecycleAnalyzer());
         return await compilation.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync().ConfigureAwait(false);
     }
 

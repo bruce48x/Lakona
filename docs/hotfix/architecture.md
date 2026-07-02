@@ -238,6 +238,14 @@ when deleting feature-owned timers. Stable App code must not define
 application-specific hotfix event adapters, room runtimes, matchmaking hosted
 services, or game Feature classes.
 
+`StartAsync` and `StopAsync` are activation and removal hooks, not every-reload hooks.
+A successful reload that retains the same feature name
+preserves `HotfixFeatureState` and does not rerun `StartAsync` or `StopAsync`
+for that retained feature. `HotfixFeatureState` may store stable values such as
+framework ids, timer ids, strings, primitive values, and DTOs from shared
+non-collectible assemblies. It must not contain hotfix-owned DTOs, services, delegates, or instances
+because those values can keep the collectible hotfix load context alive.
+
 Feature descriptors are scanned and validated with the rest of the hotfix
 assembly. They are not retained as long-lived runtime objects from the
 collectible hotfix load context. After a successful reload, the framework
@@ -250,8 +258,12 @@ If scanning or validation fails, the previous generation remains active.
 Hotfix feature declarations use `public static void Configure(HotfixFeatureContext context)`.
 Static `Configure` is the declaration surface for discoverability, metadata,
 hotfix-generation services, local actor declarations, LakonaTimer-backed
-feature timers, and typed feature commands. The scanner does not construct
-feature classes during declaration.
+feature timers, and typed feature commands. The scanner rejects missing
+`Configure`, instance `Configure`, and any public `Configure` method with a
+different signature; descriptors must declare exactly one
+`public static void Configure(HotfixFeatureContext context)` and no other public `Configure` overloads.
+The scanner does not construct feature classes
+during declaration.
 
 Runtime feature command calls activate a fresh feature instance from the current
 hotfix service provider, invoke a method shaped as
