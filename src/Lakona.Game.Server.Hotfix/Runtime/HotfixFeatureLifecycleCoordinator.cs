@@ -278,6 +278,12 @@ internal sealed class HotfixFeatureLifecycleCoordinator
                 continue;
             }
 
+            if (value is Delegate)
+            {
+                throw new InvalidOperationException(
+                    $"HotfixFeatureState item '{item.Key}' for feature '{feature.Name}' contains a delegate value. Delegates are not reload-safe HotfixFeatureState values.");
+            }
+
             var loadContext = AssemblyLoadContext.GetLoadContext(value.GetType().Assembly);
             if (loadContext?.IsCollectible == true)
             {

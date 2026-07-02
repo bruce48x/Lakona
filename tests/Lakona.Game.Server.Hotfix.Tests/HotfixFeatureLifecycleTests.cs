@@ -1,6 +1,7 @@
 extern alias GameServer;
 
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using GameServer::Lakona.Game.Server;
 using GameServer::Lakona.Game.Server.Actors;
@@ -804,6 +805,32 @@ public sealed class HotfixFeatureLifecycleTests
     }
 
     [Fact]
+    public async Task Hotfix_state_delegate_rejects_candidate_publication_and_keeps_old_publication()
+    {
+        LifecycleRecorder.Reset();
+        using var oldRuntime = CreateRuntime([Feature("old", typeof(StatefulFeature))], "1");
+        using var candidateRuntime = CreateRuntime([Feature("state", typeof(CollectibleStateFeature))], "2");
+        var manager = new HotfixManager(new UnusedAssemblySource());
+        var first = await manager.PublishCandidateAsync(
+            oldRuntime.Snapshot,
+            CreateSnapshot(1, oldRuntime.Snapshot.DispatchTable!.Features),
+            oldRuntime.Snapshot.DispatchTable!.Features,
+            TestContext.Current.CancellationToken);
+        Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+        var oldPublishedRuntime = ((IHotfixRuntimeAccessor)manager).Current;
+        var oldPublishedSnapshot = manager.Current;
+        var oldPublishedDispatch = HotfixDispatch.Current;
+
+        var loadContextReference = await AssertCollectibleActionPublicationFailsAsync(
+            manager,
+            candidateRuntime,
+            oldPublishedRuntime,
+            oldPublishedSnapshot,
+            oldPublishedDispatch);
+        await AssertCollectibleLoadContextUnloadsAsync(loadContextReference);
+    }
+
+    [Fact]
     public async Task Invalid_state_validation_failure_stops_started_feature_and_rolls_back_timers()
     {
         LifecycleRecorder.Reset();
@@ -837,6 +864,17 @@ public sealed class HotfixFeatureLifecycleTests
             CollectibleTimerStartFeature.Value = null;
             loadContext.Unload();
         }
+    }
+
+    [Fact]
+    public async Task Invalid_state_delegate_validation_failure_stops_started_feature_and_rolls_back_timers()
+    {
+        LifecycleRecorder.Reset();
+        var coordinator = new HotfixFeatureLifecycleCoordinator();
+        var backend = new RecordingLifecycleTimerBackend();
+
+        var loadContextReference = await AssertCollectibleActionStartCandidateFailsAsync(coordinator, backend);
+        await AssertCollectibleLoadContextUnloadsAsync(loadContextReference);
     }
 
     private static ScopedRuntime CreateRuntime(
@@ -998,6 +1036,142 @@ public sealed class HotfixFeatureLifecycleTests
         loadContext = new AssemblyLoadContext(assemblyName, isCollectible: true);
         var assembly = loadContext.LoadFromStream(stream);
         return Activator.CreateInstance(assembly.GetType("HotfixStateValue.Payload", throwOnError: true)!)!;
+    }
+
+    private static Action CreateCollectibleAction(out AssemblyLoadContext loadContext)
+    {
+        var assemblyName = $"HotfixStateAction_{Guid.NewGuid():N}";
+        var syntaxTree = CSharpSyntaxTree.ParseText(
+            """
+            namespace HotfixStateAction;
+
+            public static class Payload
+            {
+                public static void Run()
+                {
+                }
+            }
+            """);
+        var references = GetTrustedPlatformReferences()
+            .GroupBy(static reference => reference.Display, StringComparer.OrdinalIgnoreCase)
+            .Select(static group => group.First())
+            .ToArray();
+        var compilation = CSharpCompilation.Create(
+            assemblyName,
+            [syntaxTree],
+            references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        using var stream = new MemoryStream();
+        var emit = compilation.Emit(stream);
+        if (!emit.Success)
+        {
+            throw new InvalidOperationException(string.Join(Environment.NewLine, emit.Diagnostics));
+        }
+
+        stream.Position = 0;
+        loadContext = new AssemblyLoadContext(assemblyName, isCollectible: true);
+        var assembly = loadContext.LoadFromStream(stream);
+        var method = assembly.GetType("HotfixStateAction.Payload", throwOnError: true)!
+            .GetMethod("Run", BindingFlags.Public | BindingFlags.Static)!;
+        return (Action)Delegate.CreateDelegate(typeof(Action), method);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static async Task<WeakReference> AssertCollectibleActionPublicationFailsAsync(
+        HotfixManager manager,
+        ScopedRuntime candidateRuntime,
+        HotfixRuntimeSnapshot oldPublishedRuntime,
+        HotfixSnapshot oldPublishedSnapshot,
+        object oldPublishedDispatch)
+    {
+        var action = CreateCollectibleAction(out var loadContext);
+        var loadContextReference = new WeakReference(loadContext);
+        CollectibleStateFeature.Value = action;
+
+        try
+        {
+            var failed = await manager.PublishCandidateAsync(
+                candidateRuntime.Snapshot,
+                CreateSnapshot(2, candidateRuntime.Snapshot.DispatchTable!.Features),
+                candidateRuntime.Snapshot.DispatchTable!.Features,
+                TestContext.Current.CancellationToken);
+
+            Assert.False(failed.Succeeded);
+            Assert.Contains(failed.Diagnostics, diagnostic =>
+                diagnostic.Contains("delegate", StringComparison.OrdinalIgnoreCase) ||
+                diagnostic.Contains("reload-safe", StringComparison.OrdinalIgnoreCase));
+            Assert.Same(oldPublishedRuntime, ((IHotfixRuntimeAccessor)manager).Current);
+            Assert.Same(oldPublishedSnapshot, manager.Current);
+            Assert.Same(oldPublishedDispatch, HotfixDispatch.Current);
+        }
+        finally
+        {
+            CollectibleStateFeature.Value = null;
+            action = null;
+            loadContext.Unload();
+        }
+
+        return loadContextReference;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static async Task<WeakReference> AssertCollectibleActionStartCandidateFailsAsync(
+        HotfixFeatureLifecycleCoordinator coordinator,
+        RecordingLifecycleTimerBackend backend)
+    {
+        var action = CreateCollectibleAction(out var loadContext);
+        var loadContextReference = new WeakReference(loadContext);
+        CollectibleTimerStartFeature.Value = action;
+
+        try
+        {
+            using var candidateRuntime = CreateRuntime(
+                [Feature("state", typeof(CollectibleTimerStartFeature))],
+                "candidate",
+                backend);
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                await coordinator.StartCandidateAsync(
+                    HotfixFeatureLifecycleSnapshot.Empty,
+                    candidateRuntime.Snapshot,
+                    candidateRuntime.Snapshot.DispatchTable!.Features,
+                    TestContext.Current.CancellationToken));
+
+            Assert.True(
+                ex.Message.Contains("delegate", StringComparison.OrdinalIgnoreCase) ||
+                ex.Message.Contains("reload-safe", StringComparison.OrdinalIgnoreCase),
+                ex.Message);
+            Assert.Equal(["start:collectible-timer", "stop:collectible-timer"], LifecycleRecorder.Events);
+            Assert.Equal(1, backend.StagedCreateCount);
+            Assert.Equal(1, backend.RollbackCount);
+            Assert.Empty(backend.ActiveTimers);
+        }
+        finally
+        {
+            CollectibleTimerStartFeature.Value = null;
+            action = null;
+            loadContext.Unload();
+        }
+
+        return loadContextReference;
+    }
+
+    private static async Task AssertCollectibleLoadContextUnloadsAsync(WeakReference loadContextReference)
+    {
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+            if (!loadContextReference.IsAlive)
+            {
+                return;
+            }
+
+            await Task.Delay(10, TestContext.Current.CancellationToken);
+        }
+
+        Assert.False(loadContextReference.IsAlive);
     }
 
     private static IEnumerable<MetadataReference> GetTrustedPlatformReferences()
