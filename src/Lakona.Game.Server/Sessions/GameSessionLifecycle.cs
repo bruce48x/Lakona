@@ -37,7 +37,7 @@ public sealed class GameSessionBindingContext
     /// <summary>
     /// Initializes a new endpoint binding lifecycle context.
     /// </summary>
-    /// <param name="endpoint">The session endpoint affected by the lifecycle event.</param>
+    /// <param name="session">The session affected by the lifecycle event.</param>
     /// <param name="connectionId">The RPC connection currently associated with the endpoint.</param>
     /// <param name="callbackContractTypes">The callback contracts exposed by the bound client endpoint.</param>
     public GameSessionBindingContext(

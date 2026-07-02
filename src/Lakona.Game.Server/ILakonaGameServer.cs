@@ -3,12 +3,48 @@ using Lakona.Game.Server.Sessions;
 
 namespace Lakona.Game.Server;
 
+/// <summary>
+/// Provides the high-level server API for framework-owned game sessions.
+/// </summary>
+/// <remarks>
+/// Use this service from game services and hotfix services to create sessions,
+/// bind typed client callbacks, handle reconnects, and terminate sessions.
+/// Game code still owns account identity, matchmaking, room state, and gameplay
+/// policy; this interface owns the framework session and callback binding.
+/// </remarks>
 public interface ILakonaGameServer
 {
+    /// <summary>
+    /// Creates a new game session for an owner without binding it to a connection.
+    /// </summary>
+    /// <param name="ownerKey">
+    /// Stable game-owned owner identity, such as a player id or account id.
+    /// </param>
+    /// <param name="cancellationToken">A token that cancels session creation.</param>
+    /// <returns>The framework session key assigned to the new game session.</returns>
+    /// <remarks>
+    /// Use this overload when the connection or callback will be bound later with
+    /// <see cref="BindSessionAsync{TCallback}"/>.
+    /// </remarks>
     ValueTask<GameSessionKey> StartSessionAsync(
         string ownerKey,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Creates a new game session and binds the current connection callback to it.
+    /// </summary>
+    /// <typeparam name="TCallback">The typed client callback contract implemented by the connected client.</typeparam>
+    /// <param name="ownerKey">
+    /// Stable game-owned owner identity, such as a player id or account id.
+    /// </param>
+    /// <param name="connectionId">The framework connection id associated with the connected client.</param>
+    /// <param name="callback">The callback proxy for the connected client.</param>
+    /// <param name="cancellationToken">A token that cancels session creation or callback binding.</param>
+    /// <returns>The framework session key assigned to the new game session.</returns>
+    /// <remarks>
+    /// This is the normal login or enter-game path when the server accepts a
+    /// connection and immediately associates it with a new game session.
+    /// </remarks>
     ValueTask<GameSessionKey> StartSessionAsync<TCallback>(
         string ownerKey,
         string connectionId,
@@ -16,6 +52,23 @@ public interface ILakonaGameServer
         CancellationToken cancellationToken = default)
         where TCallback : class;
 
+    /// <summary>
+    /// Attempts to resume an existing game session and bind a fresh connection callback.
+    /// </summary>
+    /// <typeparam name="TCallback">The typed client callback contract implemented by the connected client.</typeparam>
+    /// <param name="request">The session key and optional resume token supplied by the client.</param>
+    /// <param name="connectionId">The framework connection id for the reconnecting client.</param>
+    /// <param name="callback">The callback proxy for the reconnecting client.</param>
+    /// <param name="cancellationToken">A token that cancels resume validation or callback binding.</param>
+    /// <returns>
+    /// The resume decision. Successful or state-refresh decisions include the
+    /// session that was rebound to <paramref name="connectionId"/>.
+    /// </returns>
+    /// <remarks>
+    /// The method binds the callback only when the resume policy returns
+    /// <see cref="SessionResumeStatus.Resumed"/> or
+    /// <see cref="SessionResumeStatus.StateRefreshRequired"/>.
+    /// </remarks>
     ValueTask<SessionResumeDecision> ResumeSessionAsync<TCallback>(
         GameSessionResumeRequest request,
         string connectionId,
@@ -23,6 +76,19 @@ public interface ILakonaGameServer
         CancellationToken cancellationToken = default)
         where TCallback : class;
 
+    /// <summary>
+    /// Binds a known game session to a connection and typed client callback.
+    /// </summary>
+    /// <typeparam name="TCallback">The typed client callback contract implemented by the connected client.</typeparam>
+    /// <param name="session">The session to associate with the connection.</param>
+    /// <param name="connectionId">The framework connection id associated with the connected client.</param>
+    /// <param name="callback">The callback proxy for the connected client.</param>
+    /// <param name="cancellationToken">A token that cancels callback binding.</param>
+    /// <remarks>
+    /// Use this when the server already knows the exact <see cref="GameSessionKey"/>.
+    /// Binding a session also registers the framework route used by server-to-client
+    /// notifications.
+    /// </remarks>
     ValueTask BindSessionAsync<TCallback>(
         GameSessionKey session,
         string connectionId,
@@ -30,22 +96,70 @@ public interface ILakonaGameServer
         CancellationToken cancellationToken = default)
         where TCallback : class;
 
+    /// <summary>
+    /// Binds the session currently associated with a connection to a typed client callback.
+    /// </summary>
+    /// <typeparam name="TCallback">The typed client callback contract implemented by the connected client.</typeparam>
+    /// <param name="connectionId">The framework connection id whose current session should be rebound.</param>
+    /// <param name="callback">The callback proxy for the connected client.</param>
+    /// <param name="cancellationToken">A token that cancels callback binding.</param>
+    /// <remarks>
+    /// This is useful inside RPC services that receive a framework connection id but
+    /// do not need to parse or pass the full <see cref="GameSessionKey"/>.
+    /// </remarks>
     ValueTask BindCurrentSessionAsync<TCallback>(
         string connectionId,
         TCallback callback,
         CancellationToken cancellationToken = default)
         where TCallback : class;
 
+    /// <summary>
+    /// Marks a game session or one of its connections as disconnected without terminating the session.
+    /// </summary>
+    /// <param name="session">The session whose current connection state changed.</param>
+    /// <param name="connectionId">
+    /// Optional connection id to mark disconnected. When omitted, the session is
+    /// marked disconnected regardless of the last bound connection id.
+    /// </param>
+    /// <param name="cancellationToken">A token that cancels the disconnect update.</param>
+    /// <remarks>
+    /// A disconnected session remains eligible for reconnect/resume until cleanup
+    /// policy expires it or the game explicitly terminates it.
+    /// </remarks>
     ValueTask MarkSessionDisconnectedAsync(
         GameSessionKey session,
         string? connectionId = null,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Gets the callback currently bound to a game session.
+    /// </summary>
+    /// <typeparam name="TCallback">The expected typed client callback contract.</typeparam>
+    /// <param name="session">The session whose callback should be returned.</param>
+    /// <param name="cancellationToken">A token that cancels the lookup.</param>
+    /// <returns>
+    /// The callback bound to the session when one exists and matches
+    /// <typeparamref name="TCallback"/>; otherwise <see langword="null"/>.
+    /// </returns>
     ValueTask<TCallback?> GetCallbackAsync<TCallback>(
         GameSessionKey session,
         CancellationToken cancellationToken = default)
         where TCallback : class;
 
+    /// <summary>
+    /// Terminates a game session and optionally notifies the bound client before closing its connection.
+    /// </summary>
+    /// <param name="session">The session to terminate.</param>
+    /// <param name="reason">The machine-readable termination reason sent to the client.</param>
+    /// <param name="message">Optional human-readable diagnostic text for logs or client UI.</param>
+    /// <param name="options">Termination behavior such as notify timeout and resume-state retention.</param>
+    /// <param name="cancellationToken">A token that cancels the termination operation before notification begins.</param>
+    /// <remarks>
+    /// Termination is final for the current session generation. Depending on
+    /// <see cref="SessionTerminationOptions.KeepTerminalStateForResume"/>, later
+    /// resume attempts can receive a terminated decision instead of a generic
+    /// state-lost result.
+    /// </remarks>
     ValueTask TerminateSessionAsync(
         GameSessionKey session,
         SessionTerminationReason reason,
