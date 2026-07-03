@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "com.coplaydev.unity-mcp": "9.7.3",
+    "com.coplaydev.unity-mcp": "10.0.0",
     "com.github-glitchenzo.nugetforunity": "4.5.0",
     "com.lakona-game.agar.unity.shared": "file:../../Shared",
     "com.unity.ide.rider": "3.0.40",
@@ -9,13 +9,13 @@
     "com.unity.test-framework": "1.1.33",
     "com.unity.textmeshpro": "3.0.9",
     "com.unity.ugui": "1.0.0",
+    "com.yasirkula.assetusagedetector": "2.6.2",
     "com.unity.modules.audio": "1.0.0",
     "com.unity.modules.imageconversion": "1.0.0",
     "com.unity.modules.physics": "1.0.0",
     "com.unity.modules.physics2d": "1.0.0",
     "com.unity.modules.screencapture": "1.0.0",
-    "com.unity.modules.uielements": "1.0.0",
-    "com.yasirkula.assetusagedetector": "2.6.2"
+    "com.unity.modules.uielements": "1.0.0"
   },
   "scopedRegistries": [
     {
