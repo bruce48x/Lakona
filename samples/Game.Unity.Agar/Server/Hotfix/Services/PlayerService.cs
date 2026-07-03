@@ -53,7 +53,7 @@ public sealed class PlayerService
         _logger = logger;
     }
 
-    public async ValueTask<LeaderboardReply> GetLeaderboardAsync(HotfixServiceCall<LeaderboardRequest> call)
+    public async ValueTask<LeaderboardReply> GetLeaderboardAsync(HotfixServiceCall<LeaderboardRequest, IPlayerCallback> call)
     {
         var req = call.Request;
         _ = await EnsureControlConnectionAsync(call).ConfigureAwait(false);
@@ -85,7 +85,7 @@ public sealed class PlayerService
         };
     }
 
-    public async ValueTask StartMatchmakingAsync(HotfixServiceCall<MatchmakingRequest> call)
+    public async ValueTask StartMatchmakingAsync(HotfixServiceCall<MatchmakingRequest, IPlayerCallback> call)
     {
         var playerId = await EnsureControlConnectionAsync(call).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(playerId))
@@ -96,7 +96,7 @@ public sealed class PlayerService
         await EnqueuePlayerAsync(playerId).ConfigureAwait(false);
     }
 
-    public async ValueTask CancelMatchmakingAsync(HotfixServiceCall<CancelMatchmakingRequest> call)
+    public async ValueTask CancelMatchmakingAsync(HotfixServiceCall<CancelMatchmakingRequest, IPlayerCallback> call)
     {
         var playerId = await EnsureControlConnectionAsync(call).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(playerId))
@@ -107,7 +107,7 @@ public sealed class PlayerService
         await CancelMatchmakingAsync(playerId, "Matchmaking cancelled").ConfigureAwait(false);
     }
 
-    public async ValueTask LogoutAsync(HotfixServiceCall<LogoutRequest> call)
+    public async ValueTask LogoutAsync(HotfixServiceCall<LogoutRequest, IPlayerCallback> call)
     {
         var playerId = await EnsureControlConnectionAsync(call).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(playerId))

@@ -49,7 +49,7 @@ namespace SampleClient.Gameplay
             string password,
             bool guestLogin,
             bool reconnect,
-            IControlCallback callback,
+            IPlayerCallback callback,
             CancellationToken cancellationToken)
         {
             if (IsConnecting)

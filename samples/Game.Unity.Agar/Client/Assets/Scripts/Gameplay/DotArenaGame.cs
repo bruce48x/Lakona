@@ -10,7 +10,7 @@ using static SampleClient.Gameplay.DotArenaTuning;
 
 namespace SampleClient.Gameplay
 {
-    public sealed partial class DotArenaGame : MonoBehaviour, IControlCallback, IBattleCallback
+    public sealed partial class DotArenaGame : MonoBehaviour, IPlayerCallback, IBattleCallback
     {
         [SerializeField] private string _host = "127.0.0.1";
         [SerializeField] private int _port = 20000;

@@ -90,7 +90,7 @@ namespace Rpc.Testing
             {
                 _connection = new LakonaGameClient(
                     WebSocketRpcClientFactory.CreateOptions(_endpoint.Host, _endpoint.Port, _endpoint.Path),
-                    new ControlCallbacks(this));
+                    new PlayerCallbacks(this));
                 _connection.Disconnected += OnDisconnected;
                 await _connection.ConnectAsync(_cts.Token);
                 _login = _connection.Api.Shared.Login;
@@ -219,9 +219,9 @@ namespace Rpc.Testing
             }
         }
 
-        private sealed class ControlCallbacks : IControlCallback
+        private sealed class PlayerCallbacks : IPlayerCallback
         {
-            public ControlCallbacks(RpcConnectionTester owner)
+            public PlayerCallbacks(RpcConnectionTester owner)
             {
             }
 
