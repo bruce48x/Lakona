@@ -1,10 +1,10 @@
 # Lakona.Game.Server.Hotfix.Abstractions
 
-Stable attributes and result contracts for Lakona.Game server Hotfix behaviors.
+Stable attributes, lifecycle calls, and result DTOs for Lakona.Game server Hotfix behaviors.
 
 This package is intentionally small so stable model projects, hotfix projects, runtime packages, and source generators can share the same metadata without depending on Lakona.Game server hosting internals.
 
-## Contracts
+## Metadata
 
 - `[HotfixState]` marks stable partial actor types that can receive generated friend accessors.
 - `[HotfixBehaviorOf]` binds a static partial Hotfix behavior class to the stable actor type it extends.
@@ -17,7 +17,7 @@ This package is intentionally small so stable model projects, hotfix projects, r
 
 `[FriendOf]` is metadata for the hotfix model and tooling. It is not an access-control mechanism; generated accessors are normal public members on the stable type in the first implementation.
 
-Keep actor identity, serialized state, persistence schema, RPC contracts, and transport contracts outside the hotfix assembly.
+Stable App assemblies own actor identity, serialized state, persistence schema, DTOs, RPC contracts, and transport contracts. Hotfix assemblies own replaceable behavior. Public extension methods in `[HotfixBehaviorOf]` classes are the actor API exposed through generated selectors and actor refs.
 
 ## Feature Lifecycle
 

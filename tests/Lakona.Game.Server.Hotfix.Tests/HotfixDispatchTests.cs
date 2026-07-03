@@ -1,3 +1,7 @@
+extern alias GameServer;
+
+using System.Reflection;
+using GameServer::Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Scanning;
@@ -5,6 +9,8 @@ using Lakona.Game.Cluster;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Lakona.Rpc.Core;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -12,6 +18,231 @@ namespace Lakona.Game.Server.Hotfix.Tests;
 
 public sealed class HotfixDispatchTests
 {
+    [Fact]
+    public async Task InvokeActorAsync_dispatches_behavior_actor_api_method_by_method_key()
+    {
+        var fixture = TwoAssemblyHotfixFixture.Create(
+            """
+            using Lakona.Game.Server.Actors;
+
+            namespace StableGame;
+
+            public sealed class UserActor : Actor<string>
+            {
+            }
+
+            public sealed record PingRequest(string Text);
+
+            public sealed record PingReply(string Text);
+            """,
+            """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            using StableGame;
+
+            namespace HotfixGame;
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            public static partial class UserBehavior
+            {
+                public static ValueTask<PingReply> PingAsync(
+                    this UserActor self,
+                    PingRequest request,
+                    CancellationToken cancellationToken = default)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return new ValueTask<PingReply>(new PingReply(request.Text));
+                }
+            }
+            """);
+        var scan = HotfixBehaviorScanner.Scan(fixture.HotfixAssembly);
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        var descriptor = Assert.Single(scan.ActorMethods);
+        var stableAssemblyName = fixture.StableAssembly.GetName().Name;
+        Assert.Contains($"actor:StableGame.UserActor, {stableAssemblyName}", descriptor.MethodKey, StringComparison.Ordinal);
+        Assert.Contains("|method:PingAsync|", descriptor.MethodKey, StringComparison.Ordinal);
+        Assert.Contains($"|request:StableGame.PingRequest, {stableAssemblyName}", descriptor.MethodKey, StringComparison.Ordinal);
+        Assert.Contains($"|result:StableGame.PingReply, {stableAssemblyName}", descriptor.MethodKey, StringComparison.Ordinal);
+        var table = new HotfixDispatchTable(1, scan.Methods, scan.Services, scan.ActorMethods);
+        var actor = Activator.CreateInstance(fixture.StableAssembly.GetType("StableGame.UserActor", throwOnError: true)!)!;
+        var requestType = fixture.StableAssembly.GetType("StableGame.PingRequest", throwOnError: true)!;
+        var request = Activator.CreateInstance(requestType, "hello")!;
+
+        var result = await table.InvokeActorAsync(
+            descriptor.MethodKey,
+            actor,
+            request,
+            descriptor.ResultType);
+
+        var text = result!.GetType().GetProperty("Text")!.GetValue(result);
+        Assert.Equal("hello", text);
+    }
+
+    [Fact]
+    public async Task InvokeActorAsync_returns_null_for_resultless_value_task_behavior()
+    {
+        var fixture = TwoAssemblyHotfixFixture.Create(
+            """
+            using Lakona.Game.Server.Actors;
+
+            namespace StableGame;
+
+            public sealed class UserActor : Actor<string>
+            {
+                public string? LastText { get; set; }
+            }
+
+            public sealed record PingRequest(string Text);
+            """,
+            """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            using StableGame;
+
+            namespace HotfixGame;
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            public static partial class UserBehavior
+            {
+                public static ValueTask RememberAsync(
+                    this UserActor self,
+                    PingRequest request,
+                    CancellationToken cancellationToken = default)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    self.LastText = request.Text;
+                    return default;
+                }
+            }
+            """);
+        var scan = HotfixBehaviorScanner.Scan(fixture.HotfixAssembly);
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        var descriptor = Assert.Single(scan.ActorMethods);
+        var stableAssemblyName = fixture.StableAssembly.GetName().Name;
+        Assert.Contains($"actor:StableGame.UserActor, {stableAssemblyName}", descriptor.MethodKey, StringComparison.Ordinal);
+        Assert.Contains("|method:RememberAsync|", descriptor.MethodKey, StringComparison.Ordinal);
+        Assert.Contains($"|request:StableGame.PingRequest, {stableAssemblyName}", descriptor.MethodKey, StringComparison.Ordinal);
+        Assert.Contains("|result:void", descriptor.MethodKey, StringComparison.Ordinal);
+        var table = new HotfixDispatchTable(1, scan.Methods, scan.Services, scan.ActorMethods);
+        var actor = Activator.CreateInstance(fixture.StableAssembly.GetType("StableGame.UserActor", throwOnError: true)!)!;
+        var requestType = fixture.StableAssembly.GetType("StableGame.PingRequest", throwOnError: true)!;
+        var request = Activator.CreateInstance(requestType, "remembered")!;
+
+        var result = await table.InvokeActorAsync(
+            descriptor.MethodKey,
+            actor,
+            request,
+            typeof(void));
+
+        Assert.Null(result);
+        Assert.Equal("remembered", actor.GetType().GetProperty("LastText")!.GetValue(actor));
+    }
+
+    [Fact]
+    public async Task InvokeActorAsync_rejects_wrong_request_type()
+    {
+        var fixture = CreatePingDispatchFixture();
+        var scan = HotfixBehaviorScanner.Scan(fixture.HotfixAssembly);
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        var descriptor = Assert.Single(scan.ActorMethods);
+        var table = new HotfixDispatchTable(1, scan.Methods, scan.Services, scan.ActorMethods);
+        var actor = Activator.CreateInstance(fixture.StableAssembly.GetType("StableGame.UserActor", throwOnError: true)!)!;
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await table.InvokeActorAsync(
+                descriptor.MethodKey,
+                actor,
+                "wrong",
+                descriptor.ResultType));
+
+        Assert.Contains("request", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("StableGame.PingRequest", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task InvokeActorAsync_rejects_wrong_actor_type()
+    {
+        var fixture = CreatePingDispatchFixture();
+        var scan = HotfixBehaviorScanner.Scan(fixture.HotfixAssembly);
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        var descriptor = Assert.Single(scan.ActorMethods);
+        var table = new HotfixDispatchTable(1, scan.Methods, scan.Services, scan.ActorMethods);
+        var requestType = fixture.StableAssembly.GetType("StableGame.PingRequest", throwOnError: true)!;
+        var request = Activator.CreateInstance(requestType, "hello")!;
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await table.InvokeActorAsync(
+                descriptor.MethodKey,
+                new object(),
+                request,
+                descriptor.ResultType));
+
+        Assert.Contains("actor", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("StableGame.UserActor", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task InvokeActorAsync_rejects_unknown_method_key()
+    {
+        var fixture = CreatePingDispatchFixture();
+        var scan = HotfixBehaviorScanner.Scan(fixture.HotfixAssembly);
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        var descriptor = Assert.Single(scan.ActorMethods);
+        var stableAssemblyName = fixture.StableAssembly.GetName().Name;
+        var table = new HotfixDispatchTable(1, scan.Methods, scan.Services, scan.ActorMethods);
+        var actor = Activator.CreateInstance(fixture.StableAssembly.GetType("StableGame.UserActor", throwOnError: true)!)!;
+        var requestType = fixture.StableAssembly.GetType("StableGame.PingRequest", throwOnError: true)!;
+        var request = Activator.CreateInstance(requestType, "hello")!;
+
+        var exception = await Assert.ThrowsAsync<HotfixMethodNotLoadedException>(async () =>
+            await table.InvokeActorAsync(
+                $"actor:StableGame.UserActor, {stableAssemblyName}|method:MissingAsync|request:StableGame.PingRequest, {stableAssemblyName}|result:StableGame.PingReply, {stableAssemblyName}",
+                actor,
+                request,
+                descriptor.ResultType));
+
+        Assert.Contains("MissingAsync", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Dispatch_table_with_features_and_actor_methods_dispatches_both()
+    {
+        var fixture = CreatePingDispatchFixture();
+        var scan = HotfixBehaviorScanner.Scan(fixture.HotfixAssembly);
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        var descriptor = Assert.Single(scan.ActorMethods);
+        var table = new HotfixDispatchTable(
+            1,
+            scan.Methods,
+            scan.Services,
+            [CreateFeatureDeclaration(typeof(StaticDispatchFeature), "ExecuteAsync")],
+            scan.ActorMethods);
+        var actor = Activator.CreateInstance(fixture.StableAssembly.GetType("StableGame.UserActor", throwOnError: true)!)!;
+        var requestType = fixture.StableAssembly.GetType("StableGame.PingRequest", throwOnError: true)!;
+        var request = Activator.CreateInstance(requestType, "actor")!;
+
+        var actorResult = await table.InvokeActorAsync(
+            descriptor.MethodKey,
+            actor,
+            request,
+            descriptor.ResultType,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("actor", actorResult!.GetType().GetProperty("Text")!.GetValue(actorResult));
+        Assert.True(table.TryResolveFeatureCommand("commands", FeatureCommandId.From(101), out var command));
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var featureResult = await table.InvokeFeatureCommandAsync(
+            command,
+            new DispatchCommand("feature"),
+            NewFeatureMessage("commands", "101"),
+            services,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("static:feature", Assert.IsType<DispatchReply>(featureResult).Value);
+    }
+
     [Fact]
     public void Dispatch_table_public_methods_do_not_validate_actor_tick_declarations()
     {
@@ -728,6 +959,115 @@ public sealed class HotfixDispatchTests
             DateTimeOffset.UtcNow.AddMinutes(1),
             new NodeId("data-1"),
             "corr-1");
+    }
+
+    private static TwoAssemblyHotfixFixture CreatePingDispatchFixture()
+    {
+        return TwoAssemblyHotfixFixture.Create(
+            """
+            using Lakona.Game.Server.Actors;
+
+            namespace StableGame;
+
+            public sealed class UserActor : Actor<string>
+            {
+            }
+
+            public sealed record PingRequest(string Text);
+
+            public sealed record PingReply(string Text);
+            """,
+            """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            using StableGame;
+
+            namespace HotfixGame;
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            public static partial class UserBehavior
+            {
+                public static ValueTask<PingReply> PingAsync(
+                    this UserActor self,
+                    PingRequest request,
+                    CancellationToken cancellationToken = default)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return new ValueTask<PingReply>(new PingReply(request.Text));
+                }
+            }
+            """);
+    }
+
+    private sealed record TwoAssemblyHotfixFixture(Assembly StableAssembly, Assembly HotfixAssembly)
+    {
+        public static TwoAssemblyHotfixFixture Create(string stableSource, string hotfixSource)
+        {
+            var references = CreateDefaultReferences();
+            var stableAssemblyName = "StableGame_" + Guid.NewGuid().ToString("N");
+            var hotfixAssemblyName = "HotfixGame_" + Guid.NewGuid().ToString("N");
+            var stableBytes = Compile(stableAssemblyName, stableSource, references);
+            var stableAssembly = Assembly.Load(stableBytes);
+            var hotfixReferences = references
+                .Concat([MetadataReference.CreateFromImage(stableBytes)])
+                .ToArray();
+            var hotfixBytes = Compile(hotfixAssemblyName, hotfixSource, hotfixReferences);
+
+            return new TwoAssemblyHotfixFixture(stableAssembly, Assembly.Load(hotfixBytes));
+        }
+
+        private static byte[] Compile(
+            string assemblyName,
+            string source,
+            IReadOnlyList<MetadataReference> references)
+        {
+            var compilation = CSharpCompilation.Create(
+                assemblyName,
+                [CSharpSyntaxTree.ParseText(source)],
+                references,
+                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+            using var stream = new MemoryStream();
+            var emit = compilation.Emit(stream);
+            if (!emit.Success)
+            {
+                throw new InvalidOperationException(string.Join(Environment.NewLine, emit.Diagnostics));
+            }
+
+            return stream.ToArray();
+        }
+
+        private static MetadataReference[] CreateDefaultReferences()
+        {
+            return AppDomain.CurrentDomain.GetAssemblies()
+                .Where(static assembly => !assembly.IsDynamic && !string.IsNullOrWhiteSpace(assembly.Location))
+                .Select(static assembly => MetadataReference.CreateFromFile(assembly.Location))
+                .Concat(
+                [
+                    MetadataReference.CreateFromFile(typeof(Actor<>).Assembly.Location),
+                    MetadataReference.CreateFromFile(typeof(HotfixBehaviorOfAttribute).Assembly.Location),
+                    MetadataReference.CreateFromFile(typeof(ValueTask).Assembly.Location),
+                    MetadataReference.CreateFromFile(typeof(CancellationToken).Assembly.Location)
+                ])
+                .Distinct(MetadataReferencePathComparer.Instance)
+                .ToArray();
+        }
+    }
+
+    private sealed class MetadataReferencePathComparer : IEqualityComparer<MetadataReference>
+    {
+        public static readonly MetadataReferencePathComparer Instance = new();
+
+        public bool Equals(MetadataReference? x, MetadataReference? y)
+        {
+            return string.Equals(x?.Display, y?.Display, StringComparison.OrdinalIgnoreCase);
+        }
+
+        public int GetHashCode(MetadataReference obj)
+        {
+            return StringComparer.OrdinalIgnoreCase.GetHashCode(obj.Display ?? string.Empty);
+        }
     }
 }
 

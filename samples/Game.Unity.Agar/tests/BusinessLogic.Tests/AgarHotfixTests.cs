@@ -548,9 +548,7 @@ public sealed class AgarHotfixTests
             RemoteActorInvocation invocation,
             CancellationToken cancellationToken = default)
         {
-            if (invocation.MethodName.Contains(".LoginAsync.", StringComparison.Ordinal) ||
-                invocation.MethodName.EndsWith(".LoginAsync", StringComparison.Ordinal) ||
-                string.Equals(invocation.MethodName, "LoginAsync", StringComparison.Ordinal))
+            if (IsBehaviorMethod(invocation, "LoginAsync"))
             {
                 if (!_featureCommands.HasCreatedUserActorOn(invocation.Node, invocation.ActorId.Value))
                 {
@@ -570,9 +568,7 @@ public sealed class AgarHotfixTests
                     RemoteActorInvocationResult.Replied(_serializer.Serialize(result)));
             }
 
-            if (invocation.MethodName.Contains(".AttachAsync.", StringComparison.Ordinal) ||
-                invocation.MethodName.EndsWith(".AttachAsync", StringComparison.Ordinal) ||
-                string.Equals(invocation.MethodName, "AttachAsync", StringComparison.Ordinal))
+            if (IsBehaviorMethod(invocation, "AttachAsync"))
             {
                 if (!_featureCommands.HasCreatedUserActorOn(invocation.Node, invocation.ActorId.Value))
                 {
@@ -597,9 +593,7 @@ public sealed class AgarHotfixTests
                     RemoteActorInvocationResult.Replied(_serializer.Serialize(snapshot)));
             }
 
-            if (invocation.MethodName.Contains(".GetLeaderboardAsync.", StringComparison.Ordinal) ||
-                invocation.MethodName.EndsWith(".GetLeaderboardAsync", StringComparison.Ordinal) ||
-                string.Equals(invocation.MethodName, "GetLeaderboardAsync", StringComparison.Ordinal))
+            if (IsBehaviorMethod(invocation, "GetLeaderboardAsync"))
             {
                 if (!_featureCommands.HasCreatedLeaderboardActorOn(invocation.Node, invocation.ActorId.Value))
                 {
@@ -624,6 +618,14 @@ public sealed class AgarHotfixTests
                 $"Unexpected remote actor method {invocation.MethodName}."));
         }
 
+        private static bool IsBehaviorMethod(RemoteActorInvocation invocation, string methodName)
+        {
+            return invocation.MethodName.Contains($"|method:{methodName}|", StringComparison.Ordinal) ||
+                invocation.MethodName.Contains($".{methodName}.", StringComparison.Ordinal) ||
+                invocation.MethodName.EndsWith($".{methodName}", StringComparison.Ordinal) ||
+                string.Equals(invocation.MethodName, methodName, StringComparison.Ordinal);
+        }
+
         public ValueTask<RemoteActorInvocationResult> TellAsync(
             RemoteActorInvocation invocation,
             CancellationToken cancellationToken = default)
@@ -643,6 +645,17 @@ public sealed class AgarHotfixTests
         {
             return JsonSerializer.Deserialize<T>(payload.Span) ??
                 throw new InvalidOperationException($"Could not deserialize {typeof(T).FullName}.");
+        }
+
+        public ReadOnlyMemory<byte> Serialize(object? value, Type type)
+        {
+            return JsonSerializer.SerializeToUtf8Bytes(value, type);
+        }
+
+        public object? Deserialize(ReadOnlyMemory<byte> payload, Type type)
+        {
+            return JsonSerializer.Deserialize(payload.Span, type) ??
+                throw new InvalidOperationException($"Could not deserialize {type.FullName}.");
         }
     }
 

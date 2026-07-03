@@ -624,20 +624,22 @@ public sealed class AgarHotfixBoundaryTests
     }
 
     [Fact]
-    public void Agar_timer_callbacks_dispatch_stable_tick_contracts()
+    public void Agar_timer_callbacks_dispatch_stable_tick_messages_and_public_behavior_methods()
     {
         var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
             .Directory!.Parent!.Parent!.FullName;
         var featureRoot = Path.Combine(sampleRoot, "Server", "Hotfix", "Features");
         var matchmakingCallbacks = File.ReadAllText(Path.Combine(featureRoot, "MatchmakingTimerCallbacks.cs"));
         var battleRuntimeCallbacks = File.ReadAllText(Path.Combine(featureRoot, "BattleRuntimeTimerCallbacks.cs"));
-        var matchmakingContracts = File.ReadAllText(Path.Combine(sampleRoot, "Server", "App", "Contracts", "MatchmakingActorContracts.cs"));
-        var roomContracts = File.ReadAllText(Path.Combine(sampleRoot, "Server", "App", "Contracts", "RoomActorContracts.cs"));
+        var matchmakingMessages = File.ReadAllText(Path.Combine(sampleRoot, "Server", "App", "Contracts", "MatchmakingActorContracts.cs"));
+        var roomMessages = File.ReadAllText(Path.Combine(sampleRoot, "Server", "App", "Contracts", "RoomActorContracts.cs"));
+        var matchmakingBehavior = File.ReadAllText(Path.Combine(sampleRoot, "Server", "Hotfix", "State", "Matchmaking", "MatchmakingBehavior.cs"));
+        var roomBehavior = File.ReadAllText(Path.Combine(sampleRoot, "Server", "Hotfix", "State", "Rooms", "RoomBehavior.cs"));
 
-        Assert.Contains("public sealed class MatchmakingTickRequest", matchmakingContracts, StringComparison.Ordinal);
-        Assert.Contains("ValueTask RunTickAsync(MatchmakingTickRequest request", matchmakingContracts, StringComparison.Ordinal);
-        Assert.Contains("public sealed class RoomTickRequest", roomContracts, StringComparison.Ordinal);
-        Assert.Contains("ValueTask RunTickAsync(RoomTickRequest request", roomContracts, StringComparison.Ordinal);
+        Assert.Contains("public sealed class MatchmakingTickRequest", matchmakingMessages, StringComparison.Ordinal);
+        Assert.Contains("public sealed class RoomTickRequest", roomMessages, StringComparison.Ordinal);
+        Assert.Contains("public static async ValueTask RunTickAsync(this MatchmakingActor self, MatchmakingTickRequest request", matchmakingBehavior, StringComparison.Ordinal);
+        Assert.Contains("public static async ValueTask RunTickAsync(this RoomActor self, RoomTickRequest request", roomBehavior, StringComparison.Ordinal);
 
         Assert.Contains("TimerTick<MatchmakingTimerArgs>", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.Contains("GetRequiredService<MatchmakingActors>", matchmakingCallbacks, StringComparison.Ordinal);

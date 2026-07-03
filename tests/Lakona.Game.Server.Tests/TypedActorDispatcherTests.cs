@@ -75,6 +75,19 @@ public sealed partial class TypedActorDispatcherTests
     }
 
     [Fact]
+    public void RpcRemoteActorSerializer_round_trips_type_based_payloads()
+    {
+        var serializer = new RpcRemoteActorSerializer(new JsonRpcSerializer());
+        var request = new JoinRoomRequest("player-type");
+
+        var payload = serializer.Serialize(request, typeof(JoinRoomRequest));
+        var decoded = Assert.IsType<JoinRoomRequest>(
+            serializer.Deserialize(payload, typeof(JoinRoomRequest)));
+
+        Assert.Equal("player-type", decoded.PlayerId);
+    }
+
+    [Fact]
     public async Task Typed_actor_handler_uses_cluster_backed_json_remote_actor_serializer()
     {
         using var provider = CreateClusterProvider("json", new MemoryPackRpcSerializer());
@@ -297,6 +310,16 @@ public sealed partial class TypedActorDispatcherTests
         public T Deserialize<T>(ReadOnlyMemory<byte> payload)
         {
             return JsonSerializer.Deserialize<T>(payload.Span)!;
+        }
+
+        public ReadOnlyMemory<byte> Serialize(object? value, Type type)
+        {
+            return JsonSerializer.SerializeToUtf8Bytes(value, type);
+        }
+
+        public object? Deserialize(ReadOnlyMemory<byte> payload, Type type)
+        {
+            return JsonSerializer.Deserialize(payload.Span, type);
         }
     }
 

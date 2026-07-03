@@ -172,7 +172,7 @@ public static partial class MatchmakingBehavior
         await PublishMatchedAsync(self, assignments.Values).ConfigureAwait(false);
     }
 
-    public static async ValueTask<Dictionary<string, RoomAssignment>> TryMatchAsync(
+    private static async ValueTask<Dictionary<string, RoomAssignment>> TryMatchAsync(
         this MatchmakingActor self,
         DateTime nowUtc,
         bool allowExpiredPartialBatch)
@@ -275,8 +275,8 @@ public static partial class MatchmakingBehavior
         }
     }
 
-    public static ValueTask<GatewayEndpointDescriptor?> ResolveRuntimeGatewayAsync(
-        this MatchmakingActor self,
+    private static ValueTask<GatewayEndpointDescriptor?> ResolveRuntimeGatewayAsync(
+        MatchmakingActor self,
         IReadOnlyList<MatchmakingQueueTicket> batch)
     {
         _ = batch;

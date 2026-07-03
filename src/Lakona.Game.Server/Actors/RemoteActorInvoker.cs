@@ -145,7 +145,8 @@ public sealed class RemoteActorInvoker : IRemoteActorInvoker
             _localNode,
             correlationId: invocation.CorrelationId,
             replyCorrelationId: includeReply ? invocation.CorrelationId : null,
-            orderedBy: invocation.ActorId.Value);
+            orderedBy: invocation.ActorId.Value,
+            metadata: invocation.Metadata);
 
         return envelope.ToClusterMessage();
     }
@@ -172,6 +173,8 @@ public sealed class RemoteActorInvoker : IRemoteActorInvoker
             ClusterSendStatus.Backpressure => RemoteActorStatus.Backpressure,
             ClusterSendStatus.HandlerUnavailable => RemoteActorStatus.HandlerUnavailable,
             ClusterSendStatus.Timeout => RemoteActorStatus.Timeout,
+            ClusterSendStatus.SerializationFailed => RemoteActorStatus.SerializationFailed,
+            ClusterSendStatus.DeserializationFailed => RemoteActorStatus.DeserializationFailed,
             ClusterSendStatus.Failed => RemoteActorStatus.NodeUnavailable,
             ClusterSendStatus.StaleRoute => RemoteActorStatus.NodeUnavailable,
             ClusterSendStatus.NodeEpochMismatch => RemoteActorStatus.NodeUnavailable,

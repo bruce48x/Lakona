@@ -20,7 +20,7 @@ internal sealed class ServerAppRenderer : IPlanContributor
         builder.AddFile("Server/App/Program.cs", RenderProgram(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/App/appsettings.json", RenderAppSettings(spec), FileWriteMode.Replace, GeneratedFileKind.Json);
         builder.AddFile("Server/App/Chat/ChatRoomActor.cs", RenderChatRoomActor(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Server/App/Chat/ChatRoomActorContracts.cs", RenderChatRoomActorContracts(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Server/App/Chat/ChatRoomMessages.cs", RenderChatRoomMessages(), FileWriteMode.Replace, GeneratedFileKind.Text);
     }
 
     private static string RenderSolution()
@@ -55,14 +55,12 @@ internal sealed class ServerAppRenderer : IPlanContributor
             <LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>
             <LakonaRpcServerGeneratedNamespace>Server.App.Generated</LakonaRpcServerGeneratedNamespace>
             <LakonaHotfixGenerateStableRpcServices>true</LakonaHotfixGenerateStableRpcServices>
-            <LakonaHotfixGenerateStableActorRefs>true</LakonaHotfixGenerateStableActorRefs>
           </PropertyGroup>
 
           <ItemGroup>
             <CompilerVisibleProperty Include="LakonaRpcGenerateServer" />
             <CompilerVisibleProperty Include="LakonaRpcServerGeneratedNamespace" />
             <CompilerVisibleProperty Include="LakonaHotfixGenerateStableRpcServices" />
-            <CompilerVisibleProperty Include="LakonaHotfixGenerateStableActorRefs" />
           </ItemGroup>
 
           <ItemGroup>
@@ -135,31 +133,16 @@ internal sealed class ServerAppRenderer : IPlanContributor
         """;
     }
 
-    private static string RenderChatRoomActorContracts()
+    private static string RenderChatRoomMessages()
     {
         return """
-        using System.Threading;
-        using System.Threading.Tasks;
         using Shared.Contracts.Chat;
-        using Lakona.Game.Server.Hotfix.Abstractions;
 
         namespace Server.App.Chat
         {
             public static class ChatRoomIds
             {
                 public const string Global = "chat-room/global";
-            }
-
-            [HotfixActorContract(typeof(ChatRoomActor))]
-            public interface IChatRoomActorContract
-            {
-                ValueTask<LoginReply> LoginAsync(ChatRoomLoginRequest request, CancellationToken cancellationToken = default);
-
-                ValueTask BindChatAsync(ChatRoomBindRequest request, CancellationToken cancellationToken = default);
-
-                ValueTask SendAsync(ChatRoomSendRequest request, CancellationToken cancellationToken = default);
-
-                ValueTask LeaveAsync(ChatRoomLeaveRequest request, CancellationToken cancellationToken = default);
             }
 
             public sealed class ChatRoomLoginRequest

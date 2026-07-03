@@ -33,12 +33,10 @@ internal sealed class HotfixRenderer : IPlanContributor
             <RootNamespace>Server.Hotfix</RootNamespace>
             <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
             <LakonaHotfixGenerateStableRpcServices>false</LakonaHotfixGenerateStableRpcServices>
-            <LakonaHotfixGenerateStableActorRefs>false</LakonaHotfixGenerateStableActorRefs>
           </PropertyGroup>
 
           <ItemGroup>
             <CompilerVisibleProperty Include="LakonaHotfixGenerateStableRpcServices" />
-            <CompilerVisibleProperty Include="LakonaHotfixGenerateStableActorRefs" />
           </ItemGroup>
 
           <ItemGroup>

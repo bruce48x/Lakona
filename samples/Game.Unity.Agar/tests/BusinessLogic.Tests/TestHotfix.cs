@@ -76,6 +76,7 @@ internal static class TestHotfix
         [
             typeof(ArenaSimulation).Assembly.GetName().Name!,
             typeof(UserActor).Assembly.GetName().Name!,
+            typeof(Lakona.Game.Cluster.NodeId).Assembly.GetName().Name!,
             typeof(Lakona.Game.Server.ILakonaGameServer).Assembly.GetName().Name!,
             typeof(Lakona.Game.Server.Hotfix.Abstractions.HotfixFeatureContext).Assembly.GetName().Name!
         ];
@@ -137,6 +138,7 @@ internal static class AgarTestServiceCollectionExtensions
 {
     public static IServiceCollection AddGeneratedActorSelectorTestDependencies(this IServiceCollection services)
     {
+        new global::GeneratedHotfixActorRegistration().Register(services);
         services.TryAddSingleton<IRemoteActorInvoker, FailingRemoteActorInvoker>();
         services.TryAddSingleton<IRemoteActorSerializer, FailingRemoteActorSerializer>();
         return services.AddTestHotfixRuntimeAccessor();
@@ -184,6 +186,16 @@ internal static class AgarTestServiceCollectionExtensions
         }
 
         public T Deserialize<T>(ReadOnlyMemory<byte> payload)
+        {
+            throw new InvalidOperationException("Remote actor serialization is not available in this test service provider.");
+        }
+
+        public ReadOnlyMemory<byte> Serialize(object? value, Type type)
+        {
+            throw new InvalidOperationException("Remote actor serialization is not available in this test service provider.");
+        }
+
+        public object? Deserialize(ReadOnlyMemory<byte> payload, Type type)
         {
             throw new InvalidOperationException("Remote actor serialization is not available in this test service provider.");
         }

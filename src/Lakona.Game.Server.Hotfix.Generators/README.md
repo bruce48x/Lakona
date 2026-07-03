@@ -2,7 +2,15 @@
 
 Source generators for Lakona.Game server Hotfix behaviors and generated RPC service proxies.
 
-The first generator slice discovers `[HotfixState]` partial classes and emits generated friend accessors for private fields.
+Public extension methods in `[HotfixBehaviorOf]` classes define the actor API.
+Stable App projects own actor state, actor identity, and actor DTOs. Hotfix
+projects own the behavior-derived selectors, refs, and wrappers that expose
+those methods to service and lifecycle code. Stable runtime services, actor
+metadata, and the stable cluster handler provide the cross-node dispatch
+boundary for route lookup, local dispatch, remote dispatch, serialization, and
+actor-call error mapping.
+
+The generator discovers `[HotfixState]` partial classes and emits generated friend accessors for private fields.
 
 ```csharp
 [HotfixState]

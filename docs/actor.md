@@ -59,15 +59,16 @@ public static partial class RoomBehavior
         CancellationToken cancellationToken = default)
     {
         self.Members.Add(request.PlayerId);
-        return new(new JoinRoomReply { Accepted = true });
+        return new ValueTask<JoinRoomReply>(new JoinRoomReply { Accepted = true });
     }
 }
 ```
 
-Behavior methods execute inside an actor turn. They may read and mutate the
-actor's stable fields, but hotfix code must not own long-lived timers, threads,
-static event subscriptions, or callbacks that can keep an old hotfix assembly
-alive.
+Public behavior extension methods are the actor API exposed through generated
+selectors and refs. They execute inside an actor turn and may read and mutate
+the actor's stable fields, but hotfix code must not own long-lived timers,
+threads, static event subscriptions, or callbacks that can keep an old hotfix
+assembly alive.
 
 The detailed authoring rules are in
 [hotfix/actor-behavior.md](hotfix/actor-behavior.md).

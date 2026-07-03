@@ -34,24 +34,22 @@ both server projects, but its outputs are role-gated:
 ```xml
 <!-- Server.App -->
 <LakonaHotfixGenerateStableRpcServices>true</LakonaHotfixGenerateStableRpcServices>
-<LakonaHotfixGenerateStableActorRefs>true</LakonaHotfixGenerateStableActorRefs>
 
 <!-- Server.Hotfix -->
 <LakonaHotfixGenerateStableRpcServices>false</LakonaHotfixGenerateStableRpcServices>
-<LakonaHotfixGenerateStableActorRefs>false</LakonaHotfixGenerateStableActorRefs>
 ```
 
-Generated projects declare `CompilerVisibleProperty` for both
-`LakonaHotfixGenerateStableRpcServices` and
-`LakonaHotfixGenerateStableActorRefs`, so Roslyn exposes them to the analyzer
-as `build_property.*` values. Package consumers also receive those
-compiler-visible property names through the generator package's
+Generated projects declare `CompilerVisibleProperty` for
+`LakonaHotfixGenerateStableRpcServices`, so Roslyn exposes it to the analyzer
+as a `build_property.*` value. Package consumers also receive that
+compiler-visible property name through the generator package's
 `buildTransitive` props once packaged.
 
 `Server.App` owns stable RPC service proxies, endpoint binders, required
-hotfix service contract providers, actor selectors, and stable actor refs.
-`Server.Hotfix` owns replaceable service implementations, lifecycle
-implementations, behavior code, and hotfix-side behavior wrapper generation.
+hotfix service contract providers, actor state, and actor DTOs. `Server.Hotfix`
+owns replaceable service implementations, lifecycle implementations, behavior
+code, and behavior-derived actor selectors and refs. Public extension methods
+in `[HotfixBehaviorOf]` classes define the actor API those refs expose.
 
 Generated client projects opt into client glue with the matching client
 generation property or Unity-compatible analyzer configuration.

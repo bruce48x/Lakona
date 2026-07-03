@@ -68,46 +68,6 @@ namespace Lakona.Game.Server.Hotfix.Generators
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
-        public static readonly DiagnosticDescriptor HotfixActorContractActorMustDeriveActor = new DiagnosticDescriptor(
-            "ULGHOTFIX012",
-            "Hotfix actor contract actor type must derive Actor<TKey>",
-            "Hotfix actor contract '{0}' references actor type '{1}' that must derive Actor<TKey>",
-            "Lakona.Game.Hotfix",
-            DiagnosticSeverity.Error,
-            isEnabledByDefault: true);
-
-        public static readonly DiagnosticDescriptor UnsupportedHotfixActorContractReturnType = new DiagnosticDescriptor(
-            "ULGHOTFIX013",
-            "Unsupported hotfix actor contract method return type",
-            "Hotfix actor contract method '{0}' must return ValueTask or ValueTask<T>",
-            "Lakona.Game.Hotfix",
-            DiagnosticSeverity.Error,
-            isEnabledByDefault: true);
-
-        public static readonly DiagnosticDescriptor UnsupportedHotfixActorContractParameters = new DiagnosticDescriptor(
-            "ULGHOTFIX014",
-            "Unsupported hotfix actor contract method parameters",
-            "Hotfix actor contract method '{0}' must declare exactly one request parameter plus optional CancellationToken",
-            "Lakona.Game.Hotfix",
-            DiagnosticSeverity.Error,
-            isEnabledByDefault: true);
-
-        public static readonly DiagnosticDescriptor DuplicateHotfixActorContractMethod = new DiagnosticDescriptor(
-            "ULGHOTFIX015",
-            "Duplicate hotfix actor contract method signature",
-            "Hotfix actor contract '{0}' has duplicate generated ref method signature '{1}'",
-            "Lakona.Game.Hotfix",
-            DiagnosticSeverity.Error,
-            isEnabledByDefault: true);
-
-        public static readonly DiagnosticDescriptor UnsupportedHotfixActorContractGenericShape = new DiagnosticDescriptor(
-            "ULGHOTFIX016",
-            "Unsupported generic hotfix actor contract shape",
-            "Hotfix actor contract '{0}' uses unsupported generic actor contract shape '{1}'",
-            "Lakona.Game.Hotfix",
-            DiagnosticSeverity.Error,
-            isEnabledByDefault: true);
-
         public static readonly DiagnosticDescriptor HotfixBehaviorTargetMustDeriveActor = new DiagnosticDescriptor(
             "ULGHOTFIX017",
             "Hotfix behavior target must derive Actor<TKey>",
@@ -179,6 +139,38 @@ namespace Lakona.Game.Server.Hotfix.Generators
             "ULGHOTFIX026",
             "Hotfix feature must be concrete",
             "Hotfix feature '{0}' must be a concrete class",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor HotfixBehaviorActorApiTypeBoundary = new DiagnosticDescriptor(
+            "ULGHOTFIX027",
+            "Hotfix behavior actor API DTO must be stable",
+            "Hotfix behavior actor API method '{0}' uses {1} type '{2}' from the hotfix assembly; request and result DTOs must live outside hotfix code",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor HotfixBehaviorActorApiMethodShape = new DiagnosticDescriptor(
+            "ULGHOTFIX028",
+            "Unsupported hotfix behavior actor API method shape",
+            "Hotfix behavior actor API method '{0}' must be a public static extension method whose receiver is '{1}', followed by exactly one request DTO and optional CancellationToken, and must return ValueTask or ValueTask<T>",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor DuplicateHotfixBehaviorActorApiMethodKey = new DiagnosticDescriptor(
+            "ULGHOTFIX029",
+            "Duplicate hotfix behavior actor API method key",
+            "Hotfix behavior actor API method '{0}' has duplicate canonical actor API method key '{1}'",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor DuplicateHotfixBehaviorActorApiGeneratedSignature = new DiagnosticDescriptor(
+            "ULGHOTFIX030",
+            "Duplicate hotfix behavior actor API generated signature",
+            "Hotfix behavior actor API method '{0}' has duplicate generated actor API signature '{1}'",
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);

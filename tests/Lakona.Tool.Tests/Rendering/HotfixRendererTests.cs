@@ -8,6 +8,8 @@ namespace Lakona.Tool.Tests.Rendering;
 
 public sealed class HotfixRendererTests
 {
+    private static readonly string ForbiddenStableActorRefsProperty = string.Concat("LakonaHotfixGenerateStable", "ActorRefs");
+
     [Fact]
     public void AddFiles_EmitsHotfixProjectAndRuleServices()
     {
@@ -28,9 +30,8 @@ public sealed class HotfixRendererTests
         var project = Assert.Single(plan.Files, file => file.RelativePath == "Server/Hotfix/Server.Hotfix.csproj").Content;
         Assert.Contains("Server.Hotfix", project, StringComparison.Ordinal);
         Assert.Contains("<LakonaHotfixGenerateStableRpcServices>false</LakonaHotfixGenerateStableRpcServices>", project, StringComparison.Ordinal);
-        Assert.Contains("<LakonaHotfixGenerateStableActorRefs>false</LakonaHotfixGenerateStableActorRefs>", project, StringComparison.Ordinal);
         Assert.Contains("<CompilerVisibleProperty Include=\"LakonaHotfixGenerateStableRpcServices\" />", project, StringComparison.Ordinal);
-        Assert.Contains("<CompilerVisibleProperty Include=\"LakonaHotfixGenerateStableActorRefs\" />", project, StringComparison.Ordinal);
+        Assert.DoesNotContain(ForbiddenStableActorRefsProperty, project, StringComparison.Ordinal);
         Assert.DoesNotContain("ReferenceOutputAssembly=\"false\" />", project, StringComparison.Ordinal);
         Assert.Contains("..\\App\\Server.App.csproj", project, StringComparison.Ordinal);
         Assert.Contains("<Import Project=\"..\\App\\BuildTag.props\" />", project, StringComparison.Ordinal);

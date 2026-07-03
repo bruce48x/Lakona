@@ -58,7 +58,7 @@ By default, the generated project includes:
 - Hotfix infrastructure
 - Reliable Push infrastructure
 
-Generated server projects reference `Lakona.Game.Server.Hotfix.Generators` as an analyzer so hotfix actor contracts get behavior-first typed selectors at build time.
+Generated server projects reference `Lakona.Game.Server.Hotfix.Generators` as an analyzer so public `[HotfixBehaviorOf]` extension methods define actor APIs, and Hotfix-owned generated behavior-derived selectors/refs are available at build time.
 
 For Unity and Tuanjie clients, the tool pins `Lakona.Game.Client` and `Lakona.Game.Abstractions` in `Assets/packages.config` and generates an editor import guard that prevents NuGet analyzer DLLs from being loaded as Unity runtime plugins.
 

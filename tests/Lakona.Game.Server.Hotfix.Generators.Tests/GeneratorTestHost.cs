@@ -94,6 +94,65 @@ internal static class GeneratorTestHost
         return new TwoPhaseGeneratorRunResult(appResult, hotfixResult);
     }
 
+    public static GeneratorAssemblyRunResult RunHotfixWithGeneratedAppReferenceAndEmit(
+        string appSource,
+        string hotfixSource,
+        string appAssemblyName,
+        string hotfixAssemblyName,
+        IReadOnlyDictionary<string, string>? appGlobalOptions = null,
+        IReadOnlyDictionary<string, string>? hotfixGlobalOptions = null)
+    {
+        var references = CreateDefaultReferences();
+        var appTree = CSharpSyntaxTree.ParseText(appSource);
+        var appCompilation = CSharpCompilation.Create(
+            appAssemblyName,
+            new[] { appTree },
+            references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var generator = new HotfixGenerator();
+        CreateDriver(generator, appGlobalOptions).RunGeneratorsAndUpdateCompilation(
+            appCompilation,
+            out var updatedApp,
+            out var appGeneratorDiagnostics);
+
+        using var appStream = new MemoryStream();
+        var appEmit = updatedApp.Emit(appStream);
+        if (!appEmit.Success)
+        {
+            throw new InvalidOperationException(string.Join(Environment.NewLine, appEmit.Diagnostics));
+        }
+
+        appStream.Position = 0;
+        var hotfixReferences = references.Concat(new[] { MetadataReference.CreateFromStream(appStream) }).ToArray();
+        var hotfixTree = CSharpSyntaxTree.ParseText(hotfixSource);
+        var hotfixCompilation = CSharpCompilation.Create(
+            hotfixAssemblyName,
+            new[] { hotfixTree },
+            hotfixReferences,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        CreateDriver(generator, hotfixGlobalOptions).RunGeneratorsAndUpdateCompilation(
+            hotfixCompilation,
+            out var updatedHotfix,
+            out var hotfixGeneratorDiagnostics);
+
+        var result = new GeneratorRunResult(
+            string.Join(Environment.NewLine, updatedHotfix.SyntaxTrees.Skip(1).Select(static tree => tree.ToString())),
+            appGeneratorDiagnostics.Concat(hotfixGeneratorDiagnostics).ToArray(),
+            updatedHotfix.GetDiagnostics());
+
+        using var hotfixStream = new MemoryStream();
+        var hotfixEmit = updatedHotfix.Emit(hotfixStream);
+        if (!hotfixEmit.Success)
+        {
+            throw new InvalidOperationException(string.Join(Environment.NewLine, hotfixEmit.Diagnostics));
+        }
+
+        hotfixStream.Position = 0;
+        return new GeneratorAssemblyRunResult(result, Assembly.Load(hotfixStream.ToArray()));
+    }
+
     public static GeneratorAssemblyRunResult RunAndEmit(
         string source,
         IReadOnlyDictionary<string, string>? globalOptions = null)
@@ -175,7 +234,7 @@ internal static class GeneratorTestHost
                 MetadataReference.CreateFromFile(typeof(Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(Lakona.Game.Cluster.NodeId).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(Lakona.Game.Server.Actors.Actor<>).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Lakona.Game.Server.Hosting.ILakonaGameGeneratedServiceRegistration).Assembly.Location)
+                MetadataReference.CreateFromFile(typeof(Lakona.Game.Server.Hosting.LakonaRpcServiceBinder).Assembly.Location)
             })
             .Distinct(MetadataReferencePathComparer.Instance)
             .ToArray();

@@ -278,9 +278,16 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.False(result.Matched);
         Assert.True(result.Queued);
 
-        await actors.AskAsync<MatchmakingActor, Dictionary<string, RoomAssignment>>(
+        await actors.AskAsync<MatchmakingActor, bool>(
             ActorId.From("default"),
-            (actor, _) => actor.TryMatchAsync(DateTime.UtcNow, allowExpiredPartialBatch: true),
+            async (actor, _) =>
+            {
+                await actor.RunTickAsync(new MatchmakingTickRequest
+                {
+                    ObservedAtUtc = DateTime.UtcNow
+                });
+                return true;
+            },
             TestContext.Current.CancellationToken);
 
         Assert.NotNull(roomAllocator.LastRequest);

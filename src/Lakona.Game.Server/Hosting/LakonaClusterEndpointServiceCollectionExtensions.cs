@@ -78,6 +78,7 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             provider.GetRequiredService<IRouteDirectory>(),
             provider.GetRequiredService<ClusterLocalMessageHandler>(),
             provider.GetRequiredService<INodeMessenger>()));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IClusterMessageHandler, HotfixActorClusterHandler>());
         services.TryAddSingleton<IRemoteActorInvoker>(provider => new RemoteActorInvoker(
             provider.GetRequiredService<RemoteActorGateway>(),
             provider.GetRequiredService<LocalActorNodeIdentity>().NodeId,

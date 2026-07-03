@@ -1,9 +1,14 @@
+extern alias GameServer;
+
 using System.Reflection;
 using System.Reflection.Emit;
+using GameServer::Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Scanning;
 using Lakona.Rpc.Core;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -11,6 +16,328 @@ namespace Lakona.Game.Server.Hotfix.Tests;
 
 public sealed class HotfixBehaviorScannerTests
 {
+    [Fact]
+    public void Actor_api_metadata_uses_canonical_key_names()
+    {
+        Assert.Equal("lakona-game.actor-api.version", HotfixActorApiMetadata.VersionKey);
+        Assert.Equal("lakona-game.actor-api.actor-type", HotfixActorApiMetadata.ActorTypeKey);
+        Assert.Equal("lakona-game.actor-api.method", HotfixActorApiMetadata.MethodKey);
+        Assert.Equal("lakona-game.actor-api.request-type", HotfixActorApiMetadata.RequestTypeKey);
+        Assert.Equal("lakona-game.actor-api.result-type", HotfixActorApiMetadata.ResultTypeKey);
+        Assert.Equal("lakona-game.actor-api.method-key", HotfixActorApiMetadata.MethodKeyKey);
+        Assert.Equal("void", HotfixActorApiMetadata.VoidResultType);
+    }
+
+    [Fact]
+    public void Scanner_builds_behavior_actor_api_descriptors()
+    {
+        var fixture = TwoAssemblyHotfixFixture.Create(
+            """
+            using Lakona.Game.Server.Actors;
+
+            namespace StableGame;
+
+            public sealed class UserActor : Actor<string>
+            {
+            }
+
+            public sealed record PingRequest(string Text);
+
+            public sealed record PingReply(string Text);
+            """,
+            """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            using StableGame;
+
+            namespace HotfixGame;
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            public static partial class UserBehavior
+            {
+                public static ValueTask<PingReply> PingAsync(
+                    this UserActor self,
+                    PingRequest request,
+                    CancellationToken cancellationToken = default)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return new ValueTask<PingReply>(new PingReply(request.Text));
+                }
+            }
+            """);
+
+        var scan = HotfixBehaviorScanner.Scan(fixture.HotfixAssembly);
+
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        var stableAssemblyName = fixture.StableAssembly.GetName().Name;
+        var method = Assert.Single(scan.ActorMethods);
+        Assert.Equal("StableGame.UserActor", method.ActorType.FullName);
+        Assert.Equal("PingAsync", method.MethodName);
+        Assert.Equal("StableGame.PingRequest", method.RequestType.FullName);
+        Assert.Equal("StableGame.PingReply", method.ResultType.FullName);
+        Assert.Contains($"actor:StableGame.UserActor, {stableAssemblyName}", method.MethodKey, StringComparison.Ordinal);
+        Assert.Contains("|method:PingAsync|", method.MethodKey, StringComparison.Ordinal);
+        Assert.Contains($"|request:StableGame.PingRequest, {stableAssemblyName}", method.MethodKey, StringComparison.Ordinal);
+        Assert.Contains($"|result:StableGame.PingReply, {stableAssemblyName}", method.MethodKey, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Scanner_rejects_hotfix_local_actor_request_dto()
+    {
+        var fixture = TwoAssemblyHotfixFixture.Create(
+            """
+            using Lakona.Game.Server.Actors;
+
+            namespace StableGame;
+
+            public sealed class UserActor : Actor<string>
+            {
+            }
+
+            public sealed record PingReply(string Text);
+            """,
+            """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            using StableGame;
+
+            namespace HotfixGame;
+
+            public sealed record PingRequest(string Text);
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            public static partial class UserBehavior
+            {
+                public static ValueTask<PingReply> PingAsync(
+                    this UserActor self,
+                    PingRequest request,
+                    CancellationToken cancellationToken = default)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return new ValueTask<PingReply>(new PingReply(request.Text));
+                }
+            }
+            """);
+
+        var scan = HotfixBehaviorScanner.Scan(fixture.HotfixAssembly);
+
+        Assert.False(scan.Succeeded);
+        Assert.Empty(scan.ActorMethods);
+        Assert.Contains(scan.Diagnostics, diagnostic =>
+            diagnostic.Contains("request", StringComparison.OrdinalIgnoreCase) &&
+            diagnostic.Contains("hotfix", StringComparison.OrdinalIgnoreCase) &&
+            diagnostic.Contains("PingRequest", StringComparison.Ordinal) &&
+            diagnostic.Contains("behavior", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Scanner_rejects_hotfix_local_actor_result_dto()
+    {
+        var fixture = TwoAssemblyHotfixFixture.Create(
+            """
+            using Lakona.Game.Server.Actors;
+
+            namespace StableGame;
+
+            public sealed class UserActor : Actor<string>
+            {
+            }
+
+            public sealed record PingRequest(string Text);
+            """,
+            """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            using StableGame;
+
+            namespace HotfixGame;
+
+            public sealed record PingReply(string Text);
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            public static partial class UserBehavior
+            {
+                public static ValueTask<PingReply> PingAsync(
+                    this UserActor self,
+                    PingRequest request,
+                    CancellationToken cancellationToken = default)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return new ValueTask<PingReply>(new PingReply(request.Text));
+                }
+            }
+            """);
+
+        var scan = HotfixBehaviorScanner.Scan(fixture.HotfixAssembly);
+
+        Assert.False(scan.Succeeded);
+        Assert.Empty(scan.ActorMethods);
+        Assert.Contains(scan.Diagnostics, diagnostic =>
+            diagnostic.Contains("result", StringComparison.OrdinalIgnoreCase) &&
+            diagnostic.Contains("hotfix", StringComparison.OrdinalIgnoreCase) &&
+            diagnostic.Contains("PingReply", StringComparison.Ordinal) &&
+            diagnostic.Contains("behavior", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Scanner_rejects_hotfix_local_actor_dto_nested_in_closed_generic()
+    {
+        var fixture = TwoAssemblyHotfixFixture.Create(
+            """
+            using System.Collections.Generic;
+            using Lakona.Game.Server.Actors;
+
+            namespace StableGame;
+
+            public sealed class UserActor : Actor<string>
+            {
+            }
+
+            public sealed record PingReply(string Text);
+            """,
+            """
+            using System.Collections.Generic;
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            using StableGame;
+
+            namespace HotfixGame;
+
+            public sealed record PingRequest(string Text);
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            public static partial class UserBehavior
+            {
+                public static ValueTask<PingReply> PingAsync(
+                    this UserActor self,
+                    List<PingRequest> request)
+                {
+                    return new ValueTask<PingReply>(new PingReply(request[0].Text));
+                }
+            }
+            """);
+
+        var scan = HotfixBehaviorScanner.Scan(fixture.HotfixAssembly);
+
+        Assert.False(scan.Succeeded);
+        Assert.Empty(scan.ActorMethods);
+        Assert.Contains(scan.Diagnostics, diagnostic =>
+            diagnostic.Contains("request", StringComparison.OrdinalIgnoreCase) &&
+            diagnostic.Contains("hotfix", StringComparison.OrdinalIgnoreCase) &&
+            diagnostic.Contains("System.Collections.Generic.List", StringComparison.Ordinal) &&
+            diagnostic.Contains("behavior", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Scanner_does_not_treat_spoofed_lakona_actor_type_as_actor_api()
+    {
+        var fixture = TwoAssemblyHotfixFixture.Create(
+            """
+            namespace Lakona.Game.Server.Actors
+            {
+                public interface IActor
+                {
+                }
+
+                public abstract class Actor : IActor
+                {
+                }
+
+                public abstract class Actor<TKey> : Actor
+                {
+                }
+            }
+
+            namespace StableGame
+            {
+                public sealed class UserActor : Lakona.Game.Server.Actors.Actor<string>
+                {
+                }
+            }
+            """,
+            """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            using StableGame;
+
+            namespace HotfixGame;
+
+            public sealed record HotfixLocalRequest(string Text);
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            public static partial class UserBehavior
+            {
+                public static ValueTask PingAsync(this UserActor self, HotfixLocalRequest request)
+                {
+                    return default;
+                }
+            }
+            """);
+
+        var scan = HotfixBehaviorScanner.Scan(fixture.HotfixAssembly);
+
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        Assert.Empty(scan.ActorMethods);
+        Assert.Single(scan.Methods);
+    }
+
+    [Fact]
+    public void Scanner_actor_api_descriptors_do_not_expose_generation_local_dispatch_references()
+    {
+        var fixture = TwoAssemblyHotfixFixture.Create(
+            """
+            using Lakona.Game.Server.Actors;
+
+            namespace StableGame;
+
+            public sealed class UserActor : Actor<string>
+            {
+            }
+
+            public sealed record PingRequest(string Text);
+
+            public sealed record PingReply(string Text);
+            """,
+            """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            using StableGame;
+
+            namespace HotfixGame;
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            public static partial class UserBehavior
+            {
+                public static ValueTask<PingReply> PingAsync(
+                    this UserActor self,
+                    PingRequest request,
+                    CancellationToken cancellationToken = default)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return new ValueTask<PingReply>(new PingReply(request.Text));
+                }
+            }
+            """);
+
+        var scan = HotfixBehaviorScanner.Scan(fixture.HotfixAssembly);
+
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        var descriptor = Assert.Single(scan.ActorMethods);
+        var exposedGenerationLocalReferences = descriptor.GetType()
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(static property =>
+                property.PropertyType == typeof(MethodInfo) ||
+                typeof(Delegate).IsAssignableFrom(property.PropertyType) ||
+                property.Name.Contains("Provider", StringComparison.OrdinalIgnoreCase) ||
+                property.Name.Contains("Selector", StringComparison.OrdinalIgnoreCase))
+            .Select(static property => property.Name);
+        Assert.Empty(exposedGenerationLocalReferences);
+    }
+
     [Fact]
     public void Scan_discovers_hotfix_behavior_methods()
     {
@@ -360,6 +687,76 @@ public sealed class HotfixBehaviorScannerTests
     {
         var attributeConstructor = typeof(System.Runtime.CompilerServices.ExtensionAttribute).GetConstructor(Type.EmptyTypes)!;
         method.SetCustomAttribute(new CustomAttributeBuilder(attributeConstructor, []));
+    }
+
+    private sealed record TwoAssemblyHotfixFixture(Assembly StableAssembly, Assembly HotfixAssembly)
+    {
+        public static TwoAssemblyHotfixFixture Create(string stableSource, string hotfixSource)
+        {
+            var references = CreateDefaultReferences();
+            var stableAssemblyName = "StableGame_" + Guid.NewGuid().ToString("N");
+            var hotfixAssemblyName = "HotfixGame_" + Guid.NewGuid().ToString("N");
+            var stableBytes = Compile(stableAssemblyName, stableSource, references);
+            var stableAssembly = Assembly.Load(stableBytes);
+            var hotfixReferences = references
+                .Concat([MetadataReference.CreateFromImage(stableBytes)])
+                .ToArray();
+            var hotfixBytes = Compile(hotfixAssemblyName, hotfixSource, hotfixReferences);
+
+            return new TwoAssemblyHotfixFixture(stableAssembly, Assembly.Load(hotfixBytes));
+        }
+
+        private static byte[] Compile(
+            string assemblyName,
+            string source,
+            IReadOnlyList<MetadataReference> references)
+        {
+            var compilation = CSharpCompilation.Create(
+                assemblyName,
+                [CSharpSyntaxTree.ParseText(source)],
+                references,
+                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+            using var stream = new MemoryStream();
+            var emit = compilation.Emit(stream);
+            if (!emit.Success)
+            {
+                throw new InvalidOperationException(string.Join(Environment.NewLine, emit.Diagnostics));
+            }
+
+            return stream.ToArray();
+        }
+
+        private static MetadataReference[] CreateDefaultReferences()
+        {
+            return AppDomain.CurrentDomain.GetAssemblies()
+                .Where(static assembly => !assembly.IsDynamic && !string.IsNullOrWhiteSpace(assembly.Location))
+                .Select(static assembly => MetadataReference.CreateFromFile(assembly.Location))
+                .Concat(
+                [
+                    MetadataReference.CreateFromFile(typeof(Actor<>).Assembly.Location),
+                    MetadataReference.CreateFromFile(typeof(HotfixBehaviorOfAttribute).Assembly.Location),
+                    MetadataReference.CreateFromFile(typeof(ValueTask).Assembly.Location),
+                    MetadataReference.CreateFromFile(typeof(CancellationToken).Assembly.Location)
+                ])
+                .Distinct(MetadataReferencePathComparer.Instance)
+                .ToArray();
+        }
+    }
+
+    private sealed class MetadataReferencePathComparer : IEqualityComparer<MetadataReference>
+    {
+        public static readonly MetadataReferencePathComparer Instance = new();
+
+        public bool Equals(MetadataReference? x, MetadataReference? y)
+        {
+            return string.Equals(x?.Display, y?.Display, StringComparison.OrdinalIgnoreCase);
+        }
+
+        public int GetHashCode(MetadataReference obj)
+        {
+            return StringComparer.OrdinalIgnoreCase.GetHashCode(obj.Display ?? string.Empty);
+        }
     }
 
     public sealed class ChatRoomActor

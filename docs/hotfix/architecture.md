@@ -31,7 +31,7 @@ use Entity, Component, or System for the game-facing model.
 | Service | `Server.Hotfix` | `ChatService` | Request business logic for a Shared service contract |
 | Lifecycle | `Server.Hotfix` | `ChatSessionLifecycle` | Replaceable business reaction to framework-owned lifecycle events |
 | Feature descriptor | `Server.Hotfix` | `BattleRuntimeFeature` | Reloadable game feature declaration and LakonaTimer-backed feature timers |
-| Actor | `Server.App` | `ChatRoomActor` | Stable mailbox, fields, and stable infrastructure dependencies only |
+| Actor | `Server.App` | `ChatRoomActor` | Stable mailbox, fields, actor identity, actor DTOs, and stable infrastructure dependencies only |
 | Behavior | `Server.Hotfix` | `ChatRoomBehavior` | Hot-reloadable behavior for one actor type |
 | Service proxy | `Server.App` | `ChatServiceProxy` | Stable RPC binding that forwards each call to current hotfix service logic |
 
@@ -131,6 +131,11 @@ internal static partial class ChatRoomBehavior
 Behavior field access should use `internal` access with
 `InternalsVisibleTo("Server.Hotfix")` or generated friend accessors. It should
 not use runtime reflection for normal actor field access.
+
+Public extension methods in `[HotfixBehaviorOf]` classes are the actor API.
+Stable `Server.App` owns actor state and actor DTOs. `Server.Hotfix` owns the
+behavior-derived actor selectors, refs, and dispatch wrappers that expose those
+methods to service and lifecycle code.
 
 Hotfix code must not own long-lived timers, threads, static event
 subscriptions, cached callbacks, or any object that can keep an old collectible
@@ -368,12 +373,12 @@ resolves local or remote placement through the actor directory. `Local(id)` is
 reserved for code that has already proven current-node ownership. `Remote(nodeId,
 id)` pins a specific target node.
 
-Generated actor selectors expose stable refs and low-level dispatch helpers from
-`Server.App`. Ordinary business method calls are generated into the matching
-`Server.Hotfix` `partial` Behavior type as extension methods on those refs. This
-keeps call-site navigation in the Behavior boundary while preserving stable
-route lookup, local dispatch, remote dispatch, serialization, and actor call
-error mapping in generated app code.
+Hotfix-generated behavior-first actor selectors and refs are derived from
+public methods on `[HotfixBehaviorOf]` classes and expose the behavior API at
+service and lifecycle call sites. Stable runtime services, actor metadata, and
+the stable cluster handler provide the cross-node dispatch boundary for route
+lookup, local dispatch, remote dispatch, serialization, and actor call error
+mapping.
 
 `HotfixServiceCall.Actors` and raw `IActorRuntime.AskAsync` / `TellAsync`
 remain framework-level escape hatches. Samples and generated projects must not

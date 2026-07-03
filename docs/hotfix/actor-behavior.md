@@ -86,6 +86,10 @@ internal static partial class RoomBehavior
 }
 ```
 
+Those public extension methods are the actor API. Stable `Server.App` owns actor
+state, actor identity, and actor DTOs; `Server.Hotfix` owns the behavior-derived
+selectors, refs, and dispatch wrappers generated from those methods.
+
 Behavior code runs inside an actor turn. It may read and mutate the actor's
 stable fields. It should access fields through `internal` members with
 `InternalsVisibleTo("Server.Hotfix")` or generated friend accessors. It must not
@@ -110,7 +114,7 @@ forbidden pattern is sample-authored stable app code that wraps actor behavior
 behind business store interfaces or string method names.
 
 `Server.Hotfix` service code should enter actor turns through generated
-behavior-first actor selectors and call DTO-shaped Behavior contracts:
+behavior-first actor selectors and call DTO-shaped behavior methods:
 
 ```csharp
 var result = await users
@@ -198,8 +202,8 @@ feature lifecycle as LakonaTimer callbacks that invoke actor behavior methods.
 
 Feature commands are capability-level orchestration points: placement checks,
 route registration, local actor creation, and the first calls into actors. Once
-a concrete actor exists, business logic should use generated actor refs rather
-than treating feature commands as actor mailboxes.
+a concrete actor exists, business logic should use generated behavior-first
+actor refs rather than treating feature commands as actor mailboxes.
 
 `Server.App` may reference stable framework packages under
 `Lakona.Game.Server.Hotfix*`, including `IHotfixServiceInvoker`. It must not
@@ -236,12 +240,12 @@ methods on actor classes are not allowed because they hide game rules in the
 stable assembly. Constructors, fields, properties, nested types, and property
 accessors are not ordinary methods for this diagnostic.
 
-## Agar Sample Migration Rules
+## Agar Sample Actor Boundary Rules
 
-The Agar sample must be migrated to the same model as generated projects.
+The Agar sample follows the same behavior-first model as generated projects.
 
 `samples/Game.Unity.Agar/Server/App/State` actor classes must keep state only.
-Move the following business logic to `samples/Game.Unity.Agar/Server/Hotfix`:
+The following business logic belongs in `samples/Game.Unity.Agar/Server/Hotfix`:
 
 - `UserActor` login, profile projection, online status, win count, and victory
   point updates

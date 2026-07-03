@@ -30,10 +30,47 @@ public sealed class RemoteActorInvokerTests
         Assert.Equal(RemoteActorStatus.NodeUnavailable, result.Status);
     }
 
+    [Theory]
+    [InlineData(ClusterSendStatus.SerializationFailed, RemoteActorStatus.SerializationFailed)]
+    [InlineData(ClusterSendStatus.DeserializationFailed, RemoteActorStatus.DeserializationFailed)]
+    public async Task TellAsync_maps_cluster_serialization_failures(
+        ClusterSendStatus clusterStatus,
+        RemoteActorStatus expectedStatus)
+    {
+        var invocation = CreateInvocation();
+        var sender = new RecordingClusterNodeSender { Status = clusterStatus };
+        var invoker = CreateInvoker(nodeSender: sender);
+
+        var result = await invoker.TellAsync(invocation, TestContext.Current.CancellationToken);
+
+        Assert.Equal(expectedStatus, result.Status);
+    }
+
+    [Theory]
+    [InlineData(ClusterSendStatus.SerializationFailed, RemoteActorStatus.SerializationFailed)]
+    [InlineData(ClusterSendStatus.DeserializationFailed, RemoteActorStatus.DeserializationFailed)]
+    public async Task AskAsync_maps_cluster_serialization_failures(
+        ClusterSendStatus clusterStatus,
+        RemoteActorStatus expectedStatus)
+    {
+        var invocation = CreateInvocation();
+        var sender = new RecordingClusterNodeSender { Status = clusterStatus };
+        var invoker = CreateInvoker(nodeSender: sender);
+
+        var result = await invoker.AskAsync(invocation, TestContext.Current.CancellationToken);
+
+        Assert.Equal(expectedStatus, result.Status);
+    }
+
     [Fact]
     public async Task TellAsync_sends_envelope_without_reply_correlation()
     {
-        var invocation = CreateInvocation();
+        var metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["lakona-game.actor-api.method-key"] = "actor:test|method:leave"
+        };
+        var invocation = CreateInvocation(metadata: metadata);
+        metadata["lakona-game.actor-api.method-key"] = "mutated";
         var sender = new RecordingClusterNodeSender();
         var invoker = CreateInvoker(nodeSender: sender);
 
@@ -49,13 +86,17 @@ public sealed class RemoteActorInvokerTests
         Assert.Equal(new NodeId("node-local"), envelope.SourceNode);
         Assert.Equal(invocation.CorrelationId, envelope.CorrelationId);
         Assert.Null(envelope.ReplyCorrelationId);
+        Assert.Equal("actor:test|method:leave", envelope.Metadata["lakona-game.actor-api.method-key"]);
     }
 
     [Fact]
     public async Task AskAsync_sends_envelope_with_reply_correlation_and_returns_reply()
     {
         var gateway = new RemoteActorGateway();
-        var invocation = CreateInvocation();
+        var invocation = CreateInvocation(metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["lakona-game.actor-api.method-key"] = "actor:test|method:leave"
+        });
         var sender = new RecordingClusterNodeSender();
         var invoker = CreateInvoker(gateway, sender);
         var replyPayload = new byte[] { 9, 8, 7 };
@@ -64,6 +105,7 @@ public sealed class RemoteActorInvokerTests
             Assert.True(ClusterActorEnvelope.TryFromClusterMessage(message, out var envelope));
             Assert.NotNull(envelope);
             Assert.Equal(invocation.CorrelationId, envelope.ReplyCorrelationId);
+            Assert.Equal("actor:test|method:leave", envelope.Metadata["lakona-game.actor-api.method-key"]);
             _ = gateway.CreateReplyHandler().HandleAsync(
                 new ClusterMessage(
                     ClusterActorRouteKeys.ForReply(new NodeId("node-local")),
@@ -245,6 +287,28 @@ public sealed class RemoteActorInvokerTests
     }
 
     [Fact]
+    public void RemoteActorInvocation_copies_metadata()
+    {
+        var metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["method"] = "original"
+        };
+        var invocation = new RemoteActorInvocation(
+            new NodeId("node-a"),
+            ActorId.From("room/1001"),
+            "room",
+            "join",
+            new byte[] { 1, 2, 3 },
+            DateTimeOffset.UtcNow.AddSeconds(10),
+            "corr-1",
+            metadata);
+
+        metadata["method"] = "mutated";
+
+        Assert.Equal("original", invocation.Metadata["method"]);
+    }
+
+    [Fact]
     public void RemoteActorInvocationResult_copies_payload()
     {
         var bytes = new byte[] { 1, 2, 3 };
@@ -289,7 +353,8 @@ public sealed class RemoteActorInvokerTests
 
     private static RemoteActorInvocation CreateInvocation(
         DateTimeOffset? deadline = null,
-        NodeId? node = null)
+        NodeId? node = null,
+        IReadOnlyDictionary<string, string>? metadata = null)
     {
         return new RemoteActorInvocation(
             node ?? new NodeId("node-b"),
@@ -298,7 +363,8 @@ public sealed class RemoteActorInvokerTests
             "leave",
             new byte[] { 1, 2, 3 },
             deadline ?? DateTimeOffset.UtcNow.AddSeconds(5),
-            "corr-1");
+            "corr-1",
+            metadata);
     }
 
     private static RemoteActorInvoker CreateInvoker(

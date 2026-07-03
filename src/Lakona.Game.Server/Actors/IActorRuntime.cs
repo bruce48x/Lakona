@@ -84,6 +84,23 @@ public interface IActorRuntime
         where TActor : class, IActor;
 
     /// <summary>
+    /// Executes a request/reply actor call for a local actor selected by runtime type.
+    /// </summary>
+    /// <param name="actorType">The expected actor implementation type.</param>
+    /// <param name="id">The target actor id.</param>
+    /// <param name="message">The delegate executed inside the actor turn.</param>
+    /// <param name="cancellationToken">A token that cancels enqueueing or waiting for the reply.</param>
+    /// <returns>The actor call reply.</returns>
+    ValueTask<object?> AskAsync(
+        Type actorType,
+        ActorId id,
+        Func<IActor, CancellationToken, ValueTask<object?>> message,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException("Runtime-type actor asks are not supported by this actor runtime.");
+    }
+
+    /// <summary>
     /// Captures aggregate diagnostics for the local actor runtime.
     /// </summary>
     /// <returns>The actor runtime diagnostics snapshot.</returns>

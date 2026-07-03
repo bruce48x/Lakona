@@ -1,26 +1,6 @@
 using Agar.Sample.State.Contracts.Sessions;
-using Agar.Sample.State.Matchmaking;
-using Lakona.Game.Server.Hotfix.Abstractions;
 
 namespace Agar.Sample.State.Contracts.Matchmaking;
-
-[HotfixActorContract(typeof(MatchmakingActor))]
-public interface IMatchmakingActorContract
-{
-    ValueTask<MatchmakingEnqueueResult> EnqueueAsync(
-        MatchmakingEnqueueRequest request,
-        CancellationToken cancellationToken = default);
-
-    ValueTask<MatchmakingCancelResult> CancelAsync(
-        MatchmakingCancelRequest request,
-        CancellationToken cancellationToken = default);
-
-    ValueTask<MatchmakingStatusSnapshot> GetStatusAsync(
-        MatchmakingStatusRequest request,
-        CancellationToken cancellationToken = default);
-
-    ValueTask RunTickAsync(MatchmakingTickRequest request, CancellationToken cancellationToken = default);
-}
 
 public sealed class MatchmakingStatusRequest
 {

@@ -1,5 +1,7 @@
 using System.Reflection;
+using System.Runtime.Loader;
 using System.Runtime.CompilerServices;
+using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Rpc.Core;
@@ -34,8 +36,10 @@ public static class HotfixBehaviorScanner
         var methods = new List<HotfixMethodBinding>();
         var services = new List<HotfixServiceMethodBinding>();
         var features = new List<HotfixFeatureDeclaration>();
+        var actorMethods = new List<HotfixActorMethodDescriptor>();
         var diagnostics = new List<string>();
         var keys = new HashSet<HotfixMethodKey>();
+        var actorMethodKeys = new HashSet<string>(StringComparer.Ordinal);
         var serviceKeys = new HashSet<string>(StringComparer.Ordinal);
         var featureNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var serviceImplementations = new Dictionary<Type, HashSet<Type>>();
@@ -66,8 +70,8 @@ public static class HotfixBehaviorScanner
                     continue;
                 }
 
-                var behavior = type.GetCustomAttribute<HotfixBehaviorOfAttribute>();
-                if (behavior is not null)
+                var behaviorActorType = GetHotfixBehaviorActorType(type);
+                if (behaviorActorType is not null)
                 {
                     if (!type.IsAbstract || !type.IsSealed)
                     {
@@ -75,7 +79,7 @@ public static class HotfixBehaviorScanner
                         continue;
                     }
 
-                    ScanBehaviorType(type, behavior.ActorType, methods, diagnostics, keys);
+                    ScanBehaviorType(type, behaviorActorType, methods, actorMethods, diagnostics, keys, actorMethodKeys);
                 }
 
                 if (!TryGetHotfixServiceContract(type, diagnostics, out var serviceBinding))
@@ -114,7 +118,51 @@ public static class HotfixBehaviorScanner
             }
         }
 
-        return new HotfixBehaviorScanResult(methods, services, features, diagnostics);
+        return new HotfixBehaviorScanResult(methods, services, features, actorMethods, diagnostics);
+    }
+
+    private static Type? GetHotfixBehaviorActorType(Type type)
+    {
+        var loadContext = AssemblyLoadContext.GetLoadContext(type.Assembly);
+        if (loadContext is not null)
+        {
+            loadContext.Resolving += ResolveLoadedAssembly;
+        }
+
+        try
+        {
+            foreach (var attribute in type.CustomAttributes)
+            {
+                if (!string.Equals(
+                        attribute.AttributeType.FullName,
+                        typeof(HotfixBehaviorOfAttribute).FullName,
+                        StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (attribute.ConstructorArguments.Count == 1 &&
+                    attribute.ConstructorArguments[0].Value is Type actorType)
+                {
+                    return actorType;
+                }
+            }
+
+            return null;
+        }
+        finally
+        {
+            if (loadContext is not null)
+            {
+                loadContext.Resolving -= ResolveLoadedAssembly;
+            }
+        }
+    }
+
+    private static Assembly? ResolveLoadedAssembly(AssemblyLoadContext context, AssemblyName assemblyName)
+    {
+        return AppDomain.CurrentDomain.GetAssemblies()
+            .FirstOrDefault(assembly => AssemblyName.ReferenceMatchesDefinition(assemblyName, assembly.GetName()));
     }
 
     private static void ScanFeatureType(
@@ -251,62 +299,210 @@ public static class HotfixBehaviorScanner
         Type behaviorType,
         Type stateType,
         List<HotfixMethodBinding> methods,
+        List<HotfixActorMethodDescriptor> actorMethods,
         List<string> diagnostics,
-        HashSet<HotfixMethodKey> keys)
+        HashSet<HotfixMethodKey> keys,
+        HashSet<string> actorMethodKeys)
     {
-        foreach (var method in behaviorType.GetMethods(BindingFlags.Public | BindingFlags.Static))
+        var isActorBehavior = IsLakonaActorType(stateType);
+        var loadContext = AssemblyLoadContext.GetLoadContext(behaviorType.Assembly);
+        if (loadContext is not null)
         {
-            if (!method.IsDefined(typeof(ExtensionAttribute), inherit: false))
-            {
-                continue;
-            }
-
-            if (method.IsDefined(typeof(GeneratedHotfixActorRefMethodAttribute), inherit: false))
-            {
-                continue;
-            }
-
-            var parameters = method.GetParameters();
-            if (parameters.Length == 0 || parameters[0].ParameterType != stateType)
-            {
-                diagnostics.Add($"Hotfix method '{behaviorType.FullName}.{method.Name}' must start with 'this {stateType.FullName} self'.");
-                continue;
-            }
-
-            if (method.ContainsGenericParameters)
-            {
-                diagnostics.Add($"Hotfix method '{behaviorType.FullName}.{method.Name}' must not be generic.");
-                continue;
-            }
-
-            if (method.ReturnType.ContainsGenericParameters
-                || parameters.Any(static parameter => parameter.ParameterType.ContainsGenericParameters))
-            {
-                diagnostics.Add($"Hotfix method '{behaviorType.FullName}.{method.Name}' must not use open generic return or parameter types.");
-                continue;
-            }
-
-            if (parameters.Any(static parameter => parameter.IsOut || parameter.ParameterType.IsByRef || parameter.ParameterType.IsPointer))
-            {
-                diagnostics.Add($"Hotfix method '{behaviorType.FullName}.{method.Name}' must not use by-ref, out, or pointer parameter types.");
-                continue;
-            }
-
-            var argumentTypes = parameters.Skip(1).Select(static parameter => parameter.ParameterType).ToArray();
-            var key = new HotfixMethodKey(
-                stateType.FullName ?? stateType.Name,
-                method.Name,
-                method.ReturnType.FullName ?? method.ReturnType.Name,
-                argumentTypes.Select(static type => type.FullName ?? type.Name).ToArray());
-
-            if (!keys.Add(key))
-            {
-                diagnostics.Add($"Duplicate hotfix method key '{key}'.");
-                continue;
-            }
-
-            methods.Add(new HotfixMethodBinding(key, method, stateType, method.ReturnType, argumentTypes));
+            loadContext.Resolving += ResolveLoadedAssembly;
         }
+
+        try
+        {
+            foreach (var method in behaviorType.GetMethods(BindingFlags.Public | BindingFlags.Static))
+            {
+                if (!method.IsDefined(typeof(ExtensionAttribute), inherit: false))
+                {
+                    continue;
+                }
+
+                if (method.IsDefined(typeof(GeneratedHotfixActorRefMethodAttribute), inherit: false))
+                {
+                    continue;
+                }
+
+                var parameters = method.GetParameters();
+                if (parameters.Length == 0 || parameters[0].ParameterType != stateType)
+                {
+                    diagnostics.Add($"Hotfix method '{behaviorType.FullName}.{method.Name}' must start with 'this {stateType.FullName} self'.");
+                    continue;
+                }
+
+                if (method.ContainsGenericParameters)
+                {
+                    diagnostics.Add($"Hotfix method '{behaviorType.FullName}.{method.Name}' must not be generic.");
+                    continue;
+                }
+
+                if (method.ReturnType.ContainsGenericParameters
+                    || parameters.Any(static parameter => parameter.ParameterType.ContainsGenericParameters))
+                {
+                    diagnostics.Add($"Hotfix method '{behaviorType.FullName}.{method.Name}' must not use open generic return or parameter types.");
+                    continue;
+                }
+
+                if (parameters.Any(static parameter => parameter.IsOut || parameter.ParameterType.IsByRef || parameter.ParameterType.IsPointer))
+                {
+                    diagnostics.Add($"Hotfix method '{behaviorType.FullName}.{method.Name}' must not use by-ref, out, or pointer parameter types.");
+                    continue;
+                }
+
+                var argumentTypes = parameters.Skip(1).Select(static parameter => parameter.ParameterType).ToArray();
+                var key = new HotfixMethodKey(
+                    stateType.FullName ?? stateType.Name,
+                    method.Name,
+                    method.ReturnType.FullName ?? method.ReturnType.Name,
+                    argumentTypes.Select(static type => type.FullName ?? type.Name).ToArray());
+
+                if (!keys.Add(key))
+                {
+                    diagnostics.Add($"Duplicate hotfix method key '{key}'.");
+                    continue;
+                }
+
+                methods.Add(new HotfixMethodBinding(key, method, stateType, method.ReturnType, argumentTypes));
+
+                if (isActorBehavior)
+                {
+                    ScanActorApiMethod(behaviorType, stateType, method, actorMethods, diagnostics, actorMethodKeys);
+                }
+            }
+        }
+        finally
+        {
+            if (loadContext is not null)
+            {
+                loadContext.Resolving -= ResolveLoadedAssembly;
+            }
+        }
+    }
+
+    private static void ScanActorApiMethod(
+        Type behaviorType,
+        Type actorType,
+        MethodInfo method,
+        List<HotfixActorMethodDescriptor> actorMethods,
+        List<string> diagnostics,
+        HashSet<string> actorMethodKeys)
+    {
+        var parameters = method.GetParameters();
+        if (parameters.Length is not 2 and not 3 ||
+            parameters[0].ParameterType != actorType ||
+            parameters[1].ParameterType == typeof(CancellationToken) ||
+            parameters[1].ParameterType.ContainsGenericParameters)
+        {
+            diagnostics.Add($"Hotfix behavior '{behaviorType.FullName}' actor API method '{method.Name}' must use 'this {actorType.FullName} self, Request request, optional CancellationToken'.");
+            return;
+        }
+
+        var hasCancellationToken = parameters.Length == 3;
+        if (hasCancellationToken && parameters[2].ParameterType != typeof(CancellationToken))
+        {
+            diagnostics.Add($"Hotfix behavior '{behaviorType.FullName}' actor API method '{method.Name}' optional third parameter must be {typeof(CancellationToken).FullName}.");
+            return;
+        }
+
+        if (method.ReturnType != typeof(ValueTask) && !IsValueTaskResult(method.ReturnType))
+        {
+            diagnostics.Add($"Hotfix behavior '{behaviorType.FullName}' actor API method '{method.Name}' must return ValueTask or ValueTask<TResult>.");
+            return;
+        }
+
+        var requestType = parameters[1].ParameterType;
+        if (ContainsTypeFromAssembly(requestType, behaviorType.Assembly))
+        {
+            diagnostics.Add($"Hotfix behavior '{behaviorType.FullName}' actor API method '{method.Name}' uses request type '{requestType.FullName ?? requestType.Name}' from the hotfix assembly; request DTOs must live outside hotfix code.");
+            return;
+        }
+
+        var resultType = method.ReturnType == typeof(ValueTask)
+            ? null
+            : method.ReturnType.GetGenericArguments()[0];
+        if (resultType is not null && ContainsTypeFromAssembly(resultType, behaviorType.Assembly))
+        {
+            diagnostics.Add($"Hotfix behavior '{behaviorType.FullName}' actor API method '{method.Name}' uses result type '{resultType.FullName ?? resultType.Name}' from the hotfix assembly; result DTOs must live outside hotfix code.");
+            return;
+        }
+
+        var actorTypeIdentity = HotfixActorApiMetadata.CreateTypeIdentity(actorType);
+        var requestTypeIdentity = HotfixActorApiMetadata.CreateTypeIdentity(requestType);
+        var resultTypeIdentity = resultType is null
+            ? HotfixActorApiMetadata.VoidResultType
+            : HotfixActorApiMetadata.CreateTypeIdentity(resultType);
+        var methodKey = HotfixActorApiMetadata.CreateMethodKey(
+            actorTypeIdentity,
+            method.Name,
+            requestTypeIdentity,
+            resultTypeIdentity);
+
+        if (!actorMethodKeys.Add(methodKey))
+        {
+            diagnostics.Add($"Hotfix behavior '{behaviorType.FullName}' duplicate canonical actor API method key '{methodKey}' for method '{method.Name}'.");
+            return;
+        }
+
+        actorMethods.Add(new HotfixActorMethodDescriptor(
+            methodKey,
+            actorType,
+            method.Name,
+            requestType,
+            resultType,
+            method,
+            hasCancellationToken));
+    }
+
+    private static bool IsLakonaActorType(Type type)
+    {
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            if (IsLakonaActorTypeName(current))
+            {
+                return true;
+            }
+
+            foreach (var interfaceType in current.GetInterfaces())
+            {
+                if (IsLakonaActorTypeName(interfaceType))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsLakonaActorTypeName(Type type)
+    {
+        var fullName = type.IsGenericType ? type.GetGenericTypeDefinition().FullName : type.FullName;
+        if (!string.Equals(type.Assembly.GetName().Name, "Lakona.Game.Server", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return string.Equals(fullName, "Lakona.Game.Server.Actors.IActor", StringComparison.Ordinal) ||
+            string.Equals(fullName, "Lakona.Game.Server.Actors.Actor", StringComparison.Ordinal) ||
+            string.Equals(fullName, "Lakona.Game.Server.Actors.Actor`1", StringComparison.Ordinal);
+    }
+
+    private static bool ContainsTypeFromAssembly(Type type, Assembly assembly)
+    {
+        if (type.Assembly == assembly)
+        {
+            return true;
+        }
+
+        if (type.HasElementType && type.GetElementType() is { } elementType)
+        {
+            return ContainsTypeFromAssembly(elementType, assembly);
+        }
+
+        return type.IsGenericType &&
+            type.GetGenericArguments().Any(argument => ContainsTypeFromAssembly(argument, assembly));
     }
 
     private static void ScanServiceType(

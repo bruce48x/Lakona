@@ -10,6 +10,7 @@ public sealed class HotfixDispatchTable
 {
     private readonly IReadOnlyDictionary<HotfixMethodKey, HotfixMethodBinding> bindings;
     private readonly IReadOnlyDictionary<string, HotfixServiceMethodBinding> serviceBindings;
+    private readonly IReadOnlyDictionary<string, HotfixActorMethodDescriptor> actorMethodBindings;
     private readonly IReadOnlyDictionary<Type, ObjectFactory> serviceActivationFactories;
     private readonly IReadOnlyDictionary<string, HotfixFeatureCommandBinding> featureCommandBindings;
     private readonly IReadOnlyDictionary<Type, ObjectFactory> featureActivationFactories;
@@ -37,10 +38,30 @@ public sealed class HotfixDispatchTable
         IEnumerable<HotfixMethodBinding> methods,
         IEnumerable<HotfixServiceMethodBinding> services,
         IEnumerable<HotfixFeatureDeclaration> features)
+        : this(version, methods, services, features, Array.Empty<HotfixActorMethodDescriptor>())
+    {
+    }
+
+    public HotfixDispatchTable(
+        long version,
+        IEnumerable<HotfixMethodBinding> methods,
+        IEnumerable<HotfixServiceMethodBinding> services,
+        IEnumerable<HotfixActorMethodDescriptor> actorMethods)
+        : this(version, methods, services, Array.Empty<HotfixFeatureDeclaration>(), actorMethods)
+    {
+    }
+
+    public HotfixDispatchTable(
+        long version,
+        IEnumerable<HotfixMethodBinding> methods,
+        IEnumerable<HotfixServiceMethodBinding> services,
+        IEnumerable<HotfixFeatureDeclaration> features,
+        IEnumerable<HotfixActorMethodDescriptor> actorMethods)
     {
         ArgumentNullException.ThrowIfNull(methods);
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(features);
+        ArgumentNullException.ThrowIfNull(actorMethods);
 
         var methodList = new List<HotfixMethodBinding>();
         foreach (var method in methods)
@@ -62,6 +83,17 @@ public sealed class HotfixDispatchTable
             }
 
             serviceList.Add(service);
+        }
+
+        var actorMethodList = new List<HotfixActorMethodDescriptor>();
+        foreach (var actorMethod in actorMethods)
+        {
+            if (actorMethod is null)
+            {
+                throw new ArgumentException("Actor method descriptors cannot contain null.", nameof(actorMethods));
+            }
+
+            actorMethodList.Add(actorMethod);
         }
 
         var featureCommandList = new List<HotfixFeatureCommandBinding>();
@@ -108,6 +140,7 @@ public sealed class HotfixDispatchTable
         Features = features.ToArray();
         bindings = methodList.ToDictionary(static method => method.Key, static method => method);
         serviceBindings = serviceList.ToDictionary(static service => service.Key, static service => service);
+        actorMethodBindings = actorMethodList.ToDictionary(static method => method.MethodKey, static method => method, StringComparer.Ordinal);
         serviceActivationFactories = serviceList
             .Where(static service => !service.Method.IsStatic)
             .Select(static service => service.ServiceType)
@@ -137,6 +170,83 @@ public sealed class HotfixDispatchTable
         return bindings.TryGetValue(key, out var binding)
             ? binding.Method
             : throw new HotfixMethodNotLoadedException($"Hotfix method '{key}' is not loaded.");
+    }
+
+    public bool TryResolveActorMethod(
+        string methodKey,
+        out HotfixActorMethodDescriptor descriptor)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(methodKey);
+        return actorMethodBindings.TryGetValue(methodKey, out descriptor!);
+    }
+
+    public async ValueTask<object?> InvokeActorAsync(
+        string methodKey,
+        object actor,
+        object? request,
+        Type? expectedResultType,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(methodKey);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!actorMethodBindings.TryGetValue(methodKey, out var binding))
+        {
+            throw new HotfixMethodNotLoadedException($"Hotfix actor method '{methodKey}' is not loaded.");
+        }
+
+        if (!binding.ActorType.IsInstanceOfType(actor))
+        {
+            throw new ArgumentException(
+                $"Hotfix actor method '{methodKey}' requires actor type '{binding.ActorType.FullName}'.",
+                nameof(actor));
+        }
+
+        if (request is null && binding.RequestType.IsValueType ||
+            request is not null && !binding.RequestType.IsInstanceOfType(request))
+        {
+            throw new ArgumentException(
+                $"Hotfix actor method '{methodKey}' requires request type '{binding.RequestType.FullName}'.",
+                nameof(request));
+        }
+
+        var actualResultType = binding.ResultType ?? typeof(void);
+        if (expectedResultType is not null && expectedResultType != actualResultType)
+        {
+            throw new InvalidOperationException(
+                $"Hotfix actor method '{methodKey}' result type '{actualResultType.FullName}' does not match expected result type '{expectedResultType.FullName}'.");
+        }
+
+        object? result;
+        try
+        {
+            result = binding.Method.Invoke(
+                null,
+                binding.HasCancellationToken
+                    ? [actor, request, cancellationToken]
+                    : [actor, request]);
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException is not null)
+        {
+            ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+            throw;
+        }
+
+        if (binding.ResultType is null)
+        {
+            if (result is ValueTask task)
+            {
+                await task.ConfigureAwait(false);
+                return null;
+            }
+
+            throw new InvalidOperationException($"Hotfix actor method '{methodKey}' returned an invalid result.");
+        }
+
+        var awaitMethod = typeof(HotfixDispatchTable)
+            .GetMethod(nameof(AwaitActorResultAsync), BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(binding.ResultType);
+        return await (ValueTask<object?>)awaitMethod.Invoke(null, [result])!;
     }
 
     public ValueTask<TResult> InvokeServiceAsync<TContract, TArg, TResult>(string methodName, TArg arg)
@@ -483,6 +593,11 @@ public sealed class HotfixDispatchTable
         {
             await DisposeServiceTargetAsync(target).ConfigureAwait(false);
         }
+    }
+
+    private static async ValueTask<object?> AwaitActorResultAsync<TResult>(ValueTask<TResult> task)
+    {
+        return await task.ConfigureAwait(false);
     }
 
     private static ValueTask DisposeServiceTargetAsync(ServiceTarget target)

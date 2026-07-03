@@ -959,7 +959,9 @@ public sealed class HotfixFeatureLifecycleTests
         IReadOnlyList<HotfixFeatureDeclaration> features)
     {
         return (IServiceProvider)typeof(HotfixManager)
-            .GetMethod("BuildHotfixProvider", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetMethods(BindingFlags.Instance | BindingFlags.NonPublic)
+            .Single(method => method.Name == "BuildHotfixProvider"
+                && method.GetParameters().Length == 1)
             .Invoke(manager, [features])!;
     }
 

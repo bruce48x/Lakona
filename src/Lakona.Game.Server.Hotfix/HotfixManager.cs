@@ -3,6 +3,7 @@ using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
 using Lakona.Game.Server.Hotfix.Scanning;
 using Microsoft.Extensions.DependencyInjection;
+using System.Reflection;
 
 namespace Lakona.Game.Server.Hotfix;
 
@@ -144,11 +145,11 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
 
             var activeFeatures = _featureActivationPolicy.SelectActiveFeatures(scan.Features);
             var tableVersion = publish ? Interlocked.Increment(ref _nextVersion) : Current.DispatchTableVersion;
-            var table = new HotfixDispatchTable(tableVersion, scan.Methods, scan.Services, activeFeatures);
+            var table = new HotfixDispatchTable(tableVersion, scan.Methods, scan.Services, activeFeatures, scan.ActorMethods);
             table.ValidateMethodShapes();
             table.ValidateTypedDispatchDelegates();
             table.ValidateFeatureCommandMethods();
-            hotfixProvider = BuildHotfixProvider(activeFeatures);
+            hotfixProvider = BuildHotfixProvider(activeFeatures, assembly);
             table.ValidateServiceActivation(hotfixProvider);
             table.ValidateFeatureCommandActivation(hotfixProvider);
             var snapshot = new HotfixSnapshot(
@@ -404,8 +405,30 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
 
     private IServiceProvider BuildHotfixProvider(IReadOnlyList<HotfixFeatureDeclaration> features)
     {
-        var services = new ServiceCollection();
+        return BuildHotfixProvider(features, typeof(HotfixManager).Assembly);
+    }
+
+    private IServiceProvider BuildHotfixProvider(
+        IReadOnlyList<HotfixFeatureDeclaration> features,
+        Assembly hotfixAssembly)
+    {
+        ArgumentNullException.ThrowIfNull(features);
+        ArgumentNullException.ThrowIfNull(hotfixAssembly);
+
+        var registrations = DiscoverGeneratedServiceRegistrations(hotfixAssembly);
+        var rawServices = new ServiceCollection();
         foreach (var descriptor in features.SelectMany(static feature => feature.Services))
+        {
+            ((ICollection<ServiceDescriptor>)rawServices).Add(descriptor);
+        }
+
+        foreach (var registration in registrations)
+        {
+            registration.Register(rawServices);
+        }
+
+        var services = new ServiceCollection();
+        foreach (var descriptor in rawServices)
         {
             ((ICollection<ServiceDescriptor>)services).Add(_rootServices is null
                 ? descriptor
@@ -416,6 +439,31 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
         return _rootServices is null
             ? hotfixProvider
             : new FallbackServiceProvider(hotfixProvider, _rootServices);
+    }
+
+    private static IReadOnlyList<IHotfixGeneratedServiceRegistration> DiscoverGeneratedServiceRegistrations(
+        Assembly hotfixAssembly)
+    {
+        return hotfixAssembly
+            .GetTypes()
+            .Where(static type => !type.IsAbstract
+                && !type.IsInterface
+                && typeof(IHotfixGeneratedServiceRegistration).IsAssignableFrom(type))
+            .OrderBy(static type => type.FullName, StringComparer.Ordinal)
+            .Select(static type =>
+            {
+                try
+                {
+                    return (IHotfixGeneratedServiceRegistration)Activator.CreateInstance(type)!;
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException(
+                        $"Could not activate hotfix generated service registration '{type.FullName}'.",
+                        ex);
+                }
+            })
+            .ToArray();
     }
 
     private static ServiceDescriptor CreateFallbackActivationDescriptor(

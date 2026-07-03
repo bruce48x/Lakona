@@ -211,6 +211,26 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             : throw new InvalidOperationException($"Actor call returned an invalid result for '{typeof(TResult).FullName}'.");
     }
 
+    public async ValueTask<object?> AskAsync(
+        Type actorType,
+        ActorId id,
+        Func<IActor, CancellationToken, ValueTask<object?>> message,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(actorType);
+        ArgumentNullException.ThrowIfNull(message);
+
+        var cell = GetRequiredCell(actorType, id, nameof(AskAsync));
+        return await cell.InvokeAsync(
+            static async (actor, state, ct) =>
+            {
+                var callback = (Func<IActor, CancellationToken, ValueTask<object?>>)state;
+                return await callback(actor, ct).ConfigureAwait(false);
+            },
+            message,
+            cancellationToken).ConfigureAwait(false);
+    }
+
     public async ValueTask TellAsync(
         Type actorType,
         ActorId id,

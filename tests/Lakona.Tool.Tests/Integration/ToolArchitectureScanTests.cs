@@ -31,6 +31,9 @@ public sealed class ToolArchitectureScanTests
     private static readonly string ForbiddenRoomLoopName = string.Concat("Room", "Runtime");
     private static readonly string ForbiddenMatchLoopHostName = string.Concat("Matchmaking", "Hosted", "Service");
     private static readonly string ForbiddenDispatchCall = string.Concat("HotfixDispatch", ".Invoke");
+    private static readonly string ForbiddenContractAttribute = string.Concat("Hotfix", "Actor", "Contract");
+    private static readonly string ForbiddenChatRoomContractInterface = string.Concat("IChatRoom", "Actor", "Contract");
+    private static readonly string ForbiddenStableActorRefsProperty = string.Concat("LakonaHotfixGenerateStable", "ActorRefs");
 
     [Fact]
     public void ToolSource_DoesNotContainStarterPipelineArtifacts()
@@ -149,6 +152,8 @@ public sealed class ToolArchitectureScanTests
 
             Assert.False(File.Exists(Path.Combine(spec.Layout.RootPath, "Server", "App", "Services", $"{ForbiddenGeneratedGlueFile}.cs")));
             Assert.False(Directory.Exists(Path.Combine(spec.Layout.RootPath, "Server", "App", "Hotfix")));
+            Assert.True(File.Exists(Path.Combine(spec.Layout.RootPath, "Server", "App", "Chat", "ChatRoomMessages.cs")));
+            Assert.False(File.Exists(Path.Combine(spec.Layout.RootPath, "Server", "App", "Chat", "ChatRoomActorContracts.cs")));
 
             var generatedText = ReadAllTextFiles(spec.Layout.RootPath);
             var generatedSharedText = ReadAllTextFiles(Path.Combine(spec.Layout.RootPath, "Shared"));
@@ -156,7 +161,9 @@ public sealed class ToolArchitectureScanTests
             Assert.Contains("<CompilerVisibleProperty Include=\"LakonaRpcServerGeneratedNamespace\" />", generatedText, StringComparison.Ordinal);
             Assert.Contains("await _gameServer.BindCurrentSessionAsync", generatedText, StringComparison.Ordinal);
             Assert.Contains("RPC services that target actors whose", generatedText, StringComparison.Ordinal);
-            Assert.Contains("[HotfixActorContract(typeof(ChatRoomActor))]", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain(ForbiddenContractAttribute, generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain(ForbiddenChatRoomContractInterface, generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain(ForbiddenStableActorRefsProperty, generatedText, StringComparison.Ordinal);
             Assert.Contains("public LoginService(ChatRoomActors rooms, ILakonaGameServer gameServer)", generatedText, StringComparison.Ordinal);
             Assert.Contains("private readonly ChatRoomActors _rooms;", generatedText, StringComparison.Ordinal);
             Assert.Contains(".Get(ChatRoomIds.Global)", generatedText, StringComparison.Ordinal);

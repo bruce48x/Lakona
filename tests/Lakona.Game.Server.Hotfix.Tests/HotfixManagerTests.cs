@@ -705,6 +705,30 @@ public sealed class HotfixManagerTests
     }
 
     [Fact]
+    public void BuildHotfixProvider_discovers_generated_service_registration_from_hotfix_assembly()
+    {
+        using var rootServices = new ServiceCollection()
+            .AddSingleton<IRootOnlyMarker, RootOnlyMarker>()
+            .BuildServiceProvider();
+        var manager = new HotfixManager(new FixedAssemblySource("unused"), rootServices: rootServices);
+        var services = BuildHotfixProvider(
+            manager,
+            [],
+            typeof(GeneratedHotfixServiceRegistrationForTest).Assembly);
+        try
+        {
+            Assert.IsType<GeneratedHotfixRegistrationMarker>(
+                services.GetRequiredService<IHotfixGeneratedRegistrationMarker>());
+            var consumer = services.GetRequiredService<HotfixGeneratedRegistrationConsumer>();
+            Assert.Equal("root", consumer.Root.Value);
+        }
+        finally
+        {
+            (services as IDisposable)?.Dispose();
+        }
+    }
+
+    [Fact]
     public async Task Reload_fails_before_publish_when_service_has_multiple_unmarked_constructors()
     {
         using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
@@ -803,6 +827,18 @@ public sealed class HotfixManagerTests
             DateTimeOffset.UtcNow.AddMinutes(1),
             new NodeId("data-1"),
             "corr-1");
+    }
+
+    private static IServiceProvider BuildHotfixProvider(
+        HotfixManager manager,
+        IReadOnlyList<HotfixFeatureDeclaration> features,
+        Assembly hotfixAssembly)
+    {
+        return (IServiceProvider)typeof(HotfixManager)
+            .GetMethods(BindingFlags.Instance | BindingFlags.NonPublic)
+            .Single(method => method.Name == "BuildHotfixProvider"
+                && method.GetParameters().Length == 2)
+            .Invoke(manager, [features, hotfixAssembly])!;
     }
 
     private static void ForceStaleActiveFlag(HotfixDispatchRuntimeContext context)
@@ -1953,4 +1989,31 @@ public interface IRootOnlyMarker
 public sealed class RootOnlyMarker : IRootOnlyMarker
 {
     public string Value => "root";
+}
+
+public interface IHotfixGeneratedRegistrationMarker
+{
+}
+
+public sealed class GeneratedHotfixRegistrationMarker : IHotfixGeneratedRegistrationMarker
+{
+}
+
+public sealed class HotfixGeneratedRegistrationConsumer
+{
+    public HotfixGeneratedRegistrationConsumer(IRootOnlyMarker root)
+    {
+        Root = root;
+    }
+
+    public IRootOnlyMarker Root { get; }
+}
+
+public sealed class GeneratedHotfixServiceRegistrationForTest : IHotfixGeneratedServiceRegistration
+{
+    public void Register(IServiceCollection services)
+    {
+        services.AddSingleton<IHotfixGeneratedRegistrationMarker, GeneratedHotfixRegistrationMarker>();
+        services.AddTransient<HotfixGeneratedRegistrationConsumer>();
+    }
 }

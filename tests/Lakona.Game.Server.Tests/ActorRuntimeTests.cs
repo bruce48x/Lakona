@@ -230,6 +230,67 @@ public sealed class ActorRuntimeTests
     }
 
     [Fact]
+    public async Task Dynamic_AskAsync_dispatches_to_requested_actor_type_and_returns_object_result()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = CreateProvider();
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        var id = ActorId.From("dynamic-ask");
+
+        await hosting.CreateAsync<TestActor>(id, cancellationToken);
+
+        var result = await runtime.AskAsync(
+            typeof(TestActor),
+            id,
+            static async (actor, ct) => await ((TestActor)actor).EchoAsync("asked", ct).ConfigureAwait(false),
+            cancellationToken);
+
+        Assert.Equal("dynamic-ask:asked", result);
+    }
+
+    [Fact]
+    public async Task Dynamic_AskAsync_enters_actor_mailbox_and_preserves_ordering()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = CreateProvider();
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        var id = ActorId.From("dynamic-ask-mailbox");
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await hosting.CreateAsync<BlockingActor>(id, cancellationToken);
+
+        var blocking = runtime.TellAsync<BlockingActor>(
+            id,
+            (actor, ct) => actor.BlockAsync(entered, release.Task, ct),
+            cancellationToken).AsTask();
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+
+        var ask = runtime.AskAsync(
+            typeof(BlockingActor),
+            id,
+            static (actor, _) =>
+            {
+                var blockingActor = (BlockingActor)actor;
+                blockingActor.Count++;
+                return new ValueTask<object?>(blockingActor.Count);
+            },
+            cancellationToken).AsTask();
+
+        await Task.Delay(50, cancellationToken);
+        Assert.False(ask.IsCompleted);
+
+        release.SetResult();
+        await blocking;
+
+        var result = await ask;
+
+        Assert.Equal(1, result);
+    }
+
+    [Fact]
     public async Task Actor_lifecycle_creates_local_actor_explicitly()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

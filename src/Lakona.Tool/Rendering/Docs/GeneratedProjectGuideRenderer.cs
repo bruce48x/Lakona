@@ -117,6 +117,27 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         executing the hotfix service. RPC services that target actors whose
         placement may change should use generated typed actor selectors instead.
 
+        Public extension methods in `[HotfixBehaviorOf]` classes are the actor
+        API. Stable `Server/App` code owns actor state and DTOs; replaceable
+        `Server/Hotfix` code owns behavior.
+
+        ```csharp
+        [HotfixBehaviorOf(typeof(ChatRoomActor))]
+        internal static partial class ChatRoomBehavior
+        {
+            public static ValueTask<LoginReply> LoginAsync(
+                this ChatRoomActor self,
+                ChatRoomLoginRequest request,
+                CancellationToken cancellationToken = default)
+            {
+                _ = self;
+                _ = request;
+                _ = cancellationToken;
+                return new ValueTask<LoginReply>(new LoginReply());
+            }
+        }
+        ```
+
         ```csharp
         public LoginService(ChatRoomActors rooms, ILakonaGameServer gameServer)
         {

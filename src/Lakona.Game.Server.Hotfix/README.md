@@ -18,6 +18,11 @@ stateless business rules that operate on stable actor instances. A reload
 replaces the runtime dispatch table; it does not replace existing actor
 instances.
 
+Public extension methods in `[HotfixBehaviorOf]` classes are the actor API.
+Stable App assemblies own actor state, identity, and DTOs. Hotfix assemblies own
+behavior-derived selectors, refs, and wrappers that expose those methods to
+services and lifecycle code.
+
 Hotfix behaviors should return stable DTOs that describe what happened. Stable runtime code should perform side effects such as persistence writes, leaderboard updates, session cleanup, logging, and network pushes.
 
 Reload uses next-entry semantics: a method already executing keeps the version it resolved, while the next dispatch call sees the new table after a successful reload. If reload fails, the previous dispatch table remains active.

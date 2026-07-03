@@ -21,6 +21,9 @@ public sealed class ServerAppRendererTests
     private static readonly string ForbiddenRoomLoopName = string.Concat("Room", "Runtime");
     private static readonly string ForbiddenMatchLoopHostName = string.Concat("Matchmaking", "Hosted", "Service");
     private static readonly string ForbiddenDispatchCall = string.Concat("HotfixDispatch", ".Invoke");
+    private static readonly string ForbiddenContractAttribute = string.Concat("Hotfix", "Actor", "Contract");
+    private static readonly string ForbiddenChatRoomContractInterface = string.Concat("IChatRoom", "Actor", "Contract");
+    private static readonly string ForbiddenStableActorRefsProperty = string.Concat("LakonaHotfixGenerateStable", "ActorRefs");
 
     [Fact]
     public void AddFiles_EmitsServerAppProjectProgramAndCompactSettings()
@@ -36,9 +39,8 @@ public sealed class ServerAppRendererTests
         Assert.Contains("<CompilerVisibleProperty Include=\"LakonaRpcGenerateServer\" />", project, StringComparison.Ordinal);
         Assert.Contains("<CompilerVisibleProperty Include=\"LakonaRpcServerGeneratedNamespace\" />", project, StringComparison.Ordinal);
         Assert.Contains("<LakonaHotfixGenerateStableRpcServices>true</LakonaHotfixGenerateStableRpcServices>", project, StringComparison.Ordinal);
-        Assert.Contains("<LakonaHotfixGenerateStableActorRefs>true</LakonaHotfixGenerateStableActorRefs>", project, StringComparison.Ordinal);
         Assert.Contains("<CompilerVisibleProperty Include=\"LakonaHotfixGenerateStableRpcServices\" />", project, StringComparison.Ordinal);
-        Assert.Contains("<CompilerVisibleProperty Include=\"LakonaHotfixGenerateStableActorRefs\" />", project, StringComparison.Ordinal);
+        Assert.DoesNotContain(ForbiddenStableActorRefsProperty, project, StringComparison.Ordinal);
         Assert.Contains("<PackageReference Include=\"Lakona.Game.Server\"", project, StringComparison.Ordinal);
         Assert.DoesNotContain("<PackageReference Include=\"Lakona.Rpc.Transport.Kcp\"", project, StringComparison.Ordinal);
         Assert.DoesNotContain("<PackageReference Include=\"Lakona.Rpc.Transport.WebSocket\"", project, StringComparison.Ordinal);
@@ -86,13 +88,16 @@ public sealed class ServerAppRendererTests
         Assert.DoesNotContain("ValueTask.CompletedTask", chatRoomActor, StringComparison.Ordinal);
         Assert.DoesNotContain("ValueTask.FromResult", chatRoomActor, StringComparison.Ordinal);
 
-        var chatRoomContracts = AssertPath(plan, "Server/App/Chat/ChatRoomActorContracts.cs").Content;
-        Assert.Contains("[HotfixActorContract(typeof(ChatRoomActor))]", chatRoomContracts, StringComparison.Ordinal);
-        Assert.Contains("public interface IChatRoomActorContract", chatRoomContracts, StringComparison.Ordinal);
-        Assert.Contains("ValueTask<LoginReply> LoginAsync(ChatRoomLoginRequest request", chatRoomContracts, StringComparison.Ordinal);
-        Assert.Contains("ValueTask BindChatAsync(ChatRoomBindRequest request", chatRoomContracts, StringComparison.Ordinal);
-        Assert.Contains("ValueTask SendAsync(ChatRoomSendRequest request", chatRoomContracts, StringComparison.Ordinal);
-        Assert.Contains("ValueTask LeaveAsync(ChatRoomLeaveRequest request", chatRoomContracts, StringComparison.Ordinal);
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Chat/ChatRoomActorContracts.cs");
+        var chatRoomMessages = AssertPath(plan, "Server/App/Chat/ChatRoomMessages.cs").Content;
+        Assert.Contains("public static class ChatRoomIds", chatRoomMessages, StringComparison.Ordinal);
+        Assert.Contains("public sealed class ChatRoomLoginRequest", chatRoomMessages, StringComparison.Ordinal);
+        Assert.Contains("public sealed class ChatRoomBindRequest", chatRoomMessages, StringComparison.Ordinal);
+        Assert.Contains("public sealed class ChatRoomSendRequest", chatRoomMessages, StringComparison.Ordinal);
+        Assert.Contains("public sealed class ChatRoomLeaveRequest", chatRoomMessages, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona.Game.Server.Hotfix.Abstractions", chatRoomMessages, StringComparison.Ordinal);
+        Assert.DoesNotContain(ForbiddenContractAttribute, chatRoomMessages, StringComparison.Ordinal);
+        Assert.DoesNotContain(ForbiddenChatRoomContractInterface, chatRoomMessages, StringComparison.Ordinal);
 
         Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Chat/LoginServiceProxy.cs");
         Assert.DoesNotContain(plan.Files, file => file.RelativePath == "Server/App/Chat/ChatServiceProxy.cs");
@@ -111,6 +116,9 @@ public sealed class ServerAppRendererTests
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains(ForbiddenRoomLoopName, StringComparison.Ordinal));
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains(ForbiddenMatchLoopHostName, StringComparison.Ordinal));
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("IGameSessionLifecycleHandler", StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains(ForbiddenContractAttribute, StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains(ForbiddenChatRoomContractInterface, StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Files, file => file.Content.Contains(ForbiddenStableActorRefsProperty, StringComparison.Ordinal));
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("ChatSessionLifecycleBridge", StringComparison.Ordinal));
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("ChatHotfixRuntimeEvents", StringComparison.Ordinal));
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("EndpointName", StringComparison.Ordinal));
