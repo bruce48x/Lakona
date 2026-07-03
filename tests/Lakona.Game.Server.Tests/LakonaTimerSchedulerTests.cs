@@ -3,6 +3,7 @@ using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Timers;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -508,6 +509,25 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         var stopException = await Record.ExceptionAsync(() => stopTask);
 
         Assert.Null(stopException);
+    }
+
+    [Fact]
+    public async Task Dispose_after_stop_is_idempotent()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var services = new ServiceCollection()
+            .AddLogging()
+            .AddLakonaTimers()
+            .BuildServiceProvider();
+        var hosted = services
+            .GetServices<IHostedService>()
+            .Single(service => service is LakonaTimerScheduler);
+
+        await hosted.StartAsync(cancellationToken);
+        await hosted.StopAsync(cancellationToken);
+        var exception = await Record.ExceptionAsync(async () => await services.DisposeAsync());
+
+        Assert.Null(exception);
     }
 
     [Fact]

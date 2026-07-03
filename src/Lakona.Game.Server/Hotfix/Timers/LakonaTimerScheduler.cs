@@ -15,6 +15,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
     private readonly LakonaTimerCallbackResolver callbackResolver;
     private readonly LakonaTimerArgsSerializer argsSerializer;
     private readonly object gate = new();
+    private readonly object lifecycleGate = new();
     private readonly Dictionary<TimerId, LakonaTimerRegistration> registrations = [];
     private readonly PriorityQueue<LakonaTimerHeapEntry, long> heap = new();
     private readonly SemaphoreSlim wakeSignal = new(0);
@@ -23,7 +24,9 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
     private readonly List<Task> workers = [];
     private ILakonaTimerBackend? timerBackend;
     private Task? loopTask;
+    private Task? stopTask;
     private bool started;
+    private bool disposed;
 
     public LakonaTimerScheduler(
         IHotfixRuntimeAccessor? runtimeAccessor,
@@ -84,17 +87,21 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
     public Task StartAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (started)
+        lock (lifecycleGate)
         {
-            return Task.CompletedTask;
-        }
+            ObjectDisposedException.ThrowIf(disposed, this);
+            if (started)
+            {
+                return Task.CompletedTask;
+            }
 
-        started = true;
-        LoopCount++;
-        loopTask = RunLoopAsync(stopping.Token);
-        for (var index = 0; index < options.MaxConcurrentCallbacks; index++)
-        {
-            workers.Add(RunWorkerAsync(stopping.Token));
+            started = true;
+            LoopCount++;
+            loopTask = RunLoopAsync(stopping.Token);
+            for (var index = 0; index < options.MaxConcurrentCallbacks; index++)
+            {
+                workers.Add(RunWorkerAsync(stopping.Token));
+            }
         }
 
         Signal();
@@ -103,26 +110,48 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        if (!started)
+        Task currentStopTask;
+        lock (lifecycleGate)
         {
-            return;
+            if (!started)
+            {
+                return;
+            }
+
+            stopTask ??= StopCoreAsync();
+            currentStopTask = stopTask;
         }
 
+        await currentStopTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task StopCoreAsync()
+    {
         CancelSchedulerStop();
         Signal();
         dispatches.Writer.TryComplete();
         Task[] tasks = loopTask is null ? workers.ToArray() : workers.Append(loopTask).ToArray();
         try
         {
-            await Task.WhenAll(tasks).WaitAsync(cancellationToken).ConfigureAwait(false);
+            await Task.WhenAll(tasks).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (stopping.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (stopping.IsCancellationRequested)
         {
         }
     }
 
     public async ValueTask DisposeAsync()
     {
+        lock (lifecycleGate)
+        {
+            if (disposed)
+            {
+                return;
+            }
+
+            disposed = true;
+        }
+
         try
         {
             await StopAsync(CancellationToken.None).ConfigureAwait(false);
@@ -136,6 +165,16 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
 
     public void Dispose()
     {
+        lock (lifecycleGate)
+        {
+            if (disposed)
+            {
+                return;
+            }
+
+            disposed = true;
+        }
+
         try
         {
             StopAsync(CancellationToken.None).GetAwaiter().GetResult();
