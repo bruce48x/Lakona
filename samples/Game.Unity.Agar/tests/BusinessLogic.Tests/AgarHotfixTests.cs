@@ -15,6 +15,7 @@ using Shared.Gameplay;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
 using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Sessions;
@@ -129,10 +130,10 @@ public sealed class AgarHotfixTests
             new StateStoreUserActorPlacementClient(provider),
             provider.GetServices<IClusterNodeDiscovery>(),
             provider.GetRequiredService<ILogger<LoginService>>());
-        var call = new HotfixServiceCall<LoginRequest, IControlCallback>(
+        var call = new HotfixServiceCall<LoginRequest, ILoginCallback>(
             new LoginRequest { GuestLogin = true },
             "control-connection-1",
-            new CapturingControlCallback(),
+            new CapturingLoginCallback(),
             provider,
             actors,
             new TestGameServer());
@@ -157,8 +158,6 @@ public sealed class AgarHotfixTests
     [Fact]
     public async Task Leaderboard_query_uses_existing_global_leaderboard_actor()
     {
-        await TestHotfix.LoadCurrentAsync(TestContext.Current.CancellationToken);
-
         var stateStoreNodes = new[]
         {
             StateStoreNode("state-b", "tcp://127.0.0.1:22002"),
@@ -187,7 +186,7 @@ public sealed class AgarHotfixTests
                     RpcServices = ["login", "player"]
                 }
             ],
-            Feature = []
+            Feature = ["state-store"]
         });
         services.AddSingleton<IClusterNodeDiscovery>(new FixedClusterNodeDiscovery(stateStoreNodes));
         services.AddSingleton<IFeatureCommandClient>(featureCommands);
@@ -205,23 +204,18 @@ public sealed class AgarHotfixTests
         await provider.GetRequiredService<IActorDirectory>()
             .RegisterAsync(ActorId.From("current"), expectedOwner.Node, TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
-        var service = new PlayerService(
-            provider.GetRequiredService<UserActors>(),
-            provider.GetRequiredService<RoomActors>(),
-            provider.GetRequiredService<MatchmakingActors>(),
-            provider.GetRequiredService<LeaderboardActors>(),
-            provider.GetRequiredService<MatchmakingNotifier>(),
-            provider.GetRequiredService<LocalActorNodeIdentity>(),
-            provider.GetRequiredService<ILogger<PlayerService>>());
-        var call = new HotfixServiceCall<LeaderboardRequest>(
+        var hotfixServices = await TestHotfix.LoadCurrentAsync(provider, TestContext.Current.CancellationToken);
+        var call = new HotfixServiceCall<LeaderboardRequest, IPlayerCallback>(
             new LeaderboardRequest { TopN = 5 },
             "control-connection-1",
+            new CapturingPlayerCallback(),
             new GameSessionKey("player-1", "session-1", 1),
-            provider,
+            hotfixServices,
             actors,
             new TestGameServer());
 
-        var reply = await service.GetLeaderboardAsync(call);
+        var reply = await HotfixDispatch.Current
+            .InvokeServiceAsync<IPlayerService, HotfixServiceCall<LeaderboardRequest, IPlayerCallback>, LeaderboardReply>(4, call);
 
         Assert.Equal(0, reply.Code);
         Assert.Null(featureCommands.LastTarget);
@@ -652,7 +646,14 @@ public sealed class AgarHotfixTests
         }
     }
 
-    private sealed class CapturingControlCallback : IControlCallback
+    private sealed class CapturingLoginCallback : ILoginCallback
+    {
+        public void OnPlaceHolder(MatchmakingStatusUpdate matchmakingStatus)
+        {
+        }
+    }
+
+    private sealed class CapturingPlayerCallback : IPlayerCallback
     {
         public void OnMatchmakingStatus(MatchmakingStatusUpdate matchmakingStatus)
         {

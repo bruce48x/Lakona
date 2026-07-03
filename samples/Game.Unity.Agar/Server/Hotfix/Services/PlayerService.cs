@@ -15,6 +15,7 @@ using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.Logging;
+using Server.Hotfix;
 using Server.Hotfix.Services;
 using Server.Hotfix.State.Leaderboard;
 using Server.Hotfix.State.Matchmaking;
@@ -56,10 +57,9 @@ public sealed class PlayerService
     public async ValueTask<LeaderboardReply> GetLeaderboardAsync(HotfixServiceCall<LeaderboardRequest, IPlayerCallback> call)
     {
         var req = call.Request;
-        _ = await EnsureControlConnectionAsync(call).ConfigureAwait(false);
 
         var topN = req.TopN <= 0 ? 10 : req.TopN;
-        var leaderboardId = new LeaderboardId("current");
+        var leaderboardId = new LeaderboardId(AgarHotfixIds.GlobalLeaderboardActorId);
         var snapshot = await _leaderboards
             .Get(leaderboardId)
             .GetLeaderboardAsync(new LeaderboardQueryRequest { TopN = topN })

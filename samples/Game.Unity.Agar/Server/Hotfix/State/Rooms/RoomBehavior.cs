@@ -10,6 +10,7 @@ using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
+using Server.Hotfix;
 using Server.Hotfix.Gameplay;
 using Server.Hotfix.Services;
 using Shared.Gameplay;
@@ -491,7 +492,7 @@ public static partial class RoomBehavior
                 .GetProfileAsync(new UserProfileRequest())
                 .ConfigureAwait(false);
             await leaderboards
-                .Get(new LeaderboardId("current"))
+                .Get(new LeaderboardId(AgarHotfixIds.GlobalLeaderboardActorId))
                 .RecordVictoryPointsAsync(new LeaderboardVictoryPointsRequest
                     {
                         PlayerId = entry.PlayerId,

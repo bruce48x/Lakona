@@ -10,11 +10,12 @@ public sealed class RpcContractSplitTests
     [Fact]
     public void SharedContractsExposeSeparateLoginPlayerAndBattleServices()
     {
-        AssertRpcService(typeof(ILoginService), 1, typeof(IControlCallback));
-        AssertRpcService(typeof(IPlayerService), 2, notificationContract: null);
+        AssertRpcService(typeof(ILoginService), 1, typeof(ILoginCallback));
+        AssertRpcService(typeof(IPlayerService), 2, typeof(IPlayerCallback));
         AssertRpcService(typeof(IBattleService), 3, typeof(IBattleCallback));
 
-        AssertRpcNotification(typeof(IControlCallback), typeof(ILoginService));
+        AssertRpcNotification(typeof(ILoginCallback), typeof(ILoginService));
+        AssertRpcNotification(typeof(IPlayerCallback), typeof(IPlayerService));
         AssertRpcNotification(typeof(IBattleCallback), typeof(IBattleService));
 
         Assert.Equal(
@@ -33,7 +34,7 @@ public sealed class RpcContractSplitTests
     {
         var sharedAssembly = typeof(ILoginService).Assembly;
 
-        Assert.Null(sharedAssembly.GetType("Shared.Interfaces." + "IPlayer" + "Callback"));
+        Assert.Null(sharedAssembly.GetType("Shared.Interfaces." + "IControl" + "Callback"));
         Assert.DoesNotContain("Bind" + "ControlAsync", File.ReadAllText(SharedContractPath()), StringComparison.Ordinal);
     }
 

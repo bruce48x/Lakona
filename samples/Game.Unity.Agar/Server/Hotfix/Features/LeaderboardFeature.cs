@@ -2,13 +2,13 @@ using Agar.Sample.State.Leaderboard;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
+using Server.Hotfix;
 
 namespace Server.Hotfix.Features;
 
 [HotfixFeature("leaderboard")]
 public sealed class LeaderboardFeature : HotfixGameFeature
 {
-    private const string LeaderboardActorId = "current";
     private const string LeaderboardActorStateKey = "LeaderboardActorId";
 
     public static void Configure(HotfixFeatureContext context)
@@ -19,9 +19,9 @@ public sealed class LeaderboardFeature : HotfixGameFeature
     {
         await call.Services
             .GetRequiredService<ActorHosting>()
-            .CreateAsync<LeaderboardActor>(ActorId.From(LeaderboardActorId), call.CancellationToken)
+            .CreateAsync<LeaderboardActor>(ActorId.From(AgarHotfixIds.GlobalLeaderboardActorId), call.CancellationToken)
             .ConfigureAwait(false);
-        call.State.Items[LeaderboardActorStateKey] = LeaderboardActorId;
+        call.State.Items[LeaderboardActorStateKey] = AgarHotfixIds.GlobalLeaderboardActorId;
     }
 
     public static async ValueTask StopAsync(HotfixFeatureStopCall call)

@@ -22,7 +22,7 @@ public sealed class RemoteNotificationRelayExampleTests
         var gatewayPort = GetFreePort();
         var gatewaySessions = new InMemoryGameSessionRegistry();
         var session = await gatewaySessions.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
-        var callback = new CapturingControlCallback();
+        var callback = new CapturingPlayerCallback();
         await gatewaySessions.BindSessionAsync(session, "control-1", callback, TestContext.Current.CancellationToken);
         using var stopGateway = new CancellationTokenSource();
         var builder = RpcServerHostBuilder.Create()
@@ -59,7 +59,7 @@ public sealed class RemoteNotificationRelayExampleTests
 
         var status = await notifications
             .ForSession(session)
-            .NotifyAsync<IControlCallback>(
+            .NotifyAsync<IPlayerCallback>(
                 target =>
                 {
                     target.OnMatchmakingStatus(update);
@@ -149,7 +149,7 @@ public sealed class RemoteNotificationRelayExampleTests
 
         var status = await notifications
             .ForSession(session)
-            .NotifyAsync<IControlCallback>(
+            .NotifyAsync<IPlayerCallback>(
                 callback =>
                 {
                     callback.OnMatchmakingStatus(new MatchmakingStatusUpdate());
@@ -184,7 +184,7 @@ public sealed class RemoteNotificationRelayExampleTests
 
         var status = await notifications
             .ForSession(session)
-            .NotifyAsync<IControlCallback>(
+            .NotifyAsync<IPlayerCallback>(
                 callback =>
                 {
                     callback.OnMatchmakingStatus(new MatchmakingStatusUpdate());
@@ -230,7 +230,7 @@ public sealed class RemoteNotificationRelayExampleTests
 
         var status = await notifications
             .ForSession(session)
-            .NotifyAsync<IControlCallback>(
+            .NotifyAsync<IPlayerCallback>(
                 callback =>
                 {
                     callback.OnMatchmakingStatus(new MatchmakingStatusUpdate());
@@ -253,7 +253,7 @@ public sealed class RemoteNotificationRelayExampleTests
             new JsonRpcSerializer());
         var dispatcher = new ClusterClientNotificationDispatcher(clientFactory);
         var session = new GameSessionKey("player-1", "session-a", 1);
-        var command = ClientNotificationCommandFactory.Create<IControlCallback>(
+        var command = ClientNotificationCommandFactory.Create<IPlayerCallback>(
             session,
             callback => callback.OnMatchmakingStatus(new MatchmakingStatusUpdate()));
 
@@ -270,7 +270,7 @@ public sealed class RemoteNotificationRelayExampleTests
         Assert.Equal(ClientNotificationStatus.Failed, status);
     }
 
-    private sealed class CapturingControlCallback : IControlCallback
+    private sealed class CapturingPlayerCallback : IPlayerCallback
     {
         public MatchmakingStatusUpdate? LastMatchmakingStatus { get; private set; }
 

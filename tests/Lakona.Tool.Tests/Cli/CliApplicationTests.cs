@@ -14,7 +14,7 @@ public sealed class CliApplicationTests
         var exitCode = await app.RunAsync(["version"]);
 
         Assert.Equal(0, exitCode);
-        Assert.Equal(["0.15.0"], terminal.Output);
+        Assert.Equal([ToolVersion.Current], terminal.Output);
         Assert.Empty(terminal.Errors);
     }
 
@@ -28,7 +28,7 @@ public sealed class CliApplicationTests
 
         Assert.Equal(0, exitCode);
         var output = string.Join('\n', terminal.Output);
-        Assert.Contains("Lakona.Tool 0.15.0", output, StringComparison.Ordinal);
+        Assert.Contains($"Lakona.Tool {ToolVersion.Current}", output, StringComparison.Ordinal);
         Assert.Contains("lakona-tool version", output, StringComparison.Ordinal);
         Assert.Empty(terminal.Errors);
     }

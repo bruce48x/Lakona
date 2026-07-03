@@ -140,6 +140,15 @@ public sealed class ZeroTemplateServerShapeTests
         Assert.Empty(Directory.GetFiles(ServerApp, "appsettings.*.json"));
     }
 
+    [Fact]
+    public void Readme_build_commands_refresh_hotfix_output_before_running_server()
+    {
+        var readme = File.ReadAllText(Path.Combine(Root, "samples", "Game.Unity.Agar", "README.md"));
+
+        Assert.Contains("dotnet build Server/Hotfix/Server.Hotfix.csproj", readme, StringComparison.Ordinal);
+        Assert.DoesNotContain("dotnet build Server/App/Server.App.csproj\ndotnet build Server/App/Server.App.csproj", readme, StringComparison.Ordinal);
+    }
+
     private static string FindRepoRoot()
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);

@@ -36,13 +36,20 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 
         ## Build And Run
 
-        Build the generated server first, then run the check command to print the derived
-        Lakona runtime state. After the check succeeds, run the server normally.
+        Build the generated server first, refresh the development hotfix output, then
+        run the check command to print the derived Lakona runtime state. After the check
+        succeeds, run the server normally.
 
         Build the generated server:
 
         ```powershell
         dotnet build "Server/Server.slnx"
+        ```
+
+        Refresh the development hotfix output after changing `Shared/` or `Server/Hotfix/`:
+
+        ```powershell
+        dotnet build "Server/Hotfix/Server.Hotfix.csproj"
         ```
 
         Check the generated server:

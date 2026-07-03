@@ -175,9 +175,13 @@ bootstrap，不是生产运行建议。已有旧本地 Postgres volume 的开发
 ```powershell
 dotnet build Shared/Shared.csproj -f net10.0
 dotnet build Server/App/Server.App.csproj
-dotnet build Server/App/Server.App.csproj
+dotnet build Server/Hotfix/Server.Hotfix.csproj
 dotnet test tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj
 ```
+
+`Server/Hotfix` 构建会把 `Server.Hotfix.dll`、PDB 和 deps 文件复制到
+`Server/App/bin/<Configuration>/net10.0/hotfix/`，并最后写入 `reload.signal`。
+如果只重新构建或运行 `Server/App`，运行中的服务可能仍然加载旧的 hotfix 快照。
 
 ### Core Runtime Model
 

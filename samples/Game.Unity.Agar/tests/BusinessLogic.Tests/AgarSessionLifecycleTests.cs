@@ -69,7 +69,7 @@ public sealed class AgarSessionLifecycleTests
                 SessionId = "control-session",
                 Generation = 1,
                 ConnectionId = "control-1",
-                CallbackContractTypeNames = [typeof(IControlCallback).FullName!]
+                CallbackContractTypeNames = [typeof(ILoginCallback).FullName!]
             },
             "control-1",
             provider,
@@ -233,7 +233,7 @@ public sealed class AgarSessionLifecycleTests
                 SessionId = "control-session-old",
                 Generation = 1,
                 ConnectionId = "control-old",
-                CallbackContractTypeNames = [typeof(IControlCallback).FullName!]
+                CallbackContractTypeNames = [typeof(ILoginCallback).FullName!]
             },
             "control-old",
             provider,

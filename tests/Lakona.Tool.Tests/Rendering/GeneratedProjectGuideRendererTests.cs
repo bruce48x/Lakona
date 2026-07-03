@@ -239,11 +239,14 @@ public sealed class GeneratedProjectGuideRendererTests
         var plan = builder.Build();
         var readme = Assert.Single(plan.Files, file => file.RelativePath == "README.md");
         var buildIndex = readme.Content.IndexOf("dotnet build \"Server/Server.slnx\"", StringComparison.Ordinal);
+        var hotfixBuildIndex = readme.Content.IndexOf("dotnet build \"Server/Hotfix/Server.Hotfix.csproj\"", StringComparison.Ordinal);
         var readinessIndex = readme.Content.IndexOf("--readiness-check", StringComparison.Ordinal);
 
         Assert.True(buildIndex >= 0, "Expected the generated README to include a server build command.");
+        Assert.True(hotfixBuildIndex >= 0, "Expected the generated README to include an explicit hotfix build command.");
         Assert.True(readinessIndex >= 0, "Expected the generated README to include a readiness-check command.");
         Assert.True(buildIndex < readinessIndex, "Expected the generated README to build before readiness-check.");
+        Assert.True(hotfixBuildIndex < readinessIndex, "Expected the generated README to build hotfix output before readiness-check.");
     }
 
     private static LakonaProjectSpec Spec(ClientEngine engine, TransportKind transport,
