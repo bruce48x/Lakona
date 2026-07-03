@@ -1,7 +1,11 @@
+using System.Xml.Linq;
+
 namespace Lakona.RepositoryGuards.Tests.PackageVersions;
 
 internal static class GitChangeSetReader
 {
+    private const string ToolProjectPath = "src/Lakona.Tool/Lakona.Tool.csproj";
+
     public static string FindRepositoryRoot()
     {
         var directory = AppContext.BaseDirectory;
@@ -24,14 +28,96 @@ internal static class GitChangeSetReader
             return ReadExplicit(repositoryRoot, @base!, head!);
 
         var status = GitRunner.Run(repositoryRoot, "status", "--porcelain", "--untracked-files=all");
-        if (!string.IsNullOrWhiteSpace(status))
-            return ReadExplicit(repositoryRoot, "HEAD", "WORKTREE");
+        var defaultHead = string.IsNullOrWhiteSpace(status) ? "HEAD" : "WORKTREE";
+        var defaultBase = ResolveToolVersionAnchorBase(repositoryRoot, defaultHead);
+        return ReadExplicit(repositoryRoot, defaultBase, defaultHead);
+    }
 
-        var mergeBase = GitRunner.Run(repositoryRoot, "merge-base", "HEAD", "origin/main").Trim();
-        if (mergeBase.Length == 0)
-            throw new InvalidOperationException("Could not resolve package version guard base. Set LAKONA_VERSION_GUARD_BASE and LAKONA_VERSION_GUARD_HEAD.");
+    private static string ResolveToolVersionAnchorBase(string repositoryRoot, string head)
+    {
+        var commits = GitRunner.Run(repositoryRoot, "log", "--format=%H", "--", ToolProjectPath)
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-        return ReadExplicit(repositoryRoot, mergeBase, "HEAD");
+        var anchors = new List<ToolVersionAnchor>();
+        foreach (var commit in commits)
+        {
+            var parents = GitRunner.Run(repositoryRoot, "rev-list", "--parents", "-n", "1", commit)
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (parents.Length < 2)
+                continue;
+
+            var parent = parents[1];
+            var currentVersion = ReadToolVersionAtRef(repositoryRoot, commit);
+            var parentVersion = ReadToolVersionAtRef(repositoryRoot, parent);
+            if (!string.IsNullOrWhiteSpace(currentVersion) &&
+                !string.Equals(currentVersion, parentVersion, StringComparison.Ordinal))
+            {
+                anchors.Add(new ToolVersionAnchor(commit, parent));
+            }
+        }
+
+        if (anchors.Count > 0)
+        {
+            var latest = anchors[0];
+            if (HasPackageRelevantChangesAfter(repositoryRoot, latest.Commit, head))
+                return latest.Commit;
+
+            return anchors.Count > 1 ? anchors[1].Commit : latest.Parent;
+        }
+
+        throw new InvalidOperationException("Could not resolve package version guard base from Lakona.Tool version history. Set LAKONA_VERSION_GUARD_BASE and LAKONA_VERSION_GUARD_HEAD.");
+    }
+
+    private static bool HasPackageRelevantChangesAfter(string repositoryRoot, string @base, string head)
+    {
+        return ReadChangedRelativePaths(repositoryRoot, @base, head)
+            .Any(IsPackageRelevantPath);
+    }
+
+    private static IReadOnlyList<string> ReadChangedRelativePaths(string repositoryRoot, string @base, string head)
+    {
+        var diffHead = string.Equals(head, "WORKTREE", StringComparison.Ordinal) ? string.Empty : head;
+        var diffOutput = diffHead.Length == 0
+            ? GitRunner.Run(repositoryRoot, "diff", "--name-only", @base)
+            : GitRunner.Run(repositoryRoot, "diff", "--name-only", @base, diffHead);
+        var untrackedOutput = diffHead.Length == 0
+            ? GitRunner.Run(repositoryRoot, "ls-files", "--others", "--exclude-standard")
+            : string.Empty;
+
+        return diffOutput
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Concat(untrackedOutput.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private static bool IsPackageRelevantPath(string path)
+    {
+        var normalized = path.Replace('\\', '/');
+        var fileName = Path.GetFileName(normalized);
+        return normalized.StartsWith("src/", StringComparison.Ordinal) ||
+               fileName is "Directory.Build.props" or "Directory.Build.targets" or "global.json" ||
+               normalized.Contains("/build/", StringComparison.OrdinalIgnoreCase) && (normalized.EndsWith(".props", StringComparison.OrdinalIgnoreCase) || normalized.EndsWith(".targets", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string? ReadToolVersionAtRef(string repositoryRoot, string gitRef)
+    {
+        string xml;
+        try
+        {
+            xml = GitRunner.Run(repositoryRoot, "show", $"{gitRef}:{ToolProjectPath}");
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+
+        var document = XDocument.Parse(xml);
+        return document.Root?
+            .Elements("PropertyGroup")
+            .Elements("Version")
+            .Select(element => element.Value.Trim())
+            .FirstOrDefault(value => value.Length > 0);
     }
 
     private static GitChangeSet ReadExplicit(string repositoryRoot, string @base, string head)
@@ -59,4 +145,6 @@ internal static class GitChangeSetReader
     {
         return value.Length >= 40 && value.All(character => character == '0');
     }
+
+    private sealed record ToolVersionAnchor(string Commit, string Parent);
 }

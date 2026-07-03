@@ -1,6 +1,6 @@
 # Package Version Graph Guard
 
-Status: proposed design
+Status: active policy
 Date: 2026-07-03
 Audience: maintainers and release automation contributors
 
@@ -125,13 +125,26 @@ The guard compares two Git trees:
 - `base`: the selected comparison base.
 - `head`: the commit or working tree being validated.
 
-Recommended defaults:
+Default base/head resolution:
 
-- CI push: use the GitHub push event `before` SHA as `base` and `HEAD` as
-  `head`.
-- CI pull request: use `git merge-base HEAD origin/main` as `base`.
-- Local check: accept explicit `--base <ref>` and default to
-  `git merge-base HEAD origin/main` when available.
+- If explicit `LAKONA_VERSION_GUARD_BASE` and `LAKONA_VERSION_GUARD_HEAD`
+  overrides are present, use them.
+- Otherwise find the most recent commit where
+  `src/Lakona.Tool/Lakona.Tool.csproj` changed its `<Version>` value.
+- If package-relevant changes exist after that latest Tool version anchor, use
+  the latest Tool version anchor commit as `base`.
+- If no package-relevant changes exist after the latest Tool version anchor,
+  use the previous Tool version anchor commit as `base`, falling back to the
+  latest anchor's first parent when there is no previous anchor.
+- Use `HEAD` as `head` for a clean working tree.
+- Use the working tree as `head` when tracked or untracked local changes are
+  present.
+
+This keeps package-only changes after a completed Tool release anchored after
+that historical Tool bump, so a missing new Tool bump is still reported. When
+the latest Tool bump is the current release boundary, the guard falls back to
+the previous Tool anchor so the current Tool bump and the package changes that
+caused it stay in the same comparison range.
 
 For each package node:
 
@@ -178,6 +191,11 @@ failures = all nodes in required where versionChanged is false
 The transitive walk is required. If `B` changes, `A -> B` must bump. Once `A`
 bumps, `C -> A` must also bump so `C`'s `.nuspec` points at the new `A`
 version.
+
+`Lakona.Tool` is the repository release anchor. If any package in the required
+set other than `Lakona.Tool` changes, `Lakona.Tool` must also change version.
+This keeps generated project package constants aligned with each repository
+release and gives the guard a stable local comparison anchor for the next run.
 
 The guard should report all failures in one run. A failure message should show:
 
@@ -240,8 +258,9 @@ Required shape:
 tests/Lakona.RepositoryGuards.Tests/
   Lakona.RepositoryGuards.Tests.csproj
   PackageVersions/
-    PackageVersionGraphGuardTests.cs
-    PackageVersionGraph.cs
+    PackageVersionGraphFixtureTests.cs
+    PackageVersionGraphRepositoryTests.cs
+    PackageGraph.cs
     PackageProjectReader.cs
     GitChangeSetReader.cs
 scripts/nuget/check-package-version-graph.ps1
@@ -289,13 +308,14 @@ Input overrides:
 Default behavior:
 
 1. If both overrides are present, use them.
-2. If the working tree has tracked changes, use `HEAD` as base and the working
-   tree as head. This makes ordinary uncommitted local development checks
-   cheap and useful.
-3. If the working tree is clean and `origin/main` is available, use
-   `git merge-base HEAD origin/main` as base and `HEAD` as head.
-4. If no reliable base can be resolved, fail with an actionable message telling
-   the developer to set `LAKONA_VERSION_GUARD_BASE`.
+2. Resolve the latest committed `Lakona.Tool.csproj` `<Version>` change.
+3. If package-relevant changes exist after that latest Tool anchor, use the
+   latest Tool anchor commit as `base`; otherwise use the previous Tool anchor,
+   falling back to the latest anchor's first parent when needed.
+4. If the working tree has tracked or untracked changes, use the working tree
+   as head; otherwise use `HEAD`.
+5. If no reliable Tool version anchor can be resolved, fail with an actionable
+   message telling the developer to set `LAKONA_VERSION_GUARD_BASE`.
 
 The guard should print the resolved base/head at the start of the test output.
 It must not skip silently.
@@ -306,7 +326,7 @@ Prefer a small repository-guard test project plus a thin script wrapper:
 
 ```txt
 scripts/nuget/check-package-version-graph.ps1
-tests/Lakona.RepositoryGuards.Tests/PackageVersions/PackageVersionGraphGuardTests.cs
+tests/Lakona.RepositoryGuards.Tests/PackageVersions/PackageVersionGraphRepositoryTests.cs
 ```
 
 The test project owns the algorithm and repository integration:
@@ -332,7 +352,7 @@ Keep tests fixture-based. Do not hard-code real package versions such as
 The script wrapper should only set environment variables and run:
 
 ```powershell
-dotnet test tests/Lakona.RepositoryGuards.Tests/Lakona.RepositoryGuards.Tests.csproj --filter PackageVersionGraphGuardTests
+dotnet test tests/Lakona.RepositoryGuards.Tests/Lakona.RepositoryGuards.Tests.csproj --filter PackageVersionGraph
 ```
 
 ## CI Integration
@@ -346,28 +366,20 @@ Add a dedicated step before packing NuGet packages:
     fetch-depth: 0
 
 - name: Check package version graph
-  env:
-    LAKONA_VERSION_GUARD_BASE: ${{ github.event.before }}
-    LAKONA_VERSION_GUARD_HEAD: HEAD
-  run: dotnet test tests/Lakona.RepositoryGuards.Tests/Lakona.RepositoryGuards.Tests.csproj --no-build -c Release --filter PackageVersionGraphGuardTests
+  run: dotnet test tests/Lakona.RepositoryGuards.Tests/Lakona.RepositoryGuards.Tests.csproj --no-build -c Release --filter PackageVersionGraph
 ```
 
 The publish workflow should fail before `dotnet pack` if a required package
 version bump is missing. This preserves `--skip-duplicate` behavior while
 preventing stale dependency metadata from being generated in the first place.
 
-The checkout step must fetch enough history for the selected base and head to
-exist locally. A shallow checkout is not sufficient for `github.event.before`
-or `git merge-base` based analysis.
+The checkout step must fetch enough history for the latest `Lakona.Tool`
+version change and its parent to exist locally. A shallow checkout is not
+sufficient for the default anchor-based analysis.
 
-Base selection rules:
-
-- `push`: pass `${{ github.event.before }}` as `--base` and `HEAD` as
-  `--head`.
-- `pull_request`: fetch `origin/main`, compute `git merge-base HEAD
-  origin/main`, and pass that merge-base as `--base`.
-- `workflow_dispatch`: require an explicit `baseRef` input, or fetch
-  `origin/main` and use `git merge-base HEAD origin/main`.
+CI should normally rely on the default Tool anchor. Explicit base/head
+overrides are reserved for maintainer diagnostics and unusual repository
+history repairs.
 
 The test should print the resolved base and head before analysis. The wrapper
 script may be used locally, but CI should call the test project directly after

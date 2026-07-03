@@ -2,11 +2,6 @@ name: Publish NuGet
 
 on:
   workflow_dispatch:
-    inputs:
-      baseRef:
-        description: "Git ref used as the package version graph comparison base"
-        required: false
-        type: string
   push:
     branches:
       - main
@@ -58,9 +53,6 @@ jobs:
           done < <(find tests -name "*.csproj" -print | sort)
 
       - name: Check package version graph
-        env:
-          LAKONA_VERSION_GUARD_BASE: ${{ github.event_name == 'workflow_dispatch' && inputs.baseRef || github.event.before }}
-          LAKONA_VERSION_GUARD_HEAD: HEAD
         run: dotnet test tests/Lakona.RepositoryGuards.Tests/Lakona.RepositoryGuards.Tests.csproj --no-build -c Release --filter PackageVersionGraph
 
       - name: Pack NuGet packages
