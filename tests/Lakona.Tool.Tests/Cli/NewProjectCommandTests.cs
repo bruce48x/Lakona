@@ -89,10 +89,47 @@ public sealed class NewProjectCommandTests
         }
     }
 
+    [Fact]
+    public async Task RunAsync_TuanjieClient_PrintsTuanjieOpenStep()
+    {
+        var outputRoot = Path.Combine(Path.GetTempPath(), "lakona-new-command-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(outputRoot);
+        try
+        {
+            var terminal = new FakeTerminal([], isInputRedirected: true);
+            var command = CreateCommand(
+                terminal,
+                ToolText.ForCulture(System.Globalization.CultureInfo.GetCultureInfo("zh-CN")));
+
+            var exitCode = await command.RunAsync(
+                [
+                    "--name", "MyGame",
+                    "--output", outputRoot,
+                    "--client-engine", "tuanjie",
+                    "--transport", "kcp",
+                    "--serializer", "memorypack"
+                ],
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(0, exitCode);
+            Assert.Contains(terminal.Output, line => line.Contains("用团结引擎打开 Client/ (团结 1.6.7)", StringComparison.Ordinal));
+            Assert.DoesNotContain(terminal.Output, line => line.Contains("Unity Hub", StringComparison.Ordinal));
+        }
+        finally
+        {
+            Directory.Delete(outputRoot, recursive: true);
+        }
+    }
+
     private static NewProjectCommand CreateCommand(ICliTerminal terminal)
     {
+        return CreateCommand(terminal, ToolText.ForCulture(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    private static NewProjectCommand CreateCommand(ICliTerminal terminal, ToolText text)
+    {
         return new NewProjectCommand(
-            new NewProjectPrompter(ToolText.ForCulture(System.Globalization.CultureInfo.InvariantCulture), terminal),
+            new NewProjectPrompter(text, terminal),
             new LakonaProjectSpecFactory(),
             new LakonaProjectGenerator(
                 new LakonaProjectPlanBuilder(
@@ -105,9 +142,9 @@ public sealed class NewProjectCommandTests
                         new GeneratedProjectGuideRenderer()
                     ],
                     [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
-                new GenerationExecutor(new TransactionalOutputWriter(ToolText.ForCulture(System.Globalization.CultureInfo.InvariantCulture))),
+                new GenerationExecutor(new TransactionalOutputWriter(text)),
                 new GitInitializer(new GitUnavailableRunner())),
-            ToolText.ForCulture(System.Globalization.CultureInfo.InvariantCulture),
+            text,
             terminal);
     }
 

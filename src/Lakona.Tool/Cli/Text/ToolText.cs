@@ -1,4 +1,5 @@
 using System.Globalization;
+using Lakona.Tool.Domain;
 
 internal enum ToolLanguage
 {
@@ -54,11 +55,11 @@ internal sealed class ToolText
         _ => "Run `lakona-tool help` for usage."
     };
 
-    public string HelpText => Language switch
+    public string HelpText(string version) => Language switch
     {
         ToolLanguage.SimplifiedChinese =>
-            """
-            Lakona.Tool
+            $$"""
+            Lakona.Tool {{version}}
 
             命令:
               lakona-tool new
@@ -70,12 +71,15 @@ internal sealed class ToolText
               lakona-tool server pack --runtime linux-x64 [--configuration Release] [--output artifacts/server]
                   打包自包含服务端 zip，并内置初始热更版本。
 
+              lakona-tool version
+                  显示版本号。
+
               lakona-tool help
                   显示此帮助。
             """,
         ToolLanguage.TraditionalChinese =>
-            """
-            Lakona.Tool
+            $$"""
+            Lakona.Tool {{version}}
 
             命令:
               lakona-tool new
@@ -87,12 +91,15 @@ internal sealed class ToolText
               lakona-tool server pack --runtime linux-x64 [--configuration Release] [--output artifacts/server]
                   打包自包含伺服器 zip，並內建初始熱更版本。
 
+              lakona-tool version
+                  顯示版本號。
+
               lakona-tool help
                   顯示此幫助。
             """,
         _ =>
-            """
-            Lakona.Tool
+            $$"""
+            Lakona.Tool {{version}}
 
             Commands:
               lakona-tool new
@@ -103,6 +110,9 @@ internal sealed class ToolText
 
               lakona-tool server pack --runtime linux-x64 [--configuration Release] [--output artifacts/server]
                   Package a self-contained server zip with an installed initial hotfix version.
+
+              lakona-tool version
+                  Show the version number.
 
               lakona-tool help
                   Show this help.
@@ -266,22 +276,29 @@ internal sealed class ToolText
     {
         var isGodot = string.Equals(clientEngine, "godot", StringComparison.OrdinalIgnoreCase);
         var isConsole = string.Equals(clientEngine, "console", StringComparison.OrdinalIgnoreCase);
+        var isTuanjie = string.Equals(clientEngine, "tuanjie", StringComparison.OrdinalIgnoreCase);
         return Language switch
         {
             ToolLanguage.SimplifiedChinese => isConsole
                 ? "  5) dotnet run --project \"Client/Client.csproj\" -- smoke"
                 : isGodot
                 ? "  5) 在 Godot Engine 中打开 Client/"
+                : isTuanjie
+                ? $"  5) 用团结引擎打开 Client/ (团结 {ClientEngineVersions.Tuanjie})"
                 : "  5) 在 Unity Hub 中打开 Client/（Unity 2022 LTS）",
             ToolLanguage.TraditionalChinese => isConsole
                 ? "  5) dotnet run --project \"Client/Client.csproj\" -- smoke"
                 : isGodot
                 ? "  5) 在 Godot Engine 中開啟 Client/"
+                : isTuanjie
+                ? $"  5) 用團結引擎開啟 Client/ (團結 {ClientEngineVersions.Tuanjie})"
                 : "  5) 在 Unity Hub 中開啟 Client/（Unity 2022 LTS）",
             _ => isConsole
                 ? "  5) dotnet run --project \"Client/Client.csproj\" -- smoke"
                 : isGodot
                 ? "  5) Open Client/ in Godot Engine"
+                : isTuanjie
+                ? $"  5) Open Client/ in Tuanjie Engine (Tuanjie {ClientEngineVersions.Tuanjie})"
                 : "  5) Open Client/ in Unity Hub (Unity 2022 LTS)"
         };
     }

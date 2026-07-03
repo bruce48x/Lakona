@@ -37,6 +37,7 @@ internal sealed class CliApplication
             return args[0] switch
             {
                 "help" or "--help" or "-h" => HelpResult(),
+                "version" or "--version" => VersionResult(),
                 "new" or "init" => await NewAsync(args.Skip(1).ToArray()).ConfigureAwait(false),
                 "hotfix" => await new HotfixCommand(terminal).RunAsync(args.Skip(1).ToArray(), CancellationToken.None).ConfigureAwait(false),
                 "server" => await new ServerCommand(terminal).RunAsync(args.Skip(1).ToArray(), CancellationToken.None).ConfigureAwait(false),
@@ -54,6 +55,12 @@ internal sealed class CliApplication
     private int HelpResult()
     {
         PrintHelp();
+        return 0;
+    }
+
+    private int VersionResult()
+    {
+        terminal.WriteLine(ToolVersion.Current);
         return 0;
     }
 
@@ -94,7 +101,7 @@ internal sealed class CliApplication
 
     private void PrintHelp()
     {
-        Console.WriteLine(text.HelpText);
+        terminal.WriteLine(text.HelpText(ToolVersion.Current));
     }
 
 }

@@ -22,6 +22,17 @@ public sealed class ClientRendererTests
     }
 
     [Fact]
+    public void UnityClientRenderer_TuanjieProjectVersion_UsesDefaultTuanjieVersion()
+    {
+        var plan = Render(new UnityClientRenderer(), Spec(ClientEngine.Tuanjie, NuGetForUnitySource.Embedded));
+        var projectVersion = AssertPath(plan, "Client/ProjectSettings/ProjectVersion.txt").Content;
+
+        Assert.Contains("m_EditorVersion: 2022.3.61t11", projectVersion, StringComparison.Ordinal);
+        Assert.Contains("m_TuanjieEditorVersion: 1.6.7", projectVersion, StringComparison.Ordinal);
+        Assert.DoesNotContain("m_TuanjieEditorVersion: 1.6.10", projectVersion, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void UnityClientRenderer_NuGetConfig_EmitsNuGetForUnityRestoreSettings()
     {
         var plan = Render(new UnityClientRenderer(), Spec(ClientEngine.Unity));

@@ -75,7 +75,7 @@ internal sealed class UnityClientRenderer : IClientRenderer
     {
         return engine switch
         {
-            ClientEngine.Tuanjie => "m_EditorVersion: 2022.3.61t11\nm_TuanjieEditorVersion: 1.6.10",
+            ClientEngine.Tuanjie => $"m_EditorVersion: {ClientEngineVersions.TuanjieUnityEditor}\nm_TuanjieEditorVersion: {ClientEngineVersions.Tuanjie}",
             ClientEngine.UnityCn => "m_EditorVersion: 2022.3.62f3c1",
             _ => "m_EditorVersion: 2022.3.62f1"
         };
