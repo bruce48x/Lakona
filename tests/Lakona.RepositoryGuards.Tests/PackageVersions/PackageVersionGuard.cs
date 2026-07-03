@@ -8,7 +8,6 @@ internal static class PackageVersionGuard
         IReadOnlyCollection<string> changedPaths)
     {
         var baseByPath = baseProjects.ToDictionary(project => project.ProjectPath, StringComparer.Ordinal);
-        var headByPath = headProjects.ToDictionary(project => project.ProjectPath, StringComparer.Ordinal);
         var graph = PackageGraph.Create(headProjects);
         var required = new HashSet<string>(StringComparer.Ordinal);
         var reasons = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -56,6 +55,9 @@ internal static class PackageVersionGuard
         if (changedPaths.Any(IsRepositoryLevelBuildInput))
             return true;
 
+        if (HasPackedInputChange(project, changedPaths))
+            return true;
+
         var directory = Path.GetDirectoryName(project.ProjectPath)!.Replace('\\', '/').TrimEnd('/') + "/";
         return changedPaths.Any(path => PackageProjectReader.NormalizePath(path).StartsWith(directory, StringComparison.Ordinal));
     }
@@ -68,11 +70,13 @@ internal static class PackageVersionGuard
         if (VersionChanged(project, baseByPath))
             return true;
 
-        if (changedPaths.Any(IsRepositoryLevelBuildInput))
-            return true;
+        return HasDirectContentChange(project, changedPaths);
+    }
 
-        var directory = Path.GetDirectoryName(project.ProjectPath)!.Replace('\\', '/').TrimEnd('/') + "/";
-        return changedPaths.Any(path => PackageProjectReader.NormalizePath(path).StartsWith(directory, StringComparison.Ordinal));
+    private static bool HasPackedInputChange(PackageProject project, IReadOnlyCollection<string> changedPaths)
+    {
+        return project.PackedInputPaths.Any(input =>
+            changedPaths.Any(path => string.Equals(PackageProjectReader.NormalizePath(path), input, StringComparison.Ordinal)));
     }
 
     private static bool IsRepositoryLevelBuildInput(string path)

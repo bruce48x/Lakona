@@ -177,6 +177,46 @@ public sealed class PackageVersionGraphFixtureTests
     }
 
     [Fact]
+    public void PackageVersionGuard_DoesNotRequireBumpWhenDependencyUnchanged()
+    {
+        var baseProjects = new[]
+        {
+            Project("src/A/A.csproj", "A", "1.0.0", "src/B/B.csproj"),
+            Project("src/B/B.csproj", "B", "1.0.0")
+        };
+        var headProjects = new[]
+        {
+            Project("src/A/A.csproj", "A", "1.0.0", "src/B/B.csproj"),
+            Project("src/B/B.csproj", "B", "1.0.0")
+        };
+
+        var result = PackageVersionGuard.Evaluate(
+            baseProjects,
+            headProjects,
+            changedPaths: [PackageProjectReader.NormalizePath("src/Unrelated/Unrelated.cs")]);
+
+        Assert.Empty(result.Failures);
+    }
+
+    [Fact]
+    public void PackageVersionGuard_RequiresBumpWhenLinkedPackedInputChanges()
+    {
+        var sharedPath = PackageProjectReader.NormalizePath("src/Shared.cs");
+        var baseProjects = new[]
+        {
+            ProjectWithPackedInputs("src/A/A.csproj", "A", "1.0.0", sharedPath)
+        };
+        var headProjects = new[]
+        {
+            ProjectWithPackedInputs("src/A/A.csproj", "A", "1.0.0", sharedPath)
+        };
+
+        var result = PackageVersionGuard.Evaluate(baseProjects, headProjects, changedPaths: [sharedPath]);
+
+        Assert.Contains(result.Failures, failure => failure.PackageId == "A");
+    }
+
+    [Fact]
     public void PackageProjectReader_IgnoresSuppressedProjectReferences()
     {
         using var fixture = FixtureRepository.Create();
@@ -234,6 +274,21 @@ public sealed class PackageVersionGraphFixtureTests
             [],
             versionSources.Select(PackageProjectReader.NormalizePath).ToArray(),
             []);
+    }
+
+    private static PackageProject ProjectWithPackedInputs(
+        string path,
+        string packageId,
+        string version,
+        params string[] packedInputs)
+    {
+        return new PackageProject(
+            PackageProjectReader.NormalizePath(path),
+            packageId,
+            version,
+            [],
+            [],
+            packedInputs.Select(PackageProjectReader.NormalizePath).ToArray());
     }
 
     private sealed class FixtureRepository : IDisposable
