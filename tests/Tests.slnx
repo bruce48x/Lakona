@@ -12,4 +12,5 @@
   <Project Path="Lakona.Rpc.Tests/Lakona.Rpc.Tests.csproj" />
   <Project Path="Lakona.Rpc.Transport.Tests/Lakona.Rpc.Transport.Tests.csproj" />
   <Project Path="Lakona.Tool.Tests/Lakona.Tool.Tests.csproj" />
+  <Project Path="Lakona.RepositoryGuards.Tests/Lakona.RepositoryGuards.Tests.csproj" />
 </Solution>

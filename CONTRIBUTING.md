@@ -63,6 +63,13 @@ dotnet build Lakona.slnx
 dotnet test Lakona.slnx --no-build
 ```
 
+Run the package version graph guard before publishing-impacting changes are
+considered complete:
+
+```powershell
+pwsh -NoProfile -File scripts/nuget/check-package-version-graph.ps1
+```
+
 AI agents running in network-restricted sandboxes should request the
 environment's external-network or escalated permission on the first attempt for
 .NET commands that may restore packages or contact NuGet. This applies to
