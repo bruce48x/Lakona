@@ -16,6 +16,7 @@ internal sealed class PackageCatalog
     public string LakonaGameCluster => global::ToolPackageVersions.LakonaGameCluster;
     public string LakonaGameClusterRpc => global::ToolPackageVersions.LakonaGameClusterRpc;
     public string LakonaGameServerHotfix => global::ToolPackageVersions.LakonaGameServerHotfix;
+    public string LakonaGameServerHotfixAbstractions => global::ToolPackageVersions.LakonaGameServerHotfixAbstractions;
     public string LakonaGameServerHotfixGenerators => global::ToolPackageVersions.LakonaGameServerHotfixGenerators;
     public string LakonaRpcCore => global::ToolPackageVersions.LakonaRpcCore;
     public string LakonaRpcServer => global::ToolPackageVersions.LakonaRpcServer;

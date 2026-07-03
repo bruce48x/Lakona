@@ -58,6 +58,7 @@ internal static class DependencyPlanner
             Sdk("Microsoft.Extensions.Hosting", catalog.MicrosoftExtensionsHosting),
             Sdk("Lakona.Game.Server", catalog.LakonaGameServer),
             Sdk("Lakona.Game.Server.Hotfix", catalog.LakonaGameServerHotfix),
+            Sdk("Lakona.Game.Server.Hotfix.Abstractions", catalog.LakonaGameServerHotfixAbstractions),
             Sdk("Lakona.Game.Server.Hotfix.Generators", catalog.LakonaGameServerHotfixGenerators, privateAssets: "all", outputItemType: "Analyzer"),
             Sdk("Lakona.Rpc.Server", catalog.LakonaRpcServer),
             Sdk("Lakona.Rpc.Analyzers", catalog.LakonaRpcAnalyzers, privateAssets: "all", includeAssets: AnalyzerIncludeAssets),

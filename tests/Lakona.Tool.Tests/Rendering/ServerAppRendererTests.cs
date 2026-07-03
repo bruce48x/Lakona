@@ -44,6 +44,7 @@ public sealed class ServerAppRendererTests
         Assert.DoesNotContain("<PackageReference Include=\"Lakona.Rpc.Transport.WebSocket\"", project, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona.Rpc.Serializer.MemoryPack", project, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona.Rpc.Serializer.Json", project, StringComparison.Ordinal);
+        Assert.Contains("<PackageReference Include=\"Lakona.Game.Server.Hotfix.Abstractions\"", project, StringComparison.Ordinal);
 
         var program = AssertPath(plan, "Server/App/Program.cs").Content;
         Assert.Equal("using Lakona.Game.Server.Hosting;\n\nreturn await LakonaGameServer.RunAsync(args);", program);
