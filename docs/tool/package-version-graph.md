@@ -1,0 +1,386 @@
+# Package Version Graph Guard
+
+Status: proposed design
+Date: 2026-07-03
+Audience: maintainers and release automation contributors
+
+## Purpose
+
+Lakona packages are published from a monorepo, but NuGet packages are immutable
+once a `PackageId` + `Version` pair exists. If a package dependency changes and
+the consuming package keeps the same version, a later publish with
+`--skip-duplicate` cannot repair the already-published consumer package. Users
+then restore stale dependency metadata even though the source tree looks
+correct.
+
+This document defines a local, graph-based version guard. It detects when a
+package or generated-template dependency edge changed and requires every
+affected published package to receive a new version. It intentionally does not
+query nuget.org or compare against already-published remote packages.
+
+## Non-Goals
+
+- Detecting or repairing already-published bad packages.
+- Deciding semantic version numbers or major/minor/patch policy.
+- Replacing focused API or runtime compatibility tests.
+- Requiring every downstream application to upgrade all packages together.
+- Inferring external package compatibility from NuGet ranges.
+
+## Problem Model
+
+`dotnet pack` converts most `ProjectReference` edges between packable projects
+into package dependencies in the generated `.nuspec`.
+
+For example:
+
+```txt
+Lakona.Game.Server.Hotfix -> Lakona.Game.Server.Hotfix.Abstractions
+Lakona.Game.Server        -> Lakona.Game.Server.Hotfix
+Lakona.Tool               -> generated starter package versions
+```
+
+If `Lakona.Game.Server.Hotfix.Abstractions` changes from version `X` to `Y`,
+then `Lakona.Game.Server.Hotfix` must publish a new version so its `.nuspec`
+depends on `Y`. If `Lakona.Game.Server.Hotfix` publishes a new version, then
+`Lakona.Game.Server` must also publish a new version so its `.nuspec` depends
+on the new `Hotfix` package. If generated projects embed `Game.Server` or
+`Hotfix` versions, `Lakona.Tool` must also publish a new version.
+
+The required behavior is not specific to Hotfix packages. It applies to every
+packable package dependency chain in `src/**`.
+
+## Definitions
+
+- **Package node**: a `src/**.csproj` with a `PackageId` and a package version,
+  unless explicitly marked non-packable with `IsPackable=false`.
+- **Artifact dependency edge**: a dependency from package node `A` to package
+  node `B` that can appear in `A`'s generated package metadata.
+- **Version-source edge**: a dependency from package node `A` to package node
+  `B` where `A` embeds `B`'s package version into generated code, templates, or
+  other packed content.
+- **Changed package artifact**: a package node whose packed source/content or
+  package version changed between the selected Git base and head.
+- **Required bump**: a package node that must change its `<Version>` because
+  its own packed artifact changed or because an upstream dependency node
+  changed.
+
+## Graph Construction
+
+The guard builds a directed graph from current source files:
+
+```txt
+consumer package -> dependency package
+```
+
+### Package Nodes
+
+Scan `src/**/*.csproj`. A project is a package node when all are true:
+
+- It has `PackageId`.
+- It has `Version`.
+- `IsPackable` is not `false`.
+
+`PackAsTool=true` projects are normal package nodes.
+
+### Artifact Dependency Edges
+
+For each package node, parse `ProjectReference` items. If the referenced project
+is also a package node, add an artifact dependency edge unless the reference is
+explicitly configured as a non-package implementation detail.
+
+Initial suppression rule:
+
+- Ignore a `ProjectReference` only when it has both
+  `ReferenceOutputAssembly="false"` and `PrivateAssets="all"`.
+
+This keeps the first implementation simple and conservative. If future projects
+need a non-packaging reference that does not match this rule, add an explicit
+metadata marker instead of special-casing package names.
+
+### Version-Source Edges
+
+Some package metadata changes are not `ProjectReference` edges. The current
+important case is `Lakona.Tool`, whose build target reads runtime package
+versions through `XmlPeek` and writes `ToolPackageVersions.g.cs`.
+
+The guard should discover these edges by parsing package project files for
+`XmlPeek` tasks whose `Query` is `/Project/PropertyGroup/Version/text()` and
+whose `XmlInputPath` resolves to another package node. Every matching task in a
+packable project is a version-source edge unless it is explicitly suppressed by
+future metadata. Do not attempt general MSBuild property dataflow analysis.
+
+For `Lakona.Tool`, each such input project is a version-source edge:
+
+```txt
+Lakona.Tool -> package read by GenerateToolPackageVersions
+```
+
+The rule is intentionally structural: the edge comes from the project file, not
+from a hard-coded package allowlist.
+
+## Change Detection
+
+The guard compares two Git trees:
+
+- `base`: the selected comparison base.
+- `head`: the commit or working tree being validated.
+
+Recommended defaults:
+
+- CI push: use the GitHub push event `before` SHA as `base` and `HEAD` as
+  `head`.
+- CI pull request: use `git merge-base HEAD origin/main` as `base`.
+- Local check: accept explicit `--base <ref>` and default to
+  `git merge-base HEAD origin/main` when available.
+
+For each package node:
+
+1. Read current and base `<Version>`.
+2. Detect whether any file that can affect the packed artifact changed.
+3. Mark `versionChanged` when the `<Version>` value differs.
+4. Mark `artifactChanged` when packed inputs changed or `versionChanged` is
+   true.
+
+Packed input detection should start conservative:
+
+- Include files under the package project directory.
+- Include files linked into the project with `Compile Include`, `None Include`,
+  `EmbeddedResource Include`, or equivalent packable item metadata.
+- Include repository-level build inputs that can affect all package outputs:
+  `Directory.Build.props`, `Directory.Build.targets`, `global.json`, and shared
+  imported `.props` or `.targets` files under repository-owned build paths.
+- Exclude `bin/**`, `obj/**`, editor caches, and generated build outputs.
+- Exclude test projects and docs outside the package directory unless the
+  package explicitly packs them.
+
+## Required Bump Algorithm
+
+The algorithm computes required version bumps from changed package artifacts and
+the reverse dependency graph.
+
+```txt
+required = empty set
+work = all package nodes where artifactChanged is true
+
+for each node in work:
+  add node to required
+
+while work is not empty:
+  changed = pop(work)
+  for each consumer in reverseEdges[changed]:
+    if consumer not in required:
+      add consumer to required
+      push consumer into work
+
+failures = all nodes in required where versionChanged is false
+```
+
+The transitive walk is required. If `B` changes, `A -> B` must bump. Once `A`
+bumps, `C -> A` must also bump so `C`'s `.nuspec` points at the new `A`
+version.
+
+The guard should report all failures in one run. A failure message should show:
+
+- the package that must bump,
+- the changed dependency path that forced the bump,
+- the current version,
+- the file or dependency edge that changed.
+
+Example shape:
+
+```txt
+Lakona.Game.Server must bump because:
+  Lakona.Game.Server -> Lakona.Game.Server.Hotfix -> Lakona.Game.Server.Hotfix.Abstractions
+  Lakona.Game.Server.Hotfix.Abstractions changed version from <old> to <new>.
+Current Lakona.Game.Server version is unchanged at <current>.
+```
+
+## Expected Behavior
+
+### Runtime Package Change
+
+If `Lakona.Rpc.Core` source changes and its version changes, every packable
+package that directly or transitively depends on `Lakona.Rpc.Core` through
+artifact dependency edges must also change version.
+
+### Hotfix Abstractions Change
+
+If `Lakona.Game.Server.Hotfix.Abstractions` changes version, the guard follows:
+
+```txt
+Lakona.Game.Server.Hotfix
+Lakona.Game.Server
+Lakona.Tool
+```
+
+`Lakona.Tool` is reached through the generated version-source edges, not through
+a hard-coded Hotfix rule.
+
+### Tool Template Version Change
+
+If a runtime package version changes and `Lakona.Tool` embeds that version into
+generated starter projects, `Lakona.Tool` must change version even if no
+`src/Lakona.Tool/**/*.cs` file changed.
+
+### Isolated Tool Code Change
+
+If only `src/Lakona.Tool` implementation changes, only `Lakona.Tool` is
+required to bump unless other graph edges or packed inputs changed.
+
+## Execution Model
+
+This guard should not be a standalone PowerShell implementation with ad hoc XML
+parsing. It should be a non-packable .NET repository-guard test project that is
+included in the normal test solution, with a thin script wrapper only for
+explicit local or CI invocation.
+
+Required shape:
+
+```txt
+tests/Lakona.RepositoryGuards.Tests/
+  Lakona.RepositoryGuards.Tests.csproj
+  PackageVersions/
+    PackageVersionGraphGuardTests.cs
+    PackageVersionGraph.cs
+    PackageProjectReader.cs
+    GitChangeSetReader.cs
+scripts/nuget/check-package-version-graph.ps1
+```
+
+Why this shape:
+
+- It runs automatically during `dotnet test Lakona.slnx` and
+  `dotnet test tests/Tests.slnx`.
+- It stays cross-platform and uses normal .NET XML/path handling.
+- The graph algorithm can have fast fixture tests without shelling out to Git.
+- The repository integration test can shell out to Git once, then run the
+  in-memory graph algorithm.
+- The PowerShell script is a convenience entry point, not the source of truth.
+
+The guard must be fast enough to run on every development finish pass:
+
+- It must not restore, build, pack, or query NuGet.
+- It should read only project files, relevant repository metadata, and `git
+  diff --name-only` output.
+- Its expected cost is proportional to package projects plus dependency edges
+  plus changed paths.
+- For the current repository size, the target runtime is under one second after
+  the test assembly is loaded.
+
+The guard must be precise enough that maintainers do not learn to ignore it:
+
+- It should report all missing version bumps in one failure.
+- It should show the dependency path that forced each bump.
+- It should fail when the comparison base cannot be resolved instead of
+  silently skipping.
+- It should use explicit suppressions for known structural exceptions rather
+  than package-name special cases.
+
+## Local Base Resolution
+
+The test project should resolve base/head the same way whether invoked through
+`dotnet test` or the wrapper script.
+
+Input overrides:
+
+- `LAKONA_VERSION_GUARD_BASE`
+- `LAKONA_VERSION_GUARD_HEAD`
+
+Default behavior:
+
+1. If both overrides are present, use them.
+2. If the working tree has tracked changes, use `HEAD` as base and the working
+   tree as head. This makes ordinary uncommitted local development checks
+   cheap and useful.
+3. If the working tree is clean and `origin/main` is available, use
+   `git merge-base HEAD origin/main` as base and `HEAD` as head.
+4. If no reliable base can be resolved, fail with an actionable message telling
+   the developer to set `LAKONA_VERSION_GUARD_BASE`.
+
+The guard should print the resolved base/head at the start of the test output.
+It must not skip silently.
+
+## Implementation Plan Shape
+
+Prefer a small repository-guard test project plus a thin script wrapper:
+
+```txt
+scripts/nuget/check-package-version-graph.ps1
+tests/Lakona.RepositoryGuards.Tests/PackageVersions/PackageVersionGraphGuardTests.cs
+```
+
+The test project owns the algorithm and repository integration:
+
+- parse current and base project files,
+- run Git diff commands,
+- build graph edges,
+- print actionable failures,
+- fail the test on missing bumps.
+
+The tests own parser and algorithm behavior with small fixture graphs:
+
+- direct dependency bump,
+- transitive dependency bump,
+- version-source edge bump,
+- unchanged dependency does not force bump,
+- non-packable project is ignored,
+- suppressed project reference is ignored.
+
+Keep tests fixture-based. Do not hard-code real package versions such as
+`0.2.9`, `0.3.13`, or `0.15.2` into algorithm tests.
+
+The script wrapper should only set environment variables and run:
+
+```powershell
+dotnet test tests/Lakona.RepositoryGuards.Tests/Lakona.RepositoryGuards.Tests.csproj --filter PackageVersionGraphGuardTests
+```
+
+## CI Integration
+
+Add a dedicated step before packing NuGet packages:
+
+```yaml
+- name: Checkout
+  uses: actions/checkout@v5
+  with:
+    fetch-depth: 0
+
+- name: Check package version graph
+  env:
+    LAKONA_VERSION_GUARD_BASE: ${{ github.event.before }}
+    LAKONA_VERSION_GUARD_HEAD: HEAD
+  run: dotnet test tests/Lakona.RepositoryGuards.Tests/Lakona.RepositoryGuards.Tests.csproj --no-build -c Release --filter PackageVersionGraphGuardTests
+```
+
+The publish workflow should fail before `dotnet pack` if a required package
+version bump is missing. This preserves `--skip-duplicate` behavior while
+preventing stale dependency metadata from being generated in the first place.
+
+The checkout step must fetch enough history for the selected base and head to
+exist locally. A shallow checkout is not sufficient for `github.event.before`
+or `git merge-base` based analysis.
+
+Base selection rules:
+
+- `push`: pass `${{ github.event.before }}` as `--base` and `HEAD` as
+  `--head`.
+- `pull_request`: fetch `origin/main`, compute `git merge-base HEAD
+  origin/main`, and pass that merge-base as `--base`.
+- `workflow_dispatch`: require an explicit `baseRef` input, or fetch
+  `origin/main` and use `git merge-base HEAD origin/main`.
+
+The test should print the resolved base and head before analysis. The wrapper
+script may be used locally, but CI should call the test project directly after
+the repository build/test restore step has already made test dependencies
+available.
+
+## Maintenance Rules
+
+- Do not encode accident-specific package IDs or version thresholds.
+- Treat new packable projects as graph nodes automatically.
+- Treat new `ProjectReference` edges between package nodes as dependency edges
+  automatically.
+- Add explicit edge metadata only for structural exceptions.
+- Keep failure output concrete enough that a maintainer knows exactly which
+  package version must change and why.
+- Keep online NuGet metadata comparison as a separate future guard if needed.

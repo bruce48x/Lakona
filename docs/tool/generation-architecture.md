@@ -365,6 +365,9 @@ internal enum ProjectTarget
 
 `PackageCatalog` owns package versions. It keeps MSBuild-generated Lakona
 package versions and external dependency versions in one typed catalog.
+Package version changes that flow through generated starter projects are covered
+by the graph-based release guard in
+[Package Version Graph Guard](./package-version-graph.md).
 
 Rules:
 
