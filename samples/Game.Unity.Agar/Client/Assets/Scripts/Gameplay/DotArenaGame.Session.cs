@@ -20,8 +20,8 @@ namespace SampleClient.Gameplay
 
             _flowState = FrontendFlowState.Entry;
             _entryMenuState = EntryMenuState.MultiplayerAuth;
-            _status = $"正在连接 {Rpc.WebSocketRpcClientFactory.BuildUrl(_host, _port, _path)}";
-            _eventMessage = "正在登录联机账号";
+            _status = $"Connecting to {Rpc.WebSocketRpcClientFactory.BuildUrl(_host, _port, _path)}";
+            _eventMessage = "Signing in to multiplayer";
             _multiplayerState.SessionController.MarkConnecting();
 
             try
@@ -33,8 +33,8 @@ namespace SampleClient.Gameplay
                     _multiplayerState.ClearAuthenticatedProfile();
                     _multiplayerState.ClearSession();
                     _localMatch = null;
-                    _status = $"登录失败, code={reply.Code}";
-                    _eventMessage = "登录失败，请检查账号或密码";
+                    _status = $"Login failed, code={reply.Code}";
+                    _eventMessage = "Login failed. Check account or password";
                     return;
                 }
 
@@ -45,17 +45,17 @@ namespace SampleClient.Gameplay
                 _ = RefreshLeaderboardAsync();
                 _flowState = FrontendFlowState.Entry;
                 _entryMenuState = EntryMenuState.MultiplayerLobby;
-                _status = $"联机大厅: {_localPlayerId}";
-                _eventMessage = "登录成功，可点击开始匹配进入队列";
+                _status = $"Multiplayer lobby: {_localPlayerId}";
+                _eventMessage = "Login succeeded. Start matchmaking to enter the queue";
                 Debug.Log($"[DotArena] Connected as {_localPlayerId} -> {Rpc.WebSocketRpcClientFactory.BuildUrl(_host, _port, _path)}");
-                PushEvent("登录成功，可在联机大厅开始匹配");
+                PushEvent("Login succeeded. Start matchmaking from the multiplayer lobby");
             }
             catch (OperationCanceledException)
             {
                 _flowState = FrontendFlowState.Entry;
                 _entryMenuState = EntryMenuState.MultiplayerAuth;
-                _status = "连接已取消";
-                _eventMessage = "登录已取消";
+                _status = "Connection canceled";
+                _eventMessage = "Login canceled";
             }
             catch (Exception ex)
             {
@@ -87,8 +87,8 @@ namespace SampleClient.Gameplay
 
             _flowState = FrontendFlowState.Entry;
             _entryMenuState = EntryMenuState.MultiplayerAuth;
-            _status = $"正在连接 {Rpc.WebSocketRpcClientFactory.BuildUrl(_host, _port, _path)}";
-            _eventMessage = "正在申请游客账号";
+            _status = $"Connecting to {Rpc.WebSocketRpcClientFactory.BuildUrl(_host, _port, _path)}";
+            _eventMessage = "Requesting guest account";
             _multiplayerState.SessionController.MarkConnecting();
 
             try
@@ -100,8 +100,8 @@ namespace SampleClient.Gameplay
                     _multiplayerState.ClearAuthenticatedProfile();
                     _multiplayerState.ClearSession();
                     _localMatch = null;
-                    _status = $"游客登录失败, code={reply.Code}";
-                    _eventMessage = "无法申请游客账号，请稍后重试";
+                    _status = $"Guest login failed, code={reply.Code}";
+                    _eventMessage = "Could not request guest account. Try again later";
                     return;
                 }
 
@@ -114,17 +114,17 @@ namespace SampleClient.Gameplay
                 _ = RefreshLeaderboardAsync();
                 _flowState = FrontendFlowState.Entry;
                 _entryMenuState = EntryMenuState.MultiplayerLobby;
-                _status = $"联机大厅: {_localPlayerId}";
-                _eventMessage = "游客登录成功，可点击开始匹配进入队列";
+                _status = $"Multiplayer lobby: {_localPlayerId}";
+                _eventMessage = "Guest login succeeded. Start matchmaking to enter the queue";
                 Debug.Log($"[DotArena] Connected as guest {_localPlayerId} -> {Rpc.WebSocketRpcClientFactory.BuildUrl(_host, _port, _path)}");
-                PushEvent("游客登录成功，可在联机大厅开始匹配");
+                PushEvent("Guest login succeeded. Start matchmaking from the multiplayer lobby");
             }
             catch (OperationCanceledException)
             {
                 _flowState = FrontendFlowState.Entry;
                 _entryMenuState = EntryMenuState.MultiplayerAuth;
-                _status = "连接已取消";
-                _eventMessage = "游客登录已取消";
+                _status = "Connection canceled";
+                _eventMessage = "Guest login canceled";
             }
             catch (Exception ex)
             {
@@ -166,9 +166,9 @@ namespace SampleClient.Gameplay
             _controlReconnectInProgress = true;
             _multiplayerState.SessionController.MarkReconnecting();
             _status = string.IsNullOrWhiteSpace(disconnectMessage)
-                ? "主连接已断开，正在重连"
-                : $"主连接已断开，正在重连: {disconnectMessage}";
-            _eventMessage = "正在恢复联机主连接";
+                ? "Control connection lost, reconnecting"
+                : $"Control connection lost, reconnecting: {disconnectMessage}";
+            _eventMessage = "Restoring multiplayer control connection";
             _ = ReconnectControlAsync();
         }
 
@@ -181,8 +181,8 @@ namespace SampleClient.Gameplay
             {
                 for (var attempt = 1; attempt <= maxAttempts && !_cts.IsCancellationRequested; attempt++)
                 {
-                    _status = $"主连接重连中 ({attempt}/{maxAttempts})";
-                    _eventMessage = "正在恢复联机主连接";
+                    _status = $"Control reconnecting ({attempt}/{maxAttempts})";
+                    _eventMessage = "Restoring multiplayer control connection";
 
                     try
                     {
@@ -204,9 +204,9 @@ namespace SampleClient.Gameplay
                             EnsureMetaState(_localPlayerId);
                             _ = RefreshLeaderboardAsync();
                             _status = _flowState == FrontendFlowState.InMatch
-                                ? $"对局中: {_localPlayerId}"
-                                : $"联机大厅: {_localPlayerId}";
-                            _eventMessage = "主连接已恢复";
+                                ? $"In match: {_localPlayerId}"
+                                : $"Multiplayer lobby: {_localPlayerId}";
+                            _eventMessage = "Control connection restored";
 
                             if (_lastRealtimeConnection != null && !NetworkSession.IsRealtimeConnected)
                             {
@@ -218,9 +218,9 @@ namespace SampleClient.Gameplay
 
                         if (reply.Code == LoginResultCodes.ReconnectStateLost)
                         {
-                            _status = "联机状态已过期，正在重新登录";
+                            _status = "Multiplayer state expired, signing in again";
                             _eventMessage = string.IsNullOrWhiteSpace(reply.Message)
-                                ? "服务端会话已失效，正在启动新的连接"
+                                ? "Server session expired, starting a new connection"
                                 : reply.Message;
                             await StartNewConnectionAfterStateLostAsync().ConfigureAwait(false);
                             return;
@@ -247,8 +247,8 @@ namespace SampleClient.Gameplay
             }
 
             ResetToModeSelect(
-                status: string.IsNullOrWhiteSpace(lastError) ? "主连接重连失败" : $"主连接重连失败: {lastError}",
-                eventMessage: "联机连接已断开，请重新登录",
+                status: string.IsNullOrWhiteSpace(lastError) ? "Control reconnect failed" : $"Control reconnect failed: {lastError}",
+                eventMessage: "Multiplayer connection disconnected. Log in again",
                 toastMessage: null);
         }
 
@@ -298,8 +298,8 @@ namespace SampleClient.Gameplay
             _localMatch = null;
             _flowState = FrontendFlowState.Settlement;
             _entryMenuState = EntryMenuState.Hidden;
-            _status = "对局结束";
-            _eventMessage = "查看结算后可再来一局或返回大厅。";
+            _status = "Match finished";
+            _eventMessage = "Review the results, then play again or return to the lobby.";
 
             if (preserveLoginState)
             {
@@ -315,7 +315,7 @@ namespace SampleClient.Gameplay
 
             _settlementSummary = new MatchSettlementSummary
             {
-                Title = preserveLoginState ? "联机结算" : "单机结算",
+                Title = preserveLoginState ? "Multiplayer results" : "Single-player results",
                 Detail = DotArenaUiTextComposer.BuildSettlementDetail(sessionMode, localMass, _localWinCount, winnerPlayerId, localPlayerWon, _currentArenaMapVariant, _currentArenaRuleVariant),
                 RewardSummary = DotArenaUiTextComposer.BuildSettlementRewardSummary(sessionMode, _lastRewardSummary),
                 TaskSummary = DotArenaUiTextComposer.BuildSettlementTaskSummary(_metaState),
@@ -403,8 +403,8 @@ namespace SampleClient.Gameplay
                     await NetworkSession.DisposeRealtimeAsync().ConfigureAwait(false);
                     _multiplayerState.LastRealtimeConnection = null;
                     await NetworkSession.CancelMatchmakingAsync(_cts.Token).ConfigureAwait(false);
-                    _status = "正在取消匹配";
-                    _eventMessage = "等待服务器确认取消";
+                    _status = "Canceling matchmaking";
+                    _eventMessage = "Waiting for server cancellation confirmation";
                 }
                 catch (OperationCanceledException)
                 {
@@ -415,8 +415,8 @@ namespace SampleClient.Gameplay
                     _pendingUiRequest = PendingUiRequest.None;
                     _flowState = FrontendFlowState.Matchmaking;
                     _entryMenuState = EntryMenuState.Hidden;
-                    _status = $"取消匹配失败: {ex.Message}";
-                    _eventMessage = "取消匹配失败，请重试";
+                    _status = $"Cancel matchmaking failed: {ex.Message}";
+                    _eventMessage = "Cancel matchmaking failed. Try again";
                 }
 
                 return;
@@ -437,16 +437,16 @@ namespace SampleClient.Gameplay
                 _sessionMode = SessionMode.Multiplayer;
                 _localPlayerId = authenticatedProfile.PlayerId;
                 _entryMenuState = EntryMenuState.MultiplayerLobby;
-                _status = $"联机大厅: {authenticatedProfile.PlayerId}";
-                _eventMessage = "已返回联机大厅";
+                _status = $"Multiplayer lobby: {authenticatedProfile.PlayerId}";
+                _eventMessage = "Returned to multiplayer lobby";
             }
             else
             {
                 _multiplayerState.ClearAuthenticatedProfile();
                 _multiplayerState.ClearSession();
                 _entryMenuState = EntryMenuState.ModeSelect;
-                _status = "选择模式";
-                _eventMessage = "请选择单机或联机";
+                _status = "Select mode";
+                _eventMessage = "Choose single-player or multiplayer";
             }
         }
 
@@ -502,8 +502,8 @@ namespace SampleClient.Gameplay
             {
                 _flowState = FrontendFlowState.Entry;
                 _entryMenuState = EntryMenuState.MultiplayerAuth;
-                _status = "请先登录联机账号";
-                _eventMessage = "输入账号密码后进入联机大厅";
+                _status = "Log in to multiplayer first";
+                _eventMessage = "Enter account and password to enter the multiplayer lobby";
                 return;
             }
 
@@ -527,8 +527,8 @@ namespace SampleClient.Gameplay
             _localMatch = null;
             _flowState = FrontendFlowState.Matchmaking;
             _entryMenuState = EntryMenuState.Hidden;
-            _status = $"排队中: {_localPlayerId}";
-            _eventMessage = "正在请求服务器分房";
+            _status = $"Queued: {_localPlayerId}";
+            _eventMessage = "Requesting a room from the server";
             _settlementSummary = null;
             _matchmakingStartedAt = Time.time;
 
@@ -547,8 +547,8 @@ namespace SampleClient.Gameplay
                 _matchmakingStartedAt = -1f;
                 _flowState = FrontendFlowState.Entry;
                 _entryMenuState = EntryMenuState.MultiplayerLobby;
-                _status = $"开始匹配失败: {ex.Message}";
-                _eventMessage = "无法开始匹配";
+                _status = $"Start matchmaking failed: {ex.Message}";
+                _eventMessage = "Unable to start matchmaking";
             }
         }
 
@@ -563,8 +563,8 @@ namespace SampleClient.Gameplay
         {
             _flowState = FrontendFlowState.Entry;
             _entryMenuState = EntryMenuState.ModeSelect;
-            _status = "选择模式";
-            _eventMessage = "请选择单机或联机";
+            _status = "Select mode";
+            _eventMessage = "Choose single-player or multiplayer";
         }
 
         private string GetMenuLoginStatusText()
@@ -599,8 +599,8 @@ namespace SampleClient.Gameplay
                 _localPlayerId = authenticatedProfile.PlayerId;
                 _localMatch = null;
                 _entryMenuState = EntryMenuState.MultiplayerLobby;
-                _status = $"联机大厅: {authenticatedProfile.PlayerId}";
-                _eventMessage = "已返回联机大厅";
+                _status = $"Multiplayer lobby: {authenticatedProfile.PlayerId}";
+                _eventMessage = "Returned to multiplayer lobby";
                 return;
             }
 
@@ -610,8 +610,8 @@ namespace SampleClient.Gameplay
             _requestedSinglePlayerMode = SinglePlayerMode.Normal;
             _currentSinglePlayerMode = SinglePlayerMode.Normal;
             _entryMenuState = EntryMenuState.ModeSelect;
-            _status = "选择模式";
-            _eventMessage = "请选择单机或联机";
+            _status = "Select mode";
+            _eventMessage = "Choose single-player or multiplayer";
         }
 
         private void ResetToModeSelect(string status, string eventMessage, string? toastMessage, bool resetSessionState = true)

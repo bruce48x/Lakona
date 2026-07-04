@@ -11,9 +11,9 @@ namespace SampleClient.Gameplay.Tests
     public sealed class DotArenaSceneUiPrefabTests
     {
         private const string SceneUiPrefabPath = "Assets/Prefabs/UI/SceneUI.prefab";
-        private const string RuntimeCjkFontResourcePath = "Fonts & Materials/DotArenaCJK SDF";
+        private const string RuntimeFontResourcePath = "Fonts & Materials/LiberationSans SDF";
         private const string TmpFontMaterialsPath = "Assets/TextMesh Pro/Resources/Fonts & Materials";
-        private const string LegacyUiFontsPath = "Assets/UI/Fonts";
+        private const string LegacyTmpFontsPath = "Assets/TextMesh Pro/Fonts";
 
         [Test]
         public void SceneUiPrefabContainsStablePresenterPaths()
@@ -68,9 +68,9 @@ namespace SampleClient.Gameplay.Tests
         }
 
         [Test]
-        public void ProjectCjkTmpFontIsLoadableForRuntimeCreatedText()
+        public void ProjectTmpFontIsLoadableForRuntimeCreatedText()
         {
-            var font = Resources.Load<TMP_FontAsset>(RuntimeCjkFontResourcePath);
+            var font = Resources.Load<TMP_FontAsset>(RuntimeFontResourcePath);
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(SceneUiPrefabPath);
 
             Assert.That(font, Is.Not.Null);
@@ -85,15 +85,22 @@ namespace SampleClient.Gameplay.Tests
         }
 
         [Test]
-        public void SourceHanSansFontsLiveUnderTextMeshProResources()
+        public void ClientUsesOnlyEnglishFonts()
         {
-            var legacyFontGuids = AssetDatabase.FindAssets("SourceHanSansSC", new[] { LegacyUiFontsPath });
+            var tmpFontGuids = AssetDatabase.FindAssets("t:TMP_FontAsset", new[] { TmpFontMaterialsPath });
+            var legacyFontGuids = AssetDatabase.FindAssets("t:Font", new[] { LegacyTmpFontsPath });
 
-            Assert.That(legacyFontGuids, Is.Empty);
-            AssertTmpFontAsset("DotArenaCJK SDF.asset");
-            AssertTmpFontAsset("SourceHanSansSC-Bold SDF.asset");
-            AssertTmpFontAsset("SourceHanSansSC-Light SDF.asset");
-            AssertTmpFontAsset("SourceHanSansSC-Medium SDF.asset");
+            foreach (var guid in tmpFontGuids)
+            {
+                var assetPath = AssetDatabase.GUIDToAssetPath(guid);
+                Assert.That(assetPath, Does.Contain("LiberationSans"), assetPath);
+            }
+
+            foreach (var guid in legacyFontGuids)
+            {
+                var assetPath = AssetDatabase.GUIDToAssetPath(guid);
+                Assert.That(assetPath, Does.Contain("LiberationSans"), assetPath);
+            }
         }
 
         private static void AssertPath(GameObject root, string path)
@@ -121,15 +128,6 @@ namespace SampleClient.Gameplay.Tests
             }
 
             return count;
-        }
-
-        private static void AssertTmpFontAsset(string fileName)
-        {
-            var font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>($"{TmpFontMaterialsPath}/{fileName}");
-
-            Assert.That(font, Is.Not.Null, fileName);
-            var serializedFont = new SerializedObject(font!);
-            Assert.That(serializedFont.FindProperty("m_IsMultiAtlasTexturesEnabled")?.boolValue, Is.True, fileName);
         }
 
         private static string GetTransformPath(Transform transform)

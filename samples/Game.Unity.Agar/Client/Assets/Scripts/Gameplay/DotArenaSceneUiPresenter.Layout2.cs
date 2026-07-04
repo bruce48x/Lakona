@@ -115,9 +115,9 @@ namespace SampleClient.Gameplay
                 return;
             }
 
-            EnsureModeSelectButton("SinglePlayerButton", new Vector2(0f, -132f), "单机：普通模式");
-            EnsureModeSelectButton("InvincibleSinglePlayerButton", new Vector2(0f, -190f), "单机：无敌模式");
-            EnsureModeSelectButton("MultiplayerButton", new Vector2(0f, -248f), "联机");
+            EnsureModeSelectButton("SinglePlayerButton", new Vector2(0f, -132f), "Single Player: Normal");
+            EnsureModeSelectButton("InvincibleSinglePlayerButton", new Vector2(0f, -190f), "Single Player: Invincible");
+            EnsureModeSelectButton("MultiplayerButton", new Vector2(0f, -248f), "Multiplayer");
         }
 
         private void EnsureModeSelectButton(string name, Vector2 anchoredPosition, string label)
@@ -173,9 +173,9 @@ namespace SampleClient.Gameplay
             EnsureMultiplayerInputLayout("AccountInput", new Vector2(0f, -28f), new Vector2(260f, 30f));
             EnsureMultiplayerTextLayout("PasswordLabel", new Vector2(0f, -64f), new Vector2(260f, 18f), 12f, FontStyles.Normal, TextAlignmentOptions.Left);
             EnsureMultiplayerInputLayout("PasswordInput", new Vector2(0f, -88f), new Vector2(260f, 30f));
-            EnsureMultiplayerAuthButton("MatchButton", new Vector2(-70f, -128f), new Vector2(124f, 30f), "登录");
-            EnsureMultiplayerAuthButton("BackButton", new Vector2(70f, -128f), new Vector2(124f, 30f), "返回");
-            EnsureMultiplayerAuthButton("GuestLoginButton", new Vector2(0f, -166f), new Vector2(260f, 30f), "游客登录");
+            EnsureMultiplayerAuthButton("MatchButton", new Vector2(-70f, -128f), new Vector2(124f, 30f), "Login");
+            EnsureMultiplayerAuthButton("BackButton", new Vector2(70f, -128f), new Vector2(124f, 30f), "Back");
+            EnsureMultiplayerAuthButton("GuestLoginButton", new Vector2(0f, -166f), new Vector2(260f, 30f), "Guest Login");
         }
 
         private void EnsureMultiplayerTextLayout(string name, Vector2 anchoredPosition, Vector2 size, float fontSize, FontStyles fontStyles, TextAlignmentOptions alignment)
@@ -337,8 +337,8 @@ namespace SampleClient.Gameplay
                 WarnMissingAuthoredSceneUi("SceneUI/SettlementPanel/SecondaryButton");
             }
 
-            LayoutSettlementButton("PrimaryButton", new Vector2(0f, -330f), new Vector2(260f, 32f), "再来一局");
-            LayoutSettlementButton("SecondaryButton", new Vector2(0f, -372f), new Vector2(260f, 32f), "返回大厅");
+            LayoutSettlementButton("PrimaryButton", new Vector2(0f, -330f), new Vector2(260f, 32f), "Play Again");
+            LayoutSettlementButton("SecondaryButton", new Vector2(0f, -372f), new Vector2(260f, 32f), "Return to Lobby");
         }
 
         private void EnsureSettlementText(string name, Vector2 anchoredPosition, Vector2 size, float fontSize, FontStyles fontStyles)

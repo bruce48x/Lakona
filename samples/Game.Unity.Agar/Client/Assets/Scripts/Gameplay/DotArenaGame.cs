@@ -52,8 +52,8 @@ namespace SampleClient.Gameplay
         private readonly List<Sprite> _remotePlayerSkinSprites = new();
         private Shader? _jellyShader;
         private Shader? _pickupAbsorbShader;
-        private string _status = "连接中...";
-        private string _eventMessage = "等待玩家加入";
+        private string _status = "Connecting...";
+        private string _eventMessage = "Waiting for players";
         private float _eventMessageUntil;
         private int _lastWorldTick = -1;
         private int _lastLoggedPlayerCount = -1;

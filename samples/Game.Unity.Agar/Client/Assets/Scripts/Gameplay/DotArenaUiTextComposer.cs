@@ -11,19 +11,19 @@ namespace SampleClient.Gameplay
         {
             if (!hasAuthenticatedProfile || string.IsNullOrWhiteSpace(authenticatedPlayerId))
             {
-                return "未登录";
+                return "Not logged in";
             }
 
-            return $"已登录：{authenticatedPlayerId}   胜场：{localWinCount}";
+            return $"Logged in: {authenticatedPlayerId}   Wins: {localWinCount}";
         }
 
         public static string BuildSettlementDetail(SessionMode sessionMode, float localMass, int localWinCount, string winnerPlayerId, bool localPlayerWon, ArenaMapVariant mapVariant, ArenaRuleVariant ruleVariant)
         {
-            var modeText = sessionMode == SessionMode.SinglePlayer ? "单机" : "联机";
-            var resultText = localPlayerWon ? "胜利" : "失败";
+            var modeText = sessionMode == SessionMode.SinglePlayer ? "Single Player" : "Multiplayer";
+            var resultText = localPlayerWon ? "Win" : "failed";
             var presetLabel = DotArenaSinglePlayerCatalog.GetPresetLabel(mapVariant, ruleVariant);
-            var presetLine = sessionMode == SessionMode.SinglePlayer ? $"\n预设：{presetLabel}" : string.Empty;
-            return $"模式：{modeText}{presetLine}\n结果：{resultText}\n胜者：{winnerPlayerId}\n质量：{DotArenaPresentation.FormatMass(localMass)}\n胜场：{localWinCount}";
+            var presetLine = sessionMode == SessionMode.SinglePlayer ? $"\nPreset: {presetLabel}" : string.Empty;
+            return $"Mode: {modeText}{presetLine}\nResult: {resultText}\nWinner: {winnerPlayerId}\nMass: {DotArenaPresentation.FormatMass(localMass)}\nWins: {localWinCount}";
         }
 
         public static string BuildSettlementRewardSummary(SessionMode sessionMode, DotArenaRewardSummary? lastRewardSummary)
@@ -31,11 +31,11 @@ namespace SampleClient.Gameplay
             if (lastRewardSummary == null)
             {
                 return sessionMode == SessionMode.Multiplayer
-                    ? "奖励：正在同步。"
-                    : "奖励：本局暂无。";
+                    ? "Reward: syncing."
+                    : "Reward: none this match.";
             }
 
-            return $"奖励：经验 +{lastRewardSummary.ExperienceGained}，金币 +{lastRewardSummary.CurrencyGained}，等级 {lastRewardSummary.NewLevel}";
+            return $"Reward: XP +{lastRewardSummary.ExperienceGained}, coins +{lastRewardSummary.CurrencyGained}, level {lastRewardSummary.NewLevel}";
         }
 
         public static string BuildSettlementTaskSummary(DotArenaMetaState? metaState)
@@ -46,8 +46,8 @@ namespace SampleClient.Gameplay
         public static string BuildSettlementNextStepSummary(SessionMode sessionMode, ArenaMapVariant mapVariant, ArenaRuleVariant ruleVariant)
         {
             return sessionMode == SessionMode.Multiplayer
-                ? "下一步：返回大厅后再次开始匹配。"
-                : $"下一步：返回模式选择，或重开 {DotArenaSinglePlayerCatalog.GetPresetLabel(mapVariant, ruleVariant)}。";
+                ? "Next: return to the lobby and start matchmaking again."
+                : $"Next: return to mode select, or replay {DotArenaSinglePlayerCatalog.GetPresetLabel(mapVariant, ruleVariant)}.";
         }
 
         public static string BuildDebugPanelDetail(string status, FrontendFlowState flowState, EntryMenuState entryMenuState, SessionMode sessionMode, string localPlayerId, int lastWorldTick, int viewCount, string localPlayerBuffText, string currentEventMessage, string endpoint, bool isConnected, bool isRealtimeConnected, bool isConnecting)
@@ -59,22 +59,22 @@ namespace SampleClient.Gameplay
         {
             if (sessionMode == SessionMode.SinglePlayer)
             {
-                return $"预设：{DotArenaSinglePlayerCatalog.GetPresetLabel(mapVariant, ruleVariant)}\n正在创建本地对局。";
+                return $"Preset: {DotArenaSinglePlayerCatalog.GetPresetLabel(mapVariant, ruleVariant)}\nCreating local match.";
             }
 
-            var elapsedText = $"已等待 {FormatElapsedSeconds(elapsedSeconds)}";
+            var elapsedText = $"Waited {FormatElapsedSeconds(elapsedSeconds)}";
             if (cancelRequestPending)
             {
-                return $"正在取消匹配\n{elapsedText}\n请稍候，正在返回大厅。";
+                return $"Canceling matchmaking\n{elapsedText}\nPlease wait, returning to lobby.";
             }
 
-            if (status.Contains("成功", StringComparison.Ordinal) ||
-                currentEventMessage.Contains("进入对局", StringComparison.Ordinal))
+            if (status.Contains("success", StringComparison.Ordinal) ||
+                currentEventMessage.Contains("entering game", StringComparison.Ordinal))
             {
-                return $"匹配成功\n{elapsedText}\n正在进入对局。";
+                return $"Matched\n{elapsedText}\nEntering game.";
             }
 
-            return $"正在寻找对局\n{elapsedText}\n可随时取消匹配。";
+            return $"Finding match\n{elapsedText}\nYou can cancel matchmaking at any time.";
         }
 
         private static string FormatElapsedSeconds(int elapsedSeconds)
@@ -82,19 +82,19 @@ namespace SampleClient.Gameplay
             elapsedSeconds = Math.Max(0, elapsedSeconds);
             var minutes = elapsedSeconds / 60;
             var seconds = elapsedSeconds % 60;
-            return minutes > 0 ? $"{minutes}分{seconds:D2}秒" : $"{seconds}秒";
+            return minutes > 0 ? $"{minutes}m {seconds:D2}s" : $"{seconds}s";
         }
 
         public static string BuildMetaPlayerSummary(DotArenaMetaState? metaState, bool isInMultiplayerLobby)
         {
             if (metaState == null)
             {
-                return "游客资料";
+                return "Guest Profile";
             }
 
             return isInMultiplayerLobby
-                ? $"{metaState.PlayerId}   胜场 {metaState.TotalWins}   金币 {metaState.SoftCurrency}   已就绪"
-                : $"{metaState.PlayerId}   等级 {metaState.Level}   经验 {metaState.Experience}/{GetMetaNextLevelRequirement(metaState.Level)}   金币 {metaState.SoftCurrency}";
+                ? $"{metaState.PlayerId}   Wins {metaState.TotalWins}   Coins {metaState.SoftCurrency}   ready"
+                : $"{metaState.PlayerId}   Level {metaState.Level}   XP {metaState.Experience}/{GetMetaNextLevelRequirement(metaState.Level)}   Coins {metaState.SoftCurrency}";
         }
 
         public static string BuildMetaLobbyHighlights(DotArenaMetaState? metaState, bool isInMultiplayerLobby, SinglePlayerMatchPreset previewPreset)
@@ -105,25 +105,25 @@ namespace SampleClient.Gameplay
             }
 
             return isInMultiplayerLobby
-                ? "可以开始匹配"
-                : $"下一预设：{DotArenaSinglePlayerCatalog.GetPresetLabel(previewPreset.MapVariant, previewPreset.RuleVariant)}";
+                ? "Ready to start matchmaking"
+                : $"Next preset: {DotArenaSinglePlayerCatalog.GetPresetLabel(previewPreset.MapVariant, previewPreset.RuleVariant)}";
         }
 
         public static string BuildMetaProfileDetail(DotArenaMetaState? metaState, bool isInMultiplayerLobby, SinglePlayerMatchPreset previewPreset, DotArenaRewardSummary? lastRewardSummary, string endpoint)
         {
             if (metaState == null)
             {
-                return "尚未加载资料。";
+                return "Profile not loaded yet.";
             }
 
             var modeLine = isInMultiplayerLobby
-                ? $"联机大厅：{metaState.PlayerId} 已就绪\n操作：点击“开始匹配”进入队列"
-                : $"下一本地预设：{DotArenaSinglePlayerCatalog.GetPresetLabel(previewPreset.MapVariant, previewPreset.RuleVariant)}";
+                ? $"Multiplayer lobby: {metaState.PlayerId} ready\nAction: click \"Start Matchmaking\" to enter the queue"
+                : $"Next local preset: {DotArenaSinglePlayerCatalog.GetPresetLabel(previewPreset.MapVariant, previewPreset.RuleVariant)}";
 
             var lastReward = lastRewardSummary == null
-                ? "最近奖励：暂无。"
-                : $"最近奖励：经验 +{lastRewardSummary.ExperienceGained}，金币 +{lastRewardSummary.CurrencyGained}，等级 {lastRewardSummary.NewLevel}";
-            return $"胜场：{metaState.TotalWins}\n对局：{metaState.TotalMatches}\n连续登录：{metaState.CurrentLoginStreak}\n当前皮肤：{metaState.EquippedCosmeticId}\n{modeLine}\n{lastReward}";
+                ? "Recent reward: none."
+                : $"Recent reward: XP +{lastRewardSummary.ExperienceGained}, coins +{lastRewardSummary.CurrencyGained}, level {lastRewardSummary.NewLevel}";
+            return $"Wins: {metaState.TotalWins}\nMatches: {metaState.TotalMatches}\nLogin Streak: {metaState.CurrentLoginStreak}\nCurrent Skin: {metaState.EquippedCosmeticId}\n{modeLine}\n{lastReward}";
         }
 
         public static string BuildMetaTasksDetail(DotArenaMetaState? metaState)
@@ -145,26 +145,26 @@ namespace SampleClient.Gameplay
         {
             if (metaState == null)
             {
-                return "暂无排行榜数据。";
+                return "No leaderboard data yet.";
             }
 
             var summary = DotArenaMetaProgression.GetLeaderboardSummary(metaState);
             var resetText = metaState.LeaderboardSecondsUntilReset > 0
-                ? $"本周剩余：{FormatDurationZh(metaState.LeaderboardSecondsUntilReset)}"
-                : "本周剩余：等待服务器刷新";
+                ? $"Week remaining: {FormatDuration(metaState.LeaderboardSecondsUntilReset)}"
+                : "Week remaining: waiting for server refresh";
             var lines = new List<string>
             {
-                "排行榜",
-                $"玩家：{metaState.PlayerId} | 胜场：{metaState.TotalWins} | 对局：{metaState.TotalMatches}",
+                "Leaderboard",
+                $"Player: {metaState.PlayerId} | Wins: {metaState.TotalWins} | Matches: {metaState.TotalMatches}",
                 resetText,
                 string.Empty,
-                "本周排名"
+                "Weekly Ranking"
             };
 
             foreach (var entry in summary.Entries)
             {
-                var marker = entry.IsLocalPlayer ? "（你）" : string.Empty;
-                lines.Add($"{entry.Position}. {entry.Name} - 胜利积分 {entry.VictoryPoints} / 胜场 {entry.Wins}{marker}");
+                var marker = entry.IsLocalPlayer ? " (You)" : string.Empty;
+                lines.Add($"{entry.Position}. {entry.Name} - Victory Points {entry.VictoryPoints} / Wins {entry.Wins}{marker}");
             }
 
             return string.Join("\n", lines);
@@ -174,43 +174,43 @@ namespace SampleClient.Gameplay
         {
             if (metaState == null)
             {
-                return "尚未加载设置。";
+                return "Settings not loaded yet.";
             }
 
-            return $"主音量：{metaState.Settings.MasterVolume:0.0}\n音乐音量：{metaState.Settings.MusicVolume:0.0}\n音效音量：{metaState.Settings.SfxVolume:0.0}\n全屏：{FormatBoolZh(metaState.Settings.Fullscreen)}";
+            return $"Master Volume: {metaState.Settings.MasterVolume:0.0}\nMusic Volume: {metaState.Settings.MusicVolume:0.0}\nSFX Volume: {metaState.Settings.SfxVolume:0.0}\nFullscreen: {FormatBool(metaState.Settings.Fullscreen)}";
         }
 
         public static string BuildMetaFooterHint(bool isInMultiplayerLobby)
         {
             return isInMultiplayerLobby
-                ? "底部左侧按钮“开始匹配”进入队列，右侧按钮“退出登录”返回模式选择。"
-                : "顶部页签可切换资料、排行榜和设置。";
+                ? "Use the lower-left Start Matchmaking button to queue, or the lower-right Sign Out button to return to mode select."
+                : "Use the top tabs to switch between Profile, Leaderboard, and Settings.";
         }
 
         public static string GetRematchButtonLabel(SessionMode sessionMode)
         {
-            return sessionMode == SessionMode.SinglePlayer ? "再来一局" : "再次匹配";
+            return sessionMode == SessionMode.SinglePlayer ? "Play Again" : "Match Again";
         }
 
-        private static string FormatDurationZh(int seconds)
+        private static string FormatDuration(int seconds)
         {
             var span = TimeSpan.FromSeconds(Math.Max(0, seconds));
             if (span.TotalDays >= 1d)
             {
-                return $"{(int)span.TotalDays}天{span.Hours}小时";
+                return $"{(int)span.TotalDays}d {span.Hours}h ";
             }
 
             if (span.TotalHours >= 1d)
             {
-                return $"{(int)span.TotalHours}小时{span.Minutes}分";
+                return $"{(int)span.TotalHours}h {span.Minutes}m ";
             }
 
-            return $"{span.Minutes}分";
+            return $"{span.Minutes}m ";
         }
 
-        private static string FormatBoolZh(bool value)
+        private static string FormatBool(bool value)
         {
-            return value ? "开" : "关";
+            return value ? "On" : "Off";
         }
 
         public static int GetMetaNextLevelRequirement(int level)

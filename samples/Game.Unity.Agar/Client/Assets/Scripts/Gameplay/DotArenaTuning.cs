@@ -42,7 +42,7 @@ namespace SampleClient.Gameplay
         public const float SinglePlayerTickSeconds = 0.05f;
         public const int MaxSinglePlayerCatchUpTicks = 4;
         public const float InterpolationDurationSeconds = 0.1f;
-        public const string TmpFallbackFontAssetResourcePath = "Fonts & Materials/DotArenaCJK SDF";
+        public const string TmpFallbackFontAssetResourcePath = "Fonts & Materials/LiberationSans SDF";
 
         public static readonly Color BackgroundColor = new(0.02f, 0.03f, 0.05f, 1f);
         public static readonly Color BoardColor = new(0.08f, 0.1f, 0.14f, 1f);

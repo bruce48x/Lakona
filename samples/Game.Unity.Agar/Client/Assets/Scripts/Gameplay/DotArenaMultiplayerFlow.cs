@@ -45,7 +45,7 @@ namespace SampleClient.Gameplay
         public static DotArenaConnectionFeedback BuildConnectionFailure(Exception ex)
         {
             return new DotArenaConnectionFeedback(
-                IsServerUnavailableError(ex) ? "服务器暂时不可用" : "登录失败",
+                IsServerUnavailableError(ex) ? "Server temporarily unavailable" : "Login failed",
                 BuildFriendlyConnectionMessage(ex));
         }
 
@@ -59,31 +59,31 @@ namespace SampleClient.Gameplay
                     FrontendFlowState.Entry,
                     EntryMenuState.MultiplayerLobby,
                     statusText,
-                    "已返回联机大厅",
+                    "Returned to multiplayer lobby",
                     clearPendingCancelRequest: true),
                 MatchmakingState.Failed => new DotArenaMatchmakingViewState(
                     FrontendFlowState.Entry,
                     EntryMenuState.MultiplayerLobby,
                     statusText,
-                    "请重新开始匹配",
+                    "Start matchmaking again",
                     clearPendingCancelRequest: true),
                 MatchmakingState.Matched => new DotArenaMatchmakingViewState(
                     FrontendFlowState.Matchmaking,
                     EntryMenuState.Hidden,
                     statusText,
-                    "匹配成功，正在进入对局",
+                    "Match found, entering game",
                     clearPendingCancelRequest: true),
                 MatchmakingState.Queued or MatchmakingState.Searching when cancelRequestPending => new DotArenaMatchmakingViewState(
                     FrontendFlowState.Matchmaking,
                     EntryMenuState.Hidden,
-                    "正在取消匹配",
-                    "等待服务器确认取消",
+                    "Canceling matchmaking",
+                    "Waiting for server cancellation confirmation",
                     clearPendingCancelRequest: false),
                 _ => new DotArenaMatchmakingViewState(
                     FrontendFlowState.Matchmaking,
                     EntryMenuState.Hidden,
                     statusText,
-                    "正在为你寻找合适的对局",
+                    "Finding a suitable match",
                     clearPendingCancelRequest: false)
             };
         }
@@ -92,15 +92,15 @@ namespace SampleClient.Gameplay
         {
             if (IsServerUnavailableError(ex))
             {
-                return "服务器正在启动或房间服务暂时异常，请稍后重试。";
+                return "The server is starting or room service is temporarily unavailable. Try again later.";
             }
 
             if (IsNetworkConnectError(ex))
             {
-                return "无法连接到服务器，请检查网络或确认服务端已启动。";
+                return "Could not connect to the server. Check the network or confirm the server is running.";
             }
 
-            return "登录过程中发生错误，请稍后重试。";
+            return "An error occurred during login. Try again later.";
         }
 
         private static bool IsServerUnavailableError(Exception ex)
@@ -120,19 +120,19 @@ namespace SampleClient.Gameplay
             return message.Contains("actively refused", StringComparison.OrdinalIgnoreCase) ||
                    message.Contains("No connection could be made", StringComparison.OrdinalIgnoreCase) ||
                    message.Contains("Unable to connect", StringComparison.OrdinalIgnoreCase) ||
-                   message.Contains("连接", StringComparison.OrdinalIgnoreCase) && message.Contains("失败", StringComparison.OrdinalIgnoreCase);
+                   message.Contains("connect", StringComparison.OrdinalIgnoreCase) && message.Contains("failed", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string BuildMatchmakingStatusText(MatchmakingStatusUpdate matchmakingStatus)
         {
             return matchmakingStatus.State switch
             {
-                MatchmakingState.Queued => "排队中",
-                MatchmakingState.Searching => "匹配中",
-                MatchmakingState.Matched => "匹配成功",
-                MatchmakingState.Canceled => "已取消匹配",
-                MatchmakingState.Failed => "匹配失败",
-                _ => "等待匹配"
+                MatchmakingState.Queued => "Queued",
+                MatchmakingState.Searching => "Searching",
+                MatchmakingState.Matched => "Matched",
+                MatchmakingState.Canceled => "Matchmaking canceled",
+                MatchmakingState.Failed => "Matchmaking failed",
+                _ => "Waiting for matchmaking"
             };
         }
     }

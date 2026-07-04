@@ -54,18 +54,18 @@ namespace SampleClient.Gameplay
                 normal = { textColor = new Color(0.86f, 0.91f, 0.96f, 1f) }
             };
 
-            GUI.Label(new Rect(contentRect.x, contentRect.y, contentRect.width, 24f), "点阵竞技场", titleStyle);
-            GUI.Label(new Rect(contentRect.x, contentRect.y + 24f, contentRect.width, 18f), $"状态: {snapshot.Status}", bodyStyle);
+            GUI.Label(new Rect(contentRect.x, contentRect.y, contentRect.width, 24f), "Dot Arena", titleStyle);
+            GUI.Label(new Rect(contentRect.x, contentRect.y + 24f, contentRect.width, 18f), $"Status: {snapshot.Status}", bodyStyle);
             GUI.Label(new Rect(contentRect.x, contentRect.y + 44f, contentRect.width, 18f),
-                $"玩家: {(snapshot.LocalPlayerId.Length > 0 ? snapshot.LocalPlayerId : snapshot.Account)}   质量: {snapshot.LocalPlayerMassText}   胜场: {snapshot.LocalWinCount}", bodyStyle);
+                $"Player: {(snapshot.LocalPlayerId.Length > 0 ? snapshot.LocalPlayerId : snapshot.Account)}   Mass: {snapshot.LocalPlayerMassText}   Wins: {snapshot.LocalWinCount}", bodyStyle);
             GUI.Label(new Rect(contentRect.x, contentRect.y + 64f, contentRect.width, 18f),
-                $"场上人数: {views.Count}   状态: {snapshot.LocalPlayerBuffText}", bodyStyle);
+                $"Players: {views.Count}   Status: {snapshot.LocalPlayerBuffText}", bodyStyle);
             GUI.Label(new Rect(contentRect.x, contentRect.y + 84f, contentRect.width, 18f),
                 snapshot.SessionMode == SessionMode.SinglePlayer
-                    ? "模式: 本地单机"
-                    : "模式: 联机对局", bodyStyle);
+                    ? "Mode: Local single-player"
+                    : "Mode: Multiplayer match", bodyStyle);
             GUI.Label(new Rect(contentRect.x, contentRect.y + 104f, contentRect.width, 18f),
-                $"事件: {snapshot.EventMessage}", bodyStyle);
+                $"Event: {snapshot.EventMessage}", bodyStyle);
 
             DrawPlayerOverlays(views, renderStates);
         }
@@ -128,7 +128,7 @@ namespace SampleClient.Gameplay
                 var massRect = new Rect(centerX - (labelWidth * 0.5f), centerY + (massHeight * 0.05f), labelWidth, massHeight);
 
                 GUI.Label(nameRect, entry.Key, nameStyle);
-                GUI.Label(massRect, $"质量: {DotArenaPresentation.FormatMass(renderState.Mass)}", massStyle);
+                GUI.Label(massRect, $"Mass: {DotArenaPresentation.FormatMass(renderState.Mass)}", massStyle);
             }
         }
     }

@@ -65,11 +65,11 @@ namespace SampleClient.Gameplay
             SelectedTab = NormalizeTab(SelectedTab);
             return SelectedTab switch
             {
-                MetaTab.Lobby when snapshot.EntryMenuState == EntryMenuState.MultiplayerLobby && snapshot.SessionMode == SessionMode.Multiplayer => "联机大厅",
-                MetaTab.Lobby => "资料",
-                MetaTab.Leaderboard => "排行榜",
-                MetaTab.Settings => "设置",
-                _ => "大厅"
+                MetaTab.Lobby when snapshot.EntryMenuState == EntryMenuState.MultiplayerLobby && snapshot.SessionMode == SessionMode.Multiplayer => "Multiplayer lobby",
+                MetaTab.Lobby => "Profile",
+                MetaTab.Leaderboard => "Leaderboard",
+                MetaTab.Settings => "Settings",
+                _ => "Lobby"
             };
         }
 
@@ -113,8 +113,8 @@ namespace SampleClient.Gameplay
             SelectedTab = NormalizeTab(SelectedTab);
             return SelectedTab switch
             {
-                MetaTab.Lobby when snapshot.EntryMenuState == EntryMenuState.MultiplayerLobby && snapshot.SessionMode == SessionMode.Multiplayer => "开始匹配",
-                MetaTab.Lobby => "切换预设",
+                MetaTab.Lobby when snapshot.EntryMenuState == EntryMenuState.MultiplayerLobby && snapshot.SessionMode == SessionMode.Multiplayer => "Start Matchmaking",
+                MetaTab.Lobby => "Change Preset",
                 _ => string.Empty
             };
         }
@@ -124,9 +124,9 @@ namespace SampleClient.Gameplay
             SelectedTab = NormalizeTab(SelectedTab);
             return SelectedTab switch
             {
-                MetaTab.Lobby when snapshot.EntryMenuState == EntryMenuState.MultiplayerLobby && snapshot.SessionMode == SessionMode.Multiplayer => "退出登录",
-                MetaTab.Lobby => "查看预设",
-                MetaTab.Settings => "切换全屏",
+                MetaTab.Lobby when snapshot.EntryMenuState == EntryMenuState.MultiplayerLobby && snapshot.SessionMode == SessionMode.Multiplayer => "Sign Out",
+                MetaTab.Lobby => "View Preset",
+                MetaTab.Settings => "Toggle Fullscreen",
                 _ => string.Empty
             };
         }

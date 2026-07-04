@@ -11,6 +11,14 @@ public sealed class MatchmakingTickRequest
     public DateTime ObservedAtUtc { get; set; }
 }
 
+public sealed class MatchmakingTimerStartRequest
+{
+}
+
+public sealed class MatchmakingTimerStopRequest
+{
+}
+
 public sealed class MatchmakingState
 {
     public int DefaultRoomSize { get; set; } = 10;

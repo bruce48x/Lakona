@@ -37,15 +37,15 @@ namespace SampleClient.Gameplay
             if (_modeSelectPanel != null) _modeSelectPanel.SetActive(showEntry && snapshot.EntryMenuState == EntryMenuState.ModeSelect);
             if (_multiplayerPanel != null) _multiplayerPanel.SetActive(showEntry && snapshot.EntryMenuState == EntryMenuState.MultiplayerAuth);
 
-            SetText(_hudStatusText, "状态：对局中");
-            SetText(_hudPlayerText, $"玩家：{(snapshot.LocalPlayerId.Length > 0 ? snapshot.LocalPlayerId : snapshot.Account)}   质量：{snapshot.LocalPlayerMassText}   胜场：{snapshot.LocalWinCount}");
+            SetText(_hudStatusText, "Status: In Match");
+            SetText(_hudPlayerText, $"Player: {(snapshot.LocalPlayerId.Length > 0 ? snapshot.LocalPlayerId : snapshot.Account)}   Mass: {snapshot.LocalPlayerMassText}   Wins: {snapshot.LocalWinCount}");
             SetText(_hudTickText, string.Empty);
             SetText(_hudTitleText, string.Empty);
             SetText(_hudModeText, string.Empty);
             SetText(_hudHintText, string.Empty);
             SetText(_hudEventText, string.Empty);
-            SetText(_matchRankingTitleText, "实时排名");
-            SetText(_matchRankingHeaderText, "名次    玩家              质量");
+            SetText(_matchRankingTitleText, "Live Ranking");
+            SetText(_matchRankingHeaderText, "Rank    Player            Mass");
             RefreshMatchRankingRows(snapshot.MatchRankingEntries, showHud);
             SetText(_debugTitleText, string.Empty);
             SetText(_debugDetailText, string.Empty);
@@ -55,11 +55,11 @@ namespace SampleClient.Gameplay
                 {
                     var minutes = snapshot.LastRoundRemainingSeconds / 60;
                     var seconds = snapshot.LastRoundRemainingSeconds % 60;
-                    SetText(_hudCountdownText, $"剩余 {minutes:D2}:{seconds:D2}");
+                    SetText(_hudCountdownText, $"Remaining {minutes:D2}:{seconds:D2}");
                 }
                 else
                 {
-                    SetText(_hudCountdownText, "剩余 --:--");
+                    SetText(_hudCountdownText, "Remaining --:--");
                 }
             }
             else
@@ -67,11 +67,11 @@ namespace SampleClient.Gameplay
                 SetText(_hudCountdownText, string.Empty);
             }
 
-            SetText(_entryTitleText, "点阵竞技场");
+            SetText(_entryTitleText, "Dot Arena");
             SetText(_entryStatusText, snapshot.EntryMenuState == EntryMenuState.MultiplayerAuth ? string.Empty : snapshot.Status);
-            SetText(_matchmakingTitleText, snapshot.SessionMode == SessionMode.SinglePlayer ? "准备本地对局" : snapshot.MatchmakingTitle);
+            SetText(_matchmakingTitleText, snapshot.SessionMode == SessionMode.SinglePlayer ? "Preparing local match" : snapshot.MatchmakingTitle);
             SetText(_matchmakingDetailText, snapshot.MatchmakingDetail);
-            SetText(_matchmakingCancelButtonText, "取消匹配");
+            SetText(_matchmakingCancelButtonText, "Cancel Matchmaking");
             SetText(_lobbyTitleText, _lobbyUi.GetLobbyTabTitle(snapshot));
             SetText(_lobbySummaryText, snapshot.MetaPlayerSummary);
             SetText(_lobbyHighlightsText, _lobbyUi.GetLobbyHighlightsText(snapshot));
@@ -83,16 +83,16 @@ namespace SampleClient.Gameplay
             SetText(_lobbySecondaryActionButtonText, _lobbyUi.GetLobbySecondaryActionLabel(snapshot));
             _lobbyUi.ApplyLobbyActionLayout(snapshot, _lobbyPanel?.GetComponent<RectTransform>(), _lobbyDetailText?.rectTransform, _lobbyPrimaryActionButton?.GetComponent<RectTransform>(), _lobbySecondaryActionButton?.GetComponent<RectTransform>(), _lobbyFooterText?.rectTransform);
             SetText(_multiplayerSubtitleText, string.Empty);
-            SetText(_accountLabelText, "账号");
-            SetText(_passwordLabelText, "密码");
-            SetText(_accountPlaceholderText, "请输入账号");
-            SetText(_passwordPlaceholderText, "请输入密码");
-            SetText(_singlePlayerButtonText, "单机：普通模式");
-            SetText(_invincibleSinglePlayerButtonText, "单机：无敌模式");
-            SetText(_multiplayerButtonText, "联机");
-            SetText(_matchButtonText, snapshot.IsConnecting ? "登录中..." : "登录");
-            SetText(_guestLoginButtonText, snapshot.IsConnecting ? "申请中..." : "游客登录");
-            SetText(_backButtonText, "返回");
+            SetText(_accountLabelText, "Account");
+            SetText(_passwordLabelText, "Password");
+            SetText(_accountPlaceholderText, "Enter account");
+            SetText(_passwordPlaceholderText, "Enter password");
+            SetText(_singlePlayerButtonText, "Single Player: Normal");
+            SetText(_invincibleSinglePlayerButtonText, "Single Player: Invincible");
+            SetText(_multiplayerButtonText, "Multiplayer");
+            SetText(_matchButtonText, snapshot.IsConnecting ? "Logging in..." : "Login");
+            SetText(_guestLoginButtonText, snapshot.IsConnecting ? "Requesting..." : "Guest Login");
+            SetText(_backButtonText, "Back");
 
             if (_singlePlayerButton != null) _singlePlayerButton.interactable = !snapshot.IsBusy;
             if (_invincibleSinglePlayerButton != null) _invincibleSinglePlayerButton.interactable = !snapshot.IsBusy;
@@ -122,14 +122,14 @@ namespace SampleClient.Gameplay
             if (_passwordLegacyInputField != null) _passwordLegacyInputField.interactable = !snapshot.IsBusy;
 
             SyncSceneUiInputs(snapshot.Account, snapshot.Password);
-            SetText(_settlementTitleText, snapshot.SessionMode == SessionMode.Multiplayer ? "联机结算" : "单机结算");
+            SetText(_settlementTitleText, snapshot.SessionMode == SessionMode.Multiplayer ? "Multiplayer results" : "Single-player results");
             SetText(_settlementDetailText, snapshot.SettlementDetail);
             SetText(_settlementRewardText, snapshot.SettlementRewardSummary);
             SetText(_settlementTaskText, string.Empty);
             if (_settlementTaskText != null) _settlementTaskText.gameObject.SetActive(false);
             SetText(_settlementNextStepText, snapshot.SettlementNextStepSummary);
             SetText(_settlementPrimaryButtonText, snapshot.SettlementPrimaryActionText);
-            SetText(_settlementSecondaryButtonText, "返回大厅");
+            SetText(_settlementSecondaryButtonText, "Return to Lobby");
         }
 
         private void RefreshMatchRankingRows(IReadOnlyList<DotArenaMatchRankingEntry>? entries, bool showHud)

@@ -75,8 +75,8 @@ namespace SampleClient.Gameplay
                 }
 
                 _owner._entryMenuState = EntryMenuState.MultiplayerAuth;
-                _owner._status = "请输入账号信息";
-                _owner._eventMessage = "点击匹配开始联机";
+                _owner._status = "Enter account details";
+                _owner._eventMessage = "Start matchmaking to play online";
                 RefreshSceneUi();
             }
 
@@ -88,8 +88,8 @@ namespace SampleClient.Gameplay
                 }
 
                 _owner._entryMenuState = EntryMenuState.ModeSelect;
-                _owner._status = "请选择模式";
-                _owner._eventMessage = "请选择单机或联机";
+                _owner._status = "Select a mode";
+                _owner._eventMessage = "Choose single-player or multiplayer";
                 RefreshSceneUi();
             }
 
@@ -101,8 +101,8 @@ namespace SampleClient.Gameplay
                 }
 
                 _owner._pendingUiRequest = PendingUiRequest.CancelMatchmaking;
-                _owner._status = "正在取消匹配";
-                _owner._eventMessage = "正在返回联机大厅";
+                _owner._status = "Canceling matchmaking";
+                _owner._eventMessage = "Returning to multiplayer lobby";
                 RefreshSceneUi();
                 _ = _owner.CancelMatchmakingAsync();
             }
@@ -117,8 +117,8 @@ namespace SampleClient.Gameplay
                 _owner._pendingUiRequest = PendingUiRequest.Login;
                 _owner._flowState = FrontendFlowState.Entry;
                 _owner._entryMenuState = EntryMenuState.MultiplayerAuth;
-                _owner._status = $"正在连接 {Rpc.WebSocketRpcClientFactory.BuildUrl(_owner._host, _owner._port, _owner._path)}";
-                _owner._eventMessage = "正在登录联机账号";
+                _owner._status = $"Connecting to {Rpc.WebSocketRpcClientFactory.BuildUrl(_owner._host, _owner._port, _owner._path)}";
+                _owner._eventMessage = "Signing in to multiplayer";
                 RefreshSceneUi();
                 _ = _owner.ConnectAsync();
             }
@@ -133,8 +133,8 @@ namespace SampleClient.Gameplay
                 _owner._pendingUiRequest = PendingUiRequest.Login;
                 _owner._flowState = FrontendFlowState.Entry;
                 _owner._entryMenuState = EntryMenuState.MultiplayerAuth;
-                _owner._status = $"正在连接 {Rpc.WebSocketRpcClientFactory.BuildUrl(_owner._host, _owner._port, _owner._path)}";
-                _owner._eventMessage = "正在申请游客账号";
+                _owner._status = $"Connecting to {Rpc.WebSocketRpcClientFactory.BuildUrl(_owner._host, _owner._port, _owner._path)}";
+                _owner._eventMessage = "Requesting guest account";
                 RefreshSceneUi();
                 _ = _owner.ConnectAsGuestAsync();
             }
@@ -206,12 +206,12 @@ namespace SampleClient.Gameplay
                 if (!isPrimaryAction)
                 {
                     var previewPreset = DotArenaSinglePlayerCatalog.PeekPreset(_owner._singlePlayerPlaylistIndex);
-                    _owner.PushEvent($"下一本地预设：{DotArenaSinglePlayerCatalog.GetPresetLabel(previewPreset.MapVariant, previewPreset.RuleVariant)}", 4f);
+                    _owner.PushEvent($"Next local preset: {DotArenaSinglePlayerCatalog.GetPresetLabel(previewPreset.MapVariant, previewPreset.RuleVariant)}", 4f);
                     return;
                 }
 
                 var selectedPreset = DotArenaSinglePlayerCatalog.AdvancePresetSelection(ref _owner._singlePlayerPlaylistIndex);
-                _owner.PushEvent($"已切换预设：{DotArenaSinglePlayerCatalog.GetPresetLabel(selectedPreset.MapVariant, selectedPreset.RuleVariant)}", 4f);
+                _owner.PushEvent($"Preset changed: {DotArenaSinglePlayerCatalog.GetPresetLabel(selectedPreset.MapVariant, selectedPreset.RuleVariant)}", 4f);
             }
 
             public bool IsInMultiplayerLobby()
@@ -231,8 +231,8 @@ namespace SampleClient.Gameplay
                 }
 
                 _owner._pendingUiRequest = PendingUiRequest.ExitLobby;
-                _owner._status = "正在退出联机大厅";
-                _owner._eventMessage = "正在断开连接并注销会话";
+                _owner._status = "Leaving multiplayer lobby";
+                _owner._eventMessage = "Disconnecting and signing out";
                 RefreshSceneUi();
                 _ = ExitMultiplayerLobbyAsync();
             }
@@ -243,9 +243,9 @@ namespace SampleClient.Gameplay
                 {
                     await _owner.DisposeConnectionAsync(clearSessionState: false, logout: true);
                     _owner.ResetToModeSelect(
-                        status: "选择模式",
-                        eventMessage: "已退出联机大厅",
-                        toastMessage: "已断开连接并退出联机大厅");
+                        status: "Select mode",
+                        eventMessage: "Left multiplayer lobby",
+                        toastMessage: "Disconnected and left multiplayer lobby");
                 }
                 finally
                 {
@@ -267,14 +267,14 @@ namespace SampleClient.Gameplay
                         : "zh-CN";
                     if (DotArenaMetaProgression.SetLanguage(_owner._metaState, nextLanguage))
                     {
-                        _owner.PushEvent($"语言已切换为 {nextLanguage}");
+                        _owner.PushEvent($"Language switched to {nextLanguage}");
                     }
 
                     return;
                 }
 
                 var fullscreen = DotArenaMetaProgression.ToggleFullscreen(_owner._metaState);
-                _owner.PushEvent(fullscreen ? "已开启全屏" : "已关闭全屏");
+                _owner.PushEvent(fullscreen ? "Fullscreen enabled" : "Fullscreen disabled");
             }
 
         }

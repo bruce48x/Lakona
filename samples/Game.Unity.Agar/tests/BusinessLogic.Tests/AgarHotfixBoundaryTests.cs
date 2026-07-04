@@ -596,32 +596,42 @@ public sealed class AgarHotfixBoundaryTests
     }
 
     [Fact]
-    public void Agar_matchmaking_feature_owns_lakona_timer_and_room_actor_owns_battle_runtime_timer()
+    public void Agar_matchmaking_and_room_actors_own_lakona_timer_ids()
     {
         var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
             .Directory!.Parent!.Parent!.FullName;
         var featureRoot = Path.Combine(sampleRoot, "Server", "Hotfix", "Features");
+        var matchmakingActor = File.ReadAllText(Path.Combine(sampleRoot, "Server", "App", "State", "Matchmaking", "MatchmakingActor.cs"));
+        var matchmakingBehavior = File.ReadAllText(Path.Combine(sampleRoot, "Server", "Hotfix", "State", "Matchmaking", "MatchmakingBehavior.cs"));
         var roomActor = File.ReadAllText(Path.Combine(sampleRoot, "Server", "App", "State", "Rooms", "RoomActor.cs"));
         var roomBehavior = File.ReadAllText(Path.Combine(sampleRoot, "Server", "Hotfix", "State", "Rooms", "RoomBehavior.cs"));
         var matchmakingFeature = File.ReadAllText(Path.Combine(featureRoot, "MatchmakingFeature.cs"));
         var battleRuntimeFeature = File.ReadAllText(Path.Combine(featureRoot, "BattleRuntimeFeature.cs"));
-        var timerKeys = File.ReadAllText(Path.Combine(featureRoot, "FeatureTimerKeys.cs"));
+        var timerKeysPath = Path.Combine(featureRoot, "FeatureTimerKeys.cs");
 
-        Assert.Contains("CreatePeriodicTimerAsync<MatchmakingTimerCallbacks, MatchmakingTimerArgs>", matchmakingFeature, StringComparison.Ordinal);
-        Assert.Contains("nameof(MatchmakingTimerCallbacks.TickAsync)", matchmakingFeature, StringComparison.Ordinal);
-        Assert.Contains("FeatureTimerKeys.MatchmakingTimerId", matchmakingFeature, StringComparison.Ordinal);
-        Assert.Contains("DestroyTimerAsync", matchmakingFeature, StringComparison.Ordinal);
-        Assert.Contains("DestroyTimerAsync(timerId, CancellationToken.None)", matchmakingFeature, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreatePeriodicTimerAsync<MatchmakingTimerCallbacks, MatchmakingTimerArgs>", matchmakingFeature, StringComparison.Ordinal);
+        Assert.DoesNotContain("FeatureTimerKeys", matchmakingFeature, StringComparison.Ordinal);
+        Assert.DoesNotContain("DestroyTimerAsync", matchmakingFeature, StringComparison.Ordinal);
         Assert.DoesNotContain("DestroyTimerAsync(timerId, call.CancellationToken)", matchmakingFeature, StringComparison.Ordinal);
+        Assert.Contains(".StartTimerAsync(new MatchmakingTimerStartRequest(), call.CancellationToken)", matchmakingFeature, StringComparison.Ordinal);
+        Assert.Contains(".StopTimerAsync(new MatchmakingTimerStopRequest(), CancellationToken.None)", matchmakingFeature, StringComparison.Ordinal);
+
+        Assert.False(File.Exists(timerKeysPath));
+
+        Assert.Contains("internal TimerId MatchmakingTimerId", matchmakingActor, StringComparison.Ordinal);
+        Assert.Contains("StartTimerAsync", matchmakingBehavior, StringComparison.Ordinal);
+        Assert.Contains("StopTimerAsync", matchmakingBehavior, StringComparison.Ordinal);
+        Assert.Contains("EnsureMatchmakingTimerAsync", matchmakingBehavior, StringComparison.Ordinal);
+        Assert.Contains("DestroyMatchmakingTimerAsync", matchmakingBehavior, StringComparison.Ordinal);
+        Assert.Contains("CreatePeriodicTimerAsync<MatchmakingTimerCallbacks, MatchmakingTimerArgs>", matchmakingBehavior, StringComparison.Ordinal);
+        Assert.Contains("nameof(MatchmakingTimerCallbacks.TickAsync)", matchmakingBehavior, StringComparison.Ordinal);
+        Assert.Contains("DestroyTimerAsync(timerId, CancellationToken.None)", matchmakingBehavior, StringComparison.Ordinal);
 
         Assert.DoesNotContain("CreatePeriodicTimerAsync<BattleRuntimeTimerCallbacks, BattleRuntimeTimerArgs>", battleRuntimeFeature, StringComparison.Ordinal);
         Assert.DoesNotContain("FeatureTimerKeys.BattleRuntimeScanTimerId", battleRuntimeFeature, StringComparison.Ordinal);
         Assert.DoesNotContain("DestroyTimerAsync", battleRuntimeFeature, StringComparison.Ordinal);
         Assert.DoesNotContain("StartAsync(HotfixFeatureStartCall", battleRuntimeFeature, StringComparison.Ordinal);
         Assert.DoesNotContain("StopAsync(HotfixFeatureStopCall", battleRuntimeFeature, StringComparison.Ordinal);
-
-        Assert.Contains("public const string MatchmakingTimerId", timerKeys, StringComparison.Ordinal);
-        Assert.DoesNotContain("BattleRuntimeScanTimerId", timerKeys, StringComparison.Ordinal);
 
         Assert.Contains("internal TimerId BattleRuntimeTimerId", roomActor, StringComparison.Ordinal);
         Assert.Contains("EnsureBattleRuntimeTimerAsync", roomBehavior, StringComparison.Ordinal);

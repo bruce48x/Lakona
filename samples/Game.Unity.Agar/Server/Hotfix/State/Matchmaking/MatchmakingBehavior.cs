@@ -13,6 +13,7 @@ using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.Features;
 using Server.Hotfix.Services;
@@ -170,6 +171,63 @@ public static partial class MatchmakingBehavior
         var observedAtUtc = NormalizeUtc(request.ObservedAtUtc);
         var assignments = await TryMatchAsync(self, observedAtUtc, allowExpiredPartialBatch: true).ConfigureAwait(false);
         await PublishMatchedAsync(self, assignments.Values).ConfigureAwait(false);
+    }
+
+    public static ValueTask StartTimerAsync(this MatchmakingActor self, MatchmakingTimerStartRequest request, CancellationToken cancellationToken = default)
+    {
+        _ = request;
+        return EnsureMatchmakingTimerAsync(self, cancellationToken);
+    }
+
+    public static ValueTask StopTimerAsync(this MatchmakingActor self, MatchmakingTimerStopRequest request, CancellationToken cancellationToken = default)
+    {
+        _ = request;
+        _ = cancellationToken;
+        return DestroyMatchmakingTimerAsync(self);
+    }
+
+    internal static async ValueTask EnsureMatchmakingTimerAsync(this MatchmakingActor self, CancellationToken cancellationToken)
+    {
+        EnsureState(self);
+        if (self.MatchmakingTimerId.IsValid)
+        {
+            return;
+        }
+
+        try
+        {
+            self.MatchmakingTimerId = await LakonaTimer
+                .CreatePeriodicTimerAsync<MatchmakingTimerCallbacks, MatchmakingTimerArgs>(
+                    TimeSpan.Zero,
+                    TimeSpan.FromSeconds(1),
+                    nameof(MatchmakingTimerCallbacks.TickAsync),
+                    new MatchmakingTimerArgs(),
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (InvalidOperationException ex) when (IsMissingLakonaTimerScope(ex))
+        {
+            return;
+        }
+    }
+
+    internal static async ValueTask DestroyMatchmakingTimerAsync(this MatchmakingActor self)
+    {
+        var timerId = self.MatchmakingTimerId;
+        self.MatchmakingTimerId = default;
+        if (!timerId.IsValid)
+        {
+            return;
+        }
+
+        try
+        {
+            await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (InvalidOperationException ex) when (IsMissingLakonaTimerScope(ex))
+        {
+            return;
+        }
     }
 
     private static async ValueTask<Dictionary<string, RoomAssignment>> TryMatchAsync(
@@ -613,6 +671,14 @@ public static partial class MatchmakingBehavior
             DefaultRoomSize = MatchmakingActor.DefaultRoomSize
         };
         self.RecordExists = true;
+    }
+
+    private static bool IsMissingLakonaTimerScope(InvalidOperationException ex)
+    {
+        return string.Equals(
+            ex.Message,
+            "Lakona timers can only be used inside an active hotfix execution scope.",
+            StringComparison.Ordinal);
     }
 
     private static string GetQueueId(MatchmakingActor self) => self.Context.Id.Value;

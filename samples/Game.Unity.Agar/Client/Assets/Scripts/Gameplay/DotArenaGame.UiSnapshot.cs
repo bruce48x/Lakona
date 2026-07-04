@@ -67,10 +67,10 @@ namespace SampleClient.Gameplay
                         ? string.Empty
                         : DotArenaUiTextComposer.GetRematchButtonLabel(settlementSummary.SessionMode),
                     MatchmakingTitle = _owner._sessionMode == SessionMode.SinglePlayer
-                        ? "准备本地对局"
+                        ? "Preparing local match"
                         : _owner._flowState == FrontendFlowState.Matchmaking
-                            ? "正在排队"
-                            : "联机大厅",
+                            ? "Queued"
+                            : "Multiplayer lobby",
                     MatchmakingElapsedSeconds = matchmakingElapsedSeconds,
                     MatchmakingDetail = DotArenaUiTextComposer.BuildMatchmakingDetail(
                         _owner._sessionMode,

@@ -37,7 +37,7 @@ namespace SampleClient.Gameplay
 
         private static string GetSinglePlayerModeLabel(SinglePlayerMode mode)
         {
-            return mode == SinglePlayerMode.Invincible ? "单机：无敌模式" : "单机：普通模式";
+            return mode == SinglePlayerMode.Invincible ? "Single Player: Invincible" : "Single Player: Normal";
         }
 
         private void TickLocalMatch()

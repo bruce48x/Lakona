@@ -1,7 +1,8 @@
+using Agar.Sample.State.Contracts;
+using Agar.Sample.State.Contracts.Matchmaking;
 using Agar.Sample.State.Matchmaking;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
-using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.State.Matchmaking;
 
@@ -25,15 +26,11 @@ public sealed class MatchmakingFeature : HotfixGameFeature
             .ConfigureAwait(false);
         call.State.Items[MatchmakingActorStateKey] = MatchmakingActorId;
 
-        var timerId = await LakonaTimer
-            .CreatePeriodicTimerAsync<MatchmakingTimerCallbacks, MatchmakingTimerArgs>(
-                TimeSpan.Zero,
-                TimeSpan.FromSeconds(1),
-                nameof(MatchmakingTimerCallbacks.TickAsync),
-                new MatchmakingTimerArgs(),
-                call.CancellationToken)
+        await call.Services
+            .GetRequiredService<MatchmakingActors>()
+            .Local(new MatchmakingQueueId(MatchmakingActorId))
+            .StartTimerAsync(new MatchmakingTimerStartRequest(), call.CancellationToken)
             .ConfigureAwait(false);
-        call.State.Items[FeatureTimerKeys.MatchmakingTimerId] = timerId;
     }
 
     public static async ValueTask StopAsync(HotfixFeatureStopCall call)
@@ -43,20 +40,17 @@ public sealed class MatchmakingFeature : HotfixGameFeature
             !string.IsNullOrWhiteSpace(actorId))
         {
             await call.Services
+                .GetRequiredService<MatchmakingActors>()
+                .Local(new MatchmakingQueueId(actorId))
+                .StopTimerAsync(new MatchmakingTimerStopRequest(), CancellationToken.None)
+                .ConfigureAwait(false);
+
+            await call.Services
                 .GetRequiredService<ActorHosting>()
                 .DestroyAsync<MatchmakingActor>(ActorId.From(actorId), CancellationToken.None)
                 .ConfigureAwait(false);
         }
 
         call.State.Items.Remove(MatchmakingActorStateKey);
-
-        if (call.State.Items.TryGetValue(FeatureTimerKeys.MatchmakingTimerId, out var value) &&
-            value is TimerId timerId &&
-            timerId.IsValid)
-        {
-            await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None).ConfigureAwait(false);
-        }
-
-        call.State.Items.Remove(FeatureTimerKeys.MatchmakingTimerId);
     }
 }

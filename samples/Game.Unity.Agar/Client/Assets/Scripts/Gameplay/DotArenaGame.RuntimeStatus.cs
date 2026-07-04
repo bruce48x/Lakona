@@ -47,7 +47,7 @@ namespace SampleClient.Gameplay
             if (_eventMessageUntil > 0f && Time.time > _eventMessageUntil)
             {
                 _eventMessageUntil = 0f;
-                _eventMessage = _views.Count < 2 ? "等待玩家加入" : "对局进行中";
+                _eventMessage = _views.Count < 2 ? "Waiting for players" : "Match in progress";
             }
 
             return _eventMessage;

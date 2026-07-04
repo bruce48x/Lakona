@@ -90,8 +90,8 @@ namespace SampleClient.Gameplay
             }
 
             ResetToModeSelect(
-                status: string.IsNullOrWhiteSpace(disconnectMessage) ? "已断开连接" : $"已断开连接: {disconnectMessage}",
-                eventMessage: "联机连接已断开",
+                status: string.IsNullOrWhiteSpace(disconnectMessage) ? "Disconnected" : $"Disconnected: {disconnectMessage}",
+                eventMessage: "Multiplayer connection disconnected",
                 toastMessage: null);
             Debug.LogWarning($"[DotArena] {_status}");
         }
@@ -144,8 +144,8 @@ namespace SampleClient.Gameplay
                 _flowState = FrontendFlowState.InMatch;
                 _entryMenuState = EntryMenuState.Hidden;
                 _status = _sessionMode == SessionMode.SinglePlayer
-                    ? $"单机对局: {_localPlayerId}"
-                    : $"联机对局: {_localPlayerId}";
+                    ? $"Single-player match: {_localPlayerId}"
+                    : $"Multiplayer match: {_localPlayerId}";
             }
         }
 
@@ -165,8 +165,8 @@ namespace SampleClient.Gameplay
             }
 
             PushEvent(deadEvent.PlayerId == _localPlayerId
-                ? "你被吞噬了"
-                : $"{deadEvent.PlayerId} 被吞噬");
+                ? "You were consumed"
+                : $"{deadEvent.PlayerId} was consumed");
         }
 
         private void HandleMatchEnd(MatchEnd matchEnd)
@@ -183,8 +183,8 @@ namespace SampleClient.Gameplay
             }
 
             PushEvent(matchEnd.WinnerPlayerId == _localPlayerId
-                ? "本局胜利"
-                : $"胜者: {matchEnd.WinnerPlayerId}");
+                ? "Victory"
+                : $"Winner: {matchEnd.WinnerPlayerId}");
 
             _ = ReturnToMainMenuAfterMatchAsync(
                 _sessionMode == SessionMode.Multiplayer,
@@ -219,8 +219,8 @@ namespace SampleClient.Gameplay
                 matchmakingStatus.RealtimeConnection is { Transport: RealtimeTransportKind.Kcp } realtimeConnection)
             {
                 _lastRealtimeConnection = CloneRealtimeConnection(realtimeConnection);
-                _status = "房间已就绪，正在连接 KCP";
-                _eventMessage = $"正在建立实时连接 {realtimeConnection.Host}:{realtimeConnection.Port}";
+                _status = "Room ready, connecting KCP";
+                _eventMessage = $"Opening realtime connection {realtimeConnection.Host}:{realtimeConnection.Port}";
                 _ = EnsureRealtimeSessionAsync(realtimeConnection);
             }
 
@@ -247,8 +247,8 @@ namespace SampleClient.Gameplay
         {
             _multiplayerState.MarkSessionStateLost();
             ResetToModeSelect(
-                status: "联机状态已过期",
-                eventMessage: string.IsNullOrWhiteSpace(message) ? "请重新登录后开始新的联机会话" : message,
+                status: "Multiplayer state expired",
+                eventMessage: string.IsNullOrWhiteSpace(message) ? "Log in again to start a new multiplayer session" : message,
                 toastMessage: null,
                 resetSessionState: false);
         }
@@ -280,7 +280,7 @@ namespace SampleClient.Gameplay
         {
             if (NetworkSession.IsConnected)
             {
-                _callbackInbox.EnqueueRealtimeFallback($"实时通道不可用，继续使用控制通道: {message}");
+                _callbackInbox.EnqueueRealtimeFallback($"Realtime channel unavailable, continuing on control channel: {message}");
                 return;
             }
 
