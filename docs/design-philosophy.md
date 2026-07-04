@@ -51,6 +51,9 @@ Maintainers should treat the following as active simplification pressure:
   RPC service proxies, actor refs, wrappers, and diagnostics can evolve
   independently.
 
+A detailed maintainer-facing audit of current simplification targets lives in
+[framework-complexity-audit.md](reports/framework-complexity-audit.md).
+
 ## Core Principles
 
 ### Simple Core, Explicit Boundaries
