@@ -1,5 +1,4 @@
 using Agar.Sample.State.Contracts;
-using Agar.Sample.State.Contracts.Rooms;
 using Agar.Sample.State.Contracts.Sessions;
 using Lakona.Game.Cluster.Rpc.MemoryPack;
 using Server.Hotfix.Features;
@@ -16,9 +15,6 @@ public sealed class AgarFeatureCommandSerializationTests
         var request = new BattleRuntimeRoomAllocationRequest
         {
             RoomId = "room-1",
-            MatchId = "match-1",
-            CreatedByUserId = "user-1",
-            CreatedAtUtc = new DateTime(2026, 6, 29, 8, 0, 0, DateTimeKind.Utc),
             MaxPlayers = 10,
             Players =
             [
@@ -40,24 +36,17 @@ public sealed class AgarFeatureCommandSerializationTests
                         Path = ""
                     }
                 }
-            ],
-            RuntimeGateway = new GatewayEndpointDescriptor
-            {
-                InstanceId = "runtime-1",
-                Transport = "kcp",
-                Host = "127.0.0.1",
-                Port = 7001,
-                Path = ""
-            }
+            ]
         };
 
         using var frame = serializer.SerializeFrame(request);
         var decoded = serializer.Deserialize<BattleRuntimeRoomAllocationRequest>(frame.Memory);
 
         Assert.Equal("room-1", decoded.RoomId);
-        Assert.Equal("match-1", decoded.MatchId);
+        Assert.Equal(10, decoded.MaxPlayers);
         Assert.Single(decoded.Players);
-        Assert.Equal("runtime-1", decoded.RuntimeGateway.InstanceId);
+        Assert.Equal("match-1", decoded.Players[0].MatchId);
+        Assert.Equal("runtime-1", decoded.Players[0].RuntimeGateway.InstanceId);
     }
 
     [Fact]
@@ -68,16 +57,7 @@ public sealed class AgarFeatureCommandSerializationTests
         {
             Succeeded = true,
             RoomId = "room-1",
-            MatchId = "match-1",
-            Message = "Room allocated.",
-            RuntimeGateway = new GatewayEndpointDescriptor
-            {
-                InstanceId = "runtime-1",
-                Transport = "kcp",
-                Host = "127.0.0.1",
-                Port = 7001,
-                Path = ""
-            }
+            Message = "Room allocated."
         };
 
         using var frame = serializer.SerializeFrame(reply);

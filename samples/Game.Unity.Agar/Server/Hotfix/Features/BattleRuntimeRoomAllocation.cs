@@ -1,5 +1,3 @@
-using Agar.Sample.State.Contracts;
-using Agar.Sample.State.Contracts.Rooms;
 using Agar.Sample.State.Contracts.Sessions;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using MemoryPack;
@@ -21,22 +19,10 @@ public partial class BattleRuntimeRoomAllocationRequest
     public string RoomId { get; set; } = "";
 
     [MemoryPackOrder(1)]
-    public string MatchId { get; set; } = "";
-
-    [MemoryPackOrder(2)]
-    public string CreatedByUserId { get; set; } = "";
-
-    [MemoryPackOrder(3)]
-    public DateTime CreatedAtUtc { get; set; }
-
-    [MemoryPackOrder(4)]
     public int MaxPlayers { get; set; } = 10;
 
-    [MemoryPackOrder(5)]
+    [MemoryPackOrder(2)]
     public List<PlayerRoomAssignment> Players { get; set; } = new();
-
-    [MemoryPackOrder(6)]
-    public GatewayEndpointDescriptor RuntimeGateway { get; set; } = new();
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
@@ -49,11 +35,5 @@ public partial class BattleRuntimeRoomAllocationReply
     public string RoomId { get; set; } = "";
 
     [MemoryPackOrder(2)]
-    public string MatchId { get; set; } = "";
-
-    [MemoryPackOrder(3)]
     public string Message { get; set; } = "";
-
-    [MemoryPackOrder(4)]
-    public GatewayEndpointDescriptor RuntimeGateway { get; set; } = new();
 }

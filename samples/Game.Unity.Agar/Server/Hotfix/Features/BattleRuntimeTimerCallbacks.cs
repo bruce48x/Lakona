@@ -13,24 +13,26 @@ public sealed class BattleRuntimeTimerCallbacks
 {
     public static ValueTask TickAsync(TimerTick<BattleRuntimeTimerArgs> tick)
     {
-        var actors = tick.Services.GetRequiredService<IActorRuntime>();
         var rooms = tick.Services.GetRequiredService<RoomActors>();
         var logger = tick.Services.GetRequiredService<ILogger<BattleRuntimeTimerCallbacks>>();
-        foreach (var roomId in actors.GetActiveActorIds(typeof(RoomActor)))
+        if (string.IsNullOrWhiteSpace(tick.Args.RoomId))
         {
-            var result = rooms
-                .Local(new RoomId(roomId.Value))
-                .TryRunTickAsync(new RoomTickRequest
-                {
-                    ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime
-                }, tick.CancellationToken);
-            if (result != ActorTellResult.Accepted)
+            logger.LogDebug("Battle runtime timer tick skipped because no room id was provided.");
+            return default;
+        }
+
+        var result = rooms
+            .Local(new RoomId(tick.Args.RoomId))
+            .TryRunTickAsync(new RoomTickRequest
             {
-                logger.LogDebug(
-                    "Battle runtime room tick enqueue was not accepted for room {RoomId}: {ActorTellResult}.",
-                    roomId.Value,
-                    result);
-            }
+                ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime
+            }, tick.CancellationToken);
+        if (result != ActorTellResult.Accepted)
+        {
+            logger.LogDebug(
+                "Battle runtime room tick enqueue was not accepted for room {RoomId}: {ActorTellResult}.",
+                tick.Args.RoomId,
+                result);
         }
 
         return default;

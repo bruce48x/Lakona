@@ -27,7 +27,6 @@ public sealed class StateStoreFeature : HotfixGameFeature
 
     public static void Configure(HotfixFeatureContext context)
     {
-        context.Services.AddLogging();
         context.Services.AddSingleton<MatchmakingNotifier>();
         context.Services.AddSingleton<RoomNotifier>();
         context.Services.AddSingleton<StateStoreUserActorPlacementClient>();

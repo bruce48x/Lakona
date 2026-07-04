@@ -301,7 +301,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         var session = await GetSessionSnapshotAsync(provider, login.UserId);
         Assert.Equal(roomAllocator.LastRequest.RoomId, session.CurrentRoomId);
-        Assert.Equal(roomAllocator.LastRequest.MatchId, session.CurrentMatchId);
+        Assert.Equal(roomAllocator.LastRequest.Players[0].MatchId, session.CurrentMatchId);
         Assert.Equal("battle-1", session.RuntimeGateway.InstanceId);
         Assert.Equal("kcp", session.RuntimeGateway.Transport);
         Assert.Equal("battle-1", session.RuntimeGateway.Host);
@@ -1046,9 +1046,7 @@ public sealed class DistributedTopologyConfigurationTests
             object reply = new BattleRuntimeRoomAllocationReply
             {
                 Succeeded = true,
-                RoomId = LastRequest.RoomId,
-                MatchId = LastRequest.MatchId,
-                RuntimeGateway = LastRequest.RuntimeGateway
+                RoomId = LastRequest.RoomId
             };
 
             return new ValueTask<TReply>((TReply)reply);

@@ -9,8 +9,10 @@ using Agar.Sample.State.Users;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix;
+using Server.Hotfix.Features;
 using Server.Hotfix.Gameplay;
 using Server.Hotfix.Services;
 using Shared.Gameplay;
@@ -202,19 +204,20 @@ public static partial class RoomBehavior
         return new ValueTask<RoomSettlementResult>(BuildSuccess(self, "Realtime state updated.", clearedAtUtc));
     }
 
-    public static ValueTask<RoomSettlementResult> StartAsync(this RoomActor self, RoomStartRequest request, CancellationToken cancellationToken = default)
+    public static async ValueTask<RoomSettlementResult> StartAsync(this RoomActor self, RoomStartRequest request, CancellationToken cancellationToken = default)
     {
         var roomId = NormalizeRoomId(request.RoomId);
         var startedAtUtc = NormalizeUtc(request.StartedAtUtc);
 
         if (!self.RecordExists)
         {
-            return new ValueTask<RoomSettlementResult>(BuildFailure(self, "Room has not been created.", startedAtUtc));
+            return BuildFailure(self, "Room has not been created.", startedAtUtc);
         }
 
-        if (self.State.Status is RoomStatus.InProgress or RoomStatus.Finished)
+        if (self.State.Status == RoomStatus.InProgress)
         {
-            return new ValueTask<RoomSettlementResult>(new RoomSettlementResult
+            await EnsureBattleRuntimeTimerAsync(self, roomId, cancellationToken).ConfigureAwait(false);
+            return new RoomSettlementResult
             {
                 RoomId = roomId,
                 Succeeded = true,
@@ -224,12 +227,27 @@ public static partial class RoomBehavior
                 UpdatedAtUtc = self.State.LastUpdatedAtUtc,
                 SettlementId = self.State.SettlementId,
                 Snapshot = BuildSnapshot(self)
-            });
+            };
+        }
+
+        if (self.State.Status == RoomStatus.Finished)
+        {
+            return new RoomSettlementResult
+            {
+                RoomId = roomId,
+                Succeeded = true,
+                AlreadyApplied = true,
+                WinnerUserId = self.State.WinnerUserId,
+                Message = "Room already started or finished.",
+                UpdatedAtUtc = self.State.LastUpdatedAtUtc,
+                SettlementId = self.State.SettlementId,
+                Snapshot = BuildSnapshot(self)
+            };
         }
 
         if (self.State.Players.Count == 0)
         {
-            return new ValueTask<RoomSettlementResult>(BuildFailure(self, "Room has no players.", startedAtUtc));
+            return BuildFailure(self, "Room has no players.", startedAtUtc);
         }
 
         self.State.Status = RoomStatus.InProgress;
@@ -249,29 +267,30 @@ public static partial class RoomBehavior
 
         self.State.LastWorldState = simulation.CreateWorldState();
         self.State.Revision += 1;
+        await EnsureBattleRuntimeTimerAsync(self, roomId, cancellationToken).ConfigureAwait(false);
 
-        return new ValueTask<RoomSettlementResult>(BuildSuccess(self, "Room started.", startedAtUtc));
+        return BuildSuccess(self, "Room started.", startedAtUtc);
     }
 
-    public static ValueTask<RoomSettlementResult> CompleteAsync(this RoomActor self, RoomMatchCompletion request, CancellationToken cancellationToken = default)
+    public static async ValueTask<RoomSettlementResult> CompleteAsync(this RoomActor self, RoomMatchCompletion request, CancellationToken cancellationToken = default)
     {
         var roomId = NormalizeRoomId(request.RoomId);
         var finishedAtUtc = NormalizeUtc(request.FinishedAtUtc);
 
         if (!self.RecordExists)
         {
-            return new ValueTask<RoomSettlementResult>(BuildFailure(self, "Room has not been created.", finishedAtUtc));
+            return BuildFailure(self, "Room has not been created.", finishedAtUtc);
         }
 
         if (string.IsNullOrWhiteSpace(request.SettlementId))
         {
-            return new ValueTask<RoomSettlementResult>(BuildFailure(self, "Settlement id is required for idempotent completion.", finishedAtUtc));
+            return BuildFailure(self, "Settlement id is required for idempotent completion.", finishedAtUtc);
         }
 
         if (!string.IsNullOrWhiteSpace(self.State.SettlementId) &&
             string.Equals(self.State.SettlementId, request.SettlementId, StringComparison.Ordinal))
         {
-            return new ValueTask<RoomSettlementResult>(new RoomSettlementResult
+            return new RoomSettlementResult
             {
                 RoomId = roomId,
                 SettlementId = request.SettlementId,
@@ -281,7 +300,7 @@ public static partial class RoomBehavior
                 Message = "Settlement already applied.",
                 UpdatedAtUtc = self.State.LastUpdatedAtUtc,
                 Snapshot = BuildSnapshot(self)
-            });
+            };
         }
 
         self.State.Status = RoomStatus.Finished;
@@ -305,8 +324,9 @@ public static partial class RoomBehavior
         }
 
         self.State.Revision += 1;
+        await DestroyBattleRuntimeTimerAsync(self).ConfigureAwait(false);
 
-        return new ValueTask<RoomSettlementResult>(new RoomSettlementResult
+        return new RoomSettlementResult
         {
             RoomId = roomId,
             SettlementId = request.SettlementId,
@@ -316,7 +336,7 @@ public static partial class RoomBehavior
             Message = "Settlement applied.",
             UpdatedAtUtc = finishedAtUtc,
             Snapshot = BuildSnapshot(self)
-        });
+        };
     }
 
     public static ValueTask<RoomSnapshot> GetSnapshotAsync(this RoomActor self, RoomSnapshotRequest request, CancellationToken cancellationToken = default)
@@ -501,6 +521,55 @@ public static partial class RoomBehavior
                     })
                 .ConfigureAwait(false);
         }
+    }
+
+    private static async ValueTask EnsureBattleRuntimeTimerAsync(RoomActor self, string roomId, CancellationToken cancellationToken)
+    {
+        if (self.BattleRuntimeTimerId.IsValid)
+        {
+            return;
+        }
+
+        try
+        {
+            self.BattleRuntimeTimerId = await LakonaTimer
+                .CreatePeriodicTimerAsync<BattleRuntimeTimerCallbacks, BattleRuntimeTimerArgs>(
+                    TimeSpan.Zero,
+                    TimeSpan.FromMilliseconds(50),
+                    nameof(BattleRuntimeTimerCallbacks.TickAsync),
+                    new BattleRuntimeTimerArgs { RoomId = roomId },
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (InvalidOperationException ex) when (IsMissingLakonaTimerScope(ex))
+        {
+            return;
+        }
+    }
+
+    private static async ValueTask DestroyBattleRuntimeTimerAsync(RoomActor self)
+    {
+        var timerId = self.BattleRuntimeTimerId;
+        self.BattleRuntimeTimerId = default;
+        if (timerId.IsValid)
+        {
+            try
+            {
+                await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException ex) when (IsMissingLakonaTimerScope(ex))
+            {
+                return;
+            }
+        }
+    }
+
+    private static bool IsMissingLakonaTimerScope(InvalidOperationException ex)
+    {
+        return string.Equals(
+            ex.Message,
+            "Lakona timers can only be used inside an active hotfix execution scope.",
+            StringComparison.Ordinal);
     }
 
     private static void EnsureState(RoomActor self, string roomId)

@@ -5,7 +5,6 @@ using Agar.Sample.State.Rooms;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
-using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Server.Hotfix.State.Rooms;
@@ -34,34 +33,8 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
 
     public static void Configure(HotfixFeatureContext context)
     {
-        context.Services.AddLogging();
         context.HandleCommand<BattleRuntimeRoomAllocationRequest, BattleRuntimeRoomAllocationReply>(
             nameof(AllocateRoomAsync));
-    }
-
-    public static async ValueTask StartAsync(HotfixFeatureStartCall call)
-    {
-        var timerId = await LakonaTimer
-            .CreatePeriodicTimerAsync<BattleRuntimeTimerCallbacks, BattleRuntimeTimerArgs>(
-                TimeSpan.Zero,
-                TimeSpan.FromMilliseconds(50),
-                nameof(BattleRuntimeTimerCallbacks.TickAsync),
-                new BattleRuntimeTimerArgs(),
-                call.CancellationToken)
-            .ConfigureAwait(false);
-        call.State.Items[FeatureTimerKeys.BattleRuntimeScanTimerId] = timerId;
-    }
-
-    public static async ValueTask StopAsync(HotfixFeatureStopCall call)
-    {
-        if (call.State.Items.TryGetValue(FeatureTimerKeys.BattleRuntimeScanTimerId, out var value) &&
-            value is TimerId timerId &&
-            timerId.IsValid)
-        {
-            await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None).ConfigureAwait(false);
-        }
-
-        call.State.Items.Remove(FeatureTimerKeys.BattleRuntimeScanTimerId);
     }
 
     public async ValueTask<BattleRuntimeRoomAllocationReply> AllocateRoomAsync(
@@ -83,15 +56,17 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
             actorCreated = true;
 
             var roomId = new RoomId(payload.RoomId);
+            var firstPlayer = payload.Players[0];
+            var createdAtUtc = firstPlayer.AssignedAtUtc == default ? DateTime.UtcNow : firstPlayer.AssignedAtUtc;
             var create = await _rooms.Local(roomId).CreateAsync(new RoomCreateRequest
             {
                 RoomId = payload.RoomId,
-                MatchId = payload.MatchId,
-                CreatedByUserId = payload.CreatedByUserId,
-                CreatedAtUtc = payload.CreatedAtUtc,
+                MatchId = firstPlayer.MatchId,
+                CreatedByUserId = firstPlayer.UserId,
+                CreatedAtUtc = createdAtUtc,
                 MaxPlayers = payload.MaxPlayers,
                 Players = payload.Players.Select(CloneAssignment).ToList(),
-                RuntimeGateway = CloneGateway(payload.RuntimeGateway)
+                RuntimeGateway = CloneGateway(firstPlayer.RuntimeGateway)
             }).ConfigureAwait(false);
             if (!create.Succeeded)
             {
@@ -103,8 +78,8 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
             var start = await _rooms.Local(roomId).StartAsync(new RoomStartRequest
             {
                 RoomId = payload.RoomId,
-                StartedByUserId = payload.CreatedByUserId,
-                StartedAtUtc = payload.CreatedAtUtc
+                StartedByUserId = firstPlayer.UserId,
+                StartedAtUtc = createdAtUtc
             }).ConfigureAwait(false);
             if (!start.Succeeded)
             {
@@ -156,9 +131,7 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
         {
             Succeeded = succeeded,
             RoomId = request.RoomId,
-            MatchId = request.MatchId,
-            Message = message,
-            RuntimeGateway = CloneGateway(request.RuntimeGateway)
+            Message = message
         };
     }
 

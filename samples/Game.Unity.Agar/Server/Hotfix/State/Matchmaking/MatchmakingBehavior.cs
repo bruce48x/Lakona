@@ -433,12 +433,8 @@ public static partial class MatchmakingBehavior
             new BattleRuntimeRoomAllocationRequest
             {
                 RoomId = request.RoomId,
-                MatchId = request.MatchId,
-                CreatedByUserId = request.CreatedByUserId,
-                CreatedAtUtc = request.CreatedAtUtc,
                 MaxPlayers = request.MaxPlayers,
-                Players = request.Players.Select(CloneAssignment).ToList(),
-                RuntimeGateway = CloneGateway(request.RuntimeGateway)
+                Players = request.Players.Select(CloneAssignment).ToList()
             }).ConfigureAwait(false);
         if (!reply.Succeeded)
         {
