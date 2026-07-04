@@ -270,6 +270,29 @@ publishes the new hotfix provider, dispatch table, behavior table, lifecycle
 handlers, and timer registrations as one generation.
 If scanning or validation fails, the previous generation remains active.
 
+### Feature Lifecycle Rationale
+
+Hotfix feature authoring intentionally stays on one public feature type: a
+class marked with `[HotfixFeature("name")]` that inherits `HotfixGameFeature`.
+Do not split the lifecycle into public interfaces such as separate configure,
+start, and stop interfaces. Those interfaces would make a small feature harder
+to read and would teach users several lifecycle concepts where one feature
+descriptor is enough.
+
+Lifecycle hooks remain static because `Configure` runs while the hotfix runtime
+is discovering declarations, before the hotfix generation service provider is
+complete. Instance lifecycle methods would make constructor injection and
+feature lifetime ambiguous during scanning. They would also encourage users to
+store reload-sensitive state in feature fields, which conflicts with collectible
+hotfix load contexts.
+
+`HotfixGameFeature` is therefore a semantic marker and feature command dispatch
+surface, not a retained singleton. The scanner and analyzer enforce the static
+shape because a normal base class cannot express required static members without
+adding another public authoring concept. Future lifecycle APIs should preserve
+this rule: users write one feature descriptor, and the framework derives the
+binding and validation around it.
+
 ### Feature Commands
 
 Hotfix feature declarations use `public static void Configure(HotfixFeatureContext context)`.
