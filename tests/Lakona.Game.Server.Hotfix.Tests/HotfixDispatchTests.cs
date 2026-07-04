@@ -1040,33 +1040,11 @@ public sealed class HotfixDispatchTests
 
         private static MetadataReference[] CreateDefaultReferences()
         {
-            return AppDomain.CurrentDomain.GetAssemblies()
-                .Where(static assembly => !assembly.IsDynamic && !string.IsNullOrWhiteSpace(assembly.Location))
-                .Select(static assembly => MetadataReference.CreateFromFile(assembly.Location))
-                .Concat(
-                [
-                    MetadataReference.CreateFromFile(typeof(Actor<>).Assembly.Location),
-                    MetadataReference.CreateFromFile(typeof(HotfixBehaviorOfAttribute).Assembly.Location),
-                    MetadataReference.CreateFromFile(typeof(ValueTask).Assembly.Location),
-                    MetadataReference.CreateFromFile(typeof(CancellationToken).Assembly.Location)
-                ])
-                .Distinct(MetadataReferencePathComparer.Instance)
-                .ToArray();
-        }
-    }
-
-    private sealed class MetadataReferencePathComparer : IEqualityComparer<MetadataReference>
-    {
-        public static readonly MetadataReferencePathComparer Instance = new();
-
-        public bool Equals(MetadataReference? x, MetadataReference? y)
-        {
-            return string.Equals(x?.Display, y?.Display, StringComparison.OrdinalIgnoreCase);
-        }
-
-        public int GetHashCode(MetadataReference obj)
-        {
-            return StringComparer.OrdinalIgnoreCase.GetHashCode(obj.Display ?? string.Empty);
+            return HotfixTestMetadataReferences.CreateDefaultReferences(
+                typeof(Actor<>),
+                typeof(HotfixBehaviorOfAttribute),
+                typeof(ValueTask),
+                typeof(CancellationToken));
         }
     }
 }

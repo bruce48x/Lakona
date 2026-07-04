@@ -29,6 +29,25 @@ public sealed class HotfixBehaviorScannerTests
     }
 
     [Fact]
+    public void Metadata_references_ignore_assembly_locations_that_no_longer_exist()
+    {
+        var missingAssemblyPath = Path.Combine(
+            Path.GetTempPath(),
+            "LakonaHotfixDeletedReferenceTests",
+            Guid.NewGuid().ToString("N"),
+            "DeletedReference.dll");
+
+        var references = HotfixTestMetadataReferences.CreateDefaultReferences(
+            [missingAssemblyPath],
+            [typeof(object)]);
+
+        Assert.DoesNotContain(references, reference =>
+            string.Equals(reference.Display, missingAssemblyPath, StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(references, reference =>
+            string.Equals(reference.Display, typeof(object).Assembly.Location, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Scanner_builds_behavior_actor_api_descriptors()
     {
         var fixture = TwoAssemblyHotfixFixture.Create(
@@ -729,33 +748,11 @@ public sealed class HotfixBehaviorScannerTests
 
         private static MetadataReference[] CreateDefaultReferences()
         {
-            return AppDomain.CurrentDomain.GetAssemblies()
-                .Where(static assembly => !assembly.IsDynamic && !string.IsNullOrWhiteSpace(assembly.Location))
-                .Select(static assembly => MetadataReference.CreateFromFile(assembly.Location))
-                .Concat(
-                [
-                    MetadataReference.CreateFromFile(typeof(Actor<>).Assembly.Location),
-                    MetadataReference.CreateFromFile(typeof(HotfixBehaviorOfAttribute).Assembly.Location),
-                    MetadataReference.CreateFromFile(typeof(ValueTask).Assembly.Location),
-                    MetadataReference.CreateFromFile(typeof(CancellationToken).Assembly.Location)
-                ])
-                .Distinct(MetadataReferencePathComparer.Instance)
-                .ToArray();
-        }
-    }
-
-    private sealed class MetadataReferencePathComparer : IEqualityComparer<MetadataReference>
-    {
-        public static readonly MetadataReferencePathComparer Instance = new();
-
-        public bool Equals(MetadataReference? x, MetadataReference? y)
-        {
-            return string.Equals(x?.Display, y?.Display, StringComparison.OrdinalIgnoreCase);
-        }
-
-        public int GetHashCode(MetadataReference obj)
-        {
-            return StringComparer.OrdinalIgnoreCase.GetHashCode(obj.Display ?? string.Empty);
+            return HotfixTestMetadataReferences.CreateDefaultReferences(
+                typeof(Actor<>),
+                typeof(HotfixBehaviorOfAttribute),
+                typeof(ValueTask),
+                typeof(CancellationToken));
         }
     }
 
