@@ -58,7 +58,6 @@ public sealed class LakonaObservabilityOptionsTests
         Assert.Equal(20090, options.LocalAdmin.Port);
         Assert.True(options.LocalAdmin.RequireLoopback);
 
-        Assert.True(options.Diagnostics.SummaryEnabled);
         Assert.False(options.Diagnostics.DetailEnabled);
         Assert.True(options.Diagnostics.EventBuffer.Enabled);
         Assert.Equal(1024, options.Diagnostics.EventBuffer.Capacity);
@@ -69,6 +68,17 @@ public sealed class LakonaObservabilityOptionsTests
 
         Assert.False(options.Tracing.Export.Enabled);
         Assert.Equal(1.0, options.Tracing.Export.SampleRate);
+    }
+
+    [Fact]
+    public void Diagnostics_options_public_surface_does_not_expose_summary_compatibility_switch()
+    {
+        var propertyNames = typeof(LakonaDiagnosticsObservabilityOptions)
+            .GetProperties()
+            .Select(static property => property.Name)
+            .ToArray();
+
+        Assert.DoesNotContain("SummaryEnabled", propertyNames);
     }
 
     [Fact]
@@ -91,7 +101,6 @@ public sealed class LakonaObservabilityOptionsTests
             ["Lakona:Observability:LocalAdmin:Host"] = "0.0.0.0",
             ["Lakona:Observability:LocalAdmin:Port"] = "20100",
             ["Lakona:Observability:LocalAdmin:RequireLoopback"] = "false",
-            ["Lakona:Observability:Diagnostics:SummaryEnabled"] = "false",
             ["Lakona:Observability:Diagnostics:DetailEnabled"] = "true",
             ["Lakona:Observability:Diagnostics:EventBuffer:Enabled"] = "false",
             ["Lakona:Observability:Diagnostics:EventBuffer:Capacity"] = "2048",
@@ -125,7 +134,6 @@ public sealed class LakonaObservabilityOptionsTests
         Assert.Equal(20100, options.LocalAdmin.Port);
         Assert.False(options.LocalAdmin.RequireLoopback);
 
-        Assert.False(options.Diagnostics.SummaryEnabled);
         Assert.True(options.Diagnostics.DetailEnabled);
         Assert.False(options.Diagnostics.EventBuffer.Enabled);
         Assert.Equal(2048, options.Diagnostics.EventBuffer.Capacity);

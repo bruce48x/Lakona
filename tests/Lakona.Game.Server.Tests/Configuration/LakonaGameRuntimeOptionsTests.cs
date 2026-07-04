@@ -70,6 +70,17 @@ public sealed class LakonaGameRuntimeOptionsTests
     }
 
     [Fact]
+    public void Runtime_options_public_surface_does_not_expose_compatibility_cluster_endpoint()
+    {
+        var propertyNames = typeof(LakonaGameRuntimeOptions)
+            .GetProperties()
+            .Select(static property => property.Name)
+            .ToArray();
+
+        Assert.DoesNotContain("ClusterEndpoint", propertyNames);
+    }
+
+    [Fact]
     public void FromConfiguration_preserves_empty_feature_array()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>

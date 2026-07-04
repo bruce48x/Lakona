@@ -47,11 +47,6 @@ public sealed class LakonaGameRuntimeOptions
     public LakonaGameClusterOptions? Cluster { get; init; }
 
     /// <summary>
-    /// Gets the compatibility cluster endpoint value retained for older callers.
-    /// </summary>
-    public string ClusterEndpoint { get; init; } = "tcp://127.0.0.1:21000";
-
-    /// <summary>
     /// Gets the resolved runtime profile that controls framework defaults and guardrails.
     /// </summary>
     public LakonaGameRuntimeProfile Profile { get; init; } = LakonaGameRuntimeProfile.Development;

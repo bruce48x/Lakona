@@ -439,6 +439,13 @@ callback contract method returns `void`; otherwise a reliable notification can
 be reported as delivered while the transport send is still pending or has
 failed.
 
+The lambda-capture form is the business-facing intent API, but the current
+runtime capture mechanism is not a permanent design commitment. Future
+notification work should prefer generated typed command helpers over
+`DispatchProxy`-style runtime capture so callback method selection is checked
+at build time and the "exactly one callback method" rule is easier to reason
+about.
+
 User-targeted notification policy remains business-layer responsibility in this
 iteration. The framework does not own session kind or expose user-and-kind
 targeting. Games may still keep business presence and product session policy in

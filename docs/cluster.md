@@ -212,6 +212,12 @@ client-notification relay commands, and the default `RpcRemoteActorSerializer`.
 The configured cluster serializer wins over earlier bare `IRpcSerializer`
 registrations in built-in cluster wiring.
 
+The serializer replacement inside built-in endpoint wiring is an internal
+composition detail, not an extension contract. Future cluster registration work
+should prefer explicit cluster-channel serializer services over global
+`IRpcSerializer` replacement so registration order is not a hidden topology
+contract.
+
 When `Lakona:Cluster:Serializer` is `memorypack`, server cluster wiring uses
 the generated built-in cluster MemoryPack formatters from
 `Lakona.Game.Cluster.Rpc.MemoryPack`. Advanced manual MemoryPack cluster hosts

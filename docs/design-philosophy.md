@@ -27,6 +27,30 @@ updates. These principles are adapted for the .NET and Unity/Godot ecosystem:
 - fail loudly on invalid topology, lost state, and unsafe configuration
 - keep framework scope narrow so games own their own business policy
 
+### Complexity Budget
+
+Lakona is early enough that simplifying the long-term model is more important
+than preserving compatibility shims. A framework surface should stay only when
+it carries active runtime behavior or a clear extension contract.
+
+Maintainers should treat the following as active simplification pressure:
+
+- Remove obsolete public options, aliases, and compatibility fields instead of
+  keeping them as passive documentation of old behavior.
+- Prefer generated, typed binding over stringly runtime lookup for hotfix
+  callbacks, feature commands, and service dispatch surfaces.
+- Keep process, DI, serializer, cluster, and hotfix-generation boundaries
+  visible. Hidden fallback providers, global service replacement, or ambient
+  scopes must remain isolated and documented until they can be replaced by an
+  explicit boundary.
+- Keep `LakonaGameServer.RunAsync` as the one-command generated-project entry
+  point, but do not let it accumulate unrelated startup logic directly. New
+  startup responsibilities should be factored behind named composition steps.
+- Source generators may generate multiple runtime products, but their internal
+  implementation should be organized by product boundary so state accessors,
+  RPC service proxies, actor refs, wrappers, and diagnostics can evolve
+  independently.
+
 ## Core Principles
 
 ### Simple Core, Explicit Boundaries

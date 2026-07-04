@@ -567,7 +567,6 @@ Example:
         "RequireLoopback": true
       },
       "Diagnostics": {
-        "SummaryEnabled": true,
         "DetailEnabled": false,
         "EventBuffer": {
           "Enabled": true,
@@ -591,11 +590,6 @@ Example:
   }
 }
 ```
-
-`SummaryEnabled` is parsed for compatibility with the observability options
-shape, but in this slice the framework registers core summary diagnostics routes
-whenever local admin is enabled. Treat it as a compatibility/default field, not
-as a route switch.
 
 File logging, Prometheus endpoint serving, and tracing export are integration
 points. Enabling them without registering the corresponding implementation is a

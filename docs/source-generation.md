@@ -140,3 +140,23 @@ runtime, platform, and game-version metadata for the handshake.
 - `Lakona.Rpc.Analyzers` owns compile-time diagnostics and source generation.
 - `Lakona.Tool` owns generated project files and package references, but does
   not write generated RPC glue as source files.
+
+## Generator Maintainability
+
+Generators are allowed to hide runtime glue from user projects, but they must
+not become an unbounded compatibility layer. When a generator emits multiple
+runtime products, the implementation should be split by product boundary:
+
+- RPC contract discovery, diagnostics, client facades, notification binders,
+  and server binders belong to the RPC generator boundary.
+- Hotfix state accessors, stable RPC service proxies, behavior-derived actor
+  refs, behavior wrappers, and hotfix diagnostics are separate hotfix generator
+  products even when they are packaged in one analyzer assembly.
+- Shared naming, type-display, and literal-escaping helpers should be factored
+  as helpers, not used as a reason to keep unrelated emitters in one large
+  generator file.
+
+Generated support APIs should also shrink over time. In particular, generated
+server binders must stop exposing `RpcSession` in public signatures before
+`RpcSession` can be moved fully behind the runtime-internal boundary described
+in [public-api-boundaries.md](api-stability/public-api-boundaries.md).

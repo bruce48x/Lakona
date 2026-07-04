@@ -163,7 +163,6 @@ public sealed class LakonaLocalAdminObservabilityOptions
 
 public sealed class LakonaDiagnosticsObservabilityOptions
 {
-    public bool SummaryEnabled { get; init; } = true;
     public bool DetailEnabled { get; init; }
     public LakonaDiagnosticsEventBufferOptions EventBuffer { get; init; } = new();
 
@@ -171,7 +170,6 @@ public sealed class LakonaDiagnosticsObservabilityOptions
     {
         return new LakonaDiagnosticsObservabilityOptions
         {
-            SummaryEnabled = LakonaConfigurationReader.ReadBool(section, "SummaryEnabled", true),
             DetailEnabled = LakonaConfigurationReader.ReadBool(section, "DetailEnabled", false),
             EventBuffer = LakonaDiagnosticsEventBufferOptions.FromConfiguration(
                 section.GetSection("EventBuffer"))

@@ -173,6 +173,11 @@ stable root DI container. Dependencies registered by `HotfixFeatureContext`
 belong to the current hotfix generation; stable framework dependencies are
 resolved through the provider fallback to the root container.
 
+The root-provider fallback is an implementation compromise, not a user-facing
+design goal. Future work should replace hidden hotfix/root provider fallback
+with an explicit bridge for stable dependencies, or with generated call-context
+dependencies, so service constructors make dependency ownership obvious.
+
 High-frequency service methods may remain static when avoiding one service
 instance allocation per request is required. Static methods may resolve the
 small set of required dependencies directly from `call.Services` in local
@@ -243,6 +248,13 @@ when deleting feature-owned timers. Stable App code must not define
 application-specific hotfix event adapters, room runtimes, matchmaking hosted
 services, or game Feature classes.
 
+Timer callbacks currently use callback type plus method name so an existing
+timer can resolve the callback on the newest hotfix generation. This string
+method name is a compatibility point inside the runtime, not the preferred
+long-term authoring model. Future timer work should prefer generated or typed
+callback registration that preserves hotfix reload semantics without asking
+users to maintain string method names.
+
 `StartAsync` and `StopAsync` are activation and removal hooks, not every-reload hooks.
 A successful reload that retains the same feature name
 preserves `HotfixFeatureState` and does not rerun `StartAsync` or `StopAsync`
@@ -269,6 +281,12 @@ different signature; descriptors must declare exactly one
 `public static void Configure(HotfixFeatureContext context)` and no other public `Configure` overloads.
 The scanner does not construct feature classes
 during declaration.
+
+`HotfixFeatureContext.HandleCommand<TRequest, TReply>(methodName)` is the
+current declaration API. The `methodName` parameter should not spread to new
+feature APIs. Future generator work should make feature command handlers
+discoverable and type-checked at build time so command declarations do not
+depend on string method names.
 
 Runtime feature command calls activate a fresh feature instance from the current
 hotfix service provider, invoke a method shaped as
