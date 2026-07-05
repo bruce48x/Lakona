@@ -5,6 +5,7 @@ using Agar.Sample.State.Users;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
@@ -22,7 +23,7 @@ public sealed class LoginService
     private readonly ActorHosting _actorHosting;
     private readonly IClusterNodeDiscovery? _clusterDiscovery;
     private readonly LocalActorNodeIdentity _localNode;
-    private readonly StateStoreUserActorPlacementClient _placementClient;
+    private readonly IFeatureCommandClient _featureCommandClient;
     private readonly UserActors _users;
     private readonly ILogger<LoginService> _logger;
     private readonly MatchmakingNotifier _matchmakingNotifier;
@@ -34,7 +35,7 @@ public sealed class LoginService
         LakonaGameRuntimeOptions runtime,
         LocalActorNodeIdentity localNode,
         ActorHosting actorHosting,
-        StateStoreUserActorPlacementClient placementClient,
+        IFeatureCommandClient featureCommandClient,
         IEnumerable<IClusterNodeDiscovery> clusterDiscovery,
         ILogger<LoginService> logger)
     {
@@ -43,7 +44,7 @@ public sealed class LoginService
         _runtime = runtime;
         _localNode = localNode;
         _actorHosting = actorHosting;
-        _placementClient = placementClient;
+        _featureCommandClient = featureCommandClient;
         _clusterDiscovery = clusterDiscovery.FirstOrDefault();
         _logger = logger;
     }
@@ -224,21 +225,6 @@ public sealed class LoginService
         UserLoginRequest request)
     {
         var userId = new UserId(account);
-        // try
-        // {
-        //     return await _users
-        //         .Get(userId)
-        //         .LoginAsync(request)
-        //         .ConfigureAwait(false);
-        // }
-        // catch (ActorNotFoundException)
-        // {
-        //     await CreateUserActorOnStateStoreAsync(account).ConfigureAwait(false);
-        //     return await _users
-        //         .Get(userId)
-        //         .LoginAsync(request)
-        //         .ConfigureAwait(false);
-        // }
         await CreateUserActorOnStateStoreAsync(account).ConfigureAwait(false);
         return await _users
             .Get(userId)
@@ -249,22 +235,14 @@ public sealed class LoginService
     private async ValueTask CreateUserActorOnStateStoreAsync(
         string account)
     {
-        var actorId = ActorId.From(account);
         var owner = await SelectStateStoreOwnerAsync(account).ConfigureAwait(false);
         var ownerNode = owner.Node;
 
-        if (ownerNode == _localNode.NodeId)
-        {
-            await CreateLocalUserActorAsync(actorId, account, ownerNode).ConfigureAwait(false);
-        }
-        else
-        {
-            await SendCreateUserActorAsync(owner, account).ConfigureAwait(false);
-            _logger.LogDebug(
-                "Requested user actor {UserId} creation on state-store node {NodeId}.",
-                account,
-                ownerNode.Value);
-        }
+        await SendCreateUserActorAsync(owner, account).ConfigureAwait(false);
+        _logger.LogDebug(
+            "Requested user actor {UserId} creation on state-store node {NodeId}.",
+            account,
+            ownerNode.Value);
     }
 
     private async ValueTask<ClusterNodeDescriptor> SelectStateStoreOwnerAsync(string userId)
@@ -328,7 +306,15 @@ public sealed class LoginService
         ClusterNodeDescriptor owner,
         string userId)
     {
-        await _placementClient.SendCreateUserActorAsync(owner, userId).ConfigureAwait(false);
+        var reply = await _featureCommandClient.SendToNodeAsync<CreateUserActorRequest, CreateActorReply>(
+            owner,
+            StateStoreUserActorPlacement.FeatureName,
+            new CreateUserActorRequest { UserId = userId }).ConfigureAwait(false);
+        if (!reply.Succeeded)
+        {
+            throw new InvalidOperationException(
+                $"State-store node {owner.Node.Value} rejected user actor creation for '{userId}'. {reply.Message}");
+        }
     }
 
     private async ValueTask CreateLocalUserActorAsync(

@@ -29,7 +29,6 @@ public sealed class StateStoreFeature : HotfixGameFeature
     {
         context.Services.AddSingleton<MatchmakingNotifier>();
         context.Services.AddSingleton<RoomNotifier>();
-        context.Services.AddSingleton<StateStoreUserActorPlacementClient>();
         context.HandleCommand<CreateUserActorRequest, CreateActorReply>(nameof(CreateUserActorAsync));
     }
 
