@@ -8,6 +8,7 @@ using Lakona.Game.Server.Diagnostics;
 using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Guardrails;
 using Lakona.Game.Server.Hosting;
+using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
 using Lakona.Rpc.Serializer.Json;
@@ -99,6 +100,8 @@ public sealed class DistributedTopologyConfigurationTests
     {
         using var document = Open("appsettings.json");
         var lakona = document.RootElement.GetProperty("Lakona");
+        var features = lakona.GetProperty("Feature").EnumerateArray().Select(item => item.GetString()).ToArray();
+        var cluster = lakona.GetProperty("Cluster");
         var endpoints = lakona.GetProperty("Endpoints").EnumerateArray().ToArray();
 
         var control = endpoints.Single(endpoint =>
@@ -106,6 +109,10 @@ public sealed class DistributedTopologyConfigurationTests
         var battle = endpoints.Single(endpoint =>
             string.Equals(endpoint.GetProperty("Transport").GetString(), "kcp", StringComparison.Ordinal));
 
+        Assert.Equal(new[] { "state-store", "matchmaking", "leaderboard", "battle-runtime" }, features);
+        Assert.Equal("tcp://127.0.0.1:21001", cluster.GetProperty("Endpoint").GetString());
+        Assert.Equal("memorypack", cluster.GetProperty("Serializer").GetString());
+        Assert.Equal(new[] { "tcp://127.0.0.1:21001" }, cluster.GetProperty("Seeds").EnumerateArray().Select(item => item.GetString()).ToArray());
         Assert.Equal(new[] { "login", "player" }, control.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
         Assert.Equal(new[] { "battle" }, battle.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
     }
@@ -370,26 +377,50 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
-    public async Task MatchmakingKeepsTicketsQueuedForLocalKcpEndpointWithoutBattleRuntimeDiscovery()
+    public async Task MatchmakingAllocatesExpiredPartialBatchForDefaultSingleNodeCluster()
     {
-        await TestHotfix.LoadCurrentAsync(TestContext.Current.CancellationToken);
-
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var roomAllocator = new CapturingBattleRuntimeFeatureCommands();
         var services = BuildProgramServices("appsettings.json");
+        var hotfixAssemblyPath = TestHotfix.FindHotfixAssemblyPath();
+        services.AddLakonaGameHotfix(
+            new Lakona.Game.Server.Hotfix.Loading.CurrentDirectoryHotfixAssemblySource(
+                Path.GetDirectoryName(hotfixAssemblyPath)!,
+                Path.GetFileName(hotfixAssemblyPath)),
+            TestHotfix.SharedAssemblyNames());
+        services.AddSingleton<IFeatureCommandClient>(roomAllocator);
 
         await using var provider = services.BuildServiceProvider();
-        var actors = provider.GetRequiredService<IActorRuntime>();
-
-        MatchmakingEnqueueResult? result = null;
-        for (var i = 0; i < 10; i++)
+        var reload = await provider.GetRequiredService<IHotfixManager>().ReloadAsync(cancellationToken);
+        if (!reload.Succeeded)
         {
-            var playerId = $"local-runtime-player-{i}";
-            var login = await LoginAsync(provider, playerId);
+            throw new InvalidOperationException(TestHotfix.BuildReloadDiagnostics(reload));
+        }
+
+        var registration = provider
+            .GetServices<Microsoft.Extensions.Hosting.IHostedService>()
+            .OfType<LakonaGameClusterRegistrationHostedService>()
+            .Single();
+        await registration.StartAsync(cancellationToken);
+
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        var discoveredBattleNodes = await provider
+            .GetRequiredService<IClusterNodeDiscovery>()
+            .ListAsync(new FeatureName("battle-runtime"), cancellationToken);
+        var discoveredBattleNode = Assert.Single(discoveredBattleNodes);
+        Assert.Equal(new NodeId("gateway-1"), discoveredBattleNode.Node);
+        Assert.Equal("tcp://127.0.0.1:21001", discoveredBattleNode.Endpoints["cluster"].Address);
+        Assert.Equal("kcp://127.0.0.1:20001", discoveredBattleNode.Endpoints["kcp"].Address);
+
+        try
+        {
+            var login = await LoginAsync(provider, "local-runtime-player");
 
             await AttachSessionAsync(provider, new PlayerSessionAttachRequest
             {
                 UserId = login.UserId,
                 SessionToken = login.SessionToken,
-                ConnectionId = $"control-{i}",
+                ConnectionId = "control-local-runtime",
                 AttachedAtUtc = DateTime.UtcNow,
                 ControlGateway = new Agar.Sample.State.Contracts.GatewayEndpointDescriptor
                 {
@@ -401,26 +432,49 @@ public sealed class DistributedTopologyConfigurationTests
                 }
             });
 
-            result = await EnqueueAsync(provider, new MatchmakingEnqueueRequest
+            var result = await EnqueueAsync(provider, new MatchmakingEnqueueRequest
             {
                 UserId = login.UserId,
                 SessionToken = login.SessionToken,
-                EnqueuedAtUtc = DateTime.UtcNow
+                EnqueuedAtUtc = DateTime.UtcNow.AddSeconds(-6)
             });
+
+            Assert.NotNull(result);
+            Assert.False(result.Matched);
+            Assert.True(result.Queued);
+
+            await actors.AskAsync<MatchmakingActor, bool>(
+                ActorId.From("default"),
+                async (actor, _) =>
+                {
+                    await actor.RunTickAsync(new MatchmakingTickRequest
+                    {
+                        ObservedAtUtc = DateTime.UtcNow
+                    });
+                    return true;
+                },
+                cancellationToken);
+
+            Assert.NotNull(roomAllocator.LastRequest);
+            Assert.Equal("battle-runtime", roomAllocator.LastFeatureName);
+            Assert.Equal(10, roomAllocator.LastRequest.MaxPlayers);
+            var player = Assert.Single(roomAllocator.LastRequest.Players);
+            Assert.Equal(login.UserId, player.UserId);
+
+            var status = await GetMatchmakingStatusAsync(provider);
+            Assert.Equal(0, status.QueuedCount);
+
+            var session = await GetSessionSnapshotAsync(provider, login.UserId);
+            Assert.Equal(roomAllocator.LastRequest.RoomId, session.CurrentRoomId);
+            Assert.Equal(player.MatchId, session.CurrentMatchId);
+            Assert.Equal("gateway-1", session.RuntimeGateway.InstanceId);
+            Assert.Equal("kcp", session.RuntimeGateway.Transport);
+            Assert.Equal("127.0.0.1", session.RuntimeGateway.Host);
+            Assert.Equal(20001, session.RuntimeGateway.Port);
         }
-
-        Assert.NotNull(result);
-        Assert.False(result.Matched);
-        Assert.True(result.Queued);
-
-        var status = await GetMatchmakingStatusAsync(provider);
-        Assert.Equal(10, status.QueuedCount);
-
-        for (var i = 0; i < 10; i++)
+        finally
         {
-            var snapshot = await GetSessionSnapshotAsync(provider, $"local-runtime-player-{i}");
-            Assert.True(string.IsNullOrWhiteSpace(snapshot.CurrentRoomId));
-            Assert.True(string.IsNullOrWhiteSpace(snapshot.CurrentMatchId));
+            await registration.StopAsync(CancellationToken.None);
         }
     }
 
@@ -908,6 +962,10 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddGeneratedActorSelectorTestDependencies();
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton(runtimeOptions);
+        if (runtimeOptions.Cluster is not null)
+        {
+            services.AddSingleton(runtimeOptions.ToClusterOptions(configuration));
+        }
         services.AddMessageRecording();
         services.AddLakonaGameRuntimeValidation();
         services.AddLakonaGame(configuration, _ => { });

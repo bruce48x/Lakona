@@ -211,7 +211,7 @@ public sealed class LoginService
 
     private static string CreateGuestAccount()
     {
-        return $"guest-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}-{RandomNumberGenerator.GetHexString(6).ToLowerInvariant()}";
+        return $"guest-{RandomNumberGenerator.GetHexString(8).ToLowerInvariant()}";
     }
 
     private static string CreateGuestPassword()
@@ -224,21 +224,26 @@ public sealed class LoginService
         UserLoginRequest request)
     {
         var userId = new UserId(account);
-        try
-        {
-            return await _users
-                .Get(userId)
-                .LoginAsync(request)
-                .ConfigureAwait(false);
-        }
-        catch (ActorNotFoundException)
-        {
-            await CreateUserActorOnStateStoreAsync(account).ConfigureAwait(false);
-            return await _users
-                .Get(userId)
-                .LoginAsync(request)
-                .ConfigureAwait(false);
-        }
+        // try
+        // {
+        //     return await _users
+        //         .Get(userId)
+        //         .LoginAsync(request)
+        //         .ConfigureAwait(false);
+        // }
+        // catch (ActorNotFoundException)
+        // {
+        //     await CreateUserActorOnStateStoreAsync(account).ConfigureAwait(false);
+        //     return await _users
+        //         .Get(userId)
+        //         .LoginAsync(request)
+        //         .ConfigureAwait(false);
+        // }
+        await CreateUserActorOnStateStoreAsync(account).ConfigureAwait(false);
+        return await _users
+            .Get(userId)
+            .LoginAsync(request)
+            .ConfigureAwait(false);
     }
 
     private async ValueTask CreateUserActorOnStateStoreAsync(
