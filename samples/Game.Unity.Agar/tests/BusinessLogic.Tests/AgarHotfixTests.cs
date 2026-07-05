@@ -205,6 +205,7 @@ public sealed class AgarHotfixTests
             .RegisterAsync(ActorId.From("current"), expectedOwner.Node, TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
         var hotfixServices = await TestHotfix.LoadCurrentAsync(provider, TestContext.Current.CancellationToken);
+        var gameServer = new TestGameServer();
         var call = new HotfixServiceCall<LeaderboardRequest, IPlayerCallback>(
             new LeaderboardRequest { TopN = 5 },
             "control-connection-1",
@@ -212,12 +213,13 @@ public sealed class AgarHotfixTests
             new GameSessionKey("player-1", "session-1", 1),
             hotfixServices,
             actors,
-            new TestGameServer());
+            gameServer);
 
         var reply = await HotfixDispatch.Current
             .InvokeServiceAsync<IPlayerService, HotfixServiceCall<LeaderboardRequest, IPlayerCallback>, LeaderboardReply>(4, call);
 
         Assert.Equal(0, reply.Code);
+        Assert.Equal(typeof(IPlayerCallback), gameServer.LastBoundSessionCallbackType);
         Assert.Null(featureCommands.LastTarget);
         Assert.Equal("", featureCommands.LastFeatureName);
         Assert.Equal("", featureCommands.LastRequestTypeName);
@@ -694,6 +696,8 @@ public sealed class AgarHotfixTests
 
     private sealed class TestGameServer : ILakonaGameServer
     {
+        public Type? LastBoundSessionCallbackType { get; private set; }
+
         public ValueTask<GameSessionKey> StartSessionAsync(
             string ownerKey,
             CancellationToken cancellationToken = default)
@@ -728,6 +732,7 @@ public sealed class AgarHotfixTests
             CancellationToken cancellationToken = default)
             where TCallback : class
         {
+            LastBoundSessionCallbackType = typeof(TCallback);
             return default;
         }
 

@@ -383,19 +383,21 @@ public static partial class MatchmakingBehavior
         var candidates = await discovery
             .ListAsync(new FeatureName(BattleRuntimeRoomAllocation.FeatureName))
             .ConfigureAwait(false);
-        var target = candidates
+        var list = candidates
             .Where(candidate => candidate.State == NodeState.Ready)
             .OrderBy(candidate => candidate.Node.Value, StringComparer.Ordinal)
-            .FirstOrDefault();
-        if (target is null)
+            .ToList();
+        if (list.Count == 0)
         {
             return new RoomSettlementResult
             {
                 RoomId = request.RoomId,
                 Succeeded = false,
-                Message = $"Battle runtime node is unavailable."
+                Message = "Battle runtime node is unavailable."
             };
         }
+
+        var target = list[(int)(ComputeStableHash(request.RoomId) % (uint)list.Count)];
 
         var reply = await commands.SendToNodeAsync<BattleRuntimeRoomAllocationRequest, BattleRuntimeRoomAllocationReply>(
             target,
@@ -508,6 +510,23 @@ public static partial class MatchmakingBehavior
         return endpoint.RpcServices.Count == 0 ||
             endpoint.RpcServices.Contains("battle", StringComparer.OrdinalIgnoreCase) ||
             endpoint.RpcServices.Contains("battle-runtime", StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static uint ComputeStableHash(string value)
+    {
+        unchecked
+        {
+            const uint offsetBasis = 2166136261;
+            const uint prime = 16777619;
+            var hash = offsetBasis;
+            foreach (var ch in value)
+            {
+                hash ^= ch;
+                hash *= prime;
+            }
+
+            return hash;
+        }
     }
 
     private static void RestoreBatch(MatchmakingActor self, List<MatchmakingQueueTicket> batch)

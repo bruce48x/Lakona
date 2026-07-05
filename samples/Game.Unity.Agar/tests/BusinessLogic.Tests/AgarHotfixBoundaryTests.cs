@@ -227,7 +227,8 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("BattleRuntimeRoomAllocation.FeatureName", matchmaking, StringComparison.Ordinal);
         Assert.Contains("IFeatureCommandClient", matchmaking, StringComparison.Ordinal);
         Assert.Contains("SendToNodeAsync<BattleRuntimeRoomAllocationRequest, BattleRuntimeRoomAllocationReply>", matchmaking, StringComparison.Ordinal);
-        Assert.Contains("AllocateRemoteRoomAsync", matchmaking, StringComparison.Ordinal);
+        Assert.Contains("private static async ValueTask<RoomSettlementResult> AllocateRoomAsync", matchmaking, StringComparison.Ordinal);
+        Assert.DoesNotContain("System.IO.Hashing", matchmaking, StringComparison.Ordinal);
         Assert.DoesNotContain("IFeatureMessageTransport", matchmaking, StringComparison.Ordinal);
         Assert.DoesNotContain("FeatureMessageRequest", matchmaking, StringComparison.Ordinal);
         Assert.DoesNotContain("FeatureMessageReply", matchmaking, StringComparison.Ordinal);
