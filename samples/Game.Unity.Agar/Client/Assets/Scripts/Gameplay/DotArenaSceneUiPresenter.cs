@@ -71,11 +71,10 @@ namespace SampleClient.Gameplay
         private GameObject? _topStatusPanel;
         private GameObject? _hudPanel;
         private GameObject? _matchRankingPanel;
-        private GameObject? _entryPanel;
         private GameObject? _matchmakingPanel;
         private GameObject? _lobbyPanel;
         private GameObject? _modeSelectPanel;
-        private GameObject? _multiplayerPanel;
+        private GameObject? _loginPanel;
         private TMP_Text? _matchmakingTitleText;
         private TMP_Text? _matchmakingDetailText;
         private Button? _matchmakingCancelButton;
@@ -189,19 +188,20 @@ namespace SampleClient.Gameplay
             EnsureTopStatusPanel();
             EnsureMatchRankingPanel();
             _matchRankingPanel = FindSceneUiObject("SceneUI/MatchRankingPanel");
-            _entryPanel = FindSceneUiObject("SceneUI/EntryPanel");
             EnsureMatchmakingPanel();
             _matchmakingPanel = FindSceneUiObject("SceneUI/MatchmakingPanel");
             EnsureLobbyPanel();
             _lobbyPanel = FindSceneUiObject("SceneUI/LobbyPanel");
             EnsureLobbyQuickActionsText();
-            EnsureLobbyQuickActionButtons();
-            _modeSelectPanel = FindSceneUiObject("SceneUI/EntryPanel/ModeSelectPanel");
-            _multiplayerPanel = FindSceneUiObject("SceneUI/EntryPanel/MultiplayerPanel");
-            EnsureEntryPanelLayout();
-            EnsureModeSelectPanelContents();
-            EnsureMultiplayerAuthActionButtons();
+            WarnIfMissingLobbyQuickActionButtons();
+            _modeSelectPanel = FindSceneUiObject("SceneUI/ModeSelectPanel");
+            _loginPanel = FindSceneUiObject("SceneUI/LoginPanel");
+            WarnIfMissingAuthoredScreen("SceneUI/ModeSelectPanel", _modeSelectPanel);
+            WarnIfMissingAuthoredScreen("SceneUI/LoginPanel", _loginPanel);
+            WarnIfMissingAuthoredScreen("SceneUI/MatchmakingPanel", _matchmakingPanel);
+            WarnIfMissingAuthoredScreen("SceneUI/LobbyPanel", _lobbyPanel);
             EnsureSettlementPanel();
+            WarnIfMissingAuthoredScreen("SceneUI/SettlementPanel", _settlementPanel);
 
             _hudTitleText = FindSceneUiText("SceneUI/HUDPanel/TitleText");
             _hudPlayerText = FindSceneUiText("SceneUI/OverlayLayer/TopStatusPanel/PlayerText");
@@ -212,8 +212,8 @@ namespace SampleClient.Gameplay
             _matchRankingHeaderText = FindSceneUiText("SceneUI/MatchRankingPanel/HeaderText");
             EnsureTopStatusPanel();
 
-            _entryTitleText = FindSceneUiText("SceneUI/EntryPanel/TitleText");
-            _entryStatusText = FindSceneUiText("SceneUI/EntryPanel/StatusText");
+            _entryTitleText = FindSceneUiText("SceneUI/LoginPanel/TitleText");
+            _entryStatusText = FindSceneUiText("SceneUI/LoginPanel/StatusText");
             _matchmakingTitleText = FindSceneUiText("SceneUI/MatchmakingPanel/TitleText");
             _matchmakingDetailText = FindSceneUiText("SceneUI/MatchmakingPanel/DetailText");
             _matchmakingCancelButton = FindSceneUiButton("SceneUI/MatchmakingPanel/CancelButton");
@@ -246,41 +246,41 @@ namespace SampleClient.Gameplay
             HideDeprecatedLobbyButton(_lobbyShopButton);
             HideDeprecatedLobbyButton(_lobbyRecordsButton);
 
-            _multiplayerSubtitleText = FindSceneUiText("SceneUI/EntryPanel/MultiplayerPanel/SubtitleText");
-            _accountLabelText = FindSceneUiText("SceneUI/EntryPanel/MultiplayerPanel/AccountLabel");
-            _passwordLabelText = FindSceneUiText("SceneUI/EntryPanel/MultiplayerPanel/PasswordLabel");
+            _multiplayerSubtitleText = FindSceneUiText("SceneUI/LoginPanel/SubtitleText");
+            _accountLabelText = FindSceneUiText("SceneUI/LoginPanel/AccountLabel");
+            _passwordLabelText = FindSceneUiText("SceneUI/LoginPanel/PasswordLabel");
             EnsureMultiplayerLabelLayout();
-            _accountPlaceholderText = FindSceneUiText("SceneUI/EntryPanel/MultiplayerPanel/AccountInput/Text Area/Placeholder");
-            _passwordPlaceholderText = FindSceneUiText("SceneUI/EntryPanel/MultiplayerPanel/PasswordInput/Text Area/Placeholder");
+            _accountPlaceholderText = FindSceneUiText("SceneUI/LoginPanel/AccountInput/Text Area/Placeholder");
+            _passwordPlaceholderText = FindSceneUiText("SceneUI/LoginPanel/PasswordInput/Text Area/Placeholder");
 
-            _singlePlayerButton = FindSceneUiButton("SceneUI/EntryPanel/ModeSelectPanel/SinglePlayerButton");
-            _invincibleSinglePlayerButton = FindSceneUiButton("SceneUI/EntryPanel/ModeSelectPanel/InvincibleSinglePlayerButton");
-            _multiplayerButton = FindSceneUiButton("SceneUI/EntryPanel/ModeSelectPanel/MultiplayerButton");
-            _matchButton = FindSceneUiButton("SceneUI/EntryPanel/MultiplayerPanel/MatchButton");
-            _guestLoginButton = FindSceneUiButton("SceneUI/EntryPanel/MultiplayerPanel/GuestLoginButton");
-            _backButton = FindSceneUiButton("SceneUI/EntryPanel/MultiplayerPanel/BackButton");
+            _singlePlayerButton = FindSceneUiButton("SceneUI/ModeSelectPanel/SinglePlayerButton");
+            _invincibleSinglePlayerButton = FindSceneUiButton("SceneUI/ModeSelectPanel/InvincibleSinglePlayerButton");
+            _multiplayerButton = FindSceneUiButton("SceneUI/ModeSelectPanel/MultiplayerButton");
+            _matchButton = FindSceneUiButton("SceneUI/LoginPanel/MatchButton");
+            _guestLoginButton = FindSceneUiButton("SceneUI/LoginPanel/GuestLoginButton");
+            _backButton = FindSceneUiButton("SceneUI/LoginPanel/BackButton");
 
-            _singlePlayerButtonText = FindSceneUiText("SceneUI/EntryPanel/ModeSelectPanel/SinglePlayerButton/Label");
-            _invincibleSinglePlayerButtonText = FindSceneUiText("SceneUI/EntryPanel/ModeSelectPanel/InvincibleSinglePlayerButton/Label");
-            _multiplayerButtonText = FindSceneUiText("SceneUI/EntryPanel/ModeSelectPanel/MultiplayerButton/Label");
-            _matchButtonText = FindSceneUiText("SceneUI/EntryPanel/MultiplayerPanel/MatchButton/Label");
-            _guestLoginButtonText = FindSceneUiText("SceneUI/EntryPanel/MultiplayerPanel/GuestLoginButton/Label");
-            _backButtonText = FindSceneUiText("SceneUI/EntryPanel/MultiplayerPanel/BackButton/Label");
+            _singlePlayerButtonText = FindSceneUiText("SceneUI/ModeSelectPanel/SinglePlayerButton/Label");
+            _invincibleSinglePlayerButtonText = FindSceneUiText("SceneUI/ModeSelectPanel/InvincibleSinglePlayerButton/Label");
+            _multiplayerButtonText = FindSceneUiText("SceneUI/ModeSelectPanel/MultiplayerButton/Label");
+            _matchButtonText = FindSceneUiText("SceneUI/LoginPanel/MatchButton/Label");
+            _guestLoginButtonText = FindSceneUiText("SceneUI/LoginPanel/GuestLoginButton/Label");
+            _backButtonText = FindSceneUiText("SceneUI/LoginPanel/BackButton/Label");
 
             _accountInputField = FindOrCreateSceneUiInputField(
-                "SceneUI/EntryPanel/MultiplayerPanel/AccountInput",
+                "SceneUI/LoginPanel/AccountInput",
                 TMP_InputField.ContentType.Standard);
             _passwordInputField = FindOrCreateSceneUiInputField(
-                "SceneUI/EntryPanel/MultiplayerPanel/PasswordInput",
+                "SceneUI/LoginPanel/PasswordInput",
                 TMP_InputField.ContentType.Password);
             _accountLegacyInputField = _accountInputField == null
                 ? FindOrCreateSceneUiLegacyInputField(
-                    "SceneUI/EntryPanel/MultiplayerPanel/AccountInput",
+                    "SceneUI/LoginPanel/AccountInput",
                     InputField.ContentType.Standard)
                 : null;
             _passwordLegacyInputField = _passwordInputField == null
                 ? FindOrCreateSceneUiLegacyInputField(
-                    "SceneUI/EntryPanel/MultiplayerPanel/PasswordInput",
+                    "SceneUI/LoginPanel/PasswordInput",
                     InputField.ContentType.Password)
                 : null;
             EnsureInputFieldViewport(_accountInputField);
@@ -398,6 +398,14 @@ namespace SampleClient.Gameplay
 
             button.onClick.RemoveAllListeners();
             button.gameObject.SetActive(false);
+        }
+
+        private static void WarnIfMissingAuthoredScreen(string path, GameObject? screen)
+        {
+            if (screen == null)
+            {
+                WarnMissingAuthoredSceneUi(path);
+            }
         }
 
         private sealed class MatchRankingRowUi

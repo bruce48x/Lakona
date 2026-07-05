@@ -45,114 +45,6 @@ namespace SampleClient.Gameplay
             gradient.raycastTarget = false;
         }
 
-        private void EnsureEntryPanelLayout()
-        {
-            if (_entryPanel == null)
-            {
-                return;
-            }
-
-            var panelRect = (RectTransform)_entryPanel.transform;
-            panelRect.anchorMin = new Vector2(0.5f, 0.5f);
-            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
-            panelRect.pivot = new Vector2(0.5f, 0.5f);
-            panelRect.anchoredPosition = new Vector2(0f, 0f);
-            panelRect.sizeDelta = new Vector2(1050f, 430f);
-
-            EnsureEntryTextLayout("TitleText", new Vector2(-315f, -56f), new Vector2(360f, 48f), 34f, FontStyles.Bold);
-            EnsureEntryTextLayout("StatusText", new Vector2(-315f, -114f), new Vector2(360f, 76f), 14f, FontStyles.Normal);
-            StretchEntryChildPanel(_modeSelectPanel);
-            EnsureEntryContentPanel(_multiplayerPanel, new Vector2(260f, -80f), new Vector2(360f, 242f));
-        }
-
-        private void EnsureEntryTextLayout(string name, Vector2 anchoredPosition, Vector2 size, float fontSize, FontStyles fontStyles)
-        {
-            var text = FindSceneUiText($"SceneUI/EntryPanel/{name}");
-            if (text == null)
-            {
-                return;
-            }
-
-            var rect = text.rectTransform;
-            rect.anchorMin = new Vector2(0.5f, 1f);
-            rect.anchorMax = new Vector2(0.5f, 1f);
-            rect.pivot = new Vector2(0.5f, 1f);
-            rect.anchoredPosition = anchoredPosition;
-            rect.sizeDelta = size;
-            text.fontSize = fontSize;
-            text.fontStyle = fontStyles;
-            text.alignment = TextAlignmentOptions.Left;
-        }
-
-        private static void StretchEntryChildPanel(GameObject? panel)
-        {
-            if (panel == null)
-            {
-                return;
-            }
-
-            var rect = (RectTransform)panel.transform;
-            rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.one;
-            rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.offsetMin = Vector2.zero;
-            rect.offsetMax = Vector2.zero;
-        }
-
-        private static void EnsureEntryContentPanel(GameObject? panel, Vector2 anchoredPosition, Vector2 size)
-        {
-            if (panel == null)
-            {
-                return;
-            }
-
-            var rect = (RectTransform)panel.transform;
-            rect.anchorMin = new Vector2(0.5f, 1f);
-            rect.anchorMax = new Vector2(0.5f, 1f);
-            rect.pivot = new Vector2(0.5f, 1f);
-            rect.anchoredPosition = anchoredPosition;
-            rect.sizeDelta = size;
-        }
-
-        private void EnsureModeSelectPanelContents()
-        {
-            if (_modeSelectPanel == null)
-            {
-                return;
-            }
-
-            EnsureModeSelectButton("SinglePlayerButton", new Vector2(250f, -82f), "Single Player: Normal");
-            EnsureModeSelectButton("InvincibleSinglePlayerButton", new Vector2(250f, -154f), "Single Player: Invincible");
-            EnsureModeSelectButton("MultiplayerButton", new Vector2(250f, -226f), "Multiplayer");
-        }
-
-        private void EnsureModeSelectButton(string name, Vector2 anchoredPosition, string label)
-        {
-            var button = FindSceneUiButton($"SceneUI/EntryPanel/ModeSelectPanel/{name}");
-            if (button == null)
-            {
-                WarnMissingAuthoredSceneUi($"SceneUI/EntryPanel/ModeSelectPanel/{name}");
-                return;
-            }
-
-            var rect = button.GetComponent<RectTransform>();
-            if (rect != null)
-            {
-                rect.anchorMin = new Vector2(0.5f, 1f);
-                rect.anchorMax = new Vector2(0.5f, 1f);
-                rect.pivot = new Vector2(0.5f, 1f);
-                rect.anchoredPosition = anchoredPosition;
-                rect.sizeDelta = new Vector2(360f, 54f);
-            }
-
-            var text = FindSceneUiText($"SceneUI/EntryPanel/ModeSelectPanel/{name}/Label");
-            if (text != null)
-            {
-                StretchButtonLabel(text.rectTransform);
-                text.text = label;
-            }
-        }
-
         private static void StretchButtonLabel(RectTransform labelRect)
         {
             labelRect.anchorMin = Vector2.zero;
@@ -160,104 +52,6 @@ namespace SampleClient.Gameplay
             labelRect.pivot = new Vector2(0.5f, 0.5f);
             labelRect.offsetMin = Vector2.zero;
             labelRect.offsetMax = Vector2.zero;
-        }
-
-        private void EnsureMultiplayerAuthActionButtons()
-        {
-            if (_multiplayerPanel == null)
-            {
-                return;
-            }
-
-            EnsureMultiplayerAuthFormLayout();
-        }
-
-        private void EnsureMultiplayerAuthFormLayout()
-        {
-            EnsureMultiplayerTextLayout("SubtitleText", new Vector2(0f, -2f), new Vector2(300f, 1f), 1f, FontStyles.Bold, TextAlignmentOptions.Center);
-            EnsureMultiplayerTextLayout("AccountLabel", new Vector2(0f, -4f), new Vector2(300f, 18f), 12f, FontStyles.Normal, TextAlignmentOptions.Left);
-            EnsureMultiplayerInputLayout("AccountInput", new Vector2(0f, -32f), new Vector2(300f, 38f));
-            EnsureMultiplayerTextLayout("PasswordLabel", new Vector2(0f, -80f), new Vector2(300f, 18f), 12f, FontStyles.Normal, TextAlignmentOptions.Left);
-            EnsureMultiplayerInputLayout("PasswordInput", new Vector2(0f, -108f), new Vector2(300f, 38f));
-            EnsureMultiplayerAuthButton("MatchButton", new Vector2(-80f, -166f), new Vector2(140f, 38f), "Login");
-            EnsureMultiplayerAuthButton("BackButton", new Vector2(80f, -166f), new Vector2(140f, 38f), "Back");
-            EnsureMultiplayerAuthButton("GuestLoginButton", new Vector2(0f, -216f), new Vector2(300f, 38f), "Guest Login");
-        }
-
-        private void EnsureMultiplayerTextLayout(string name, Vector2 anchoredPosition, Vector2 size, float fontSize, FontStyles fontStyles, TextAlignmentOptions alignment)
-        {
-            var text = FindSceneUiText($"SceneUI/EntryPanel/MultiplayerPanel/{name}");
-            if (text == null)
-            {
-                return;
-            }
-
-            var rect = text.rectTransform;
-            rect.anchorMin = new Vector2(0.5f, 1f);
-            rect.anchorMax = new Vector2(0.5f, 1f);
-            rect.pivot = new Vector2(0.5f, 1f);
-            rect.anchoredPosition = anchoredPosition;
-            rect.sizeDelta = size;
-            text.fontSize = fontSize;
-            text.fontStyle = fontStyles;
-            text.alignment = alignment;
-        }
-
-        private void EnsureMultiplayerInputLayout(string name, Vector2 anchoredPosition, Vector2 size)
-        {
-            var path = $"SceneUI/EntryPanel/MultiplayerPanel/{name}";
-            var rect = FindSceneUiRect(path);
-            if (rect == null)
-            {
-                WarnMissingAuthoredSceneUi(path);
-                return;
-            }
-
-            rect.anchorMin = new Vector2(0.5f, 1f);
-            rect.anchorMax = new Vector2(0.5f, 1f);
-            rect.pivot = new Vector2(0.5f, 1f);
-            rect.anchoredPosition = anchoredPosition;
-            rect.sizeDelta = size;
-
-            var input = FindSceneUiInputField(path);
-            if (input?.textViewport != null)
-            {
-                input.textViewport.offsetMin = new Vector2(12f, 5f);
-                input.textViewport.offsetMax = new Vector2(-12f, -5f);
-            }
-
-            var legacyInput = FindSceneUiLegacyInputField(path);
-            if (legacyInput?.textComponent != null)
-            {
-                EnsureLegacyInputFieldViewport(legacyInput);
-            }
-        }
-
-        private void EnsureMultiplayerAuthButton(string name, Vector2 anchoredPosition, Vector2 size, string label)
-        {
-            var button = FindSceneUiButton($"SceneUI/EntryPanel/MultiplayerPanel/{name}");
-            if (button == null)
-            {
-                WarnMissingAuthoredSceneUi($"SceneUI/EntryPanel/MultiplayerPanel/{name}");
-                return;
-            }
-
-            var rect = button.GetComponent<RectTransform>();
-            if (rect != null)
-            {
-                rect.anchorMin = new Vector2(0.5f, 1f);
-                rect.anchorMax = new Vector2(0.5f, 1f);
-                rect.pivot = new Vector2(0.5f, 1f);
-                rect.anchoredPosition = anchoredPosition;
-                rect.sizeDelta = size;
-            }
-
-            var text = FindSceneUiText($"SceneUI/EntryPanel/MultiplayerPanel/{name}/Label");
-            if (text != null)
-            {
-                StretchButtonLabel(text.rectTransform);
-                text.text = label;
-            }
         }
 
         private void EnsureLobbyQuickActionsText()
@@ -276,20 +70,20 @@ namespace SampleClient.Gameplay
             WarnMissingAuthoredSceneUi("SceneUI/LobbyPanel/QuickActionsText");
         }
 
-        private void EnsureLobbyQuickActionButtons()
+        private void WarnIfMissingLobbyQuickActionButtons()
         {
             if (_lobbyPanel == null)
             {
                 return;
             }
 
-            EnsureLobbyQuickActionButton("QuickActionButton1", new Vector2(-100f, -194f));
-            EnsureLobbyQuickActionButton("QuickActionButton2", new Vector2(100f, -194f));
-            EnsureLobbyQuickActionButton("QuickActionButton3", new Vector2(-100f, -236f));
-            EnsureLobbyQuickActionButton("QuickActionButton4", new Vector2(100f, -236f));
+            WarnIfMissingLobbyQuickActionButton("QuickActionButton1");
+            WarnIfMissingLobbyQuickActionButton("QuickActionButton2");
+            WarnIfMissingLobbyQuickActionButton("QuickActionButton3");
+            WarnIfMissingLobbyQuickActionButton("QuickActionButton4");
         }
 
-        private void EnsureLobbyQuickActionButton(string name, Vector2 anchoredPosition)
+        private void WarnIfMissingLobbyQuickActionButton(string name)
         {
             if (FindSceneUiButton($"SceneUI/LobbyPanel/{name}") != null)
             {

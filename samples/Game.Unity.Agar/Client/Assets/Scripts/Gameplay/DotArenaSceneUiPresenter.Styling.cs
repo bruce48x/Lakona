@@ -46,15 +46,14 @@ namespace SampleClient.Gameplay
         {
             StylePanelImage(_hudPanel, Color.clear);
             StyleMatchRankingPanelImage();
-            StylePanelImage(_entryPanel, UiPanelBackgroundColor);
             StylePanelImage(_modeSelectPanel, Color.clear);
-            StylePanelImage(_multiplayerPanel, UiPanelBackgroundColor);
+            StylePanelImage(_loginPanel, UiPanelBackgroundColor);
             StylePanelImage(_matchmakingPanel, UiPanelBackgroundColor);
             StylePanelImage(_lobbyPanel, UiPanelBackgroundColor);
             StylePanelImage(_settlementPanel, UiPanelBackgroundColor);
 
             StyleText(_hudTitleText, UiMutedTextColor, 1f, false, TextAlignmentOptions.TopLeft, TextOverflowModes.Ellipsis);
-            StyleText(_entryTitleText, UiPrimaryTextColor, 34f, false, TextAlignmentOptions.Left, TextOverflowModes.Ellipsis);
+            StyleText(_entryTitleText, UiPrimaryTextColor, 30f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
 
             StyleText(_hudPlayerText, UiSecondaryTextColor, 13f, false, TextAlignmentOptions.TopLeft, TextOverflowModes.Ellipsis);
             StyleText(_hudModeText, UiMutedTextColor, 1f, false, TextAlignmentOptions.TopLeft, TextOverflowModes.Ellipsis);
@@ -69,7 +68,7 @@ namespace SampleClient.Gameplay
                 StyleText(row.MassText, UiSecondaryTextColor, 12f, false, TextAlignmentOptions.Right, TextOverflowModes.Ellipsis);
             }
 
-            StyleText(_entryStatusText, UiSecondaryTextColor, 14f, true, TextAlignmentOptions.Left, TextOverflowModes.Ellipsis);
+            StyleText(_entryStatusText, UiSecondaryTextColor, 13f, true, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
             StyleText(_matchmakingTitleText, UiAccentTextColor, 22f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
             StyleText(_matchmakingDetailText, UiSecondaryTextColor, 13f, true, TextAlignmentOptions.Top, TextOverflowModes.Overflow);
             StyleText(_lobbyTitleText, UiAccentTextColor, 22f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);

@@ -263,105 +263,11 @@ namespace SampleClient.Gameplay
             _lobbyPanel = FindSceneUiObject("SceneUI/LobbyPanel");
             if (_lobbyPanel != null)
             {
-                EnsureLobbyPanelContents();
                 _lobbyPanel.SetActive(false);
                 return;
             }
 
             WarnMissingAuthoredSceneUi("SceneUI/LobbyPanel");
-        }
-
-        private void EnsureLobbyPanelContents()
-        {
-            if (_lobbyPanel == null)
-            {
-                return;
-            }
-
-            var panelRect = (RectTransform)_lobbyPanel.transform;
-            panelRect.anchorMin = Vector2.zero;
-            panelRect.anchorMax = Vector2.one;
-            panelRect.pivot = new Vector2(0.5f, 0.5f);
-            panelRect.offsetMin = new Vector2(54f, 42f);
-            panelRect.offsetMax = new Vector2(-54f, -42f);
-
-            EnsureLobbyTextElement("TitleText", new Vector2(-360f, -34f), new Vector2(360f, 42f), 28f, FontStyles.Bold, TextAlignmentOptions.Left);
-            EnsureLobbyTextElement("SummaryText", new Vector2(-360f, -84f), new Vector2(430f, 48f), 14f, FontStyles.Normal, TextAlignmentOptions.Left);
-            EnsureLobbyButtonElement("ProfileButton", new Vector2(-374f, -154f), new Vector2(122f, 36f), "Profile");
-            EnsureLobbyButtonElement("TasksButton", new Vector2(-242f, -154f), new Vector2(110f, 36f), string.Empty);
-            EnsureLobbyButtonElement("ShopButton", new Vector2(-120f, -154f), new Vector2(110f, 36f), string.Empty);
-            EnsureLobbyButtonElement("RecordsButton", new Vector2(0f, -154f), new Vector2(110f, 36f), string.Empty);
-            EnsureLobbyButtonElement("LeaderboardButton", new Vector2(-238f, -202f), new Vector2(150f, 36f), "Leaderboard");
-            EnsureLobbyButtonElement("SettingsButton", new Vector2(-74f, -202f), new Vector2(128f, 36f), "Settings");
-            EnsureLobbyTextElement("HighlightsText", new Vector2(230f, -42f), new Vector2(430f, 72f), 15f, FontStyles.Bold, TextAlignmentOptions.Center);
-            EnsureLobbyTextElement("QuickActionsText", new Vector2(86f, -148f), new Vector2(220f, 28f), 13f, FontStyles.Bold, TextAlignmentOptions.TopLeft);
-            EnsureLobbyButtonElement("QuickActionButton1", new Vector2(248f, -146f), new Vector2(180f, 40f), "Action");
-            EnsureLobbyButtonElement("QuickActionButton2", new Vector2(448f, -146f), new Vector2(180f, 40f), "Action");
-            EnsureLobbyButtonElement("QuickActionButton3", new Vector2(248f, -198f), new Vector2(180f, 40f), "Action");
-            EnsureLobbyButtonElement("QuickActionButton4", new Vector2(448f, -198f), new Vector2(180f, 40f), "Action");
-            EnsureLobbyTextElement("DetailText", new Vector2(0f, -272f), new Vector2(980f, 250f), 14f, FontStyles.Normal, TextAlignmentOptions.TopLeft);
-            EnsureLobbyButtonElement("PrimaryActionButton", new Vector2(-120f, -590f), new Vector2(220f, 44f), "Action");
-            EnsureLobbyButtonElement("SecondaryActionButton", new Vector2(120f, -590f), new Vector2(220f, 44f), "Action");
-            EnsureLobbyTextElement("FooterText", new Vector2(0f, -646f), new Vector2(980f, 24f), 12f, FontStyles.Normal, TextAlignmentOptions.Center);
-        }
-
-        private void EnsureLobbyTextElement(string name, Vector2 anchoredPosition, Vector2 size, float fontSize, FontStyles fontStyles, TextAlignmentOptions alignment)
-        {
-            if (_lobbyPanel == null)
-            {
-                return;
-            }
-
-            var text = FindSceneUiText($"SceneUI/LobbyPanel/{name}");
-            if (text == null)
-            {
-                WarnMissingAuthoredSceneUi($"SceneUI/LobbyPanel/{name}");
-                return;
-            }
-
-            var rect = text.rectTransform;
-            rect.anchorMin = new Vector2(0.5f, 1f);
-            rect.anchorMax = new Vector2(0.5f, 1f);
-            rect.pivot = new Vector2(0.5f, 1f);
-            rect.anchoredPosition = anchoredPosition;
-            rect.sizeDelta = size;
-            text.fontSize = fontSize;
-            text.fontStyle = fontStyles;
-            text.alignment = alignment;
-        }
-
-        private void EnsureLobbyButtonElement(string name, Vector2 anchoredPosition, Vector2 size, string label)
-        {
-            if (_lobbyPanel == null)
-            {
-                return;
-            }
-
-            var button = FindSceneUiButton($"SceneUI/LobbyPanel/{name}");
-            if (button == null)
-            {
-                WarnMissingAuthoredSceneUi($"SceneUI/LobbyPanel/{name}");
-                return;
-            }
-
-            var rect = button.GetComponent<RectTransform>();
-            if (rect == null)
-            {
-                return;
-            }
-
-            rect.anchorMin = new Vector2(0.5f, 1f);
-            rect.anchorMax = new Vector2(0.5f, 1f);
-            rect.pivot = new Vector2(0.5f, 1f);
-            rect.anchoredPosition = anchoredPosition;
-            rect.sizeDelta = size;
-
-            var text = FindSceneUiText($"SceneUI/LobbyPanel/{name}/Label");
-            if (text != null)
-            {
-                StretchButtonLabel(text.rectTransform);
-                text.text = label;
-            }
         }
     }
 }

@@ -153,54 +153,6 @@ namespace SampleClient.Gameplay
             HideLobbyQuickActionButton(button4);
         }
 
-        public void ApplyLobbyActionLayout(
-            in DotArenaSceneUiSnapshot snapshot,
-            RectTransform? panelRect,
-            RectTransform? detailRect,
-            RectTransform? primaryRect,
-            RectTransform? secondaryRect,
-            RectTransform? footerRect)
-        {
-            if (panelRect == null || primaryRect == null || secondaryRect == null || detailRect == null || footerRect == null)
-            {
-                return;
-            }
-
-            var isMultiplayerLobby = snapshot.EntryMenuState == EntryMenuState.MultiplayerLobby &&
-                                     snapshot.SessionMode == SessionMode.Multiplayer;
-
-            if (!isMultiplayerLobby)
-            {
-                SetAnchoredPosition(detailRect, new Vector2(0f, -326f));
-                SetSizeDelta(detailRect, new Vector2(980f, 290f));
-                SetAnchoredPosition(primaryRect, new Vector2(-120f, -650f));
-                SetAnchoredPosition(secondaryRect, new Vector2(120f, -650f));
-                SetAnchoredPosition(footerRect, new Vector2(0f, -708f));
-                SetSizeDelta(footerRect, new Vector2(980f, 24f));
-                return;
-            }
-
-            var panelHeight = panelRect.rect.height;
-            var footerHeight = footerRect.sizeDelta.y > 0f ? footerRect.sizeDelta.y : 24f;
-            var buttonHeight = Mathf.Max(primaryRect.sizeDelta.y, secondaryRect.sizeDelta.y, 42f);
-            const float detailTop = 238f;
-            const float detailGap = 18f;
-            const float buttonGap = 24f;
-            const float bottomPadding = 30f;
-            const float buttonXOffset = 120f;
-
-            var footerTop = panelHeight - footerHeight - bottomPadding;
-            var buttonTop = footerTop - buttonGap - buttonHeight;
-            var detailHeight = Mathf.Max(84f, buttonTop - detailTop - detailGap);
-
-            SetAnchoredPosition(detailRect, new Vector2(0f, -detailTop));
-            SetSizeDelta(detailRect, new Vector2(980f, detailHeight));
-            SetAnchoredPosition(primaryRect, new Vector2(-buttonXOffset, -buttonTop));
-            SetAnchoredPosition(secondaryRect, new Vector2(buttonXOffset, -buttonTop));
-            SetAnchoredPosition(footerRect, new Vector2(0f, -footerTop));
-            SetSizeDelta(footerRect, new Vector2(980f, footerHeight));
-        }
-
         private static MetaTab? GetLobbyQuickActionTarget(MetaTab currentTab, int index)
         {
             return null;
@@ -232,22 +184,6 @@ namespace SampleClient.Gameplay
             if (button != null)
             {
                 button.gameObject.SetActive(false);
-            }
-        }
-
-        private static void SetAnchoredPosition(RectTransform? rectTransform, Vector2 anchoredPosition)
-        {
-            if (rectTransform != null)
-            {
-                rectTransform.anchoredPosition = anchoredPosition;
-            }
-        }
-
-        private static void SetSizeDelta(RectTransform? rectTransform, Vector2 sizeDelta)
-        {
-            if (rectTransform != null)
-            {
-                rectTransform.sizeDelta = sizeDelta;
             }
         }
 

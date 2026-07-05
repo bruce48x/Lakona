@@ -28,12 +28,11 @@ namespace SampleClient.Gameplay
             if (_menuBackground != null) _menuBackground.SetActive(showMenuBackground);
             if (_hudPanel != null) _hudPanel.SetActive(showHud);
             if (_matchRankingPanel != null) _matchRankingPanel.SetActive(showHud);
-            if (_entryPanel != null) _entryPanel.SetActive(showEntry);
             if (_matchmakingPanel != null) _matchmakingPanel.SetActive(showMatchmaking);
             if (_settlementPanel != null) _settlementPanel.SetActive(showSettlement);
             if (_lobbyPanel != null) _lobbyPanel.SetActive(showLobby);
             if (_modeSelectPanel != null) _modeSelectPanel.SetActive(showEntry && snapshot.EntryMenuState == EntryMenuState.ModeSelect);
-            if (_multiplayerPanel != null) _multiplayerPanel.SetActive(showEntry && snapshot.EntryMenuState == EntryMenuState.MultiplayerAuth);
+            if (_loginPanel != null) _loginPanel.SetActive(showEntry && snapshot.EntryMenuState == EntryMenuState.MultiplayerAuth);
 
             SetText(_hudPlayerText, $"Player: {(snapshot.LocalPlayerId.Length > 0 ? snapshot.LocalPlayerId : snapshot.Account)}   Mass: {snapshot.LocalPlayerMassText}   Wins: {snapshot.LocalWinCount}");
             SetText(_hudTitleText, string.Empty);
@@ -74,7 +73,6 @@ namespace SampleClient.Gameplay
             SetText(_lobbyFooterText, snapshot.MetaFooterHint);
             SetText(_lobbyPrimaryActionButtonText, _lobbyUi.GetLobbyPrimaryActionLabel(snapshot));
             SetText(_lobbySecondaryActionButtonText, _lobbyUi.GetLobbySecondaryActionLabel(snapshot));
-            _lobbyUi.ApplyLobbyActionLayout(snapshot, _lobbyPanel?.GetComponent<RectTransform>(), _lobbyDetailText?.rectTransform, _lobbyPrimaryActionButton?.GetComponent<RectTransform>(), _lobbySecondaryActionButton?.GetComponent<RectTransform>(), _lobbyFooterText?.rectTransform);
             SetText(_multiplayerSubtitleText, string.Empty);
             SetText(_accountLabelText, "Account");
             SetText(_passwordLabelText, "Password");

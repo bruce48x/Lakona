@@ -307,16 +307,4 @@ public sealed class LoginService
                 $"State-store node {owner.Node.Value} rejected user actor creation for '{userId}'. {reply.Message}");
         }
     }
-
-    private async ValueTask CreateLocalUserActorAsync(
-        ActorId actorId,
-        string account,
-        NodeId localNode)
-    {
-        await _actorHosting
-            .EnsureAsync<UserActor>(actorId)
-            .ConfigureAwait(false);
-
-        _logger.LogDebug("Created local user actor {UserId} on node {NodeId}.", account, localNode.Value);
-    }
 }
