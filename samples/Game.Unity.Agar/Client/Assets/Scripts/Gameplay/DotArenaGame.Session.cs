@@ -567,11 +567,6 @@ namespace SampleClient.Gameplay
             _eventMessage = "Choose single-player or multiplayer";
         }
 
-        private string GetMenuLoginStatusText()
-        {
-            return DotArenaUiTextComposer.BuildMenuLoginStatusText(_hasAuthenticatedProfile, _authenticatedPlayerId, _localWinCount);
-        }
-
         private void ApplyLaunchOverrides()
         {
             var launchArguments = Rpc.RpcLaunchArguments.ReadCurrentProcess();

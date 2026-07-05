@@ -31,14 +31,6 @@ namespace SampleClient.Gameplay
             _callbackInbox.EnqueueMatchmakingStatus(matchmakingStatus);
         }
 
-        private void CaptureInputIntent()
-        {
-            if (DotArenaInputUtility.IsKeyDown(KeyCode.P))
-            {
-                _showDebugPanel = !_showDebugPanel;
-            }
-        }
-
         private void ApplyPendingCallbacks()
         {
             var pending = _callbackInbox.Drain();

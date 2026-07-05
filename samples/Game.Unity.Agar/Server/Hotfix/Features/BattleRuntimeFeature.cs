@@ -66,7 +66,6 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
                 CreatedAtUtc = createdAtUtc,
                 MaxPlayers = payload.MaxPlayers,
                 Players = payload.Players.Select(CloneAssignment).ToList(),
-                RuntimeGateway = CloneGateway(firstPlayer.RuntimeGateway)
             }).ConfigureAwait(false);
             if (!create.Succeeded)
             {

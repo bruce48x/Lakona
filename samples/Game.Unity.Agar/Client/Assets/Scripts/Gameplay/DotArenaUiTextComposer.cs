@@ -7,16 +7,6 @@ namespace SampleClient.Gameplay
 {
     internal static class DotArenaUiTextComposer
     {
-        public static string BuildMenuLoginStatusText(bool hasAuthenticatedProfile, string authenticatedPlayerId, int localWinCount)
-        {
-            if (!hasAuthenticatedProfile || string.IsNullOrWhiteSpace(authenticatedPlayerId))
-            {
-                return "Not logged in";
-            }
-
-            return $"Logged in: {authenticatedPlayerId}   Wins: {localWinCount}";
-        }
-
         public static string BuildSettlementDetail(SessionMode sessionMode, float localMass, int localWinCount, string winnerPlayerId, bool localPlayerWon, ArenaMapVariant mapVariant, ArenaRuleVariant ruleVariant)
         {
             var modeText = sessionMode == SessionMode.SinglePlayer ? "Single Player" : "Multiplayer";
@@ -48,11 +38,6 @@ namespace SampleClient.Gameplay
             return sessionMode == SessionMode.Multiplayer
                 ? "Next: return to the lobby and start matchmaking again."
                 : $"Next: return to mode select, or replay {DotArenaSinglePlayerCatalog.GetPresetLabel(mapVariant, ruleVariant)}.";
-        }
-
-        public static string BuildDebugPanelDetail(string status, FrontendFlowState flowState, EntryMenuState entryMenuState, SessionMode sessionMode, string localPlayerId, int lastWorldTick, int viewCount, string localPlayerBuffText, string currentEventMessage, string endpoint, bool isConnected, bool isRealtimeConnected, bool isConnecting)
-        {
-            return string.Empty;
         }
 
         public static string BuildMatchmakingDetail(SessionMode sessionMode, ArenaMapVariant mapVariant, ArenaRuleVariant ruleVariant, string status, string currentEventMessage, int elapsedSeconds, bool cancelRequestPending)
@@ -109,7 +94,7 @@ namespace SampleClient.Gameplay
                 : $"Next preset: {DotArenaSinglePlayerCatalog.GetPresetLabel(previewPreset.MapVariant, previewPreset.RuleVariant)}";
         }
 
-        public static string BuildMetaProfileDetail(DotArenaMetaState? metaState, bool isInMultiplayerLobby, SinglePlayerMatchPreset previewPreset, DotArenaRewardSummary? lastRewardSummary, string endpoint)
+        public static string BuildMetaProfileDetail(DotArenaMetaState? metaState, bool isInMultiplayerLobby, SinglePlayerMatchPreset previewPreset, DotArenaRewardSummary? lastRewardSummary)
         {
             if (metaState == null)
             {

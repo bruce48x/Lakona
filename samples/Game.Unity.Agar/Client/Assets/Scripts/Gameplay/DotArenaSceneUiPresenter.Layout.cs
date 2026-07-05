@@ -159,22 +159,13 @@ namespace SampleClient.Gameplay
             }
 
             _topStatusPanel = panelTransform.gameObject;
-            DotArenaUiRect.TopCenter(new Vector2(0f, -12f), new Vector2(360f, 84f)).Apply(panelTransform);
+            DotArenaUiRect.TopCenter(new Vector2(0f, -12f), new Vector2(360f, 58f)).Apply(panelTransform);
 
-            _hudStatusText = EnsureTopStatusText(
-                panelTransform,
-                "StatusText",
-                FindSceneUiText("SceneUI/HUDPanel/StatusText"),
-                new Vector2(0f, 0f),
-                new Vector2(330f, 22f),
-                13f,
-                FontStyles.Bold,
-                UiPrimaryTextColor);
             _hudPlayerText = EnsureTopStatusText(
                 panelTransform,
                 "PlayerText",
                 FindSceneUiText("SceneUI/HUDPanel/PlayerText"),
-                new Vector2(0f, -23f),
+                new Vector2(0f, 0f),
                 new Vector2(330f, 22f),
                 13f,
                 FontStyles.Bold,
@@ -185,7 +176,7 @@ namespace SampleClient.Gameplay
                 FindSceneUiText("SceneUI/OverlayLayer/CountdownText")
                     ?? FindSceneUiText("SceneUI/CountdownText")
                     ?? FindSceneUiText("SceneUI/HUDPanel/CountdownText"),
-                new Vector2(0f, -50f),
+                new Vector2(0f, -28f),
                 new Vector2(330f, 28f),
                 18f,
                 FontStyles.Bold,
@@ -234,45 +225,6 @@ namespace SampleClient.Gameplay
             text.richText = false;
             text.raycastTarget = false;
             return text;
-        }
-
-        private void EnsureDebugPanel()
-        {
-            if (_sceneUiRoot == null)
-            {
-                return;
-            }
-
-            _debugPanel = FindSceneUiObject("SceneUI/DebugPanel");
-            if (_debugPanel != null)
-            {
-                EnsureDebugPanelContents();
-                _debugPanel.SetActive(false);
-                return;
-            }
-
-            WarnMissingAuthoredSceneUi("SceneUI/DebugPanel");
-        }
-
-        private void EnsureDebugPanelContents()
-        {
-            if (_debugPanel == null)
-            {
-                return;
-            }
-
-            var panelRect = (RectTransform)_debugPanel.transform;
-            panelRect.sizeDelta = new Vector2(300f, 170f);
-
-            if (FindSceneUiText("SceneUI/DebugPanel/TitleText") == null)
-            {
-                WarnMissingAuthoredSceneUi("SceneUI/DebugPanel/TitleText");
-            }
-
-            if (FindSceneUiText("SceneUI/DebugPanel/DetailText") == null)
-            {
-                WarnMissingAuthoredSceneUi("SceneUI/DebugPanel/DetailText");
-            }
         }
 
         private void EnsureMultiplayerLabelLayout()

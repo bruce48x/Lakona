@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using TMPro;
-using Lakona.Rpc.Client;
 using UnityEngine;
 using UnityEngine.UI;
 using static SampleClient.Gameplay.DotArenaTuning;
@@ -22,17 +21,7 @@ namespace SampleClient.Gameplay
         public string Password { get; set; }
         public string LocalPlayerMassText { get; set; }
         public int LocalWinCount { get; set; }
-        public int LastWorldTick { get; set; }
-        public int ViewCount { get; set; }
-        public string LocalPlayerBuffText { get; set; }
-        public bool DebugPanelVisible { get; set; }
-        public string DebugPanelDetail { get; set; }
-        public string Host { get; set; }
-        public int Port { get; set; }
-        public string Path { get; set; }
-        public string CurrentEventMessage { get; set; }
         public int LastRoundRemainingSeconds { get; set; }
-        public string MenuLoginStatusText { get; set; }
         public bool IsConnecting { get; set; }
         public bool IsBusy { get; set; }
         public string SettlementTitle { get; set; }
@@ -82,7 +71,6 @@ namespace SampleClient.Gameplay
         private GameObject? _topStatusPanel;
         private GameObject? _hudPanel;
         private GameObject? _matchRankingPanel;
-        private GameObject? _debugPanel;
         private GameObject? _entryPanel;
         private GameObject? _matchmakingPanel;
         private GameObject? _lobbyPanel;
@@ -117,17 +105,12 @@ namespace SampleClient.Gameplay
         private Button? _lobbyLeaderboardButton;
         private Button? _lobbySettingsButton;
         private TMP_Text? _hudTitleText;
-        private TMP_Text? _hudStatusText;
         private TMP_Text? _hudPlayerText;
-        private TMP_Text? _hudTickText;
         private TMP_Text? _hudModeText;
         private TMP_Text? _hudHintText;
-        private TMP_Text? _hudEventText;
         private TMP_Text? _hudCountdownText;
         private TMP_Text? _matchRankingTitleText;
         private TMP_Text? _matchRankingHeaderText;
-        private TMP_Text? _debugTitleText;
-        private TMP_Text? _debugDetailText;
         private TMP_Text? _entryTitleText;
         private TMP_Text? _entryStatusText;
         private TMP_Text? _multiplayerSubtitleText;
@@ -206,8 +189,6 @@ namespace SampleClient.Gameplay
             EnsureTopStatusPanel();
             EnsureMatchRankingPanel();
             _matchRankingPanel = FindSceneUiObject("SceneUI/MatchRankingPanel");
-            EnsureDebugPanel();
-            _debugPanel = FindSceneUiObject("SceneUI/DebugPanel");
             _entryPanel = FindSceneUiObject("SceneUI/EntryPanel");
             EnsureMatchmakingPanel();
             _matchmakingPanel = FindSceneUiObject("SceneUI/MatchmakingPanel");
@@ -223,17 +204,12 @@ namespace SampleClient.Gameplay
             EnsureSettlementPanel();
 
             _hudTitleText = FindSceneUiText("SceneUI/HUDPanel/TitleText");
-            _hudStatusText = FindSceneUiText("SceneUI/OverlayLayer/TopStatusPanel/StatusText");
             _hudPlayerText = FindSceneUiText("SceneUI/OverlayLayer/TopStatusPanel/PlayerText");
-            _hudTickText = FindSceneUiText("SceneUI/HUDPanel/TickText");
             _hudModeText = FindSceneUiText("SceneUI/HUDPanel/ModeText");
             _hudHintText = FindSceneUiText("SceneUI/HUDPanel/HintText");
-            _hudEventText = FindSceneUiText("SceneUI/HUDPanel/EventText");
             _hudCountdownText = FindSceneUiText("SceneUI/OverlayLayer/TopStatusPanel/CountdownText");
             _matchRankingTitleText = FindSceneUiText("SceneUI/MatchRankingPanel/TitleText");
             _matchRankingHeaderText = FindSceneUiText("SceneUI/MatchRankingPanel/HeaderText");
-            _debugTitleText = FindSceneUiText("SceneUI/DebugPanel/TitleText");
-            _debugDetailText = FindSceneUiText("SceneUI/DebugPanel/DetailText");
             EnsureTopStatusPanel();
 
             _entryTitleText = FindSceneUiText("SceneUI/EntryPanel/TitleText");

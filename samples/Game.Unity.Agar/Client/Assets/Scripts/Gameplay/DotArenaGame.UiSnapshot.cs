@@ -13,9 +13,7 @@ namespace SampleClient.Gameplay
             {
                 var settlementSummary = _owner._settlementSummary;
                 var previewPreset = DotArenaSinglePlayerCatalog.PeekPreset(_owner._singlePlayerPlaylistIndex);
-                var endpoint = Rpc.WebSocketRpcClientFactory.BuildUrl(_owner._host, _owner._port, _owner._path);
                 var currentEventMessage = _owner.GetCurrentEventMessage();
-                var localPlayerBuffText = _owner.GetLocalPlayerBuffText();
                 var inMultiplayerLobby = IsInMultiplayerLobby();
                 var matchmakingElapsedSeconds = _owner.GetMatchmakingElapsedSeconds();
 
@@ -31,31 +29,8 @@ namespace SampleClient.Gameplay
                     Password = _owner._password,
                     LocalPlayerMassText = _owner.GetLocalPlayerMassText(),
                     LocalWinCount = _owner._localWinCount,
-                    LastWorldTick = _owner._lastWorldTick,
-                    ViewCount = _owner._views.Count,
-                    LocalPlayerBuffText = localPlayerBuffText,
-                    DebugPanelVisible = _owner._showDebugPanel,
-                    DebugPanelDetail = DotArenaUiTextComposer.BuildDebugPanelDetail(
-                        _owner._status,
-                        _owner._flowState,
-                        _owner._entryMenuState,
-                        _owner._sessionMode,
-                        _owner._localPlayerId,
-                        _owner._lastWorldTick,
-                        _owner._views.Count,
-                        localPlayerBuffText,
-                        currentEventMessage,
-                        endpoint,
-                        _owner.IsConnected,
-                        _owner.IsRealtimeConnected,
-                        _owner.IsConnecting),
-                    Host = _owner._host,
-                    Port = _owner._port,
-                    Path = _owner._path,
-                    CurrentEventMessage = currentEventMessage,
                     LastRoundRemainingSeconds = _owner._lastRoundRemainingSeconds,
                     MatchRankingEntries = BuildMatchRankingEntries(),
-                    MenuLoginStatusText = _owner.GetMenuLoginStatusText(),
                     IsConnecting = _owner.IsConnecting,
                     IsBusy = _owner.IsUiBusy,
                     SettlementTitle = settlementSummary?.Title ?? string.Empty,
@@ -82,7 +57,7 @@ namespace SampleClient.Gameplay
                         _owner._pendingUiRequest == PendingUiRequest.CancelMatchmaking),
                     MetaPlayerSummary = DotArenaUiTextComposer.BuildMetaPlayerSummary(_owner._metaState, inMultiplayerLobby),
                     MetaLobbyHighlights = DotArenaUiTextComposer.BuildMetaLobbyHighlights(_owner._metaState, inMultiplayerLobby, previewPreset),
-                    MetaProfileDetail = DotArenaUiTextComposer.BuildMetaProfileDetail(_owner._metaState, inMultiplayerLobby, previewPreset, _owner._lastRewardSummary, endpoint),
+                    MetaProfileDetail = DotArenaUiTextComposer.BuildMetaProfileDetail(_owner._metaState, inMultiplayerLobby, previewPreset, _owner._lastRewardSummary),
                     MetaTasksDetail = DotArenaUiTextComposer.BuildMetaTasksDetail(_owner._metaState),
                     MetaShopDetail = DotArenaUiTextComposer.BuildMetaShopDetail(_owner._metaState),
                     MetaRecordsDetail = DotArenaUiTextComposer.BuildMetaRecordsDetail(_owner._metaState),

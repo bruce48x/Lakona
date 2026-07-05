@@ -53,7 +53,6 @@ namespace SampleClient.Gameplay
         private bool _shutdownStarted;
         private bool _ignoreDisconnectCallback;
         private string _lastLoggedInputVector = string.Empty;
-        private bool _showDebugPanel;
         private int _lastRoundRemainingSeconds;
         private MatchSettlementSummary? _settlementSummary;
         private DotArenaMetaState? _metaState;
@@ -120,7 +119,6 @@ namespace SampleClient.Gameplay
 
         private void Update()
         {
-            CaptureInputIntent();
             ProcessMenuRequests();
             HandleInput();
             TickLocalMatch();

@@ -18,7 +18,6 @@ namespace SampleClient.Gameplay
             var showSettlement = snapshot.FlowState == FrontendFlowState.Settlement;
             var showMatchmaking = snapshot.FlowState == FrontendFlowState.Matchmaking;
             var showHud = snapshot.HasSession && snapshot.FlowState == FrontendFlowState.InMatch;
-            const bool showDebug = false;
             var showLobby = !showSettlement &&
                             !showMatchmaking &&
                             !snapshot.HasSession &&
@@ -29,7 +28,6 @@ namespace SampleClient.Gameplay
             if (_menuBackground != null) _menuBackground.SetActive(showMenuBackground);
             if (_hudPanel != null) _hudPanel.SetActive(showHud);
             if (_matchRankingPanel != null) _matchRankingPanel.SetActive(showHud);
-            if (_debugPanel != null) _debugPanel.SetActive(showDebug);
             if (_entryPanel != null) _entryPanel.SetActive(showEntry);
             if (_matchmakingPanel != null) _matchmakingPanel.SetActive(showMatchmaking);
             if (_settlementPanel != null) _settlementPanel.SetActive(showSettlement);
@@ -37,18 +35,13 @@ namespace SampleClient.Gameplay
             if (_modeSelectPanel != null) _modeSelectPanel.SetActive(showEntry && snapshot.EntryMenuState == EntryMenuState.ModeSelect);
             if (_multiplayerPanel != null) _multiplayerPanel.SetActive(showEntry && snapshot.EntryMenuState == EntryMenuState.MultiplayerAuth);
 
-            SetText(_hudStatusText, "Status: In Match");
             SetText(_hudPlayerText, $"Player: {(snapshot.LocalPlayerId.Length > 0 ? snapshot.LocalPlayerId : snapshot.Account)}   Mass: {snapshot.LocalPlayerMassText}   Wins: {snapshot.LocalWinCount}");
-            SetText(_hudTickText, string.Empty);
             SetText(_hudTitleText, string.Empty);
             SetText(_hudModeText, string.Empty);
             SetText(_hudHintText, string.Empty);
-            SetText(_hudEventText, string.Empty);
             SetText(_matchRankingTitleText, "Live Ranking");
             SetText(_matchRankingHeaderText, "Rank    Player            Mass");
             RefreshMatchRankingRows(snapshot.MatchRankingEntries, showHud);
-            SetText(_debugTitleText, string.Empty);
-            SetText(_debugDetailText, string.Empty);
             if (snapshot.HasSession && snapshot.SessionMode == SessionMode.Multiplayer)
             {
                 if (snapshot.LastRoundRemainingSeconds > 0)

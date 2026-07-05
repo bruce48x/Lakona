@@ -20,8 +20,6 @@ namespace Agar.Sample.State.Contracts.Rooms
         public int MaxPlayers { get; set; } = 10;
 
         public List<PlayerRoomAssignment> Players { get; set; } = new();
-
-        public GatewayEndpointDescriptor RuntimeGateway { get; set; } = new();
     }
 
     public sealed class RoomPlayerLeaveRequest

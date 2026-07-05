@@ -54,7 +54,6 @@ public static partial class RoomBehavior
             MaxPlayers = maxPlayers,
             CreatedAtUtc = createdAtUtc,
             LastUpdatedAtUtc = createdAtUtc,
-            RuntimeGateway = CloneGateway(request.RuntimeGateway)
         };
         self.RecordExists = true;
 

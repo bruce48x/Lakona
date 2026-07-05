@@ -269,8 +269,7 @@ public static partial class MatchmakingBehavior
                     CreatedByUserId = batch[0].UserId,
                     CreatedAtUtc = nowUtc,
                     MaxPlayers = roomSize,
-                    Players = playerAssignments.Select(CloneAssignment).ToList(),
-                    RuntimeGateway = CloneGateway(runtimeGateway)
+                    Players = playerAssignments.Select(CloneAssignment).ToList()
                 }).ConfigureAwait(false);
 
                 if (!createResult.Succeeded)
@@ -386,8 +385,6 @@ public static partial class MatchmakingBehavior
             .ConfigureAwait(false);
         var target = candidates
             .Where(candidate => candidate.State == NodeState.Ready)
-            .Where(candidate => string.Equals(candidate.Node.Value, request.RuntimeGateway.InstanceId, StringComparison.Ordinal))
-            .Where(candidate => candidate.Endpoints.ContainsKey("cluster"))
             .OrderBy(candidate => candidate.Node.Value, StringComparer.Ordinal)
             .FirstOrDefault();
         if (target is null)
@@ -396,7 +393,7 @@ public static partial class MatchmakingBehavior
             {
                 RoomId = request.RoomId,
                 Succeeded = false,
-                Message = $"Battle runtime node '{request.RuntimeGateway.InstanceId}' is unavailable."
+                Message = $"Battle runtime node is unavailable."
             };
         }
 

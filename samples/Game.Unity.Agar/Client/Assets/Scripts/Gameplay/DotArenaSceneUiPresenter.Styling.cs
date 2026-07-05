@@ -46,7 +46,6 @@ namespace SampleClient.Gameplay
         {
             StylePanelImage(_hudPanel, Color.clear);
             StyleMatchRankingPanelImage();
-            StylePanelImage(_debugPanel, UiPanelBackgroundColor);
             StylePanelImage(_entryPanel, UiPanelBackgroundColor);
             StylePanelImage(_modeSelectPanel, Color.clear);
             StylePanelImage(_multiplayerPanel, UiPanelBackgroundColor);
@@ -57,12 +56,9 @@ namespace SampleClient.Gameplay
             StyleText(_hudTitleText, UiMutedTextColor, 1f, false, TextAlignmentOptions.TopLeft, TextOverflowModes.Ellipsis);
             StyleText(_entryTitleText, UiPrimaryTextColor, 34f, false, TextAlignmentOptions.Left, TextOverflowModes.Ellipsis);
 
-            StyleText(_hudStatusText, UiPrimaryTextColor, 13f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
             StyleText(_hudPlayerText, UiSecondaryTextColor, 13f, false, TextAlignmentOptions.TopLeft, TextOverflowModes.Ellipsis);
-            StyleText(_hudTickText, UiMutedTextColor, 1f, false, TextAlignmentOptions.TopLeft, TextOverflowModes.Ellipsis);
             StyleText(_hudModeText, UiMutedTextColor, 1f, false, TextAlignmentOptions.TopLeft, TextOverflowModes.Ellipsis);
             StyleText(_hudHintText, UiMutedTextColor, 1f, false, TextAlignmentOptions.TopLeft, TextOverflowModes.Ellipsis);
-            StyleText(_hudEventText, UiMutedTextColor, 1f, false, TextAlignmentOptions.TopLeft, TextOverflowModes.Ellipsis);
             StyleText(_hudCountdownText, UiAccentTextColor, 18f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
             StyleText(_matchRankingTitleText, UiAccentTextColor, 18f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
             StyleText(_matchRankingHeaderText, UiMutedTextColor, 12f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
@@ -72,9 +68,6 @@ namespace SampleClient.Gameplay
                 StyleText(row.NameText, UiPrimaryTextColor, 12f, false, TextAlignmentOptions.Left, TextOverflowModes.Ellipsis);
                 StyleText(row.MassText, UiSecondaryTextColor, 12f, false, TextAlignmentOptions.Right, TextOverflowModes.Ellipsis);
             }
-
-            StyleText(_debugTitleText, UiAccentTextColor, 16f, false, TextAlignmentOptions.TopLeft, TextOverflowModes.Ellipsis);
-            StyleText(_debugDetailText, UiSecondaryTextColor, 12f, true, TextAlignmentOptions.TopLeft, TextOverflowModes.Overflow);
 
             StyleText(_entryStatusText, UiSecondaryTextColor, 14f, true, TextAlignmentOptions.Left, TextOverflowModes.Ellipsis);
             StyleText(_matchmakingTitleText, UiAccentTextColor, 22f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);

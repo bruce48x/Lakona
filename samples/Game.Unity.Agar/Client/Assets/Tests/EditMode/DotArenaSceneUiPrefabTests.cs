@@ -42,7 +42,6 @@ namespace SampleClient.Gameplay.Tests
             AssertPath(prefab!, "MenuBackground");
             AssertPath(prefab!, "OverlayLayer");
             AssertPath(prefab!, "OverlayLayer/TopStatusPanel");
-            AssertPath(prefab!, "OverlayLayer/TopStatusPanel/StatusText");
             AssertPath(prefab!, "OverlayLayer/TopStatusPanel/PlayerText");
             AssertPath(prefab!, "OverlayLayer/TopStatusPanel/CountdownText");
             AssertPath(prefab!, "HUDPanel");
@@ -51,7 +50,6 @@ namespace SampleClient.Gameplay.Tests
             AssertPath(prefab!, "MatchRankingPanel/HeaderText");
             AssertPath(prefab!, "MatchRankingPanel/Row1/RankText");
             AssertPath(prefab!, "MatchRankingPanel/Row10/MassText");
-            AssertPath(prefab!, "DebugPanel");
             AssertPath(prefab!, "EntryPanel");
             AssertPath(prefab!, "EntryPanel/ModeSelectPanel/SinglePlayerButton/Label");
             AssertPath(prefab!, "EntryPanel/ModeSelectPanel/InvincibleSinglePlayerButton/Label");
@@ -132,17 +130,27 @@ namespace SampleClient.Gameplay.Tests
         }
 
         [Test]
+        public void SceneUiPrefabRuntimeHudDoesNotExposeDebugText()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(SceneUiPrefabPath);
+
+            Assert.That(prefab, Is.Not.Null);
+            Assert.That(prefab!.transform.Find("OverlayLayer/TopStatusPanel/StatusText"), Is.Null, "Runtime HUD status text is debug information.");
+            Assert.That(prefab.transform.Find("HUDPanel/StatusText"), Is.Null, "Runtime HUD status text is debug information.");
+            Assert.That(prefab.transform.Find("HUDPanel/TickText"), Is.Null, "World tick text is debug information.");
+            Assert.That(prefab.transform.Find("HUDPanel/EventText"), Is.Null, "HUD event debug slot should not be player visible.");
+            Assert.That(prefab.transform.Find("DebugPanel"), Is.Null, "Debug panel should not be shipped in the player-facing UI.");
+        }
+
+        [Test]
         public void SceneUiPrefabTopStatusTextsShareOneNonOverlappingOverlayRegion()
         {
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(SceneUiPrefabPath);
 
             Assert.That(prefab, Is.Not.Null);
-            AssertRect(prefab!, "OverlayLayer/TopStatusPanel", new Vector2(0f, -12f), new Vector2(360f, 84f));
-            Assert.That(prefab!.transform.Find("HUDPanel/StatusText"), Is.Null, "HUD status should be owned by the shared overlay status region");
-            Assert.That(prefab.transform.Find("HUDPanel/PlayerText"), Is.Null, "HUD player summary should be owned by the shared overlay status region");
-            AssertNoSiblingRectOverlap(prefab, "OverlayLayer/TopStatusPanel", "StatusText", "PlayerText");
+            AssertRect(prefab!, "OverlayLayer/TopStatusPanel", new Vector2(0f, -12f), new Vector2(360f, 58f));
+            Assert.That(prefab!.transform.Find("HUDPanel/PlayerText"), Is.Null, "HUD player summary should be owned by the shared overlay status region");
             AssertNoSiblingRectOverlap(prefab, "OverlayLayer/TopStatusPanel", "PlayerText", "CountdownText");
-            AssertNoSiblingRectOverlap(prefab, "OverlayLayer/TopStatusPanel", "StatusText", "CountdownText");
         }
 
         [Test]

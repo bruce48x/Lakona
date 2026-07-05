@@ -1,8 +1,6 @@
 #nullable enable
 
 using System;
-using System.Threading.Tasks;
-using Shared.Interfaces;
 using UnityEngine;
 using static SampleClient.Gameplay.DotArenaTuning;
 
@@ -30,16 +28,6 @@ namespace SampleClient.Gameplay
             }
 
             return _renderStates.TryGetValue(_localPlayerId, out var renderState) ? renderState.Mass : 0f;
-        }
-
-        private string GetLocalPlayerBuffText()
-        {
-            if (_localPlayerId.Length == 0 || !_renderStates.TryGetValue(_localPlayerId, out var renderState))
-            {
-                return "mass 0";
-            }
-
-            return $"mass {DotArenaPresentation.FormatMass(renderState.Mass)} / speed {renderState.MoveSpeed:0.0}";
         }
 
         private string GetCurrentEventMessage()
