@@ -232,7 +232,13 @@ public sealed class AgarHotfixBoundaryTests
         Assert.DoesNotContain("FeatureMessageRequest", matchmaking, StringComparison.Ordinal);
         Assert.DoesNotContain("FeatureMessageReply", matchmaking, StringComparison.Ordinal);
         Assert.DoesNotContain(".Remote(new NodeId(", matchmaking, StringComparison.Ordinal);
-        Assert.DoesNotContain(".Remote(", ExtractMethodBody(matchmaking, "CreateRoomAsync"), StringComparison.Ordinal);
+        Assert.DoesNotContain("ActorHosting", matchmaking, StringComparison.Ordinal);
+        Assert.DoesNotContain("RoomActor", matchmaking, StringComparison.Ordinal);
+        Assert.DoesNotContain("RoomActors", matchmaking, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreateRoomAsync", matchmaking, StringComparison.Ordinal);
+        Assert.DoesNotContain("StartRoomAsync", matchmaking, StringComparison.Ordinal);
+        Assert.DoesNotContain("DestroyCreatedRoomActorAsync", matchmaking, StringComparison.Ordinal);
+        Assert.DoesNotContain("TryAllocateLocalRoomAsync", matchmaking, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -356,7 +362,7 @@ public sealed class AgarHotfixBoundaryTests
     }
 
     [Fact]
-    public void Room_actor_creation_paths_destroy_actor_when_create_or_start_fails()
+    public void Battle_runtime_room_actor_creation_path_destroys_actor_when_create_or_start_fails()
     {
         var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
             .Directory!.Parent!.Parent!.FullName;
@@ -366,18 +372,9 @@ public sealed class AgarHotfixBoundaryTests
             "Hotfix",
             "Features",
             "BattleRuntimeFeature.cs"));
-        var matchmaking = File.ReadAllText(Path.Combine(
-            sampleRoot,
-            "Server",
-            "Hotfix",
-            "State",
-            "Matchmaking",
-            "MatchmakingBehavior.cs"));
 
         Assert.Contains(".DestroyAsync<RoomActor>(actorId, CancellationToken.None)", battleRuntime, StringComparison.Ordinal);
-        Assert.Contains(".DestroyAsync<RoomActor>(actorId, CancellationToken.None)", matchmaking, StringComparison.Ordinal);
         Assert.Contains("actorCreated", battleRuntime, StringComparison.Ordinal);
-        Assert.Contains("actorCreated", matchmaking, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -224,7 +224,7 @@ namespace SampleClient.Gameplay
 
             _hudTitleText = FindSceneUiText("SceneUI/HUDPanel/TitleText");
             _hudStatusText = FindSceneUiText("SceneUI/OverlayLayer/TopStatusPanel/StatusText");
-            _hudPlayerText = FindSceneUiText("SceneUI/HUDPanel/PlayerText");
+            _hudPlayerText = FindSceneUiText("SceneUI/OverlayLayer/TopStatusPanel/PlayerText");
             _hudTickText = FindSceneUiText("SceneUI/HUDPanel/TickText");
             _hudModeText = FindSceneUiText("SceneUI/HUDPanel/ModeText");
             _hudHintText = FindSceneUiText("SceneUI/HUDPanel/HintText");

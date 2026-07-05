@@ -3,6 +3,7 @@ using Agar.Sample.State.Contracts.Leaderboard;
 using Agar.Sample.State.Contracts.Users;
 using Agar.Sample.State.Leaderboard;
 using Agar.Sample.State.Users;
+using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.State.Users;
@@ -58,7 +59,7 @@ public static partial class LeaderboardBehavior
         }
 
         var playerIds = self.State.Players.Keys.ToArray();
-        var users = self.Context.Services.GetRequiredService<UserActors>();
+        var users = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<UserActors>();
         foreach (var playerId in playerIds)
         {
             await users
@@ -94,6 +95,11 @@ public static partial class LeaderboardBehavior
     private static List<LeaderboardEntrySnapshot> GetRankedEntries(LeaderboardActor self)
     {
         return LeaderboardRankingPolicy.GetRankedEntries(self.State.Players.Values);
+    }
+
+    private static IServiceProvider GetCurrentHotfixServices(IServiceProvider services)
+    {
+        return services.GetService<IHotfixServiceProviderAccessor>()?.Current ?? services;
     }
 
     private static void EnsurePeriodInitialized(LeaderboardActor self, DateTime now)

@@ -370,7 +370,7 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
-    public async Task MatchmakingUsesLocalKcpEndpointWhenConfiguredWithoutDiscovery()
+    public async Task MatchmakingKeepsTicketsQueuedForLocalKcpEndpointWithoutBattleRuntimeDiscovery()
     {
         await TestHotfix.LoadCurrentAsync(TestContext.Current.CancellationToken);
 
@@ -410,11 +410,18 @@ public sealed class DistributedTopologyConfigurationTests
         }
 
         Assert.NotNull(result);
-        Assert.True(result.Matched);
-        Assert.Equal("gateway-1", result.RoomAssignment.RuntimeGateway.InstanceId);
-        Assert.Equal("kcp", result.RoomAssignment.RuntimeGateway.Transport);
-        Assert.Equal("127.0.0.1", result.RoomAssignment.RuntimeGateway.Host);
-        Assert.Equal(20001, result.RoomAssignment.RuntimeGateway.Port);
+        Assert.False(result.Matched);
+        Assert.True(result.Queued);
+
+        var status = await GetMatchmakingStatusAsync(provider);
+        Assert.Equal(10, status.QueuedCount);
+
+        for (var i = 0; i < 10; i++)
+        {
+            var snapshot = await GetSessionSnapshotAsync(provider, $"local-runtime-player-{i}");
+            Assert.True(string.IsNullOrWhiteSpace(snapshot.CurrentRoomId));
+            Assert.True(string.IsNullOrWhiteSpace(snapshot.CurrentMatchId));
+        }
     }
 
     [Fact]

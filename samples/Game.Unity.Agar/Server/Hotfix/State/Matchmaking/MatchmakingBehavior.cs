@@ -17,7 +17,6 @@ using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.Features;
 using Server.Hotfix.Services;
-using Server.Hotfix.State.Rooms;
 using Server.Hotfix.State.Users;
 
 namespace Server.Hotfix.State.Matchmaking;
@@ -313,17 +312,18 @@ public static partial class MatchmakingBehavior
 
     private static IServiceProvider GetCurrentHotfixServices(IServiceProvider services)
     {
-        return services.GetRequiredService<IHotfixServiceProviderAccessor>().Current;
+        return services.GetService<IHotfixServiceProviderAccessor>()?.Current ?? services;
     }
 
     private static async Task PublishMatchedAsync(MatchmakingActor self, IEnumerable<RoomAssignment> assignments)
     {
-        if (self.Context.Services.GetService<MatchmakingNotifier>() is not { } matchmakingNotifier)
+        var services = GetCurrentHotfixServices(self.Context.Services);
+        if (services.GetService<MatchmakingNotifier>() is not { } matchmakingNotifier)
         {
             return;
         }
 
-        var users = self.Context.Services.GetRequiredService<UserActors>();
+        var users = services.GetRequiredService<UserActors>();
         foreach (var assignment in assignments
             .Where(static assignment => !string.IsNullOrWhiteSpace(assignment.RoomId))
             .GroupBy(static assignment => assignment.RoomId, StringComparer.Ordinal)
@@ -346,114 +346,29 @@ public static partial class MatchmakingBehavior
 
     private static ValueTask<PlayerSessionSnapshot> GetSessionSnapshotAsync(MatchmakingActor self, string userId)
     {
-        var users = self.Context.Services.GetRequiredService<UserActors>();
+        var users = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<UserActors>();
         return users.Get(new UserId(userId)).GetSnapshotAsync(new PlayerSessionSnapshotRequest());
     }
 
     private static ValueTask<PlayerSessionSnapshot> MarkQueuedAsync(MatchmakingActor self, PlayerSessionQueueRequest request)
     {
-        var users = self.Context.Services.GetRequiredService<UserActors>();
+        var users = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<UserActors>();
         return users.Get(new UserId(request.UserId)).MarkQueuedAsync(request);
     }
 
     private static ValueTask<PlayerSessionSnapshot> ClearQueueAsync(MatchmakingActor self, PlayerSessionQueueClearRequest request)
     {
-        var users = self.Context.Services.GetRequiredService<UserActors>();
+        var users = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<UserActors>();
         return users.Get(new UserId(request.UserId)).ClearQueueAsync(request);
     }
 
     private static ValueTask<PlayerSessionSnapshot> AssignRoomAsync(MatchmakingActor self, PlayerRoomAssignment request)
     {
-        var users = self.Context.Services.GetRequiredService<UserActors>();
+        var users = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<UserActors>();
         return users.Get(new UserId(request.UserId)).AssignRoomAsync(request);
     }
 
-    private static async ValueTask<RoomSettlementResult> CreateRoomAsync(MatchmakingActor self, RoomCreateRequest request)
-    {
-        var localNode = self.Context.Services.GetRequiredService<LocalActorNodeIdentity>().NodeId.Value;
-        if (!string.Equals(request.RuntimeGateway.InstanceId, localNode, StringComparison.Ordinal))
-        {
-            return new RoomSettlementResult
-            {
-                RoomId = request.RoomId,
-                Succeeded = false,
-                Message = $"Room actor '{request.RoomId}' must be created on local actor node '{localNode}'."
-            };
-        }
-
-        var rooms = self.Context.Services.GetRequiredService<RoomActors>();
-        var actorHosting = self.Context.Services.GetRequiredService<ActorHosting>();
-        var actorId = ActorId.From(request.RoomId);
-        var actorCreated = false;
-        try
-        {
-            await actorHosting
-                .CreateAsync<RoomActor>(actorId)
-                .ConfigureAwait(false);
-            actorCreated = true;
-
-            var create = await rooms
-                .Local(new RoomId(request.RoomId))
-                .CreateAsync(request)
-                .ConfigureAwait(false);
-            if (!create.Succeeded)
-            {
-                await DestroyCreatedRoomActorAsync(self, actorId).ConfigureAwait(false);
-                actorCreated = false;
-            }
-
-            return create;
-        }
-        catch
-        {
-            if (actorCreated)
-            {
-                await DestroyCreatedRoomActorAsync(self, actorId).ConfigureAwait(false);
-            }
-
-            throw;
-        }
-    }
-
     private static async ValueTask<RoomSettlementResult> AllocateRoomAsync(MatchmakingActor self, RoomCreateRequest request)
-    {
-        var localNode = self.Context.Services.GetRequiredService<LocalActorNodeIdentity>().NodeId.Value;
-        if (string.Equals(request.RuntimeGateway.InstanceId, localNode, StringComparison.Ordinal))
-        {
-            var createResult = await CreateRoomAsync(self, request).ConfigureAwait(false);
-            if (!createResult.Succeeded)
-            {
-                return createResult;
-            }
-
-            try
-            {
-                var startResult = await StartRoomAsync(self, new RoomStartRequest
-                {
-                    RoomId = request.RoomId,
-                    StartedByUserId = request.CreatedByUserId,
-                    StartedAtUtc = request.CreatedAtUtc
-                }, request.RuntimeGateway).ConfigureAwait(false);
-                if (!startResult.Succeeded)
-                {
-                    await DestroyCreatedRoomActorAsync(self, ActorId.From(request.RoomId)).ConfigureAwait(false);
-                }
-
-                return startResult;
-            }
-            catch
-            {
-                await DestroyCreatedRoomActorAsync(self, ActorId.From(request.RoomId)).ConfigureAwait(false);
-                throw;
-            }
-        }
-
-        return await AllocateRemoteRoomAsync(self, request).ConfigureAwait(false);
-    }
-
-    private static async ValueTask<RoomSettlementResult> AllocateRemoteRoomAsync(
-        MatchmakingActor self,
-        RoomCreateRequest request)
     {
         if (self.Context.Services.GetService<IClusterNodeDiscovery>() is not IClusterNodeDiscovery discovery ||
             self.Context.Services.GetService<IFeatureCommandClient>() is not IFeatureCommandClient commands)
@@ -494,6 +409,14 @@ public static partial class MatchmakingBehavior
                 MaxPlayers = request.MaxPlayers,
                 Players = request.Players.Select(CloneAssignment).ToList()
             }).ConfigureAwait(false);
+
+        return CreateRoomSettlementResult(request, reply);
+    }
+
+    private static RoomSettlementResult CreateRoomSettlementResult(
+        RoomCreateRequest request,
+        BattleRuntimeRoomAllocationReply reply)
+    {
         if (!reply.Succeeded)
         {
             return new RoomSettlementResult
@@ -513,40 +436,6 @@ public static partial class MatchmakingBehavior
             Message = reply.Message,
             UpdatedAtUtc = request.CreatedAtUtc
         };
-    }
-
-    private static ValueTask<RoomSettlementResult> StartRoomAsync(
-        MatchmakingActor self,
-        RoomStartRequest request,
-        GatewayEndpointDescriptor runtimeGateway)
-    {
-        var localNode = self.Context.Services.GetRequiredService<LocalActorNodeIdentity>().NodeId.Value;
-        if (!string.Equals(runtimeGateway.InstanceId, localNode, StringComparison.Ordinal))
-        {
-            return new ValueTask<RoomSettlementResult>(new RoomSettlementResult
-            {
-                RoomId = request.RoomId,
-                Succeeded = false,
-                Message = $"Room actor '{request.RoomId}' must be started on local actor node '{localNode}'."
-            });
-        }
-
-        var rooms = self.Context.Services.GetRequiredService<RoomActors>();
-        return rooms.Local(new RoomId(request.RoomId)).StartAsync(request);
-    }
-
-    private static async ValueTask DestroyCreatedRoomActorAsync(MatchmakingActor self, ActorId actorId)
-    {
-        try
-        {
-            await self.Context.Services
-                .GetRequiredService<ActorHosting>()
-                .DestroyAsync<RoomActor>(actorId, CancellationToken.None)
-                .ConfigureAwait(false);
-        }
-        catch
-        {
-        }
     }
 
     private static GatewayEndpointDescriptor? ResolveLocalKcpEndpoint(IServiceProvider services)

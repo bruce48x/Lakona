@@ -268,6 +268,25 @@ public sealed class AgarHotfixTests
         }
     }
 
+    [Fact]
+    public void Hotfix_actor_behaviors_resolve_hotfix_local_services_from_current_hotfix_provider()
+    {
+        var root = Path.Combine(FindRepositoryRoot(), "samples", "Game.Unity.Agar", "Server", "Hotfix", "State");
+        var behaviorFiles = Directory.GetFiles(root, "*Behavior.cs", SearchOption.AllDirectories);
+
+        foreach (var file in behaviorFiles)
+        {
+            var text = File.ReadAllText(file);
+
+            Assert.DoesNotContain("self.Context.Services.GetRequiredService<UserActors>", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("self.Context.Services.GetRequiredService<RoomActors>", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("self.Context.Services.GetRequiredService<LeaderboardActors>", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("self.Context.Services.GetRequiredService<MatchmakingActors>", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("self.Context.Services.GetService<MatchmakingNotifier>", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("self.Context.Services.GetService<RoomNotifier>", text, StringComparison.Ordinal);
+        }
+    }
+
     private static PlayerRoomAssignment BuildAssignment(string userId, string roomId, string matchId, int seatIndex)
     {
         return new PlayerRoomAssignment

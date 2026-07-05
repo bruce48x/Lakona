@@ -380,7 +380,7 @@ public static partial class RoomBehavior
         self.State.Revision += 1;
 
         var room = BuildSnapshot(self);
-        var notifier = self.Context.Services.GetService<RoomNotifier>();
+        var notifier = GetCurrentHotfixServices(self.Context.Services).GetService<RoomNotifier>();
         if (notifier is not null)
         {
             if (self.State.LastPublishedWorldTick != result.WorldState.Tick)
@@ -427,7 +427,7 @@ public static partial class RoomBehavior
 
     private static IServiceProvider GetCurrentHotfixServices(IServiceProvider services)
     {
-        return services.GetRequiredService<IHotfixServiceProviderAccessor>().Current;
+        return services.GetService<IHotfixServiceProviderAccessor>()?.Current ?? services;
     }
 
     private static MatchEnd CreateMatchEnd(WorldState worldState)
@@ -468,8 +468,9 @@ public static partial class RoomBehavior
             }).ToList()
         }).ConfigureAwait(false);
 
-        var users = self.Context.Services.GetRequiredService<UserActors>();
-        var leaderboards = self.Context.Services.GetRequiredService<LeaderboardActors>();
+        var services = GetCurrentHotfixServices(self.Context.Services);
+        var users = services.GetRequiredService<UserActors>();
+        var leaderboards = services.GetRequiredService<LeaderboardActors>();
         var completedUserIds = roomSnapshot.Players
             .Select(static player => player.UserId)
             .Concat(settlement.Entries
