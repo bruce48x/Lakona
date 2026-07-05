@@ -36,8 +36,6 @@ namespace SampleClient.Gameplay
             _pixelSprite = DotArenaSpriteFactory.CreatePixelSprite();
             _playerSprite = DotArenaSpriteFactory.CreateCircleSprite();
             _playerOutlineSprite = DotArenaSpriteFactory.CreateCircleOutlineSprite();
-            LoadPlayerSkinSprites();
-            LoadEnvironmentArtSprites();
             _jellyShader = Shader.Find(JellyShaderName);
 
             var existingRoot = transform.Find("ArenaRoot");
@@ -52,13 +50,8 @@ namespace SampleClient.Gameplay
             CreateRect(arenaRoot.transform, "DangerZone", Vector2.zero,
                 new Vector2((ArenaHalfWidth + 1f) * 2f, (ArenaHalfHeight + 1f) * 2f), DangerColor, -30);
 
-            var boardRenderer = CreateRect(arenaRoot.transform, "Board", Vector2.zero, new Vector2(ArenaHalfWidth * 2f, ArenaHalfHeight * 2f),
+            CreateRect(arenaRoot.transform, "Board", Vector2.zero, new Vector2(ArenaHalfWidth * 2f, ArenaHalfHeight * 2f),
                 BoardColor, -20);
-            if (_arenaBackgroundSprite != null)
-            {
-                boardRenderer.sprite = _arenaBackgroundSprite;
-                boardRenderer.color = Color.white;
-            }
 
             _safeZoneRenderer = CreateRect(arenaRoot.transform, "SafeZone", Vector2.zero,
                 new Vector2(ArenaHalfWidth * 2f, ArenaHalfHeight * 2f), SafeZoneColor, -15);
@@ -87,84 +80,8 @@ namespace SampleClient.Gameplay
             UpdateArenaVisuals();
         }
 
-        private void LoadEnvironmentArtSprites()
-        {
-            _massPickupSprite = null;
-            _goldPickupSprite = null;
-            _arenaBackgroundSprite = null;
-            _pickupGlowSprite = null;
-            _spawnWaveSprite = null;
-
-#if UNITY_EDITOR
-            _massPickupSprite = TryLoadArtSprite("mass pickup", "Assets/Art/Pickups/Pickup_Mass_Teal_01.png");
-            _goldPickupSprite = TryLoadArtSprite("gold mass pickup", "Assets/Art/Pickups/Pickup_Mass_Gold_01.png");
-            _arenaBackgroundSprite = TryLoadArtSprite("arena background", "Assets/Art/Backgrounds/BG_Arena_Grid_Dark_01.png");
-            _pickupGlowSprite = TryLoadArtSprite("pickup absorb ring", "Assets/Art/FX/FX_Absorb_Ring_01.png");
-            _spawnWaveSprite = TryLoadArtSprite("player spawn wave", "Assets/Art/FX/FX_Spawn_Wave_01.png");
-#endif
-        }
-
-        private void LoadPlayerSkinSprites()
-        {
-            _playerSkinSprites.Clear();
-            _remotePlayerSkinSprites.Clear();
-
-#if UNITY_EDITOR
-            TryLoadPlayerSkinSprite("skin_default", "Assets/Art/Sprites/Skins/Skin_Jelly_Cyan.png", true);
-            TryLoadPlayerSkinSprite("skin_crimson", "Assets/Art/Sprites/Skins/Skin_Jelly_Crimson.png", true);
-            TryLoadPlayerSkinSprite("skin_sunburst", "Assets/Art/Sprites/Skins/Skin_Jelly_Sunburst.png", true);
-#endif
-        }
-
-#if UNITY_EDITOR
-        private static Sprite? TryLoadArtSprite(string label, string assetPath)
-        {
-            var sprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(assetPath);
-            if (sprite == null)
-            {
-                Debug.LogWarning($"[DotArena] {label} sprite not found: {assetPath}");
-            }
-
-            return sprite;
-        }
-
-        private void TryLoadPlayerSkinSprite(string cosmeticId, string assetPath, bool useForRemotePlayers)
-        {
-            var sprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(assetPath);
-            if (sprite == null)
-            {
-                Debug.LogWarning($"[DotArena] Player skin sprite not found: {assetPath}");
-                return;
-            }
-
-            _playerSkinSprites[cosmeticId] = sprite;
-            if (useForRemotePlayers)
-            {
-                _remotePlayerSkinSprites.Add(sprite);
-            }
-        }
-#endif
-
         private Sprite ResolvePlayerSkinSprite(string playerId, string? cosmeticId, out bool usesAuthoredSkin)
         {
-            if (string.IsNullOrWhiteSpace(cosmeticId) || string.Equals(cosmeticId, "skin_default", StringComparison.Ordinal))
-            {
-                usesAuthoredSkin = false;
-                return _playerSprite;
-            }
-
-            if (!string.IsNullOrWhiteSpace(cosmeticId) && _playerSkinSprites.TryGetValue(cosmeticId, out var cosmeticSprite))
-            {
-                usesAuthoredSkin = true;
-                return cosmeticSprite;
-            }
-
-            if (_remotePlayerSkinSprites.Count > 0)
-            {
-                usesAuthoredSkin = true;
-                return _remotePlayerSkinSprites[GetStableSkinIndex(playerId) % _remotePlayerSkinSprites.Count];
-            }
-
             usesAuthoredSkin = false;
             return _playerSprite;
         }
@@ -178,21 +95,6 @@ namespace SampleClient.Gameplay
             }
 
             return null;
-        }
-
-        private static int GetStableSkinIndex(string playerId)
-        {
-            unchecked
-            {
-                var hash = 2166136261u;
-                foreach (var ch in playerId)
-                {
-                    hash ^= ch;
-                    hash *= 16777619u;
-                }
-
-                return (int)(hash & 0x7fffffffu);
-            }
         }
 
         private SpriteRenderer CreateRect(Transform parent, string objectName, Vector2 position, Vector2 size, Color color, int sortingOrder)

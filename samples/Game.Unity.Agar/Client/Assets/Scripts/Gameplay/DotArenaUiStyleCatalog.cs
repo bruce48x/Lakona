@@ -46,18 +46,9 @@ namespace SampleClient.Gameplay
 
             if (panel.TryGetComponent<Image>(out var image))
             {
-                if (panelSprite != null && color.a > 0f)
-                {
-                    image.sprite = panelSprite;
-                    image.type = Image.Type.Simple;
-                    image.color = Color.white;
-                }
-                else
-                {
-                    image.sprite = null;
-                    image.color = color;
-                }
-
+                image.sprite = panelSprite;
+                image.type = panelSprite != null ? Image.Type.Sliced : Image.Type.Simple;
+                image.color = color;
                 image.raycastTarget = color.a > 0f;
             }
         }
@@ -118,43 +109,43 @@ namespace SampleClient.Gameplay
             ApplyText(text, style);
         }
 
-        public static void ApplyButton(Button? button, Sprite? normalSprite, Sprite? pressedSprite)
+        public static void ApplyButton(Button? button, Sprite? buttonSprite)
         {
             if (button == null)
             {
                 return;
             }
 
-            if (button.targetGraphic is Image buttonImage && normalSprite != null)
+            _ = buttonSprite;
+            if (button.TryGetComponent<Image>(out var image))
             {
-                buttonImage.sprite = normalSprite;
-                buttonImage.type = Image.Type.Simple;
-                buttonImage.color = Color.white;
+                image.enabled = false;
+                Object.Destroy(image);
             }
+
+            var gradient = button.GetComponent<DotArenaGradientGraphic>();
+            if (gradient == null)
+            {
+                gradient = button.gameObject.AddComponent<DotArenaGradientGraphic>();
+            }
+
+            gradient.TopLeft = new Color(0.08f, 0.82f, 0.86f, 1f);
+            gradient.TopRight = new Color(0.25f, 0.91f, 0.72f, 1f);
+            gradient.BottomLeft = new Color(0f, 0.52f, 0.66f, 1f);
+            gradient.BottomRight = new Color(0.02f, 0.68f, 0.72f, 1f);
+            gradient.CornerRadius = 18f;
+            gradient.raycastTarget = true;
+            button.targetGraphic = gradient;
 
             var colors = button.colors;
-            colors.normalColor = normalSprite != null ? Color.white : new Color(0.2f, 0.29f, 0.38f, 1f);
-            colors.highlightedColor = normalSprite != null ? new Color(1.08f, 1.08f, 1.08f, 1f) : new Color(0.27f, 0.39f, 0.5f, 1f);
-            colors.pressedColor = normalSprite != null ? new Color(0.86f, 0.9f, 0.94f, 1f) : new Color(0.14f, 0.22f, 0.3f, 1f);
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(1.08f, 1.08f, 1.08f, 1f);
+            colors.pressedColor = new Color(0.82f, 0.88f, 0.92f, 1f);
             colors.selectedColor = colors.highlightedColor;
-            colors.disabledColor = new Color(0.2f, 0.2f, 0.22f, 0.7f);
+            colors.disabledColor = new Color(0.64f, 0.76f, 0.8f, 0.72f);
             colors.colorMultiplier = 1f;
             button.colors = colors;
-
-            if (pressedSprite != null)
-            {
-                button.transition = Selectable.Transition.SpriteSwap;
-                var spriteState = button.spriteState;
-                spriteState.highlightedSprite = normalSprite;
-                spriteState.pressedSprite = pressedSprite;
-                spriteState.selectedSprite = normalSprite;
-                spriteState.disabledSprite = normalSprite;
-                button.spriteState = spriteState;
-            }
-            else
-            {
-                button.transition = Selectable.Transition.ColorTint;
-            }
+            button.transition = Selectable.Transition.ColorTint;
         }
 
         public static void ApplyInputField(TMP_InputField? inputField)

@@ -2,6 +2,7 @@
   "name": "SampleClient.Gameplay.EditModeTests",
   "rootNamespace": "SampleClient.Gameplay.Tests",
   "references": [
+    "SampleClient.Gameplay",
     "Unity.TextMeshPro",
     "UnityEngine.UI"
   ],

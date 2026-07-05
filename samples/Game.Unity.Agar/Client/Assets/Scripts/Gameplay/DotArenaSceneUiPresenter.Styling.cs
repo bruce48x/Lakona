@@ -48,12 +48,14 @@ namespace SampleClient.Gameplay
             StyleMatchRankingPanelImage();
             StylePanelImage(_debugPanel, UiPanelBackgroundColor);
             StylePanelImage(_entryPanel, UiPanelBackgroundColor);
+            StylePanelImage(_modeSelectPanel, Color.clear);
+            StylePanelImage(_multiplayerPanel, UiPanelBackgroundColor);
             StylePanelImage(_matchmakingPanel, UiPanelBackgroundColor);
             StylePanelImage(_lobbyPanel, UiPanelBackgroundColor);
             StylePanelImage(_settlementPanel, UiPanelBackgroundColor);
 
             StyleText(_hudTitleText, UiMutedTextColor, 1f, false, TextAlignmentOptions.TopLeft, TextOverflowModes.Ellipsis);
-            StyleText(_entryTitleText, UiAccentTextColor, 22f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
+            StyleText(_entryTitleText, UiPrimaryTextColor, 34f, false, TextAlignmentOptions.Left, TextOverflowModes.Ellipsis);
 
             StyleText(_hudStatusText, UiPrimaryTextColor, 13f, false, TextAlignmentOptions.TopLeft, TextOverflowModes.Ellipsis);
             StyleText(_hudPlayerText, UiSecondaryTextColor, 13f, false, TextAlignmentOptions.TopLeft, TextOverflowModes.Ellipsis);
@@ -74,7 +76,7 @@ namespace SampleClient.Gameplay
             StyleText(_debugTitleText, UiAccentTextColor, 16f, false, TextAlignmentOptions.TopLeft, TextOverflowModes.Ellipsis);
             StyleText(_debugDetailText, UiSecondaryTextColor, 12f, true, TextAlignmentOptions.TopLeft, TextOverflowModes.Overflow);
 
-            StyleText(_entryStatusText, UiPrimaryTextColor, 14f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
+            StyleText(_entryStatusText, UiSecondaryTextColor, 14f, true, TextAlignmentOptions.Left, TextOverflowModes.Ellipsis);
             StyleText(_matchmakingTitleText, UiAccentTextColor, 22f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
             StyleText(_matchmakingDetailText, UiSecondaryTextColor, 13f, true, TextAlignmentOptions.Top, TextOverflowModes.Overflow);
             StyleText(_lobbyTitleText, UiAccentTextColor, 22f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
@@ -114,9 +116,9 @@ namespace SampleClient.Gameplay
             StyleButton(_lobbyQuickActionButton4);
             StyleButton(_settlementPrimaryButton);
             StyleButton(_settlementSecondaryButton);
-            StyleText(_singlePlayerButtonText, UiPrimaryTextColor, 13f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
-            StyleText(_invincibleSinglePlayerButtonText, UiPrimaryTextColor, 13f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
-            StyleText(_multiplayerButtonText, UiPrimaryTextColor, 13f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
+            StyleText(_singlePlayerButtonText, Color.white, 15f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
+            StyleText(_invincibleSinglePlayerButtonText, Color.white, 15f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
+            StyleText(_multiplayerButtonText, Color.white, 15f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
             StyleText(_matchButtonText, UiPrimaryTextColor, 13f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
             StyleText(_guestLoginButtonText, UiPrimaryTextColor, 13f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
             StyleText(_backButtonText, UiPrimaryTextColor, 13f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
@@ -132,7 +134,6 @@ namespace SampleClient.Gameplay
             StyleInputField(_passwordInputField);
             StyleLegacyInputField(_accountLegacyInputField);
             StyleLegacyInputField(_passwordLegacyInputField);
-            ApplyButtonIcon(_lobbyLeaderboardButton, _leaderboardIconSprite);
         }
 
         private void StylePanelImage(GameObject? panel, Color color)
@@ -147,7 +148,7 @@ namespace SampleClient.Gameplay
 
         private void StyleButton(Button? button)
         {
-            DotArenaUiStyleCatalog.ApplyButton(button, _uiButtonNormalSprite, _uiButtonPressedSprite);
+            DotArenaUiStyleCatalog.ApplyButton(button, _uiButtonSprite);
         }
 
         private static void StyleInputField(TMP_InputField? inputField)
@@ -187,10 +188,10 @@ namespace SampleClient.Gameplay
             }
 
             var colors = inputField.colors;
-            colors.normalColor = new Color(0.2f, 0.29f, 0.38f, 1f);
-            colors.highlightedColor = new Color(0.27f, 0.39f, 0.5f, 1f);
-            colors.pressedColor = new Color(0.14f, 0.22f, 0.3f, 1f);
-            colors.disabledColor = new Color(0.2f, 0.2f, 0.22f, 0.7f);
+            colors.normalColor = UiInputBackgroundColor;
+            colors.highlightedColor = new Color(0.8f, 0.95f, 0.98f, 1f);
+            colors.pressedColor = new Color(0.76f, 0.91f, 0.95f, 1f);
+            colors.disabledColor = new Color(0.78f, 0.84f, 0.86f, 0.7f);
             colors.selectedColor = colors.highlightedColor;
             colors.colorMultiplier = 1f;
             inputField.colors = colors;
@@ -255,84 +256,19 @@ namespace SampleClient.Gameplay
             return fallback ?? TMP_Settings.defaultFontAsset;
         }
 
-        private void LoadSceneUiArtSprites()
+        private void EnsureRuntimeUiSprites()
         {
-            _uiPanelSprite = null;
-            _uiButtonNormalSprite = null;
-            _uiButtonPressedSprite = null;
-            _uiBackgroundSprite = null;
-            _matchRankingPanelSprite = null;
-            _leaderboardIconSprite = null;
-
-#if UNITY_EDITOR
-            _uiBackgroundSprite = TryLoadSceneUiSprite("UI background", "Assets/Art/Backgrounds/BG_Arena_Grid_Dark_01.png");
-            _uiPanelSprite = TryLoadSceneUiSprite("UI panel", "Assets/Art/UI/UI_Panel_Dark_01.png");
-            _matchRankingPanelSprite = TryLoadSceneUiSprite("match ranking panel", "Assets/Art/UI/UI_HUD_Rank_Panel_Translucent_01.png");
-            _uiButtonNormalSprite = TryLoadSceneUiSprite("UI button normal", "Assets/Art/UI/UI_Button_Primary_Normal.png");
-            _uiButtonPressedSprite = TryLoadSceneUiSprite("UI button pressed", "Assets/Art/UI/UI_Button_Primary_Pressed.png");
-            _leaderboardIconSprite = TryLoadSceneUiSprite("leaderboard icon", "Assets/Art/Icons/Icon_Leaderboard_01.png");
-#endif
+            _uiPanelSprite ??= DotArenaSpriteFactory.CreateRoundedRectSprite(64, 10f);
+            _uiButtonSprite ??= DotArenaSpriteFactory.CreateRoundedRectSprite(64, 12f);
         }
 
         private void StyleMatchRankingPanelImage()
         {
             DotArenaUiStyleCatalog.ApplyPanelSprite(
                 _matchRankingPanel,
-                _matchRankingPanelSprite,
-                new Color(1f, 1f, 1f, 0.72f),
+                null,
+                new Color(1f, 1f, 1f, 0.78f),
                 raycastTarget: false);
-        }
-
-#if UNITY_EDITOR
-        private static Sprite? TryLoadSceneUiSprite(string label, string assetPath)
-        {
-            var sprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(assetPath);
-            if (sprite == null)
-            {
-                Debug.LogWarning($"[DotArena] {label} sprite not found: {assetPath}");
-            }
-
-            return sprite;
-        }
-#endif
-
-        private void ApplyButtonIcon(Button? button, Sprite? iconSprite)
-        {
-            if (button == null || iconSprite == null)
-            {
-                return;
-            }
-
-            var iconTransform = button.transform.Find("Icon");
-            GameObject iconObject;
-            if (iconTransform == null)
-            {
-                iconObject = new GameObject("Icon", typeof(RectTransform), typeof(Image));
-                iconObject.transform.SetParent(button.transform, false);
-            }
-            else
-            {
-                iconObject = iconTransform.gameObject;
-            }
-
-            var rect = (RectTransform)iconObject.transform;
-            rect.anchorMin = new Vector2(0f, 0.5f);
-            rect.anchorMax = new Vector2(0f, 0.5f);
-            rect.pivot = new Vector2(0f, 0.5f);
-            rect.anchoredPosition = new Vector2(10f, 0f);
-            rect.sizeDelta = new Vector2(20f, 20f);
-
-            var image = iconObject.GetComponent<Image>();
-            image.sprite = iconSprite;
-            image.type = Image.Type.Simple;
-            image.color = Color.white;
-            image.raycastTarget = false;
-
-            if (button.transform.Find("Label") is RectTransform labelRect)
-            {
-                labelRect.offsetMin = new Vector2(28f, 0f);
-                labelRect.offsetMax = Vector2.zero;
-            }
         }
 
         private TMP_Text? FindSceneUiText(string path)

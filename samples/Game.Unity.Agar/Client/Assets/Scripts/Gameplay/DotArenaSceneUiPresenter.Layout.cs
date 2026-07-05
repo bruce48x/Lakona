@@ -39,12 +39,12 @@ namespace SampleClient.Gameplay
             panelRect.anchorMax = new Vector2(1f, 0.5f);
             panelRect.pivot = new Vector2(1f, 0.5f);
             panelRect.anchoredPosition = new Vector2(-18f, 0f);
-            panelRect.sizeDelta = new Vector2(260f, 390f);
+            panelRect.sizeDelta = new Vector2(246f, 410f);
 
             _matchRankingTitleText = EnsureMatchRankingText(
                 _matchRankingPanel.transform,
                 "TitleText",
-                new Vector2(0f, -16f),
+                new Vector2(0f, -18f),
                 new Vector2(220f, 28f),
                 18f,
                 FontStyles.Bold,
@@ -52,7 +52,7 @@ namespace SampleClient.Gameplay
             _matchRankingHeaderText = EnsureMatchRankingText(
                 _matchRankingPanel.transform,
                 "HeaderText",
-                new Vector2(0f, -48f),
+                new Vector2(0f, -52f),
                 new Vector2(224f, 20f),
                 12f,
                 FontStyles.Bold,
@@ -105,8 +105,8 @@ namespace SampleClient.Gameplay
             rect.anchorMin = new Vector2(0.5f, 1f);
             rect.anchorMax = new Vector2(0.5f, 1f);
             rect.pivot = new Vector2(0.5f, 1f);
-            rect.anchoredPosition = new Vector2(0f, -76f - (index * 29f));
-            rect.sizeDelta = new Vector2(224f, 24f);
+            rect.anchoredPosition = new Vector2(0f, -84f - (index * 30f));
+            rect.sizeDelta = new Vector2(216f, 25f);
 
             var background = rowObject.GetComponent<Image>();
             if (background == null)
@@ -137,7 +137,7 @@ namespace SampleClient.Gameplay
                 return null;
             }
 
-            DotArenaUiRect.LeftMiddle(new Vector2(x, 0f), new Vector2(width, 20f)).Apply(text.rectTransform);
+            DotArenaUiRect.LeftMiddle(new Vector2(x, 0f), new Vector2(width, 21f)).Apply(text.rectTransform);
             DotArenaUiStyleCatalog.ApplyText(text, DotArenaUiStyleCatalog.RankingText(12f, FontStyles.Bold, alignment));
             return text;
         }
@@ -157,8 +157,8 @@ namespace SampleClient.Gameplay
                 existingRect.anchorMin = new Vector2(0.5f, 1f);
                 existingRect.anchorMax = new Vector2(0.5f, 1f);
                 existingRect.pivot = new Vector2(0.5f, 1f);
-                existingRect.anchoredPosition = new Vector2(0f, -10f);
-                existingRect.sizeDelta = new Vector2(220f, 28f);
+                existingRect.anchoredPosition = new Vector2(0f, -14f);
+                existingRect.sizeDelta = new Vector2(250f, 32f);
                 _hudCountdownText.alignment = TextAlignmentOptions.Center;
                 _hudCountdownText.fontSize = 18f;
                 _hudCountdownText.fontStyle = FontStyles.Bold;
@@ -266,27 +266,27 @@ namespace SampleClient.Gameplay
             panelRect.anchorMin = Vector2.zero;
             panelRect.anchorMax = Vector2.one;
             panelRect.pivot = new Vector2(0.5f, 0.5f);
-            panelRect.offsetMin = new Vector2(36f, 36f);
-            panelRect.offsetMax = new Vector2(-36f, -36f);
+            panelRect.offsetMin = new Vector2(54f, 42f);
+            panelRect.offsetMax = new Vector2(-54f, -42f);
 
-            EnsureLobbyTextElement("TitleText", new Vector2(0f, -22f), new Vector2(720f, 38f), 24f, FontStyles.Bold, TextAlignmentOptions.Center);
-            EnsureLobbyTextElement("SummaryText", new Vector2(0f, -72f), new Vector2(980f, 30f), 14f, FontStyles.Normal, TextAlignmentOptions.Center);
-            EnsureLobbyButtonElement("ProfileButton", new Vector2(-300f, -128f), new Vector2(120f, 34f), "Profile");
-            EnsureLobbyButtonElement("TasksButton", new Vector2(-180f, -128f), new Vector2(110f, 34f), string.Empty);
-            EnsureLobbyButtonElement("ShopButton", new Vector2(-60f, -128f), new Vector2(110f, 34f), string.Empty);
-            EnsureLobbyButtonElement("RecordsButton", new Vector2(60f, -128f), new Vector2(110f, 34f), string.Empty);
-            EnsureLobbyButtonElement("LeaderboardButton", new Vector2(190f, -128f), new Vector2(130f, 34f), "Leaderboard");
-            EnsureLobbyButtonElement("SettingsButton", new Vector2(330f, -128f), new Vector2(130f, 34f), "Settings");
-            EnsureLobbyTextElement("HighlightsText", new Vector2(0f, -184f), new Vector2(980f, 56f), 14f, FontStyles.Bold, TextAlignmentOptions.Center);
-            EnsureLobbyTextElement("QuickActionsText", new Vector2(-410f, -250f), new Vector2(220f, 28f), 13f, FontStyles.Bold, TextAlignmentOptions.TopLeft);
-            EnsureLobbyButtonElement("QuickActionButton1", new Vector2(-220f, -246f), new Vector2(180f, 40f), "Action");
-            EnsureLobbyButtonElement("QuickActionButton2", new Vector2(-20f, -246f), new Vector2(180f, 40f), "Action");
-            EnsureLobbyButtonElement("QuickActionButton3", new Vector2(180f, -246f), new Vector2(180f, 40f), "Action");
-            EnsureLobbyButtonElement("QuickActionButton4", new Vector2(380f, -246f), new Vector2(180f, 40f), "Action");
-            EnsureLobbyTextElement("DetailText", new Vector2(0f, -326f), new Vector2(980f, 290f), 14f, FontStyles.Normal, TextAlignmentOptions.TopLeft);
-            EnsureLobbyButtonElement("PrimaryActionButton", new Vector2(-120f, -650f), new Vector2(220f, 42f), "Action");
-            EnsureLobbyButtonElement("SecondaryActionButton", new Vector2(120f, -650f), new Vector2(220f, 42f), "Action");
-            EnsureLobbyTextElement("FooterText", new Vector2(0f, -708f), new Vector2(980f, 24f), 12f, FontStyles.Normal, TextAlignmentOptions.Center);
+            EnsureLobbyTextElement("TitleText", new Vector2(-360f, -34f), new Vector2(360f, 42f), 28f, FontStyles.Bold, TextAlignmentOptions.Left);
+            EnsureLobbyTextElement("SummaryText", new Vector2(-360f, -84f), new Vector2(430f, 48f), 14f, FontStyles.Normal, TextAlignmentOptions.Left);
+            EnsureLobbyButtonElement("ProfileButton", new Vector2(-374f, -154f), new Vector2(122f, 36f), "Profile");
+            EnsureLobbyButtonElement("TasksButton", new Vector2(-242f, -154f), new Vector2(110f, 36f), string.Empty);
+            EnsureLobbyButtonElement("ShopButton", new Vector2(-120f, -154f), new Vector2(110f, 36f), string.Empty);
+            EnsureLobbyButtonElement("RecordsButton", new Vector2(0f, -154f), new Vector2(110f, 36f), string.Empty);
+            EnsureLobbyButtonElement("LeaderboardButton", new Vector2(-238f, -202f), new Vector2(150f, 36f), "Leaderboard");
+            EnsureLobbyButtonElement("SettingsButton", new Vector2(-74f, -202f), new Vector2(128f, 36f), "Settings");
+            EnsureLobbyTextElement("HighlightsText", new Vector2(230f, -42f), new Vector2(430f, 72f), 15f, FontStyles.Bold, TextAlignmentOptions.Center);
+            EnsureLobbyTextElement("QuickActionsText", new Vector2(86f, -148f), new Vector2(220f, 28f), 13f, FontStyles.Bold, TextAlignmentOptions.TopLeft);
+            EnsureLobbyButtonElement("QuickActionButton1", new Vector2(248f, -146f), new Vector2(180f, 40f), "Action");
+            EnsureLobbyButtonElement("QuickActionButton2", new Vector2(448f, -146f), new Vector2(180f, 40f), "Action");
+            EnsureLobbyButtonElement("QuickActionButton3", new Vector2(248f, -198f), new Vector2(180f, 40f), "Action");
+            EnsureLobbyButtonElement("QuickActionButton4", new Vector2(448f, -198f), new Vector2(180f, 40f), "Action");
+            EnsureLobbyTextElement("DetailText", new Vector2(0f, -272f), new Vector2(980f, 250f), 14f, FontStyles.Normal, TextAlignmentOptions.TopLeft);
+            EnsureLobbyButtonElement("PrimaryActionButton", new Vector2(-120f, -590f), new Vector2(220f, 44f), "Action");
+            EnsureLobbyButtonElement("SecondaryActionButton", new Vector2(120f, -590f), new Vector2(220f, 44f), "Action");
+            EnsureLobbyTextElement("FooterText", new Vector2(0f, -646f), new Vector2(980f, 24f), 12f, FontStyles.Normal, TextAlignmentOptions.Center);
         }
 
         private void EnsureLobbyTextElement(string name, Vector2 anchoredPosition, Vector2 size, float fontSize, FontStyles fontStyles, TextAlignmentOptions alignment)

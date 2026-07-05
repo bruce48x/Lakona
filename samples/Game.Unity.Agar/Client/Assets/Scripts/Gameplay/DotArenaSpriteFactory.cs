@@ -94,6 +94,45 @@ namespace SampleClient.Gameplay
                 textureSize);
         }
 
+        public static Sprite CreateRoundedRectSprite(int textureSize, float radiusPixels)
+        {
+            var texture = new Texture2D(textureSize, textureSize, TextureFormat.RGBA32, false)
+            {
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp,
+                hideFlags = HideFlags.HideAndDontSave
+            };
+
+            var half = (textureSize - 1) * 0.5f;
+            var cornerCenter = half - radiusPixels;
+
+            for (var y = 0; y < textureSize; y++)
+            {
+                for (var x = 0; x < textureSize; x++)
+                {
+                    var px = Mathf.Abs(x - half);
+                    var py = Mathf.Abs(y - half);
+                    var dx = Mathf.Max(px - cornerCenter, 0f);
+                    var dy = Mathf.Max(py - cornerCenter, 0f);
+                    var distance = Mathf.Sqrt((dx * dx) + (dy * dy));
+                    var alpha = Mathf.Clamp01(radiusPixels + 0.5f - distance);
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+
+            texture.Apply();
+
+            var border = Vector4.one * radiusPixels;
+            return Sprite.Create(
+                texture,
+                new Rect(0f, 0f, textureSize, textureSize),
+                new Vector2(0.5f, 0.5f),
+                textureSize,
+                0,
+                SpriteMeshType.FullRect,
+                border);
+        }
+
         public static void ConfigureTextRenderer(MeshRenderer? renderer, int sortingOrder)
         {
             if (renderer == null)

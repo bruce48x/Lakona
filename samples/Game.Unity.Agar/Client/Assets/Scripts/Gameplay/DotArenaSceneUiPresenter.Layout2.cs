@@ -31,12 +31,18 @@ namespace SampleClient.Gameplay
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
 
-            var image = _menuBackground.GetComponent<Image>();
-            image.sprite = _uiBackgroundSprite;
-            image.type = Image.Type.Simple;
-            image.preserveAspect = false;
-            image.color = _uiBackgroundSprite != null ? Color.white : new Color(0.02f, 0.04f, 0.07f, 1f);
-            image.raycastTarget = false;
+            if (_menuBackground.TryGetComponent<Image>(out var image))
+            {
+                Object.Destroy(image);
+            }
+
+            var gradient = _menuBackground.GetComponent<DotArenaGradientGraphic>()
+                ?? _menuBackground.AddComponent<DotArenaGradientGraphic>();
+            gradient.TopLeft = new Color(0.88f, 0.98f, 1f, 1f);
+            gradient.TopRight = new Color(0.98f, 1f, 0.97f, 1f);
+            gradient.BottomLeft = new Color(0.78f, 0.95f, 1f, 1f);
+            gradient.BottomRight = new Color(1f, 0.91f, 0.86f, 1f);
+            gradient.raycastTarget = false;
         }
 
         private void EnsureEntryPanelLayout()
@@ -50,13 +56,13 @@ namespace SampleClient.Gameplay
             panelRect.anchorMin = new Vector2(0.5f, 0.5f);
             panelRect.anchorMax = new Vector2(0.5f, 0.5f);
             panelRect.pivot = new Vector2(0.5f, 0.5f);
-            panelRect.anchoredPosition = Vector2.zero;
-            panelRect.sizeDelta = new Vector2(460f, 330f);
+            panelRect.anchoredPosition = new Vector2(0f, 0f);
+            panelRect.sizeDelta = new Vector2(1050f, 430f);
 
-            EnsureEntryTextLayout("TitleText", new Vector2(0f, -44f), new Vector2(360f, 32f), 22f, FontStyles.Bold);
-            EnsureEntryTextLayout("StatusText", new Vector2(0f, -76f), new Vector2(360f, 22f), 13f, FontStyles.Normal);
+            EnsureEntryTextLayout("TitleText", new Vector2(-315f, -56f), new Vector2(360f, 48f), 34f, FontStyles.Bold);
+            EnsureEntryTextLayout("StatusText", new Vector2(-315f, -114f), new Vector2(360f, 76f), 14f, FontStyles.Normal);
             StretchEntryChildPanel(_modeSelectPanel);
-            EnsureEntryContentPanel(_multiplayerPanel, new Vector2(0f, -88f), new Vector2(330f, 212f));
+            EnsureEntryContentPanel(_multiplayerPanel, new Vector2(260f, -80f), new Vector2(360f, 242f));
         }
 
         private void EnsureEntryTextLayout(string name, Vector2 anchoredPosition, Vector2 size, float fontSize, FontStyles fontStyles)
@@ -75,7 +81,7 @@ namespace SampleClient.Gameplay
             rect.sizeDelta = size;
             text.fontSize = fontSize;
             text.fontStyle = fontStyles;
-            text.alignment = TextAlignmentOptions.Center;
+            text.alignment = TextAlignmentOptions.Left;
         }
 
         private static void StretchEntryChildPanel(GameObject? panel)
@@ -115,9 +121,9 @@ namespace SampleClient.Gameplay
                 return;
             }
 
-            EnsureModeSelectButton("SinglePlayerButton", new Vector2(0f, -132f), "Single Player: Normal");
-            EnsureModeSelectButton("InvincibleSinglePlayerButton", new Vector2(0f, -190f), "Single Player: Invincible");
-            EnsureModeSelectButton("MultiplayerButton", new Vector2(0f, -248f), "Multiplayer");
+            EnsureModeSelectButton("SinglePlayerButton", new Vector2(250f, -82f), "Single Player: Normal");
+            EnsureModeSelectButton("InvincibleSinglePlayerButton", new Vector2(250f, -154f), "Single Player: Invincible");
+            EnsureModeSelectButton("MultiplayerButton", new Vector2(250f, -226f), "Multiplayer");
         }
 
         private void EnsureModeSelectButton(string name, Vector2 anchoredPosition, string label)
@@ -136,7 +142,7 @@ namespace SampleClient.Gameplay
                 rect.anchorMax = new Vector2(0.5f, 1f);
                 rect.pivot = new Vector2(0.5f, 1f);
                 rect.anchoredPosition = anchoredPosition;
-                rect.sizeDelta = new Vector2(300f, 42f);
+                rect.sizeDelta = new Vector2(360f, 54f);
             }
 
             var text = FindSceneUiText($"SceneUI/EntryPanel/ModeSelectPanel/{name}/Label");
@@ -169,13 +175,13 @@ namespace SampleClient.Gameplay
         private void EnsureMultiplayerAuthFormLayout()
         {
             EnsureMultiplayerTextLayout("SubtitleText", new Vector2(0f, -2f), new Vector2(300f, 1f), 1f, FontStyles.Bold, TextAlignmentOptions.Center);
-            EnsureMultiplayerTextLayout("AccountLabel", new Vector2(0f, -4f), new Vector2(260f, 18f), 12f, FontStyles.Normal, TextAlignmentOptions.Left);
-            EnsureMultiplayerInputLayout("AccountInput", new Vector2(0f, -28f), new Vector2(260f, 30f));
-            EnsureMultiplayerTextLayout("PasswordLabel", new Vector2(0f, -64f), new Vector2(260f, 18f), 12f, FontStyles.Normal, TextAlignmentOptions.Left);
-            EnsureMultiplayerInputLayout("PasswordInput", new Vector2(0f, -88f), new Vector2(260f, 30f));
-            EnsureMultiplayerAuthButton("MatchButton", new Vector2(-70f, -128f), new Vector2(124f, 30f), "Login");
-            EnsureMultiplayerAuthButton("BackButton", new Vector2(70f, -128f), new Vector2(124f, 30f), "Back");
-            EnsureMultiplayerAuthButton("GuestLoginButton", new Vector2(0f, -166f), new Vector2(260f, 30f), "Guest Login");
+            EnsureMultiplayerTextLayout("AccountLabel", new Vector2(0f, -4f), new Vector2(300f, 18f), 12f, FontStyles.Normal, TextAlignmentOptions.Left);
+            EnsureMultiplayerInputLayout("AccountInput", new Vector2(0f, -32f), new Vector2(300f, 38f));
+            EnsureMultiplayerTextLayout("PasswordLabel", new Vector2(0f, -80f), new Vector2(300f, 18f), 12f, FontStyles.Normal, TextAlignmentOptions.Left);
+            EnsureMultiplayerInputLayout("PasswordInput", new Vector2(0f, -108f), new Vector2(300f, 38f));
+            EnsureMultiplayerAuthButton("MatchButton", new Vector2(-80f, -166f), new Vector2(140f, 38f), "Login");
+            EnsureMultiplayerAuthButton("BackButton", new Vector2(80f, -166f), new Vector2(140f, 38f), "Back");
+            EnsureMultiplayerAuthButton("GuestLoginButton", new Vector2(0f, -216f), new Vector2(300f, 38f), "Guest Login");
         }
 
         private void EnsureMultiplayerTextLayout(string name, Vector2 anchoredPosition, Vector2 size, float fontSize, FontStyles fontStyles, TextAlignmentOptions alignment)

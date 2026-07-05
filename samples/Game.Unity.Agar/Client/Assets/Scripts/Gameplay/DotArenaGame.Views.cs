@@ -130,17 +130,13 @@ namespace SampleClient.Gameplay
             outlineRenderer.enabled = false;
             outlineRenderer.material = CreateJellyMaterial(UnityEngine.Random.Range(0f, Mathf.PI * 2f), 4.2f, 0.08f);
 
-            SpriteRenderer? spawnWaveRenderer = null;
-            if (_spawnWaveSprite != null)
-            {
-                var spawnWave = new GameObject("SpawnWave");
-                spawnWave.transform.SetParent(viewRoot.transform, false);
-                spawnWave.transform.localPosition = new Vector3(0f, 0f, 0.02f);
-                spawnWaveRenderer = spawnWave.AddComponent<SpriteRenderer>();
-                spawnWaveRenderer.sprite = _spawnWaveSprite;
-                spawnWaveRenderer.color = new Color(1f, 1f, 1f, 0.58f);
-                spawnWaveRenderer.sortingOrder = PlayerSortingOrder - 2;
-            }
+            var spawnWave = new GameObject("SpawnWave");
+            spawnWave.transform.SetParent(viewRoot.transform, false);
+            spawnWave.transform.localPosition = new Vector3(0f, 0f, 0.02f);
+            var spawnWaveRenderer = spawnWave.AddComponent<SpriteRenderer>();
+            spawnWaveRenderer.sprite = _playerOutlineSprite;
+            spawnWaveRenderer.color = new Color(0f, 0.65f, 0.69f, 0.42f);
+            spawnWaveRenderer.sortingOrder = PlayerSortingOrder - 2;
 
             var nameBackdrop = new GameObject("NameBackdrop");
             nameBackdrop.transform.SetParent(viewRoot.transform, false);
@@ -202,11 +198,9 @@ namespace SampleClient.Gameplay
             pickupRoot.transform.SetParent(transform, false);
 
             var pickupColor = DotArenaPresentation.GetPickupColor(pickupType);
-            var massPickupSprite = ResolveMassPickupSprite();
-            var usesAuthoredPickupSprite = pickupType == PickupType.MassPoint && massPickupSprite != null;
             var renderer = pickupRoot.AddComponent<SpriteRenderer>();
-            renderer.sprite = usesAuthoredPickupSprite ? massPickupSprite : _playerSprite;
-            renderer.color = usesAuthoredPickupSprite ? Color.white : pickupColor;
+            renderer.sprite = _playerSprite;
+            renderer.color = pickupColor;
             renderer.sortingOrder = PickupSortingOrder;
             renderer.material = CreatePickupAbsorbMaterial(pickupColor);
 
@@ -216,7 +210,7 @@ namespace SampleClient.Gameplay
             glow.transform.localScale = Vector3.one * 1.24f;
 
             var glowRenderer = glow.AddComponent<SpriteRenderer>();
-            glowRenderer.sprite = _pickupGlowSprite != null ? _pickupGlowSprite : _playerOutlineSprite;
+            glowRenderer.sprite = _playerOutlineSprite;
             glowRenderer.color = Color.clear;
             glowRenderer.sortingOrder = PickupSortingOrder - 1;
             glowRenderer.enabled = false;
@@ -238,21 +232,6 @@ namespace SampleClient.Gameplay
 
             pickupRoot.SetActive(false);
             return new PickupView(pickupRoot, renderer, glowRenderer, labelText);
-        }
-
-        private Sprite? ResolveMassPickupSprite()
-        {
-            if (_massPickupSprite == null)
-            {
-                return _goldPickupSprite;
-            }
-
-            if (_goldPickupSprite == null)
-            {
-                return _massPickupSprite;
-            }
-
-            return (_pickupViews.Count & 1) == 0 ? _massPickupSprite : _goldPickupSprite;
         }
 
         private Material CreatePickupAbsorbMaterial(Color baseColor)

@@ -162,11 +162,7 @@ namespace SampleClient.Gameplay
         private InputField? _passwordLegacyInputField;
         private TMP_FontAsset? _tmpFontAsset;
         private Sprite? _uiPanelSprite;
-        private Sprite? _uiButtonNormalSprite;
-        private Sprite? _uiButtonPressedSprite;
-        private Sprite? _uiBackgroundSprite;
-        private Sprite? _matchRankingPanelSprite;
-        private Sprite? _leaderboardIconSprite;
+        private Sprite? _uiButtonSprite;
         private DotArenaUiFactory? _uiFactory;
         private readonly DotArenaSceneLobbyUiCoordinator _lobbyUi = new();
         private readonly List<MatchRankingRowUi> _matchRankingRows = new();
@@ -201,7 +197,7 @@ namespace SampleClient.Gameplay
 
             _tmpFontAsset ??= LoadTmpFontAsset();
             ApplySceneUiFonts();
-            LoadSceneUiArtSprites();
+            EnsureRuntimeUiSprites();
             EnsureMenuBackground();
 
             OverlayLayer = FindSceneUiRect("SceneUI/OverlayLayer");

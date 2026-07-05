@@ -37,7 +37,7 @@ namespace SampleClient.Gameplay
             var contentRect = new Rect(28f, 24f, width - 24f, height - 16f);
 
             var previousColor = GUI.color;
-            GUI.color = new Color(0.04f, 0.06f, 0.08f, 0.9f);
+            GUI.color = new Color(0.96f, 1f, 1f, 0.88f);
             GUI.Box(boxRect, GUIContent.none);
             GUI.color = previousColor;
 
@@ -45,13 +45,13 @@ namespace SampleClient.Gameplay
             {
                 fontSize = 16,
                 fontStyle = FontStyle.Bold,
-                normal = { textColor = Color.white }
+                normal = { textColor = UiPrimaryTextColor }
             };
 
             var bodyStyle = new GUIStyle(GUI.skin.label)
             {
                 fontSize = 12,
-                normal = { textColor = new Color(0.86f, 0.91f, 0.96f, 1f) }
+                normal = { textColor = UiSecondaryTextColor }
             };
 
             GUI.Label(new Rect(contentRect.x, contentRect.y, contentRect.width, 24f), "Dot Arena", titleStyle);
@@ -110,7 +110,7 @@ namespace SampleClient.Gameplay
                     fontStyle = FontStyle.Bold,
                     fontSize = Mathf.RoundToInt(Mathf.Clamp(diameterPixels * 0.24f, 14f, 22f)),
                     clipping = TextClipping.Overflow,
-                    normal = { textColor = new Color(0.94f, 0.97f, 1f, 1f) }
+                    normal = { textColor = Color.white }
                 };
 
                 var massStyle = new GUIStyle(GUI.skin.label)
