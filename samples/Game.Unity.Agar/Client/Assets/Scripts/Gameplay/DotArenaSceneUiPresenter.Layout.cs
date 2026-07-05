@@ -142,7 +142,7 @@ namespace SampleClient.Gameplay
             return text;
         }
 
-        private void EnsureHudCountdownText()
+        private void EnsureTopStatusPanel()
         {
             var parent = OverlayLayer != null ? OverlayLayer.transform : _sceneUiRoot?.transform;
             if (parent == null)
@@ -150,26 +150,81 @@ namespace SampleClient.Gameplay
                 return;
             }
 
-            if (_hudCountdownText != null)
+            var panelTransform = parent.Find("TopStatusPanel") as RectTransform;
+            if (panelTransform == null)
             {
-                _hudCountdownText.transform.SetParent(parent, false);
-                var existingRect = _hudCountdownText.rectTransform;
-                existingRect.anchorMin = new Vector2(0.5f, 1f);
-                existingRect.anchorMax = new Vector2(0.5f, 1f);
-                existingRect.pivot = new Vector2(0.5f, 1f);
-                existingRect.anchoredPosition = new Vector2(0f, -14f);
-                existingRect.sizeDelta = new Vector2(250f, 32f);
-                _hudCountdownText.alignment = TextAlignmentOptions.Center;
-                _hudCountdownText.fontSize = 18f;
-                _hudCountdownText.fontStyle = FontStyles.Bold;
-                _hudCountdownText.color = UiAccentTextColor;
-                _hudCountdownText.overflowMode = TextOverflowModes.Ellipsis;
-                _hudCountdownText.enableWordWrapping = false;
-                _hudCountdownText.richText = false;
-                return;
+                var panelObject = new GameObject("TopStatusPanel", typeof(RectTransform));
+                panelObject.transform.SetParent(parent, false);
+                panelTransform = (RectTransform)panelObject.transform;
             }
 
-            WarnMissingAuthoredSceneUi($"{BuildSceneUiPath(parent)}/CountdownText");
+            _topStatusPanel = panelTransform.gameObject;
+            DotArenaUiRect.TopCenter(new Vector2(0f, -12f), new Vector2(360f, 58f)).Apply(panelTransform);
+
+            _hudStatusText = EnsureTopStatusText(
+                panelTransform,
+                "StatusText",
+                FindSceneUiText("SceneUI/HUDPanel/StatusText"),
+                new Vector2(0f, 0f),
+                new Vector2(330f, 22f),
+                13f,
+                FontStyles.Bold,
+                UiPrimaryTextColor);
+            _hudCountdownText = EnsureTopStatusText(
+                panelTransform,
+                "CountdownText",
+                FindSceneUiText("SceneUI/OverlayLayer/CountdownText")
+                    ?? FindSceneUiText("SceneUI/CountdownText")
+                    ?? FindSceneUiText("SceneUI/HUDPanel/CountdownText"),
+                new Vector2(0f, -26f),
+                new Vector2(330f, 28f),
+                18f,
+                FontStyles.Bold,
+                UiAccentTextColor);
+        }
+
+        private TMP_Text? EnsureTopStatusText(
+            RectTransform parent,
+            string name,
+            TMP_Text? fallback,
+            Vector2 anchoredPosition,
+            Vector2 size,
+            float fontSize,
+            FontStyles fontStyles,
+            Color color)
+        {
+            var target = parent.Find(name);
+            var text = target != null ? target.GetComponent<TMP_Text>() : null;
+            if (text == null)
+            {
+                text = fallback;
+            }
+
+            if (text == null)
+            {
+                text = UiFactory.CreateText(
+                    parent,
+                    name,
+                    DotArenaUiRect.TopCenter(anchoredPosition, size),
+                    new DotArenaUiTextStyle(fontSize, fontStyles, TextAlignmentOptions.Center, false, TextOverflowModes.Ellipsis));
+            }
+            else
+            {
+                text.name = name;
+                text.transform.SetParent(parent, false);
+                DotArenaUiRect.TopCenter(anchoredPosition, size).Apply(text.rectTransform);
+            }
+
+            DotArenaUiStyleCatalog.ApplyText(
+                text,
+                color,
+                fontSize,
+                false,
+                TextAlignmentOptions.Center,
+                TextOverflowModes.Ellipsis);
+            text.richText = false;
+            text.raycastTarget = false;
+            return text;
         }
 
         private void EnsureDebugPanel()

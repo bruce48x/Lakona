@@ -79,6 +79,7 @@ namespace SampleClient.Gameplay
         private Transform? _owner;
         private GameObject? _sceneUiRoot;
         private GameObject? _menuBackground;
+        private GameObject? _topStatusPanel;
         private GameObject? _hudPanel;
         private GameObject? _matchRankingPanel;
         private GameObject? _debugPanel;
@@ -202,6 +203,7 @@ namespace SampleClient.Gameplay
 
             OverlayLayer = FindSceneUiRect("SceneUI/OverlayLayer");
             _hudPanel = FindSceneUiObject("SceneUI/HUDPanel");
+            EnsureTopStatusPanel();
             EnsureMatchRankingPanel();
             _matchRankingPanel = FindSceneUiObject("SceneUI/MatchRankingPanel");
             EnsureDebugPanel();
@@ -221,20 +223,18 @@ namespace SampleClient.Gameplay
             EnsureSettlementPanel();
 
             _hudTitleText = FindSceneUiText("SceneUI/HUDPanel/TitleText");
-            _hudStatusText = FindSceneUiText("SceneUI/HUDPanel/StatusText");
+            _hudStatusText = FindSceneUiText("SceneUI/OverlayLayer/TopStatusPanel/StatusText");
             _hudPlayerText = FindSceneUiText("SceneUI/HUDPanel/PlayerText");
             _hudTickText = FindSceneUiText("SceneUI/HUDPanel/TickText");
             _hudModeText = FindSceneUiText("SceneUI/HUDPanel/ModeText");
             _hudHintText = FindSceneUiText("SceneUI/HUDPanel/HintText");
             _hudEventText = FindSceneUiText("SceneUI/HUDPanel/EventText");
-            _hudCountdownText = FindSceneUiText("SceneUI/OverlayLayer/CountdownText")
-                ?? FindSceneUiText("SceneUI/CountdownText")
-                ?? FindSceneUiText("SceneUI/HUDPanel/CountdownText");
+            _hudCountdownText = FindSceneUiText("SceneUI/OverlayLayer/TopStatusPanel/CountdownText");
             _matchRankingTitleText = FindSceneUiText("SceneUI/MatchRankingPanel/TitleText");
             _matchRankingHeaderText = FindSceneUiText("SceneUI/MatchRankingPanel/HeaderText");
             _debugTitleText = FindSceneUiText("SceneUI/DebugPanel/TitleText");
             _debugDetailText = FindSceneUiText("SceneUI/DebugPanel/DetailText");
-            EnsureHudCountdownText();
+            EnsureTopStatusPanel();
 
             _entryTitleText = FindSceneUiText("SceneUI/EntryPanel/TitleText");
             _entryStatusText = FindSceneUiText("SceneUI/EntryPanel/StatusText");

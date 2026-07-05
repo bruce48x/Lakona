@@ -41,7 +41,9 @@ namespace SampleClient.Gameplay.Tests
             Assert.That(prefab, Is.Not.Null);
             AssertPath(prefab!, "MenuBackground");
             AssertPath(prefab!, "OverlayLayer");
-            AssertPath(prefab!, "OverlayLayer/CountdownText");
+            AssertPath(prefab!, "OverlayLayer/TopStatusPanel");
+            AssertPath(prefab!, "OverlayLayer/TopStatusPanel/StatusText");
+            AssertPath(prefab!, "OverlayLayer/TopStatusPanel/CountdownText");
             AssertPath(prefab!, "HUDPanel");
             AssertPath(prefab!, "MatchRankingPanel");
             AssertPath(prefab!, "MatchRankingPanel/TitleText");
@@ -126,6 +128,17 @@ namespace SampleClient.Gameplay.Tests
             {
                 AssertGradientButton(prefab, GetTransformPathRelativeToRoot(prefab.transform, button.transform));
             }
+        }
+
+        [Test]
+        public void SceneUiPrefabTopStatusTextsShareOneNonOverlappingOverlayRegion()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(SceneUiPrefabPath);
+
+            Assert.That(prefab, Is.Not.Null);
+            AssertRect(prefab!, "OverlayLayer/TopStatusPanel", new Vector2(0f, -12f), new Vector2(360f, 58f));
+            Assert.That(prefab!.transform.Find("HUDPanel/StatusText"), Is.Null, "HUD status should be owned by the shared overlay status region");
+            AssertNoSiblingRectOverlap(prefab, "OverlayLayer/TopStatusPanel", "StatusText", "CountdownText");
         }
 
         [Test]
@@ -298,6 +311,23 @@ namespace SampleClient.Gameplay.Tests
             var childMin = parentAnchorPoint + child.anchoredPosition - Vector2.Scale(child.pivot, child.sizeDelta);
             var childMax = childMin + child.sizeDelta;
             return Rect.MinMaxRect(childMin.x, childMin.y, childMax.x, childMax.y);
+        }
+
+        private static void AssertNoSiblingRectOverlap(GameObject root, string parentPath, string firstName, string secondName)
+        {
+            var parentTransform = root.transform.Find(parentPath);
+
+            Assert.That(parentTransform, Is.Not.Null, parentPath);
+            var parent = parentTransform!.GetComponent<RectTransform>();
+            var first = parentTransform.Find(firstName)?.GetComponent<RectTransform>();
+            var second = parentTransform.Find(secondName)?.GetComponent<RectTransform>();
+            Assert.That(parent, Is.Not.Null, parentPath);
+            Assert.That(first, Is.Not.Null, $"{parentPath}/{firstName}");
+            Assert.That(second, Is.Not.Null, $"{parentPath}/{secondName}");
+
+            var firstRect = GetRectInParentSpace(parent!, first!);
+            var secondRect = GetRectInParentSpace(parent!, second!);
+            Assert.That(firstRect.Overlaps(secondRect), Is.False, $"{parentPath}/{firstName} overlaps {secondName}");
         }
 
         private static void AssertText(GameObject root, string path, string expected)
