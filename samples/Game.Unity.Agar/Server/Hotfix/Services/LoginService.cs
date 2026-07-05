@@ -67,17 +67,8 @@ public sealed class LoginService
             return new LoginReply { Code = LoginResultCodes.InvalidRequest, Message = "Login request is incomplete." };
         }
 
-        UserLoginResult loginResult;
         var loginRequest = new UserLoginRequest { Password = password, Reconnect = req.Reconnect };
-        try
-        {
-            loginResult = await LoginUserAsync(account, loginRequest).ConfigureAwait(false);
-        }
-        catch (InvalidOperationException ex)
-        {
-            _logger.LogWarning(ex, "Login rejected for account {Account}.", account);
-            return new LoginReply { Code = LoginResultCodes.Rejected, Message = "Login rejected." };
-        }
+        var loginResult = await LoginUserAsync(account, loginRequest).ConfigureAwait(false);
 
         GameSessionKey sessionKey;
         if (req.Reconnect)
