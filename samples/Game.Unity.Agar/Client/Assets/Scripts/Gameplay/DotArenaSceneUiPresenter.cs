@@ -33,14 +33,6 @@ namespace SampleClient.Gameplay
         public string MatchmakingTitle { get; set; }
         public string MatchmakingDetail { get; set; }
         public int MatchmakingElapsedSeconds { get; set; }
-        public string MetaPlayerSummary { get; set; }
-        public string MetaProfileDetail { get; set; }
-        public string MetaTasksDetail { get; set; }
-        public string MetaShopDetail { get; set; }
-        public string MetaRecordsDetail { get; set; }
-        public string MetaLeaderboardDetail { get; set; }
-        public string MetaSettingsDetail { get; set; }
-        public string MetaFooterHint { get; set; }
         public IReadOnlyList<DotArenaMatchRankingEntry>? MatchRankingEntries { get; set; }
     }
 
@@ -79,7 +71,6 @@ namespace SampleClient.Gameplay
         private Button? _matchmakingCancelButton;
         private TMP_Text? _matchmakingCancelButtonText;
         private TMP_Text? _lobbyTitleText;
-        private TMP_Text? _lobbySummaryText;
         private TMP_Text? _lobbyQuickActionsText;
         private Button? _lobbyQuickActionButton1;
         private Button? _lobbyQuickActionButton2;
@@ -89,8 +80,6 @@ namespace SampleClient.Gameplay
         private TMP_Text? _lobbyQuickActionButton2Text;
         private TMP_Text? _lobbyQuickActionButton3Text;
         private TMP_Text? _lobbyQuickActionButton4Text;
-        private TMP_Text? _lobbyDetailText;
-        private TMP_Text? _lobbyFooterText;
         private Button? _lobbyPrimaryActionButton;
         private Button? _lobbySecondaryActionButton;
         private TMP_Text? _lobbyPrimaryActionButtonText;
@@ -215,7 +204,6 @@ namespace SampleClient.Gameplay
             _matchmakingCancelButton = FindSceneUiButton("SceneUI/MatchmakingPanel/CancelButton");
             _matchmakingCancelButtonText = FindSceneUiText("SceneUI/MatchmakingPanel/CancelButton/Label");
             _lobbyTitleText = FindSceneUiText("SceneUI/LobbyPanel/TitleText");
-            _lobbySummaryText = FindSceneUiText("SceneUI/LobbyPanel/SummaryText");
             _lobbyQuickActionsText = FindSceneUiText("SceneUI/LobbyPanel/QuickActionsText");
             _lobbyQuickActionButton1 = FindSceneUiButton("SceneUI/LobbyPanel/QuickActionButton1");
             _lobbyQuickActionButton2 = FindSceneUiButton("SceneUI/LobbyPanel/QuickActionButton2");
@@ -225,8 +213,6 @@ namespace SampleClient.Gameplay
             _lobbyQuickActionButton2Text = FindSceneUiText("SceneUI/LobbyPanel/QuickActionButton2/Label");
             _lobbyQuickActionButton3Text = FindSceneUiText("SceneUI/LobbyPanel/QuickActionButton3/Label");
             _lobbyQuickActionButton4Text = FindSceneUiText("SceneUI/LobbyPanel/QuickActionButton4/Label");
-            _lobbyDetailText = FindSceneUiText("SceneUI/LobbyPanel/DetailText");
-            _lobbyFooterText = FindSceneUiText("SceneUI/LobbyPanel/FooterText");
             _lobbyPrimaryActionButton = FindSceneUiButton("SceneUI/LobbyPanel/PrimaryActionButton");
             _lobbySecondaryActionButton = FindSceneUiButton("SceneUI/LobbyPanel/SecondaryActionButton");
             _lobbyPrimaryActionButtonText = FindSceneUiText("SceneUI/LobbyPanel/PrimaryActionButton/Label");

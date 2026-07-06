@@ -214,7 +214,6 @@ namespace SampleClient.Gameplay.Tests
             AssertNoSiblingRectOverlap(prefab!, string.Empty, "QuickActionButton2", "QuickActionButton4");
             AssertChildRectInsideParent(prefab!, string.Empty, "PrimaryActionButton");
             AssertChildRectInsideParent(prefab!, string.Empty, "SecondaryActionButton");
-            AssertChildRectInsideParent(prefab!, string.Empty, "FooterText");
             AssertGradientButton(prefab!, "PrimaryActionButton");
             AssertGradientButton(prefab!, "SecondaryActionButton");
         }
@@ -233,7 +232,6 @@ namespace SampleClient.Gameplay.Tests
 
                 AssertChildRectInsideParent(instance, string.Empty, "PrimaryActionButton");
                 AssertChildRectInsideParent(instance, string.Empty, "SecondaryActionButton");
-                AssertChildRectInsideParent(instance, string.Empty, "FooterText");
             }
             finally
             {

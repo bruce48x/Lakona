@@ -64,11 +64,8 @@ namespace SampleClient.Gameplay
             SetText(_matchmakingDetailText, snapshot.MatchmakingDetail);
             SetText(_matchmakingCancelButtonText, "Cancel Matchmaking");
             SetText(_lobbyTitleText, _lobbyUi.GetLobbyTabTitle(snapshot));
-            SetText(_lobbySummaryText, snapshot.MetaPlayerSummary);
             SetText(_lobbyQuickActionsText, _lobbyUi.GetLobbyQuickActionsText(snapshot));
             _lobbyUi.RefreshLobbyQuickActionButtons(snapshot, _lobbyQuickActionButton1, _lobbyQuickActionButton1Text, _lobbyQuickActionButton2, _lobbyQuickActionButton2Text, _lobbyQuickActionButton3, _lobbyQuickActionButton3Text, _lobbyQuickActionButton4, _lobbyQuickActionButton4Text);
-            SetText(_lobbyDetailText, _lobbyUi.GetLobbyTabDetail(snapshot));
-            SetText(_lobbyFooterText, snapshot.MetaFooterHint);
             SetText(_lobbyPrimaryActionButtonText, _lobbyUi.GetLobbyPrimaryActionLabel(snapshot));
             SetText(_lobbySecondaryActionButtonText, _lobbyUi.GetLobbySecondaryActionLabel(snapshot));
             SetText(_multiplayerSubtitleText, string.Empty);

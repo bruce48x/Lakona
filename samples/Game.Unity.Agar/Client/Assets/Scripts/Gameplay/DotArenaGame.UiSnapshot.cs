@@ -54,15 +54,7 @@ namespace SampleClient.Gameplay
                         _owner._status,
                         currentEventMessage,
                         matchmakingElapsedSeconds,
-                        _owner._pendingUiRequest == PendingUiRequest.CancelMatchmaking),
-                    MetaPlayerSummary = DotArenaUiTextComposer.BuildMetaPlayerSummary(_owner._metaState, inMultiplayerLobby),
-                    MetaProfileDetail = DotArenaUiTextComposer.BuildMetaProfileDetail(_owner._metaState, inMultiplayerLobby, previewPreset, _owner._lastRewardSummary),
-                    MetaTasksDetail = DotArenaUiTextComposer.BuildMetaTasksDetail(_owner._metaState),
-                    MetaShopDetail = DotArenaUiTextComposer.BuildMetaShopDetail(_owner._metaState),
-                    MetaRecordsDetail = DotArenaUiTextComposer.BuildMetaRecordsDetail(_owner._metaState),
-                    MetaLeaderboardDetail = DotArenaUiTextComposer.BuildMetaLeaderboardDetail(_owner._metaState),
-                    MetaSettingsDetail = DotArenaUiTextComposer.BuildMetaSettingsDetail(_owner._metaState),
-                    MetaFooterHint = DotArenaUiTextComposer.BuildMetaFooterHint(inMultiplayerLobby)
+                        _owner._pendingUiRequest == PendingUiRequest.CancelMatchmaking)
                 };
             }
 
