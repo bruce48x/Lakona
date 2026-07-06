@@ -34,9 +34,8 @@ Lakona should own RPC client generation for generated Unity clients:
 
 - generated client namespace defaults to `Client.Generated`;
 - generated game client wrapper is enabled by default for Lakona game clients;
-- Unity-compatible platform metadata is inferred by the framework;
-- game version should come from runtime options or framework defaults, not from
-  a user-editable compile-time marker.
+- generated clients should not require framework-inferred platform, runtime, or
+  game-version metadata.
 
 The user's Unity project should contain business scripts, scenes, UI assets,
 package metadata, and shared contracts. It should not contain internal source
@@ -65,7 +64,6 @@ When those conditions hold, analyzer defaults should be equivalent to:
 <LakonaRpcGenerateClient>true</LakonaRpcGenerateClient>
 <LakonaRpcGeneratedNamespace>Client.Generated</LakonaRpcGeneratedNamespace>
 <LakonaGameGenerateClient>true</LakonaGameGenerateClient>
-<LakonaGameClientPlatform>unity</LakonaGameClientPlatform>
 ```
 
 `Client.Generated` is project-local client output, not framework API. The
@@ -74,23 +72,23 @@ framework packages and public framework surfaces. It should also avoid the old
 `Rpc.Generated` default for generated Lakona game projects because the emitted
 surface includes the game client wrapper, not only low-level RPC glue.
 
-Generated projects should set `Platform` from the selected client engine:
-`unity`, `unity-cn`, `tuanjie`, `godot`, or `dotnet`.
+`LakonaGameClientRuntime`, `LakonaGameClientPlatform`,
+`LakonaGameClientGameVersion`, and their corresponding generated-client runtime
+options should be removed from the generated-project model. They currently do
+not drive framework behavior; keeping them makes handshake setup harder to
+understand without adding value.
 
-`LakonaGameClientRuntime` and `LakonaGameClientOptions.ClientRuntime` should be
-removed from the generated-project model. `runtime` and `platform` currently do
-not carry separate product meaning; keeping both makes the handshake metadata
-harder to understand without adding behavior. `Platform` is enough for the
-client host identity.
+Lakona game handshake should carry only framework protocol negotiation fields
+that the framework actually uses. In the current model that means
+`ProtocolVersionMin` and `ProtocolVersionMax` on `GameClientHello`. Platform,
+game version, build id, client runtime, client runtime version, and supported
+capability lists should not be part of the default framework handshake unless
+they gain concrete framework behavior.
 
-If the framework later needs to report the Lakona client package/runtime
-version, add a specific field such as `ClientSdkVersion` instead of reusing the
-ambiguous `ClientRuntime` concept.
-
-`LakonaGameClientGameVersion` should stop being required for generated Unity
-projects. The generated wrapper can keep accepting
-`LakonaGameClientOptions.GameVersion`; if unset, it should use a framework
-default that is not derived from `Assembly-CSharp`.
+If a game needs platform or version admission later, that should be explicit
+application behavior: a business login DTO, a user-facing application setting,
+or a dedicated application admission extension. It should not be hidden in
+framework source-generation defaults.
 
 ## Tool Changes
 
@@ -122,10 +120,11 @@ The main risk is accidental generation in the wrong Unity assembly. The initial
 rule deliberately limits auto-generation to `Assembly-CSharp` to avoid multiple
 assemblies generating the same `Client.Generated` types.
 
-The second risk is losing game-version identity. That value should not be
-preserved by moving it into another hidden compile-time file. If the server
-needs meaningful game-version semantics, the client runtime options or a
-user-facing application setting should own it explicitly.
+The second risk is removing metadata that could be useful later. That is an
+acceptable simplification because unused framework metadata has real product
+cost. If the server needs meaningful platform, build, capability, or
+game-version semantics, the feature should be added with a concrete behavior
+and an explicit user-facing contract.
 
 ## Test And Validation Expectations
 
@@ -138,8 +137,9 @@ Focused tests should cover:
 - explicit `LakonaGameGenerateClient=false` disables game wrapper generation;
 - generated client code uses `Client.Generated`, not `Rpc.Generated` or
   `Lakona.*`;
-- client handshake metadata uses `Platform` and no longer emits or requires
-  `ClientRuntime`;
+- game handshake request metadata no longer emits or requires `ClientRuntime`,
+  `ClientRuntimeVersion`, `Platform`, `GameVersion`, `BuildId`, or
+  `SupportedCapabilities`;
 - `Lakona.Tool` Unity/Tuanjie plans omit `LakonaRpcGeneration.cs`;
 - generated Unity sample scans do not contain `LakonaRpcGeneration.cs` or
   `[assembly: LakonaRpcGenerateClient]`.
