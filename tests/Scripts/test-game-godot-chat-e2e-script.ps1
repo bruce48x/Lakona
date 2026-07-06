@@ -23,6 +23,14 @@ $requiredFragments = @(
     "BindAsync",
     "SendAsync",
     "OnMessageReceived",
+    "VerifyHotfixWatcher",
+    "ChatService.cs",
+    "reload.signal",
+    "LakonaHotfixWatcherE2E",
+    "Assert-PortAvailable",
+    "Wait-FileContains",
+    "Restore-ChatServiceSource",
+    "Restore-HotfixOutput",
     "E2E-GodotChat"
 )
 

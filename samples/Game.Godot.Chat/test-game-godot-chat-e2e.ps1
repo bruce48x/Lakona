@@ -21,6 +21,8 @@ param(
 
     [string]$MessageText = "E2E-GodotChat message",
 
+    [switch]$VerifyHotfixWatcher,
+
     [switch]$KeepArtifacts
 )
 
@@ -31,6 +33,7 @@ $sampleRoot = Resolve-Path $scriptRoot
 $repoRoot = Resolve-Path (Join-Path $sampleRoot "../..")
 $serverProject = Join-Path $sampleRoot "Server/App/Server.App.csproj"
 $hotfixProject = Join-Path $sampleRoot "Server/Hotfix/Server.Hotfix.csproj"
+$chatServiceSource = Join-Path $sampleRoot "Server/Hotfix/Chat/ChatService.cs"
 $artifactsRoot = Join-Path $sampleRoot "_artifacts/e2e"
 $harnessDir = Join-Path $artifactsRoot "client-harness"
 $serverOut = Join-Path $artifactsRoot "server.out.log"
@@ -42,6 +45,8 @@ $previousPort = $env:Lakona__Endpoints__0__Port
 $previousHost = $env:Lakona__Endpoints__0__Host
 $previousPath = $env:Lakona__Endpoints__0__Path
 $previousMsBuildServer = $env:DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER
+$chatServiceOriginalBytes = $null
+$chatServiceSourceRestored = $false
 
 function Write-Step {
     param([string]$Text)
@@ -93,6 +98,121 @@ function Wait-Port {
     }
 
     return $false
+}
+
+function Test-PortOpen {
+    param(
+        [string]$HostName,
+        [int]$HostPort
+    )
+
+    $client = [System.Net.Sockets.TcpClient]::new()
+    try {
+        $connect = $client.ConnectAsync($HostName, $HostPort)
+        return $connect.Wait(300) -and $client.Connected
+    }
+    catch {
+        return $false
+    }
+    finally {
+        $client.Dispose()
+    }
+}
+
+function Assert-PortAvailable {
+    param(
+        [string]$HostName,
+        [int]$HostPort
+    )
+
+    if (Test-PortOpen -HostName $HostName -HostPort $HostPort) {
+        throw "Port $HostName`:$HostPort already accepts connections before the E2E server starts. Stop the existing process or rerun with -Port."
+    }
+}
+
+function Wait-FileContains {
+    param(
+        [string]$Path,
+        [string]$Text,
+        [int]$Seconds,
+        [System.Diagnostics.Process]$Process
+    )
+
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($Seconds)
+    while ([DateTimeOffset]::UtcNow -lt $deadline) {
+        if ($Process -and $Process.HasExited) {
+            return $false
+        }
+
+        if (Test-Path -LiteralPath $Path) {
+            try {
+                $content = Get-Content -Raw -LiteralPath $Path
+                if ($content.Contains($Text)) {
+                    return $true
+                }
+            }
+            catch {
+            }
+        }
+
+        Start-Sleep -Milliseconds 500
+    }
+
+    return $false
+}
+
+function Get-FileTail {
+    param(
+        [string]$Path,
+        [int]$LineCount = 80
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return ""
+    }
+
+    return (Get-Content -LiteralPath $Path -Tail $LineCount) -join [Environment]::NewLine
+}
+
+function Restore-ChatServiceSource {
+    if ($null -ne $script:chatServiceOriginalBytes) {
+        [System.IO.File]::WriteAllBytes($script:chatServiceSource, $script:chatServiceOriginalBytes)
+        $script:chatServiceOriginalBytes = $null
+        $script:chatServiceSourceRestored = $true
+    }
+}
+
+function Restore-HotfixOutput {
+    if (-not $script:chatServiceSourceRestored) {
+        return
+    }
+
+    try {
+        Write-Step "Restore hotfix output after ChatService reset"
+        Invoke-Checked -FilePath "dotnet" -Arguments @("build", $script:hotfixProject, "--nologo", "--no-restore", "--no-dependencies") -FailureMessage "Hotfix output restore build failed"
+    }
+    catch {
+        Write-Warning $_
+    }
+}
+
+function Set-ChatServiceWatcherLog {
+    param([string]$Token)
+
+    if (-not (Test-Path -LiteralPath $chatServiceSource)) {
+        throw "Missing ChatService source file: $chatServiceSource"
+    }
+
+    $script:chatServiceOriginalBytes = [System.IO.File]::ReadAllBytes($chatServiceSource)
+    $content = [System.IO.File]::ReadAllText($chatServiceSource)
+    $oldLine = '            _logger.LogInformation("Sending {CharacterCount} characters", text.Length);'
+    $newLine = "            _logger.LogInformation(`"LakonaHotfixWatcherE2E $Token {CharacterCount} characters`", text.Length);"
+    if (-not $content.Contains($oldLine)) {
+        Restore-ChatServiceSource
+        throw "Could not find the expected SendAsync log line in $chatServiceSource"
+    }
+
+    [System.IO.File]::WriteAllText($chatServiceSource, $content.Replace($oldLine, $newLine))
 }
 
 function Write-HarnessProject {
@@ -229,6 +349,55 @@ Console.WriteLine("[E2E] SUCCESS: Login response, chat send, and chat push verif
     Set-Content -LiteralPath (Join-Path $harnessDir "Program.cs") -Value $programContent -Encoding UTF8
 }
 
+function Invoke-ClientFlow {
+    param(
+        [string]$Label,
+        [string]$Text
+    )
+
+    $clientOutput = & dotnet run --project $harnessProject --no-build -- $endpoint $PlayerName $Text 2>&1
+    $clientExitCode = $LASTEXITCODE
+    Add-Content -LiteralPath $clientOut -Value ""
+    Add-Content -LiteralPath $clientOut -Value "== $Label =="
+    $clientOutput | Add-Content -LiteralPath $clientOut -Encoding UTF8
+    Write-Host ($clientOutput -join [Environment]::NewLine)
+
+    if ($clientExitCode -ne 0) {
+        throw "Client harness failed during '$Label' (exit code $clientExitCode). See $clientOut"
+    }
+}
+
+function Invoke-HotfixWatcherVerification {
+    Write-Step "Verify hotfix watcher reloads changed ChatService"
+
+    if (-not (Wait-FileContains -Path $serverOut -Text "Sending" -Seconds 5 -Process $serverProcess)) {
+        throw "The baseline SendAsync log was not observed before hotfix watcher verification.`nServer log tail:`n$(Get-FileTail -Path $serverOut)"
+    }
+
+    $token = "LakonaHotfixWatcherE2E-$([Guid]::NewGuid().ToString("N"))"
+    Set-ChatServiceWatcherLog -Token $token
+
+    Write-Step "Rebuild hotfix after changing ChatService"
+    Invoke-Checked -FilePath "dotnet" -Arguments @("build", $hotfixProject, "--nologo", "--no-restore", "--no-dependencies") -FailureMessage "Hotfix watcher rebuild failed"
+
+    $reloadSignal = Join-Path (Split-Path -Parent $serverProject) "bin/Debug/net10.0/hotfix/reload.signal"
+    if (-not (Test-Path -LiteralPath $reloadSignal)) {
+        throw "Hotfix rebuild did not write reload.signal: $reloadSignal"
+    }
+
+    for ($attempt = 1; $attempt -le 10; $attempt++) {
+        Invoke-ClientFlow -Label "hotfix watcher attempt $attempt" -Text "$MessageText hotfix watcher $attempt"
+        if (Wait-FileContains -Path $serverOut -Text $token -Seconds 2 -Process $serverProcess) {
+            Write-Host "Hotfix watcher reload observed with token $token" -ForegroundColor Green
+            return
+        }
+
+        Start-Sleep -Seconds 1
+    }
+
+    throw "Hotfix watcher token '$token' was not observed after rebuilding hotfix and sending messages.`nServer log tail:`n$(Get-FileTail -Path $serverOut)"
+}
+
 try {
     Set-Location $repoRoot
     New-Item -ItemType Directory -Force -Path $artifactsRoot | Out-Null
@@ -253,6 +422,7 @@ try {
     $env:Lakona__Endpoints__0__Host = "127.0.0.1"
     $env:Lakona__Endpoints__0__Port = [string]$Port
     $env:Lakona__Endpoints__0__Path = "/ws"
+    Assert-PortAvailable -HostName "127.0.0.1" -HostPort $Port
     $serverProcess = Start-Process -FilePath "dotnet" `
         -ArgumentList @("run", "--project", $serverProject, "--no-build") `
         -PassThru `
@@ -269,23 +439,24 @@ try {
     Write-Host "Server is listening at $endpoint" -ForegroundColor Green
 
     Write-Step "Run real client RPC flow"
-    $clientOutput = & dotnet run --project $harnessProject --no-build -- $endpoint $PlayerName $MessageText 2>&1
-    $clientExitCode = $LASTEXITCODE
-    $clientOutput | Set-Content -LiteralPath $clientOut -Encoding UTF8
-    Write-Host ($clientOutput -join [Environment]::NewLine)
+    Invoke-ClientFlow -Label "baseline" -Text $MessageText
 
-    if ($clientExitCode -ne 0) {
-        throw "Client harness failed (exit code $clientExitCode). See $clientOut"
+    if ($VerifyHotfixWatcher) {
+        Invoke-HotfixWatcherVerification
     }
 
     Write-Step "Game.Godot.Chat E2E passed"
 }
 finally {
+    Restore-ChatServiceSource
+
     if ($serverProcess -and -not $serverProcess.HasExited) {
         Write-Host "Stopping server process $($serverProcess.Id)..." -ForegroundColor Yellow
         Stop-Process -Id $serverProcess.Id -Force -ErrorAction SilentlyContinue
         $serverProcess.WaitForExit(5000) | Out-Null
     }
+
+    Restore-HotfixOutput
 
     if ($null -eq $previousPort) { Remove-Item Env:Lakona__Endpoints__0__Port -ErrorAction SilentlyContinue } else { $env:Lakona__Endpoints__0__Port = $previousPort }
     if ($null -eq $previousHost) { Remove-Item Env:Lakona__Endpoints__0__Host -ErrorAction SilentlyContinue } else { $env:Lakona__Endpoints__0__Host = $previousHost }

@@ -11,6 +11,8 @@ Run the sample-specific E2E script. Do not substitute unit tests, loopback trans
 
 The script builds and launches the real `samples/Game.Godot.Chat` server, compiles a temporary console client harness from the sample's own `LoginClient.cs` and `ChatClient.cs`, sends real WebSocket/MemoryPack RPC requests, verifies the login response, binds chat, sends a message, verifies the pushed callback, and stops the server.
 
+When validating hotfix watcher behavior, run the same script with `-VerifyHotfixWatcher`. That mode edits `samples/Game.Godot.Chat/Server/Hotfix/Chat/ChatService.cs`, rebuilds `Server.Hotfix`, relies on the generated `reload.signal`, sends another real RPC message, and verifies that the running server logs the new `SendAsync` token before restoring the source file.
+
 ## Command
 
 From the repository root:
@@ -24,6 +26,7 @@ Useful options:
 - `-Port <port>`: override the endpoint port through inherited .NET configuration.
 - `-TimeoutSeconds <seconds>`: extend startup and callback waits on slow machines.
 - `-PlayerName <name>` and `-MessageText <text>`: change the exact payload asserted by the harness.
+- `-VerifyHotfixWatcher`: mutate `ChatService.SendAsync`, rebuild the hotfix project, and prove the running server loaded the changed code through the real watcher.
 - `-KeepArtifacts`: keep the generated harness under `samples/Game.Godot.Chat/_artifacts/e2e/client-harness`.
 
 ## Workflow
@@ -49,6 +52,13 @@ The E2E run must verify all of these in one process lifecycle:
 - `ChatClient.BindAsync`
 - `ChatClient.SendAsync`
 - `LoginClient.OnMessageReceived` receiving the sent chat message
+
+With `-VerifyHotfixWatcher`, the run must additionally verify:
+
+- `ChatService.cs` is restored after the run
+- `Server.Hotfix` rebuild writes `reload.signal`
+- the running server observes the watcher-triggered reload
+- a later `ChatClient.SendAsync` reaches the changed hotfix code, proven by the new server log token
 
 ## Common Failures
 
