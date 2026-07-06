@@ -138,6 +138,38 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         return _sessions.GetCallbackAsync<TCallback>(session, cancellationToken);
     }
 
+    public ValueTask SetSessionItemAsync(
+        GameSessionKey session,
+        string key,
+        GameSessionItemValue value,
+        CancellationToken cancellationToken = default)
+    {
+        return _sessions.SetSessionItemAsync(session, key, value, cancellationToken);
+    }
+
+    public ValueTask<GameSessionItemValue?> GetSessionItemAsync(
+        GameSessionKey session,
+        string key,
+        CancellationToken cancellationToken = default)
+    {
+        return _sessions.GetSessionItemAsync(session, key, cancellationToken);
+    }
+
+    public ValueTask<GameSessionItems> GetSessionItemsAsync(
+        GameSessionKey session,
+        CancellationToken cancellationToken = default)
+    {
+        return _sessions.GetSessionItemsAsync(session, cancellationToken);
+    }
+
+    public ValueTask RemoveSessionItemAsync(
+        GameSessionKey session,
+        string key,
+        CancellationToken cancellationToken = default)
+    {
+        return _sessions.RemoveSessionItemAsync(session, key, cancellationToken);
+    }
+
     public async ValueTask TerminateSessionAsync(
         GameSessionKey session,
         SessionTerminationReason reason,

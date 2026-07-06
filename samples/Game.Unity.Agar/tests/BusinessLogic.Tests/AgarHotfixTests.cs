@@ -761,6 +761,38 @@ public sealed class AgarHotfixTests
             return new ValueTask<TCallback?>((TCallback?)null);
         }
 
+        public ValueTask SetSessionItemAsync(
+            GameSessionKey session,
+            string key,
+            GameSessionItemValue value,
+            CancellationToken cancellationToken = default)
+        {
+            return default;
+        }
+
+        public ValueTask<GameSessionItemValue?> GetSessionItemAsync(
+            GameSessionKey session,
+            string key,
+            CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<GameSessionItemValue?>((GameSessionItemValue?)null);
+        }
+
+        public ValueTask<GameSessionItems> GetSessionItemsAsync(
+            GameSessionKey session,
+            CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<GameSessionItems>(GameSessionItems.Empty);
+        }
+
+        public ValueTask RemoveSessionItemAsync(
+            GameSessionKey session,
+            string key,
+            CancellationToken cancellationToken = default)
+        {
+            return default;
+        }
+
         public ValueTask TerminateSessionAsync(
             GameSessionKey session,
             SessionTerminationReason reason,

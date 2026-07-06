@@ -229,6 +229,118 @@ public sealed class GameSessionRegistryTests
     }
 
     [Fact]
+    public async Task Session_items_can_be_set_read_overwritten_and_removed()
+    {
+        var directory = new InMemoryGameSessionRegistry();
+        var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
+
+        await directory.SetSessionItemAsync(session, "roomId", GameSessionItemValue.FromString("room-a"), TestContext.Current.CancellationToken);
+        Assert.Equal("room-a", (await directory.GetSessionItemAsync(session, "roomId", TestContext.Current.CancellationToken))?.GetString());
+
+        await directory.SetSessionItemAsync(session, "roomId", GameSessionItemValue.FromString("room-b"), TestContext.Current.CancellationToken);
+        Assert.Equal("room-b", (await directory.GetSessionItemAsync(session, "roomId", TestContext.Current.CancellationToken))?.GetString());
+
+        await directory.RemoveSessionItemAsync(session, "roomId", TestContext.Current.CancellationToken);
+        Assert.Null(await directory.GetSessionItemAsync(session, "roomId", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Session_items_use_ordinal_case_sensitive_keys()
+    {
+        var directory = new InMemoryGameSessionRegistry();
+        var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
+
+        await directory.SetSessionItemAsync(session, "roomId", GameSessionItemValue.FromString("lower"), TestContext.Current.CancellationToken);
+        await directory.SetSessionItemAsync(session, "RoomId", GameSessionItemValue.FromString("upper"), TestContext.Current.CancellationToken);
+
+        Assert.Equal("lower", (await directory.GetSessionItemAsync(session, "roomId", TestContext.Current.CancellationToken))?.GetString());
+        Assert.Equal("upper", (await directory.GetSessionItemAsync(session, "RoomId", TestContext.Current.CancellationToken))?.GetString());
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("\t")]
+    public async Task Session_item_keys_reject_empty_or_whitespace_values(string key)
+    {
+        var directory = new InMemoryGameSessionRegistry();
+        var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => directory
+            .SetSessionItemAsync(session, key, GameSessionItemValue.FromString("room-a"), TestContext.Current.CancellationToken)
+            .AsTask());
+    }
+
+    [Fact]
+    public async Task Default_session_item_value_is_rejected()
+    {
+        var directory = new InMemoryGameSessionRegistry();
+        var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => directory
+            .SetSessionItemAsync(session, "roomId", default, TestContext.Current.CancellationToken)
+            .AsTask());
+    }
+
+    [Fact]
+    public async Task Session_item_snapshots_are_immutable_after_later_mutation()
+    {
+        var directory = new InMemoryGameSessionRegistry();
+        var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
+        await directory.SetSessionItemAsync(session, "roomId", GameSessionItemValue.FromString("room-a"), TestContext.Current.CancellationToken);
+
+        var snapshot = await directory.GetSessionItemsAsync(session, TestContext.Current.CancellationToken);
+        await directory.SetSessionItemAsync(session, "roomId", GameSessionItemValue.FromString("room-b"), TestContext.Current.CancellationToken);
+
+        Assert.Equal("room-a", snapshot.GetString("roomId"));
+        Assert.Equal("room-b", (await directory.GetSessionItemAsync(session, "roomId", TestContext.Current.CancellationToken))?.GetString());
+    }
+
+    [Fact]
+    public async Task Session_item_keys_reject_overlong_values()
+    {
+        var directory = new InMemoryGameSessionRegistry();
+        var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
+        var key = new string('k', 129);
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => directory
+            .SetSessionItemAsync(session, key, GameSessionItemValue.FromString("room-a"), TestContext.Current.CancellationToken)
+            .AsTask());
+    }
+
+    [Fact]
+    public async Task Session_items_survive_disconnect_and_resume()
+    {
+        var directory = new InMemoryGameSessionRegistry();
+        var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "connection-a", new LoginCallback("login"), TestContext.Current.CancellationToken);
+        await directory.SetSessionItemAsync(session, "roomId", GameSessionItemValue.FromString("room-a"), TestContext.Current.CancellationToken);
+
+        await directory.MarkConnectionDisconnectedAsync("connection-a", TestContext.Current.CancellationToken);
+        var decision = await directory.TryResumeAsync(session, TestContext.Current.CancellationToken);
+
+        Assert.Equal(SessionResumeStatus.Resumed, decision.Status);
+        Assert.Equal("room-a", (await directory.GetSessionItemAsync(session, "roomId", TestContext.Current.CancellationToken))?.GetString());
+    }
+
+    [Fact]
+    public async Task Session_items_are_inaccessible_after_termination_even_when_terminal_resume_state_is_retained()
+    {
+        var directory = new InMemoryGameSessionRegistry();
+        var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
+        await directory.SetSessionItemAsync(session, "roomId", GameSessionItemValue.FromString("room-a"), TestContext.Current.CancellationToken);
+
+        await directory.MarkSessionTerminatedAsync(
+            session,
+            new SessionTerminationNotice(SessionTerminationReason.Policy, "removed"),
+            keepForResume: true,
+            TestContext.Current.CancellationToken);
+
+        Assert.Null(await directory.GetSessionItemAsync(session, "roomId", TestContext.Current.CancellationToken));
+        Assert.Equal(0, (await directory.GetSessionItemsAsync(session, TestContext.Current.CancellationToken)).Count);
+    }
+
+    [Fact]
     public async Task Session_diagnostics_snapshot_reports_counts_without_session_or_connection_ids()
     {
         var directory = new InMemoryGameSessionRegistry();

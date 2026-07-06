@@ -4,6 +4,8 @@ namespace Lakona.Game.Server.Sessions;
 
 public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
 {
+    private const int MaxSessionItemKeyLength = 128;
+
     private readonly Lock _gate = new();
     private readonly Dictionary<GameSessionKey, SessionState> _sessions = new();
     private readonly Dictionary<string, GameSessionKey> _connectionToSession = new(StringComparer.Ordinal);
@@ -112,6 +114,108 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         }
     }
 
+    public ValueTask SetSessionItemAsync(
+        GameSessionKey session,
+        string key,
+        GameSessionItemValue value,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateSession(session);
+        ValidateSessionItemKey(key);
+        if (!value.IsDefined)
+        {
+            throw new ArgumentOutOfRangeException(nameof(value), "Session item value must be defined.");
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_gate)
+        {
+            if (!_sessions.TryGetValue(session, out var state))
+            {
+                throw new InvalidOperationException($"Game session '{session}' does not exist.");
+            }
+
+            if (state.Termination is not null)
+            {
+                throw new InvalidOperationException($"Game session '{session}' is terminated.");
+            }
+
+            state.Items[key] = value;
+        }
+
+        return default;
+    }
+
+    public ValueTask<GameSessionItemValue?> GetSessionItemAsync(
+        GameSessionKey session,
+        string key,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateSession(session);
+        ValidateSessionItemKey(key);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_gate)
+        {
+            if (!_sessions.TryGetValue(session, out var state) ||
+                state.Termination is not null ||
+                !state.Items.TryGetValue(key, out var value))
+            {
+                return new ValueTask<GameSessionItemValue?>((GameSessionItemValue?)null);
+            }
+
+            return new ValueTask<GameSessionItemValue?>(value);
+        }
+    }
+
+    public ValueTask<GameSessionItems> GetSessionItemsAsync(
+        GameSessionKey session,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateSession(session);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_gate)
+        {
+            if (!_sessions.TryGetValue(session, out var state) ||
+                state.Termination is not null ||
+                state.Items.Count == 0)
+            {
+                return new ValueTask<GameSessionItems>(GameSessionItems.Empty);
+            }
+
+            return new ValueTask<GameSessionItems>(new GameSessionItems(state.Items));
+        }
+    }
+
+    public ValueTask RemoveSessionItemAsync(
+        GameSessionKey session,
+        string key,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateSession(session);
+        ValidateSessionItemKey(key);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_gate)
+        {
+            if (!_sessions.TryGetValue(session, out var state))
+            {
+                throw new InvalidOperationException($"Game session '{session}' does not exist.");
+            }
+
+            if (state.Termination is not null)
+            {
+                throw new InvalidOperationException($"Game session '{session}' is terminated.");
+            }
+
+            state.Items.Remove(key);
+        }
+
+        return default;
+    }
+
     public ValueTask<GameSessionSnapshot?> MarkConnectionDisconnectedAsync(
         string connectionId,
         CancellationToken cancellationToken = default)
@@ -192,6 +296,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
 
             state.ConnectionId = null;
             state.Callbacks.Clear();
+            state.Items.Clear();
             state.Termination = notice;
             state.KeepTerminationForResume = keepForResume;
         }
@@ -468,6 +573,17 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         }
     }
 
+    private static void ValidateSessionItemKey(string key)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        if (key.Length > MaxSessionItemKeyLength)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(key),
+                $"Session item key length must be less than or equal to {MaxSessionItemKeyLength}.");
+        }
+    }
+
     private sealed class SessionState
     {
         public SessionState(GameSessionKey session, string ownerKey)
@@ -497,5 +613,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         public bool KeepTerminationForResume { get; set; }
 
         public Dictionary<Type, object> Callbacks { get; } = new();
+
+        public Dictionary<string, GameSessionItemValue> Items { get; } = new(StringComparer.Ordinal);
     }
 }

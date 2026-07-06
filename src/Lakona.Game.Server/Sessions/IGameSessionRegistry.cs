@@ -29,6 +29,26 @@ public interface IGameSessionRegistry
         string connectionId,
         CancellationToken cancellationToken = default);
 
+    ValueTask SetSessionItemAsync(
+        GameSessionKey session,
+        string key,
+        GameSessionItemValue value,
+        CancellationToken cancellationToken = default);
+
+    ValueTask<GameSessionItemValue?> GetSessionItemAsync(
+        GameSessionKey session,
+        string key,
+        CancellationToken cancellationToken = default);
+
+    ValueTask<GameSessionItems> GetSessionItemsAsync(
+        GameSessionKey session,
+        CancellationToken cancellationToken = default);
+
+    ValueTask RemoveSessionItemAsync(
+        GameSessionKey session,
+        string key,
+        CancellationToken cancellationToken = default);
+
     ValueTask<GameSessionSnapshot?> MarkConnectionDisconnectedAsync(
         string connectionId,
         CancellationToken cancellationToken = default);
