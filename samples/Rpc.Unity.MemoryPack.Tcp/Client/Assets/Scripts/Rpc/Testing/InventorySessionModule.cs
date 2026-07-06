@@ -3,7 +3,7 @@
 using System;
 using System.Threading.Tasks;
 using Game.Rpc.Contracts;
-using Rpc.Generated;
+using Client.Generated;
 using Lakona.Rpc.Client;
 
 namespace Rpc.Testing

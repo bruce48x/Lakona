@@ -7,7 +7,7 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <NuGetAudit>false</NuGetAudit>
     <LakonaRpcGenerateClient>true</LakonaRpcGenerateClient>
-    <LakonaRpcGeneratedNamespace>Rpc.Generated</LakonaRpcGeneratedNamespace>
+    <LakonaRpcGeneratedNamespace>Client.Generated</LakonaRpcGeneratedNamespace>
   </PropertyGroup>
 
   <ItemGroup>

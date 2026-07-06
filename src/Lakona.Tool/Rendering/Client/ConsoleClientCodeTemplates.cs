@@ -237,7 +237,7 @@ internal static class ConsoleClientCodeTemplates
         using Lakona.Game.Client;
         using Lakona.Rpc.Client;
         using Lakona.Rpc.Core;
-        using Rpc.Generated;
+        using Client.Generated;
         {{RenderSerializerUsing(spec.Serializer)}}
         {{RenderTransportUsing(spec.Transport)}}
 

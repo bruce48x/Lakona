@@ -7,7 +7,6 @@ internal static class UnityClientAssetTemplates
     public const string LoginClientGuid = "1a1f98ba46486884b824d248c98d6e38";
     public const string ChatClientGuid = "fff9f5180f8be804a88038c0f7860779";
     public const string ChatSessionGuid = "c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6";
-    public const string RpcGenerationGuid = "d2e51b4bbd591304db8b574127c61d6e";
     public const string LoginUiGuid = "5a1b8c3d2e4f6a7b8c9d0e1f2a3b4c5d";
     public const string ChatUiGuid = "462a8730535800d4a801000623f4450e";
     public const string LoginSceneUxmlGuid = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6";

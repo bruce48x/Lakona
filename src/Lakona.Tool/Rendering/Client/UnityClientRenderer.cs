@@ -122,9 +122,6 @@ internal sealed class UnityClientRenderer : IClientRenderer
 
     private static void AddClientCodeFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
-        builder.AddFile("Client/Assets/Scripts/Rpc/LakonaRpcGeneration.cs", UnityClientCodeTemplates.RenderRpcGeneration(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Assets/Scripts/Rpc/LakonaRpcGeneration.cs.meta", UnityClientAssetTemplates.RenderMonoScriptMeta(UnityClientAssetTemplates.RpcGenerationGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
-
         builder.AddFile("Client/Assets/Scripts/Login/LoginClient.cs", UnityClientCodeTemplates.RenderLoginClient(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Client/Assets/Scripts/Login/LoginClient.cs.meta", UnityClientAssetTemplates.RenderMonoScriptMeta(UnityClientAssetTemplates.LoginClientGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Client/Assets/Scripts/Login/LoginUI.cs", UnityClientCodeTemplates.RenderLoginUI(spec), FileWriteMode.Replace, GeneratedFileKind.Text);

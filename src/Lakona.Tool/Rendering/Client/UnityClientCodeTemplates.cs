@@ -4,25 +4,13 @@ namespace Lakona.Tool.Rendering.Client;
 
 internal static class UnityClientCodeTemplates
 {
-    public static string RenderRpcGeneration()
-    {
-        return """
-        #nullable enable
-
-        using Lakona.Rpc.Core;
-
-        [assembly: LakonaRpcGenerateClient("Rpc.Generated")]
-        [assembly: LakonaGameGenerateClient("unity", "unity", "chat")]
-        """;
-    }
-
     public static string RenderLoginClient()
     {
         return """
         using System;
         using System.Threading;
         using System.Threading.Tasks;
-        using Rpc.Generated;
+        using Client.Generated;
         using Shared.Contracts.Chat;
         using Lakona.Game.Client;
         using Lakona.Rpc.Client;

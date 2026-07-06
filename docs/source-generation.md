@@ -52,16 +52,15 @@ code, and behavior-derived actor selectors and refs. Public extension methods
 in `[HotfixBehaviorOf]` classes define the actor API those refs expose.
 
 Generated client projects opt into client glue with the matching client
-generation property or Unity-compatible analyzer configuration.
+generation property or framework-owned Unity analyzer defaults. Generated
+Unity and Tuanjie clients do not contain a project-local RPC generation marker
+file. Their generated client API is emitted into `Client.Generated`.
 
 Game client wrappers are an additional opt-in for projects that use
 Lakona.Game:
 
 ```xml
 <LakonaGameGenerateClient>true</LakonaGameGenerateClient>
-<LakonaGameClientRuntime>godot</LakonaGameClientRuntime>
-<LakonaGameClientPlatform>godot</LakonaGameClientPlatform>
-<LakonaGameClientGameVersion>chat</LakonaGameClientGameVersion>
 ```
 
 When enabled, the generator emits `LakonaGameClient` in the same namespace as
@@ -73,7 +72,7 @@ uses the generated wrapper as its single connection entry point.
 Generated application code should look like this:
 
 ```csharp
-using Rpc.Generated;
+using Client.Generated;
 
 await using var gameClient = new LakonaGameClient(options, callbackReceiver);
 await gameClient.ConnectAsync(cancellationToken);
@@ -123,16 +122,14 @@ one receiver for the same callback contract is invalid. The generator should
 use static type checks for known callback contracts, not runtime
 reflection-based discovery.
 
-Game client metadata comes from MSBuild properties or assembly metadata. The
-precedence is:
+An explicit MSBuild `false` disables generated game client wrapper output.
+Tool-generated Unity, Tuanjie, Godot, and console clients should enable game
+client generation by default without runtime, platform, or game-version
+metadata.
 
-1. explicit MSBuild properties;
-2. assembly metadata such as `[assembly: LakonaGameGenerateClient(...)]`;
-3. generated defaults.
-
-An explicit MSBuild `false` disables generation. Tool-generated Unity, Godot,
-and console clients should enable game client generation by default and set
-runtime, platform, and game-version metadata for the handshake.
+`GameClientHello` carries only `ProtocolVersion = 1`; platform, game version,
+build id, runtime, and capability metadata are application concerns, not
+default framework handshake fields.
 
 ## Ownership
 

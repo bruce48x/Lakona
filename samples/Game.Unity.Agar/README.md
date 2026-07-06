@@ -168,7 +168,7 @@ bootstrap，不是生产运行建议。已有旧本地 Postgres volume 的开发
 
 ## 开发命令
 
-共享协议变更后，不再手动生成 RPC 源码。服务端 `dotnet build` 会通过 `Lakona.Rpc.Analyzers` 生成服务端绑定；Unity 客户端重新编译时会通过 `Client/Assets/Scripts/Rpc/LakonaRpcGeneration.cs` 中的 assembly 标记生成客户端 API。
+共享协议变更后，不再手动生成 RPC 源码。服务端 `dotnet build` 会通过 `Lakona.Rpc.Analyzers` 生成服务端绑定；Unity 客户端重新编译时会通过框架默认的 source generator 配置生成 `Client.Generated` 客户端 API，项目中不再包含本地 RPC 生成标记文件。
 
 常用构建和测试命令：
 

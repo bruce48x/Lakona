@@ -3,7 +3,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Rpc.Generated;
+using Client.Generated;
 using Shared.Interfaces;
 using UnityEngine;
 

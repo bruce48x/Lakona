@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Rpc.Generated;
+using Client.Generated;
 using Shared.Contracts.Chat;
 using Lakona.Game.Client;
 using Lakona.Rpc.Client;

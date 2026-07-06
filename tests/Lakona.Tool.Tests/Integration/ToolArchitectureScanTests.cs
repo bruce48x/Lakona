@@ -34,6 +34,10 @@ public sealed class ToolArchitectureScanTests
     private static readonly string ForbiddenContractAttribute = string.Concat("Hotfix", "Actor", "Contract");
     private static readonly string ForbiddenChatRoomContractInterface = string.Concat("IChatRoom", "Actor", "Contract");
     private static readonly string ForbiddenStableActorRefsProperty = string.Concat("LakonaHotfixGenerateStable", "ActorRefs");
+    private static readonly string RemovedRpcGenerationFile = string.Concat("Lakona", "Rpc", "Generation", ".cs");
+    private static readonly string RemovedGameClientRuntimeProperty = string.Concat("Lakona", "Game", "Client", "Runtime");
+    private static readonly string RemovedGameClientPlatformProperty = string.Concat("Lakona", "Game", "Client", "Platform");
+    private static readonly string RemovedGameClientGameVersionProperty = string.Concat("Lakona", "Game", "Client", "Game", "Version");
 
     [Fact]
     public void ToolSource_DoesNotContainStarterPipelineArtifacts()
@@ -425,7 +429,13 @@ public sealed class ToolArchitectureScanTests
         Assert.DoesNotContain("call.Actors", hotfixServices, StringComparison.Ordinal);
         Assert.DoesNotContain("var localActors = call.Actors;", hotfixServices, StringComparison.Ordinal);
         Assert.DoesNotContain(".AskAsync", hotfixServices, StringComparison.Ordinal);
-        Assert.Contains("[assembly: LakonaGameGenerateClient(\"unity\", \"unity\", \"agar\")]", clientScripts, StringComparison.Ordinal);
+        Assert.False(File.Exists(Path.Combine(sampleRoot, "Client", "Assets", "Scripts", "Rpc", RemovedRpcGenerationFile)));
+        Assert.False(File.Exists(Path.Combine(sampleRoot, "Client", "Assets", "Scripts", "Rpc", RemovedRpcGenerationFile + ".meta")));
+        Assert.DoesNotContain(RemovedGameClientRuntimeProperty, clientScripts, StringComparison.Ordinal);
+        Assert.DoesNotContain(RemovedGameClientPlatformProperty, clientScripts, StringComparison.Ordinal);
+        Assert.DoesNotContain(RemovedGameClientGameVersionProperty, clientScripts, StringComparison.Ordinal);
+        Assert.DoesNotContain("[assembly: LakonaRpcGenerateClient", clientScripts, StringComparison.Ordinal);
+        Assert.DoesNotContain("[assembly: LakonaGameGenerateClient", clientScripts, StringComparison.Ordinal);
         Assert.DoesNotContain("RpcNotificationBindings", clientScripts, StringComparison.Ordinal);
         Assert.DoesNotContain("callbacks.Add", clientScripts, StringComparison.Ordinal);
         Assert.DoesNotContain(".HandshakeAsync(", clientScripts, StringComparison.Ordinal);

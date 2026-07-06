@@ -9,6 +9,11 @@ namespace Lakona.Tool.Tests.Rendering;
 
 public sealed class ClientRendererTests
 {
+    private static readonly string RemovedRpcGenerationFile = string.Concat("Lakona", "Rpc", "Generation", ".cs");
+    private static readonly string RemovedGameClientRuntimeProperty = string.Concat("Lakona", "Game", "Client", "Runtime");
+    private static readonly string RemovedGameClientPlatformProperty = string.Concat("Lakona", "Game", "Client", "Platform");
+    private static readonly string RemovedGameClientGameVersionProperty = string.Concat("Lakona", "Game", "Client", "Game", "Version");
+
     [Fact]
     public void UnityClientRenderer_EmitsUnityFilesAndNoGodotFiles()
     {
@@ -60,9 +65,8 @@ public sealed class ClientRendererTests
         Assert.Contains("\"com.unity.modules.ui\": \"1.0.0\"", manifest, StringComparison.Ordinal);
         Assert.Contains("\"com.unity.modules.audio\": \"1.0.0\"", manifest, StringComparison.Ordinal);
 
-        var rpcMarker = AssertPath(plan, "Client/Assets/Scripts/Rpc/LakonaRpcGeneration.cs").Content;
-        Assert.Contains("[assembly: LakonaRpcGenerateClient(\"Rpc.Generated\")]", rpcMarker, StringComparison.Ordinal);
-        Assert.Contains("[assembly: LakonaGameGenerateClient(\"unity\", \"unity\", \"chat\")]", rpcMarker, StringComparison.Ordinal);
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath == $"Client/Assets/Scripts/Rpc/{RemovedRpcGenerationFile}");
+        Assert.DoesNotContain(plan.Files, file => file.RelativePath == $"Client/Assets/Scripts/Rpc/{RemovedRpcGenerationFile}.meta");
 
         var loginClient = AssertPath(plan, "Client/Assets/Scripts/Login/LoginClient.cs").Content;
         Assert.Contains("public sealed class LoginClient : ILoginCallback, IChatCallback, IAsyncDisposable", loginClient, StringComparison.Ordinal);
@@ -120,7 +124,6 @@ public sealed class ClientRendererTests
         Assert.Contains("flex-shrink: 0;", ExtractCssRule(chatUss, ".send-button"), StringComparison.Ordinal);
 
         AssertPath(plan, "Client/Assets/Scripts/Chat/ChatSession.cs");
-        AssertPath(plan, "Client/Assets/Scripts/Rpc/LakonaRpcGeneration.cs.meta");
         AssertPath(plan, "Client/Assets/Scripts/Login/LoginUI.cs.meta");
         AssertPath(plan, "Client/Assets/Scripts/Chat/ChatUI.cs.meta");
         AssertPath(plan, "Client/Assets/UI/LoginScene.uxml");
@@ -203,11 +206,15 @@ public sealed class ClientRendererTests
         Assert.Contains("<OutputType>Exe</OutputType>", project, StringComparison.Ordinal);
         Assert.Contains("<TargetFramework>net10.0</TargetFramework>", project, StringComparison.Ordinal);
         Assert.Contains("<LakonaRpcGenerateClient>true</LakonaRpcGenerateClient>", project, StringComparison.Ordinal);
-        Assert.Contains("<LakonaRpcGeneratedNamespace>Rpc.Generated</LakonaRpcGeneratedNamespace>", project, StringComparison.Ordinal);
+        Assert.Contains("<LakonaRpcGeneratedNamespace>Client.Generated</LakonaRpcGeneratedNamespace>", project, StringComparison.Ordinal);
+        Assert.Contains("<LakonaGameGenerateClient>true</LakonaGameGenerateClient>", project, StringComparison.Ordinal);
         Assert.Contains("<CompilerVisibleProperty Include=\"LakonaGameGenerateClient\" />", project, StringComparison.Ordinal);
-        Assert.Contains("<CompilerVisibleProperty Include=\"LakonaGameClientRuntime\" />", project, StringComparison.Ordinal);
-        Assert.Contains("<CompilerVisibleProperty Include=\"LakonaGameClientPlatform\" />", project, StringComparison.Ordinal);
-        Assert.Contains("<CompilerVisibleProperty Include=\"LakonaGameClientGameVersion\" />", project, StringComparison.Ordinal);
+        Assert.DoesNotContain($"<{RemovedGameClientRuntimeProperty}>", project, StringComparison.Ordinal);
+        Assert.DoesNotContain($"<{RemovedGameClientPlatformProperty}>", project, StringComparison.Ordinal);
+        Assert.DoesNotContain($"<{RemovedGameClientGameVersionProperty}>", project, StringComparison.Ordinal);
+        Assert.DoesNotContain($"<CompilerVisibleProperty Include=\"{RemovedGameClientRuntimeProperty}\" />", project, StringComparison.Ordinal);
+        Assert.DoesNotContain($"<CompilerVisibleProperty Include=\"{RemovedGameClientPlatformProperty}\" />", project, StringComparison.Ordinal);
+        Assert.DoesNotContain($"<CompilerVisibleProperty Include=\"{RemovedGameClientGameVersionProperty}\" />", project, StringComparison.Ordinal);
         Assert.Contains("<ProjectReference Include=\"..\\Shared\\Shared.csproj\" />", project, StringComparison.Ordinal);
         Assert.Contains("<PackageReference Include=\"Lakona.Game.LoadTesting\"", project, StringComparison.Ordinal);
         Assert.Contains("<PackageReference Include=\"Lakona.Rpc.Analyzers\"", project, StringComparison.Ordinal);
@@ -300,15 +307,15 @@ public sealed class ClientRendererTests
         Assert.Contains("<Nullable>enable</Nullable>", project, StringComparison.Ordinal);
         Assert.Contains("<ImplicitUsings>enable</ImplicitUsings>", project, StringComparison.Ordinal);
         Assert.Contains("<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>", project, StringComparison.Ordinal);
-        Assert.Contains("<LakonaRpcGeneratedNamespace>Rpc.Generated</LakonaRpcGeneratedNamespace>", project, StringComparison.Ordinal);
+        Assert.Contains("<LakonaRpcGeneratedNamespace>Client.Generated</LakonaRpcGeneratedNamespace>", project, StringComparison.Ordinal);
         Assert.Contains("<LakonaGameGenerateClient>true</LakonaGameGenerateClient>", project, StringComparison.Ordinal);
-        Assert.Contains("<LakonaGameClientRuntime>godot</LakonaGameClientRuntime>", project, StringComparison.Ordinal);
-        Assert.Contains("<LakonaGameClientPlatform>godot</LakonaGameClientPlatform>", project, StringComparison.Ordinal);
-        Assert.Contains("<LakonaGameClientGameVersion>chat</LakonaGameClientGameVersion>", project, StringComparison.Ordinal);
         Assert.Contains("<CompilerVisibleProperty Include=\"LakonaGameGenerateClient\" />", project, StringComparison.Ordinal);
-        Assert.Contains("<CompilerVisibleProperty Include=\"LakonaGameClientRuntime\" />", project, StringComparison.Ordinal);
-        Assert.Contains("<CompilerVisibleProperty Include=\"LakonaGameClientPlatform\" />", project, StringComparison.Ordinal);
-        Assert.Contains("<CompilerVisibleProperty Include=\"LakonaGameClientGameVersion\" />", project, StringComparison.Ordinal);
+        Assert.DoesNotContain($"<{RemovedGameClientRuntimeProperty}>", project, StringComparison.Ordinal);
+        Assert.DoesNotContain($"<{RemovedGameClientPlatformProperty}>", project, StringComparison.Ordinal);
+        Assert.DoesNotContain($"<{RemovedGameClientGameVersionProperty}>", project, StringComparison.Ordinal);
+        Assert.DoesNotContain($"<CompilerVisibleProperty Include=\"{RemovedGameClientRuntimeProperty}\" />", project, StringComparison.Ordinal);
+        Assert.DoesNotContain($"<CompilerVisibleProperty Include=\"{RemovedGameClientPlatformProperty}\" />", project, StringComparison.Ordinal);
+        Assert.DoesNotContain($"<CompilerVisibleProperty Include=\"{RemovedGameClientGameVersionProperty}\" />", project, StringComparison.Ordinal);
         Assert.Contains("<PackageReference Include=\"Lakona.Rpc.Serializer.Json\"", project, StringComparison.Ordinal);
 
         var projectGodot = AssertPath(plan, "Client/project.godot").Content;
@@ -319,7 +326,7 @@ public sealed class ClientRendererTests
         Assert.Contains("project/assembly_name=\"Client\"", projectGodot, StringComparison.Ordinal);
 
         var loginClient = AssertPath(plan, "Client/Scripts/Login/LoginClient.cs").Content;
-        Assert.Contains("using Rpc.Generated;", loginClient, StringComparison.Ordinal);
+        Assert.Contains("using Client.Generated;", loginClient, StringComparison.Ordinal);
         Assert.Contains("public sealed class LoginClient : ILoginCallback, IChatCallback, IAsyncDisposable", loginClient, StringComparison.Ordinal);
         Assert.Contains("private readonly LakonaGameClient _gameClient;", loginClient, StringComparison.Ordinal);
         Assert.Contains("_gameClient = new LakonaGameClient(options, this);", loginClient, StringComparison.Ordinal);

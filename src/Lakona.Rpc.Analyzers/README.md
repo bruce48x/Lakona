@@ -4,22 +4,19 @@ Roslyn analyzers and source generators for Lakona.Rpc contract projects.
 
 Generated starter server and SDK-style client projects reference this package as a private build dependency. It generates RPC client and server glue at compile time from interfaces annotated with `RpcService`, `RpcMethod`, `RpcNotificationContract`, and `RpcNotification`, and reports diagnostics for invalid or duplicate contract ids.
 
-Unity-compatible client assemblies should opt in with `[assembly: LakonaRpcGenerateClient("Rpc.Generated")]` so only one Unity script assembly receives generated client glue.
+Generated Unity and Tuanjie clients use framework-owned source-generator defaults. Generated projects do not contain a project-local RPC generation marker file. The generated client API is emitted into `Client.Generated`.
 
 Game clients can also opt into a generated `LakonaGameClient` wrapper:
 
 ```xml
 <LakonaGameGenerateClient>true</LakonaGameGenerateClient>
-<LakonaGameClientRuntime>unity</LakonaGameClientRuntime>
-<LakonaGameClientPlatform>unity</LakonaGameClientPlatform>
-<LakonaGameClientGameVersion>chat</LakonaGameClientGameVersion>
 ```
 
-Unity script assemblies can use assembly markers beside the RPC client marker:
+Advanced client assemblies can still use assembly markers when they do not use the generated-project defaults:
 
 ```csharp
-[assembly: LakonaRpcGenerateClient("Rpc.Generated")]
-[assembly: LakonaGameGenerateClient("unity", "unity", "chat")]
+[assembly: LakonaRpcGenerateClient("Client.Generated")]
+[assembly: LakonaGameGenerateClient]
 ```
 
 Typical projects should add this package with:

@@ -4,7 +4,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Godot;
-using Rpc.Generated;
+using Client.Generated;
 using Shared.Interfaces;
 using Lakona.Rpc.Client;
 using Lakona.Rpc.Serializer.MemoryPack;

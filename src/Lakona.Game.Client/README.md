@@ -1,7 +1,7 @@
 # Lakona.Game.Client
 
 `Lakona.Game.Client` contains reusable engine-neutral Game client primitives.
-Generated game projects use a project-specific `Rpc.Generated.LakonaGameClient`
+Generated game projects use a project-specific `Client.Generated.LakonaGameClient`
 as the public entry point. The fixed package type is `LakonaGameClientCore`,
 which owns framework handshake state, reliable push state, heartbeat state, and
 session snapshots.
@@ -16,7 +16,7 @@ Generated game projects should use their generated wrapper as the single
 connection entry point:
 
 ```csharp
-using Rpc.Generated;
+using Client.Generated;
 
 await using var gameClient = new LakonaGameClient(options, callbackReceiver);
 await gameClient.ConnectAsync(cancellationToken);
@@ -37,12 +37,13 @@ Business RPC services are exposed through `gameClient.Api`.
 ## Core Client Primitive
 
 Use `LakonaGameClientCore` directly only when you are building a custom client
-wrapper instead of using generated `Rpc.Generated.LakonaGameClient`.
+wrapper instead of using generated `Client.Generated.LakonaGameClient`.
 
-The core primitive owns framework handshake state, resolved server
-capabilities, heartbeat state, reliable push client state, and connection
-snapshots. It does not expose business services; generated wrappers expose
-business services through `gameClient.Api`.
+The core primitive owns framework handshake state, heartbeat state, reliable
+push client state, and connection snapshots. The framework handshake carries
+only `ProtocolVersion = 1`; platform, game version, build id, runtime, and
+capability metadata are application concerns. It does not expose business
+services; generated wrappers expose business services through `gameClient.Api`.
 
 Normal clients should not call reliable-push ack RPCs. The generated wrapper
 uses the framework protocol negotiated by handshake. If the server disables

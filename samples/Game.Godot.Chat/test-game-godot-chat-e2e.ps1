@@ -238,20 +238,14 @@ function Write-HarnessProject {
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <LakonaRpcGenerateClient>true</LakonaRpcGenerateClient>
-    <LakonaRpcGeneratedNamespace>Rpc.Generated</LakonaRpcGeneratedNamespace>
+    <LakonaRpcGeneratedNamespace>Client.Generated</LakonaRpcGeneratedNamespace>
     <LakonaGameGenerateClient>true</LakonaGameGenerateClient>
-    <LakonaGameClientRuntime>godot</LakonaGameClientRuntime>
-    <LakonaGameClientPlatform>godot</LakonaGameClientPlatform>
-    <LakonaGameClientGameVersion>chat-e2e</LakonaGameClientGameVersion>
   </PropertyGroup>
 
   <ItemGroup>
     <CompilerVisibleProperty Include="LakonaRpcGenerateClient" />
     <CompilerVisibleProperty Include="LakonaRpcGeneratedNamespace" />
     <CompilerVisibleProperty Include="LakonaGameGenerateClient" />
-    <CompilerVisibleProperty Include="LakonaGameClientRuntime" />
-    <CompilerVisibleProperty Include="LakonaGameClientPlatform" />
-    <CompilerVisibleProperty Include="LakonaGameClientGameVersion" />
   </ItemGroup>
 
   <ItemGroup>

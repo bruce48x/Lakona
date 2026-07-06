@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Game.Rpc.Contracts;
-using Rpc.Generated;
+using Client.Generated;
 using Lakona.Rpc.Client;
 using UnityEngine;
 using UnityEngine.UIElements;

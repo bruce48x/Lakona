@@ -153,22 +153,22 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             if (HasExplicitGenerationMode)
                 return this;
 
-            var hasClientRuntime = compilation.GetTypeByMetadataName("Lakona.Rpc.Client.RpcClientRuntime") is not null;
+            var hasRpcClientAssembly = compilation.GetTypeByMetadataName("Lakona.Rpc.Client.RpcClientRuntime") is not null;
             var hasServerRuntime = compilation.GetTypeByMetadataName("Lakona.Rpc.Server.RpcServiceRegistry") is not null;
-            var hasGameClientRuntime = compilation.GetTypeByMetadataName("Lakona.Game.Client.LakonaGameClientCore") is not null;
+            var hasGameClientAssembly = compilation.GetTypeByMetadataName("Lakona.Game.Client.LakonaGameClientCore") is not null;
             var isUnityCompilation = IsUnityCompilation(compilation);
             var isGeneratedUnityClientAssembly = isUnityCompilation && IsUnityMainUserAssembly(compilation);
             var autoGenerateUnityGameClient =
                 isGeneratedUnityClientAssembly &&
-                hasGameClientRuntime &&
-                hasClientRuntime &&
+                hasGameClientAssembly &&
+                hasRpcClientAssembly &&
                 !hasServerRuntime &&
                 !HasGameClientSetting &&
                 !GenerateGameClientDisabled;
 
             return new GeneratorOptions(
-                generateClient: hasClientRuntime && !hasServerRuntime && (!isUnityCompilation || isGeneratedUnityClientAssembly),
-                generateServer: hasServerRuntime && !hasClientRuntime,
+                generateClient: hasRpcClientAssembly && !hasServerRuntime && (!isUnityCompilation || isGeneratedUnityClientAssembly),
+                generateServer: hasServerRuntime && !hasRpcClientAssembly,
                 generateGameClient: GenerateGameClient || autoGenerateUnityGameClient,
                 hasExplicitGenerationMode: false,
                 ClientNamespace,

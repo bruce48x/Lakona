@@ -201,7 +201,7 @@ public static async ValueTask StartAsync(HotfixFeatureStartCall call)
 
 The user should see Lakona.Game's core capabilities through a working game-server story instead of isolated infrastructure examples.
 
-Generated clients use `Rpc.Generated.LakonaGameClient` as the single connection
+Generated clients use `Client.Generated.LakonaGameClient` as the single connection
 entry point. Starter code creates one game client, calls `ConnectAsync`, then
 accesses services through `gameClient.Api.Shared.*`. Starter code does not
 construct `GameClientHello`, register callback bindings by hand, or expose the

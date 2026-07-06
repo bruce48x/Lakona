@@ -36,20 +36,14 @@ internal sealed class ConsoleClientRenderer : IClientRenderer
             <RootNamespace>Client</RootNamespace>
             <NuGetAudit>false</NuGetAudit>
             <LakonaRpcGenerateClient>true</LakonaRpcGenerateClient>
-            <LakonaRpcGeneratedNamespace>Rpc.Generated</LakonaRpcGeneratedNamespace>
+            <LakonaRpcGeneratedNamespace>Client.Generated</LakonaRpcGeneratedNamespace>
             <LakonaGameGenerateClient>true</LakonaGameGenerateClient>
-            <LakonaGameClientRuntime>console</LakonaGameClientRuntime>
-            <LakonaGameClientPlatform>console</LakonaGameClientPlatform>
-            <LakonaGameClientGameVersion>chat</LakonaGameClientGameVersion>
           </PropertyGroup>
 
           <ItemGroup>
             <CompilerVisibleProperty Include="LakonaRpcGenerateClient" />
             <CompilerVisibleProperty Include="LakonaRpcGeneratedNamespace" />
             <CompilerVisibleProperty Include="LakonaGameGenerateClient" />
-            <CompilerVisibleProperty Include="LakonaGameClientRuntime" />
-            <CompilerVisibleProperty Include="LakonaGameClientPlatform" />
-            <CompilerVisibleProperty Include="LakonaGameClientGameVersion" />
           </ItemGroup>
 
           <ItemGroup>
