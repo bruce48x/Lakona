@@ -220,9 +220,7 @@ public sealed class LakonaRpcSourceGeneratorTests
             new Dictionary<string, string>
             {
                 ["build_property.LakonaGameGenerateClient"] = "true",
-                ["build_property.LakonaGameClientRuntime"] = "unity",
-                ["build_property.LakonaGameClientPlatform"] = "unity",
-                ["build_property.LakonaGameClientGameVersion"] = "agar"
+                ["build_property.LakonaRpcGeneratedNamespace"] = "Client.Generated"
             },
             out var outputCompilation);
 
@@ -241,10 +239,7 @@ public sealed class LakonaRpcSourceGeneratorTests
             new Dictionary<string, string>
             {
                 ["build_property.LakonaGameGenerateClient"] = "true",
-                ["build_property.LakonaRpcGeneratedNamespace"] = "Rpc.Generated",
-                ["build_property.LakonaGameClientRuntime"] = "unity",
-                ["build_property.LakonaGameClientPlatform"] = "unity",
-                ["build_property.LakonaGameClientGameVersion"] = "agar"
+                ["build_property.LakonaRpcGeneratedNamespace"] = "Client.Generated"
             },
             out var outputCompilation);
 
@@ -253,7 +248,8 @@ public sealed class LakonaRpcSourceGeneratorTests
 
         var wrapper = GetGeneratedSource(runResult, "LakonaGameClient.g.cs");
         Assert.Contains("public sealed class LakonaGameClient : IAsyncDisposable", wrapper);
-        Assert.Contains("public global::Rpc.Generated.RpcApi Api", wrapper);
+        Assert.Contains("public global::Client.Generated.RpcApi Api", wrapper);
+        Assert.Contains("new global::Client.Generated.RpcClient(_options.RpcOptions", wrapper);
         Assert.Contains("public ValueTask StartSessionAsync(string sessionId, long sessionGeneration, CancellationToken cancellationToken = default)", wrapper);
         Assert.Contains("return _core.StartSessionAsync(sessionId, sessionGeneration, cancellationToken);", wrapper);
         Assert.Contains("LakonaGameClient is not connected. Call ConnectAsync first.", wrapper);
@@ -261,9 +257,10 @@ public sealed class LakonaRpcSourceGeneratorTests
         Assert.Contains("public event Action<Exception?>? Disconnected", wrapper);
         Assert.Contains("if (receiver is global::Game.Contracts.IPingNotifications pingNotifications)", wrapper);
         Assert.Contains("bindings.Add(pingNotifications);", wrapper);
-        Assert.Contains("ClientRuntime = ResolveOption(_options.ClientRuntime, \"unity\")", wrapper);
-        Assert.Contains("Platform = ResolveOption(_options.Platform, \"unity\")", wrapper);
-        Assert.Contains("GameVersion = ResolveOption(_options.GameVersion, \"agar\")", wrapper);
+        Assert.Contains("ProtocolVersion = 1", wrapper);
+        Assert.DoesNotContain("ClientRuntime", wrapper);
+        Assert.DoesNotContain("Platform", wrapper);
+        Assert.DoesNotContain("GameVersion", wrapper);
         Assert.Contains("using Lakona.Game.Abstractions;", wrapper);
         Assert.Contains("using Lakona.Game.Abstractions.Sessions;", wrapper);
         Assert.Contains("_rpcClient.Runtime.RegisterRawNotificationHandler(", wrapper);
@@ -367,6 +364,7 @@ public sealed class LakonaRpcSourceGeneratorTests
             AnalyzerTestHelpers.CreateCompilation(SimpleClientContractSource),
             new Dictionary<string, string>
             {
+                ["build_property.LakonaRpcGeneratedNamespace"] = "Client.Generated",
                 ["build_property.LakonaGameGenerateClient"] = "true"
             },
             out var outputCompilation);
@@ -375,42 +373,14 @@ public sealed class LakonaRpcSourceGeneratorTests
         Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(outputCompilation));
 
         var wrapper = GetGeneratedSource(runResult, "LakonaGameClient.g.cs");
-        Assert.Contains("new global::Rpc.Generated.RpcClient(_options.RpcOptions)", wrapper);
+        Assert.Contains("new global::Client.Generated.RpcClient(_options.RpcOptions)", wrapper);
+        Assert.Contains("ProtocolVersion = 1", wrapper);
+        Assert.DoesNotContain("ClientRuntime", wrapper);
+        Assert.DoesNotContain("Platform", wrapper);
+        Assert.DoesNotContain("GameVersion", wrapper);
         Assert.Contains("ValidateCallbackReceivers(callbackReceivers);", wrapper);
         Assert.Contains("throw new ArgumentNullException(nameof(callbackReceivers), \"Callback receiver cannot be null.\");", wrapper);
         Assert.DoesNotContain("RpcNotificationBindings", wrapper);
-    }
-
-    [Fact]
-    public void SourceGenerator_GameClientWrapper_GameVersionFallback_UsesAssemblyNameOrGame()
-    {
-        var assemblyRun = AnalyzerTestHelpers.RunGenerator(
-            AnalyzerTestHelpers.CreateCompilation(SimpleClientContractSource, assemblyName: "SpaceGame"),
-            new Dictionary<string, string>
-            {
-                ["build_property.LakonaGameGenerateClient"] = "true"
-            },
-            out var assemblyOutput);
-
-        Assert.Empty(assemblyRun.Diagnostics);
-        Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(assemblyOutput));
-
-        var assemblyWrapper = GetGeneratedSource(assemblyRun, "LakonaGameClient.g.cs");
-        Assert.Contains("GameVersion = ResolveOption(_options.GameVersion, \"SpaceGame\")", assemblyWrapper);
-
-        var nullAssemblyRun = AnalyzerTestHelpers.RunGenerator(
-            AnalyzerTestHelpers.CreateCompilation(SimpleClientContractSource, assemblyName: null),
-            new Dictionary<string, string>
-            {
-                ["build_property.LakonaGameGenerateClient"] = "true"
-            },
-            out var nullAssemblyOutput);
-
-        Assert.Empty(nullAssemblyRun.Diagnostics);
-        Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(nullAssemblyOutput));
-
-        var nullAssemblyWrapper = GetGeneratedSource(nullAssemblyRun, "LakonaGameClient.g.cs");
-        Assert.Contains("GameVersion = ResolveOption(_options.GameVersion, \"game\")", nullAssemblyWrapper);
     }
 
     [Fact]
@@ -440,14 +410,14 @@ public sealed class LakonaRpcSourceGeneratorTests
     }
 
     [Fact]
-    public void SourceGenerator_GameClientWrapper_UnityMarker_EnablesWrapperAndMetadata()
+    public void SourceGenerator_GameClientWrapper_UnityMarker_EnablesWrapperWithoutMetadata()
     {
         var source = """
             using System.Threading.Tasks;
             using Lakona.Rpc.Core;
 
-            [assembly: LakonaRpcGenerateClient("Rpc.Generated")]
-            [assembly: LakonaGameGenerateClient("unity", "unity", "agar")]
+            [assembly: LakonaRpcGenerateClient("Client.Generated")]
+            [assembly: LakonaGameGenerateClient]
 
             namespace Game.Contracts
             {
@@ -472,20 +442,21 @@ public sealed class LakonaRpcSourceGeneratorTests
         Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(outputCompilation));
 
         var wrapper = GetGeneratedSource(runResult, "LakonaGameClient.g.cs");
-        Assert.Contains("ClientRuntime = ResolveOption(_options.ClientRuntime, \"unity\")", wrapper);
-        Assert.Contains("Platform = ResolveOption(_options.Platform, \"unity\")", wrapper);
-        Assert.Contains("GameVersion = ResolveOption(_options.GameVersion, \"agar\")", wrapper);
+        Assert.Contains("ProtocolVersion = 1", wrapper);
+        Assert.DoesNotContain("ClientRuntime", wrapper);
+        Assert.DoesNotContain("Platform", wrapper);
+        Assert.DoesNotContain("GameVersion", wrapper);
     }
 
     [Fact]
-    public void SourceGenerator_GameClientWrapper_PropertyPrecedence_OverridesMarker()
+    public void SourceGenerator_GameClientWrapper_PropertyPrecedence_CanDisableMarker()
     {
         var source = """
             using System.Threading.Tasks;
             using Lakona.Rpc.Core;
 
-            [assembly: LakonaRpcGenerateClient("Rpc.Generated")]
-            [assembly: LakonaGameGenerateClient("unity", "unity", "agar")]
+            [assembly: LakonaRpcGenerateClient("Client.Generated")]
+            [assembly: LakonaGameGenerateClient]
 
             namespace Game.Contracts
             {
@@ -512,25 +483,6 @@ public sealed class LakonaRpcSourceGeneratorTests
         Assert.DoesNotContain(
             disabledRun.Results.Single().GeneratedSources,
             static source => source.HintName == "LakonaGameClient.g.cs");
-
-        var overrideRun = AnalyzerTestHelpers.RunGenerator(
-            AnalyzerTestHelpers.CreateCompilation(source, assemblyName: "Assembly-CSharp"),
-            new Dictionary<string, string>
-            {
-                ["build_property.LakonaGameGenerateClient"] = "true",
-                ["build_property.LakonaGameClientRuntime"] = "dotnet-client",
-                ["build_property.LakonaGameClientPlatform"] = "windows",
-                ["build_property.LakonaGameClientGameVersion"] = "local"
-            },
-            out var outputCompilation);
-
-        Assert.Empty(overrideRun.Diagnostics);
-        Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(outputCompilation));
-
-        var wrapper = GetGeneratedSource(overrideRun, "LakonaGameClient.g.cs");
-        Assert.Contains("ClientRuntime = ResolveOption(_options.ClientRuntime, \"dotnet-client\")", wrapper);
-        Assert.Contains("Platform = ResolveOption(_options.Platform, \"windows\")", wrapper);
-        Assert.Contains("GameVersion = ResolveOption(_options.GameVersion, \"local\")", wrapper);
     }
 
     private static string GetGeneratedSource(GeneratorDriverRunResult runResult, string hintName) =>

@@ -12,12 +12,6 @@ namespace Lakona.Game.Client
 
         public RpcClientOptions RpcOptions { get; }
 
-        public string? ClientRuntime { get; set; }
-
-        public string? Platform { get; set; }
-
-        public string? GameVersion { get; set; }
-
         public bool HeartbeatEnabled { get; set; } = true;
 
         public TimeSpan HeartbeatInterval { get; set; } = TimeSpan.FromSeconds(15);

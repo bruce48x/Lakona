@@ -85,10 +85,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
                 SourceText.From(
                     ClientSourceEmitter.GenerateGameClientWrapper(
                         services,
-                        generatedNamespace,
-                        options.GameClientRuntime,
-                        options.GameClientPlatform,
-                        options.GameClientGameVersion),
+                        generatedNamespace),
                     Encoding.UTF8));
         }
     }
@@ -121,9 +118,6 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
         private const string ClientNamespaceKey = "build_property.LakonaRpcGeneratedNamespace";
         private const string ServerNamespaceKey = "build_property.LakonaRpcServerGeneratedNamespace";
         private const string GameClientKey = "build_property.LakonaGameGenerateClient";
-        private const string GameClientRuntimeKey = "build_property.LakonaGameClientRuntime";
-        private const string GameClientPlatformKey = "build_property.LakonaGameClientPlatform";
-        private const string GameClientGameVersionKey = "build_property.LakonaGameClientGameVersion";
 
         private GeneratorOptions(
             bool generateClient,
@@ -131,10 +125,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             bool generateGameClient,
             bool hasExplicitGenerationMode,
             string clientNamespace,
-            string serverNamespace,
-            string gameClientRuntime,
-            string gameClientPlatform,
-            string gameClientGameVersion)
+            string serverNamespace)
         {
             GenerateClient = generateClient;
             GenerateServer = generateServer;
@@ -142,9 +133,6 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             HasExplicitGenerationMode = hasExplicitGenerationMode;
             ClientNamespace = clientNamespace;
             ServerNamespace = serverNamespace;
-            GameClientRuntime = gameClientRuntime;
-            GameClientPlatform = gameClientPlatform;
-            GameClientGameVersion = gameClientGameVersion;
         }
 
         public bool GenerateClient { get; }
@@ -153,9 +141,6 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
         public bool HasExplicitGenerationMode { get; }
         public string ClientNamespace { get; }
         public string ServerNamespace { get; }
-        public string GameClientRuntime { get; }
-        public string GameClientPlatform { get; }
-        public string GameClientGameVersion { get; }
 
         public GeneratorOptions WithAutoDetectedModes(Compilation compilation)
         {
@@ -173,10 +158,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
                 generateGameClient: GenerateGameClient,
                 hasExplicitGenerationMode: false,
                 ClientNamespace,
-                ServerNamespace,
-                GameClientRuntime,
-                GameClientPlatform,
-                GameClientGameVersion);
+                ServerNamespace);
         }
 
         public static GeneratorOptions From(AnalyzerConfigOptionsProvider provider, Compilation compilation)
@@ -187,20 +169,12 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             var hasGameClientSetting = global.TryGetValue(GameClientKey, out var gameClientValue);
             var clientNamespace = GetString(global, ClientNamespaceKey, "Rpc.Generated");
             var hasClientMarker = TryGetClientGenerationAttribute(compilation, out var markerNamespace);
-            var hasGameClientMarker = TryGetGameClientGenerationAttribute(
-                compilation,
-                out var markerRuntime,
-                out var markerPlatform,
-                out var markerGameVersion);
+            var hasGameClientMarker = TryGetGameClientGenerationAttribute(compilation);
             if (hasClientMarker && !hasClientSetting && !string.IsNullOrWhiteSpace(markerNamespace))
                 clientNamespace = markerNamespace!;
 
             var generateGameClient = IsEnabled(gameClientValue) || (!hasGameClientSetting && hasGameClientMarker);
             var generateClient = IsEnabled(clientValue) || (!hasClientSetting && hasClientMarker) || generateGameClient;
-            var gameClientRuntime = GetString(global, GameClientRuntimeKey, GetString(markerRuntime, "dotnet"));
-            var gameClientPlatform = GetString(global, GameClientPlatformKey, GetString(markerPlatform, "dotnet"));
-            var assemblyGameVersion = string.IsNullOrWhiteSpace(compilation.AssemblyName) ? "game" : compilation.AssemblyName!;
-            var gameClientGameVersion = GetString(global, GameClientGameVersionKey, GetString(markerGameVersion, assemblyGameVersion));
 
             return new GeneratorOptions(
                 generateClient,
@@ -208,10 +182,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
                 generateGameClient,
                 hasClientSetting || hasServerSetting || hasClientMarker || (hasGameClientMarker && !hasGameClientSetting),
                 clientNamespace,
-                GetString(global, ServerNamespaceKey, "Server.Generated"),
-                gameClientRuntime,
-                gameClientPlatform,
-                gameClientGameVersion);
+                GetString(global, ServerNamespaceKey, "Server.Generated"));
         }
 
         private static bool IsUnityCompilation(Compilation compilation)
@@ -248,15 +219,8 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             return false;
         }
 
-        private static bool TryGetGameClientGenerationAttribute(
-            Compilation compilation,
-            out string? clientRuntime,
-            out string? platform,
-            out string? gameVersion)
+        private static bool TryGetGameClientGenerationAttribute(Compilation compilation)
         {
-            clientRuntime = null;
-            platform = null;
-            gameVersion = null;
             foreach (var attribute in compilation.Assembly.GetAttributes())
             {
                 var attributeClass = attribute.AttributeClass;
@@ -266,15 +230,6 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
                 if (!string.Equals(attributeClass.Name, "LakonaGameGenerateClientAttribute", StringComparison.Ordinal))
                     continue;
 
-                var args = attribute.ConstructorArguments
-                    .Select(static argument => argument.Value as string)
-                    .ToArray();
-                if (args.Length > 0)
-                    clientRuntime = args[0];
-                if (args.Length > 1)
-                    platform = args[1];
-                if (args.Length > 2)
-                    gameVersion = args[2];
                 return true;
             }
 
@@ -290,10 +245,6 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
                 ? value.Trim()
                 : fallback;
 
-        private static string GetString(string? value, string fallback) =>
-            !string.IsNullOrWhiteSpace(value)
-                ? value!.Trim()
-                : fallback;
     }
 
     private static class RpcSymbolReader
@@ -861,10 +812,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
 
         public static string GenerateGameClientWrapper(
             List<RpcServiceModel> services,
-            string generatedNamespace,
-            string clientRuntime,
-            string platform,
-            string gameVersion)
+            string generatedNamespace)
         {
             var notificationContracts = services.Where(static service => service.HasNotificationContract).OrderBy(static service => service.NotificationContractInterfaceName, StringComparer.Ordinal).ToList();
             var writer = new SourceWriter();
@@ -961,11 +909,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             writer.Line();
             writer.OpenBlock("private GameClientHello CreateClientHello()");
             writer.OpenBlock("return new GameClientHello");
-            writer.Line("ProtocolVersionMin = 1,");
-            writer.Line("ProtocolVersionMax = 1,");
-            writer.Line($"ClientRuntime = ResolveOption(_options.ClientRuntime, \"{EscapeString(clientRuntime)}\"),");
-            writer.Line($"Platform = ResolveOption(_options.Platform, \"{EscapeString(platform)}\"),");
-            writer.Line($"GameVersion = ResolveOption(_options.GameVersion, \"{EscapeString(gameVersion)}\")");
+            writer.Line("ProtocolVersion = 1");
             writer.CloseBlock(";");
             writer.CloseBlock();
             writer.Line();
@@ -984,11 +928,6 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             writer.CloseBlock();
             writer.CloseBlock();
             writer.Line();
-            writer.OpenBlock("private static string ResolveOption(string? value, string fallback)");
-            writer.Line("return string.IsNullOrWhiteSpace(value) ? fallback : value!;");
-            writer.CloseBlock();
-            writer.Line();
-
             if (notificationContracts.Count > 0)
             {
                 writer.OpenBlock($"private global::{generatedNamespace}.RpcClient CreateRpcClient(object[] callbackReceivers)");

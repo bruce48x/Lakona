@@ -90,17 +90,12 @@ namespace Lakona.Rpc.Core
         {
         }
 
+        [Obsolete("Lakona game client generation no longer uses runtime, platform, or game-version metadata. Use LakonaGameGenerateClientAttribute() instead.")]
         public LakonaGameGenerateClientAttribute(string clientRuntime, string platform, string gameVersion)
         {
-            ClientRuntime = clientRuntime;
-            Platform = platform;
-            GameVersion = gameVersion;
+            _ = clientRuntime;
+            _ = platform;
+            _ = gameVersion;
         }
-
-        public string? ClientRuntime { get; }
-
-        public string? Platform { get; }
-
-        public string? GameVersion { get; }
     }
 }
