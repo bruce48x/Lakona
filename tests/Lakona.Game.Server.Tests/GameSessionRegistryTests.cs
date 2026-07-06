@@ -467,6 +467,32 @@ public sealed class GameSessionRegistryTests
     }
 
     [Fact]
+    public void Session_item_types_do_not_leak_to_client_or_shared_contract_projects()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var sourceRoots = new[]
+        {
+            Path.Combine(repositoryRoot, "src", "Lakona.Game.Abstractions"),
+            Path.Combine(repositoryRoot, "src", "Lakona.Game.Client"),
+            Path.Combine(repositoryRoot, "src", "Lakona.Rpc.Client"),
+        };
+
+        var matches = sourceRoots
+            .Where(Directory.Exists)
+            .SelectMany(root => Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
+            .Where(path => !path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                .Any(segment => string.Equals(segment, "bin", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(segment, "obj", StringComparison.OrdinalIgnoreCase)))
+            .SelectMany(path => File.ReadLines(path)
+                .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line })
+                .Where(match => match.Line.Contains("GameSessionItem", StringComparison.Ordinal)))
+            .Select(match => $"{Path.GetRelativePath(repositoryRoot, match.Path)}:{match.LineNumber}: {match.Line.Trim()}")
+            .ToArray();
+
+        Assert.True(matches.Length == 0, "GameSessionItem types must remain server-only:" + Environment.NewLine + string.Join(Environment.NewLine, matches));
+    }
+
+    [Fact]
     public void AddSessionsRegistersDirectory()
     {
         var services = new ServiceCollection();
@@ -475,6 +501,22 @@ public sealed class GameSessionRegistryTests
         using var provider = services.BuildServiceProvider();
 
         Assert.NotNull(provider.GetRequiredService<IGameSessionRegistry>());
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "CONTRIBUTING.md")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new InvalidOperationException("Could not locate repository root.");
     }
 
     private sealed class Callback

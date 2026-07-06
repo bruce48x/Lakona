@@ -290,6 +290,35 @@ The framework owns `GameSessionKey`, callback bindings, resume tokens, reliable
 push protocol state, route indexes, and transport connection state. Business
 code owns account, player, character, room, and device policy.
 
+### Session Items
+
+Session items are server-side session metadata for latency-sensitive cached
+metadata. They are not durable business state.
+
+Only scalar values supported by `GameSessionItemValue` are valid: `string`,
+`Int64`, and `Boolean`. Valid examples include `roomId`, `matchId`,
+`sessionKind`, and membership generation after authoritative validation.
+
+Session items must not store callbacks, transport objects, DI services, actor
+instances or references, hotfix-defined class instances, mutable collections,
+durable player data, or room membership authority.
+
+Each session item container is created empty with its `GameSessionKey`. Items
+are preserved across disconnect and resume for the same generation. Items are
+cleared or inaccessible after termination, including terminal-state retention,
+and removed when a disconnected session expires.
+
+Session items are never serialized to clients or shared RPC DTOs.
+
+Hotfix calls receive `CurrentSessionItems` as an immutable per-dispatch
+snapshot captured before the hotfix method runs. Mutations through
+`ILakonaGameServer` do not update that snapshot. Use `GetSessionItemAsync` for
+fresh reads later in the same call.
+
+Cached items must not bypass route freshness. A cached room id may choose an
+actor key, but generated selectors still resolve placement unless a future node
+lease or epoch design exists.
+
 Games that need one player-level session aggregate should keep it in a business
 actor such as `UserActor`, not in `Server.App` transport helpers. For example,
 Agar's `UserActor` is the authority for player session policy and may store
