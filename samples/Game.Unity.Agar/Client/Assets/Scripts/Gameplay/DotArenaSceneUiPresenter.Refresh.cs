@@ -34,7 +34,6 @@ namespace SampleClient.Gameplay
             if (_modeSelectPanel != null) _modeSelectPanel.SetActive(showEntry && snapshot.EntryMenuState == EntryMenuState.ModeSelect);
             if (_loginPanel != null) _loginPanel.SetActive(showEntry && snapshot.EntryMenuState == EntryMenuState.MultiplayerAuth);
 
-            SetText(_hudPlayerText, $"Player: {(snapshot.LocalPlayerId.Length > 0 ? snapshot.LocalPlayerId : snapshot.Account)}   Mass: {snapshot.LocalPlayerMassText}   Wins: {snapshot.LocalWinCount}");
             SetText(_hudTitleText, string.Empty);
             SetText(_hudModeText, string.Empty);
             SetText(_hudHintText, string.Empty);
@@ -66,7 +65,6 @@ namespace SampleClient.Gameplay
             SetText(_matchmakingCancelButtonText, "Cancel Matchmaking");
             SetText(_lobbyTitleText, _lobbyUi.GetLobbyTabTitle(snapshot));
             SetText(_lobbySummaryText, snapshot.MetaPlayerSummary);
-            SetText(_lobbyHighlightsText, _lobbyUi.GetLobbyHighlightsText(snapshot));
             SetText(_lobbyQuickActionsText, _lobbyUi.GetLobbyQuickActionsText(snapshot));
             _lobbyUi.RefreshLobbyQuickActionButtons(snapshot, _lobbyQuickActionButton1, _lobbyQuickActionButton1Text, _lobbyQuickActionButton2, _lobbyQuickActionButton2Text, _lobbyQuickActionButton3, _lobbyQuickActionButton3Text, _lobbyQuickActionButton4, _lobbyQuickActionButton4Text);
             SetText(_lobbyDetailText, _lobbyUi.GetLobbyTabDetail(snapshot));

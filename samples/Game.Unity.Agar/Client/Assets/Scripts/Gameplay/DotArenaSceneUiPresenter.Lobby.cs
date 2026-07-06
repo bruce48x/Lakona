@@ -85,12 +85,6 @@ namespace SampleClient.Gameplay
             };
         }
 
-        public string GetLobbyHighlightsText(in DotArenaSceneUiSnapshot snapshot)
-        {
-            SelectedTab = NormalizeTab(SelectedTab);
-            return SelectedTab == MetaTab.Lobby ? snapshot.MetaLobbyHighlights : string.Empty;
-        }
-
         public string GetLobbyQuickActionsText(in DotArenaSceneUiSnapshot snapshot)
         {
             return string.Empty;

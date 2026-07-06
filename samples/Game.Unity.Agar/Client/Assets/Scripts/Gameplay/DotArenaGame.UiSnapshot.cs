@@ -56,7 +56,6 @@ namespace SampleClient.Gameplay
                         matchmakingElapsedSeconds,
                         _owner._pendingUiRequest == PendingUiRequest.CancelMatchmaking),
                     MetaPlayerSummary = DotArenaUiTextComposer.BuildMetaPlayerSummary(_owner._metaState, inMultiplayerLobby),
-                    MetaLobbyHighlights = DotArenaUiTextComposer.BuildMetaLobbyHighlights(_owner._metaState, inMultiplayerLobby, previewPreset),
                     MetaProfileDetail = DotArenaUiTextComposer.BuildMetaProfileDetail(_owner._metaState, inMultiplayerLobby, previewPreset, _owner._lastRewardSummary),
                     MetaTasksDetail = DotArenaUiTextComposer.BuildMetaTasksDetail(_owner._metaState),
                     MetaShopDetail = DotArenaUiTextComposer.BuildMetaShopDetail(_owner._metaState),

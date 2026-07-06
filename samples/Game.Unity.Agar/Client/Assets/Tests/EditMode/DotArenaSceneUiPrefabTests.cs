@@ -47,7 +47,6 @@ namespace SampleClient.Gameplay.Tests
             AssertPath(prefab!, "MenuBackground");
             AssertPath(prefab!, "OverlayLayer");
             AssertPath(prefab!, "OverlayLayer/TopStatusPanel");
-            AssertPath(prefab!, "OverlayLayer/TopStatusPanel/PlayerText");
             AssertPath(prefab!, "OverlayLayer/TopStatusPanel/CountdownText");
             AssertPath(prefab!, "HUDPanel");
             AssertPath(prefab!, "MatchRankingPanel");
@@ -275,8 +274,6 @@ namespace SampleClient.Gameplay.Tests
 
             Assert.That(prefab, Is.Not.Null);
             AssertRect(prefab!, "OverlayLayer/TopStatusPanel", new Vector2(0f, -12f), new Vector2(360f, 58f));
-            Assert.That(prefab!.transform.Find("HUDPanel/PlayerText"), Is.Null, "HUD player summary should be owned by the shared overlay status region");
-            AssertNoSiblingRectOverlap(prefab, "OverlayLayer/TopStatusPanel", "PlayerText", "CountdownText");
         }
 
         [Test]

@@ -34,7 +34,6 @@ namespace SampleClient.Gameplay
         public string MatchmakingDetail { get; set; }
         public int MatchmakingElapsedSeconds { get; set; }
         public string MetaPlayerSummary { get; set; }
-        public string MetaLobbyHighlights { get; set; }
         public string MetaProfileDetail { get; set; }
         public string MetaTasksDetail { get; set; }
         public string MetaShopDetail { get; set; }
@@ -81,7 +80,6 @@ namespace SampleClient.Gameplay
         private TMP_Text? _matchmakingCancelButtonText;
         private TMP_Text? _lobbyTitleText;
         private TMP_Text? _lobbySummaryText;
-        private TMP_Text? _lobbyHighlightsText;
         private TMP_Text? _lobbyQuickActionsText;
         private Button? _lobbyQuickActionButton1;
         private Button? _lobbyQuickActionButton2;
@@ -104,7 +102,6 @@ namespace SampleClient.Gameplay
         private Button? _lobbyLeaderboardButton;
         private Button? _lobbySettingsButton;
         private TMP_Text? _hudTitleText;
-        private TMP_Text? _hudPlayerText;
         private TMP_Text? _hudModeText;
         private TMP_Text? _hudHintText;
         private TMP_Text? _hudCountdownText;
@@ -204,7 +201,6 @@ namespace SampleClient.Gameplay
             WarnIfMissingAuthoredScreen("SceneUI/SettlementPanel", _settlementPanel);
 
             _hudTitleText = FindSceneUiText("SceneUI/HUDPanel/TitleText");
-            _hudPlayerText = FindSceneUiText("SceneUI/OverlayLayer/TopStatusPanel/PlayerText");
             _hudModeText = FindSceneUiText("SceneUI/HUDPanel/ModeText");
             _hudHintText = FindSceneUiText("SceneUI/HUDPanel/HintText");
             _hudCountdownText = FindSceneUiText("SceneUI/OverlayLayer/TopStatusPanel/CountdownText");
@@ -220,7 +216,6 @@ namespace SampleClient.Gameplay
             _matchmakingCancelButtonText = FindSceneUiText("SceneUI/MatchmakingPanel/CancelButton/Label");
             _lobbyTitleText = FindSceneUiText("SceneUI/LobbyPanel/TitleText");
             _lobbySummaryText = FindSceneUiText("SceneUI/LobbyPanel/SummaryText");
-            _lobbyHighlightsText = FindSceneUiText("SceneUI/LobbyPanel/HighlightsText");
             _lobbyQuickActionsText = FindSceneUiText("SceneUI/LobbyPanel/QuickActionsText");
             _lobbyQuickActionButton1 = FindSceneUiButton("SceneUI/LobbyPanel/QuickActionButton1");
             _lobbyQuickActionButton2 = FindSceneUiButton("SceneUI/LobbyPanel/QuickActionButton2");

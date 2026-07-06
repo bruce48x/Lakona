@@ -161,15 +161,6 @@ namespace SampleClient.Gameplay
             _topStatusPanel = panelTransform.gameObject;
             DotArenaUiRect.TopCenter(new Vector2(0f, -12f), new Vector2(360f, 58f)).Apply(panelTransform);
 
-            _hudPlayerText = EnsureTopStatusText(
-                panelTransform,
-                "PlayerText",
-                FindSceneUiText("SceneUI/HUDPanel/PlayerText"),
-                new Vector2(0f, 0f),
-                new Vector2(330f, 22f),
-                13f,
-                FontStyles.Bold,
-                UiSecondaryTextColor);
             _hudCountdownText = EnsureTopStatusText(
                 panelTransform,
                 "CountdownText",

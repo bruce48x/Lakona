@@ -82,18 +82,6 @@ namespace SampleClient.Gameplay
                 : $"{metaState.PlayerId}   Level {metaState.Level}   XP {metaState.Experience}/{GetMetaNextLevelRequirement(metaState.Level)}   Coins {metaState.SoftCurrency}";
         }
 
-        public static string BuildMetaLobbyHighlights(DotArenaMetaState? metaState, bool isInMultiplayerLobby, SinglePlayerMatchPreset previewPreset)
-        {
-            if (metaState == null)
-            {
-                return string.Empty;
-            }
-
-            return isInMultiplayerLobby
-                ? "Ready to start matchmaking"
-                : $"Next preset: {DotArenaSinglePlayerCatalog.GetPresetLabel(previewPreset.MapVariant, previewPreset.RuleVariant)}";
-        }
-
         public static string BuildMetaProfileDetail(DotArenaMetaState? metaState, bool isInMultiplayerLobby, SinglePlayerMatchPreset previewPreset, DotArenaRewardSummary? lastRewardSummary)
         {
             if (metaState == null)
