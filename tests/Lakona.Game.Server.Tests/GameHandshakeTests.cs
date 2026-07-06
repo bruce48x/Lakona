@@ -1,4 +1,5 @@
 using Lakona.Game.Abstractions.Sessions;
+using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.Configuration;
@@ -16,7 +17,7 @@ public sealed class GameHandshakeTests
         var service = provider.GetRequiredService<IGameHandshakeService>();
 
         var hello = await service.HandshakeAsync(
-            new GameClientHello { ProtocolVersionMin = 1, ProtocolVersionMax = 1 },
+            new GameClientHello { ProtocolVersion = 1 },
             "websocket",
             "memorypack",
             CancellationToken.None);
@@ -36,7 +37,7 @@ public sealed class GameHandshakeTests
         var service = provider.GetRequiredService<IGameHandshakeService>();
 
         var hello = await service.HandshakeAsync(
-            new GameClientHello { ProtocolVersionMin = 1, ProtocolVersionMax = 1 },
+            new GameClientHello { ProtocolVersion = 1 },
             "websocket",
             "memorypack",
             CancellationToken.None);
@@ -45,6 +46,26 @@ public sealed class GameHandshakeTests
         Assert.Equal("immediate", hello.ReliablePush.DeliveryMode);
         Assert.False(hello.ReliablePush.AckRequired);
         Assert.False(hello.ReliablePush.ReplaySupported);
+    }
+
+    [Fact]
+    public async Task Handshake_rejects_unsupported_protocol_version()
+    {
+        var service = new GameHandshakeService(
+            new LakonaGameRuntimeOptions
+            {
+                Node = new LakonaGameNodeOptions { Id = "node-a" }
+            },
+            new ReliablePushOptions());
+
+        var exception = await Assert.ThrowsAsync<GameHandshakeRejectedException>(async () =>
+            await service.HandshakeAsync(
+                new GameClientHello { ProtocolVersion = 2 },
+                "kcp",
+                "memorypack",
+                TestContext.Current.CancellationToken));
+
+        Assert.Contains("protocol version 1", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]

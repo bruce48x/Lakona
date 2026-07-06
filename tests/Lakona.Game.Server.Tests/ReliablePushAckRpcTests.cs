@@ -188,9 +188,7 @@ public sealed class ReliablePushAckRpcTests
                     GameHandshakeRpcIds.HandshakeMethodId,
                     LakonaInternalCodec.EncodeGameClientHello(new GameClientHello
                     {
-                        ProtocolVersionMin = 1,
-                        ProtocolVersionMax = 1,
-                        ClientRuntime = "dotnet"
+                        ProtocolVersion = 1
                     }),
                     cancellationToken)
                 .AsTask()

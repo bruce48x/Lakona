@@ -26,7 +26,7 @@ public sealed class GameHandshakeService : IGameHandshakeService
         ArgumentNullException.ThrowIfNull(hello);
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (hello.ProtocolVersionMin > 1 || hello.ProtocolVersionMax < 1)
+        if (hello.ProtocolVersion != 1)
         {
             throw new GameHandshakeRejectedException(
                 "Client does not support Lakona game handshake protocol version 1.");

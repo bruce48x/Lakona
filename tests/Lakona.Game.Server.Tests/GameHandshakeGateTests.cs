@@ -65,9 +65,7 @@ public sealed class GameHandshakeGateTests
             var helloPayload = LakonaInternalCodec.EncodeGameClientHello(
                 new GameClientHello
                 {
-                    ProtocolVersionMin = 2,
-                    ProtocolVersionMax = 2,
-                    ClientRuntime = "dotnet"
+                    ProtocolVersion = 2
                 });
 
             var failure = await Assert.ThrowsAsync<RpcException>(async () =>
@@ -138,9 +136,7 @@ public sealed class GameHandshakeGateTests
             var helloPayload = LakonaInternalCodec.EncodeGameClientHello(
                 new GameClientHello
                 {
-                    ProtocolVersionMin = 1,
-                    ProtocolVersionMax = 1,
-                    ClientRuntime = "dotnet"
+                    ProtocolVersion = 1
                 });
 
             var failure = await Assert.ThrowsAsync<RpcException>(async () =>
@@ -210,9 +206,7 @@ public sealed class GameHandshakeGateTests
             var helloPayload = LakonaInternalCodec.EncodeGameClientHello(
                 new GameClientHello
                 {
-                    ProtocolVersionMin = 1,
-                    ProtocolVersionMax = 1,
-                    ClientRuntime = "dotnet"
+                    ProtocolVersion = 1
                 });
             using var _ = await client.CallRawAsync(
                     GameHandshakeRpcIds.ServiceId,
@@ -321,9 +315,7 @@ public sealed class GameHandshakeGateTests
             var helloPayload = LakonaInternalCodec.EncodeGameClientHello(
                 new GameClientHello
                 {
-                    ProtocolVersionMin = 1,
-                    ProtocolVersionMax = 1,
-                    ClientRuntime = "dotnet"
+                    ProtocolVersion = 1
                 });
             using var helloFrame = await client.CallRawAsync(
                     GameHandshakeRpcIds.ServiceId,
