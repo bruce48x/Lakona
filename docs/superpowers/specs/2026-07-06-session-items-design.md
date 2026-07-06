@@ -100,9 +100,12 @@ Hotfix dispatch should expose a snapshot for the current call:
 public GameSessionItems CurrentSessionItems { get; }
 ```
 
-`CurrentSessionItems` should be read-only in the call context. Mutation should
-go through `call.GameServer` so lifecycle validation and future diagnostics stay
-centralized.
+`CurrentSessionItems` should be an immutable per-dispatch snapshot captured
+before the hotfix method runs. Mutation should go through `call.GameServer` so
+lifecycle validation and future diagnostics stay centralized. A method that
+mutates an item and then needs the fresh value in the same call must use
+`GetSessionItemAsync` explicitly rather than relying on the dispatch snapshot to
+change under it.
 
 ## Data Flow
 
@@ -111,17 +114,22 @@ Realtime attach:
 1. `BattleService.AttachRealtimeAsync` validates player token, room id, match id,
    and runtime owner against `UserActor`.
 2. It starts the realtime game session.
-3. It writes session items such as `roomId`, `matchId`, and `runtimeNodeId`.
-4. It marks the room member ready through the local room actor.
+3. It marks the room member ready through the authoritative local room actor.
+4. After the authoritative room transition succeeds, it writes session items
+   such as `roomId`, `matchId`, realtime session id, and realtime session
+   generation. If any later attach step can still fail, the attach path must
+   either write items last or remove the items before returning a failed attach
+   reply.
 
 Realtime input:
 
 1. `BattleService.SubmitInputAsync` reads `playerId` from `call.CurrentSession`.
 2. It reads `roomId` from `call.CurrentSessionItems`.
-3. It forwards the input directly to the room actor without querying
+3. It reads the realtime session id and generation from `call.CurrentSessionItems`.
+4. It forwards the input directly to the room actor without querying
    `UserActor`.
-4. The room actor may still reject stale or unauthorized input using its own
-   membership state.
+5. The room actor rejects stale or unauthorized input using its own membership
+   state and the request's realtime session id/generation.
 
 ## Lifecycle
 
@@ -131,8 +139,8 @@ Session items are owned by the framework session registry and follow the
 - Created empty with the session.
 - Preserved across disconnect and resume while the same session generation is
   resumable.
-- Cleared on explicit termination unless terminal state is kept only for resume
-  diagnostics.
+- Cleared and inaccessible on explicit termination, including when
+  `KeepTerminalStateForResume` preserves the terminal resume outcome.
 - Cleared when disconnected sessions expire.
 - Never serialized to clients or exposed through shared RPC DTOs.
 - Never used as a framework uniqueness constraint.
@@ -146,9 +154,15 @@ Allowed examples:
 
 - `roomId`
 - `matchId`
-- `runtimeNodeId`
 - `sessionKind`
+- realtime session id and generation
 - membership or assignment generation numbers
+
+Cached session items must not bypass route freshness. A cached `roomId` may be
+used to select the actor key, but actor delivery should still use generated
+`Get(id)` route lookup unless a future design introduces validated node leases,
+epochs, and stale-route fallback. Do not use a cached node id as a durable
+placement authority.
 
 Forbidden examples:
 
@@ -181,9 +195,22 @@ Focused tests should cover:
 - Set, get, overwrite, and remove session items.
 - Items survive disconnect and successful resume.
 - Items are removed by expiration.
-- Items are removed or inaccessible after termination.
+- Items are removed or inaccessible after termination, including
+  `KeepTerminalStateForResume`.
+- Failed attach or rejected room-ready transitions do not leave stale session
+  items behind.
 - Hotfix service call context receives a current-session item snapshot.
+- Hotfix service call context snapshots are immutable for the duration of one
+  dispatch.
 - Missing current session produces an empty item snapshot.
+- Invalid keys are rejected: null, empty, whitespace-only, and overlong keys.
+- Key comparison is ordinal and case-sensitive.
+- Public value creation rejects unsupported types, including arbitrary objects,
+  mutable collections, callbacks, DI services, and hotfix-defined class
+  instances. `default(GameSessionItemValue)` or any unknown value kind is
+  rejected.
+- Source scans or focused tests confirm session items do not appear in shared
+  client DTOs, generated client code, MemoryPack contracts, or metric tags.
 - Agar realtime input no longer queries `UserActor` on the frame path after
   attach has populated items.
 
