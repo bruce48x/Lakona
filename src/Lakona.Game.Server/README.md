@@ -64,9 +64,9 @@ serializer under `Lakona:Cluster:Serializer`.
 Lakona emits logs, metrics, and traces through standard .NET diagnostics:
 `ILogger`, `Meter`, and `ActivitySource`.
 
-Development enables loopback local admin diagnostics by default. Production and
-Compose disable local admin by default unless
-`Lakona:Observability:LocalAdmin:Enabled` explicitly enables it.
+Local admin diagnostics are disabled by default. Enable them explicitly with
+`Lakona:Observability:LocalAdmin:Enabled=true` for processes that should expose
+the loopback diagnostics host.
 
 Diagnostics routes live under the loopback local admin host, including
 `/_lakona/diagnostics/summary`, `/_lakona/diagnostics/events`, and

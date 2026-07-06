@@ -145,8 +145,7 @@ public sealed class LakonaGameReadinessProbeTests
                 ["Lakona:Endpoints:0:Port"] = "20000",
                 ["Lakona:Endpoints:0:Path"] = "/ws",
                 ["Lakona:Observability:Logging:MinimumLevel"] = minimumLevel
-            },
-            "Production");
+            });
 
         var (exitCode, output, errors) = CaptureRun(
             runtime,
@@ -173,8 +172,7 @@ public sealed class LakonaGameReadinessProbeTests
                 ["Lakona:Endpoints:0:Port"] = "20000",
                 ["Lakona:Endpoints:0:Path"] = "/ws",
                 ["Lakona:Observability:Diagnostics:EventBuffer:Capacity"] = capacity
-            },
-            "Production");
+            });
 
         var (exitCode, output, errors) = CaptureRun(
             runtime,
@@ -201,8 +199,7 @@ public sealed class LakonaGameReadinessProbeTests
                 ["Lakona:Endpoints:0:Port"] = "20000",
                 ["Lakona:Endpoints:0:Path"] = "/ws",
                 ["Lakona:Observability:Tracing:Export:SampleRate"] = sampleRate
-            },
-            "Production");
+            });
 
         var (exitCode, output, errors) = CaptureRun(
             runtime,
@@ -215,22 +212,16 @@ public sealed class LakonaGameReadinessProbeTests
         Assert.Equal("", errors);
     }
 
-    [Theory]
-    [InlineData("Production", LakonaGameRuntimeProfile.Production)]
-    [InlineData("battle-1", LakonaGameRuntimeProfile.Production)]
-    public void Run_DoesNotEnableLocalAdminByDefaultForProductionOrNodeNamedProfiles(
-        string environmentName,
-        LakonaGameRuntimeProfile expectedProfile)
+    [Fact]
+    public void Run_DoesNotEnableLocalAdminByDefault()
     {
         var runtime = RuntimeFromConfiguration(
             new Dictionary<string, string?>
             {
                 ["Lakona:Observability:LocalAdmin:Host"] = "0.0.0.0",
                 ["Lakona:Observability:Diagnostics:DetailEnabled"] = "true"
-            },
-            environmentName);
+            });
 
-        Assert.Equal(expectedProfile, runtime.Profile);
         Assert.False(runtime.Observability.LocalAdmin.EffectiveEnabled);
 
         var (_, output, errors) = CaptureRun(
@@ -244,18 +235,15 @@ public sealed class LakonaGameReadinessProbeTests
     }
 
     [Fact]
-    public void Run_DoesNotEnableLocalAdminByDefaultForComposeProfile()
+    public void Run_DoesNotEnableLocalAdminByDefaultWhenLocalAdminHostIsConfigured()
     {
         var runtime = RuntimeFromConfiguration(
             new Dictionary<string, string?>
             {
-                ["Lakona:Profile"] = "Compose",
                 ["Lakona:Observability:LocalAdmin:Host"] = "0.0.0.0",
                 ["Lakona:Observability:Diagnostics:DetailEnabled"] = "true"
-            },
-            "Production");
+            });
 
-        Assert.Equal(LakonaGameRuntimeProfile.Compose, runtime.Profile);
         Assert.False(runtime.Observability.LocalAdmin.EffectiveEnabled);
 
         var (_, output, errors) = CaptureRun(
@@ -292,14 +280,13 @@ public sealed class LakonaGameReadinessProbeTests
     }
 
     private static LakonaGameRuntimeOptions RuntimeFromConfiguration(
-        Dictionary<string, string?> values,
-        string? environmentName)
+        Dictionary<string, string?> values)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(values)
             .Build();
 
-        return LakonaGameRuntimeOptions.FromConfiguration(configuration, environmentName);
+        return LakonaGameRuntimeOptions.FromConfiguration(configuration);
     }
 
     private static (int ExitCode, string Output, string Errors) CaptureRun(

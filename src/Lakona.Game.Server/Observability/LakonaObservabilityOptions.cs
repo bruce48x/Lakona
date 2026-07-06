@@ -1,5 +1,4 @@
 using Lakona.Game.Server.Configuration;
-using Lakona.Game.Server.Guardrails;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -13,9 +12,7 @@ public sealed class LakonaObservabilityOptions
     public LakonaMetricsObservabilityOptions Metrics { get; init; } = new();
     public LakonaTracingObservabilityOptions Tracing { get; init; } = new();
 
-    public static LakonaObservabilityOptions FromConfiguration(
-        IConfiguration configuration,
-        LakonaGameRuntimeProfile profile)
+    public static LakonaObservabilityOptions FromConfiguration(IConfiguration configuration)
     {
         var section = configuration.GetSection("Lakona:Observability");
 
@@ -23,8 +20,7 @@ public sealed class LakonaObservabilityOptions
         {
             Logging = LakonaLoggingObservabilityOptions.FromConfiguration(section.GetSection("Logging")),
             LocalAdmin = LakonaLocalAdminObservabilityOptions.FromConfiguration(
-                section.GetSection("LocalAdmin"),
-                profile),
+                section.GetSection("LocalAdmin")),
             Diagnostics = LakonaDiagnosticsObservabilityOptions.FromConfiguration(
                 section.GetSection("Diagnostics")),
             Metrics = LakonaMetricsObservabilityOptions.FromConfiguration(section.GetSection("Metrics")),
@@ -32,9 +28,9 @@ public sealed class LakonaObservabilityOptions
         };
     }
 
-    public static LakonaObservabilityOptions Defaults(LakonaGameRuntimeProfile profile)
+    public static LakonaObservabilityOptions Defaults()
     {
-        return FromConfiguration(new ConfigurationBuilder().Build(), profile);
+        return FromConfiguration(new ConfigurationBuilder().Build());
     }
 }
 
@@ -144,16 +140,14 @@ public sealed class LakonaLocalAdminObservabilityOptions
     public int Port { get; init; } = 20090;
     public bool RequireLoopback { get; init; } = true;
 
-    public static LakonaLocalAdminObservabilityOptions FromConfiguration(
-        IConfiguration section,
-        LakonaGameRuntimeProfile profile)
+    public static LakonaLocalAdminObservabilityOptions FromConfiguration(IConfiguration section)
     {
         var enabled = bool.TryParse(section["Enabled"], out var parsed) ? parsed : (bool?)null;
 
         return new LakonaLocalAdminObservabilityOptions
         {
             Enabled = enabled,
-            EffectiveEnabled = enabled ?? profile == LakonaGameRuntimeProfile.Development,
+            EffectiveEnabled = enabled ?? false,
             Host = LakonaConfigurationReader.ReadString(section, "Host", "127.0.0.1"),
             Port = LakonaConfigurationReader.ReadInt(section, "Port", 20090),
             RequireLoopback = LakonaConfigurationReader.ReadBool(section, "RequireLoopback", true)

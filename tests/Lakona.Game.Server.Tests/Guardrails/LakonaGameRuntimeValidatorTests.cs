@@ -51,7 +51,6 @@ public sealed class LakonaGameRuntimeValidatorTests
         Assert.Equal("dev-1", runtime.NodeId.Value);
         Assert.Equal("kcp", runtime.Endpoints[0].Transport.Value);
         Assert.Equal("Server.Hotfix.dll", runtime.Hotfix.AssemblyFileName.Value);
-        Assert.Equal(LakonaGameRuntimeProfile.Development, runtime.Profile);
     }
 
     [Fact]
@@ -388,8 +387,7 @@ public sealed class LakonaGameRuntimeValidatorTests
                 EventBufferCapacityRaw: new LakonaGameResolvedValue<string>("1024", LakonaGameValueSource.Default, "Lakona:Observability:Diagnostics:EventBuffer:Capacity"),
                 LoggingMinimumLevel: new LakonaGameResolvedValue<string>("Information", LakonaGameValueSource.Default, "Lakona:Observability:Logging:MinimumLevel"),
                 TraceSampleRate: new LakonaGameResolvedValue<double>(1.0, LakonaGameValueSource.Default, "Lakona:Observability:Tracing:Export:SampleRate"),
-                TraceSampleRateRaw: new LakonaGameResolvedValue<string>("1.0", LakonaGameValueSource.Default, "Lakona:Observability:Tracing:Export:SampleRate")),
-            Profile: LakonaGameRuntimeProfile.Development);
+                TraceSampleRateRaw: new LakonaGameResolvedValue<string>("1.0", LakonaGameValueSource.Default, "Lakona:Observability:Tracing:Export:SampleRate")));
     }
 
     private static LakonaGameResolvedEndpoint TestEndpoint(

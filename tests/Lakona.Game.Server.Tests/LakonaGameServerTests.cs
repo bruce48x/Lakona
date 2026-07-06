@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Lakona.Game.Abstractions;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
@@ -53,7 +54,7 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public void Hotfix_admin_options_default_to_development_mode_when_unconfigured()
+    public void Hotfix_admin_options_default_debug_watcher_to_off_when_unconfigured()
     {
         var configuration = new ConfigurationBuilder().Build();
         var method = typeof(Lakona.Game.Server.Hosting.LakonaGameServer).GetMethod(
@@ -63,7 +64,46 @@ public sealed class LakonaGameServerTests
         var options = Assert.IsType<HotfixAdminOptions>(
             method.Invoke(null, [configuration, AppContext.BaseDirectory, "test-build"]));
 
-        Assert.Equal("development", options.Mode);
+        Assert.Equal("Off", options.DebugWatcher);
+    }
+
+    [Fact]
+    public void Default_hotfix_registers_file_watcher_when_debug_watcher_is_on()
+    {
+        var services = new ServiceCollection();
+        var baseDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "LakonaDefaultHotfixWatcherTests",
+            Guid.NewGuid().ToString("N"));
+
+        ConfigureDefaultHotfix(services, baseDirectory, "On");
+
+        Assert.Contains(
+            services,
+            descriptor => descriptor.ServiceType == typeof(IHostedService)
+                && descriptor.ImplementationType == typeof(HotfixFileWatcherHostedService));
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<HotfixFileWatcherOptions>>().Value;
+        Assert.Equal(Path.Combine(baseDirectory, "hotfix"), options.Directory);
+        Assert.Equal("reload.signal", options.Filter);
+    }
+
+    [Fact]
+    public void Default_hotfix_does_not_register_file_watcher_when_debug_watcher_is_off()
+    {
+        var services = new ServiceCollection();
+        var baseDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "LakonaDefaultHotfixWatcherTests",
+            Guid.NewGuid().ToString("N"));
+
+        ConfigureDefaultHotfix(services, baseDirectory, "Off");
+
+        Assert.DoesNotContain(
+            services,
+            descriptor => descriptor.ServiceType == typeof(IHostedService)
+                && descriptor.ImplementationType == typeof(HotfixFileWatcherHostedService));
     }
 
     [Fact]
@@ -139,15 +179,12 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public void Runtime_options_binding_uses_host_environment_name()
+    public void Runtime_options_binding_uses_concrete_observability_defaults()
     {
         var configuration = new ConfigurationBuilder().Build();
 
-        var options = Lakona.Game.Server.Hosting.LakonaGameServer.CreateRuntimeOptionsForTesting(
-            configuration,
-            "Production");
+        var options = Lakona.Game.Server.Hosting.LakonaGameServer.CreateRuntimeOptionsForTesting(configuration);
 
-        Assert.Equal(Lakona.Game.Server.Guardrails.LakonaGameRuntimeProfile.Production, options.Profile);
         Assert.False(options.Observability.LocalAdmin.EffectiveEnabled);
     }
 
@@ -188,7 +225,7 @@ public sealed class LakonaGameServerTests
                         ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
                         ["Lakona:Endpoints:0:Port"] = "20000",
                         ["Lakona:Endpoints:0:Path"] = "/ws",
-                        ["Lakona:Hotfix:Admin:Mode"] = "development",
+                        ["Lakona:Hotfix:DebugWatcher"] = "On",
                         ["Lakona:Observability:Tracing:Export:Enabled"] = "true"
                     }));
                 server.AddServices(services =>
@@ -226,7 +263,7 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public async Task Startup_validation_accepts_default_development_hotfix_layout()
+    public async Task Startup_validation_accepts_debug_watcher_current_directory_hotfix_layout()
     {
         var baseDirectory = Path.Combine(
             Path.GetTempPath(),
@@ -251,7 +288,8 @@ public sealed class LakonaGameServerTests
                                 ["Lakona:Endpoints:0:Serializer"] = "json",
                                 ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
                                 ["Lakona:Endpoints:0:Port"] = "20000",
-                                ["Lakona:Endpoints:0:Path"] = "/ws"
+                                ["Lakona:Endpoints:0:Path"] = "/ws",
+                                ["Lakona:Hotfix:DebugWatcher"] = "On"
                             }));
                     },
                     baseDirectory));
@@ -268,7 +306,7 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public async Task Readiness_context_accepts_production_hotfix_version_pointer_layout()
+    public async Task Readiness_context_accepts_default_hotfix_version_pointer_layout()
     {
         var baseDirectory = Path.Combine(
             Path.GetTempPath(),
@@ -295,8 +333,7 @@ public sealed class LakonaGameServerTests
                             ["Lakona:Endpoints:0:Serializer"] = "json",
                             ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
                             ["Lakona:Endpoints:0:Port"] = "20000",
-                            ["Lakona:Endpoints:0:Path"] = "/ws",
-                            ["Lakona:Hotfix:Admin:Mode"] = "production"
+                            ["Lakona:Endpoints:0:Path"] = "/ws"
                         }));
                 },
                 baseDirectory);
@@ -338,7 +375,7 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public async Task Readiness_context_rejects_invalid_production_hotfix_pointer_with_stale_dev_dll()
+    public async Task Readiness_context_rejects_invalid_default_hotfix_pointer_with_stale_debug_dll()
     {
         var baseDirectory = Path.Combine(
             Path.GetTempPath(),
@@ -363,8 +400,7 @@ public sealed class LakonaGameServerTests
                                 ["Lakona:Endpoints:0:Serializer"] = "json",
                                 ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
                                 ["Lakona:Endpoints:0:Port"] = "20000",
-                                ["Lakona:Endpoints:0:Path"] = "/ws",
-                                ["Lakona:Hotfix:Admin:Mode"] = "production"
+                                ["Lakona:Endpoints:0:Path"] = "/ws"
                             }));
                     },
                     baseDirectory));
@@ -400,7 +436,7 @@ public sealed class LakonaGameServerTests
                             ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
                             ["Lakona:Endpoints:0:Port"] = "20000",
                             ["Lakona:Endpoints:0:Path"] = "/ws",
-                            ["Lakona:Hotfix:Admin:Mode"] = "development",
+                            ["Lakona:Hotfix:DebugWatcher"] = "On",
                             ["Lakona:Observability:Tracing:Export:Enabled"] = "true"
                         }));
                 }));
@@ -411,7 +447,7 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public async Task Startup_validation_accepts_production_hotfix_version_pointer_layout()
+    public async Task Startup_validation_accepts_default_hotfix_version_pointer_layout()
     {
         var baseDirectory = Path.Combine(
             Path.GetTempPath(),
@@ -439,8 +475,7 @@ public sealed class LakonaGameServerTests
                                 ["Lakona:Endpoints:0:Serializer"] = "json",
                                 ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
                                 ["Lakona:Endpoints:0:Port"] = "20000",
-                                ["Lakona:Endpoints:0:Path"] = "/ws",
-                                ["Lakona:Hotfix:Admin:Mode"] = "production"
+                                ["Lakona:Endpoints:0:Path"] = "/ws"
                             }));
                     },
                     baseDirectory));
@@ -457,7 +492,7 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public async Task Startup_validation_rejects_invalid_production_hotfix_pointer_with_stale_dev_dll()
+    public async Task Startup_validation_rejects_invalid_default_hotfix_pointer_with_stale_debug_dll()
     {
         var baseDirectory = Path.Combine(
             Path.GetTempPath(),
@@ -482,8 +517,7 @@ public sealed class LakonaGameServerTests
                             ["Lakona:Endpoints:0:Serializer"] = "json",
                             ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
                             ["Lakona:Endpoints:0:Port"] = "20000",
-                            ["Lakona:Endpoints:0:Path"] = "/ws",
-                            ["Lakona:Hotfix:Admin:Mode"] = "production"
+                            ["Lakona:Endpoints:0:Path"] = "/ws"
                         }));
                     },
                     baseDirectory));
@@ -504,9 +538,7 @@ public sealed class LakonaGameServerTests
     {
         var services = new ServiceCollection();
         var configuration = new ConfigurationBuilder().Build();
-        var runtime = Lakona.Game.Server.Hosting.LakonaGameServer.CreateRuntimeOptionsForTesting(
-            configuration,
-            "Production");
+        var runtime = Lakona.Game.Server.Hosting.LakonaGameServer.CreateRuntimeOptionsForTesting(configuration);
 
         services.AddSingleton(runtime);
         Lakona.Game.Server.Hosting.LakonaGameServer.DiscoverStableFeaturesForTesting(
@@ -519,7 +551,6 @@ public sealed class LakonaGameServerTests
         var resolved = provider.GetRequiredService<LakonaGameRuntimeOptions>();
 
         Assert.Same(runtime, resolved);
-        Assert.Equal(Lakona.Game.Server.Guardrails.LakonaGameRuntimeProfile.Production, resolved.Profile);
     }
 
     [Fact]
@@ -1297,6 +1328,28 @@ public sealed class LakonaGameServerTests
         var hotfixPath = Path.Combine(AppContext.BaseDirectory, "hotfix", "Server.Hotfix.dll");
         Directory.CreateDirectory(Path.GetDirectoryName(hotfixPath)!);
         File.WriteAllText(hotfixPath, "");
+    }
+
+    private static void ConfigureDefaultHotfix(
+        IServiceCollection services,
+        string baseDirectory,
+        string debugWatcher)
+    {
+        var method = typeof(Lakona.Game.Server.Hosting.LakonaGameServer).GetMethod(
+            "ConfigureDefaultHotfix",
+            BindingFlags.NonPublic | BindingFlags.Static)!;
+        method.Invoke(
+            null,
+            [
+                services,
+                baseDirectory,
+                new HotfixAdminOptions
+                {
+                    DebugWatcher = debugWatcher,
+                    HotfixRoot = Path.Combine(baseDirectory, "hotfix"),
+                    BuildTag = "test"
+                }
+            ]);
     }
 
     private sealed record ConfiguredValue(string Value);

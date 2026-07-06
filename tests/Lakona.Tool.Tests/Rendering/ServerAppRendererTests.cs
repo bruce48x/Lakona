@@ -163,6 +163,8 @@ public sealed class ServerAppRendererTests
             .GetProperty("Cleanup");
         Assert.Equal(30, cleanup.GetProperty("DisconnectedRetentionSeconds").GetInt32());
         Assert.False(cleanup.TryGetProperty("Enabled", out _));
+        var hotfix = lakona.GetProperty("Hotfix");
+        Assert.Equal("On", hotfix.GetProperty("DebugWatcher").GetString());
         Assert.DoesNotContain("Enabled", appsettings, StringComparison.Ordinal);
         Assert.DoesNotContain("Bootstrap", appsettings, StringComparison.Ordinal);
     }

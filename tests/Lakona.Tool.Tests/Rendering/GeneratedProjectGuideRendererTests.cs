@@ -206,6 +206,8 @@ public sealed class GeneratedProjectGuideRendererTests
         Assert.Contains("Server/App/    Stable server host, actor state shells, configuration", readme.Content, StringComparison.Ordinal);
         Assert.Contains("Server/Hotfix/ Reloadable services, actor behaviors, lifecycle reactions, feature declarations", readme.Content, StringComparison.Ordinal);
         Assert.Contains("Hotfix feature declaration ensures the fixed local ChatRoomActor exists", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("Lakona:Hotfix:DebugWatcher=On", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("reload.signal", readme.Content, StringComparison.Ordinal);
         Assert.DoesNotContain("stable Server/App service binding", readme.Content, StringComparison.Ordinal);
         Assert.DoesNotContain("actor state, host binding, runtime integration", readme.Content, StringComparison.Ordinal);
     }

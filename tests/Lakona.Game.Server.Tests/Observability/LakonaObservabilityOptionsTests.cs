@@ -1,6 +1,4 @@
 using Lakona.Game.Server.Configuration;
-using Lakona.Game.Server.Guardrails;
-using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Observability;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,26 +11,19 @@ namespace Lakona.Game.Server.Tests.Observability;
 
 public sealed class LakonaObservabilityOptionsTests
 {
-    [Theory]
-    [InlineData(LakonaGameRuntimeProfile.Development, true)]
-    [InlineData(LakonaGameRuntimeProfile.Compose, false)]
-    [InlineData(LakonaGameRuntimeProfile.Production, false)]
-    public void LocalAdmin_default_effective_enablement_is_development_only(
-        LakonaGameRuntimeProfile profile,
-        bool expectedEnabled)
+    [Fact]
+    public void LocalAdmin_default_effective_enablement_is_disabled_when_unconfigured()
     {
-        var options = LakonaObservabilityOptions.FromConfiguration(BuildConfiguration([]), profile);
+        var options = LakonaObservabilityOptions.FromConfiguration(BuildConfiguration([]));
 
         Assert.Null(options.LocalAdmin.Enabled);
-        Assert.Equal(expectedEnabled, options.LocalAdmin.EffectiveEnabled);
+        Assert.False(options.LocalAdmin.EffectiveEnabled);
     }
 
     [Fact]
     public void FromConfiguration_uses_operational_defaults()
     {
-        var options = LakonaObservabilityOptions.FromConfiguration(
-            BuildConfiguration([]),
-            LakonaGameRuntimeProfile.Development);
+        var options = LakonaObservabilityOptions.FromConfiguration(BuildConfiguration([]));
 
         Assert.True(options.Logging.Enabled);
         Assert.Equal(LogLevel.Information, options.Logging.MinimumLevel);
@@ -57,6 +48,7 @@ public sealed class LakonaObservabilityOptionsTests
         Assert.Equal("127.0.0.1", options.LocalAdmin.Host);
         Assert.Equal(20090, options.LocalAdmin.Port);
         Assert.True(options.LocalAdmin.RequireLoopback);
+        Assert.False(options.LocalAdmin.EffectiveEnabled);
 
         Assert.False(options.Diagnostics.DetailEnabled);
         Assert.True(options.Diagnostics.EventBuffer.Enabled);
@@ -111,9 +103,7 @@ public sealed class LakonaObservabilityOptionsTests
             ["Lakona:Observability:Tracing:Export:SampleRate"] = "0.25"
         });
 
-        var options = LakonaObservabilityOptions.FromConfiguration(
-            configuration,
-            LakonaGameRuntimeProfile.Production);
+        var options = LakonaObservabilityOptions.FromConfiguration(configuration);
 
         Assert.False(options.Logging.Enabled);
         Assert.Equal(LogLevel.Debug, options.Logging.MinimumLevel);
@@ -155,9 +145,7 @@ public sealed class LakonaObservabilityOptionsTests
             ["Lakona:Observability:Logging:Categories:Lakona.Game.Custom"] = "InvalidLevel"
         });
 
-        var options = LakonaObservabilityOptions.FromConfiguration(
-            configuration,
-            LakonaGameRuntimeProfile.Production);
+        var options = LakonaObservabilityOptions.FromConfiguration(configuration);
 
         Assert.Equal(LogLevel.Warning, options.Logging.MinimumLevel);
         Assert.Equal("Warning", options.Logging.MinimumLevelRaw);
@@ -266,9 +254,7 @@ public sealed class LakonaObservabilityOptionsTests
             ["Lakona:Observability:Logging:MinimumLevel"] = minimumLevel
         });
 
-        var options = LakonaObservabilityOptions.FromConfiguration(
-            configuration,
-            LakonaGameRuntimeProfile.Production);
+        var options = LakonaObservabilityOptions.FromConfiguration(configuration);
 
         Assert.Equal(LogLevel.Information, options.Logging.MinimumLevel);
         Assert.Equal(minimumLevel, options.Logging.MinimumLevelRaw);
@@ -288,9 +274,7 @@ public sealed class LakonaObservabilityOptionsTests
                 ["Lakona:Observability:Tracing:Export:SampleRate"] = "0.25"
             });
 
-            var options = LakonaObservabilityOptions.FromConfiguration(
-                configuration,
-                LakonaGameRuntimeProfile.Production);
+            var options = LakonaObservabilityOptions.FromConfiguration(configuration);
 
             Assert.Equal(0.25, options.Tracing.Export.SampleRate);
         }
@@ -301,86 +285,12 @@ public sealed class LakonaObservabilityOptionsTests
         }
     }
 
-    [Theory]
-    [InlineData(null, LakonaGameRuntimeProfile.Development)]
-    [InlineData("", LakonaGameRuntimeProfile.Development)]
-    [InlineData("Development", LakonaGameRuntimeProfile.Development)]
-    [InlineData("Compose", LakonaGameRuntimeProfile.Compose)]
-    [InlineData("Production", LakonaGameRuntimeProfile.Production)]
-    [InlineData("battle-1", LakonaGameRuntimeProfile.Production)]
-    public void ProfileResolver_maps_host_environment_names(
-        string? environmentName,
-        LakonaGameRuntimeProfile expectedProfile)
-    {
-        var profile = LakonaGameRuntimeProfileResolver.Resolve(BuildConfiguration([]), environmentName);
-
-        Assert.Equal(expectedProfile, profile);
-    }
-
     [Fact]
-    public void ProfileResolver_lets_configuration_override_host_environment_name()
-    {
-        var configuration = BuildConfiguration(new Dictionary<string, string?>
-        {
-            ["Lakona:Profile"] = "Compose"
-        });
-
-        var profile = LakonaGameRuntimeProfileResolver.Resolve(configuration, "Production");
-
-        Assert.Equal(LakonaGameRuntimeProfile.Compose, profile);
-    }
-
-    [Fact]
-    public void ProfileResolver_rejects_invalid_configured_profile()
-    {
-        var configuration = BuildConfiguration(new Dictionary<string, string?>
-        {
-            ["Lakona:Profile"] = "staging"
-        });
-
-        var ex = Assert.Throws<InvalidOperationException>(() =>
-            LakonaGameRuntimeProfileResolver.Resolve(configuration, "Development"));
-
-        Assert.Contains("Lakona:Profile", ex.Message, StringComparison.Ordinal);
-        Assert.Contains("Development, Compose, or Production", ex.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void ProfileResolver_rejects_numeric_configured_profile()
-    {
-        var configuration = BuildConfiguration(new Dictionary<string, string?>
-        {
-            ["Lakona:Profile"] = "1"
-        });
-
-        var ex = Assert.Throws<InvalidOperationException>(() =>
-            LakonaGameRuntimeProfileResolver.Resolve(configuration, "Development"));
-
-        Assert.Contains("Lakona:Profile", ex.Message, StringComparison.Ordinal);
-        Assert.Contains("Development, Compose, or Production", ex.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void RuntimeOptions_carry_profile_and_observability()
-    {
-        var configuration = BuildConfiguration(new Dictionary<string, string?>
-        {
-            ["Lakona:Profile"] = "Production"
-        });
-
-        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration, "Development");
-
-        Assert.Equal(LakonaGameRuntimeProfile.Production, options.Profile);
-        Assert.False(options.Observability.LocalAdmin.EffectiveEnabled);
-    }
-
-    [Fact]
-    public void RuntimeOptions_default_constructor_uses_development_observability_defaults()
+    public void RuntimeOptions_default_constructor_uses_operational_observability_defaults()
     {
         var options = new LakonaGameRuntimeOptions();
 
-        Assert.Equal(LakonaGameRuntimeProfile.Development, options.Profile);
-        Assert.True(options.Observability.LocalAdmin.EffectiveEnabled);
+        Assert.False(options.Observability.LocalAdmin.EffectiveEnabled);
     }
 
     [Fact]

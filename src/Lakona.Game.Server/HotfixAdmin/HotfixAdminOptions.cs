@@ -6,5 +6,5 @@ public sealed class HotfixAdminOptions
 
     public string BuildTag { get; set; } = "";
 
-    public string Mode { get; set; } = "development";
+    public string DebugWatcher { get; set; } = "Off";
 }

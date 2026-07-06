@@ -39,7 +39,7 @@ public static class LakonaGameServer
         configure(serverBuilder);
         serverBuilder.ApplyConfigurationToHostBuilder();
 
-        var runtimeOptions = CreateRuntimeOptions(builder.Configuration, builder.Environment.EnvironmentName);
+        var runtimeOptions = CreateRuntimeOptions(builder.Configuration);
 
         if (args.Contains("--liveness-check", StringComparer.Ordinal))
         {
@@ -161,9 +161,7 @@ public static class LakonaGameServer
         configure(serverBuilder);
         serverBuilder.ApplyToHostBuilder();
 
-        var runtimeOptions = CreateRuntimeOptions(
-            builder.Configuration,
-            builder.Environment.EnvironmentName);
+        var runtimeOptions = CreateRuntimeOptions(builder.Configuration);
         var clusterOptions = TryBuildClusterOptions(runtimeOptions, builder.Configuration);
 
         using var provider = builder.Services.BuildServiceProvider();
@@ -200,10 +198,9 @@ public static class LakonaGameServer
     }
 
     internal static LakonaGameRuntimeOptions CreateRuntimeOptionsForTesting(
-        IConfiguration configuration,
-        string? environmentName)
+        IConfiguration configuration)
     {
-        return CreateRuntimeOptions(configuration, environmentName);
+        return CreateRuntimeOptions(configuration);
     }
 
     internal static Task<LakonaGameReadinessContext> CreateReadinessContextForTesting(
@@ -230,9 +227,7 @@ public static class LakonaGameServer
         configure(serverBuilder);
         serverBuilder.ApplyConfigurationToHostBuilder();
 
-        return CreateRuntimeOptions(
-            builder.Configuration,
-            builder.Environment.EnvironmentName);
+        return CreateRuntimeOptions(builder.Configuration);
     }
 
     internal static Task ValidateStartupRuntimeForTesting(
@@ -252,9 +247,7 @@ public static class LakonaGameServer
         configure(serverBuilder);
         serverBuilder.ApplyConfigurationToHostBuilder();
 
-        var runtimeOptions = CreateRuntimeOptions(
-            builder.Configuration,
-            builder.Environment.EnvironmentName);
+        var runtimeOptions = CreateRuntimeOptions(builder.Configuration);
 
         builder.Services.AddLakonaGameServer(builder.Configuration);
         builder.Services.AddSingleton(runtimeOptions);
@@ -339,11 +332,9 @@ public static class LakonaGameServer
         return resolved.AssemblyPath;
     }
 
-    private static LakonaGameRuntimeOptions CreateRuntimeOptions(
-        IConfiguration configuration,
-        string? environmentName)
+    private static LakonaGameRuntimeOptions CreateRuntimeOptions(IConfiguration configuration)
     {
-        return LakonaGameRuntimeOptions.FromConfiguration(configuration, environmentName);
+        return LakonaGameRuntimeOptions.FromConfiguration(configuration);
     }
 
     public static async Task LoadInitialHotfixAsync(IHost host)
@@ -574,7 +565,7 @@ public static class LakonaGameServer
             baseDirectory,
             new HotfixAdminOptions
             {
-                Mode = "production",
+                DebugWatcher = "Off",
                 HotfixRoot = Path.Combine(baseDirectory, "hotfix"),
                 BuildTag = buildTag
             });
@@ -585,8 +576,17 @@ public static class LakonaGameServer
         string baseDirectory,
         HotfixAdminOptions adminOptions)
     {
+        var hotfixDirectory = Path.Combine(baseDirectory, "hotfix");
         var source = CreateDefaultHotfixAssemblySource(baseDirectory, adminOptions);
         services.AddLakonaGameHotfix(source, sharedAssemblyNames: GetDefaultHotfixSharedAssemblyNames());
+        if (IsDebugWatcherEnabled(adminOptions))
+        {
+            services.AddLakonaGameHotfixFileWatcher(options =>
+            {
+                options.Directory = hotfixDirectory;
+                options.Filter = "reload.signal";
+            });
+        }
     }
 
     internal static IHotfixAssemblySource CreateDefaultHotfixAssemblySourceForTesting(
@@ -601,9 +601,9 @@ public static class LakonaGameServer
         HotfixAdminOptions adminOptions)
     {
         var hotfixDirectory = Path.Combine(baseDirectory, "hotfix");
-        return adminOptions.Mode.Equals("production", StringComparison.OrdinalIgnoreCase)
-            ? new VersionPointerHotfixAssemblySource(hotfixDirectory, "current.txt", "Server.Hotfix.dll")
-            : new CurrentDirectoryHotfixAssemblySource(hotfixDirectory, "Server.Hotfix.dll");
+        return IsDebugWatcherEnabled(adminOptions)
+            ? new CurrentDirectoryHotfixAssemblySource(hotfixDirectory, "Server.Hotfix.dll")
+            : new VersionPointerHotfixAssemblySource(hotfixDirectory, "current.txt", "Server.Hotfix.dll");
     }
 
     private static HotfixAdminOptions CreateDefaultHotfixAdminOptions(
@@ -612,7 +612,7 @@ public static class LakonaGameServer
         string buildTag)
     {
         var options = new HotfixAdminOptions();
-        var section = configuration.GetSection("Lakona:Hotfix:Admin");
+        var section = configuration.GetSection("Lakona:Hotfix");
         section.Bind(options);
         options.HotfixRoot = Path.Combine(baseDirectory, "hotfix");
         options.BuildTag = buildTag;
@@ -623,6 +623,11 @@ public static class LakonaGameServer
     {
         target.HotfixRoot = source.HotfixRoot;
         target.BuildTag = source.BuildTag;
-        target.Mode = source.Mode;
+        target.DebugWatcher = source.DebugWatcher;
+    }
+
+    private static bool IsDebugWatcherEnabled(HotfixAdminOptions options)
+    {
+        return options.DebugWatcher.Equals("On", StringComparison.OrdinalIgnoreCase);
     }
 }

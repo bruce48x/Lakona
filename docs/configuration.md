@@ -15,12 +15,11 @@ documented in [cluster.md](cluster.md).
 
 Supported top-level keys under `Lakona`:
 
-- `Profile`: optional runtime profile override. Supported values are
-  `Development`, `Compose`, and `Production`.
 - `Node`: required node identity.
 - `Feature`: optional array selecting discovered `LakonaGameFeature` names.
 - `Endpoints`: optional array of client-facing RPC listeners.
 - `Cluster`: optional node-to-node cluster settings.
+- `Hotfix`: optional hotfix loading, reload, and local-admin operation settings.
 - `Sessions`: optional framework session cleanup and retention settings.
 - `ReliablePush`: optional reliable push settings.
 - `Observability`: optional framework logging, local admin, framework
@@ -87,6 +86,10 @@ extracted server package directory. Operators may place
 `appsettings.battle-1.json` there during deployment, or package it from their
 deployment project if that project intentionally owns environment-specific
 files.
+
+Lakona does not map `DOTNET_ENVIRONMENT` to a framework runtime mode.
+Environment names select configuration files; concrete `Lakona:*` keys decide
+runtime behavior.
 
 ## Environment Variables
 
@@ -471,6 +474,36 @@ current hotfix feature command table. Advanced hosts may replace the stable
 `IFeatureMessageHandler`, but that replacement owns the whole low-level feature
 message surface.
 
+## Hotfix
+
+Generated projects use hotfix as the normal game-business-code loading model.
+Hotfix loading and reload behavior is controlled by hotfix-specific
+configuration, not by a broad runtime profile.
+
+`Lakona:Hotfix:DebugWatcher` is optional and defaults to `Off`:
+
+- `On` loads `hotfix/Server.Hotfix.dll` from the current app output hotfix
+  directory and registers a `reload.signal` watcher for local iteration.
+- `Off` or an omitted value loads from
+  `hotfix/versions/<version>/Server.Hotfix.dll` through the
+  `hotfix/current.txt` version pointer and does not register a file watcher.
+
+Generated `Server.Hotfix` projects write `reload.signal` after copying hotfix
+build output. Hosts with `DebugWatcher=On` watch that signal file, not the DLL,
+so they do not reload partially copied output.
+
+Example local debug watcher configuration:
+
+```json
+{
+  "Lakona": {
+    "Hotfix": {
+      "DebugWatcher": "On"
+    }
+  }
+}
+```
+
 ## Reliable Push
 
 Reliable push is enabled by default as part of the Lakona game runtime. The
@@ -502,19 +535,23 @@ loopback local admin host, event buffering, diagnostics detail guardrails,
 metrics endpoint exposure, and tracing export.
 
 `Lakona:Observability:LocalAdmin:Enabled` is optional. When it is omitted, the
-default comes from the resolved `Lakona:Profile`, not directly from the raw
-`DOTNET_ENVIRONMENT` string:
+framework default is disabled. Enable local admin explicitly when a process
+should expose it:
 
-- `Development` enables the loopback local admin host by default.
-- `Compose` and `Production` disable it by default.
-- any profile may explicitly set `LocalAdmin:Enabled`, but enabled local admin
-  must bind to loopback unless `RequireLoopback` is intentionally disabled for a
-  trusted local environment.
+```json
+{
+  "Lakona": {
+    "Observability": {
+      "LocalAdmin": {
+        "Enabled": true
+      }
+    }
+  }
+}
+```
 
-`Lakona:Profile` may override the host environment name. If `Lakona:Profile` is
-omitted, the host maps `DOTNET_ENVIRONMENT=Development` to `Development`,
-`DOTNET_ENVIRONMENT=Compose` to `Compose`, and other environment names to
-`Production`.
+Enabled local admin must bind to loopback unless `RequireLoopback` is
+intentionally disabled for a trusted local environment.
 
 When local admin is enabled, the framework registers safe core diagnostics
 routes on the local admin host, including `/_lakona/diagnostics/summary`,
@@ -529,7 +566,6 @@ Example:
 ```json
 {
   "Lakona": {
-    "Profile": "Development",
     "Node": {
       "Id": "dev-1"
     },

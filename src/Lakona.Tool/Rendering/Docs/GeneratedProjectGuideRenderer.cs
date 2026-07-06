@@ -107,7 +107,9 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 
         Cluster, hotfix, and reliable push are part of the generated default model.
 
-        `Server/App/appsettings.json` intentionally contains only compact source values.
+        `Server/App/appsettings.json` intentionally contains only compact source
+        values. Its `Lakona:Hotfix:DebugWatcher=On` setting makes local
+        `Server/Hotfix` rebuilds reload through `reload.signal`.
 
         Derived runtime state is shown through the `--readiness-check` command.
 

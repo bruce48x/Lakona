@@ -118,6 +118,11 @@ Selector semantics:
 - `Remote(nodeId, id)` sends to the specified node and does not query
   placement.
 
+Generated actor collections are call selectors only. They must not expose
+lifecycle helpers such as `SpawnAsync`, `DestroyAsync`, or hidden hook-based
+creation methods. Actor hosting is a separate operation owned by
+`ActorHosting`.
+
 The business method surface should return normally or throw typed actor call
 exceptions. Lower-level status-returning APIs remain available for framework
 internals and boundary services.
@@ -184,9 +189,9 @@ room/room-456
 leaderboard/current
 ```
 
-The actor lifecycle service owns route registration for actors it creates. User
-code should not separately publish an actor route for a local actor created
-through framework lifecycle APIs.
+`ActorHosting` owns route registration for actors it creates. User code should
+not separately publish an actor route for a local actor created through
+framework lifecycle APIs.
 
 ## Failure Model
 
@@ -263,6 +268,11 @@ exposed through `ActorHosting.CreateAsync`, `ActorHosting.EnsureAsync`, and
 `ActorHosting.DestroyAsync`. `AskAsync`, `TellAsync`, generated actor refs, and
 timer callbacks do not create actors.
 
+`ActorHosting` is the only public actor lifecycle entry point. It owns the
+transaction across local actor activation, `ActorDirectory`, and
+`ActorDirectoryCache`. User code should not separately publish or clear actor
+routes for actors created through `ActorHosting`.
+
 Cross-node creation is a feature command to the owning feature; the owning
 feature calls `ActorHosting` on its own node.
 
@@ -272,6 +282,27 @@ business behavior through generated actor refs, not keep sending every actor
 method through the feature command handler. Raw `IActorRuntime.AskAsync` and
 `TellAsync` remain framework-level escape hatches.
 
+Lifecycle method semantics:
+
+- `CreateAsync<TActor>` is strict. It fails if the actor id is already hosted
+  locally, if the local id belongs to a different actor type, or if the
+  directory reports an owner on another node.
+- `EnsureAsync<TActor>` is idempotent only for an active local actor of exactly
+  the requested type. It still fails for type mismatch, non-active local state,
+  or a remote directory owner.
+- `DestroyAsync<TActor>` is current-node cleanup. It is successful when the
+  actor and local route are already absent, but it must not delete a route owned
+  by another node or stop a local actor of a different type.
+- `[ActorLocalOnly]` actors skip directory and cache work. Distributed actors
+  publish or clear current-node routes as part of the hosting transaction.
+
+Hosting failures are typed exceptions derived from `ActorHostingException`.
+Important cases include `ActorAlreadyHostedException`,
+`ActorHostingTypeMismatchException`, `ActorHostedElsewhereException`,
+`ActorDirectoryUnavailableException`, and `ActorHostingStopException`.
+Actor call exceptions remain separate; they describe failed calls to already
+selected actors, not actor lifecycle operations.
+
 Missing actor behavior is deterministic:
 
 - `AskAsync`, `TellAsync`, and generated actor refs return or throw structured
@@ -280,14 +311,17 @@ Missing actor behavior is deterministic:
   diagnostics when the actor is missing.
 - no normal actor call path implicitly creates the actor.
 
-Destroy order is:
+Distributed actor destroy order is:
 
 ```txt
-draining -> drain mailbox -> deactivate -> remove local actor -> unregister route
+remove local route/cache -> drain mailbox -> deactivate -> remove local actor
 ```
 
-Failure to unregister a route is a routing/diagnostic problem; it does not
-resurrect a destroyed actor or keep it callable in the local runtime.
+Removing the route first stops new routing to the current node before the local
+actor drains. If local stop fails after route removal, `ActorHosting` best-effort
+restores the local route/cache before throwing. If another node owns the route,
+`DestroyAsync` leaves that route intact and only removes stale current-node
+cache/local actor state for the requested type.
 
 ## Timers
 

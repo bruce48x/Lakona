@@ -233,7 +233,10 @@ hotfix: failed local build output not found
 fix: dotnet build Server/Hotfix/Server.Hotfix.csproj
 ```
 
-The check output is where generated projects explain the framework state. The configuration file remains small and focused on source values.
+Generated local configuration should set `Lakona:Hotfix:DebugWatcher=On` so
+`reload.signal` rebuilds reload the current output directory. The check output
+is where generated projects explain the framework state. The configuration file
+remains small and focused on source values.
 
 ## CLI Direction
 

@@ -128,8 +128,10 @@ var result = await users
 
 Hotfix feature descriptors configure feature services and command handlers.
 Feature-owned startup actors are created from lifecycle hooks through the
-current-node `ActorHosting` entry point. Periodic work is created through the
-stable timer entry point:
+current-node `ActorHosting` entry point. Use `CreateAsync`, not `EnsureAsync`,
+for feature-owned startup actors so a feature does not silently claim and later
+destroy an actor created by another feature or service. Periodic work is
+created through the stable timer entry point:
 
 ```csharp
 [HotfixFeature("battle-runtime")]
@@ -177,6 +179,10 @@ public sealed record BattleRuntimeTick(string QueueId);
 Feature `StopAsync` should destroy timers even if the stop request token has
 already been canceled. Use a noncancelable cleanup token, such as
 `CancellationToken.None`, when deleting feature-owned timers.
+
+Feature-owned startup actors are lifecycle resources and should be destroyed
+from `StopAsync` with noncancelable cleanup when ownership has been recorded in
+`HotfixFeatureState`.
 
 The timer scheduler supplies stable context and resolves callbacks against the
 current hotfix behavior table. Stable App code does not validate passwords,

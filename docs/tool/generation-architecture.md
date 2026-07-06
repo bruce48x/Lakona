@@ -665,6 +665,16 @@ methods. The Chat feature starts its room actor with:
         .CreateAsync<ChatRoomActor>(ActorId.From("chat-room/global"), call.CancellationToken);
 ```
 
+Generated actor collections are selector surfaces only. They must expose
+behavior-first `Get`, `Local`, and `Remote` accessors where applicable, and must
+not generate actor lifecycle methods such as `SpawnAsync` or `DestroyAsync`.
+Generated projects must not emit `HotfixFeatureContext.EnsureLocalActor` or
+other parallel actor creation paths.
+
+Single-node local generation emits `Lakona:Hotfix:DebugWatcher=On` so rebuilds
+of `Server/Hotfix` use the current output directory and trigger reload through
+`reload.signal`.
+
 Default local generation must not emit these keys:
 
 - `Cluster.Enabled`

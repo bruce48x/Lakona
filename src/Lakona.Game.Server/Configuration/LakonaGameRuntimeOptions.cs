@@ -1,6 +1,4 @@
 using System.Text.Json;
-using Lakona.Game.Server.Guardrails;
-using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Observability;
 using Microsoft.Extensions.Configuration;
 
@@ -11,9 +9,9 @@ namespace Lakona.Game.Server.Configuration;
 /// </summary>
 /// <remarks>
 /// These options describe the node identity, client-facing endpoints, feature
-/// selection, cluster endpoint, runtime profile, and observability settings for
-/// one server process. <see cref="LakonaGameServer"/> binds this type during
-/// startup.
+/// selection, cluster endpoint, and observability settings for one server
+/// process. <see cref="Lakona.Game.Server.Hosting.LakonaGameServer"/> binds
+/// this type during startup.
 /// </remarks>
 public sealed class LakonaGameRuntimeOptions
 {
@@ -47,28 +45,19 @@ public sealed class LakonaGameRuntimeOptions
     public LakonaGameClusterOptions? Cluster { get; init; }
 
     /// <summary>
-    /// Gets the resolved runtime profile that controls framework defaults and guardrails.
-    /// </summary>
-    public LakonaGameRuntimeProfile Profile { get; init; } = LakonaGameRuntimeProfile.Development;
-
-    /// <summary>
     /// Gets logging, diagnostics, metrics, tracing, and local-admin settings.
     /// </summary>
     public LakonaObservabilityOptions Observability { get; init; } =
-        LakonaObservabilityOptions.Defaults(LakonaGameRuntimeProfile.Development);
+        LakonaObservabilityOptions.Defaults();
 
     /// <summary>
     /// Binds runtime options from the <c>Lakona</c> configuration root.
     /// </summary>
     /// <param name="configuration">The host configuration to read.</param>
-    /// <param name="environmentName">The optional host environment name used to resolve the runtime profile.</param>
     /// <returns>The bound runtime options.</returns>
-    public static LakonaGameRuntimeOptions FromConfiguration(
-        IConfiguration configuration,
-        string? environmentName = null)
+    public static LakonaGameRuntimeOptions FromConfiguration(IConfiguration configuration)
     {
         var section = GetRuntimeSection(configuration);
-        var profile = LakonaGameRuntimeProfileResolver.Resolve(configuration, environmentName);
 
         return new LakonaGameRuntimeOptions
         {
@@ -76,8 +65,7 @@ public sealed class LakonaGameRuntimeOptions
             Endpoints = BindEndpoints(section.GetSection("Endpoints")),
             Feature = BindOptionalStringArray(section.GetSection("Feature")),
             Cluster = BindCluster(section.GetSection("Cluster")),
-            Profile = profile,
-            Observability = LakonaObservabilityOptions.FromConfiguration(configuration, profile)
+            Observability = LakonaObservabilityOptions.FromConfiguration(configuration)
         };
     }
 

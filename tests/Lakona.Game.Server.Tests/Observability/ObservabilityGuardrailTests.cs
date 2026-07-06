@@ -230,8 +230,7 @@ public sealed class ObservabilityGuardrailTests
                 PendingLimit: new LakonaGameResolvedValue<int>(256, LakonaGameValueSource.Default),
                 ReplayWindowSeconds: new LakonaGameResolvedValue<int>(120, LakonaGameValueSource.Default),
                 HasSessionIdentityResolver: true),
-            Observability: TestObservability(),
-            Profile: LakonaGameRuntimeProfile.Development);
+            Observability: TestObservability());
     }
 
     private static LakonaGameResolvedObservability TestObservability(

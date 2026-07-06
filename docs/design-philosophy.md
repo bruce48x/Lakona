@@ -51,8 +51,34 @@ Maintainers should treat the following as active simplification pressure:
   RPC service proxies, actor refs, wrappers, and diagnostics can evolve
   independently.
 
-A detailed maintainer-facing audit of current simplification targets lives in
-[framework-complexity-audit.md](reports/framework-complexity-audit.md).
+Current high-priority simplification targets:
+
+- Generated server binders should stop exposing `RpcSession` as a normal
+  service factory input. Prefer a narrow server-side service context when
+  generated service construction needs request/session metadata.
+- `HotfixGenerator.cs` should keep generated output stable while its internals
+  are split by product boundary: state accessors, stable RPC service proxies,
+  behavior-derived actor refs and wrappers, diagnostics, and shared naming/key
+  helpers.
+- Hotfix activation should move from implicit root-provider fallback toward an
+  explicit stable-dependency bridge so reloadable code can see which stable
+  services are intentionally available.
+- Timer callbacks and feature command handlers should move toward typed or
+  behavior-first binding instead of user-authored method-name strings where the
+  ergonomics can stay good.
+- Cluster serializers and remote actor payload serializers should move toward
+  explicit channel services rather than global `IRpcSerializer` replacement as
+  the extension model.
+- Notification command creation should prefer generated typed helpers over
+  runtime `DispatchProxy` capture if the call-site ergonomics can remain simple.
+- `LakonaGameServer.RunAsync` should remain the one-line generated-project
+  entry point, but internal startup responsibilities should be factored behind
+  named composition steps.
+
+Complexity review is separate from runtime correctness. Tests can prove that a
+feature works without proving that the authoring model is minimal. Generated
+starter projects are the strictest user-experience test: if a starter teaches a
+concept, that concept should be worth carrying.
 
 ## Core Principles
 

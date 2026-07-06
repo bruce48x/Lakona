@@ -29,7 +29,7 @@ Use this boundary when deciding where a rule or default belongs:
 | Compact `appsettings.json` rendering | `Lakona.Tool` |
 | Runtime invariants | framework validators |
 | Local repair guidance | check formatter |
-| Production readiness | profile validators |
+| Operational readiness | explicit configuration validators |
 | Legacy project compatibility | validators and migration warnings |
 | Internal derived values | resolved runtime model |
 
@@ -70,8 +70,8 @@ Use errors for framework invariants:
 - Hotfix assembly is missing or no initial hotfix assembly can be loaded
 - Hotfix reload produces duplicate dispatch keys or unsupported method signatures
 - Reliable Push is enabled but no session identity or resume identity resolver is available
-- production profile advertises localhost or loopback endpoints
-- production profile selects in-memory node directory storage
+- non-local deployment configuration advertises localhost or loopback endpoints
+- durable cluster directory storage is required but an in-memory provider is configured
 
 ### Warnings
 
@@ -82,7 +82,7 @@ Use warnings for local or temporary defaults:
 - Reliable Push uses in-memory storage
 - node directory uses in-memory storage
 - route directory uses in-memory storage
-- advertised endpoint is loopback in a development profile
+- advertised endpoint is loopback outside an explicitly local topology
 - endpoint uses a default port
 - single-node topology is active
 - persistence is not configured
@@ -90,7 +90,10 @@ Use warnings for local or temporary defaults:
 
 Warnings should not make local development painful. They should be visible in `--readiness-check` and diagnostics.
 
-Hotfix assembly absence is not a warning in any profile or command mode. It is always an error because Hotfix is part of the Lakona default application model. `--readiness-check` should make the repair path friendly, but it must still return a non-zero exit code.
+Hotfix assembly absence is not a warning in any command mode. It is always an
+error because Hotfix is part of the Lakona default application model.
+`--readiness-check` should make the repair path friendly, but it must still
+return a non-zero exit code.
 
 Normal server startup must fail when the initial Hotfix load fails. A missing, invalid, or scanner-rejected `Server.Hotfix.dll` is not a degraded mode. Readiness checks and normal startup must agree that Hotfix absence is an error for generated Lakona projects.
 
@@ -104,34 +107,32 @@ Info explains derived state without implying risk:
 - configured service list
 - hotfix source type and assembly name
 - reliable push replay window
-- selected topology or deployment profile
+- selected topology or deployment package shape
 
-## Profiles
+## Explicit Runtime Configuration
 
-Validation should be profile-aware.
+Validation should be driven by the concrete runtime choices the user configured,
+not by broad framework-owned profiles such as `Development` or `Production`.
+`DOTNET_ENVIRONMENT` selects .NET configuration files only; it must not silently
+turn Lakona features or guardrail levels on and off.
 
-The default generated profile is development. Development allows local defaults such as single-node topology, loopback endpoints, in-memory directories, and in-memory reliable push storage.
+Specific framework behavior belongs under specific configuration roots:
 
-Production-oriented profiles must be stricter. A production profile should reject configuration that is only safe for local development, including loopback advertised endpoints and in-memory cluster directory storage.
+- `Lakona:Endpoints` controls listener addresses and advertised endpoints.
+- `Lakona:Cluster` controls node-to-node topology and directory storage.
+- `Lakona:ReliablePush` controls delivery mode and replay storage.
+- `Lakona:Observability` controls local admin, diagnostics, metrics, tracing,
+  and logging.
+- `Lakona:Hotfix:DebugWatcher` controls whether hotfix loading uses the current
+  app output directory with a `reload.signal` watcher or installed version
+  directories through `current.txt`.
 
-Profiles should not reintroduce `Hotfix.Enabled` or `Cluster.Enabled` as normal user-facing switches. A profile changes topology, storage, endpoints, and operational strictness; it does not redefine the Lakona application model. `Lakona:ReliablePush:Enabled` is allowed, defaults to `true`, and disabled means immediate best-effort notification with no ack or replay. Generated default configuration should omit the key unless the user explicitly opts out.
-
-Profiles should be represented as framework-owned values, not arbitrary strings. This keeps validation testable and avoids making users guess hidden mode names.
-
-Suggested profile values:
-
-- `Development`: generated default; allows single-node topology, loopback endpoints, and in-memory local stores.
-- `Compose`: local multi-container rehearsal; allows private container-network endpoints but should surface external advertised endpoint warnings.
-- `Production`: rejects local-only defaults and requires explicit operational choices for advertised endpoints and durable cluster directory storage.
-
-Each profile should define:
-
-- which defaults are allowed
-- which warnings become errors
-- whether loopback advertised endpoints are valid
-- whether in-memory node-directory or route-directory storage is valid
-- whether advertised endpoints must be explicit
-- whether Reliable Push requires durable storage or only identity validation
+Generated local projects may choose local defaults such as loopback endpoints,
+single-node topology, and in-memory stores. Deployment configuration must make
+non-local choices explicit instead of relying on a hidden runtime preset.
+`Lakona:ReliablePush:Enabled` is allowed, defaults to `true`, and disabled means
+immediate best-effort notification with no ack or replay. Generated default
+configuration should omit the key unless the user explicitly opts out.
 
 ## Resolved Runtime Model
 
@@ -147,7 +148,10 @@ raw configuration
   -> startup behavior / check output
 ```
 
-The resolved model should contain final values and where they came from. Provenance makes diagnostics clearer and helps users understand whether a value came from `appsettings.json`, environment variables, a profile default, or a generated project convention.
+The resolved model should contain final values and where they came from.
+Provenance makes diagnostics clearer and helps users understand whether a value
+came from `appsettings.json`, environment variables, a framework default, or a
+generated project convention.
 
 Suggested model shape:
 
@@ -172,7 +176,7 @@ public sealed record LakonaGameResolvedRuntime(
     LakonaGameResolvedCluster Cluster,
     LakonaGameResolvedHotfix Hotfix,
     LakonaGameResolvedReliablePush ReliablePush,
-    LakonaGameRuntimeProfile Profile);
+    LakonaGameResolvedObservability Observability);
 ```
 
 The exact type names can change during implementation, but the boundary should remain: validators read the same resolved state that server startup will use.
@@ -243,7 +247,7 @@ Diagnostics should use stable codes so documentation, tests, logs, and check out
 
 Initial code families:
 
-- `ULINK001-ULINK019`: node identity and profile
+- `ULINK001-ULINK019`: node identity
 - `ULINK020-ULINK039`: endpoint and advertised addresses
 - `ULINK040-ULINK069`: cluster endpoint, serializer, feature discovery, node directory, route directory
 - `ULINK070-ULINK089`: hotfix loading and dispatch
@@ -265,7 +269,7 @@ ULINK044 repair Set Lakona:Cluster:Serializer to json or memorypack.
 ULINK071 error Hotfix assembly was not found.
 ULINK071 repair dotnet build Server/Hotfix/Server.Hotfix.csproj
 ULINK091 error Reliable Push requires a session identity resolver.
-ULINK111 error Production profile cannot advertise 127.0.0.1.
+ULINK111 error Non-local advertised endpoints must not use 127.0.0.1.
 ```
 
 `ULINK044` covers both missing and unknown cluster serializer values. It checks
@@ -289,9 +293,9 @@ ULINK139 error Observability trace sample rate is invalid.
 
 ## Hotfix Operational Guardrails
 
-Hotfix validation must distinguish development and production modes.
+Hotfix validation must distinguish the configured loading source.
 
-Development mode is optimized for iteration:
+`Lakona:Hotfix:DebugWatcher=On` is optimized for local iteration:
 
 - `dotnet build Server/Hotfix/Server.Hotfix.csproj` may overwrite the local
   hotfix output directory.
@@ -300,12 +304,13 @@ Development mode is optimized for iteration:
 - Reload failure keeps the previous dispatch table and is reported as a local
   diagnostic.
 
-Production mode is optimized for reliable operations:
+`Lakona:Hotfix:DebugWatcher=Off`, or an omitted value, is optimized for reliable
+installed hotfix activation:
 
 - Hotfix packages must be installed into immutable version directories under
   `hotfix/versions/<version>/`.
 - A version directory is valid only after `READY` exists.
-- Production must not use file watchers to trigger reload.
+- Version-pointer hotfix loading must not use file watchers to trigger reload.
 - Activation must be explicit through the loopback admin endpoint.
 - The admin endpoint must bind only to `127.0.0.1` or `::1`.
 - Activation must reject non-loopback requests.
@@ -324,7 +329,7 @@ Suggested diagnostic additions:
 ULINK072 error Hotfix version directory is missing READY.
 ULINK073 error Hotfix package BuildTag does not match the running server BuildTag.
 ULINK074 error Hotfix admin endpoint must bind to loopback in production.
-ULINK075 error Production hotfix reload cannot be triggered by file watcher.
+ULINK075 error Version-pointer hotfix loading cannot be triggered by file watcher.
 ```
 
 ## Startup Behavior
@@ -345,8 +350,8 @@ If validation returns errors:
 If validation returns warnings:
 
 - log warnings
-- continue startup in development profile
-- fail startup in production profile only when the warning represents a production readiness rule promoted to error
+- continue startup when warnings do not violate configured invariants
+- fail startup when a warning represents an explicit readiness rule promoted to error
 
 Startup exceptions should preserve diagnostic codes so tests and tools can assert them without string matching.
 
@@ -359,7 +364,10 @@ Generated readiness checks should call the same runtime validation pipeline used
 
 Liveness failure must imply readiness failure. Readiness failure does not necessarily imply liveness failure; for example, a missing hotfix assembly means the process is alive but not ready.
 
-Cluster profile liveness validates node id, advertised endpoints, configured feature descriptors, and non-empty endpoint keys/values. Standalone liveness validates node id and configured business endpoints, and skips cluster feature discovery requirements.
+Cluster liveness validates node id, advertised endpoints, configured feature
+descriptors, and non-empty endpoint keys/values. Standalone liveness validates
+node id and configured business endpoints, and skips cluster feature discovery
+requirements.
 
 `--readiness-check` also runs observability guardrails, including local admin
 loopback requirements, diagnostics detail exposure, file logging integration,
@@ -481,6 +489,7 @@ Avoid user-facing defaults for:
 - `Hotfix.Directory`
 - `ReliablePush.Outbox`
 - `Node.Profile`
+- broad runtime mode switches
 - `Deployment`
 - `Services`
 - top-level business endpoint sections such as `ControlPlane` or `Realtime`

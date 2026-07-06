@@ -343,6 +343,9 @@ public sealed class ToolArchitectureScanTests
             .GetProperty("Sessions")
             .GetProperty("Cleanup");
         Assert.Equal(30, cleanup.GetProperty("DisconnectedRetentionSeconds").GetInt32());
+        var hotfix = document.RootElement.GetProperty("Lakona")
+            .GetProperty("Hotfix");
+        Assert.Equal("On", hotfix.GetProperty("DebugWatcher").GetString());
         Assert.DoesNotContain("AddLakonaGame(", appText, StringComparison.Ordinal);
         Assert.DoesNotContain("AddLakonaGameSessionHotfixLifecycle", appText, StringComparison.Ordinal);
         Assert.DoesNotContain("UseGeneratedHotfixServices", appText, StringComparison.Ordinal);

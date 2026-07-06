@@ -94,6 +94,9 @@ The default development appsettings file has this shape:
         "DisconnectedRetentionSeconds": 30
       }
     },
+    "Hotfix": {
+      "DebugWatcher": "On"
+    },
     "Endpoints": [
       {
         "Transport": "kcp",
@@ -115,7 +118,10 @@ Validate the derived project state with:
 dotnet run --project "Server/App/Server.App.csproj" -- --readiness-check
 ```
 
-The check prints the generated Cluster, Hotfix, Reliable Push, and RPC state so the default `appsettings.json` does not need to expose every derived setting.
+The generated `DebugWatcher` setting makes local hotfix rebuilds reload through
+`reload.signal`. The check prints the generated Cluster, Hotfix, Reliable Push,
+and RPC state so the default `appsettings.json` does not need to expose every
+derived setting.
 
 Use JSON output when CI or deployment scripts need machine-readable validation results:
 

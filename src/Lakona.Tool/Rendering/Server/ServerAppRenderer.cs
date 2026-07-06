@@ -206,6 +206,10 @@ internal sealed class ServerAppRenderer : IPlanContributor
                         ["DisconnectedRetentionSeconds"] = 30
                     }
                 },
+                ["Hotfix"] = new Dictionary<string, object?>
+                {
+                    ["DebugWatcher"] = "On"
+                },
                 ["Endpoints"] = new[] { endpoint }
             }
         };

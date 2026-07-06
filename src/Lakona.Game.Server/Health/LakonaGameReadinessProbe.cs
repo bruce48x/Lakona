@@ -193,8 +193,7 @@ public static class LakonaGameReadinessProbe
                 PendingLimit: new LakonaGameResolvedValue<int>(256, LakonaGameValueSource.Default),
                 ReplayWindowSeconds: new LakonaGameResolvedValue<int>(120, LakonaGameValueSource.Default),
                 HasSessionIdentityResolver: true),
-            Observability: ToResolvedObservability(runtime.Observability, observabilityCapabilities),
-            Profile: runtime.Profile);
+            Observability: ToResolvedObservability(runtime.Observability, observabilityCapabilities));
     }
 
     private static LakonaGameResolvedObservability ToResolvedObservability(

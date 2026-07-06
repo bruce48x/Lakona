@@ -26,7 +26,7 @@ public sealed class HotfixAdminController
         var previous = await _store.ReadPointerAsync("previous.txt", cancellationToken).ConfigureAwait(false);
         var snapshot = _manager.Current;
         return new HotfixStatusResponse(
-            _options.Mode,
+            _options.DebugWatcher,
             current,
             previous,
             snapshot.Version,

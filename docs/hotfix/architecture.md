@@ -493,21 +493,22 @@ Development optimizes for speed.
 dotnet build Server/Hotfix/Server.Hotfix.csproj
   -> copy Server.Hotfix.dll, PDB, and deps to Server.App output hotfix directory
   -> write reload.signal last
-  -> development server detects reload.signal
+  -> DebugWatcher server detects reload.signal
   -> HotfixManager.ReloadAsync()
 ```
 
-Development may use a signal watcher with a lightweight polling fallback.
-It must watch `reload.signal`, not the DLL itself, so the server does not load a
-partially copied build output.
+`Lakona:Hotfix:DebugWatcher=On` registers a signal watcher in the default
+`LakonaGameServer.RunAsync` host and loads from the current app output hotfix
+directory. It watches `reload.signal`, not the DLL itself, so the server does
+not load a partially copied build output.
 
 Development reload failures are logged and keep the previous dispatch table.
 They may be warnings during local iteration.
 
 ## Production Workflow
 
-Production optimizes for reliability. It does not use file watchers.
-Production hotfix package mode and local admin listener enablement are
+Version-pointer hotfix activation optimizes for reliability. It does not use
+file watchers. Hotfix package activation and local admin listener enablement are
 independent.
 
 Normal v1 flow:
@@ -528,11 +529,12 @@ target node:
 Lakona v1 does not provide remote deploy or multi-node orchestration. Operators
 or deployment systems roll nodes by invoking the local commands on each node.
 
-Production mode selects the active hotfix from `hotfix/versions` through the
-`current.txt` version pointer. If the local admin listener is disabled, startup
-can still read `current.txt` and load the selected hotfix version. Online
-`activate`, `status`, `rollback`, and `reload` operations are unavailable until
-loopback local admin is explicitly enabled.
+With `Lakona:Hotfix:DebugWatcher=Off`, or when the key is omitted, startup
+selects the active hotfix from `hotfix/versions` through the `current.txt`
+version pointer. If the local admin listener is disabled, startup can still
+read `current.txt` and load the selected hotfix version. Online `activate`,
+`status`, `rollback`, and `reload` operations are unavailable until loopback
+local admin is explicitly enabled.
 
 Production hotfix root:
 

@@ -297,7 +297,8 @@ metadata. They are not durable business state.
 
 Only scalar values supported by `GameSessionItemValue` are valid: `string`,
 `Int64`, and `Boolean`. Valid examples include `roomId`, `matchId`,
-`sessionKind`, and membership generation after authoritative validation.
+`sessionKind`, realtime session identity, and membership generation after
+authoritative validation.
 
 Session items must not store callbacks, transport objects, DI services, actor
 instances or references, hotfix-defined class instances, mutable collections,
@@ -308,7 +309,14 @@ are preserved across disconnect and resume for the same generation. Items are
 cleared or inaccessible after termination, including terminal-state retention,
 and removed when a disconnected session expires.
 
-Session items are never serialized to clients or shared RPC DTOs.
+Session item keys are ordinal, case-sensitive, non-empty strings with bounded
+length. Missing reads return `null` so latency-sensitive services can treat
+absence as stale, unauthenticated, or not-yet-attached state. Setting or
+removing an item for a missing or terminated session is a server programming
+error, not a client business rejection.
+
+Session items are never serialized to clients or shared RPC DTOs. They are not
+framework uniqueness constraints and must not be emitted as metric tags.
 
 Hotfix calls receive `CurrentSessionItems` as an immutable per-dispatch
 snapshot captured before the hotfix method runs. Mutations through

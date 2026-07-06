@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Lakona.Game.Server.HotfixAdmin;
 
 public sealed record HotfixStatusResponse(
-    string Mode,
+    string DebugWatcher,
     string? CurrentPointerVersion,
     string? PreviousPointerVersion,
     string? LoadedVersion,
