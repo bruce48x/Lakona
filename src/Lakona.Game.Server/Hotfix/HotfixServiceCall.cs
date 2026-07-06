@@ -23,10 +23,23 @@ public class HotfixServiceCall<TRequest> : IHotfixCallContext
         IServiceProvider services,
         IActorRuntime actors,
         ILakonaGameServer gameServer)
+        : this(request, connectionId, currentSession, GameSessionItems.Empty, services, actors, gameServer)
+    {
+    }
+
+    public HotfixServiceCall(
+        TRequest request,
+        string connectionId,
+        GameSessionKey? currentSession,
+        GameSessionItems currentSessionItems,
+        IServiceProvider services,
+        IActorRuntime actors,
+        ILakonaGameServer gameServer)
     {
         Request = request;
         ConnectionId = connectionId ?? throw new ArgumentNullException(nameof(connectionId));
         CurrentSession = currentSession;
+        CurrentSessionItems = currentSessionItems ?? throw new ArgumentNullException(nameof(currentSessionItems));
         Services = services ?? throw new ArgumentNullException(nameof(services));
         Actors = actors ?? throw new ArgumentNullException(nameof(actors));
         GameServer = gameServer ?? throw new ArgumentNullException(nameof(gameServer));
@@ -37,6 +50,8 @@ public class HotfixServiceCall<TRequest> : IHotfixCallContext
     public string ConnectionId { get; }
 
     public GameSessionKey? CurrentSession { get; }
+
+    public GameSessionItems CurrentSessionItems { get; }
 
     public IServiceProvider Services { get; }
 
@@ -67,7 +82,20 @@ public sealed class HotfixServiceCall<TRequest, TCallback> : HotfixServiceCall<T
         IServiceProvider services,
         IActorRuntime actors,
         ILakonaGameServer gameServer)
-        : base(request, connectionId, currentSession, services, actors, gameServer)
+        : this(request, connectionId, callback, currentSession, GameSessionItems.Empty, services, actors, gameServer)
+    {
+    }
+
+    public HotfixServiceCall(
+        TRequest request,
+        string connectionId,
+        TCallback callback,
+        GameSessionKey? currentSession,
+        GameSessionItems currentSessionItems,
+        IServiceProvider services,
+        IActorRuntime actors,
+        ILakonaGameServer gameServer)
+        : base(request, connectionId, currentSession, currentSessionItems, services, actors, gameServer)
     {
         Callback = callback ?? throw new ArgumentNullException(nameof(callback));
     }

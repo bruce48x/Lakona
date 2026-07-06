@@ -1588,10 +1588,14 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("    {");
             builder.AppendLine("        using var lease = _hotfixRuntime.AcquireCurrent();");
             builder.AppendLine("        var snapshot = lease.Snapshot;");
-            builder.AppendLine("        var currentSession = await global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions");
-            builder.AppendLine("            .GetRequiredService<global::Lakona.Game.Server.Sessions.IGameSessionRegistry>(snapshot.Services)");
+            builder.AppendLine("        var sessions = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions");
+            builder.AppendLine("            .GetRequiredService<global::Lakona.Game.Server.Sessions.IGameSessionRegistry>(snapshot.Services);");
+            builder.AppendLine("        var currentSession = await sessions");
             builder.AppendLine("            .GetCurrentSessionAsync(_connectionId, global::System.Threading.CancellationToken.None)");
             builder.AppendLine("            .ConfigureAwait(false);");
+            builder.AppendLine("        var currentSessionItems = currentSession is { } sessionKey");
+            builder.AppendLine("            ? await sessions.GetSessionItemsAsync(sessionKey, global::System.Threading.CancellationToken.None).ConfigureAwait(false)");
+            builder.AppendLine("            : global::Lakona.Game.Server.Sessions.GameSessionItems.Empty;");
             builder.Append("        ");
             if (returnsResult)
             {
@@ -1615,6 +1619,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             }
 
             builder.AppendLine("                currentSession,");
+            builder.AppendLine("                currentSessionItems,");
             builder.AppendLine("                snapshot.Services,");
             builder.AppendLine("                _actors,");
             builder.AppendLine("                _gameServer))");

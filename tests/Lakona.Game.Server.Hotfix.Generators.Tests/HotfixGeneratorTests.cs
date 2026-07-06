@@ -1,4 +1,10 @@
+using Lakona.Game.Abstractions;
+using Lakona.Game.Server;
+using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Hotfix;
+using Lakona.Game.Server.Sessions;
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Lakona.Game.Server.Hotfix.Generators.Tests;
@@ -1030,7 +1036,10 @@ public sealed class HotfixGeneratorTests
         Assert.DoesNotContain("_hotfixRuntime.Current", result.GeneratedSource, StringComparison.Ordinal);
         Assert.Contains("GetRequiredService<global::Lakona.Game.Server.Sessions.IGameSessionRegistry>(snapshot.Services)", result.GeneratedSource);
         Assert.Contains("GetCurrentSessionAsync(_connectionId, global::System.Threading.CancellationToken.None)", result.GeneratedSource);
+        Assert.Contains("var currentSessionItems = currentSession is { } sessionKey", result.GeneratedSource);
+        Assert.Contains("GetSessionItemsAsync(sessionKey, global::System.Threading.CancellationToken.None)", result.GeneratedSource);
         Assert.Contains("currentSession,", result.GeneratedSource);
+        Assert.Contains("currentSessionItems,", result.GeneratedSource);
         Assert.Contains("snapshot.Services,", result.GeneratedSource);
         Assert.Contains("snapshot.Invoker.InvokeAsync", result.GeneratedSource);
         Assert.DoesNotContain("_hotfixServices.Current", result.GeneratedSource, StringComparison.Ordinal);
@@ -1209,10 +1218,27 @@ public sealed class HotfixGeneratorTests
         Assert.Equal(
             typeof(Lakona.Game.Server.Sessions.GameSessionKey?),
             currentSessionProperty.PropertyType);
+
+        var currentSessionItemsProperty = typeof(Lakona.Game.Server.Hotfix.HotfixServiceCall<>)
+            .GetProperty("CurrentSessionItems");
+
+        Assert.NotNull(currentSessionItemsProperty);
+        Assert.Equal(
+            typeof(Lakona.Game.Server.Sessions.GameSessionItems),
+            currentSessionItemsProperty.PropertyType);
         Assert.NotNull(typeof(Lakona.Game.Server.Hotfix.HotfixServiceCall<object>).GetConstructor([
             typeof(object),
             typeof(string),
             typeof(Lakona.Game.Server.Sessions.GameSessionKey?),
+            typeof(IServiceProvider),
+            typeof(Lakona.Game.Server.Actors.IActorRuntime),
+            typeof(Lakona.Game.Server.ILakonaGameServer)
+        ]));
+        Assert.NotNull(typeof(Lakona.Game.Server.Hotfix.HotfixServiceCall<object>).GetConstructor([
+            typeof(object),
+            typeof(string),
+            typeof(Lakona.Game.Server.Sessions.GameSessionKey?),
+            typeof(Lakona.Game.Server.Sessions.GameSessionItems),
             typeof(IServiceProvider),
             typeof(Lakona.Game.Server.Actors.IActorRuntime),
             typeof(Lakona.Game.Server.ILakonaGameServer)
@@ -1237,10 +1263,43 @@ public sealed class HotfixGeneratorTests
             typeof(object),
             typeof(string),
             typeof(object),
+            typeof(Lakona.Game.Server.Sessions.GameSessionKey?),
+            typeof(Lakona.Game.Server.Sessions.GameSessionItems),
             typeof(IServiceProvider),
             typeof(Lakona.Game.Server.Actors.IActorRuntime),
             typeof(Lakona.Game.Server.ILakonaGameServer)
         ]));
+        Assert.NotNull(typeof(Lakona.Game.Server.Hotfix.HotfixServiceCall<object, object>).GetConstructor([
+            typeof(object),
+            typeof(string),
+            typeof(object),
+            typeof(IServiceProvider),
+            typeof(Lakona.Game.Server.Actors.IActorRuntime),
+            typeof(Lakona.Game.Server.ILakonaGameServer)
+        ]));
+    }
+
+    [Fact]
+    public async Task Hotfix_service_call_current_session_items_are_immutable_for_one_call()
+    {
+        var sessions = new InMemoryGameSessionRegistry();
+        var session = await sessions.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
+        await sessions.SetSessionItemAsync(session, "roomId", GameSessionItemValue.FromString("room-a"), TestContext.Current.CancellationToken);
+        var snapshot = await sessions.GetSessionItemsAsync(session, TestContext.Current.CancellationToken);
+        var services = new ServiceCollection().AddLakonaGameServerActors().BuildServiceProvider();
+        var call = new HotfixServiceCall<object>(
+            new object(),
+            "connection-a",
+            session,
+            snapshot,
+            services,
+            services.GetRequiredService<IActorRuntime>(),
+            new RegistryBackedGameServer(sessions));
+
+        await call.GameServer.SetSessionItemAsync(session, "roomId", GameSessionItemValue.FromString("room-b"), TestContext.Current.CancellationToken);
+
+        Assert.Equal("room-a", call.CurrentSessionItems.GetString("roomId"));
+        Assert.Equal("room-b", (await call.GameServer.GetSessionItemAsync(session, "roomId", TestContext.Current.CancellationToken))?.GetString());
     }
 
     [Fact]
@@ -1272,7 +1331,10 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("GeneratedHotfixRequiredServiceContracts", generated);
         Assert.Contains("IHotfixRequiredServiceContracts", generated);
         Assert.Contains("GetCurrentSessionAsync(_connectionId, global::System.Threading.CancellationToken.None)", generated);
+        Assert.Contains("var currentSessionItems = currentSession is { } sessionKey", generated);
+        Assert.Contains("GetSessionItemsAsync(sessionKey, global::System.Threading.CancellationToken.None)", generated);
         Assert.Contains("currentSession,", generated);
+        Assert.Contains("currentSessionItems,", generated);
         Assert.DoesNotContain("UseGeneratedHotfixServices", generated);
     }
 
@@ -1746,5 +1808,119 @@ public sealed class HotfixGeneratorTests
         Assert.Empty(result.ErrorDiagnostics);
         Assert.Contains("public int __hotfix_exp()", result.GeneratedSource);
         Assert.Contains("public int __hotfix__exp()", result.GeneratedSource);
+    }
+
+    private sealed class RegistryBackedGameServer : ILakonaGameServer
+    {
+        private readonly IGameSessionRegistry _sessions;
+
+        public RegistryBackedGameServer(IGameSessionRegistry sessions)
+        {
+            _sessions = sessions;
+        }
+
+        public ValueTask<GameSessionKey> StartSessionAsync(
+            string ownerKey,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask<GameSessionKey> StartSessionAsync<TCallback>(
+            string ownerKey,
+            string connectionId,
+            TCallback callback,
+            CancellationToken cancellationToken = default)
+            where TCallback : class
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask<SessionResumeDecision> ResumeSessionAsync<TCallback>(
+            GameSessionResumeRequest request,
+            string connectionId,
+            TCallback callback,
+            CancellationToken cancellationToken = default)
+            where TCallback : class
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask BindSessionAsync<TCallback>(
+            GameSessionKey session,
+            string connectionId,
+            TCallback callback,
+            CancellationToken cancellationToken = default)
+            where TCallback : class
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask BindCurrentSessionAsync<TCallback>(
+            string connectionId,
+            TCallback callback,
+            CancellationToken cancellationToken = default)
+            where TCallback : class
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask MarkSessionDisconnectedAsync(
+            GameSessionKey session,
+            string? connectionId = null,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask<TCallback?> GetCallbackAsync<TCallback>(
+            GameSessionKey session,
+            CancellationToken cancellationToken = default)
+            where TCallback : class
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask SetSessionItemAsync(
+            GameSessionKey session,
+            string key,
+            GameSessionItemValue value,
+            CancellationToken cancellationToken = default)
+        {
+            return _sessions.SetSessionItemAsync(session, key, value, cancellationToken);
+        }
+
+        public ValueTask<GameSessionItemValue?> GetSessionItemAsync(
+            GameSessionKey session,
+            string key,
+            CancellationToken cancellationToken = default)
+        {
+            return _sessions.GetSessionItemAsync(session, key, cancellationToken);
+        }
+
+        public ValueTask<GameSessionItems> GetSessionItemsAsync(
+            GameSessionKey session,
+            CancellationToken cancellationToken = default)
+        {
+            return _sessions.GetSessionItemsAsync(session, cancellationToken);
+        }
+
+        public ValueTask RemoveSessionItemAsync(
+            GameSessionKey session,
+            string key,
+            CancellationToken cancellationToken = default)
+        {
+            return _sessions.RemoveSessionItemAsync(session, key, cancellationToken);
+        }
+
+        public ValueTask TerminateSessionAsync(
+            GameSessionKey session,
+            SessionTerminationReason reason,
+            string? message = null,
+            SessionTerminationOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
     }
 }

@@ -1,3 +1,5 @@
+extern alias GameServer;
+
 using Lakona.Game.Server.Hotfix.Abstractions;
 
 namespace Lakona.Game.Server.Hotfix;
@@ -13,6 +15,9 @@ public class HotfixServiceCall<TRequest> : IHotfixCallContext
     public TRequest? Request { get; }
 
     public IServiceProvider Services { get; }
+
+    public GameServer::Lakona.Game.Server.Sessions.GameSessionItems CurrentSessionItems { get; } =
+        GameServer::Lakona.Game.Server.Sessions.GameSessionItems.Empty;
 }
 
 public sealed class HotfixServiceCall<TRequest, TCallback> : HotfixServiceCall<TRequest>
