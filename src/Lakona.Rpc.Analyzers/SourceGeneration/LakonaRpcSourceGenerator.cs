@@ -157,9 +157,9 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             var hasServerRuntime = compilation.GetTypeByMetadataName("Lakona.Rpc.Server.RpcServiceRegistry") is not null;
             var hasGameClientAssembly = compilation.GetTypeByMetadataName("Lakona.Game.Client.LakonaGameClientCore") is not null;
             var isUnityCompilation = IsUnityCompilation(compilation);
-            var isGeneratedUnityClientAssembly = isUnityCompilation && IsUnityMainUserAssembly(compilation);
+            var autoGenerateClient = hasRpcClientAssembly && !hasServerRuntime;
             var autoGenerateUnityGameClient =
-                isGeneratedUnityClientAssembly &&
+                isUnityCompilation &&
                 hasGameClientAssembly &&
                 hasRpcClientAssembly &&
                 !hasServerRuntime &&
@@ -167,7 +167,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
                 !GenerateGameClientDisabled;
 
             return new GeneratorOptions(
-                generateClient: hasRpcClientAssembly && !hasServerRuntime && (!isUnityCompilation || isGeneratedUnityClientAssembly),
+                generateClient: autoGenerateClient,
                 generateServer: hasServerRuntime && !hasRpcClientAssembly,
                 generateGameClient: GenerateGameClient || autoGenerateUnityGameClient,
                 hasExplicitGenerationMode: false,
@@ -215,9 +215,6 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
                 assembly.Identity.Name.StartsWith("UnityEngine", StringComparison.Ordinal) ||
                 assembly.Identity.Name.StartsWith("UnityEditor", StringComparison.Ordinal));
         }
-
-        private static bool IsUnityMainUserAssembly(Compilation compilation) =>
-            string.Equals(compilation.AssemblyName, "Assembly-CSharp", StringComparison.Ordinal);
 
         private static bool TryGetClientGenerationAttribute(Compilation compilation, out string? generatedNamespace)
         {

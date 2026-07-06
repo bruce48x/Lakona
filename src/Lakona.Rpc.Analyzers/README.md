@@ -22,7 +22,7 @@ Advanced client assemblies can still use assembly markers when they do not use t
 Typical projects should add this package with:
 
 ```xml
-<PackageReference Include="Lakona.Rpc.Analyzers" Version="0.2.2">
+<PackageReference Include="Lakona.Rpc.Analyzers" Version="0.3.6">
   <PrivateAssets>all</PrivateAssets>
   <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 </PackageReference>

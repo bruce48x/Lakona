@@ -243,16 +243,11 @@ notifications. Generated business RPC contracts must use positive service ids
 outside that reserved range.
 
 Business RPC before a completed handshake is rejected with a structured
-`HandshakeRequired` failure. `ServerHello` sends resolved public capabilities,
-not raw `appsettings.json`. Capabilities include selected protocol version,
-node identity, endpoint transport and serializer, reliable push mode, heartbeat
-settings, server time, and framework feature flags that are safe for clients to
-know.
-
-`ClientHello` is framework metadata. Generated clients fill it from generated
-metadata and options, including client runtime, runtime version, game version,
-build id, platform, and supported capabilities. User code should not construct
-`GameClientHello` directly.
+`HandshakeRequired` failure. `ClientHello` carries only `ProtocolVersion = 1`.
+`ServerHello` returns the selected protocol version, node identity, endpoint
+transport and serializer, reliable push settings, and server time. Runtime,
+platform, game-version, build, and capability metadata are application concerns
+and are not part of the default framework handshake.
 
 ## Framework Heartbeat
 

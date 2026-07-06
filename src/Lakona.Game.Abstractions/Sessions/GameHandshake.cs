@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-
 namespace Lakona.Game.Abstractions.Sessions;
 
 public sealed class GameClientHello
@@ -21,8 +19,6 @@ public sealed class GameServerHello
     public ReliablePushHandshakeSettings ReliablePush { get; set; } = new();
 
     public DateTimeOffset ServerTimeUtc { get; set; }
-
-    public List<string> ServerCapabilities { get; set; } = new();
 }
 
 public sealed class ReliablePushHandshakeSettings

@@ -47,7 +47,6 @@ public sealed class LakonaInternalCodecTests
                 MaxPending = 256,
             },
             ServerTimeUtc = new DateTimeOffset(2026, 6, 24, 10, 30, 0, TimeSpan.Zero),
-            ServerCapabilities = new List<string> { "heartbeat", "replay" },
         };
 
         var decoded = LakonaInternalCodec.DecodeGameServerHello(
@@ -63,7 +62,6 @@ public sealed class LakonaInternalCodecTests
         Assert.Equal(hello.ReliablePush.ReplaySupported, decoded.ReliablePush.ReplaySupported);
         Assert.Equal(hello.ReliablePush.MaxPending, decoded.ReliablePush.MaxPending);
         Assert.Equal(hello.ServerTimeUtc, decoded.ServerTimeUtc);
-        Assert.Equal(hello.ServerCapabilities, decoded.ServerCapabilities);
     }
 
     [Fact]

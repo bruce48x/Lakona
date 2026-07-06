@@ -47,10 +47,6 @@ public sealed class GameHandshakeService : IGameHandshakeService
                 AckRequired = reliable,
                 ReplaySupported = reliable,
                 MaxPending = _reliablePush.MaxPendingPerOwner
-            },
-            ServerCapabilities =
-            {
-                "business-rpc-after-handshake"
             }
         });
     }

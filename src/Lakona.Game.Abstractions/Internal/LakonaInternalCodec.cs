@@ -14,7 +14,6 @@ namespace Lakona.Game.Abstractions
 
         private const int Magic = 0x4C4B4943;
         private const byte Version = 1;
-        private const int MaxStringListCount = 1024;
         private static readonly UTF8Encoding StrictUtf8 = new UTF8Encoding(false, true);
 
         private const byte GameClientHelloKind = 1;
@@ -75,7 +74,6 @@ namespace Lakona.Game.Abstractions
             writer.WriteBool(reliablePush.ReplaySupported);
             writer.WriteInt32(reliablePush.MaxPending);
             writer.WriteUtcDateTimeOffset(value.ServerTimeUtc);
-            writer.WriteStringList(value.ServerCapabilities);
             return writer.ToArray();
         }
 
@@ -97,7 +95,6 @@ namespace Lakona.Game.Abstractions
                     MaxPending = reader.ReadInt32(),
                 },
                 ServerTimeUtc = reader.ReadUtcDateTimeOffset(),
-                ServerCapabilities = reader.ReadStringListAsEmptyIfNull(),
             };
 
             ValidatePositiveProtocolVersion(value.SelectedProtocolVersion);
@@ -439,26 +436,6 @@ namespace Lakona.Game.Abstractions
                 bytes.AddRange(encoded);
             }
 
-            public void WriteStringList(IReadOnlyCollection<string>? values)
-            {
-                if (values is null)
-                {
-                    WriteInt32(-1);
-                    return;
-                }
-
-                if (values.Count > MaxStringListCount)
-                {
-                    throw new InvalidOperationException("String list exceeds the maximum allowed count.");
-                }
-
-                WriteInt32(values.Count);
-                foreach (var value in values)
-                {
-                    WriteString(value);
-                }
-            }
-
             public void WriteUtcDateTimeOffset(DateTimeOffset value)
             {
                 WriteInt64(value.ToUniversalTime().UtcDateTime.Ticks);
@@ -574,33 +551,6 @@ namespace Lakona.Game.Abstractions
             public string ReadStringAsEmptyIfNull()
             {
                 return ReadString() ?? "";
-            }
-
-            public List<string> ReadStringListAsEmptyIfNull()
-            {
-                var count = ReadInt32();
-                if (count == -1)
-                {
-                    return new List<string>();
-                }
-
-                if (count < 0)
-                {
-                    throw new InvalidOperationException("String list count cannot be negative.");
-                }
-
-                if (count > MaxStringListCount)
-                {
-                    throw new InvalidOperationException("String list exceeds the maximum allowed count.");
-                }
-
-                var values = new List<string>(count);
-                for (var i = 0; i < count; i++)
-                {
-                    values.Add(ReadStringAsEmptyIfNull());
-                }
-
-                return values;
             }
 
             public DateTimeOffset ReadUtcDateTimeOffset()

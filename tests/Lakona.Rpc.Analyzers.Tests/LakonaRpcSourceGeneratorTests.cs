@@ -99,7 +99,7 @@ public sealed class LakonaRpcSourceGeneratorTests
     }
 
     [Fact]
-    public void SourceGenerator_UnityCustomAssembly_DoesNotAutoGenerateWithoutExplicitMarker()
+    public void SourceGenerator_UnityCustomAssembly_AutoGeneratesClientAndGameWrapper()
     {
         var compilation = AnalyzerTestHelpers.CreateCompilation(
             SimpleClientContractSource,
@@ -107,9 +107,15 @@ public sealed class LakonaRpcSourceGeneratorTests
             additionalReferences: new[] { AnalyzerTestHelpers.CreateUnityEngineReference() },
             includeServerRuntimeReference: false);
 
-        var runResult = AnalyzerTestHelpers.RunGenerator(compilation, null, out _);
+        var runResult = AnalyzerTestHelpers.RunGenerator(compilation, null, out var outputCompilation);
 
-        Assert.Empty(runResult.Results.Single().GeneratedSources);
+        Assert.Empty(runResult.Diagnostics);
+        Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(outputCompilation));
+
+        var generatedHintNames = runResult.Results.Single().GeneratedSources.Select(static source => source.HintName).ToArray();
+        Assert.Contains("RpcApi.g.cs", generatedHintNames);
+        Assert.Contains("PingServiceClient.g.cs", generatedHintNames);
+        Assert.Contains("LakonaGameClient.g.cs", generatedHintNames);
     }
 
     [Fact]
