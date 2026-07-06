@@ -93,6 +93,10 @@ namespace Agar.Sample.State.Contracts.Rooms
 
         public string UserId { get; set; } = "";
 
+        public string RealtimeSessionId { get; set; } = "";
+
+        public long RealtimeSessionGeneration { get; set; }
+
         public InputMessage Input { get; set; } = new();
 
         public DateTime SubmittedAtUtc { get; set; }

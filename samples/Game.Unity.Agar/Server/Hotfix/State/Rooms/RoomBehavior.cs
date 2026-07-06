@@ -356,6 +356,12 @@ public static partial class RoomBehavior
             return default;
         }
 
+        if (!string.Equals(player.RealtimeSessionId, request.RealtimeSessionId, StringComparison.Ordinal) ||
+            player.RealtimeSessionGeneration != request.RealtimeSessionGeneration)
+        {
+            return default;
+        }
+
         var simulation = CreateSimulation(self);
         request.Input.PlayerId = request.UserId;
         simulation.SubmitInput(request.Input);

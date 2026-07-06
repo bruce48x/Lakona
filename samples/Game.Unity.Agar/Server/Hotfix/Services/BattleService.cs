@@ -8,6 +8,7 @@ using Lakona.Game.Abstractions;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.Sessions;
 using Server.Hotfix.Services;
 using Server.Hotfix.State.Rooms;
 using Server.Hotfix.State.Users;
@@ -18,6 +19,11 @@ namespace Server.Hotfix.Services;
 [HotfixService(typeof(IBattleService))]
 internal sealed class BattleService
 {
+    private const string RoomIdSessionItemKey = "roomId";
+    private const string MatchIdSessionItemKey = "matchId";
+    private const string RealtimeSessionIdSessionItemKey = "realtimeSessionId";
+    private const string RealtimeSessionGenerationSessionItemKey = "realtimeSessionGeneration";
+
     private readonly LocalActorNodeIdentity _localNode;
     private readonly RoomActors _rooms;
     private readonly UserActors _users;
@@ -105,8 +111,8 @@ internal sealed class BattleService
             };
         }
 
-        await _rooms
-            .Get(new RoomId(req.RoomId))
+        var ready = await _rooms
+            .Local(new RoomId(req.RoomId))
             .SetReadyAsync(new RoomPlayerReadyRequest
             {
                 UserId = req.PlayerId,
@@ -116,6 +122,33 @@ internal sealed class BattleService
                 RealtimeSessionGeneration = realtimeSession.Generation,
                 UpdatedAtUtc = DateTime.UtcNow
             }).ConfigureAwait(false);
+        if (!ready.Succeeded)
+        {
+            await call.GameServer
+                .TerminateSessionAsync(
+                    realtimeSession,
+                    SessionTerminationReason.Policy,
+                    ready.Message)
+                .ConfigureAwait(false);
+            return new RealtimeAttachReply
+            {
+                Code = 4,
+                Message = ready.Message
+            };
+        }
+
+        await call.GameServer
+            .SetSessionItemAsync(realtimeSession, RoomIdSessionItemKey, GameSessionItemValue.FromString(req.RoomId))
+            .ConfigureAwait(false);
+        await call.GameServer
+            .SetSessionItemAsync(realtimeSession, MatchIdSessionItemKey, GameSessionItemValue.FromString(req.MatchId))
+            .ConfigureAwait(false);
+        await call.GameServer
+            .SetSessionItemAsync(realtimeSession, RealtimeSessionIdSessionItemKey, GameSessionItemValue.FromString(realtimeSession.SessionId))
+            .ConfigureAwait(false);
+        await call.GameServer
+            .SetSessionItemAsync(realtimeSession, RealtimeSessionGenerationSessionItemKey, GameSessionItemValue.FromInt64(realtimeSession.Generation))
+            .ConfigureAwait(false);
 
         return new RealtimeAttachReply
         {
@@ -133,8 +166,6 @@ internal sealed class BattleService
     {
         var req = call.Request;
         var playerId = call.CurrentSession?.OwnerKey;
-        // Direct current-node escape hatches should be named `var nodeLocalActors = call.Actors;`;
-        // use typed selectors when actor placement may be remote.
         if (string.IsNullOrWhiteSpace(playerId))
         {
             return;
@@ -146,22 +177,24 @@ internal sealed class BattleService
             return;
         }
 
-        var sessionSnapshot = await _users
-            .Get(new UserId(playerId))
-            .GetSnapshotAsync(new PlayerSessionSnapshotRequest())
-            .ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(sessionSnapshot.CurrentRoomId) ||
-            !IsLocalRuntimeOwner(sessionSnapshot.RuntimeGateway))
+        var roomId = call.CurrentSessionItems.GetString(RoomIdSessionItemKey);
+        var realtimeSessionId = call.CurrentSessionItems.GetString(RealtimeSessionIdSessionItemKey);
+        var realtimeSessionGeneration = call.CurrentSessionItems.GetInt64(RealtimeSessionGenerationSessionItemKey);
+        if (string.IsNullOrWhiteSpace(roomId) ||
+            string.IsNullOrWhiteSpace(realtimeSessionId) ||
+            realtimeSessionGeneration is null)
         {
             return;
         }
 
         await _rooms
-            .Get(new RoomId(sessionSnapshot.CurrentRoomId))
+            .Get(new RoomId(roomId))
             .SubmitInputAsync(new RoomInputSubmitRequest
             {
-                RoomId = sessionSnapshot.CurrentRoomId,
+                RoomId = roomId,
                 UserId = playerId,
+                RealtimeSessionId = realtimeSessionId,
+                RealtimeSessionGeneration = realtimeSessionGeneration.Value,
                 Input = req,
                 SubmittedAtUtc = DateTime.UtcNow
             })
