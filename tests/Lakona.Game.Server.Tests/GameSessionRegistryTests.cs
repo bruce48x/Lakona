@@ -331,6 +331,30 @@ public sealed class GameSessionRegistryTests
     }
 
     [Fact]
+    public void Session_item_value_preserves_scalar_kinds()
+    {
+        var text = GameSessionItemValue.FromString("room-a");
+        var number = GameSessionItemValue.FromInt64(42);
+        var flag = GameSessionItemValue.FromBoolean(true);
+
+        Assert.Equal(GameSessionItemKind.String, text.Kind);
+        Assert.Equal("room-a", text.GetString());
+        Assert.Equal(GameSessionItemKind.Int64, number.Kind);
+        Assert.Equal(42, number.GetInt64());
+        Assert.Equal(GameSessionItemKind.Boolean, flag.Kind);
+        Assert.True(flag.GetBoolean());
+    }
+
+    [Fact]
+    public void Empty_session_items_snapshot_returns_missing_values()
+    {
+        Assert.False(GameSessionItems.Empty.TryGetValue("roomId", out _));
+        Assert.Null(GameSessionItems.Empty.GetString("roomId"));
+        Assert.Null(GameSessionItems.Empty.GetInt64("generation"));
+        Assert.Null(GameSessionItems.Empty.GetBoolean("ready"));
+    }
+
+    [Fact]
     public void AddSessionsRegistersDirectory()
     {
         var services = new ServiceCollection();
