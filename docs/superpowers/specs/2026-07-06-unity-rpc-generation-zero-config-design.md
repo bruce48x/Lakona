@@ -78,10 +78,12 @@ options should be removed from the generated-project model. They currently do
 not drive framework behavior; keeping them makes handshake setup harder to
 understand without adding value.
 
-Lakona game handshake should carry only framework protocol negotiation fields
-that the framework actually uses. In the current model that means
-`ProtocolVersionMin` and `ProtocolVersionMax` on `GameClientHello`. Platform,
-game version, build id, client runtime, client runtime version, and supported
+Lakona game handshake should carry only the framework protocol field it
+actually uses. In the current model that means a single
+`ProtocolVersion = 1` on `GameClientHello`. Version range negotiation through
+`ProtocolVersionMin` and `ProtocolVersionMax` should be removed until the
+framework has a concrete multi-version handshake requirement. Platform, game
+version, build id, client runtime, client runtime version, and supported
 capability lists should not be part of the default framework handshake unless
 they gain concrete framework behavior.
 
@@ -137,6 +139,8 @@ Focused tests should cover:
 - explicit `LakonaGameGenerateClient=false` disables game wrapper generation;
 - generated client code uses `Client.Generated`, not `Rpc.Generated` or
   `Lakona.*`;
+- game handshake request uses a single `ProtocolVersion`, not
+  `ProtocolVersionMin` / `ProtocolVersionMax`;
 - game handshake request metadata no longer emits or requires `ClientRuntime`,
   `ClientRuntimeVersion`, `Platform`, `GameVersion`, `BuildId`, or
   `SupportedCapabilities`;
