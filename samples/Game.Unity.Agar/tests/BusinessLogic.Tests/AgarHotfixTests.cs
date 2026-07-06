@@ -227,6 +227,55 @@ public sealed class AgarHotfixTests
     }
 
     [Fact]
+    public async Task Battle_submit_input_routes_when_session_items_are_valid()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var context = await CreateBattleInputContextAsync("battle-service-input-valid", cancellationToken);
+        await SetBattleSessionItemsAsync(
+            context.GameServer,
+            context.Session,
+            context.RoomId,
+            "realtime-session-1",
+            3,
+            cancellationToken);
+
+        var after = await InvokeBattleInputAndReadAsync(
+            context,
+            moveX: 0.5f,
+            moveY: -0.75f,
+            tick: 77,
+            cancellationToken);
+
+        Assert.Equal(0.5f, after.InputX);
+        Assert.Equal(-0.75f, after.InputY);
+        Assert.Equal(77, after.LastInputTick);
+    }
+
+    [Theory]
+    [InlineData(BattleSessionItemsCase.Missing)]
+    [InlineData(BattleSessionItemsCase.BlankRoomId)]
+    [InlineData(BattleSessionItemsCase.BlankRealtimeSessionId)]
+    [InlineData(BattleSessionItemsCase.WrongKindRoomId)]
+    [InlineData(BattleSessionItemsCase.WrongKindRealtimeGeneration)]
+    [InlineData(BattleSessionItemsCase.ZeroRealtimeGeneration)]
+    public async Task Battle_submit_input_rejects_invalid_session_items(BattleSessionItemsCase sessionItemsCase)
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var context = await CreateBattleInputContextAsync($"battle-service-input-reject-{sessionItemsCase}", cancellationToken);
+        await SetBattleSessionItemsAsync(context.GameServer, context.Session, sessionItemsCase, context.RoomId, cancellationToken);
+        var before = await ReadRoomSubmittedInputAsync(context.Actors, context.RoomId, cancellationToken);
+
+        var after = await InvokeBattleInputAndReadAsync(
+            context,
+            moveX: 1f,
+            moveY: 0.5f,
+            tick: 88,
+            cancellationToken);
+
+        Assert.Equal(before, after);
+    }
+
+    [Fact]
     public async Task Leaderboard_feature_start_creates_current_leaderboard_actor()
     {
         var services = new ServiceCollection();
@@ -303,10 +352,177 @@ public sealed class AgarHotfixTests
         };
     }
 
-    private static void SeedSimulationRankingMasses(RoomActor actor)
+    private static async Task<BattleInputContext> CreateBattleInputContextAsync(
+        string roomId,
+        CancellationToken cancellationToken)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddLakonaGameServer();
+        new global::GeneratedHotfixActorRegistration().Register(services);
+        services.AddGeneratedActorSelectorTestDependencies();
+        services.AddSingleton(new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "gateway-1" }
+        });
+
+        var provider = services.BuildServiceProvider();
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        await CreateReadyStartedRoomAsync(actors, provider.GetRequiredService<ActorHosting>(), roomId, cancellationToken);
+        var hotfixRuntime = await TestHotfix.LoadCurrentRuntimeAsync(provider, cancellationToken);
+        var gameServer = provider.GetRequiredService<ILakonaGameServer>();
+        var session = await gameServer
+            .StartSessionAsync("player-1", "battle-connection-1", new CapturingBattleCallback(), cancellationToken)
+            .ConfigureAwait(false);
+        return new BattleInputContext(provider, hotfixRuntime, actors, gameServer, session, roomId);
+    }
+
+    private static async Task CreateReadyStartedRoomAsync(
+        IActorRuntime actors,
+        ActorHosting hosting,
+        string roomId,
+        CancellationToken cancellationToken)
+    {
+        await hosting.EnsureAsync<RoomActor>(ActorId.From(roomId), cancellationToken);
+        await actors.AskAsync<RoomActor, RoomSettlementResult>(
+            ActorId.From(roomId),
+            (actor, _) => actor.CreateAsync(new RoomCreateRequest
+            {
+                RoomId = roomId,
+                MatchId = "match-1",
+                CreatedByUserId = "player-1",
+                CreatedAtUtc = DateTime.UtcNow,
+                Players = [BuildAssignment("player-1", roomId, "match-1", 0)]
+            }),
+            cancellationToken);
+        await actors.AskAsync<RoomActor, RoomSettlementResult>(
+            ActorId.From(roomId),
+            (actor, _) => actor.SetReadyAsync(new RoomPlayerReadyRequest
+            {
+                UserId = "player-1",
+                RoomId = roomId,
+                IsReady = true,
+                RealtimeSessionId = "realtime-session-1",
+                RealtimeSessionGeneration = 3,
+                UpdatedAtUtc = DateTime.UtcNow
+            }),
+            cancellationToken);
+        await actors.AskAsync<RoomActor, RoomSettlementResult>(
+            ActorId.From(roomId),
+            (actor, _) => actor.StartAsync(new RoomStartRequest
+            {
+                RoomId = roomId,
+                StartedByUserId = "player-1",
+                StartedAtUtc = DateTime.UtcNow
+            }),
+            cancellationToken);
+    }
+
+    private static async Task SetBattleSessionItemsAsync(
+        ILakonaGameServer gameServer,
+        GameSessionKey session,
+        string roomId,
+        string realtimeSessionId,
+        long realtimeSessionGeneration,
+        CancellationToken cancellationToken)
+    {
+        await gameServer.SetSessionItemAsync(session, "roomId", GameSessionItemValue.FromString(roomId), cancellationToken);
+        await gameServer.SetSessionItemAsync(session, "realtimeSessionId", GameSessionItemValue.FromString(realtimeSessionId), cancellationToken);
+        await gameServer.SetSessionItemAsync(session, "realtimeSessionGeneration", GameSessionItemValue.FromInt64(realtimeSessionGeneration), cancellationToken);
+    }
+
+    private static async Task SetBattleSessionItemsAsync(
+        ILakonaGameServer gameServer,
+        GameSessionKey session,
+        BattleSessionItemsCase sessionItemsCase,
+        string validRoomId,
+        CancellationToken cancellationToken)
+    {
+        switch (sessionItemsCase)
+        {
+            case BattleSessionItemsCase.Missing:
+                return;
+            case BattleSessionItemsCase.BlankRoomId:
+                await SetBattleSessionItemsAsync(gameServer, session, "", "realtime-session-1", 3, cancellationToken);
+                return;
+            case BattleSessionItemsCase.BlankRealtimeSessionId:
+                await SetBattleSessionItemsAsync(gameServer, session, validRoomId, "", 3, cancellationToken);
+                return;
+            case BattleSessionItemsCase.WrongKindRoomId:
+                await gameServer.SetSessionItemAsync(session, "roomId", GameSessionItemValue.FromBoolean(true), cancellationToken);
+                await gameServer.SetSessionItemAsync(session, "realtimeSessionId", GameSessionItemValue.FromString("realtime-session-1"), cancellationToken);
+                await gameServer.SetSessionItemAsync(session, "realtimeSessionGeneration", GameSessionItemValue.FromInt64(3), cancellationToken);
+                return;
+            case BattleSessionItemsCase.WrongKindRealtimeGeneration:
+                await gameServer.SetSessionItemAsync(session, "roomId", GameSessionItemValue.FromString(validRoomId), cancellationToken);
+                await gameServer.SetSessionItemAsync(session, "realtimeSessionId", GameSessionItemValue.FromString("realtime-session-1"), cancellationToken);
+                await gameServer.SetSessionItemAsync(session, "realtimeSessionGeneration", GameSessionItemValue.FromString("3"), cancellationToken);
+                return;
+            case BattleSessionItemsCase.ZeroRealtimeGeneration:
+                await SetBattleSessionItemsAsync(gameServer, session, validRoomId, "realtime-session-1", 0, cancellationToken);
+                return;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(sessionItemsCase), sessionItemsCase, "Unknown session item case.");
+        }
+    }
+
+    private static async Task<SubmittedInputState> InvokeBattleInputAndReadAsync(
+        BattleInputContext context,
+        float moveX,
+        float moveY,
+        int tick,
+        CancellationToken cancellationToken)
+    {
+        var sessionItems = await context.GameServer.GetSessionItemsAsync(context.Session, cancellationToken);
+        var call = new HotfixServiceCall<InputMessage, IBattleCallback>(
+            new InputMessage
+            {
+                MoveX = moveX,
+                MoveY = moveY,
+                Tick = tick
+            },
+            "battle-connection-1",
+            new CapturingBattleCallback(),
+            context.Session,
+            sessionItems,
+            context.HotfixRuntime.HotfixServices,
+            context.Actors,
+            context.GameServer);
+
+        await context.HotfixRuntime.Invoker
+            .InvokeAsync<IBattleService, HotfixServiceCall<InputMessage, IBattleCallback>>(
+                2,
+                call,
+                cancellationToken);
+
+        return await ReadRoomSubmittedInputAsync(context.Actors, context.RoomId, cancellationToken);
+    }
+
+    private static ValueTask<SubmittedInputState> ReadRoomSubmittedInputAsync(
+        IActorRuntime actors,
+        string roomId,
+        CancellationToken cancellationToken)
+    {
+        return actors.AskAsync<RoomActor, SubmittedInputState>(
+            ActorId.From(roomId),
+            (actor, _) =>
+            {
+                var state = GetRoomState(actor);
+                var player = state.Simulation.Players.Single(player => string.Equals(player.PlayerId, "player-1", StringComparison.Ordinal));
+                return new ValueTask<SubmittedInputState>(new SubmittedInputState(player.InputX, player.InputY, player.LastInputTick));
+            },
+            cancellationToken);
+    }
+
+    private static RoomState GetRoomState(RoomActor actor)
     {
         var stateField = typeof(RoomActor).GetField("State", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        var state = (RoomState)stateField.GetValue(actor)!;
+        return (RoomState)stateField.GetValue(actor)!;
+    }
+
+    private static void SeedSimulationRankingMasses(RoomActor actor)
+    {
+        var state = GetRoomState(actor);
         foreach (var player in state.Simulation.Players)
         {
             player.Mass = player.PlayerId switch
@@ -692,6 +908,47 @@ public sealed class AgarHotfixTests
         public void OnMatchmakingStatus(MatchmakingStatusUpdate matchmakingStatus)
         {
         }
+    }
+
+    private sealed class CapturingBattleCallback : IBattleCallback
+    {
+        public void OnWorldState(WorldState worldState)
+        {
+        }
+
+        public void OnPlayerDead(PlayerDead deadEvent)
+        {
+        }
+
+        public void OnMatchEnd(MatchEnd matchEnd)
+        {
+        }
+    }
+
+    private sealed record BattleInputContext(
+        ServiceProvider Provider,
+        HotfixRuntimeSnapshot HotfixRuntime,
+        IActorRuntime Actors,
+        ILakonaGameServer GameServer,
+        GameSessionKey Session,
+        string RoomId) : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync()
+        {
+            await Provider.DisposeAsync();
+        }
+    }
+
+    private sealed record SubmittedInputState(float InputX, float InputY, int LastInputTick);
+
+    public enum BattleSessionItemsCase
+    {
+        Missing,
+        BlankRoomId,
+        BlankRealtimeSessionId,
+        WrongKindRoomId,
+        WrongKindRealtimeGeneration,
+        ZeroRealtimeGeneration
     }
 
     private sealed class TestGameServer : ILakonaGameServer

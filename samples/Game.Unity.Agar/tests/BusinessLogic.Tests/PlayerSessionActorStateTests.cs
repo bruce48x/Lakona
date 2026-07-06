@@ -16,6 +16,9 @@ namespace Agar.Unity.Tests;
 
 public sealed class PlayerSessionActorStateTests
 {
+    private const string RealtimeInputSessionId = "realtime-session-1";
+    private const long RealtimeInputSessionGeneration = 3;
+
     [Fact]
     public async Task UserActorPersistsControlAndRealtimeFrameworkSessionMetadata()
     {
@@ -393,14 +396,67 @@ public sealed class PlayerSessionActorStateTests
     }
 
     [Fact]
-    public async Task RoomActorRejectsBlankRealtimeIdentityWhenSubmittingInput()
+    public async Task RoomActorAcceptsInputWhenRealtimeIdentityMatches()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateActorServices();
         var actors = provider.GetRequiredService<IActorRuntime>();
-        var roomId = "room-realtime-blank-input";
+        var roomId = "room-realtime-input-accept";
 
-        await provider.GetRequiredService<ActorHosting>().EnsureAsync<RoomActor>(ActorId.From(roomId), cancellationToken);
+        await CreateReadyStartedRoomAsync(actors, provider.GetRequiredService<ActorHosting>(), roomId, cancellationToken);
+
+        var input = await SubmitInputAndReadAsync(
+            actors,
+            roomId,
+            RealtimeInputSessionId,
+            RealtimeInputSessionGeneration,
+            moveX: 0.75f,
+            moveY: -0.25f,
+            tick: 123,
+            cancellationToken);
+
+        Assert.Equal(0.75f, input.InputX);
+        Assert.Equal(-0.25f, input.InputY);
+        Assert.Equal(123, input.LastInputTick);
+    }
+
+    [Theory]
+    [InlineData("stale-realtime-session", RealtimeInputSessionGeneration)]
+    [InlineData(RealtimeInputSessionId, 2)]
+    [InlineData("", RealtimeInputSessionGeneration)]
+    [InlineData(RealtimeInputSessionId, 0)]
+    public async Task RoomActorRejectsInputWhenRealtimeIdentityDoesNotMatch(
+        string requestRealtimeSessionId,
+        long requestRealtimeSessionGeneration)
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = CreateActorServices();
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        var roomId = $"room-realtime-input-reject-{DescribeRealtimeIdentity(requestRealtimeSessionId)}-{requestRealtimeSessionGeneration}";
+
+        await CreateReadyStartedRoomAsync(actors, provider.GetRequiredService<ActorHosting>(), roomId, cancellationToken);
+        var before = await ReadSubmittedInputAsync(actors, roomId, cancellationToken);
+
+        var after = await SubmitInputAndReadAsync(
+            actors,
+            roomId,
+            requestRealtimeSessionId,
+            requestRealtimeSessionGeneration,
+            moveX: 1f,
+            moveY: 0.5f,
+            tick: 456,
+            cancellationToken);
+
+        Assert.Equal(before, after);
+    }
+
+    private static async Task CreateReadyStartedRoomAsync(
+        IActorRuntime actors,
+        ActorHosting hosting,
+        string roomId,
+        CancellationToken cancellationToken)
+    {
+        await hosting.EnsureAsync<RoomActor>(ActorId.From(roomId), cancellationToken);
         await actors.AskAsync<RoomActor, RoomSettlementResult>(
             ActorId.From(roomId),
             (actor, _) => actor.CreateAsync(new RoomCreateRequest
@@ -426,6 +482,18 @@ public sealed class PlayerSessionActorStateTests
             cancellationToken);
         await actors.AskAsync<RoomActor, RoomSettlementResult>(
             ActorId.From(roomId),
+            (actor, _) => actor.SetReadyAsync(new RoomPlayerReadyRequest
+            {
+                UserId = "player-1",
+                RoomId = roomId,
+                IsReady = true,
+                RealtimeSessionId = RealtimeInputSessionId,
+                RealtimeSessionGeneration = RealtimeInputSessionGeneration,
+                UpdatedAtUtc = DateTime.UtcNow
+            }),
+            cancellationToken);
+        await actors.AskAsync<RoomActor, RoomSettlementResult>(
+            ActorId.From(roomId),
             (actor, _) => actor.StartAsync(new RoomStartRequest
             {
                 RoomId = roomId,
@@ -433,8 +501,19 @@ public sealed class PlayerSessionActorStateTests
                 StartedAtUtc = DateTime.UtcNow
             }),
             cancellationToken);
+    }
 
-        var input = await actors.AskAsync<RoomActor, SubmittedInputState>(
+    private static ValueTask<SubmittedInputState> SubmitInputAndReadAsync(
+        IActorRuntime actors,
+        string roomId,
+        string realtimeSessionId,
+        long realtimeSessionGeneration,
+        float moveX,
+        float moveY,
+        int tick,
+        CancellationToken cancellationToken)
+    {
+        return actors.AskAsync<RoomActor, SubmittedInputState>(
             ActorId.From(roomId),
             async (actor, _) =>
             {
@@ -442,26 +521,31 @@ public sealed class PlayerSessionActorStateTests
                 {
                     RoomId = roomId,
                     UserId = "player-1",
-                    RealtimeSessionId = "",
-                    RealtimeSessionGeneration = 0,
+                    RealtimeSessionId = realtimeSessionId,
+                    RealtimeSessionGeneration = realtimeSessionGeneration,
                     Input = new InputMessage
                     {
-                        MoveX = 1f,
-                        MoveY = 0.5f,
-                        Tick = 123
+                        MoveX = moveX,
+                        MoveY = moveY,
+                        Tick = tick
                     },
                     SubmittedAtUtc = DateTime.UtcNow
                 });
 
-                var state = GetRoomState(actor);
-                var player = state.Simulation.Players.Single(player => string.Equals(player.PlayerId, "player-1", StringComparison.Ordinal));
-                return new SubmittedInputState(player.InputX, player.InputY, player.LastInputTick);
+                return ReadSubmittedInput(actor);
             },
             cancellationToken);
+    }
 
-        Assert.Equal(0f, input.InputX);
-        Assert.Equal(0f, input.InputY);
-        Assert.Equal(0, input.LastInputTick);
+    private static ValueTask<SubmittedInputState> ReadSubmittedInputAsync(
+        IActorRuntime actors,
+        string roomId,
+        CancellationToken cancellationToken)
+    {
+        return actors.AskAsync<RoomActor, SubmittedInputState>(
+            ActorId.From(roomId),
+            (actor, _) => new ValueTask<SubmittedInputState>(ReadSubmittedInput(actor)),
+            cancellationToken);
     }
 
     private static ServiceProvider CreateActorServices()
@@ -471,6 +555,20 @@ public sealed class PlayerSessionActorStateTests
         services.AddLakonaGameServer();
         services.AddGeneratedActorSelectorTestDependencies();
         return services.BuildServiceProvider();
+    }
+
+    private static string DescribeRealtimeIdentity(string value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? "blank"
+            : value.Replace(" ", "-", StringComparison.Ordinal);
+    }
+
+    private static SubmittedInputState ReadSubmittedInput(RoomActor actor)
+    {
+        var state = GetRoomState(actor);
+        var player = state.Simulation.Players.Single(player => string.Equals(player.PlayerId, "player-1", StringComparison.Ordinal));
+        return new SubmittedInputState(player.InputX, player.InputY, player.LastInputTick);
     }
 
     private static RoomState GetRoomState(RoomActor actor)
