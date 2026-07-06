@@ -356,7 +356,11 @@ public static partial class RoomBehavior
             return default;
         }
 
-        if (!string.Equals(player.RealtimeSessionId, request.RealtimeSessionId, StringComparison.Ordinal) ||
+        if (string.IsNullOrWhiteSpace(player.RealtimeSessionId) ||
+            string.IsNullOrWhiteSpace(request.RealtimeSessionId) ||
+            player.RealtimeSessionGeneration <= 0 ||
+            request.RealtimeSessionGeneration <= 0 ||
+            !string.Equals(player.RealtimeSessionId, request.RealtimeSessionId, StringComparison.Ordinal) ||
             player.RealtimeSessionGeneration != request.RealtimeSessionGeneration)
         {
             return default;

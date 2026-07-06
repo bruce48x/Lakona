@@ -1,3 +1,4 @@
+using System.Reflection;
 using Agar.Sample.State.Contracts.Rooms;
 using Agar.Sample.State.Contracts.Sessions;
 using Agar.Sample.State.Contracts.Users;
@@ -8,6 +9,7 @@ using Lakona.Game.Server.Actors;
 using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.State.Rooms;
 using Server.Hotfix.State.Users;
+using Shared.Interfaces;
 using Xunit;
 
 namespace Agar.Unity.Tests;
@@ -390,6 +392,78 @@ public sealed class PlayerSessionActorStateTests
         Assert.Equal(0, matchedPlayer.RealtimeSessionGeneration);
     }
 
+    [Fact]
+    public async Task RoomActorRejectsBlankRealtimeIdentityWhenSubmittingInput()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = CreateActorServices();
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        var roomId = "room-realtime-blank-input";
+
+        await provider.GetRequiredService<ActorHosting>().EnsureAsync<RoomActor>(ActorId.From(roomId), cancellationToken);
+        await actors.AskAsync<RoomActor, RoomSettlementResult>(
+            ActorId.From(roomId),
+            (actor, _) => actor.CreateAsync(new RoomCreateRequest
+            {
+                RoomId = roomId,
+                MatchId = "match-1",
+                CreatedByUserId = "player-1",
+                CreatedAtUtc = DateTime.UtcNow,
+                Players =
+                [
+                    new PlayerRoomAssignment
+                    {
+                        UserId = "player-1",
+                        SessionToken = "token-1",
+                        ConnectionId = "control-connection-1",
+                        RoomId = roomId,
+                        MatchId = "match-1",
+                        SeatIndex = 0,
+                        AssignedAtUtc = DateTime.UtcNow
+                    }
+                ]
+            }),
+            cancellationToken);
+        await actors.AskAsync<RoomActor, RoomSettlementResult>(
+            ActorId.From(roomId),
+            (actor, _) => actor.StartAsync(new RoomStartRequest
+            {
+                RoomId = roomId,
+                StartedByUserId = "player-1",
+                StartedAtUtc = DateTime.UtcNow
+            }),
+            cancellationToken);
+
+        var input = await actors.AskAsync<RoomActor, SubmittedInputState>(
+            ActorId.From(roomId),
+            async (actor, _) =>
+            {
+                await actor.SubmitInputAsync(new RoomInputSubmitRequest
+                {
+                    RoomId = roomId,
+                    UserId = "player-1",
+                    RealtimeSessionId = "",
+                    RealtimeSessionGeneration = 0,
+                    Input = new InputMessage
+                    {
+                        MoveX = 1f,
+                        MoveY = 0.5f,
+                        Tick = 123
+                    },
+                    SubmittedAtUtc = DateTime.UtcNow
+                });
+
+                var state = GetRoomState(actor);
+                var player = state.Simulation.Players.Single(player => string.Equals(player.PlayerId, "player-1", StringComparison.Ordinal));
+                return new SubmittedInputState(player.InputX, player.InputY, player.LastInputTick);
+            },
+            cancellationToken);
+
+        Assert.Equal(0f, input.InputX);
+        Assert.Equal(0f, input.InputY);
+        Assert.Equal(0, input.LastInputTick);
+    }
+
     private static ServiceProvider CreateActorServices()
     {
         var services = new ServiceCollection();
@@ -398,4 +472,12 @@ public sealed class PlayerSessionActorStateTests
         services.AddGeneratedActorSelectorTestDependencies();
         return services.BuildServiceProvider();
     }
+
+    private static RoomState GetRoomState(RoomActor actor)
+    {
+        var stateField = typeof(RoomActor).GetField("State", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        return (RoomState)stateField.GetValue(actor)!;
+    }
+
+    private sealed record SubmittedInputState(float InputX, float InputY, int LastInputTick);
 }

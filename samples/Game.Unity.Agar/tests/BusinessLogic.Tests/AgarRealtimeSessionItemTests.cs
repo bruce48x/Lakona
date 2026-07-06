@@ -59,6 +59,26 @@ public sealed class AgarRealtimeSessionItemTests
         Assert.Contains("return default;", method, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Battle_attach_ready_failure_clears_user_realtime_identity()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "samples",
+            "Game.Unity.Agar",
+            "Server",
+            "Hotfix",
+            "Services",
+            "BattleService.cs"));
+        var method = ExtractMethod(source, "public async ValueTask<RealtimeAttachReply> AttachRealtimeAsync");
+        var readyFailure = ExtractBlockStartingAt(method, method.IndexOf("if (!ready.Succeeded)", StringComparison.Ordinal));
+
+        Assert.Contains(".ClearRealtimeAsync(new PlayerRealtimeClearRequest", readyFailure, StringComparison.Ordinal);
+        Assert.Contains("RealtimeSessionId = realtimeSession.SessionId", readyFailure, StringComparison.Ordinal);
+        Assert.Contains("RealtimeSessionGeneration = realtimeSession.Generation", readyFailure, StringComparison.Ordinal);
+        Assert.Contains(".TerminateSessionAsync(", readyFailure, StringComparison.Ordinal);
+    }
+
     private static string ExtractClass(string source, string className)
     {
         var match = Regex.Match(source, $@"\bclass\s+{Regex.Escape(className)}\b");

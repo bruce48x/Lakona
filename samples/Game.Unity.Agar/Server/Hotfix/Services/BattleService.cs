@@ -124,6 +124,17 @@ internal sealed class BattleService
             }).ConfigureAwait(false);
         if (!ready.Succeeded)
         {
+            await _users
+                .Get(new UserId(req.PlayerId))
+                .ClearRealtimeAsync(new PlayerRealtimeClearRequest
+                {
+                    UserId = req.PlayerId,
+                    RealtimeSessionId = realtimeSession.SessionId,
+                    RealtimeSessionGeneration = realtimeSession.Generation,
+                    ClearedAtUtc = DateTime.UtcNow,
+                    Reason = ready.Message
+                })
+                .ConfigureAwait(false);
             await call.GameServer
                 .TerminateSessionAsync(
                     realtimeSession,
