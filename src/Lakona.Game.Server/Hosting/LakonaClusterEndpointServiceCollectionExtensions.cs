@@ -19,10 +19,10 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        var runtimeOptions = FindRuntimeOptions(services);
-        if (runtimeOptions?.Cluster is null || string.IsNullOrWhiteSpace(runtimeOptions.Cluster.Endpoint))
+        var runtimeOptions = FindRuntimeOptions(services) ?? new LakonaGameRuntimeOptions();
+        if (!services.Any(static descriptor => descriptor.ServiceType == typeof(LakonaGameRuntimeOptions)))
         {
-            return services;
+            services.AddSingleton(runtimeOptions);
         }
 
         services.TryAddSingleton<IClusterTransportFactory, TcpClusterTransportFactory>();

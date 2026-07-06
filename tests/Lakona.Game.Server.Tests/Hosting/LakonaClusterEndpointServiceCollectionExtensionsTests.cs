@@ -2,6 +2,7 @@ using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Cluster.Rpc.MemoryPack;
 using Lakona.Game.Cluster.Sql;
+using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Features;
@@ -216,6 +217,23 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
 
         Assert.IsType<ClusterNodeDiscovery>(provider.GetRequiredService<IClusterNodeDiscovery>());
         Assert.IsType<InMemoryRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
+    }
+
+    [Fact]
+    public void AddLakonaGameServer_registers_exactly_one_cluster_node_discovery_without_cluster_configuration()
+    {
+        var services = new ServiceCollection();
+
+        services.AddLakonaGameServer();
+        using var provider = services.BuildServiceProvider();
+
+        var discoveries = provider.GetServices<IClusterNodeDiscovery>().ToArray();
+        var discovery = Assert.Single(discoveries);
+        var clusterOptions = provider.GetRequiredService<ClusterOptions>();
+
+        Assert.IsType<ClusterNodeDiscovery>(discovery);
+        Assert.Same(discovery, provider.GetRequiredService<IClusterNodeDiscovery>());
+        Assert.Equal("tcp://127.0.0.1:21001", clusterOptions.AdvertisedEndpoints["cluster"]);
     }
 
     [Fact]

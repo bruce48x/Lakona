@@ -62,8 +62,7 @@ Use errors for framework invariants:
 - endpoint transport names are duplicated where the framework needs one endpoint per transport
 - endpoint `RpcServices` are duplicated or unknown
 - cluster service kind is unknown
-- configured cluster is missing `Lakona:Cluster:Serializer` or selects a
-  serializer other than `json` or `memorypack`
+- configured cluster has an empty serializer or selects a serializer other than `json` or `memorypack`
 - gateway service is configured without reachable route-directory or node-directory support
 - advertised endpoint cannot be parsed
 - advertised endpoint conflicts with the configured listener in a way the runtime cannot route
@@ -84,7 +83,7 @@ Use warnings for local or temporary defaults:
 - route directory uses in-memory storage
 - advertised endpoint is loopback outside an explicitly local topology
 - endpoint uses a default port
-- single-node topology is active
+- local one-node cluster topology is using defaults
 - persistence is not configured
 - route lease duration, send timeout, replay retention, or pending push limit uses defaults
 
@@ -128,8 +127,9 @@ Specific framework behavior belongs under specific configuration roots:
   directories through `current.txt`.
 
 Generated local projects may choose local defaults such as loopback endpoints,
-single-node topology, and in-memory stores. Deployment configuration must make
-non-local choices explicit instead of relying on a hidden runtime preset.
+a one-node cluster topology, and in-memory stores. Deployment configuration
+must make non-local choices explicit instead of relying on a hidden runtime
+preset.
 `Lakona:ReliablePush:Enabled` is allowed, defaults to `true`, and disabled means
 immediate best-effort notification with no ack or replay. Generated default
 configuration should omit the key unless the user explicitly opts out.
@@ -264,8 +264,8 @@ Example diagnostics:
 ULINK001 error Node id is required.
 ULINK023 error WebSocket endpoint path is required.
 ULINK041 error Cluster service name 'gateway' is duplicated.
-ULINK044 error Lakona:Cluster:Serializer is required when Cluster is configured.
-ULINK044 repair Set Lakona:Cluster:Serializer to json or memorypack.
+ULINK044 error Lakona:Cluster:Serializer must not be empty.
+ULINK044 repair Set Lakona:Cluster:Serializer to json or memorypack, or omit Lakona:Cluster to use defaults.
 ULINK071 error Hotfix assembly was not found.
 ULINK071 repair dotnet build Server/Hotfix/Server.Hotfix.csproj
 ULINK091 error Reliable Push requires a session identity resolver.
@@ -365,9 +365,8 @@ Generated readiness checks should call the same runtime validation pipeline used
 Liveness failure must imply readiness failure. Readiness failure does not necessarily imply liveness failure; for example, a missing hotfix assembly means the process is alive but not ready.
 
 Cluster liveness validates node id, advertised endpoints, configured feature
-descriptors, and non-empty endpoint keys/values. Standalone liveness validates
-node id and configured business endpoints, and skips cluster feature discovery
-requirements.
+descriptors, and non-empty endpoint keys/values. There is no separate
+server-side standalone liveness mode; a local server is a one-node cluster.
 
 `--readiness-check` also runs observability guardrails, including local admin
 loopback requirements, diagnostics detail exposure, file logging integration,
@@ -377,7 +376,7 @@ event buffer capacity, log level, and trace sample rate.
 Readiness output should format diagnostics for humans:
 
 ```txt
-cluster: ok single-node
+cluster: ok tcp://127.0.0.1:21001
 node: ok dev-1
 services: ok node-directory, route-directory, gateway
 hotfix: failed local build output not found
@@ -498,9 +497,9 @@ Avoid user-facing defaults for:
 
 `Lakona:Cluster:Directory` is valid explicit framework configuration for a
 node that owns the cluster node directory. It should not appear as an
-unexplained default in single-node generated development configuration, and it
-must not be used for gameplay persistence. Business persistence belongs under
-an application-owned root such as `Agar:Persistence`.
+unexplained generated development default, and it must not be used for gameplay
+persistence. Business persistence belongs under an application-owned root such
+as `Agar:Persistence`.
 
 ## Validation Contract
 

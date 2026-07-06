@@ -649,10 +649,11 @@ endpoint's `RpcServices` array and generated serializer names in endpoint
 `Serializer`; do not generate endpoint `Name` or
 `Lakona:Cluster:Services`.
 
-Single-node starter projects do not emit `Lakona:Cluster`. Templates that do
-emit cluster configuration must also emit `Lakona:Cluster:Serializer` using
-the same serializer selected by `--serializer`. Cluster serializer selection
-drives node-to-node cluster RPC payloads and remote actor payloads. It does not
+Starter projects may omit `Lakona:Cluster`; the framework supplies default
+one-node cluster values. Templates that do emit cluster configuration must also
+emit `Lakona:Cluster:Serializer` using the same serializer selected by
+`--serializer`. Cluster serializer selection drives node-to-node cluster RPC
+payloads and remote actor payloads. It does not
 change the `LakonaInternalCodec` used for framework handshake, heartbeat,
 reliable push ack, and session termination notice payloads.
 
@@ -699,7 +700,7 @@ delivery becomes best-effort with no ack or replay.
 
 `Lakona:Cluster:Directory` is valid generated output only for a topology that
 explicitly creates a cluster directory owner. It must not appear as a hidden
-single-node development default, and it must not be reused for business
+generated development default, and it must not be reused for business
 persistence.
 
 ## Regression Checks

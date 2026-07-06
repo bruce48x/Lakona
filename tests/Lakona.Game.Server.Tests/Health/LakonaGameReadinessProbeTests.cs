@@ -10,7 +10,7 @@ namespace Lakona.Game.Server.Tests.Health;
 public sealed class LakonaGameReadinessProbeTests
 {
     [Fact]
-    public void Run_DoesNotRequireClusterEndpointWhenClusterIsNotConfigured()
+    public void Run_UsesDefaultClusterEndpointWhenClusterIsNotConfigured()
     {
         var runtime = new LakonaGameRuntimeOptions
         {
@@ -26,31 +26,15 @@ public sealed class LakonaGameReadinessProbeTests
                     Path = "/ws",
                     RpcServices = ["login"]
                 }
-            ],
-            Cluster = null
+            ]
         };
 
-        var output = new StringWriter();
-        var errors = new StringWriter();
-        var originalOutput = Console.Out;
-        var originalError = Console.Error;
+        var (_, output, errors) = CaptureRun(runtime, runtime.ToClusterOptions(), []);
 
-        try
-        {
-            Console.SetOut(output);
-            Console.SetError(errors);
-
-            _ = LakonaGameReadinessProbe.Run(runtime, runtime.ToClusterOptions(), ["--json"]);
-        }
-        finally
-        {
-            Console.SetOut(originalOutput);
-            Console.SetError(originalError);
-        }
-
-        var text = output.ToString() + errors.ToString();
+        var text = output + errors;
         Assert.DoesNotContain("ULINK040", text, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona:Cluster:Endpoint is required", text, StringComparison.Ordinal);
+        Assert.Contains("tcp://127.0.0.1:21001", text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -106,28 +90,35 @@ public sealed class LakonaGameReadinessProbeTests
     [Fact]
     public void Run_TextOutputIncludesObservabilityDiagnosticsWhenHotfixAlsoFails()
     {
-        DeleteHotfixAssembly();
-        var runtime = RuntimeWithObservability(new LakonaObservabilityOptions
+        try
         {
-            Metrics = new LakonaMetricsObservabilityOptions
+            DeleteHotfixAssembly();
+            var runtime = RuntimeWithObservability(new LakonaObservabilityOptions
             {
-                Prometheus = new LakonaPrometheusObservabilityOptions
+                Metrics = new LakonaMetricsObservabilityOptions
                 {
-                    Path = "metrics"
+                    Prometheus = new LakonaPrometheusObservabilityOptions
+                    {
+                        Path = "metrics"
+                    }
                 }
-            }
-        });
+            });
 
-        var (exitCode, output, errors) = CaptureRun(
-            runtime,
-            runtime.ToClusterOptions(),
-            []);
+            var (exitCode, output, errors) = CaptureRun(
+                runtime,
+                runtime.ToClusterOptions(),
+                []);
 
-        Assert.Equal(1, exitCode);
-        Assert.Contains("cluster: ok single-node", output, StringComparison.Ordinal);
-        Assert.Contains("hotfix: failed local build output not found", errors, StringComparison.Ordinal);
-        Assert.Contains("ULINK136", errors, StringComparison.Ordinal);
-        Assert.Contains("fix: Use an absolute non-root path such as /_lakona/metrics without query or fragment.", errors, StringComparison.Ordinal);
+            Assert.Equal(1, exitCode);
+            Assert.Contains("cluster: ok tcp://127.0.0.1:21001", output, StringComparison.Ordinal);
+            Assert.Contains("hotfix: failed local build output not found", errors, StringComparison.Ordinal);
+            Assert.Contains("ULINK136", errors, StringComparison.Ordinal);
+            Assert.Contains("fix: Use an absolute non-root path such as /_lakona/metrics without query or fragment.", errors, StringComparison.Ordinal);
+        }
+        finally
+        {
+            EnsureHotfixAssemblyExists();
+        }
     }
 
     [Theory]
@@ -274,7 +265,6 @@ public sealed class LakonaGameReadinessProbeTests
                     RpcServices = ["login"]
                 }
             ],
-            Cluster = null,
             Observability = observability
         };
     }

@@ -117,6 +117,18 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.TryAddSingleton<IGameHandshakeService, GameHandshakeService>();
         services.TryAddSingleton<IFeatureCommandClient, FeatureCommandClient>();
         services.TryAddSingleton<ILakonaGameServer, DefaultLakonaGameServer>();
+        if (configuration is null)
+        {
+            services.TryAddSingleton(provider =>
+                provider.GetRequiredService<LakonaGameRuntimeOptions>().ToClusterOptions());
+        }
+        else
+        {
+            services.TryAddSingleton(provider =>
+                provider.GetRequiredService<LakonaGameRuntimeOptions>().ToClusterOptions(configuration));
+        }
+
+        services.AddLakonaGameClusterEndpoint();
         return services;
     }
 }

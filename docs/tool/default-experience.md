@@ -20,11 +20,11 @@ Every generated project includes:
 - a hotfix project
 - a shared contract/state project
 - a client project
-- a single-node cluster topology for local development
+- a default one-node cluster topology for local development
 - reliable push services
 - a default health/check command that explains the derived runtime state
 
-The default local topology is a single process with generated defaults for the node-directory, route-directory, and gateway. This is still a cluster topology; it is simply collapsed into one process for local development. Project/game features can be added by project code and selected with configuration when needed, and production deployments can split features across nodes without changing the user-facing game code structure.
+The default local topology is one process with generated defaults for the node-directory, route-directory, gateway, and `Lakona:Cluster` endpoint. It is still the normal cluster model; local development simply starts with one node. Project/game features can be added by project code and selected with configuration when needed, and production deployments can split features across nodes without changing the user-facing game code structure.
 
 ## Configuration Principle
 
@@ -113,12 +113,12 @@ For WebSocket transport, the generated endpoint includes the path:
 }
 ```
 
-Single-node generated projects write the selected serializer only on the
-client-facing endpoint. Templates that emit `Lakona:Cluster` must also write
-`Lakona:Cluster:Serializer` from the same `--serializer` choice. That value
-drives node-to-node cluster RPC payloads and remote actor payloads; it does not
-replace the `LakonaInternalCodec` used by handshake, heartbeat, reliable push
-ack, or session termination notice.
+Generated projects may omit `Lakona:Cluster`; the framework supplies default
+node-to-node cluster values. Templates that emit `Lakona:Cluster` must also
+write `Lakona:Cluster:Serializer` from the same `--serializer` choice. That
+value drives node-to-node cluster RPC payloads and remote actor payloads; it
+does not replace the `LakonaInternalCodec` used by handshake, heartbeat,
+reliable push ack, or session termination notice.
 
 ## Derived Runtime State
 
@@ -218,7 +218,7 @@ dotnet run --project Server/App/Server.App.csproj -- --readiness-check
 The command should print derived runtime state in stable, readable lines:
 
 ```txt
-cluster: ok single-node
+cluster: ok tcp://127.0.0.1:21001
 node: ok dev-1
 features: ok local generated defaults
 hotfix: ok local-build Server.Hotfix.dll

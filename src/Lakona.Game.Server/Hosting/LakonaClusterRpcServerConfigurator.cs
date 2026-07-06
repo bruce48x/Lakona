@@ -22,7 +22,7 @@ public sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurator
 
     public void Configure(LakonaGameServerRpcContext context)
     {
-        if (_runtimeOptions.Cluster is null || string.IsNullOrWhiteSpace(_runtimeOptions.Cluster.Endpoint))
+        if (string.IsNullOrWhiteSpace(_runtimeOptions.Cluster.Endpoint))
         {
             throw new InvalidOperationException("Lakona:Cluster:Endpoint is required for the cluster RPC server.");
         }

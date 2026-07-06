@@ -51,7 +51,9 @@ public sealed class LakonaGameRuntimeOptionsTests
 
         Assert.Equal("dev-1", options.Node.Id);
         Assert.Empty(options.Endpoints);
-        Assert.Null(options.Cluster);
+        Assert.NotNull(options.Cluster);
+        Assert.Equal("tcp://127.0.0.1:21001", options.Cluster.Endpoint);
+        Assert.Equal("memorypack", options.Cluster.Serializer);
     }
 
     [Fact]
@@ -67,6 +69,36 @@ public sealed class LakonaGameRuntimeOptionsTests
         var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
 
         Assert.Equal("json", options.Cluster!.Serializer);
+    }
+
+    [Fact]
+    public void FromConfiguration_preserves_explicit_blank_cluster_serializer()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:Node:Id"] = "gateway-1",
+            ["Lakona:Cluster:Endpoint"] = "tcp://127.0.0.1:21002",
+            ["Lakona:Cluster:Serializer"] = ""
+        });
+
+        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
+
+        Assert.Equal("", options.Cluster.Serializer);
+    }
+
+    [Fact]
+    public void FromConfiguration_preserves_explicit_blank_cluster_section()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:Node:Id"] = "gateway-1",
+            ["Lakona:Cluster"] = ""
+        });
+
+        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
+
+        Assert.Equal("", options.Cluster.Endpoint);
+        Assert.Equal("", options.Cluster.Serializer);
     }
 
     [Fact]
@@ -322,7 +354,7 @@ public sealed class LakonaGameRuntimeOptionsTests
     }
 
     [Fact]
-    public void FromConfiguration_defaults_feature_to_null_and_cluster_to_null()
+    public void FromConfiguration_defaults_feature_to_null_and_cluster_to_defaults()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>
         {
@@ -334,7 +366,10 @@ public sealed class LakonaGameRuntimeOptionsTests
         Assert.Equal("dev-1", options.Node.Id);
         Assert.Empty(options.Endpoints);
         Assert.Null(options.Feature);
-        Assert.Null(options.Cluster);
+        Assert.NotNull(options.Cluster);
+        Assert.Equal("tcp://127.0.0.1:21001", options.Cluster.Endpoint);
+        Assert.Equal("memorypack", options.Cluster.Serializer);
+        Assert.Empty(options.Cluster.Seeds);
     }
 
     [Fact]

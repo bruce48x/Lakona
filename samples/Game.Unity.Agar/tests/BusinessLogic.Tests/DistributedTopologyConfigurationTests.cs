@@ -984,10 +984,7 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddGeneratedActorSelectorTestDependencies();
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton(runtimeOptions);
-        if (runtimeOptions.Cluster is not null)
-        {
-            services.AddSingleton(runtimeOptions.ToClusterOptions(configuration));
-        }
+        services.AddSingleton(runtimeOptions.ToClusterOptions(configuration));
         services.AddMessageRecording();
         services.AddLakonaGameRuntimeValidation();
         services.AddLakonaGame(configuration, _ => { });

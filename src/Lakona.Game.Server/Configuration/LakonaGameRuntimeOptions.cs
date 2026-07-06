@@ -40,9 +40,9 @@ public sealed class LakonaGameRuntimeOptions
     public IReadOnlyList<string>? Feature { get; init; }
 
     /// <summary>
-    /// Gets node-to-node cluster configuration, or <see langword="null"/> for a single-node process.
+    /// Gets node-to-node cluster configuration.
     /// </summary>
-    public LakonaGameClusterOptions? Cluster { get; init; }
+    public LakonaGameClusterOptions Cluster { get; init; } = LakonaGameClusterOptions.Defaults();
 
     /// <summary>
     /// Gets logging, diagnostics, metrics, tracing, and local-admin settings.
@@ -77,7 +77,7 @@ public sealed class LakonaGameRuntimeOptions
     {
         var advertisedEndpoints = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        if (Cluster is not null && !string.IsNullOrWhiteSpace(Cluster.Endpoint))
+        if (!string.IsNullOrWhiteSpace(Cluster.Endpoint))
         {
             advertisedEndpoints["cluster"] = Cluster.Endpoint;
         }
@@ -103,7 +103,7 @@ public sealed class LakonaGameRuntimeOptions
             AdvertisedEndpoints = advertisedEndpoints,
             Bootstrap = new ClusterBootstrapOptions
             {
-                NodeDirectoryEndpoints = Cluster?.Seeds.Count > 0
+                NodeDirectoryEndpoints = Cluster.Seeds.Count > 0
                     ? Cluster.Seeds
                     : new ClusterBootstrapOptions().NodeDirectoryEndpoints
             }
@@ -186,20 +186,34 @@ public sealed class LakonaGameRuntimeOptions
         return section.Value is null ? null : Array.Empty<string>();
     }
 
-    private static LakonaGameClusterOptions? BindCluster(IConfiguration section)
+    private static LakonaGameClusterOptions BindCluster(IConfigurationSection section)
     {
         if (!section.GetChildren().Any())
         {
-            return null;
+            if (section.Value is not null)
+            {
+                return new LakonaGameClusterOptions
+                {
+                    Endpoint = section.Value,
+                    Serializer = ""
+                };
+            }
+
+            return LakonaGameClusterOptions.Defaults();
         }
 
         return new LakonaGameClusterOptions
         {
-            Endpoint = section["Endpoint"] ?? "",
-            Serializer = section["Serializer"] ?? "",
+            Endpoint = ReadClusterString(section, "Endpoint", LakonaGameClusterOptions.DefaultEndpoint),
+            Serializer = ReadClusterString(section, "Serializer", LakonaGameClusterOptions.DefaultSerializer),
             Seeds = BindStringArray(section.GetSection("Seeds")),
             Directory = BindClusterDirectory(section.GetSection("Directory"))
         };
+    }
+
+    private static string ReadClusterString(IConfiguration section, string name, string fallback)
+    {
+        return section[name] ?? fallback;
     }
 
     private static LakonaClusterDirectoryOptions BindClusterDirectory(IConfiguration section)

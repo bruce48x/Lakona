@@ -95,6 +95,7 @@ public static class FeatureServiceCollectionExtensions
 
         services.TryAddSingleton(config);
         services.AddSingleton(options);
+        services.TryAddSingleton(_ => options.ToClusterOptions(config));
         services.AddSingleton(catalog);
         services.AddSingleton(endpointCatalog);
         services.AddSingleton(context);
@@ -126,12 +127,6 @@ public static class FeatureServiceCollectionExtensions
                     throw new InvalidOperationException(
                         $"Lakona.Game feature '{definition.Name}' requires transport '{transport}', but that transport is not configured.");
                 }
-            }
-
-            if (definition.IsClusterRequired && options.Cluster is null)
-            {
-                throw new InvalidOperationException(
-                    $"Lakona.Game feature '{definition.Name}' requires Cluster configuration.");
             }
         }
     }

@@ -41,8 +41,8 @@ public sealed class ClusterEndpointRule : ILakonaGameValidationRule
             yield return new LakonaGameDiagnostic(
                 "ULINK044",
                 LakonaGameDiagnosticSeverity.Error,
-                "Lakona:Cluster:Serializer is required when Cluster is configured.",
-                "Set Lakona:Cluster:Serializer to json or memorypack.");
+                "Lakona:Cluster:Serializer must not be empty.",
+                "Set Lakona:Cluster:Serializer to json or memorypack, or omit Lakona:Cluster to use defaults.");
             yield break;
         }
 

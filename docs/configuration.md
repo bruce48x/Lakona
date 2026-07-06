@@ -656,15 +656,18 @@ validation error.
 The cluster endpoint is not listed in `Endpoints`; it is advertised separately
 as the `cluster` endpoint for node-to-node traffic.
 
-`Lakona:Cluster:Serializer` is required whenever `Lakona:Cluster` is
-configured. Supported values are `json` and `memorypack`. All communicating
-cluster nodes must use the same cluster serializer; node-directory calls,
-route-directory calls, feature-addressed messages, client-notification relay
-commands, and remote actor payloads in cluster mode follow this setting. Keep
-`Lakona:Cluster:Serializer` as the only user-facing cluster serializer switch;
-do not add a separate actor serialization setting. This is separate from
-endpoint-local `Lakona:Endpoints[]:Serializer`, and client-facing
-framework-control messages continue to use `LakonaInternalCodec`.
+If `Lakona:Cluster` is omitted, the framework starts with default one-node
+cluster values: `tcp://127.0.0.1:21001` and `memorypack`. When
+`Lakona:Cluster` is present, missing `Endpoint` or `Serializer` values still
+fall back to those defaults. Explicitly empty cluster endpoint or serializer
+values are invalid. Supported serializer values are `json` and `memorypack`.
+All communicating cluster nodes must use the same cluster serializer;
+node-directory calls, route-directory calls, feature-addressed messages,
+client-notification relay commands, and remote actor payloads follow this
+setting. Keep `Lakona:Cluster:Serializer` as the only user-facing cluster
+serializer switch; do not add a separate actor serialization setting. This is
+separate from endpoint-local `Lakona:Endpoints[]:Serializer`, and
+client-facing framework-control messages continue to use `LakonaInternalCodec`.
 
 `Seeds` is the public bootstrap list for shared cluster directories. A data
 node can register local node-directory and route-directory implementations,
@@ -696,8 +699,8 @@ Validation covers:
 - endpoint shape, serializer selection, duplicate transports, and transport-specific rules;
 - endpoint-local `RpcServices`;
 - feature names, duplicates, and dependency/order constraints;
-- cluster endpoint and seed shape when cluster is configured;
-- required cluster serializer and supported values;
+- resolved cluster endpoint and seed shape;
+- cluster serializer defaults, empty-value rejection, and supported values;
 - observability local admin loopback safety;
 - diagnostics detail mode exposure;
 - file logging, Prometheus, and tracing exporter integration requirements;
@@ -729,9 +732,10 @@ fix: set Lakona:Endpoints:0:Path to a path such as /ws
 - `Lakona:Endpoints[]` with endpoint-local `Serializer` and `RpcServices`;
 - optional `Lakona:Feature` only when the generated project is intentionally
   split;
-- optional `Lakona:Cluster` only when the selected template participates in
-  cluster routing. When generated, `Lakona:Cluster:Serializer` should be set
-  from the same `--serializer` choice used for generated business RPC contracts.
+- optional `Lakona:Cluster` only when the generated project needs values other
+  than the framework's default one-node cluster. When generated,
+  `Lakona:Cluster:Serializer` should be set from the same `--serializer` choice
+  used for generated business RPC contracts.
 
 Generated projects should not emit service endpoint marker files, endpoint
 `Name`, hidden `control` or `realtime` endpoint names, or `Services` lists.

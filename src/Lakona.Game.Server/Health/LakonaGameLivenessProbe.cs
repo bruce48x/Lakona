@@ -6,16 +6,14 @@ public static class LakonaGameLivenessProbe
 {
     public static int Run(ClusterOptions? clusterOptions, LakonaGameRuntimeOptions runtimeOptions)
     {
-        if (clusterOptions is not null)
+        _ = runtimeOptions;
+        if (clusterOptions is null)
         {
-            return RunCluster(clusterOptions);
+            Console.Error.WriteLine("Cluster liveness check failed: ClusterOptions are required.");
+            return 1;
         }
 
-        return RunStandalone(runtimeOptions);
-    }
-
-    private static int RunCluster(ClusterOptions options)
-    {
+        var options = clusterOptions;
         if (string.IsNullOrWhiteSpace(options.NodeId))
         {
             Console.Error.WriteLine("Cluster liveness check failed: NodeId is required.");
@@ -39,24 +37,6 @@ public static class LakonaGameLivenessProbe
         }
 
         Console.WriteLine("cluster=healthy");
-        return 0;
-    }
-
-    private static int RunStandalone(LakonaGameRuntimeOptions runtime)
-    {
-        if (string.IsNullOrWhiteSpace(runtime.Node.Id))
-        {
-            Console.Error.WriteLine("Liveness check failed: NodeId is required.");
-            return 1;
-        }
-
-        if (runtime.Endpoints.Count == 0)
-        {
-            Console.Error.WriteLine("Liveness check failed: at least one endpoint is required.");
-            return 1;
-        }
-
-        Console.WriteLine("standalone=healthy");
         return 0;
     }
 }

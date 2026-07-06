@@ -19,7 +19,7 @@ namespace Lakona.Game.Server.Hosting;
 
 internal sealed record LakonaGameReadinessContext(
     LakonaGameRuntimeOptions RuntimeOptions,
-    ClusterOptions? ClusterOptions,
+    ClusterOptions ClusterOptions,
     LakonaObservabilityCapabilities ObservabilityCapabilities,
     string HotfixAssemblyPath);
 
@@ -77,18 +77,9 @@ public static class LakonaGameServer
                 new LakonaEndpointRpcServerConfigurator(endpoint, serviceBinder));
         }
 
-        // Cluster options (may throw for standalone — wrap gracefully)
-        ClusterOptions? clusterOptions = null;
-        try
-        {
-            clusterOptions = runtimeOptions.ToClusterOptions(builder.Configuration);
-            builder.Services.AddSingleton(clusterOptions);
-            builder.Services.AddLakonaGameClusterEndpoint();
-        }
-        catch (InvalidOperationException)
-        {
-            // Standalone — no cluster config; services that need ClusterOptions handle null
-        }
+        var clusterOptions = runtimeOptions.ToClusterOptions(builder.Configuration);
+        builder.Services.AddSingleton(clusterOptions);
+        builder.Services.AddLakonaGameClusterEndpoint();
 
         // Feature registration
         var featureConfig = serverBuilder.GetFeatureConfiguration();
@@ -183,18 +174,11 @@ public static class LakonaGameServer
             hotfixAssemblyPath);
     }
 
-    private static ClusterOptions? TryBuildClusterOptions(
+    private static ClusterOptions TryBuildClusterOptions(
         LakonaGameRuntimeOptions runtimeOptions,
         IConfiguration configuration)
     {
-        try
-        {
-            return runtimeOptions.ToClusterOptions(configuration);
-        }
-        catch (InvalidOperationException)
-        {
-            return null;
-        }
+        return runtimeOptions.ToClusterOptions(configuration);
     }
 
     internal static LakonaGameRuntimeOptions CreateRuntimeOptionsForTesting(

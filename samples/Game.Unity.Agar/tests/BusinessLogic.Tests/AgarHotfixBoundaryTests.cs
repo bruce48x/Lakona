@@ -185,6 +185,33 @@ public sealed class AgarHotfixBoundaryTests
     }
 
     [Fact]
+    public void Agar_hotfix_requires_framework_cluster_node_discovery()
+    {
+        var hotfixRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Server.Hotfix.csproj")
+            .DirectoryName!;
+        var forbiddenTokens = new[]
+        {
+            "IEnumerable<IClusterNodeDiscovery>",
+            "GetService<IClusterNodeDiscovery>",
+        };
+        var violations = Directory.GetFiles(hotfixRoot, "*.cs", SearchOption.AllDirectories)
+            .Select(file => new
+            {
+                File = file,
+                Matches = forbiddenTokens
+                    .Where(token => File.ReadAllText(file).Contains(token, StringComparison.Ordinal))
+                    .ToArray()
+            })
+            .Where(result => result.Matches.Length > 0)
+            .Select(result => $"{Path.GetRelativePath(Directory.GetCurrentDirectory(), result.File)}: {string.Join(", ", result.Matches)}")
+            .ToArray();
+
+        Assert.True(
+            violations.Length == 0,
+            $"Agar hotfix code must rely on the framework-owned singleton IClusterNodeDiscovery: {string.Join("; ", violations)}");
+    }
+
+    [Fact]
     public void Agar_hotfix_services_do_not_parse_node_identity_or_pick_arbitrary_runtime_nodes()
     {
         var servicesRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Services/PlayerService.cs")

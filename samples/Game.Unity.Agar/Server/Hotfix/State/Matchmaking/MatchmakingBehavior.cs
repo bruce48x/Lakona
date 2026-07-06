@@ -369,16 +369,8 @@ public static partial class MatchmakingBehavior
 
     private static async ValueTask<RoomSettlementResult> AllocateRoomAsync(MatchmakingActor self, RoomCreateRequest request)
     {
-        if (self.Context.Services.GetService<IClusterNodeDiscovery>() is not IClusterNodeDiscovery discovery ||
-            self.Context.Services.GetService<IFeatureCommandClient>() is not IFeatureCommandClient commands)
-        {
-            return new RoomSettlementResult
-            {
-                RoomId = request.RoomId,
-                Succeeded = false,
-                Message = "Battle runtime feature command client is unavailable."
-            };
-        }
+        var discovery = self.Context.Services.GetRequiredService<IClusterNodeDiscovery>();
+        var commands = self.Context.Services.GetRequiredService<IFeatureCommandClient>();
 
         var candidates = await discovery
             .ListAsync(new FeatureName(BattleRuntimeRoomAllocation.FeatureName))
@@ -465,11 +457,7 @@ public static partial class MatchmakingBehavior
 
     private static async ValueTask<GatewayEndpointDescriptor?> ResolveRemoteKcpEndpointAsync(IServiceProvider services)
     {
-        if (services.GetService<IClusterNodeDiscovery>() is not IClusterNodeDiscovery discovery)
-        {
-            return null;
-        }
-
+        var discovery = services.GetRequiredService<IClusterNodeDiscovery>();
         var nodes = await discovery
             .ListAsync(new FeatureName(BattleRuntimeRoomAllocation.FeatureName))
             .ConfigureAwait(false);

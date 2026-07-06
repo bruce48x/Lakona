@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Features;
 using Xunit;
 
@@ -284,7 +285,7 @@ public sealed class FeatureBuilderTests
     }
 
     [Fact]
-    public void AddLakonaGame_rejects_feature_missing_cluster()
+    public void AddLakonaGame_accepts_cluster_required_feature_with_default_cluster()
     {
         var services = new ServiceCollection();
         var configuration = new ConfigurationBuilder()
@@ -295,13 +296,14 @@ public sealed class FeatureBuilderTests
             })
             .Build();
 
-        var ex = Assert.Throws<InvalidOperationException>(() =>
-            services.AddLakonaGame(configuration, game =>
-            {
-                game.Feature<MarkerFeatureA>("chat").RequiresCluster();
-            }));
+        services.AddLakonaGame(configuration, game =>
+        {
+            game.Feature<MarkerFeatureA>("chat").RequiresCluster();
+        });
+        using var provider = services.BuildServiceProvider();
 
-        Assert.Contains("Cluster", ex.Message, StringComparison.OrdinalIgnoreCase);
+        var cluster = provider.GetRequiredService<ClusterOptions>();
+        Assert.Equal("tcp://127.0.0.1:21001", cluster.AdvertisedEndpoints["cluster"]);
     }
 
     [Fact]

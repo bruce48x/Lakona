@@ -157,21 +157,23 @@ Endpoint rules:
 
 The cluster endpoint is not listed in `Endpoints`; it is configured as
 `Lakona:Cluster:Endpoint` because it is a node-to-node channel, not a
-client-facing business endpoint. When configured, the framework starts a
+client-facing business endpoint. If `Lakona:Cluster` is omitted, the framework
+uses the default endpoint `tcp://127.0.0.1:21001`. The framework starts a
 cluster RPC server on that endpoint. The server binds node-directory,
 route-directory, and feature-message RPC handlers only when the corresponding
 local services exist in DI.
 
-`Lakona:Cluster:Serializer` is required whenever `Lakona:Cluster` is
-configured. It selects the node-to-node RPC payload serializer for cluster
-protocol DTOs. The DTOs in `Lakona.Game.Cluster.Rpc` are serializer-neutral;
-serializer packages provide the concrete encoding support. Supported values
-are `json` and `memorypack`. Every node that exchanges cluster RPC traffic
-must use the same cluster serializer because node-directory calls,
-route-directory calls, feature-addressed messages, route-addressed messages,
-client-notification relay commands, and remote actor payloads all follow this
-setting. Mixed client-facing endpoint serializers are allowed, but the cluster
-channel has one serializer per communicating cluster.
+`Lakona:Cluster:Serializer` selects the node-to-node RPC payload serializer for
+cluster protocol DTOs and defaults to `memorypack` only when the cluster section
+or serializer property is omitted. An explicitly blank serializer is invalid.
+The DTOs in `Lakona.Game.Cluster.Rpc` are serializer-neutral; serializer
+packages provide the concrete encoding support. Supported values are `json` and
+`memorypack`. Every node that exchanges cluster RPC traffic must use the same
+cluster serializer because node-directory calls, route-directory calls,
+feature-addressed messages, route-addressed messages, client-notification relay
+commands, and remote actor payloads all follow this setting. Mixed
+client-facing endpoint serializers are allowed, but the cluster channel has one
+serializer per communicating cluster.
 
 Generated projects that emit cluster configuration copy the user's
 `--serializer` choice into `Lakona:Cluster:Serializer`. This keeps business

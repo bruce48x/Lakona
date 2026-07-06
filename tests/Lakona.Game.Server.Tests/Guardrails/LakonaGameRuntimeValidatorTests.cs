@@ -276,7 +276,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     }
 
     [Fact]
-    public void ClusterEndpointRule_rejects_missing_serializer_when_cluster_is_configured()
+    public void ClusterEndpointRule_rejects_blank_serializer()
     {
         var runtime = TestRuntime() with
         {
@@ -286,8 +286,8 @@ public sealed class LakonaGameRuntimeValidatorTests
         var result = Validate(runtime);
 
         var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK044");
-        Assert.Equal("Lakona:Cluster:Serializer is required when Cluster is configured.", diagnostic.Message);
-        Assert.Equal("Set Lakona:Cluster:Serializer to json or memorypack.", diagnostic.Repair);
+        Assert.Equal("Lakona:Cluster:Serializer must not be empty.", diagnostic.Message);
+        Assert.Equal("Set Lakona:Cluster:Serializer to json or memorypack, or omit Lakona:Cluster to use defaults.", diagnostic.Repair);
     }
 
     [Fact]

@@ -27,14 +27,10 @@ public static class LakonaGameReadinessProbe
         {
             new NodeIdentityRule(),
             new EndpointRule(),
+            new ClusterEndpointRule(),
             new HotfixSourceRule(),
             new ObservabilityRule()
         };
-
-        if (runtime.Cluster is not null)
-        {
-            rules.Add(new ClusterEndpointRule());
-        }
 
         var resolved = ToResolvedRuntimeForValidation(
             runtime,
@@ -91,9 +87,7 @@ public static class LakonaGameReadinessProbe
 
         var featureNames = runtime.Feature ?? Array.Empty<string>();
 
-        _ = clusterEndpoint;
-
-        Console.WriteLine("cluster: ok single-node");
+        Console.WriteLine($"cluster: ok {clusterEndpoint ?? "not configured"}");
         Console.WriteLine($"node: ok {nodeId}");
         if (featureNames.Count > 0)
         {
@@ -169,18 +163,16 @@ public static class LakonaGameReadinessProbe
                 .ToArray(),
             Cluster: new LakonaGameResolvedCluster(
                 AdvertisedEndpoints: clusterOptions?.AdvertisedEndpoints ?? new Dictionary<string, string>()),
-            ClusterEndpoint: runtime.Cluster is null
-                ? null
-                : new LakonaGameResolvedClusterEndpoint(
-                    new LakonaGameResolvedValue<string>(
-                        runtime.Cluster.Endpoint,
-                        LakonaGameValueSource.Configuration,
-                        "Lakona:Cluster:Endpoint"),
-                    new LakonaGameResolvedValue<string>(
-                        runtime.Cluster.Serializer,
-                        LakonaGameValueSource.Configuration,
-                        "Lakona:Cluster:Serializer"),
-                    runtime.Cluster.Seeds),
+            ClusterEndpoint: new LakonaGameResolvedClusterEndpoint(
+                new LakonaGameResolvedValue<string>(
+                    runtime.Cluster.Endpoint,
+                    LakonaGameValueSource.Configuration,
+                    "Lakona:Cluster:Endpoint"),
+                new LakonaGameResolvedValue<string>(
+                    runtime.Cluster.Serializer,
+                    LakonaGameValueSource.Configuration,
+                    "Lakona:Cluster:Serializer"),
+                runtime.Cluster.Seeds),
             Feature: new LakonaGameResolvedFeature(
                 Configured: null,
                 Active: Array.Empty<string>(),

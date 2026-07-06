@@ -22,7 +22,7 @@ namespace Server.Hotfix.Services;
 public sealed class LoginService
 {
     private readonly ActorHosting _actorHosting;
-    private readonly IClusterNodeDiscovery? _clusterDiscovery;
+    private readonly IClusterNodeDiscovery _clusterDiscovery;
     private readonly LocalActorNodeIdentity _localNode;
     private readonly UserActors _users;
     private readonly ILogger<LoginService> _logger;
@@ -33,14 +33,14 @@ public sealed class LoginService
         LakonaGameRuntimeOptions runtime,
         LocalActorNodeIdentity localNode,
         ActorHosting actorHosting,
-        IEnumerable<IClusterNodeDiscovery> clusterDiscovery,
+        IClusterNodeDiscovery clusterDiscovery,
         ILogger<LoginService> logger)
     {
         _users = users;
         _runtime = runtime;
         _localNode = localNode;
         _actorHosting = actorHosting;
-        _clusterDiscovery = clusterDiscovery.FirstOrDefault();
+        _clusterDiscovery = clusterDiscovery;
         _logger = logger;
     }
 
@@ -237,18 +237,15 @@ public sealed class LoginService
     private async ValueTask<ClusterNodeDescriptor> SelectStateStoreOwnerAsync(string userId)
     {
         var candidates = new List<ClusterNodeDescriptor>();
-        if (_clusterDiscovery is not null)
-        {
-            var discovered = await _clusterDiscovery
-                .ListAsync(new FeatureName(StateStoreUserActorPlacement.FeatureName))
-                .ConfigureAwait(false);
-            candidates.AddRange(discovered.Where(static node =>
-                node.State == NodeState.Ready &&
-                node.Features.Any(static feature => string.Equals(
-                    feature.Name,
-                    StateStoreUserActorPlacement.FeatureName,
-                    StringComparison.OrdinalIgnoreCase))));
-        }
+        var discovered = await _clusterDiscovery
+            .ListAsync(new FeatureName(StateStoreUserActorPlacement.FeatureName))
+            .ConfigureAwait(false);
+        candidates.AddRange(discovered.Where(static node =>
+            node.State == NodeState.Ready &&
+            node.Features.Any(static feature => string.Equals(
+                feature.Name,
+                StateStoreUserActorPlacement.FeatureName,
+                StringComparison.OrdinalIgnoreCase))));
 
         if (candidates.Count == 0 && LocalNodeCanOwnStateStore(_runtime))
         {
