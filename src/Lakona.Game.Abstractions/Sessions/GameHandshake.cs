@@ -5,21 +5,7 @@ namespace Lakona.Game.Abstractions.Sessions;
 
 public sealed class GameClientHello
 {
-    public int ProtocolVersionMin { get; set; } = 1;
-
-    public int ProtocolVersionMax { get; set; } = 1;
-
-    public string ClientRuntime { get; set; } = "";
-
-    public string ClientRuntimeVersion { get; set; } = "";
-
-    public string GameVersion { get; set; } = "";
-
-    public string BuildId { get; set; } = "";
-
-    public string Platform { get; set; } = "";
-
-    public List<string> SupportedCapabilities { get; set; } = new();
+    public int ProtocolVersion { get; set; } = 1;
 }
 
 public sealed class GameServerHello

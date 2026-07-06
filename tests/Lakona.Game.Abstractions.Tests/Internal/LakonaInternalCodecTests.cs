@@ -18,31 +18,15 @@ public sealed class LakonaInternalCodecTests
     private const byte SessionTerminationNoticeKind = 7;
 
     [Fact]
-    public void GameClientHello_roundtrips_with_all_fields()
+    public void GameClientHello_roundtrips_protocol_version_only()
     {
-        var hello = new GameClientHello
-        {
-            ProtocolVersionMin = 1,
-            ProtocolVersionMax = 3,
-            ClientRuntime = "unity",
-            ClientRuntimeVersion = "2022.3.59f1",
-            GameVersion = "1.2.3",
-            BuildId = "build-456",
-            Platform = "Windows",
-            SupportedCapabilities = new List<string> { "resume", "reliable-push" },
-        };
+        var hello = new GameClientHello { ProtocolVersion = 1 };
 
-        var decoded = LakonaInternalCodec.DecodeGameClientHello(
-            LakonaInternalCodec.EncodeGameClientHello(hello));
+        var payload = LakonaInternalCodec.EncodeGameClientHello(hello);
+        var decoded = LakonaInternalCodec.DecodeGameClientHello(payload);
 
-        Assert.Equal(hello.ProtocolVersionMin, decoded.ProtocolVersionMin);
-        Assert.Equal(hello.ProtocolVersionMax, decoded.ProtocolVersionMax);
-        Assert.Equal(hello.ClientRuntime, decoded.ClientRuntime);
-        Assert.Equal(hello.ClientRuntimeVersion, decoded.ClientRuntimeVersion);
-        Assert.Equal(hello.GameVersion, decoded.GameVersion);
-        Assert.Equal(hello.BuildId, decoded.BuildId);
-        Assert.Equal(hello.Platform, decoded.Platform);
-        Assert.Equal(hello.SupportedCapabilities, decoded.SupportedCapabilities);
+        Assert.Equal(hello.ProtocolVersion, decoded.ProtocolVersion);
+        Assert.Equal(10, payload.Length);
     }
 
     [Fact]
@@ -302,19 +286,9 @@ public sealed class LakonaInternalCodecTests
     }
 
     [Fact]
-    public void Decode_rejects_oversized_string_list_count()
+    public void Decode_rejects_invalid_game_client_hello_protocol_version()
     {
-        var payload = CreatePayload(GameClientHelloKind, builder =>
-        {
-            WriteInt32BigEndian(builder, 1);
-            WriteInt32BigEndian(builder, 1);
-            WriteString(builder, "unity");
-            WriteString(builder, "2022.3");
-            WriteString(builder, "1.0.0");
-            WriteString(builder, "build-1");
-            WriteString(builder, "Windows");
-            WriteInt32BigEndian(builder, 1024 * 1024 + 1);
-        });
+        var payload = CreatePayload(GameClientHelloKind, builder => WriteInt32BigEndian(builder, 0));
 
         Assert.Throws<InvalidOperationException>(() => LakonaInternalCodec.DecodeGameClientHello(payload));
     }

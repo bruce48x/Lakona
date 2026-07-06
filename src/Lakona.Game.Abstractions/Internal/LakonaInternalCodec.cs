@@ -33,17 +33,10 @@ namespace Lakona.Game.Abstractions
                 throw new ArgumentNullException(nameof(value));
             }
 
-            ValidateProtocolRange(value.ProtocolVersionMin, value.ProtocolVersionMax);
+            ValidatePositiveProtocolVersion(value.ProtocolVersion);
 
             var writer = CreateWriter(GameClientHelloKind);
-            writer.WriteInt32(value.ProtocolVersionMin);
-            writer.WriteInt32(value.ProtocolVersionMax);
-            writer.WriteString(value.ClientRuntime);
-            writer.WriteString(value.ClientRuntimeVersion);
-            writer.WriteString(value.GameVersion);
-            writer.WriteString(value.BuildId);
-            writer.WriteString(value.Platform);
-            writer.WriteStringList(value.SupportedCapabilities);
+            writer.WriteInt32(value.ProtocolVersion);
             return writer.ToArray();
         }
 
@@ -52,17 +45,10 @@ namespace Lakona.Game.Abstractions
             var reader = CreateReader(payload, GameClientHelloKind);
             var value = new GameClientHello
             {
-                ProtocolVersionMin = reader.ReadInt32(),
-                ProtocolVersionMax = reader.ReadInt32(),
-                ClientRuntime = reader.ReadStringAsEmptyIfNull(),
-                ClientRuntimeVersion = reader.ReadStringAsEmptyIfNull(),
-                GameVersion = reader.ReadStringAsEmptyIfNull(),
-                BuildId = reader.ReadStringAsEmptyIfNull(),
-                Platform = reader.ReadStringAsEmptyIfNull(),
-                SupportedCapabilities = reader.ReadStringListAsEmptyIfNull(),
+                ProtocolVersion = reader.ReadInt32(),
             };
 
-            ValidateProtocolRange(value.ProtocolVersionMin, value.ProtocolVersionMax);
+            ValidatePositiveProtocolVersion(value.ProtocolVersion);
             reader.EnsureEnd();
             return value;
         }
@@ -341,16 +327,6 @@ namespace Lakona.Game.Abstractions
             }
 
             return reader;
-        }
-
-        private static void ValidateProtocolRange(int min, int max)
-        {
-            ValidatePositiveProtocolVersion(min);
-            ValidatePositiveProtocolVersion(max);
-            if (min > max)
-            {
-                throw new InvalidOperationException("Minimum protocol version cannot exceed maximum protocol version.");
-            }
         }
 
         private static void ValidatePositiveProtocolVersion(int value)
