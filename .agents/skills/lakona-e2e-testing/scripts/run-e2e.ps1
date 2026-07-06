@@ -334,19 +334,11 @@ function New-E2EClient {
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LakonaRpcGenerateClient>true</LakonaRpcGenerateClient>
-    <LakonaRpcGeneratedNamespace>Rpc.Generated</LakonaRpcGeneratedNamespace>
     <LakonaGameGenerateClient>true</LakonaGameGenerateClient>
-    <LakonaGameClientRuntime>dotnet-client</LakonaGameClientRuntime>
-    <LakonaGameClientPlatform>local-e2e</LakonaGameClientPlatform>
-    <LakonaGameClientGameVersion>${Feed}-e2e</LakonaGameClientGameVersion>
   </PropertyGroup>
   <ItemGroup>
     <CompilerVisibleProperty Include="LakonaRpcGenerateClient" />
-    <CompilerVisibleProperty Include="LakonaRpcGeneratedNamespace" />
     <CompilerVisibleProperty Include="LakonaGameGenerateClient" />
-    <CompilerVisibleProperty Include="LakonaGameClientRuntime" />
-    <CompilerVisibleProperty Include="LakonaGameClientPlatform" />
-    <CompilerVisibleProperty Include="LakonaGameClientGameVersion" />
   </ItemGroup>
 "@
 
@@ -430,7 +422,7 @@ function New-E2EClient {
     $serializerCtor = Get-SerializerConstructor $Serializer
 
     $program = @"
-using Rpc.Generated;
+using Client.Generated;
 using Shared.Contracts.Chat;
 using Lakona.Rpc.Client;
 $transportUsing
