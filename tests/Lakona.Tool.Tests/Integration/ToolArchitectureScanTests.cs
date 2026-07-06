@@ -418,8 +418,13 @@ public sealed class ToolArchitectureScanTests
         Assert.Contains("RPC service", readme, StringComparison.Ordinal);
         Assert.Contains("may be local or remote", readme, StringComparison.Ordinal);
         Assert.Contains("typed selector", readme, StringComparison.Ordinal);
-        Assert.Contains("var nodeLocalActors = call.Actors;", hotfixServices, StringComparison.Ordinal);
+        Assert.Contains(".Get(new UserId(", hotfixServices, StringComparison.Ordinal);
+        Assert.Contains(".Get(new MatchmakingQueueId(", hotfixServices, StringComparison.Ordinal);
+        Assert.Contains(".Local(roomId)", hotfixServices, StringComparison.Ordinal);
+        Assert.Contains(".Remote(new NodeId(", hotfixServices, StringComparison.Ordinal);
+        Assert.DoesNotContain("call.Actors", hotfixServices, StringComparison.Ordinal);
         Assert.DoesNotContain("var localActors = call.Actors;", hotfixServices, StringComparison.Ordinal);
+        Assert.DoesNotContain(".AskAsync", hotfixServices, StringComparison.Ordinal);
         Assert.Contains("[assembly: LakonaGameGenerateClient(\"unity\", \"unity\", \"agar\")]", clientScripts, StringComparison.Ordinal);
         Assert.DoesNotContain("RpcNotificationBindings", clientScripts, StringComparison.Ordinal);
         Assert.DoesNotContain("callbacks.Add", clientScripts, StringComparison.Ordinal);
