@@ -32,7 +32,6 @@ public sealed class PlayerService
     private readonly LocalActorNodeIdentity _localNode;
     private readonly ILogger<PlayerService> _logger;
     private readonly MatchmakingActors _matchmaking;
-    private readonly MatchmakingNotifier _matchmakingNotifier;
     private readonly RoomActors _rooms;
     private readonly UserActors _users;
 
@@ -41,7 +40,6 @@ public sealed class PlayerService
         RoomActors rooms,
         MatchmakingActors matchmaking,
         LeaderboardActors leaderboards,
-        MatchmakingNotifier matchmakingNotifier,
         LocalActorNodeIdentity localNode,
         ILogger<PlayerService> logger)
     {
@@ -49,7 +47,6 @@ public sealed class PlayerService
         _rooms = rooms;
         _matchmaking = matchmaking;
         _leaderboards = leaderboards;
-        _matchmakingNotifier = matchmakingNotifier;
         _localNode = localNode;
         _logger = logger;
     }
@@ -94,7 +91,7 @@ public sealed class PlayerService
             return;
         }
 
-        await EnqueuePlayerAsync(playerId).ConfigureAwait(false);
+        await EnqueuePlayerAsync(call.Services, playerId).ConfigureAwait(false);
     }
 
     public async ValueTask CancelMatchmakingAsync(HotfixServiceCall<CancelMatchmakingRequest, IPlayerCallback> call)
@@ -105,7 +102,7 @@ public sealed class PlayerService
             return;
         }
 
-        await CancelMatchmakingAsync(playerId, "Matchmaking cancelled").ConfigureAwait(false);
+        await CancelMatchmakingAsync(call.Services, playerId, "Matchmaking cancelled").ConfigureAwait(false);
     }
 
     public async ValueTask LogoutAsync(HotfixServiceCall<LogoutRequest, IPlayerCallback> call)
@@ -116,7 +113,7 @@ public sealed class PlayerService
             return;
         }
 
-        await ReleasePlayerAsync(playerId, "Logout").ConfigureAwait(false);
+        await ReleasePlayerAsync(call.Services, playerId, "Logout").ConfigureAwait(false);
     }
 
     private static async ValueTask<string?> EnsureControlConnectionAsync<TRequest, TCallback>(
@@ -142,12 +139,12 @@ public sealed class PlayerService
             : default;
     }
 
-    private Task EnqueuePlayerAsync(string playerId)
+    private Task EnqueuePlayerAsync(IServiceProvider services, string playerId)
     {
         return EnqueuePlayerAsync(
             _users,
             _matchmaking,
-            _matchmakingNotifier,
+            HotfixNotificationServices.GetMatchmakingNotifier(services),
             playerId);
     }
 
@@ -212,12 +209,12 @@ public sealed class PlayerService
         await PublishQueuedAsync(matchmakingNotifier, snapshot, result).ConfigureAwait(false);
     }
 
-    private Task CancelMatchmakingAsync(string playerId, string reason)
+    private Task CancelMatchmakingAsync(IServiceProvider services, string playerId, string reason)
     {
         return CancelMatchmakingAsync(
             _users,
             _matchmaking,
-            _matchmakingNotifier,
+            HotfixNotificationServices.GetMatchmakingNotifier(services),
             playerId,
             reason);
     }
@@ -277,13 +274,13 @@ public sealed class PlayerService
         }).ConfigureAwait(false);
     }
 
-    private Task ReleasePlayerAsync(string playerId, string reason)
+    private Task ReleasePlayerAsync(IServiceProvider services, string playerId, string reason)
     {
         return ReleasePlayerAsync(
             _users,
             _rooms,
             _matchmaking,
-            _matchmakingNotifier,
+            HotfixNotificationServices.GetMatchmakingNotifier(services),
             _localNode,
             _logger,
             playerId,

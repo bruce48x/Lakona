@@ -15,7 +15,6 @@ using Shared.Gameplay;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
-using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
 using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Sessions;
@@ -123,11 +122,9 @@ public sealed class AgarHotfixTests
         var actors = provider.GetRequiredService<IActorRuntime>();
         var service = new LoginService(
             provider.GetRequiredService<UserActors>(),
-            provider.GetRequiredService<MatchmakingNotifier>(),
             provider.GetRequiredService<LakonaGameRuntimeOptions>(),
             provider.GetRequiredService<LocalActorNodeIdentity>(),
             provider.GetRequiredService<ActorHosting>(),
-            new StateStoreUserActorPlacementClient(provider),
             provider.GetServices<IClusterNodeDiscovery>(),
             provider.GetRequiredService<ILogger<LoginService>>());
         var call = new HotfixServiceCall<LoginRequest, ILoginCallback>(
@@ -204,19 +201,22 @@ public sealed class AgarHotfixTests
         await provider.GetRequiredService<IActorDirectory>()
             .RegisterAsync(ActorId.From("current"), expectedOwner.Node, TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
-        var hotfixServices = await TestHotfix.LoadCurrentAsync(provider, TestContext.Current.CancellationToken);
+        var hotfixRuntime = await TestHotfix.LoadCurrentRuntimeAsync(provider, TestContext.Current.CancellationToken);
         var gameServer = new TestGameServer();
         var call = new HotfixServiceCall<LeaderboardRequest, IPlayerCallback>(
             new LeaderboardRequest { TopN = 5 },
             "control-connection-1",
             new CapturingPlayerCallback(),
             new GameSessionKey("player-1", "session-1", 1),
-            hotfixServices,
+            hotfixRuntime.HotfixServices,
             actors,
             gameServer);
 
-        var reply = await HotfixDispatch.Current
-            .InvokeServiceAsync<IPlayerService, HotfixServiceCall<LeaderboardRequest, IPlayerCallback>, LeaderboardReply>(4, call);
+        var reply = await hotfixRuntime.Invoker
+            .InvokeAsync<IPlayerService, HotfixServiceCall<LeaderboardRequest, IPlayerCallback>, LeaderboardReply>(
+                4,
+                call,
+                TestContext.Current.CancellationToken);
 
         Assert.Equal(0, reply.Code);
         Assert.Equal(typeof(IPlayerCallback), gameServer.LastBoundSessionCallbackType);

@@ -69,6 +69,15 @@ namespace SampleClient.Gameplay.Tests
                 snapshot => snapshot.LastWorldTick >= 0 && snapshot.ViewCount > 0,
                 "world state was not received",
                 45f);
+
+            var beforeMove = game.BuildTestSnapshot();
+            game.SetEditorMoveOverrideForTest(Vector2.right);
+            yield return WaitForSnapshot(
+                game,
+                snapshot => snapshot.LocalPlayerX > beforeMove.LocalPlayerX + 0.25f,
+                "local player did not move after submitting rightward input",
+                10f);
+            game.ClearEditorMoveOverrideForTest();
         }
 
         private static IEnumerator WaitForSnapshot(
@@ -117,7 +126,8 @@ namespace SampleClient.Gameplay.Tests
                 $"rtHost={snapshot.LastRealtimeHost}",
                 $"rtPort={snapshot.LastRealtimePort}",
                 $"room={snapshot.LastRealtimeRoomId}",
-                $"match={snapshot.LastRealtimeMatchId}");
+                $"match={snapshot.LastRealtimeMatchId}",
+                $"local=({snapshot.LocalPlayerX:0.00},{snapshot.LocalPlayerY:0.00})");
         }
 
         private sealed class AgarPlayModeEndpoint

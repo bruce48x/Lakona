@@ -206,6 +206,28 @@ public sealed class DistributedTopologyConfigurationTests
             provider.GetRequiredService(RequiredServerAppType("Server.App.Hotfix.Agar" + "Hotfix" + "Runtime" + "Events")));
     }
 
+    [Theory]
+    [InlineData("gateway-1")]
+    [InlineData("battle-1")]
+    public async Task HotfixReloadSucceedsForSplitRuntimeNodes(string nodeName)
+    {
+        var services = BuildProgramServices(nodeName);
+        var hotfixAssemblyPath = TestHotfix.FindHotfixAssemblyPath();
+        services.AddLakonaGameHotfix(
+            new Lakona.Game.Server.Hotfix.Loading.CurrentDirectoryHotfixAssemblySource(
+                Path.GetDirectoryName(hotfixAssemblyPath)!,
+                Path.GetFileName(hotfixAssemblyPath)),
+            TestHotfix.SharedAssemblyNames());
+
+        await using var provider = services.BuildServiceProvider();
+
+        var reload = await provider
+            .GetRequiredService<IHotfixManager>()
+            .ReloadAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(reload.Succeeded, TestHotfix.BuildReloadDiagnostics(reload));
+    }
+
     [Fact]
     public async Task MatchmakingAllocatesExpiredPartialBatchOnRemoteBattleRuntime()
     {

@@ -9,6 +9,7 @@ using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Server.Hotfix.State.Users;
 using Shared.Interfaces;
@@ -23,28 +24,22 @@ public sealed class LoginService
     private readonly ActorHosting _actorHosting;
     private readonly IClusterNodeDiscovery? _clusterDiscovery;
     private readonly LocalActorNodeIdentity _localNode;
-    private readonly IFeatureCommandClient _featureCommandClient;
     private readonly UserActors _users;
     private readonly ILogger<LoginService> _logger;
-    private readonly MatchmakingNotifier _matchmakingNotifier;
     private readonly LakonaGameRuntimeOptions _runtime;
 
     public LoginService(
         UserActors users,
-        MatchmakingNotifier matchmakingNotifier,
         LakonaGameRuntimeOptions runtime,
         LocalActorNodeIdentity localNode,
         ActorHosting actorHosting,
-        IFeatureCommandClient featureCommandClient,
         IEnumerable<IClusterNodeDiscovery> clusterDiscovery,
         ILogger<LoginService> logger)
     {
         _users = users;
-        _matchmakingNotifier = matchmakingNotifier;
         _runtime = runtime;
         _localNode = localNode;
         _actorHosting = actorHosting;
-        _featureCommandClient = featureCommandClient;
         _clusterDiscovery = clusterDiscovery.FirstOrDefault();
         _logger = logger;
     }
@@ -68,7 +63,7 @@ public sealed class LoginService
         }
 
         var loginRequest = new UserLoginRequest { Password = password, Reconnect = req.Reconnect };
-        var loginResult = await LoginUserAsync(account, loginRequest).ConfigureAwait(false);
+        var loginResult = await LoginUserAsync(call.Services, account, loginRequest).ConfigureAwait(false);
 
         GameSessionKey sessionKey;
         if (req.Reconnect)
@@ -148,7 +143,8 @@ public sealed class LoginService
                 .ConfigureAwait(false);
         }
 
-        await _matchmakingNotifier
+        await HotfixNotificationServices
+            .GetMatchmakingNotifier(call.Services)
             .ReplayPendingAsync(sessionKey)
             .ConfigureAwait(false);
 
@@ -212,11 +208,12 @@ public sealed class LoginService
     }
 
     private async ValueTask<UserLoginResult> LoginUserAsync(
+        IServiceProvider services,
         string account,
         UserLoginRequest request)
     {
         var userId = new UserId(account);
-        await CreateUserActorOnStateStoreAsync(account).ConfigureAwait(false);
+        await CreateUserActorOnStateStoreAsync(services, account).ConfigureAwait(false);
         return await _users
             .Get(userId)
             .LoginAsync(request)
@@ -224,12 +221,13 @@ public sealed class LoginService
     }
 
     private async ValueTask CreateUserActorOnStateStoreAsync(
+        IServiceProvider services,
         string account)
     {
         var owner = await SelectStateStoreOwnerAsync(account).ConfigureAwait(false);
         var ownerNode = owner.Node;
 
-        await SendCreateUserActorAsync(owner, account).ConfigureAwait(false);
+        await SendCreateUserActorAsync(services, owner, account).ConfigureAwait(false);
         _logger.LogDebug(
             "Requested user actor {UserId} creation on state-store node {NodeId}.",
             account,
@@ -294,13 +292,17 @@ public sealed class LoginService
     }
 
     private async ValueTask SendCreateUserActorAsync(
+        IServiceProvider services,
         ClusterNodeDescriptor owner,
         string userId)
     {
-        var reply = await _featureCommandClient.SendToNodeAsync<CreateUserActorRequest, CreateActorReply>(
-            owner,
-            StateStoreUserActorPlacement.FeatureName,
-            new CreateUserActorRequest { UserId = userId }).ConfigureAwait(false);
+        var featureCommands = services.GetRequiredService<IFeatureCommandClient>();
+        var reply = await featureCommands
+            .SendToNodeAsync<CreateUserActorRequest, CreateActorReply>(
+                owner,
+                StateStoreUserActorPlacement.FeatureName,
+                new CreateUserActorRequest { UserId = userId })
+            .ConfigureAwait(false);
         if (!reply.Succeeded)
         {
             throw new InvalidOperationException(

@@ -22,6 +22,14 @@ internal static class TestHotfix
         IServiceProvider rootServices,
         CancellationToken cancellationToken)
     {
+        var runtime = await LoadCurrentRuntimeAsync(rootServices, cancellationToken).ConfigureAwait(false);
+        return runtime.HotfixServices;
+    }
+
+    public static async Task<HotfixRuntimeSnapshot> LoadCurrentRuntimeAsync(
+        IServiceProvider rootServices,
+        CancellationToken cancellationToken)
+    {
         // Dispatch-path tests need the current hotfix provider; unload/ALC lifetime is covered outside this helper.
         var hotfixAssemblyPath = FindHotfixAssemblyPath();
         var source = new CurrentDirectoryHotfixAssemblySource(
@@ -35,7 +43,7 @@ internal static class TestHotfix
             throw new InvalidOperationException(BuildReloadDiagnostics(reload));
         }
 
-        return ((IHotfixServiceProviderAccessor)manager).Current;
+        return ((IHotfixRuntimeAccessor)manager).Current;
     }
 
     public static string FindHotfixAssemblyPath(

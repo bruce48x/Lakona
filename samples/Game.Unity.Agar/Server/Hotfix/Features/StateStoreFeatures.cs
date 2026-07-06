@@ -3,6 +3,7 @@ using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Server.Hotfix.Services;
 
@@ -27,8 +28,8 @@ public sealed class StateStoreFeature : HotfixGameFeature
 
     public static void Configure(HotfixFeatureContext context)
     {
-        context.Services.AddSingleton<MatchmakingNotifier>();
-        context.Services.AddSingleton<RoomNotifier>();
+        context.Services.TryAddSingleton<MatchmakingNotifier>();
+        context.Services.TryAddSingleton<RoomNotifier>();
         context.HandleCommand<CreateUserActorRequest, CreateActorReply>(nameof(CreateUserActorAsync));
     }
 

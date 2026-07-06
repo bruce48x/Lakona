@@ -132,7 +132,7 @@ public sealed class AgarSessionLifecycle
                 call.Services.GetRequiredService<UserActors>(),
                 call.Services.GetRequiredService<RoomActors>(),
                 call.Services.GetRequiredService<MatchmakingActors>(),
-                call.Services.GetRequiredService<MatchmakingNotifier>(),
+                HotfixNotificationServices.GetMatchmakingNotifier(call.Services),
                 call.Services.GetRequiredService<LocalActorNodeIdentity>(),
                 call.Services.GetRequiredService<ILogger<PlayerService>>(),
                 playerId,

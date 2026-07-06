@@ -4,6 +4,8 @@ using Agar.Sample.State.Matchmaking;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Server.Hotfix.Services;
 using Server.Hotfix.State.Matchmaking;
 
 namespace Server.Hotfix.Features;
@@ -16,6 +18,7 @@ public sealed class MatchmakingFeature : HotfixGameFeature
 
     public static void Configure(HotfixFeatureContext context)
     {
+        context.Services.TryAddSingleton<MatchmakingNotifier>();
     }
 
     public static async ValueTask StartAsync(HotfixFeatureStartCall call)
