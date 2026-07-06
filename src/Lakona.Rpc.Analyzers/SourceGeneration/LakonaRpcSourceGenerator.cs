@@ -125,7 +125,9 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             bool generateGameClient,
             bool hasExplicitGenerationMode,
             string clientNamespace,
-            string serverNamespace)
+            string serverNamespace,
+            bool hasGameClientSetting,
+            bool generateGameClientDisabled)
         {
             GenerateClient = generateClient;
             GenerateServer = generateServer;
@@ -133,6 +135,8 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             HasExplicitGenerationMode = hasExplicitGenerationMode;
             ClientNamespace = clientNamespace;
             ServerNamespace = serverNamespace;
+            HasGameClientSetting = hasGameClientSetting;
+            GenerateGameClientDisabled = generateGameClientDisabled;
         }
 
         public bool GenerateClient { get; }
@@ -141,24 +145,36 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
         public bool HasExplicitGenerationMode { get; }
         public string ClientNamespace { get; }
         public string ServerNamespace { get; }
+        public bool HasGameClientSetting { get; }
+        public bool GenerateGameClientDisabled { get; }
 
         public GeneratorOptions WithAutoDetectedModes(Compilation compilation)
         {
             if (HasExplicitGenerationMode)
                 return this;
 
-            if (IsUnityCompilation(compilation))
-                return this;
-
             var hasClientRuntime = compilation.GetTypeByMetadataName("Lakona.Rpc.Client.RpcClientRuntime") is not null;
             var hasServerRuntime = compilation.GetTypeByMetadataName("Lakona.Rpc.Server.RpcServiceRegistry") is not null;
+            var hasGameClientRuntime = compilation.GetTypeByMetadataName("Lakona.Game.Client.LakonaGameClientCore") is not null;
+            var isUnityCompilation = IsUnityCompilation(compilation);
+            var isGeneratedUnityClientAssembly = isUnityCompilation && IsUnityMainUserAssembly(compilation);
+            var autoGenerateUnityGameClient =
+                isGeneratedUnityClientAssembly &&
+                hasGameClientRuntime &&
+                hasClientRuntime &&
+                !hasServerRuntime &&
+                !HasGameClientSetting &&
+                !GenerateGameClientDisabled;
+
             return new GeneratorOptions(
-                generateClient: hasClientRuntime && !hasServerRuntime,
+                generateClient: hasClientRuntime && !hasServerRuntime && (!isUnityCompilation || isGeneratedUnityClientAssembly),
                 generateServer: hasServerRuntime && !hasClientRuntime,
-                generateGameClient: GenerateGameClient,
+                generateGameClient: GenerateGameClient || autoGenerateUnityGameClient,
                 hasExplicitGenerationMode: false,
                 ClientNamespace,
-                ServerNamespace);
+                ServerNamespace,
+                HasGameClientSetting,
+                GenerateGameClientDisabled);
         }
 
         public static GeneratorOptions From(AnalyzerConfigOptionsProvider provider, Compilation compilation)
@@ -167,7 +183,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             var hasClientSetting = global.TryGetValue(ClientKey, out var clientValue);
             var hasServerSetting = global.TryGetValue(ServerKey, out var serverValue);
             var hasGameClientSetting = global.TryGetValue(GameClientKey, out var gameClientValue);
-            var clientNamespace = GetString(global, ClientNamespaceKey, "Rpc.Generated");
+            var clientNamespace = GetString(global, ClientNamespaceKey, "Client.Generated");
             var hasClientMarker = TryGetClientGenerationAttribute(compilation, out var markerNamespace);
             var hasGameClientMarker = TryGetGameClientGenerationAttribute(compilation);
             if (hasClientMarker && !hasClientSetting && !string.IsNullOrWhiteSpace(markerNamespace))
@@ -182,7 +198,9 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
                 generateGameClient,
                 hasClientSetting || hasServerSetting || hasClientMarker || (hasGameClientMarker && !hasGameClientSetting),
                 clientNamespace,
-                GetString(global, ServerNamespaceKey, "Server.Generated"));
+                GetString(global, ServerNamespaceKey, "Server.Generated"),
+                hasGameClientSetting,
+                IsDisabled(gameClientValue));
         }
 
         private static bool IsUnityCompilation(Compilation compilation)
@@ -197,6 +215,9 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
                 assembly.Identity.Name.StartsWith("UnityEngine", StringComparison.Ordinal) ||
                 assembly.Identity.Name.StartsWith("UnityEditor", StringComparison.Ordinal));
         }
+
+        private static bool IsUnityMainUserAssembly(Compilation compilation) =>
+            string.Equals(compilation.AssemblyName, "Assembly-CSharp", StringComparison.Ordinal);
 
         private static bool TryGetClientGenerationAttribute(Compilation compilation, out string? generatedNamespace)
         {
@@ -239,6 +260,10 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
         private static bool IsEnabled(string? value) =>
             string.Equals(value, "true", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(value, "1", StringComparison.Ordinal);
+
+        private static bool IsDisabled(string? value) =>
+            string.Equals(value, "false", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value, "0", StringComparison.Ordinal);
 
         private static string GetString(AnalyzerConfigOptions options, string key, string fallback) =>
             options.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value)

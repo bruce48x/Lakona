@@ -76,45 +76,65 @@ public sealed class LakonaRpcSourceGeneratorTests
     }
 
     [Fact]
-    public void SourceGenerator_UnityAssemblyRequiresClientGenerationMarker()
+    public void SourceGenerator_UnityAssemblyCSharp_AutoGeneratesClientAndGameWrapper()
     {
-        var unmarkedCompilation = AnalyzerTestHelpers.CreateCompilation(
+        var compilation = AnalyzerTestHelpers.CreateCompilation(
             SimpleClientContractSource,
-            assemblyName: "Assembly-CSharp");
-        var unmarkedRun = AnalyzerTestHelpers.RunGenerator(unmarkedCompilation, null, out _);
+            assemblyName: "Assembly-CSharp",
+            includeServerRuntimeReference: false);
 
-        Assert.Empty(unmarkedRun.Results.Single().GeneratedSources);
+        var runResult = AnalyzerTestHelpers.RunGenerator(compilation, null, out var outputCompilation);
 
-        var markedCompilation = AnalyzerTestHelpers.CreateCompilation(
-            """
-            using Lakona.Rpc.Core;
+        Assert.Empty(runResult.Diagnostics);
+        Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(outputCompilation));
 
-            [assembly: LakonaRpcGenerateClient("Unity.Generated")]
-
-            namespace UnityContracts
-            {
-                public sealed class PingRequest { }
-                public sealed class PingReply { }
-
-                [RpcService(7)]
-                public interface IPingService
-                {
-                    [RpcMethod(1)]
-                    System.Threading.Tasks.ValueTask<PingReply> PingAsync(PingRequest request);
-                }
-            }
-            """,
-            assemblyName: "Assembly-CSharp");
-        var markedRun = AnalyzerTestHelpers.RunGenerator(markedCompilation, null, out var markedOutput);
-
-        Assert.Empty(markedRun.Diagnostics);
-        Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(markedOutput));
-
+        var generatedHintNames = runResult.Results.Single().GeneratedSources.Select(static source => source.HintName).ToArray();
+        Assert.Contains("RpcApi.g.cs", generatedHintNames);
+        Assert.Contains("PingServiceClient.g.cs", generatedHintNames);
+        Assert.Contains("LakonaGameClient.g.cs", generatedHintNames);
         var generatedSource = string.Join(
             "\n",
-            markedRun.Results.Single().GeneratedSources.Select(static source => source.SourceText.ToString()));
-        Assert.Contains("namespace Unity.Generated", generatedSource);
-        Assert.Contains("PingServiceClient", generatedSource);
+            runResult.Results.Single().GeneratedSources.Select(static source => source.SourceText.ToString()));
+        Assert.Contains("namespace Client.Generated", generatedSource);
+    }
+
+    [Fact]
+    public void SourceGenerator_UnityCustomAssembly_DoesNotAutoGenerateWithoutExplicitMarker()
+    {
+        var compilation = AnalyzerTestHelpers.CreateCompilation(
+            SimpleClientContractSource,
+            assemblyName: "Game.Client",
+            additionalReferences: new[] { AnalyzerTestHelpers.CreateUnityEngineReference() },
+            includeServerRuntimeReference: false);
+
+        var runResult = AnalyzerTestHelpers.RunGenerator(compilation, null, out _);
+
+        Assert.Empty(runResult.Results.Single().GeneratedSources);
+    }
+
+    [Fact]
+    public void SourceGenerator_UnityAssemblyCSharp_ExplicitFalseDisablesGameWrapper()
+    {
+        var compilation = AnalyzerTestHelpers.CreateCompilation(
+            SimpleClientContractSource,
+            assemblyName: "Assembly-CSharp",
+            includeServerRuntimeReference: false);
+
+        var runResult = AnalyzerTestHelpers.RunGenerator(
+            compilation,
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaGameGenerateClient"] = "false"
+            },
+            out var outputCompilation);
+
+        Assert.Empty(runResult.Diagnostics);
+        Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(outputCompilation));
+
+        var generatedHintNames = runResult.Results.Single().GeneratedSources.Select(static source => source.HintName).ToArray();
+        Assert.Contains("RpcApi.g.cs", generatedHintNames);
+        Assert.Contains("PingServiceClient.g.cs", generatedHintNames);
+        Assert.DoesNotContain("LakonaGameClient.g.cs", generatedHintNames);
     }
 
     [Fact]

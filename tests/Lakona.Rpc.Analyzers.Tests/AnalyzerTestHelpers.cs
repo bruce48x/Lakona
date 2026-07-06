@@ -68,6 +68,22 @@ internal static class AnalyzerTestHelpers
         return MetadataReference.CreateFromImage(stream.ToArray());
     }
 
+    public static MetadataReference CreateUnityEngineReference()
+    {
+        var compilation = CSharpCompilation.Create(
+            "UnityEngine.CoreModule",
+            new[]
+            {
+                CSharpSyntaxTree.ParseText(
+                    "namespace UnityEngine { public class Object { } }",
+                    ParseOptions)
+            },
+            TrustedPlatformReferences(),
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        return EmitReference(compilation);
+    }
+
     public static IReadOnlyList<Diagnostic> ErrorDiagnostics(Compilation compilation) =>
         compilation.GetDiagnostics()
             .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
