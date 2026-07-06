@@ -1,7 +1,7 @@
 # Unity RPC Generation Zero-Config Design
 
 Date: 2026-07-06
-Status: draft for user review
+Status: accepted design
 
 ## Problem
 
@@ -32,9 +32,9 @@ New Unity and Tuanjie projects must not generate
 
 Lakona should own RPC client generation for generated Unity clients:
 
-- generated RPC namespace defaults to `Rpc.Generated`;
+- generated client namespace defaults to `Client.Generated`;
 - generated game client wrapper is enabled by default for Lakona game clients;
-- Unity-compatible runtime/platform metadata is inferred by the framework;
+- Unity-compatible platform metadata is inferred by the framework;
 - game version should come from runtime options or framework defaults, not from
   a user-editable compile-time marker.
 
@@ -63,15 +63,29 @@ When those conditions hold, analyzer defaults should be equivalent to:
 
 ```xml
 <LakonaRpcGenerateClient>true</LakonaRpcGenerateClient>
-<LakonaRpcGeneratedNamespace>Rpc.Generated</LakonaRpcGeneratedNamespace>
+<LakonaRpcGeneratedNamespace>Client.Generated</LakonaRpcGeneratedNamespace>
 <LakonaGameGenerateClient>true</LakonaGameGenerateClient>
-<LakonaGameClientRuntime>unity</LakonaGameClientRuntime>
 <LakonaGameClientPlatform>unity</LakonaGameClientPlatform>
 ```
 
-Tuanjie and Unity China projects can still use `unity` as the initial runtime
-and platform value unless the runtime has a concrete behavioral need to
-distinguish them.
+`Client.Generated` is project-local client output, not framework API. The
+namespace should not use `Lakona.*`, because that namespace family belongs to
+framework packages and public framework surfaces. It should also avoid the old
+`Rpc.Generated` default for generated Lakona game projects because the emitted
+surface includes the game client wrapper, not only low-level RPC glue.
+
+Generated projects should set `Platform` from the selected client engine:
+`unity`, `unity-cn`, `tuanjie`, `godot`, or `dotnet`.
+
+`LakonaGameClientRuntime` and `LakonaGameClientOptions.ClientRuntime` should be
+removed from the generated-project model. `runtime` and `platform` currently do
+not carry separate product meaning; keeping both makes the handshake metadata
+harder to understand without adding behavior. `Platform` is enough for the
+client host identity.
+
+If the framework later needs to report the Lakona client package/runtime
+version, add a specific field such as `ClientSdkVersion` instead of reusing the
+ambiguous `ClientRuntime` concept.
 
 `LakonaGameClientGameVersion` should stop being required for generated Unity
 projects. The generated wrapper can keep accepting
@@ -106,7 +120,7 @@ attributes.
 
 The main risk is accidental generation in the wrong Unity assembly. The initial
 rule deliberately limits auto-generation to `Assembly-CSharp` to avoid multiple
-assemblies generating the same `Rpc.Generated` types.
+assemblies generating the same `Client.Generated` types.
 
 The second risk is losing game-version identity. That value should not be
 preserved by moving it into another hidden compile-time file. If the server
@@ -122,6 +136,10 @@ Focused tests should cover:
 - Unity custom assemblies do not auto-generate by accident in the first scope;
 - explicit marker attributes still work;
 - explicit `LakonaGameGenerateClient=false` disables game wrapper generation;
+- generated client code uses `Client.Generated`, not `Rpc.Generated` or
+  `Lakona.*`;
+- client handshake metadata uses `Platform` and no longer emits or requires
+  `ClientRuntime`;
 - `Lakona.Tool` Unity/Tuanjie plans omit `LakonaRpcGeneration.cs`;
 - generated Unity sample scans do not contain `LakonaRpcGeneration.cs` or
   `[assembly: LakonaRpcGenerateClient]`.
