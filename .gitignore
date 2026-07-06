@@ -29,7 +29,6 @@ _verify/
 _verify_fresh/
 /.buildtmp/
 /.superpowers/
-/docs/superpowers/
 /.worktrees/
 
 # Unity generated folders
