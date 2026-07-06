@@ -193,7 +193,8 @@ internal sealed class BattleService
         var realtimeSessionGeneration = call.CurrentSessionItems.GetInt64(RealtimeSessionGenerationSessionItemKey);
         if (string.IsNullOrWhiteSpace(roomId) ||
             string.IsNullOrWhiteSpace(realtimeSessionId) ||
-            realtimeSessionGeneration is null)
+            realtimeSessionGeneration is null ||
+            realtimeSessionGeneration <= 0)
         {
             return;
         }
