@@ -10,30 +10,16 @@ public sealed class GameServerHello
 {
     public int SelectedProtocolVersion { get; set; }
 
-    public string ServerNodeId { get; set; } = "";
-
-    public string EndpointTransport { get; set; } = "";
-
-    public string EndpointSerializer { get; set; } = "";
-
     public ReliablePushHandshakeSettings ReliablePush { get; set; } = new();
 
     public GameHeartbeatHandshakeSettings Heartbeat { get; set; } = new();
-
-    public DateTimeOffset ServerTimeUtc { get; set; }
 }
 
 public sealed class ReliablePushHandshakeSettings
 {
     public bool Enabled { get; set; }
 
-    public string DeliveryMode { get; set; } = "reliable";
-
     public bool AckRequired { get; set; }
-
-    public bool ReplaySupported { get; set; }
-
-    public int MaxPending { get; set; }
 }
 
 public sealed class GameHeartbeatHandshakeSettings

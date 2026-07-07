@@ -30,70 +30,53 @@ public sealed class LakonaInternalCodecTests
     }
 
     [Fact]
-    public void GameServerHello_roundtrips_with_reliable_push_settings()
-    {
-        var hello = new GameServerHello
-        {
-            SelectedProtocolVersion = 2,
-            ServerNodeId = "node-a",
-            EndpointTransport = "tcp",
-            EndpointSerializer = "lakona-internal",
-            ReliablePush = new ReliablePushHandshakeSettings
-            {
-                Enabled = true,
-                DeliveryMode = "reliable",
-                AckRequired = true,
-                ReplaySupported = true,
-                MaxPending = 256,
-            },
-            ServerTimeUtc = new DateTimeOffset(2026, 6, 24, 10, 30, 0, TimeSpan.Zero),
-        };
-
-        var decoded = LakonaInternalCodec.DecodeGameServerHello(
-            LakonaInternalCodec.EncodeGameServerHello(hello));
-
-        Assert.Equal(hello.SelectedProtocolVersion, decoded.SelectedProtocolVersion);
-        Assert.Equal(hello.ServerNodeId, decoded.ServerNodeId);
-        Assert.Equal(hello.EndpointTransport, decoded.EndpointTransport);
-        Assert.Equal(hello.EndpointSerializer, decoded.EndpointSerializer);
-        Assert.Equal(hello.ReliablePush.Enabled, decoded.ReliablePush.Enabled);
-        Assert.Equal(hello.ReliablePush.DeliveryMode, decoded.ReliablePush.DeliveryMode);
-        Assert.Equal(hello.ReliablePush.AckRequired, decoded.ReliablePush.AckRequired);
-        Assert.Equal(hello.ReliablePush.ReplaySupported, decoded.ReliablePush.ReplaySupported);
-        Assert.Equal(hello.ReliablePush.MaxPending, decoded.ReliablePush.MaxPending);
-        Assert.Equal(hello.ServerTimeUtc, decoded.ServerTimeUtc);
-    }
-
-    [Fact]
-    public void GameServerHello_roundtrips_with_heartbeat_settings()
+    public void GameServerHello_roundtrips_with_runtime_policies_only()
     {
         var hello = new GameServerHello
         {
             SelectedProtocolVersion = 1,
-            ServerNodeId = "node-a",
-            EndpointTransport = "websocket",
-            EndpointSerializer = "memorypack",
             ReliablePush = new ReliablePushHandshakeSettings
             {
                 Enabled = true,
-                DeliveryMode = "reliable",
                 AckRequired = true,
-                ReplaySupported = true,
-                MaxPending = 256,
             },
             Heartbeat = new GameHeartbeatHandshakeSettings
             {
                 Interval = TimeSpan.FromSeconds(7),
                 Timeout = TimeSpan.FromSeconds(21),
             },
-            ServerTimeUtc = new DateTimeOffset(2026, 7, 7, 10, 0, 0, TimeSpan.Zero),
         };
 
-        var decoded = LakonaInternalCodec.DecodeGameServerHello(
-            LakonaInternalCodec.EncodeGameServerHello(hello));
+        var payload = LakonaInternalCodec.EncodeGameServerHello(hello);
+        var decoded = LakonaInternalCodec.DecodeGameServerHello(payload);
 
+        Assert.Equal(hello.SelectedProtocolVersion, decoded.SelectedProtocolVersion);
+        Assert.Equal(hello.ReliablePush.Enabled, decoded.ReliablePush.Enabled);
+        Assert.Equal(hello.ReliablePush.AckRequired, decoded.ReliablePush.AckRequired);
         Assert.Equal(TimeSpan.FromSeconds(7), decoded.Heartbeat.Interval);
         Assert.Equal(TimeSpan.FromSeconds(21), decoded.Heartbeat.Timeout);
+        Assert.Equal(28, payload.Length);
+    }
+
+    [Fact]
+    public void GameServerHello_contract_excludes_connection_facts_and_server_internals()
+    {
+        var serverHelloProperties = typeof(GameServerHello)
+            .GetProperties()
+            .Select(static property => property.Name)
+            .ToArray();
+        var reliablePushProperties = typeof(ReliablePushHandshakeSettings)
+            .GetProperties()
+            .Select(static property => property.Name)
+            .ToArray();
+
+        Assert.DoesNotContain("ServerNodeId", serverHelloProperties);
+        Assert.DoesNotContain("EndpointTransport", serverHelloProperties);
+        Assert.DoesNotContain("EndpointSerializer", serverHelloProperties);
+        Assert.DoesNotContain("ServerTimeUtc", serverHelloProperties);
+        Assert.DoesNotContain("DeliveryMode", reliablePushProperties);
+        Assert.DoesNotContain("ReplaySupported", reliablePushProperties);
+        Assert.DoesNotContain("MaxPending", reliablePushProperties);
     }
 
     [Theory]
@@ -107,15 +90,11 @@ public sealed class LakonaInternalCodecTests
         var hello = new GameServerHello
         {
             SelectedProtocolVersion = 1,
-            ServerNodeId = "node-a",
-            EndpointTransport = "websocket",
-            EndpointSerializer = "memorypack",
             Heartbeat = new GameHeartbeatHandshakeSettings
             {
                 Interval = TimeSpan.FromTicks(intervalTicks),
                 Timeout = TimeSpan.FromTicks(timeoutTicks),
             },
-            ServerTimeUtc = DateTimeOffset.UtcNow,
         };
 
         Assert.Throws<InvalidOperationException>(() => LakonaInternalCodec.EncodeGameServerHello(hello));
@@ -354,42 +333,10 @@ public sealed class LakonaInternalCodecTests
         var payload = CreatePayload(GameServerHelloKind, builder =>
         {
             WriteInt32BigEndian(builder, 1);
-            WriteString(builder, "node-a");
-            WriteString(builder, "tcp");
-            WriteString(builder, "lakona-internal");
             builder.Add(2);
-            WriteString(builder, "reliable");
             builder.Add(1);
-            builder.Add(1);
-            WriteInt32BigEndian(builder, 128);
             WriteInt64BigEndian(builder, TimeSpan.FromSeconds(15).Ticks);
             WriteInt64BigEndian(builder, TimeSpan.FromSeconds(45).Ticks);
-            WriteInt64BigEndian(builder, 1_782_300_600_000);
-            WriteInt32BigEndian(builder, 0);
-        });
-
-        Assert.Throws<InvalidOperationException>(() => LakonaInternalCodec.DecodeGameServerHello(payload));
-    }
-
-    [Fact]
-    public void Decode_rejects_negative_game_server_hello_reliable_push_max_pending()
-    {
-        var payload = CreatePayload(GameServerHelloKind, builder =>
-        {
-            WriteInt32BigEndian(builder, 1);
-            WriteString(builder, "node-a");
-            WriteString(builder, "tcp");
-            WriteString(builder, "lakona-internal");
-            builder.Add(1);
-            WriteString(builder, "reliable");
-            builder.Add(1);
-            builder.Add(1);
-            WriteInt32BigEndian(builder, -1);
-            WriteInt64BigEndian(builder, TimeSpan.FromSeconds(15).Ticks);
-            WriteInt64BigEndian(builder, TimeSpan.FromSeconds(45).Ticks);
-            WriteInt64BigEndian(builder, new DateTimeOffset(2026, 6, 24, 10, 30, 0, TimeSpan.Zero).Ticks);
-            WriteInt16BigEndian(builder, 0);
-            WriteInt32BigEndian(builder, 0);
         });
 
         Assert.Throws<InvalidOperationException>(() => LakonaInternalCodec.DecodeGameServerHello(payload));

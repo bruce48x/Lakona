@@ -61,23 +61,15 @@ namespace Lakona.Game.Abstractions
 
             ValidatePositiveProtocolVersion(value.SelectedProtocolVersion);
             var reliablePush = value.ReliablePush ?? new ReliablePushHandshakeSettings();
-            ValidateNonNegative(reliablePush.MaxPending, nameof(reliablePush.MaxPending));
             var heartbeat = value.Heartbeat ?? new GameHeartbeatHandshakeSettings();
             ValidateHeartbeatPolicy(heartbeat.Interval, heartbeat.Timeout);
 
             var writer = CreateWriter(GameServerHelloKind);
             writer.WriteInt32(value.SelectedProtocolVersion);
-            writer.WriteString(value.ServerNodeId);
-            writer.WriteString(value.EndpointTransport);
-            writer.WriteString(value.EndpointSerializer);
             writer.WriteBool(reliablePush.Enabled);
-            writer.WriteString(reliablePush.DeliveryMode);
             writer.WriteBool(reliablePush.AckRequired);
-            writer.WriteBool(reliablePush.ReplaySupported);
-            writer.WriteInt32(reliablePush.MaxPending);
             writer.WriteInt64(heartbeat.Interval.Ticks);
             writer.WriteInt64(heartbeat.Timeout.Ticks);
-            writer.WriteUtcDateTimeOffset(value.ServerTimeUtc);
             return writer.ToArray();
         }
 
@@ -87,27 +79,19 @@ namespace Lakona.Game.Abstractions
             var value = new GameServerHello
             {
                 SelectedProtocolVersion = reader.ReadInt32(),
-                ServerNodeId = reader.ReadStringAsEmptyIfNull(),
-                EndpointTransport = reader.ReadStringAsEmptyIfNull(),
-                EndpointSerializer = reader.ReadStringAsEmptyIfNull(),
                 ReliablePush = new ReliablePushHandshakeSettings
                 {
                     Enabled = reader.ReadBool(),
-                    DeliveryMode = reader.ReadStringAsEmptyIfNull(),
                     AckRequired = reader.ReadBool(),
-                    ReplaySupported = reader.ReadBool(),
-                    MaxPending = reader.ReadInt32(),
                 },
                 Heartbeat = new GameHeartbeatHandshakeSettings
                 {
                     Interval = TimeSpan.FromTicks(reader.ReadInt64()),
                     Timeout = TimeSpan.FromTicks(reader.ReadInt64()),
                 },
-                ServerTimeUtc = reader.ReadUtcDateTimeOffset(),
             };
 
             ValidatePositiveProtocolVersion(value.SelectedProtocolVersion);
-            ValidateNonNegative(value.ReliablePush.MaxPending, nameof(value.ReliablePush.MaxPending));
             ValidateHeartbeatPolicy(value.Heartbeat.Interval, value.Heartbeat.Timeout);
             reader.EnsureEnd();
             return value;
