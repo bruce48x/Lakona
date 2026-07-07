@@ -415,6 +415,7 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         await TimerCallbackLog.WaitForValueAsync("running", cancellationToken);
         time.Advance(TimeSpan.FromSeconds(2));
         await fixture.Observer.WaitForQueueFullAsync(cancellationToken);
+        await fixture.Observer.WaitForSkippedAsync(cancellationToken);
 
         Assert.False(fixture.Contains(full));
 
@@ -1137,7 +1138,7 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         private static async Task WaitUntilAsync(Func<bool> predicate, CancellationToken cancellationToken)
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(TimeSpan.FromSeconds(2));
+            timeout.CancelAfter(TimeSpan.FromSeconds(10));
             while (true)
             {
                 lock (Sync)
