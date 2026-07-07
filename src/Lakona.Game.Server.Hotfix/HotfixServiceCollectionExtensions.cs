@@ -12,11 +12,11 @@ public static class HotfixServiceCollectionExtensions
     public static IServiceCollection AddLakonaGameHotfix(
         this IServiceCollection services,
         IHotfixAssemblySource source,
-        IEnumerable<string>? sharedAssemblyNames = null)
+        IEnumerable<string>? hostAssemblyNames = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(source);
-        var sharedNames = (sharedAssemblyNames ?? Array.Empty<string>()).ToArray();
+        var hostNames = (hostAssemblyNames ?? Array.Empty<string>()).ToArray();
         services.RemoveAll<IHotfixAssemblySource>();
         services.RemoveAll<IHotfixManager>();
         services.RemoveAll<IHotfixServiceProviderAccessor>();
@@ -34,7 +34,7 @@ public static class HotfixServiceCollectionExtensions
 
             return new HotfixManager(
                 provider.GetRequiredService<IHotfixAssemblySource>(),
-                sharedNames,
+                hostNames,
                 requiredContracts,
                 provider);
         });

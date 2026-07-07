@@ -66,7 +66,7 @@ public sealed class AgarHotfixTests
         services.AddLakonaGameServer();
         new global::GeneratedHotfixActorRegistration().Register(services);
         await using var rootServices = services.BuildServiceProvider();
-        var manager = new HotfixManager(source, HotfixSharedAssemblyNames(), rootServices: rootServices);
+        var manager = new HotfixManager(source, HotfixHostAssemblyNames(), rootServices: rootServices);
 
         var reload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
 
@@ -566,9 +566,9 @@ public sealed class AgarHotfixTests
             assemblyFileName);
     }
 
-    private static string[] HotfixSharedAssemblyNames()
+    private static string[] HotfixHostAssemblyNames()
     {
-        return TestHotfix.SharedAssemblyNames();
+        return TestHotfix.HostAssemblyNames();
     }
 
     private static string FindRepositoryRoot()

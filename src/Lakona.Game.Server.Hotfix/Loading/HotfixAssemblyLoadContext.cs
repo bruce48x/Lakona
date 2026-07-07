@@ -14,16 +14,16 @@ internal sealed class HotfixAssemblyLoadContext : AssemblyLoadContext
     private static readonly string LoggingAbstractionsAssemblyName = typeof(ILogger).Assembly.GetName().Name!;
 
     private readonly AssemblyDependencyResolver _resolver;
-    private readonly IReadOnlySet<string> _sharedAssemblyNames;
-    private readonly IReadOnlyDictionary<string, Assembly> _sharedAssemblies;
+    private readonly IReadOnlySet<string> _hostAssemblyNames;
+    private readonly IReadOnlyDictionary<string, Assembly> _hostAssemblies;
 
-    public HotfixAssemblyLoadContext(string mainAssemblyPath, IEnumerable<string> sharedAssemblyNames)
+    public HotfixAssemblyLoadContext(string mainAssemblyPath, IEnumerable<string> hostAssemblyNames)
         : base("Lakona.Game.Hotfix", isCollectible: true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(mainAssemblyPath);
 
         _resolver = new AssemblyDependencyResolver(mainAssemblyPath);
-        (_sharedAssemblyNames, _sharedAssemblies) = CreateSharedAssemblyPolicy(sharedAssemblyNames);
+        (_hostAssemblyNames, _hostAssemblies) = CreateHostAssemblyPolicy(hostAssemblyNames);
     }
 
     public Assembly LoadMainAssemblyFromBytes(string assemblyPath)
@@ -33,11 +33,11 @@ internal sealed class HotfixAssemblyLoadContext : AssemblyLoadContext
 
     protected override Assembly? Load(AssemblyName assemblyName)
     {
-        if (assemblyName.Name is not null && _sharedAssemblyNames.Contains(assemblyName.Name))
+        if (assemblyName.Name is not null && _hostAssemblyNames.Contains(assemblyName.Name))
         {
-            return _sharedAssemblies.TryGetValue(assemblyName.Name, out var sharedAssembly)
-                ? sharedAssembly
-                : throw new FileNotFoundException($"Shared assembly '{assemblyName.Name}' is not loaded in the default AssemblyLoadContext.");
+            return _hostAssemblies.TryGetValue(assemblyName.Name, out var hostAssembly)
+                ? hostAssembly
+                : throw new FileNotFoundException($"Host assembly '{assemblyName.Name}' is not loaded in the default AssemblyLoadContext.");
         }
 
         var path = _resolver.ResolveAssemblyToPath(assemblyName);
@@ -65,9 +65,9 @@ internal sealed class HotfixAssemblyLoadContext : AssemblyLoadContext
         return path is null ? IntPtr.Zero : LoadUnmanagedDllFromPath(path);
     }
 
-    private static (IReadOnlySet<string> Names, IReadOnlyDictionary<string, Assembly> Assemblies) CreateSharedAssemblyPolicy(IEnumerable<string> sharedAssemblyNames)
+    private static (IReadOnlySet<string> Names, IReadOnlyDictionary<string, Assembly> Assemblies) CreateHostAssemblyPolicy(IEnumerable<string> hostAssemblyNames)
     {
-        ArgumentNullException.ThrowIfNull(sharedAssemblyNames);
+        ArgumentNullException.ThrowIfNull(hostAssemblyNames);
 
         var names = new HashSet<string>(StringComparer.Ordinal)
         {
@@ -77,7 +77,7 @@ internal sealed class HotfixAssemblyLoadContext : AssemblyLoadContext
             LoggingAbstractionsAssemblyName
         };
 
-        foreach (var name in sharedAssemblyNames)
+        foreach (var name in hostAssemblyNames)
         {
             if (!string.IsNullOrWhiteSpace(name))
             {

@@ -793,9 +793,9 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public void Default_hotfix_shared_assemblies_include_generated_project_boundaries()
+    public void Default_hotfix_host_assemblies_include_generated_project_boundaries()
     {
-        var names = Lakona.Game.Server.Hosting.LakonaGameServer.GetDefaultHotfixSharedAssemblyNames();
+        var names = Lakona.Game.Server.Hosting.LakonaGameServer.GetDefaultHotfixHostAssemblyNames();
 
         Assert.Contains("Shared", names);
         Assert.Contains("Server.App", names);

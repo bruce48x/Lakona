@@ -217,7 +217,7 @@ public sealed class DistributedTopologyConfigurationTests
             new Lakona.Game.Server.Hotfix.Loading.CurrentDirectoryHotfixAssemblySource(
                 Path.GetDirectoryName(hotfixAssemblyPath)!,
                 Path.GetFileName(hotfixAssemblyPath)),
-            TestHotfix.SharedAssemblyNames());
+            TestHotfix.HostAssemblyNames());
 
         await using var provider = services.BuildServiceProvider();
 
@@ -409,7 +409,7 @@ public sealed class DistributedTopologyConfigurationTests
             new Lakona.Game.Server.Hotfix.Loading.CurrentDirectoryHotfixAssemblySource(
                 Path.GetDirectoryName(hotfixAssemblyPath)!,
                 Path.GetFileName(hotfixAssemblyPath)),
-            TestHotfix.SharedAssemblyNames());
+            TestHotfix.HostAssemblyNames());
         services.AddSingleton<IFeatureCommandClient>(roomAllocator);
 
         await using var provider = services.BuildServiceProvider();

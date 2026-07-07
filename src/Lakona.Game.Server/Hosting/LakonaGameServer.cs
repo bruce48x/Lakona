@@ -520,7 +520,7 @@ public static class LakonaGameServer
         return name is not null && name.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase);
     }
 
-    internal static IReadOnlyList<string> GetDefaultHotfixSharedAssemblyNames()
+    internal static IReadOnlyList<string> GetDefaultHotfixHostAssemblyNames()
     {
         var names = new HashSet<string>(StringComparer.Ordinal)
         {
@@ -562,7 +562,7 @@ public static class LakonaGameServer
     {
         var hotfixDirectory = Path.Combine(baseDirectory, "hotfix");
         var source = CreateDefaultHotfixAssemblySource(baseDirectory, adminOptions);
-        services.AddLakonaGameHotfix(source, sharedAssemblyNames: GetDefaultHotfixSharedAssemblyNames());
+        services.AddLakonaGameHotfix(source, hostAssemblyNames: GetDefaultHotfixHostAssemblyNames());
         if (IsDebugWatcherEnabled(adminOptions))
         {
             services.AddLakonaGameHotfixFileWatcher(options =>

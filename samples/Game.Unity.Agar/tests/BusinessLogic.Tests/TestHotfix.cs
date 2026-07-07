@@ -35,7 +35,7 @@ internal static class TestHotfix
         var source = new CurrentDirectoryHotfixAssemblySource(
             Path.GetDirectoryName(hotfixAssemblyPath)!,
             Path.GetFileName(hotfixAssemblyPath));
-        var manager = new HotfixManager(source, SharedAssemblyNames(), rootServices: rootServices);
+        var manager = new HotfixManager(source, HostAssemblyNames(), rootServices: rootServices);
 
         var reload = await manager.ReloadAsync(cancellationToken).ConfigureAwait(false);
         if (!reload.Succeeded)
@@ -78,7 +78,7 @@ internal static class TestHotfix
             assemblyFileName);
     }
 
-    public static string[] SharedAssemblyNames()
+    public static string[] HostAssemblyNames()
     {
         return
         [

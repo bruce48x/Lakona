@@ -13,7 +13,7 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
     private const string LoggerCategory = "Lakona.Game.Hotfix";
 
     private readonly IHotfixAssemblySource _source;
-    private readonly IReadOnlyList<string> _sharedAssemblyNames;
+    private readonly IReadOnlyList<string> _hostAssemblyNames;
     private readonly IReadOnlyList<Type> _requiredServiceContracts;
     private readonly IServiceProvider? _rootServices;
     private readonly ILogger? _logger;
@@ -26,7 +26,7 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
 
     public HotfixManager(
         IHotfixAssemblySource source,
-        IEnumerable<string>? sharedAssemblyNames = null,
+        IEnumerable<string>? hostAssemblyNames = null,
         IEnumerable<Type>? requiredServiceContracts = null,
         IServiceProvider? rootServices = null,
         IEnumerable<IHotfixRuntimePublicationParticipant>? participants = null,
@@ -35,7 +35,7 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
         _source = source ?? throw new ArgumentNullException(nameof(source));
         _rootServices = rootServices;
         _logger = rootServices?.GetService<ILoggerFactory>()?.CreateLogger(LoggerCategory);
-        _sharedAssemblyNames = (sharedAssemblyNames ?? Array.Empty<string>())
+        _hostAssemblyNames = (hostAssemblyNames ?? Array.Empty<string>())
             .Where(static name => !string.IsNullOrWhiteSpace(name))
             .Distinct(StringComparer.Ordinal)
             .ToArray();
@@ -130,7 +130,7 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 throw new FileNotFoundException("Hotfix assembly was not found.", resolved.AssemblyPath);
             }
 
-            pendingContext = new HotfixAssemblyLoadContext(resolved.AssemblyPath, _sharedAssemblyNames);
+            pendingContext = new HotfixAssemblyLoadContext(resolved.AssemblyPath, _hostAssemblyNames);
             var assembly = pendingContext.LoadMainAssemblyFromBytes(resolved.AssemblyPath);
             var scan = HotfixBehaviorScanner.Scan(
                 assembly,
