@@ -109,6 +109,10 @@ internal sealed class UnityClientRenderer : IClientRenderer
           <activePackageSource>
             <add key="All" value="(Aggregate source)" />
           </activePackageSource>
+          <!--
+            targetFramework in packages.config guides NuGet dependency resolution.
+            Unity plugin TFM enablement is enforced by LakonaGameNuGetPackageImportGuard.
+          -->
           <config>
             <add key="packageInstallLocation" value="CustomWithinAssets" />
             <add key="repositoryPath" value="./Packages" />

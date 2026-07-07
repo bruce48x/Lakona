@@ -61,7 +61,7 @@ internal static class PackageReferenceRenderer
     private static string RenderNuGetForUnityPackage(PackageReferenceSpec reference)
     {
         var manuallyInstalled = reference.ManuallyInstalled ? " manuallyInstalled=\"true\"" : string.Empty;
-        return $"  <package id=\"{Escape(reference.Id)}\" version=\"{Escape(reference.Version)}\"{manuallyInstalled} />";
+        return $"  <package id=\"{Escape(reference.Id)}\" version=\"{Escape(reference.Version)}\" targetFramework=\"netstandard2.1\"{manuallyInstalled} />";
     }
 
     private static string Escape(string value)

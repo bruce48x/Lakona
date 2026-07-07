@@ -34,7 +34,7 @@ public sealed class PackageReferenceRendererTests
     }
 
     [Fact]
-    public void RenderNuGetForUnityPackages_RendersManualInstallFlag()
+    public void RenderNuGetForUnityPackages_RendersTargetFrameworkAndManualInstallFlag()
     {
         var references = new[]
         {
@@ -44,7 +44,7 @@ public sealed class PackageReferenceRendererTests
 
         var xml = PackageReferenceRenderer.RenderNuGetForUnityPackages(references);
 
-        Assert.Contains("<package id=\"Lakona.Rpc.Core\" version=\"1.2.3\" />", xml, StringComparison.Ordinal);
-        Assert.Contains("<package id=\"Lakona.Rpc.Client\" version=\"2.3.4\" manuallyInstalled=\"true\" />", xml, StringComparison.Ordinal);
+        Assert.Contains("<package id=\"Lakona.Rpc.Core\" version=\"1.2.3\" targetFramework=\"netstandard2.1\" />", xml, StringComparison.Ordinal);
+        Assert.Contains("<package id=\"Lakona.Rpc.Client\" version=\"2.3.4\" targetFramework=\"netstandard2.1\" manuallyInstalled=\"true\" />", xml, StringComparison.Ordinal);
     }
 }

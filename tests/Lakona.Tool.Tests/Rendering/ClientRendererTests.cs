@@ -24,6 +24,17 @@ public sealed class ClientRendererTests
         Assert.Contains(plan.Files, file => file.RelativePath == "Client/Assets/NuGet.config");
         Assert.Contains(plan.Files, file => file.RelativePath == "Client/ProjectSettings/ProjectVersion.txt");
         Assert.DoesNotContain(plan.Files, file => file.RelativePath.EndsWith(".tscn", StringComparison.Ordinal));
+
+        var packagesConfig = plan.Files.Single(file => file.RelativePath == "Client/Assets/packages.config").Content;
+        foreach (var line in packagesConfig.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (!line.StartsWith("<package ", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            Assert.Contains("targetFramework=\"netstandard2.1\"", line, StringComparison.Ordinal);
+        }
     }
 
     [Fact]
@@ -53,6 +64,10 @@ public sealed class ClientRendererTests
         Assert.Contains("<add key=\"PackagesConfigDirectoryPath\" value=\".\" />", config, StringComparison.Ordinal);
         Assert.Contains("<add key=\"slimRestore\" value=\"true\" />", config, StringComparison.Ordinal);
         Assert.Contains("<add key=\"PreferNetStandardOverNetFramework\" value=\"true\" />", config, StringComparison.Ordinal);
+        Assert.Contains(
+            "Unity plugin TFM enablement is enforced by LakonaGameNuGetPackageImportGuard",
+            config,
+            StringComparison.Ordinal);
     }
 
     [Fact]
