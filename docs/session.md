@@ -244,10 +244,11 @@ outside that reserved range.
 
 Business RPC before a completed handshake is rejected with a structured
 `HandshakeRequired` failure. `ClientHello` carries only `ProtocolVersion = 1`.
-`ServerHello` returns the selected protocol version, node identity, endpoint
-transport and serializer, reliable push settings, and server time. Runtime,
-platform, game-version, build, and capability metadata are application concerns
-and are not part of the default framework handshake.
+`ServerHello` returns the selected protocol version plus server-owned
+reliable-push and heartbeat policies. Endpoint transport, endpoint serializer,
+server node identity, server time, runtime, platform, game-version, build, and
+capability metadata are application concerns and are not part of the default
+framework handshake unless they gain concrete framework behavior.
 
 ## Framework Heartbeat
 

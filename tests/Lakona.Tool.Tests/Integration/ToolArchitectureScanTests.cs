@@ -510,6 +510,13 @@ public sealed class ToolArchitectureScanTests
         Assert.DoesNotContain("MemoryPackOrder", abstractionsText, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona.Rpc.Serializer.Json", abstractionsText, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona.Rpc.Serializer.MemoryPack", abstractionsText, StringComparison.Ordinal);
+        Assert.DoesNotContain("EndpointTransport", abstractionsText, StringComparison.Ordinal);
+        Assert.DoesNotContain("EndpointSerializer", abstractionsText, StringComparison.Ordinal);
+        Assert.DoesNotContain("ServerTimeUtc", abstractionsText, StringComparison.Ordinal);
+        Assert.DoesNotContain("ServerNodeId", abstractionsText, StringComparison.Ordinal);
+        Assert.DoesNotContain("DeliveryMode", abstractionsText, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReplaySupported", abstractionsText, StringComparison.Ordinal);
+        Assert.DoesNotContain("MaxPending", abstractionsText, StringComparison.Ordinal);
     }
 
     [Fact]
