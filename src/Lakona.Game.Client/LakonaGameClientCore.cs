@@ -47,6 +47,12 @@ namespace Lakona.Game.Client
         public void ApplyServerHello(GameServerHello hello)
         {
             if (hello == null) throw new ArgumentNullException(nameof(hello));
+            if (hello.SelectedProtocolVersion != 1)
+            {
+                throw new InvalidOperationException(
+                    $"Unsupported Lakona game handshake protocol version '{hello.SelectedProtocolVersion}'.");
+            }
+
             ReliablePushEnabled = hello.ReliablePush.Enabled;
             ReliablePushAckRequired = hello.ReliablePush.Enabled && hello.ReliablePush.AckRequired;
             ApplyHeartbeatPolicy(hello.Heartbeat ?? new GameHeartbeatHandshakeSettings());

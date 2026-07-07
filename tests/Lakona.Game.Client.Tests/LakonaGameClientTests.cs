@@ -30,6 +30,7 @@ public sealed class LakonaGameClientCoreTests
 
         client.ApplyServerHello(new GameServerHello
         {
+            SelectedProtocolVersion = 1,
             Heartbeat = new GameHeartbeatHandshakeSettings
             {
                 Interval = TimeSpan.FromSeconds(8),
@@ -39,6 +40,19 @@ public sealed class LakonaGameClientCoreTests
 
         Assert.Equal(TimeSpan.FromSeconds(8), client.HeartbeatInterval);
         Assert.Equal(TimeSpan.FromSeconds(24), client.HeartbeatTimeout);
+    }
+
+    [Fact]
+    public void ApplyServerHello_rejects_unsupported_protocol_version()
+    {
+        var client = new LakonaGameClientCore();
+
+        var ex = Assert.Throws<InvalidOperationException>(() => client.ApplyServerHello(new GameServerHello
+        {
+            SelectedProtocolVersion = 2
+        }));
+
+        Assert.Contains("Unsupported Lakona game handshake protocol version", ex.Message, StringComparison.Ordinal);
     }
     [Fact]
     public async Task MainEntryProcessesReliablePushAndAppliesAckOutcome()
@@ -457,6 +471,7 @@ public sealed class LakonaGameClientCoreTests
         var client = new LakonaGameClientCore();
         var ex = Assert.Throws<ArgumentOutOfRangeException>(() => client.ApplyServerHello(new GameServerHello
         {
+            SelectedProtocolVersion = 1,
             Heartbeat = new GameHeartbeatHandshakeSettings
             {
                 Interval = TimeSpan.Zero,
@@ -473,6 +488,7 @@ public sealed class LakonaGameClientCoreTests
         var client = new LakonaGameClientCore();
         var ex = Assert.Throws<ArgumentOutOfRangeException>(() => client.ApplyServerHello(new GameServerHello
         {
+            SelectedProtocolVersion = 1,
             Heartbeat = new GameHeartbeatHandshakeSettings
             {
                 Interval = TimeSpan.FromSeconds(45),
@@ -489,6 +505,7 @@ public sealed class LakonaGameClientCoreTests
         var client = new LakonaGameClientCore();
         client.ApplyServerHello(new GameServerHello
         {
+            SelectedProtocolVersion = 1,
             Heartbeat = new GameHeartbeatHandshakeSettings
             {
                 Interval = TimeSpan.FromHours(1),
