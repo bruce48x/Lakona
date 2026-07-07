@@ -25,6 +25,8 @@ public sealed class GameHandshakeService : IGameHandshakeService
     {
         ArgumentNullException.ThrowIfNull(hello);
         cancellationToken.ThrowIfCancellationRequested();
+        _ = endpointTransport;
+        _ = endpointSerializer;
 
         if (hello.ProtocolVersion != 1)
         {
@@ -36,17 +38,10 @@ public sealed class GameHandshakeService : IGameHandshakeService
         return new ValueTask<GameServerHello>(new GameServerHello
         {
             SelectedProtocolVersion = 1,
-            ServerNodeId = _runtime.Node.Id,
-            EndpointTransport = endpointTransport,
-            EndpointSerializer = endpointSerializer,
-            ServerTimeUtc = DateTimeOffset.UtcNow,
             ReliablePush = new ReliablePushHandshakeSettings
             {
                 Enabled = reliable,
-                DeliveryMode = reliable ? "reliable" : "immediate",
                 AckRequired = reliable,
-                ReplaySupported = reliable,
-                MaxPending = _reliablePush.MaxPendingPerOwner
             },
             Heartbeat = new GameHeartbeatHandshakeSettings
             {

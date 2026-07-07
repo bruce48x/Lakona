@@ -30,7 +30,7 @@ public sealed class GameHandshakeTests
     }
 
     [Fact]
-    public async Task ServerHello_reports_reliable_push_enabled_mode()
+    public async Task ServerHello_reports_reliable_push_enabled_policy()
     {
         using var provider = CreateProvider(reliablePushEnabled: true);
         var service = provider.GetRequiredService<IGameHandshakeService>();
@@ -42,15 +42,11 @@ public sealed class GameHandshakeTests
             CancellationToken.None);
 
         Assert.True(hello.ReliablePush.Enabled);
-        Assert.Equal("reliable", hello.ReliablePush.DeliveryMode);
         Assert.True(hello.ReliablePush.AckRequired);
-        Assert.True(hello.ReliablePush.ReplaySupported);
-        Assert.Equal(256, hello.ReliablePush.MaxPending);
-        Assert.Equal("node-a", hello.ServerNodeId);
     }
 
     [Fact]
-    public async Task ServerHello_reports_immediate_mode_when_reliable_push_disabled()
+    public async Task ServerHello_reports_reliable_push_disabled_policy()
     {
         using var provider = CreateProvider(reliablePushEnabled: false);
         var service = provider.GetRequiredService<IGameHandshakeService>();
@@ -62,9 +58,7 @@ public sealed class GameHandshakeTests
             CancellationToken.None);
 
         Assert.False(hello.ReliablePush.Enabled);
-        Assert.Equal("immediate", hello.ReliablePush.DeliveryMode);
         Assert.False(hello.ReliablePush.AckRequired);
-        Assert.False(hello.ReliablePush.ReplaySupported);
     }
 
     [Fact]
