@@ -165,6 +165,12 @@ public sealed class ServerAppRendererTests
         Assert.False(cleanup.TryGetProperty("Enabled", out _));
         var hotfix = lakona.GetProperty("Hotfix");
         Assert.Equal("On", hotfix.GetProperty("DebugWatcher").GetString());
+        var hotfixLogLevel = lakona
+            .GetProperty("Observability")
+            .GetProperty("Logging")
+            .GetProperty("Categories")
+            .GetProperty("Lakona.Game.Hotfix");
+        Assert.Equal("Information", hotfixLogLevel.GetString());
         Assert.DoesNotContain("Enabled", appsettings, StringComparison.Ordinal);
         Assert.DoesNotContain("Bootstrap", appsettings, StringComparison.Ordinal);
     }

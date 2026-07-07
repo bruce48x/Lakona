@@ -3,16 +3,20 @@ using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
 using Lakona.Game.Server.Hotfix.Scanning;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using System.Reflection;
 
 namespace Lakona.Game.Server.Hotfix;
 
 public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccessor, IHotfixRuntimeAccessor
 {
+    private const string LoggerCategory = "Lakona.Game.Hotfix";
+
     private readonly IHotfixAssemblySource _source;
     private readonly IReadOnlyList<string> _sharedAssemblyNames;
     private readonly IReadOnlyList<Type> _requiredServiceContracts;
     private readonly IServiceProvider? _rootServices;
+    private readonly ILogger? _logger;
     private readonly HotfixFeatureLifecycleCoordinator _featureLifecycle = new();
     private readonly IReadOnlyList<IHotfixRuntimePublicationParticipant> _publicationParticipants;
     private readonly IHotfixFeatureActivationPolicy _featureActivationPolicy;
@@ -30,6 +34,7 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
     {
         _source = source ?? throw new ArgumentNullException(nameof(source));
         _rootServices = rootServices;
+        _logger = rootServices?.GetService<ILoggerFactory>()?.CreateLogger(LoggerCategory);
         _sharedAssemblyNames = (sharedAssemblyNames ?? Array.Empty<string>())
             .Where(static name => !string.IsNullOrWhiteSpace(name))
             .Distinct(StringComparer.Ordinal)
@@ -97,7 +102,9 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
         await _reloadLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            return await LoadCoreAsync(_source, publish: true, cancellationToken).ConfigureAwait(false);
+            var result = await LoadCoreAsync(_source, publish: true, cancellationToken).ConfigureAwait(false);
+            LogReloadResult(result);
+            return result;
         }
         finally
         {
@@ -401,6 +408,28 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             {
             }
         }
+    }
+
+    private void LogReloadResult(HotfixReloadResult result)
+    {
+        if (_logger is null)
+        {
+            return;
+        }
+
+        if (result.Succeeded)
+        {
+            _logger.LogInformation(
+                "Hotfix reload succeeded from {HotfixPath} with {MethodCount} method(s).",
+                result.Current.SourcePath,
+                result.Current.Methods.Count);
+            return;
+        }
+
+        _logger.LogError(
+            "Hotfix reload failed for {HotfixPath}: {ErrorMessage}",
+            result.RequestedPath ?? result.Current.SourcePath ?? "(unresolved)",
+            result.ErrorMessage ?? string.Join(Environment.NewLine, result.Diagnostics));
     }
 
     private IServiceProvider BuildHotfixProvider(IReadOnlyList<HotfixFeatureDeclaration> features)

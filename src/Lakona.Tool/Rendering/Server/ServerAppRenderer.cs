@@ -210,6 +210,16 @@ internal sealed class ServerAppRenderer : IPlanContributor
                 {
                     ["DebugWatcher"] = "On"
                 },
+                ["Observability"] = new Dictionary<string, object?>
+                {
+                    ["Logging"] = new Dictionary<string, object?>
+                    {
+                        ["Categories"] = new Dictionary<string, object?>
+                        {
+                            ["Lakona.Game.Hotfix"] = "Information"
+                        }
+                    }
+                },
                 ["Endpoints"] = new[] { endpoint }
             }
         };

@@ -3,6 +3,7 @@ using System.Runtime.Loader;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
@@ -45,6 +46,66 @@ public sealed class HotfixManagerTests
         Assert.Equal(1, result.Current.DispatchTableVersion);
         Assert.Equal(result.Current.DispatchTableVersion, HotfixDispatch.Current.Version);
         Assert.Contains(result.Current.Methods, key => key.MethodName == "Add");
+    }
+
+    [Fact]
+    public async Task Reload_success_writes_framework_information_log()
+    {
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var loggerProvider = new RecordingLoggerProvider();
+        await using var rootServices = new ServiceCollection()
+            .AddLogging(logging =>
+            {
+                logging.SetMinimumLevel(LogLevel.Information);
+                logging.AddProvider(loggerProvider);
+            })
+            .BuildServiceProvider();
+        var manager = new HotfixManager(
+            new FixedAssemblySource(compiled.ManagerTestHotfixAssemblyPath),
+            [stableAssembly.GetName().Name!],
+            rootServices: rootServices);
+
+        var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
+        Assert.Contains(loggerProvider.Entries, entry =>
+            entry.Category == "Lakona.Game.Hotfix" &&
+            entry.Level == LogLevel.Information &&
+            entry.Message.Contains("Hotfix reload succeeded", StringComparison.Ordinal) &&
+            entry.Message.Contains(compiled.ManagerTestHotfixAssemblyPath, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Reload_failure_writes_framework_error_log()
+    {
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var source = new SwitchableAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
+        var loggerProvider = new RecordingLoggerProvider();
+        await using var rootServices = new ServiceCollection()
+            .AddLogging(logging =>
+            {
+                logging.SetMinimumLevel(LogLevel.Information);
+                logging.AddProvider(loggerProvider);
+            })
+            .BuildServiceProvider();
+        var manager = new HotfixManager(
+            source,
+            [stableAssembly.GetName().Name!],
+            rootServices: rootServices);
+        var first = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+        Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+        source.Path = @"Z:\missing\Missing.Hotfix.dll";
+
+        var second = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(second.Succeeded);
+        Assert.Contains(loggerProvider.Entries, entry =>
+            entry.Category == "Lakona.Game.Hotfix" &&
+            entry.Level == LogLevel.Error &&
+            entry.Message.Contains("Hotfix reload failed", StringComparison.Ordinal) &&
+            entry.Message.Contains(source.Path, StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1974,6 +2035,52 @@ public sealed class HotfixManagerTests
     {
         return await (ValueTask<T>)valueTask!;
     }
+
+    private sealed class RecordingLoggerProvider : ILoggerProvider
+    {
+        private readonly List<LogEntry> _entries = [];
+
+        public IReadOnlyList<LogEntry> Entries => _entries;
+
+        public ILogger CreateLogger(string categoryName)
+        {
+            return new RecordingLogger(categoryName, _entries);
+        }
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class RecordingLogger(string category, List<LogEntry> entries) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull
+        {
+            return null;
+        }
+
+        public bool IsEnabled(LogLevel logLevel)
+        {
+            return true;
+        }
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            entries.Add(new LogEntry(category, logLevel, formatter(state, exception), exception));
+        }
+    }
+
+    private sealed record LogEntry(
+        string Category,
+        LogLevel Level,
+        string Message,
+        Exception? Exception);
 }
 
 public interface IGenerationMarker
