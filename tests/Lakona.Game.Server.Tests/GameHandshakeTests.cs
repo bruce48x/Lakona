@@ -11,6 +11,25 @@ namespace Lakona.Game.Server.Tests;
 public sealed class GameHandshakeTests
 {
     [Fact]
+    public async Task ServerHello_reports_heartbeat_policy()
+    {
+        using var provider = CreateProvider(
+            reliablePushEnabled: true,
+            heartbeatInterval: TimeSpan.FromSeconds(6),
+            heartbeatTimeout: TimeSpan.FromSeconds(18));
+        var service = provider.GetRequiredService<IGameHandshakeService>();
+
+        var hello = await service.HandshakeAsync(
+            new GameClientHello { ProtocolVersion = 1 },
+            "websocket",
+            "memorypack",
+            CancellationToken.None);
+
+        Assert.Equal(TimeSpan.FromSeconds(6), hello.Heartbeat.Interval);
+        Assert.Equal(TimeSpan.FromSeconds(18), hello.Heartbeat.Timeout);
+    }
+
+    [Fact]
     public async Task ServerHello_reports_reliable_push_enabled_mode()
     {
         using var provider = CreateProvider(reliablePushEnabled: true);
@@ -54,7 +73,8 @@ public sealed class GameHandshakeTests
         var service = new GameHandshakeService(
             new LakonaGameRuntimeOptions
             {
-                Node = new LakonaGameNodeOptions { Id = "node-a" }
+                Node = new LakonaGameNodeOptions { Id = "node-a" },
+                Heartbeat = LakonaGameHeartbeatOptions.Defaults()
             },
             new ReliablePushOptions());
 
@@ -99,7 +119,11 @@ public sealed class GameHandshakeTests
         Assert.Equal(256, options.MaxPendingPerOwner);
     }
 
-    private static ServiceProvider CreateProvider(bool reliablePushEnabled, int? maxPending = null)
+    private static ServiceProvider CreateProvider(
+        bool reliablePushEnabled,
+        int? maxPending = null,
+        TimeSpan? heartbeatInterval = null,
+        TimeSpan? heartbeatTimeout = null)
     {
         var values = new Dictionary<string, string?>
         {
@@ -109,6 +133,16 @@ public sealed class GameHandshakeTests
         if (maxPending.HasValue)
         {
             values["Lakona:ReliablePush:MaxPendingPerOwner"] = maxPending.Value.ToString();
+        }
+
+        if (heartbeatInterval.HasValue)
+        {
+            values["Lakona:Heartbeat:Interval"] = heartbeatInterval.Value.ToString();
+        }
+
+        if (heartbeatTimeout.HasValue)
+        {
+            values["Lakona:Heartbeat:Timeout"] = heartbeatTimeout.Value.ToString();
         }
 
         var configuration = new ConfigurationBuilder()

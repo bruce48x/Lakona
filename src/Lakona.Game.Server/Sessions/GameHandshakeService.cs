@@ -47,6 +47,11 @@ public sealed class GameHandshakeService : IGameHandshakeService
                 AckRequired = reliable,
                 ReplaySupported = reliable,
                 MaxPending = _reliablePush.MaxPendingPerOwner
+            },
+            Heartbeat = new GameHeartbeatHandshakeSettings
+            {
+                Interval = _runtime.Heartbeat.Interval,
+                Timeout = _runtime.Heartbeat.Timeout
             }
         });
     }
