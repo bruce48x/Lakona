@@ -57,6 +57,8 @@ Default actions:
 - Do not create a new archive bucket just to save old decisions.
 - If a historical decision still matters, rewrite it as a current rule in the
   relevant authority document.
+- Move valuable content from `docs/superpowers/**` into permanent `docs/**`
+  documentation, then clean up `docs/superpowers/**`.
 - Remove empty archive directories after deleting their contents.
 
 ## Workflow
