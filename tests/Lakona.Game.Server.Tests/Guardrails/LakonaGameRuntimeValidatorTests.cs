@@ -351,6 +351,66 @@ public sealed class LakonaGameRuntimeValidatorTests
         Assert.Contains(rules, rule => rule is ObservabilityRule);
     }
 
+    [Fact]
+    public void RuntimeValidator_Fails_WhenHeartbeatIntervalIsNotPositive()
+    {
+        var runtime = TestRuntime() with
+        {
+            Heartbeat = TestHeartbeat(interval: TimeSpan.Zero)
+        };
+
+        var result = Validate(runtime);
+
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK090");
+        Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Contains("Lakona:Heartbeat:Interval", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RuntimeValidator_Fails_WhenHeartbeatTimeoutIsNotPositive()
+    {
+        var runtime = TestRuntime() with
+        {
+            Heartbeat = TestHeartbeat(timeout: TimeSpan.Zero)
+        };
+
+        var result = Validate(runtime);
+
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK091");
+        Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Contains("Lakona:Heartbeat:Timeout", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RuntimeValidator_Fails_WhenHeartbeatTimeoutIsShorterThanInterval()
+    {
+        var runtime = TestRuntime() with
+        {
+            Heartbeat = TestHeartbeat(
+                interval: TimeSpan.FromSeconds(30),
+                timeout: TimeSpan.FromSeconds(10))
+        };
+
+        var result = Validate(runtime);
+
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK092");
+        Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Contains("must not be shorter", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RuntimeValidator_includes_heartbeat_rule_by_default()
+    {
+        var services = new ServiceCollection();
+
+        services.AddLakonaGameRuntimeValidation();
+
+        using var provider = services.BuildServiceProvider();
+        var rules = provider.GetServices<ILakonaGameValidationRule>();
+
+        Assert.Contains(rules, rule => rule is HeartbeatRule);
+    }
+
     private static LakonaGameResolvedRuntime TestRuntime()
     {
         return new LakonaGameResolvedRuntime(
@@ -371,6 +431,7 @@ public sealed class LakonaGameRuntimeValidatorTests
                 PendingLimit: new LakonaGameResolvedValue<int>(256, LakonaGameValueSource.Default),
                 ReplayWindowSeconds: new LakonaGameResolvedValue<int>(120, LakonaGameValueSource.Default),
                 HasSessionIdentityResolver: true),
+            Heartbeat: TestHeartbeat(),
             Observability: new LakonaGameResolvedObservability(
                 LocalAdminEnabled: new LakonaGameResolvedValue<bool>(false, LakonaGameValueSource.Default, "Lakona:Observability:LocalAdmin:Enabled"),
                 LocalAdminHost: new LakonaGameResolvedValue<string>("127.0.0.1", LakonaGameValueSource.Default, "Lakona:Observability:LocalAdmin:Host"),
@@ -427,9 +488,25 @@ public sealed class LakonaGameRuntimeValidatorTests
                 new NodeIdentityRule(),
                 new EndpointRule(),
                 new ClusterEndpointRule(),
-                new HotfixSourceRule()
+                new HotfixSourceRule(),
+                new HeartbeatRule()
             ]);
 
         return validator.Validate(runtime);
+    }
+
+    private static LakonaGameResolvedHeartbeat TestHeartbeat(
+        TimeSpan? interval = null,
+        TimeSpan? timeout = null)
+    {
+        return new LakonaGameResolvedHeartbeat(
+            Interval: new LakonaGameResolvedValue<TimeSpan>(
+                interval ?? TimeSpan.FromSeconds(15),
+                LakonaGameValueSource.Configuration,
+                "Lakona:Heartbeat:Interval"),
+            Timeout: new LakonaGameResolvedValue<TimeSpan>(
+                timeout ?? TimeSpan.FromSeconds(45),
+                LakonaGameValueSource.Configuration,
+                "Lakona:Heartbeat:Timeout"));
     }
 }

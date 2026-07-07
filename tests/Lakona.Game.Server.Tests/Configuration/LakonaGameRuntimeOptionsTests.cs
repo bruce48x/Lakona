@@ -8,6 +8,50 @@ namespace Lakona.Game.Server.Tests.Configuration;
 public sealed class LakonaGameRuntimeOptionsTests
 {
     [Fact]
+    public void FromConfiguration_defaults_heartbeat_policy()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:Node:Id"] = "gateway-1"
+        });
+
+        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
+
+        Assert.Equal(TimeSpan.FromSeconds(15), options.Heartbeat.Interval);
+        Assert.Equal(TimeSpan.FromSeconds(45), options.Heartbeat.Timeout);
+    }
+
+    [Fact]
+    public void FromConfiguration_binds_heartbeat_policy()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:Heartbeat:Interval"] = "00:00:05",
+            ["Lakona:Heartbeat:Timeout"] = "00:00:20"
+        });
+
+        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
+
+        Assert.Equal(TimeSpan.FromSeconds(5), options.Heartbeat.Interval);
+        Assert.Equal(TimeSpan.FromSeconds(20), options.Heartbeat.Timeout);
+    }
+
+    [Fact]
+    public void FromConfiguration_ignores_legacy_lakona_game_heartbeat_root()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona.Game:Heartbeat:Interval"] = "00:00:01",
+            ["Lakona.Game:Heartbeat:Timeout"] = "00:00:02"
+        });
+
+        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
+
+        Assert.Equal(TimeSpan.FromSeconds(15), options.Heartbeat.Interval);
+        Assert.Equal(TimeSpan.FromSeconds(45), options.Heartbeat.Timeout);
+    }
+
+    [Fact]
     public void FromConfiguration_ignores_legacy_lakona_game_root_when_lakona_root_exists()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>

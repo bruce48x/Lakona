@@ -51,6 +51,11 @@ public sealed class LakonaGameRuntimeOptions
         LakonaObservabilityOptions.Defaults();
 
     /// <summary>
+    /// Gets server-owned game heartbeat timing policy.
+    /// </summary>
+    public LakonaGameHeartbeatOptions Heartbeat { get; init; } = LakonaGameHeartbeatOptions.Defaults();
+
+    /// <summary>
     /// Binds runtime options from the <c>Lakona</c> configuration root.
     /// </summary>
     /// <param name="configuration">The host configuration to read.</param>
@@ -65,6 +70,7 @@ public sealed class LakonaGameRuntimeOptions
             Endpoints = BindEndpoints(section.GetSection("Endpoints")),
             Feature = BindOptionalStringArray(section.GetSection("Feature")),
             Cluster = BindCluster(section.GetSection("Cluster")),
+            Heartbeat = LakonaGameHeartbeatOptions.FromConfiguration(section.GetSection("Heartbeat")),
             Observability = LakonaObservabilityOptions.FromConfiguration(configuration)
         };
     }
@@ -292,5 +298,43 @@ public sealed class LakonaGameNodeOptions
         {
             Id = LakonaConfigurationReader.ReadString(section, "Id", "dev-1")
         };
+    }
+}
+
+public sealed class LakonaGameHeartbeatOptions
+{
+    public TimeSpan Interval { get; init; } = TimeSpan.FromSeconds(15);
+
+    public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(45);
+
+    public static LakonaGameHeartbeatOptions Defaults()
+    {
+        return new LakonaGameHeartbeatOptions();
+    }
+
+    public static LakonaGameHeartbeatOptions FromConfiguration(IConfigurationSection section)
+    {
+        return new LakonaGameHeartbeatOptions
+        {
+            Interval = ReadTimeSpan(section, "Interval", TimeSpan.FromSeconds(15)),
+            Timeout = ReadTimeSpan(section, "Timeout", TimeSpan.FromSeconds(45))
+        };
+    }
+
+    private static TimeSpan ReadTimeSpan(IConfigurationSection section, string key, TimeSpan fallback)
+    {
+        var value = section[key];
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return fallback;
+        }
+
+        if (TimeSpan.TryParse(value, out var parsed))
+        {
+            return parsed;
+        }
+
+        throw new InvalidOperationException(
+            $"{section.Path}:{key} must be a TimeSpan value such as 00:00:15.");
     }
 }

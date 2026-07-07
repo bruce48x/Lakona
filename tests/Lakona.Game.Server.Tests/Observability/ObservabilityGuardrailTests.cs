@@ -230,6 +230,15 @@ public sealed class ObservabilityGuardrailTests
                 PendingLimit: new LakonaGameResolvedValue<int>(256, LakonaGameValueSource.Default),
                 ReplayWindowSeconds: new LakonaGameResolvedValue<int>(120, LakonaGameValueSource.Default),
                 HasSessionIdentityResolver: true),
+            Heartbeat: new LakonaGameResolvedHeartbeat(
+                Interval: new LakonaGameResolvedValue<TimeSpan>(
+                    TimeSpan.FromSeconds(15),
+                    LakonaGameValueSource.Configuration,
+                    "Lakona:Heartbeat:Interval"),
+                Timeout: new LakonaGameResolvedValue<TimeSpan>(
+                    TimeSpan.FromSeconds(45),
+                    LakonaGameValueSource.Configuration,
+                    "Lakona:Heartbeat:Timeout")),
             Observability: TestObservability());
     }
 

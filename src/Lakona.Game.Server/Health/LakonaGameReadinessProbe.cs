@@ -29,6 +29,7 @@ public static class LakonaGameReadinessProbe
             new EndpointRule(),
             new ClusterEndpointRule(),
             new HotfixSourceRule(),
+            new HeartbeatRule(),
             new ObservabilityRule()
         };
 
@@ -185,6 +186,15 @@ public static class LakonaGameReadinessProbe
                 PendingLimit: new LakonaGameResolvedValue<int>(256, LakonaGameValueSource.Default),
                 ReplayWindowSeconds: new LakonaGameResolvedValue<int>(120, LakonaGameValueSource.Default),
                 HasSessionIdentityResolver: true),
+            Heartbeat: new LakonaGameResolvedHeartbeat(
+                Interval: new LakonaGameResolvedValue<TimeSpan>(
+                    runtime.Heartbeat.Interval,
+                    LakonaGameValueSource.Configuration,
+                    "Lakona:Heartbeat:Interval"),
+                Timeout: new LakonaGameResolvedValue<TimeSpan>(
+                    runtime.Heartbeat.Timeout,
+                    LakonaGameValueSource.Configuration,
+                    "Lakona:Heartbeat:Timeout")),
             Observability: ToResolvedObservability(runtime.Observability, observabilityCapabilities));
     }
 
