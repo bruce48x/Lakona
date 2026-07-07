@@ -94,7 +94,8 @@ connection entry point and performs the full framework connection sequence:
 3. bind generated callbacks from the supplied receivers;
 4. connect the internal RPC client;
 5. run the framework game handshake;
-6. apply `ServerHello` transport, serializer, reliable push, and timing data;
+6. apply the `ServerHello` protocol version, reliable-push policy, and
+   heartbeat policy;
 7. start the framework heartbeat when enabled;
 8. mark the wrapper ready and open the `Api` gate.
 
