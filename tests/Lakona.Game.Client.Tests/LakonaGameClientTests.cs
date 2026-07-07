@@ -194,7 +194,7 @@ public sealed class LakonaGameClientCoreTests
     }
 
     [Fact]
-    public void ApplyServerHello_disables_reliable_push_ack_when_server_reports_immediate_mode()
+    public void ApplyServerHello_disables_reliable_push_ack_when_server_disables_push()
     {
         var client = new LakonaGameClientCore();
 
@@ -204,10 +204,7 @@ public sealed class LakonaGameClientCoreTests
             ReliablePush = new ReliablePushHandshakeSettings
             {
                 Enabled = false,
-                DeliveryMode = "immediate",
                 AckRequired = false,
-                ReplaySupported = false,
-                MaxPending = 0
             }
         });
 
@@ -216,7 +213,7 @@ public sealed class LakonaGameClientCoreTests
     }
 
     [Fact]
-    public void ApplyServerHello_enables_reliable_push_ack_when_server_reports_reliable_mode()
+    public void ApplyServerHello_enables_reliable_push_ack_when_server_enables_push()
     {
         var client = new LakonaGameClientCore();
 
@@ -226,10 +223,7 @@ public sealed class LakonaGameClientCoreTests
             ReliablePush = new ReliablePushHandshakeSettings
             {
                 Enabled = true,
-                DeliveryMode = "reliable",
                 AckRequired = true,
-                ReplaySupported = true,
-                MaxPending = 256
             }
         });
 
