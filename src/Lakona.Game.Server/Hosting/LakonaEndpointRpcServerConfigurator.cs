@@ -7,7 +7,6 @@ using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Lakona.Rpc.Core;
-using Lakona.Rpc.Server;
 
 namespace Lakona.Game.Server.Hosting;
 
