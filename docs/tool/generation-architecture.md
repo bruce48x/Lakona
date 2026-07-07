@@ -381,8 +381,9 @@ Rules:
 - Built-in server hosting gets endpoint and cluster serializer implementations
   through `Lakona.Game.Server` runtime defaults and configuration. Generated
   project package references still come only from `DependencyPlanner`.
-- Unity-compatible clients use `packages.config` and keep explicit runtime
-  package dependencies needed by Unity and Tuanjie.
+- Unity-compatible clients use NuGetForUnity `packages.config` with
+  `targetFramework="netstandard2.1"` on every package entry and keep explicit
+  runtime package dependencies needed by Unity and Tuanjie.
 - Godot clients use SDK-style package references and do not repeat MemoryPack
   runtime packages already owned by Shared.
 - Console clients use SDK-style package references and keep load-test
@@ -500,6 +501,30 @@ Unity and Tuanjie generated scripts must obey the repository Unity rules:
 - no `System.Reflection.Emit`
 - no runtime code generation
 - no checked-in RPC generated client source
+
+Generated Unity, Unity-CN, and Tuanjie clients consume Lakona's multi-TFM NuGet
+packages through Unity's single plugin import model. They must keep shared
+Lakona packages multi-targeted for SDK clients, but Unity import state must be
+deterministic:
+
+- `Client/Assets/packages.config` declares `targetFramework="netstandard2.1"`
+  for every NuGetForUnity package entry. This guides NuGet dependency
+  resolution; it does not replace plugin import enforcement.
+- `Client/Assets/Editor/LakonaGameNuGetPackageImportGuard.cs` enforces
+  `Assets/Packages/**` plugin compatibility after NuGet restore or import.
+- Analyzer and generator DLLs must be disabled as Unity plugins.
+- Runtime DLLs under incompatible TFM roots such as `lib/net10.0/`,
+  `lib/net9.0/`, `lib/net8.0/`, `lib/net7.0/`, `lib/net6.0/`, `lib/net472/`,
+  `lib/net48/`, and `lib/net481/` must be disabled for Any Platform, Editor,
+  and explicit platform targets.
+- Runtime DLLs under `lib/netstandard2.1/` are the preferred enabled Unity
+  plugin set. `lib/netstandard2.0/` is enabled only when the same package does
+  not contain a `netstandard2.1` sibling for that assembly; shadowed
+  `netstandard2.0` DLLs must be disabled.
+
+This policy is a Unity consumption boundary only. Godot and Console clients
+continue to use SDK-style `PackageReference` resolution and the modern TFMs
+selected by their project files.
 
 `GodotClientRenderer` owns Godot files:
 
@@ -716,6 +741,8 @@ for:
 - server program delegating to `LakonaGameServer.RunAsync`
 - no project-local generated RPC glue
 - Unity/Tuanjie package metadata and import guard
+- Unity NuGet plugin policy checker for forbidden TFMs and shadowed
+  `netstandard2.0` plugin metas
 - Godot `.tscn` and `.tres` files generated as files, not C# UI builders
 - compose files using `Server/App/Server.App.csproj`, not `Server/Server/`
 - transactional rollback leaving no target directory after renderer failure
