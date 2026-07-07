@@ -1,4 +1,5 @@
 using Lakona.Rpc.Core;
+using Microsoft.Extensions.Logging;
 
 namespace Lakona.Rpc.Client;
 
@@ -29,6 +30,11 @@ public sealed class RpcClientOptions
     ///     Optional keepalive configuration. Disabled by default.
     /// </summary>
     public RpcKeepAliveOptions KeepAlive { get; set; } = RpcKeepAliveOptions.Disabled;
+
+    /// <summary>
+    ///     Optional logger factory used for framework request and notification logs.
+    /// </summary>
+    public ILoggerFactory? LoggerFactory { get; set; }
 
     /// <summary>
     ///     Serializer used for request, response, and push payloads.

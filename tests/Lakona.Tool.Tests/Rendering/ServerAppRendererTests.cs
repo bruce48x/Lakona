@@ -171,6 +171,12 @@ public sealed class ServerAppRendererTests
             .GetProperty("Categories")
             .GetProperty("Lakona.Game.Hotfix");
         Assert.Equal("Information", hotfixLogLevel.GetString());
+        var rpcRequestLogLevel = lakona
+            .GetProperty("Observability")
+            .GetProperty("Logging")
+            .GetProperty("Categories")
+            .GetProperty("Lakona.Rpc.Server.Request");
+        Assert.Equal("Debug", rpcRequestLogLevel.GetString());
         Assert.DoesNotContain("Enabled", appsettings, StringComparison.Ordinal);
         Assert.DoesNotContain("Bootstrap", appsettings, StringComparison.Ordinal);
     }

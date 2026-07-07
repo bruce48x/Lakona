@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
 
-namespace Lakona.Rpc.Server;
+namespace Lakona.Rpc.Client;
 
-internal static class DefaultRpcLogging
+internal static class DefaultRpcClientLogging
 {
     private static readonly ILoggerFactory FactoryInstance = LoggerFactory.Create(builder =>
     {
@@ -14,13 +14,8 @@ internal static class DefaultRpcLogging
         builder.SetMinimumLevel(LogLevel.Information);
     });
 
-    public static ILogger CreateLogger<T>()
+    public static ILogger CreateRequestLogger()
     {
-        return FactoryInstance.CreateLogger<T>();
-    }
-
-    public static ILogger CreateLogger(string category)
-    {
-        return FactoryInstance.CreateLogger(category);
+        return FactoryInstance.CreateLogger(RpcClientRequestLogging.Category);
     }
 }

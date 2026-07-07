@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Lakona.Rpc.Core;
+using Microsoft.Extensions.Logging;
 
 namespace Lakona.Rpc.Client
 {
@@ -40,6 +42,7 @@ namespace Lakona.Rpc.Client
         private readonly ITransport _transport;
         private readonly IRpcSerializer _serializer;
         private readonly RpcKeepAliveOptions _keepAlive;
+        private readonly ILogger _requestLogger;
         private RpcNotificationDispatchMiddleware? _notificationDispatchMiddleware;
         private int _disposed;
         private int _nextId;
@@ -60,7 +63,8 @@ namespace Lakona.Rpc.Client
             : this(
                 (options ?? throw new ArgumentNullException(nameof(options))).CreateConfiguredTransport(),
                 options.Serializer,
-                options.KeepAlive)
+                options.KeepAlive,
+                options.LoggerFactory)
         {
         }
 
@@ -70,12 +74,19 @@ namespace Lakona.Rpc.Client
         /// <param name="transport">Connected or connectable transport used by the runtime.</param>
         /// <param name="serializer">Serializer used for RPC payloads.</param>
         /// <param name="keepAlive">Optional keepalive configuration.</param>
+        /// <param name="loggerFactory">Optional logger factory for framework request and notification logs.</param>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="transport"/> or <paramref name="serializer"/> is null.</exception>
-        public RpcClientRuntime(ITransport transport, IRpcSerializer serializer, RpcKeepAliveOptions? keepAlive = null)
+        public RpcClientRuntime(
+            ITransport transport,
+            IRpcSerializer serializer,
+            RpcKeepAliveOptions? keepAlive = null,
+            ILoggerFactory? loggerFactory = null)
         {
             _transport = transport ?? throw new ArgumentNullException(nameof(transport));
             _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
             _keepAlive = keepAlive ?? RpcKeepAliveOptions.Disabled;
+            _requestLogger = loggerFactory?.CreateLogger(RpcClientRequestLogging.Category)
+                ?? DefaultRpcClientLogging.CreateRequestLogger();
             _keepAliveState = new RpcKeepAliveState(_keepAlive.MeasureRtt);
             _sender = new SerializedFrameSender(_transport, _keepAliveState);
         }
@@ -215,6 +226,7 @@ namespace Lakona.Rpc.Client
             var reservation = _pending.Reserve(ref _nextId);
             var id = reservation.RequestId;
             var tcs = reservation.CompletionSource;
+            var stopwatch = Stopwatch.StartNew();
 
             try
             {
@@ -227,6 +239,12 @@ namespace Lakona.Rpc.Client
                     Payload = argFrame.Memory
                 };
 
+                _requestLogger.LogDebug(
+                    "RPC request sent {RequestId} service {ServiceId} method {MethodId}.",
+                    id,
+                    method.ServiceId,
+                    method.MethodId);
+
                 using var reqBytes = RpcEnvelopeCodec.EncodeRequest(req);
                 await SendFrameAsyncSerialized(reqBytes.Memory, ct).ConfigureAwait(false);
 
@@ -236,6 +254,7 @@ namespace Lakona.Rpc.Client
                 });
 
                 using var resp = await tcs.Task.ConfigureAwait(false);
+                LogRequestCompleted(id, method.ServiceId, method.MethodId, resp.Status, stopwatch.Elapsed, resp.ErrorMessage);
                 if (resp.Status != RpcStatus.Ok)
                     throw new RpcException(resp.Status, resp.ErrorMessage, id, method.ServiceId, method.MethodId);
 
@@ -261,6 +280,7 @@ namespace Lakona.Rpc.Client
             var reservation = _pending.Reserve(ref _nextId);
             var id = reservation.RequestId;
             var tcs = reservation.CompletionSource;
+            var stopwatch = Stopwatch.StartNew();
 
             try
             {
@@ -272,6 +292,12 @@ namespace Lakona.Rpc.Client
                     Payload = payload
                 };
 
+                _requestLogger.LogDebug(
+                    "RPC request sent {RequestId} service {ServiceId} method {MethodId}.",
+                    id,
+                    serviceId,
+                    methodId);
+
                 using var reqBytes = RpcEnvelopeCodec.EncodeRequest(req);
                 await SendFrameAsyncSerialized(reqBytes.Memory, ct).ConfigureAwait(false);
 
@@ -281,6 +307,7 @@ namespace Lakona.Rpc.Client
                 });
 
                 using var resp = await tcs.Task.ConfigureAwait(false);
+                LogRequestCompleted(id, serviceId, methodId, resp.Status, stopwatch.Elapsed, resp.ErrorMessage);
                 if (resp.Status != RpcStatus.Ok)
                     throw new RpcException(resp.Status, resp.ErrorMessage, id, serviceId, methodId);
 
@@ -416,12 +443,23 @@ namespace Lakona.Rpc.Client
                     {
                         if (!_notificationHandlers.TryGetValue((push.ServiceId, push.MethodId), out var registration))
                         {
+                            _requestLogger.LogWarning(
+                                "RPC notification unhandled service {ServiceId} method {MethodId} payloadBytes {PayloadBytes}.",
+                                push.ServiceId,
+                                push.MethodId,
+                                push.Payload.Length);
                             UnhandledNotificationReceived?.Invoke(new RpcUnhandledNotificationContext(
                                 push.ServiceId,
                                 push.MethodId,
                                 push.Payload.Length));
                             continue;
                         }
+
+                        _requestLogger.LogDebug(
+                            "RPC notification received service {ServiceId} method {MethodId} payloadBytes {PayloadBytes}.",
+                            push.ServiceId,
+                            push.MethodId,
+                            push.Payload.Length);
 
                         try
                         {
@@ -442,6 +480,11 @@ namespace Lakona.Rpc.Client
                         }
                         catch (Exception ex)
                         {
+                            _requestLogger.LogError(
+                                ex,
+                                "RPC notification handler failed service {ServiceId} method {MethodId}.",
+                                push.ServiceId,
+                                push.MethodId);
                             NotificationHandlerException?.Invoke(new RpcNotificationHandlerExceptionContext(
                                 push.ServiceId,
                                 push.MethodId,
@@ -498,6 +541,36 @@ namespace Lakona.Rpc.Client
         {
             if (Volatile.Read(ref _disposed) != 0)
                 throw new ObjectDisposedException(nameof(RpcClientRuntime));
+        }
+
+        private void LogRequestCompleted(
+            uint requestId,
+            int serviceId,
+            int methodId,
+            RpcStatus status,
+            TimeSpan elapsed,
+            string? errorMessage)
+        {
+            if (status == RpcStatus.Ok)
+            {
+                _requestLogger.LogDebug(
+                    "RPC request completed {RequestId} status {Status} service {ServiceId} method {MethodId} in {ElapsedMs}ms.",
+                    requestId,
+                    status,
+                    serviceId,
+                    methodId,
+                    elapsed.TotalMilliseconds);
+                return;
+            }
+
+            _requestLogger.LogWarning(
+                "RPC request completed {RequestId} status {Status} service {ServiceId} method {MethodId} in {ElapsedMs}ms. {ErrorMessage}",
+                requestId,
+                status,
+                serviceId,
+                methodId,
+                elapsed.TotalMilliseconds,
+                errorMessage);
         }
 
         private sealed class RegisteredNotificationHandler

@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <PackageId>Lakona.Rpc.Client</PackageId>
-    <Version>0.12.4</Version>
+    <Version>0.12.5</Version>
     <Description>Lakona.Rpc client runtime and client-side transports.</Description>
     <PackageTags>rpc;unity;client;tcp;loopback</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -16,6 +16,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Lakona.Rpc.Core\Lakona.Rpc.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">

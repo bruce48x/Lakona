@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Lakona.Rpc.Core;
 
@@ -28,22 +29,24 @@ internal sealed class ServerRequestDispatcher
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task DispatchAsync(RpcSession session, RpcRequestFrame req, CancellationToken ct)
+    public async Task DispatchAsync(RpcSession session, RpcRequestFrame req, CancellationToken ct, Stopwatch stopwatch)
     {
-        if (!await IsAllowedAsync(session, req, ct).ConfigureAwait(false))
+        LogRequestReceived(session, req);
+
+        if (!await IsAllowedAsync(session, req, ct, stopwatch).ConfigureAwait(false))
         {
             return;
         }
 
         if (_handlers.TryGetValue((req.ServiceId, req.MethodId), out var handler))
         {
-            await DispatchUserHandlerAsync(session, req, handler, ct).ConfigureAwait(false);
+            await DispatchUserHandlerAsync(session, req, handler, ct, stopwatch).ConfigureAwait(false);
             return;
         }
 
         if (_registry is not null && _registry.TryGetHandler(req.ServiceId, req.MethodId, out var sessionHandler))
         {
-            await DispatchRegistryHandlerAsync(session, req, sessionHandler, ct).ConfigureAwait(false);
+            await DispatchRegistryHandlerAsync(session, req, sessionHandler, ct, stopwatch).ConfigureAwait(false);
             return;
         }
 
@@ -53,9 +56,19 @@ internal sealed class ServerRequestDispatcher
             ReadOnlyMemory<byte>.Empty,
             $"No handler for {req.ServiceId}:{req.MethodId}");
         await _sender.SendAsync(notFoundFrame.Memory, ct).ConfigureAwait(false);
+        LogRequestCompleted(
+            session,
+            req,
+            RpcStatus.NotFound,
+            stopwatch.Elapsed,
+            $"No handler for {req.ServiceId}:{req.MethodId}");
     }
 
-    private async ValueTask<bool> IsAllowedAsync(RpcSession session, RpcRequestFrame req, CancellationToken ct)
+    private async ValueTask<bool> IsAllowedAsync(
+        RpcSession session,
+        RpcRequestFrame req,
+        CancellationToken ct,
+        Stopwatch stopwatch)
     {
         if (_requestGates.Count == 0)
         {
@@ -77,6 +90,7 @@ internal sealed class ServerRequestDispatcher
                 ReadOnlyMemory<byte>.Empty,
                 result.ErrorMessage);
             await _sender.SendAsync(frame.Memory, ct).ConfigureAwait(false);
+            LogRequestCompleted(session, req, result.Status, stopwatch.Elapsed, result.ErrorMessage);
             return false;
         }
 
@@ -97,7 +111,12 @@ internal sealed class ServerRequestDispatcher
         await _sender.SendAsync(respBytes.Memory, ct).ConfigureAwait(false);
     }
 
-    private async Task DispatchUserHandlerAsync(RpcSession session, RpcRequestFrame req, RpcHandler handler, CancellationToken ct)
+    private async Task DispatchUserHandlerAsync(
+        RpcSession session,
+        RpcRequestFrame req,
+        RpcHandler handler,
+        CancellationToken ct,
+        Stopwatch stopwatch)
     {
         RpcResponseEnvelope resp;
         try
@@ -118,6 +137,13 @@ internal sealed class ServerRequestDispatcher
                     Payload = Array.Empty<byte>(),
                     ErrorMessage = "RPC handler returned null response."
                 };
+                _logger.LogWarning(
+                    "RPC handler returned null response for request {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in session {ContextId}.",
+                    req.RequestId,
+                    ResolveRpcMethod(req),
+                    req.ServiceId,
+                    req.MethodId,
+                    session.ContextId);
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -138,15 +164,19 @@ internal sealed class ServerRequestDispatcher
 
         using var respBytes = RpcEnvelopeCodec.EncodeResponse(resp);
         await _sender.SendAsync(respBytes.Memory, ct).ConfigureAwait(false);
+        LogRequestCompleted(session, req, resp.Status, stopwatch.Elapsed, resp.ErrorMessage);
     }
 
     private async Task DispatchRegistryHandlerAsync(
         RpcSession session,
         RpcRequestFrame req,
         RpcSessionHandler sessionHandler,
-        CancellationToken ct)
+        CancellationToken ct,
+        Stopwatch stopwatch)
     {
         TransportFrame? respFrame = null;
+        RpcStatus status = RpcStatus.HandlerError;
+        string? errorMessage = null;
         try
         {
             try
@@ -166,10 +196,26 @@ internal sealed class ServerRequestDispatcher
                     ReadOnlyMemory<byte>.Empty,
                     HandlerExecutionErrorMessage);
                 await _sender.SendAsync(errFrame.Memory, ct).ConfigureAwait(false);
+                LogRequestCompleted(session, req, RpcStatus.HandlerError, stopwatch.Elapsed, HandlerExecutionErrorMessage);
+                return;
+            }
+
+            if (TryReadResponseStatus(respFrame, out status, out errorMessage))
+            {
+                await _sender.SendAsync(respFrame.Memory, ct).ConfigureAwait(false);
+                LogRequestCompleted(session, req, status, stopwatch.Elapsed, errorMessage);
                 return;
             }
 
             await _sender.SendAsync(respFrame.Memory, ct).ConfigureAwait(false);
+            _logger.LogDebug(
+                "RPC request completed {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in session {ContextId} in {ElapsedMs}ms.",
+                req.RequestId,
+                ResolveRpcMethod(req),
+                req.ServiceId,
+                req.MethodId,
+                session.ContextId,
+                stopwatch.Elapsed.TotalMilliseconds);
         }
         finally
         {
@@ -177,18 +223,86 @@ internal sealed class ServerRequestDispatcher
         }
     }
 
-    private void LogHandlerFailure(RpcSession session, RpcRequestFrame req, Exception ex)
+    private void LogRequestReceived(RpcSession session, RpcRequestFrame req)
     {
-        var rpcMethod = _registry is not null && _registry.TryGetDescriptor(req.ServiceId, req.MethodId, out var descriptor)
-            ? descriptor.DisplayName
-            : $"{req.ServiceId}:{req.MethodId}";
-        _logger.LogError(
-            ex,
-            "RPC handler failed for request {RequestId} RPC {RpcMethod} service {ServiceId} method {MethodId} in session {ContextId}.",
+        _logger.LogDebug(
+            "RPC request received {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in session {ContextId}.",
             req.RequestId,
-            rpcMethod,
+            ResolveRpcMethod(req),
             req.ServiceId,
             req.MethodId,
             session.ContextId);
+    }
+
+    private void LogRequestCompleted(
+        RpcSession session,
+        RpcRequestFrame req,
+        RpcStatus status,
+        TimeSpan elapsed,
+        string? errorMessage)
+    {
+        if (status == RpcStatus.Ok)
+        {
+            _logger.LogDebug(
+                "RPC request completed {RequestId} {RpcMethod} status {Status} service {ServiceId} method {MethodId} in session {ContextId} in {ElapsedMs}ms.",
+                req.RequestId,
+                ResolveRpcMethod(req),
+                status,
+                req.ServiceId,
+                req.MethodId,
+                session.ContextId,
+                elapsed.TotalMilliseconds);
+            return;
+        }
+
+        _logger.LogWarning(
+            "RPC request completed {RequestId} {RpcMethod} status {Status} service {ServiceId} method {MethodId} in session {ContextId} in {ElapsedMs}ms. {ErrorMessage}",
+            req.RequestId,
+            ResolveRpcMethod(req),
+            status,
+            req.ServiceId,
+            req.MethodId,
+            session.ContextId,
+            elapsed.TotalMilliseconds,
+            errorMessage);
+    }
+
+    private void LogHandlerFailure(RpcSession session, RpcRequestFrame req, Exception ex)
+    {
+        _logger.LogError(
+            ex,
+            "RPC handler failed for request {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in session {ContextId}.",
+            req.RequestId,
+            ResolveRpcMethod(req),
+            req.ServiceId,
+            req.MethodId,
+            session.ContextId);
+    }
+
+    private string ResolveRpcMethod(RpcRequestFrame req)
+    {
+        return _registry is not null && _registry.TryGetDescriptor(req.ServiceId, req.MethodId, out var descriptor)
+            ? descriptor.DisplayName
+            : $"{req.ServiceId}:{req.MethodId}";
+    }
+
+    private static bool TryReadResponseStatus(TransportFrame frame, out RpcStatus status, out string? errorMessage)
+    {
+        status = RpcStatus.HandlerError;
+        errorMessage = null;
+        if (frame.IsEmpty)
+        {
+            return false;
+        }
+
+        if (RpcEnvelopeCodec.PeekFrameType(frame.Span) != RpcFrameType.Response)
+        {
+            return false;
+        }
+
+        using var response = RpcEnvelopeCodec.DecodeResponse(frame);
+        status = response.Status;
+        errorMessage = response.ErrorMessage;
+        return true;
     }
 }

@@ -1,3 +1,4 @@
+using Lakona.Rpc.Server;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.Actors;
@@ -6,6 +7,7 @@ using Lakona.Rpc.Core;
 using Lakona.Rpc.Transport.Tcp;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Lakona.Game.Server.Hosting;
 
@@ -36,6 +38,12 @@ public sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurator
 
         var serializer = context.Services.GetService<LakonaClusterRpcSerializer>()?.Serializer
             ?? context.Services.GetRequiredService<IRpcSerializer>();
+        var loggerFactory = context.Services.GetService<ILoggerFactory>();
+        if (loggerFactory is not null)
+        {
+            context.Builder.UseLoggerFactory(loggerFactory);
+        }
+
         context.Builder.UseSerializer(serializer);
         context.Builder.UseAcceptor(_ => new ValueTask<IRpcConnectionAcceptor>(
             new TcpConnectionAcceptor(endpoint.Port, endpoint.Host)));

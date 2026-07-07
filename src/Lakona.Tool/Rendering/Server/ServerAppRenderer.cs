@@ -216,7 +216,8 @@ internal sealed class ServerAppRenderer : IPlanContributor
                     {
                         ["Categories"] = new Dictionary<string, object?>
                         {
-                            ["Lakona.Game.Hotfix"] = "Information"
+                            ["Lakona.Game.Hotfix"] = "Information",
+                            ["Lakona.Rpc.Server.Request"] = "Debug"
                         }
                     }
                 },

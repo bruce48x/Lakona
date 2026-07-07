@@ -1,4 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Lakona.Rpc.Server;
 using Lakona.Game.Abstractions;
 using Lakona.Game.Abstractions.Sessions;
 using Lakona.Game.Server.Configuration;
@@ -27,6 +29,12 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
     public void Configure(LakonaGameServerRpcContext context)
     {
         var builder = context.Builder;
+        var loggerFactory = context.Services.GetService<ILoggerFactory>();
+        if (loggerFactory is not null)
+        {
+            builder.UseLoggerFactory(loggerFactory);
+        }
+
         builder.UseSerializer(LakonaEndpointRuntimeDefaults.CreateSerializer(_endpoint));
         builder.UseAcceptor(ct => LakonaEndpointRuntimeDefaults.CreateAcceptorAsync(_endpoint, ct));
         builder.UseSessionRequestGate(new GameHandshakeRpcGate());

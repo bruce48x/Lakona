@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using Microsoft.Extensions.Logging;
@@ -42,6 +43,7 @@ namespace Lakona.Rpc.Server
         private readonly RpcKeepAliveOptions _keepAlive;
         private readonly RpcServerLimits _limits;
         private readonly ILogger _logger;
+        private readonly ILogger _requestLogger;
         private readonly bool _ownsTransport;
         private readonly SemaphoreSlim _requestConcurrencyGate;
         private readonly SemaphoreSlim _requestBudget;
@@ -129,7 +131,8 @@ namespace Lakona.Rpc.Server
         /// <param name="contextId">Stable session id used in logs and scoped services.</param>
         /// <param name="ownsTransport">Whether disposing the session also disposes the transport.</param>
         /// <param name="keepAlive">Optional keepalive configuration.</param>
-        /// <param name="logger">Optional logger.</param>
+        /// <param name="logger">Optional host/session logger.</param>
+        /// <param name="requestLogger">Optional request and notification logger.</param>
         /// <param name="limits">Optional request concurrency and queue limits.</param>
         /// <param name="requestGates">Optional per-session request admission gates.</param>
         public RpcSession(
@@ -140,6 +143,7 @@ namespace Lakona.Rpc.Server
             bool ownsTransport,
             RpcKeepAliveOptions? keepAlive = null,
             ILogger? logger = null,
+            ILogger? requestLogger = null,
             RpcServerLimits? limits = null,
             IReadOnlyList<IRpcSessionRequestGate>? requestGates = null)
         {
@@ -148,6 +152,9 @@ namespace Lakona.Rpc.Server
             _ownsTransport = ownsTransport;
             _keepAlive = keepAlive ?? RpcKeepAliveOptions.Disabled;
             _logger = logger ?? DefaultRpcLogging.CreateLogger<RpcSession>();
+            _requestLogger = requestLogger
+                ?? logger
+                ?? DefaultRpcLogging.CreateLogger(RpcServerRequestLogging.Category);
             _limits = limits?.Clone() ?? new RpcServerLimits();
             _limits.Validate();
             _requestConcurrencyGate = new SemaphoreSlim(
@@ -160,7 +167,7 @@ namespace Lakona.Rpc.Server
             }
             _keepAliveState = new RpcKeepAliveState(_keepAlive.MeasureRtt);
             _sender = new SerializedFrameSender(_transport, _keepAliveState);
-            _requestDispatcher = new ServerRequestDispatcher(_handlers, registry, requestGates, _sender, _logger);
+            _requestDispatcher = new ServerRequestDispatcher(_handlers, registry, requestGates, _sender, _requestLogger);
             ContextId = contextId ?? throw new ArgumentNullException(nameof(contextId));
             RemoteEndPoint = ResolveRemoteEndPoint(_transport);
         }
@@ -258,6 +265,7 @@ namespace Lakona.Rpc.Server
                 Metadata = metadata
             };
             using var bytes = RpcEnvelopeCodec.EncodePush(push);
+            LogNotificationSent(serviceId, methodId, payload.Length);
             await SendFrameAsyncSerialized(bytes.Memory, ct).ConfigureAwait(false);
         }
 
@@ -291,7 +299,18 @@ namespace Lakona.Rpc.Server
                 Metadata = metadata
             };
             using var bytes = RpcEnvelopeCodec.EncodePush(push);
+            LogNotificationSent(serviceId, methodId, payload.Length);
             await SendFrameAsyncSerialized(bytes.Memory, cancellationToken).ConfigureAwait(false);
+        }
+
+        private void LogNotificationSent(int serviceId, int methodId, int payloadBytes)
+        {
+            _requestLogger.LogDebug(
+                "RPC notification sent service {ServiceId} method {MethodId} payloadBytes {PayloadBytes} in session {ContextId}.",
+                serviceId,
+                methodId,
+                payloadBytes,
+                ContextId);
         }
 
         /// <summary>
@@ -498,12 +517,14 @@ namespace Lakona.Rpc.Server
         {
             if (!_requestBudget.Wait(0))
             {
-                _logger.LogWarning(
-                    "[{ContextId}] Rejected request {RequestId} for service {ServiceId} method {MethodId} because the session request queue is full.",
-                    ContextId,
+                _requestLogger.LogWarning(
+                    "RPC request rejected {RequestId} status {Status} service {ServiceId} method {MethodId} in session {ContextId}. {ErrorMessage}",
                     req.RequestId,
+                    RpcStatus.Overloaded,
                     req.ServiceId,
-                    req.MethodId);
+                    req.MethodId,
+                    ContextId,
+                    "RPC server is overloaded; request queue is full.");
                 var requestId = req.RequestId;
                 req.Dispose();
                 _inflightRequests.Track(SendOverloadedResponseAsync(requestId, ct));
@@ -517,12 +538,13 @@ namespace Lakona.Rpc.Server
         private async Task ProcessRequestAsync(RpcRequestFrame req, CancellationToken ct)
         {
             var enteredConcurrencyGate = false;
+            var stopwatch = Stopwatch.StartNew();
             try
             {
                 await _requestConcurrencyGate.WaitAsync(ct).ConfigureAwait(false);
                 enteredConcurrencyGate = true;
 
-                await _requestDispatcher.DispatchAsync(this, req, ct).ConfigureAwait(false);
+                await _requestDispatcher.DispatchAsync(this, req, ct, stopwatch).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {

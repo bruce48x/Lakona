@@ -19,6 +19,7 @@ public sealed class RpcServerHostBuilder
     private RpcKeepAliveOptions _keepAlive = RpcKeepAliveOptions.Disabled;
     private readonly RpcServerLimits _limits = new();
     private ILogger _logger = DefaultRpcLogging.CreateLogger<RpcServerHost>();
+    private ILoggerFactory? _loggerFactory;
     private readonly List<IRpcSessionRequestGate> _requestGates = [];
     private readonly List<IRpcSessionLifecycleObserver> _sessionLifecycleObservers = [];
     private bool _servicesConfigured;
@@ -147,6 +148,13 @@ public sealed class RpcServerHostBuilder
     public RpcServerHostBuilder UseLogger(ILogger logger)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        return this;
+    }
+
+    public RpcServerHostBuilder UseLoggerFactory(ILoggerFactory loggerFactory)
+    {
+        _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
+        _logger = loggerFactory.CreateLogger<RpcServerHost>();
         return this;
     }
 
@@ -299,7 +307,8 @@ public sealed class RpcServerHostBuilder
             _logger,
             _limits.Clone(),
             _requestGates.ToArray(),
-            _sessionLifecycleObservers.ToArray());
+            _sessionLifecycleObservers.ToArray(),
+            _loggerFactory);
     }
 
     /// <summary>

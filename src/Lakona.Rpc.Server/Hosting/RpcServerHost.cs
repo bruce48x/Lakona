@@ -8,6 +8,7 @@ public sealed class RpcServerHost
 {
     private readonly Func<CancellationToken, ValueTask<IRpcConnectionAcceptor>> _acceptorFactory;
     private readonly ILogger _logger;
+    private readonly ILoggerFactory? _loggerFactory;
     private readonly RpcKeepAliveOptions _keepAlive;
     private readonly RpcServerLimits _limits;
     private readonly RpcServiceRegistry _registry;
@@ -24,7 +25,8 @@ public sealed class RpcServerHost
         ILogger logger,
         RpcServerLimits limits,
         IReadOnlyList<IRpcSessionRequestGate>? requestGates = null,
-        IReadOnlyList<IRpcSessionLifecycleObserver>? sessionLifecycleObservers = null)
+        IReadOnlyList<IRpcSessionLifecycleObserver>? sessionLifecycleObservers = null,
+        ILoggerFactory? loggerFactory = null)
     {
         _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
@@ -32,6 +34,7 @@ public sealed class RpcServerHost
         _keepAlive = keepAlive ?? throw new ArgumentNullException(nameof(keepAlive));
         _acceptorFactory = acceptorFactory ?? throw new ArgumentNullException(nameof(acceptorFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _loggerFactory = loggerFactory;
         _limits = limits ?? throw new ArgumentNullException(nameof(limits));
         _requestGates = requestGates ?? Array.Empty<IRpcSessionRequestGate>();
         _sessionLifecycleObservers = sessionLifecycleObservers ?? Array.Empty<IRpcSessionLifecycleObserver>();
@@ -106,6 +109,7 @@ public sealed class RpcServerHost
             ownsTransport: true,
             keepAlive: _keepAlive,
             logger: _logger,
+            requestLogger: _loggerFactory?.CreateLogger(RpcServerRequestLogging.Category),
             limits: _limits,
             requestGates: _requestGates);
         var lifecycleContext = new RpcSessionLifecycleContext(session.ContextId, connection.DisplayName);
