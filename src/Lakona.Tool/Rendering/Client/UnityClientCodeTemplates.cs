@@ -4,6 +4,65 @@ namespace Lakona.Tool.Rendering.Client;
 
 internal static class UnityClientCodeTemplates
 {
+    public static string RenderDefaultSceneLoader()
+    {
+        return """
+        using UnityEditor;
+        using UnityEditor.SceneManagement;
+        using UnityEngine;
+
+        [InitializeOnLoad]
+        public static class DefaultSceneLoader
+        {
+            private const string TargetScenePath = "Assets/Scenes/LoginScene.unity";
+
+            static DefaultSceneLoader()
+            {
+                EditorApplication.delayCall += EnsureDefaultScene;
+            }
+
+            private static void EnsureDefaultScene()
+            {
+                if (Application.isBatchMode)
+                {
+                    return;
+                }
+
+                var initKey = $"Lakona.LoginScene.Initialized:{Application.dataPath}";
+                if (EditorPrefs.HasKey(initKey))
+                {
+                    return;
+                }
+
+                var sceneAsset = AssetDatabase.LoadAssetAtPath<SceneAsset>(TargetScenePath);
+                if (sceneAsset == null)
+                {
+                    Debug.LogWarning($"[Lakona.Tool] Missing default LoginScene at path: {TargetScenePath}");
+                    return;
+                }
+
+                if (EditorApplication.isPlayingOrWillChangePlaymode)
+                {
+                    return;
+                }
+
+                if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                {
+                    return;
+                }
+
+                if (EditorSceneManager.GetActiveScene().path != TargetScenePath)
+                {
+                    EditorSceneManager.OpenScene(TargetScenePath, OpenSceneMode.Single);
+                    Debug.Log($"[Lakona.Tool] Opened default LoginScene: {TargetScenePath}");
+                }
+
+                EditorPrefs.SetBool(initKey, true);
+            }
+        }
+        """;
+    }
+
     public static string RenderLoginClient()
     {
         return """

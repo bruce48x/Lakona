@@ -138,6 +138,8 @@ internal sealed class UnityClientRenderer : IClientRenderer
         builder.AddFile("Client/Assets/Scripts/Chat/ChatUI.cs", UnityClientCodeTemplates.RenderChatUI(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Client/Assets/Scripts/Chat/ChatUI.cs.meta", UnityClientAssetTemplates.RenderMonoScriptMeta(UnityClientAssetTemplates.ChatUiGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
 
+        builder.AddFile("Client/Assets/Editor/DefaultSceneLoader.cs", UnityClientCodeTemplates.RenderDefaultSceneLoader(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/Editor/DefaultSceneLoader.cs.meta", UnityClientAssetTemplates.RenderMonoScriptMeta(UnityClientAssetTemplates.DefaultSceneLoaderGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Client/Assets/Editor/LakonaGameNuGetPackageImportGuard.cs", UnityClientCodeTemplates.RenderNuGetPackageImportGuard(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Client/Assets/Editor/LakonaGameNuGetPackageImportGuard.cs.meta", UnityClientAssetTemplates.RenderMonoScriptMeta(UnityClientAssetTemplates.ImportGuardGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
     }

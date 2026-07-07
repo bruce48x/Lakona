@@ -18,6 +18,7 @@ internal static class UnityClientAssetTemplates
     public const string LoginSceneGuid = "7a244091a9bb4d7a9f119d19bc86c012";
     public const string ChatSceneGuid = "3f4a119acc61449cb6f0b9fc01a71d7e";
     public const string ImportGuardGuid = "0fdc9d512cbf4d71a198872e996940f7";
+    public const string DefaultSceneLoaderGuid = "6d3dc0f7c4f3410e9e6ed70b8e18e8a8";
 
     public static string RenderMonoScriptMeta(string guid)
     {

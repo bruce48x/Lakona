@@ -153,6 +153,7 @@ public sealed class ClientRendererTests
         var chatScene = AssertPath(plan, "Client/Assets/Scenes/ChatScene.unity").Content;
         AssertUnitySceneHasMainCamera(chatScene);
         AssertPath(plan, "Client/Assets/Editor/LakonaGameNuGetPackageImportGuard.cs");
+        AssertPath(plan, "Client/Assets/Editor/DefaultSceneLoader.cs");
     }
 
     [Theory]
