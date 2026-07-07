@@ -18,6 +18,8 @@ public sealed class GameServerHello
 
     public ReliablePushHandshakeSettings ReliablePush { get; set; } = new();
 
+    public GameHeartbeatHandshakeSettings Heartbeat { get; set; } = new();
+
     public DateTimeOffset ServerTimeUtc { get; set; }
 }
 
@@ -32,4 +34,11 @@ public sealed class ReliablePushHandshakeSettings
     public bool ReplaySupported { get; set; }
 
     public int MaxPending { get; set; }
+}
+
+public sealed class GameHeartbeatHandshakeSettings
+{
+    public TimeSpan Interval { get; set; } = TimeSpan.FromSeconds(15);
+
+    public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(45);
 }

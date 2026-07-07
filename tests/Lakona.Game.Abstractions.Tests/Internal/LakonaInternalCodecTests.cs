@@ -65,6 +65,63 @@ public sealed class LakonaInternalCodecTests
     }
 
     [Fact]
+    public void GameServerHello_roundtrips_with_heartbeat_settings()
+    {
+        var hello = new GameServerHello
+        {
+            SelectedProtocolVersion = 1,
+            ServerNodeId = "node-a",
+            EndpointTransport = "websocket",
+            EndpointSerializer = "memorypack",
+            ReliablePush = new ReliablePushHandshakeSettings
+            {
+                Enabled = true,
+                DeliveryMode = "reliable",
+                AckRequired = true,
+                ReplaySupported = true,
+                MaxPending = 256,
+            },
+            Heartbeat = new GameHeartbeatHandshakeSettings
+            {
+                Interval = TimeSpan.FromSeconds(7),
+                Timeout = TimeSpan.FromSeconds(21),
+            },
+            ServerTimeUtc = new DateTimeOffset(2026, 7, 7, 10, 0, 0, TimeSpan.Zero),
+        };
+
+        var decoded = LakonaInternalCodec.DecodeGameServerHello(
+            LakonaInternalCodec.EncodeGameServerHello(hello));
+
+        Assert.Equal(TimeSpan.FromSeconds(7), decoded.Heartbeat.Interval);
+        Assert.Equal(TimeSpan.FromSeconds(21), decoded.Heartbeat.Timeout);
+    }
+
+    [Theory]
+    [InlineData(0, 450000000)]
+    [InlineData(-1, 450000000)]
+    [InlineData(150000000, 0)]
+    [InlineData(150000000, -1)]
+    [InlineData(450000000, 150000000)]
+    public void GameServerHello_rejects_invalid_heartbeat_settings(long intervalTicks, long timeoutTicks)
+    {
+        var hello = new GameServerHello
+        {
+            SelectedProtocolVersion = 1,
+            ServerNodeId = "node-a",
+            EndpointTransport = "websocket",
+            EndpointSerializer = "memorypack",
+            Heartbeat = new GameHeartbeatHandshakeSettings
+            {
+                Interval = TimeSpan.FromTicks(intervalTicks),
+                Timeout = TimeSpan.FromTicks(timeoutTicks),
+            },
+            ServerTimeUtc = DateTimeOffset.UtcNow,
+        };
+
+        Assert.Throws<InvalidOperationException>(() => LakonaInternalCodec.EncodeGameServerHello(hello));
+    }
+
+    [Fact]
     public void GameHeartbeatRequest_roundtrips_protocol_version()
     {
         var request = new GameHeartbeatRequest { ProtocolVersion = 1 };
@@ -305,6 +362,8 @@ public sealed class LakonaInternalCodecTests
             builder.Add(1);
             builder.Add(1);
             WriteInt32BigEndian(builder, 128);
+            WriteInt64BigEndian(builder, TimeSpan.FromSeconds(15).Ticks);
+            WriteInt64BigEndian(builder, TimeSpan.FromSeconds(45).Ticks);
             WriteInt64BigEndian(builder, 1_782_300_600_000);
             WriteInt32BigEndian(builder, 0);
         });
@@ -326,6 +385,8 @@ public sealed class LakonaInternalCodecTests
             builder.Add(1);
             builder.Add(1);
             WriteInt32BigEndian(builder, -1);
+            WriteInt64BigEndian(builder, TimeSpan.FromSeconds(15).Ticks);
+            WriteInt64BigEndian(builder, TimeSpan.FromSeconds(45).Ticks);
             WriteInt64BigEndian(builder, new DateTimeOffset(2026, 6, 24, 10, 30, 0, TimeSpan.Zero).Ticks);
             WriteInt16BigEndian(builder, 0);
             WriteInt32BigEndian(builder, 0);

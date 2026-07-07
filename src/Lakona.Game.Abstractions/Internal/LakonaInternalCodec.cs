@@ -62,6 +62,8 @@ namespace Lakona.Game.Abstractions
             ValidatePositiveProtocolVersion(value.SelectedProtocolVersion);
             var reliablePush = value.ReliablePush ?? new ReliablePushHandshakeSettings();
             ValidateNonNegative(reliablePush.MaxPending, nameof(reliablePush.MaxPending));
+            var heartbeat = value.Heartbeat ?? new GameHeartbeatHandshakeSettings();
+            ValidateHeartbeatPolicy(heartbeat.Interval, heartbeat.Timeout);
 
             var writer = CreateWriter(GameServerHelloKind);
             writer.WriteInt32(value.SelectedProtocolVersion);
@@ -73,6 +75,8 @@ namespace Lakona.Game.Abstractions
             writer.WriteBool(reliablePush.AckRequired);
             writer.WriteBool(reliablePush.ReplaySupported);
             writer.WriteInt32(reliablePush.MaxPending);
+            writer.WriteInt64(heartbeat.Interval.Ticks);
+            writer.WriteInt64(heartbeat.Timeout.Ticks);
             writer.WriteUtcDateTimeOffset(value.ServerTimeUtc);
             return writer.ToArray();
         }
@@ -94,11 +98,17 @@ namespace Lakona.Game.Abstractions
                     ReplaySupported = reader.ReadBool(),
                     MaxPending = reader.ReadInt32(),
                 },
+                Heartbeat = new GameHeartbeatHandshakeSettings
+                {
+                    Interval = TimeSpan.FromTicks(reader.ReadInt64()),
+                    Timeout = TimeSpan.FromTicks(reader.ReadInt64()),
+                },
                 ServerTimeUtc = reader.ReadUtcDateTimeOffset(),
             };
 
             ValidatePositiveProtocolVersion(value.SelectedProtocolVersion);
             ValidateNonNegative(value.ReliablePush.MaxPending, nameof(value.ReliablePush.MaxPending));
+            ValidateHeartbeatPolicy(value.Heartbeat.Interval, value.Heartbeat.Timeout);
             reader.EnsureEnd();
             return value;
         }
@@ -371,6 +381,24 @@ namespace Lakona.Game.Abstractions
             if (value < 0)
             {
                 throw new InvalidOperationException(name + " cannot be negative.");
+            }
+        }
+
+        private static void ValidateHeartbeatPolicy(TimeSpan interval, TimeSpan timeout)
+        {
+            if (interval <= TimeSpan.Zero)
+            {
+                throw new InvalidOperationException("Heartbeat interval must be greater than zero.");
+            }
+
+            if (timeout <= TimeSpan.Zero)
+            {
+                throw new InvalidOperationException("Heartbeat timeout must be greater than zero.");
+            }
+
+            if (timeout < interval)
+            {
+                throw new InvalidOperationException("Heartbeat timeout must not be shorter than heartbeat interval.");
             }
         }
 
