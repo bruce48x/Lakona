@@ -336,7 +336,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 : contract.Actor.ContainingNamespace.ToDisplayString() + ".";
             var receiverType = "global::" + actorNamespace + refType;
             var requestType = method.RequestType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            var remoteKind = GetRemoteKind(method);
+            var remoteMethodId = GetRemoteMethodId(method);
 
             builder.Append(indent).AppendLine("[global::Lakona.Game.Server.Hotfix.Abstractions.GeneratedHotfixActorRefMethodAttribute]");
             builder.Append(indent)
@@ -357,7 +357,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.Append(indent).AppendLine("{");
             builder.Append(indent).Append("    return self.__lakona_TryTell<").Append(requestType).AppendLine(">(");
             builder.Append(indent).Append("        \"").Append(EscapeStringLiteral(method.Name)).AppendLine("\",");
-            builder.Append(indent).Append("        \"").Append(EscapeStringLiteral(remoteKind)).AppendLine("\",");
+            builder.Append(indent).Append("        ").Append(remoteMethodId).AppendLine("UL,");
             builder.Append(indent).Append(method.HasCancellationToken ? "        true," : "        false,").AppendLine();
             builder.Append(indent).AppendLine("        request,");
             builder.Append(indent).AppendLine("        cancellationToken);");
@@ -378,7 +378,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 : contract.Actor.ContainingNamespace.ToDisplayString() + ".";
             var receiverType = "global::" + actorNamespace + refType;
             var requestType = method.RequestType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            var remoteKind = GetRemoteKind(method);
+            var remoteMethodId = GetRemoteMethodId(method);
 
             builder.Append(indent).AppendLine("[global::Lakona.Game.Server.Hotfix.Abstractions.GeneratedHotfixActorRefMethodAttribute]");
             builder.Append(indent)
@@ -414,7 +414,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             }
 
             builder.Append(indent).Append("        \"").Append(EscapeStringLiteral(method.Name)).AppendLine("\",");
-            builder.Append(indent).Append("        \"").Append(EscapeStringLiteral(remoteKind)).AppendLine("\",");
+            builder.Append(indent).Append("        ").Append(remoteMethodId).AppendLine("UL,");
             builder.Append(indent).Append(method.HasCancellationToken ? "        true," : "        false,").AppendLine();
             builder.Append(indent).AppendLine("        request,");
             builder.Append(indent).AppendLine("        cancellationToken);");
@@ -476,6 +476,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.Append("internal static class ").Append(contract.Actor.Name).AppendLine("ApiMetadata");
             builder.AppendLine("{");
             builder.AppendLine("    public const string MethodKeyMetadataName = \"lakona-game.actor-api.method-key\";");
+            builder.AppendLine("    public const string MethodIdMetadataName = \"lakona-game.actor-api.method-id\";");
             builder.AppendLine("    public const string ActorTypeMetadataName = \"lakona-game.actor-api.actor-type\";");
             builder.AppendLine("    public const string MethodMetadataName = \"lakona-game.actor-api.method\";");
             builder.AppendLine("    public const string RequestTypeMetadataName = \"lakona-game.actor-api.request-type\";");
@@ -487,6 +488,11 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     .Append(" = \"")
                     .Append(EscapeStringLiteral(method.MethodKey))
                     .AppendLine("\";");
+                builder.Append("    public const ulong ")
+                    .Append(CreateActorApiMethodIdConstantName(method))
+                    .Append(" = ")
+                    .Append(GetRemoteMethodId(method))
+                    .AppendLine("UL;");
             }
 
             builder.AppendLine("}");
@@ -621,7 +627,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
             builder.AppendLine("    internal async global::System.Threading.Tasks.ValueTask __lakona_TellAsync<TRequest>(");
             builder.AppendLine("        string behaviorMethodName,");
-            builder.AppendLine("        string remoteKind,");
+            builder.AppendLine("        ulong remoteMethodId,");
             builder.AppendLine("        bool passCancellationToken,");
             builder.AppendLine("        TRequest request,");
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
@@ -649,7 +655,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
             builder.AppendLine("    internal global::Lakona.Game.Server.Actors.ActorTellResult __lakona_TryTell<TRequest>(");
             builder.AppendLine("        string behaviorMethodName,");
-            builder.AppendLine("        string remoteKind,");
+            builder.AppendLine("        ulong remoteMethodId,");
             builder.AppendLine("        bool passCancellationToken,");
             builder.AppendLine("        TRequest request,");
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
@@ -677,7 +683,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
             builder.AppendLine("    internal async global::System.Threading.Tasks.ValueTask<TResult> __lakona_AskAsync<TRequest, TResult>(");
             builder.AppendLine("        string behaviorMethodName,");
-            builder.AppendLine("        string remoteKind,");
+            builder.AppendLine("        ulong remoteMethodId,");
             builder.AppendLine("        bool passCancellationToken,");
             builder.AppendLine("        TRequest request,");
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
@@ -706,7 +712,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
             builder.AppendLine("    internal async global::System.Threading.Tasks.ValueTask __lakona_TellAsync<TRequest>(");
             builder.AppendLine("        string behaviorMethodName,");
-            builder.AppendLine("        string remoteKind,");
+            builder.AppendLine("        ulong remoteMethodId,");
             builder.AppendLine("        bool passCancellationToken,");
             builder.AppendLine("        TRequest request,");
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
@@ -728,14 +734,14 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("            return;");
             builder.AppendLine("        }");
             builder.AppendLine();
-            builder.AppendLine("        var node = await ResolveNodeAsync(actorId, remoteKind, cancellationToken).ConfigureAwait(false);");
-            AppendHotfixRemoteInvocationSetup(builder, actorName, "remoteKind", "node", indentLevel: 2, includeActorId: false, methodNameIsExpression: true);
+            builder.AppendLine("        var node = await ResolveNodeAsync(actorId, behaviorMethodName, cancellationToken).ConfigureAwait(false);");
+            AppendHotfixRemoteInvocationSetup(builder, actorName, "remoteMethodId", "node", indentLevel: 2, includeActorId: false, methodIdIsExpression: true);
             builder.AppendLine("        try");
             builder.AppendLine("        {");
             builder.AppendLine("            var result = await _remote.TellAsync(invocation, cancellationToken).ConfigureAwait(false);");
             builder.Append("            global::Lakona.Game.Server.Actors.RemoteActorCall.EnsureAccepted(result, actorId, \"")
                 .Append(EscapeStringLiteral(actorName))
-                .AppendLine("\", remoteKind, node, correlationId);");
+                .AppendLine("\", behaviorMethodName, node, correlationId);");
             builder.AppendLine("        }");
             builder.AppendLine("        catch (global::Lakona.Game.Server.Actors.ActorCallException exception) when (IsLocationFailure(exception))");
             builder.AppendLine("        {");
@@ -754,7 +760,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
             builder.AppendLine("    internal async global::System.Threading.Tasks.ValueTask<TResult> __lakona_AskAsync<TRequest, TResult>(");
             builder.AppendLine("        string behaviorMethodName,");
-            builder.AppendLine("        string remoteKind,");
+            builder.AppendLine("        ulong remoteMethodId,");
             builder.AppendLine("        bool passCancellationToken,");
             builder.AppendLine("        TRequest request,");
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
@@ -775,14 +781,14 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("                cancellationToken).ConfigureAwait(false);");
             builder.AppendLine("        }");
             builder.AppendLine();
-            builder.AppendLine("        var node = await ResolveNodeAsync(actorId, remoteKind, cancellationToken).ConfigureAwait(false);");
-            AppendHotfixRemoteInvocationSetup(builder, actorName, "remoteKind", "node", indentLevel: 2, includeActorId: false, methodNameIsExpression: true);
+            builder.AppendLine("        var node = await ResolveNodeAsync(actorId, behaviorMethodName, cancellationToken).ConfigureAwait(false);");
+            AppendHotfixRemoteInvocationSetup(builder, actorName, "remoteMethodId", "node", indentLevel: 2, includeActorId: false, methodIdIsExpression: true);
             builder.AppendLine("        try");
             builder.AppendLine("        {");
             builder.AppendLine("            var result = await _remote.AskAsync(invocation, cancellationToken).ConfigureAwait(false);");
             builder.Append("            global::Lakona.Game.Server.Actors.RemoteActorCall.EnsureReplied(result, actorId, \"")
                 .Append(EscapeStringLiteral(actorName))
-                .AppendLine("\", remoteKind, node, correlationId);");
+                .AppendLine("\", behaviorMethodName, node, correlationId);");
             builder.AppendLine("            return _serializer.Deserialize<TResult>(result.Payload);");
             builder.AppendLine("        }");
             builder.AppendLine("        catch (global::Lakona.Game.Server.Actors.ActorCallException exception) when (IsLocationFailure(exception))");
@@ -836,16 +842,16 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
             builder.AppendLine("    internal async global::System.Threading.Tasks.ValueTask __lakona_TellAsync<TRequest>(");
             builder.AppendLine("        string behaviorMethodName,");
-            builder.AppendLine("        string remoteKind,");
+            builder.AppendLine("        ulong remoteMethodId,");
             builder.AppendLine("        bool passCancellationToken,");
             builder.AppendLine("        TRequest request,");
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
             builder.AppendLine("    {");
-            AppendHotfixRemoteInvocationSetup(builder, actorName, "remoteKind", "_node", indentLevel: 2, includeActorId: true, methodNameIsExpression: true);
+            AppendHotfixRemoteInvocationSetup(builder, actorName, "remoteMethodId", "_node", indentLevel: 2, includeActorId: true, methodIdIsExpression: true);
             builder.AppendLine("        var result = await _remote.TellAsync(invocation, cancellationToken).ConfigureAwait(false);");
             builder.Append("        global::Lakona.Game.Server.Actors.RemoteActorCall.EnsureAccepted(result, actorId, \"")
                 .Append(EscapeStringLiteral(actorName))
-                .AppendLine("\", remoteKind, _node, correlationId);");
+                .AppendLine("\", behaviorMethodName, _node, correlationId);");
             builder.AppendLine("    }");
         }
 
@@ -857,16 +863,16 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
             builder.AppendLine("    internal async global::System.Threading.Tasks.ValueTask<TResult> __lakona_AskAsync<TRequest, TResult>(");
             builder.AppendLine("        string behaviorMethodName,");
-            builder.AppendLine("        string remoteKind,");
+            builder.AppendLine("        ulong remoteMethodId,");
             builder.AppendLine("        bool passCancellationToken,");
             builder.AppendLine("        TRequest request,");
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
             builder.AppendLine("    {");
-            AppendHotfixRemoteInvocationSetup(builder, actorName, "remoteKind", "_node", indentLevel: 2, includeActorId: true, methodNameIsExpression: true);
+            AppendHotfixRemoteInvocationSetup(builder, actorName, "remoteMethodId", "_node", indentLevel: 2, includeActorId: true, methodIdIsExpression: true);
             builder.AppendLine("        var result = await _remote.AskAsync(invocation, cancellationToken).ConfigureAwait(false);");
             builder.Append("        global::Lakona.Game.Server.Actors.RemoteActorCall.EnsureReplied(result, actorId, \"")
                 .Append(EscapeStringLiteral(actorName))
-                .AppendLine("\", remoteKind, _node, correlationId);");
+                .AppendLine("\", behaviorMethodName, _node, correlationId);");
             builder.AppendLine("        return _serializer.Deserialize<TResult>(result.Payload);");
             builder.AppendLine("    }");
         }
@@ -2114,11 +2120,11 @@ namespace Lakona.Game.Server.Hotfix.Generators
         private static void AppendHotfixRemoteInvocationSetup(
             StringBuilder builder,
             string actorName,
-            string methodName,
+            string methodId,
             string nodeExpression,
             int indentLevel,
             bool includeActorId,
-            bool methodNameIsExpression = false)
+            bool methodIdIsExpression = false)
         {
             var indent = Indent(indentLevel);
             if (includeActorId)
@@ -2131,34 +2137,25 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.Append(indent).AppendLine("var deadline = global::System.DateTimeOffset.UtcNow.Add(_options.DefaultTimeout);");
             builder.Append(indent).AppendLine("var metadata = new global::System.Collections.Generic.Dictionary<string, string>(global::System.StringComparer.Ordinal)");
             builder.Append(indent).AppendLine("{");
-            builder.Append(indent).Append("    [global::Lakona.Game.Server.Hotfix.HotfixActorApiMetadata.MethodKeyKey] = ");
-            if (methodNameIsExpression)
+            builder.Append(indent).Append("    [global::Lakona.Game.Server.Hotfix.HotfixActorApiMetadata.MethodIdKey] = ");
+            if (methodIdIsExpression)
             {
-                builder.Append(methodName);
+                builder.Append(methodId);
             }
             else
             {
-                builder.Append('"').Append(EscapeStringLiteral(methodName)).Append('"');
+                builder.Append(methodId).Append("UL");
             }
 
-            builder.AppendLine();
+            builder.AppendLine(".ToString(global::System.Globalization.CultureInfo.InvariantCulture)");
             builder.Append(indent).AppendLine("};");
             builder.Append(indent)
                 .Append("var invocation = new global::Lakona.Game.Server.Actors.RemoteActorInvocation(")
                 .Append(nodeExpression)
                 .Append(", actorId, \"")
                 .Append(EscapeStringLiteral(actorName))
-                .Append("\", ");
-            if (methodNameIsExpression)
-            {
-                builder.Append(methodName);
-            }
-            else
-            {
-                builder.Append('"').Append(EscapeStringLiteral(methodName)).Append('"');
-            }
-
-            builder.AppendLine(", payload, deadline, correlationId, metadata);");
+                .Append("\", global::Lakona.Game.Server.Hotfix.HotfixActorApiMetadata.ActorMessageKind, payload, deadline, correlationId, metadata);")
+                .AppendLine();
         }
 
         private static void AppendHotfixResolveNodeMethod(
@@ -2230,9 +2227,9 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 ">";
         }
 
-        private static string GetRemoteKind(HotfixActorMethodInfo method)
+        private static ulong GetRemoteMethodId(HotfixActorMethodInfo method)
         {
-            return method.MethodKey;
+            return CreateMethodId(method.MethodKey);
         }
 
         private static string GetActorPrefix(string actorName)
@@ -2250,6 +2247,34 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.Append(SanitizeIdentifierPart(GetRuntimeTypeFullName(method.RequestType)));
             builder.Append("_MethodKey");
             return builder.ToString();
+        }
+
+        private static string CreateActorApiMethodIdConstantName(HotfixActorMethodInfo method)
+        {
+            var builder = new StringBuilder();
+            builder.Append(SanitizeIdentifierPart(method.Name));
+            builder.Append('_');
+            builder.Append(SanitizeIdentifierPart(GetRuntimeTypeFullName(method.RequestType)));
+            builder.Append("_MethodId");
+            return builder.ToString();
+        }
+
+        private static ulong CreateMethodId(string methodKey)
+        {
+            const ulong offsetBasis = 14695981039346656037UL;
+            const ulong prime = 1099511628211UL;
+
+            unchecked
+            {
+                var hash = offsetBasis;
+                foreach (var value in Encoding.UTF8.GetBytes(methodKey))
+                {
+                    hash ^= value;
+                    hash *= prime;
+                }
+
+                return hash;
+            }
         }
 
         private static IEnumerable<string> EnumerateGeneratedActorWrapperSignatures(HotfixActorMethodInfo method)

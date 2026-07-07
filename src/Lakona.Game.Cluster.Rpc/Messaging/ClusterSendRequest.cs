@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Lakona.Game.Cluster.Rpc
 {
@@ -19,5 +20,7 @@ namespace Lakona.Game.Cluster.Rpc
         public string? TraceId { get; set; }
 
         public string? OrderedBy { get; set; }
+
+        public Dictionary<string, string>? Metadata { get; set; }
     }
 }

@@ -2,6 +2,7 @@ using Lakona.Game.Cluster;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Microsoft.Extensions.DependencyInjection;
+using System.Globalization;
 
 namespace Lakona.Game.Server.Actors;
 
@@ -32,8 +33,9 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
 
         if (!ClusterActorEnvelope.TryFromClusterMessage(message, out var envelope) ||
             envelope is null ||
-            !envelope.Metadata.TryGetValue(HotfixActorApiMetadata.MethodKeyKey, out var methodKey) ||
-            string.IsNullOrWhiteSpace(methodKey))
+            !string.Equals(envelope.Kind, HotfixActorApiMetadata.ActorMessageKind, StringComparison.Ordinal) ||
+            !envelope.Metadata.TryGetValue(HotfixActorApiMetadata.MethodIdKey, out var methodIdText) ||
+            !ulong.TryParse(methodIdText, NumberStyles.None, CultureInfo.InvariantCulture, out var methodId))
         {
             return ClusterSendStatus.RouteNotFound;
         }
@@ -56,7 +58,7 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
 
         var snapshot = lease.Snapshot;
         var table = snapshot.DispatchTable;
-        if (table is null || !table.TryResolveActorMethod(methodKey, out var descriptor))
+        if (table is null || !table.TryResolveActorMethod(methodId, out var descriptor))
         {
             lease.Dispose();
             return ClusterSendStatus.RouteNotFound;
@@ -85,7 +87,7 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
             var state = new TellDispatchState(
                 lease,
                 table,
-                methodKey,
+                descriptor.MethodKey,
                 request);
             ActorTellResult result;
             try
@@ -134,7 +136,7 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
                     descriptor.ActorType,
                     actorId,
                     async (actor, ct) => await table.InvokeActorAsync(
-                        methodKey,
+                        descriptor.MethodKey,
                         actor,
                         request,
                         descriptor.ResultType,

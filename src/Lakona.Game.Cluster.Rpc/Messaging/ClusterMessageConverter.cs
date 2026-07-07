@@ -21,7 +21,10 @@ namespace Lakona.Game.Cluster.Rpc
                 SourceNode = message.SourceNode.Value,
                 CorrelationId = message.CorrelationId,
                 TraceId = message.TraceId,
-                OrderedBy = message.OrderedBy
+                OrderedBy = message.OrderedBy,
+                Metadata = message.Metadata.Count == 0
+                    ? null
+                    : new System.Collections.Generic.Dictionary<string, string>(message.Metadata, StringComparer.Ordinal)
             };
         }
 
@@ -40,7 +43,8 @@ namespace Lakona.Game.Cluster.Rpc
                 request.SourceNode,
                 request.CorrelationId,
                 request.TraceId,
-                request.OrderedBy);
+                request.OrderedBy,
+                request.Metadata);
         }
     }
 }

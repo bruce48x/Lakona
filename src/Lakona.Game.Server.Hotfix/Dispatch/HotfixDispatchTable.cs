@@ -11,6 +11,7 @@ public sealed class HotfixDispatchTable
     private readonly IReadOnlyDictionary<HotfixMethodKey, HotfixMethodBinding> bindings;
     private readonly IReadOnlyDictionary<string, HotfixServiceMethodBinding> serviceBindings;
     private readonly IReadOnlyDictionary<string, HotfixActorMethodDescriptor> actorMethodBindings;
+    private readonly IReadOnlyDictionary<ulong, HotfixActorMethodDescriptor> actorMethodIdBindings;
     private readonly IReadOnlyDictionary<Type, ObjectFactory> serviceActivationFactories;
     private readonly IReadOnlyDictionary<string, HotfixFeatureCommandBinding> featureCommandBindings;
     private readonly IReadOnlyDictionary<Type, ObjectFactory> featureActivationFactories;
@@ -141,6 +142,7 @@ public sealed class HotfixDispatchTable
         bindings = methodList.ToDictionary(static method => method.Key, static method => method);
         serviceBindings = serviceList.ToDictionary(static service => service.Key, static service => service);
         actorMethodBindings = actorMethodList.ToDictionary(static method => method.MethodKey, static method => method, StringComparer.Ordinal);
+        actorMethodIdBindings = CreateActorMethodIdBindings(actorMethodList);
         serviceActivationFactories = serviceList
             .Where(static service => !service.Method.IsStatic)
             .Select(static service => service.ServiceType)
@@ -178,6 +180,13 @@ public sealed class HotfixDispatchTable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(methodKey);
         return actorMethodBindings.TryGetValue(methodKey, out descriptor!);
+    }
+
+    public bool TryResolveActorMethod(
+        ulong methodId,
+        out HotfixActorMethodDescriptor descriptor)
+    {
+        return actorMethodIdBindings.TryGetValue(methodId, out descriptor!);
     }
 
     public async ValueTask<object?> InvokeActorAsync(
@@ -727,6 +736,24 @@ public sealed class HotfixDispatchTable
     private static string CreateFeatureCommandKey(string featureName, FeatureCommandId commandId)
     {
         return $"{featureName}#{commandId.Value}";
+    }
+
+    private static IReadOnlyDictionary<ulong, HotfixActorMethodDescriptor> CreateActorMethodIdBindings(
+        IReadOnlyList<HotfixActorMethodDescriptor> actorMethods)
+    {
+        var dictionary = new Dictionary<ulong, HotfixActorMethodDescriptor>();
+        foreach (var actorMethod in actorMethods)
+        {
+            if (dictionary.TryGetValue(actorMethod.MethodId, out var existing))
+            {
+                throw new InvalidOperationException(
+                    $"Hotfix actor method id collision '{actorMethod.MethodId}' between '{existing.MethodKey}' and '{actorMethod.MethodKey}'.");
+            }
+
+            dictionary.Add(actorMethod.MethodId, actorMethod);
+        }
+
+        return dictionary;
     }
 
     public Func<TState, TResult> Resolve<TState, TResult>(HotfixMethodKey key)

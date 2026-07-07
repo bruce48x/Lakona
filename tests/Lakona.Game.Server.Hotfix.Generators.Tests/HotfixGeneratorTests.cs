@@ -107,7 +107,10 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("|result:Game.Server.LoginReply, Game.Server", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
         Assert.Contains("|result:void", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
         Assert.Contains("new global::System.Collections.Generic.Dictionary<string, string>(global::System.StringComparer.Ordinal)", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
-        Assert.Contains("[global::Lakona.Game.Server.Hotfix.HotfixActorApiMetadata.MethodKeyKey]", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("MethodIdMetadataName", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("[global::Lakona.Game.Server.Hotfix.HotfixActorApiMetadata.MethodIdKey]", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("global::Lakona.Game.Server.Hotfix.HotfixActorApiMetadata.ActorMessageKind", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("[global::Lakona.Game.Server.Hotfix.HotfixActorApiMetadata.MethodKeyKey]", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
         Assert.Contains("metadata);", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Hotfix", "Actor", "Contract"), result.Hotfix.GeneratedSource, StringComparison.Ordinal);
         Assert.DoesNotContain("UserActorClusterHandler", result.Hotfix.GeneratedSource, StringComparison.Ordinal);

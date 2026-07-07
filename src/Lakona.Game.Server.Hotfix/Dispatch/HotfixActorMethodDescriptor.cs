@@ -26,9 +26,12 @@ public sealed class HotfixActorMethodDescriptor
         ResultType = resultType;
         Method = method;
         HasCancellationToken = hasCancellationToken;
+        MethodId = HotfixActorApiMetadata.CreateMethodId(methodKey);
     }
 
     public string MethodKey { get; }
+
+    public ulong MethodId { get; }
 
     public Type ActorType { get; }
 

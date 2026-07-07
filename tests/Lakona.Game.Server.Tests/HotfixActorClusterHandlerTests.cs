@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Globalization;
 using System.Text.Json;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
@@ -21,6 +22,18 @@ public sealed class HotfixActorClusterHandlerTests
     private const string ThrowMethodKey =
         "actor:Lakona.Game.Server.Tests.HotfixActorClusterHandlerTests+TestActor, Lakona.Game.Server.Tests|method:ThrowAsync|request:Lakona.Game.Server.Tests.HotfixActorClusterHandlerTests+PingRequest, Lakona.Game.Server.Tests|result:Lakona.Game.Server.Tests.HotfixActorClusterHandlerTests+PingReply, Lakona.Game.Server.Tests";
 
+    private static readonly string PingMethodId = HotfixActorApiMetadata
+        .CreateMethodId(PingMethodKey)
+        .ToString(CultureInfo.InvariantCulture);
+
+    private static readonly string NotifyMethodId = HotfixActorApiMetadata
+        .CreateMethodId(NotifyMethodKey)
+        .ToString(CultureInfo.InvariantCulture);
+
+    private static readonly string ThrowMethodId = HotfixActorApiMetadata
+        .CreateMethodId(ThrowMethodKey)
+        .ToString(CultureInfo.InvariantCulture);
+
     [Fact]
     public async Task HandleAsync_dispatches_request_reply_hotfix_actor_method_by_metadata()
     {
@@ -32,7 +45,7 @@ public sealed class HotfixActorClusterHandlerTests
         var message = new ClusterActorEnvelope(
             ClusterActorRouteKeys.ForActor("user/1"),
             "user/1",
-            "legacy-kind-is-ignored",
+            HotfixActorApiMetadata.ActorMessageKind,
             serializer.Serialize(request, typeof(PingRequest)),
             DateTimeOffset.UtcNow.AddMinutes(1),
             new NodeId("node-a"),
@@ -40,7 +53,7 @@ public sealed class HotfixActorClusterHandlerTests
             replyCorrelationId: "reply-1",
             metadata: new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [HotfixActorApiMetadata.MethodKeyKey] = PingMethodKey
+                [HotfixActorApiMetadata.MethodIdKey] = PingMethodId
             }).ToClusterMessage();
 
         var status = await handler.HandleAsync(message, TestContext.Current.CancellationToken);
@@ -57,7 +70,7 @@ public sealed class HotfixActorClusterHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_returns_route_not_found_when_method_key_metadata_is_missing()
+    public async Task HandleAsync_returns_route_not_found_when_method_id_metadata_is_missing()
     {
         var serializer = new JsonRemoteActorSerializer();
         var handler = CreateHandler(
@@ -68,7 +81,7 @@ public sealed class HotfixActorClusterHandlerTests
         var message = new ClusterActorEnvelope(
             ClusterActorRouteKeys.ForActor("user/1"),
             "user/1",
-            PingMethodKey,
+            HotfixActorApiMetadata.ActorMessageKind,
             serializer.Serialize(new PingRequest("player-1"), typeof(PingRequest)),
             DateTimeOffset.UtcNow.AddMinutes(1),
             new NodeId("node-a"),
@@ -93,13 +106,13 @@ public sealed class HotfixActorClusterHandlerTests
         var message = new ClusterActorEnvelope(
             ClusterActorRouteKeys.ForActor("user/missing"),
             "user/missing",
-            "notify",
+            HotfixActorApiMetadata.ActorMessageKind,
             serializer.Serialize(new NotifyRequest("seen"), typeof(NotifyRequest)),
             DateTimeOffset.UtcNow.AddMinutes(1),
             new NodeId("node-a"),
             metadata: new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [HotfixActorApiMetadata.MethodKeyKey] = NotifyMethodKey
+                [HotfixActorApiMetadata.MethodIdKey] = NotifyMethodId
             }).ToClusterMessage();
 
         var status = await handler.HandleAsync(message, TestContext.Current.CancellationToken);
@@ -136,13 +149,13 @@ public sealed class HotfixActorClusterHandlerTests
         var message = new ClusterActorEnvelope(
             ClusterActorRouteKeys.ForActor(actorId.Value),
             actorId.Value,
-            "notify",
+            HotfixActorApiMetadata.ActorMessageKind,
             serializer.Serialize(new NotifyRequest("seen"), typeof(NotifyRequest)),
             DateTimeOffset.UtcNow.AddMinutes(1),
             new NodeId("node-a"),
             metadata: new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [HotfixActorApiMetadata.MethodKeyKey] = NotifyMethodKey
+                [HotfixActorApiMetadata.MethodIdKey] = NotifyMethodId
             }).ToClusterMessage();
 
         try
@@ -191,13 +204,13 @@ public sealed class HotfixActorClusterHandlerTests
         var message = new ClusterActorEnvelope(
             ClusterActorRouteKeys.ForActor("user/throw"),
             "user/throw",
-            "notify",
+            HotfixActorApiMetadata.ActorMessageKind,
             serializer.Serialize(new NotifyRequest("seen"), typeof(NotifyRequest)),
             DateTimeOffset.UtcNow.AddMinutes(1),
             new NodeId("node-a"),
             metadata: new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [HotfixActorApiMetadata.MethodKeyKey] = NotifyMethodKey
+                [HotfixActorApiMetadata.MethodIdKey] = NotifyMethodId
             }).ToClusterMessage();
 
         var status = await handler.HandleAsync(message, TestContext.Current.CancellationToken);
@@ -225,13 +238,13 @@ public sealed class HotfixActorClusterHandlerTests
         var message = new ClusterActorEnvelope(
             ClusterActorRouteKeys.ForActor("user/canceled-before-enqueue"),
             "user/canceled-before-enqueue",
-            "notify",
+            HotfixActorApiMetadata.ActorMessageKind,
             serializer.Serialize(new NotifyRequest("seen"), typeof(NotifyRequest)),
             DateTimeOffset.UtcNow.AddMinutes(1),
             new NodeId("node-a"),
             metadata: new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [HotfixActorApiMetadata.MethodKeyKey] = NotifyMethodKey
+                [HotfixActorApiMetadata.MethodIdKey] = NotifyMethodId
             }).ToClusterMessage();
 
         await callerCancellation.CancelAsync();
@@ -256,7 +269,7 @@ public sealed class HotfixActorClusterHandlerTests
         var message = new ClusterActorEnvelope(
             ClusterActorRouteKeys.ForActor("user/1"),
             "user/1",
-            "throw",
+            HotfixActorApiMetadata.ActorMessageKind,
             serializer.Serialize(new PingRequest("player-1"), typeof(PingRequest)),
             DateTimeOffset.UtcNow.AddMinutes(1),
             new NodeId("node-a"),
@@ -264,7 +277,7 @@ public sealed class HotfixActorClusterHandlerTests
             replyCorrelationId: "reply-1",
             metadata: new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [HotfixActorApiMetadata.MethodKeyKey] = ThrowMethodKey
+                [HotfixActorApiMetadata.MethodIdKey] = ThrowMethodId
             }).ToClusterMessage();
 
         var status = await handler.HandleAsync(message, TestContext.Current.CancellationToken);
@@ -286,7 +299,7 @@ public sealed class HotfixActorClusterHandlerTests
         var message = new ClusterActorEnvelope(
             ClusterActorRouteKeys.ForActor("user/1"),
             "user/1",
-            "ping",
+            HotfixActorApiMetadata.ActorMessageKind,
             serializer.Serialize(new PingRequest("player-1"), typeof(PingRequest)),
             DateTimeOffset.UtcNow.AddMinutes(1),
             new NodeId("node-a"),
@@ -294,7 +307,7 @@ public sealed class HotfixActorClusterHandlerTests
             replyCorrelationId: "reply-1",
             metadata: new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [HotfixActorApiMetadata.MethodKeyKey] = PingMethodKey
+                [HotfixActorApiMetadata.MethodIdKey] = PingMethodId
             }).ToClusterMessage();
 
         var status = await handler.HandleAsync(message, TestContext.Current.CancellationToken);

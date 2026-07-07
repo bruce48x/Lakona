@@ -34,7 +34,11 @@ public sealed class ClusterMessageBinderTests
             SourceNode = "source",
             CorrelationId = "corr-1",
             TraceId = "trace-1",
-            OrderedBy = "room/1"
+            OrderedBy = "room/1",
+            Metadata = new Dictionary<string, string>
+            {
+                ["lakona-game.actor-api.method-id"] = "13234687008277710378"
+            }
         });
         using var frame = await rpcHandler(
             session,
@@ -56,6 +60,7 @@ public sealed class ClusterMessageBinderTests
         Assert.Equal(new byte[] { 1, 2, 3 }, message.Payload.ToArray());
         Assert.Equal(new NodeId("source"), message.SourceNode);
         Assert.Equal("corr-1", message.CorrelationId);
+        Assert.Equal("13234687008277710378", message.Metadata["lakona-game.actor-api.method-id"]);
     }
 
     private sealed class RecordingHandler : IClusterMessageHandler

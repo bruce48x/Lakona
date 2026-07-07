@@ -31,6 +31,8 @@ public sealed class ClusterNodeMessengerTests
         Assert.Equal(new byte[] { 1, 2, 3 }, client.Request.Payload);
         Assert.Equal("source", client.Request.SourceNode);
         Assert.Equal("corr-1", client.Request.CorrelationId);
+        Assert.NotNull(client.Request.Metadata);
+        Assert.Equal("13234687008277710378", client.Request.Metadata["lakona-game.actor-api.method-id"]);
     }
 
     [Fact]
@@ -92,7 +94,11 @@ public sealed class ClusterNodeMessengerTests
             "source",
             correlationId: "corr-1",
             traceId: "trace-1",
-            orderedBy: "room/1");
+            orderedBy: "room/1",
+            metadata: new Dictionary<string, string>
+            {
+                ["lakona-game.actor-api.method-id"] = "13234687008277710378"
+            });
     }
 
     private sealed class RecordingClientFactory : IClusterClientFactory

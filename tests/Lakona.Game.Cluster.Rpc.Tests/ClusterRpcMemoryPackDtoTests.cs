@@ -18,7 +18,11 @@ public sealed class ClusterRpcMemoryPackDtoTests
             SourceNode = "gateway-1",
             CorrelationId = "corr-1",
             TraceId = "trace-1",
-            OrderedBy = "room/1"
+            OrderedBy = "room/1",
+            Metadata = new Dictionary<string, string>
+            {
+                ["lakona-game.actor-api.method-id"] = "13234687008277710378"
+            }
         };
 
         var roundtripped = Roundtrip(request);
@@ -26,6 +30,8 @@ public sealed class ClusterRpcMemoryPackDtoTests
         Assert.Equal("actor:room/1", roundtripped.Route);
         Assert.Equal(new byte[] { 1, 2, 3 }, roundtripped.Payload);
         Assert.Equal("gateway-1", roundtripped.SourceNode);
+        Assert.NotNull(roundtripped.Metadata);
+        Assert.Equal("13234687008277710378", roundtripped.Metadata["lakona-game.actor-api.method-id"]);
     }
 
     [Fact]
