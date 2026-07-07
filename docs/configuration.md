@@ -522,9 +522,10 @@ Explicit configuration may opt out:
 }
 ```
 
-`Enabled: false` does not remove the notification API. It changes delivery to
-immediate best-effort callback delivery with no ack and no replay. The resolved
-mode is sent to clients during the framework game handshake.
+`Enabled: false` does not remove the notification API. It changes server
+delivery to immediate best-effort callback delivery with no ack and no replay.
+The framework game handshake exposes only the resulting reliable-push
+enabled/ack-required policy, not a delivery mode or replay setting.
 
 ## Observability
 

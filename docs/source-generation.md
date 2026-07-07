@@ -96,7 +96,7 @@ connection entry point and performs the full framework connection sequence:
 5. run the framework game handshake;
 6. apply the `ServerHello` protocol version, reliable-push policy, and
    heartbeat policy;
-7. start the framework heartbeat when enabled;
+7. start the framework heartbeat with the server-owned policy;
 8. mark the wrapper ready and open the `Api` gate.
 
 `gameClient.Api` must stay closed until step 8 completes. Accessing it before a

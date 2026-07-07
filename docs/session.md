@@ -266,8 +266,8 @@ reliable push records after the client reports the matching active session. This
 upgrade is automatic; business code should not start a second session heartbeat
 loop.
 
-Default heartbeat settings are enabled, 15 seconds interval, and 45 seconds
-timeout unless the resolved server/client options say otherwise.
+The default heartbeat policy uses a 15 second interval and 45 second timeout
+unless the resolved server policy says otherwise.
 
 Heartbeat request and reply payloads are encoded with `LakonaInternalCodec`.
 They do not require JSON converters, MemoryPack formatters, or generated

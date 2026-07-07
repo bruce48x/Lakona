@@ -681,8 +681,8 @@ This keeps ownership explicit:
 
 When reliable push is disabled, the same business publish path degrades to
 best-effort immediate callback delivery with no ack and no replay. Business RPC
-contracts should not expose reliable-push ack methods; ack is a framework
-protocol negotiated during game handshake.
+contracts should not expose reliable-push ack methods; ack is framework-owned
+protocol behavior controlled by the server's reliable-push policy.
 
 Feature discovery is not a load balancer. Sample or product code that allocates
 rooms may use `IClusterNodeDiscovery.ListAsync` to apply deterministic
