@@ -6,7 +6,7 @@ namespace Lakona.Game.Client
 {
     /// <summary>
     ///     Configuration for a generated <c>LakonaGameClient</c>, including RPC transport
-    ///     settings and game-framework heartbeat behavior.
+    ///     settings. Game-framework heartbeat policy is supplied by the server handshake.
     /// </summary>
     public sealed class LakonaGameClientOptions : RpcClientOptions
     {
@@ -17,22 +17,6 @@ namespace Lakona.Game.Client
             : base(transport, serializer)
         {
         }
-
-        /// <summary>
-        ///     Enables or disables the game-layer heartbeat loop. This is separate from
-        ///     <see cref="RpcClientOptions.KeepAlive"/>, which controls transport-level ping/pong.
-        /// </summary>
-        public bool HeartbeatEnabled { get; set; } = true;
-
-        /// <summary>
-        ///     Interval between game heartbeat RPC calls after a session is started.
-        /// </summary>
-        public TimeSpan HeartbeatInterval { get; set; } = TimeSpan.FromSeconds(15);
-
-        /// <summary>
-        ///     Maximum time to wait for a game heartbeat RPC response before treating the heartbeat as failed.
-        /// </summary>
-        public TimeSpan HeartbeatTimeout { get; set; } = TimeSpan.FromSeconds(45);
 
         /// <summary>
         ///     Configures compression or encryption for the client transport.

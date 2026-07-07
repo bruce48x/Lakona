@@ -11,6 +11,36 @@ namespace Lakona.Game.Client.Tests;
 public sealed class LakonaGameClientCoreTests
 {
     [Fact]
+    public void LakonaGameClientOptions_does_not_expose_heartbeat_policy()
+    {
+        var propertyNames = typeof(LakonaGameClientOptions)
+            .GetProperties()
+            .Select(static property => property.Name)
+            .ToArray();
+
+        Assert.DoesNotContain("HeartbeatEnabled", propertyNames);
+        Assert.DoesNotContain("HeartbeatInterval", propertyNames);
+        Assert.DoesNotContain("HeartbeatTimeout", propertyNames);
+    }
+
+    [Fact]
+    public void ApplyServerHello_applies_heartbeat_policy()
+    {
+        var client = new LakonaGameClientCore();
+
+        client.ApplyServerHello(new GameServerHello
+        {
+            Heartbeat = new GameHeartbeatHandshakeSettings
+            {
+                Interval = TimeSpan.FromSeconds(8),
+                Timeout = TimeSpan.FromSeconds(24)
+            }
+        });
+
+        Assert.Equal(TimeSpan.FromSeconds(8), client.HeartbeatInterval);
+        Assert.Equal(TimeSpan.FromSeconds(24), client.HeartbeatTimeout);
+    }
+    [Fact]
     public async Task MainEntryProcessesReliablePushAndAppliesAckOutcome()
     {
         var client = new LakonaGameClientCore();
@@ -351,7 +381,8 @@ public sealed class LakonaGameClientCoreTests
         var loop = new LakonaGameHeartbeatLoop(
             rpc.Client,
             client,
-            new LakonaGameClientOptions(new NoopTransport(), new NoopSerializer()));
+            TimeSpan.FromSeconds(15),
+            TimeSpan.FromSeconds(45));
 
         await loop.SendOnceAsync(TestContext.Current.CancellationToken);
 
@@ -369,7 +400,8 @@ public sealed class LakonaGameClientCoreTests
         var loop = new LakonaGameHeartbeatLoop(
             rpc.Client,
             client,
-            new LakonaGameClientOptions(new NoopTransport(), new NoopSerializer()));
+            TimeSpan.FromSeconds(15),
+            TimeSpan.FromSeconds(45));
 
         await loop.SendOnceAsync(TestContext.Current.CancellationToken);
 
@@ -387,7 +419,8 @@ public sealed class LakonaGameClientCoreTests
         var loop = new LakonaGameHeartbeatLoop(
             rpc.Client,
             client,
-            new LakonaGameClientOptions(new NoopTransport(), new NoopSerializer()));
+            TimeSpan.FromSeconds(15),
+            TimeSpan.FromSeconds(45));
 
         await loop.SendOnceAsync(TestContext.Current.CancellationToken);
 
@@ -408,7 +441,8 @@ public sealed class LakonaGameClientCoreTests
         var loop = new LakonaGameHeartbeatLoop(
             rpc.Client,
             client,
-            new LakonaGameClientOptions(new NoopTransport(), new NoopSerializer()));
+            TimeSpan.FromSeconds(15),
+            TimeSpan.FromSeconds(45));
 
         await loop.SendOnceAsync(TestContext.Current.CancellationToken);
 
@@ -418,51 +452,49 @@ public sealed class LakonaGameClientCoreTests
     }
 
     [Fact]
-    public async Task StartHeartbeat_rejects_invalid_interval_before_starting_loop()
+    public async Task ApplyServerHello_rejects_invalid_heartbeat_interval()
     {
         var client = new LakonaGameClientCore();
-        await using var rpc = CreateUnstartedRuntime();
-        var options = CreateHeartbeatOptions();
-        options.HeartbeatInterval = TimeSpan.Zero;
-
-        try
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => client.ApplyServerHello(new GameServerHello
         {
-            Assert.Throws<ArgumentOutOfRangeException>(() => client.StartHeartbeat(rpc, options));
+            Heartbeat = new GameHeartbeatHandshakeSettings
+            {
+                Interval = TimeSpan.Zero,
+                Timeout = TimeSpan.FromSeconds(45)
+            }
+        }));
 
-            options.HeartbeatInterval = TimeSpan.FromMilliseconds(-1);
-
-            Assert.Throws<ArgumentOutOfRangeException>(() => client.StartHeartbeat(rpc, options));
-        }
-        finally
-        {
-            await client.DisposeAsync();
-        }
+        Assert.Equal("Heartbeat.Interval", ex.ParamName);
     }
 
     [Fact]
-    public async Task StartHeartbeat_rejects_negative_timeout_before_starting_loop()
+    public async Task ApplyServerHello_rejects_heartbeat_timeout_shorter_than_interval()
     {
         var client = new LakonaGameClientCore();
-        await using var rpc = CreateUnstartedRuntime();
-        var options = CreateHeartbeatOptions();
-        options.HeartbeatTimeout = TimeSpan.FromMilliseconds(-2);
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => client.ApplyServerHello(new GameServerHello
+        {
+            Heartbeat = new GameHeartbeatHandshakeSettings
+            {
+                Interval = TimeSpan.FromSeconds(45),
+                Timeout = TimeSpan.FromSeconds(15)
+            }
+        }));
 
-        try
-        {
-            Assert.Throws<ArgumentOutOfRangeException>(() => client.StartHeartbeat(rpc, options));
-        }
-        finally
-        {
-            await client.DisposeAsync();
-        }
+        Assert.Equal("Heartbeat.Timeout", ex.ParamName);
     }
 
     [Fact]
     public async Task StartHeartbeat_allows_only_one_loop_when_called_concurrently()
     {
         var client = new LakonaGameClientCore();
-        var options = CreateHeartbeatOptions();
-        options.HeartbeatInterval = TimeSpan.FromHours(1);
+        client.ApplyServerHello(new GameServerHello
+        {
+            Heartbeat = new GameHeartbeatHandshakeSettings
+            {
+                Interval = TimeSpan.FromHours(1),
+                Timeout = TimeSpan.FromHours(2)
+            }
+        });
         var start = new ManualResetEventSlim();
         var successes = 0;
         var duplicateStarts = 0;
@@ -481,7 +513,7 @@ public sealed class LakonaGameClientCoreTests
 
                 try
                 {
-                    client.StartHeartbeat(rpc, options);
+                    client.StartHeartbeat(rpc);
                     Interlocked.Increment(ref successes);
                 }
                 catch (InvalidOperationException)
@@ -510,11 +542,6 @@ public sealed class LakonaGameClientCoreTests
         Assert.Empty(otherFailures);
         Assert.Equal(1, successes);
         Assert.Equal(tasks.Length - 1, duplicateStarts);
-    }
-
-    private static LakonaGameClientOptions CreateHeartbeatOptions()
-    {
-        return new LakonaGameClientOptions(new NoopTransport(), new NoopSerializer());
     }
 
     private static RpcClientRuntime CreateUnstartedRuntime()

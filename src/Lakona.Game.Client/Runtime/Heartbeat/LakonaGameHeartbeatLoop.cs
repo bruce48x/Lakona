@@ -12,7 +12,8 @@ namespace Lakona.Game.Client
     {
         private readonly RpcClientRuntime _rpcClient;
         private readonly LakonaGameClientCore _core;
-        private readonly LakonaGameClientOptions _options;
+        private readonly TimeSpan _interval;
+        private readonly TimeSpan _timeout;
         private int _started;
         private CancellationTokenSource? _cts;
         private Task? _loopTask;
@@ -20,34 +21,39 @@ namespace Lakona.Game.Client
         public LakonaGameHeartbeatLoop(
             RpcClientRuntime rpcClient,
             LakonaGameClientCore core,
-            LakonaGameClientOptions options)
+            TimeSpan interval,
+            TimeSpan timeout)
         {
             _rpcClient = rpcClient ?? throw new ArgumentNullException(nameof(rpcClient));
             _core = core ?? throw new ArgumentNullException(nameof(core));
-            _options = options ?? throw new ArgumentNullException(nameof(options));
+            _interval = interval;
+            _timeout = timeout;
         }
 
         public void Start()
         {
-            if (!_options.HeartbeatEnabled)
-            {
-                return;
-            }
-
-            if (_options.HeartbeatInterval <= TimeSpan.Zero)
+            if (_interval <= TimeSpan.Zero)
             {
                 throw new ArgumentOutOfRangeException(
-                    nameof(_options.HeartbeatInterval),
-                    _options.HeartbeatInterval,
+                    nameof(_interval),
+                    _interval,
                     "Lakona game heartbeat interval must be greater than zero.");
             }
 
-            if (_options.HeartbeatTimeout < TimeSpan.Zero)
+            if (_timeout <= TimeSpan.Zero)
             {
                 throw new ArgumentOutOfRangeException(
-                    nameof(_options.HeartbeatTimeout),
-                    _options.HeartbeatTimeout,
-                    "Lakona game heartbeat timeout cannot be negative.");
+                    nameof(_timeout),
+                    _timeout,
+                    "Lakona game heartbeat timeout must be greater than zero.");
+            }
+
+            if (_timeout < _interval)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(_timeout),
+                    _timeout,
+                    "Lakona game heartbeat timeout must not be shorter than interval.");
             }
 
             if (Interlocked.CompareExchange(ref _started, 1, 0) != 0)
@@ -62,10 +68,7 @@ namespace Lakona.Game.Client
         internal async ValueTask SendOnceAsync(CancellationToken cancellationToken = default)
         {
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            if (_options.HeartbeatTimeout > TimeSpan.Zero)
-            {
-                timeoutCts.CancelAfter(_options.HeartbeatTimeout);
-            }
+            timeoutCts.CancelAfter(_timeout);
 
             try
             {
@@ -141,7 +144,7 @@ namespace Lakona.Game.Client
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                await Task.Delay(_options.HeartbeatInterval, cancellationToken).ConfigureAwait(false);
+                await Task.Delay(_interval, cancellationToken).ConfigureAwait(false);
                 await SendOnceAsync(cancellationToken).ConfigureAwait(false);
             }
         }

@@ -904,7 +904,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             writer.Line("        return default;");
             writer.Line("    });");
             writer.Line("failureKind = ClientConnectionFailureKind.HeartbeatFailed;");
-            writer.Line("_core.StartHeartbeat(_rpcClient.Runtime, _options);");
+            writer.Line("_core.StartHeartbeat(_rpcClient.Runtime);");
             writer.Line("_core.MarkReady();");
             writer.Line("_apiReady = true;");
             writer.CloseBlock();

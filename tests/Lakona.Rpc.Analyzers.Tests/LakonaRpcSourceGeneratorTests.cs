@@ -296,6 +296,11 @@ public sealed class LakonaRpcSourceGeneratorTests
         Assert.Contains("GameSessionNotificationRpcIds.TerminatedNotificationId", wrapper);
         Assert.Contains("LakonaInternalCodec.DecodeSessionTerminationNotice(payload)", wrapper);
         Assert.Contains("_core.BindReliablePush(_rpcClient.Runtime);", wrapper);
+        Assert.Contains("_core.StartHeartbeat(_rpcClient.Runtime);", wrapper, StringComparison.Ordinal);
+        Assert.DoesNotContain("_core.StartHeartbeat(_rpcClient.Runtime, _options);", wrapper, StringComparison.Ordinal);
+        Assert.DoesNotContain("HeartbeatEnabled", wrapper, StringComparison.Ordinal);
+        Assert.DoesNotContain("HeartbeatInterval", wrapper, StringComparison.Ordinal);
+        Assert.DoesNotContain("HeartbeatTimeout", wrapper, StringComparison.Ordinal);
         Assert.DoesNotContain("System.Reflection", wrapper);
         AssertInOrder(wrapper, "_core.MarkConnecting();", "await _rpcClient.ConnectAsync");
         AssertInOrder(wrapper, "await _rpcClient.ConnectAsync", "await _core.HandshakeAsync");

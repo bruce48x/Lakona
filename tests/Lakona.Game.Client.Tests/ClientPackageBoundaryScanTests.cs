@@ -15,6 +15,21 @@ public sealed class ClientPackageBoundaryScanTests
         Assert.DoesNotContain("GameSessionKey", sourceText, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ClientOptions_DoNotExposePublicGameHeartbeatSettings()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var optionsText = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "src",
+            "Lakona.Game.Client",
+            "LakonaGameClientOptions.cs"));
+
+        Assert.DoesNotContain("HeartbeatEnabled", optionsText, StringComparison.Ordinal);
+        Assert.DoesNotContain("HeartbeatInterval", optionsText, StringComparison.Ordinal);
+        Assert.DoesNotContain("HeartbeatTimeout", optionsText, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

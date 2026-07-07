@@ -16,6 +16,8 @@ namespace Lakona.Game.Client
         private readonly ReliablePushInbox _reliablePush;
         private readonly object _heartbeatLock = new object();
         private LakonaGameHeartbeatLoop? _heartbeat;
+        private TimeSpan _heartbeatInterval = TimeSpan.FromSeconds(15);
+        private TimeSpan _heartbeatTimeout = TimeSpan.FromSeconds(45);
 
         public LakonaGameClientCore(IReliablePushCursorStore? cursorStore = null)
         {
@@ -32,17 +34,27 @@ namespace Lakona.Game.Client
 
         public bool ReliablePushAckRequired { get; private set; } = true;
 
+        public TimeSpan HeartbeatInterval
+        {
+            get { return _heartbeatInterval; }
+        }
+
+        public TimeSpan HeartbeatTimeout
+        {
+            get { return _heartbeatTimeout; }
+        }
+
         public void ApplyServerHello(GameServerHello hello)
         {
             if (hello == null) throw new ArgumentNullException(nameof(hello));
             ReliablePushEnabled = hello.ReliablePush.Enabled;
             ReliablePushAckRequired = hello.ReliablePush.Enabled && hello.ReliablePush.AckRequired;
+            ApplyHeartbeatPolicy(hello.Heartbeat ?? new GameHeartbeatHandshakeSettings());
         }
 
-        public void StartHeartbeat(RpcClientRuntime rpcClient, LakonaGameClientOptions options)
+        public void StartHeartbeat(RpcClientRuntime rpcClient)
         {
             if (rpcClient == null) throw new ArgumentNullException(nameof(rpcClient));
-            if (options == null) throw new ArgumentNullException(nameof(options));
 
             lock (_heartbeatLock)
             {
@@ -51,10 +63,44 @@ namespace Lakona.Game.Client
                     throw new InvalidOperationException("Lakona game heartbeat loop already started.");
                 }
 
-                var heartbeat = new LakonaGameHeartbeatLoop(rpcClient, this, options);
+                var heartbeat = new LakonaGameHeartbeatLoop(
+                    rpcClient,
+                    this,
+                    _heartbeatInterval,
+                    _heartbeatTimeout);
                 heartbeat.Start();
                 _heartbeat = heartbeat;
             }
+        }
+
+        private void ApplyHeartbeatPolicy(GameHeartbeatHandshakeSettings heartbeat)
+        {
+            if (heartbeat.Interval <= TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "Heartbeat.Interval",
+                    heartbeat.Interval,
+                    "Lakona game heartbeat interval must be greater than zero.");
+            }
+
+            if (heartbeat.Timeout <= TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "Heartbeat.Timeout",
+                    heartbeat.Timeout,
+                    "Lakona game heartbeat timeout must be greater than zero.");
+            }
+
+            if (heartbeat.Timeout < heartbeat.Interval)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "Heartbeat.Timeout",
+                    heartbeat.Timeout,
+                    "Lakona game heartbeat timeout must not be shorter than interval.");
+            }
+
+            _heartbeatInterval = heartbeat.Interval;
+            _heartbeatTimeout = heartbeat.Timeout;
         }
 
         public void BindReliablePush(RpcClientRuntime rpcClient)
