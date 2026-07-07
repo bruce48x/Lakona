@@ -143,11 +143,6 @@ public sealed class LoginService
                 .ConfigureAwait(false);
         }
 
-        await HotfixNotificationServices
-            .GetMatchmakingNotifier(call.Services)
-            .ReplayPendingAsync(sessionKey)
-            .ConfigureAwait(false);
-
         return new LoginReply
         {
             Code = LoginResultCodes.Ok,

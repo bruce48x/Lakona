@@ -41,11 +41,6 @@ public sealed class MatchmakingNotifier
             controlSession);
     }
 
-    public ValueTask ReplayPendingAsync(GameSessionKey controlSession, CancellationToken cancellationToken = default)
-    {
-        return default;
-    }
-
     private static MatchmakingStatusUpdate Clone(MatchmakingStatusUpdate source)
     {
         return new MatchmakingStatusUpdate
