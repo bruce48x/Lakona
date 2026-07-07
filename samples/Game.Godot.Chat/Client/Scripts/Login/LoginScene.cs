@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Godot;
 using Shared.Contracts.Chat;
 using Client.Chat;
+using Lakona.Game.Client;
 using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Serializer.MemoryPack;
@@ -54,7 +55,7 @@ namespace Client.Login
             SetBusy(true);
             SetStatus("Connecting...");
 
-            var client = new LoginClient(CreateRpcClientOptions());
+            var client = new LoginClient(CreateLakonaGameClientOptions());
             client.OnDisconnected += () => GD.Print("Disconnected from server.");
 
             try
@@ -95,9 +96,9 @@ namespace Client.Login
             }
         }
 
-        private RpcClientOptions CreateRpcClientOptions()
+        private LakonaGameClientOptions CreateLakonaGameClientOptions()
         {
-            return new RpcClientOptions(
+            return new LakonaGameClientOptions(
                 new WsTransport($"ws://{_serverHost}:{_serverPort}{NormalizePath(_serverPath)}"),
                 new MemoryPackRpcSerializer())
                 .UseSecurity(ConfigureTransportSecurity);

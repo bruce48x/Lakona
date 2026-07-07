@@ -17,6 +17,13 @@ connection entry point:
 
 ```csharp
 using Client.Generated;
+using Lakona.Game.Client;
+
+var options = new LakonaGameClientOptions(transport, serializer)
+{
+    HeartbeatInterval = TimeSpan.FromSeconds(15),
+    HeartbeatTimeout = TimeSpan.FromSeconds(45),
+};
 
 await using var gameClient = new LakonaGameClient(options, callbackReceiver);
 await gameClient.ConnectAsync(cancellationToken);

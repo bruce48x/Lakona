@@ -31,7 +31,7 @@ internal static class GodotClientCodeTemplates
                 public bool IsConnected => _isConnected;
                 public LakonaGameClient GameClient => _gameClient;
 
-                public LoginClient(RpcClientOptions options)
+                public LoginClient(LakonaGameClientOptions options)
                 {
                     _gameClient = new LakonaGameClient(options, this);
                     _gameClient.Disconnected += _ =>
@@ -213,7 +213,7 @@ internal static class GodotClientCodeTemplates
                     SetBusy(true);
                     SetStatus("Connecting...");
 
-                    var client = new LoginClient(CreateRpcClientOptions());
+                    var client = new LoginClient(CreateLakonaGameClientOptions());
                     client.OnDisconnected += () => GD.Print("Disconnected from server.");
 
                     try
@@ -262,7 +262,7 @@ internal static class GodotClientCodeTemplates
                         name = "godot-smoke";
                     }
 
-                    var client = new LoginClient(CreateRpcClientOptions());
+                    var client = new LoginClient(CreateLakonaGameClientOptions());
                     try
                     {
                         await client.ConnectAsync(_cts.Token);
@@ -286,9 +286,9 @@ internal static class GodotClientCodeTemplates
                         || string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
                 }
 
-                private RpcClientOptions CreateRpcClientOptions()
+                private LakonaGameClientOptions CreateLakonaGameClientOptions()
                 {
-                    return new RpcClientOptions(
+                    return new LakonaGameClientOptions(
                         {{transportExpression}},
                         {{serializerExpression}})
                         .UseSecurity(ConfigureTransportSecurity);

@@ -1,6 +1,7 @@
 #nullable enable
 
 using System;
+using Lakona.Game.Client;
 using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Serializer.MemoryPack;
@@ -10,9 +11,9 @@ namespace Rpc
 {
     public static class WebSocketRpcClientFactory
     {
-        public static RpcClientOptions CreateOptions(string host, int port, string path)
+        public static LakonaGameClientOptions CreateOptions(string host, int port, string path)
         {
-            return new RpcClientOptions(
+            return new LakonaGameClientOptions(
                 new WsTransport(BuildUrl(host, port, path)),
                 new MemoryPackRpcSerializer())
             {
@@ -41,4 +42,3 @@ namespace Rpc
         }
     }
 }
-

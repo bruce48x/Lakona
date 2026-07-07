@@ -351,7 +351,7 @@ public sealed class LakonaGameClientCoreTests
         var loop = new LakonaGameHeartbeatLoop(
             rpc.Client,
             client,
-            new LakonaGameClientOptions(new RpcClientOptions(new NoopTransport(), new NoopSerializer())));
+            new LakonaGameClientOptions(new NoopTransport(), new NoopSerializer()));
 
         await loop.SendOnceAsync(TestContext.Current.CancellationToken);
 
@@ -369,7 +369,7 @@ public sealed class LakonaGameClientCoreTests
         var loop = new LakonaGameHeartbeatLoop(
             rpc.Client,
             client,
-            new LakonaGameClientOptions(new RpcClientOptions(new NoopTransport(), new NoopSerializer())));
+            new LakonaGameClientOptions(new NoopTransport(), new NoopSerializer()));
 
         await loop.SendOnceAsync(TestContext.Current.CancellationToken);
 
@@ -387,7 +387,7 @@ public sealed class LakonaGameClientCoreTests
         var loop = new LakonaGameHeartbeatLoop(
             rpc.Client,
             client,
-            new LakonaGameClientOptions(new RpcClientOptions(new NoopTransport(), new NoopSerializer())));
+            new LakonaGameClientOptions(new NoopTransport(), new NoopSerializer()));
 
         await loop.SendOnceAsync(TestContext.Current.CancellationToken);
 
@@ -408,7 +408,7 @@ public sealed class LakonaGameClientCoreTests
         var loop = new LakonaGameHeartbeatLoop(
             rpc.Client,
             client,
-            new LakonaGameClientOptions(new RpcClientOptions(new NoopTransport(), new NoopSerializer())));
+            new LakonaGameClientOptions(new NoopTransport(), new NoopSerializer()));
 
         await loop.SendOnceAsync(TestContext.Current.CancellationToken);
 
@@ -514,7 +514,7 @@ public sealed class LakonaGameClientCoreTests
 
     private static LakonaGameClientOptions CreateHeartbeatOptions()
     {
-        return new LakonaGameClientOptions(new RpcClientOptions(new NoopTransport(), new NoopSerializer()));
+        return new LakonaGameClientOptions(new NoopTransport(), new NoopSerializer());
     }
 
     private static RpcClientRuntime CreateUnstartedRuntime()

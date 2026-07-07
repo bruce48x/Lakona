@@ -108,12 +108,16 @@ LakonaGameClient is not connected. Call ConnectAsync first.
 After a connection failure or disconnect, the wrapper is not reusable; dispose
 it and create a new generated `LakonaGameClient`.
 
-Generated constructors accept either raw RPC options or game client options:
+Generated constructors accept game client options:
 
 ```csharp
-public LakonaGameClient(RpcClientOptions rpcOptions, params object[] callbackReceivers)
 public LakonaGameClient(LakonaGameClientOptions gameOptions, params object[] callbackReceivers)
 ```
+
+`LakonaGameClientOptions` inherits `RpcClientOptions`, so one options object
+configures transport, serializer, transport keepalive, RPC logging, and game
+heartbeat behavior. `RpcClientOptions` remains the entry type for RPC-only
+clients that do not use `LakonaGameClient`.
 
 Callback receivers are optional, but null receivers are invalid. A receiver may
 implement multiple generated callback contracts. A receiver that implements no

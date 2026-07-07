@@ -85,6 +85,7 @@ public sealed class ClientRendererTests
 
         var loginClient = AssertPath(plan, "Client/Assets/Scripts/Login/LoginClient.cs").Content;
         Assert.Contains("public sealed class LoginClient : ILoginCallback, IChatCallback, IAsyncDisposable", loginClient, StringComparison.Ordinal);
+        Assert.Contains("public LoginClient(LakonaGameClientOptions options)", loginClient, StringComparison.Ordinal);
         Assert.Contains("private readonly LakonaGameClient _gameClient;", loginClient, StringComparison.Ordinal);
         Assert.Contains("_gameClient = new LakonaGameClient(options, this);", loginClient, StringComparison.Ordinal);
         Assert.Contains("_loginService = _gameClient.Api.Shared.Login;", loginClient, StringComparison.Ordinal);
@@ -343,6 +344,7 @@ public sealed class ClientRendererTests
         var loginClient = AssertPath(plan, "Client/Scripts/Login/LoginClient.cs").Content;
         Assert.Contains("using Client.Generated;", loginClient, StringComparison.Ordinal);
         Assert.Contains("public sealed class LoginClient : ILoginCallback, IChatCallback, IAsyncDisposable", loginClient, StringComparison.Ordinal);
+        Assert.Contains("public LoginClient(LakonaGameClientOptions options)", loginClient, StringComparison.Ordinal);
         Assert.Contains("private readonly LakonaGameClient _gameClient;", loginClient, StringComparison.Ordinal);
         Assert.Contains("_gameClient = new LakonaGameClient(options, this);", loginClient, StringComparison.Ordinal);
         Assert.Contains("_loginService = _gameClient.Api.Shared.Login;", loginClient, StringComparison.Ordinal);

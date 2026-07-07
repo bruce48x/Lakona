@@ -275,7 +275,9 @@ public sealed class LakonaRpcSourceGeneratorTests
         var wrapper = GetGeneratedSource(runResult, "LakonaGameClient.g.cs");
         Assert.Contains("public sealed class LakonaGameClient : IAsyncDisposable", wrapper);
         Assert.Contains("public global::Client.Generated.RpcApi Api", wrapper);
-        Assert.Contains("new global::Client.Generated.RpcClient(_options.RpcOptions", wrapper);
+        Assert.Contains("new global::Client.Generated.RpcClient(_options", wrapper);
+        Assert.DoesNotContain("LakonaGameClient(RpcClientOptions", wrapper, StringComparison.Ordinal);
+        Assert.DoesNotContain("_options.RpcOptions", wrapper, StringComparison.Ordinal);
         Assert.Contains("public ValueTask StartSessionAsync(string sessionId, long sessionGeneration, CancellationToken cancellationToken = default)", wrapper);
         Assert.Contains("return _core.StartSessionAsync(sessionId, sessionGeneration, cancellationToken);", wrapper);
         Assert.Contains("LakonaGameClient is not connected. Call ConnectAsync first.", wrapper);
@@ -399,7 +401,9 @@ public sealed class LakonaRpcSourceGeneratorTests
         Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(outputCompilation));
 
         var wrapper = GetGeneratedSource(runResult, "LakonaGameClient.g.cs");
-        Assert.Contains("new global::Client.Generated.RpcClient(_options.RpcOptions)", wrapper);
+        Assert.Contains("new global::Client.Generated.RpcClient(_options)", wrapper);
+        Assert.DoesNotContain("LakonaGameClient(RpcClientOptions", wrapper, StringComparison.Ordinal);
+        Assert.DoesNotContain("_options.RpcOptions", wrapper, StringComparison.Ordinal);
         Assert.Contains("ProtocolVersion = 1", wrapper);
         Assert.DoesNotContain("ClientRuntime", wrapper);
         Assert.DoesNotContain("Platform", wrapper);

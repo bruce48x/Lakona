@@ -1,6 +1,7 @@
 #nullable enable
 
 using System;
+using Lakona.Game.Client;
 using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Serializer.MemoryPack;
@@ -10,9 +11,9 @@ namespace Rpc
 {
     public static class KcpRpcClientFactory
     {
-        public static RpcClientOptions CreateOptions(string host, int port)
+        public static LakonaGameClientOptions CreateOptions(string host, int port)
         {
-            return new RpcClientOptions(
+            return new LakonaGameClientOptions(
                 new KcpTransport(host, port),
                 new MemoryPackRpcSerializer())
             {

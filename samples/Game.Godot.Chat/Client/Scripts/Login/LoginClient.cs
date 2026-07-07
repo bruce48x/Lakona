@@ -22,7 +22,7 @@ namespace Client.Login
         public bool IsConnected => _isConnected;
         public LakonaGameClient GameClient => _gameClient;
 
-        public LoginClient(RpcClientOptions options)
+        public LoginClient(LakonaGameClientOptions options)
         {
             _gameClient = new LakonaGameClient(options, this);
             _gameClient.Disconnected += _ =>

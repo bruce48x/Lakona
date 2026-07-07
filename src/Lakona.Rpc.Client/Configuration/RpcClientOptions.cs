@@ -10,7 +10,7 @@ namespace Lakona.Rpc.Client;
 ///     The options object owns the selected transport and serializer references. If security is configured,
 ///     <see cref="CreateConfiguredTransport"/> wraps the transport in a <see cref="TransformingTransport"/>.
 /// </remarks>
-public sealed class RpcClientOptions
+public class RpcClientOptions
 {
     private TransportSecurityConfig? _security;
 

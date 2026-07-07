@@ -31,7 +31,7 @@ internal static class UnityClientCodeTemplates
                 public bool IsConnected => _isConnected;
                 public LakonaGameClient GameClient => _gameClient;
 
-                public LoginClient(RpcClientOptions options)
+                public LoginClient(LakonaGameClientOptions options)
                 {
                     _gameClient = new LakonaGameClient(options, this);
                     _gameClient.Disconnected += _ =>
@@ -221,7 +221,7 @@ internal static class UnityClientCodeTemplates
                     SetStatus("Connecting...");
                     _cts = new CancellationTokenSource();
 
-                    var client = new LoginClient(CreateRpcClientOptions());
+                    var client = new LoginClient(CreateLakonaGameClientOptions());
                     client.OnDisconnected += () => Debug.Log("Disconnected from server.");
 
                     try
@@ -261,9 +261,9 @@ internal static class UnityClientCodeTemplates
                     }
                 }
 
-                private RpcClientOptions CreateRpcClientOptions()
+                private LakonaGameClientOptions CreateLakonaGameClientOptions()
                 {
-                    return new RpcClientOptions(
+                    return new LakonaGameClientOptions(
                         {{transportExpression}},
                         {{serializerExpression}})
                         .UseSecurity(ConfigureTransportSecurity);

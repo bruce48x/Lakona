@@ -857,9 +857,6 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             writer.Line("private int _disposed;");
             writer.Line("private bool _apiReady;");
             writer.Line();
-            writer.OpenBlock("public LakonaGameClient(RpcClientOptions rpcOptions, params object[] callbackReceivers) : this(new LakonaGameClientOptions(rpcOptions), callbackReceivers)");
-            writer.CloseBlock();
-            writer.Line();
             writer.OpenBlock("public LakonaGameClient(LakonaGameClientOptions options, params object[] callbackReceivers)");
             writer.Line("_options = options ?? throw new ArgumentNullException(nameof(options));");
             writer.Line("_core = new LakonaGameClientCore();");
@@ -954,7 +951,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             {
                 writer.OpenBlock($"private global::{generatedNamespace}.RpcClient CreateRpcClient(object[] callbackReceivers)");
                 writer.Line("var bindings = CreateNotificationBindings(callbackReceivers);");
-                writer.Line($"return new global::{generatedNamespace}.RpcClient(_options.RpcOptions, bindings);");
+                writer.Line($"return new global::{generatedNamespace}.RpcClient(_options, bindings);");
                 writer.CloseBlock();
                 writer.Line();
                 writer.OpenBlock($"private static global::{generatedNamespace}.RpcClient.RpcNotificationBindings CreateNotificationBindings(object[] callbackReceivers)");
@@ -977,7 +974,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             {
                 writer.OpenBlock($"private global::{generatedNamespace}.RpcClient CreateRpcClient(object[] callbackReceivers)");
                 writer.Line("ValidateCallbackReceivers(callbackReceivers);");
-                writer.Line($"return new global::{generatedNamespace}.RpcClient(_options.RpcOptions);");
+                writer.Line($"return new global::{generatedNamespace}.RpcClient(_options);");
                 writer.CloseBlock();
                 writer.Line();
             }

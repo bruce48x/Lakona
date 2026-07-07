@@ -247,7 +247,7 @@ internal static class ConsoleClientCodeTemplates
         {
             public static LakonaGameClient Create(ConsoleClientSettings settings)
             {
-                return new LakonaGameClient(new RpcClientOptions(
+                return new LakonaGameClient(new LakonaGameClientOptions(
                     {{RenderTransportExpression(spec.Transport)}},
                     {{RenderSerializerExpression(spec.Serializer)}})
                     .UseSecurity(ConfigureTransportSecurity));

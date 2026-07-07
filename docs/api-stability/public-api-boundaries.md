@@ -38,7 +38,8 @@ Regular application projects can rely on this layer after a hard freeze.
   - `RpcNotificationAttribute`
   - `LakonaRpcGenerateClientAttribute`
 - Generated client facade shape and lifetime semantics.
-- `RpcClientOptions`.
+- `RpcClientOptions` (intentionally unsealed; `LakonaGameClientOptions` is the
+  supported game-layer subclass).
 - `RpcClientRuntime` when used through generated clients or advanced client wiring.
 - `RpcServerHostBuilder` high-level host configuration.
 - `RpcServerHost`.
