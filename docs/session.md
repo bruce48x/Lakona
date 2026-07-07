@@ -197,8 +197,10 @@ to presence, room, matchmaking, or other business cleanup.
 
 No business RPC dispatch occurs before `ClientHello` / `ServerHello`
 completes. Handshake failure rejects the connection before user hotfix service
-code runs. `ServerHello` reports the resolved reliable push mode; disabled
-reliable push is reported as immediate delivery with no ack or replay.
+code runs. `ServerHello` reports the selected protocol version plus
+server-owned reliable-push and heartbeat policies. The reliable-push handshake
+policy is limited to whether reliable push is enabled and whether client acks
+are required.
 
 The game handshake is separate from transport connection setup:
 
@@ -451,10 +453,12 @@ explicit opt-out.
 
 Business services must not expose reliable-push ack RPC methods, and
 `ILakonaGameServer` must not expose reliable-push publish, replay, or ack
-methods. Ack and replay are framework protocol messages negotiated by the
-handshake. The server reports reliable push capability in `ServerHello`;
-clients do not need to know whether the server uses an in-memory store,
-durable store, plugin, or built-in implementation.
+methods. Ack messages and replay bookkeeping are framework-owned protocol and
+runtime behavior; replay support, pending limits, and delivery bookkeeping are
+not handshake-negotiated client settings. The server reports only the
+reliable-push enabled/ack-required policy in `ServerHello`; clients do not need
+to know whether the server uses an in-memory store, durable store, plugin, or
+built-in implementation.
 
 Business notification APIs should express the intended session target and let
 the framework resolve delivery:
