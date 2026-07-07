@@ -1,4 +1,4 @@
-namespace Agar.Sample.State.Contracts.Leaderboard;
+namespace Server.App.State.Contracts.Leaderboard;
 
 public sealed class LeaderboardQueryRequest
 {

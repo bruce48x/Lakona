@@ -1,4 +1,4 @@
-namespace Agar.Sample.State.Contracts.Rooms;
+namespace Server.App.State.Contracts.Rooms;
 
 public sealed class RoomSnapshotRequest
 {

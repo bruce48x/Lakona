@@ -1,4 +1,4 @@
-using Agar.Sample.State.Contracts.Matchmaking;
+using Server.App.State.Contracts.Matchmaking;
 using Server.Hotfix.State.Matchmaking;
 using Xunit;
 

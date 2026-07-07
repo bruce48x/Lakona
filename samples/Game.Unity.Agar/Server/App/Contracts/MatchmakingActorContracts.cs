@@ -1,6 +1,6 @@
-using Agar.Sample.State.Contracts.Sessions;
+using Server.App.State.Contracts.Sessions;
 
-namespace Agar.Sample.State.Contracts.Matchmaking;
+namespace Server.App.State.Contracts.Matchmaking;
 
 public sealed class MatchmakingStatusRequest
 {

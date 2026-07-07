@@ -1,8 +1,8 @@
 using System;
-using Agar.Sample.State.Contracts;
+using Server.App.State.Contracts;
 using MemoryPack;
 
-namespace Agar.Sample.State.Contracts.Sessions
+namespace Server.App.State.Contracts.Sessions
 {
     public sealed class PlayerSessionReconnectRequest
     {

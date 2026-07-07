@@ -1,9 +1,9 @@
 using System.Reflection;
-using Agar.Sample.State;
-using Agar.Sample.State.Contracts.Leaderboard;
-using Agar.Sample.State.Contracts.Users;
-using Agar.Sample.State.Leaderboard;
-using Agar.Sample.State.Users;
+using Server.App.State;
+using Server.App.State.Contracts.Leaderboard;
+using Server.App.State.Contracts.Users;
+using Server.App.State.Leaderboard;
+using Server.App.State.Users;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
 using Microsoft.Extensions.DependencyInjection;

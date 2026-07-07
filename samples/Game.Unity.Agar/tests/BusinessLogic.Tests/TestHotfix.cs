@@ -1,4 +1,4 @@
-using Agar.Sample.State.Users;
+using Server.App.State.Users;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;

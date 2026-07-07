@@ -1,4 +1,4 @@
-using Agar.Sample.State.Leaderboard;
+using Server.App.State.Leaderboard;
 
 namespace Server.Hotfix.State.Leaderboard;
 

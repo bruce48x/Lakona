@@ -1,4 +1,4 @@
-using Agar.Sample.State.Contracts.Matchmaking;
+using Server.App.State.Contracts.Matchmaking;
 
 namespace Server.Hotfix.State.Matchmaking;
 

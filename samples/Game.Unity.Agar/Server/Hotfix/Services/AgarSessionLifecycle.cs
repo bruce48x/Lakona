@@ -1,10 +1,10 @@
-using Agar.Sample.State.Contracts.Rooms;
-using Agar.Sample.State.Contracts.Sessions;
-using Agar.Sample.State.Contracts.Users;
-using Agar.Sample.State.Users;
-using Agar.Sample.State.Contracts;
-using Agar.Sample.State.Matchmaking;
-using Agar.Sample.State.Rooms;
+using Server.App.State.Contracts.Rooms;
+using Server.App.State.Contracts.Sessions;
+using Server.App.State.Contracts.Users;
+using Server.App.State.Users;
+using Server.App.State.Contracts;
+using Server.App.State.Matchmaking;
+using Server.App.State.Rooms;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;

@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace Agar.Sample.State.Contracts.Leaderboard
+namespace Server.App.State.Contracts.Leaderboard
 {
     public sealed class LeaderboardSnapshot
     {

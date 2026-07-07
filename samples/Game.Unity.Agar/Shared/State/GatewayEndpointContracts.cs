@@ -1,6 +1,6 @@
 using MemoryPack;
 
-namespace Agar.Sample.State.Contracts
+namespace Server.App.State.Contracts
 {
     [MemoryPackable(GenerateType.VersionTolerant)]
     public sealed partial class GatewayEndpointDescriptor

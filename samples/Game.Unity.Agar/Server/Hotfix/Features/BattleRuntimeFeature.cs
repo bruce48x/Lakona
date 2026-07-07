@@ -1,7 +1,7 @@
-using Agar.Sample.State.Contracts;
-using Agar.Sample.State.Contracts.Rooms;
-using Agar.Sample.State.Contracts.Sessions;
-using Agar.Sample.State.Rooms;
+using Server.App.State.Contracts;
+using Server.App.State.Contracts.Rooms;
+using Server.App.State.Contracts.Sessions;
+using Server.App.State.Rooms;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;

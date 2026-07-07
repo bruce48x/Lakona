@@ -1,4 +1,4 @@
-namespace Agar.Sample.State.Contracts;
+namespace Server.App.State.Contracts;
 
 public readonly record struct UserId(string Value)
 {

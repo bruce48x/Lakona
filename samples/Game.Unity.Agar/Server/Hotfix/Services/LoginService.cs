@@ -1,7 +1,7 @@
-using Agar.Sample.State.Contracts;
-using Agar.Sample.State.Contracts.Sessions;
-using Agar.Sample.State.Contracts.Users;
-using Agar.Sample.State.Users;
+using Server.App.State.Contracts;
+using Server.App.State.Contracts.Sessions;
+using Server.App.State.Contracts.Users;
+using Server.App.State.Users;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;

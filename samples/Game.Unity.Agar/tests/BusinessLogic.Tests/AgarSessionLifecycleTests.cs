@@ -1,8 +1,8 @@
-using Agar.Sample.State.Contracts.Rooms;
-using Agar.Sample.State.Contracts.Sessions;
-using Agar.Sample.State.Contracts.Users;
-using Agar.Sample.State.Rooms;
-using Agar.Sample.State.Users;
+using Server.App.State.Contracts.Rooms;
+using Server.App.State.Contracts.Sessions;
+using Server.App.State.Contracts.Users;
+using Server.App.State.Rooms;
+using Server.App.State.Users;
 using Lakona.Game.Abstractions;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;

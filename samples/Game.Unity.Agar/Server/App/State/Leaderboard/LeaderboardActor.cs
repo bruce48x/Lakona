@@ -1,8 +1,8 @@
-using Agar.Sample.State.Contracts;
-using Agar.Sample.State.Contracts.Leaderboard;
+using Server.App.State.Contracts;
+using Server.App.State.Contracts.Leaderboard;
 using Lakona.Game.Server.Actors;
 
-namespace Agar.Sample.State.Leaderboard;
+namespace Server.App.State.Leaderboard;
 
 public sealed class LeaderboardState
 {

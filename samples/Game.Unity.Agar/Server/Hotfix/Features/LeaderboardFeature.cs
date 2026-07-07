@@ -1,4 +1,4 @@
-using Agar.Sample.State.Leaderboard;
+using Server.App.State.Leaderboard;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.DependencyInjection;

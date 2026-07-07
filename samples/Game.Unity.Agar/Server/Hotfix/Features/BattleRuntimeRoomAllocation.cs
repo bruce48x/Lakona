@@ -1,4 +1,4 @@
-using Agar.Sample.State.Contracts.Sessions;
+using Server.App.State.Contracts.Sessions;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using MemoryPack;
 

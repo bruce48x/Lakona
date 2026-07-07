@@ -1,7 +1,7 @@
 
 using System;
 
-namespace Agar.Sample.State.Contracts.Users
+namespace Server.App.State.Contracts.Users
 {
     public sealed class UserLoginResult
     {

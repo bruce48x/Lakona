@@ -1,4 +1,4 @@
-using Agar.Sample.State.Contracts.Rooms;
+using Server.App.State.Contracts.Rooms;
 using Microsoft.Extensions.Logging;
 using Shared.Interfaces;
 using Lakona.Game.Server.Sessions;

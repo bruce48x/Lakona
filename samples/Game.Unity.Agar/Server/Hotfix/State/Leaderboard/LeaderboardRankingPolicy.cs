@@ -1,5 +1,5 @@
-using Agar.Sample.State.Contracts.Leaderboard;
-using Agar.Sample.State.Leaderboard;
+using Server.App.State.Contracts.Leaderboard;
+using Server.App.State.Leaderboard;
 
 namespace Server.Hotfix.State.Leaderboard;
 

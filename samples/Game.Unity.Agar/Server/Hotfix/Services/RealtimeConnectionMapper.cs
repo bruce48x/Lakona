@@ -1,4 +1,4 @@
-using Agar.Sample.State.Contracts;
+using Server.App.State.Contracts;
 using Shared.Interfaces;
 
 namespace Server.Hotfix.Services;

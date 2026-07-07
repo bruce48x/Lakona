@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
-using Agar.Sample.State.Contracts;
-using Agar.Sample.State.Contracts.Sessions;
+using Server.App.State.Contracts;
+using Server.App.State.Contracts.Sessions;
 using Shared.Gameplay;
 using Shared.Interfaces;
 
-namespace Agar.Sample.State.Contracts.Rooms
+namespace Server.App.State.Contracts.Rooms
 {
     public sealed class RoomCreateRequest
     {

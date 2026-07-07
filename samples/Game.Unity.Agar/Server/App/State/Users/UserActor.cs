@@ -1,9 +1,9 @@
-using Agar.Sample.State.Contracts;
-using Agar.Sample.State.Contracts.Users;
-using Agar.Sample.State.Contracts.Sessions;
+using Server.App.State.Contracts;
+using Server.App.State.Contracts.Users;
+using Server.App.State.Contracts.Sessions;
 using Lakona.Game.Server.Actors;
 
-namespace Agar.Sample.State.Users;
+namespace Server.App.State.Users;
 
 public sealed class UserState
 {

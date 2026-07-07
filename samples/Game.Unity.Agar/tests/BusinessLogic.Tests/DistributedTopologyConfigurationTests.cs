@@ -17,15 +17,15 @@ using Lakona.Rpc.Transport.Tcp;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Agar.Sample.State;
-using Agar.Sample.State.Contracts.Matchmaking;
-using Agar.Sample.State.Contracts.Rooms;
-using Agar.Sample.State.Contracts.Sessions;
-using Agar.Sample.State.Contracts.Users;
-using Agar.Sample.State.Leaderboard;
-using Agar.Sample.State.Matchmaking;
-using Agar.Sample.State.Rooms;
-using Agar.Sample.State.Users;
+using Server.App.State;
+using Server.App.State.Contracts.Matchmaking;
+using Server.App.State.Contracts.Rooms;
+using Server.App.State.Contracts.Sessions;
+using Server.App.State.Contracts.Users;
+using Server.App.State.Leaderboard;
+using Server.App.State.Matchmaking;
+using Server.App.State.Rooms;
+using Server.App.State.Users;
 using Server.Hotfix.Features;
 using Server.Hotfix.Services;
 using Server.Hotfix.State.Matchmaking;
@@ -286,7 +286,7 @@ public sealed class DistributedTopologyConfigurationTests
             SessionToken = login.SessionToken,
             ConnectionId = "control-remote-battle",
             AttachedAtUtc = DateTime.UtcNow,
-            ControlGateway = new Agar.Sample.State.Contracts.GatewayEndpointDescriptor
+            ControlGateway = new Server.App.State.Contracts.GatewayEndpointDescriptor
             {
                 InstanceId = "gateway-1",
                 Transport = "websocket",
@@ -364,7 +364,7 @@ public sealed class DistributedTopologyConfigurationTests
                 SessionToken = login.SessionToken,
                 ConnectionId = $"control-{i}",
                 AttachedAtUtc = DateTime.UtcNow,
-                ControlGateway = new Agar.Sample.State.Contracts.GatewayEndpointDescriptor
+                ControlGateway = new Server.App.State.Contracts.GatewayEndpointDescriptor
                 {
                     InstanceId = "gateway-1",
                     Transport = "websocket",
@@ -444,7 +444,7 @@ public sealed class DistributedTopologyConfigurationTests
                 SessionToken = login.SessionToken,
                 ConnectionId = "control-local-runtime",
                 AttachedAtUtc = DateTime.UtcNow,
-                ControlGateway = new Agar.Sample.State.Contracts.GatewayEndpointDescriptor
+                ControlGateway = new Server.App.State.Contracts.GatewayEndpointDescriptor
                 {
                     InstanceId = "gateway-1",
                     Transport = "websocket",
@@ -537,7 +537,7 @@ public sealed class DistributedTopologyConfigurationTests
                 MatchId = "stale-match",
                 SeatIndex = 0,
                 AssignedAtUtc = DateTime.UtcNow,
-                RuntimeGateway = new Agar.Sample.State.Contracts.GatewayEndpointDescriptor
+                RuntimeGateway = new Server.App.State.Contracts.GatewayEndpointDescriptor
                 {
                     InstanceId = "battle-remote",
                     Transport = "kcp",
