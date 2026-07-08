@@ -32,7 +32,10 @@ public sealed class MatchmakingFeature : HotfixGameFeature
         await call.Services
             .GetRequiredService<MatchmakingActors>()
             .Local(new MatchmakingQueueId(MatchmakingActorId))
-            .StartTimerAsync(new MatchmakingTimerStartRequest(), call.CancellationToken)
+            .CallAsync(
+                MatchmakingBehavior.StartTimerAsync,
+                new MatchmakingTimerStartRequest(),
+                call.CancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -45,7 +48,10 @@ public sealed class MatchmakingFeature : HotfixGameFeature
             await call.Services
                 .GetRequiredService<MatchmakingActors>()
                 .Local(new MatchmakingQueueId(actorId))
-                .StopTimerAsync(new MatchmakingTimerStopRequest(), CancellationToken.None)
+                .CallAsync(
+                    MatchmakingBehavior.StopTimerAsync,
+                    new MatchmakingTimerStopRequest(),
+                    CancellationToken.None)
                 .ConfigureAwait(false);
 
             await call.Services

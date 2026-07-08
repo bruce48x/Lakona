@@ -56,14 +56,17 @@ public sealed class AgarSessionLifecycle
         try
         {
             await users
-                .Get(new UserId(playerId))
-                .MarkDisconnectedAsync(new PlayerSessionDisconnectRequest
+                .Route(new UserId(playerId))
+                .CallAsync(
+                    UserBehavior.MarkDisconnectedAsync,
+                    new PlayerSessionDisconnectRequest
                     {
                         UserId = playerId,
                         ConnectionId = call.Request.ConnectionId,
                         DisconnectedAtUtc = DateTime.UtcNow,
                         Reason = "Control disconnect"
-                    })
+                    },
+                    CancellationToken.None)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException)
@@ -105,8 +108,11 @@ public sealed class AgarSessionLifecycle
             call.Request.SessionId,
             call.Request.Generation);
         var snapshot = await users
-            .Get(new UserId(playerId))
-            .GetSnapshotAsync(new PlayerSessionSnapshotRequest())
+            .Route(new UserId(playerId))
+            .CallAsync(
+                UserBehavior.GetSnapshotAsync,
+                new PlayerSessionSnapshotRequest(),
+                CancellationToken.None)
             .ConfigureAwait(false);
 
         if (MatchesRealtimeSession(snapshot, expiredSession))
@@ -136,7 +142,8 @@ public sealed class AgarSessionLifecycle
                 call.Services.GetRequiredService<LocalActorNodeIdentity>(),
                 call.Services.GetRequiredService<ILogger<PlayerService>>(),
                 playerId,
-                "Reconnect grace period expired")
+                "Reconnect grace period expired",
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -164,8 +171,11 @@ public sealed class AgarSessionLifecycle
         try
         {
             var snapshot = await users
-                .Get(new UserId(playerId))
-                .GetSnapshotAsync(new PlayerSessionSnapshotRequest())
+                .Route(new UserId(playerId))
+                .CallAsync(
+                    UserBehavior.GetSnapshotAsync,
+                    new PlayerSessionSnapshotRequest(),
+                    CancellationToken.None)
                 .ConfigureAwait(false);
             var realtimeSession = new GameSessionKey(playerId, sessionId, generation);
             if (!MatchesRealtimeSession(snapshot, realtimeSession))
@@ -174,23 +184,28 @@ public sealed class AgarSessionLifecycle
             }
 
             await users
-                .Get(new UserId(playerId))
-                .ClearRealtimeAsync(new PlayerRealtimeClearRequest
+                .Route(new UserId(playerId))
+                .CallAsync(
+                    UserBehavior.ClearRealtimeAsync,
+                    new PlayerRealtimeClearRequest
                     {
                         UserId = playerId,
                         RealtimeSessionId = sessionId,
                         RealtimeSessionGeneration = generation,
                         ClearedAtUtc = DateTime.UtcNow,
                         Reason = reason
-                    })
+                    },
+                    CancellationToken.None)
                 .ConfigureAwait(false);
 
             if (!string.IsNullOrWhiteSpace(snapshot.CurrentRoomId) &&
                 services.GetService<RoomActors>() is { } rooms)
             {
                 await rooms
-                    .Get(new RoomId(snapshot.CurrentRoomId))
-                    .ClearRealtimeAsync(new RoomRealtimeClearRequest
+                    .Route(new RoomId(snapshot.CurrentRoomId))
+                    .CallAsync(
+                        RoomBehavior.ClearRealtimeAsync,
+                        new RoomRealtimeClearRequest
                         {
                             UserId = playerId,
                             RoomId = snapshot.CurrentRoomId,
@@ -198,7 +213,8 @@ public sealed class AgarSessionLifecycle
                             RealtimeSessionGeneration = generation,
                             ClearedAtUtc = DateTime.UtcNow,
                             Reason = reason
-                        })
+                        },
+                        CancellationToken.None)
                     .ConfigureAwait(false);
             }
         }

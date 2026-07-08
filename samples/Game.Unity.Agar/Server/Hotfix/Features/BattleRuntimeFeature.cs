@@ -61,7 +61,9 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
             var roomId = new RoomId(payload.RoomId);
             var firstPlayer = payload.Players[0];
             var createdAtUtc = firstPlayer.AssignedAtUtc == default ? DateTime.UtcNow : firstPlayer.AssignedAtUtc;
-            var create = await _rooms.Local(roomId).CreateAsync(new RoomCreateRequest
+            var create = await _rooms.Local(roomId).CallAsync(
+                RoomBehavior.CreateAsync,
+                new RoomCreateRequest
             {
                 RoomId = payload.RoomId,
                 MatchId = firstPlayer.MatchId,
@@ -69,7 +71,8 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
                 CreatedAtUtc = createdAtUtc,
                 MaxPlayers = payload.MaxPlayers,
                 Players = payload.Players.Select(CloneAssignment).ToList(),
-            }).ConfigureAwait(false);
+            },
+                call.CancellationToken).ConfigureAwait(false);
             if (!create.Succeeded)
             {
                 await DestroyCreatedRoomActorAsync(actorId).ConfigureAwait(false);
@@ -77,12 +80,15 @@ public sealed class BattleRuntimeFeature : HotfixGameFeature
                 return CreateReply(payload, false, create.Message);
             }
 
-            var start = await _rooms.Local(roomId).StartAsync(new RoomStartRequest
+            var start = await _rooms.Local(roomId).CallAsync(
+                RoomBehavior.StartAsync,
+                new RoomStartRequest
             {
                 RoomId = payload.RoomId,
                 StartedByUserId = firstPlayer.UserId,
                 StartedAtUtc = createdAtUtc
-            }).ConfigureAwait(false);
+            },
+                call.CancellationToken).ConfigureAwait(false);
             if (!start.Succeeded)
             {
                 await DestroyCreatedRoomActorAsync(actorId).ConfigureAwait(false);

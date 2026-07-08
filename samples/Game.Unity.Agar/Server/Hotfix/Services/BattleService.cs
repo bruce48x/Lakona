@@ -54,8 +54,11 @@ internal sealed class BattleService
         }
 
         var sessionSnapshot = await _users
-            .Get(new UserId(req.PlayerId))
-            .GetSnapshotAsync(new PlayerSessionSnapshotRequest())
+            .Route(new UserId(req.PlayerId))
+            .CallAsync(
+                UserBehavior.GetSnapshotAsync,
+                new PlayerSessionSnapshotRequest(),
+                CancellationToken.None)
             .ConfigureAwait(false);
         if (!string.Equals(sessionSnapshot.SessionToken, req.Token, StringComparison.Ordinal) ||
             !string.Equals(sessionSnapshot.CurrentRoomId, req.RoomId, StringComparison.Ordinal) ||
@@ -83,8 +86,10 @@ internal sealed class BattleService
         try
         {
             sessionSnapshot = await _users
-                .Get(new UserId(req.PlayerId))
-                .AttachRealtimeAsync(new PlayerRealtimeAttachRequest
+                .Route(new UserId(req.PlayerId))
+                .CallAsync(
+                    UserBehavior.AttachRealtimeAsync,
+                    new PlayerRealtimeAttachRequest
                     {
                         UserId = req.PlayerId,
                         SessionToken = req.Token,
@@ -93,7 +98,8 @@ internal sealed class BattleService
                         RealtimeSessionId = realtimeSession.SessionId,
                         RealtimeSessionGeneration = realtimeSession.Generation,
                         AttachedAtUtc = DateTime.UtcNow
-                    })
+                    },
+                    CancellationToken.None)
                 .ConfigureAwait(false);
         }
         catch (InvalidOperationException)
@@ -113,7 +119,9 @@ internal sealed class BattleService
 
         var ready = await _rooms
             .Local(new RoomId(req.RoomId))
-            .SetReadyAsync(new RoomPlayerReadyRequest
+            .CallAsync(
+                RoomBehavior.SetReadyAsync,
+                new RoomPlayerReadyRequest
             {
                 UserId = req.PlayerId,
                 RoomId = req.RoomId,
@@ -121,19 +129,24 @@ internal sealed class BattleService
                 RealtimeSessionId = realtimeSession.SessionId,
                 RealtimeSessionGeneration = realtimeSession.Generation,
                 UpdatedAtUtc = DateTime.UtcNow
-            }).ConfigureAwait(false);
+            },
+                CancellationToken.None)
+            .ConfigureAwait(false);
         if (!ready.Succeeded)
         {
             await _users
-                .Get(new UserId(req.PlayerId))
-                .ClearRealtimeAsync(new PlayerRealtimeClearRequest
+                .Route(new UserId(req.PlayerId))
+                .CallAsync(
+                    UserBehavior.ClearRealtimeAsync,
+                    new PlayerRealtimeClearRequest
                 {
                     UserId = req.PlayerId,
                     RealtimeSessionId = realtimeSession.SessionId,
                     RealtimeSessionGeneration = realtimeSession.Generation,
                     ClearedAtUtc = DateTime.UtcNow,
                     Reason = ready.Message
-                })
+                },
+                    CancellationToken.None)
                 .ConfigureAwait(false);
             await call.GameServer
                 .TerminateSessionAsync(
@@ -200,8 +213,10 @@ internal sealed class BattleService
         }
 
         await _rooms
-            .Get(new RoomId(roomId))
-            .SubmitInputAsync(new RoomInputSubmitRequest
+            .Local(new RoomId(roomId))
+            .CallAsync(
+                RoomBehavior.SubmitInputAsync,
+                new RoomInputSubmitRequest
             {
                 RoomId = roomId,
                 UserId = playerId,
@@ -209,7 +224,8 @@ internal sealed class BattleService
                 RealtimeSessionGeneration = realtimeSessionGeneration.Value,
                 Input = req,
                 SubmittedAtUtc = DateTime.UtcNow
-            })
+            },
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 

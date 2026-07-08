@@ -11,30 +11,25 @@ namespace Server.Hotfix.Features;
 
 public sealed class BattleRuntimeTimerCallbacks
 {
-    public static ValueTask TickAsync(TimerTick<BattleRuntimeTimerArgs> tick)
+    public static async ValueTask TickAsync(TimerTick<BattleRuntimeTimerArgs> tick)
     {
         var rooms = tick.Services.GetRequiredService<RoomActors>();
         var logger = tick.Services.GetRequiredService<ILogger<BattleRuntimeTimerCallbacks>>();
         if (string.IsNullOrWhiteSpace(tick.Args.RoomId))
         {
             logger.LogDebug("Battle runtime timer tick skipped because no room id was provided.");
-            return default;
+            return;
         }
 
-        var result = rooms
+        await rooms
             .Local(new RoomId(tick.Args.RoomId))
-            .TryRunTickAsync(new RoomTickRequest
+            .PostAsync(
+                RoomBehavior.RunTickAsync,
+                new RoomTickRequest
             {
                 ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime
-            }, tick.CancellationToken);
-        if (result != ActorTellResult.Accepted)
-        {
-            logger.LogDebug(
-                "Battle runtime room tick enqueue was not accepted for room {RoomId}: {ActorTellResult}.",
-                tick.Args.RoomId,
-                result);
-        }
-
-        return default;
+            },
+                tick.CancellationToken)
+            .ConfigureAwait(false);
     }
 }

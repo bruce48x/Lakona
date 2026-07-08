@@ -346,25 +346,37 @@ public static partial class MatchmakingBehavior
     private static ValueTask<PlayerSessionSnapshot> GetSessionSnapshotAsync(MatchmakingActor self, string userId)
     {
         var users = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<UserActors>();
-        return users.Get(new UserId(userId)).GetSnapshotAsync(new PlayerSessionSnapshotRequest());
+        return users.Route(new UserId(userId)).CallAsync(
+            UserBehavior.GetSnapshotAsync,
+            new PlayerSessionSnapshotRequest(),
+            CancellationToken.None);
     }
 
     private static ValueTask<PlayerSessionSnapshot> MarkQueuedAsync(MatchmakingActor self, PlayerSessionQueueRequest request)
     {
         var users = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<UserActors>();
-        return users.Get(new UserId(request.UserId)).MarkQueuedAsync(request);
+        return users.Route(new UserId(request.UserId)).CallAsync(
+            UserBehavior.MarkQueuedAsync,
+            request,
+            CancellationToken.None);
     }
 
     private static ValueTask<PlayerSessionSnapshot> ClearQueueAsync(MatchmakingActor self, PlayerSessionQueueClearRequest request)
     {
         var users = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<UserActors>();
-        return users.Get(new UserId(request.UserId)).ClearQueueAsync(request);
+        return users.Route(new UserId(request.UserId)).CallAsync(
+            UserBehavior.ClearQueueAsync,
+            request,
+            CancellationToken.None);
     }
 
     private static ValueTask<PlayerSessionSnapshot> AssignRoomAsync(MatchmakingActor self, PlayerRoomAssignment request)
     {
         var users = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<UserActors>();
-        return users.Get(new UserId(request.UserId)).AssignRoomAsync(request);
+        return users.Route(new UserId(request.UserId)).CallAsync(
+            UserBehavior.AssignRoomAsync,
+            request,
+            CancellationToken.None);
     }
 
     private static async ValueTask<RoomSettlementResult> AllocateRoomAsync(MatchmakingActor self, RoomCreateRequest request)
