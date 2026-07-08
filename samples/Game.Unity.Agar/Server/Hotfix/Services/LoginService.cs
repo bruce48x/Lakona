@@ -21,7 +21,6 @@ namespace Server.Hotfix.Services;
 [HotfixService(typeof(ILoginService))]
 public sealed class LoginService
 {
-    private readonly ActorHosting _actorHosting;
     private readonly IClusterNodeDiscovery _clusterDiscovery;
     private readonly LocalActorNodeIdentity _localNode;
     private readonly UserActors _users;
@@ -32,14 +31,12 @@ public sealed class LoginService
         UserActors users,
         LakonaGameRuntimeOptions runtime,
         LocalActorNodeIdentity localNode,
-        ActorHosting actorHosting,
         IClusterNodeDiscovery clusterDiscovery,
         ILogger<LoginService> logger)
     {
         _users = users;
         _runtime = runtime;
         _localNode = localNode;
-        _actorHosting = actorHosting;
         _clusterDiscovery = clusterDiscovery;
         _logger = logger;
     }
