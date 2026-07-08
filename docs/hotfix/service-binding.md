@@ -85,8 +85,8 @@ package may run in both `Server.App` and `Server.Hotfix`, but
 `Server.Hotfix` must not emit another `*ServiceProxy`, endpoint binder, or
 `IHotfixRequiredServiceContracts` provider for shared RPC contracts. Hotfix
 projects compile the replaceable `[HotfixService]` and `[HotfixLifecycle]`
-implementations and any behavior-owned actor wrapper extensions; stable RPC
-binding remains in `Server.App`.
+implementations plus behavior-derived actor refs and generic call helpers;
+stable RPC binding remains in `Server.App`.
 
 There is no user-authored `.UseGeneratedHotfixServices()` step in generated
 projects. Generated binders and required-contract providers are framework

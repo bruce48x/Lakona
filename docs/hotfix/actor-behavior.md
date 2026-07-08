@@ -52,7 +52,7 @@ A user-authored actor class in `Server.App` must not declare methods such as:
 public Task<UserLoginResult> LoginAsync(string password, bool reconnect)
 public Task<RoomSettlementResult> StartAsync(RoomStartRequest request)
 public Task<LeaderboardSnapshot> GetLeaderboardAsync(LeaderboardQueryRequest request)
-private Task<Dictionary<string, RoomAssignment>> TryMatchAsync(DateTime nowUtc, bool allowExpiredPartialBatch)
+private Task<Dictionary<string, RoomAssignment>> SelectMatchBatchAsync(DateTime nowUtc, bool allowExpiredPartialBatch)
 ```
 
 Those methods are business behavior. They belong in a matching
@@ -88,7 +88,12 @@ internal static partial class RoomBehavior
 
 Those public extension methods are the actor API. Stable `Server.App` owns actor
 state, actor identity, and actor DTOs; `Server.Hotfix` owns the behavior-derived
-selectors, refs, and dispatch wrappers generated from those methods.
+selectors, refs, and generic call helpers generated from those methods.
+
+The first argument to `CallAsync` and `PostAsync` is a behavior method group.
+IDE go-to-definition lands on the behavior method, not on generated ref
+helpers. The generated ref resolves the method group to stable metadata
+immediately and does not retain the delegate.
 
 Behavior code runs inside an actor turn. It may read and mutate the actor's
 stable fields. It should access fields through `internal` members with
@@ -118,12 +123,15 @@ behavior-first actor selectors and call DTO-shaped behavior methods:
 
 ```csharp
 var result = await users
-    .Get(new UserId(account))
-    .LoginAsync(new UserLoginRequest
-    {
-        Password = request.Password,
-        Reconnect = request.Reconnect
-    });
+    .Route(new UserId(account))
+    .CallAsync(
+        UserBehavior.LoginAsync,
+        new UserLoginRequest
+        {
+            Password = request.Password,
+            Reconnect = request.Reconnect
+        },
+        CancellationToken.None);
 ```
 
 Hotfix feature descriptors configure feature services and command handlers.
@@ -281,5 +289,6 @@ local or remote dispatch must eventually enter the current hotfix Behavior.
 
 Samples must use generated behavior-first actor selectors for ordinary business
 actor calls. Raw `IActorRuntime.AskAsync` and `TellAsync` are framework-level
-escape hatches, not a normal service or behavior authoring style. When a node
-has already proven local ownership, use the generated `Local(id)` selector.
+escape hatches, not a normal service or behavior authoring style. Use
+`Route(id)` for ordinary cross-actor business calls. When a node has already
+proven local ownership, use the generated `Local(id)` selector.

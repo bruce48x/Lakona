@@ -563,17 +563,18 @@ Selection policy is intentionally small in V1. `AnyAsync` must return a ready
 node with a non-expired lease. Project-owned code may layer its own capacity or
 region policy on top of `ListAsync`.
 
-Actor-addressed remote actor calls:
+Actor-addressed actor calls:
 
 ```csharp
-await rooms.Local(roomId).SubmitInputAsync(input, cancellationToken);
-await rooms.Remote(nodeId, roomId).SubmitInputAsync(input, cancellationToken);
-await rooms.Get(roomId).SubmitInputAsync(input, cancellationToken);
+await rooms.Local(roomId).PostAsync(RoomBehavior.SubmitInputAsync, input, cancellationToken);
+await rooms.Route(roomId).PostAsync(RoomBehavior.SubmitInputAsync, input, cancellationToken);
 ```
 
-This finds a concrete actor route and dispatches through a
-`ClusterActorEnvelope`. Use actor-addressed calls for addressable state units
-such as rooms, player sessions, and leaderboard actors.
+`Route(id)` is the normal business path. It owns directory lookup and node
+selection before dispatching through a `ClusterActorEnvelope`. `Local(id)` is
+for code that has already proven current-node ownership. Use actor-addressed
+calls for addressable state units such as rooms, player sessions, and
+leaderboard actors.
 
 Generated remote actor refs serialize method request and reply payloads with
 the same serializer selected by `Lakona:Cluster:Serializer`. The public

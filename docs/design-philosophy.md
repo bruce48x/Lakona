@@ -48,7 +48,7 @@ Maintainers should treat the following as active simplification pressure:
   startup responsibilities should be factored behind named composition steps.
 - Source generators may generate multiple runtime products, but their internal
   implementation should be organized by product boundary so state accessors,
-  RPC service proxies, actor refs, wrappers, and diagnostics can evolve
+  RPC service proxies, actor refs, generic actor call helpers, and diagnostics can evolve
   independently.
 
 Current high-priority simplification targets:
@@ -58,7 +58,7 @@ Current high-priority simplification targets:
   generated service construction needs request/session metadata.
 - `HotfixGenerator.cs` should keep generated output stable while its internals
   are split by product boundary: state accessors, stable RPC service proxies,
-  behavior-derived actor refs and wrappers, diagnostics, and shared naming/key
+  behavior-derived actor refs and generic call helpers, diagnostics, and shared naming/key
   helpers.
 - Hotfix activation should move from implicit root-provider fallback toward an
   explicit stable-dependency bridge so reloadable code can see which stable
@@ -126,14 +126,14 @@ Remote cost must not disappear behind local-looking magic. Actor calls use
 generated selectors:
 
 ```csharp
-await rooms.Get(roomId).JoinAsync(request, cancellationToken);
-await rooms.Local(roomId).JoinAsync(request, cancellationToken);
-await rooms.Remote(nodeId, roomId).JoinAsync(request, cancellationToken);
+await rooms.Route(roomId).CallAsync(RoomBehavior.JoinAsync, request, cancellationToken);
+await rooms.Local(roomId).CallAsync(RoomBehavior.JoinAsync, request, cancellationToken);
 ```
 
-`Get(id)` is the normal business path and resolves placement. `Local(id)` means
-this process only. `Remote(nodeId, id)` means a specific node. The business
-method stays the same, while placement remains visible.
+`Route(id)` is the normal business path and owns directory lookup plus node
+selection. `Local(id)` means this process only after the caller has already
+proven local ownership. The behavior method stays explicit, while placement
+remains visible.
 
 ### At-Least-Once With Idempotent Receivers
 

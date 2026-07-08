@@ -105,13 +105,16 @@ internal sealed class HotfixRenderer : IPlanContributor
                         ? "Player"
                         : call.Request.PlayerName.Trim();
                     var reply = await _rooms
-                        .Get(ChatRoomIds.Global)
-                        .LoginAsync(new ChatRoomLoginRequest
-                        {
-                            ConnectionId = call.ConnectionId,
-                            PlayerName = playerName,
-                            LoginCallback = call.Callback
-                        });
+                        .Route(ChatRoomIds.Global)
+                        .CallAsync(
+                            ChatRoomBehavior.LoginAsync,
+                            new ChatRoomLoginRequest
+                            {
+                                ConnectionId = call.ConnectionId,
+                                PlayerName = playerName,
+                                LoginCallback = call.Callback
+                            },
+                            CancellationToken.None);
                     await _gameServer.StartSessionAsync(
                         playerName,
                         call.ConnectionId,
@@ -164,23 +167,29 @@ internal sealed class HotfixRenderer : IPlanContributor
                     _logger.LogInformation("Sending {CharacterCount} characters", text.Length);
                     await BindChatCallbackAsync(call.ConnectionId, call.Callback);
                     await _rooms
-                        .Get(ChatRoomIds.Global)
-                        .SendAsync(new ChatRoomSendRequest
-                        {
-                            ConnectionId = call.ConnectionId,
-                            Text = FilterMessage(text)
-                        });
+                        .Route(ChatRoomIds.Global)
+                        .CallAsync(
+                            ChatRoomBehavior.SendAsync,
+                            new ChatRoomSendRequest
+                            {
+                                ConnectionId = call.ConnectionId,
+                                Text = FilterMessage(text)
+                            },
+                            CancellationToken.None);
                 }
 
                 private async ValueTask BindChatCallbackAsync(string connectionId, IChatCallback callback)
                 {
                     await _rooms
-                        .Get(ChatRoomIds.Global)
-                        .BindChatAsync(new ChatRoomBindRequest
-                        {
-                            ConnectionId = connectionId,
-                            ChatCallback = callback
-                        });
+                        .Route(ChatRoomIds.Global)
+                        .CallAsync(
+                            ChatRoomBehavior.BindChatAsync,
+                            new ChatRoomBindRequest
+                            {
+                                ConnectionId = connectionId,
+                                ChatCallback = callback
+                            },
+                            CancellationToken.None);
                 }
 
                 private static string FilterMessage(string text)
@@ -406,11 +415,14 @@ internal sealed class HotfixRenderer : IPlanContributor
                     }
 
                     await _rooms
-                        .Get(ChatRoomIds.Global)
-                        .LeaveAsync(new ChatRoomLeaveRequest
-                        {
-                            ConnectionId = connectionId
-                        });
+                        .Route(ChatRoomIds.Global)
+                        .CallAsync(
+                            ChatRoomBehavior.LeaveAsync,
+                            new ChatRoomLeaveRequest
+                            {
+                                ConnectionId = connectionId
+                            },
+                            CancellationToken.None);
                 }
             }
         }

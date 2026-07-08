@@ -134,7 +134,7 @@ not use runtime reflection for normal actor field access.
 
 Public extension methods in `[HotfixBehaviorOf]` classes are the actor API.
 Stable `Server.App` owns actor state and actor DTOs. `Server.Hotfix` owns the
-behavior-derived actor selectors, refs, and dispatch wrappers that expose those
+behavior-derived actor selectors, refs, and generic call helpers that expose those
 methods to service and lifecycle code.
 
 Hotfix code must not own long-lived timers, threads, static event
@@ -409,10 +409,9 @@ public sealed class HotfixLifecycleCall<TRequest> :
 ```
 
 RPC services and actor behaviors use generated behavior-first actor selectors
-for ordinary business actor calls. `Get(id)` is the default service path and
-resolves local or remote placement through the actor directory. `Local(id)` is
-reserved for code that has already proven current-node ownership. `Remote(nodeId,
-id)` pins a specific target node.
+for ordinary business actor calls. `Route(id)` is the default service path and
+owns actor-directory lookup plus node selection. `Local(id)` is reserved for
+code that has already proven current-node ownership.
 
 Hotfix-generated behavior-first actor selectors and refs are derived from
 public methods on `[HotfixBehaviorOf]` classes and expose the behavior API at
@@ -446,7 +445,7 @@ Instance service methods must use `HotfixServiceCall<TRequest>` or
 `HotfixServiceCall<TRequest, TCallback>`. Instance lifecycle methods must use
 `HotfixLifecycleCall<TRequest>`. Static service methods may continue to accept
 raw request DTO parameters for allocation-sensitive paths. The scanner rejects
-instance/raw-DTO dispatch and wrapper mismatches so service and lifecycle
+instance/raw-DTO dispatch and generated-call-shape mismatches so service and lifecycle
 contracts cannot be accidentally crossed.
 
 ## BuildTag
@@ -459,7 +458,7 @@ Update it only when the stable boundary visible to hotfix code changes:
 
 - actor fields are added, removed, renamed, or retyped
 - `Shared` service contracts or DTOs change
-- hotfix dispatch or generated wrapper shape changes
+- hotfix dispatch or generated actor-ref/call-helper shape changes
 - hotfix-visible internal stable types change incompatibly
 
 Do not update it for pure hotfix logic changes, comments, docs, tests, or stable

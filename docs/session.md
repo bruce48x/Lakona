@@ -178,7 +178,7 @@ public interface IGameSessionLifecycle
 `SessionDisconnectedAsync` is published after an RPC connection bound to a game
 session is marked disconnected. `SessionExpiredAsync` is published after cleanup
 removes a stale disconnected game session. Both methods are invoked through
-stable `[RpcMethod]` ids and hotfix lifecycle wrappers; user-authored hotfix
+stable `[RpcMethod]` ids and hotfix lifecycle dispatch helpers; user-authored hotfix
 implementations accept `HotfixLifecycleCall<TRequest>`.
 
 Both request types carry framework session state only:

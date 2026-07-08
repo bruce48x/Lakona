@@ -75,57 +75,44 @@ The detailed authoring rules are in
 
 ## Generated Actor Access
 
-Generated actor APIs should expose typed accessors for local and distributed
+Generated actor APIs should expose typed accessors for local and routed
 calls without asking business code to hand-write actor ids, route keys,
 serializers, or reply-correlation plumbing.
 
 ```csharp
 public sealed class RoomActors
 {
-    public RoomRef Get(RoomId id);
-
     public RoomLocalRef Local(RoomId id);
 
-    public RoomRemoteRef Remote(NodeId node, RoomId id);
+    public RoomRouteRef Route(RoomId id);
 }
 ```
 
-Business code uses distributed access by default:
+Inside the same actor turn, call the actor instance directly. Across actor
+boundaries, use the generated collection:
 
 ```csharp
-var reply = await rooms
-    .Get(roomId)
-    .JoinAsync(request, cancellationToken);
-```
-
-Use explicit selectors when the placement matters:
-
-```csharp
-var localReply = await rooms
-    .Local(roomId)
-    .JoinAsync(request, cancellationToken);
-
-var pinnedReply = await rooms
-    .Remote(nodeId, roomId)
-    .JoinAsync(request, cancellationToken);
+await rooms.Route(roomId).CallAsync(RoomBehavior.JoinAsync, request, cancellationToken);
+await rooms.Local(roomId).PostAsync(RoomBehavior.RunTickAsync, request, cancellationToken);
 ```
 
 Selector semantics:
 
-- `Get(id)` checks the local runtime first, then resolves placement through
-  `ActorDirectory`.
-- `Local(id)` invokes only the process-local actor runtime.
-- `Remote(nodeId, id)` sends to the specified node and does not query
-  placement.
+- `Route(id)` is the normal business path. It owns actor-directory lookup and
+  node selection before dispatch.
+- `Local(id)` invokes only the process-local actor runtime and should be used
+  only after the caller has already proven current-node ownership.
 
 Generated actor collections are call selectors only. They must not expose
 lifecycle helpers such as `SpawnAsync`, `DestroyAsync`, or hidden hook-based
 creation methods. Actor hosting is a separate operation owned by
 `ActorHosting`.
 
-The business method surface should return normally or throw typed actor call
-exceptions. Lower-level status-returning APIs remain available for framework
-internals and boundary services.
+Generated actor refs expose generic `CallAsync` and `PostAsync` helpers.
+`CallAsync` is completion-aware and surfaces the behavior reply or a typed
+actor call failure. `PostAsync` is acceptance-only and completes once the
+mailbox or remote transport accepts the work. Lower-level status-returning
+APIs remain available for framework internals and boundary services.
 
 Remote actor request and reply payloads use the cluster serializer selected by
 `Lakona:Cluster:Serializer`. They do not use the client-facing endpoint
@@ -161,8 +148,7 @@ public sealed class RoomActor : Actor<RoomId>
 ```
 
 This avoids separate key attributes and avoids generator guessing. The
-generator uses `TKey` to type `Get(TKey id)`, `Local(TKey id)`, and
-`Remote(NodeId nodeId, TKey id)`.
+generator uses `TKey` to type `Local(TKey id)` and `Route(TKey id)`.
 
 Default key-to-string conversion:
 
@@ -195,15 +181,15 @@ framework lifecycle APIs.
 
 ## Failure Model
 
-Generated business methods return a reply on success and throw typed exceptions
-on local or distributed failure.
+Generated `CallAsync` operations return a reply on success and throw typed
+exceptions on local or routed failure.
 
 ```csharp
 try
 {
     var reply = await rooms
-        .Get(roomId)
-        .JoinAsync(request, cancellationToken);
+        .Route(roomId)
+        .CallAsync(RoomBehavior.JoinAsync, request, cancellationToken);
 }
 catch (ActorCallException ex) when (ex.Status == ActorCallStatus.ActorNotFound)
 {
@@ -239,7 +225,7 @@ The generated typed API sits above existing cluster primitives:
 
 ```txt
 game service code
-  -> generated RoomActors.Get/Local/Remote refs
+  -> generated RoomActors.Local/Route refs
   -> ActorDirectory cache / local actor invoker / remote actor invoker
   -> IActorRuntime / IClusterRouter
   -> ClusterActorEnvelope
@@ -258,8 +244,8 @@ business API.
 remains public because generated actor refs, hotfix service boundaries, tests,
 diagnostics, and framework integrations may live in user assemblies, but it is
 process-local and not the recommended daily business API. Ordinary gameplay
-code should use generated actor selectors so local, distributed, and pinned
-remote placement intent remains visible at the call site.
+code should use generated actor selectors so local and routed placement intent
+remains visible at the call site.
 
 ## Managed Lifecycle
 
