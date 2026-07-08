@@ -1,5 +1,6 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
@@ -88,6 +89,78 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
         var registration = Assert.Single(directory.Registrations);
         var feature = Assert.Single(registration.Features);
         Assert.Equal("battle-runtime", feature.Name);
+    }
+
+    [Fact]
+    public async Task RegistrationPublishesConfiguredActorHosts()
+    {
+        var directory = new RecordingNodeDirectory();
+        var services = new ServiceCollection();
+        services.AddSingleton<INodeDirectory>(directory);
+        services.AddSingleton(new ClusterOptions
+        {
+            NodeId = "battle-1",
+            AdvertisedEndpoints = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["cluster"] = "tcp://10.0.0.1:21001"
+            },
+            RouteLeaseSeconds = 45
+        });
+        services.AddSingleton(new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "battle-1" },
+            ActorHosts = ["room"],
+            Cluster = LakonaGameClusterOptions.Defaults()
+        });
+        services.AddSingleton(new ActorHostDescriptorCatalog(
+        [
+            new ActorHostDescriptor("room", "policy-room", "build-test")
+        ]));
+        services.AddSingleton(new LakonaGameFeatureCatalog([], []));
+        services.AddSingleton<IHostedService, LakonaGameClusterRegistrationHostedService>();
+        await using var provider = services.BuildServiceProvider();
+        var hosted = provider.GetRequiredService<IHostedService>();
+
+        await hosted.StartAsync(TestContext.Current.CancellationToken);
+
+        var registration = Assert.Single(directory.Registrations);
+        Assert.Empty(registration.Features);
+        var host = Assert.Single(registration.ActorHosts);
+        Assert.Equal("room", host.Actor);
+        Assert.Equal("policy-room", host.PolicyHash);
+        Assert.Equal("build-test", host.BuildTag);
+    }
+
+    [Fact]
+    public async Task RegistrationFailsForUnknownConfiguredActorHost()
+    {
+        var directory = new RecordingNodeDirectory();
+        var services = new ServiceCollection();
+        services.AddSingleton<INodeDirectory>(directory);
+        services.AddSingleton(new ClusterOptions
+        {
+            NodeId = "battle-1",
+            AdvertisedEndpoints = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["cluster"] = "tcp://10.0.0.1:21001"
+            },
+            RouteLeaseSeconds = 45
+        });
+        services.AddSingleton(new LakonaGameRuntimeOptions
+        {
+            ActorHosts = ["room"]
+        });
+        services.AddSingleton(new ActorHostDescriptorCatalog([]));
+        services.AddSingleton(new LakonaGameFeatureCatalog([], []));
+        services.AddSingleton<IHostedService, LakonaGameClusterRegistrationHostedService>();
+        await using var provider = services.BuildServiceProvider();
+        var hosted = provider.GetRequiredService<IHostedService>();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            hosted.StartAsync(TestContext.Current.CancellationToken));
+
+        Assert.Contains("room", exception.Message, StringComparison.Ordinal);
+        Assert.Empty(directory.Registrations);
     }
 
     [Fact]
@@ -388,6 +461,7 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
                 Registrations.Count,
                 registration.Endpoints,
                 registration.Features,
+                registration.ActorHosts,
                 registration.Labels,
                 registration.State,
                 registration.LeaseExpiresAt,
@@ -449,6 +523,7 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
                     index + 1,
                     registration.Endpoints,
                     registration.Features,
+                    registration.ActorHosts,
                     registration.Labels,
                     registration.State,
                     registration.LeaseExpiresAt,

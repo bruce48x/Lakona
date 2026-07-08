@@ -116,6 +116,7 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.TryAddSingleton<IFeatureMessageHandler, HotfixFeatureMessageHandler>();
         services.TryAddSingleton<IGameHandshakeService, GameHandshakeService>();
         services.TryAddSingleton<IFeatureCommandClient, FeatureCommandClient>();
+        services.TryAddSingleton(new ActorHostDescriptorCatalog([]));
         services.TryAddSingleton<ILakonaGameServer, DefaultLakonaGameServer>();
         if (configuration is null)
         {

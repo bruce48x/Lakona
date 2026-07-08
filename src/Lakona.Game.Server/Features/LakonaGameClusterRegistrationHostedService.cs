@@ -1,4 +1,5 @@
 using Lakona.Game.Cluster;
+using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
@@ -18,6 +19,7 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
     private INodeDirectory? _directory;
     private ClusterOptions? _options;
     private LakonaGameFeatureCatalog? _catalog;
+    private ActorHostDescriptorCatalog? _actorHostCatalog;
     private IHotfixManager? _hotfix;
     private NodeRecord? _record;
 
@@ -31,6 +33,7 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
         var directory = _services.GetService<INodeDirectory>();
         var options = _services.GetService<ClusterOptions>();
         var catalog = _services.GetService<LakonaGameFeatureCatalog>();
+        var actorHostCatalog = _services.GetService<ActorHostDescriptorCatalog>();
         if (directory is null || options is null || catalog is null)
         {
             return;
@@ -39,6 +42,7 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
         _directory = directory;
         _options = options;
         _catalog = catalog;
+        _actorHostCatalog = actorHostCatalog;
         _hotfix = _services.GetService<IHotfixManager>();
         _record = await RegisterAsync(directory, options, catalog, cancellationToken)
             .ConfigureAwait(false);
@@ -153,6 +157,7 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
                 record.NodeEpoch,
                 record.Endpoints,
                 record.Features,
+                record.ActorHosts,
                 record.Labels,
                 record.State,
                 leaseExpiresAt,
@@ -189,6 +194,7 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
             new NodeId(options.NodeId),
             CreateEndpoints(options.AdvertisedEndpoints),
             CreateFeatures(catalog, hotfixSnapshot),
+            CreateActorHosts(_services.GetService<LakonaGameRuntimeOptions>(), _actorHostCatalog),
             now.AddSeconds(options.RouteLeaseSeconds),
             NodeState.Ready);
         var result = await directory.RegisterAsync(registration, now, cancellationToken)
@@ -299,6 +305,43 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
 
         return result.Values
             .OrderBy(static feature => feature.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static IReadOnlyList<NodeActorHostDescriptor> CreateActorHosts(
+        LakonaGameRuntimeOptions? runtimeOptions,
+        ActorHostDescriptorCatalog? catalog)
+    {
+        var configured = runtimeOptions?.ActorHosts ?? [];
+        if (configured.Count == 0)
+        {
+            return [];
+        }
+
+        if (catalog is null)
+        {
+            throw new InvalidOperationException(
+                "Lakona:ActorHosts is configured but no actor host descriptor catalog is registered.");
+        }
+
+        var result = new List<NodeActorHostDescriptor>(configured.Count);
+        foreach (var actor in configured)
+        {
+            if (!catalog.TryGet(actor, out var descriptor))
+            {
+                throw new InvalidOperationException(
+                    $"Lakona:ActorHosts contains unknown actor host '{actor}'.");
+            }
+
+            result.Add(new NodeActorHostDescriptor(
+                descriptor.Actor,
+                descriptor.PolicyHash,
+                descriptor.BuildTag,
+                descriptor.Metadata));
+        }
+
+        return result
+            .OrderBy(static host => host.Actor, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
 
