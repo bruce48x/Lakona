@@ -200,6 +200,60 @@ public sealed class NodeDirectoryClientTests
     }
 
     [Fact]
+    public async Task ResolvePreservesActorHosts()
+    {
+        var registry = new RpcServiceRegistry();
+        var directory = new InMemoryNodeDirectory();
+        NodeDirectoryBinder.Bind(registry, directory);
+        var serializer = new JsonTestSerializer();
+        await using var session = new RpcSession(new FakeTransport(), serializer);
+        var now = DateTimeOffset.UtcNow;
+        var registration = TestRegistration(
+            "local",
+            "battle-1",
+            now,
+            actorHosts: new[]
+            {
+                new NodeActorHostDescriptor(
+                    "room",
+                    "policy-1",
+                    "build-1",
+                    new Dictionary<string, string>
+                    {
+                        ["region"] = "us-east"
+                    })
+            });
+
+        await InvokeAsync<NodeRegisterRequest, NodeRegisterReply>(
+            registry,
+            session,
+            ClusterProtocol.RegisterNodeMethodId,
+            new NodeRegisterRequest
+            {
+                Registration = NodeDirectoryRecordConverter.ToDto(registration),
+                Now = now
+            });
+        var resolve = await InvokeAsync<NodeResolveRequest, NodeResolveReply>(
+            registry,
+            session,
+            ClusterProtocol.ResolveNodeMethodId,
+            new NodeResolveRequest
+            {
+                ClusterName = "local",
+                Node = "battle-1",
+                Now = now.AddSeconds(1)
+            });
+
+        Assert.NotNull(resolve.Record);
+        Assert.NotNull(resolve.Record!.ActorHosts);
+        var host = Assert.Single(resolve.Record.ActorHosts);
+        Assert.Equal("room", host.Actor);
+        Assert.Equal("policy-1", host.PolicyHash);
+        Assert.Equal("build-1", host.BuildTag);
+        Assert.Equal("us-east", host.Metadata!["region"]);
+    }
+
+    [Fact]
     public async Task QueryReturnsServiceFilteredNodes()
     {
         var directory = new InMemoryNodeDirectory();
@@ -316,7 +370,8 @@ public sealed class NodeDirectoryClientTests
         string clusterName,
         string nodeId,
         DateTimeOffset now,
-        string featureName = "gateway")
+        string featureName = "gateway",
+        IReadOnlyList<NodeActorHostDescriptor>? actorHosts = null)
     {
         return new NodeRegistration(
             clusterName,
@@ -339,6 +394,7 @@ public sealed class NodeDirectoryClientTests
                         ["region"] = "us-east"
                     })
             },
+            actorHosts ?? Array.Empty<NodeActorHostDescriptor>(),
             now.AddSeconds(30),
             NodeState.Ready,
             new Dictionary<string, string>
@@ -355,6 +411,7 @@ public sealed class NodeDirectoryClientTests
             nodeEpoch,
             registration.Endpoints,
             registration.Features,
+            registration.ActorHosts,
             registration.Labels,
             registration.State,
             registration.LeaseExpiresAt,

@@ -17,6 +17,17 @@ namespace Lakona.Game.Cluster.Rpc
         public Dictionary<string, string>? Metadata { get; set; }
     }
 
+    public sealed class NodeActorHostDto
+    {
+        public string Actor { get; set; } = string.Empty;
+
+        public string PolicyHash { get; set; } = string.Empty;
+
+        public string BuildTag { get; set; } = string.Empty;
+
+        public Dictionary<string, string>? Metadata { get; set; }
+    }
+
     public sealed class NodeRegistrationDto
     {
         public string ClusterName { get; set; } = string.Empty;
@@ -26,6 +37,8 @@ namespace Lakona.Game.Cluster.Rpc
         public Dictionary<string, NodeEndpointDto>? Endpoints { get; set; }
 
         public List<NodeFeatureDto>? Features { get; set; }
+
+        public List<NodeActorHostDto>? ActorHosts { get; set; }
 
         public Dictionary<string, string>? Labels { get; set; }
 
@@ -46,6 +59,8 @@ namespace Lakona.Game.Cluster.Rpc
 
         public List<NodeFeatureDto>? Features { get; set; }
 
+        public List<NodeActorHostDto>? ActorHosts { get; set; }
+
         public Dictionary<string, string>? Labels { get; set; }
 
         public int State { get; set; }
@@ -60,6 +75,10 @@ namespace Lakona.Game.Cluster.Rpc
         public string ClusterName { get; set; } = string.Empty;
 
         public string? FeatureName { get; set; }
+
+        public string? ActorHostName { get; set; }
+
+        public string? ActorHostPolicyHash { get; set; }
 
         public int? State { get; set; }
 

@@ -85,6 +85,7 @@ namespace Lakona.Game.Cluster.Sql
                         "state INTEGER NOT NULL, " +
                         "endpoints_json TEXT NOT NULL, " +
                         "features_json TEXT NOT NULL, " +
+                        "actor_hosts_json TEXT NOT NULL, " +
                         "labels_json TEXT NOT NULL, " +
                         "lease_expires_at INTEGER NOT NULL, " +
                         "updated_at INTEGER NOT NULL, " +
@@ -98,6 +99,7 @@ namespace Lakona.Game.Cluster.Sql
                         "state INTEGER NOT NULL, " +
                         "endpoints_json TEXT NOT NULL, " +
                         "features_json TEXT NOT NULL, " +
+                        "actor_hosts_json TEXT NOT NULL, " +
                         "labels_json TEXT NOT NULL, " +
                         "lease_expires_at BIGINT NOT NULL, " +
                         "updated_at BIGINT NOT NULL, " +
@@ -111,6 +113,7 @@ namespace Lakona.Game.Cluster.Sql
                         "state INT NOT NULL, " +
                         "endpoints_json TEXT NOT NULL, " +
                         "features_json TEXT NOT NULL, " +
+                        "actor_hosts_json TEXT NOT NULL, " +
                         "labels_json TEXT NOT NULL, " +
                         "lease_expires_at BIGINT NOT NULL, " +
                         "updated_at BIGINT NOT NULL, " +
@@ -128,7 +131,7 @@ namespace Lakona.Game.Cluster.Sql
                 case SqlNodeDirectoryDialect.Postgres:
                 case SqlNodeDirectoryDialect.MySql:
                     return
-                        "SELECT cluster_name, node_id, node_epoch, state, endpoints_json, features_json, labels_json, lease_expires_at, updated_at " +
+                        "SELECT cluster_name, node_id, node_epoch, state, endpoints_json, features_json, actor_hosts_json, labels_json, lease_expires_at, updated_at " +
                         "FROM " + tableName + " WHERE 1 = 0";
                 default:
                     throw new ArgumentOutOfRangeException(nameof(dialect), dialect, "Unsupported SQL node directory dialect.");

@@ -19,6 +19,7 @@ namespace Lakona.Game.Cluster.Rpc
                 Node = registration.NodeId.Value,
                 Endpoints = CopyEndpoints(registration.Endpoints),
                 Features = CopyFeatures(registration.Features),
+                ActorHosts = CopyActorHosts(registration.ActorHosts),
                 Labels = CopyDictionary(registration.Labels),
                 State = (int)registration.State,
                 LeaseExpiresAt = registration.LeaseExpiresAt
@@ -37,6 +38,7 @@ namespace Lakona.Game.Cluster.Rpc
                 dto.Node,
                 ToEndpoints(dto.Endpoints),
                 ToFeatures(dto.Features),
+                ToActorHosts(dto.ActorHosts),
                 dto.LeaseExpiresAt,
                 ToNodeState(dto.State),
                 CopyDictionary(dto.Labels));
@@ -56,6 +58,7 @@ namespace Lakona.Game.Cluster.Rpc
                 NodeEpoch = record.NodeEpoch,
                 Endpoints = CopyEndpoints(record.Endpoints),
                 Features = CopyFeatures(record.Features),
+                ActorHosts = CopyActorHosts(record.ActorHosts),
                 Labels = CopyDictionary(record.Labels),
                 State = (int)record.State,
                 LeaseExpiresAt = record.LeaseExpiresAt,
@@ -76,6 +79,7 @@ namespace Lakona.Game.Cluster.Rpc
                 dto.NodeEpoch,
                 ToEndpoints(dto.Endpoints),
                 ToFeatures(dto.Features),
+                ToActorHosts(dto.ActorHosts),
                 CopyDictionary(dto.Labels),
                 ToNodeState(dto.State),
                 dto.LeaseExpiresAt,
@@ -93,6 +97,8 @@ namespace Lakona.Game.Cluster.Rpc
             {
                 ClusterName = query.ClusterName,
                 FeatureName = query.FeatureName,
+                ActorHostName = query.ActorHostName,
+                ActorHostPolicyHash = query.ActorHostPolicyHash,
                 State = query.State.HasValue ? (int)query.State.Value : (int?)null,
                 Labels = CopyDictionary(query.Labels),
                 IncludeExpired = query.IncludeExpired
@@ -108,10 +114,12 @@ namespace Lakona.Game.Cluster.Rpc
 
             return new NodeDirectoryQuery(
                 dto.ClusterName,
-                dto.FeatureName,
-                dto.State.HasValue ? ToNodeState(dto.State.Value) : (NodeState?)null,
-                CopyDictionary(dto.Labels),
-                dto.IncludeExpired);
+                featureName: dto.FeatureName,
+                actorHostName: dto.ActorHostName,
+                actorHostPolicyHash: dto.ActorHostPolicyHash,
+                state: dto.State.HasValue ? ToNodeState(dto.State.Value) : (NodeState?)null,
+                labels: CopyDictionary(dto.Labels),
+                includeExpired: dto.IncludeExpired);
         }
 
         private static Dictionary<string, NodeEndpointDto> CopyEndpoints(
@@ -188,6 +196,50 @@ namespace Lakona.Game.Cluster.Rpc
             {
                 copy.Add(new NodeFeatureDescriptor(
                     source[i].Name,
+                    CopyDictionary(source[i].Metadata)));
+            }
+
+            return copy;
+        }
+
+        private static List<NodeActorHostDto> CopyActorHosts(
+            IReadOnlyList<NodeActorHostDescriptor>? source)
+        {
+            var copy = new List<NodeActorHostDto>();
+            if (source is null)
+            {
+                return copy;
+            }
+
+            for (var i = 0; i < source.Count; i++)
+            {
+                copy.Add(new NodeActorHostDto
+                {
+                    Actor = source[i].Actor,
+                    PolicyHash = source[i].PolicyHash,
+                    BuildTag = source[i].BuildTag,
+                    Metadata = CopyDictionary(source[i].Metadata)
+                });
+            }
+
+            return copy;
+        }
+
+        private static List<NodeActorHostDescriptor> ToActorHosts(
+            IReadOnlyList<NodeActorHostDto>? source)
+        {
+            var copy = new List<NodeActorHostDescriptor>();
+            if (source is null)
+            {
+                return copy;
+            }
+
+            for (var i = 0; i < source.Count; i++)
+            {
+                copy.Add(new NodeActorHostDescriptor(
+                    source[i].Actor,
+                    source[i].PolicyHash,
+                    source[i].BuildTag,
                     CopyDictionary(source[i].Metadata)));
             }
 

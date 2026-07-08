@@ -11,9 +11,9 @@ namespace Lakona.Game.Cluster.Sql.Tests;
 public sealed class SqlNodeDirectoryTests
 {
     [Theory]
-    [InlineData(SqlNodeDirectoryDialect.Postgres, "CREATE TABLE IF NOT EXISTS lakona_cluster_nodes (cluster_name TEXT NOT NULL, node_id TEXT NOT NULL, node_epoch BIGINT NOT NULL, state INTEGER NOT NULL, endpoints_json TEXT NOT NULL, features_json TEXT NOT NULL, labels_json TEXT NOT NULL, lease_expires_at BIGINT NOT NULL, updated_at BIGINT NOT NULL, PRIMARY KEY (cluster_name, node_id))")]
-    [InlineData(SqlNodeDirectoryDialect.MySql, "CREATE TABLE IF NOT EXISTS lakona_cluster_nodes (cluster_name VARCHAR(256) NOT NULL, node_id VARCHAR(256) NOT NULL, node_epoch BIGINT NOT NULL, state INT NOT NULL, endpoints_json TEXT NOT NULL, features_json TEXT NOT NULL, labels_json TEXT NOT NULL, lease_expires_at BIGINT NOT NULL, updated_at BIGINT NOT NULL, PRIMARY KEY (cluster_name, node_id))")]
-    [InlineData(SqlNodeDirectoryDialect.Sqlite, "CREATE TABLE IF NOT EXISTS lakona_cluster_nodes (cluster_name TEXT NOT NULL, node_id TEXT NOT NULL, node_epoch INTEGER NOT NULL, state INTEGER NOT NULL, endpoints_json TEXT NOT NULL, features_json TEXT NOT NULL, labels_json TEXT NOT NULL, lease_expires_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (cluster_name, node_id))")]
+    [InlineData(SqlNodeDirectoryDialect.Postgres, "CREATE TABLE IF NOT EXISTS lakona_cluster_nodes (cluster_name TEXT NOT NULL, node_id TEXT NOT NULL, node_epoch BIGINT NOT NULL, state INTEGER NOT NULL, endpoints_json TEXT NOT NULL, features_json TEXT NOT NULL, actor_hosts_json TEXT NOT NULL, labels_json TEXT NOT NULL, lease_expires_at BIGINT NOT NULL, updated_at BIGINT NOT NULL, PRIMARY KEY (cluster_name, node_id))")]
+    [InlineData(SqlNodeDirectoryDialect.MySql, "CREATE TABLE IF NOT EXISTS lakona_cluster_nodes (cluster_name VARCHAR(256) NOT NULL, node_id VARCHAR(256) NOT NULL, node_epoch BIGINT NOT NULL, state INT NOT NULL, endpoints_json TEXT NOT NULL, features_json TEXT NOT NULL, actor_hosts_json TEXT NOT NULL, labels_json TEXT NOT NULL, lease_expires_at BIGINT NOT NULL, updated_at BIGINT NOT NULL, PRIMARY KEY (cluster_name, node_id))")]
+    [InlineData(SqlNodeDirectoryDialect.Sqlite, "CREATE TABLE IF NOT EXISTS lakona_cluster_nodes (cluster_name TEXT NOT NULL, node_id TEXT NOT NULL, node_epoch INTEGER NOT NULL, state INTEGER NOT NULL, endpoints_json TEXT NOT NULL, features_json TEXT NOT NULL, actor_hosts_json TEXT NOT NULL, labels_json TEXT NOT NULL, lease_expires_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (cluster_name, node_id))")]
     public void CreateTableSqlReturnsDialectSpecificInitialSchema(SqlNodeDirectoryDialect dialect, string expected)
     {
         Assert.Equal(expected, SqlNodeDirectorySchema.CreateTableSql(dialect));
@@ -172,6 +172,64 @@ public sealed class SqlNodeDirectoryTests
 
         Assert.Single(rooms);
         Assert.Equal("room-1", rooms[0].NodeId.Value);
+    }
+
+    [Fact]
+    public async Task ResolveAndQueryPreservePersistedActorHosts()
+    {
+        await using var database = await OpenSharedDatabaseAsync();
+        await SqlNodeDirectorySchema.EnsureCreatedAsync(
+            database.KeeperConnection,
+            SqlNodeDirectoryDialect.Sqlite,
+            cancellationToken: TestContext.Current.CancellationToken);
+        var directory = CreateDirectory(database.ConnectionString);
+        var now = DateTimeOffset.UtcNow;
+
+        await directory.RegisterAsync(
+            TestRegistration(
+                "local",
+                "room-1",
+                now,
+                actorHosts: new[]
+                {
+                    new NodeActorHostDescriptor(
+                        "room",
+                        "policy-1",
+                        "build-1",
+                        new Dictionary<string, string>
+                        {
+                            ["region"] = "us-east"
+                        })
+                }),
+            now,
+            TestContext.Current.CancellationToken);
+        await directory.RegisterAsync(
+            TestRegistration(
+                "local",
+                "room-2",
+                now,
+                actorHosts: new[] { new NodeActorHostDescriptor("room", "policy-2", "build-1") }),
+            now,
+            TestContext.Current.CancellationToken);
+
+        var resolved = await directory.ResolveAsync(
+            "local",
+            "room-1",
+            now.AddSeconds(1),
+            TestContext.Current.CancellationToken);
+        var records = await directory.QueryAsync(
+            new NodeDirectoryQuery("local", actorHostName: "room", actorHostPolicyHash: "policy-1"),
+            now.AddSeconds(1),
+            TestContext.Current.CancellationToken);
+
+        Assert.NotNull(resolved);
+        var resolvedHost = Assert.Single(resolved!.ActorHosts);
+        Assert.Equal("room", resolvedHost.Actor);
+        Assert.Equal("policy-1", resolvedHost.PolicyHash);
+        Assert.Equal("build-1", resolvedHost.BuildTag);
+        Assert.Equal("us-east", resolvedHost.Metadata["region"]);
+        var queried = Assert.Single(records);
+        Assert.Equal("room-1", queried.NodeId.Value);
     }
 
     [Fact]
@@ -510,7 +568,8 @@ public sealed class SqlNodeDirectoryTests
         string nodeId,
         DateTimeOffset now,
         string featureName = "gateway",
-        DateTimeOffset? leaseExpiresAt = null)
+        DateTimeOffset? leaseExpiresAt = null,
+        IReadOnlyList<NodeActorHostDescriptor>? actorHosts = null)
     {
         return new NodeRegistration(
             clusterName,
@@ -533,6 +592,7 @@ public sealed class SqlNodeDirectoryTests
                         ["role"] = featureName
                     })
             },
+            actorHosts ?? Array.Empty<NodeActorHostDescriptor>(),
             leaseExpiresAt ?? now.AddSeconds(30),
             NodeState.Ready,
             new Dictionary<string, string>
