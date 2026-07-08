@@ -57,8 +57,8 @@ public abstract class Actor : IActor
 /// <typeparam name="TKey">The actor key type used by generated actor selectors.</typeparam>
 /// <remarks>
 /// Generated actor references use <typeparamref name="TKey"/> for methods such
-/// as <c>Get(id)</c>, <c>Local(id)</c>, and <c>Remote(nodeId, id)</c>. The key
-/// should be a stable business identity, not a node id or connection id.
+/// as <c>Local(id)</c> and <c>Route(id)</c>. The key should be a stable
+/// business identity, not a node id or connection id.
 /// </remarks>
 public abstract class Actor<TKey> : Actor
     where TKey : notnull

@@ -379,7 +379,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             string localRefType,
             string keyType)
         {
-            builder.Append("public sealed class ").Append(actorsType).AppendLine();
+            builder.Append(contract.ApiAccessibility).Append(" sealed class ").Append(actorsType).AppendLine();
             builder.AppendLine("{");
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorRuntime _runtime;");
             builder.AppendLine("    private readonly global::System.IServiceProvider _services;");
@@ -419,7 +419,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             string refType,
             string keyType)
         {
-            builder.Append("public readonly partial struct ").Append(refType).AppendLine();
+            builder.Append(contract.ApiAccessibility).Append(" readonly partial struct ").Append(refType).AppendLine();
             builder.AppendLine("{");
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorRuntime _runtime;");
             builder.AppendLine("    private readonly global::System.IServiceProvider _services;");
@@ -473,7 +473,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             string refType,
             string keyType)
         {
-            builder.Append("public readonly partial struct ").Append(refType).AppendLine();
+            builder.Append(contract.ApiAccessibility).Append(" readonly partial struct ").Append(refType).AppendLine();
             builder.AppendLine("{");
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorRuntime _runtime;");
             builder.Append("    private readonly ").Append(keyType).AppendLine(" _id;");
@@ -1246,12 +1246,51 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 }
             }
 
+            var resolvedKeyType = keyType ?? behavior.Actor;
+            var apiAccessibility = IsPubliclyExposable(behavior.Actor) && IsPubliclyExposable(resolvedKeyType)
+                ? "public"
+                : "internal";
+
             return new HotfixActorApiInfo(
                 behavior.Behavior,
                 behavior.Actor,
-                keyType ?? behavior.Actor,
+                resolvedKeyType,
+                apiAccessibility,
                 diagnostics.Count == 0 ? methods.ToArray() : Array.Empty<HotfixActorMethodInfo>(),
                 diagnostics.ToArray());
+        }
+
+        private static bool IsPubliclyExposable(ITypeSymbol type)
+        {
+            if (type is IArrayTypeSymbol arrayType)
+            {
+                return IsPubliclyExposable(arrayType.ElementType);
+            }
+
+            if (type is INamedTypeSymbol namedType)
+            {
+                if (namedType.DeclaredAccessibility != Accessibility.Public)
+                {
+                    return false;
+                }
+
+                if (namedType.ContainingType is not null && !IsPubliclyExposable(namedType.ContainingType))
+                {
+                    return false;
+                }
+
+                foreach (var typeArgument in namedType.TypeArguments)
+                {
+                    if (!IsPubliclyExposable(typeArgument))
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+
+            return type.DeclaredAccessibility == Accessibility.Public;
         }
 
         private static bool TryCreateBehaviorActorMethod(
@@ -2540,12 +2579,14 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 INamedTypeSymbol behavior,
                 INamedTypeSymbol actor,
                 ITypeSymbol keyType,
+                string apiAccessibility,
                 HotfixActorMethodInfo[] methods,
                 HotfixGeneratorDiagnosticInfo[] diagnostics)
             {
                 Behavior = behavior;
                 Actor = actor;
                 KeyType = keyType;
+                ApiAccessibility = apiAccessibility;
                 Methods = methods;
                 Diagnostics = diagnostics;
             }
@@ -2555,6 +2596,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
             public INamedTypeSymbol Actor { get; }
 
             public ITypeSymbol KeyType { get; }
+
+            public string ApiAccessibility { get; }
 
             public HotfixActorMethodInfo[] Methods { get; }
 

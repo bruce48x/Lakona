@@ -1,3 +1,4 @@
+using System.Threading;
 using Server.App.Chat;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
@@ -29,11 +30,14 @@ namespace Server.Hotfix.Chat
             }
 
             await _rooms
-                .Get(ChatRoomIds.Global)
-                .LeaveAsync(new ChatRoomLeaveRequest
-                {
-                    ConnectionId = connectionId
-                });
+                .Route(ChatRoomIds.Global)
+                .CallAsync(
+                    ChatRoomBehavior.LeaveAsync,
+                    new ChatRoomLeaveRequest
+                    {
+                        ConnectionId = connectionId
+                    },
+                    CancellationToken.None);
         }
     }
 }

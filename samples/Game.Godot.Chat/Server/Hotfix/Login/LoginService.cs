@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using Lakona.Game.Server;
 using Server.App.Chat;
 using Server.Hotfix.Chat;
@@ -26,13 +27,16 @@ namespace Server.Hotfix.Login
                 ? "Player"
                 : call.Request.PlayerName.Trim();
             var reply = await _rooms
-                .Get(ChatRoomIds.Global)
-                .LoginAsync(new ChatRoomLoginRequest
-                {
-                    ConnectionId = call.ConnectionId,
-                    PlayerName = playerName,
-                    LoginCallback = call.Callback
-                });
+                .Route(ChatRoomIds.Global)
+                .CallAsync(
+                    ChatRoomBehavior.LoginAsync,
+                    new ChatRoomLoginRequest
+                    {
+                        ConnectionId = call.ConnectionId,
+                        PlayerName = playerName,
+                        LoginCallback = call.Callback
+                    },
+                    CancellationToken.None);
             await _gameServer.StartSessionAsync(
                 playerName,
                 call.ConnectionId,

@@ -437,12 +437,15 @@ public sealed class HotfixBehaviorScannerTests
     }
 
     [Fact]
-    public void Scanner_ignores_generated_actor_ref_wrapper_methods()
+    public void Scanner_rejects_behavior_extension_methods_that_do_not_target_actor_state()
     {
         var result = HotfixBehaviorScanner.Scan(typeof(GeneratedWrapperIgnoredBehavior).Assembly, [typeof(GeneratedWrapperIgnoredBehavior)]);
 
-        Assert.Empty(result.Diagnostics);
-        Assert.DoesNotContain(result.Methods, binding => binding.Method.Name == nameof(GeneratedWrapperIgnoredBehavior.PingAsync));
+        Assert.Contains(
+            result.Diagnostics,
+            diagnostic => diagnostic.Contains(
+                "GeneratedWrapperIgnoredBehavior.PingAsync",
+                StringComparison.Ordinal));
         Assert.Contains(result.Methods, binding => binding.Method.Name == nameof(GeneratedWrapperIgnoredBehavior.ActorPingAsync));
     }
 
@@ -970,7 +973,6 @@ public static partial class GeneratedWrapperIgnoredBehavior
         return 1;
     }
 
-    [GeneratedHotfixActorRefMethod]
     public static int PingAsync(this GeneratedWrapperIgnoredRef self)
     {
         return 2;

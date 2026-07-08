@@ -117,6 +117,63 @@ public sealed class HotfixGeneratorTests
     }
 
     [Fact]
+    public void Generator_emits_internal_hotfix_actor_refs_for_internal_actor_types()
+    {
+        var appSource = """
+            using System.Runtime.CompilerServices;
+            using Lakona.Game.Server.Actors;
+
+            [assembly: InternalsVisibleTo("Game.Hotfix")]
+
+            namespace Game.Server;
+
+            public sealed class PingRequest { }
+
+            internal sealed class UserActor : Actor<string>
+            {
+            }
+            """;
+
+        var hotfixSource = """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Game.Server;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Hotfix;
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            internal static partial class UserBehavior
+            {
+                public static ValueTask PingAsync(
+                    this UserActor self,
+                    PingRequest request,
+                    CancellationToken cancellationToken = default)
+                {
+                    return default;
+                }
+            }
+            """;
+
+        var result = GeneratorTestHost.RunWithGeneratedAppReference(
+            appSource,
+            hotfixSource,
+            appAssemblyName: "Game.Server",
+            hotfixAssemblyName: "Game.Hotfix");
+
+        var generated = result.Hotfix.GeneratedSource;
+
+        Assert.Empty(result.App.ErrorDiagnostics);
+        Assert.Empty(result.Hotfix.ErrorDiagnostics);
+        Assert.Contains("internal sealed class UserActors", generated, StringComparison.Ordinal);
+        Assert.Contains("internal readonly partial struct UserRouteRef", generated, StringComparison.Ordinal);
+        Assert.Contains("internal readonly partial struct UserLocalRef", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("public sealed class UserActors", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("public readonly partial struct UserRouteRef", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("public readonly partial struct UserLocalRef", generated, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Generator_reports_public_behavior_method_with_hotfix_local_request_type()
     {
         var hotfixSource = """

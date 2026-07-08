@@ -714,14 +714,14 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("GetRequiredService<RoomActors>", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.Contains("Local(new RoomId(tick.Args.RoomId))", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.Contains("var result =", battleRuntimeCallbacks, StringComparison.Ordinal);
-        Assert.Contains("TryRunTickAsync(new RoomTickRequest", battleRuntimeCallbacks, StringComparison.Ordinal);
-        Assert.Contains("ActorTellResult.Accepted", battleRuntimeCallbacks, StringComparison.Ordinal);
+        Assert.Contains("PostAsync(RoomBehavior.RunTickAsync, new RoomTickRequest", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.Contains("LogDebug", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.Contains("ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.DoesNotContain("GetActiveActorIds(typeof(RoomActor))", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.DoesNotContain("break;", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.DoesNotContain("throw", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.DoesNotContain("TryTell<RoomActor>", battleRuntimeCallbacks, StringComparison.Ordinal);
+        Assert.DoesNotContain("ActorTellResult.Accepted", battleRuntimeCallbacks, StringComparison.Ordinal);
     }
 
     [Fact]
