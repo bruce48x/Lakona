@@ -121,6 +121,131 @@ public sealed class HotfixActorClusterHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_resultless_call_waits_for_completion_and_sends_empty_reply()
+    {
+        var serializer = new JsonRemoteActorSerializer();
+        var tellEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseTell = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var runtime = new RecordingActorRuntime
+        {
+            TellEntered = tellEntered,
+            TellRelease = releaseTell.Task
+        };
+        var router = new RecordingClusterRouter();
+        var handler = CreateHandler(runtime, serializer, router, CreateSnapshot(CreateNotifyDescriptor()));
+        var message = new ClusterActorEnvelope(
+            ClusterActorRouteKeys.ForActor("user/call"),
+            "user/call",
+            HotfixActorApiMetadata.ActorMessageKind,
+            serializer.Serialize(new NotifyRequest("seen"), typeof(NotifyRequest)),
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            new NodeId("node-a"),
+            correlationId: "corr-void",
+            replyCorrelationId: "reply-void",
+            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [HotfixActorApiMetadata.MethodIdKey] = NotifyMethodId
+            }).ToClusterMessage();
+
+        var callTask = handler.HandleAsync(message, TestContext.Current.CancellationToken).AsTask();
+        await tellEntered.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+
+        Assert.False(callTask.IsCompleted);
+        Assert.Null(router.LastMessage);
+
+        releaseTell.SetResult();
+        var status = await callTask.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.Accepted, status);
+        Assert.Equal(typeof(TestActor), runtime.LastActorType);
+        Assert.Equal(ActorId.From("user/call"), runtime.LastActorId);
+        Assert.Equal("seen", runtime.Actor.LastNotification);
+        Assert.Equal(1, runtime.DynamicTellCount);
+        Assert.Equal(0, runtime.DynamicTryTellCount);
+        Assert.NotNull(router.LastMessage);
+        Assert.Equal(RemoteActorGateway.ReplyKind, router.LastMessage.Kind);
+        Assert.Equal("reply-void", router.LastMessage.CorrelationId);
+        Assert.Equal(0, router.LastMessage.Payload.Length);
+    }
+
+    [Fact]
+    public async Task HandleAsync_resultless_call_keeps_hotfix_lease_until_actor_completion_when_caller_cancels()
+    {
+        var serializer = new JsonRemoteActorSerializer();
+        var tellEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseTell = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var retired = false;
+        var runtime = new RecordingActorRuntime
+        {
+            TellEntered = tellEntered,
+            TellRelease = releaseTell.Task
+        };
+        var snapshot = CreateSnapshot(CreateNotifyDescriptor(), () => retired = true);
+        var handler = CreateHandler(runtime, serializer, new RecordingClusterRouter(), snapshot);
+        using var callerCancellation = new CancellationTokenSource();
+        var message = new ClusterActorEnvelope(
+            ClusterActorRouteKeys.ForActor("user/canceled-call"),
+            "user/canceled-call",
+            HotfixActorApiMetadata.ActorMessageKind,
+            serializer.Serialize(new NotifyRequest("seen"), typeof(NotifyRequest)),
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            new NodeId("node-a"),
+            correlationId: "corr-canceled-call",
+            replyCorrelationId: "reply-canceled-call",
+            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [HotfixActorApiMetadata.MethodIdKey] = NotifyMethodId
+            }).ToClusterMessage();
+
+        var callTask = handler.HandleAsync(message, callerCancellation.Token).AsTask();
+        await tellEntered.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+
+        await callerCancellation.CancelAsync();
+        snapshot.Retire();
+
+        Assert.False(retired);
+        Assert.False(callTask.IsCompleted);
+
+        releaseTell.SetResult();
+        var status = await callTask.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        snapshot.Retire();
+
+        Assert.Equal(ClusterSendStatus.Accepted, status);
+        Assert.Equal("seen", runtime.Actor.LastNotification);
+        Assert.True(retired);
+    }
+
+    [Fact]
+    public async Task HandleAsync_resultless_post_uses_trytell_without_reply()
+    {
+        var serializer = new JsonRemoteActorSerializer();
+        var runtime = new RecordingActorRuntime();
+        var router = new RecordingClusterRouter();
+        var handler = CreateHandler(runtime, serializer, router, CreateSnapshot(CreateNotifyDescriptor()));
+        var message = new ClusterActorEnvelope(
+            ClusterActorRouteKeys.ForActor("user/post"),
+            "user/post",
+            HotfixActorApiMetadata.ActorMessageKind,
+            serializer.Serialize(new NotifyRequest("seen"), typeof(NotifyRequest)),
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            new NodeId("node-a"),
+            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [HotfixActorApiMetadata.MethodIdKey] = NotifyMethodId
+            }).ToClusterMessage();
+
+        var status = await handler.HandleAsync(message, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.Accepted, status);
+        Assert.Equal(typeof(TestActor), runtime.LastActorType);
+        Assert.Equal(ActorId.From("user/post"), runtime.LastActorId);
+        Assert.Equal("seen", runtime.Actor.LastNotification);
+        Assert.Equal(0, runtime.DynamicTellCount);
+        Assert.Equal(1, runtime.DynamicTryTellCount);
+        Assert.Null(router.LastMessage);
+    }
+
+    [Fact]
     public async Task HandleAsync_resultless_tell_releases_hotfix_lease_when_caller_cancels_after_acceptance()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -458,6 +583,14 @@ public sealed class HotfixActorClusterHandlerTests
 
         public Exception? TellException { get; init; }
 
+        public TaskCompletionSource? TellEntered { get; init; }
+
+        public Task? TellRelease { get; init; }
+
+        public int DynamicTellCount { get; private set; }
+
+        public int DynamicTryTellCount { get; private set; }
+
         public ValueTask TellAsync<TActor>(
             ActorId id,
             Func<TActor, CancellationToken, ValueTask> message,
@@ -482,7 +615,7 @@ public sealed class HotfixActorClusterHandlerTests
             Func<IActor, CancellationToken, ValueTask> message,
             CancellationToken cancellationToken = default)
         {
-            throw new NotSupportedException();
+            return TellDynamicAsync(actorType, id, message, cancellationToken);
         }
 
         public ActorTellResult TryTell(
@@ -493,6 +626,7 @@ public sealed class HotfixActorClusterHandlerTests
         {
             LastActorType = actorType;
             LastActorId = id;
+            DynamicTryTellCount++;
             if (TellException is not null)
             {
                 throw TellException;
@@ -505,6 +639,29 @@ public sealed class HotfixActorClusterHandlerTests
 
             message(Actor, cancellationToken).AsTask().GetAwaiter().GetResult();
             return ActorTellResult.Accepted;
+        }
+
+        private async ValueTask TellDynamicAsync(
+            Type actorType,
+            ActorId id,
+            Func<IActor, CancellationToken, ValueTask> message,
+            CancellationToken cancellationToken)
+        {
+            LastActorType = actorType;
+            LastActorId = id;
+            DynamicTellCount++;
+            TellEntered?.SetResult();
+            if (TellException is not null)
+            {
+                throw TellException;
+            }
+
+            if (TellRelease is not null)
+            {
+                await TellRelease.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            await message(Actor, cancellationToken).ConfigureAwait(false);
         }
 
         public ValueTask<TResult> AskAsync<TActor, TResult>(
@@ -610,6 +767,7 @@ public sealed class HotfixActorClusterHandlerTests
             ClusterMessage message,
             CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             LastMessage = message;
             return new ValueTask<ClusterSendStatus>(ClusterSendStatus.Accepted);
         }

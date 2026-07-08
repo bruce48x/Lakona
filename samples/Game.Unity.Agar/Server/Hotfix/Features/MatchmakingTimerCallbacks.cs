@@ -14,10 +14,13 @@ public sealed class MatchmakingTimerCallbacks
         var actors = tick.Services.GetRequiredService<MatchmakingActors>();
         await actors
             .Local(new MatchmakingQueueId("default"))
-            .RunTickAsync(new MatchmakingTickRequest
+            .PostAsync(
+                MatchmakingBehavior.RunTickAsync,
+                new MatchmakingTickRequest
             {
                 ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime
-            }, tick.CancellationToken)
+            },
+                tick.CancellationToken)
             .ConfigureAwait(false);
     }
 }

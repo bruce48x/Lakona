@@ -147,16 +147,18 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
             _gameServer = gameServer;
         }
 
-        var reply = await _rooms.Get(ChatRoomIds.Global).LoginAsync(request, ct);
+        var reply = await _rooms.Route(ChatRoomIds.Global).CallAsync(
+            ChatRoomBehavior.LoginAsync,
+            request,
+            ct);
         ```
 
         Use generated typed actor selectors when business code should express
         placement:
 
         ```csharp
-        await rooms.Get(roomId).JoinAsync(request, ct);            // Local first, then route through ActorDirectory
-        await rooms.Local(roomId).JoinAsync(request, ct);          // Current node only
-        await rooms.Remote(nodeId, roomId).JoinAsync(request, ct); // Specific remote node
+        await rooms.Route(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct);      // Normal business path
+        await rooms.Local(roomId).PostAsync(RoomBehavior.RunTickAsync, request, ct);   // Current node only after ownership is proven
         ```
 
         ## Client Notes

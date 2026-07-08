@@ -181,15 +181,15 @@ public sealed class GeneratedProjectGuideRendererTests
         var readme = Assert.Single(plan.Files, file => file.RelativePath == "README.md");
         Assert.Contains("node-local actor runtime", readme.Content, StringComparison.Ordinal);
         Assert.Contains("public LoginService(ChatRoomActors rooms, ILakonaGameServer gameServer)", readme.Content, StringComparison.Ordinal);
-        Assert.Contains("await _rooms.Get(ChatRoomIds.Global)", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("await _rooms.Route(ChatRoomIds.Global).CallAsync(", readme.Content, StringComparison.Ordinal);
         Assert.DoesNotContain("starterNodeLocalActors.AskAsync", readme.Content, StringComparison.Ordinal);
         Assert.DoesNotContain(".AskAsync", readme.Content, StringComparison.Ordinal);
         Assert.Contains("RPC services that target actors whose", readme.Content, StringComparison.Ordinal);
         Assert.DoesNotContain("starterLocalActors", readme.Content, StringComparison.Ordinal);
         Assert.DoesNotContain("localActors.AskAsync", readme.Content, StringComparison.Ordinal);
-        Assert.Contains("rooms.Get(roomId)", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("rooms.Route(roomId).CallAsync", readme.Content, StringComparison.Ordinal);
         Assert.Contains("rooms.Local(roomId)", readme.Content, StringComparison.Ordinal);
-        Assert.Contains("rooms.Remote(nodeId, roomId)", readme.Content, StringComparison.Ordinal);
+        Assert.DoesNotContain("rooms.Remote(nodeId, roomId)", readme.Content, StringComparison.Ordinal);
     }
 
     [Fact]

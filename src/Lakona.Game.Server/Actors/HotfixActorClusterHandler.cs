@@ -78,13 +78,74 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
         var actorId = ActorId.From(envelope.ActorId);
         if (descriptor.ResultType is null)
         {
+            if (envelope.ReplyCorrelationId is not null)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    lease.Dispose();
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+
+                var callState = new ActorDispatchState(
+                    lease,
+                    table,
+                    descriptor.MethodKey,
+                    request);
+                try
+                {
+                    await _runtime.TellAsync(
+                        descriptor.ActorType,
+                        actorId,
+                        async (actor, ct) =>
+                        {
+                            try
+                            {
+                                await callState.Table.InvokeActorAsync(
+                                    callState.MethodKey,
+                                    actor,
+                                    callState.Request,
+                                    expectedResultType: null,
+                                    ct).ConfigureAwait(false);
+                            }
+                            finally
+                            {
+                                callState.DisposeLease();
+                            }
+                        },
+                        CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    callState.DisposeLease();
+                    throw;
+                }
+                catch (ActorCallException exception)
+                {
+                    callState.DisposeLease();
+                    return MapCallException(exception);
+                }
+                catch
+                {
+                    callState.DisposeLease();
+                    return ClusterSendStatus.Failed;
+                }
+
+                await RemoteActorGateway.SendReplyAsync(
+                    _router,
+                    envelope.SourceNode,
+                    envelope.ReplyCorrelationId,
+                    ReadOnlyMemory<byte>.Empty,
+                    CancellationToken.None).ConfigureAwait(false);
+                return ClusterSendStatus.Accepted;
+            }
+
             if (cancellationToken.IsCancellationRequested)
             {
                 lease.Dispose();
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
-            var state = new TellDispatchState(
+            var postState = new ActorDispatchState(
                 lease,
                 table,
                 descriptor.MethodKey,
@@ -99,29 +160,29 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
                     {
                         try
                         {
-                            await state.Table.InvokeActorAsync(
-                                state.MethodKey,
+                            await postState.Table.InvokeActorAsync(
+                                postState.MethodKey,
                                 actor,
-                                state.Request,
+                                postState.Request,
                                 expectedResultType: null,
                                 ct).ConfigureAwait(false);
                         }
                         finally
                         {
-                            state.Lease.Dispose();
+                            postState.DisposeLease();
                         }
                     },
                     CancellationToken.None);
             }
             catch
             {
-                lease.Dispose();
+                postState.DisposeLease();
                 return ClusterSendStatus.Failed;
             }
 
             if (result != ActorTellResult.Accepted)
             {
-                lease.Dispose();
+                postState.DisposeLease();
             }
 
             return MapTellResult(result);
@@ -207,9 +268,26 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
         };
     }
 
-    private sealed record TellDispatchState(
-        HotfixRuntimeSnapshotLease Lease,
-        HotfixDispatchTable Table,
-        string MethodKey,
-        object? Request);
+    private sealed class ActorDispatchState(
+        HotfixRuntimeSnapshotLease lease,
+        HotfixDispatchTable table,
+        string methodKey,
+        object? request)
+    {
+        private int _leaseDisposed;
+
+        public HotfixDispatchTable Table { get; } = table;
+
+        public string MethodKey { get; } = methodKey;
+
+        public object? Request { get; } = request;
+
+        public void DisposeLease()
+        {
+            if (Interlocked.Exchange(ref _leaseDisposed, 1) == 0)
+            {
+                lease.Dispose();
+            }
+        }
+    }
 }

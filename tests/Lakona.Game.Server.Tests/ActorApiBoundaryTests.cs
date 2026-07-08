@@ -23,9 +23,9 @@ public sealed class ActorApiBoundaryTests
         var readme = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Game.Server", "README.md"));
 
         Assert.Contains("var rooms = provider.GetRequiredService<RoomActors>();", readme, StringComparison.Ordinal);
-        Assert.Contains("await rooms.Get(roomId).JoinAsync", readme, StringComparison.Ordinal);
-        Assert.Contains("await rooms.Local(roomId).JoinAsync", readme, StringComparison.Ordinal);
-        Assert.Contains("await rooms.Remote(nodeId, roomId).JoinAsync", readme, StringComparison.Ordinal);
+        Assert.Contains("var routed = await rooms.Route(roomId).CallAsync(", readme, StringComparison.Ordinal);
+        Assert.Contains("var localOnly = await rooms.Local(roomId).CallAsync(", readme, StringComparison.Ordinal);
+        Assert.Contains("RoomBehavior.JoinAsync,", readme, StringComparison.Ordinal);
         Assert.Contains("Advanced Local Actor Runtime", readme, StringComparison.Ordinal);
         Assert.DoesNotContain("var runtime = provider.GetRequiredService<IActorRuntime>();", readme, StringComparison.Ordinal);
     }

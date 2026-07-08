@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using Lakona.Game.Server;
 using Server.App.Chat;
 using Shared.Contracts.Chat;
@@ -36,23 +37,29 @@ namespace Server.Hotfix.Chat
             _logger.LogInformation("Sending {CharacterCount} characters", text.Length);
             await BindChatCallbackAsync(call.ConnectionId, call.Callback);
             await _rooms
-                .Get(ChatRoomIds.Global)
-                .SendAsync(new ChatRoomSendRequest
-                {
-                    ConnectionId = call.ConnectionId,
-                    Text = FilterMessage(text)
-                });
+                .Route(ChatRoomIds.Global)
+                .CallAsync(
+                    ChatRoomBehavior.SendAsync,
+                    new ChatRoomSendRequest
+                    {
+                        ConnectionId = call.ConnectionId,
+                        Text = FilterMessage(text)
+                    },
+                    CancellationToken.None);
         }
 
         private async ValueTask BindChatCallbackAsync(string connectionId, IChatCallback callback)
         {
             await _rooms
-                .Get(ChatRoomIds.Global)
-                .BindChatAsync(new ChatRoomBindRequest
-                {
-                    ConnectionId = connectionId,
-                    ChatCallback = callback
-                });
+                .Route(ChatRoomIds.Global)
+                .CallAsync(
+                    ChatRoomBehavior.BindChatAsync,
+                    new ChatRoomBindRequest
+                    {
+                        ConnectionId = connectionId,
+                        ChatCallback = callback
+                    },
+                    CancellationToken.None);
         }
 
         private static string FilterMessage(string text)

@@ -491,14 +491,17 @@ public static partial class RoomBehavior
         foreach (var userId in completedUserIds)
         {
             await users
-                .Get(new UserId(userId))
-                .ClearRoomAsync(new PlayerRoomClearRequest
+                .Route(new UserId(userId))
+                .CallAsync(
+                    UserBehavior.ClearRoomAsync,
+                    new PlayerRoomClearRequest
                     {
                         UserId = userId,
                         RoomId = self.State.RoomId,
                         ClearedAtUtc = DateTime.UtcNow,
                         Reason = "Match completed."
-                    })
+                    },
+                    CancellationToken.None)
                 .ConfigureAwait(false);
         }
 
@@ -506,29 +509,41 @@ public static partial class RoomBehavior
         if (winnerEntry is not null && !winnerEntry.IsBot)
         {
             await users
-                .Get(new UserId(winnerEntry.PlayerId))
-                .AddWinAsync(new UserWinRequest())
+                .Route(new UserId(winnerEntry.PlayerId))
+                .CallAsync(
+                    UserBehavior.AddWinAsync,
+                    new UserWinRequest(),
+                    CancellationToken.None)
                 .ConfigureAwait(false);
         }
 
         foreach (var entry in settlement.Entries.Where(static entry => !entry.IsBot && entry.VictoryPoints > 0))
         {
             await users
-                .Get(new UserId(entry.PlayerId))
-                .AddVictoryPointsAsync(new UserVictoryPointsRequest { Points = entry.VictoryPoints })
+                .Route(new UserId(entry.PlayerId))
+                .CallAsync(
+                    UserBehavior.AddVictoryPointsAsync,
+                    new UserVictoryPointsRequest { Points = entry.VictoryPoints },
+                    CancellationToken.None)
                 .ConfigureAwait(false);
             var profile = await users
-                .Get(new UserId(entry.PlayerId))
-                .GetProfileAsync(new UserProfileRequest())
+                .Route(new UserId(entry.PlayerId))
+                .CallAsync(
+                    UserBehavior.GetProfileAsync,
+                    new UserProfileRequest(),
+                    CancellationToken.None)
                 .ConfigureAwait(false);
             await leaderboards
-                .Get(new LeaderboardId(AgarHotfixIds.GlobalLeaderboardActorId))
-                .RecordVictoryPointsAsync(new LeaderboardVictoryPointsRequest
+                .Route(new LeaderboardId(AgarHotfixIds.GlobalLeaderboardActorId))
+                .CallAsync(
+                    LeaderboardBehavior.RecordVictoryPointsAsync,
+                    new LeaderboardVictoryPointsRequest
                     {
                         PlayerId = entry.PlayerId,
                         VictoryPoints = profile.VictoryPoints,
                         WinCount = profile.WinCount
-                    })
+                    },
+                    CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }

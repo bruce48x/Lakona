@@ -7,20 +7,20 @@ namespace Lakona.Game.Server.Actors;
 /// <remarks>
 /// This API is public so generated code can enter local actor mailboxes from
 /// user assemblies. Application business code should prefer generated actor
-/// selectors, such as <c>Get(id)</c>, <c>Local(id)</c>, and
-/// <c>Remote(nodeId, id)</c>, because those selectors make actor placement
-/// intent explicit.
+/// selectors, such as <c>Local(id)</c> and <c>Route(id)</c>, because those
+/// selectors make actor placement intent explicit.
 /// </remarks>
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
 public interface IActorRuntime
 {
     /// <summary>
-    /// Enqueues a fire-and-forget message for a local actor.
+    /// Executes a no-result message inside the local actor turn and completes
+    /// after the actor delegate completes.
     /// </summary>
     /// <typeparam name="TActor">The expected actor type.</typeparam>
     /// <param name="id">The target actor id.</param>
     /// <param name="message">The delegate executed inside the actor turn.</param>
-    /// <param name="cancellationToken">A token that cancels enqueueing before the message is accepted.</param>
+    /// <param name="cancellationToken">A token that cancels enqueueing or waiting for actor completion.</param>
     ValueTask TellAsync<TActor>(
         ActorId id,
         Func<TActor, CancellationToken, ValueTask> message,
@@ -42,12 +42,13 @@ public interface IActorRuntime
         where TActor : class, IActor;
 
     /// <summary>
-    /// Enqueues a fire-and-forget message for a local actor selected by runtime type.
+    /// Executes a no-result message inside a local actor turn selected by runtime
+    /// type and completes after the actor delegate completes.
     /// </summary>
     /// <param name="actorType">The expected actor implementation type.</param>
     /// <param name="id">The target actor id.</param>
     /// <param name="message">The delegate executed inside the actor turn.</param>
-    /// <param name="cancellationToken">A token that cancels enqueueing before the message is accepted.</param>
+    /// <param name="cancellationToken">A token that cancels enqueueing or waiting for actor completion.</param>
     ValueTask TellAsync(
         Type actorType,
         ActorId id,

@@ -49,7 +49,11 @@ compiler-visible property name through the generator package's
 hotfix service contract providers, actor state, and actor DTOs. `Server.Hotfix`
 owns replaceable service implementations, lifecycle implementations, behavior
 code, and behavior-derived actor selectors and refs. Public extension methods
-in `[HotfixBehaviorOf]` classes define the actor API those refs expose.
+in `[HotfixBehaviorOf]` classes define the actor API those refs expose. The
+hotfix generator emits `Local(id)` and `Route(id)` refs plus generic
+`CallAsync` / `PostAsync` helpers that accept behavior method groups such as
+`RoomBehavior.JoinAsync`; it does not emit business methods whose names mirror
+the behavior methods.
 
 Generated client projects opt into client glue with the matching client
 generation property or framework-owned Unity analyzer defaults. Generated
@@ -152,8 +156,8 @@ runtime products, the implementation should be split by product boundary:
 - RPC contract discovery, diagnostics, client facades, notification binders,
   and server binders belong to the RPC generator boundary.
 - Hotfix state accessors, stable RPC service proxies, behavior-derived actor
-  refs, behavior wrappers, and hotfix diagnostics are separate hotfix generator
-  products even when they are packaged in one analyzer assembly.
+  refs, generic actor call helpers, and hotfix diagnostics are separate hotfix
+  generator products even when they are packaged in one analyzer assembly.
 - Shared naming, type-display, and literal-escaping helpers should be factored
   as helpers, not used as a reason to keep unrelated emitters in one large
   generator file.

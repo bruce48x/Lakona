@@ -63,8 +63,11 @@ public static partial class LeaderboardBehavior
         foreach (var playerId in playerIds)
         {
             await users
-                .Get(new UserId(playerId))
-                .ResetVictoryPointsAsync(new UserVictoryPointsResetRequest())
+                .Route(new UserId(playerId))
+                .CallAsync(
+                    UserBehavior.ResetVictoryPointsAsync,
+                    new UserVictoryPointsResetRequest(),
+                    cancellationToken)
                 .ConfigureAwait(false);
         }
 

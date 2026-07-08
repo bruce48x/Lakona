@@ -60,14 +60,17 @@ public sealed class LoginService
         }
 
         var loginRequest = new UserLoginRequest { Password = password, Reconnect = req.Reconnect };
-        var loginResult = await LoginUserAsync(call.Services, account, loginRequest).ConfigureAwait(false);
+        var loginResult = await LoginUserAsync(call.Services, account, loginRequest, CancellationToken.None).ConfigureAwait(false);
 
         GameSessionKey sessionKey;
         if (req.Reconnect)
         {
             var snapshot = await _users
-                .Get(new UserId(loginResult.UserId))
-                .GetSnapshotAsync(new PlayerSessionSnapshotRequest())
+                .Route(new UserId(loginResult.UserId))
+                .CallAsync(
+                    UserBehavior.GetSnapshotAsync,
+                    new PlayerSessionSnapshotRequest(),
+                    CancellationToken.None)
                 .ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(snapshot.ControlSessionId) ||
                 snapshot.ControlSessionGeneration <= 0 ||
@@ -107,8 +110,10 @@ public sealed class LoginService
 
             sessionKey = resumeDecision.Session.Value;
             await _users
-                .Get(new UserId(loginResult.UserId))
-                .ReconnectAsync(new PlayerSessionReconnectRequest
+                .Route(new UserId(loginResult.UserId))
+                .CallAsync(
+                    UserBehavior.ReconnectAsync,
+                    new PlayerSessionReconnectRequest
                     {
                         UserId = loginResult.UserId,
                         SessionToken = loginResult.SessionToken,
@@ -117,7 +122,8 @@ public sealed class LoginService
                         ControlSessionGeneration = sessionKey.Generation,
                         ReconnectedAtUtc = DateTime.UtcNow,
                         ControlGateway = CloneGateway(controlGateway)
-                    })
+                    },
+                    CancellationToken.None)
                 .ConfigureAwait(false);
         }
         else
@@ -126,8 +132,10 @@ public sealed class LoginService
                 .StartSessionAsync(loginResult.UserId, call.ConnectionId, call.Callback)
                 .ConfigureAwait(false);
             await _users
-                .Get(new UserId(loginResult.UserId))
-                .AttachAsync(new PlayerSessionAttachRequest
+                .Route(new UserId(loginResult.UserId))
+                .CallAsync(
+                    UserBehavior.AttachAsync,
+                    new PlayerSessionAttachRequest
                     {
                         UserId = loginResult.UserId,
                         SessionToken = loginResult.SessionToken,
@@ -136,7 +144,8 @@ public sealed class LoginService
                         ControlSessionGeneration = sessionKey.Generation,
                         AttachedAtUtc = DateTime.UtcNow,
                         ControlGateway = CloneGateway(controlGateway)
-                    })
+                    },
+                    CancellationToken.None)
                 .ConfigureAwait(false);
         }
 
@@ -202,13 +211,14 @@ public sealed class LoginService
     private async ValueTask<UserLoginResult> LoginUserAsync(
         IServiceProvider services,
         string account,
-        UserLoginRequest request)
+        UserLoginRequest request,
+        CancellationToken cancellationToken)
     {
         var userId = new UserId(account);
         await CreateUserActorOnStateStoreAsync(services, account).ConfigureAwait(false);
         return await _users
-            .Get(userId)
-            .LoginAsync(request)
+            .Route(userId)
+            .CallAsync(UserBehavior.LoginAsync, request, cancellationToken)
             .ConfigureAwait(false);
     }
 

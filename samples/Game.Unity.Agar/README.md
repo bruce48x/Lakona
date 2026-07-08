@@ -133,19 +133,18 @@ current-node work. When actor placement may be local or remote, Agar code should
 call the generated typed selector instead of treating the node-local runtime as
 a distributed actor facade.
 
-`Get(id)` is the default business path and resolves local or remote placement
-through ActorDirectory. `Local(id)` is reserved for code that has already
-proved current-node ownership, such as battle runtime room input after realtime
-attach validation. `Remote(nodeId, id)` pins a specific target node.
+`Route(id)` is the default business path and owns actor-directory lookup plus
+node selection. `Local(id)` is reserved for code that has already proved
+current-node ownership, such as battle runtime room input after realtime
+attach validation.
 
 `HotfixServiceCall.Actors` and `self.Context.Runtime` remain framework escape
 hatches. Agar business code must not use raw `AskAsync` or `TellAsync` for
 ordinary actor behavior calls.
 
 ```csharp
-await rooms.Get(roomId).JoinAsync(request, ct);            // 先查本地，再通过 ActorDirectory 路由
-await rooms.Local(roomId).JoinAsync(request, ct);          // 只调当前节点
-await rooms.Remote(nodeId, roomId).JoinAsync(request, ct); // 固定调指定远端节点
+await rooms.Route(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct);    // 默认业务路径，由 Route 负责查目录和选节点
+await rooms.Local(roomId).PostAsync(RoomBehavior.RunTickAsync, request, ct); // 已确认本地归属后，只投递当前节点
 ```
 
 Matchmaking 是 remote-capable actor 的示例。单进程默认配置启用
@@ -186,7 +185,7 @@ dotnet test tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj
 ### Core Runtime Model
 
 - Actor state: `Server/App/State/*/*Actor.cs` owns user, session, room, matchmaking, and leaderboard state behind the Lakona.Game actor facade.
-- Hotfix rules: `Server/Hotfix/Gameplay/*Behavior.cs` contains reloadable gameplay behavior invoked through stable wrappers.
+- Hotfix rules: `Server/Hotfix/Gameplay/*Behavior.cs` contains reloadable gameplay behavior invoked through generated actor refs and call helpers.
 - RPC business services live in `Server/Hotfix/Services`; App-side RPC configurators bind generated stable proxies to hotfix dispatch.
 
 ## 当前状态

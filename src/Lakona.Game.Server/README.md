@@ -126,22 +126,26 @@ public static partial class RoomBehavior
 
 var rooms = provider.GetRequiredService<RoomActors>();
 var roomId = new RoomId("alpha");
-var nodeId = new NodeId("battle-1");
 var request = new JoinRoomRequest { PlayerId = 10001 };
 
-var routed = await rooms.Get(roomId).JoinAsync(request, cancellationToken);
-var localOnly = await rooms.Local(roomId).JoinAsync(request, cancellationToken);
-var pinned = await rooms.Remote(nodeId, roomId).JoinAsync(request, cancellationToken);
+var routed = await rooms.Route(roomId).CallAsync(
+    RoomBehavior.JoinAsync,
+    request,
+    cancellationToken);
+var localOnly = await rooms.Local(roomId).CallAsync(
+    RoomBehavior.JoinAsync,
+    request,
+    cancellationToken);
 ```
 
 Public methods on `RoomBehavior` declare the generated actor ref call surface
 and own the implementation that runs inside the actor turn.
 
-Stable app generator support emits actor selector types with `Get(id)`,
-`Local(id)`, and `Remote(nodeId, id)` selectors for `Actor<TKey>` classes.
-Hotfix projects that define behavior methods should reference
-`Lakona.Game.Server.Hotfix.Generators` as an analyzer so business-facing ref
-methods are generated into matching behavior partials.
+Stable app generator support emits actor selector types with `Local(id)` and
+`Route(id)` selectors for `Actor<TKey>` classes. Generated refs expose generic
+`CallAsync(Behavior.MethodAsync, request, cancellationToken)` for request/reply
+calls and `PostAsync(Behavior.MethodAsync, request, cancellationToken)` for
+fire-and-forget dispatch after placement is explicit.
 
 ## Advanced Local Actor Runtime
 

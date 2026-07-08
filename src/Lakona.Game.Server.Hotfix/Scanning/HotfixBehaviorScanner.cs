@@ -320,11 +320,6 @@ public static class HotfixBehaviorScanner
                     continue;
                 }
 
-                if (method.IsDefined(typeof(GeneratedHotfixActorRefMethodAttribute), inherit: false))
-                {
-                    continue;
-                }
-
                 var parameters = method.GetParameters();
                 if (parameters.Length == 0 || parameters[0].ParameterType != stateType)
                 {
