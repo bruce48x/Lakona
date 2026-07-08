@@ -50,6 +50,32 @@ public sealed class HotfixDispatchTests
     }
 
     [Fact]
+    public async Task Actor_lifecycle_stop_invokes_method_even_when_token_is_already_canceled()
+    {
+        ActorLifecycleDispatchFixture.Events.Clear();
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(ActorLifecycleDispatchFixture.RoomBehavior).Assembly,
+            [typeof(ActorLifecycleDispatchFixture.RoomBehavior)]);
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        var descriptor = Assert.Single(scan.ActorLifecycles);
+        using var services = new ServiceCollection()
+            .AddSingleton(new ActorLifecycleDispatchFixture.Marker("runtime"))
+            .BuildServiceProvider();
+        var invoker = new HotfixActorLifecycleInvoker();
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await invoker.StopAsync(
+            descriptor,
+            new ActorLifecycleDispatchFixture.RoomActor(),
+            ActorId.From("room-canceled"),
+            services,
+            cts.Token);
+
+        Assert.Equal(["stop:room-canceled:runtime"], ActorLifecycleDispatchFixture.Events);
+    }
+
+    [Fact]
     public async Task InvokeActorAsync_dispatches_behavior_actor_api_method_by_method_key()
     {
         var fixture = TwoAssemblyHotfixFixture.Create(

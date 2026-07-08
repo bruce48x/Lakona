@@ -5,7 +5,7 @@ using Lakona.Game.Server.Hotfix.Dispatch;
 
 namespace Lakona.Game.Server.Hotfix;
 
-internal sealed class HotfixActorLifecycleInvoker
+public sealed class HotfixActorLifecycleInvoker
 {
     public async ValueTask StartAsync(
         HotfixActorLifecycleDescriptor descriptor,
@@ -40,7 +40,6 @@ internal sealed class HotfixActorLifecycleInvoker
         ArgumentNullException.ThrowIfNull(actor);
         ArgumentNullException.ThrowIfNull(actorId);
         ArgumentNullException.ThrowIfNull(services);
-        cancellationToken.ThrowIfCancellationRequested();
 
         if (descriptor.StopMethod is null)
         {

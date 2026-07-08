@@ -24,6 +24,7 @@ public static class HotfixServiceCollectionExtensions
         services.RemoveAll<HotfixManager>();
         services.AddSingleton(source);
         services.TryAddSingleton<IHotfixServiceInvoker, HotfixServiceInvoker>();
+        services.TryAddSingleton<HotfixActorLifecycleInvoker>();
         services.AddSingleton<HotfixManager>(provider =>
         {
             var requiredContracts = provider

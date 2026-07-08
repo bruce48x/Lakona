@@ -1,5 +1,8 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Hotfix;
+using Lakona.Game.Server.Hotfix.Dispatch;
+using Lakona.Game.Server.Hotfix.Scanning;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 using GameActor = Lakona.Game.Server.Actors.Actor;
@@ -35,6 +38,40 @@ public sealed class ActorHostingTests
             static async (actor, _) => await actor.GetActivatedCountAsync(),
             cancellationToken);
         Assert.Equal(1, activated);
+    }
+
+    [Fact]
+    public async Task CreateAsync_runs_actor_start_hook()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var dispatcher = new RecordingActorLifecycleDispatcher();
+        await using var provider = CreateProvider(lifecycleDispatcher: dispatcher);
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        var actorId = ActorId.From("hosting/start-hook");
+
+        await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken);
+
+        Assert.Equal([("start", actorId.Value, typeof(HostedTestActor))], dispatcher.Events);
+    }
+
+    [Fact]
+    public async Task CreateAsync_rolls_back_actor_and_route_when_actor_start_hook_fails()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var dispatcher = new ThrowingActorLifecycleDispatcher(throwOnStart: true);
+        await using var provider = CreateProvider(lifecycleDispatcher: dispatcher);
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        var directory = provider.GetRequiredService<IActorDirectory>();
+        var cache = provider.GetRequiredService<IActorDirectoryCache>();
+        var actorId = ActorId.From("hosting/start-hook-fails");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken));
+
+        Assert.Null(await directory.ResolveAsync(actorId, cancellationToken));
+        Assert.False(cache.TryGet(actorId, out _));
+        Assert.DoesNotContain(actorId, runtime.GetActiveActorIds(typeof(HostedTestActor)));
     }
 
     [Fact]
@@ -218,6 +255,98 @@ public sealed class ActorHostingTests
         Assert.Null(await directory.ResolveAsync(actorId, cancellationToken));
         Assert.False(cache.TryGet(actorId, out _));
         Assert.DoesNotContain(actorId, runtime.GetActiveActorIds(typeof(HostedTestActor)));
+    }
+
+    [Fact]
+    public async Task DestroyAsync_runs_actor_stop_hook()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var dispatcher = new RecordingActorLifecycleDispatcher();
+        await using var provider = CreateProvider(lifecycleDispatcher: dispatcher);
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        var actorId = ActorId.From("hosting/stop-hook");
+
+        await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken);
+        await hosting.DestroyAsync<HostedTestActor>(actorId, cancellationToken);
+
+        Assert.Equal(
+            [
+                ("start", actorId.Value, typeof(HostedTestActor)),
+                ("stop", actorId.Value, typeof(HostedTestActor))
+            ],
+            dispatcher.Events);
+    }
+
+    [Fact]
+    public async Task ActorHosting_uses_hotfix_actor_lifecycle_dispatcher_when_hotfix_runtime_is_loaded()
+    {
+        HotfixLifecycleHostedFixture.Events.Clear();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(HotfixLifecycleHostedFixture.RoomBehavior).Assembly,
+            [typeof(HotfixLifecycleHostedFixture.RoomBehavior)]);
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        var table = new HotfixDispatchTable(
+            1,
+            scan.Methods,
+            scan.Services,
+            scan.Features,
+            scan.ActorMethods,
+            scan.ActorLifecycles);
+        await using var hotfixServices = new ServiceCollection()
+            .AddSingleton(new HotfixLifecycleHostedFixture.Marker("hotfix"))
+            .BuildServiceProvider();
+        var snapshot = new HotfixRuntimeSnapshot(
+            new HotfixServiceInvoker(table),
+            new HotfixFeatureCommandInvoker(table),
+            hotfixServices,
+            table,
+            hotfixServices,
+            typeof(HotfixLifecycleHostedFixture.RoomBehavior).Assembly,
+            loadContext: null,
+            sourceVersion: "test",
+            sourcePath: null,
+            ownsRuntimeResources: false,
+            onRetired: null);
+        var rootServices = new ServiceCollection()
+            .AddSingleton<IHotfixRuntimeAccessor>(new FixedHotfixRuntimeAccessor(snapshot))
+            .AddSingleton<HotfixActorLifecycleInvoker>()
+            .BuildServiceProvider();
+        var dispatcher = new HotfixActorLifecycleDispatcher(rootServices);
+        await using var provider = CreateProvider(lifecycleDispatcher: dispatcher);
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        var actorId = ActorId.From("hosting/hotfix-lifecycle");
+
+        await hosting.CreateAsync<HotfixLifecycleHostedFixture.RoomActor>(actorId, cancellationToken);
+        await hosting.DestroyAsync<HotfixLifecycleHostedFixture.RoomActor>(actorId, cancellationToken);
+
+        Assert.Equal(["start:hosting/hotfix-lifecycle:hotfix", "stop:hosting/hotfix-lifecycle:hotfix"], HotfixLifecycleHostedFixture.Events);
+    }
+
+    [Fact]
+    public async Task DestroyAsync_preserves_actor_and_route_when_actor_stop_hook_fails()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var dispatcher = new ThrowingActorLifecycleDispatcher(throwOnStop: true);
+        await using var provider = CreateProvider(lifecycleDispatcher: dispatcher);
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        var directory = provider.GetRequiredService<IActorDirectory>();
+        var cache = provider.GetRequiredService<IActorDirectoryCache>();
+        var actorId = ActorId.From("hosting/stop-hook-fails");
+
+        await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken);
+
+        var exception = await Assert.ThrowsAsync<ActorHostingStopException>(async () =>
+            await hosting.DestroyAsync<HostedTestActor>(actorId, cancellationToken));
+
+        Assert.IsType<InvalidOperationException>(exception.InnerException);
+        var record = await directory.ResolveAsync(actorId, cancellationToken);
+        Assert.NotNull(record);
+        Assert.Equal(LocalNode, record.Node);
+        Assert.True(cache.TryGet(actorId, out var cachedNode));
+        Assert.Equal(LocalNode, cachedNode);
+        Assert.Contains(actorId, runtime.GetActiveActorIds(typeof(HostedTestActor)));
     }
 
     [Fact]
@@ -419,7 +548,8 @@ public sealed class ActorHostingTests
 
     private static ServiceProvider CreateProvider(
         Action<ActorRuntimeOptions>? configure = null,
-        IActorDirectory? directory = null)
+        IActorDirectory? directory = null,
+        IActorLifecycleDispatcher? lifecycleDispatcher = null)
     {
         var services = new ServiceCollection()
             .AddSingleton(new LocalActorNodeIdentity(LocalNode))
@@ -428,6 +558,11 @@ public sealed class ActorHostingTests
         if (directory is not null)
         {
             services.AddSingleton(directory);
+        }
+
+        if (lifecycleDispatcher is not null)
+        {
+            services.AddSingleton(lifecycleDispatcher);
         }
 
         return services.BuildServiceProvider();
@@ -513,6 +648,104 @@ public sealed class ActorHostingTests
         {
             throw new InvalidOperationException("deactivation failed");
         }
+    }
+
+    private sealed class RecordingActorLifecycleDispatcher : IActorLifecycleDispatcher
+    {
+        public List<(string Kind, string ActorId, Type ActorType)> Events { get; } = [];
+
+        public ValueTask StartAsync(
+            Type actorType,
+            ActorId actorId,
+            object actor,
+            CancellationToken cancellationToken)
+        {
+            Assert.IsType(actorType, actor);
+            Events.Add(("start", actorId.Value, actorType));
+            return default;
+        }
+
+        public ValueTask StopAsync(
+            Type actorType,
+            ActorId actorId,
+            object actor,
+            CancellationToken cancellationToken)
+        {
+            Assert.IsType(actorType, actor);
+            Events.Add(("stop", actorId.Value, actorType));
+            return default;
+        }
+    }
+
+    private sealed class ThrowingActorLifecycleDispatcher(
+        bool throwOnStart = false,
+        bool throwOnStop = false) : IActorLifecycleDispatcher
+    {
+        public ValueTask StartAsync(
+            Type actorType,
+            ActorId actorId,
+            object actor,
+            CancellationToken cancellationToken)
+        {
+            if (throwOnStart)
+            {
+                throw new InvalidOperationException("start failed");
+            }
+
+            return default;
+        }
+
+        public ValueTask StopAsync(
+            Type actorType,
+            ActorId actorId,
+            object actor,
+            CancellationToken cancellationToken)
+        {
+            if (throwOnStop)
+            {
+                throw new InvalidOperationException("stop failed");
+            }
+
+            return default;
+        }
+    }
+
+    public static class HotfixLifecycleHostedFixture
+    {
+        public static List<string> Events { get; } = [];
+
+        public sealed class RoomActor : GameActor
+        {
+        }
+
+        public sealed record Marker(string Value);
+
+        [Lakona.Game.Server.Hotfix.Abstractions.HotfixBehaviorOf(typeof(RoomActor))]
+        public static class RoomBehavior
+        {
+            [Lakona.Game.Server.Hotfix.Abstractions.ActorStart]
+            public static ValueTask StartAsync(RoomActor self, Lakona.Game.Server.Hotfix.Abstractions.ActorStartCall call)
+            {
+                _ = self;
+                var marker = call.Services.GetRequiredService<Marker>();
+                Events.Add($"start:{call.ActorId}:{marker.Value}");
+                return default;
+            }
+
+            [Lakona.Game.Server.Hotfix.Abstractions.ActorStop]
+            public static ValueTask StopAsync(RoomActor self, Lakona.Game.Server.Hotfix.Abstractions.ActorStopCall call)
+            {
+                _ = self;
+                var marker = call.Services.GetRequiredService<Marker>();
+                Events.Add($"stop:{call.ActorId}:{marker.Value}");
+                return default;
+            }
+        }
+    }
+
+    private sealed class FixedHotfixRuntimeAccessor(HotfixRuntimeSnapshot snapshot) : IHotfixRuntimeAccessor
+    {
+        public HotfixRuntimeSnapshot Current => snapshot;
     }
 
     private sealed class DelayingActorDirectory : IActorDirectory
@@ -647,6 +880,12 @@ public sealed class ActorHostingTests
             actorType = _createAttempted ? existingType : typeof(IActor);
             state = _createAttempted ? ActorState.Draining : ActorState.Dead;
             return _createAttempted;
+        }
+
+        public bool TryGetLocalActorInstance(Type actorType, ActorId actorId, out object actor)
+        {
+            actor = null!;
+            return false;
         }
 
         public ValueTask<ActorHostingLocalCreateResult> CreateLocalAsync(
