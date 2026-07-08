@@ -39,8 +39,7 @@ In scope:
 - generated method metadata and dispatch support
 - local actor mailbox calls
 - routed actor calls through `ActorDirectory`
-- fire-and-forget post / try-post shape decision for void-returning behavior
-  methods
+- fire-and-forget `PostAsync` support for void-returning behavior methods
 - generated starter and Agar sample migration
 - docs and tests covering the new actor call surface
 
@@ -59,9 +58,9 @@ concrete actor-id-addressed mailbox calls.
 
 ## Scope Checkpoint
 
-Goal: make cross-actor calls explicit through `Local(id).CallAsync(...)` and
-`Route(id).CallAsync(...)`, while preserving hotfix behavior methods as the
-source users navigate to and maintain.
+Goal: make cross-actor calls explicit through generated `Local(id)` and
+`Route(id)` refs plus `CallAsync` / `PostAsync`, while preserving hotfix
+behavior methods as the source users navigate to and maintain.
 
 Affected surfaces:
 
@@ -129,14 +128,21 @@ var result = await rooms.Route(roomId)
     .CallAsync(RoomBehavior.LeaveAsync, request, cancellationToken);
 ```
 
-Local try-post for void-returning behavior:
+`CallAsync` waits for the behavior method to complete. It supports both
+`ValueTask<T>` behavior methods and `ValueTask` behavior methods.
+
+`PostAsync` waits only for the actor message to be accepted for delivery. It
+does not wait for the behavior method to execute. `PostAsync` supports only
+`ValueTask` behavior methods.
+
+Local post for void-returning behavior:
 
 ```csharp
-var accepted = rooms.Local(roomId)
-    .TryPost(RoomBehavior.RunTickAsync, request, cancellationToken);
+await rooms.Local(roomId)
+    .PostAsync(RoomBehavior.RunTickAsync, request, cancellationToken);
 ```
 
-Candidate routed post for void-returning behavior:
+Routed post for void-returning behavior:
 
 ```csharp
 await rooms.Route(roomId)
@@ -150,9 +156,8 @@ inside that actor turn and has the actor instance:
 await self.CompleteAsync(request, cancellationToken);
 ```
 
-Cross-actor calls must use `Local(...).CallAsync(...)` or
-`Route(...).CallAsync(...)`, even when the target actor is known to live in the
-same process.
+Cross-actor calls must use a generated actor ref plus `CallAsync` or
+`PostAsync`, even when the target actor is known to live in the same process.
 
 ## Selector Semantics
 
@@ -209,7 +214,7 @@ Runtime and generated support code must obey these rules:
   caches.
 - Local and routed calls must execute through the current hotfix dispatch table,
   not by invoking the original delegate.
-- Fire-and-forget `PostAsync` and `TryPost` must resolve method identity before
+- Fire-and-forget `PostAsync` must resolve method identity before
   enqueueing the actor message.
 
 This is the primary hotfix-unload safety invariant for the design. If the
@@ -242,8 +247,8 @@ The generator should continue to emit:
 - diagnostics metadata that does not retain hotfix assembly objects
 
 Generated support APIs may use internal helper methods, but the business-facing
-surface must make the actor call boundary explicit through `CallAsync` plus the
-final approved post / try-post API.
+surface must make the actor call boundary explicit through `CallAsync` or
+`PostAsync`.
 
 ## Failure Model
 
@@ -276,6 +281,11 @@ The exception details should include actor id, actor name, behavior method
 name, method id, correlation id, status, and node when available. Default
 diagnostics and metrics must continue to avoid high-cardinality tags such as
 actor id and request values.
+
+For `PostAsync`, these failures describe message acceptance failure. A
+successful `PostAsync` means the local or remote actor runtime accepted the
+message for delivery; it does not mean the behavior method has already run or
+will report its later business failure to the caller.
 
 ## Agar Target Shape
 
@@ -343,11 +353,12 @@ var start = await _rooms.Local(new RoomId(payload.RoomId))
 Battle runtime timer callback:
 
 ```csharp
-var result = rooms.Local(new RoomId(tick.Args.RoomId))
-    .TryPost(
+await rooms.Local(new RoomId(tick.Args.RoomId))
+    .PostAsync(
         RoomBehavior.RunTickAsync,
         new RoomTickRequest { ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime },
-        tick.CancellationToken);
+        tick.CancellationToken)
+    .ConfigureAwait(false);
 ```
 
 Room behavior same-actor settlement:
@@ -392,7 +403,7 @@ Generated and sample code should use:
 ```csharp
 rooms.Route(roomId).CallAsync(RoomBehavior.JoinAsync, request, cancellationToken)
 rooms.Local(roomId).CallAsync(RoomBehavior.StartAsync, request, cancellationToken)
-rooms.Local(roomId).TryPost(RoomBehavior.RunTickAsync, request, cancellationToken)
+rooms.Local(roomId).PostAsync(RoomBehavior.RunTickAsync, request, cancellationToken)
 ```
 
 Docs must describe `Route` as the normal cross-actor path and `Local` as a
@@ -417,7 +428,7 @@ Milestone 1: generated API shape.
 - Stop emitting `Get(id)`.
 - Stop emitting business-facing `Remote(nodeId, id)`.
 - Stop emitting same-named behavior wrapper methods.
-- Emit `CallAsync` and the final approved post / try-post support.
+- Emit `CallAsync` and `PostAsync` support.
 
 Milestone 2: runtime and hotfix safety.
 
@@ -429,7 +440,8 @@ Milestone 2: runtime and hotfix safety.
 
 Milestone 3: sample and template migration.
 
-- Migrate `samples/Game.Unity.Agar` to `Local` / `Route` / `CallAsync`.
+- Migrate `samples/Game.Unity.Agar` to `Local` / `Route` / `CallAsync` /
+  `PostAsync`.
 - Migrate generated starter templates.
 - Update docs and README examples.
 - Add source-scan tests for removed API shapes.
@@ -468,11 +480,8 @@ the first .NET command that may contact NuGet, then use `--no-restore` or
 
 1. Should the public route ref type be named `RoomRouteRef` or keep a shorter
    generated name such as `RoomRef` while the selector method is `Route(id)`?
-2. Should `PostAsync` exist for routed calls in the first release, or should
-   fire-and-forget be limited to `Local(id).TryPost(...)` until remote tell
-   semantics are reviewed?
-3. Should an advanced pinned-node actor-call API exist at all outside tests and
+2. Should an advanced pinned-node actor-call API exist at all outside tests and
    internal runtime code?
-4. Should method-group `CallAsync` be the final public surface, or should the
+3. Should method-group `CallAsync` be the final public surface, or should the
    generator emit explicit selector values to avoid any delegate creation at
    the call boundary?
