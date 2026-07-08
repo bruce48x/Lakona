@@ -77,6 +77,31 @@ public sealed class LakonaGameRuntimeOptionsTests
     }
 
     [Fact]
+    public void FromConfiguration_binds_json_object_startup_actor_entries_case_insensitively()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:StartupActors"] =
+                """
+                [
+                  {
+                    "Name": "matchmaking",
+                    "Options": {
+                      "queue": "ranked"
+                    }
+                  }
+                ]
+                """
+        });
+
+        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
+
+        var actor = Assert.Single(options.StartupActors);
+        Assert.Equal("matchmaking", actor.Name);
+        Assert.Equal("ranked", actor.Options["queue"]);
+    }
+
+    [Fact]
     public void FromConfiguration_binds_heartbeat_policy()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>

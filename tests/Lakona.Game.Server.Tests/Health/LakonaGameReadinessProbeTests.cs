@@ -60,6 +60,38 @@ public sealed class LakonaGameReadinessProbeTests
     }
 
     [Fact]
+    public void Run_RejectsLegacyFeatureConfiguration()
+    {
+        EnsureHotfixAssemblyExists();
+        var runtime = new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "dev-1" },
+            Feature = ["battle-runtime"],
+            Endpoints =
+            [
+                new LakonaGameEndpointOptions
+                {
+                    Transport = "websocket",
+                    Serializer = "json",
+                    Host = "127.0.0.1",
+                    Port = 20000,
+                    Path = "/ws",
+                    RpcServices = ["login"]
+                }
+            ]
+        };
+
+        var (exitCode, output, errors) = CaptureRun(
+            runtime,
+            runtime.ToClusterOptions(),
+            []);
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains("ULINK100", errors, StringComparison.Ordinal);
+        Assert.DoesNotContain("features: ok", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Run_TextOutputIncludesObservabilityDiagnosticsAndRepairs()
     {
         EnsureHotfixAssemblyExists();

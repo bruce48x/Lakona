@@ -326,11 +326,11 @@ public sealed class LakonaGameRuntimeOptions
                 $"{path}:{index} must be a startup actor name or object.");
         }
 
-        var name = element.TryGetProperty("name", out var nameElement) && nameElement.ValueKind == JsonValueKind.String
+        var name = TryGetPropertyIgnoreCase(element, "name", out var nameElement) && nameElement.ValueKind == JsonValueKind.String
             ? nameElement.GetString() ?? ""
             : "";
         var options = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (element.TryGetProperty("options", out var optionsElement)
+        if (TryGetPropertyIgnoreCase(element, "options", out var optionsElement)
             && optionsElement.ValueKind == JsonValueKind.Object)
         {
             foreach (var property in optionsElement.EnumerateObject())
@@ -346,6 +346,24 @@ public sealed class LakonaGameRuntimeOptions
             Name = name,
             Options = options
         };
+    }
+
+    private static bool TryGetPropertyIgnoreCase(
+        JsonElement element,
+        string name,
+        out JsonElement value)
+    {
+        foreach (var property in element.EnumerateObject())
+        {
+            if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
     }
 
     private static bool TryReadJsonValue(IConfigurationSection section, out string json)

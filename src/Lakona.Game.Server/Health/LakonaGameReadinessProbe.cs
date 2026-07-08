@@ -30,6 +30,7 @@ public static class LakonaGameReadinessProbe
             new ClusterEndpointRule(),
             new HotfixSourceRule(),
             new HeartbeatRule(),
+            new ActorHostConfigurationRule(),
             new ObservabilityRule()
         };
 
@@ -86,14 +87,8 @@ public static class LakonaGameReadinessProbe
             ? clusterEndpointValue
             : runtime.Cluster?.Endpoint;
 
-        var featureNames = runtime.Feature ?? Array.Empty<string>();
-
         Console.WriteLine($"cluster: ok {clusterEndpoint ?? "not configured"}");
         Console.WriteLine($"node: ok {nodeId}");
-        if (featureNames.Count > 0)
-        {
-            Console.WriteLine($"features: ok {string.Join(", ", featureNames)}");
-        }
 
         var hotfixFailure = result.Diagnostics.FirstOrDefault(diagnostic => diagnostic.Code == "ULINK071");
         if (hotfixFailure is not null)
