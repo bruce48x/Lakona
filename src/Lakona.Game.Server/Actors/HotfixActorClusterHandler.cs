@@ -3,6 +3,8 @@ using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Microsoft.Extensions.DependencyInjection;
 using System.Globalization;
+using System.Reflection;
+using System.Text.Json;
 
 namespace Lakona.Game.Server.Actors;
 
@@ -30,6 +32,11 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
+
+        if (string.Equals(message.Kind, ActorHostClient.MessageKind, StringComparison.Ordinal))
+        {
+            return await HandleActorHostCreateAsync(message, cancellationToken).ConfigureAwait(false);
+        }
 
         if (!ClusterActorEnvelope.TryFromClusterMessage(message, out var envelope) ||
             envelope is null ||
@@ -243,6 +250,126 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
         {
             lease.Dispose();
         }
+    }
+
+    private async ValueTask<ClusterSendStatus> HandleActorHostCreateAsync(
+        ClusterMessage message,
+        CancellationToken cancellationToken)
+    {
+        var hosting = _services.GetService<ActorHosting>();
+        var accessor = _services.GetService<IHotfixRuntimeAccessor>();
+        if (hosting is null || accessor is null || message.CorrelationId is null)
+        {
+            return ClusterSendStatus.RouteNotFound;
+        }
+
+        ActorHostCreateRequest? request;
+        try
+        {
+            request = JsonSerializer.Deserialize<ActorHostCreateRequest>(message.Payload.Span);
+        }
+        catch
+        {
+            return ClusterSendStatus.DeserializationFailed;
+        }
+
+        if (request is null)
+        {
+            return ClusterSendStatus.DeserializationFailed;
+        }
+
+        HotfixRuntimeSnapshotLease lease;
+        try
+        {
+            lease = accessor.AcquireCurrent();
+        }
+        catch (ObjectDisposedException)
+        {
+            return ClusterSendStatus.RouteNotFound;
+        }
+
+        ActorHostCreateReply reply;
+        try
+        {
+            var actorType = ResolvePlacementActorType(lease.Snapshot, request.Actor);
+            if (actorType is null)
+            {
+                return ClusterSendStatus.RouteNotFound;
+            }
+
+            var actorId = ActorId.From(request.ActorId);
+            try
+            {
+                await InvokeHostingAsync(hosting, actorType, actorId, request.Mode, cancellationToken)
+                    .ConfigureAwait(false);
+                reply = new ActorHostCreateReply(true, _services.GetRequiredService<LocalActorNodeIdentity>().NodeId.Value, "created");
+            }
+            catch (ActorHostedElsewhereException ex)
+            {
+                reply = new ActorHostCreateReply(false, ex.OwnerNode.Value, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                reply = new ActorHostCreateReply(false, null, ex.Message);
+            }
+        }
+        finally
+        {
+            lease.Dispose();
+        }
+
+        await RemoteActorGateway.SendReplyAsync(
+            _router,
+            message.SourceNode,
+            message.CorrelationId,
+            JsonSerializer.SerializeToUtf8Bytes(reply),
+            cancellationToken).ConfigureAwait(false);
+        return ClusterSendStatus.Accepted;
+    }
+
+    private static Type? ResolvePlacementActorType(
+        HotfixRuntimeSnapshot snapshot,
+        string actorName)
+    {
+        foreach (var placement in snapshot.ActorPlacements)
+        {
+            if (string.Equals(ResolveActorName(placement.ActorType), actorName, StringComparison.Ordinal))
+            {
+                return placement.ActorType;
+            }
+        }
+
+        return null;
+    }
+
+    private static async ValueTask InvokeHostingAsync(
+        ActorHosting hosting,
+        Type actorType,
+        ActorId actorId,
+        string mode,
+        CancellationToken cancellationToken)
+    {
+        var methodName = string.Equals(mode, "create", StringComparison.OrdinalIgnoreCase)
+            ? nameof(ActorHosting.CreateAsync)
+            : string.Equals(mode, "ensure", StringComparison.OrdinalIgnoreCase)
+                ? nameof(ActorHosting.EnsureAsync)
+                : throw new InvalidOperationException($"Unknown actor host create mode '{mode}'.");
+        var method = typeof(ActorHosting)
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance)
+            .Single(candidate => candidate.Name == methodName && candidate.IsGenericMethodDefinition);
+        var task = (ValueTask)method
+            .MakeGenericMethod(actorType)
+            .Invoke(hosting, [actorId, cancellationToken])!;
+        await task.ConfigureAwait(false);
+    }
+
+    private static string ResolveActorName(Type actorType)
+    {
+        var attribute = (ActorNameAttribute?)Attribute.GetCustomAttribute(
+            actorType,
+            typeof(ActorNameAttribute),
+            inherit: false);
+        return attribute?.Name ?? actorType.Name;
     }
 
     private static ClusterSendStatus MapTellResult(ActorTellResult result)

@@ -2,6 +2,10 @@ namespace Lakona.Game.Server.Actors;
 
 public interface IActorLifecycleDispatcher
 {
+    bool HasStartHook(Type actorType);
+
+    bool HasStopHook(Type actorType);
+
     ValueTask StartAsync(
         Type actorType,
         ActorId actorId,
@@ -17,6 +21,16 @@ public interface IActorLifecycleDispatcher
 
 internal sealed class NoopActorLifecycleDispatcher : IActorLifecycleDispatcher
 {
+    public bool HasStartHook(Type actorType)
+    {
+        return false;
+    }
+
+    public bool HasStopHook(Type actorType)
+    {
+        return false;
+    }
+
     public ValueTask StartAsync(
         Type actorType,
         ActorId actorId,

@@ -4,6 +4,7 @@ using System.Text.Json;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
+using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -441,6 +442,55 @@ public sealed class HotfixActorClusterHandlerTests
         Assert.Null(router.LastMessage);
     }
 
+    [Fact]
+    public async Task HandleAsync_actor_host_create_ensures_local_actor_and_sends_reply()
+    {
+        var actorId = ActorId.From("room/created");
+        var router = new RecordingClusterRouter();
+        var snapshot = CreatePlacementSnapshot(
+        [
+            ActorPlacementDeclaration.Create<HostCreateActor, ActorId>(
+                static context => context.Candidates[0])
+        ]);
+        await using var provider = new ServiceCollection()
+            .AddSingleton<IHotfixRuntimeAccessor>(new FixedRuntimeAccessor(snapshot))
+            .AddLakonaGameServerActors()
+            .BuildServiceProvider();
+        var handler = new HotfixActorClusterHandler(
+            provider.GetRequiredService<IActorRuntime>(),
+            new JsonRemoteActorSerializer(),
+            router,
+            provider);
+        var request = new ActorHostCreateRequest(
+            "host-create-room",
+            actorId.Value,
+            "ensure",
+            "test-build");
+        var message = new ClusterMessage(
+            ActorHostClient.Route,
+            ActorHostClient.MessageKind,
+            JsonSerializer.SerializeToUtf8Bytes(request),
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            new NodeId("source-node"),
+            correlationId: "host-create-1");
+
+        var status = await handler.HandleAsync(message, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.Accepted, status);
+        var created = await provider.GetRequiredService<IActorRuntime>().AskAsync<HostCreateActor, bool>(
+            actorId,
+            static (_, _) => new ValueTask<bool>(true),
+            TestContext.Current.CancellationToken);
+        Assert.True(created);
+        Assert.NotNull(router.LastMessage);
+        Assert.Equal(RemoteActorGateway.ReplyKind, router.LastMessage.Kind);
+        Assert.Equal("host-create-1", router.LastMessage.CorrelationId);
+        var reply = JsonSerializer.Deserialize<ActorHostCreateReply>(router.LastMessage.Payload.Span);
+        Assert.NotNull(reply);
+        Assert.True(reply.Succeeded);
+        Assert.Equal("local", reply.OwnerNode);
+    }
+
     private static HotfixActorClusterHandler CreateHandler(
         IActorRuntime runtime,
         IRemoteActorSerializer serializer,
@@ -475,6 +525,30 @@ public sealed class HotfixActorClusterHandlerTests
             sourcePath: null,
             ownsRuntimeResources: false,
             onRetired);
+    }
+
+    private static HotfixRuntimeSnapshot CreatePlacementSnapshot(
+        IReadOnlyList<ActorPlacementDeclaration> placements)
+    {
+        var table = new HotfixDispatchTable(
+            1,
+            Array.Empty<HotfixMethodBinding>(),
+            Array.Empty<HotfixServiceMethodBinding>(),
+            Array.Empty<HotfixActorMethodDescriptor>());
+        var services = new ServiceCollection().BuildServiceProvider();
+        return new HotfixRuntimeSnapshot(
+            new HotfixServiceInvoker(table),
+            EmptyHotfixFeatureCommandInvoker.Instance,
+            services,
+            table,
+            services,
+            mainAssembly: null,
+            loadContext: null,
+            sourceVersion: "test",
+            sourcePath: null,
+            ownsRuntimeResources: false,
+            onRetired: null,
+            actorPlacements: placements);
     }
 
     private static HotfixActorMethodDescriptor CreatePingDescriptor()
@@ -570,6 +644,9 @@ public sealed class HotfixActorClusterHandlerTests
             await release.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
     }
+
+    [ActorName("host-create-room")]
+    private sealed class HostCreateActor : GameActor;
 
     private sealed class RecordingActorRuntime : IActorRuntime
     {

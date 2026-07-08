@@ -135,25 +135,6 @@ public sealed class ActorHosting
             throw new ActorHostingTypeMismatchException(actorId, actorType, existingActorType, nameof(DestroyAsync));
         }
 
-        if (_runtime.TryGetLocalActorInstance(actorType, actorId, out var actor))
-        {
-            try
-            {
-                await _lifecycleDispatcher
-                    .StopAsync(actorType, actorId, actor, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                throw new ActorHostingStopException(
-                    actorId,
-                    actorType,
-                    nameof(DestroyAsync),
-                    $"Failed while running actor stop hook for actor id '{actorId.Value}' as '{actorType.FullName}'.",
-                    ex);
-            }
-        }
-
         var localRouteRemoved = false;
         if (!IsLocalOnly(actorType))
         {
@@ -162,6 +143,42 @@ public sealed class ActorHosting
                 .ConfigureAwait(false);
             localRouteRemoved = unregisterStatus == ActorDirectoryUnregisterStatus.Unregistered;
             _directoryCache.Remove(actorId);
+        }
+
+        if (_runtime.TryGetLocalActor(actorId, out existingActorType, out var existingState) &&
+            IsExactActorType(existingActorType, actorType) &&
+            existingState != ActorState.Dead &&
+            _lifecycleDispatcher.HasStopHook(actorType))
+        {
+            try
+            {
+                await _runtime
+                    .InvokeLocalAsync(
+                        actorType,
+                        actorId,
+                        async (actor, ct) =>
+                        {
+                            await _lifecycleDispatcher
+                                .StopAsync(actorType, actorId, actor, ct)
+                                .ConfigureAwait(false);
+                        },
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                if (localRouteRemoved && IsStillHosted(actorType, actorId))
+                {
+                    await RestoreLocalRouteAsync(actorId, CancellationToken.None).ConfigureAwait(false);
+                }
+
+                throw new ActorHostingStopException(
+                    actorId,
+                    actorType,
+                    nameof(DestroyAsync),
+                    $"Failed while running actor stop hook for actor id '{actorId.Value}' as '{actorType.FullName}'.",
+                    ex);
+            }
         }
 
         ActorHostingLocalDestroyResult destroyResult;
@@ -258,15 +275,6 @@ public sealed class ActorHosting
         var localCreated = false;
         try
         {
-            if (!IsLocalOnly(actorType))
-            {
-                registeredByThisCall = await RegisterLocalRouteAsync(
-                    actorType,
-                    actorId,
-                    strict ? nameof(CreateAsync) : nameof(EnsureAsync),
-                    cancellationToken).ConfigureAwait(false);
-            }
-
             var createResult = await _runtime
                 .CreateLocalAsync(actorType, actorId, cancellationToken)
                 .ConfigureAwait(false);
@@ -275,14 +283,22 @@ public sealed class ActorHosting
             {
                 case ActorHostingLocalCreateStatus.Created:
                     localCreated = true;
-                    await _lifecycleDispatcher
-                        .StartAsync(
-                            actorType,
-                            actorId,
-                            createResult.Actor ?? throw new InvalidOperationException(
-                                $"Actor runtime did not return an instance for created actor id '{actorId.Value}'."),
-                            cancellationToken)
-                        .ConfigureAwait(false);
+                    if (_lifecycleDispatcher.HasStartHook(actorType))
+                    {
+                        await _runtime
+                            .InvokeLocalAsync(
+                                actorType,
+                                actorId,
+                                async (actor, ct) =>
+                                {
+                                    await _lifecycleDispatcher
+                                        .StartAsync(actorType, actorId, actor, ct)
+                                        .ConfigureAwait(false);
+                                },
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                    }
+
                     break;
                 case ActorHostingLocalCreateStatus.AlreadyExistsSameType when strict:
                     throw new ActorAlreadyHostedException(actorId, actorType, nameof(CreateAsync));
@@ -294,6 +310,15 @@ public sealed class ActorHosting
                         actorType,
                         createResult.ExistingActorType ?? typeof(IActor),
                         strict ? nameof(CreateAsync) : nameof(EnsureAsync));
+            }
+
+            if (!IsLocalOnly(actorType))
+            {
+                registeredByThisCall = await RegisterLocalRouteAsync(
+                    actorType,
+                    actorId,
+                    strict ? nameof(CreateAsync) : nameof(EnsureAsync),
+                    cancellationToken).ConfigureAwait(false);
             }
 
             if (!IsLocalOnly(actorType))

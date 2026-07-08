@@ -654,6 +654,16 @@ public sealed class ActorHostingTests
     {
         public List<(string Kind, string ActorId, Type ActorType)> Events { get; } = [];
 
+        public bool HasStartHook(Type actorType)
+        {
+            return true;
+        }
+
+        public bool HasStopHook(Type actorType)
+        {
+            return true;
+        }
+
         public ValueTask StartAsync(
             Type actorType,
             ActorId actorId,
@@ -681,6 +691,16 @@ public sealed class ActorHostingTests
         bool throwOnStart = false,
         bool throwOnStop = false) : IActorLifecycleDispatcher
     {
+        public bool HasStartHook(Type actorType)
+        {
+            return true;
+        }
+
+        public bool HasStopHook(Type actorType)
+        {
+            return true;
+        }
+
         public ValueTask StartAsync(
             Type actorType,
             ActorId actorId,
@@ -882,10 +902,17 @@ public sealed class ActorHostingTests
             return _createAttempted;
         }
 
-        public bool TryGetLocalActorInstance(Type actorType, ActorId actorId, out object actor)
+        public ValueTask InvokeLocalAsync(
+            Type actorType,
+            ActorId actorId,
+            Func<object, CancellationToken, ValueTask> callback,
+            CancellationToken cancellationToken = default)
         {
-            actor = null!;
-            return false;
+            throw new ActorNotFoundException(
+                actorId,
+                actorType.Name,
+                nameof(InvokeLocalAsync),
+                "Actor is not hosted by this fake runtime.");
         }
 
         public ValueTask<ActorHostingLocalCreateResult> CreateLocalAsync(

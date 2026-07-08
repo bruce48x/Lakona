@@ -56,20 +56,25 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
         return false;
     }
 
-    bool IActorHostingRuntime.TryGetLocalActorInstance(Type actorType, ActorId actorId, out object actor)
+    async ValueTask IActorHostingRuntime.InvokeLocalAsync(
+        Type actorType,
+        ActorId actorId,
+        Func<object, CancellationToken, ValueTask> callback,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actorType);
+        ArgumentNullException.ThrowIfNull(callback);
 
-        if (!_actors.TryGetValue(actorId, out var cell) ||
-            !IsExactActorType(cell.ActorType, actorType) ||
-            cell.GetState() == ActorState.Dead)
-        {
-            actor = null!;
-            return false;
-        }
-
-        actor = cell.Actor;
-        return true;
+        var cell = GetRequiredCell(actorType, actorId, nameof(IActorHostingRuntime.InvokeLocalAsync));
+        await cell.InvokeAsync(
+            static async (actor, state, ct) =>
+            {
+                var callback = (Func<object, CancellationToken, ValueTask>)state;
+                await callback(actor, ct).ConfigureAwait(false);
+                return null;
+            },
+            callback,
+            cancellationToken).ConfigureAwait(false);
     }
 
     async ValueTask<ActorHostingLocalCreateResult> IActorHostingRuntime.CreateLocalAsync(
@@ -86,8 +91,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
                 ? new ActorHostingLocalCreateResult(
                     ActorHostingLocalCreateStatus.AlreadyExistsSameType,
                     actorId,
-                    actorType,
-                    Actor: existing.Actor)
+                    actorType)
                 : new ActorHostingLocalCreateResult(
                     ActorHostingLocalCreateStatus.AlreadyExistsDifferentType,
                     actorId,
@@ -106,8 +110,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
                     ? new ActorHostingLocalCreateResult(
                         ActorHostingLocalCreateStatus.AlreadyExistsSameType,
                         actorId,
-                        actorType,
-                        Actor: existing.Actor)
+                        actorType)
                     : new ActorHostingLocalCreateResult(
                         ActorHostingLocalCreateStatus.AlreadyExistsDifferentType,
                         actorId,
@@ -124,8 +127,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             return new ActorHostingLocalCreateResult(
                 ActorHostingLocalCreateStatus.Created,
                 actorId,
-                actorType,
-                Actor: cell.Actor);
+                actorType);
         }
         catch
         {
