@@ -146,6 +146,8 @@ public sealed class ServerAppRendererTests
 
         var lakona = document.RootElement.GetProperty("Lakona");
         Assert.False(lakona.TryGetProperty("Feature", out _));
+        Assert.Equal(new[] { "chat-room" }, lakona.GetProperty("ActorHosts").EnumerateArray().Select(item => item.GetString()).ToArray());
+        Assert.Equal(new[] { "chat-room" }, lakona.GetProperty("StartupActors").EnumerateArray().Select(item => item.GetString()).ToArray());
         Assert.DoesNotContain(
             lakona.EnumerateObject(),
             property => string.Equals(property.Name, "Cluster", StringComparison.OrdinalIgnoreCase));

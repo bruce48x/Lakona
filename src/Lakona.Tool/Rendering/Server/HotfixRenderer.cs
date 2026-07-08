@@ -13,7 +13,7 @@ internal sealed class HotfixRenderer : IPlanContributor
         builder.AddFile("Server/Hotfix/Chat/ChatService.cs", RenderChatService(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/Hotfix/Chat/ChatSessionLifecycle.cs", RenderChatSessionLifecycle(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/Hotfix/Chat/ChatRoomBehavior.cs", RenderChatRoomBehavior(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Server/Hotfix/Features/ChatFeature.cs", RenderChatFeature(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Server/Hotfix/HotfixStartup.cs", RenderHotfixStartup(), FileWriteMode.Replace, GeneratedFileKind.Text);
     }
 
     private static string RenderProject(LakonaProjectSpec spec)
@@ -336,7 +336,7 @@ internal sealed class HotfixRenderer : IPlanContributor
         """;
     }
 
-    private static string RenderChatFeature()
+    private static string RenderHotfixStartup()
     {
         return """
         using Server.App.Chat;
@@ -344,37 +344,19 @@ internal sealed class HotfixRenderer : IPlanContributor
         using Lakona.Game.Server.Hotfix.Abstractions;
         using Microsoft.Extensions.DependencyInjection;
 
-        namespace Server.Hotfix.Features
+        namespace Server.Hotfix
         {
-            [HotfixFeature("chat")]
-            public sealed class ChatFeature : HotfixGameFeature
+            public static class HotfixStartup
             {
-                public static void Configure(HotfixFeatureContext context)
+                public static void ConfigureServices(IServiceCollection services)
                 {
                 }
 
-                public static async ValueTask StartAsync(HotfixFeatureStartCall call)
+                public static void ConfigureActors(ActorHostBuilder actors)
                 {
-                    await call.Services
-                        .GetRequiredService<ActorHosting>()
-                        .CreateAsync<ChatRoomActor>(ActorId.From(ChatRoomIds.Global), call.CancellationToken)
-                        .ConfigureAwait(false);
-                    call.State.Items[nameof(ChatRoomIds.Global)] = ChatRoomIds.Global;
-                }
-
-                public static async ValueTask StopAsync(HotfixFeatureStopCall call)
-                {
-                    if (call.State.Items.TryGetValue(nameof(ChatRoomIds.Global), out var value) &&
-                        value is string actorId &&
-                        !string.IsNullOrWhiteSpace(actorId))
-                    {
-                        await call.Services
-                            .GetRequiredService<ActorHosting>()
-                            .DestroyAsync<ChatRoomActor>(ActorId.From(actorId), CancellationToken.None)
-                            .ConfigureAwait(false);
-                    }
-
-                    call.State.Items.Remove(nameof(ChatRoomIds.Global));
+                    actors.RegisterStartup(
+                        "chat-room",
+                        static _ => ActorStartupPlan.Create<ChatRoomActor>(ActorId.From(ChatRoomIds.Global)));
                 }
             }
         }
