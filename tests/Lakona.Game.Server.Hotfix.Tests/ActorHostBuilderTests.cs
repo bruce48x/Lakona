@@ -84,6 +84,20 @@ public sealed class ActorHostBuilderTests
         Assert.Throws<ArgumentException>(() => new ActorHostCandidate(" "));
     }
 
+    [Fact]
+    public void ActorHostCandidateSnapshotsMetadata()
+    {
+        var metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["region"] = "east",
+        };
+
+        var candidate = new ActorHostCandidate("node-1", metadata);
+        metadata["region"] = "west";
+
+        Assert.Equal("east", candidate.Metadata["region"]);
+    }
+
     private sealed class TestActor
     {
     }

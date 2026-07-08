@@ -57,6 +57,20 @@ public sealed class HotfixBehaviorScannerTests
     }
 
     [Fact]
+    public void Scanner_finds_actor_start_and_stop_methods()
+    {
+        var result = HotfixBehaviorScanner.Scan(
+            typeof(LifecycleFixture.RoomBehavior).Assembly,
+            [typeof(LifecycleFixture.RoomBehavior)]);
+
+        Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
+        var lifecycle = Assert.Single(result.ActorLifecycles);
+        Assert.Equal(typeof(LifecycleFixture.RoomActor), lifecycle.ActorType);
+        Assert.Equal(nameof(LifecycleFixture.RoomBehavior.StartAsync), lifecycle.StartMethodName);
+        Assert.Equal(nameof(LifecycleFixture.RoomBehavior.StopAsync), lifecycle.StopMethodName);
+    }
+
+    [Fact]
     public void Scanner_rejects_non_static_hotfix_startup()
     {
         var result = HotfixBehaviorScanner.Scan(
@@ -66,7 +80,20 @@ public sealed class HotfixBehaviorScannerTests
         Assert.False(result.Succeeded);
         Assert.Contains(result.Diagnostics, diagnostic =>
             diagnostic.Contains("HotfixStartup", StringComparison.Ordinal) &&
-            diagnostic.Contains("static class", StringComparison.Ordinal));
+            diagnostic.Contains("public static class", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Scanner_rejects_non_public_hotfix_startup()
+    {
+        var result = HotfixBehaviorScanner.Scan(
+            typeof(NonPublicStartupFixture.HotfixStartup).Assembly,
+            [typeof(NonPublicStartupFixture.HotfixStartup)]);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Contains("HotfixStartup", StringComparison.Ordinal) &&
+            diagnostic.Contains("public static class", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -80,6 +107,19 @@ public sealed class HotfixBehaviorScannerTests
         Assert.Contains(result.Diagnostics, diagnostic =>
             diagnostic.Contains("ConfigureActors", StringComparison.Ordinal) &&
             diagnostic.Contains(nameof(ActorHostBuilder), StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Scanner_rejects_invalid_hotfix_startup_configure_services_signature()
+    {
+        var result = HotfixBehaviorScanner.Scan(
+            typeof(InvalidStartupServicesSignatureFixture.HotfixStartup).Assembly,
+            [typeof(InvalidStartupServicesSignatureFixture.HotfixStartup)]);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Contains("ConfigureServices", StringComparison.Ordinal) &&
+            diagnostic.Contains(nameof(IServiceCollection), StringComparison.Ordinal));
     }
 
     [Fact]
@@ -205,7 +245,7 @@ public sealed class HotfixBehaviorScannerTests
             diagnostic.Contains("behavior", StringComparison.OrdinalIgnoreCase));
     }
 
-    private static class StartupScanFixture
+    public static class StartupScanFixture
     {
         public sealed class RoomActor : IActor
         {
@@ -237,7 +277,7 @@ public sealed class HotfixBehaviorScannerTests
         }
     }
 
-    private static class NonStaticStartupFixture
+    public static class NonStaticStartupFixture
     {
         public sealed class HotfixStartup
         {
@@ -248,12 +288,60 @@ public sealed class HotfixBehaviorScannerTests
         }
     }
 
-    private static class InvalidStartupSignatureFixture
+    private static class NonPublicStartupFixture
+    {
+        public static class HotfixStartup
+        {
+            public static void ConfigureActors(ActorHostBuilder actors)
+            {
+                actors.RegisterStartup("matchmaking", static _ => ActorStartupPlan.Empty);
+            }
+        }
+    }
+
+    public static class InvalidStartupSignatureFixture
     {
         public static class HotfixStartup
         {
             public static void ConfigureActors()
             {
+            }
+        }
+    }
+
+    public static class InvalidStartupServicesSignatureFixture
+    {
+        public static class HotfixStartup
+        {
+            public static void ConfigureServices()
+            {
+            }
+        }
+    }
+
+    public static class LifecycleFixture
+    {
+        public sealed class RoomActor : IActor
+        {
+        }
+
+        [HotfixBehaviorOf(typeof(RoomActor))]
+        public static class RoomBehavior
+        {
+            [ActorStart]
+            public static ValueTask StartAsync(RoomActor self, ActorStartCall call)
+            {
+                _ = self;
+                _ = call;
+                return default;
+            }
+
+            [ActorStop]
+            public static ValueTask StopAsync(RoomActor self, ActorStopCall call)
+            {
+                _ = self;
+                _ = call;
+                return default;
             }
         }
     }

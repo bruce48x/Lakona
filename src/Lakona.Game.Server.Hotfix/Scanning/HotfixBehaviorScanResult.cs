@@ -11,6 +11,7 @@ public sealed record HotfixBehaviorScanResult(
     IReadOnlyList<HotfixActorMethodDescriptor> ActorMethods,
     IReadOnlyList<ActorStartupDeclaration> ActorStartups,
     IReadOnlyList<ActorPlacementDeclaration> ActorPlacements,
+    IReadOnlyList<HotfixActorLifecycleDescriptor> ActorLifecycles,
     IReadOnlyList<ServiceDescriptor> StartupServices,
     IReadOnlyList<string> Diagnostics)
 {
@@ -27,6 +28,7 @@ public sealed record HotfixBehaviorScanResult(
             actorMethods,
             Array.Empty<ActorStartupDeclaration>(),
             Array.Empty<ActorPlacementDeclaration>(),
+            Array.Empty<HotfixActorLifecycleDescriptor>(),
             Array.Empty<ServiceDescriptor>(),
             diagnostics)
     {

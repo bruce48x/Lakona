@@ -790,6 +790,26 @@ public sealed class HotfixManagerTests
     }
 
     [Fact]
+    public void BuildHotfixProvider_includes_startup_service_registrations()
+    {
+        var manager = new HotfixManager(new FixedAssemblySource("unused"));
+        var services = BuildHotfixProvider(
+            manager,
+            [],
+            [ServiceDescriptor.Singleton<IStartupConfiguredMarker, StartupConfiguredMarker>()],
+            typeof(HotfixManagerTests).Assembly);
+        try
+        {
+            Assert.IsType<StartupConfiguredMarker>(
+                services.GetRequiredService<IStartupConfiguredMarker>());
+        }
+        finally
+        {
+            (services as IDisposable)?.Dispose();
+        }
+    }
+
+    [Fact]
     public async Task Reload_fails_before_publish_when_service_has_multiple_unmarked_constructors()
     {
         using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
@@ -895,11 +915,20 @@ public sealed class HotfixManagerTests
         IReadOnlyList<HotfixFeatureDeclaration> features,
         Assembly hotfixAssembly)
     {
+        return BuildHotfixProvider(manager, features, [], hotfixAssembly);
+    }
+
+    private static IServiceProvider BuildHotfixProvider(
+        HotfixManager manager,
+        IReadOnlyList<HotfixFeatureDeclaration> features,
+        IReadOnlyList<ServiceDescriptor> startupServices,
+        Assembly hotfixAssembly)
+    {
         return (IServiceProvider)typeof(HotfixManager)
             .GetMethods(BindingFlags.Instance | BindingFlags.NonPublic)
             .Single(method => method.Name == "BuildHotfixProvider"
-                && method.GetParameters().Length == 2)
-            .Invoke(manager, [features, hotfixAssembly])!;
+                && method.GetParameters().Length == 3)
+            .Invoke(manager, [features, startupServices, hotfixAssembly])!;
     }
 
     private static void ForceStaleActiveFlag(HotfixDispatchRuntimeContext context)
@@ -928,6 +957,14 @@ public sealed class HotfixManagerTests
                 _path,
                 Path.GetDirectoryName(_path)!));
         }
+    }
+
+    private interface IStartupConfiguredMarker
+    {
+    }
+
+    private sealed class StartupConfiguredMarker : IStartupConfiguredMarker
+    {
     }
 
     private sealed class SwitchableAssemblySource : IHotfixAssemblySource

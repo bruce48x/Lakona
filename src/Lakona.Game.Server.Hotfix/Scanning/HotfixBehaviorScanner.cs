@@ -39,6 +39,7 @@ public static class HotfixBehaviorScanner
         var actorMethods = new List<HotfixActorMethodDescriptor>();
         var actorStartups = new List<ActorStartupDeclaration>();
         var actorPlacements = new List<ActorPlacementDeclaration>();
+        var actorLifecycles = new Dictionary<Type, ActorLifecycleMethods>();
         var startupServices = new List<ServiceDescriptor>();
         var diagnostics = new List<string>();
         var keys = new HashSet<HotfixMethodKey>();
@@ -84,7 +85,15 @@ public static class HotfixBehaviorScanner
                         continue;
                     }
 
-                    ScanBehaviorType(type, behaviorActorType, methods, actorMethods, diagnostics, keys, actorMethodKeys);
+                    ScanBehaviorType(
+                        type,
+                        behaviorActorType,
+                        methods,
+                        actorMethods,
+                        actorLifecycles,
+                        diagnostics,
+                        keys,
+                        actorMethodKeys);
                 }
 
                 if (IsHotfixStartupType(type))
@@ -142,6 +151,10 @@ public static class HotfixBehaviorScanner
             actorMethods,
             actorStartups,
             actorPlacements,
+            actorLifecycles
+                .OrderBy(static item => item.Key.FullName, StringComparer.Ordinal)
+                .Select(static item => item.Value.ToDescriptor(item.Key))
+                .ToArray(),
             startupServices,
             diagnostics);
     }
@@ -160,9 +173,9 @@ public static class HotfixBehaviorScanner
         HashSet<string> startupNames,
         HashSet<Type> placementActors)
     {
-        if (!startupType.IsAbstract || !startupType.IsSealed)
+        if (!startupType.IsVisible || !startupType.IsAbstract || !startupType.IsSealed)
         {
-            diagnostics.Add($"Hotfix startup '{startupType.FullName}' must be a static class.");
+            diagnostics.Add($"Hotfix startup '{startupType.FullName}' must be a public static class.");
             return;
         }
 
@@ -454,6 +467,7 @@ public static class HotfixBehaviorScanner
         Type stateType,
         List<HotfixMethodBinding> methods,
         List<HotfixActorMethodDescriptor> actorMethods,
+        Dictionary<Type, ActorLifecycleMethods> actorLifecycles,
         List<string> diagnostics,
         HashSet<HotfixMethodKey> keys,
         HashSet<string> actorMethodKeys)
@@ -467,6 +481,15 @@ public static class HotfixBehaviorScanner
 
         try
         {
+            if (isActorBehavior)
+            {
+                ScanActorLifecycleMethods(behaviorType, stateType, actorLifecycles, diagnostics);
+            }
+            else
+            {
+                RejectActorLifecycleMethodsOnNonActorBehavior(behaviorType, stateType, diagnostics);
+            }
+
             foreach (var method in behaviorType.GetMethods(BindingFlags.Public | BindingFlags.Static))
             {
                 if (!method.IsDefined(typeof(ExtensionAttribute), inherit: false))
@@ -528,6 +551,93 @@ public static class HotfixBehaviorScanner
                 loadContext.Resolving -= ResolveLoadedAssembly;
             }
         }
+    }
+
+    private static void ScanActorLifecycleMethods(
+        Type behaviorType,
+        Type actorType,
+        Dictionary<Type, ActorLifecycleMethods> actorLifecycles,
+        List<string> diagnostics)
+    {
+        foreach (var method in behaviorType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
+        {
+            var isStart = method.IsDefined(typeof(ActorStartAttribute), inherit: false);
+            var isStop = method.IsDefined(typeof(ActorStopAttribute), inherit: false);
+            if (!isStart && !isStop)
+            {
+                continue;
+            }
+
+            if (isStart && isStop)
+            {
+                diagnostics.Add($"Hotfix actor lifecycle method '{behaviorType.FullName}.{method.Name}' must not use both [ActorStart] and [ActorStop].");
+                continue;
+            }
+
+            var expectedCallType = isStart ? typeof(ActorStartCall) : typeof(ActorStopCall);
+            if (!IsValidActorLifecycleMethod(method, actorType, expectedCallType))
+            {
+                diagnostics.Add($"Hotfix actor lifecycle method '{behaviorType.FullName}.{method.Name}' must be public static ValueTask with parameters ({actorType.FullName} actor, {expectedCallType.Name} call).");
+                continue;
+            }
+
+            if (!actorLifecycles.TryGetValue(actorType, out var lifecycle))
+            {
+                lifecycle = new ActorLifecycleMethods();
+                actorLifecycles.Add(actorType, lifecycle);
+            }
+
+            if (isStart)
+            {
+                if (lifecycle.StartMethod is not null)
+                {
+                    diagnostics.Add($"Duplicate [ActorStart] method for actor '{actorType.FullName}'.");
+                    continue;
+                }
+
+                lifecycle.StartMethod = method;
+                continue;
+            }
+
+            if (lifecycle.StopMethod is not null)
+            {
+                diagnostics.Add($"Duplicate [ActorStop] method for actor '{actorType.FullName}'.");
+                continue;
+            }
+
+            lifecycle.StopMethod = method;
+        }
+    }
+
+    private static void RejectActorLifecycleMethodsOnNonActorBehavior(
+        Type behaviorType,
+        Type stateType,
+        List<string> diagnostics)
+    {
+        foreach (var method in behaviorType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
+        {
+            if (!method.IsDefined(typeof(ActorStartAttribute), inherit: false) &&
+                !method.IsDefined(typeof(ActorStopAttribute), inherit: false))
+            {
+                continue;
+            }
+
+            diagnostics.Add($"Hotfix actor lifecycle method '{behaviorType.FullName}.{method.Name}' requires actor type '{stateType.FullName}' to implement Lakona.Game.Server.Actors.IActor.");
+        }
+    }
+
+    private static bool IsValidActorLifecycleMethod(
+        MethodInfo method,
+        Type actorType,
+        Type callType)
+    {
+        var parameters = method.GetParameters();
+        return method.IsStatic &&
+            !method.IsGenericMethod &&
+            method.ReturnType == typeof(ValueTask) &&
+            parameters.Length == 2 &&
+            parameters[0].ParameterType == actorType &&
+            parameters[1].ParameterType == callType;
     }
 
     private static void ScanActorApiMethod(
@@ -937,6 +1047,18 @@ public static class HotfixBehaviorScanner
     private sealed record HotfixServiceBindingDescriptor(
         Type ContractType,
         HotfixServiceBindingKind Kind);
+
+    private sealed class ActorLifecycleMethods
+    {
+        public MethodInfo? StartMethod { get; set; }
+
+        public MethodInfo? StopMethod { get; set; }
+
+        public HotfixActorLifecycleDescriptor ToDescriptor(Type actorType)
+        {
+            return new HotfixActorLifecycleDescriptor(actorType, StartMethod, StopMethod);
+        }
+    }
 
     private enum HotfixServiceBindingKind
     {

@@ -152,11 +152,17 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
 
             var activeFeatures = _featureActivationPolicy.SelectActiveFeatures(scan.Features);
             var tableVersion = publish ? Interlocked.Increment(ref _nextVersion) : Current.DispatchTableVersion;
-            var table = new HotfixDispatchTable(tableVersion, scan.Methods, scan.Services, activeFeatures, scan.ActorMethods);
+            var table = new HotfixDispatchTable(
+                tableVersion,
+                scan.Methods,
+                scan.Services,
+                activeFeatures,
+                scan.ActorMethods,
+                scan.ActorLifecycles);
             table.ValidateMethodShapes();
             table.ValidateTypedDispatchDelegates();
             table.ValidateFeatureCommandMethods();
-            hotfixProvider = BuildHotfixProvider(activeFeatures, assembly);
+            hotfixProvider = BuildHotfixProvider(activeFeatures, scan.StartupServices, assembly);
             table.ValidateServiceActivation(hotfixProvider);
             table.ValidateFeatureCommandActivation(hotfixProvider);
             var snapshot = new HotfixSnapshot(
@@ -434,19 +440,33 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
 
     private IServiceProvider BuildHotfixProvider(IReadOnlyList<HotfixFeatureDeclaration> features)
     {
-        return BuildHotfixProvider(features, typeof(HotfixManager).Assembly);
+        return BuildHotfixProvider(features, Array.Empty<ServiceDescriptor>(), typeof(HotfixManager).Assembly);
     }
 
     private IServiceProvider BuildHotfixProvider(
         IReadOnlyList<HotfixFeatureDeclaration> features,
         Assembly hotfixAssembly)
     {
+        return BuildHotfixProvider(features, Array.Empty<ServiceDescriptor>(), hotfixAssembly);
+    }
+
+    private IServiceProvider BuildHotfixProvider(
+        IReadOnlyList<HotfixFeatureDeclaration> features,
+        IReadOnlyList<ServiceDescriptor> startupServices,
+        Assembly hotfixAssembly)
+    {
         ArgumentNullException.ThrowIfNull(features);
+        ArgumentNullException.ThrowIfNull(startupServices);
         ArgumentNullException.ThrowIfNull(hotfixAssembly);
 
         var registrations = DiscoverGeneratedServiceRegistrations(hotfixAssembly);
         var rawServices = new ServiceCollection();
         foreach (var descriptor in features.SelectMany(static feature => feature.Services))
+        {
+            ((ICollection<ServiceDescriptor>)rawServices).Add(descriptor);
+        }
+
+        foreach (var descriptor in startupServices)
         {
             ((ICollection<ServiceDescriptor>)rawServices).Add(descriptor);
         }

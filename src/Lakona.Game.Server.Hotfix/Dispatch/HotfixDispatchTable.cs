@@ -12,6 +12,7 @@ public sealed class HotfixDispatchTable
     private readonly IReadOnlyDictionary<string, HotfixServiceMethodBinding> serviceBindings;
     private readonly IReadOnlyDictionary<string, HotfixActorMethodDescriptor> actorMethodBindings;
     private readonly IReadOnlyDictionary<ulong, HotfixActorMethodDescriptor> actorMethodIdBindings;
+    private readonly IReadOnlyDictionary<Type, HotfixActorLifecycleDescriptor> actorLifecycleBindings;
     private readonly IReadOnlyDictionary<Type, ObjectFactory> serviceActivationFactories;
     private readonly IReadOnlyDictionary<string, HotfixFeatureCommandBinding> featureCommandBindings;
     private readonly IReadOnlyDictionary<Type, ObjectFactory> featureActivationFactories;
@@ -58,11 +59,23 @@ public sealed class HotfixDispatchTable
         IEnumerable<HotfixServiceMethodBinding> services,
         IEnumerable<HotfixFeatureDeclaration> features,
         IEnumerable<HotfixActorMethodDescriptor> actorMethods)
+        : this(version, methods, services, features, actorMethods, Array.Empty<HotfixActorLifecycleDescriptor>())
+    {
+    }
+
+    public HotfixDispatchTable(
+        long version,
+        IEnumerable<HotfixMethodBinding> methods,
+        IEnumerable<HotfixServiceMethodBinding> services,
+        IEnumerable<HotfixFeatureDeclaration> features,
+        IEnumerable<HotfixActorMethodDescriptor> actorMethods,
+        IEnumerable<HotfixActorLifecycleDescriptor> actorLifecycles)
     {
         ArgumentNullException.ThrowIfNull(methods);
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(features);
         ArgumentNullException.ThrowIfNull(actorMethods);
+        ArgumentNullException.ThrowIfNull(actorLifecycles);
 
         var methodList = new List<HotfixMethodBinding>();
         foreach (var method in methods)
@@ -95,6 +108,17 @@ public sealed class HotfixDispatchTable
             }
 
             actorMethodList.Add(actorMethod);
+        }
+
+        var actorLifecycleList = new List<HotfixActorLifecycleDescriptor>();
+        foreach (var actorLifecycle in actorLifecycles)
+        {
+            if (actorLifecycle is null)
+            {
+                throw new ArgumentException("Actor lifecycle descriptors cannot contain null.", nameof(actorLifecycles));
+            }
+
+            actorLifecycleList.Add(actorLifecycle);
         }
 
         var featureCommandList = new List<HotfixFeatureCommandBinding>();
@@ -143,6 +167,7 @@ public sealed class HotfixDispatchTable
         serviceBindings = serviceList.ToDictionary(static service => service.Key, static service => service);
         actorMethodBindings = actorMethodList.ToDictionary(static method => method.MethodKey, static method => method, StringComparer.Ordinal);
         actorMethodIdBindings = CreateActorMethodIdBindings(actorMethodList);
+        actorLifecycleBindings = actorLifecycleList.ToDictionary(static lifecycle => lifecycle.ActorType, static lifecycle => lifecycle);
         serviceActivationFactories = serviceList
             .Where(static service => !service.Method.IsStatic)
             .Select(static service => service.ServiceType)
@@ -187,6 +212,14 @@ public sealed class HotfixDispatchTable
         out HotfixActorMethodDescriptor descriptor)
     {
         return actorMethodIdBindings.TryGetValue(methodId, out descriptor!);
+    }
+
+    public bool TryResolveActorLifecycle(
+        Type actorType,
+        out HotfixActorLifecycleDescriptor descriptor)
+    {
+        ArgumentNullException.ThrowIfNull(actorType);
+        return actorLifecycleBindings.TryGetValue(actorType, out descriptor!);
     }
 
     public async ValueTask<object?> InvokeActorAsync(

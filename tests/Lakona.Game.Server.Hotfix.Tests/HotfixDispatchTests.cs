@@ -19,6 +19,37 @@ namespace Lakona.Game.Server.Hotfix.Tests;
 public sealed class HotfixDispatchTests
 {
     [Fact]
+    public async Task Actor_lifecycle_dispatch_invokes_start_and_stop_methods()
+    {
+        ActorLifecycleDispatchFixture.Events.Clear();
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(ActorLifecycleDispatchFixture.RoomBehavior).Assembly,
+            [typeof(ActorLifecycleDispatchFixture.RoomBehavior)]);
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        var table = new HotfixDispatchTable(
+            1,
+            scan.Methods,
+            scan.Services,
+            scan.Features,
+            scan.ActorMethods,
+            scan.ActorLifecycles);
+        Assert.True(table.TryResolveActorLifecycle(
+            typeof(ActorLifecycleDispatchFixture.RoomActor),
+            out var descriptor));
+        using var services = new ServiceCollection()
+            .AddSingleton(new ActorLifecycleDispatchFixture.Marker("runtime"))
+            .BuildServiceProvider();
+        var invoker = new HotfixActorLifecycleInvoker();
+        var actor = new ActorLifecycleDispatchFixture.RoomActor();
+        var actorId = ActorId.From("room-1");
+
+        await invoker.StartAsync(descriptor, actor, actorId, services, TestContext.Current.CancellationToken);
+        await invoker.StopAsync(descriptor, actor, actorId, services, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["start:room-1:runtime", "stop:room-1:runtime"], ActorLifecycleDispatchFixture.Events);
+    }
+
+    [Fact]
     public async Task InvokeActorAsync_dispatches_behavior_actor_api_method_by_method_key()
     {
         var fixture = TwoAssemblyHotfixFixture.Create(
@@ -77,6 +108,39 @@ public sealed class HotfixDispatchTests
 
         var text = result!.GetType().GetProperty("Text")!.GetValue(result);
         Assert.Equal("hello", text);
+    }
+
+    public static class ActorLifecycleDispatchFixture
+    {
+        public static List<string> Events { get; } = [];
+
+        public sealed class RoomActor : IActor
+        {
+        }
+
+        public sealed record Marker(string Value);
+
+        [HotfixBehaviorOf(typeof(RoomActor))]
+        public static class RoomBehavior
+        {
+            [ActorStart]
+            public static ValueTask StartAsync(RoomActor self, ActorStartCall call)
+            {
+                _ = self;
+                var marker = call.Services.GetRequiredService<Marker>();
+                Events.Add($"start:{call.ActorId}:{marker.Value}");
+                return default;
+            }
+
+            [ActorStop]
+            public static ValueTask StopAsync(RoomActor self, ActorStopCall call)
+            {
+                _ = self;
+                var marker = call.Services.GetRequiredService<Marker>();
+                Events.Add($"stop:{call.ActorId}:{marker.Value}");
+                return default;
+            }
+        }
     }
 
     [Fact]
