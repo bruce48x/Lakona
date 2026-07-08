@@ -3,6 +3,20 @@ namespace Lakona.Tool.Domain;
 internal sealed class PackageCatalog
 {
     public string MicrosoftExtensionsHosting => "10.0.0";
+    public string MicrosoftExtensionsLoggingConsole => "10.0.0";
+    public string MicrosoftExtensionsLogging => "10.0.0";
+    public string MicrosoftExtensionsLoggingAbstractions => "10.0.0";
+    public string MicrosoftExtensionsLoggingConfiguration => "10.0.0";
+    public string MicrosoftExtensionsDependencyInjection => "10.0.0";
+    public string MicrosoftExtensionsDependencyInjectionAbstractions => "10.0.0";
+    public string MicrosoftExtensionsConfiguration => "10.0.0";
+    public string MicrosoftExtensionsConfigurationAbstractions => "10.0.0";
+    public string MicrosoftExtensionsConfigurationBinder => "10.0.0";
+    public string MicrosoftExtensionsOptions => "10.0.0";
+    public string MicrosoftExtensionsOptionsConfigurationExtensions => "10.0.0";
+    public string MicrosoftExtensionsPrimitives => "10.0.0";
+    public string SystemDiagnosticsDiagnosticSource => "10.0.0";
+    public string SystemComponentModelAnnotations => "5.0.0";
     public string Dapper => "2.1.66";
     public string MySqlConnector => "2.4.0";
     public string Npgsql => "9.0.3";

@@ -215,6 +215,7 @@ internal static class UnityClientCodeTemplates
         using System.Threading.Tasks;
         using Shared.Contracts.Chat;
         using Client.Chat;
+        using Lakona.Game.Client;
         using Lakona.Rpc.Client;
         using Lakona.Rpc.Core;
         {{serializerUsing}}

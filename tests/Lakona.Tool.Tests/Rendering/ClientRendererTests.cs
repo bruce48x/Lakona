@@ -107,6 +107,7 @@ public sealed class ClientRendererTests
         Assert.Contains("public async Task SendAsync(string text)", chatClient, StringComparison.Ordinal);
 
         var loginUi = AssertPath(plan, "Client/Assets/Scripts/Login/LoginUI.cs").Content;
+        Assert.Contains("using Lakona.Game.Client;", loginUi, StringComparison.Ordinal);
         Assert.Contains("using Lakona.Rpc.Transport.Kcp;", loginUi, StringComparison.Ordinal);
         Assert.Contains("using Lakona.Rpc.Serializer.MemoryPack;", loginUi, StringComparison.Ordinal);
         Assert.Contains("new KcpTransport(_serverHost, _serverPort)", loginUi, StringComparison.Ordinal);

@@ -97,7 +97,25 @@ internal static class DependencyPlanner
             Unity("Lakona.Rpc.Analyzers", catalog.LakonaRpcAnalyzers, manuallyInstalled: true),
             Unity("Lakona.Game.Client", catalog.LakonaGameClient),
             Unity("Lakona.Game.Abstractions", catalog.LakonaGameAbstractions),
-            Unity("System.Threading.Channels", catalog.SystemThreadingChannels)
+            Unity("System.Threading.Channels", catalog.SystemThreadingChannels),
+            Unity("Microsoft.Extensions.Logging.Console", catalog.MicrosoftExtensionsLoggingConsole),
+            Unity("Microsoft.Extensions.Logging", catalog.MicrosoftExtensionsLogging),
+            Unity("Microsoft.Extensions.Logging.Abstractions", catalog.MicrosoftExtensionsLoggingAbstractions),
+            Unity("Microsoft.Extensions.Logging.Configuration", catalog.MicrosoftExtensionsLoggingConfiguration),
+            Unity("Microsoft.Extensions.DependencyInjection", catalog.MicrosoftExtensionsDependencyInjection),
+            Unity("Microsoft.Extensions.DependencyInjection.Abstractions", catalog.MicrosoftExtensionsDependencyInjectionAbstractions),
+            Unity("Microsoft.Extensions.Configuration", catalog.MicrosoftExtensionsConfiguration),
+            Unity("Microsoft.Extensions.Configuration.Abstractions", catalog.MicrosoftExtensionsConfigurationAbstractions),
+            Unity("Microsoft.Extensions.Configuration.Binder", catalog.MicrosoftExtensionsConfigurationBinder),
+            Unity("Microsoft.Extensions.Options", catalog.MicrosoftExtensionsOptions),
+            Unity("Microsoft.Extensions.Options.ConfigurationExtensions", catalog.MicrosoftExtensionsOptionsConfigurationExtensions),
+            Unity("Microsoft.Extensions.Primitives", catalog.MicrosoftExtensionsPrimitives),
+            Unity("Microsoft.Bcl.AsyncInterfaces", catalog.MicrosoftBclAsyncInterfaces),
+            Unity("System.Diagnostics.DiagnosticSource", catalog.SystemDiagnosticsDiagnosticSource),
+            Unity("System.ComponentModel.Annotations", catalog.SystemComponentModelAnnotations),
+            Unity("System.Text.Json", catalog.SystemTextJson),
+            Unity("System.Text.Encodings.Web", catalog.SystemTextEncodingsWeb),
+            Unity("System.Buffers", catalog.SystemBuffers)
         };
 
         if (spec.Transport == TransportKind.Kcp)
