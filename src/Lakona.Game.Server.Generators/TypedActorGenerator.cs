@@ -184,6 +184,7 @@ namespace Lakona.Game.Server.Generators
             var actorsType = prefix + "Actors";
             var routeRefType = prefix + "RouteRef";
             var localRefType = prefix + "LocalRef";
+            var placementRefType = prefix + "PlacementRef";
             var callDelegateType = actor.Symbol.Name + "Call";
             var callNoCancellationDelegateType = actor.Symbol.Name + "CallNoCancellation";
             var postDelegateType = actor.Symbol.Name + "Post";
@@ -200,7 +201,7 @@ namespace Lakona.Game.Server.Generators
             }
 
             var indentLevel = namespaceName != null ? 1 : 0;
-            AppendActorsClass(builder, actor, actorsType, routeRefType, localRefType, keyType, indentLevel);
+            AppendActorsClass(builder, actor, actorsType, routeRefType, localRefType, placementRefType, keyType, indentLevel);
             builder.AppendLine();
             AppendActorDelegates(
                 builder,
@@ -238,6 +239,8 @@ namespace Lakona.Game.Server.Generators
                     postNoCancellationDelegateType,
                     indentLevel);
                 builder.AppendLine();
+                AppendPlacementRef(builder, actor, placementRefType, keyType, indentLevel);
+                builder.AppendLine();
                 AppendClusterHandler(builder, actor, indentLevel);
             }
 
@@ -258,6 +261,7 @@ namespace Lakona.Game.Server.Generators
             string actorsType,
             string routeRefType,
             string localRefType,
+            string placementRefType,
             string keyType,
             int indentLevel)
         {
@@ -272,6 +276,7 @@ namespace Lakona.Game.Server.Generators
                 builder.Append(indent).AppendLine("    private readonly global::Lakona.Game.Server.Actors.RemoteActorOptions _options;");
                 builder.Append(indent).AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorDirectory _directory;");
                 builder.Append(indent).AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorDirectoryCache _directoryCache;");
+                builder.Append(indent).AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorPlacementService _placement;");
             }
 
             builder.AppendLine();
@@ -288,7 +293,8 @@ namespace Lakona.Game.Server.Generators
                 builder.Append(indent).AppendLine("        global::Lakona.Game.Server.Actors.IRemoteActorSerializer serializer,");
                 builder.Append(indent).AppendLine("        global::Lakona.Game.Server.Actors.RemoteActorOptions options,");
                 builder.Append(indent).AppendLine("        global::Lakona.Game.Server.Actors.IActorDirectory directory,");
-                builder.Append(indent).AppendLine("        global::Lakona.Game.Server.Actors.IActorDirectoryCache directoryCache)");
+                builder.Append(indent).AppendLine("        global::Lakona.Game.Server.Actors.IActorDirectoryCache directoryCache,");
+                builder.Append(indent).AppendLine("        global::Lakona.Game.Server.Actors.IActorPlacementService placement)");
             }
 
             builder.Append(indent).AppendLine("    {");
@@ -300,6 +306,7 @@ namespace Lakona.Game.Server.Generators
                 builder.Append(indent).AppendLine("        _options = options;");
                 builder.Append(indent).AppendLine("        _directory = directory;");
                 builder.Append(indent).AppendLine("        _directoryCache = directoryCache;");
+                builder.Append(indent).AppendLine("        _placement = placement;");
             }
 
             builder.Append(indent).AppendLine("    }");
@@ -310,6 +317,11 @@ namespace Lakona.Game.Server.Generators
                 builder.Append(indent).AppendLine("    {");
                 builder.Append(indent).Append("        return new ").Append(routeRefType).AppendLine("(_runtime, _remote, _serializer, _options, _directory, _directoryCache, id);");
                 builder.Append(indent).AppendLine("    }");
+                builder.AppendLine();
+                builder.Append(indent).Append("    public ").Append(placementRefType).Append(" Place(").Append(keyType).AppendLine(" id)");
+                builder.Append(indent).AppendLine("    {");
+                builder.Append(indent).Append("        return new ").Append(placementRefType).AppendLine("(_placement, id);");
+                builder.Append(indent).AppendLine("    }");
             }
 
             builder.AppendLine();
@@ -318,6 +330,49 @@ namespace Lakona.Game.Server.Generators
             builder.Append(indent).Append("        return new ").Append(localRefType).AppendLine("(_runtime, id);");
             builder.Append(indent).AppendLine("    }");
 
+            builder.Append(indent).AppendLine("}");
+        }
+
+        private static void AppendPlacementRef(
+            StringBuilder builder,
+            ActorInfo actor,
+            string placementRefType,
+            string keyType,
+            int indentLevel)
+        {
+            var indent = Indent(indentLevel);
+            var actorType = actor.Symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
+            builder.Append(indent).Append("public readonly struct ").Append(placementRefType).AppendLine();
+            builder.Append(indent).AppendLine("{");
+            builder.Append(indent).AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorPlacementService _placement;");
+            builder.Append(indent).Append("    private readonly ").Append(keyType).AppendLine(" _id;");
+            builder.AppendLine();
+            builder.Append(indent).Append("    public ").Append(placementRefType).AppendLine("(");
+            builder.Append(indent).AppendLine("        global::Lakona.Game.Server.Actors.IActorPlacementService placement,");
+            builder.Append(indent).Append("        ").Append(keyType).AppendLine(" id)");
+            builder.Append(indent).AppendLine("    {");
+            builder.Append(indent).AppendLine("        _placement = placement;");
+            builder.Append(indent).AppendLine("        _id = id;");
+            builder.Append(indent).AppendLine("    }");
+            builder.AppendLine();
+            builder.Append(indent).AppendLine("    public global::System.Threading.Tasks.ValueTask<global::Lakona.Game.Server.Actors.ActorPlacementResult> CreateAsync(");
+            builder.Append(indent).AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
+            builder.Append(indent).AppendLine("    {");
+            builder.Append(indent).Append("        return _placement.PlaceAsync<").Append(actorType).Append(", ").Append(keyType).AppendLine(">(");
+            builder.Append(indent).AppendLine("            _id,");
+            builder.Append(indent).AppendLine("            global::Lakona.Game.Server.Actors.ActorPlacementCreateMode.Create,");
+            builder.Append(indent).AppendLine("            cancellationToken);");
+            builder.Append(indent).AppendLine("    }");
+            builder.AppendLine();
+            builder.Append(indent).AppendLine("    public global::System.Threading.Tasks.ValueTask<global::Lakona.Game.Server.Actors.ActorPlacementResult> EnsureAsync(");
+            builder.Append(indent).AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
+            builder.Append(indent).AppendLine("    {");
+            builder.Append(indent).Append("        return _placement.PlaceAsync<").Append(actorType).Append(", ").Append(keyType).AppendLine(">(");
+            builder.Append(indent).AppendLine("            _id,");
+            builder.Append(indent).AppendLine("            global::Lakona.Game.Server.Actors.ActorPlacementCreateMode.Ensure,");
+            builder.Append(indent).AppendLine("            cancellationToken);");
+            builder.Append(indent).AppendLine("    }");
             builder.Append(indent).AppendLine("}");
         }
 

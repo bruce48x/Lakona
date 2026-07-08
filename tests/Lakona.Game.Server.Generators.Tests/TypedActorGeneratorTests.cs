@@ -133,6 +133,43 @@ public sealed class TypedActorGeneratorTests
     }
 
     [Fact]
+    public void Generator_emits_placement_ref_for_distributed_actor()
+    {
+        var source = """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+
+            namespace Game.Server;
+
+            public readonly record struct RoomId(string Value);
+            public sealed record PingRequest;
+
+            [ActorName("room")]
+            public sealed class RoomActor : Actor<RoomId>
+            {
+                public ValueTask PingAsync(PingRequest request, CancellationToken cancellationToken = default)
+                {
+                    return default;
+                }
+            }
+            """;
+
+        var result = GeneratorTestHost.Run(source);
+
+        Assert.Empty(result.ErrorDiagnostics);
+        Assert.Contains("private readonly global::Lakona.Game.Server.Actors.IActorPlacementService _placement;", result.GeneratedSource);
+        Assert.Contains("public RoomPlacementRef Place(RoomId id)", result.GeneratedSource);
+        Assert.Contains("return new RoomPlacementRef(_placement, id);", result.GeneratedSource);
+        Assert.Contains("public readonly struct RoomPlacementRef", result.GeneratedSource);
+        Assert.Contains("public global::System.Threading.Tasks.ValueTask<global::Lakona.Game.Server.Actors.ActorPlacementResult> CreateAsync(", result.GeneratedSource);
+        Assert.Contains("global::Lakona.Game.Server.Actors.ActorPlacementCreateMode.Create", result.GeneratedSource);
+        Assert.Contains("public global::System.Threading.Tasks.ValueTask<global::Lakona.Game.Server.Actors.ActorPlacementResult> EnsureAsync(", result.GeneratedSource);
+        Assert.Contains("global::Lakona.Game.Server.Actors.ActorPlacementCreateMode.Ensure", result.GeneratedSource);
+        Assert.Contains("return _placement.PlaceAsync<global::Game.Server.RoomActor, RoomId>(", result.GeneratedSource);
+    }
+
+    [Fact]
     public void Generator_uses_string_key_directly()
     {
         var source = """
