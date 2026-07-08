@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft for user review.
+Accepted after implementation validation.
 
 ## Goal
 

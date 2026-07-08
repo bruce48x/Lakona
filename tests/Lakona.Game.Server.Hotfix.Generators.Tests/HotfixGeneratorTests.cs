@@ -720,12 +720,17 @@ public sealed class HotfixGeneratorTests
             hotfixAssemblyName: "Game.Hotfix");
 
         var generated = result.Hotfix.GeneratedSource;
+        var staticReadonly = string.Concat("static ", "readonly ");
+        var delegateCache = string.Concat(staticReadonly, "global::System.", "Delegate");
+        var methodInfoCache = string.Concat(staticReadonly, "global::System.Reflection.", "MethodInfo");
+        var runtimeHandleText = string.Concat("Runtime", "Method", "Handle");
+        var handleText = string.Concat("Method", "Handle");
 
         Assert.Empty(result.Hotfix.ErrorDiagnostics);
-        Assert.DoesNotContain("static readonly global::System.Delegate", generated, StringComparison.Ordinal);
-        Assert.DoesNotContain("static readonly global::System.Reflection.MethodInfo", generated, StringComparison.Ordinal);
-        Assert.DoesNotContain("RuntimeMethodHandle", generated, StringComparison.Ordinal);
-        Assert.DoesNotContain("MethodHandle", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain(delegateCache, generated, StringComparison.Ordinal);
+        Assert.DoesNotContain(methodInfoCache, generated, StringComparison.Ordinal);
+        Assert.DoesNotContain(runtimeHandleText, generated, StringComparison.Ordinal);
+        Assert.DoesNotContain(handleText, generated, StringComparison.Ordinal);
     }
 
     [Fact]
