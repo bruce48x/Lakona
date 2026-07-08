@@ -158,6 +158,7 @@ internal static class GodotClientCodeTemplates
         using Godot;
         using Shared.Contracts.Chat;
         using Client.Chat;
+        using Lakona.Game.Client;
         using Lakona.Rpc.Client;
         using Lakona.Rpc.Core;
         {{serializerUsing}}

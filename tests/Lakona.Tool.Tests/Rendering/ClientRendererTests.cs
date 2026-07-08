@@ -371,6 +371,7 @@ public sealed class ClientRendererTests
         Assert.Contains("public LoginReply? LoginReply { get; set; }", session, StringComparison.Ordinal);
 
         var loginScene = AssertPath(plan, "Client/Scripts/Login/LoginScene.cs").Content;
+        Assert.Contains("using Lakona.Game.Client;", loginScene, StringComparison.Ordinal);
         Assert.DoesNotContain("private void BuildUi()", loginScene, StringComparison.Ordinal);
         Assert.DoesNotContain("using Client.Theme;", loginScene, StringComparison.Ordinal);
         Assert.DoesNotContain("new ColorRect", loginScene, StringComparison.Ordinal);

@@ -284,23 +284,26 @@ public sealed class LakonaGameReadinessProbeTests
         ClusterOptions clusterOptions,
         string[] args)
     {
-        var output = new StringWriter();
-        var errors = new StringWriter();
-        var originalOutput = Console.Out;
-        var originalError = Console.Error;
-
-        try
+        lock (ConsoleCaptureLock.Gate)
         {
-            Console.SetOut(output);
-            Console.SetError(errors);
+            var output = new StringWriter();
+            var errors = new StringWriter();
+            var originalOutput = Console.Out;
+            var originalError = Console.Error;
 
-            var exitCode = LakonaGameReadinessProbe.Run(runtime, clusterOptions, args);
-            return (exitCode, output.ToString(), errors.ToString());
-        }
-        finally
-        {
-            Console.SetOut(originalOutput);
-            Console.SetError(originalError);
+            try
+            {
+                Console.SetOut(output);
+                Console.SetError(errors);
+
+                var exitCode = LakonaGameReadinessProbe.Run(runtime, clusterOptions, args);
+                return (exitCode, output.ToString(), errors.ToString());
+            }
+            finally
+            {
+                Console.SetOut(originalOutput);
+                Console.SetError(originalError);
+            }
         }
     }
 

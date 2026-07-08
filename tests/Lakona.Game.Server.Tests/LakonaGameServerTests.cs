@@ -235,30 +235,35 @@ public sealed class LakonaGameServerTests
 
         Assert.True(context.ObservabilityCapabilities.OpenTelemetryIntegrationRegistered);
 
-        var output = new StringWriter();
-        var errors = new StringWriter();
-        var originalOutput = Console.Out;
-        var originalError = Console.Error;
-
-        try
+        string text;
+        lock (ConsoleCaptureLock.Gate)
         {
-            Console.SetOut(output);
-            Console.SetError(errors);
+            var output = new StringWriter();
+            var errors = new StringWriter();
+            var originalOutput = Console.Out;
+            var originalError = Console.Error;
 
-            _ = LakonaGameReadinessProbe.Run(
-                context.RuntimeOptions,
-                context.ClusterOptions,
-                ["--json"],
-                context.ObservabilityCapabilities,
-                context.HotfixAssemblyPath);
-        }
-        finally
-        {
-            Console.SetOut(originalOutput);
-            Console.SetError(originalError);
+            try
+            {
+                Console.SetOut(output);
+                Console.SetError(errors);
+
+                _ = LakonaGameReadinessProbe.Run(
+                    context.RuntimeOptions,
+                    context.ClusterOptions,
+                    ["--json"],
+                    context.ObservabilityCapabilities,
+                    context.HotfixAssemblyPath);
+            }
+            finally
+            {
+                Console.SetOut(originalOutput);
+                Console.SetError(originalError);
+            }
+
+            text = output.ToString() + errors.ToString();
         }
 
-        var text = output.ToString() + errors.ToString();
         Assert.DoesNotContain("ULINK134", text, StringComparison.Ordinal);
     }
 
@@ -338,32 +343,38 @@ public sealed class LakonaGameServerTests
                 },
                 baseDirectory);
 
-            var output = new StringWriter();
-            var errors = new StringWriter();
-            var originalOutput = Console.Out;
-            var originalError = Console.Error;
-
-            try
+            string text;
+            lock (ConsoleCaptureLock.Gate)
             {
-                Console.SetOut(output);
-                Console.SetError(errors);
+                var output = new StringWriter();
+                var errors = new StringWriter();
+                var originalOutput = Console.Out;
+                var originalError = Console.Error;
 
-                var exitCode = LakonaGameReadinessProbe.Run(
-                    context.RuntimeOptions,
-                    context.ClusterOptions,
-                    ["--json"],
-                    context.ObservabilityCapabilities,
-                    context.HotfixAssemblyPath);
+                try
+                {
+                    Console.SetOut(output);
+                    Console.SetError(errors);
 
-                Assert.Equal(0, exitCode);
+                    var exitCode = LakonaGameReadinessProbe.Run(
+                        context.RuntimeOptions,
+                        context.ClusterOptions,
+                        ["--json"],
+                        context.ObservabilityCapabilities,
+                        context.HotfixAssemblyPath);
+
+                    Assert.Equal(0, exitCode);
+                }
+                finally
+                {
+                    Console.SetOut(originalOutput);
+                    Console.SetError(originalError);
+                }
+
+                text = output.ToString() + errors.ToString();
             }
-            finally
-            {
-                Console.SetOut(originalOutput);
-                Console.SetError(originalError);
-            }
 
-            Assert.DoesNotContain("ULINK071", output.ToString() + errors.ToString(), StringComparison.Ordinal);
+            Assert.DoesNotContain("ULINK071", text, StringComparison.Ordinal);
         }
         finally
         {
