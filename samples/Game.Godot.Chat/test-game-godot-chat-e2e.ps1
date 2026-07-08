@@ -273,7 +273,7 @@ function Write-HarnessProject {
     $programContent = @'
 using Client.Chat;
 using Client.Login;
-using Lakona.Rpc.Client;
+using Lakona.Game.Client;
 using Lakona.Rpc.Serializer.MemoryPack;
 using Lakona.Rpc.Transport.WebSocket;
 using Shared.Contracts.Chat;
@@ -297,7 +297,7 @@ var timeout = TimeSpan.FromSeconds(15);
 Console.WriteLine("[E2E] Starting client harness.");
 Console.WriteLine("[E2E] Endpoint: {0}", endpoint);
 
-await using var loginClient = new LoginClient(new RpcClientOptions(
+await using var loginClient = new LoginClient(new LakonaGameClientOptions(
     new WsTransport(endpoint),
     new MemoryPackRpcSerializer()));
 

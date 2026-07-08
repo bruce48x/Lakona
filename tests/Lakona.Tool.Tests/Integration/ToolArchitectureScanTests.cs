@@ -337,7 +337,7 @@ public sealed class ToolArchitectureScanTests
     }
 
     [Fact]
-    public void GodotChatSample_UsesZeroTemplateHostAndHotfixOwnedChatFeature()
+    public void GodotChatSample_UsesZeroTemplateHostAndHotfixStartupActor()
     {
         var repositoryRoot = FindRepositoryRoot();
         var sampleRoot = Path.Combine(repositoryRoot, "samples", "Game.Godot.Chat");
@@ -363,12 +363,16 @@ public sealed class ToolArchitectureScanTests
         Assert.DoesNotContain("AddLakonaGame(", appText, StringComparison.Ordinal);
         Assert.DoesNotContain("AddLakonaGameSessionHotfixLifecycle", appText, StringComparison.Ordinal);
         Assert.DoesNotContain("UseGeneratedHotfixServices", appText, StringComparison.Ordinal);
-        Assert.Contains("[HotfixFeature(\"chat\")]", hotfixText, StringComparison.Ordinal);
-        Assert.Contains("public static void Configure(HotfixFeatureContext context)", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("public static class HotfixStartup", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("actors.RegisterStartup(", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("ActorStartupPlan.Create<ChatRoomActor>(ActorId.From(ChatRoomIds.Global))", hotfixText, StringComparison.Ordinal);
+        Assert.DoesNotContain("HotfixFeature", hotfixText, StringComparison.Ordinal);
+        Assert.DoesNotContain("HotfixGameFeature", hotfixText, StringComparison.Ordinal);
+        Assert.DoesNotContain("HotfixFeatureContext", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain("public override void Configure", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain("IFeatureMessageHandler", hotfixText, StringComparison.Ordinal);
-        Assert.Contains(".GetRequiredService<ActorHosting>()", hotfixText, StringComparison.Ordinal);
-        Assert.Contains(".CreateAsync<ChatRoomActor>(ActorId.From(ChatRoomIds.Global), call.CancellationToken)", hotfixText, StringComparison.Ordinal);
+        Assert.DoesNotContain(".GetRequiredService<ActorHosting>()", hotfixText, StringComparison.Ordinal);
+        Assert.DoesNotContain(".CreateAsync<ChatRoomActor>(ActorId.From(ChatRoomIds.Global), call.CancellationToken)", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain(".EnsureAsync<ChatRoomActor>", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Ensure", "Local", "Actor"), hotfixText, StringComparison.Ordinal);
         Assert.Contains("internal static partial class ChatRoomBehavior", hotfixText, StringComparison.Ordinal);

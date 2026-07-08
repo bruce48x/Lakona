@@ -147,6 +147,8 @@ public sealed class ActorPlacementServiceTests
             actorDirectory,
             nodeDirectory,
             hostClient,
+            actorHosting: null!,
+            new LocalActorNodeIdentity("local"),
             runtime);
     }
 

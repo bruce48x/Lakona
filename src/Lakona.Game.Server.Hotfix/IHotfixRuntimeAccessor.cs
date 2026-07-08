@@ -85,6 +85,7 @@ public sealed class HotfixRuntimeSnapshot
         string? sourcePath,
         bool ownsRuntimeResources,
         Action? onRetired,
+        IReadOnlyList<ActorStartupDeclaration>? actorStartups = null,
         IReadOnlyList<ActorPlacementDeclaration>? actorPlacements = null)
     {
         Invoker = invoker ?? throw new ArgumentNullException(nameof(invoker));
@@ -96,6 +97,7 @@ public sealed class HotfixRuntimeSnapshot
         LoadContext = loadContext;
         SourceVersion = sourceVersion;
         SourcePath = sourcePath;
+        ActorStartups = actorStartups?.ToArray() ?? [];
         ActorPlacements = actorPlacements?.ToArray() ?? [];
         _ownsRuntimeResources = ownsRuntimeResources;
         _onRetired = onRetired;
@@ -124,6 +126,8 @@ public sealed class HotfixRuntimeSnapshot
     public string? SourceVersion { get; }
 
     public string? SourcePath { get; }
+
+    public IReadOnlyList<ActorStartupDeclaration> ActorStartups { get; }
 
     public IReadOnlyList<ActorPlacementDeclaration> ActorPlacements { get; }
 

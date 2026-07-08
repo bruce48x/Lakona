@@ -198,6 +198,7 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 resolved.AssemblyPath,
                 ownsRuntimeResources: true,
                 onRetired: null,
+                actorStartups: scan.ActorStartups,
                 actorPlacements: scan.ActorPlacements);
             var result = await PublishCandidateAsync(
                 runtimeSnapshot,

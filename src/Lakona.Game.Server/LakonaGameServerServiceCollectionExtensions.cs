@@ -14,6 +14,7 @@ using Lakona.Game.Server.Hotfix.Timers;
 using Lakona.Game.Server.Observability;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
+using Microsoft.Extensions.Hosting;
 
 namespace Lakona.Game.Server;
 
@@ -120,6 +121,7 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.TryAddSingleton<IFeatureCommandClient, FeatureCommandClient>();
         services.TryAddSingleton(new ActorHostDescriptorCatalog([]));
         services.TryAddSingleton<ILakonaGameServer, DefaultLakonaGameServer>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ActorStartupHostedService>());
         if (configuration is null)
         {
             services.TryAddSingleton(provider =>
