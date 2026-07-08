@@ -298,6 +298,61 @@ public sealed class NodeDirectoryClientTests
     }
 
     [Fact]
+    public async Task QueryReturnsActorHostFilteredNodes()
+    {
+        var directory = new InMemoryNodeDirectory();
+        var registry = new RpcServiceRegistry();
+        NodeDirectoryBinder.Bind(registry, directory);
+        var serializer = new JsonTestSerializer();
+        await using var session = new RpcSession(new FakeTransport(), serializer);
+        var now = DateTimeOffset.UtcNow;
+
+        await InvokeAsync<NodeRegisterRequest, NodeRegisterReply>(
+            registry,
+            session,
+            ClusterProtocol.RegisterNodeMethodId,
+            new NodeRegisterRequest
+            {
+                Registration = NodeDirectoryRecordConverter.ToDto(TestRegistration(
+                    "local",
+                    "room-1",
+                    now,
+                    actorHosts: [new NodeActorHostDescriptor("room", "policy-1", "build-1")])),
+                Now = now
+            });
+        await InvokeAsync<NodeRegisterRequest, NodeRegisterReply>(
+            registry,
+            session,
+            ClusterProtocol.RegisterNodeMethodId,
+            new NodeRegisterRequest
+            {
+                Registration = NodeDirectoryRecordConverter.ToDto(TestRegistration(
+                    "local",
+                    "room-2",
+                    now,
+                    actorHosts: [new NodeActorHostDescriptor("room", "policy-2", "build-1")])),
+                Now = now
+            });
+
+        var query = await InvokeAsync<NodeQueryRequest, NodeQueryReply>(
+            registry,
+            session,
+            ClusterProtocol.QueryNodesMethodId,
+            new NodeQueryRequest
+            {
+                Query = NodeDirectoryRecordConverter.ToDto(new NodeDirectoryQuery(
+                    "local",
+                    actorHostName: "room",
+                    actorHostPolicyHash: "policy-1")),
+                Now = now
+            });
+
+        Assert.NotNull(query.Records);
+        var record = Assert.Single(query.Records);
+        Assert.Equal("room-1", record.Node);
+    }
+
+    [Fact]
     public async Task BinderRejectsInvalidInboundNodeState()
     {
         var registry = new RpcServiceRegistry();

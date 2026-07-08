@@ -233,6 +233,43 @@ public sealed class SqlNodeDirectoryTests
     }
 
     [Fact]
+    public async Task QueryFiltersByPersistedActorHostNameOnly()
+    {
+        await using var database = await OpenSharedDatabaseAsync();
+        await SqlNodeDirectorySchema.EnsureCreatedAsync(
+            database.KeeperConnection,
+            SqlNodeDirectoryDialect.Sqlite,
+            cancellationToken: TestContext.Current.CancellationToken);
+        var directory = CreateDirectory(database.ConnectionString);
+        var now = DateTimeOffset.UtcNow;
+
+        await directory.RegisterAsync(
+            TestRegistration(
+                "local",
+                "room-1",
+                now,
+                actorHosts: [new NodeActorHostDescriptor("room", "policy-1", "build-1")]),
+            now,
+            TestContext.Current.CancellationToken);
+        await directory.RegisterAsync(
+            TestRegistration(
+                "local",
+                "state-store-1",
+                now,
+                actorHosts: [new NodeActorHostDescriptor("state-store", "policy-1", "build-1")]),
+            now,
+            TestContext.Current.CancellationToken);
+
+        var records = await directory.QueryAsync(
+            new NodeDirectoryQuery("local", actorHostName: "room"),
+            now.AddSeconds(1),
+            TestContext.Current.CancellationToken);
+
+        var queried = Assert.Single(records);
+        Assert.Equal("room-1", queried.NodeId.Value);
+    }
+
+    [Fact]
     public async Task UpdateStatePersistsAndResolveReturnsUpdatedRecord()
     {
         await using var database = await OpenSharedDatabaseAsync();
