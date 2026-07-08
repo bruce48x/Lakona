@@ -12,6 +12,8 @@ namespace Lakona.Game.Cluster
         public NodeDirectoryQuery(
             string clusterName,
             string? featureName = null,
+            string? actorHostName = null,
+            string? actorHostPolicyHash = null,
             NodeState? state = null,
             IReadOnlyDictionary<string, string>? labels = null,
             bool includeExpired = false)
@@ -26,8 +28,25 @@ namespace Lakona.Game.Cluster
                 throw new ArgumentException("Feature name cannot be empty.", nameof(featureName));
             }
 
+            if (actorHostName is not null && string.IsNullOrWhiteSpace(actorHostName))
+            {
+                throw new ArgumentException("Actor host name cannot be empty.", nameof(actorHostName));
+            }
+
+            if (actorHostPolicyHash is not null && string.IsNullOrWhiteSpace(actorHostPolicyHash))
+            {
+                throw new ArgumentException("Actor host policy hash cannot be empty.", nameof(actorHostPolicyHash));
+            }
+
+            if (actorHostPolicyHash is not null && actorHostName is null)
+            {
+                throw new ArgumentException("Actor host name is required when actor host policy hash is set.", nameof(actorHostName));
+            }
+
             ClusterName = clusterName;
             FeatureName = featureName;
+            ActorHostName = actorHostName;
+            ActorHostPolicyHash = actorHostPolicyHash;
             State = state;
             Labels = CopyStringDictionary(labels, nameof(labels));
             IncludeExpired = includeExpired;
@@ -36,6 +55,10 @@ namespace Lakona.Game.Cluster
         public string ClusterName { get; }
 
         public string? FeatureName { get; }
+
+        public string? ActorHostName { get; }
+
+        public string? ActorHostPolicyHash { get; }
 
         public NodeState? State { get; }
 

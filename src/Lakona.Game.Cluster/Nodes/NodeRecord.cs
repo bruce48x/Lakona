@@ -20,6 +20,31 @@ namespace Lakona.Game.Cluster
             NodeState state,
             DateTimeOffset leaseExpiresAt,
             DateTimeOffset updatedAt)
+            : this(
+                clusterName,
+                nodeId,
+                nodeEpoch,
+                endpoints,
+                features,
+                Array.Empty<NodeActorHostDescriptor>(),
+                labels,
+                state,
+                leaseExpiresAt,
+                updatedAt)
+        {
+        }
+
+        public NodeRecord(
+            string clusterName,
+            NodeId nodeId,
+            long nodeEpoch,
+            IReadOnlyDictionary<string, NodeEndpoint> endpoints,
+            IReadOnlyList<NodeFeatureDescriptor> features,
+            IReadOnlyList<NodeActorHostDescriptor> actorHosts,
+            IReadOnlyDictionary<string, string>? labels,
+            NodeState state,
+            DateTimeOffset leaseExpiresAt,
+            DateTimeOffset updatedAt)
         {
             if (string.IsNullOrWhiteSpace(clusterName))
             {
@@ -36,6 +61,7 @@ namespace Lakona.Game.Cluster
             NodeEpoch = nodeEpoch;
             Endpoints = CopyEndpoints(endpoints);
             Features = CopyFeatures(features);
+            ActorHosts = CopyActorHosts(actorHosts);
             Labels = CopyStringDictionary(labels, nameof(labels));
             State = state;
             LeaseExpiresAt = leaseExpiresAt;
@@ -51,6 +77,8 @@ namespace Lakona.Game.Cluster
         public IReadOnlyDictionary<string, NodeEndpoint> Endpoints { get; }
 
         public IReadOnlyList<NodeFeatureDescriptor> Features { get; }
+
+        public IReadOnlyList<NodeActorHostDescriptor> ActorHosts { get; }
 
         public IReadOnlyDictionary<string, string> Labels { get; }
 
@@ -73,6 +101,23 @@ namespace Lakona.Game.Cluster
             }
 
             return Features.Any(feature => string.Equals(feature.Name, name, StringComparison.Ordinal));
+        }
+
+        public bool HasActorHost(string actor, string? policyHash = null)
+        {
+            if (string.IsNullOrWhiteSpace(actor))
+            {
+                throw new ArgumentException("Actor host name is required.", nameof(actor));
+            }
+
+            if (policyHash is not null && string.IsNullOrWhiteSpace(policyHash))
+            {
+                throw new ArgumentException("Actor host policy hash cannot be empty.", nameof(policyHash));
+            }
+
+            return ActorHosts.Any(host =>
+                string.Equals(host.Actor, actor, StringComparison.Ordinal)
+                && (policyHash is null || string.Equals(host.PolicyHash, policyHash, StringComparison.Ordinal)));
         }
 
         private static IReadOnlyDictionary<string, NodeEndpoint> CopyEndpoints(
@@ -117,6 +162,23 @@ namespace Lakona.Game.Cluster
             }
 
             return new ReadOnlyCollection<NodeFeatureDescriptor>(copy);
+        }
+
+        private static IReadOnlyList<NodeActorHostDescriptor> CopyActorHosts(
+            IReadOnlyList<NodeActorHostDescriptor> actorHosts)
+        {
+            if (actorHosts is null)
+            {
+                throw new ArgumentNullException(nameof(actorHosts));
+            }
+
+            var copy = new List<NodeActorHostDescriptor>(actorHosts.Count);
+            for (var i = 0; i < actorHosts.Count; i++)
+            {
+                copy.Add(actorHosts[i] ?? throw new ArgumentException("Node actor host cannot be null.", nameof(actorHosts)));
+            }
+
+            return new ReadOnlyCollection<NodeActorHostDescriptor>(copy);
         }
 
         private static IReadOnlyDictionary<string, string> CopyStringDictionary(

@@ -31,6 +31,32 @@ public sealed class NodeDirectoryModelTests
     }
 
     [Fact]
+    public void NodeActorHostDescriptorRejectsBlankActorName()
+    {
+        var exception = Assert.Throws<ArgumentException>(() => new NodeActorHostDescriptor(" ", "hash-a", "build-a"));
+
+        Assert.Contains("Actor host name is required", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NodeActorHostDescriptorCopiesMetadata()
+    {
+        var metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["region"] = "us-east",
+            ["tier"] = "battle"
+        };
+
+        var descriptor = new NodeActorHostDescriptor("room", "hash-a", "build-a", metadata);
+        metadata["region"] = "changed";
+
+        Assert.Equal("room", descriptor.Actor);
+        Assert.Equal("hash-a", descriptor.PolicyHash);
+        Assert.Equal("build-a", descriptor.BuildTag);
+        Assert.Equal("us-east", descriptor.Metadata["region"]);
+    }
+
+    [Fact]
     public void NodeRegistrationAllowsNoApplicationFeatures()
     {
         var registration = new NodeRegistration(

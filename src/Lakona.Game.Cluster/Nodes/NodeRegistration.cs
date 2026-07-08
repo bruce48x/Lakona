@@ -17,6 +17,19 @@ namespace Lakona.Game.Cluster
             DateTimeOffset leaseExpiresAt,
             NodeState state = NodeState.Starting,
             IReadOnlyDictionary<string, string>? labels = null)
+            : this(clusterName, nodeId, endpoints, features, Array.Empty<NodeActorHostDescriptor>(), leaseExpiresAt, state, labels)
+        {
+        }
+
+        public NodeRegistration(
+            string clusterName,
+            NodeId nodeId,
+            IReadOnlyDictionary<string, NodeEndpoint> endpoints,
+            IReadOnlyList<NodeFeatureDescriptor> features,
+            IReadOnlyList<NodeActorHostDescriptor> actorHosts,
+            DateTimeOffset leaseExpiresAt,
+            NodeState state = NodeState.Starting,
+            IReadOnlyDictionary<string, string>? labels = null)
         {
             if (string.IsNullOrWhiteSpace(clusterName))
             {
@@ -27,6 +40,7 @@ namespace Lakona.Game.Cluster
             NodeId = nodeId;
             Endpoints = CopyEndpoints(endpoints);
             Features = CopyFeatures(features);
+            ActorHosts = CopyActorHosts(actorHosts);
             Labels = CopyStringDictionary(labels, nameof(labels));
             State = state;
             LeaseExpiresAt = leaseExpiresAt;
@@ -39,6 +53,8 @@ namespace Lakona.Game.Cluster
         public IReadOnlyDictionary<string, NodeEndpoint> Endpoints { get; }
 
         public IReadOnlyList<NodeFeatureDescriptor> Features { get; }
+
+        public IReadOnlyList<NodeActorHostDescriptor> ActorHosts { get; }
 
         public IReadOnlyDictionary<string, string> Labels { get; }
 
@@ -88,6 +104,23 @@ namespace Lakona.Game.Cluster
             }
 
             return new ReadOnlyCollection<NodeFeatureDescriptor>(copy);
+        }
+
+        private static IReadOnlyList<NodeActorHostDescriptor> CopyActorHosts(
+            IReadOnlyList<NodeActorHostDescriptor> actorHosts)
+        {
+            if (actorHosts is null)
+            {
+                throw new ArgumentNullException(nameof(actorHosts));
+            }
+
+            var copy = new List<NodeActorHostDescriptor>(actorHosts.Count);
+            for (var i = 0; i < actorHosts.Count; i++)
+            {
+                copy.Add(actorHosts[i] ?? throw new ArgumentException("Node actor host cannot be null.", nameof(actorHosts)));
+            }
+
+            return new ReadOnlyCollection<NodeActorHostDescriptor>(copy);
         }
 
         private static IReadOnlyDictionary<string, string> CopyStringDictionary(
