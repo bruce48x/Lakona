@@ -14,12 +14,13 @@ namespace Lakona.Game.Server.Actors;
 public interface IActorRuntime
 {
     /// <summary>
-    /// Enqueues a fire-and-forget message for a local actor.
+    /// Executes a no-result message inside the local actor turn and completes
+    /// after the actor delegate completes.
     /// </summary>
     /// <typeparam name="TActor">The expected actor type.</typeparam>
     /// <param name="id">The target actor id.</param>
     /// <param name="message">The delegate executed inside the actor turn.</param>
-    /// <param name="cancellationToken">A token that cancels enqueueing before the message is accepted.</param>
+    /// <param name="cancellationToken">A token that cancels enqueueing or waiting for actor completion.</param>
     ValueTask TellAsync<TActor>(
         ActorId id,
         Func<TActor, CancellationToken, ValueTask> message,
@@ -41,12 +42,13 @@ public interface IActorRuntime
         where TActor : class, IActor;
 
     /// <summary>
-    /// Enqueues a fire-and-forget message for a local actor selected by runtime type.
+    /// Executes a no-result message inside a local actor turn selected by runtime
+    /// type and completes after the actor delegate completes.
     /// </summary>
     /// <param name="actorType">The expected actor implementation type.</param>
     /// <param name="id">The target actor id.</param>
     /// <param name="message">The delegate executed inside the actor turn.</param>
-    /// <param name="cancellationToken">A token that cancels enqueueing before the message is accepted.</param>
+    /// <param name="cancellationToken">A token that cancels enqueueing or waiting for actor completion.</param>
     ValueTask TellAsync(
         Type actorType,
         ActorId id,

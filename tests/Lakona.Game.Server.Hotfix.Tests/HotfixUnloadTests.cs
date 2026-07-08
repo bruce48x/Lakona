@@ -56,7 +56,44 @@ public sealed class HotfixUnloadTests
         await ForceFullCollectionAsync(loadContextReference);
     }
 
-    private static async Task<WeakReference> RunHotfixCallAndUnloadAsync(Func<HotfixUnloadHarness, Task> invokeAsync)
+    [Fact]
+    public async Task Route_CallAsync_value_task_waits_for_behavior_completion()
+    {
+        var loadContextReference = await RunHotfixCallAndUnloadAsync(static async hotfix =>
+        {
+            hotfix.ResetGate();
+            var call = hotfix.CallRouteNoResultAsync(hotfix.RunTickAsync, -1);
+
+            await hotfix.WaitForGateEnteredAsync();
+            Assert.False(call.IsCompleted);
+
+            hotfix.ReleaseGate();
+            await call;
+            Assert.Equal(-1, await hotfix.ReadLastTickAsync());
+        });
+
+        await ForceFullCollectionAsync(loadContextReference);
+    }
+
+    [Fact]
+    public async Task Local_PostAsync_dead_actor_throws_actor_call_exception()
+    {
+        var loadContextReference = await RunHotfixCallAndUnloadAsync(
+            static async hotfix =>
+            {
+                var exception = await Assert.ThrowsAsync<ActorCallException>(() =>
+                    hotfix.PostLocalAsync(hotfix.RunTickAsync, 7));
+
+                Assert.Equal(ActorCallStatus.ActorNotFound, exception.Status);
+            },
+            createActor: false);
+
+        await ForceFullCollectionAsync(loadContextReference);
+    }
+
+    private static async Task<WeakReference> RunHotfixCallAndUnloadAsync(
+        Func<HotfixUnloadHarness, Task> invokeAsync,
+        bool createActor = true)
     {
         var assemblies = CompileGeneratedHotfixAssemblies();
         var loadContext = new SharedAssemblyCollectibleLoadContext();
@@ -64,7 +101,7 @@ public sealed class HotfixUnloadTests
 
         try
         {
-            await ExecuteHotfixCallAsync(loadContext, assemblies, invokeAsync);
+            await ExecuteHotfixCallAsync(loadContext, assemblies, invokeAsync, createActor);
         }
         finally
         {
@@ -77,7 +114,8 @@ public sealed class HotfixUnloadTests
     private static async Task ExecuteHotfixCallAsync(
         AssemblyLoadContext loadContext,
         GeneratedHotfixAssemblies assemblies,
-        Func<HotfixUnloadHarness, Task> invokeAsync)
+        Func<HotfixUnloadHarness, Task> invokeAsync,
+        bool createActor)
     {
         await using var provider = new ServiceCollection()
             .AddLakonaGameServerActors()
@@ -95,12 +133,15 @@ public sealed class HotfixUnloadTests
         try
         {
             harness = CreateHarness(appAssembly, hotfixAssembly, provider);
-            await CreateActorAsync(
-                provider.GetRequiredService<ActorHosting>(),
-                harness.ActorType,
-                ActorId.From(harness.RoomId),
-                TestContext.Current.CancellationToken);
-            actorCreated = true;
+            if (createActor)
+            {
+                await CreateActorAsync(
+                    provider.GetRequiredService<ActorHosting>(),
+                    harness.ActorType,
+                    ActorId.From(harness.RoomId),
+                    TestContext.Current.CancellationToken);
+                actorCreated = true;
+            }
 
             await invokeAsync(harness);
         }
@@ -144,6 +185,7 @@ public sealed class HotfixUnloadTests
             GetStaticValue<string>(exportsType, "RoomId"),
             GetStaticValue<Delegate>(exportsType, "JoinAsync"),
             GetStaticValue<Delegate>(exportsType, "RunTickAsync"),
+            hotfixAssembly.GetType("HotfixUnload.RoomBehavior", throwOnError: true)!,
             provider.GetRequiredService<IActorRuntime>());
     }
 
@@ -152,6 +194,7 @@ public sealed class HotfixUnloadTests
         const string appSource = """
             using System;
             using System.Runtime.CompilerServices;
+            using System.Threading.Tasks;
             using Lakona.Game.Server.Actors;
 
             [assembly: InternalsVisibleTo("HotfixUnload.Hotfix")]
@@ -161,6 +204,11 @@ public sealed class HotfixUnloadTests
             public sealed class RoomActor : Actor<string>
             {
                 public int LastTick { get; set; }
+
+                private static TaskCompletionSource CreateCompletionSource()
+                {
+                    return new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                }
             }
             """;
 
@@ -193,8 +241,40 @@ public sealed class HotfixUnloadTests
                     CancellationToken cancellationToken = default)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    if (request == -1)
+                    {
+                        GateEntered.TrySetResult();
+                        return WaitForGateAsync(self, cancellationToken);
+                    }
+
                     self.LastTick = request;
                     return default;
+                }
+
+                internal static TaskCompletionSource GateEntered { get; private set; } = CreateCompletionSource();
+
+                internal static TaskCompletionSource ReleaseGate { get; private set; } = CreateCompletionSource();
+
+                internal static void ResetGate()
+                {
+                    GateEntered = CreateCompletionSource();
+                    ReleaseGate = CreateCompletionSource();
+                }
+
+                internal static void CompleteGate()
+                {
+                    ReleaseGate.TrySetResult();
+                }
+
+                private static async ValueTask WaitForGateAsync(RoomActor self, CancellationToken cancellationToken)
+                {
+                    await ReleaseGate.Task.WaitAsync(cancellationToken);
+                    self.LastTick = -1;
+                }
+
+                private static TaskCompletionSource CreateCompletionSource()
+                {
+                    return new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 }
             }
 
@@ -350,6 +430,7 @@ public sealed class HotfixUnloadTests
         string roomId,
         Delegate joinAsync,
         Delegate runTickAsync,
+        Type behaviorType,
         IActorRuntime runtime)
     {
         public Type ActorType { get; } = actorType;
@@ -359,6 +440,8 @@ public sealed class HotfixUnloadTests
         public Delegate JoinAsync { get; } = joinAsync;
 
         public Delegate RunTickAsync { get; } = runTickAsync;
+
+        private Type BehaviorType { get; } = behaviorType;
 
         public async Task<int> CallRouteAsync(Delegate method, int request)
         {
@@ -378,6 +461,23 @@ public sealed class HotfixUnloadTests
             return await call.ConfigureAwait(false);
         }
 
+        public Task CallRouteNoResultAsync(Delegate method, int request)
+        {
+            var route = rooms.GetType().GetMethod("Route")!.Invoke(rooms, [RoomId])!;
+            var callAsync = route.GetType()
+                .GetMethods(BindingFlags.Instance | BindingFlags.Public)
+                .Single(candidate =>
+                    candidate.Name == "CallAsync" &&
+                    candidate.IsGenericMethodDefinition &&
+                    candidate.GetGenericArguments().Length == 1 &&
+                    candidate.GetParameters()[0].ParameterType.IsGenericType &&
+                    candidate.GetParameters()[0].ParameterType.GetGenericTypeDefinition().FullName ==
+                    "Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorPost`2")
+                .MakeGenericMethod(typeof(int));
+
+            return ((ValueTask)callAsync.Invoke(route, [method, request, CancellationToken.None])!).AsTask();
+        }
+
         public async Task PostLocalAsync(Delegate method, int request)
         {
             var local = rooms.GetType().GetMethod("Local")!.Invoke(rooms, [RoomId])!;
@@ -392,8 +492,36 @@ public sealed class HotfixUnloadTests
                     "Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorPost`2")
                 .MakeGenericMethod(typeof(int));
 
-            var call = (ValueTask)postAsync.Invoke(local, [method, request, CancellationToken.None])!;
+            ValueTask call;
+            try
+            {
+                call = (ValueTask)postAsync.Invoke(local, [method, request, CancellationToken.None])!;
+            }
+            catch (TargetInvocationException exception) when (exception.InnerException is ActorCallException actorCallException)
+            {
+                throw actorCallException;
+            }
+
             await call.ConfigureAwait(false);
+        }
+
+        public void ResetGate()
+        {
+            BehaviorType.GetMethod("ResetGate", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, []);
+        }
+
+        public async Task WaitForGateEnteredAsync()
+        {
+            var gate = (TaskCompletionSource)BehaviorType
+                .GetProperty("GateEntered", BindingFlags.NonPublic | BindingFlags.Static)!
+                .GetValue(null)!;
+
+            await gate.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        }
+
+        public void ReleaseGate()
+        {
+            BehaviorType.GetMethod("CompleteGate", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, []);
         }
 
         public async Task<int> ReadLastTickAsync()
