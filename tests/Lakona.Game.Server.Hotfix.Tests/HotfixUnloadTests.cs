@@ -1,4 +1,17 @@
+extern alias GameServer;
+
+using System.Reflection;
+using System.Runtime.Loader;
+using GameServer::Lakona.Game.Server.Actors;
+using Lakona.Game.Cluster;
+using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
+using Lakona.Game.Server.Hotfix.Generators;
+using Lakona.Game.Server.Hotfix.Scanning;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Lakona.Game.Server.Hotfix.Tests;
@@ -16,5 +29,383 @@ public sealed class HotfixUnloadTests
 
         HotfixDispatch.Replace(second);
         Assert.Equal(2, HotfixDispatch.Current.Version);
+    }
+
+    [Fact]
+    public async Task Routed_CallAsync_does_not_retain_behavior_method_group()
+    {
+        var loadContextReference = await RunHotfixCallAndUnloadAsync(static async hotfix =>
+        {
+            var result = await hotfix.CallRouteAsync(hotfix.JoinAsync, 41);
+            Assert.Equal(42, result);
+        });
+
+        await ForceFullCollectionAsync(loadContextReference);
+    }
+
+    [Fact]
+    public async Task Local_PostAsync_does_not_retain_behavior_method_group()
+    {
+        var loadContextReference = await RunHotfixCallAndUnloadAsync(static async hotfix =>
+        {
+            await hotfix.PostLocalAsync(hotfix.RunTickAsync, 7);
+            var lastTick = await hotfix.ReadLastTickAsync();
+            Assert.Equal(7, lastTick);
+        });
+
+        await ForceFullCollectionAsync(loadContextReference);
+    }
+
+    private static async Task<WeakReference> RunHotfixCallAndUnloadAsync(Func<HotfixUnloadHarness, Task> invokeAsync)
+    {
+        var assemblies = CompileGeneratedHotfixAssemblies();
+        var loadContext = new SharedAssemblyCollectibleLoadContext();
+        var loadContextReference = new WeakReference(loadContext);
+
+        try
+        {
+            await ExecuteHotfixCallAsync(loadContext, assemblies, invokeAsync);
+        }
+        finally
+        {
+            loadContext.Unload();
+        }
+
+        return loadContextReference;
+    }
+
+    private static async Task ExecuteHotfixCallAsync(
+        AssemblyLoadContext loadContext,
+        GeneratedHotfixAssemblies assemblies,
+        Func<HotfixUnloadHarness, Task> invokeAsync)
+    {
+        await using var provider = new ServiceCollection()
+            .AddLakonaGameServerActors()
+            .BuildServiceProvider();
+
+        var appAssembly = loadContext.LoadFromStream(new MemoryStream(assemblies.AppBytes));
+        var hotfixAssembly = loadContext.LoadFromStream(new MemoryStream(assemblies.HotfixBytes));
+        var scan = HotfixBehaviorScanner.Scan(hotfixAssembly);
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+
+        HotfixDispatch.Replace(new HotfixDispatchTable(1, scan.Methods, scan.Services, scan.ActorMethods));
+
+        HotfixUnloadHarness? harness = null;
+        var actorCreated = false;
+        try
+        {
+            harness = CreateHarness(appAssembly, hotfixAssembly, provider);
+            await CreateActorAsync(
+                provider.GetRequiredService<ActorHosting>(),
+                harness.ActorType,
+                ActorId.From(harness.RoomId),
+                TestContext.Current.CancellationToken);
+            actorCreated = true;
+
+            await invokeAsync(harness);
+        }
+        finally
+        {
+            if (actorCreated && harness is not null)
+            {
+                await DestroyActorAsync(
+                    provider.GetRequiredService<ActorHosting>(),
+                    harness.ActorType,
+                    ActorId.From(harness.RoomId),
+                    TestContext.Current.CancellationToken);
+            }
+
+            HotfixDispatch.Replace(new HotfixDispatchTable(0, Array.Empty<HotfixMethodBinding>()));
+        }
+    }
+
+    private static HotfixUnloadHarness CreateHarness(
+        Assembly appAssembly,
+        Assembly hotfixAssembly,
+        ServiceProvider provider)
+    {
+        var exportsType = hotfixAssembly.GetType("HotfixUnload.HotfixUnloadExports", throwOnError: true)!;
+        var actorType = appAssembly.GetType("HotfixUnload.RoomActor", throwOnError: true)!;
+        var rooms = exportsType
+            .GetMethod("CreateRooms", BindingFlags.Public | BindingFlags.Static)!
+            .Invoke(
+                null,
+                [
+                    provider.GetRequiredService<IActorRuntime>(),
+                    provider,
+                    provider.GetRequiredService<RemoteActorOptions>(),
+                    provider.GetRequiredService<IActorDirectory>(),
+                    provider.GetRequiredService<IActorDirectoryCache>()
+                ])!;
+
+        return new HotfixUnloadHarness(
+            rooms,
+            actorType,
+            GetStaticValue<string>(exportsType, "RoomId"),
+            GetStaticValue<Delegate>(exportsType, "JoinAsync"),
+            GetStaticValue<Delegate>(exportsType, "RunTickAsync"),
+            provider.GetRequiredService<IActorRuntime>());
+    }
+
+    private static GeneratedHotfixAssemblies CompileGeneratedHotfixAssemblies()
+    {
+        const string appSource = """
+            using System;
+            using System.Runtime.CompilerServices;
+            using Lakona.Game.Server.Actors;
+
+            [assembly: InternalsVisibleTo("HotfixUnload.Hotfix")]
+
+            namespace HotfixUnload;
+
+            public sealed class RoomActor : Actor<string>
+            {
+                public int LastTick { get; set; }
+            }
+            """;
+
+        const string hotfixSource = """
+            using System;
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            using Lakona.Game.Server.Hotfix.Abstractions.Actors;
+
+            namespace HotfixUnload;
+
+            [HotfixBehaviorOf(typeof(RoomActor))]
+            public static partial class RoomBehavior
+            {
+                public static ValueTask<int> JoinAsync(
+                    this RoomActor self,
+                    int request,
+                    CancellationToken cancellationToken = default)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    self.LastTick = request;
+                    return new ValueTask<int>(request + 1);
+                }
+
+                public static ValueTask RunTickAsync(
+                    this RoomActor self,
+                    int request,
+                    CancellationToken cancellationToken = default)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    self.LastTick = request;
+                    return default;
+                }
+            }
+
+            public static class HotfixUnloadExports
+            {
+                public static string RoomId => "room-1";
+
+                public static HotfixActorCall<RoomActor, int, int> JoinAsync => RoomBehavior.JoinAsync;
+
+                public static HotfixActorPost<RoomActor, int> RunTickAsync => RoomBehavior.RunTickAsync;
+
+                public static RoomActors CreateRooms(
+                    IActorRuntime runtime,
+                    IServiceProvider services,
+                    RemoteActorOptions options,
+                    IActorDirectory directory,
+                    IActorDirectoryCache directoryCache)
+                {
+                    return new RoomActors(runtime, services, options, directory, directoryCache);
+                }
+            }
+            """;
+
+        var references = HotfixTestMetadataReferences.CreateDefaultReferences(
+            typeof(Actor<>),
+            typeof(HotfixBehaviorOfAttribute),
+            typeof(HotfixDispatch),
+            typeof(ValueTask),
+            typeof(CancellationToken),
+            typeof(IServiceProvider),
+            typeof(NodeId),
+            typeof(ServiceCollection));
+
+        var appCompilation = RunHotfixGenerator(
+            CSharpCompilation.Create(
+                "HotfixUnload.App",
+                [CSharpSyntaxTree.ParseText(appSource)],
+                references,
+                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)));
+        var appBytes = EmitCompilation(appCompilation);
+
+        var hotfixCompilation = RunHotfixGenerator(
+            CSharpCompilation.Create(
+                "HotfixUnload.Hotfix",
+                [CSharpSyntaxTree.ParseText(hotfixSource)],
+                references.Concat([MetadataReference.CreateFromImage(appBytes)]),
+                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)));
+
+        return new GeneratedHotfixAssemblies(appBytes, EmitCompilation(hotfixCompilation));
+    }
+
+    private static Compilation RunHotfixGenerator(CSharpCompilation compilation)
+    {
+        CSharpGeneratorDriver
+            .Create(new HotfixGenerator())
+            .RunGeneratorsAndUpdateCompilation(
+                compilation,
+                out var outputCompilation,
+                out var generatorDiagnostics);
+
+        var errors = generatorDiagnostics
+            .Concat(outputCompilation.GetDiagnostics())
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.Empty(errors);
+        return outputCompilation;
+    }
+
+    private static byte[] EmitCompilation(Compilation compilation)
+    {
+        using var stream = new MemoryStream();
+        var emit = compilation.Emit(stream);
+        if (!emit.Success)
+        {
+            throw new InvalidOperationException(string.Join(Environment.NewLine, emit.Diagnostics));
+        }
+
+        return stream.ToArray();
+    }
+
+    private static async Task CreateActorAsync(
+        ActorHosting hosting,
+        Type actorType,
+        ActorId actorId,
+        CancellationToken cancellationToken)
+    {
+        var method = typeof(ActorHosting)
+            .GetMethods(BindingFlags.Instance | BindingFlags.Public)
+            .Single(candidate => candidate.Name == nameof(ActorHosting.CreateAsync) && candidate.IsGenericMethodDefinition)
+            .MakeGenericMethod(actorType);
+
+        var task = (ValueTask)method.Invoke(hosting, [actorId, cancellationToken])!;
+        await task.ConfigureAwait(false);
+    }
+
+    private static async Task DestroyActorAsync(
+        ActorHosting hosting,
+        Type actorType,
+        ActorId actorId,
+        CancellationToken cancellationToken)
+    {
+        var method = typeof(ActorHosting)
+            .GetMethods(BindingFlags.Instance | BindingFlags.Public)
+            .Single(candidate => candidate.Name == nameof(ActorHosting.DestroyAsync) && candidate.IsGenericMethodDefinition)
+            .MakeGenericMethod(actorType);
+
+        var task = (ValueTask)method.Invoke(hosting, [actorId, cancellationToken])!;
+        await task.ConfigureAwait(false);
+    }
+
+    private static T GetStaticValue<T>(Type type, string propertyName)
+    {
+        return (T)type.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Static)!.GetValue(null)!;
+    }
+
+    private static async Task ForceFullCollectionAsync(WeakReference loadContextReference)
+    {
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+            if (!loadContextReference.IsAlive)
+            {
+                return;
+            }
+
+            await Task.Delay(25, TestContext.Current.CancellationToken);
+        }
+
+        Assert.False(loadContextReference.IsAlive, "Hotfix AssemblyLoadContext should be collectible after actor method-group calls complete and the dispatch table is cleared.");
+    }
+
+    private sealed class SharedAssemblyCollectibleLoadContext : AssemblyLoadContext
+    {
+        public SharedAssemblyCollectibleLoadContext()
+            : base(isCollectible: true)
+        {
+        }
+
+        protected override Assembly? Load(AssemblyName assemblyName)
+        {
+            return AppDomain.CurrentDomain.GetAssemblies()
+                .FirstOrDefault(assembly => AssemblyName.ReferenceMatchesDefinition(assemblyName, assembly.GetName()));
+        }
+    }
+
+    private sealed record GeneratedHotfixAssemblies(byte[] AppBytes, byte[] HotfixBytes);
+
+    private sealed class HotfixUnloadHarness(
+        object rooms,
+        Type actorType,
+        string roomId,
+        Delegate joinAsync,
+        Delegate runTickAsync,
+        IActorRuntime runtime)
+    {
+        public Type ActorType { get; } = actorType;
+
+        public string RoomId { get; } = roomId;
+
+        public Delegate JoinAsync { get; } = joinAsync;
+
+        public Delegate RunTickAsync { get; } = runTickAsync;
+
+        public async Task<int> CallRouteAsync(Delegate method, int request)
+        {
+            var route = rooms.GetType().GetMethod("Route")!.Invoke(rooms, [RoomId])!;
+            var callAsync = route.GetType()
+                .GetMethods(BindingFlags.Instance | BindingFlags.Public)
+                .Single(candidate =>
+                    candidate.Name == "CallAsync" &&
+                    candidate.IsGenericMethodDefinition &&
+                    candidate.GetGenericArguments().Length == 2 &&
+                    candidate.GetParameters()[0].ParameterType.IsGenericType &&
+                    candidate.GetParameters()[0].ParameterType.GetGenericTypeDefinition().FullName ==
+                    "Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorCall`3")
+                .MakeGenericMethod(typeof(int), typeof(int));
+
+            var call = (ValueTask<int>)callAsync.Invoke(route, [method, request, CancellationToken.None])!;
+            return await call.ConfigureAwait(false);
+        }
+
+        public async Task PostLocalAsync(Delegate method, int request)
+        {
+            var local = rooms.GetType().GetMethod("Local")!.Invoke(rooms, [RoomId])!;
+            var postAsync = local.GetType()
+                .GetMethods(BindingFlags.Instance | BindingFlags.Public)
+                .Single(candidate =>
+                    candidate.Name == "PostAsync" &&
+                    candidate.IsGenericMethodDefinition &&
+                    candidate.GetGenericArguments().Length == 1 &&
+                    candidate.GetParameters()[0].ParameterType.IsGenericType &&
+                    candidate.GetParameters()[0].ParameterType.GetGenericTypeDefinition().FullName ==
+                    "Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorPost`2")
+                .MakeGenericMethod(typeof(int));
+
+            var call = (ValueTask)postAsync.Invoke(local, [method, request, CancellationToken.None])!;
+            await call.ConfigureAwait(false);
+        }
+
+        public async Task<int> ReadLastTickAsync()
+        {
+            var result = await runtime.AskAsync(
+                ActorType,
+                ActorId.From(RoomId),
+                static (actor, cancellationToken) => new ValueTask<object?>(
+                    actor.GetType().GetProperty("LastTick", BindingFlags.Instance | BindingFlags.Public)!.GetValue(actor)),
+                CancellationToken.None).ConfigureAwait(false);
+
+            return Assert.IsType<int>(result);
+        }
     }
 }

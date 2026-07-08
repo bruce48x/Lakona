@@ -614,6 +614,64 @@ public sealed class HotfixGeneratorTests
     }
 
     [Fact]
+    public void Generator_does_not_emit_static_delegate_or_method_info_actor_call_caches()
+    {
+        var appSource = """
+            using System.Runtime.CompilerServices;
+            using Lakona.Game.Server.Actors;
+
+            [assembly: InternalsVisibleTo("Game.Hotfix")]
+
+            namespace Game.Server;
+
+            public sealed class RoomActor : Actor<string> { }
+            """;
+
+        var hotfixSource = """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Game.Server;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Hotfix;
+
+            [HotfixBehaviorOf(typeof(RoomActor))]
+            public static partial class RoomBehavior
+            {
+                public static ValueTask<int> JoinAsync(
+                    this RoomActor self,
+                    int request,
+                    CancellationToken cancellationToken = default)
+                {
+                    return new ValueTask<int>(request + 1);
+                }
+
+                public static ValueTask RunTickAsync(
+                    this RoomActor self,
+                    int request,
+                    CancellationToken cancellationToken = default)
+                {
+                    return default;
+                }
+            }
+            """;
+
+        var result = GeneratorTestHost.RunWithGeneratedAppReference(
+            appSource,
+            hotfixSource,
+            appAssemblyName: "Game.Server",
+            hotfixAssemblyName: "Game.Hotfix");
+
+        var generated = result.Hotfix.GeneratedSource;
+
+        Assert.Empty(result.Hotfix.ErrorDiagnostics);
+        Assert.DoesNotContain("static readonly global::System.Delegate", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("static readonly global::System.Reflection.MethodInfo", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("RuntimeMethodHandle", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("MethodHandle", generated, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Generator_rejects_behavior_method_group_from_wrong_actor()
     {
         var appSource = """
