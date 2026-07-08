@@ -7,9 +7,9 @@ public sealed class ActorHostBuilder
     private readonly HashSet<string> _startupNames = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<Type> _placementActors = [];
 
-    public IReadOnlyList<ActorStartupDeclaration> Startups => _startups;
+    public IReadOnlyList<ActorStartupDeclaration> Startups => _startups.ToArray();
 
-    public IReadOnlyList<ActorPlacementDeclaration> Placements => _placements;
+    public IReadOnlyList<ActorPlacementDeclaration> Placements => _placements.ToArray();
 
     public void RegisterStartup(
         string name,

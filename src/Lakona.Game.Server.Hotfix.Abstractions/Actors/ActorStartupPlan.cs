@@ -6,7 +6,7 @@ public sealed class ActorStartupPlan
 
     public ActorStartupPlan(IReadOnlyList<ActorStartupInstance> actors)
     {
-        Actors = actors ?? throw new ArgumentNullException(nameof(actors));
+        Actors = actors?.ToArray() ?? throw new ArgumentNullException(nameof(actors));
     }
 
     public IReadOnlyList<ActorStartupInstance> Actors { get; }

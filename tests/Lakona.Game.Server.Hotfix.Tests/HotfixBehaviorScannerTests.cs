@@ -29,6 +29,60 @@ public sealed class HotfixBehaviorScannerTests
     }
 
     [Fact]
+    public void Scanner_reads_hotfix_startup_actor_registrations()
+    {
+        var result = HotfixBehaviorScanner.Scan(
+            typeof(StartupScanFixture.HotfixStartup).Assembly,
+            [typeof(StartupScanFixture.HotfixStartup)]);
+
+        Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
+        var startup = Assert.Single(result.ActorStartups);
+        Assert.Equal("matchmaking", startup.Name);
+        var placement = Assert.Single(result.ActorPlacements);
+        Assert.Equal(typeof(StartupScanFixture.RoomActor), placement.ActorType);
+        Assert.Equal(typeof(ActorId), placement.KeyType);
+    }
+
+    [Fact]
+    public void Scanner_reads_hotfix_startup_service_registrations()
+    {
+        var result = HotfixBehaviorScanner.Scan(
+            typeof(StartupScanFixture.HotfixStartup).Assembly,
+            [typeof(StartupScanFixture.HotfixStartup)]);
+
+        Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
+        var service = Assert.Single(result.StartupServices);
+        Assert.Equal(typeof(StartupScanFixture.IMarkerService), service.ServiceType);
+        Assert.Equal(typeof(StartupScanFixture.MarkerService), service.ImplementationType);
+    }
+
+    [Fact]
+    public void Scanner_rejects_non_static_hotfix_startup()
+    {
+        var result = HotfixBehaviorScanner.Scan(
+            typeof(NonStaticStartupFixture.HotfixStartup).Assembly,
+            [typeof(NonStaticStartupFixture.HotfixStartup)]);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Contains("HotfixStartup", StringComparison.Ordinal) &&
+            diagnostic.Contains("static class", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Scanner_rejects_invalid_hotfix_startup_configure_actors_signature()
+    {
+        var result = HotfixBehaviorScanner.Scan(
+            typeof(InvalidStartupSignatureFixture.HotfixStartup).Assembly,
+            [typeof(InvalidStartupSignatureFixture.HotfixStartup)]);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Contains("ConfigureActors", StringComparison.Ordinal) &&
+            diagnostic.Contains(nameof(ActorHostBuilder), StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Metadata_references_ignore_assembly_locations_that_no_longer_exist()
     {
         var missingAssemblyPath = Path.Combine(
@@ -149,6 +203,59 @@ public sealed class HotfixBehaviorScannerTests
             diagnostic.Contains("hotfix", StringComparison.OrdinalIgnoreCase) &&
             diagnostic.Contains("PingRequest", StringComparison.Ordinal) &&
             diagnostic.Contains("behavior", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static class StartupScanFixture
+    {
+        public sealed class RoomActor : IActor
+        {
+        }
+
+        public static class HotfixStartup
+        {
+            public static void ConfigureActors(ActorHostBuilder actors)
+            {
+                actors.RegisterStartup(
+                    "matchmaking",
+                    static _ => ActorStartupPlan.Create<RoomActor>(ActorId.From("default")));
+                actors.RegisterPlacement<RoomActor, ActorId>(
+                    static context => context.Candidates[0]);
+            }
+
+            public static void ConfigureServices(IServiceCollection services)
+            {
+                services.AddSingleton<IMarkerService, MarkerService>();
+            }
+        }
+
+        public interface IMarkerService
+        {
+        }
+
+        public sealed class MarkerService : IMarkerService
+        {
+        }
+    }
+
+    private static class NonStaticStartupFixture
+    {
+        public sealed class HotfixStartup
+        {
+            public static void ConfigureActors(ActorHostBuilder actors)
+            {
+                actors.RegisterStartup("matchmaking", static _ => ActorStartupPlan.Empty);
+            }
+        }
+    }
+
+    private static class InvalidStartupSignatureFixture
+    {
+        public static class HotfixStartup
+        {
+            public static void ConfigureActors()
+            {
+            }
+        }
     }
 
     [Fact]

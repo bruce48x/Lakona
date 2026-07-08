@@ -46,6 +46,44 @@ public sealed class ActorHostBuilderTests
         Assert.Equal(typeof(string), placement.KeyType);
     }
 
+    [Fact]
+    public void StartupsSnapshotCannotBypassValidation()
+    {
+        var builder = new ActorHostBuilder();
+        builder.RegisterStartup("matchmaking", static _ => ActorStartupPlan.Empty);
+
+        var snapshot = Assert.IsType<ActorStartupDeclaration[]>(builder.Startups);
+        Array.Resize(
+            ref snapshot,
+            2);
+        snapshot[1] = new ActorStartupDeclaration("Matchmaking", static _ => ActorStartupPlan.Empty);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            builder.RegisterStartup("Matchmaking", static _ => ActorStartupPlan.Empty));
+        Assert.Single(builder.Startups);
+    }
+
+    [Fact]
+    public void ActorStartupPlanSnapshotsActors()
+    {
+        var actors = new List<ActorStartupInstance>
+        {
+            new(typeof(TestActor), "first"),
+        };
+
+        var plan = new ActorStartupPlan(actors);
+        actors.Add(new ActorStartupInstance(typeof(TestActor), "second"));
+
+        var actor = Assert.Single(plan.Actors);
+        Assert.Equal("first", actor.ActorId);
+    }
+
+    [Fact]
+    public void ActorHostCandidateRejectsBlankNodeId()
+    {
+        Assert.Throws<ArgumentException>(() => new ActorHostCandidate(" "));
+    }
+
     private sealed class TestActor
     {
     }

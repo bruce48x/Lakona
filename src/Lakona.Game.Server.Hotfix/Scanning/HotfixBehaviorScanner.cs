@@ -37,11 +37,16 @@ public static class HotfixBehaviorScanner
         var services = new List<HotfixServiceMethodBinding>();
         var features = new List<HotfixFeatureDeclaration>();
         var actorMethods = new List<HotfixActorMethodDescriptor>();
+        var actorStartups = new List<ActorStartupDeclaration>();
+        var actorPlacements = new List<ActorPlacementDeclaration>();
+        var startupServices = new List<ServiceDescriptor>();
         var diagnostics = new List<string>();
         var keys = new HashSet<HotfixMethodKey>();
         var actorMethodKeys = new HashSet<string>(StringComparer.Ordinal);
         var serviceKeys = new HashSet<string>(StringComparer.Ordinal);
         var featureNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var startupNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var placementActors = new HashSet<Type>();
         var serviceImplementations = new Dictionary<Type, HashSet<Type>>();
         var included = includedTypes is null ? null : new HashSet<Type>(includedTypes);
 
@@ -82,6 +87,18 @@ public static class HotfixBehaviorScanner
                     ScanBehaviorType(type, behaviorActorType, methods, actorMethods, diagnostics, keys, actorMethodKeys);
                 }
 
+                if (IsHotfixStartupType(type))
+                {
+                    ScanHotfixStartupType(
+                        type,
+                        actorStartups,
+                        actorPlacements,
+                        startupServices,
+                        diagnostics,
+                        startupNames,
+                        placementActors);
+                }
+
                 if (!TryGetHotfixServiceContract(type, diagnostics, out var serviceBinding))
                 {
                     continue;
@@ -118,7 +135,144 @@ public static class HotfixBehaviorScanner
             }
         }
 
-        return new HotfixBehaviorScanResult(methods, services, features, actorMethods, diagnostics);
+        return new HotfixBehaviorScanResult(
+            methods,
+            services,
+            features,
+            actorMethods,
+            actorStartups,
+            actorPlacements,
+            startupServices,
+            diagnostics);
+    }
+
+    private static bool IsHotfixStartupType(Type type)
+    {
+        return string.Equals(type.Name, "HotfixStartup", StringComparison.Ordinal);
+    }
+
+    private static void ScanHotfixStartupType(
+        Type startupType,
+        List<ActorStartupDeclaration> actorStartups,
+        List<ActorPlacementDeclaration> actorPlacements,
+        List<ServiceDescriptor> startupServices,
+        List<string> diagnostics,
+        HashSet<string> startupNames,
+        HashSet<Type> placementActors)
+    {
+        if (!startupType.IsAbstract || !startupType.IsSealed)
+        {
+            diagnostics.Add($"Hotfix startup '{startupType.FullName}' must be a static class.");
+            return;
+        }
+
+        var actorsMethod = ResolveHotfixStartupMethod(
+            startupType,
+            "ConfigureActors",
+            typeof(ActorHostBuilder),
+            diagnostics);
+        if (actorsMethod is not null)
+        {
+            var builder = new ActorHostBuilder();
+            if (TryInvokeHotfixStartupMethod(startupType, actorsMethod, builder, diagnostics))
+            {
+                foreach (var startup in builder.Startups)
+                {
+                    if (!startupNames.Add(startup.Name))
+                    {
+                        diagnostics.Add($"Duplicate actor startup name '{startup.Name}'.");
+                        continue;
+                    }
+
+                    actorStartups.Add(startup);
+                }
+
+                foreach (var placement in builder.Placements)
+                {
+                    if (!placementActors.Add(placement.ActorType))
+                    {
+                        diagnostics.Add($"Duplicate actor placement for '{placement.ActorType.FullName}'.");
+                        continue;
+                    }
+
+                    actorPlacements.Add(placement);
+                }
+            }
+        }
+
+        var servicesMethod = ResolveHotfixStartupMethod(
+            startupType,
+            "ConfigureServices",
+            typeof(IServiceCollection),
+            diagnostics);
+        if (servicesMethod is not null)
+        {
+            var services = new ServiceCollection();
+            if (TryInvokeHotfixStartupMethod(startupType, servicesMethod, services, diagnostics))
+            {
+                startupServices.AddRange(services);
+            }
+        }
+    }
+
+    private static MethodInfo? ResolveHotfixStartupMethod(
+        Type startupType,
+        string methodName,
+        Type parameterType,
+        List<string> diagnostics)
+    {
+        var methods = startupType
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(method => string.Equals(method.Name, methodName, StringComparison.Ordinal))
+            .ToArray();
+
+        if (methods.Length == 0)
+        {
+            return null;
+        }
+
+        if (methods.Length != 1)
+        {
+            diagnostics.Add($"Hotfix startup '{startupType.FullName}' must declare at most one public static void {methodName}({parameterType.Name} value) method.");
+            return null;
+        }
+
+        var method = methods[0];
+        var parameters = method.GetParameters();
+        if (!method.IsStatic ||
+            method.IsGenericMethod ||
+            method.ReturnType != typeof(void) ||
+            parameters.Length != 1 ||
+            parameters[0].ParameterType != parameterType)
+        {
+            diagnostics.Add($"Hotfix startup '{startupType.FullName}' must declare public static void {methodName}({parameterType.Name} value).");
+            return null;
+        }
+
+        return method;
+    }
+
+    private static bool TryInvokeHotfixStartupMethod(
+        Type startupType,
+        MethodInfo method,
+        object argument,
+        List<string> diagnostics)
+    {
+        try
+        {
+            method.Invoke(null, [argument]);
+            return true;
+        }
+        catch (TargetInvocationException ex)
+        {
+            diagnostics.Add($"Hotfix startup '{startupType.FullName}' {method.Name} failed: {ex.InnerException?.Message ?? ex.Message}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            diagnostics.Add($"Hotfix startup '{startupType.FullName}' {method.Name} failed: {ex.Message}");
+            return false;
+        }
     }
 
     private static Type? GetHotfixBehaviorActorType(Type type)
