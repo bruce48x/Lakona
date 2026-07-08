@@ -23,6 +23,16 @@ namespace Lakona.Game.Cluster
             NodeId node,
             NodeState state,
             IReadOnlyDictionary<string, NodeEndpoint> endpoints,
+            IReadOnlyList<NodeActorHostDescriptor> actorHosts,
+            IReadOnlyDictionary<string, string>? labels = null)
+            : this(node, state, endpoints, Array.Empty<NodeFeatureDescriptor>(), actorHosts, labels)
+        {
+        }
+
+        public ClusterNodeDescriptor(
+            NodeId node,
+            NodeState state,
+            IReadOnlyDictionary<string, NodeEndpoint> endpoints,
             IReadOnlyList<NodeFeatureDescriptor> features,
             IReadOnlyList<NodeActorHostDescriptor> actorHosts,
             IReadOnlyDictionary<string, string>? labels = null)

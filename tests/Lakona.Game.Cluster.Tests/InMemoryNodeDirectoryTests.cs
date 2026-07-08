@@ -125,6 +125,38 @@ public sealed class InMemoryNodeDirectoryTests
     }
 
     [Fact]
+    public async Task QueryFiltersByActorHostNameOnly()
+    {
+        var directory = new InMemoryNodeDirectory();
+        var now = DateTimeOffset.UtcNow;
+
+        await directory.RegisterAsync(
+            TestRegistration(
+                "local",
+                "node-a",
+                now,
+                actorHosts: new[] { new NodeActorHostDescriptor("room", "policy-1", "build-1") }),
+            now,
+            TestContext.Current.CancellationToken);
+        await directory.RegisterAsync(
+            TestRegistration(
+                "local",
+                "node-b",
+                now,
+                actorHosts: new[] { new NodeActorHostDescriptor("state-store", "policy-1", "build-1") }),
+            now,
+            TestContext.Current.CancellationToken);
+
+        var records = await directory.QueryAsync(
+            new NodeDirectoryQuery("local", actorHostName: "room", state: NodeState.Ready),
+            now,
+            TestContext.Current.CancellationToken);
+
+        var record = Assert.Single(records);
+        Assert.Equal("node-a", record.NodeId.Value);
+    }
+
+    [Fact]
     public async Task ExpireMarksExpiredNodesDead()
     {
         var directory = new InMemoryNodeDirectory();

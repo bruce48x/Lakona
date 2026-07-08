@@ -25,6 +25,18 @@ namespace Lakona.Game.Cluster
             string clusterName,
             NodeId nodeId,
             IReadOnlyDictionary<string, NodeEndpoint> endpoints,
+            IReadOnlyList<NodeActorHostDescriptor> actorHosts,
+            DateTimeOffset leaseExpiresAt,
+            NodeState state = NodeState.Starting,
+            IReadOnlyDictionary<string, string>? labels = null)
+            : this(clusterName, nodeId, endpoints, Array.Empty<NodeFeatureDescriptor>(), actorHosts, leaseExpiresAt, state, labels)
+        {
+        }
+
+        public NodeRegistration(
+            string clusterName,
+            NodeId nodeId,
+            IReadOnlyDictionary<string, NodeEndpoint> endpoints,
             IReadOnlyList<NodeFeatureDescriptor> features,
             IReadOnlyList<NodeActorHostDescriptor> actorHosts,
             DateTimeOffset leaseExpiresAt,
