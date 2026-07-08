@@ -11,7 +11,8 @@ public sealed record HotfixSnapshot
         HotfixReloadStatus? LastReloadStatus,
         string? LastFailureMessage,
         string? LastFailureExceptionType,
-        IReadOnlyList<HotfixFeatureDeclaration>? Features = null)
+        IReadOnlyList<HotfixFeatureDeclaration>? Features = null,
+        IReadOnlyList<HotfixActorHostDescriptor>? ActorHosts = null)
     {
         this.Version = Version;
         this.SourcePath = SourcePath;
@@ -22,6 +23,7 @@ public sealed record HotfixSnapshot
         this.LastFailureMessage = LastFailureMessage;
         this.LastFailureExceptionType = LastFailureExceptionType;
         this.Features = Array.AsReadOnly(Features?.ToArray() ?? []);
+        this.ActorHosts = Array.AsReadOnly(ActorHosts?.ToArray() ?? []);
     }
 
     public string? Version { get; }
@@ -36,9 +38,17 @@ public sealed record HotfixSnapshot
 
     public IReadOnlyList<HotfixFeatureDeclaration> Features { get; }
 
+    public IReadOnlyList<HotfixActorHostDescriptor> ActorHosts { get; }
+
     public HotfixReloadStatus? LastReloadStatus { get; }
 
     public string? LastFailureMessage { get; }
 
     public string? LastFailureExceptionType { get; }
 }
+
+public sealed record HotfixActorHostDescriptor(
+    string Actor,
+    string PolicyHash,
+    string BuildTag,
+    IReadOnlyDictionary<string, string>? Metadata = null);

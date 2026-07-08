@@ -65,6 +65,7 @@ public sealed class AgarHotfixTests
         services.AddLogging();
         services.AddLakonaGameServer();
         new global::GeneratedHotfixActorRegistration().Register(services);
+        services.AddGeneratedActorSelectorTestDependencies();
         await using var rootServices = services.BuildServiceProvider();
         var manager = new HotfixManager(source, HotfixHostAssemblyNames(), rootServices: rootServices);
 
@@ -118,14 +119,26 @@ public sealed class AgarHotfixTests
         services.AddSingleton(matchmakingNotifierType);
 
         await using var provider = services.BuildServiceProvider();
+        var now = DateTimeOffset.UtcNow;
+        await provider.GetRequiredService<INodeDirectory>().RegisterAsync(
+            new NodeRegistration(
+                "local",
+                new NodeId("gateway-1"),
+                new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal)
+                {
+                    ["cluster"] = new NodeEndpoint("tcp://127.0.0.1:21002")
+                },
+                [new NodeActorHostDescriptor("user", "placement:Server.App.State.Users.UserActor", "hotfix")],
+                now.AddMinutes(1),
+                NodeState.Ready),
+            now,
+            TestContext.Current.CancellationToken);
         featureCommands.UseActorDirectory(provider.GetRequiredService<IActorDirectory>());
         var actors = provider.GetRequiredService<IActorRuntime>();
         var service = new LoginService(
             provider.GetRequiredService<UserActors>(),
             provider.GetRequiredService<LakonaGameRuntimeOptions>(),
             provider.GetRequiredService<LocalActorNodeIdentity>(),
-            provider.GetRequiredService<ActorHosting>(),
-            provider.GetRequiredService<IClusterNodeDiscovery>(),
             provider.GetRequiredService<ILogger<LoginService>>());
         var call = new HotfixServiceCall<LoginRequest, ILoginCallback>(
             new LoginRequest { GuestLogin = true },
@@ -144,12 +157,10 @@ public sealed class AgarHotfixTests
         Assert.Equal(reply.PlayerId, reply.SessionId);
         Assert.Equal(1, reply.SessionGeneration);
 
-        var expectedOwner = SelectExpectedStateStoreOwner(reply.PlayerId, stateStoreNodes);
-        Assert.NotNull(featureCommands.LastTarget);
-        Assert.Equal(expectedOwner.Node, featureCommands.LastTarget.Node);
-        Assert.Equal("state-store", featureCommands.LastFeatureName);
-        Assert.Equal("CreateUserActorRequest", featureCommands.LastRequestTypeName);
-        Assert.Equal(ActorState.Dead, actors.GetState(ActorId.From(reply.PlayerId)));
+        Assert.Null(featureCommands.LastTarget);
+        Assert.Equal("", featureCommands.LastFeatureName);
+        Assert.Equal("", featureCommands.LastRequestTypeName);
+        Assert.Equal(ActorState.Active, actors.GetState(ActorId.From(reply.PlayerId)));
     }
 
     [Fact]
@@ -183,7 +194,8 @@ public sealed class AgarHotfixTests
                     RpcServices = ["login", "player"]
                 }
             ],
-            Feature = ["state-store"]
+            ActorHosts = [],
+            StartupActors = []
         });
         services.AddSingleton<IClusterNodeDiscovery>(new FixedClusterNodeDiscovery(stateStoreNodes));
         services.AddSingleton<IFeatureCommandClient>(featureCommands);
@@ -196,10 +208,8 @@ public sealed class AgarHotfixTests
 
         await using var provider = services.BuildServiceProvider();
         featureCommands.UseActorDirectory(provider.GetRequiredService<IActorDirectory>());
-        var expectedOwner = SelectExpectedStateStoreOwner("current", stateStoreNodes);
-        featureCommands.RegisterExistingLeaderboardActor(expectedOwner.Node, "current");
-        await provider.GetRequiredService<IActorDirectory>()
-            .RegisterAsync(ActorId.From("current"), expectedOwner.Node, TestContext.Current.CancellationToken);
+        await provider.GetRequiredService<ActorHosting>()
+            .EnsureAsync<LeaderboardActor>(ActorId.From("current"), TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
         var hotfixRuntime = await TestHotfix.LoadCurrentRuntimeAsync(provider, TestContext.Current.CancellationToken);
         var gameServer = new TestGameServer();
@@ -223,7 +233,7 @@ public sealed class AgarHotfixTests
         Assert.Null(featureCommands.LastTarget);
         Assert.Equal("", featureCommands.LastFeatureName);
         Assert.Equal("", featureCommands.LastRequestTypeName);
-        Assert.Equal(ActorState.Dead, actors.GetState(ActorId.From("current")));
+        Assert.Equal(ActorState.Active, actors.GetState(ActorId.From("current")));
     }
 
     [Fact]
@@ -276,30 +286,17 @@ public sealed class AgarHotfixTests
     }
 
     [Fact]
-    public async Task Leaderboard_feature_start_creates_current_leaderboard_actor()
+    public void Hotfix_startup_registers_current_leaderboard_actor()
     {
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddLakonaGameServer();
-        new global::GeneratedHotfixActorRegistration().Register(services);
-        services.AddGeneratedActorSelectorTestDependencies();
-        services.AddSingleton(new LakonaGameRuntimeOptions
-        {
-            Node = new LakonaGameNodeOptions { Id = "state-store-1" },
-            Feature = ["leaderboard"]
-        });
+        var actors = new ActorHostBuilder();
 
-        await using var provider = services.BuildServiceProvider();
-        var actors = provider.GetRequiredService<IActorRuntime>();
-        var call = new HotfixFeatureStartCall(
-            "leaderboard",
-            new HotfixFeatureState(),
-            provider,
-            TestContext.Current.CancellationToken);
+        Server.Hotfix.HotfixStartup.ConfigureActors(actors);
 
-        await LeaderboardFeature.StartAsync(call);
-
-        Assert.Equal(ActorState.Active, actors.GetState(ActorId.From("current")));
+        var declaration = Assert.Single(actors.Startups, startup => startup.Name == "leaderboard");
+        var plan = declaration.CreatePlan(new ActorStartupContext("leaderboard", new Dictionary<string, string>()));
+        var actor = Assert.Single(plan.Actors);
+        Assert.Equal(typeof(LeaderboardActor), actor.ActorType);
+        Assert.Equal(ActorId.From("current"), actor.ActorId);
     }
 
     [Fact]

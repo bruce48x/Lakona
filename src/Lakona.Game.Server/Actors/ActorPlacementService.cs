@@ -8,6 +8,8 @@ public sealed class ActorPlacementService(
     IActorDirectory actorDirectory,
     INodeDirectory nodeDirectory,
     IActorHostClient hostClient,
+    ActorHosting actorHosting,
+    LocalActorNodeIdentity localNode,
     IHotfixRuntimeAccessor hotfixRuntime) : IActorPlacementService
 {
     private const string ClusterName = "local";
@@ -82,6 +84,20 @@ public sealed class ActorPlacementService(
 
         var selectedHost = selectedRecord.ActorHosts.First(host =>
             string.Equals(host.Actor, actorName, StringComparison.Ordinal));
+        if (selectedRecord.NodeId == localNode.NodeId)
+        {
+            if (createMode == ActorPlacementCreateMode.Create)
+            {
+                await actorHosting.CreateAsync<TActor>(actorId, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await actorHosting.EnsureAsync<TActor>(actorId, cancellationToken).ConfigureAwait(false);
+            }
+
+            return new ActorPlacementResult(actorId, localNode.NodeId);
+        }
+
         var reply = await hostClient.CreateAsync(
             selectedRecord.NodeId,
             new ActorHostCreateRequest(
@@ -144,7 +160,17 @@ public sealed class ActorPlacementService(
     private static string ResolveActorName(Type actorType)
     {
         var attribute = (ActorNameAttribute?)Attribute.GetCustomAttribute(actorType, typeof(ActorNameAttribute), inherit: false);
-        return attribute?.Name ?? actorType.Name;
+        if (attribute is not null)
+        {
+            return attribute.Name;
+        }
+
+        var name = actorType.Name.EndsWith("Actor", StringComparison.Ordinal)
+            ? actorType.Name[..^"Actor".Length]
+            : actorType.Name;
+        return string.IsNullOrWhiteSpace(name)
+            ? actorType.Name.ToLowerInvariant()
+            : char.ToLowerInvariant(name[0]) + name[1..];
     }
 
     private static string ToWireMode(ActorPlacementCreateMode createMode)

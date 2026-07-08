@@ -10,13 +10,13 @@ using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
-using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Microsoft.Extensions.DependencyInjection;
-using Server.Hotfix.Features;
 using Server.Hotfix.Services;
+using Server.Hotfix.Features;
+using Server.Hotfix.State.Rooms;
 using Server.Hotfix.State.Users;
 
 namespace Server.Hotfix.State.Matchmaking;
@@ -24,6 +24,18 @@ namespace Server.Hotfix.State.Matchmaking;
 [HotfixBehaviorOf(typeof(MatchmakingActor))]
 public static partial class MatchmakingBehavior
 {
+    [ActorStart]
+    public static ValueTask StartAsync(MatchmakingActor self, ActorStartCall call)
+    {
+        return self.StartTimerAsync(new MatchmakingTimerStartRequest(), call.CancellationToken);
+    }
+
+    [ActorStop]
+    public static ValueTask StopAsync(MatchmakingActor self, ActorStopCall call)
+    {
+        return self.StopTimerAsync(new MatchmakingTimerStopRequest(), call.CleanupCancellationToken);
+    }
+
     public static async ValueTask<MatchmakingEnqueueResult> EnqueueAsync(this MatchmakingActor self, MatchmakingEnqueueRequest request, CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(request.UserId);
@@ -381,62 +393,51 @@ public static partial class MatchmakingBehavior
 
     private static async ValueTask<RoomSettlementResult> AllocateRoomAsync(MatchmakingActor self, RoomCreateRequest request)
     {
-        var discovery = self.Context.Services.GetRequiredService<IClusterNodeDiscovery>();
-        var commands = self.Context.Services.GetRequiredService<IFeatureCommandClient>();
-
-        var candidates = await discovery
-            .ListAsync(new FeatureName(BattleRuntimeRoomAllocation.FeatureName))
-            .ConfigureAwait(false);
-        var list = candidates
-            .Where(candidate => candidate.State == NodeState.Ready)
-            .OrderBy(candidate => candidate.Node.Value, StringComparer.Ordinal)
-            .ToList();
-        if (list.Count == 0)
+        var rooms = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<RoomActors>();
+        var roomId = new RoomId(request.RoomId);
+        try
+        {
+            await rooms.Place(roomId).CreateAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (ActorPlacementException ex)
         {
             return new RoomSettlementResult
             {
                 RoomId = request.RoomId,
                 Succeeded = false,
-                Message = "Battle runtime node is unavailable."
+                Message = ex.Message
             };
         }
 
-        var target = list[(int)(ComputeStableHash(request.RoomId) % (uint)list.Count)];
-
-        var reply = await commands.SendToNodeAsync<BattleRuntimeRoomAllocationRequest, BattleRuntimeRoomAllocationReply>(
-            target,
-            BattleRuntimeRoomAllocation.FeatureName,
-            new BattleRuntimeRoomAllocationRequest
-            {
-                RoomId = request.RoomId,
-                MaxPlayers = request.MaxPlayers,
-                Players = request.Players.Select(CloneAssignment).ToList()
-            }).ConfigureAwait(false);
-
-        return CreateRoomSettlementResult(request, reply);
-    }
-
-    private static RoomSettlementResult CreateRoomSettlementResult(
-        RoomCreateRequest request,
-        BattleRuntimeRoomAllocationReply reply)
-    {
-        if (!reply.Succeeded)
+        var create = await rooms.Route(roomId).CallAsync(
+            RoomBehavior.CreateAsync,
+            request,
+            CancellationToken.None).ConfigureAwait(false);
+        if (!create.Succeeded)
         {
-            return new RoomSettlementResult
+            return create;
+        }
+
+        var firstPlayer = request.Players[0];
+        var start = await rooms.Route(roomId).CallAsync(
+            RoomBehavior.StartAsync,
+            new RoomStartRequest
             {
                 RoomId = request.RoomId,
-                Succeeded = false,
-                Message = string.IsNullOrWhiteSpace(reply.Message)
-                    ? "Battle runtime allocation failed."
-                    : reply.Message
-            };
+                StartedByUserId = firstPlayer.UserId,
+                StartedAtUtc = request.CreatedAtUtc
+            },
+            CancellationToken.None).ConfigureAwait(false);
+        if (!start.Succeeded)
+        {
+            return start;
         }
 
         return new RoomSettlementResult
         {
-            RoomId = reply.RoomId,
+            RoomId = request.RoomId,
             Succeeded = true,
-            Message = reply.Message,
+            Message = "Room allocated.",
             UpdatedAtUtc = request.CreatedAtUtc
         };
     }
@@ -469,14 +470,16 @@ public static partial class MatchmakingBehavior
 
     private static async ValueTask<GatewayEndpointDescriptor?> ResolveRemoteKcpEndpointAsync(IServiceProvider services)
     {
-        var discovery = services.GetRequiredService<IClusterNodeDiscovery>();
-        var nodes = await discovery
-            .ListAsync(new FeatureName(BattleRuntimeRoomAllocation.FeatureName))
+        var directory = services.GetRequiredService<INodeDirectory>();
+        var nodes = await directory
+            .QueryAsync(
+                new NodeDirectoryQuery("local", actorHostName: "room", state: NodeState.Ready),
+                DateTimeOffset.UtcNow)
             .ConfigureAwait(false);
         var candidate = nodes
             .Where(static node => node.State == NodeState.Ready)
             .Where(static node => node.Endpoints.ContainsKey("kcp"))
-            .OrderBy(static node => node.Node.Value, StringComparer.Ordinal)
+            .OrderBy(static node => node.NodeId.Value, StringComparer.Ordinal)
             .FirstOrDefault();
         if (candidate is null)
         {
@@ -486,7 +489,7 @@ public static partial class MatchmakingBehavior
         var endpoint = ClusterEndpoint.Parse(candidate.Endpoints["kcp"].Address);
         return new GatewayEndpointDescriptor
         {
-            InstanceId = candidate.Node.Value,
+            InstanceId = candidate.NodeId.Value,
             Transport = endpoint.Scheme,
             Host = endpoint.Host,
             Port = endpoint.Port,
@@ -496,8 +499,8 @@ public static partial class MatchmakingBehavior
 
     private static bool CanOwnBattleRuntime(LakonaGameRuntimeOptions? runtime)
     {
-        return runtime?.Feature is null ||
-            runtime.Feature.Contains("battle-runtime", StringComparer.OrdinalIgnoreCase);
+        return runtime?.ActorHosts is null ||
+            runtime.ActorHosts.Contains("room", StringComparer.OrdinalIgnoreCase);
     }
 
     private static bool IsBattleRuntimeEndpoint(LakonaGameEndpointOptions endpoint)

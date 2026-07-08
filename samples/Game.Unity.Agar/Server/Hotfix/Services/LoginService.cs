@@ -2,10 +2,8 @@ using Server.App.State.Contracts;
 using Server.App.State.Contracts.Sessions;
 using Server.App.State.Contracts.Users;
 using Server.App.State.Users;
-using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
-using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
@@ -14,30 +12,26 @@ using Microsoft.Extensions.Logging;
 using Server.Hotfix.State.Users;
 using Shared.Interfaces;
 using System.Security.Cryptography;
-using System.Text;
 
 namespace Server.Hotfix.Services;
 
 [HotfixService(typeof(ILoginService))]
 public sealed class LoginService
 {
-    private readonly IClusterNodeDiscovery _clusterDiscovery;
-    private readonly LocalActorNodeIdentity _localNode;
     private readonly UserActors _users;
-    private readonly ILogger<LoginService> _logger;
     private readonly LakonaGameRuntimeOptions _runtime;
+    private readonly LocalActorNodeIdentity _localNode;
+    private readonly ILogger<LoginService> _logger;
 
     public LoginService(
         UserActors users,
         LakonaGameRuntimeOptions runtime,
         LocalActorNodeIdentity localNode,
-        IClusterNodeDiscovery clusterDiscovery,
         ILogger<LoginService> logger)
     {
         _users = users;
         _runtime = runtime;
         _localNode = localNode;
-        _clusterDiscovery = clusterDiscovery;
         _logger = logger;
     }
 
@@ -187,7 +181,7 @@ public sealed class LoginService
             return new GatewayEndpointDescriptor { InstanceId = node };
         }
 
-        var uri = new Uri(endpoint.ToAdvertisedEndpoint(), UriKind.Absolute);
+        var uri = new System.Uri(endpoint.ToAdvertisedEndpoint(), System.UriKind.Absolute);
         return new GatewayEndpointDescriptor
         {
             InstanceId = node,
@@ -226,86 +220,14 @@ public sealed class LoginService
         IServiceProvider services,
         string account)
     {
-        var owner = await SelectStateStoreOwnerAsync(account).ConfigureAwait(false);
-        var ownerNode = owner.Node;
-
-        await SendCreateUserActorAsync(services, owner, account).ConfigureAwait(false);
+        _ = services;
+        var result = await _users
+            .Place(new UserId(account))
+            .EnsureAsync()
+            .ConfigureAwait(false);
         _logger.LogDebug(
-            "Requested user actor {UserId} creation on state-store node {NodeId}.",
+            "Ensured user actor {UserId} on node {NodeId}.",
             account,
-            ownerNode.Value);
-    }
-
-    private async ValueTask<ClusterNodeDescriptor> SelectStateStoreOwnerAsync(string userId)
-    {
-        var candidates = new List<ClusterNodeDescriptor>();
-        var discovered = await _clusterDiscovery
-            .ListAsync(new FeatureName(StateStoreUserActorPlacement.FeatureName))
-            .ConfigureAwait(false);
-        candidates.AddRange(discovered.Where(static node =>
-            node.State == NodeState.Ready &&
-            node.Features.Any(static feature => string.Equals(
-                feature.Name,
-                StateStoreUserActorPlacement.FeatureName,
-                StringComparison.OrdinalIgnoreCase))));
-
-        if (candidates.Count == 0 && LocalNodeCanOwnStateStore(_runtime))
-        {
-            candidates.Add(new ClusterNodeDescriptor(
-                _localNode.NodeId,
-                NodeState.Ready,
-                new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal),
-                [new NodeFeatureDescriptor(StateStoreUserActorPlacement.FeatureName)]));
-        }
-
-        if (candidates.Count == 0)
-        {
-            throw new InvalidOperationException("No ready state-store node is available for user actor placement.");
-        }
-
-        var ordered = candidates
-            .OrderBy(static node => node.Node.Value, StringComparer.Ordinal)
-            .ToArray();
-        return ordered[SelectOwnerIndex(userId, ordered.Length)];
-    }
-
-    private static bool LocalNodeCanOwnStateStore(LakonaGameRuntimeOptions runtime)
-    {
-        return runtime.Feature is null ||
-            runtime.Feature.Any(static feature => string.Equals(
-                feature,
-                StateStoreUserActorPlacement.FeatureName,
-                StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static int SelectOwnerIndex(string userId, int count)
-    {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(userId));
-        var value = 0UL;
-        for (var index = 0; index < sizeof(ulong); index++)
-        {
-            value = (value << 8) | hash[index];
-        }
-
-        return (int)(value % (ulong)count);
-    }
-
-    private async ValueTask SendCreateUserActorAsync(
-        IServiceProvider services,
-        ClusterNodeDescriptor owner,
-        string userId)
-    {
-        var featureCommands = services.GetRequiredService<IFeatureCommandClient>();
-        var reply = await featureCommands
-            .SendToNodeAsync<CreateUserActorRequest, CreateActorReply>(
-                owner,
-                StateStoreUserActorPlacement.FeatureName,
-                new CreateUserActorRequest { UserId = userId })
-            .ConfigureAwait(false);
-        if (!reply.Succeeded)
-        {
-            throw new InvalidOperationException(
-                $"State-store node {owner.Node.Value} rejected user actor creation for '{userId}'. {reply.Message}");
-        }
+            result.Owner.Value);
     }
 }

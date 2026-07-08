@@ -100,6 +100,8 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("public sealed class UserActors", generated, StringComparison.Ordinal);
         Assert.Contains("public UserLocalRef Local(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
         Assert.Contains("public UserRouteRef Route(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
+        Assert.Contains("public UserPlacementRef Place(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
+        Assert.Contains("global::Lakona.Game.Server.Actors.ActorPlacementCreateMode.Ensure", generated, StringComparison.Ordinal);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask<TResult> CallAsync<TRequest, TResult>(", generated, StringComparison.Ordinal);
         Assert.Contains("global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorCall<global::Game.Server.UserActor, TRequest, TResult> method", generated, StringComparison.Ordinal);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask CallAsync<TRequest>(", generated, StringComparison.Ordinal);
@@ -1287,6 +1289,37 @@ public sealed class HotfixGeneratorTests
         Assert.DoesNotContain("public readonly struct UserRemoteRef", result.GeneratedSource, StringComparison.Ordinal);
         Assert.DoesNotContain("public sealed class UserActorClusterHandler", result.GeneratedSource, StringComparison.Ordinal);
         Assert.DoesNotContain("public sealed class GeneratedHotfixActorRegistration", result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_excludes_actor_lifecycle_methods_from_actor_api()
+    {
+        var source = """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Hotfix;
+
+            public readonly record struct QueueId(string Value);
+            public sealed class QueueActor : Actor<QueueId> { }
+
+            [HotfixBehaviorOf(typeof(QueueActor))]
+            public static partial class QueueBehavior
+            {
+                [ActorStart]
+                public static ValueTask StartAsync(QueueActor self, ActorStartCall call)
+                {
+                    return default;
+                }
+            }
+            """;
+
+        var result = GeneratorTestHost.Run(source);
+
+        Assert.DoesNotContain(result.GeneratorDiagnostics, diagnostic => diagnostic.Id == "ULGHOTFIX028");
+        Assert.Empty(result.ErrorDiagnostics);
+        Assert.DoesNotContain("StartAsync", result.GeneratedSource, StringComparison.Ordinal);
     }
 
     [Fact]

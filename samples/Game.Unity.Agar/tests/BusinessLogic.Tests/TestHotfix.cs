@@ -2,6 +2,7 @@ using Server.App.State.Users;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
+using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
 using Microsoft.Extensions.DependencyInjection;
@@ -163,7 +164,13 @@ internal static class AgarTestServiceCollectionExtensions
     {
         public TestHotfixRuntimeAccessor(IServiceProvider services)
         {
-            Current = new HotfixRuntimeSnapshot(new HotfixServiceInvoker(), services);
+            var actors = new ActorHostBuilder();
+            Server.Hotfix.HotfixStartup.ConfigureActors(actors);
+            Current = new HotfixRuntimeSnapshot(
+                new HotfixServiceInvoker(),
+                EmptyHotfixFeatureCommandInvoker.Instance,
+                services,
+                actors.Placements);
         }
 
         public HotfixRuntimeSnapshot Current { get; }

@@ -151,6 +151,7 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             cancellationToken.ThrowIfCancellationRequested();
 
             var activeFeatures = _featureActivationPolicy.SelectActiveFeatures(scan.Features);
+            var actorHosts = CreateActorHostDescriptors(scan, resolved.Version);
             var tableVersion = publish ? Interlocked.Increment(ref _nextVersion) : Current.DispatchTableVersion;
             var table = new HotfixDispatchTable(
                 tableVersion,
@@ -174,7 +175,8 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 HotfixReloadStatus.Succeeded,
                 null,
                 null,
-                activeFeatures);
+                activeFeatures,
+                actorHosts);
 
             if (!publish)
             {
@@ -235,7 +237,8 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 HotfixReloadStatus.Failed,
                 ex.Message,
                 ex.GetType().FullName,
-                previous.Features);
+                previous.Features,
+                previous.ActorHosts);
             if (publish)
             {
                 var publication = Volatile.Read(ref _publication);
@@ -257,6 +260,53 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 ex.Message,
                 ex.GetType().FullName);
         }
+    }
+
+    private static IReadOnlyList<HotfixActorHostDescriptor> CreateActorHostDescriptors(
+        HotfixBehaviorScanResult scan,
+        string? buildTag)
+    {
+        var descriptors = new Dictionary<string, HotfixActorHostDescriptor>(StringComparer.OrdinalIgnoreCase);
+        foreach (var startup in scan.ActorStartups)
+        {
+            AddActorHostDescriptor(descriptors, startup.Name, "startup:" + startup.Name, buildTag);
+        }
+
+        foreach (var placement in scan.ActorPlacements)
+        {
+            var name = GetActorHostName(placement.ActorType);
+            AddActorHostDescriptor(
+                descriptors,
+                name,
+                "placement:" + placement.ActorType.FullName,
+                buildTag);
+        }
+
+        return descriptors.Values
+            .OrderBy(static descriptor => descriptor.Actor, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static void AddActorHostDescriptor(
+        IDictionary<string, HotfixActorHostDescriptor> descriptors,
+        string actor,
+        string policyHash,
+        string? buildTag)
+    {
+        descriptors[actor] = new HotfixActorHostDescriptor(
+            actor,
+            policyHash,
+            string.IsNullOrWhiteSpace(buildTag) ? "hotfix" : buildTag);
+    }
+
+    private static string GetActorHostName(Type actorType)
+    {
+        var name = actorType.Name.EndsWith("Actor", StringComparison.Ordinal)
+            ? actorType.Name[..^"Actor".Length]
+            : actorType.Name;
+        return string.IsNullOrWhiteSpace(name)
+            ? actorType.Name.ToLowerInvariant()
+            : char.ToLowerInvariant(name[0]) + name[1..];
     }
 
     internal async ValueTask<HotfixReloadResult> PublishCandidateAsync(

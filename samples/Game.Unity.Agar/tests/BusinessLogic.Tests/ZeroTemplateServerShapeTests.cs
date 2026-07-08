@@ -110,8 +110,26 @@ public sealed class ZeroTemplateServerShapeTests
         var data = ExtractComposeService(compose, "data-1");
 
         Assert.DoesNotContain("database", data, StringComparison.Ordinal);
-        Assert.Contains("Lakona__Feature: '[\"state-store\",\"matchmaking\",\"leaderboard\"]'", data, StringComparison.Ordinal);
-        Assert.DoesNotContain("Lakona__Feature__", data, StringComparison.Ordinal);
+        Assert.Contains("Lakona__ActorHosts: '[\"user\",\"matchmaking\",\"leaderboard\"]'", data, StringComparison.Ordinal);
+        Assert.Contains("Lakona__StartupActors: '[\"matchmaking\",\"leaderboard\"]'", data, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona__Feature", data, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AgarHotfixDoesNotUseFeatureAuthoring()
+    {
+        var hotfixRoot = Path.Combine(
+            Root,
+            "samples",
+            "Game.Unity.Agar",
+            "Server",
+            "Hotfix");
+        var files = Directory.GetFiles(hotfixRoot, "*.cs", SearchOption.AllDirectories);
+        var combined = string.Join('\n', files.Select(File.ReadAllText));
+
+        Assert.DoesNotContain("HotfixFeature", combined, StringComparison.Ordinal);
+        Assert.DoesNotContain("HotfixGameFeature", combined, StringComparison.Ordinal);
+        Assert.DoesNotContain("IFeatureCommandClient", combined, StringComparison.Ordinal);
     }
 
     [Fact]

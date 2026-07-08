@@ -15,6 +15,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
     {
         private const string HotfixStateAttributeName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixStateAttribute";
         private const string HotfixBehaviorOfAttributeName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixBehaviorOfAttribute";
+        private const string ActorStartAttributeName = "Lakona.Game.Server.Hotfix.Abstractions.ActorStartAttribute";
+        private const string ActorStopAttributeName = "Lakona.Game.Server.Hotfix.Abstractions.ActorStopAttribute";
         private const string RpcServiceAttributeName = "Lakona.Rpc.Core.RpcServiceAttribute";
         private const string RpcMethodAttributeName = "Lakona.Rpc.Core.RpcMethodAttribute";
         private const string DefaultGeneratedServerNamespace = "Server.App.Generated";
@@ -319,6 +321,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             var actorsType = prefix + "Actors";
             var routeRefType = prefix + "RouteRef";
             var localRefType = prefix + "LocalRef";
+            var placementRefType = prefix + "PlacementRef";
             var keyType = contract.KeyType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             var namespaceName = contract.Actor.ContainingNamespace.IsGlobalNamespace
                 ? null
@@ -332,9 +335,11 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
             AppendHotfixActorApiMetadata(builder, contract);
             builder.AppendLine();
-            AppendHotfixActorsClass(builder, contract, actorsType, routeRefType, localRefType, keyType);
+            AppendHotfixActorsClass(builder, contract, actorsType, routeRefType, localRefType, placementRefType, keyType);
             builder.AppendLine();
             AppendHotfixDistributedRef(builder, contract, routeRefType, keyType);
+            builder.AppendLine();
+            AppendHotfixPlacementRef(builder, contract, placementRefType, keyType);
             builder.AppendLine();
             AppendHotfixLocalRef(builder, contract, localRefType, keyType);
 
@@ -377,6 +382,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             string actorsType,
             string routeRefType,
             string localRefType,
+            string placementRefType,
             string keyType)
         {
             builder.Append(contract.ApiAccessibility).Append(" sealed class ").Append(actorsType).AppendLine();
@@ -386,19 +392,22 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.RemoteActorOptions _options;");
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorDirectory _directory;");
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorDirectoryCache _directoryCache;");
+            builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorPlacementService _placement;");
             builder.AppendLine();
             builder.Append("    public ").Append(actorsType).AppendLine("(");
             builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorRuntime runtime,");
             builder.AppendLine("        global::System.IServiceProvider services,");
             builder.AppendLine("        global::Lakona.Game.Server.Actors.RemoteActorOptions options,");
             builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorDirectory directory,");
-            builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorDirectoryCache directoryCache)");
+            builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorDirectoryCache directoryCache,");
+            builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorPlacementService placement)");
             builder.AppendLine("    {");
             builder.AppendLine("        _runtime = runtime;");
             builder.AppendLine("        _services = services;");
             builder.AppendLine("        _options = options;");
             builder.AppendLine("        _directory = directory;");
             builder.AppendLine("        _directoryCache = directoryCache;");
+            builder.AppendLine("        _placement = placement;");
             builder.AppendLine("    }");
             builder.AppendLine();
             builder.Append("    public ").Append(localRefType).Append(" Local(").Append(keyType).AppendLine(" id)");
@@ -409,6 +418,52 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.Append("    public ").Append(routeRefType).Append(" Route(").Append(keyType).AppendLine(" id)");
             builder.AppendLine("    {");
             builder.Append("        return new ").Append(routeRefType).AppendLine("(_runtime, _services, _options, _directory, _directoryCache, id);");
+            builder.AppendLine("    }");
+            builder.AppendLine();
+            builder.Append("    public ").Append(placementRefType).Append(" Place(").Append(keyType).AppendLine(" id)");
+            builder.AppendLine("    {");
+            builder.Append("        return new ").Append(placementRefType).AppendLine("(_placement, id);");
+            builder.AppendLine("    }");
+            builder.AppendLine("}");
+        }
+
+        private static void AppendHotfixPlacementRef(
+            StringBuilder builder,
+            HotfixActorApiInfo contract,
+            string refType,
+            string keyType)
+        {
+            var actorType = contract.Actor.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
+            builder.Append(contract.ApiAccessibility).Append(" readonly partial struct ").Append(refType).AppendLine();
+            builder.AppendLine("{");
+            builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorPlacementService _placement;");
+            builder.Append("    private readonly ").Append(keyType).AppendLine(" _id;");
+            builder.AppendLine();
+            builder.Append("    public ").Append(refType).AppendLine("(");
+            builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorPlacementService placement,");
+            builder.Append("        ").Append(keyType).AppendLine(" id)");
+            builder.AppendLine("    {");
+            builder.AppendLine("        _placement = placement;");
+            builder.AppendLine("        _id = id;");
+            builder.AppendLine("    }");
+            builder.AppendLine();
+            builder.AppendLine("    public global::System.Threading.Tasks.ValueTask<global::Lakona.Game.Server.Actors.ActorPlacementResult> CreateAsync(");
+            builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
+            builder.AppendLine("    {");
+            builder.Append("        return _placement.PlaceAsync<").Append(actorType).Append(", ").Append(keyType).AppendLine(">(");
+            builder.AppendLine("            _id,");
+            builder.AppendLine("            global::Lakona.Game.Server.Actors.ActorPlacementCreateMode.Create,");
+            builder.AppendLine("            cancellationToken);");
+            builder.AppendLine("    }");
+            builder.AppendLine();
+            builder.AppendLine("    public global::System.Threading.Tasks.ValueTask<global::Lakona.Game.Server.Actors.ActorPlacementResult> EnsureAsync(");
+            builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
+            builder.AppendLine("    {");
+            builder.Append("        return _placement.PlaceAsync<").Append(actorType).Append(", ").Append(keyType).AppendLine(">(");
+            builder.AppendLine("            _id,");
+            builder.AppendLine("            global::Lakona.Game.Server.Actors.ActorPlacementCreateMode.Ensure,");
+            builder.AppendLine("            cancellationToken);");
             builder.AppendLine("    }");
             builder.AppendLine("}");
         }
@@ -1182,6 +1237,12 @@ namespace Lakona.Game.Server.Hotfix.Generators
             return true;
         }
 
+        private static bool HasAttribute(ISymbol symbol, string metadataName)
+        {
+            return symbol.GetAttributes().Any(attribute =>
+                attribute.AttributeClass?.ToDisplayString() == metadataName);
+        }
+
         private static HotfixActorApiInfo CreateBehaviorActorContract(HotfixBehaviorInfo behavior, string hotfixAssemblyName)
         {
             var diagnostics = new List<HotfixGeneratorDiagnosticInfo>();
@@ -1200,6 +1261,12 @@ namespace Lakona.Game.Server.Hotfix.Generators
             {
                 if (method.MethodKind != MethodKind.Ordinary ||
                     method.DeclaredAccessibility != Accessibility.Public)
+                {
+                    continue;
+                }
+
+                if (HasAttribute(method, ActorStartAttributeName) ||
+                    HasAttribute(method, ActorStopAttributeName))
                 {
                     continue;
                 }

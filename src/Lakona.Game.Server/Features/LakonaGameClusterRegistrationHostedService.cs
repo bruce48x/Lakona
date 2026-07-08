@@ -44,7 +44,7 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
         _catalog = catalog;
         _actorHostCatalog = actorHostCatalog;
         _hotfix = _services.GetService<IHotfixManager>();
-        _record = await RegisterAsync(directory, options, catalog, cancellationToken)
+        _record = await RegisterAsync(directory, options, catalog, cancellationToken, _hotfix?.Current)
             .ConfigureAwait(false);
         if (_hotfix is not null)
         {
@@ -194,7 +194,7 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
             new NodeId(options.NodeId),
             CreateEndpoints(options.AdvertisedEndpoints),
             CreateFeatures(catalog, hotfixSnapshot),
-            CreateActorHosts(_services.GetService<LakonaGameRuntimeOptions>(), _actorHostCatalog),
+            CreateActorHosts(_services.GetService<LakonaGameRuntimeOptions>(), _actorHostCatalog, hotfixSnapshot),
             now.AddSeconds(options.RouteLeaseSeconds),
             NodeState.Ready);
         var result = await directory.RegisterAsync(registration, now, cancellationToken)
@@ -310,7 +310,8 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
 
     private static IReadOnlyList<NodeActorHostDescriptor> CreateActorHosts(
         LakonaGameRuntimeOptions? runtimeOptions,
-        ActorHostDescriptorCatalog? catalog)
+        ActorHostDescriptorCatalog? catalog,
+        HotfixSnapshot? hotfixSnapshot)
     {
         var configured = runtimeOptions?.ActorHosts ?? [];
         if (configured.Count == 0)
@@ -318,26 +319,39 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
             return [];
         }
 
-        if (catalog is null)
+        if (catalog is null && (hotfixSnapshot?.ActorHosts.Count ?? 0) == 0)
         {
             throw new InvalidOperationException(
                 "Lakona:ActorHosts is configured but no actor host descriptor catalog is registered.");
         }
 
+        var hotfixCatalog = hotfixSnapshot?.ActorHosts.ToDictionary(
+            static descriptor => descriptor.Actor,
+            StringComparer.OrdinalIgnoreCase);
         var result = new List<NodeActorHostDescriptor>(configured.Count);
         foreach (var actor in configured)
         {
-            if (!catalog.TryGet(actor, out var descriptor))
+            if (catalog is not null && catalog.TryGet(actor, out var descriptor))
+            {
+                result.Add(new NodeActorHostDescriptor(
+                    descriptor.Actor,
+                    descriptor.PolicyHash,
+                    descriptor.BuildTag,
+                    descriptor.Metadata));
+                continue;
+            }
+
+            if (hotfixCatalog is null || !hotfixCatalog.TryGetValue(actor, out var hotfixDescriptor))
             {
                 throw new InvalidOperationException(
                     $"Lakona:ActorHosts contains unknown actor host '{actor}'.");
             }
 
             result.Add(new NodeActorHostDescriptor(
-                descriptor.Actor,
-                descriptor.PolicyHash,
-                descriptor.BuildTag,
-                descriptor.Metadata));
+                hotfixDescriptor.Actor,
+                hotfixDescriptor.PolicyHash,
+                hotfixDescriptor.BuildTag,
+                hotfixDescriptor.Metadata));
         }
 
         return result

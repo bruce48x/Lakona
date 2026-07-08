@@ -246,27 +246,23 @@ public sealed class AgarHotfixBoundaryTests
     }
 
     [Fact]
-    public void Matchmaking_allocates_remote_rooms_through_battle_runtime_feature()
+    public void Matchmaking_allocates_rooms_through_actor_placement()
     {
         var matchmaking = File.ReadAllText(FindRepositoryFile(
             "samples/Game.Unity.Agar/Server/Hotfix/State/Matchmaking/MatchmakingBehavior.cs").FullName);
 
-        Assert.Contains("BattleRuntimeRoomAllocation.FeatureName", matchmaking, StringComparison.Ordinal);
-        Assert.Contains("IFeatureCommandClient", matchmaking, StringComparison.Ordinal);
-        Assert.Contains("SendToNodeAsync<BattleRuntimeRoomAllocationRequest, BattleRuntimeRoomAllocationReply>", matchmaking, StringComparison.Ordinal);
         Assert.Contains("private static async ValueTask<RoomSettlementResult> AllocateRoomAsync", matchmaking, StringComparison.Ordinal);
+        Assert.Contains("GetRequiredService<RoomActors>()", matchmaking, StringComparison.Ordinal);
+        Assert.Contains(".Place(roomId).CreateAsync", matchmaking, StringComparison.Ordinal);
+        Assert.Contains("RoomBehavior.CreateAsync", matchmaking, StringComparison.Ordinal);
+        Assert.Contains("RoomBehavior.StartAsync", matchmaking, StringComparison.Ordinal);
+        Assert.DoesNotContain("BattleRuntimeRoomAllocation", matchmaking, StringComparison.Ordinal);
+        Assert.DoesNotContain("IFeatureCommandClient", matchmaking, StringComparison.Ordinal);
         Assert.DoesNotContain("System.IO.Hashing", matchmaking, StringComparison.Ordinal);
         Assert.DoesNotContain("IFeatureMessageTransport", matchmaking, StringComparison.Ordinal);
         Assert.DoesNotContain("FeatureMessageRequest", matchmaking, StringComparison.Ordinal);
         Assert.DoesNotContain("FeatureMessageReply", matchmaking, StringComparison.Ordinal);
         Assert.DoesNotContain(".Remote(new NodeId(", matchmaking, StringComparison.Ordinal);
-        Assert.DoesNotContain("ActorHosting", matchmaking, StringComparison.Ordinal);
-        Assert.DoesNotContain("RoomActor", matchmaking, StringComparison.Ordinal);
-        Assert.DoesNotContain("RoomActors", matchmaking, StringComparison.Ordinal);
-        Assert.DoesNotContain("CreateRoomAsync", matchmaking, StringComparison.Ordinal);
-        Assert.DoesNotContain("StartRoomAsync", matchmaking, StringComparison.Ordinal);
-        Assert.DoesNotContain("DestroyCreatedRoomActorAsync", matchmaking, StringComparison.Ordinal);
-        Assert.DoesNotContain("TryAllocateLocalRoomAsync", matchmaking, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -390,39 +386,39 @@ public sealed class AgarHotfixBoundaryTests
     }
 
     [Fact]
-    public void Battle_runtime_room_actor_creation_path_destroys_actor_when_create_or_start_fails()
+    public void Battle_runtime_room_actor_creation_uses_actor_placement()
     {
         var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
             .Directory!.Parent!.Parent!.FullName;
-        var battleRuntime = File.ReadAllText(Path.Combine(
+        var matchmaking = File.ReadAllText(Path.Combine(
             sampleRoot,
             "Server",
             "Hotfix",
-            "Features",
-            "BattleRuntimeFeature.cs"));
+            "State",
+            "Matchmaking",
+            "MatchmakingBehavior.cs"));
 
-        Assert.Contains(".DestroyAsync<RoomActor>(actorId, CancellationToken.None)", battleRuntime, StringComparison.Ordinal);
-        Assert.Contains("actorCreated", battleRuntime, StringComparison.Ordinal);
+        Assert.Contains(".Place(roomId).CreateAsync", matchmaking, StringComparison.Ordinal);
+        Assert.Contains("RoomBehavior.CreateAsync", matchmaking, StringComparison.Ordinal);
+        Assert.Contains("RoomBehavior.StartAsync", matchmaking, StringComparison.Ordinal);
+        Assert.DoesNotContain("BattleRuntimeFeature", matchmaking, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Feature_handlers_route_actor_lifecycle_publication_through_ActorHosting()
+    public void Hotfix_startup_declares_actor_hosts_without_feature_handlers()
     {
         var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
             .Directory!.Parent!.Parent!.FullName;
-        var featureRoot = Path.Combine(sampleRoot, "Server", "Hotfix", "Features");
-        var stateStoreFeature = File.ReadAllText(Path.Combine(featureRoot, "StateStoreFeatures.cs"));
-        var battleRuntimeFeature = File.ReadAllText(Path.Combine(featureRoot, "BattleRuntimeFeature.cs"));
+        var startup = File.ReadAllText(Path.Combine(sampleRoot, "Server", "Hotfix", "HotfixStartup.cs"));
+        var featuresRoot = Path.Combine(sampleRoot, "Server", "Hotfix", "Features");
 
-        foreach (var feature in new[] { stateStoreFeature, battleRuntimeFeature })
-        {
-            Assert.DoesNotContain("IActorDirectory", feature, StringComparison.Ordinal);
-            Assert.DoesNotContain("RegisterAsync(actorId", feature, StringComparison.Ordinal);
-            Assert.DoesNotContain("UnregisterAsync(actorId", feature, StringComparison.Ordinal);
-        }
-
-        Assert.Contains(".EnsureAsync<TActor>(actorId, cancellationToken)", stateStoreFeature, StringComparison.Ordinal);
-        Assert.Contains(".CreateAsync<RoomActor>(actorId, call.CancellationToken)", battleRuntimeFeature, StringComparison.Ordinal);
+        Assert.Contains("RegisterStartup(", startup, StringComparison.Ordinal);
+        Assert.Contains("\"matchmaking\"", startup, StringComparison.Ordinal);
+        Assert.Contains("\"leaderboard\"", startup, StringComparison.Ordinal);
+        Assert.Contains("RegisterPlacement<UserActor, UserId>", startup, StringComparison.Ordinal);
+        Assert.Contains("RegisterPlacement<RoomActor, RoomId>", startup, StringComparison.Ordinal);
+        Assert.False(File.Exists(Path.Combine(featuresRoot, "StateStoreFeatures.cs")));
+        Assert.False(File.Exists(Path.Combine(featuresRoot, "BattleRuntimeFeature.cs")));
     }
 
     [Fact]
@@ -574,50 +570,36 @@ public sealed class AgarHotfixBoundaryTests
     }
 
     [Fact]
-    public void Agar_user_features_are_hotfix_descriptors()
+    public void Agar_actor_hosts_are_declared_in_hotfix_startup()
     {
         var hotfixRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Server.Hotfix.csproj")
             .DirectoryName!;
-        var hotfixText = ReadAllTextFiles(hotfixRoot);
-        var stateStoreFeature = File.ReadAllText(Path.Combine(hotfixRoot, "Features", "StateStoreFeatures.cs"));
-        var stateStorePlacement = File.ReadAllText(Path.Combine(hotfixRoot, "Services", "StateStoreUserActorPlacement.cs"));
-        var battleRuntimeFeature = File.ReadAllText(Path.Combine(hotfixRoot, "Features", "BattleRuntimeFeature.cs"));
-        var battleRuntimePlacement = File.ReadAllText(Path.Combine(hotfixRoot, "Features", "BattleRuntimeRoomAllocation.cs"));
+        var startup = File.ReadAllText(Path.Combine(hotfixRoot, "HotfixStartup.cs"));
         var fixedScheduleCall = string.Concat("Schedule", "ActorTick<MatchmakingActor>");
         var activeScheduleCall = string.Concat("Schedule", "ActiveActorTicks<RoomActor>");
 
-        Assert.DoesNotContain("[HotfixFeature(\"database\")]", hotfixText, StringComparison.Ordinal);
-        Assert.Contains("[HotfixFeature(StateStoreUserActorPlacement.FeatureName)]", stateStoreFeature, StringComparison.Ordinal);
-        Assert.Contains("public const string FeatureName = \"state-store\";", stateStorePlacement, StringComparison.Ordinal);
-        Assert.Contains("[HotfixFeature(\"matchmaking\")]", hotfixText, StringComparison.Ordinal);
-        Assert.Contains("[HotfixFeature(\"leaderboard\")]", hotfixText, StringComparison.Ordinal);
-        Assert.Contains("[HotfixFeature(BattleRuntimeRoomAllocation.FeatureName)]", battleRuntimeFeature, StringComparison.Ordinal);
-        Assert.Contains("public const string FeatureName = \"battle-runtime\";", battleRuntimePlacement, StringComparison.Ordinal);
-        Assert.DoesNotContain(fixedScheduleCall, hotfixText, StringComparison.Ordinal);
-        Assert.DoesNotContain(activeScheduleCall, hotfixText, StringComparison.Ordinal);
+        Assert.Contains("RegisterStartup(", startup, StringComparison.Ordinal);
+        Assert.Contains("RegisterPlacement<UserActor, UserId>", startup, StringComparison.Ordinal);
+        Assert.Contains("RegisterPlacement<RoomActor, RoomId>", startup, StringComparison.Ordinal);
+        Assert.DoesNotContain("HotfixFeature", startup, StringComparison.Ordinal);
+        Assert.DoesNotContain(fixedScheduleCall, ReadAllTextFiles(hotfixRoot), StringComparison.Ordinal);
+        Assert.DoesNotContain(activeScheduleCall, ReadAllTextFiles(hotfixRoot), StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Hotfix_matchmaking_feature_owns_default_queue_actor_ticks()
+    public void Hotfix_startup_owns_default_queue_actor_creation()
     {
         var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
             .Directory!.Parent!.Parent!.FullName;
-        var featureRoot = Path.Combine(sampleRoot, "Server", "Hotfix", "Features");
-
-        var matchmakingFeature = File.ReadAllText(Path.Combine(featureRoot, "MatchmakingFeature.cs"));
-        var battleRuntimeFeature = File.ReadAllText(Path.Combine(featureRoot, "BattleRuntimeFeature.cs"));
+        var startup = File.ReadAllText(Path.Combine(sampleRoot, "Server", "Hotfix", "HotfixStartup.cs"));
         var fixedScheduleCall = string.Concat("Schedule", "ActorTick<MatchmakingActor>");
         var activeScheduleCall = string.Concat("Schedule", "ActiveActorTicks<RoomActor>");
 
         Assert.False(Directory.Exists(Path.Combine(sampleRoot, "Server", "App", "Hosting")));
-        Assert.Contains(".GetRequiredService<ActorHosting>()", matchmakingFeature, StringComparison.Ordinal);
-        Assert.Contains(".CreateAsync<MatchmakingActor>(ActorId.From(MatchmakingActorId), call.CancellationToken)", matchmakingFeature, StringComparison.Ordinal);
-        Assert.DoesNotContain(".EnsureAsync<MatchmakingActor>", matchmakingFeature, StringComparison.Ordinal);
-        Assert.DoesNotContain(string.Concat("Ensure", "Local", "Actor"), matchmakingFeature, StringComparison.Ordinal);
-        Assert.DoesNotContain(fixedScheduleCall, matchmakingFeature, StringComparison.Ordinal);
-        Assert.Contains("\"default\"", matchmakingFeature, StringComparison.Ordinal);
-        Assert.DoesNotContain(fixedScheduleCall, battleRuntimeFeature, StringComparison.Ordinal);
-        Assert.DoesNotContain(activeScheduleCall, battleRuntimeFeature, StringComparison.Ordinal);
+        Assert.Contains("ActorStartupPlan.Create<MatchmakingActor>(ActorId.From(\"default\"))", startup, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("Ensure", "Local", "Actor"), startup, StringComparison.Ordinal);
+        Assert.DoesNotContain(fixedScheduleCall, startup, StringComparison.Ordinal);
+        Assert.DoesNotContain(activeScheduleCall, startup, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -625,25 +607,17 @@ public sealed class AgarHotfixBoundaryTests
     {
         var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
             .Directory!.Parent!.Parent!.FullName;
-        var featureRoot = Path.Combine(sampleRoot, "Server", "Hotfix", "Features");
         var matchmakingActor = File.ReadAllText(Path.Combine(sampleRoot, "Server", "App", "State", "Matchmaking", "MatchmakingActor.cs"));
         var matchmakingBehavior = File.ReadAllText(Path.Combine(sampleRoot, "Server", "Hotfix", "State", "Matchmaking", "MatchmakingBehavior.cs"));
         var roomActor = File.ReadAllText(Path.Combine(sampleRoot, "Server", "App", "State", "Rooms", "RoomActor.cs"));
         var roomBehavior = File.ReadAllText(Path.Combine(sampleRoot, "Server", "Hotfix", "State", "Rooms", "RoomBehavior.cs"));
-        var matchmakingFeature = File.ReadAllText(Path.Combine(featureRoot, "MatchmakingFeature.cs"));
-        var battleRuntimeFeature = File.ReadAllText(Path.Combine(featureRoot, "BattleRuntimeFeature.cs"));
-        var timerKeysPath = Path.Combine(featureRoot, "FeatureTimerKeys.cs");
-
-        Assert.DoesNotContain("CreatePeriodicTimerAsync<MatchmakingTimerCallbacks, MatchmakingTimerArgs>", matchmakingFeature, StringComparison.Ordinal);
-        Assert.DoesNotContain("FeatureTimerKeys", matchmakingFeature, StringComparison.Ordinal);
-        Assert.DoesNotContain("DestroyTimerAsync", matchmakingFeature, StringComparison.Ordinal);
-        Assert.DoesNotContain("DestroyTimerAsync(timerId, call.CancellationToken)", matchmakingFeature, StringComparison.Ordinal);
-        Assert.Contains(".StartTimerAsync(new MatchmakingTimerStartRequest(), call.CancellationToken)", matchmakingFeature, StringComparison.Ordinal);
-        Assert.Contains(".StopTimerAsync(new MatchmakingTimerStopRequest(), CancellationToken.None)", matchmakingFeature, StringComparison.Ordinal);
+        var timerKeysPath = Path.Combine(sampleRoot, "Server", "Hotfix", "Features", "FeatureTimerKeys.cs");
 
         Assert.False(File.Exists(timerKeysPath));
 
         Assert.Contains("internal TimerId MatchmakingTimerId", matchmakingActor, StringComparison.Ordinal);
+        Assert.Contains("[ActorStart]", matchmakingBehavior, StringComparison.Ordinal);
+        Assert.Contains("[ActorStop]", matchmakingBehavior, StringComparison.Ordinal);
         Assert.Contains("StartTimerAsync", matchmakingBehavior, StringComparison.Ordinal);
         Assert.Contains("StopTimerAsync", matchmakingBehavior, StringComparison.Ordinal);
         Assert.Contains("EnsureMatchmakingTimerAsync", matchmakingBehavior, StringComparison.Ordinal);
@@ -651,12 +625,6 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("CreatePeriodicTimerAsync<MatchmakingTimerCallbacks, MatchmakingTimerArgs>", matchmakingBehavior, StringComparison.Ordinal);
         Assert.Contains("nameof(MatchmakingTimerCallbacks.TickAsync)", matchmakingBehavior, StringComparison.Ordinal);
         Assert.Contains("DestroyTimerAsync(timerId, CancellationToken.None)", matchmakingBehavior, StringComparison.Ordinal);
-
-        Assert.DoesNotContain("CreatePeriodicTimerAsync<BattleRuntimeTimerCallbacks, BattleRuntimeTimerArgs>", battleRuntimeFeature, StringComparison.Ordinal);
-        Assert.DoesNotContain("FeatureTimerKeys.BattleRuntimeScanTimerId", battleRuntimeFeature, StringComparison.Ordinal);
-        Assert.DoesNotContain("DestroyTimerAsync", battleRuntimeFeature, StringComparison.Ordinal);
-        Assert.DoesNotContain("StartAsync(HotfixFeatureStartCall", battleRuntimeFeature, StringComparison.Ordinal);
-        Assert.DoesNotContain("StopAsync(HotfixFeatureStopCall", battleRuntimeFeature, StringComparison.Ordinal);
 
         Assert.Contains("internal TimerId BattleRuntimeTimerId", roomActor, StringComparison.Ordinal);
         Assert.Contains("EnsureBattleRuntimeTimerAsync", roomBehavior, StringComparison.Ordinal);
@@ -668,19 +636,17 @@ public sealed class AgarHotfixBoundaryTests
     }
 
     [Fact]
-    public void Battle_runtime_allocation_command_contains_only_effective_fields()
+    public void Battle_runtime_allocation_command_file_is_removed()
     {
-        var featureRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Features/BattleRuntimeRoomAllocation.cs")
-            .DirectoryName!;
-        var contract = File.ReadAllText(Path.Combine(featureRoot, "BattleRuntimeRoomAllocation.cs"));
+        var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
+            .Directory!.Parent!.Parent!.FullName;
 
-        Assert.Contains("public string RoomId", contract, StringComparison.Ordinal);
-        Assert.Contains("public int MaxPlayers", contract, StringComparison.Ordinal);
-        Assert.Contains("public List<PlayerRoomAssignment> Players", contract, StringComparison.Ordinal);
-        Assert.DoesNotContain("public string MatchId", contract, StringComparison.Ordinal);
-        Assert.DoesNotContain("public string CreatedByUserId", contract, StringComparison.Ordinal);
-        Assert.DoesNotContain("public DateTime CreatedAtUtc", contract, StringComparison.Ordinal);
-        Assert.DoesNotContain("public GatewayEndpointDescriptor RuntimeGateway", contract, StringComparison.Ordinal);
+        Assert.False(File.Exists(Path.Combine(
+            sampleRoot,
+            "Server",
+            "Hotfix",
+            "Features",
+            "BattleRuntimeRoomAllocation.cs")));
     }
 
     [Fact]
@@ -704,7 +670,7 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("TimerTick<MatchmakingTimerArgs>", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.Contains("GetRequiredService<MatchmakingActors>", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.Contains("Local(new MatchmakingQueueId(\"default\"))", matchmakingCallbacks, StringComparison.Ordinal);
-        Assert.Contains("RunTickAsync(new MatchmakingTickRequest", matchmakingCallbacks, StringComparison.Ordinal);
+        Assert.Contains("MatchmakingBehavior.RunTickAsync", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.Contains("ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.DoesNotContain("GetRequiredService<IActorRuntime>", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.DoesNotContain("TryTell<MatchmakingActor>", matchmakingCallbacks, StringComparison.Ordinal);
@@ -713,8 +679,9 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("TimerTick<BattleRuntimeTimerArgs>", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.Contains("GetRequiredService<RoomActors>", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.Contains("Local(new RoomId(tick.Args.RoomId))", battleRuntimeCallbacks, StringComparison.Ordinal);
-        Assert.Contains("var result =", battleRuntimeCallbacks, StringComparison.Ordinal);
-        Assert.Contains("PostAsync(RoomBehavior.RunTickAsync, new RoomTickRequest", battleRuntimeCallbacks, StringComparison.Ordinal);
+        Assert.Contains("PostAsync(", battleRuntimeCallbacks, StringComparison.Ordinal);
+        Assert.Contains("RoomBehavior.RunTickAsync", battleRuntimeCallbacks, StringComparison.Ordinal);
+        Assert.Contains("new RoomTickRequest", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.Contains("LogDebug", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.Contains("ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.DoesNotContain("GetActiveActorIds(typeof(RoomActor))", battleRuntimeCallbacks, StringComparison.Ordinal);

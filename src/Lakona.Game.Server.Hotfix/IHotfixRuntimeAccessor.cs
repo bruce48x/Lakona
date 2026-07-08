@@ -32,6 +32,27 @@ public sealed class HotfixRuntimeSnapshot
     {
     }
 
+    public HotfixRuntimeSnapshot(
+        IHotfixServiceInvoker invoker,
+        IHotfixFeatureCommandInvoker featureCommands,
+        IServiceProvider services,
+        IReadOnlyList<ActorPlacementDeclaration> actorPlacements)
+        : this(
+            invoker,
+            featureCommands,
+            services,
+            dispatchTable: null,
+            hotfixServices: services,
+            mainAssembly: null,
+            loadContext: null,
+            sourceVersion: null,
+            sourcePath: null,
+            ownsRuntimeResources: false,
+            onRetired: null,
+            actorPlacements: actorPlacements)
+    {
+    }
+
     internal HotfixRuntimeSnapshot(
         IHotfixServiceInvoker invoker,
         IHotfixFeatureCommandInvoker featureCommands,
