@@ -344,8 +344,8 @@ public sealed class HotfixGeneratorTests
         Assert.Empty(result.Hotfix.ErrorDiagnostics);
         Assert.Contains("|method:PingAsync|request:Game.Server.PingRequest, Game.Server|", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
         Assert.Contains("|method:PingAsync|request:Game.Server.TouchRequest, Game.Server|", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
-        Assert.Contains("global::Game.Server.PingRequest request,", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
-        Assert.Contains("global::Game.Server.TouchRequest request,", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("requestType == typeof(global::Game.Server.PingRequest)", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("requestType == typeof(global::Game.Server.TouchRequest)", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -497,7 +497,8 @@ public sealed class HotfixGeneratorTests
         Assert.Empty(result.Hotfix.ErrorDiagnostics);
         Assert.DoesNotContain("public sealed class UserActors", result.App.GeneratedSource, StringComparison.Ordinal);
         Assert.Contains("public sealed class UserActors", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
-        Assert.Contains("this global::Game.Server.UserRef self", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("public UserRouteRef Route(global::Game.Server.UserId id)", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("this global::Game.Server.UserRef self", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1217,7 +1218,8 @@ public sealed class HotfixGeneratorTests
         Assert.Empty(result.Hotfix.ErrorDiagnostics);
         Assert.DoesNotContain("public sealed class UserActors", result.App.GeneratedSource, StringComparison.Ordinal);
         Assert.Contains("public sealed class UserActors", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
-        Assert.Contains("this global::Game.Server.UserRef self", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("public UserRouteRef Route(global::Game.Server.UserId id)", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("this global::Game.Server.UserRef self", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
     }
 
     [Fact]
