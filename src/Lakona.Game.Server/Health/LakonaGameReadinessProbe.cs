@@ -175,7 +175,7 @@ public static class LakonaGameReadinessProbe
                     "Lakona:Cluster:Serializer"),
                 runtime.Cluster.Seeds),
             Feature: new LakonaGameResolvedFeature(
-                Configured: null,
+                Configured: runtime.Feature,
                 Active: Array.Empty<string>(),
                 StartupOrder: Array.Empty<string>()),
             Hotfix: new LakonaGameResolvedHotfix(
@@ -195,7 +195,21 @@ public static class LakonaGameReadinessProbe
                     runtime.Heartbeat.Timeout,
                     LakonaGameValueSource.Configuration,
                     "Lakona:Heartbeat:Timeout")),
-            Observability: ToResolvedObservability(runtime.Observability, observabilityCapabilities));
+            Observability: ToResolvedObservability(runtime.Observability, observabilityCapabilities),
+            ActorHosts: runtime.ActorHosts
+                .Select((actor, index) => new LakonaGameResolvedValue<string>(
+                    actor,
+                    LakonaGameValueSource.Configuration,
+                    $"Lakona:ActorHosts:{index}"))
+                .ToArray(),
+            StartupActors: runtime.StartupActors
+                .Select((actor, index) => new LakonaGameResolvedStartupActor(
+                    new LakonaGameResolvedValue<string>(
+                        actor.Name,
+                        LakonaGameValueSource.Configuration,
+                        $"Lakona:StartupActors:{index}:Name"),
+                    actor.Options))
+                .ToArray());
     }
 
     private static LakonaGameResolvedObservability ToResolvedObservability(

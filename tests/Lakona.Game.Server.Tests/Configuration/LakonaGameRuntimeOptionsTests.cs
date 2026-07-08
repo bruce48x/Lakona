@@ -22,6 +22,61 @@ public sealed class LakonaGameRuntimeOptionsTests
     }
 
     [Fact]
+    public void FromConfiguration_binds_actor_hosts()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:ActorHosts:0"] = "room",
+            ["Lakona:ActorHosts:1"] = "user"
+        });
+
+        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
+
+        Assert.Equal(["room", "user"], options.ActorHosts);
+    }
+
+    [Fact]
+    public void FromConfiguration_treats_omitted_actor_hosts_as_empty()
+    {
+        var options = LakonaGameRuntimeOptions.FromConfiguration(new ConfigurationBuilder().Build());
+
+        Assert.Empty(options.ActorHosts);
+    }
+
+    [Fact]
+    public void FromConfiguration_binds_string_startup_actor_entries()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:StartupActors:0"] = "matchmaking",
+            ["Lakona:StartupActors:1"] = "leaderboard"
+        });
+
+        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
+
+        Assert.Collection(
+            options.StartupActors,
+            actor => Assert.Equal("matchmaking", actor.Name),
+            actor => Assert.Equal("leaderboard", actor.Name));
+    }
+
+    [Fact]
+    public void FromConfiguration_binds_object_startup_actor_entries()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:StartupActors:0:Name"] = "matchmaking",
+            ["Lakona:StartupActors:0:Options:queue"] = "ranked"
+        });
+
+        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
+
+        var actor = Assert.Single(options.StartupActors);
+        Assert.Equal("matchmaking", actor.Name);
+        Assert.Equal("ranked", actor.Options["queue"]);
+    }
+
+    [Fact]
     public void FromConfiguration_binds_heartbeat_policy()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>

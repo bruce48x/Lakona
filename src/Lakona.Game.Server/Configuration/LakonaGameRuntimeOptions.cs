@@ -40,6 +40,16 @@ public sealed class LakonaGameRuntimeOptions
     public IReadOnlyList<string>? Feature { get; init; }
 
     /// <summary>
+    /// Gets actor kinds this node may host.
+    /// </summary>
+    public IReadOnlyList<string> ActorHosts { get; init; } = [];
+
+    /// <summary>
+    /// Gets named startup actor declarations activated on this node.
+    /// </summary>
+    public IReadOnlyList<LakonaGameStartupActorOptions> StartupActors { get; init; } = [];
+
+    /// <summary>
     /// Gets node-to-node cluster configuration.
     /// </summary>
     public LakonaGameClusterOptions Cluster { get; init; } = LakonaGameClusterOptions.Defaults();
@@ -69,6 +79,8 @@ public sealed class LakonaGameRuntimeOptions
             Node = BindNode(section.GetSection("Node")),
             Endpoints = BindEndpoints(section.GetSection("Endpoints")),
             Feature = BindOptionalStringArray(section.GetSection("Feature")),
+            ActorHosts = BindStringArray(section.GetSection("ActorHosts")),
+            StartupActors = BindStartupActors(section.GetSection("StartupActors")),
             Cluster = BindCluster(section.GetSection("Cluster")),
             Heartbeat = LakonaGameHeartbeatOptions.FromConfiguration(section.GetSection("Heartbeat")),
             Observability = LakonaObservabilityOptions.FromConfiguration(configuration)
@@ -246,6 +258,96 @@ public sealed class LakonaGameRuntimeOptions
             .ToArray();
     }
 
+    private static IReadOnlyList<LakonaGameStartupActorOptions> BindStartupActors(IConfigurationSection section)
+    {
+        if (TryReadJsonValue(section, out var json))
+        {
+            return ParseStartupActorJsonArray(section.Path, json);
+        }
+
+        return section
+            .GetChildren()
+            .Select(BindStartupActor)
+            .ToArray();
+    }
+
+    private static LakonaGameStartupActorOptions BindStartupActor(IConfigurationSection section)
+    {
+        if (!section.GetChildren().Any())
+        {
+            return new LakonaGameStartupActorOptions
+            {
+                Name = section.Value ?? ""
+            };
+        }
+
+        return new LakonaGameStartupActorOptions
+        {
+            Name = section["Name"] ?? section.Value ?? "",
+            Options = LakonaConfigurationReader.ReadDictionary(
+                section.GetSection("Options"),
+                new Dictionary<string, string>(StringComparer.Ordinal))
+        };
+    }
+
+    private static IReadOnlyList<LakonaGameStartupActorOptions> ParseStartupActorJsonArray(
+        string path,
+        string json)
+    {
+        try
+        {
+            var elements = JsonSerializer.Deserialize<JsonElement[]>(json, JsonOptions) ?? [];
+            return elements.Select((element, index) => ParseStartupActorJsonElement(path, index, element)).ToArray();
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidOperationException(
+                $"{path} must be a valid JSON array when configured as a string value.",
+                ex);
+        }
+    }
+
+    private static LakonaGameStartupActorOptions ParseStartupActorJsonElement(
+        string path,
+        int index,
+        JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.String)
+        {
+            return new LakonaGameStartupActorOptions
+            {
+                Name = element.GetString() ?? ""
+            };
+        }
+
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            throw new InvalidOperationException(
+                $"{path}:{index} must be a startup actor name or object.");
+        }
+
+        var name = element.TryGetProperty("name", out var nameElement) && nameElement.ValueKind == JsonValueKind.String
+            ? nameElement.GetString() ?? ""
+            : "";
+        var options = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (element.TryGetProperty("options", out var optionsElement)
+            && optionsElement.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in optionsElement.EnumerateObject())
+            {
+                options[property.Name] = property.Value.ValueKind == JsonValueKind.String
+                    ? property.Value.GetString() ?? ""
+                    : property.Value.ToString();
+            }
+        }
+
+        return new LakonaGameStartupActorOptions
+        {
+            Name = name,
+            Options = options
+        };
+    }
+
     private static bool TryReadJsonValue(IConfigurationSection section, out string json)
     {
         var value = section.Value;
@@ -275,6 +377,14 @@ public sealed class LakonaGameRuntimeOptions
         }
     }
 
+}
+
+public sealed class LakonaGameStartupActorOptions
+{
+    public string Name { get; init; } = "";
+
+    public IReadOnlyDictionary<string, string> Options { get; init; } =
+        new Dictionary<string, string>(StringComparer.Ordinal);
 }
 
 /// <summary>

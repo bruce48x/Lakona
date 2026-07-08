@@ -15,6 +15,7 @@ public static class LakonaGameGuardrailServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaGameValidationRule, ClusterEndpointRule>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaGameValidationRule, HotfixSourceRule>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaGameValidationRule, HeartbeatRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaGameValidationRule, ActorHostConfigurationRule>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaGameValidationRule, ObservabilityRule>());
         services.TryAddSingleton<LakonaGameRuntimeValidator>();
 

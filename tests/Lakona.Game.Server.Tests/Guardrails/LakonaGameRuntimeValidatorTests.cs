@@ -399,6 +399,63 @@ public sealed class LakonaGameRuntimeValidatorTests
     }
 
     [Fact]
+    public void RuntimeValidator_Fails_WhenLegacyFeatureConfigurationIsSet()
+    {
+        var runtime = TestRuntime() with
+        {
+            Feature = new LakonaGameResolvedFeature(
+                Configured: ["battle-runtime"],
+                Active: [],
+                StartupOrder: [])
+        };
+
+        var result = Validate(runtime);
+
+        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK100");
+    }
+
+    [Fact]
+    public void RuntimeValidator_Fails_WhenActorHostsContainBlankOrDuplicateNames()
+    {
+        var runtime = TestRuntime() with
+        {
+            ActorHosts =
+            [
+                new LakonaGameResolvedValue<string>("room", LakonaGameValueSource.Configuration, "Lakona:ActorHosts:0"),
+                new LakonaGameResolvedValue<string>(" ", LakonaGameValueSource.Configuration, "Lakona:ActorHosts:1"),
+                new LakonaGameResolvedValue<string>("Room", LakonaGameValueSource.Configuration, "Lakona:ActorHosts:2")
+            ]
+        };
+
+        var result = Validate(runtime);
+
+        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK101");
+        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK102");
+    }
+
+    [Fact]
+    public void RuntimeValidator_Fails_WhenStartupActorsContainBlankOrDuplicateNames()
+    {
+        var runtime = TestRuntime() with
+        {
+            StartupActors =
+            [
+                new LakonaGameResolvedStartupActor(
+                    new LakonaGameResolvedValue<string>("matchmaking", LakonaGameValueSource.Configuration, "Lakona:StartupActors:0")),
+                new LakonaGameResolvedStartupActor(
+                    new LakonaGameResolvedValue<string>(" ", LakonaGameValueSource.Configuration, "Lakona:StartupActors:1")),
+                new LakonaGameResolvedStartupActor(
+                    new LakonaGameResolvedValue<string>("Matchmaking", LakonaGameValueSource.Configuration, "Lakona:StartupActors:2"))
+            ]
+        };
+
+        var result = Validate(runtime);
+
+        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK103");
+        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK104");
+    }
+
+    [Fact]
     public void RuntimeValidator_includes_heartbeat_rule_by_default()
     {
         var services = new ServiceCollection();
@@ -489,7 +546,8 @@ public sealed class LakonaGameRuntimeValidatorTests
                 new EndpointRule(),
                 new ClusterEndpointRule(),
                 new HotfixSourceRule(),
-                new HeartbeatRule()
+                new HeartbeatRule(),
+                new ActorHostConfigurationRule()
             ]);
 
         return validator.Validate(runtime);
