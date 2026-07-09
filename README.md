@@ -260,15 +260,17 @@ reflection, no string-based dispatch.
 
 ## Actor Startup
 
-User-authored hotfix code declares actor startup and placement through
-`HotfixStartup`, so reloadable actor runtime loops stay with reloadable game
-behavior. Actor lifecycle hooks use explicit `[ActorStart]` and `[ActorStop]`
-methods.
+User-authored hotfix code declares actor startup and placement through a
+`[HotfixStartup]` type, so reloadable actor runtime loops stay with reloadable
+game behavior. Actor lifecycle hooks use explicit `[ActorStart]` and
+`[ActorStop]` methods.
 
 ```csharp
-public static class HotfixStartup
+[HotfixStartup]
+public static class GameHotfixStartup
 {
-    public static void ConfigureActors(ActorHostBuilder actors)
+    [HotfixConfigureActors]
+    public static void Actors(ActorHostBuilder actors)
     {
         actors.RegisterStartup(
             "matchmaking",

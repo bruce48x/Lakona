@@ -220,7 +220,7 @@ matchmaking policy, persistence schema, or gameplay DTOs.
   framework sends serializable callback commands to the gateway that owns the
   session.
 - Actor startup: configure `Lakona:StartupActors` and register startup
-  declarations in `HotfixStartup.ConfigureActors`.
+  declarations in a hotfix startup method marked `[HotfixConfigureActors]`.
 - Hotfix timers: use `LakonaTimer.CreateOnceTimerAsync<TCallback, TArgs>` or
   `LakonaTimer.CreatePeriodicTimerAsync<TCallback, TArgs>` from `[ActorStart]`,
   store the returned `TimerId` in stable actor state, and call

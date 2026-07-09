@@ -214,11 +214,16 @@ state as the room concurrency model.
 The hotfix Chat startup must own the fixed local room actor explicitly:
 
 ```csharp
-public static void ConfigureActors(ActorHostBuilder actors)
+[HotfixStartup]
+public static class GameHotfixStartup
 {
-    actors.RegisterStartup(
-        "chat-room",
-        static _ => ActorStartupPlan.Create<ChatRoomActor>(ActorId.From("chat-room/global")));
+    [HotfixConfigureActors]
+    public static void Actors(ActorHostBuilder actors)
+    {
+        actors.RegisterStartup(
+            "chat-room",
+            static _ => ActorStartupPlan.Create<ChatRoomActor>(ActorId.From("chat-room/global")));
+    }
 }
 ```
 

@@ -119,15 +119,15 @@ public sealed class ChatService
 }
 ```
 
-`HotfixStartup.ConfigureServices(IServiceCollection services)` registers
+The hotfix startup method marked `[HotfixConfigureServices]` registers
 dependencies used by hotfix logic. It does not register `[HotfixService]`
 classes themselves. The dispatch layer owns service implementation lifetime and
 creates one instance per non-static service call.
 
 Constructor parameters resolve from the current hotfix generation provider
 first and the stable root provider second. Generation-local dependencies should
-be registered through `HotfixStartup.ConfigureServices`; stable framework
-dependencies should come from the root provider and must not capture
+be registered through the `[HotfixConfigureServices]` startup method; stable
+framework dependencies should come from the root provider and must not capture
 `Server.Hotfix` types.
 
 Non-static `[HotfixService]` and `[HotfixLifecycle]` implementation classes

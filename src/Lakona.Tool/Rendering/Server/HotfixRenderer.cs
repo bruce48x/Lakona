@@ -346,12 +346,15 @@ internal sealed class HotfixRenderer : IPlanContributor
 
         namespace Server.Hotfix
         {
+            [HotfixStartup]
             public static class HotfixStartup
             {
+                [HotfixConfigureServices]
                 public static void ConfigureServices(IServiceCollection services)
                 {
                 }
 
+                [HotfixConfigureActors]
                 public static void ConfigureActors(ActorHostBuilder actors)
                 {
                     actors.RegisterStartup(

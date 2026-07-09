@@ -94,7 +94,16 @@ public static class HotfixBehaviorScanner
                         actorMethodKeys);
                 }
 
-                if (IsHotfixStartupType(type))
+                var isStartupType = IsHotfixStartupType(type);
+                if (!isStartupType && HasHotfixStartupMethodAttribute(type))
+                {
+                    var actorsAttribute = GetAttributeName(typeof(HotfixConfigureActorsAttribute));
+                    var servicesAttribute = GetAttributeName(typeof(HotfixConfigureServicesAttribute));
+                    var startupAttribute = GetAttributeName(typeof(HotfixStartupAttribute));
+                    diagnostics.Add($"Hotfix startup method attributes [{actorsAttribute}] and [{servicesAttribute}] on '{type.FullName}' require [{startupAttribute}] on the containing type.");
+                }
+
+                if (isStartupType)
                 {
                     ScanHotfixStartupType(
                         type,
@@ -153,7 +162,16 @@ public static class HotfixBehaviorScanner
 
     private static bool IsHotfixStartupType(Type type)
     {
-        return string.Equals(type.Name, "HotfixStartup", StringComparison.Ordinal);
+        return HasAttribute(type, typeof(HotfixStartupAttribute));
+    }
+
+    private static bool HasHotfixStartupMethodAttribute(Type type)
+    {
+        return type
+            .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Any(method =>
+                HasAttribute(method, typeof(HotfixConfigureActorsAttribute)) ||
+                HasAttribute(method, typeof(HotfixConfigureServicesAttribute)));
     }
 
     private static void ScanHotfixStartupType(
@@ -173,7 +191,7 @@ public static class HotfixBehaviorScanner
 
         var actorsMethod = ResolveHotfixStartupMethod(
             startupType,
-            "ConfigureActors",
+            typeof(HotfixConfigureActorsAttribute),
             typeof(ActorHostBuilder),
             diagnostics);
         if (actorsMethod is not null)
@@ -207,7 +225,7 @@ public static class HotfixBehaviorScanner
 
         var servicesMethod = ResolveHotfixStartupMethod(
             startupType,
-            "ConfigureServices",
+            typeof(HotfixConfigureServicesAttribute),
             typeof(IServiceCollection),
             diagnostics);
         if (servicesMethod is not null)
@@ -222,13 +240,13 @@ public static class HotfixBehaviorScanner
 
     private static MethodInfo? ResolveHotfixStartupMethod(
         Type startupType,
-        string methodName,
+        Type attributeType,
         Type parameterType,
         List<string> diagnostics)
     {
         var methods = startupType
-            .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
-            .Where(method => string.Equals(method.Name, methodName, StringComparison.Ordinal))
+            .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(method => HasAttribute(method, attributeType))
             .ToArray();
 
         if (methods.Length == 0)
@@ -238,23 +256,39 @@ public static class HotfixBehaviorScanner
 
         if (methods.Length != 1)
         {
-            diagnostics.Add($"Hotfix startup '{startupType.FullName}' must declare at most one public static void {methodName}({parameterType.Name} value) method.");
+            diagnostics.Add($"Hotfix startup '{startupType.FullName}' must declare at most one [{GetAttributeName(attributeType)}] public static void method with one {parameterType.Name} parameter.");
             return null;
         }
 
         var method = methods[0];
         var parameters = method.GetParameters();
-        if (!method.IsStatic ||
+        if (!method.IsPublic ||
+            !method.IsStatic ||
             method.IsGenericMethod ||
             method.ReturnType != typeof(void) ||
             parameters.Length != 1 ||
             parameters[0].ParameterType != parameterType)
         {
-            diagnostics.Add($"Hotfix startup '{startupType.FullName}' must declare public static void {methodName}({parameterType.Name} value).");
+            diagnostics.Add($"Hotfix startup '{startupType.FullName}' method marked [{GetAttributeName(attributeType)}] must be public static void with one {parameterType.Name} parameter.");
             return null;
         }
 
         return method;
+    }
+
+    private static bool HasAttribute(MemberInfo member, Type attributeType)
+    {
+        return member.CustomAttributes.Any(attribute => string.Equals(
+            attribute.AttributeType.FullName,
+            attributeType.FullName,
+            StringComparison.Ordinal));
+    }
+
+    private static string GetAttributeName(Type attributeType)
+    {
+        return attributeType.Name.EndsWith("Attribute", StringComparison.Ordinal)
+            ? attributeType.Name[..^"Attribute".Length]
+            : attributeType.Name;
     }
 
     private static bool TryInvokeHotfixStartupMethod(

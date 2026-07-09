@@ -311,13 +311,15 @@ cache/local actor state for the requested type.
 ## Timers
 
 Hotfix timers are framework-owned callbacks created through `LakonaTimer`.
-Actor startup is declared from `HotfixStartup`, while periodic work should stay
-inside hotfix actor behavior or explicit timer callbacks:
+Actor startup is declared from a `[HotfixStartup]` type, while periodic work
+should stay inside hotfix actor behavior or explicit timer callbacks:
 
 ```csharp
-public static class HotfixStartup
+[HotfixStartup]
+public static class GameHotfixStartup
 {
-    public static void ConfigureActors(ActorHostBuilder actors)
+    [HotfixConfigureActors]
+    public static void Actors(ActorHostBuilder actors)
     {
         actors.RegisterStartup(
             "matchmaking",

@@ -202,6 +202,8 @@ public sealed class ToolArchitectureScanTests
             Assert.DoesNotContain("AddLakonaGameSessionHotfixLifecycle", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("UseGeneratedHotfixServices", generatedText, StringComparison.Ordinal);
             Assert.Contains("public static class HotfixStartup", generatedText, StringComparison.Ordinal);
+            Assert.Contains("[HotfixStartup]", generatedText, StringComparison.Ordinal);
+            Assert.Contains("[HotfixConfigureActors]", generatedText, StringComparison.Ordinal);
             Assert.Contains("ConfigureActors(ActorHostBuilder actors)", generatedText, StringComparison.Ordinal);
             Assert.Contains("actors.RegisterStartup(", generatedText, StringComparison.Ordinal);
             Assert.Contains("ActorStartupPlan.Create<ChatRoomActor>(ActorId.From(ChatRoomIds.Global))", generatedText, StringComparison.Ordinal);
@@ -368,6 +370,8 @@ public sealed class ToolArchitectureScanTests
         Assert.DoesNotContain("AddLakonaGameSessionHotfixLifecycle", appText, StringComparison.Ordinal);
         Assert.DoesNotContain("UseGeneratedHotfixServices", appText, StringComparison.Ordinal);
         Assert.Contains("public static class HotfixStartup", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("[HotfixStartup]", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("[HotfixConfigureActors]", hotfixText, StringComparison.Ordinal);
         Assert.Contains("actors.RegisterStartup(", hotfixText, StringComparison.Ordinal);
         Assert.Contains("ActorStartupPlan.Create<ChatRoomActor>(ActorId.From(ChatRoomIds.Global))", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Hotfix", "Fea", "ture"), hotfixText, StringComparison.Ordinal);
@@ -653,6 +657,8 @@ public sealed class ToolArchitectureScanTests
         if (expectStartupActors)
         {
             Assert.Contains("public static class HotfixStartup", hotfixChat, StringComparison.Ordinal);
+            Assert.Contains("[HotfixStartup]", hotfixChat, StringComparison.Ordinal);
+            Assert.Contains("[HotfixConfigureActors]", hotfixChat, StringComparison.Ordinal);
             Assert.Contains("ConfigureActors(ActorHostBuilder actors)", hotfixChat, StringComparison.Ordinal);
             Assert.Contains("ActorStartupPlan.Create<ChatRoomActor>(ActorId.From(ChatRoomIds.Global))", hotfixChat, StringComparison.Ordinal);
             Assert.DoesNotContain(".GetRequiredService<ActorHosting>()", hotfixChat, StringComparison.Ordinal);

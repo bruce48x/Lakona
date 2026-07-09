@@ -4,8 +4,10 @@ using Lakona.Game.Server.Hotfix.Abstractions;
 
 namespace Server.Hotfix
 {
+    [HotfixStartup]
     public static class HotfixStartup
     {
+        [HotfixConfigureActors]
         public static void ConfigureActors(ActorHostBuilder actors)
         {
             actors.RegisterStartup(

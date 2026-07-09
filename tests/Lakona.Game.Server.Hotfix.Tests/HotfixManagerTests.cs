@@ -1208,8 +1208,10 @@ public sealed class HotfixManagerTests
                     public string Generation => "two";
                 }
 
+                [HotfixStartup]
                 public static class HotfixStartup
                 {
+                    [HotfixConfigureServices]
                     public static void ConfigureServices(IServiceCollection services)
                     {
                         services.AddSingleton<IGenerationMarker, GenerationTwoMarker>();
@@ -1345,8 +1347,10 @@ public sealed class HotfixManagerTests
                     public string Generation => "one";
                 }
 
+                [HotfixStartup]
                 public static class HotfixStartup
                 {
+                    [HotfixConfigureServices]
                     public static void ConfigureServices(IServiceCollection services)
                     {
                         services.AddSingleton<IGenerationMarker, GenerationOneMarker>();
@@ -1490,8 +1494,10 @@ public sealed class HotfixManagerTests
                     public string Generation => "constructor-di";
                 }
 
+                [HotfixStartup]
                 public static class HotfixStartup
                 {
+                    [HotfixConfigureServices]
                     public static void ConfigureServices(IServiceCollection services)
                     {
                         services.AddSingleton<IGenerationMarker, LocalMarker>();
@@ -1540,8 +1546,10 @@ public sealed class HotfixManagerTests
                     public string Generation => "lifecycle";
                 }
 
+                [HotfixStartup]
                 public static class HotfixStartup
                 {
+                    [HotfixConfigureServices]
                     public static void ConfigureServices(IServiceCollection services)
                     {
                         services.AddSingleton<IGenerationMarker, LifecycleMarker>();
@@ -1633,8 +1641,10 @@ public sealed class HotfixManagerTests
                     public int Offset => _marker.Value.Length;
                 }
 
+                [HotfixStartup]
                 public static class HotfixStartup
                 {
+                    [HotfixConfigureServices]
                     public static void ConfigureServices(IServiceCollection services)
                     {
                         services.AddSingleton<HotfixLocalUsesRoot>();
@@ -1761,8 +1771,10 @@ public sealed class HotfixManagerTests
                     }
                 }
 
+                [HotfixStartup]
                 public static class HotfixStartup
                 {
+                    [HotfixConfigureServices]
                     public static void ConfigureServices(IServiceCollection services)
                     {
                         services.AddSingleton<IGenerationMarker, SelectedMarker>();

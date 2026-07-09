@@ -20,17 +20,21 @@ Stable App assemblies own actor identity, serialized state, persistence schema, 
 
 ## Hotfix Startup
 
-Hotfix startup uses a static convention class:
+Hotfix startup uses explicit attributes for the startup type and optional
+configuration methods:
 
 ```csharp
-public static class HotfixStartup
+[HotfixStartup]
+public static class GameHotfixStartup
 {
-    public static void ConfigureServices(IServiceCollection services)
+    [HotfixConfigureServices]
+    public static void Services(IServiceCollection services)
     {
         services.AddSingleton<BattleRuntimeTimers>();
     }
 
-    public static void ConfigureActors(ActorHostBuilder actors)
+    [HotfixConfigureActors]
+    public static void Actors(ActorHostBuilder actors)
     {
         actors.RegisterStartup(
             "matchmaking",
@@ -41,7 +45,7 @@ public static class HotfixStartup
 
 Both methods are optional, but when present they must be public static void
 methods with exactly one supported parameter. Startup methods are declaration
-surfaces; the runtime does not construct `HotfixStartup`.
+surfaces; the runtime does not construct the `[HotfixStartup]` type.
 
 ## Timers
 

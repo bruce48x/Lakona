@@ -682,20 +682,28 @@ payloads and remote actor payloads. It does not
 change the `LakonaInternalCodec` used for framework handshake, heartbeat,
 reliable push ack, and session termination notice payloads.
 
-Generated hotfix startup hooks own fixed local actor creation through lifecycle
-methods. The Chat startup hook starts its room actor with:
+Generated hotfix startup hooks own fixed local actor creation through startup
+declarations. The Chat startup hook declares its room actor with:
 
 ```csharp
-    await call.Services
-        .GetRequiredService<ActorHosting>()
-        .CreateAsync<ChatRoomActor>(ActorId.From("chat-room/global"), call.CancellationToken);
+[HotfixStartup]
+public static class GameHotfixStartup
+{
+    [HotfixConfigureActors]
+    public static void Actors(ActorHostBuilder actors)
+    {
+        actors.RegisterStartup(
+            "chat-room",
+            static _ => ActorStartupPlan.Create<ChatRoomActor>(ActorId.From("chat-room/global")));
+    }
+}
 ```
 
 Generated actor collections are selector surfaces only. They must expose
 behavior-first `Get`, `Local`, and `Remote` accessors where applicable, and must
 not generate actor lifecycle methods such as `SpawnAsync` or `DestroyAsync`.
-Generated projects must not emit parallel actor creation paths outside
-`HotfixStartup.ConfigureActors` and generated actor placement APIs.
+Generated projects must not emit parallel actor creation paths outside the
+method marked `[HotfixConfigureActors]` and generated actor placement APIs.
 
 Single-node local generation emits `Lakona:Hotfix:DebugWatcher=On` so rebuilds
 of `Server/Hotfix` use the current output directory and trigger reload through

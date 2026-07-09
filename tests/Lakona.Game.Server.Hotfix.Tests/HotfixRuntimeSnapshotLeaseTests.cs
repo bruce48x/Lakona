@@ -362,8 +362,10 @@ public sealed class HotfixRuntimeSnapshotLeaseTests
                     public string Generation => "{{generation}}";
                 }
 
+                [HotfixStartup]
                 public static class HotfixStartup
                 {
+                    [HotfixConfigureServices]
                     public static void ConfigureServices(IServiceCollection services)
                     {
                         services.AddSingleton<HotfixRuntimeSnapshotLeaseTests.TrackingDisposable>();

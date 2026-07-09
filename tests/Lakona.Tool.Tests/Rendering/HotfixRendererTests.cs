@@ -108,6 +108,9 @@ public sealed class HotfixRendererTests
         var oldTimerRegistrationApi = string.Concat("Register", "Timer");
         var publicActorTimerApi = string.Concat("ActorContext.", oldTimerRegistrationApi);
         Assert.Contains("public static class HotfixStartup", startup, StringComparison.Ordinal);
+        Assert.Contains("[HotfixStartup]", startup, StringComparison.Ordinal);
+        Assert.Contains("[HotfixConfigureServices]", startup, StringComparison.Ordinal);
+        Assert.Contains("[HotfixConfigureActors]", startup, StringComparison.Ordinal);
         Assert.Contains("ConfigureServices(IServiceCollection services)", startup, StringComparison.Ordinal);
         Assert.Contains("ConfigureActors(ActorHostBuilder actors)", startup, StringComparison.Ordinal);
         Assert.Contains("actors.RegisterStartup(", startup, StringComparison.Ordinal);

@@ -15,14 +15,17 @@ using Server.Hotfix.Services;
 
 namespace Server.Hotfix;
 
+[HotfixStartup]
 public static class HotfixStartup
 {
+    [HotfixConfigureServices]
     public static void ConfigureServices(IServiceCollection services)
     {
         services.TryAddSingleton<MatchmakingNotifier>();
         services.TryAddSingleton<RoomNotifier>();
     }
 
+    [HotfixConfigureActors]
     public static void ConfigureActors(ActorHostBuilder actors)
     {
         actors.RegisterStartup(
