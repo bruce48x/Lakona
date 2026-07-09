@@ -138,7 +138,7 @@ Use these endpoints during local development:
 
 The process section includes the process id, uptime, working set bytes, and GC
 heap bytes. The hotfix section shows whether hotfix is available, which version
-is loaded, how many methods and features are in the dispatch table, and the
+is loaded, the dispatch table version, method count, actor host count, and the
 last reload status.
 
 ## Use Events for Recent Failures

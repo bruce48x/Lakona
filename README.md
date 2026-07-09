@@ -239,20 +239,21 @@ public static partial class RoomBehavior
 // Typed selectors generated at compile time.
 var rooms = provider.GetRequiredService<RoomActors>();
 
-await rooms.Get(roomId).JoinAsync(request, ct);            // Distributed
+await rooms.Route(roomId).JoinAsync(request, ct);          // Directory-routed call
 await rooms.Local(roomId).JoinAsync(request, ct);          // Current node only
-await rooms.Remote(nodeId, roomId).JoinAsync(request, ct); // Pinned to node
+await rooms.Place(roomId).EnsureAsync(ct);                 // Create through placement policy
 ```
 
 Public methods on `RoomBehavior` declare the generated actor ref call surface
 and own the implementation that runs inside the actor turn.
 
 Lower-level `IActorRuntime` calls, including `call.Actors.AskAsync(...)` in
-hotfix services, are process-local. Use the generated selectors above when code
-should say whether a call is distributed, local-only, or pinned to a specific
-node.
+hotfix services, are process-local. Use generated `Route(id)` selectors for
+normal actor calls, `Local(id)` only after the caller has chosen the current
+process intentionally, and `Place(id)` when code needs to create or ensure an
+actor through the registered placement policy.
 
-Source generators produce `RoomActors` with `Get`, `Local`, and `Remote`
+Source generators produce `RoomActors` with `Route`, `Local`, and `Place`
 selectors. No reflection, no string-based dispatch.
 
 ## Actor Startup
@@ -329,7 +330,7 @@ across nodes through explicit route directories and node messaging.
 
 ```csharp
 // Same API, single node or cluster: the directory handles routing.
-await rooms.Get(roomId).JoinAsync(request, ct);
+await rooms.Route(roomId).JoinAsync(request, ct);
 ```
 
 Lakona provides in-memory directories for development and SQL-backed node

@@ -98,7 +98,7 @@ Choose the client engine first. The server shape stays the same.
     <p>Every starter keeps shared contracts, stable server code, hotfixable behavior, and the selected game client in one local workspace.</p>
   </div>
   <pre class="file-tree"><code>MyGame/
-  Shared/        RPC contracts, DTOs, callbacks, stable shared types
+  Shared/        RPC contracts, DTOs, callbacks, shared protocol types
   Server/
     App/         Stable host, actors, lifecycle handlers, configuration
     Hotfix/      Replaceable gameplay behavior
@@ -153,7 +153,7 @@ port `20000`.
     <p>Open the generated <code>Client/</code> project in Unity. If Unity shows an error dialog during the first import, click <code>Ignore</code> and continue into the Editor.</p>
     <div class="notice-card">
       <strong>Known first-launch issue</strong>
-      <p>Because of current source generator behavior, the Unity project may not run correctly immediately after the first import. Close Unity, open <code>Client/</code> again, and then run the generated login scene.</p>
+      <p>Unity may need a second editor launch after NuGetForUnity restores packages and the import guard applies plugin settings. Close Unity, open <code>Client/</code> again, and then run the generated login scene.</p>
     </div>
   </div>
   <div class="engine-card">
