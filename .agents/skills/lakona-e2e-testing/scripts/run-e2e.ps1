@@ -424,6 +424,7 @@ function New-E2EClient {
     $program = @"
 using Client.Generated;
 using Shared.Contracts.Chat;
+using Lakona.Game.Client;
 using Lakona.Rpc.Client;
 $transportUsing
 $serializerUsing
@@ -432,7 +433,7 @@ try
 {
     var transport = $transportCtor;
     var serializer = $serializerCtor;
-    var options = new RpcClientOptions(transport, serializer);
+    var options = new LakonaGameClientOptions(transport, serializer);
     await using var client = new LakonaGameClient(options, new E2ECallbacks());
 
     Console.WriteLine("[E2E] Connecting to server...");
