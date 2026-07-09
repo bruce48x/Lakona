@@ -45,8 +45,8 @@ Lakona is built around that workflow:
    messaging, without hiding network cost behind magical remote objects.
 6. **🔎 Diagnose live runtime behavior.** Readiness checks catch configuration
    problems before listeners open, framework logs expose runtime decisions, and
-   loopback local diagnostics show process, hotfix, actor, session, and recent
-   event state while the server runs.
+   optional loopback local diagnostics show process, hotfix, actor, session,
+   and recent event state while the server runs.
 7. **🔌 Swap protocols when the game needs it.** Transports and serializers are
    pluggable. Use TCP, WebSocket, KCP, loopback, JSON, or MemoryPack without
    binding gameplay code to one wire format or transport stack.
@@ -239,8 +239,8 @@ public static partial class RoomBehavior
 // Typed selectors generated at compile time.
 var rooms = provider.GetRequiredService<RoomActors>();
 
-await rooms.Route(roomId).JoinAsync(request, ct);          // Directory-routed call
-await rooms.Local(roomId).JoinAsync(request, ct);          // Current node only
+await rooms.Route(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct);      // Directory-routed call
+await rooms.Local(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct);      // Current node only
 await rooms.Place(roomId).EnsureAsync(ct);                 // Create through placement policy
 ```
 
@@ -254,7 +254,9 @@ process intentionally, and `Place(id)` when code needs to create or ensure an
 actor through the registered placement policy.
 
 Source generators produce `RoomActors` with `Route`, `Local`, and `Place`
-selectors. No reflection, no string-based dispatch.
+selectors. Generated refs expose generic `CallAsync` and `PostAsync` helpers
+that accept behavior method groups such as `RoomBehavior.JoinAsync`. No
+reflection, no string-based dispatch.
 
 ## Actor Startup
 
@@ -303,10 +305,25 @@ violations, and hotfix source misconfiguration before they reach production.
 
 Lakona is designed to make server failures inspectable. Framework logging is
 configured under `Lakona:Observability:Logging`, startup validation reports
-guardrail diagnostics through `--readiness-check`, and the development profile
-enables a loopback local admin host for runtime snapshots.
+guardrail diagnostics through `--readiness-check`, and the local admin host can
+be explicitly enabled on loopback for runtime snapshots.
 
-Local diagnostics include:
+```json
+{
+  "Lakona": {
+    "Observability": {
+      "LocalAdmin": {
+        "Enabled": true,
+        "Host": "127.0.0.1",
+        "Port": 20090,
+        "RequireLoopback": true
+      }
+    }
+  }
+}
+```
+
+When local admin is enabled, local diagnostics include:
 
 - process uptime, working set, and GC heap
 - hotfix loaded version, dispatch table size, and last reload status
@@ -330,7 +347,7 @@ across nodes through explicit route directories and node messaging.
 
 ```csharp
 // Same API, single node or cluster: the directory handles routing.
-await rooms.Route(roomId).JoinAsync(request, ct);
+await rooms.Route(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct);
 ```
 
 Lakona provides in-memory directories for development and SQL-backed node
@@ -354,8 +371,9 @@ The repository publishes small packages under `src/`. Stable entry points are:
   health checks, and guardrails
 - `Lakona.Game.Client` for engine-neutral client helpers
 - `Lakona.Game.Abstractions` for shared framework primitives
-- `Lakona.Game.Cluster`, `Lakona.Game.Cluster.Rpc`, and
-  `Lakona.Game.Cluster.Sql` for optional cluster routing and persistence
+- `Lakona.Game.Cluster`, `Lakona.Game.Cluster.Rpc`,
+  `Lakona.Game.Cluster.Rpc.MemoryPack`, and `Lakona.Game.Cluster.Sql` for
+  optional cluster routing, node messaging, serialization, and persistence
   adapters
 - `Lakona.Game.Server.Hotfix.*` for hotfix runtime and generators
 - `Lakona.Game.Server.Generators` for generated actor APIs

@@ -1,6 +1,6 @@
 ---
 title: Use Lakona Observability
-description: Learn how to use Lakona logs, readiness checks, and local admin diagnostics to debug a game server.
+description: Learn how to use Lakona logs, readiness checks, and opt-in local admin diagnostics to debug a game server.
 date: 2026-06-30T00:00:00+08:00
 ---
 
@@ -14,13 +14,13 @@ questions:
 
 Lakona uses standard .NET diagnostics for the raw signals: `ILogger`, `Meter`,
 and `ActivitySource`. On top of that, the game server package adds a small
-local diagnostics surface that is easy to use while you are developing or
+local diagnostics surface that you can enable while you are developing or
 debugging a server.
 
 <div class="article-hero-panel">
   <div>
     <p class="article-kicker">Debug loop</p>
-    <p class="article-hero-copy">Start with the readiness check, keep framework logs readable, then open the loopback diagnostics endpoints when you need current runtime state.</p>
+    <p class="article-hero-copy">Start with the readiness check, keep framework logs readable, then enable the loopback diagnostics endpoints when you need current runtime state.</p>
   </div>
   <div class="mini-tree" aria-label="Observability tools">
     <span>readiness-check</span>
@@ -53,8 +53,9 @@ For machine-readable output, add `--json`:
 </div>
 
 The check is the fastest way to catch mistakes such as unsafe local admin
-binding, invalid log levels, invalid metrics paths, missing hotfix assemblies,
-or exporter settings that were enabled without the required integration.
+binding when local admin is enabled, invalid log levels, invalid metrics paths,
+missing hotfix assemblies, or exporter settings that were enabled without the
+required integration.
 
 ## Make Logs Useful
 
@@ -97,10 +98,28 @@ If logs are too noisy, raise the global `MinimumLevel` first. If you only need
 one subsystem, keep the global level higher and lower one category, such as
 `Lakona.Game.Hotfix` or `Lakona.Game.Session`.
 
-## Open Local Diagnostics
+## Enable Local Diagnostics
 
-In the `Development` profile, Lakona enables the local admin host by default on
-`127.0.0.1:20090`. Start the server:
+Local admin diagnostics are disabled by default. Enable them explicitly in
+`Server/App/appsettings.json` when you want runtime snapshots during local
+development:
+
+```json
+{
+  "Lakona": {
+    "Observability": {
+      "LocalAdmin": {
+        "Enabled": true,
+        "Host": "127.0.0.1",
+        "Port": 20090,
+        "RequireLoopback": true
+      }
+    }
+  }
+}
+```
+
+Run the readiness check after changing the setting, then start the server:
 
 <div class="command-card">
   <div class="command-label">Run the server</div>
@@ -169,14 +188,13 @@ are done.
 
 ## Keep Production Locked Down
 
-Production and Compose profiles disable the local admin host by default.
-That is the right default. If you need it during an incident, keep it bound to
-loopback:
+Local admin is disabled by default, which is the right default for production
+and shared environments. If you need it during an incident, enable it
+temporarily and keep it bound to loopback:
 
 ```json
 {
   "Lakona": {
-    "Profile": "Production",
     "Observability": {
       "LocalAdmin": {
         "Enabled": true,

@@ -119,6 +119,14 @@ This is the first command to run inside a new Lakona project. It ensures both
 the stable server host and the hotfix project compile before you ask the server
 to inspect its runtime configuration.
 
+After changing `Shared/` or `Server/Hotfix/`, rebuild the hotfix project to
+refresh the development hotfix output used by the running server:
+
+<div class="command-card">
+  <div class="command-label">Refresh local hotfix output</div>
+  <pre><code>dotnet build "Server/Hotfix/Server.Hotfix.csproj"</code></pre>
+</div>
+
 ## Validate the Runtime Configuration
 
 After the server solution builds, run the check command:
@@ -150,10 +158,10 @@ port `20000`.
 <div class="engine-grid">
   <div class="engine-card">
     <h3>Unity first launch</h3>
-    <p>Open the generated <code>Client/</code> project in Unity. If Unity shows an error dialog during the first import, click <code>Ignore</code> and continue into the Editor.</p>
+    <p>Open the generated <code>Client/</code> project in Unity 2022 LTS and let NuGetForUnity restore the packages from <code>Client/Assets/packages.config</code>.</p>
     <div class="notice-card">
-      <strong>Known first-launch issue</strong>
-      <p>Unity may need a second editor launch after NuGetForUnity restores packages and the import guard applies plugin settings. Close Unity, open <code>Client/</code> again, and then run the generated login scene.</p>
+      <strong>Package restore</strong>
+      <p>If Unity is still compiling or restoring packages, wait for the restore to finish before running the generated login scene. Reopen the project only if Unity asks for a reload after package import.</p>
     </div>
   </div>
   <div class="engine-card">
