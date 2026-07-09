@@ -394,7 +394,10 @@ public sealed class LakonaGameClientCoreTests
 
         await loop.SendOnceAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(ClientSessionPhase.StateLost, client.Snapshot.Phase);
+        rpc.ThrowIfTransportFailed();
+        await WaitForAsync(
+            () => client.Snapshot.Phase == ClientSessionPhase.StateLost,
+            TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -413,7 +416,10 @@ public sealed class LakonaGameClientCoreTests
 
         await loop.SendOnceAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(ClientSessionPhase.Terminated, client.Snapshot.Phase);
+        rpc.ThrowIfTransportFailed();
+        await WaitForAsync(
+            () => client.Snapshot.Phase == ClientSessionPhase.Terminated,
+            TestContext.Current.CancellationToken);
         Assert.Equal("removed", client.Snapshot.Termination?.Message);
     }
 
@@ -432,6 +438,7 @@ public sealed class LakonaGameClientCoreTests
 
         await loop.SendOnceAsync(TestContext.Current.CancellationToken);
 
+        rpc.ThrowIfTransportFailed();
         Assert.Equal(ClientSessionPhase.Reconnecting, client.Snapshot.Phase);
     }
 
@@ -590,6 +597,11 @@ public sealed class LakonaGameClientCoreTests
 
         public GameHeartbeatRequest? Request => _transport.Request;
 
+        public void ThrowIfTransportFailed()
+        {
+            _transport.ThrowIfFailed();
+        }
+
         public static async Task<HeartbeatRuntimeFixture> CreateAsync(
             GameHeartbeatReply reply,
             CancellationToken cancellationToken)
@@ -631,6 +643,7 @@ public sealed class LakonaGameClientCoreTests
         private readonly string? _errorMessage;
         private readonly TaskCompletionSource<TransportFrame> _response =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private Exception? _failure;
         private int _sent;
 
         public OneShotHeartbeatTransport(RpcStatus status, GameHeartbeatReply? reply, string? errorMessage)
@@ -652,26 +665,44 @@ public sealed class LakonaGameClientCoreTests
 
         public ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken ct = default)
         {
-            if (Interlocked.Exchange(ref _sent, 1) != 0)
+            try
             {
-                throw new InvalidOperationException("Only one heartbeat request is expected.");
+                if (Interlocked.Exchange(ref _sent, 1) != 0)
+                {
+                    throw new InvalidOperationException("Only one heartbeat request is expected.");
+                }
+
+                using var requestFrame = TransportFrame.CopyOf(frame.Span);
+                using var request = RpcEnvelopeCodec.DecodeRequest(requestFrame);
+                if (request.ServiceId != GameHeartbeatRpcIds.ServiceId)
+                {
+                    throw new InvalidOperationException(
+                        $"Expected heartbeat service {GameHeartbeatRpcIds.ServiceId}, got {request.ServiceId}.");
+                }
+
+                if (request.MethodId != GameHeartbeatRpcIds.HeartbeatMethodId)
+                {
+                    throw new InvalidOperationException(
+                        $"Expected heartbeat method {GameHeartbeatRpcIds.HeartbeatMethodId}, got {request.MethodId}.");
+                }
+
+                Request = LakonaInternalCodec.DecodeGameHeartbeatRequest(request.Payload.Memory);
+
+                var payload = _status == RpcStatus.Ok
+                    ? LakonaInternalCodec.EncodeGameHeartbeatReply(_reply!)
+                    : Array.Empty<byte>();
+                _response.SetResult(RpcEnvelopeCodec.EncodeResponse(
+                    request.RequestId,
+                    _status,
+                    payload,
+                    _errorMessage));
+                return default;
             }
-
-            using var requestFrame = TransportFrame.CopyOf(frame.Span);
-            using var request = RpcEnvelopeCodec.DecodeRequest(requestFrame);
-            Assert.Equal(GameHeartbeatRpcIds.ServiceId, request.ServiceId);
-            Assert.Equal(GameHeartbeatRpcIds.HeartbeatMethodId, request.MethodId);
-            Request = LakonaInternalCodec.DecodeGameHeartbeatRequest(request.Payload.Memory);
-
-            var payload = _status == RpcStatus.Ok
-                ? LakonaInternalCodec.EncodeGameHeartbeatReply(_reply!)
-                : Array.Empty<byte>();
-            _response.SetResult(RpcEnvelopeCodec.EncodeResponse(
-                request.RequestId,
-                _status,
-                payload,
-                _errorMessage));
-            return default;
+            catch (Exception ex)
+            {
+                _failure = ex;
+                throw;
+            }
         }
 
         public async ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
@@ -683,6 +714,14 @@ public sealed class LakonaGameClientCoreTests
         {
             IsConnected = false;
             return default;
+        }
+
+        public void ThrowIfFailed()
+        {
+            if (_failure is not null)
+            {
+                throw new InvalidOperationException("Heartbeat test transport failed while sending the request.", _failure);
+            }
         }
     }
 
