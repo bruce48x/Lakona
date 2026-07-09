@@ -6,6 +6,7 @@ using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Diagnostics;
 using Lakona.Game.Server.Guardrails;
+using Lakona.Game.Server.Health;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
@@ -110,6 +111,7 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.AddMessageRecording();
         services.AddLakonaGameObservability();
         services.AddLakonaGameRuntimeValidation();
+        services.AddLakonaGameHealth();
         services.AddLakonaGameSessionHotfixLifecycle();
         services.AddLakonaTimers();
         services.TryAddSingleton<IHotfixCandidateRollbackParticipant, ActorHostingHotfixRollbackParticipant>();

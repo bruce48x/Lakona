@@ -52,6 +52,11 @@ public sealed class LakonaGameRuntimeOptions
         LakonaObservabilityOptions.Defaults();
 
     /// <summary>
+    /// Gets process health endpoint settings.
+    /// </summary>
+    public LakonaHealthOptions Health { get; init; } = LakonaHealthOptions.Defaults();
+
+    /// <summary>
     /// Gets server-owned game heartbeat timing policy.
     /// </summary>
     public LakonaGameHeartbeatOptions Heartbeat { get; init; } = LakonaGameHeartbeatOptions.Defaults();
@@ -73,6 +78,7 @@ public sealed class LakonaGameRuntimeOptions
             StartupActors = BindStartupActors(section.GetSection("StartupActors")),
             Cluster = BindCluster(section.GetSection("Cluster")),
             Heartbeat = LakonaGameHeartbeatOptions.FromConfiguration(section.GetSection("Heartbeat")),
+            Health = LakonaHealthOptions.FromConfiguration(section.GetSection("Health")),
             Observability = LakonaObservabilityOptions.FromConfiguration(configuration)
         };
     }
@@ -454,5 +460,50 @@ public sealed class LakonaGameHeartbeatOptions
 
         throw new InvalidOperationException(
             $"{section.Path}:{key} must be a TimeSpan value such as 00:00:15.");
+    }
+}
+
+public sealed class LakonaHealthOptions
+{
+    public LakonaHealthHttpOptions Http { get; init; } = LakonaHealthHttpOptions.Defaults();
+
+    public static LakonaHealthOptions Defaults()
+    {
+        return new LakonaHealthOptions();
+    }
+
+    public static LakonaHealthOptions FromConfiguration(IConfigurationSection section)
+    {
+        return new LakonaHealthOptions
+        {
+            Http = LakonaHealthHttpOptions.FromConfiguration(section.GetSection("Http"))
+        };
+    }
+}
+
+public sealed class LakonaHealthHttpOptions
+{
+    public bool Enabled { get; init; }
+
+    public string Host { get; init; } = "127.0.0.1";
+
+    public int Port { get; init; } = 20080;
+
+    public bool RequireLoopback { get; init; } = true;
+
+    public static LakonaHealthHttpOptions Defaults()
+    {
+        return new LakonaHealthHttpOptions();
+    }
+
+    public static LakonaHealthHttpOptions FromConfiguration(IConfiguration section)
+    {
+        return new LakonaHealthHttpOptions
+        {
+            Enabled = LakonaConfigurationReader.ReadBool(section, "Enabled", false),
+            Host = LakonaConfigurationReader.ReadString(section, "Host", "127.0.0.1"),
+            Port = LakonaConfigurationReader.ReadInt(section, "Port", 20080),
+            RequireLoopback = LakonaConfigurationReader.ReadBool(section, "RequireLoopback", true)
+        };
     }
 }

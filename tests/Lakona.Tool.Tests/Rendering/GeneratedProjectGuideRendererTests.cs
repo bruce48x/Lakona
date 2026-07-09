@@ -230,7 +230,7 @@ public sealed class GeneratedProjectGuideRendererTests
     }
 
     [Fact]
-    public void Readme_BuildsBeforeReadinessCheck()
+    public void Readme_BuildsAndStartsBeforeHealthCheck()
     {
         var spec = Spec(ClientEngine.Godot, TransportKind.WebSocket, SerializerKind.Json,
             DeploymentProfile.None);
@@ -242,13 +242,16 @@ public sealed class GeneratedProjectGuideRendererTests
         var readme = Assert.Single(plan.Files, file => file.RelativePath == "README.md");
         var buildIndex = readme.Content.IndexOf("dotnet build \"Server/Server.slnx\"", StringComparison.Ordinal);
         var hotfixBuildIndex = readme.Content.IndexOf("dotnet build \"Server/Hotfix/Server.Hotfix.csproj\"", StringComparison.Ordinal);
-        var readinessIndex = readme.Content.IndexOf("--readiness-check", StringComparison.Ordinal);
+        var serverStartIndex = readme.Content.IndexOf("dotnet run --project \"Server/App/Server.App.csproj\" --no-build", StringComparison.Ordinal);
+        var readinessIndex = readme.Content.IndexOf("/_lakona/health/ready", StringComparison.Ordinal);
 
         Assert.True(buildIndex >= 0, "Expected the generated README to include a server build command.");
         Assert.True(hotfixBuildIndex >= 0, "Expected the generated README to include an explicit hotfix build command.");
-        Assert.True(readinessIndex >= 0, "Expected the generated README to include a readiness-check command.");
-        Assert.True(buildIndex < readinessIndex, "Expected the generated README to build before readiness-check.");
-        Assert.True(hotfixBuildIndex < readinessIndex, "Expected the generated README to build hotfix output before readiness-check.");
+        Assert.True(serverStartIndex >= 0, "Expected the generated README to include a server start command.");
+        Assert.True(readinessIndex >= 0, "Expected the generated README to include a readiness endpoint check.");
+        Assert.True(buildIndex < hotfixBuildIndex, "Expected the generated README to build the server before hotfix output.");
+        Assert.True(hotfixBuildIndex < serverStartIndex, "Expected the generated README to build hotfix output before starting the server.");
+        Assert.True(serverStartIndex < readinessIndex, "Expected the generated README to start the server before checking readiness.");
     }
 
     private static LakonaProjectSpec Spec(ClientEngine engine, TransportKind transport,

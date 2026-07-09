@@ -212,7 +212,8 @@ matchmaking policy, persistence schema, or gameplay DTOs.
 
 ## Optional Runtime Capabilities
 
-- Runtime validation: run generated projects with `--readiness-check`.
+- Runtime validation: expose `/_lakona/health/live` and
+  `/_lakona/health/ready` through `Lakona:Health:Http`.
 - Message recording: configure the framework default recorder to store recent
   actor dispatch records in an in-memory ring buffer.
 - Cluster notifications: use `IClientNotifications` from business nodes; the

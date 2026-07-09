@@ -167,6 +167,13 @@ public sealed class ServerAppRendererTests
         Assert.False(cleanup.TryGetProperty("Enabled", out _));
         var hotfix = lakona.GetProperty("Hotfix");
         Assert.Equal("On", hotfix.GetProperty("DebugWatcher").GetString());
+        var health = lakona
+            .GetProperty("Health")
+            .GetProperty("Http");
+        Assert.True(health.GetProperty("Enabled").GetBoolean());
+        Assert.Equal("127.0.0.1", health.GetProperty("Host").GetString());
+        Assert.Equal(20080, health.GetProperty("Port").GetInt32());
+        Assert.True(health.GetProperty("RequireLoopback").GetBoolean());
         var hotfixLogLevel = lakona
             .GetProperty("Observability")
             .GetProperty("Logging")
@@ -179,7 +186,9 @@ public sealed class ServerAppRendererTests
             .GetProperty("Categories")
             .GetProperty("Lakona.Rpc.Server.Request");
         Assert.Equal("Debug", rpcRequestLogLevel.GetString());
-        Assert.DoesNotContain("Enabled", appsettings, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"Cluster\": { \"Enabled\"", appsettings, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"Hotfix\": { \"Enabled\"", appsettings, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"ReliablePush\": { \"Enabled\"", appsettings, StringComparison.Ordinal);
         Assert.DoesNotContain("Bootstrap", appsettings, StringComparison.Ordinal);
     }
 

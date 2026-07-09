@@ -29,12 +29,15 @@ For a lightweight headless client for smoke and load checks:
 lakona-tool new --name MyGame --client-engine console --transport kcp --serializer memorypack
 ```
 
-After generation, build the server, then run the printed check command before starting it:
+After generation, build the server and hotfix project, start the server, then
+query the printed readiness endpoint from another terminal:
 
 ```bash
 cd MyGame
 dotnet build "Server/Server.slnx"
-dotnet run --project "Server/App/Server.App.csproj" -- --readiness-check
+dotnet build "Server/Hotfix/Server.Hotfix.csproj"
+dotnet run --project "Server/App/Server.App.csproj" --no-build
+curl http://127.0.0.1:20080/_lakona/health/ready
 ```
 
 Supported values:
@@ -62,7 +65,7 @@ Generated server projects reference `Lakona.Game.Server.Hotfix.Generators` as an
 
 For Unity and Tuanjie clients, the tool pins `Lakona.Game.Client` and `Lakona.Game.Abstractions` in `Assets/packages.config` and generates an editor import guard that prevents NuGet analyzer/generator DLLs and incompatible multi-TFM plugins (for example `lib/net10.0/`) from being loaded as Unity runtime plugins, while explicitly enabling `netstandard2.1` runtime DLLs under `Assets/Packages`.
 
-The generated `appsettings.json` intentionally stays small. It contains only the local node identity, session cleanup retention, and endpoint-local serializer/RPC service exposure under `Lakona`; cluster discovery, hotfix defaults, reliable push defaults, and RPC check output are derived by generated server helper code.
+The generated `appsettings.json` intentionally stays small. It contains only the local node identity, session cleanup retention, health endpoint binding, and endpoint-local serializer/RPC service exposure under `Lakona`; cluster discovery, hotfix defaults, reliable push defaults, and readiness diagnostics are derived by generated server helper code.
 
 Generated server apps use build-time hotfix service discovery. RPC contracts marked with `[RpcService]` in referenced user contract assemblies produce stable server proxies automatically; new projects no longer need hand-written service marker files.
 
@@ -97,6 +100,14 @@ The default development appsettings file has this shape:
     "Hotfix": {
       "DebugWatcher": "On"
     },
+    "Health": {
+      "Http": {
+        "Enabled": true,
+        "Host": "127.0.0.1",
+        "Port": 20080,
+        "RequireLoopback": true
+      }
+    },
     "Endpoints": [
       {
         "Transport": "kcp",
@@ -112,22 +123,15 @@ The default development appsettings file has this shape:
 
 For WebSocket projects, the endpoint entry also includes `"Path": "/ws"`.
 
-Validate the derived project state with:
+After the server starts, validate the derived project state with:
 
 ```bash
-dotnet run --project "Server/App/Server.App.csproj" -- --readiness-check
+curl http://127.0.0.1:20080/_lakona/health/ready
 ```
 
 The generated `DebugWatcher` setting makes local hotfix rebuilds reload through
-`reload.signal`. The check prints the generated Cluster, Hotfix, Reliable Push,
-and RPC state so the default `appsettings.json` does not need to expose every
-derived setting.
-
-Use JSON output when CI or deployment scripts need machine-readable validation results:
-
-```bash
-dotnet run --project "Server/App/Server.App.csproj" -- --readiness-check --json
-```
+`reload.signal`. The readiness endpoint returns JSON guardrail diagnostics so
+the default `appsettings.json` does not need to expose every derived setting.
 
 ## Server Package
 
@@ -172,4 +176,4 @@ lakona-tool hotfix rollback --server http://127.0.0.1:20090
 
 The generated server derives a node-local runtime model. A node is one .NET server process; generated defaults include gateway, node-directory, and route-directory infrastructure inside that node.
 
-The default `appsettings.json` does not expose that full derived topology. Use `--readiness-check` to inspect it. When a generated project is intentionally split across processes, use `Lakona:ActorHosts`, `Lakona:StartupActors`, `Lakona:Endpoints[]`, endpoint `RpcServices`, and the minimal `Lakona:Cluster` shape described in `../../docs/cluster.md`; include `Lakona:Cluster:Directory` only when a split project owns shared cluster directory infrastructure. Do not add `Services`, endpoint `Name`, or deployment-shaped sections to appsettings until the framework owns and validates those settings.
+The default `appsettings.json` does not expose that full derived topology. Use the readiness endpoint to inspect whether the resolved runtime is valid. When a generated project is intentionally split across processes, use `Lakona:ActorHosts`, `Lakona:StartupActors`, `Lakona:Endpoints[]`, endpoint `RpcServices`, and the minimal `Lakona:Cluster` shape described in `../../docs/cluster.md`; include `Lakona:Cluster:Directory` only when a split project owns shared cluster directory infrastructure. Do not add `Services`, endpoint `Name`, or deployment-shaped sections to appsettings until the framework owns and validates those settings.

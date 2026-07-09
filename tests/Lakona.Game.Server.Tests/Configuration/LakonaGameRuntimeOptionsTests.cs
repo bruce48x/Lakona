@@ -21,6 +21,36 @@ public sealed class LakonaGameRuntimeOptionsTests
     }
 
     [Fact]
+    public void FromConfiguration_defaults_health_http_probe_hosting()
+    {
+        var options = LakonaGameRuntimeOptions.FromConfiguration(new ConfigurationBuilder().Build());
+
+        Assert.False(options.Health.Http.Enabled);
+        Assert.Equal("127.0.0.1", options.Health.Http.Host);
+        Assert.Equal(20080, options.Health.Http.Port);
+        Assert.True(options.Health.Http.RequireLoopback);
+    }
+
+    [Fact]
+    public void FromConfiguration_binds_health_http_probe_hosting()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:Health:Http:Enabled"] = "true",
+            ["Lakona:Health:Http:Host"] = "0.0.0.0",
+            ["Lakona:Health:Http:Port"] = "20180",
+            ["Lakona:Health:Http:RequireLoopback"] = "false"
+        });
+
+        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
+
+        Assert.True(options.Health.Http.Enabled);
+        Assert.Equal("0.0.0.0", options.Health.Http.Host);
+        Assert.Equal(20180, options.Health.Http.Port);
+        Assert.False(options.Health.Http.RequireLoopback);
+    }
+
+    [Fact]
     public void FromConfiguration_binds_actor_hosts()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>

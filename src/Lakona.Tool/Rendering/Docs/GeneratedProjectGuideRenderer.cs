@@ -36,9 +36,9 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 
         ## Build And Run
 
-        Build the generated server first, refresh the development hotfix output, then
-        run the check command to print the derived Lakona runtime state. After the check
-        succeeds, run the server normally.
+        Build the generated server first, refresh the development hotfix output,
+        then run the server. The generated health endpoint reports live and ready
+        status over HTTP.
 
         Build the generated server:
 
@@ -52,16 +52,16 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         dotnet build "Server/Hotfix/Server.Hotfix.csproj"
         ```
 
-        Check the generated server:
-
-        ```powershell
-        dotnet run --project "Server/App/Server.App.csproj" -- --readiness-check
-        ```
-
         Run the server:
 
         ```powershell
         dotnet run --project "Server/App/Server.App.csproj" --no-build
+        ```
+
+        Check readiness from another terminal:
+
+        ```powershell
+        Invoke-RestMethod http://127.0.0.1:20080/_lakona/health/ready
         ```
 
         {{ListenerSentence(spec.Transport)}}
@@ -111,7 +111,9 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         values. Its `Lakona:Hotfix:DebugWatcher=On` setting makes local
         `Server/Hotfix` rebuilds reload through `reload.signal`.
 
-        Derived runtime state is shown through the `--readiness-check` command.
+        Liveness is available at `http://127.0.0.1:20080/_lakona/health/live`.
+        Readiness is available at `http://127.0.0.1:20080/_lakona/health/ready`
+        and includes guardrail diagnostics when startup state is not ready.
 
         ## Actor Call Model
 

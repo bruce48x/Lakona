@@ -292,21 +292,24 @@ builder.Services.AddLakonaGame(builder.Configuration);
 
 ## Runtime Guardrails
 
-Validate configuration before starting:
+Start the server, then ask the health endpoint for readiness:
 
 ```bash
-dotnet run --project "Server/App/Server.App.csproj" -- --readiness-check
+dotnet run --project "Server/App/Server.App.csproj" --no-build
+curl http://127.0.0.1:20080/_lakona/health/ready
 ```
 
 Guardrails catch missing endpoints, invalid cluster topology, production profile
-violations, and hotfix source misconfiguration before they reach production.
+violations, and hotfix source misconfiguration. Startup still fails before
+opening listeners when validation errors are fatal; the ready endpoint exposes
+the same diagnostics to production probes while the process is alive.
 
 ## Observability 🔎
 
 Lakona is designed to make server failures inspectable. Framework logging is
 configured under `Lakona:Observability:Logging`, startup validation reports
-guardrail diagnostics through `--readiness-check`, and the local admin host can
-be explicitly enabled on loopback for runtime snapshots.
+guardrail diagnostics through `/_lakona/health/ready`, and the local admin host
+can be explicitly enabled on loopback for runtime snapshots.
 
 ```json
 {

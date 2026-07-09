@@ -127,22 +127,9 @@ refresh the development hotfix output used by the running server:
   <pre><code>dotnet build "Server/Hotfix/Server.Hotfix.csproj"</code></pre>
 </div>
 
-## Validate the Runtime Configuration
+## Start the Server
 
-After the server solution builds, run the check command:
-
-<div class="command-card">
-  <div class="command-label">Inspect generated runtime state</div>
-  <pre><code>dotnet run --project "Server/App/Server.App.csproj" -- --readiness-check</code></pre>
-</div>
-
-The check prints the derived Lakona runtime state: cluster defaults, hotfix
-setup, reliable push setup, endpoints, and exposed RPC services. Run it after
-project generation and again after editing configuration.
-
-## Run the Server
-
-After the check succeeds, start the server:
+After the server solution and hotfix output build, start the server:
 
 <div class="command-card">
   <div class="command-label">Start the local server</div>
@@ -152,6 +139,19 @@ After the check succeeds, start the server:
 The default endpoint listens on `127.0.0.1:20000`. WebSocket projects use
 `ws://127.0.0.1:20000/ws`; TCP and KCP projects use their selected transport on
 port `20000`.
+
+## Check Readiness
+
+With the server running, request the readiness endpoint from another terminal:
+
+<div class="command-card">
+  <div class="command-label">Inspect generated runtime state</div>
+  <pre><code>curl http://127.0.0.1:20080/_lakona/health/ready</code></pre>
+</div>
+
+The readiness response contains JSON guardrail diagnostics when configuration,
+hotfix output, endpoints, or observability settings are not ready. Liveness is
+available at `http://127.0.0.1:20080/_lakona/health/live`.
 
 ## Run the Client
 
@@ -185,8 +185,8 @@ Start with the generated vertical slice, then change one layer at a time.
   <div><strong>Client/</strong><p>Change the selected engine UI and client session flow.</p></div>
 </div>
 
-Run `--readiness-check` again after changing runtime configuration. It is the
-fastest way to catch missing endpoints, invalid service exposure, and unsafe
+Check `/_lakona/health/ready` again after changing runtime configuration. It is
+the fastest way to catch missing endpoints, invalid service exposure, and unsafe
 server startup state before the game reaches players.
 
 <div class="outcome-grid">

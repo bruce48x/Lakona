@@ -16,6 +16,8 @@ using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Cluster.Rpc.MemoryPack;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Guardrails;
+using Lakona.Game.Server.Guardrails.Rules;
 using Lakona.Game.Server.Health;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Hotfix;
@@ -208,12 +210,34 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public void RunAsync_source_does_not_handle_cli_health_check_arguments()
+    {
+        var sourcePath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..",
+            "..",
+            "..",
+            "..",
+            "..",
+            "src",
+            "Lakona.Game.Server",
+            "Hosting",
+            "LakonaGameServer.cs"));
+        var source = File.ReadAllText(sourcePath);
+
+        Assert.DoesNotContain("--readiness-check", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("--liveness-check", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("LakonaGameReadinessProbe.Run", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("LakonaGameLivenessProbe.Run", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ReadinessContext_CollectsObservabilityCapabilitiesFromUserServices()
     {
         EnsureDevelopmentHotfixAssemblyExists();
 
         var context = await Lakona.Game.Server.Hosting.LakonaGameServer.CreateReadinessContextForTesting(
-            ["--readiness-check", "--json"],
+            [],
             server =>
             {
                 server.ConfigureAppConfiguration(configuration =>
@@ -234,36 +258,14 @@ public sealed class LakonaGameServerTests
 
         Assert.True(context.ObservabilityCapabilities.OpenTelemetryIntegrationRegistered);
 
-        string text;
-        lock (ConsoleCaptureLock.Gate)
-        {
-            var output = new StringWriter();
-            var errors = new StringWriter();
-            var originalOutput = Console.Out;
-            var originalError = Console.Error;
+        var snapshot = new LakonaGameReadinessEvaluator(
+            context.RuntimeOptions,
+            context.ClusterOptions,
+            context.ObservabilityCapabilities,
+            new LakonaHealthReadinessState(context.HotfixAssemblyPath),
+            CreateRuntimeValidator()).Evaluate();
 
-            try
-            {
-                Console.SetOut(output);
-                Console.SetError(errors);
-
-                _ = LakonaGameReadinessProbe.Run(
-                    context.RuntimeOptions,
-                    context.ClusterOptions,
-                    ["--json"],
-                    context.ObservabilityCapabilities,
-                    context.HotfixAssemblyPath);
-            }
-            finally
-            {
-                Console.SetOut(originalOutput);
-                Console.SetError(originalError);
-            }
-
-            text = output.ToString() + errors.ToString();
-        }
-
-        Assert.DoesNotContain("ULINK134", text, StringComparison.Ordinal);
+        Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "ULINK134");
     }
 
     [Fact]
@@ -327,7 +329,7 @@ public sealed class LakonaGameServerTests
             Assert.False(File.Exists(Path.Combine(hotfixRoot, "Server.Hotfix.dll")));
 
             var context = await Lakona.Game.Server.Hosting.LakonaGameServer.CreateReadinessContextForTesting(
-                ["--readiness-check", "--json"],
+                [],
                 server =>
                 {
                     server.ConfigureAppConfiguration(configuration =>
@@ -342,38 +344,15 @@ public sealed class LakonaGameServerTests
                 },
                 baseDirectory);
 
-            string text;
-            lock (ConsoleCaptureLock.Gate)
-            {
-                var output = new StringWriter();
-                var errors = new StringWriter();
-                var originalOutput = Console.Out;
-                var originalError = Console.Error;
+            var snapshot = new LakonaGameReadinessEvaluator(
+                context.RuntimeOptions,
+                context.ClusterOptions,
+                context.ObservabilityCapabilities,
+                new LakonaHealthReadinessState(context.HotfixAssemblyPath),
+                CreateRuntimeValidator()).Evaluate();
 
-                try
-                {
-                    Console.SetOut(output);
-                    Console.SetError(errors);
-
-                    var exitCode = LakonaGameReadinessProbe.Run(
-                        context.RuntimeOptions,
-                        context.ClusterOptions,
-                        ["--json"],
-                        context.ObservabilityCapabilities,
-                        context.HotfixAssemblyPath);
-
-                    Assert.Equal(0, exitCode);
-                }
-                finally
-                {
-                    Console.SetOut(originalOutput);
-                    Console.SetError(originalError);
-                }
-
-                text = output.ToString() + errors.ToString();
-            }
-
-            Assert.DoesNotContain("ULINK071", text, StringComparison.Ordinal);
+            Assert.True(snapshot.Succeeded);
+            Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "ULINK071");
         }
         finally
         {
@@ -400,7 +379,7 @@ public sealed class LakonaGameServerTests
 
             var error = await Assert.ThrowsAnyAsync<Exception>(() =>
                 Lakona.Game.Server.Hosting.LakonaGameServer.CreateReadinessContextForTesting(
-                    ["--readiness-check", "--json"],
+                    [],
                     server =>
                     {
                         server.ConfigureAppConfiguration(configuration =>
@@ -1078,6 +1057,20 @@ public sealed class LakonaGameServerTests
                     BuildTag = "test"
                 }
             ]);
+    }
+
+    private static LakonaGameRuntimeValidator CreateRuntimeValidator()
+    {
+        return new LakonaGameRuntimeValidator(
+        [
+            new NodeIdentityRule(),
+            new EndpointRule(),
+            new ClusterEndpointRule(),
+            new HotfixSourceRule(),
+            new HeartbeatRule(),
+            new ActorHostConfigurationRule(),
+            new ObservabilityRule()
+        ]);
     }
 
     private sealed record ConfiguredValue(string Value);

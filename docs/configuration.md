@@ -99,10 +99,11 @@ the node's allowed actor kinds and startup declarations.
 
 Readiness validation checks node identity, endpoints, cluster endpoint shape,
 actor host names, startup actor names, hotfix source, heartbeat policy, and
-observability settings. Run:
+observability settings. Enable the independent health HTTP host and request the
+ready endpoint from a live process:
 
 ```bash
-dotnet run --project "Server/App/Server.App.csproj" -- --readiness-check
+curl http://127.0.0.1:20080/_lakona/health/ready
 ```
 
 The validation boundary should report configuration problems before runtime

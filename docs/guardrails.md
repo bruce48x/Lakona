@@ -18,13 +18,14 @@ Readiness validation checks:
 - hotfix assembly source
 - observability configuration and required integrations
 
-Run readiness validation with:
+Run readiness validation through the independent health HTTP endpoint:
 
 ```bash
-dotnet run --project "Server/App/Server.App.csproj" -- --readiness-check
+curl http://127.0.0.1:20080/_lakona/health/ready
 ```
 
-Use `--json` when automation needs structured diagnostics.
+The endpoint returns JSON and uses HTTP 200 when ready or HTTP 503 when any
+guardrail diagnostic is fatal.
 
 ## Diagnostics Ranges
 
@@ -51,7 +52,7 @@ ambiguous or unsafe. In particular:
 ## Generated Projects
 
 Generated starter projects should keep `appsettings.json` compact. Derived
-runtime state is shown by readiness output rather than copied into generated
-configuration. When a generated project is split across nodes, use
+runtime state is shown by the readiness endpoint rather than copied into
+generated configuration. When a generated project is split across nodes, use
 `Lakona:ActorHosts`, `Lakona:StartupActors`, `Lakona:Endpoints[]`, endpoint
 `RpcServices`, and `Lakona:Cluster`.

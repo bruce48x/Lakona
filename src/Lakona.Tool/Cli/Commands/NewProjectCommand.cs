@@ -23,8 +23,9 @@ internal sealed class NewProjectCommand(
             terminal.WriteLine(text.NewProjectReadyHeader);
             terminal.WriteLine($"  1) cd \"{spec.Layout.RootPath}\"");
             terminal.WriteLine(text.BuildSolutionStep);
-            terminal.WriteLine(text.CheckProjectStep);
+            terminal.WriteLine(text.BuildHotfixStep);
             terminal.WriteLine(text.StartServerStep);
+            terminal.WriteLine(text.CheckProjectStep);
             terminal.WriteLine(text.OpenClientStep(Rendering.ToolEnumText.ToCliValue(spec.ClientEngine)));
             return 0;
         }

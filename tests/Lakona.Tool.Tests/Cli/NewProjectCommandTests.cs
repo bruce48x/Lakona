@@ -36,7 +36,7 @@ public sealed class NewProjectCommandTests
                 TestContext.Current.CancellationToken);
 
             Assert.Equal(0, exitCode);
-            AssertBuildStepPrecedesReadinessCheck(terminal.Output);
+            AssertBuildStepsPrecedeHealthCheck(terminal.Output);
             Assert.False(File.Exists(Path.Combine(outputRoot, "MyGame", "lakona-game.tool.json")));
             Assert.True(File.Exists(Path.Combine(outputRoot, "MyGame", "Client", "project.godot")));
             Assert.False(Directory.Exists(Path.Combine(outputRoot, "MyGame", "Server", "Server")));
@@ -148,14 +148,20 @@ public sealed class NewProjectCommandTests
             terminal);
     }
 
-    private static void AssertBuildStepPrecedesReadinessCheck(IReadOnlyList<string> output)
+    private static void AssertBuildStepsPrecedeHealthCheck(IReadOnlyList<string> output)
     {
         var buildIndex = IndexOf(output, "dotnet build \"Server/Server.slnx\"");
-        var readinessIndex = IndexOf(output, "--readiness-check");
+        var hotfixBuildIndex = IndexOf(output, "dotnet build \"Server/Hotfix/Server.Hotfix.csproj\"");
+        var serverStartIndex = IndexOf(output, "dotnet run --project \"Server/App/Server.App.csproj\" --no-build");
+        var healthIndex = IndexOf(output, "/_lakona/health/ready");
 
         Assert.True(buildIndex >= 0, "Expected the generated next steps to include a server build step.");
-        Assert.True(readinessIndex >= 0, "Expected the generated next steps to include a readiness-check step.");
-        Assert.True(buildIndex < readinessIndex, "Expected the build step to appear before readiness-check.");
+        Assert.True(hotfixBuildIndex >= 0, "Expected the generated next steps to include a hotfix build step.");
+        Assert.True(serverStartIndex >= 0, "Expected the generated next steps to include a server start step.");
+        Assert.True(healthIndex >= 0, "Expected the generated next steps to include a readiness endpoint check.");
+        Assert.True(buildIndex < hotfixBuildIndex, "Expected the server build step to appear before the hotfix build.");
+        Assert.True(hotfixBuildIndex < serverStartIndex, "Expected the hotfix build to appear before server start.");
+        Assert.True(serverStartIndex < healthIndex, "Expected the server start step to appear before the readiness endpoint check.");
     }
 
     private static int IndexOf(IReadOnlyList<string> output, string value)

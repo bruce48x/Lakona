@@ -22,7 +22,7 @@ Every generated project includes:
 - a client project
 - a default one-node cluster topology for local development
 - reliable push services
-- a default health/check command that explains the derived runtime state
+- default HTTP health endpoints that expose liveness and readiness
 
 The default local topology is one process with generated defaults for the node-directory, route-directory, gateway, and `Lakona:Cluster` endpoint. It is still the normal cluster model; local development simply starts with one node. Project/game actor hosts can be added by project code and selected with configuration when needed, and production deployments can split actor hosts across nodes without changing the user-facing game code structure.
 
@@ -42,8 +42,8 @@ return await LakonaGameServer.RunAsync(args);
 ```
 
 Single-node starter projects omit component selection; generated defaults
-are explicit actor host and startup actor declarations explained by the check
-command.
+are explicit actor host and startup actor declarations checked by the readiness
+endpoint.
 
 The generated `appsettings.json` should contain only source values the user can understand and may reasonably change.
 
@@ -74,6 +74,17 @@ The default configuration should be:
         "DisconnectedRetentionSeconds": 30
       }
     },
+    "Hotfix": {
+      "DebugWatcher": "On"
+    },
+    "Health": {
+      "Http": {
+        "Enabled": true,
+        "Host": "127.0.0.1",
+        "Port": 20080,
+        "RequireLoopback": true
+      }
+    },
     "Endpoints": [
       {
         "Transport": "kcp",
@@ -98,6 +109,17 @@ For WebSocket transport, the generated endpoint includes the path:
     "Sessions": {
       "Cleanup": {
         "DisconnectedRetentionSeconds": 30
+      }
+    },
+    "Hotfix": {
+      "DebugWatcher": "On"
+    },
+    "Health": {
+      "Http": {
+        "Enabled": true,
+        "Host": "127.0.0.1",
+        "Port": 20080,
+        "RequireLoopback": true
       }
     },
     "Endpoints": [
@@ -208,36 +230,35 @@ accesses services through `gameClient.Api.Shared.*`. Starter code does not
 construct `GameClientHello`, register callback bindings by hand, or expose the
 lower-level generated `RpcClient`.
 
-## Health And Check Command
+## Health Endpoints
 
-Generated projects should include a check command:
+Generated projects should enable the independent health HTTP host on loopback:
 
-```bash
-dotnet run --project Server/App/Server.App.csproj -- --readiness-check
+```json
+{
+  "Lakona": {
+    "Health": {
+      "Http": {
+        "Enabled": true,
+        "Host": "127.0.0.1",
+        "Port": 20080,
+        "RequireLoopback": true
+      }
+    }
+  }
+}
 ```
 
-The command should print derived runtime state in stable, readable lines:
+The generated server exposes:
 
-```txt
-cluster: ok tcp://127.0.0.1:21001
-node: ok dev-1
-actor-hosts: ok local generated defaults
-hotfix: ok local-build Server.Hotfix.dll
-reliable-push: ok pending limit 256, replay window 120s
-rpc: ok kcp://127.0.0.1:20000
-```
-
-Failures must include actionable repair guidance:
-
-```txt
-hotfix: failed local build output not found
-fix: dotnet build Server/Hotfix/Server.Hotfix.csproj
-```
+- `GET /_lakona/health/live`: liveness, HTTP 200 with `{ "status": "ok" }`
+- `GET /_lakona/health/ready`: readiness, HTTP 200 when guardrails pass or HTTP 503 with JSON diagnostics when they fail
 
 Generated local configuration should set `Lakona:Hotfix:DebugWatcher=On` so
-`reload.signal` rebuilds reload the current output directory. The check output
-is where generated projects explain the framework state. The configuration file
-remains small and focused on source values.
+`reload.signal` rebuilds reload the current output directory. The readiness
+endpoint is where generated projects expose framework validation state. The
+configuration file remains small and focused on source values.
+
 
 ## CLI Direction
 
@@ -299,15 +320,17 @@ A new user should be able to run:
 ```bash
 lakona-tool new --name MyGame
 dotnet build Server/Server.slnx
-dotnet run --project Server/App/Server.App.csproj -- --readiness-check
+dotnet build Server/Hotfix/Server.Hotfix.csproj
 dotnet run --project Server/App/Server.App.csproj
+curl http://127.0.0.1:20080/_lakona/health/ready
 ```
 
 without editing `appsettings.json`.
 
 Generated projects should start with minimal required configuration, make
-derived runtime state visible through checks, and avoid asking new users to
-understand optional infrastructure before the first working slice runs.
+derived runtime state visible through health endpoints, and avoid asking new
+users to understand optional infrastructure before the first working slice
+runs.
 
 The user should understand where to write:
 

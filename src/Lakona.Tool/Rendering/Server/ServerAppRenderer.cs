@@ -212,6 +212,16 @@ internal sealed class ServerAppRenderer : IPlanContributor
                 {
                     ["DebugWatcher"] = "On"
                 },
+                ["Health"] = new Dictionary<string, object?>
+                {
+                    ["Http"] = new Dictionary<string, object?>
+                    {
+                        ["Enabled"] = true,
+                        ["Host"] = "127.0.0.1",
+                        ["Port"] = 20080,
+                        ["RequireLoopback"] = true
+                    }
+                },
                 ["Observability"] = new Dictionary<string, object?>
                 {
                     ["Logging"] = new Dictionary<string, object?>

@@ -280,34 +280,41 @@ internal sealed class ToolText
         return Language switch
         {
             ToolLanguage.SimplifiedChinese => isConsole
-                ? "  5) dotnet run --project \"Client/Client.csproj\" -- smoke"
+                ? "  6) dotnet run --project \"Client/Client.csproj\" -- smoke"
                 : isGodot
-                ? "  5) 在 Godot Engine 中打开 Client/"
+                ? "  6) 在 Godot Engine 中打开 Client/"
                 : isTuanjie
-                ? $"  5) 用团结引擎打开 Client/ (团结 {ClientEngineVersions.Tuanjie})"
-                : "  5) 在 Unity Hub 中打开 Client/（Unity 2022 LTS）",
+                ? $"  6) 用团结引擎打开 Client/ (团结 {ClientEngineVersions.Tuanjie})"
+                : "  6) 在 Unity Hub 中打开 Client/（Unity 2022 LTS）",
             ToolLanguage.TraditionalChinese => isConsole
-                ? "  5) dotnet run --project \"Client/Client.csproj\" -- smoke"
+                ? "  6) dotnet run --project \"Client/Client.csproj\" -- smoke"
                 : isGodot
-                ? "  5) 在 Godot Engine 中開啟 Client/"
+                ? "  6) 在 Godot Engine 中開啟 Client/"
                 : isTuanjie
-                ? $"  5) 用團結引擎開啟 Client/ (團結 {ClientEngineVersions.Tuanjie})"
-                : "  5) 在 Unity Hub 中開啟 Client/（Unity 2022 LTS）",
+                ? $"  6) 用團結引擎開啟 Client/ (團結 {ClientEngineVersions.Tuanjie})"
+                : "  6) 在 Unity Hub 中開啟 Client/（Unity 2022 LTS）",
             _ => isConsole
-                ? "  5) dotnet run --project \"Client/Client.csproj\" -- smoke"
+                ? "  6) dotnet run --project \"Client/Client.csproj\" -- smoke"
                 : isGodot
-                ? "  5) Open Client/ in Godot Engine"
+                ? "  6) Open Client/ in Godot Engine"
                 : isTuanjie
-                ? $"  5) Open Client/ in Tuanjie Engine (Tuanjie {ClientEngineVersions.Tuanjie})"
-                : "  5) Open Client/ in Unity Hub (Unity 2022 LTS)"
+                ? $"  6) Open Client/ in Tuanjie Engine (Tuanjie {ClientEngineVersions.Tuanjie})"
+                : "  6) Open Client/ in Unity Hub (Unity 2022 LTS)"
         };
     }
 
     public string CheckProjectStep => Language switch
     {
-        ToolLanguage.SimplifiedChinese => "  3) dotnet run --project \"Server/App/Server.App.csproj\" -- --readiness-check",
-        ToolLanguage.TraditionalChinese => "  3) dotnet run --project \"Server/App/Server.App.csproj\" -- --readiness-check",
-        _ => "  3) dotnet run --project \"Server/App/Server.App.csproj\" -- --readiness-check"
+        ToolLanguage.SimplifiedChinese => "  5) curl http://127.0.0.1:20080/_lakona/health/ready",
+        ToolLanguage.TraditionalChinese => "  5) curl http://127.0.0.1:20080/_lakona/health/ready",
+        _ => "  5) curl http://127.0.0.1:20080/_lakona/health/ready"
+    };
+
+    public string BuildHotfixStep => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => "  3) dotnet build \"Server/Hotfix/Server.Hotfix.csproj\"",
+        ToolLanguage.TraditionalChinese => "  3) dotnet build \"Server/Hotfix/Server.Hotfix.csproj\"",
+        _ => "  3) dotnet build \"Server/Hotfix/Server.Hotfix.csproj\""
     };
 
     public string BuildSolutionStep => Language switch

@@ -33,31 +33,11 @@ public static class LakonaGameServer
     {
         var builder = CreateApplicationBuilder(args);
 
-        // Liveness and readiness check commands (exit before full startup)
         var serverBuilder = new LakonaGameServerBuilder(builder);
         configure(serverBuilder);
         serverBuilder.ApplyConfigurationToHostBuilder();
 
         var runtimeOptions = CreateRuntimeOptions(builder.Configuration);
-
-        if (args.Contains("--liveness-check", StringComparer.Ordinal))
-        {
-            var livenessClusterOptions = TryBuildClusterOptions(runtimeOptions, builder.Configuration);
-            return LakonaGameLivenessProbe.Run(livenessClusterOptions, runtimeOptions);
-        }
-        if (args.Contains("--readiness-check", StringComparer.Ordinal))
-        {
-            var readiness = await CreateReadinessContext(
-                builder,
-                configure,
-                AppContext.BaseDirectory).ConfigureAwait(false);
-            return LakonaGameReadinessProbe.Run(
-                readiness.RuntimeOptions,
-                readiness.ClusterOptions,
-                args,
-                readiness.ObservabilityCapabilities,
-                readiness.HotfixAssemblyPath);
-        }
 
         // Full startup
         LakonaLoggingConfiguration.Apply(builder.Logging, runtimeOptions.Observability.Logging);
@@ -96,13 +76,17 @@ public static class LakonaGameServer
         // Gateway (registers RpcServersHostedService)
         builder.Services.AddLakonaGameServerGateway();
 
+        var hotfixAssemblyPath = await ResolveDefaultHotfixAssemblyPathAsync(
+            AppContext.BaseDirectory,
+            hotfixAdminOptions).ConfigureAwait(false);
+        builder.Services.Replace(ServiceDescriptor.Singleton(
+            new LakonaHealthReadinessState(hotfixAssemblyPath)));
+
         ValidateStartupRuntime(
             builder.Services,
             runtimeOptions,
             clusterOptions,
-            await ResolveDefaultHotfixAssemblyPathAsync(
-                AppContext.BaseDirectory,
-                hotfixAdminOptions).ConfigureAwait(false));
+            hotfixAssemblyPath);
 
         var host = builder.Build();
         await LoadInitialHotfixAsync(host);
@@ -239,7 +223,7 @@ public static class LakonaGameServer
         using var provider = services.BuildServiceProvider();
         var capabilities = LakonaObservabilityCapabilities.FromServices(
             provider.GetServices<ILakonaObservabilityCapability>());
-        var resolved = LakonaGameReadinessProbe.ToResolvedRuntimeForValidation(
+        var resolved = LakonaGameReadinessRuntime.ToResolvedRuntimeForValidation(
             runtimeOptions,
             clusterOptions,
             capabilities,

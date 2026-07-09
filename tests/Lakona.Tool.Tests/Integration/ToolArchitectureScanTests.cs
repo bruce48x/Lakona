@@ -66,11 +66,11 @@ public sealed class ToolArchitectureScanTests
     }
 
     [Fact]
-    public async Task NewProject_UsesReadinessCheckAndDoesNotGenerateLegacyLakonaGameCheck()
+    public async Task NewProject_UsesHealthEndpointsAndDoesNotGenerateLegacyCheckCommands()
     {
         var repositoryRoot = FindRepositoryRoot();
         var toolSourceText = ReadAllTextFiles(Path.Combine(repositoryRoot, "src", "Lakona.Tool"));
-        var parentRoot = Path.Combine(Path.GetTempPath(), "lakona-tool-readiness-command-tests", Guid.NewGuid().ToString("N"));
+        var parentRoot = Path.Combine(Path.GetTempPath(), "lakona-tool-health-endpoint-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(parentRoot);
         try
         {
@@ -88,8 +88,12 @@ public sealed class ToolArchitectureScanTests
             var result = await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
 
             var generatedText = ReadAllTextFiles(spec.Layout.RootPath);
-            Assert.Contains("--readiness-check", toolSourceText, StringComparison.Ordinal);
-            Assert.Contains("--readiness-check", generatedText, StringComparison.Ordinal);
+            Assert.Contains("/_lakona/health/ready", toolSourceText, StringComparison.Ordinal);
+            Assert.Contains("/_lakona/health/ready", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain("--readiness-check", toolSourceText, StringComparison.Ordinal);
+            Assert.DoesNotContain("--readiness-check", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain("--liveness-check", toolSourceText, StringComparison.Ordinal);
+            Assert.DoesNotContain("--liveness-check", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("--lakona-game-check", toolSourceText, StringComparison.Ordinal);
             Assert.DoesNotContain("--lakona-game-check", generatedText, StringComparison.Ordinal);
         }

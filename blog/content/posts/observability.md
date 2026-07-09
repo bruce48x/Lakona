@@ -20,10 +20,10 @@ debugging a server.
 <div class="article-hero-panel">
   <div>
     <p class="article-kicker">Debug loop</p>
-    <p class="article-hero-copy">Start with the readiness check, keep framework logs readable, then enable the loopback diagnostics endpoints when you need current runtime state.</p>
+    <p class="article-hero-copy">Start with the readiness endpoint, keep framework logs readable, then enable the loopback diagnostics endpoints when you need current runtime state.</p>
   </div>
   <div class="mini-tree" aria-label="Observability tools">
-    <span>readiness-check</span>
+    <span>/_lakona/health/ready</span>
     <span class="indent">configuration and startup guardrails</span>
     <span>console logs</span>
     <span class="indent">framework events while the server runs</span>
@@ -34,22 +34,34 @@ debugging a server.
 
 ## First Check Startup State
 
-After building the generated server solution, run the readiness check:
+After building the generated server solution and refreshing hotfix output, run
+the server:
+
+<div class="command-card">
+  <div class="command-label">Run the server</div>
+  <pre><code>dotnet run --project "Server/App/Server.App.csproj" --no-build</code></pre>
+</div>
+
+Then request readiness from another terminal:
 
 <div class="command-card">
   <div class="command-label">Validate runtime configuration</div>
-  <pre><code>dotnet run --project "Server/App/Server.App.csproj" -- --readiness-check</code></pre>
+  <pre><code>curl http://127.0.0.1:20080/_lakona/health/ready</code></pre>
 </div>
 
-Use this before starting the real server. It validates the resolved runtime
-state and reports guardrail errors before the server opens client-facing
-listeners.
+The server fails startup before opening listeners when fatal startup guardrails
+do not pass. Once the process is alive, the readiness endpoint keeps exposing
+the same validation surface to orchestration probes.
 
-For machine-readable output, add `--json`:
+The endpoint returns JSON:
 
 <div class="command-card">
   <div class="command-label">JSON readiness output</div>
-  <pre><code>dotnet run --project "Server/App/Server.App.csproj" -- --readiness-check --json</code></pre>
+  <pre><code>{
+  "status": "ready",
+  "succeeded": true,
+  "diagnostics": []
+}</code></pre>
 </div>
 
 The check is the fastest way to catch mistakes such as unsafe local admin
@@ -119,11 +131,11 @@ development:
 }
 ```
 
-Run the readiness check after changing the setting, then start the server:
+Restart the server after changing the setting, then request readiness:
 
 <div class="command-card">
-  <div class="command-label">Run the server</div>
-  <pre><code>dotnet run --project "Server/App/Server.App.csproj" --no-build</code></pre>
+  <div class="command-label">Check readiness</div>
+  <pre><code>curl http://127.0.0.1:20080/_lakona/health/ready</code></pre>
 </div>
 
 Then open the summary endpoint in a browser:
@@ -251,8 +263,8 @@ when it is not.
 
 When something looks wrong, use this order:
 
-1. Run `--readiness-check` and fix any guardrail error first.
-2. Start the server with console logs at `Information`.
+1. Start the server and fix any startup guardrail error first.
+2. Request `/_lakona/health/ready` and fix any readiness diagnostic.
 3. Open `/_lakona/diagnostics/summary`.
 4. Check `/_lakona/diagnostics/events` for recent warnings and errors.
 5. If the problem is actor-related, open `/_lakona/diagnostics/actors`.
