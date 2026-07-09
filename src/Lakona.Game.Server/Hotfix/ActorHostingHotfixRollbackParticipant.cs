@@ -10,8 +10,8 @@ internal sealed class ActorHostingHotfixRollbackParticipant(
     ActorHostingRollbackRecorder rollbackRecorder,
     ILogger<ActorHostingHotfixRollbackParticipant>? logger = null) : IHotfixCandidateRollbackParticipant
 {
-    public ValueTask<IHotfixCandidateRollbackHandle> BeginCandidateFeatureStartAsync(
-        string featureName,
+    public ValueTask<IHotfixCandidateRollbackHandle> BeginCandidateStartupAsync(
+        string candidateName,
         IServiceProvider services,
         CancellationToken cancellationToken = default)
     {

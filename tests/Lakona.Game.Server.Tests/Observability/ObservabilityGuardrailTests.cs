@@ -218,10 +218,6 @@ public sealed class ObservabilityGuardrailTests
             Cluster: new LakonaGameResolvedCluster(
                 AdvertisedEndpoints: new Dictionary<string, string>()),
             ClusterEndpoint: null,
-            Feature: new LakonaGameResolvedFeature(
-                Configured: null,
-                Active: [],
-                StartupOrder: []),
             Hotfix: new LakonaGameResolvedHotfix(
                 AssemblyPath: new LakonaGameResolvedValue<string>("Server.Hotfix.dll", LakonaGameValueSource.GeneratedConvention),
                 AssemblyFileName: new LakonaGameResolvedValue<string>("Server.Hotfix.dll", LakonaGameValueSource.GeneratedConvention)),

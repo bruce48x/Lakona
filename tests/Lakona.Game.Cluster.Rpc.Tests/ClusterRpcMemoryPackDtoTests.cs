@@ -57,11 +57,13 @@ public sealed class ClusterRpcMemoryPackDtoTests
                             }
                         }
                     },
-                    Features =
+                    ActorHosts =
                     [
-                        new NodeFeatureDto
+                        new NodeActorHostDto
                         {
-                            Name = "gateway",
+                            Actor = "room",
+                            PolicyHash = "policy-a",
+                            BuildTag = "build-a",
                             Metadata = new Dictionary<string, string>
                             {
                                 ["region"] = "us-east"
@@ -86,30 +88,9 @@ public sealed class ClusterRpcMemoryPackDtoTests
         Assert.Equal("gateway-1", record.Node);
         Assert.Equal(9, record.NodeEpoch);
         Assert.Equal("tcp://127.0.0.1:22001", record.Endpoints!["cluster"].Address);
-        Assert.Equal("gateway", Assert.Single(record.Features!).Name);
+        Assert.Equal("room", Assert.Single(record.ActorHosts!).Actor);
         Assert.Equal("a", record.Labels!["zone"]);
         Assert.Equal(new DateTimeOffset(2026, 6, 24, 5, 7, 8, TimeSpan.Zero), record.UpdatedAt);
-    }
-
-    [Fact]
-    public void RoundtripsFeatureSendRequest()
-    {
-        var request = new FeatureSendRequest
-        {
-            Feature = "matchmaking",
-            Kind = "enqueue",
-            Payload = new byte[] { 4, 5, 6 },
-            ExpiresAt = new DateTimeOffset(2026, 6, 24, 2, 3, 4, TimeSpan.Zero),
-            SourceNode = "gateway-1",
-            CorrelationId = "corr-2"
-        };
-
-        var roundtripped = Roundtrip(request);
-
-        Assert.Equal("matchmaking", roundtripped.Feature);
-        Assert.Equal("enqueue", roundtripped.Kind);
-        Assert.Equal(new byte[] { 4, 5, 6 }, roundtripped.Payload);
-        Assert.Equal("corr-2", roundtripped.CorrelationId);
     }
 
     [Fact]
@@ -204,11 +185,13 @@ public sealed class ClusterRpcMemoryPackDtoTests
                         }
                     }
                 },
-                Features = new List<NodeFeatureDto>
+                ActorHosts = new List<NodeActorHostDto>
                 {
-                    new NodeFeatureDto
+                    new NodeActorHostDto
                     {
-                        Name = "gateway",
+                        Actor = "room",
+                        PolicyHash = "policy-a",
+                        BuildTag = "build-a",
                         Metadata = new Dictionary<string, string>
                         {
                             ["region"] = "us-east"
@@ -232,8 +215,8 @@ public sealed class ClusterRpcMemoryPackDtoTests
         Assert.Equal("gateway-1", roundtripped.Registration.Node);
         Assert.Equal("tcp://127.0.0.1:22001", roundtripped.Registration.Endpoints!["cluster"].Address);
         Assert.Equal("tcp", roundtripped.Registration.Endpoints["cluster"].Metadata!["transport"]);
-        Assert.Equal("gateway", roundtripped.Registration.Features![0].Name);
-        Assert.Equal("us-east", roundtripped.Registration.Features[0].Metadata!["region"]);
+        Assert.Equal("room", roundtripped.Registration.ActorHosts![0].Actor);
+        Assert.Equal("us-east", roundtripped.Registration.ActorHosts[0].Metadata!["region"]);
         Assert.Equal("a", roundtripped.Registration.Labels!["zone"]);
     }
 

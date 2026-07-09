@@ -7,7 +7,6 @@ using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Cluster.Sql;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
-using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Sessions;
 using Lakona.Rpc.Core;
 
@@ -31,24 +30,11 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             LakonaEndpointRuntimeDefaults.CreateClusterSerializer(runtimeOptions.Cluster)));
         services.AddSingleton<IRpcSerializer>(provider =>
             provider.GetRequiredService<LakonaClusterRpcSerializer>().Serializer);
-        services.TryAddSingleton<IFeatureMessageSerializer>(provider =>
-            new RpcFeatureMessageSerializer(provider.GetRequiredService<LakonaClusterRpcSerializer>().Serializer));
         services.TryAddSingleton<IRemoteActorSerializer>(provider =>
             new RpcRemoteActorSerializer(provider.GetRequiredService<LakonaClusterRpcSerializer>().Serializer));
         services.TryAddSingleton<IClusterClientFactory>(provider => new ClusterClientFactory(
             provider.GetRequiredService<IClusterTransportFactory>(),
             provider.GetRequiredService<LakonaClusterRpcSerializer>().Serializer));
-        services.TryAddSingleton<IFeatureMessageTransport, RpcFeatureMessageTransport>();
-        services.TryAddSingleton<IFeatureMessageBus>(provider =>
-        {
-            var sourceNode = provider.GetService<LocalActorNodeIdentity>()?.NodeId
-                ?? new NodeId(runtimeOptions.Node.Id);
-            return new FeatureMessageBus(
-                provider.GetRequiredService<IClusterNodeDiscovery>(),
-                provider.GetRequiredService<IFeatureMessageTransport>(),
-                provider.GetRequiredService<IFeatureMessageSerializer>(),
-                sourceNode);
-        });
         services.TryAddSingleton<ClusterLocalMessageHandler>();
         services.TryAddSingleton<INodeMessenger, ClusterNodeMessenger>();
         services.TryAddSingleton<IClusterNodeSender, ClusterNodeSender>();

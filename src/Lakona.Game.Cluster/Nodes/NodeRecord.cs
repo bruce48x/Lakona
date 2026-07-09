@@ -15,55 +15,6 @@ namespace Lakona.Game.Cluster
             NodeId nodeId,
             long nodeEpoch,
             IReadOnlyDictionary<string, NodeEndpoint> endpoints,
-            IReadOnlyList<NodeFeatureDescriptor> features,
-            IReadOnlyDictionary<string, string>? labels,
-            NodeState state,
-            DateTimeOffset leaseExpiresAt,
-            DateTimeOffset updatedAt)
-            : this(
-                clusterName,
-                nodeId,
-                nodeEpoch,
-                endpoints,
-                features,
-                Array.Empty<NodeActorHostDescriptor>(),
-                labels,
-                state,
-                leaseExpiresAt,
-                updatedAt)
-        {
-        }
-
-        public NodeRecord(
-            string clusterName,
-            NodeId nodeId,
-            long nodeEpoch,
-            IReadOnlyDictionary<string, NodeEndpoint> endpoints,
-            IReadOnlyList<NodeActorHostDescriptor> actorHosts,
-            IReadOnlyDictionary<string, string>? labels,
-            NodeState state,
-            DateTimeOffset leaseExpiresAt,
-            DateTimeOffset updatedAt)
-            : this(
-                clusterName,
-                nodeId,
-                nodeEpoch,
-                endpoints,
-                Array.Empty<NodeFeatureDescriptor>(),
-                actorHosts,
-                labels,
-                state,
-                leaseExpiresAt,
-                updatedAt)
-        {
-        }
-
-        public NodeRecord(
-            string clusterName,
-            NodeId nodeId,
-            long nodeEpoch,
-            IReadOnlyDictionary<string, NodeEndpoint> endpoints,
-            IReadOnlyList<NodeFeatureDescriptor> features,
             IReadOnlyList<NodeActorHostDescriptor> actorHosts,
             IReadOnlyDictionary<string, string>? labels,
             NodeState state,
@@ -84,7 +35,6 @@ namespace Lakona.Game.Cluster
             NodeId = nodeId;
             NodeEpoch = nodeEpoch;
             Endpoints = CopyEndpoints(endpoints);
-            Features = CopyFeatures(features);
             ActorHosts = CopyActorHosts(actorHosts);
             Labels = CopyStringDictionary(labels, nameof(labels));
             State = state;
@@ -100,8 +50,6 @@ namespace Lakona.Game.Cluster
 
         public IReadOnlyDictionary<string, NodeEndpoint> Endpoints { get; }
 
-        public IReadOnlyList<NodeFeatureDescriptor> Features { get; }
-
         public IReadOnlyList<NodeActorHostDescriptor> ActorHosts { get; }
 
         public IReadOnlyDictionary<string, string> Labels { get; }
@@ -115,16 +63,6 @@ namespace Lakona.Game.Cluster
         public bool IsExpired(DateTimeOffset now)
         {
             return now >= LeaseExpiresAt;
-        }
-
-        public bool HasFeature(string name)
-        {
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                throw new ArgumentException("Feature name is required.", nameof(name));
-            }
-
-            return Features.Any(feature => string.Equals(feature.Name, name, StringComparison.Ordinal));
         }
 
         public bool HasActorHost(string actor, string? policyHash = null)
@@ -169,23 +107,6 @@ namespace Lakona.Game.Cluster
             }
 
             return new ReadOnlyDictionary<string, NodeEndpoint>(copy);
-        }
-
-        private static IReadOnlyList<NodeFeatureDescriptor> CopyFeatures(
-            IReadOnlyList<NodeFeatureDescriptor> features)
-        {
-            if (features is null)
-            {
-                throw new ArgumentNullException(nameof(features));
-            }
-
-            var copy = new List<NodeFeatureDescriptor>(features.Count);
-            for (var i = 0; i < features.Count; i++)
-            {
-                copy.Add(features[i] ?? throw new ArgumentException("Node feature cannot be null.", nameof(features)));
-            }
-
-            return new ReadOnlyCollection<NodeFeatureDescriptor>(copy);
         }
 
         private static IReadOnlyList<NodeActorHostDescriptor> CopyActorHosts(

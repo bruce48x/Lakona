@@ -7,11 +7,11 @@ namespace Lakona.Game.Cluster
     public interface IClusterNodeDiscovery
     {
         ValueTask<IReadOnlyList<ClusterNodeDescriptor>> ListAsync(
-            FeatureName feature,
+            IReadOnlyDictionary<string, string> labels,
             CancellationToken cancellationToken = default);
 
         ValueTask<ClusterNodeDescriptor?> AnyAsync(
-            FeatureName feature,
+            IReadOnlyDictionary<string, string> labels,
             CancellationToken cancellationToken = default);
     }
 }

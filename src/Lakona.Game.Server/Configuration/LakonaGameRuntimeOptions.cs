@@ -8,10 +8,10 @@ namespace Lakona.Game.Server.Configuration;
 /// Represents the runtime configuration bound from the <c>Lakona</c> configuration root.
 /// </summary>
 /// <remarks>
-/// These options describe the node identity, client-facing endpoints, feature
-/// selection, cluster endpoint, and observability settings for one server
-/// process. <see cref="Lakona.Game.Server.Hosting.LakonaGameServer"/> binds
-/// this type during startup.
+/// These options describe the node identity, client-facing endpoints, actor
+/// hosting, cluster endpoint, and observability settings for one server process.
+/// <see cref="Lakona.Game.Server.Hosting.LakonaGameServer"/> binds this type
+/// during startup.
 /// </remarks>
 public sealed class LakonaGameRuntimeOptions
 {
@@ -29,15 +29,6 @@ public sealed class LakonaGameRuntimeOptions
     /// Gets the client-facing RPC listener configuration.
     /// </summary>
     public IReadOnlyList<LakonaGameEndpointOptions> Endpoints { get; init; } = [];
-
-    /// <summary>
-    /// Gets the active stable feature names, or <see langword="null"/> when all discovered features are active.
-    /// </summary>
-    /// <remarks>
-    /// An empty list is meaningful: it disables all application features while
-    /// still allowing the process to expose RPC endpoints or framework services.
-    /// </remarks>
-    public IReadOnlyList<string>? Feature { get; init; }
 
     /// <summary>
     /// Gets actor kinds this node may host.
@@ -78,7 +69,6 @@ public sealed class LakonaGameRuntimeOptions
         {
             Node = BindNode(section.GetSection("Node")),
             Endpoints = BindEndpoints(section.GetSection("Endpoints")),
-            Feature = BindOptionalStringArray(section.GetSection("Feature")),
             ActorHosts = BindStringArray(section.GetSection("ActorHosts")),
             StartupActors = BindStartupActors(section.GetSection("StartupActors")),
             Cluster = BindCluster(section.GetSection("Cluster")),

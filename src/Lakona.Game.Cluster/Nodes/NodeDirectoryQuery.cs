@@ -11,7 +11,6 @@ namespace Lakona.Game.Cluster
 
         public NodeDirectoryQuery(
             string clusterName,
-            string? featureName = null,
             string? actorHostName = null,
             string? actorHostPolicyHash = null,
             NodeState? state = null,
@@ -21,11 +20,6 @@ namespace Lakona.Game.Cluster
             if (string.IsNullOrWhiteSpace(clusterName))
             {
                 throw new ArgumentException("Cluster name is required.", nameof(clusterName));
-            }
-
-            if (featureName is not null && string.IsNullOrWhiteSpace(featureName))
-            {
-                throw new ArgumentException("Feature name cannot be empty.", nameof(featureName));
             }
 
             if (actorHostName is not null && string.IsNullOrWhiteSpace(actorHostName))
@@ -44,7 +38,6 @@ namespace Lakona.Game.Cluster
             }
 
             ClusterName = clusterName;
-            FeatureName = featureName;
             ActorHostName = actorHostName;
             ActorHostPolicyHash = actorHostPolicyHash;
             State = state;
@@ -53,8 +46,6 @@ namespace Lakona.Game.Cluster
         }
 
         public string ClusterName { get; }
-
-        public string? FeatureName { get; }
 
         public string? ActorHostName { get; }
 

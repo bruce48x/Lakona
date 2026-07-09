@@ -6,7 +6,7 @@ namespace Lakona.Game.Server.Actors;
 /// Creates and destroys local actors while keeping the actor directory and local cache consistent.
 /// </summary>
 /// <remarks>
-/// Use this service from startup hooks, hotfix feature lifecycle hooks, or game
+/// Use this service from startup hooks, hotfix actor lifecycle hooks, or game
 /// services that explicitly own actor lifetime. Ordinary gameplay calls should
 /// normally use generated actor references instead of manually touching actor
 /// directory or cache services.

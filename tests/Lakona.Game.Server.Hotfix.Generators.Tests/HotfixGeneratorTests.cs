@@ -851,7 +851,7 @@ public sealed class HotfixGeneratorTests
 
             namespace Game.Hotfix.Users;
 
-            public partial class UserFeature
+            public partial class UserModule
             {
                 [HotfixBehaviorOf(typeof(UserActor))]
                 private static partial class UserBehavior

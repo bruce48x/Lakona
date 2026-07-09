@@ -87,7 +87,7 @@ internal static class TestHotfix
             typeof(UserActor).Assembly.GetName().Name!,
             typeof(Lakona.Game.Cluster.NodeId).Assembly.GetName().Name!,
             typeof(Lakona.Game.Server.ILakonaGameServer).Assembly.GetName().Name!,
-            typeof(Lakona.Game.Server.Hotfix.Abstractions.HotfixFeatureContext).Assembly.GetName().Name!
+            typeof(Lakona.Game.Server.Hotfix.Abstractions.HotfixSnapshot).Assembly.GetName().Name!
         ];
     }
 
@@ -168,7 +168,6 @@ internal static class AgarTestServiceCollectionExtensions
             Server.Hotfix.HotfixStartup.ConfigureActors(actors);
             Current = new HotfixRuntimeSnapshot(
                 new HotfixServiceInvoker(),
-                EmptyHotfixFeatureCommandInvoker.Instance,
                 services,
                 actors.Placements);
         }

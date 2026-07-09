@@ -210,7 +210,7 @@ Use `IGameSessionResumeService` when reconnects need token validation or an
 authoritative state check. Lakona does not define account models, room rules,
 matchmaking policy, persistence schema, or gameplay DTOs.
 
-## Optional Features
+## Optional Runtime Capabilities
 
 - Runtime validation: run generated projects with `--readiness-check`.
 - Message recording: configure the framework default recorder to store recent
@@ -218,12 +218,13 @@ matchmaking policy, persistence schema, or gameplay DTOs.
 - Cluster notifications: use `IClientNotifications` from business nodes; the
   framework sends serializable callback commands to the gateway that owns the
   session.
-- Feature startup: use `LakonaGameFeature` classes when a server is composed
-  from named startup units.
+- Actor startup: configure `Lakona:StartupActors` and register startup
+  declarations in `HotfixStartup.ConfigureActors`.
 - Hotfix timers: use `LakonaTimer.CreateOnceTimerAsync<TCallback, TArgs>` or
-  `LakonaTimer.CreatePeriodicTimerAsync<TCallback, TArgs>` from hotfix feature
-  `StartAsync`, store the returned `TimerId` in feature state, and call
-  `LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None)` from `StopAsync`.
+  `LakonaTimer.CreatePeriodicTimerAsync<TCallback, TArgs>` from `[ActorStart]`,
+  store the returned `TimerId` in stable actor state, and call
+  `LakonaTimer.DestroyTimerAsync(timerId, call.CleanupCancellationToken)` from
+  `[ActorStop]`.
 
 ## Actor Runtime Configuration
 

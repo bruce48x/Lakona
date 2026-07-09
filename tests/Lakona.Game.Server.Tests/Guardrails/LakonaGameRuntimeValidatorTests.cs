@@ -399,22 +399,6 @@ public sealed class LakonaGameRuntimeValidatorTests
     }
 
     [Fact]
-    public void RuntimeValidator_Fails_WhenLegacyFeatureConfigurationIsSet()
-    {
-        var runtime = TestRuntime() with
-        {
-            Feature = new LakonaGameResolvedFeature(
-                Configured: ["battle-runtime"],
-                Active: [],
-                StartupOrder: [])
-        };
-
-        var result = Validate(runtime);
-
-        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK100");
-    }
-
-    [Fact]
     public void RuntimeValidator_Fails_WhenActorHostsContainBlankOrDuplicateNames()
     {
         var runtime = TestRuntime() with
@@ -476,10 +460,6 @@ public sealed class LakonaGameRuntimeValidatorTests
             Cluster: new LakonaGameResolvedCluster(
                 AdvertisedEndpoints: new Dictionary<string, string> { ["client"] = "kcp://127.0.0.1:20000" }),
             ClusterEndpoint: null,
-            Feature: new LakonaGameResolvedFeature(
-                Configured: null,
-                Active: [],
-                StartupOrder: []),
             Hotfix: new LakonaGameResolvedHotfix(
                 AssemblyPath: new LakonaGameResolvedValue<string>("Server.Hotfix.dll", LakonaGameValueSource.GeneratedConvention),
                 AssemblyFileName: new LakonaGameResolvedValue<string>("Server.Hotfix.dll", LakonaGameValueSource.GeneratedConvention)),

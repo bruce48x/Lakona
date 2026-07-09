@@ -103,46 +103,6 @@ namespace Lakona.Game.Server.Hotfix.Generators
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
-        public static readonly DiagnosticDescriptor HotfixFeatureMustInheritHotfixGameFeature = new DiagnosticDescriptor(
-            "ULGHOTFIX022",
-            "Hotfix feature must inherit HotfixGameFeature",
-            "Hotfix feature '{0}' must inherit Lakona.Game.Server.Hotfix.Abstractions.HotfixGameFeature",
-            "Lakona.Game.Hotfix",
-            DiagnosticSeverity.Error,
-            isEnabledByDefault: true);
-
-        public static readonly DiagnosticDescriptor HotfixFeatureConfigureShape = new DiagnosticDescriptor(
-            "ULGHOTFIX023",
-            "Hotfix feature Configure must use the supported static shape",
-            "Hotfix feature '{0}' must declare exactly one public static void Configure(HotfixFeatureContext context) and no other public Configure overloads",
-            "Lakona.Game.Hotfix",
-            DiagnosticSeverity.Error,
-            isEnabledByDefault: true);
-
-        public static readonly DiagnosticDescriptor HotfixFeatureLifecycleHookShape = new DiagnosticDescriptor(
-            "ULGHOTFIX024",
-            "Hotfix feature lifecycle hook must use the supported static shape",
-            "Hotfix feature '{0}' lifecycle hook '{1}' must declare public static ValueTask {1}({2} call)",
-            "Lakona.Game.Hotfix",
-            DiagnosticSeverity.Error,
-            isEnabledByDefault: true);
-
-        public static readonly DiagnosticDescriptor HotfixFeatureOnReloadUnsupported = new DiagnosticDescriptor(
-            "ULGHOTFIX025",
-            "Hotfix feature OnReload is not supported",
-            "Hotfix feature '{0}' declares public OnReload, which is not supported",
-            "Lakona.Game.Hotfix",
-            DiagnosticSeverity.Error,
-            isEnabledByDefault: true);
-
-        public static readonly DiagnosticDescriptor HotfixFeatureMustBeConcrete = new DiagnosticDescriptor(
-            "ULGHOTFIX026",
-            "Hotfix feature must be concrete",
-            "Hotfix feature '{0}' must be a concrete class",
-            "Lakona.Game.Hotfix",
-            DiagnosticSeverity.Error,
-            isEnabledByDefault: true);
-
         public static readonly DiagnosticDescriptor HotfixBehaviorActorApiTypeBoundary = new DiagnosticDescriptor(
             "ULGHOTFIX027",
             "Hotfix behavior actor API DTO must be stable",

@@ -35,7 +35,6 @@ namespace Lakona.Game.Cluster
                     registration.NodeId,
                     epoch,
                     registration.Endpoints,
-                    registration.Features,
                     registration.ActorHosts,
                     registration.Labels,
                     registration.State,
@@ -217,11 +216,6 @@ namespace Lakona.Game.Cluster
                 return false;
             }
 
-            if (query.FeatureName is not null && !record.HasFeature(query.FeatureName))
-            {
-                return false;
-            }
-
             if (query.ActorHostName is not null
                 && !record.HasActorHost(query.ActorHostName, query.ActorHostPolicyHash))
             {
@@ -255,7 +249,6 @@ namespace Lakona.Game.Cluster
                 record.NodeId,
                 record.NodeEpoch,
                 record.Endpoints,
-                record.Features,
                 record.ActorHosts,
                 record.Labels,
                 record.State,
@@ -273,7 +266,6 @@ namespace Lakona.Game.Cluster
                 record.NodeId,
                 record.NodeEpoch,
                 record.Endpoints,
-                record.Features,
                 record.ActorHosts,
                 record.Labels,
                 state,

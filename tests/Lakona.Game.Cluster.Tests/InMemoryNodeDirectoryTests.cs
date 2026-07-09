@@ -66,7 +66,7 @@ public sealed class InMemoryNodeDirectoryTests
     }
 
     [Fact]
-    public async Task QueryFiltersByFeatureName()
+    public async Task QueryFiltersByLabels()
     {
         var directory = new InMemoryNodeDirectory();
         var now = DateTimeOffset.UtcNow;
@@ -80,7 +80,12 @@ public sealed class InMemoryNodeDirectoryTests
             TestContext.Current.CancellationToken);
 
         var records = await directory.QueryAsync(
-            new NodeDirectoryQuery("local", featureName: "room"),
+            new NodeDirectoryQuery(
+                "local",
+                labels: new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["role"] = "room"
+                }),
             now,
             TestContext.Current.CancellationToken);
 
@@ -302,7 +307,7 @@ public sealed class InMemoryNodeDirectoryTests
         string clusterName,
         string nodeId,
         DateTimeOffset now,
-        string featureName = "gateway",
+        string role = "gateway",
         IReadOnlyList<NodeActorHostDescriptor>? actorHosts = null)
     {
         return new NodeRegistration(
@@ -312,12 +317,12 @@ public sealed class InMemoryNodeDirectoryTests
             {
                 ["cluster"] = new NodeEndpoint($"tcp://127.0.0.1:{21000 + Math.Abs(nodeId.GetHashCode() % 1000)}")
             },
-            new[]
-            {
-                new NodeFeatureDescriptor(featureName)
-            },
             actorHosts ?? Array.Empty<NodeActorHostDescriptor>(),
             now.AddSeconds(30),
-            NodeState.Ready);
+            NodeState.Ready,
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["role"] = role
+            });
     }
 }

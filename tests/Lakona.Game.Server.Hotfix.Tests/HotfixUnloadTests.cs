@@ -176,7 +176,8 @@ public sealed class HotfixUnloadTests
                     provider,
                     provider.GetRequiredService<RemoteActorOptions>(),
                     provider.GetRequiredService<IActorDirectory>(),
-                    provider.GetRequiredService<IActorDirectoryCache>()
+                    provider.GetRequiredService<IActorDirectoryCache>(),
+                    ThrowingActorPlacementService.Instance
                 ])!;
 
         return new HotfixUnloadHarness(
@@ -291,9 +292,10 @@ public sealed class HotfixUnloadTests
                     IServiceProvider services,
                     RemoteActorOptions options,
                     IActorDirectory directory,
-                    IActorDirectoryCache directoryCache)
+                    IActorDirectoryCache directoryCache,
+                    IActorPlacementService placement)
                 {
-                    return new RoomActors(runtime, services, options, directory, directoryCache);
+                    return new RoomActors(runtime, services, options, directory, directoryCache, placement);
                 }
             }
             """;
@@ -423,6 +425,24 @@ public sealed class HotfixUnloadTests
     }
 
     private sealed record GeneratedHotfixAssemblies(byte[] AppBytes, byte[] HotfixBytes);
+
+    private sealed class ThrowingActorPlacementService : IActorPlacementService
+    {
+        public static readonly ThrowingActorPlacementService Instance = new();
+
+        private ThrowingActorPlacementService()
+        {
+        }
+
+        public ValueTask<ActorPlacementResult> PlaceAsync<TActor, TKey>(
+            TKey key,
+            ActorPlacementCreateMode createMode,
+            CancellationToken cancellationToken = default)
+            where TActor : class, IActor
+        {
+            throw new NotSupportedException("Placement is not part of this unload test.");
+        }
+    }
 
     private sealed class HotfixUnloadHarness(
         object rooms,

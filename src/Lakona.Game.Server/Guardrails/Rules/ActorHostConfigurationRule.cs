@@ -6,15 +6,6 @@ public sealed class ActorHostConfigurationRule : ILakonaGameValidationRule
     {
         ArgumentNullException.ThrowIfNull(runtime);
 
-        if (runtime.Feature.Configured is not null)
-        {
-            yield return new LakonaGameDiagnostic(
-                "ULINK100",
-                LakonaGameDiagnosticSeverity.Error,
-                "Lakona:Feature is no longer supported.",
-                "Use Lakona:ActorHosts and Lakona:StartupActors.");
-        }
-
         foreach (var diagnostic in ValidateNames(
             runtime.ActorHosts ?? [],
             blankCode: "ULINK101",

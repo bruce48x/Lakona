@@ -2,6 +2,7 @@ using System.Reflection;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -9,7 +10,7 @@ namespace Lakona.Game.Server.Actors;
 
 internal sealed class ActorStartupHostedService(
     ActorHosting actorHosting,
-    IHotfixRuntimeAccessor hotfixRuntime,
+    IServiceProvider services,
     LakonaGameRuntimeOptions runtimeOptions,
     ILogger<ActorStartupHostedService>? logger = null) : IHostedService
 {
@@ -27,6 +28,13 @@ internal sealed class ActorStartupHostedService(
         if (configured.Count == 0)
         {
             return;
+        }
+
+        var hotfixRuntime = services.GetService<IHotfixRuntimeAccessor>();
+        if (hotfixRuntime is null)
+        {
+            throw new InvalidOperationException(
+                "Lakona:StartupActors requires a hotfix runtime accessor.");
         }
 
         using var lease = hotfixRuntime.AcquireCurrent();

@@ -10,13 +10,6 @@ namespace Lakona.Game.Cluster.Rpc
         public Dictionary<string, string>? Metadata { get; set; }
     }
 
-    public sealed class NodeFeatureDto
-    {
-        public string Name { get; set; } = string.Empty;
-
-        public Dictionary<string, string>? Metadata { get; set; }
-    }
-
     public sealed class NodeActorHostDto
     {
         public string Actor { get; set; } = string.Empty;
@@ -35,8 +28,6 @@ namespace Lakona.Game.Cluster.Rpc
         public string Node { get; set; } = string.Empty;
 
         public Dictionary<string, NodeEndpointDto>? Endpoints { get; set; }
-
-        public List<NodeFeatureDto>? Features { get; set; }
 
         public List<NodeActorHostDto>? ActorHosts { get; set; }
 
@@ -57,8 +48,6 @@ namespace Lakona.Game.Cluster.Rpc
 
         public Dictionary<string, NodeEndpointDto>? Endpoints { get; set; }
 
-        public List<NodeFeatureDto>? Features { get; set; }
-
         public List<NodeActorHostDto>? ActorHosts { get; set; }
 
         public Dictionary<string, string>? Labels { get; set; }
@@ -73,8 +62,6 @@ namespace Lakona.Game.Cluster.Rpc
     public sealed class NodeDirectoryClientQueryDto
     {
         public string ClusterName { get; set; } = string.Empty;
-
-        public string? FeatureName { get; set; }
 
         public string? ActorHostName { get; set; }
 

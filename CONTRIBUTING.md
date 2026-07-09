@@ -24,8 +24,8 @@ contracts:
 | [docs/design-philosophy.md](./docs/design-philosophy.md) | Product principles, runtime design principles, and framework scope boundaries |
 | [docs/actor.md](./docs/actor.md) | Actor model, actor kernel boundary, generated selectors, and distributed actor calls |
 | [docs/session.md](./docs/session.md) | Session identity, callback binding, disconnect, resume, termination, and Gate / Watchdog / Agent composition |
-| [docs/cluster.md](./docs/cluster.md) | Feature, endpoint, RPC service, cluster discovery, routing, and Agar acceptance model |
-| [docs/configuration.md](./docs/configuration.md) | Configuration schema, provider precedence, package and environment-variable configuration, Docker Compose shape, feature startup, endpoint rules, JSON array binding, and validation boundary |
+| [docs/cluster.md](./docs/cluster.md) | Actor host, endpoint, RPC service, cluster discovery, routing, and Agar acceptance model |
+| [docs/configuration.md](./docs/configuration.md) | Configuration schema, provider precedence, package and environment-variable configuration, Docker Compose shape, startup actors, endpoint rules, JSON array binding, and validation boundary |
 | [docs/guardrails.md](./docs/guardrails.md) | Runtime validation model for cluster, hotfix, endpoints, and production profiles |
 | [docs/recording.md](./docs/recording.md) | Actor message recording and replay diagnostics model |
 | [docs/rpc.md](./docs/rpc.md) | RPC design principles and maintainer reference index |

@@ -21,6 +21,6 @@ internal sealed class LakonaProjectSpecFactory
             options.Persistence,
             nuGetForUnitySource,
             options.DeploymentProfile,
-            ProjectFeatureCatalog.DefaultFeatures);
+            ProjectCapabilityCatalog.DefaultCapabilities);
     }
 }

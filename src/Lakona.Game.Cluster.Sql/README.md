@@ -50,6 +50,6 @@ search path when the physical database schema must differ.
 ## Ownership Boundary
 
 This table stores live cluster membership metadata: node id, epoch, state,
-endpoints, features, labels, lease expiration, and update time. It is not a
+endpoints, actor hosts, labels, lease expiration, and update time. It is not a
 business event log, route directory, gameplay state store, account database, or
 leaderboard store.

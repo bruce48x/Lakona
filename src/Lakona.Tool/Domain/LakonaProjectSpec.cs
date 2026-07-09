@@ -9,4 +9,4 @@ internal sealed record LakonaProjectSpec(
     PersistenceKind Persistence,
     NuGetForUnitySource NuGetForUnitySource,
     DeploymentProfile DeploymentProfile,
-    IReadOnlyList<ProjectFeature> Features);
+    IReadOnlyList<ProjectCapability> Capabilities);

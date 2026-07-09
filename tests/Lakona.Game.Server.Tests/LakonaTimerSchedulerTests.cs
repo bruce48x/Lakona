@@ -594,7 +594,6 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
             var table = new HotfixDispatchTable(1, Array.Empty<HotfixMethodBinding>());
             var snapshot = new HotfixRuntimeSnapshot(
                 new HotfixServiceInvoker(table),
-                EmptyHotfixFeatureCommandInvoker.Instance,
                 services,
                 table,
                 services,

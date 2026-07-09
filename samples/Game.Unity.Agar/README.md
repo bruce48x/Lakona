@@ -6,10 +6,10 @@
 
 ## 文档入口
 
-- [玩法与架构设计](docs/GAMEPLAY_DESIGN.md)（总索引，各功能子文档在 `docs/features/` 下）
+- [玩法与架构设计](docs/GAMEPLAY_DESIGN.md)（总索引，各主题子文档在 `docs/topics/` 下）
 - [生产上线规划](docs/PRODUCTION_LAUNCH_PLAN.md)
 
-`README.md` 只保留项目入口、运行方式和代码索引；玩法规则、胜利积分系统、客户端服务端边界、联机流程和分布式架构判断都放在 `docs/features/` 下的功能子文档里，避免重复维护。
+`README.md` 只保留项目入口、运行方式和代码索引；玩法规则、胜利积分系统、客户端服务端边界、联机流程和分布式架构判断都放在 `docs/topics/` 下的主题子文档里，避免重复维护。
 
 ## 样例内容
 
@@ -48,7 +48,7 @@ samples/Game.Unity.Agar
  │  │     ├─ Rooms
  │  │     └─ Users
  │  └─ Hotfix
- │     ├─ Features
+ │     ├─ Timers
  │     ├─ Gameplay
  │     └─ Services
  │        └─ PlayerService.cs
@@ -66,7 +66,7 @@ samples/Game.Unity.Agar
 目录职责：
 
 - `Server/App`：strict host shell、generated binding、actor state shells。
-- `Server/Hotfix`：RPC services、lifecycle handlers、actor behaviors、hotfix feature descriptors、matchmaking ticks、room ticks、settlement。
+- `Server/Hotfix`：RPC services、lifecycle handlers、actor behaviors、timer callbacks、matchmaking ticks、room ticks、settlement。
 - `Shared`：client and server 共用的 DTOs，以及 reload-safe simulation state。
 
 关键职责：
@@ -75,8 +75,8 @@ samples/Game.Unity.Agar
 - `Shared/Gameplay/ArenaSimulationState.cs`：服务端房间 tick 可跨 hotfix reload 保留的模拟状态。
 - `Shared/Interfaces/IPlayerService.cs`：客户端和服务端共用的 RPC 协议。
 - `Server/Hotfix/Services/PlayerService.cs`：可热更的控制面 RPC 业务服务，直接编排 actor 行为。
-- `Server/Hotfix/Features/MatchmakingFeature.cs`：声明 `matchmaking` 业务 feature，并通过 LakonaTimer 驱动默认匹配队列的 periodic runtime loop。
-- `Server/Hotfix/Features/BattleRuntimeFeature.cs`：声明 battle runtime feature，并通过 LakonaTimer 扫描活跃房间、向 room actor mailbox 投递 tick request。
+- `Server/Hotfix/Timers/MatchmakingTimerCallbacks.cs`：通过 LakonaTimer 驱动默认匹配队列的 periodic runtime loop。
+- `Server/Hotfix/Timers/BattleRuntimeTimerCallbacks.cs`：通过 LakonaTimer 扫描活跃房间、向 room actor mailbox 投递 tick request。
 - `Server/App/State/Users/UserActor.cs`：用户资料和胜利积分的稳定状态 shell。
 - `Server/App/State/Leaderboard/LeaderboardActor.cs`：胜利积分排行榜的稳定状态 shell。
 - `Client/Assets/Scripts/Gameplay/DotArenaGame.cs`：客户端主流程、输入、渲染、模式切换和网络会话编排。
@@ -147,12 +147,11 @@ await rooms.Route(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct);    // 
 await rooms.Local(roomId).PostAsync(RoomBehavior.RunTickAsync, request, ct); // 已确认本地归属后，只投递当前节点
 ```
 
-Matchmaking 是 remote-capable actor 的示例。单进程默认配置启用
-`matchmaking` feature，`Server.Hotfix` 中的 `MatchmakingFeature` 声明
-`MatchmakingActor("default")` 的本地 actor 创建，并从 feature lifecycle 创建
-LakonaTimer periodic timer 驱动默认匹配队列。三节点拓扑中 `data-1` 启用 `matchmaking`
-feature，因此默认匹配队列属于 data 节点。RPC service 不应在每次 enqueue/cancel
-前调用 `EnsureCreatedAsync`；创建、放置和迁移是 feature/业务 lifecycle 的职责，
+Matchmaking 是 remote-capable actor 的示例。单进程默认配置通过
+`Lakona:StartupActors` 创建 `MatchmakingActor("default")`，并从 `[ActorStart]`
+创建 LakonaTimer periodic timer 驱动默认匹配队列。三节点拓扑中 `data-1`
+启用 `matchmaking` startup actor，因此默认匹配队列属于 data 节点。RPC service 不应在每次 enqueue/cancel
+前调用 `EnsureCreatedAsync`；创建、放置和迁移是 actor startup/业务 lifecycle 的职责，
 普通调用只应该路由到已经存在的 actor。
 
 本地 `docker-compose.yml` 会把 `infra/postgres/init` 挂载到 Postgres

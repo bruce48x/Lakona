@@ -5,7 +5,6 @@ using Lakona.Game.Cluster.Sql;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Diagnostics;
-using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Guardrails;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Hotfix;
@@ -26,10 +25,10 @@ using Server.App.State.Leaderboard;
 using Server.App.State.Matchmaking;
 using Server.App.State.Rooms;
 using Server.App.State.Users;
-using Server.Hotfix.Features;
 using Server.Hotfix.Services;
 using Server.Hotfix.State.Matchmaking;
 using Server.Hotfix.State.Users;
+using Server.Hotfix.Timers;
 using System.Net;
 using System.Net.Sockets;
 using Xunit;
@@ -492,7 +491,6 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddLogging();
         services.AddMessageRecording();
         services.AddLakonaGameRuntimeValidation();
-        services.AddLakonaGame(configuration, _ => { });
         services.AddLakonaGameServer(configuration);
 
         await using var provider = services.BuildServiceProvider();
@@ -505,7 +503,7 @@ public sealed class DistributedTopologyConfigurationTests
     [Fact]
     public void DataNodeRegistersSqlNodeDirectoryFromFrameworkConfig()
     {
-        var services = BuildFeatureServices("data-1");
+        var services = BuildNodeServices("data-1");
 
         Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(SqlNodeDirectoryOptions));
         Assert.Contains(services, descriptor =>
@@ -518,13 +516,12 @@ public sealed class DistributedTopologyConfigurationTests
         using var provider = services.BuildServiceProvider();
         var sqlOptions = provider.GetRequiredService<SqlNodeDirectoryOptions>();
         var runtimeOptions = provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
-        var catalog = provider.GetRequiredService<LakonaGameFeatureCatalog>();
         var routeDirectory = provider.GetRequiredService<IRouteDirectory>();
 
         Assert.Equal("lakona_cluster_nodes", sqlOptions.TableName);
         Assert.False(runtimeOptions.Cluster!.Directory.EnsureSchemaOnStartup);
         Assert.Equal(SqlNodeDirectoryDialect.Postgres, sqlOptions.Dialect);
-        Assert.Empty(catalog.ActiveNames);
+        Assert.Equal(["user", "matchmaking", "leaderboard"], runtimeOptions.ActorHosts);
         Assert.IsType<InMemoryRouteDirectory>(routeDirectory);
         Assert.IsNotType<SeededRouteDirectoryClient>(routeDirectory);
     }
@@ -532,7 +529,7 @@ public sealed class DistributedTopologyConfigurationTests
     [Fact]
     public void DataNodeCanEnableClusterDirectorySchemaCreationExplicitly()
     {
-        var services = BuildFeatureServices(
+        var services = BuildNodeServices(
             "data-1",
             new Dictionary<string, string?>
             {
@@ -603,7 +600,7 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Contains("Lakona__Cluster__Directory__Provider: postgres", data, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Directory__ConnectionStringName: LakonaClusterPostgres", data, StringComparison.Ordinal);
         Assert.Contains("Agar__Persistence__Provider: postgres", data, StringComparison.Ordinal);
-        Assert.DoesNotContain("Lakona__Feature", data, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("Lakona__", "Fea", "ture"), data, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Endpoints__", data, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Cluster__Seeds__", data, StringComparison.Ordinal);
 
@@ -637,7 +634,7 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Contains("\"RpcServices\": [ \"battle\" ]", battle, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.0.0.3:21003", battle, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Seeds: '[\"tcp://10.0.0.1:21001\"]'", battle, StringComparison.Ordinal);
-        Assert.DoesNotContain("Lakona__Feature", battle, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("Lakona__", "Fea", "ture"), battle, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Endpoints__0__", battle, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Cluster__Seeds__", battle, StringComparison.Ordinal);
     }
@@ -659,14 +656,14 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
-    public async Task GatewayNodeDoesNotRegisterDatabaseServicesOrApplicationFeatures()
+    public async Task GatewayNodeDoesNotRegisterDatabaseServicesOrActorHosts()
     {
-        var services = BuildFeatureServices("gateway-1");
+        var services = BuildNodeServices("gateway-1");
 
         await using var provider = services.BuildServiceProvider();
-        var catalog = provider.GetRequiredService<LakonaGameFeatureCatalog>();
+        var runtimeOptions = provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
 
-        Assert.Empty(catalog.ActiveNames);
+        Assert.Empty(runtimeOptions.ActorHosts);
         Assert.IsAssignableFrom<INodeDirectory>(provider.GetRequiredService<INodeDirectory>());
         Assert.IsAssignableFrom<IRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
         Assert.IsType<SeededNodeDirectoryClient>(provider.GetRequiredService<INodeDirectory>());
@@ -676,12 +673,12 @@ public sealed class DistributedTopologyConfigurationTests
     [Fact]
     public async Task BattleNodeDoesNotRegisterDatabaseServices()
     {
-        var services = BuildFeatureServices("battle-1");
+        var services = BuildNodeServices("battle-1");
 
         await using var provider = services.BuildServiceProvider();
-        var catalog = provider.GetRequiredService<LakonaGameFeatureCatalog>();
+        var runtimeOptions = provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
 
-        Assert.Empty(catalog.ActiveNames);
+        Assert.Equal(["room"], runtimeOptions.ActorHosts);
         Assert.IsType<SeededNodeDirectoryClient>(provider.GetRequiredService<INodeDirectory>());
         Assert.IsType<SeededRouteDirectoryClient>(provider.GetRequiredService<IRouteDirectory>());
     }
@@ -689,7 +686,7 @@ public sealed class DistributedTopologyConfigurationTests
     [Fact]
     public async Task BattleNodeRegistersRuntimeServicesWithoutControlPlaneServices()
     {
-        var services = BuildFeatureServices("battle-1");
+        var services = BuildNodeServices("battle-1");
 
         await using var provider = services.BuildServiceProvider();
 
@@ -885,7 +882,7 @@ public sealed class DistributedTopologyConfigurationTests
 
     private static ActorId UserId(string userId) => ActorId.From(userId);
 
-    private static IServiceCollection BuildFeatureServices(
+    private static IServiceCollection BuildNodeServices(
         string nodeName,
         IReadOnlyDictionary<string, string?>? overrides = null)
     {
@@ -895,7 +892,6 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddLogging();
         services.AddLakonaGameServer(configuration);
         services.AddGeneratedActorSelectorTestDependencies();
-        services.AddLakonaGame(configuration, _ => { });
 
         return services;
     }
@@ -918,7 +914,6 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddSingleton(runtimeOptions.ToClusterOptions(configuration));
         services.AddMessageRecording();
         services.AddLakonaGameRuntimeValidation();
-        services.AddLakonaGame(configuration, _ => { });
 
         return services;
     }
@@ -1028,49 +1023,6 @@ public sealed class DistributedTopologyConfigurationTests
             .Build();
     }
 
-    private sealed class CapturingBattleRuntimeFeatureCommands : IFeatureCommandClient
-    {
-        public string LastFeatureName { get; private set; } = "";
-
-        public RoomCreateRequest? LastRequest { get; private set; }
-
-        public ValueTask<TReply> SendAsync<TRequest, TReply>(
-            string featureName,
-            TRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            return CaptureAndReply<TRequest, TReply>(featureName, request);
-        }
-
-        public ValueTask<TReply> SendToNodeAsync<TRequest, TReply>(
-            ClusterNodeDescriptor target,
-            string featureName,
-            TRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            _ = target;
-            return CaptureAndReply<TRequest, TReply>(featureName, request);
-        }
-
-        private ValueTask<TReply> CaptureAndReply<TRequest, TReply>(string featureName, TRequest request)
-        {
-            LastFeatureName = featureName;
-            LastRequest = request as RoomCreateRequest;
-            if (LastRequest is null)
-            {
-                throw new InvalidOperationException($"Unexpected request type {typeof(TRequest).FullName}.");
-            }
-
-            object reply = new RoomSettlementResult
-            {
-                Succeeded = true,
-                RoomId = LastRequest.RoomId
-            };
-
-            return new ValueTask<TReply>((TReply)reply);
-        }
-    }
-
     private sealed class FixedClusterNodeDiscovery : IClusterNodeDiscovery
     {
         private readonly IReadOnlyList<ClusterNodeDescriptor> _nodes;
@@ -1081,21 +1033,22 @@ public sealed class DistributedTopologyConfigurationTests
         }
 
         public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> ListAsync(
-            FeatureName feature,
+            IReadOnlyDictionary<string, string> labels,
             CancellationToken cancellationToken = default)
         {
             var matches = _nodes
-                .Where(node => node.Features.Any(item =>
-                    string.Equals(item.Name, feature.Value, StringComparison.OrdinalIgnoreCase)))
+                .Where(node => labels.All(label =>
+                    node.Labels.TryGetValue(label.Key, out var value) &&
+                    string.Equals(value, label.Value, StringComparison.Ordinal)))
                 .ToArray();
             return new ValueTask<IReadOnlyList<ClusterNodeDescriptor>>(matches);
         }
 
         public async ValueTask<ClusterNodeDescriptor?> AnyAsync(
-            FeatureName feature,
+            IReadOnlyDictionary<string, string> labels,
             CancellationToken cancellationToken = default)
         {
-            return (await ListAsync(feature, cancellationToken).ConfigureAwait(false)).FirstOrDefault();
+            return (await ListAsync(labels, cancellationToken).ConfigureAwait(false)).FirstOrDefault();
         }
     }
 

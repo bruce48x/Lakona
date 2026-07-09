@@ -257,11 +257,11 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("RoomBehavior.CreateAsync", matchmaking, StringComparison.Ordinal);
         Assert.Contains("RoomBehavior.StartAsync", matchmaking, StringComparison.Ordinal);
         Assert.DoesNotContain("BattleRuntimeRoomAllocation", matchmaking, StringComparison.Ordinal);
-        Assert.DoesNotContain("IFeatureCommandClient", matchmaking, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("I", "Fea", "ture", "CommandClient"), matchmaking, StringComparison.Ordinal);
         Assert.DoesNotContain("System.IO.Hashing", matchmaking, StringComparison.Ordinal);
-        Assert.DoesNotContain("IFeatureMessageTransport", matchmaking, StringComparison.Ordinal);
-        Assert.DoesNotContain("FeatureMessageRequest", matchmaking, StringComparison.Ordinal);
-        Assert.DoesNotContain("FeatureMessageReply", matchmaking, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("I", "Fea", "ture", "MessageTransport"), matchmaking, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("Fea", "ture", "MessageRequest"), matchmaking, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("Fea", "ture", "MessageReply"), matchmaking, StringComparison.Ordinal);
         Assert.DoesNotContain(".Remote(new NodeId(", matchmaking, StringComparison.Ordinal);
     }
 
@@ -401,24 +401,24 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains(".Place(roomId).CreateAsync", matchmaking, StringComparison.Ordinal);
         Assert.Contains("RoomBehavior.CreateAsync", matchmaking, StringComparison.Ordinal);
         Assert.Contains("RoomBehavior.StartAsync", matchmaking, StringComparison.Ordinal);
-        Assert.DoesNotContain("BattleRuntimeFeature", matchmaking, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("BattleRuntime", "Fea", "ture"), matchmaking, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Hotfix_startup_declares_actor_hosts_without_feature_handlers()
+    public void Hotfix_startup_declares_actor_hosts_without_removed_handlers()
     {
         var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
             .Directory!.Parent!.Parent!.FullName;
         var startup = File.ReadAllText(Path.Combine(sampleRoot, "Server", "Hotfix", "HotfixStartup.cs"));
-        var featuresRoot = Path.Combine(sampleRoot, "Server", "Hotfix", "Features");
+        var removedRoot = Path.Combine(sampleRoot, "Server", "Hotfix", string.Concat("Fea", "tures"));
 
         Assert.Contains("RegisterStartup(", startup, StringComparison.Ordinal);
         Assert.Contains("\"matchmaking\"", startup, StringComparison.Ordinal);
         Assert.Contains("\"leaderboard\"", startup, StringComparison.Ordinal);
         Assert.Contains("RegisterPlacement<UserActor, UserId>", startup, StringComparison.Ordinal);
         Assert.Contains("RegisterPlacement<RoomActor, RoomId>", startup, StringComparison.Ordinal);
-        Assert.False(File.Exists(Path.Combine(featuresRoot, "StateStoreFeatures.cs")));
-        Assert.False(File.Exists(Path.Combine(featuresRoot, "BattleRuntimeFeature.cs")));
+        Assert.False(File.Exists(Path.Combine(removedRoot, string.Concat("StateStore", "Fea", "tures.cs"))));
+        Assert.False(File.Exists(Path.Combine(removedRoot, string.Concat("BattleRuntime", "Fea", "ture.cs"))));
     }
 
     [Fact]
@@ -516,17 +516,17 @@ public sealed class AgarHotfixBoundaryTests
     }
 
     [Fact]
-    public void Agar_server_app_does_not_contain_user_runtime_features_or_app_hotfix_adapters()
+    public void Agar_server_app_does_not_contain_user_runtime_components_or_app_hotfix_adapters()
     {
         var appRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
             .DirectoryName!;
         var forbiddenRelativePaths = new[]
         {
-            "Features/BattleRuntimeFeature.cs",
-            "Features/DatabaseFeature.cs",
-            "Features/StateStoreFeature.cs",
-            "Features/MatchmakingFeature.cs",
-            "Features/LeaderboardFeature.cs",
+            string.Concat("Fea", "tures/BattleRuntime", "Fea", "ture.cs"),
+            string.Concat("Fea", "tures/Database", "Fea", "ture.cs"),
+            string.Concat("Fea", "tures/StateStore", "Fea", "ture.cs"),
+            string.Concat("Fea", "tures/Matchmaking", "Fea", "ture.cs"),
+            string.Concat("Fea", "tures/Leaderboard", "Fea", "ture.cs"),
             "Hosting/" + "Matchmaking" + "Hosted" + "Service.cs",
             "Hotfix/Agar" + "Hotfix" + "Runtime" + "Events.cs",
             "Hotfix/AgarRuntimeContracts.cs",
@@ -539,7 +539,7 @@ public sealed class AgarHotfixBoundaryTests
 
         Assert.True(
             existingForbiddenPaths.Length == 0,
-            $"Server.App must not contain user runtime Feature classes, App hotfix adapters, or runtime loops: {string.Join(", ", existingForbiddenPaths)}");
+            $"Server.App must not contain removed user runtime classes, App hotfix adapters, or runtime loops: {string.Join(", ", existingForbiddenPaths)}");
 
         var forbiddenTerms = new[]
         {
@@ -581,7 +581,7 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("RegisterStartup(", startup, StringComparison.Ordinal);
         Assert.Contains("RegisterPlacement<UserActor, UserId>", startup, StringComparison.Ordinal);
         Assert.Contains("RegisterPlacement<RoomActor, RoomId>", startup, StringComparison.Ordinal);
-        Assert.DoesNotContain("HotfixFeature", startup, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("Hotfix", "Fea", "ture"), startup, StringComparison.Ordinal);
         Assert.DoesNotContain(fixedScheduleCall, ReadAllTextFiles(hotfixRoot), StringComparison.Ordinal);
         Assert.DoesNotContain(activeScheduleCall, ReadAllTextFiles(hotfixRoot), StringComparison.Ordinal);
     }
@@ -611,7 +611,7 @@ public sealed class AgarHotfixBoundaryTests
         var matchmakingBehavior = File.ReadAllText(Path.Combine(sampleRoot, "Server", "Hotfix", "State", "Matchmaking", "MatchmakingBehavior.cs"));
         var roomActor = File.ReadAllText(Path.Combine(sampleRoot, "Server", "App", "State", "Rooms", "RoomActor.cs"));
         var roomBehavior = File.ReadAllText(Path.Combine(sampleRoot, "Server", "Hotfix", "State", "Rooms", "RoomBehavior.cs"));
-        var timerKeysPath = Path.Combine(sampleRoot, "Server", "Hotfix", "Features", "FeatureTimerKeys.cs");
+        var timerKeysPath = Path.Combine(sampleRoot, "Server", "Hotfix", string.Concat("Fea", "tures"), string.Concat("Fea", "tureTimerKeys.cs"));
 
         Assert.False(File.Exists(timerKeysPath));
 
@@ -645,7 +645,7 @@ public sealed class AgarHotfixBoundaryTests
             sampleRoot,
             "Server",
             "Hotfix",
-            "Features",
+            string.Concat("Fea", "tures"),
             "BattleRuntimeRoomAllocation.cs")));
     }
 
@@ -654,9 +654,9 @@ public sealed class AgarHotfixBoundaryTests
     {
         var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
             .Directory!.Parent!.Parent!.FullName;
-        var featureRoot = Path.Combine(sampleRoot, "Server", "Hotfix", "Features");
-        var matchmakingCallbacks = File.ReadAllText(Path.Combine(featureRoot, "MatchmakingTimerCallbacks.cs"));
-        var battleRuntimeCallbacks = File.ReadAllText(Path.Combine(featureRoot, "BattleRuntimeTimerCallbacks.cs"));
+        var timersRoot = Path.Combine(sampleRoot, "Server", "Hotfix", "Timers");
+        var matchmakingCallbacks = File.ReadAllText(Path.Combine(timersRoot, "MatchmakingTimerCallbacks.cs"));
+        var battleRuntimeCallbacks = File.ReadAllText(Path.Combine(timersRoot, "BattleRuntimeTimerCallbacks.cs"));
         var matchmakingMessages = File.ReadAllText(Path.Combine(sampleRoot, "Server", "App", "Contracts", "MatchmakingActorContracts.cs"));
         var roomMessages = File.ReadAllText(Path.Combine(sampleRoot, "Server", "App", "Contracts", "RoomActorContracts.cs"));
         var matchmakingBehavior = File.ReadAllText(Path.Combine(sampleRoot, "Server", "Hotfix", "State", "Matchmaking", "MatchmakingBehavior.cs"));

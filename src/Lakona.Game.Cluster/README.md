@@ -3,9 +3,9 @@
 `Lakona.Game.Cluster` contains optional explicit cluster routing contracts for
 Lakona.Game.
 
-This package is intentionally small. It defines node identity, feature
-descriptors, node-directory abstractions, route identity, generation-aware route
-locations, message envelopes, route directory abstractions, router
+This package is intentionally small. It defines node identity, node-directory
+abstractions, route identity, generation-aware route locations, message
+envelopes, route directory abstractions, router
 abstractions, a loopback messenger, and in-memory implementations for tests or
 local single-process validation.
 
@@ -31,16 +31,17 @@ accidentally reviving old ownership.
 ## Cluster Configuration
 
 Runtime configuration uses the application `Lakona` root. Static settings tell a
-node its own identity, which application features to start, which client
+node its own identity, which actor kinds it may host, which startup actors to
+create, which client
 endpoints to expose, which cluster endpoint to advertise, and which seed
 endpoints can reach the cluster directory. The live cluster view comes from the
 node directory.
 
 In Lakona.Game cluster terminology, a node is one .NET server process. Machine,
-process, and node are treated as the same deployment unit. Features are
-configured inside a node. A development node can host every feature in one
-process, while production can split the same features across several nodes
-without changing route or messaging code.
+process, and node are treated as the same deployment unit. Actor hosting
+capability is configured inside a node. A development node can host all actor
+kinds in one process, while production can split actor kinds across several
+nodes without changing route or messaging code.
 
 ### All-In-One Development Node
 
@@ -50,12 +51,8 @@ without changing route or messaging code.
     "Node": {
       "Id": "dev-1"
     },
-    "Feature": [
-      "state-store",
-      "matchmaking",
-      "leaderboard",
-      "battle-runtime"
-    ],
+    "ActorHosts": [ "room", "matchmaking", "leaderboard" ],
+    "StartupActors": [ "matchmaking" ],
     "Endpoints": [
       {
         "Transport": "websocket",
@@ -96,11 +93,8 @@ local validation.
     "Node": {
       "Id": "data-1"
     },
-    "Feature": [
-      "state-store",
-      "matchmaking",
-      "leaderboard"
-    ],
+    "ActorHosts": [ "matchmaking", "leaderboard" ],
+    "StartupActors": [ "matchmaking" ],
     "Cluster": {
       "Endpoint": "tcp://10.0.0.1:21001",
       "Serializer": "memorypack",
@@ -123,7 +117,8 @@ local validation.
     "Node": {
       "Id": "gateway-1"
     },
-    "Feature": [],
+    "ActorHosts": [],
+    "StartupActors": [],
     "Endpoints": [
       {
         "Transport": "websocket",
@@ -146,13 +141,13 @@ local validation.
 
 The data node above can provide persistent framework cluster membership through
 `Lakona:Cluster:Directory` and `Lakona.Game.Cluster.Sql`. The gateway node
-starts no application features because `Feature` is an empty array, but it
-still exposes client RPC services and a node-to-node cluster endpoint.
+hosts no application actors because `ActorHosts` is empty, but it still exposes
+client RPC services and a node-to-node cluster endpoint.
 
 Every node that configures `Lakona:Cluster:Endpoint` must listen on that
 endpoint. Framework-owned cluster endpoint hosting binds node-directory RPC,
-route-directory RPC, and feature-message RPC when the corresponding local
-services are registered in DI.
+route-directory RPC, notification relay, and remote actor dispatch when the
+corresponding local services are registered in DI.
 
 Every configured cluster must also set `Lakona:Cluster:Serializer`. Supported
 values are `json` and `memorypack`; all communicating cluster nodes must use

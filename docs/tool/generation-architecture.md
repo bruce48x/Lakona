@@ -98,7 +98,7 @@ Domain/
   PersistenceKind.cs
   DeploymentProfile.cs
   NuGetForUnitySource.cs
-  ProjectFeature.cs
+  ProjectCapability.cs
   LakonaProjectSpec.cs
   LakonaProjectSpecFactory.cs
   ProjectLayout.cs
@@ -285,13 +285,13 @@ internal sealed record LakonaProjectSpec(
     PersistenceKind Persistence,
     NuGetForUnitySource NuGetForUnitySource,
     DeploymentProfile DeploymentProfile,
-    IReadOnlyList<ProjectFeature> Features);
+    IReadOnlyList<ProjectCapability> Capabilities);
 ```
 
-`LakonaProjectSpecFactory` owns defaulting, naming, layout, and default feature
+`LakonaProjectSpecFactory` owns defaulting, naming, layout, and default capability
 selection. Keep name sanitation here rather than spreading it across renderers.
 
-Default generation-time features include:
+Default generation-time capabilities include:
 
 - `ClusterLocal`
 - `Hotfix`
@@ -631,7 +631,7 @@ three edit zones:
   configuration, actor state shells, `BuildTag`, and local admin endpoint
   metadata.
 - `Server/Hotfix/` for Services, Actor Behaviors, lifecycle reactions, and
-  feature declarations.
+  actor startup and timer callbacks.
 
 ## Configuration Contract
 
@@ -662,12 +662,12 @@ Generated `Server/App/appsettings.json` contains only compact source values:
 ```
 
 For WebSocket transport, include only `"Path": "/ws"` in the endpoint entry.
-Feature activation is convention-based by default: generated `Program.cs` is
+Actor startup is explicit by default: generated `Program.cs` is
 only the zero-template `LakonaGameServer.RunAsync(args)` host and does not emit
-a service-registration callback or fluent feature catalog. Single-node starter
-projects do not generate `Lakona:Feature`. If a generated project later splits
-into multiple processes, use `Lakona:Feature` to select discovered
-`LakonaGameFeature` types by their conventional names.
+a service-registration callback. Single-node starter
+projects do not generate component selection. If a generated project later
+splits into multiple processes, use `Lakona:ActorHosts` and
+`Lakona:StartupActors` to select actor host capabilities and startup actors.
 
 RPC service exposure is endpoint-local. Put generated service names in the
 endpoint's `RpcServices` array and generated serializer names in endpoint
@@ -682,8 +682,8 @@ payloads and remote actor payloads. It does not
 change the `LakonaInternalCodec` used for framework handshake, heartbeat,
 reliable push ack, and session termination notice payloads.
 
-Generated hotfix features own fixed local actor creation through lifecycle
-methods. The Chat feature starts its room actor with:
+Generated hotfix startup hooks own fixed local actor creation through lifecycle
+methods. The Chat startup hook starts its room actor with:
 
 ```csharp
     await call.Services
@@ -694,8 +694,8 @@ methods. The Chat feature starts its room actor with:
 Generated actor collections are selector surfaces only. They must expose
 behavior-first `Get`, `Local`, and `Remote` accessors where applicable, and must
 not generate actor lifecycle methods such as `SpawnAsync` or `DestroyAsync`.
-Generated projects must not emit `HotfixFeatureContext.EnsureLocalActor` or
-other parallel actor creation paths.
+Generated projects must not emit parallel actor creation paths outside
+`HotfixStartup.ConfigureActors` and generated actor placement APIs.
 
 Single-node local generation emits `Lakona:Hotfix:DebugWatcher=On` so rebuilds
 of `Server/Hotfix` use the current output directory and trigger reload through

@@ -73,7 +73,7 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         ```txt
         Shared/        Contracts, DTOs, RPC service interfaces, callback contracts
         Server/App/    Stable server host, actor state shells, configuration
-        Server/Hotfix/ Reloadable services, actor behaviors, lifecycle reactions, feature declarations
+        Server/Hotfix/ Reloadable services, actor behaviors, actor startup, timer callbacks
         Client/        Generated client for the selected engine
         {{(spec.DeploymentProfile == DeploymentProfile.Compose ? "ops/           Deployment support files for the compose profile" : "")}}
         ```
@@ -85,7 +85,7 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         - Edit `Server/App/` for stable actor state shells, host metadata, and local
           configuration.
         - Edit `Server/Hotfix/` for replaceable services, actor behaviors, lifecycle
-          reactions, and feature declarations.
+          reactions, actor startup, and timer callbacks.
         - Edit `Client/` for the selected client UI and client-side session flow.
 
         ## Runtime Model
@@ -102,7 +102,7 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
           -> reliable callback or notification
         ```
 
-        The Hotfix feature declaration ensures the fixed local ChatRoomActor exists
+        The hotfix actor startup path ensures the fixed local ChatRoomActor exists
         before business RPC asks it for work.
 
         Cluster, hotfix, and reliable push are part of the generated default model.

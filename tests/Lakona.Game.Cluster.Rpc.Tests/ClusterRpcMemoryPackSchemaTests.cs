@@ -17,7 +17,7 @@ public sealed class ClusterRpcMemoryPackSchemaTests
     private static readonly string[] ExpectedTypeNames =
     [
         "NodeEndpointDto",
-        "NodeFeatureDto",
+        "NodeActorHostDto",
         "NodeRegistrationDto",
         "NodeRecordDto",
         "NodeDirectoryClientQueryDto",
@@ -49,8 +49,6 @@ public sealed class ClusterRpcMemoryPackSchemaTests
         "RouteClearReply",
         "ClusterSendRequest",
         "ClusterSendReply",
-        "FeatureSendRequest",
-        "FeatureSendReply",
         "ClientNotificationDispatchRequest",
         "ClientNotificationDispatchReply",
         "ClientNotificationCommand",

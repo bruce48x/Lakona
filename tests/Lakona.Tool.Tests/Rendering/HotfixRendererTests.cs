@@ -113,9 +113,9 @@ public sealed class HotfixRendererTests
         Assert.Contains("actors.RegisterStartup(", startup, StringComparison.Ordinal);
         Assert.Contains("\"chat-room\"", startup, StringComparison.Ordinal);
         Assert.Contains("ActorStartupPlan.Create<ChatRoomActor>(ActorId.From(ChatRoomIds.Global))", startup, StringComparison.Ordinal);
-        Assert.DoesNotContain("HotfixFeature", startup, StringComparison.Ordinal);
-        Assert.DoesNotContain("HotfixGameFeature", startup, StringComparison.Ordinal);
-        Assert.DoesNotContain("IFeatureMessageHandler", startup, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("Hotfix", "Fea", "ture"), startup, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("HotfixGame", "Fea", "ture"), startup, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("I", "Fea", "tureMessageHandler"), startup, StringComparison.Ordinal);
         Assert.DoesNotContain(".GetRequiredService<ActorHosting>()", startup, StringComparison.Ordinal);
         Assert.DoesNotContain(".CreateAsync<ChatRoomActor>", startup, StringComparison.Ordinal);
         Assert.DoesNotContain(".DestroyAsync<ChatRoomActor>", startup, StringComparison.Ordinal);

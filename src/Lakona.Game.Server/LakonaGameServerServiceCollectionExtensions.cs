@@ -5,7 +5,6 @@ using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Diagnostics;
-using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Guardrails;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Hotfix;
@@ -51,6 +50,7 @@ public static class LakonaGameServerServiceCollectionExtensions
         IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
+        services.TryAddSingleton(configuration);
         services.TryAddSingleton(LakonaGameRuntimeOptions.FromConfiguration(configuration));
         return services.AddLakonaGameServer(
             LakonaGameHostingOptions.FromConfiguration(configuration),
@@ -112,16 +112,14 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.AddLakonaGameRuntimeValidation();
         services.AddLakonaGameSessionHotfixLifecycle();
         services.AddLakonaTimers();
-        services.TryAddSingleton<IHotfixFeatureActivationPolicy, HotfixFeatureActivationPolicy>();
         services.TryAddSingleton<IHotfixCandidateRollbackParticipant, ActorHostingHotfixRollbackParticipant>();
         services.TryAddSingleton<HotfixActorLifecycleInvoker>();
         services.Replace(ServiceDescriptor.Singleton<IActorLifecycleDispatcher, HotfixActorLifecycleDispatcher>());
-        services.TryAddSingleton<IFeatureMessageHandler, HotfixFeatureMessageHandler>();
         services.TryAddSingleton<IGameHandshakeService, GameHandshakeService>();
-        services.TryAddSingleton<IFeatureCommandClient, FeatureCommandClient>();
         services.TryAddSingleton(new ActorHostDescriptorCatalog([]));
         services.TryAddSingleton<ILakonaGameServer, DefaultLakonaGameServer>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ActorStartupHostedService>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, LakonaGameClusterRegistrationHostedService>());
         if (configuration is null)
         {
             services.TryAddSingleton(provider =>

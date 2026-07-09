@@ -6,31 +6,6 @@ namespace Lakona.Game.Cluster.Tests;
 public sealed class NodeDirectoryModelTests
 {
     [Fact]
-    public void FeatureNameRejectsBlankValue()
-    {
-        var ex = Assert.Throws<ArgumentException>(() => new FeatureName(" "));
-
-        Assert.Contains("Feature name is required", ex.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void NodeFeatureDescriptorCopiesMetadata()
-    {
-        var metadata = new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["region"] = "cn-east",
-            ["capacity"] = "small"
-        };
-
-        var descriptor = new NodeFeatureDescriptor("battle-runtime", metadata);
-        metadata["region"] = "changed";
-
-        Assert.Equal("battle-runtime", descriptor.Name);
-        Assert.Equal("cn-east", descriptor.Metadata["region"]);
-        Assert.Equal("small", descriptor.Metadata["capacity"]);
-    }
-
-    [Fact]
     public void NodeActorHostDescriptorRejectsBlankActorName()
     {
         var exception = Assert.Throws<ArgumentException>(() => new NodeActorHostDescriptor(" ", "hash-a", "build-a"));
@@ -73,7 +48,7 @@ public sealed class NodeDirectoryModelTests
     }
 
     [Fact]
-    public void NodeRegistrationAllowsActorHostsWithoutApplicationFeatures()
+    public void NodeRegistrationAllowsActorHosts()
     {
         var registration = new NodeRegistration(
             "game",
@@ -88,12 +63,11 @@ public sealed class NodeDirectoryModelTests
             },
             DateTimeOffset.UtcNow.AddMinutes(1));
 
-        Assert.Empty(registration.Features);
         Assert.Equal("room", Assert.Single(registration.ActorHosts).Actor);
     }
 
     [Fact]
-    public void NodeRegistrationAllowsNoApplicationFeatures()
+    public void NodeRegistrationAllowsNoActorHosts()
     {
         var registration = new NodeRegistration(
             "game",
@@ -103,10 +77,9 @@ public sealed class NodeDirectoryModelTests
                 ["cluster"] = new NodeEndpoint("tcp://127.0.0.1:21002"),
                 ["websocket"] = new NodeEndpoint("ws://127.0.0.1:20000/ws")
             },
-            Array.Empty<NodeFeatureDescriptor>(),
             DateTimeOffset.UtcNow.AddMinutes(1));
 
-        Assert.Empty(registration.Features);
+        Assert.Empty(registration.ActorHosts);
     }
 
     [Fact]
@@ -119,7 +92,7 @@ public sealed class NodeDirectoryModelTests
             registration.NodeId,
             -1,
             registration.Endpoints,
-            registration.Features,
+            registration.ActorHosts,
             registration.Labels,
             NodeState.Ready,
             DateTimeOffset.UtcNow.AddSeconds(30),
@@ -135,10 +108,10 @@ public sealed class NodeDirectoryModelTests
             {
                 ["cluster"] = new NodeEndpoint("tcp://127.0.0.1:21000")
             },
-            new[]
+            DateTimeOffset.UtcNow.AddSeconds(30),
+            labels: new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                new NodeFeatureDescriptor("gateway")
-            },
-            DateTimeOffset.UtcNow.AddSeconds(30));
+                ["role"] = "gateway"
+            });
     }
 }

@@ -35,7 +35,6 @@ public static class HotfixBehaviorScanner
     {
         var methods = new List<HotfixMethodBinding>();
         var services = new List<HotfixServiceMethodBinding>();
-        var features = new List<HotfixFeatureDeclaration>();
         var actorMethods = new List<HotfixActorMethodDescriptor>();
         var actorStartups = new List<ActorStartupDeclaration>();
         var actorPlacements = new List<ActorPlacementDeclaration>();
@@ -45,7 +44,6 @@ public static class HotfixBehaviorScanner
         var keys = new HashSet<HotfixMethodKey>();
         var actorMethodKeys = new HashSet<string>(StringComparer.Ordinal);
         var serviceKeys = new HashSet<string>(StringComparer.Ordinal);
-        var featureNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var startupNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var placementActors = new HashSet<Type>();
         var serviceImplementations = new Dictionary<Type, HashSet<Type>>();
@@ -126,11 +124,6 @@ public static class HotfixBehaviorScanner
                     ScanServiceType(type, serviceBinding, services, diagnostics, serviceKeys);
                 }
 
-                var feature = type.GetCustomAttribute<HotfixFeatureAttribute>();
-                if (feature is not null)
-                {
-                    ScanFeatureType(type, feature, features, diagnostics, featureNames);
-                }
             }
         }
 
@@ -147,7 +140,6 @@ public static class HotfixBehaviorScanner
         return new HotfixBehaviorScanResult(
             methods,
             services,
-            features,
             actorMethods,
             actorStartups,
             actorPlacements,
@@ -330,113 +322,6 @@ public static class HotfixBehaviorScanner
     {
         return AppDomain.CurrentDomain.GetAssemblies()
             .FirstOrDefault(assembly => AssemblyName.ReferenceMatchesDefinition(assemblyName, assembly.GetName()));
-    }
-
-    private static void ScanFeatureType(
-        Type featureType,
-        HotfixFeatureAttribute attribute,
-        List<HotfixFeatureDeclaration> features,
-        List<string> diagnostics,
-        HashSet<string> featureNames)
-    {
-        if (!typeof(HotfixGameFeature).IsAssignableFrom(featureType))
-        {
-            diagnostics.Add($"Hotfix feature '{featureType.FullName}' must inherit {typeof(HotfixGameFeature).FullName}.");
-            return;
-        }
-
-        if (featureType.IsAbstract || featureType.IsInterface || featureType.ContainsGenericParameters)
-        {
-            diagnostics.Add($"Hotfix feature '{featureType.FullName}' must be a concrete class.");
-            return;
-        }
-
-        var configure = ResolveFeatureConfigureMethod(featureType, diagnostics);
-        if (configure is null)
-        {
-            return;
-        }
-
-        if (!featureNames.Add(attribute.Name))
-        {
-            diagnostics.Add($"Duplicate hotfix feature name '{attribute.Name}'.");
-            return;
-        }
-
-        HotfixFeatureLifecycleDeclaration lifecycle;
-        try
-        {
-            lifecycle = HotfixFeatureLifecycleDeclaration.FromFeatureType(featureType);
-        }
-        catch (InvalidOperationException ex)
-        {
-            diagnostics.Add(ex.Message);
-            return;
-        }
-
-        var context = new HotfixFeatureContext();
-        try
-        {
-            configure.Invoke(null, [context]);
-        }
-        catch (TargetInvocationException ex)
-        {
-            diagnostics.Add($"Hotfix feature '{featureType.FullName}' Configure failed: {ex.InnerException?.Message ?? ex.Message}");
-            return;
-        }
-        catch (Exception ex)
-        {
-            diagnostics.Add($"Hotfix feature '{featureType.FullName}' Configure failed: {ex.Message}");
-            return;
-        }
-
-        features.Add(new HotfixFeatureDeclaration(
-            attribute.Name,
-            featureType,
-            context.Discoverable,
-            new Dictionary<string, string>(context.Metadata, StringComparer.Ordinal),
-            context.Commands.ToArray(),
-            context.Services.ToArray(),
-            lifecycle));
-    }
-
-    private static MethodInfo? ResolveFeatureConfigureMethod(Type featureType, List<string> diagnostics)
-    {
-        var configureMethods = featureType
-            .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
-            .Where(static method => string.Equals(method.Name, "Configure", StringComparison.Ordinal))
-            .ToArray();
-
-        if (configureMethods.Length == 0)
-        {
-            diagnostics.Add($"Hotfix feature '{featureType.FullName}' must declare public static void Configure(HotfixFeatureContext context).");
-            return null;
-        }
-
-        if (configureMethods.Length != 1)
-        {
-            diagnostics.Add($"Hotfix feature '{featureType.FullName}' must declare exactly one public static void Configure(HotfixFeatureContext context) and no other public Configure overloads.");
-            return null;
-        }
-
-        var configure = configureMethods[0];
-        if (!configure.IsStatic)
-        {
-            diagnostics.Add($"Hotfix feature '{featureType.FullName}' must use public static void Configure(HotfixFeatureContext context), not instance Configure.");
-            return null;
-        }
-
-        var parameters = configure.GetParameters();
-        if (configure.IsGenericMethod ||
-            configure.ReturnType != typeof(void) ||
-            parameters.Length != 1 ||
-            parameters[0].ParameterType != typeof(HotfixFeatureContext))
-        {
-            diagnostics.Add($"Hotfix feature '{featureType.FullName}' must declare public static void Configure(HotfixFeatureContext context).");
-            return null;
-        }
-
-        return configure;
     }
 
     private static bool TryGetHotfixServiceContract(

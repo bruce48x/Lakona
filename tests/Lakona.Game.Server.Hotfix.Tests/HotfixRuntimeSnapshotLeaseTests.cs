@@ -29,7 +29,6 @@ public sealed class HotfixRuntimeSnapshotLeaseTests
         var provider = new TrackingServiceProvider();
         var snapshot = new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(),
-            EmptyHotfixFeatureCommandInvoker.Instance,
             provider,
             onRetired: provider.Dispose);
         var accessor = new FixedRuntimeAccessor(snapshot);
@@ -79,7 +78,6 @@ public sealed class HotfixRuntimeSnapshotLeaseTests
         var retired = 0;
         var snapshot = new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(),
-            EmptyHotfixFeatureCommandInvoker.Instance,
             new TrackingServiceProvider(),
             onRetired: () => retired++);
         var lease = snapshot.AcquireLease();
@@ -96,7 +94,6 @@ public sealed class HotfixRuntimeSnapshotLeaseTests
     {
         var snapshot = new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(),
-            EmptyHotfixFeatureCommandInvoker.Instance,
             new ThrowingDisposeServiceProvider(),
             dispatchTable: null,
             hotfixServices: new ThrowingDisposeServiceProvider(),
@@ -121,7 +118,6 @@ public sealed class HotfixRuntimeSnapshotLeaseTests
         var retired = false;
         var snapshot = new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(),
-            EmptyHotfixFeatureCommandInvoker.Instance,
             provider,
             new HotfixDispatchTable(1, Array.Empty<HotfixMethodBinding>()),
             provider,
@@ -145,7 +141,6 @@ public sealed class HotfixRuntimeSnapshotLeaseTests
     {
         var snapshot = new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(),
-            EmptyHotfixFeatureCommandInvoker.Instance,
             new TrackingServiceProvider());
         using var lease = snapshot.AcquireLease();
 
@@ -172,7 +167,7 @@ public sealed class HotfixRuntimeSnapshotLeaseTests
         Assert.False(failed.Succeeded);
         Assert.Same(previousRuntime, accessor.Current);
         Assert.Equal(first.Current.DispatchTableVersion, manager.Current.DispatchTableVersion);
-        Assert.Equal(first.Current.Features, manager.Current.Features);
+        Assert.Equal(first.Current.ActorHosts, manager.Current.ActorHosts);
     }
 
     [Fact]
@@ -367,13 +362,12 @@ public sealed class HotfixRuntimeSnapshotLeaseTests
                     public string Generation => "{{generation}}";
                 }
 
-                [HotfixFeature("lease-test")]
-                public sealed class LeaseFeature : HotfixGameFeature
+                public static class HotfixStartup
                 {
-                    public static void Configure(HotfixFeatureContext context)
+                    public static void ConfigureServices(IServiceCollection services)
                     {
-                        context.Services.AddSingleton<HotfixRuntimeSnapshotLeaseTests.TrackingDisposable>();
-                        context.Services.AddSingleton<HotfixRuntimeSnapshotLeaseTests.IGenerationMarker, GenerationMarker>();
+                        services.AddSingleton<HotfixRuntimeSnapshotLeaseTests.TrackingDisposable>();
+                        services.AddSingleton<HotfixRuntimeSnapshotLeaseTests.IGenerationMarker, GenerationMarker>();
                     }
                 }
                 """;

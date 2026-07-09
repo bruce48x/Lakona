@@ -25,8 +25,6 @@ public sealed class HotfixRuntimeSnapshotLease : IDisposable
 
     public IHotfixServiceInvoker Invoker => Snapshot.Invoker;
 
-    public IHotfixFeatureCommandInvoker FeatureCommands => Snapshot.FeatureCommands;
-
     public IServiceProvider Services => Snapshot.Services;
 
     public void Dispose()

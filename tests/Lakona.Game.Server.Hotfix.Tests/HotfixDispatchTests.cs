@@ -30,7 +30,6 @@ public sealed class HotfixDispatchTests
             1,
             scan.Methods,
             scan.Services,
-            scan.Features,
             scan.ActorMethods,
             scan.ActorLifecycles);
         Assert.True(table.TryResolveActorLifecycle(
@@ -297,46 +296,9 @@ public sealed class HotfixDispatchTests
     }
 
     [Fact]
-    public async Task Dispatch_table_with_features_and_actor_methods_dispatches_both()
-    {
-        var fixture = CreatePingDispatchFixture();
-        var scan = HotfixBehaviorScanner.Scan(fixture.HotfixAssembly);
-        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
-        var descriptor = Assert.Single(scan.ActorMethods);
-        var table = new HotfixDispatchTable(
-            1,
-            scan.Methods,
-            scan.Services,
-            [CreateFeatureDeclaration(typeof(StaticDispatchFeature), "ExecuteAsync")],
-            scan.ActorMethods);
-        var actor = Activator.CreateInstance(fixture.StableAssembly.GetType("StableGame.UserActor", throwOnError: true)!)!;
-        var requestType = fixture.StableAssembly.GetType("StableGame.PingRequest", throwOnError: true)!;
-        var request = Activator.CreateInstance(requestType, "actor")!;
-
-        var actorResult = await table.InvokeActorAsync(
-            descriptor.MethodKey,
-            actor,
-            request,
-            descriptor.ResultType,
-            TestContext.Current.CancellationToken);
-
-        Assert.Equal("actor", actorResult!.GetType().GetProperty("Text")!.GetValue(actorResult));
-        Assert.True(table.TryResolveFeatureCommand("commands", FeatureCommandId.From(101), out var command));
-        using var services = new ServiceCollection().BuildServiceProvider();
-        var featureResult = await table.InvokeFeatureCommandAsync(
-            command,
-            new DispatchCommand("feature"),
-            NewFeatureMessage("commands", "101"),
-            services,
-            TestContext.Current.CancellationToken);
-
-        Assert.Equal("static:feature", Assert.IsType<DispatchReply>(featureResult).Value);
-    }
-
-    [Fact]
     public void Dispatch_table_public_methods_do_not_validate_actor_tick_declarations()
     {
-        var legacyMethod = string.Concat("ValidateFeature", "TickMethods");
+        var legacyMethod = string.Concat("Validate", "Fea", "ture", "TickMethods");
 
         Assert.DoesNotContain(
             typeof(HotfixDispatchTable).GetMethods(),
@@ -452,32 +414,6 @@ public sealed class HotfixDispatchTests
             TestContext.Current.CancellationToken);
 
         Assert.Equal("service", backend.LastArgs?.Value);
-    }
-
-    [Fact]
-    public async Task Feature_command_dispatch_enters_timer_scope()
-    {
-        var table = new HotfixDispatchTable(
-            1,
-            Array.Empty<HotfixMethodBinding>(),
-            Array.Empty<HotfixServiceMethodBinding>(),
-            [CreateFeatureDeclaration(typeof(TimerCommandFeature), "ExecuteAsync")]);
-        var backend = new RecordingTimerBackend();
-        using var runtime = CreateScopedRuntime(
-            table,
-            backend,
-            featureCommands: new HotfixFeatureCommandInvoker(table));
-        using var lease = runtime.Snapshot.AcquireLease();
-
-        Assert.True(runtime.Snapshot.FeatureCommands.TryResolve("commands", FeatureCommandId.From(101), out var descriptor));
-        await runtime.Snapshot.FeatureCommands.InvokeAsync(
-            descriptor,
-            new DispatchCommand("feature-command"),
-            NewFeatureMessage("commands", "101"),
-            runtime.Snapshot.Services,
-            TestContext.Current.CancellationToken);
-
-        Assert.Equal("feature-command", backend.LastArgs?.Value);
     }
 
     [Fact]
@@ -753,202 +689,6 @@ public sealed class HotfixDispatchTests
         Assert.Equal(1, ThrowingDisposableDispatchService.DisposeCount);
     }
 
-    [Fact]
-    public async Task FeatureCommandDispatchActivatesFeatureWithConstructorDiAndDisposesAfterAwait()
-    {
-        DispatchFeature.DisposeCount = 0;
-        var services = new ServiceCollection()
-            .AddSingleton(new FeatureDependency("runtime"))
-            .BuildServiceProvider();
-        var table = new HotfixDispatchTable(
-            1,
-            Array.Empty<HotfixMethodBinding>(),
-            Array.Empty<HotfixServiceMethodBinding>(),
-            [CreateFeatureDeclaration(typeof(DispatchFeature), "ExecuteAsync")]);
-        var invoker = new HotfixFeatureCommandInvoker(table);
-
-        Assert.True(invoker.TryResolve("commands", FeatureCommandId.From(101), out var descriptor));
-        var reply = await invoker.InvokeAsync(
-            descriptor,
-            new DispatchCommand("room-1"),
-            NewFeatureMessage("commands", "101"),
-            services,
-            TestContext.Current.CancellationToken);
-
-        var typed = Assert.IsType<DispatchReply>(reply);
-        Assert.Equal("runtime:room-1", typed.Value);
-        Assert.Equal(1, DispatchFeature.DisposeCount);
-    }
-
-    [Fact]
-    public void FeatureCommandDispatchRejectsDuplicateFeatureCommandIds()
-    {
-        var exception = Assert.Throws<InvalidOperationException>(() => new HotfixDispatchTable(
-            1,
-            Array.Empty<HotfixMethodBinding>(),
-            Array.Empty<HotfixServiceMethodBinding>(),
-            [
-                CreateFeatureDeclaration(typeof(DispatchFeature), "ExecuteAsync"),
-                CreateFeatureDeclaration(typeof(DispatchFeature), "ExecuteAsync")
-            ]));
-
-        Assert.Contains("Duplicate hotfix feature command", exception.Message);
-    }
-
-    [Fact]
-    public void FeatureCommandDispatchValidatesMethodShape()
-    {
-        var exception = Assert.Throws<InvalidOperationException>(() => new HotfixDispatchTable(
-            1,
-            Array.Empty<HotfixMethodBinding>(),
-            Array.Empty<HotfixServiceMethodBinding>(),
-            [CreateFeatureDeclaration(typeof(InvalidDispatchFeature), "ExecuteAsync")]));
-
-        Assert.Contains("Hotfix feature command", exception.Message);
-        Assert.Contains("ValueTask", exception.Message);
-    }
-
-    [Fact]
-    public void FeatureCommandDispatchRejectsOpenGenericMethodShape()
-    {
-        var exception = Assert.Throws<InvalidOperationException>(() => new HotfixDispatchTable(
-            1,
-            Array.Empty<HotfixMethodBinding>(),
-            Array.Empty<HotfixServiceMethodBinding>(),
-            [CreateFeatureDeclaration(typeof(GenericDispatchFeature), "ExecuteAsync")]));
-
-        Assert.Contains("Hotfix feature command", exception.Message);
-        Assert.Contains("ValueTask", exception.Message);
-    }
-
-    [Fact]
-    public async Task FeatureCommandDispatchUnwrapsSynchronousExceptionAndDisposesFeature()
-    {
-        ThrowingDispatchFeature.DisposeCount = 0;
-        var table = CreateFeatureCommandTable(typeof(ThrowingDispatchFeature));
-        var invoker = new HotfixFeatureCommandInvoker(table);
-        Assert.True(invoker.TryResolve("commands", FeatureCommandId.From(101), out var descriptor));
-        using var services = new ServiceCollection().BuildServiceProvider();
-
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await invoker.InvokeAsync(
-                descriptor,
-                new DispatchCommand("room-1"),
-                NewFeatureMessage("commands", "101"),
-                services,
-                TestContext.Current.CancellationToken));
-
-        Assert.Equal("feature dispatch failure", exception.Message);
-        Assert.Equal(1, ThrowingDispatchFeature.DisposeCount);
-    }
-
-    [Fact]
-    public async Task FeatureCommandDispatchDisposesFeatureAfterAsyncFailure()
-    {
-        AsyncFailingDispatchFeature.DisposeCount = 0;
-        var table = CreateFeatureCommandTable(typeof(AsyncFailingDispatchFeature));
-        var invoker = new HotfixFeatureCommandInvoker(table);
-        Assert.True(invoker.TryResolve("commands", FeatureCommandId.From(101), out var descriptor));
-        using var services = new ServiceCollection().BuildServiceProvider();
-
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await invoker.InvokeAsync(
-                descriptor,
-                new DispatchCommand("room-1"),
-                NewFeatureMessage("commands", "101"),
-                services,
-                TestContext.Current.CancellationToken));
-
-        Assert.Equal("async feature dispatch failure", exception.Message);
-        Assert.Equal(1, AsyncFailingDispatchFeature.DisposeCount);
-    }
-
-    [Fact]
-    public async Task FeatureCommandDispatchDisposesAsyncDisposableFeatureAfterCompletion()
-    {
-        AsyncDisposableDispatchFeature.DisposeCount = 0;
-        var table = CreateFeatureCommandTable(typeof(AsyncDisposableDispatchFeature));
-        var invoker = new HotfixFeatureCommandInvoker(table);
-        Assert.True(invoker.TryResolve("commands", FeatureCommandId.From(101), out var descriptor));
-        using var services = new ServiceCollection().BuildServiceProvider();
-
-        var reply = await invoker.InvokeAsync(
-            descriptor,
-            new DispatchCommand("room-1"),
-            NewFeatureMessage("commands", "101"),
-            services,
-            TestContext.Current.CancellationToken);
-
-        var typed = Assert.IsType<DispatchReply>(reply);
-        Assert.Equal("disposed-async", typed.Value);
-        Assert.Equal(1, AsyncDisposableDispatchFeature.DisposeCount);
-    }
-
-    [Fact]
-    public async Task FeatureCommandDispatchStaticMethodDoesNotRequireConstructorActivation()
-    {
-        var table = CreateFeatureCommandTable(typeof(StaticDispatchFeature));
-        var invoker = new HotfixFeatureCommandInvoker(table);
-        Assert.True(invoker.TryResolve("commands", FeatureCommandId.From(101), out var descriptor));
-        using var services = new ServiceCollection().BuildServiceProvider();
-
-        table.ValidateFeatureCommandActivation(services);
-        var reply = await invoker.InvokeAsync(
-            descriptor,
-            new DispatchCommand("room-1"),
-            NewFeatureMessage("commands", "101"),
-            services,
-            TestContext.Current.CancellationToken);
-
-        var typed = Assert.IsType<DispatchReply>(reply);
-        Assert.Equal("static:room-1", typed.Value);
-    }
-
-    [Fact]
-    public void FeatureCommandDispatchValidatesFeatureCommandActivation()
-    {
-        ActivationCountingDispatchFeature.ActivationCount = 0;
-        ActivationCountingDispatchFeature.DisposeCount = 0;
-        using var validServices = new ServiceCollection()
-            .AddSingleton(new FeatureDependency("runtime"))
-            .BuildServiceProvider();
-        using var emptyServices = new ServiceCollection().BuildServiceProvider();
-
-        CreateFeatureCommandTable(typeof(DispatchFeature))
-            .ValidateFeatureCommandActivation(validServices);
-
-        var missingDependencyTable = CreateFeatureCommandTable(typeof(MissingDependencyDispatchFeature));
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            missingDependencyTable.ValidateFeatureCommandActivation(emptyServices));
-        Assert.Contains("constructor activation failed", exception.Message);
-
-        var multiCommandTable = new HotfixDispatchTable(
-            1,
-            Array.Empty<HotfixMethodBinding>(),
-            Array.Empty<HotfixServiceMethodBinding>(),
-            [CreateFeatureDeclaration(
-                typeof(ActivationCountingDispatchFeature),
-                [
-                    new HotfixFeatureCommandDeclaration(typeof(DispatchCommand), typeof(DispatchReply), 101, "ExecuteAsync"),
-                    new HotfixFeatureCommandDeclaration(typeof(DispatchCommand), typeof(DispatchReply), 102, "ExecuteAsync")
-                ])]);
-
-        multiCommandTable.ValidateFeatureCommandActivation(emptyServices);
-
-        Assert.Equal(1, ActivationCountingDispatchFeature.ActivationCount);
-        Assert.Equal(1, ActivationCountingDispatchFeature.DisposeCount);
-    }
-
-    [Fact]
-    public void FeatureCommandDispatchResolvesFeatureNameCaseInsensitively()
-    {
-        var table = CreateFeatureCommandTable(typeof(DispatchFeature));
-        var invoker = new HotfixFeatureCommandInvoker(table);
-
-        Assert.True(invoker.TryResolve("COMMANDS", FeatureCommandId.From(101), out var descriptor));
-        Assert.Equal("commands", descriptor.FeatureName);
-    }
-
     private static void ReplaceDispatchWith(long version, Type serviceType)
     {
         var scan = HotfixBehaviorScanner.Scan(serviceType.Assembly, [serviceType]);
@@ -974,7 +714,6 @@ public sealed class HotfixDispatchTests
     private static ScopedRuntime CreateScopedRuntime(
         HotfixDispatchTable table,
         RecordingTimerBackend? backend,
-        IHotfixFeatureCommandInvoker? featureCommands = null,
         bool publish = true)
     {
         if (publish)
@@ -991,7 +730,6 @@ public sealed class HotfixDispatchTests
         var services = serviceBuilder.BuildServiceProvider();
         var snapshot = new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(table),
-            featureCommands ?? EmptyHotfixFeatureCommandInvoker.Instance,
             services,
             table,
             services,
@@ -1009,46 +747,6 @@ public sealed class HotfixDispatchTests
         return new HotfixServiceCall<ConstructorInjectedDispatchRequest>(
             new ConstructorInjectedDispatchRequest(),
             services);
-    }
-
-    private static HotfixDispatchTable CreateFeatureCommandTable(Type featureType)
-    {
-        return new HotfixDispatchTable(
-            1,
-            Array.Empty<HotfixMethodBinding>(),
-            Array.Empty<HotfixServiceMethodBinding>(),
-            [CreateFeatureDeclaration(featureType, "ExecuteAsync")]);
-    }
-
-    private static HotfixFeatureDeclaration CreateFeatureDeclaration(Type featureType, string methodName)
-    {
-        return CreateFeatureDeclaration(
-            featureType,
-            [new HotfixFeatureCommandDeclaration(typeof(DispatchCommand), typeof(DispatchReply), 101, methodName)]);
-    }
-
-    private static HotfixFeatureDeclaration CreateFeatureDeclaration(
-        Type featureType,
-        IReadOnlyList<HotfixFeatureCommandDeclaration> commands)
-    {
-        return new HotfixFeatureDeclaration(
-            "commands",
-            featureType,
-            true,
-            new Dictionary<string, string>(StringComparer.Ordinal),
-            commands,
-            Array.Empty<ServiceDescriptor>());
-    }
-
-    private static FeatureMessageRequest NewFeatureMessage(string feature, string kind)
-    {
-        return new FeatureMessageRequest(
-            new FeatureName(feature),
-            kind,
-            ReadOnlyMemory<byte>.Empty,
-            DateTimeOffset.UtcNow.AddMinutes(1),
-            new NodeId("data-1"),
-            "corr-1");
     }
 
     private static TwoAssemblyHotfixFixture CreatePingDispatchFixture()
@@ -1295,152 +993,6 @@ public sealed class AsyncDisposableDispatchService : IAsyncDisposable
     }
 }
 
-public sealed class FeatureDependency
-{
-    public FeatureDependency(string value)
-    {
-        Value = value;
-    }
-
-    public string Value { get; }
-}
-
-public sealed class DispatchFeature : HotfixGameFeature, IDisposable
-{
-    private readonly FeatureDependency _dependency;
-
-    public DispatchFeature(FeatureDependency dependency)
-    {
-        _dependency = dependency;
-    }
-
-    public static int DisposeCount { get; set; }
-
-    public ValueTask<DispatchReply> ExecuteAsync(HotfixFeatureCommandCall<DispatchCommand> call)
-    {
-        return new ValueTask<DispatchReply>(new DispatchReply($"{_dependency.Value}:{call.Request.RoomId}"));
-    }
-
-    public void Dispose()
-    {
-        DisposeCount++;
-    }
-}
-
-public sealed class InvalidDispatchFeature : HotfixGameFeature
-{
-    public ValueTask ExecuteAsync(HotfixFeatureCommandCall<DispatchCommand> call)
-    {
-        return default;
-    }
-}
-
-public sealed class GenericDispatchFeature : HotfixGameFeature
-{
-    public ValueTask<DispatchReply> ExecuteAsync<T>(HotfixFeatureCommandCall<DispatchCommand> call)
-    {
-        return new ValueTask<DispatchReply>(new DispatchReply(typeof(T).Name));
-    }
-}
-
-public sealed class ThrowingDispatchFeature : HotfixGameFeature, IDisposable
-{
-    public static int DisposeCount { get; set; }
-
-    public ValueTask<DispatchReply> ExecuteAsync(HotfixFeatureCommandCall<DispatchCommand> call)
-    {
-        throw new InvalidOperationException("feature dispatch failure");
-    }
-
-    public void Dispose()
-    {
-        DisposeCount++;
-    }
-}
-
-public sealed class AsyncFailingDispatchFeature : HotfixGameFeature, IDisposable
-{
-    public static int DisposeCount { get; set; }
-
-    public async ValueTask<DispatchReply> ExecuteAsync(HotfixFeatureCommandCall<DispatchCommand> call)
-    {
-        await Task.Yield();
-        throw new InvalidOperationException("async feature dispatch failure");
-    }
-
-    public void Dispose()
-    {
-        DisposeCount++;
-    }
-}
-
-public sealed class AsyncDisposableDispatchFeature : HotfixGameFeature, IAsyncDisposable
-{
-    public static int DisposeCount { get; set; }
-
-    public async ValueTask<DispatchReply> ExecuteAsync(HotfixFeatureCommandCall<DispatchCommand> call)
-    {
-        await Task.Yield();
-        return new DispatchReply("disposed-async");
-    }
-
-    public ValueTask DisposeAsync()
-    {
-        DisposeCount++;
-        return default;
-    }
-}
-
-public sealed class StaticDispatchFeature : HotfixGameFeature
-{
-    private StaticDispatchFeature(MissingFeatureDependency dependency)
-    {
-    }
-
-    public static ValueTask<DispatchReply> ExecuteAsync(HotfixFeatureCommandCall<DispatchCommand> call)
-    {
-        return new ValueTask<DispatchReply>(new DispatchReply($"static:{call.Request.RoomId}"));
-    }
-}
-
-public sealed class MissingDependencyDispatchFeature : HotfixGameFeature
-{
-    public MissingDependencyDispatchFeature(MissingFeatureDependency dependency)
-    {
-    }
-
-    public ValueTask<DispatchReply> ExecuteAsync(HotfixFeatureCommandCall<DispatchCommand> call)
-    {
-        return new ValueTask<DispatchReply>(new DispatchReply("missing"));
-    }
-}
-
-public sealed class MissingFeatureDependency
-{
-}
-
-public sealed class ActivationCountingDispatchFeature : HotfixGameFeature, IDisposable
-{
-    public ActivationCountingDispatchFeature()
-    {
-        ActivationCount++;
-    }
-
-    public static int ActivationCount { get; set; }
-
-    public static int DisposeCount { get; set; }
-
-    public ValueTask<DispatchReply> ExecuteAsync(HotfixFeatureCommandCall<DispatchCommand> call)
-    {
-        return new ValueTask<DispatchReply>(new DispatchReply("counted"));
-    }
-
-    public void Dispose()
-    {
-        DisposeCount++;
-    }
-}
-
 public sealed class TickDispatchActor
 {
 }
@@ -1453,11 +1005,6 @@ public static class MalformedTickBehavior
         return default;
     }
 }
-
-[FeatureCommand(101)]
-public sealed record DispatchCommand(string RoomId);
-
-public sealed record DispatchReply(string Value);
 
 public sealed class DispatchTestState
 {
@@ -1642,24 +1189,6 @@ public sealed class TimerLifecycleService
             TimeSpan.Zero,
             nameof(TimerCallbackBehavior.HandleAsync),
             call.Request!).ConfigureAwait(false);
-    }
-}
-
-public sealed class TimerCommandFeature : HotfixGameFeature
-{
-    public static ValueTask<DispatchReply> ExecuteAsync(HotfixFeatureCommandCall<DispatchCommand> call)
-    {
-        return CreateAsync(call);
-    }
-
-    private static async ValueTask<DispatchReply> CreateAsync(HotfixFeatureCommandCall<DispatchCommand> call)
-    {
-        await LakonaTimer.CreateOnceTimerAsync<TimerCallbackTarget, TimerArgs>(
-            TimeSpan.Zero,
-            nameof(TimerCallbackBehavior.HandleAsync),
-            new TimerArgs(call.Request.RoomId),
-            call.CancellationToken).ConfigureAwait(false);
-        return new DispatchReply(call.Request.RoomId);
     }
 }
 

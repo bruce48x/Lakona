@@ -17,9 +17,7 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
     private readonly IReadOnlyList<Type> _requiredServiceContracts;
     private readonly IServiceProvider? _rootServices;
     private readonly ILogger? _logger;
-    private readonly HotfixFeatureLifecycleCoordinator _featureLifecycle = new();
     private readonly IReadOnlyList<IHotfixRuntimePublicationParticipant> _publicationParticipants;
-    private readonly IHotfixFeatureActivationPolicy _featureActivationPolicy;
     private readonly SemaphoreSlim _reloadLock = new(1, 1);
     private long _nextVersion;
     private HotfixPublicationState _publication = HotfixPublicationState.Empty;
@@ -29,8 +27,7 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
         IEnumerable<string>? hostAssemblyNames = null,
         IEnumerable<Type>? requiredServiceContracts = null,
         IServiceProvider? rootServices = null,
-        IEnumerable<IHotfixRuntimePublicationParticipant>? participants = null,
-        IHotfixFeatureActivationPolicy? featureActivationPolicy = null)
+        IEnumerable<IHotfixRuntimePublicationParticipant>? participants = null)
     {
         _source = source ?? throw new ArgumentNullException(nameof(source));
         _rootServices = rootServices;
@@ -46,9 +43,6 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 ?? rootServices?.GetServices<IHotfixRuntimePublicationParticipant>()
                 ?? Array.Empty<IHotfixRuntimePublicationParticipant>())
             .ToArray();
-        _featureActivationPolicy = featureActivationPolicy
-            ?? rootServices?.GetService<IHotfixFeatureActivationPolicy>()
-            ?? AllHotfixFeaturesActivationPolicy.Instance;
     }
 
     public event EventHandler<HotfixReloadResult>? Reloaded;
@@ -150,22 +144,18 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            var activeFeatures = _featureActivationPolicy.SelectActiveFeatures(scan.Features);
             var actorHosts = CreateActorHostDescriptors(scan, resolved.Version);
             var tableVersion = publish ? Interlocked.Increment(ref _nextVersion) : Current.DispatchTableVersion;
             var table = new HotfixDispatchTable(
                 tableVersion,
                 scan.Methods,
                 scan.Services,
-                activeFeatures,
                 scan.ActorMethods,
                 scan.ActorLifecycles);
             table.ValidateMethodShapes();
             table.ValidateTypedDispatchDelegates();
-            table.ValidateFeatureCommandMethods();
-            hotfixProvider = BuildHotfixProvider(activeFeatures, scan.StartupServices, assembly);
+            hotfixProvider = BuildHotfixProvider(scan.StartupServices, assembly);
             table.ValidateServiceActivation(hotfixProvider);
-            table.ValidateFeatureCommandActivation(hotfixProvider);
             var snapshot = new HotfixSnapshot(
                 resolved.Version,
                 resolved.AssemblyPath,
@@ -175,7 +165,6 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 HotfixReloadStatus.Succeeded,
                 null,
                 null,
-                activeFeatures,
                 actorHosts);
 
             if (!publish)
@@ -188,7 +177,6 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
 
             var runtimeSnapshot = new HotfixRuntimeSnapshot(
                 new HotfixServiceInvoker(table),
-                new HotfixFeatureCommandInvoker(table),
                 hotfixProvider,
                 table,
                 hotfixProvider,
@@ -203,7 +191,6 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             var result = await PublishCandidateAsync(
                 runtimeSnapshot,
                 snapshot,
-                activeFeatures,
                 cancellationToken,
                 resolved.Version,
                 resolved.AssemblyPath).ConfigureAwait(false);
@@ -238,7 +225,6 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 HotfixReloadStatus.Failed,
                 ex.Message,
                 ex.GetType().FullName,
-                previous.Features,
                 previous.ActorHosts);
             if (publish)
             {
@@ -248,7 +234,6 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                     new HotfixPublicationState(
                         snapshot,
                         publication.Runtime,
-                        publication.FeatureLifecycle,
                         publication.DispatchTable));
             }
 
@@ -313,26 +298,17 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
     internal async ValueTask<HotfixReloadResult> PublishCandidateAsync(
         HotfixRuntimeSnapshot runtimeSnapshot,
         HotfixSnapshot snapshot,
-        IReadOnlyList<HotfixFeatureDeclaration> activeFeatures,
         CancellationToken cancellationToken,
         string? requestedVersion = null,
         string? requestedPath = null)
     {
         ArgumentNullException.ThrowIfNull(runtimeSnapshot);
         ArgumentNullException.ThrowIfNull(snapshot);
-        ArgumentNullException.ThrowIfNull(activeFeatures);
         cancellationToken.ThrowIfCancellationRequested();
 
-        HotfixFeatureLifecycleSnapshot? nextFeatureLifecycle = null;
         var previousPublication = Volatile.Read(ref _publication);
         try
         {
-            nextFeatureLifecycle = await _featureLifecycle.StartCandidateAsync(
-                previousPublication.FeatureLifecycle,
-                runtimeSnapshot,
-                activeFeatures,
-                cancellationToken).ConfigureAwait(false);
-
             foreach (var participant in _publicationParticipants)
             {
                 await participant.BeforePublishAsync(runtimeSnapshot, cancellationToken)
@@ -344,11 +320,6 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             try
             {
                 await RollbackPublicationParticipantsAsync(runtimeSnapshot).ConfigureAwait(false);
-                if (nextFeatureLifecycle is not null)
-                {
-                    await _featureLifecycle.RollbackCandidateAsync(nextFeatureLifecycle, CancellationToken.None)
-                        .ConfigureAwait(false);
-                }
             }
             finally
             {
@@ -362,11 +333,6 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             try
             {
                 await RollbackPublicationParticipantsAsync(runtimeSnapshot).ConfigureAwait(false);
-                if (nextFeatureLifecycle is not null)
-                {
-                    await _featureLifecycle.RollbackCandidateAsync(nextFeatureLifecycle, CancellationToken.None)
-                        .ConfigureAwait(false);
-                }
             }
             finally
             {
@@ -386,50 +352,9 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
         var nextPublication = new HotfixPublicationState(
             snapshot,
             runtimeSnapshot,
-            nextFeatureLifecycle,
             runtimeSnapshot.DispatchTable ?? previousPublication.DispatchTable);
         HotfixDispatch.ReplaceProvider(() => Volatile.Read(ref _publication).DispatchTable);
         Volatile.Write(ref _publication, nextPublication);
-        try
-        {
-            await _featureLifecycle.CommitCandidateTimersAsync(
-                nextFeatureLifecycle,
-                CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            Volatile.Write(ref _publication, previousPublication);
-            try
-            {
-                await RollbackPublicationParticipantsAsync(runtimeSnapshot).ConfigureAwait(false);
-                await _featureLifecycle.RollbackCandidateAsync(nextFeatureLifecycle, CancellationToken.None)
-                    .ConfigureAwait(false);
-            }
-            finally
-            {
-                runtimeSnapshot.Retire();
-            }
-
-            return new HotfixReloadResult(
-                HotfixReloadStatus.Failed,
-                previousPublication.Snapshot,
-                requestedVersion ?? snapshot.Version,
-                requestedPath ?? snapshot.SourcePath,
-                [ex.Message],
-                ex.Message,
-                ex.GetType().FullName);
-        }
-
-        try
-        {
-            await _featureLifecycle.StopRemovedAsync(
-                previousPublication.FeatureLifecycle,
-                nextFeatureLifecycle,
-                CancellationToken.None).ConfigureAwait(false);
-        }
-        catch
-        {
-        }
 
         foreach (var participant in _publicationParticipants)
         {
@@ -490,34 +415,26 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             result.ErrorMessage ?? string.Join(Environment.NewLine, result.Diagnostics));
     }
 
-    private IServiceProvider BuildHotfixProvider(IReadOnlyList<HotfixFeatureDeclaration> features)
+    private IServiceProvider BuildHotfixProvider()
     {
-        return BuildHotfixProvider(features, Array.Empty<ServiceDescriptor>(), typeof(HotfixManager).Assembly);
+        return BuildHotfixProvider(Array.Empty<ServiceDescriptor>(), typeof(HotfixManager).Assembly);
     }
 
     private IServiceProvider BuildHotfixProvider(
-        IReadOnlyList<HotfixFeatureDeclaration> features,
         Assembly hotfixAssembly)
     {
-        return BuildHotfixProvider(features, Array.Empty<ServiceDescriptor>(), hotfixAssembly);
+        return BuildHotfixProvider(Array.Empty<ServiceDescriptor>(), hotfixAssembly);
     }
 
     private IServiceProvider BuildHotfixProvider(
-        IReadOnlyList<HotfixFeatureDeclaration> features,
         IReadOnlyList<ServiceDescriptor> startupServices,
         Assembly hotfixAssembly)
     {
-        ArgumentNullException.ThrowIfNull(features);
         ArgumentNullException.ThrowIfNull(startupServices);
         ArgumentNullException.ThrowIfNull(hotfixAssembly);
 
         var registrations = DiscoverGeneratedServiceRegistrations(hotfixAssembly);
         var rawServices = new ServiceCollection();
-        foreach (var descriptor in features.SelectMany(static feature => feature.Services))
-        {
-            ((ICollection<ServiceDescriptor>)rawServices).Add(descriptor);
-        }
-
         foreach (var descriptor in startupServices)
         {
             ((ICollection<ServiceDescriptor>)rawServices).Add(descriptor);

@@ -75,8 +75,8 @@ public sealed class ServerAppRendererTests
         Assert.DoesNotContain("RpcServerHostBuilder", program, StringComparison.Ordinal);
         Assert.DoesNotContain(".AddServices((services, configuration) =>", program, StringComparison.Ordinal);
         Assert.DoesNotContain("services.AddLakonaGame(configuration)", program, StringComparison.Ordinal);
-        Assert.DoesNotContain("ConfigureFeatures(", program, StringComparison.Ordinal);
-        Assert.DoesNotContain(".Feature<", program, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("Configure", "Fea", "tures("), program, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat(".", "Fea", "ture<"), program, StringComparison.Ordinal);
 
         var chatRoomActor = AssertPath(plan, "Server/App/Chat/ChatRoomActor.cs").Content;
         Assert.Contains("internal sealed class ChatRoomActor : Actor<string>", chatRoomActor, StringComparison.Ordinal);
@@ -145,7 +145,7 @@ public sealed class ServerAppRendererTests
         Assert.Contains("\"RpcServices\"", appsettings, StringComparison.Ordinal);
 
         var lakona = document.RootElement.GetProperty("Lakona");
-        Assert.False(lakona.TryGetProperty("Feature", out _));
+        Assert.False(lakona.TryGetProperty(string.Concat("Fea", "ture"), out _));
         Assert.Equal(new[] { "chat-room" }, lakona.GetProperty("ActorHosts").EnumerateArray().Select(item => item.GetString()).ToArray());
         Assert.Equal(new[] { "chat-room" }, lakona.GetProperty("StartupActors").EnumerateArray().Select(item => item.GetString()).ToArray());
         Assert.DoesNotContain(

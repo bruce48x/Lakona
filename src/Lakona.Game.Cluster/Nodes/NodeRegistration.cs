@@ -13,11 +13,10 @@ namespace Lakona.Game.Cluster
             string clusterName,
             NodeId nodeId,
             IReadOnlyDictionary<string, NodeEndpoint> endpoints,
-            IReadOnlyList<NodeFeatureDescriptor> features,
             DateTimeOffset leaseExpiresAt,
             NodeState state = NodeState.Starting,
             IReadOnlyDictionary<string, string>? labels = null)
-            : this(clusterName, nodeId, endpoints, features, Array.Empty<NodeActorHostDescriptor>(), leaseExpiresAt, state, labels)
+            : this(clusterName, nodeId, endpoints, Array.Empty<NodeActorHostDescriptor>(), leaseExpiresAt, state, labels)
         {
         }
 
@@ -25,19 +24,6 @@ namespace Lakona.Game.Cluster
             string clusterName,
             NodeId nodeId,
             IReadOnlyDictionary<string, NodeEndpoint> endpoints,
-            IReadOnlyList<NodeActorHostDescriptor> actorHosts,
-            DateTimeOffset leaseExpiresAt,
-            NodeState state = NodeState.Starting,
-            IReadOnlyDictionary<string, string>? labels = null)
-            : this(clusterName, nodeId, endpoints, Array.Empty<NodeFeatureDescriptor>(), actorHosts, leaseExpiresAt, state, labels)
-        {
-        }
-
-        public NodeRegistration(
-            string clusterName,
-            NodeId nodeId,
-            IReadOnlyDictionary<string, NodeEndpoint> endpoints,
-            IReadOnlyList<NodeFeatureDescriptor> features,
             IReadOnlyList<NodeActorHostDescriptor> actorHosts,
             DateTimeOffset leaseExpiresAt,
             NodeState state = NodeState.Starting,
@@ -51,7 +37,6 @@ namespace Lakona.Game.Cluster
             ClusterName = clusterName;
             NodeId = nodeId;
             Endpoints = CopyEndpoints(endpoints);
-            Features = CopyFeatures(features);
             ActorHosts = CopyActorHosts(actorHosts);
             Labels = CopyStringDictionary(labels, nameof(labels));
             State = state;
@@ -63,8 +48,6 @@ namespace Lakona.Game.Cluster
         public NodeId NodeId { get; }
 
         public IReadOnlyDictionary<string, NodeEndpoint> Endpoints { get; }
-
-        public IReadOnlyList<NodeFeatureDescriptor> Features { get; }
 
         public IReadOnlyList<NodeActorHostDescriptor> ActorHosts { get; }
 
@@ -99,23 +82,6 @@ namespace Lakona.Game.Cluster
             }
 
             return new ReadOnlyDictionary<string, NodeEndpoint>(copy);
-        }
-
-        private static IReadOnlyList<NodeFeatureDescriptor> CopyFeatures(
-            IReadOnlyList<NodeFeatureDescriptor> features)
-        {
-            if (features is null)
-            {
-                throw new ArgumentNullException(nameof(features));
-            }
-
-            var copy = new List<NodeFeatureDescriptor>(features.Count);
-            for (var i = 0; i < features.Count; i++)
-            {
-                copy.Add(features[i] ?? throw new ArgumentException("Node feature cannot be null.", nameof(features)));
-            }
-
-            return new ReadOnlyCollection<NodeFeatureDescriptor>(copy);
         }
 
         private static IReadOnlyList<NodeActorHostDescriptor> CopyActorHosts(

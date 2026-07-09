@@ -16,7 +16,6 @@ using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Cluster.Rpc.MemoryPack;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
-using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Health;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Hotfix;
@@ -545,26 +544,6 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public void Default_feature_discovery_preserves_host_resolved_runtime_options()
-    {
-        var services = new ServiceCollection();
-        var configuration = new ConfigurationBuilder().Build();
-        var runtime = Lakona.Game.Server.Hosting.LakonaGameServer.CreateRuntimeOptionsForTesting(configuration);
-
-        services.AddSingleton(runtime);
-        Lakona.Game.Server.Hosting.LakonaGameServer.DiscoverStableFeaturesForTesting(
-            services,
-            configuration,
-            AppContext.BaseDirectory,
-            runtime);
-
-        using var provider = services.BuildServiceProvider();
-        var resolved = provider.GetRequiredService<LakonaGameRuntimeOptions>();
-
-        Assert.Same(runtime, resolved);
-    }
-
-    [Fact]
     public void ClusterEndpointConfigurationRegistersClusterRpcServer()
     {
         var services = new ServiceCollection();
@@ -591,136 +570,6 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public async Task ClusterEndpointRpcServerAcceptsFeatureMessageTransport()
-    {
-        var port = GetFreePort();
-        var runtime = new LakonaGameRuntimeOptions
-        {
-            Node = new LakonaGameNodeOptions { Id = "data-1" },
-            Cluster = new LakonaGameClusterOptions
-            {
-                Endpoint = $"tcp://127.0.0.1:{port}",
-                Serializer = "json"
-            }
-        };
-        var handler = new RecordingFeatureMessageHandler();
-        var services = new ServiceCollection();
-        services.AddSingleton<IFeatureMessageHandler>(handler);
-        services.AddSingleton<IRpcSerializer, JsonRpcSerializer>();
-        using var provider = services.BuildServiceProvider();
-        var rpcBuilder = RpcServerHostBuilder.Create();
-        var configurator = new LakonaClusterRpcServerConfigurator(runtime);
-        configurator.Configure(new LakonaGameServerRpcContext(
-            "cluster",
-            new LakonaGameEndpointOptions { Transport = "cluster" },
-            rpcBuilder,
-            provider,
-            [],
-            TestContext.Current.CancellationToken));
-        using var stopServer = new CancellationTokenSource();
-        var serverTask = rpcBuilder.RunAsync(stopServer.Token).AsTask();
-        await Task.Delay(100, TestContext.Current.CancellationToken);
-
-        await using var clientFactory = new ClusterClientFactory(
-            new TcpClusterTransportFactory(),
-            new JsonRpcSerializer());
-        var transport = new RpcFeatureMessageTransport(clientFactory);
-        var reply = await transport.SendAsync(
-            new ClusterNodeDescriptor(
-                new NodeId("data-1"),
-                NodeState.Ready,
-                new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal)
-                {
-                    ["cluster"] = new NodeEndpoint($"tcp://127.0.0.1:{port}")
-                },
-                [new NodeFeatureDescriptor("matchmaking")]),
-            new FeatureMessageRequest(
-                new FeatureName("matchmaking"),
-                "join",
-                new byte[] { 1, 2, 3 },
-                DateTimeOffset.UtcNow.AddMinutes(1),
-                new NodeId("gateway-1"),
-                "corr-1"),
-            TestContext.Current.CancellationToken);
-
-        stopServer.Cancel();
-        await Task.WhenAny(serverTask, Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
-
-        Assert.Equal(ClusterSendStatus.Accepted, reply.Status);
-        Assert.Equal(new byte[] { 9 }, reply.Payload.ToArray());
-        var request = Assert.Single(handler.Requests);
-        Assert.Equal("matchmaking", request.Feature.Value);
-        Assert.Equal("join", request.Kind);
-        Assert.Equal(new byte[] { 1, 2, 3 }, request.Payload.ToArray());
-        Assert.Equal(new NodeId("gateway-1"), request.SourceNode);
-    }
-
-    [Fact]
-    public async Task ClusterEndpointRpcServerAcceptsFeatureMessageTransportWithMemoryPack()
-    {
-        var port = GetFreePort();
-        var runtime = new LakonaGameRuntimeOptions
-        {
-            Node = new LakonaGameNodeOptions { Id = "data-1" },
-            Cluster = new LakonaGameClusterOptions
-            {
-                Endpoint = $"tcp://127.0.0.1:{port}",
-                Serializer = "memorypack"
-            }
-        };
-        var handler = new RecordingFeatureMessageHandler();
-        var services = new ServiceCollection();
-        services.AddSingleton<IFeatureMessageHandler>(handler);
-        services.AddSingleton<IRpcSerializer>(_ => ClusterRpcMemoryPack.CreateSerializer());
-        using var provider = services.BuildServiceProvider();
-        var rpcBuilder = RpcServerHostBuilder.Create();
-        var configurator = new LakonaClusterRpcServerConfigurator(runtime);
-        configurator.Configure(new LakonaGameServerRpcContext(
-            "cluster",
-            new LakonaGameEndpointOptions { Transport = "cluster" },
-            rpcBuilder,
-            provider,
-            [],
-            TestContext.Current.CancellationToken));
-        using var stopServer = new CancellationTokenSource();
-        var serverTask = rpcBuilder.RunAsync(stopServer.Token).AsTask();
-        await Task.Delay(100, TestContext.Current.CancellationToken);
-
-        await using var clientFactory = new ClusterClientFactory(
-            new TcpClusterTransportFactory(),
-            ClusterRpcMemoryPack.CreateSerializer());
-        var transport = new RpcFeatureMessageTransport(clientFactory);
-        var reply = await transport.SendAsync(
-            new ClusterNodeDescriptor(
-                new NodeId("data-1"),
-                NodeState.Ready,
-                new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal)
-                {
-                    ["cluster"] = new NodeEndpoint($"tcp://127.0.0.1:{port}")
-                },
-                [new NodeFeatureDescriptor("matchmaking")]),
-            new FeatureMessageRequest(
-                new FeatureName("matchmaking"),
-                "join",
-                new byte[] { 1, 2, 3 },
-                DateTimeOffset.UtcNow.AddMinutes(1),
-                new NodeId("gateway-1"),
-                "corr-1"),
-            TestContext.Current.CancellationToken);
-
-        stopServer.Cancel();
-        await Task.WhenAny(serverTask, Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
-
-        Assert.Equal(ClusterSendStatus.Accepted, reply.Status);
-        Assert.Equal(new byte[] { 9 }, reply.Payload.ToArray());
-        var request = Assert.Single(handler.Requests);
-        Assert.Equal("matchmaking", request.Feature.Value);
-        Assert.Equal("join", request.Kind);
-        Assert.Equal(new byte[] { 1, 2, 3 }, request.Payload.ToArray());
-        Assert.Equal(new NodeId("gateway-1"), request.SourceNode);
-    }
-
-    [Fact]
     public async Task InitialHotfixLoad_Throws_WhenReloadFails()
     {
         var services = new ServiceCollection();
@@ -734,73 +583,6 @@ public sealed class LakonaGameServerTests
         Assert.False(result.Succeeded);
         Assert.Equal(HotfixReloadStatus.Failed, result.Status);
         Assert.Contains("Server.Hotfix.dll", result.RequestedPath, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Feature_discovery_does_not_load_hotfix_directory_assemblies()
-    {
-        var before = AssemblyLoadContext.Default.Assemblies
-            .Select(assembly => assembly.GetName().Name)
-            .ToHashSet(StringComparer.Ordinal);
-
-        var services = new ServiceCollection();
-        var configuration = new ConfigurationBuilder().Build();
-
-        Lakona.Game.Server.Hosting.LakonaGameServer.DiscoverStableFeaturesForTesting(services, configuration, AppContext.BaseDirectory);
-
-        var after = AssemblyLoadContext.Default.Assemblies
-            .Select(assembly => assembly.GetName().Name)
-            .ToHashSet(StringComparer.Ordinal);
-
-        Assert.DoesNotContain("Server.Hotfix", after.Except(before, StringComparer.Ordinal));
-    }
-
-    [Fact]
-    public void Feature_discovery_does_not_load_existing_hotfix_directory_assemblies()
-    {
-        var root = Path.Combine(Path.GetTempPath(), "LakonaFeatureDiscoveryTests", Guid.NewGuid().ToString("N"));
-        try
-        {
-            var hotfixDirectory = Path.Combine(root, "hotfix");
-            Directory.CreateDirectory(hotfixDirectory);
-            var hotfixPath = Path.Combine(hotfixDirectory, "Server.Hotfix.dll");
-
-            var syntaxTree = CSharpSyntaxTree.ParseText("public sealed class Marker { }", cancellationToken: TestContext.Current.CancellationToken);
-            var references = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!
-                .ToString()!
-                .Split(Path.PathSeparator)
-                .Select(path => MetadataReference.CreateFromFile(path));
-            var compilation = CSharpCompilation.Create(
-                "Server.Hotfix",
-                [syntaxTree],
-                references,
-                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-            using var stream = File.Create(hotfixPath);
-            var emit = compilation.Emit(stream, cancellationToken: TestContext.Current.CancellationToken);
-            Assert.True(emit.Success, string.Join(Environment.NewLine, emit.Diagnostics));
-
-            var before = AssemblyLoadContext.Default.Assemblies
-                .Select(assembly => assembly.GetName().Name)
-                .ToHashSet(StringComparer.Ordinal);
-
-            var services = new ServiceCollection();
-            var configuration = new ConfigurationBuilder().Build();
-
-            Lakona.Game.Server.Hosting.LakonaGameServer.DiscoverStableFeaturesForTesting(services, configuration, root);
-
-            var after = AssemblyLoadContext.Default.Assemblies
-                .Select(assembly => assembly.GetName().Name)
-                .ToHashSet(StringComparer.Ordinal);
-
-            Assert.DoesNotContain("Server.Hotfix", after.Except(before, StringComparer.Ordinal));
-        }
-        finally
-        {
-            if (Directory.Exists(root))
-            {
-                Directory.Delete(root, recursive: true);
-            }
-        }
     }
 
     [Fact]
@@ -820,8 +602,7 @@ public sealed class LakonaGameServerTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Lakona:Node:Id"] = "test-node",
-                ["Lakona:Feature:0"] = "state-store"
+                ["Lakona:Node:Id"] = "test-node"
             })
             .Build();
 
@@ -833,51 +614,6 @@ public sealed class LakonaGameServerTests
         Assert.NotNull(provider.GetService<Lakona.Game.Server.Sessions.IGameSessionRegistry>());
         Assert.NotNull(provider.GetService<ReliablePushOptions>());
         Assert.NotNull(provider.GetService<Lakona.Game.Server.Diagnostics.IMessageLogStore>());
-    }
-
-    [Fact]
-    public async Task AddLakonaGameServer_allows_stable_feature_message_handler_replacement()
-    {
-        var custom = new RecordingFeatureMessageHandler();
-        await using var provider = new ServiceCollection()
-            .AddSingleton<IFeatureMessageHandler>(custom)
-            .AddLakonaGameServer()
-            .BuildServiceProvider();
-
-        var handler = provider.GetRequiredService<IFeatureMessageHandler>();
-        var reply = await handler.HandleAsync(
-            new FeatureMessageRequest(
-                new FeatureName("battle-runtime"),
-                "17",
-                ReadOnlyMemory<byte>.Empty,
-                DateTimeOffset.UtcNow.AddMinutes(1),
-                new NodeId("data-1"),
-                "corr-1"),
-            TestContext.Current.CancellationToken);
-
-        Assert.Same(custom, handler);
-        Assert.Equal(ClusterSendStatus.Accepted, reply.Status);
-    }
-
-    [Fact]
-    public async Task AddLakonaGameServer_feature_message_handler_is_noop_without_hotfix()
-    {
-        await using var provider = new ServiceCollection()
-            .AddLakonaGameServer()
-            .BuildServiceProvider();
-
-        var handler = provider.GetRequiredService<IFeatureMessageHandler>();
-        var reply = await handler.HandleAsync(
-            new FeatureMessageRequest(
-                new FeatureName("battle-runtime"),
-                "allocate",
-                ReadOnlyMemory<byte>.Empty,
-                DateTimeOffset.UtcNow.AddMinutes(1),
-                new NodeId("data-1"),
-                "corr-1"),
-            TestContext.Current.CancellationToken);
-
-        Assert.Equal(ClusterSendStatus.FeatureNotFound, reply.Status);
     }
 
     [Fact]
@@ -928,25 +664,6 @@ public sealed class LakonaGameServerTests
         Assert.NotNull(provider.GetService<IClientNotifications>());
         Assert.Null(typeof(ILakonaGameServer).Assembly.GetType("Lakona.Game.Server.Sessions.IClientSessionIndex"));
         Assert.Null(typeof(ILakonaGameServer).Assembly.GetType("Lakona.Game.Server.Sessions.InMemoryClientSessionIndex"));
-    }
-
-    [Fact]
-    public void AddLakonaGameServer_registers_feature_command_client_after_command_api_exists()
-    {
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Lakona:Node:Id"] = "test-node"
-            })
-            .Build();
-
-        using var provider = new ServiceCollection()
-            .AddSingleton<IFeatureMessageBus, RecordingFeatureMessageBus>()
-            .AddSingleton<IFeatureMessageSerializer, TestFeatureMessageSerializer>()
-            .AddLakonaGameServer(configuration)
-            .BuildServiceProvider();
-
-        Assert.NotNull(provider.GetService<IFeatureCommandClient>());
     }
 
     [Fact]
@@ -1397,35 +1114,6 @@ public sealed class LakonaGameServerTests
     {
     }
 
-    private sealed class RecordingFeatureMessageHandler : IFeatureMessageHandler
-    {
-        private readonly FeatureName? _acceptedFeature;
-
-        public RecordingFeatureMessageHandler(FeatureName? acceptedFeature = null)
-        {
-            _acceptedFeature = acceptedFeature;
-        }
-
-        public List<FeatureMessageRequest> Requests { get; } = [];
-
-        public ValueTask<FeatureMessageReply> HandleAsync(
-            FeatureMessageRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            Requests.Add(request);
-            if (_acceptedFeature is not null &&
-                !string.Equals(request.Feature.Value, _acceptedFeature.Value.Value, StringComparison.OrdinalIgnoreCase))
-            {
-                return new ValueTask<FeatureMessageReply>(
-                    new FeatureMessageReply(ClusterSendStatus.FeatureNotFound, ReadOnlyMemory<byte>.Empty));
-            }
-
-            return new ValueTask<FeatureMessageReply>(
-                new FeatureMessageReply(ClusterSendStatus.Accepted, new byte[] { 9 }));
-        }
-    }
-
     private sealed class FixedHotfixRuntimeAccessor : IHotfixRuntimeAccessor
     {
         public FixedHotfixRuntimeAccessor(IServiceProvider services)
@@ -1434,49 +1122,6 @@ public sealed class LakonaGameServerTests
         }
 
         public HotfixRuntimeSnapshot Current { get; }
-    }
-
-    private sealed class RecordingFeatureMessageBus : IFeatureMessageBus
-    {
-        public ValueTask<FeatureMessageReply> SendToFeatureAsync<TRequest, TReply>(
-            FeatureName feature,
-            TRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public ValueTask<FeatureMessageReply> SendToFeatureAsync<TRequest, TReply>(
-            FeatureName feature,
-            string kind,
-            TRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public ValueTask<FeatureMessageReply> SendToNodeAsync<TRequest, TReply>(
-            ClusterNodeDescriptor target,
-            FeatureName feature,
-            string kind,
-            TRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-    }
-
-    private sealed class TestFeatureMessageSerializer : IFeatureMessageSerializer
-    {
-        public ReadOnlyMemory<byte> Serialize<T>(T value)
-        {
-            throw new NotSupportedException();
-        }
-
-        public T Deserialize<T>(ReadOnlyMemory<byte> payload)
-        {
-            throw new NotSupportedException();
-        }
     }
 
     private sealed class TerminationCallback : ILakonaGameSessionCallback

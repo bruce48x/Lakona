@@ -27,7 +27,7 @@ public sealed class HotfixDiagnosticsProvider : ILakonaDiagnosticsSnapshotProvid
                 LoadedAtUtc: null,
                 DispatchTableVersion: 0,
                 MethodCount: 0,
-                FeatureCount: 0,
+                ActorHostCount: 0,
                 LastReloadStatus: null,
                 LastFailureExceptionType: null));
         }
@@ -39,7 +39,7 @@ public sealed class HotfixDiagnosticsProvider : ILakonaDiagnosticsSnapshotProvid
             LoadedAtUtc: current.LoadedAtUtc,
             DispatchTableVersion: current.DispatchTableVersion,
             MethodCount: current.Methods.Count,
-            FeatureCount: current.Features.Count,
+            ActorHostCount: current.ActorHosts.Count,
             LastReloadStatus: current.LastReloadStatus?.ToString(),
             LastFailureExceptionType: current.LastFailureExceptionType));
     }
@@ -50,7 +50,7 @@ public sealed class HotfixDiagnosticsProvider : ILakonaDiagnosticsSnapshotProvid
         DateTimeOffset? LoadedAtUtc,
         long DispatchTableVersion,
         int MethodCount,
-        int FeatureCount,
+        int ActorHostCount,
         string? LastReloadStatus,
         string? LastFailureExceptionType);
 }

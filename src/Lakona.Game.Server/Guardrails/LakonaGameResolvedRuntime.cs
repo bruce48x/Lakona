@@ -5,7 +5,6 @@ public sealed record LakonaGameResolvedRuntime(
     IReadOnlyList<LakonaGameResolvedEndpoint> Endpoints,
     LakonaGameResolvedCluster Cluster,
     LakonaGameResolvedClusterEndpoint? ClusterEndpoint,
-    LakonaGameResolvedFeature Feature,
     LakonaGameResolvedHotfix Hotfix,
     LakonaGameResolvedReliablePush ReliablePush,
     LakonaGameResolvedHeartbeat Heartbeat,

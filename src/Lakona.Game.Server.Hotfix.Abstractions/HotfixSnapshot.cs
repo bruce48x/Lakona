@@ -11,7 +11,6 @@ public sealed record HotfixSnapshot
         HotfixReloadStatus? LastReloadStatus,
         string? LastFailureMessage,
         string? LastFailureExceptionType,
-        IReadOnlyList<HotfixFeatureDeclaration>? Features = null,
         IReadOnlyList<HotfixActorHostDescriptor>? ActorHosts = null)
     {
         this.Version = Version;
@@ -22,7 +21,6 @@ public sealed record HotfixSnapshot
         this.LastReloadStatus = LastReloadStatus;
         this.LastFailureMessage = LastFailureMessage;
         this.LastFailureExceptionType = LastFailureExceptionType;
-        this.Features = Array.AsReadOnly(Features?.ToArray() ?? []);
         this.ActorHosts = Array.AsReadOnly(ActorHosts?.ToArray() ?? []);
     }
 
@@ -35,8 +33,6 @@ public sealed record HotfixSnapshot
     public long DispatchTableVersion { get; }
 
     public IReadOnlyList<HotfixMethodKey> Methods { get; }
-
-    public IReadOnlyList<HotfixFeatureDeclaration> Features { get; }
 
     public IReadOnlyList<HotfixActorHostDescriptor> ActorHosts { get; }
 

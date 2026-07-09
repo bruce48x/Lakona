@@ -57,7 +57,6 @@ namespace Lakona.Game.Cluster.Sql
                         registration.NodeId,
                         epoch,
                         registration.Endpoints,
-                        registration.Features,
                         registration.ActorHosts,
                         registration.Labels,
                         registration.State,
@@ -213,7 +212,7 @@ namespace Lakona.Game.Cluster.Sql
             await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
             using var command = connection.CreateCommand();
             command.CommandText =
-                "SELECT cluster_name, node_id, node_epoch, state, endpoints_json, features_json, actor_hosts_json, labels_json, lease_expires_at, updated_at " +
+                "SELECT cluster_name, node_id, node_epoch, state, endpoints_json, actor_hosts_json, labels_json, lease_expires_at, updated_at " +
                 "FROM " + _options.TableName + " WHERE cluster_name = @cluster_name";
             AddParameter(command, "@cluster_name", query.ClusterName);
 
@@ -312,7 +311,7 @@ namespace Lakona.Game.Cluster.Sql
             using var command = connection.CreateCommand();
             command.Transaction = transaction;
             command.CommandText =
-                "SELECT cluster_name, node_id, node_epoch, state, endpoints_json, features_json, actor_hosts_json, labels_json, lease_expires_at, updated_at " +
+                "SELECT cluster_name, node_id, node_epoch, state, endpoints_json, actor_hosts_json, labels_json, lease_expires_at, updated_at " +
                 "FROM " + _options.TableName + " " +
                 "WHERE cluster_name = @cluster_name AND node_id = @node_id";
             AddParameter(command, "@cluster_name", clusterName);
@@ -370,8 +369,8 @@ namespace Lakona.Game.Cluster.Sql
             command.Transaction = transaction;
             command.CommandText =
                 "INSERT INTO " + _options.TableName + " " +
-                "(cluster_name, node_id, node_epoch, state, endpoints_json, features_json, actor_hosts_json, labels_json, lease_expires_at, updated_at) " +
-                "VALUES (@cluster_name, @node_id, @node_epoch, @state, @endpoints_json, @features_json, @actor_hosts_json, @labels_json, @lease_expires_at, @updated_at)";
+                "(cluster_name, node_id, node_epoch, state, endpoints_json, actor_hosts_json, labels_json, lease_expires_at, updated_at) " +
+                "VALUES (@cluster_name, @node_id, @node_epoch, @state, @endpoints_json, @actor_hosts_json, @labels_json, @lease_expires_at, @updated_at)";
             AddRecordParameters(command, record);
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -387,7 +386,7 @@ namespace Lakona.Game.Cluster.Sql
             command.CommandText =
                 "UPDATE " + _options.TableName + " " +
                 "SET node_epoch = @node_epoch, state = @state, endpoints_json = @endpoints_json, " +
-                "features_json = @features_json, actor_hosts_json = @actor_hosts_json, labels_json = @labels_json, lease_expires_at = @lease_expires_at, updated_at = @updated_at " +
+                "actor_hosts_json = @actor_hosts_json, labels_json = @labels_json, lease_expires_at = @lease_expires_at, updated_at = @updated_at " +
                 "WHERE cluster_name = @cluster_name AND node_id = @node_id";
             AddRecordParameters(command, record);
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -400,7 +399,6 @@ namespace Lakona.Game.Cluster.Sql
             AddParameter(command, "@node_epoch", record.NodeEpoch);
             AddParameter(command, "@state", (int)record.State);
             AddParameter(command, "@endpoints_json", SerializeEndpoints(record.Endpoints));
-            AddParameter(command, "@features_json", SerializeFeatures(record.Features));
             AddParameter(command, "@actor_hosts_json", SerializeActorHosts(record.ActorHosts));
             AddParameter(command, "@labels_json", SerializeStringDictionary(record.Labels));
             AddParameter(command, "@lease_expires_at", ToUtcTicks(record.LeaseExpiresAt));
@@ -422,12 +420,11 @@ namespace Lakona.Game.Cluster.Sql
                 new NodeId(reader.GetString(1)),
                 reader.GetInt64(2),
                 DeserializeEndpoints(reader.GetString(4)),
-                DeserializeFeatures(reader.GetString(5)),
-                DeserializeActorHosts(reader.GetString(6)),
-                DeserializeStringDictionary(reader.GetString(7)),
+                DeserializeActorHosts(reader.GetString(5)),
+                DeserializeStringDictionary(reader.GetString(6)),
                 (NodeState)reader.GetInt32(3),
-                FromUtcTicks(reader.GetInt64(8)),
-                FromUtcTicks(reader.GetInt64(9)));
+                FromUtcTicks(reader.GetInt64(7)),
+                FromUtcTicks(reader.GetInt64(8)));
         }
 
         private static bool MatchesQuery(NodeRecord record, NodeDirectoryQuery query, DateTimeOffset now)
@@ -438,11 +435,6 @@ namespace Lakona.Game.Cluster.Sql
             }
 
             if (!query.IncludeExpired && (record.State == NodeState.Dead || record.IsExpired(now)))
-            {
-                return false;
-            }
-
-            if (query.FeatureName is not null && !record.HasFeature(query.FeatureName))
             {
                 return false;
             }
@@ -492,28 +484,6 @@ namespace Lakona.Game.Cluster.Sql
             }
 
             return new ReadOnlyDictionary<string, NodeEndpoint>(endpoints);
-        }
-
-        private static string SerializeFeatures(IReadOnlyList<NodeFeatureDescriptor> features)
-        {
-            var dto = features
-                .Select(feature => new FeatureDto(feature.Name, feature.Metadata))
-                .ToArray();
-            return JsonSerializer.Serialize(dto, JsonOptions);
-        }
-
-        private static IReadOnlyList<NodeFeatureDescriptor> DeserializeFeatures(string json)
-        {
-            var dto = JsonSerializer.Deserialize<FeatureDto[]>(json, JsonOptions) ?? Array.Empty<FeatureDto>();
-            var features = new List<NodeFeatureDescriptor>(dto.Length);
-            foreach (var feature in dto)
-            {
-                features.Add(new NodeFeatureDescriptor(
-                    feature.Name,
-                    ToOrdinalDictionary(feature.Metadata)));
-            }
-
-            return new ReadOnlyCollection<NodeFeatureDescriptor>(features);
         }
 
         private static string SerializeActorHosts(IReadOnlyList<NodeActorHostDescriptor> actorHosts)
@@ -653,25 +623,6 @@ namespace Lakona.Game.Cluster.Sql
             }
 
             public string Address { get; set; }
-
-            public Dictionary<string, string> Metadata { get; set; }
-        }
-
-        private sealed class FeatureDto
-        {
-            public FeatureDto()
-            {
-                Name = string.Empty;
-                Metadata = new Dictionary<string, string>(StringComparer.Ordinal);
-            }
-
-            public FeatureDto(string name, IReadOnlyDictionary<string, string> metadata)
-            {
-                Name = name;
-                Metadata = ToOrdinalDictionary(metadata);
-            }
-
-            public string Name { get; set; }
 
             public Dictionary<string, string> Metadata { get; set; }
         }

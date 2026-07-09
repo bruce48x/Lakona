@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Configuration;
 using Lakona.Game.Server.Configuration;
-using System.Text;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests.Configuration;
@@ -237,78 +236,6 @@ public sealed class LakonaGameRuntimeOptionsTests
     }
 
     [Fact]
-    public void FromConfiguration_preserves_empty_feature_array()
-    {
-        var configuration = BuildConfiguration(new Dictionary<string, string?>
-        {
-            ["Lakona:Node:Id"] = "gateway-1",
-            ["Lakona:Feature"] = ""
-        });
-
-        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
-
-        Assert.NotNull(options.Feature);
-        Assert.Empty(options.Feature);
-    }
-
-    [Fact]
-    public void FromConfiguration_preserves_json_empty_feature_array()
-    {
-        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(
-            """
-            {
-              "Lakona": {
-                "Node": {
-                  "Id": "gateway-1"
-                },
-                "Feature": []
-              }
-            }
-            """));
-        var configuration = new ConfigurationBuilder()
-            .AddJsonStream(stream)
-            .Build();
-
-        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
-
-        Assert.NotNull(options.Feature);
-        Assert.Empty(options.Feature);
-    }
-
-    [Fact]
-    public void FromConfiguration_preserves_json_feature_values()
-    {
-        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(
-            """
-            {
-              "Lakona": {
-                "Feature": [ "database" ]
-              }
-            }
-            """));
-        var configuration = new ConfigurationBuilder()
-            .AddJsonStream(stream)
-            .Build();
-
-        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
-
-        Assert.Equal(["database"], options.Feature);
-    }
-
-    [Fact]
-    public void FromConfiguration_binds_json_string_feature_values()
-    {
-        var configuration = BuildConfiguration(new Dictionary<string, string?>
-        {
-            ["Lakona:Feature"] = """["state-store","matchmaking","leaderboard"]"""
-        });
-
-        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
-
-        Assert.Equal(["state-store", "matchmaking", "leaderboard"], options.Feature);
-    }
-
-    [Fact]
     public void FromConfiguration_binds_json_string_endpoints_and_rpc_services()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>
@@ -354,21 +281,6 @@ public sealed class LakonaGameRuntimeOptionsTests
         var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
 
         Assert.Equal(["tcp://10.0.0.1:21001"], options.Cluster!.Seeds);
-    }
-
-    [Fact]
-    public void FromConfiguration_rejects_malformed_json_string_array()
-    {
-        var configuration = BuildConfiguration(new Dictionary<string, string?>
-        {
-            ["Lakona:Feature"] = "[\"state-store\""
-        });
-
-        var ex = Assert.Throws<InvalidOperationException>(() =>
-            LakonaGameRuntimeOptions.FromConfiguration(configuration));
-
-        Assert.Contains("Lakona:Feature", ex.Message, StringComparison.Ordinal);
-        Assert.Contains("JSON", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -429,7 +341,7 @@ public sealed class LakonaGameRuntimeOptionsTests
     }
 
     [Fact]
-    public void FromConfiguration_binds_node_endpoints_feature_and_cluster()
+    public void FromConfiguration_binds_node_endpoints_actor_hosts_and_cluster()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>
         {
@@ -443,8 +355,8 @@ public sealed class LakonaGameRuntimeOptionsTests
             ["Lakona:Endpoints:1:Serializer"] = "memorypack",
             ["Lakona:Endpoints:1:Host"] = "0.0.0.0",
             ["Lakona:Endpoints:1:Port"] = "20001",
-            ["Lakona:Feature:0"] = "battle",
-            ["Lakona:Feature:1"] = "battle-settlement",
+            ["Lakona:ActorHosts:0"] = "room",
+            ["Lakona:ActorHosts:1"] = "matchmaking",
             ["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.3:21003",
             ["Lakona:Cluster:Serializer"] = "memorypack",
             ["Lakona:Cluster:Seeds:0"] = "tcp://10.0.0.1:21001"
@@ -471,14 +383,14 @@ public sealed class LakonaGameRuntimeOptionsTests
                 Assert.Equal(20001, endpoint.Port);
                 Assert.Equal("", endpoint.Path);
             });
-        Assert.Equal(["battle", "battle-settlement"], options.Feature);
+        Assert.Equal(["room", "matchmaking"], options.ActorHosts);
         Assert.NotNull(options.Cluster);
         Assert.Equal("tcp://10.0.0.3:21003", options.Cluster.Endpoint);
         Assert.Equal(["tcp://10.0.0.1:21001"], options.Cluster.Seeds);
     }
 
     [Fact]
-    public void FromConfiguration_defaults_feature_to_null_and_cluster_to_defaults()
+    public void FromConfiguration_defaults_actor_hosts_to_empty_and_cluster_to_defaults()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>
         {
@@ -489,7 +401,7 @@ public sealed class LakonaGameRuntimeOptionsTests
 
         Assert.Equal("dev-1", options.Node.Id);
         Assert.Empty(options.Endpoints);
-        Assert.Null(options.Feature);
+        Assert.Empty(options.ActorHosts);
         Assert.NotNull(options.Cluster);
         Assert.Equal("tcp://127.0.0.1:21001", options.Cluster.Endpoint);
         Assert.Equal("memorypack", options.Cluster.Serializer);

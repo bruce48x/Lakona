@@ -18,7 +18,6 @@ namespace Lakona.Game.Cluster.Rpc
                 ClusterName = registration.ClusterName,
                 Node = registration.NodeId.Value,
                 Endpoints = CopyEndpoints(registration.Endpoints),
-                Features = CopyFeatures(registration.Features),
                 ActorHosts = CopyActorHosts(registration.ActorHosts),
                 Labels = CopyDictionary(registration.Labels),
                 State = (int)registration.State,
@@ -37,7 +36,6 @@ namespace Lakona.Game.Cluster.Rpc
                 dto.ClusterName,
                 dto.Node,
                 ToEndpoints(dto.Endpoints),
-                ToFeatures(dto.Features),
                 ToActorHosts(dto.ActorHosts),
                 dto.LeaseExpiresAt,
                 ToNodeState(dto.State),
@@ -57,7 +55,6 @@ namespace Lakona.Game.Cluster.Rpc
                 Node = record.NodeId.Value,
                 NodeEpoch = record.NodeEpoch,
                 Endpoints = CopyEndpoints(record.Endpoints),
-                Features = CopyFeatures(record.Features),
                 ActorHosts = CopyActorHosts(record.ActorHosts),
                 Labels = CopyDictionary(record.Labels),
                 State = (int)record.State,
@@ -78,7 +75,6 @@ namespace Lakona.Game.Cluster.Rpc
                 dto.Node,
                 dto.NodeEpoch,
                 ToEndpoints(dto.Endpoints),
-                ToFeatures(dto.Features),
                 ToActorHosts(dto.ActorHosts),
                 CopyDictionary(dto.Labels),
                 ToNodeState(dto.State),
@@ -96,7 +92,6 @@ namespace Lakona.Game.Cluster.Rpc
             return new NodeDirectoryClientQueryDto
             {
                 ClusterName = query.ClusterName,
-                FeatureName = query.FeatureName,
                 ActorHostName = query.ActorHostName,
                 ActorHostPolicyHash = query.ActorHostPolicyHash,
                 State = query.State.HasValue ? (int)query.State.Value : (int?)null,
@@ -114,7 +109,6 @@ namespace Lakona.Game.Cluster.Rpc
 
             return new NodeDirectoryQuery(
                 dto.ClusterName,
-                featureName: dto.FeatureName,
                 actorHostName: dto.ActorHostName,
                 actorHostPolicyHash: dto.ActorHostPolicyHash,
                 state: dto.State.HasValue ? ToNodeState(dto.State.Value) : (NodeState?)null,
@@ -157,46 +151,6 @@ namespace Lakona.Game.Cluster.Rpc
                 copy[endpoint.Key] = new NodeEndpoint(
                     endpoint.Value.Address,
                     CopyDictionary(endpoint.Value.Metadata));
-            }
-
-            return copy;
-        }
-
-        private static List<NodeFeatureDto> CopyFeatures(
-            IReadOnlyList<NodeFeatureDescriptor>? source)
-        {
-            var copy = new List<NodeFeatureDto>();
-            if (source is null)
-            {
-                return copy;
-            }
-
-            for (var i = 0; i < source.Count; i++)
-            {
-                copy.Add(new NodeFeatureDto
-                {
-                    Name = source[i].Name,
-                    Metadata = CopyDictionary(source[i].Metadata)
-                });
-            }
-
-            return copy;
-        }
-
-        private static List<NodeFeatureDescriptor> ToFeatures(
-            IReadOnlyList<NodeFeatureDto>? source)
-        {
-            var copy = new List<NodeFeatureDescriptor>();
-            if (source is null)
-            {
-                return copy;
-            }
-
-            for (var i = 0; i < source.Count; i++)
-            {
-                copy.Add(new NodeFeatureDescriptor(
-                    source[i].Name,
-                    CopyDictionary(source[i].Metadata)));
             }
 
             return copy;

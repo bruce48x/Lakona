@@ -29,32 +29,40 @@ Reload uses next-entry semantics: a method already executing keeps the version i
 
 ## Timers
 
-Feature-owned timers use the stable `LakonaTimer` facade from
-`Lakona.Game.Server.Hotfix.Abstractions`. Create timers in feature `StartAsync`,
-store the returned `TimerId` in feature state, and destroy them in `StopAsync`:
+Actor-owned timers use the stable `LakonaTimer` facade from
+`Lakona.Game.Server.Hotfix.Abstractions`. Create timers in `[ActorStart]`,
+store the returned `TimerId` in stable actor state, and destroy them in
+`[ActorStop]`:
 
 ```csharp
-public static async ValueTask StartAsync(HotfixFeatureStartCall call)
+[HotfixState]
+public sealed partial class BattleActor : Actor<ActorId>
 {
-    var timerId = await LakonaTimer.CreatePeriodicTimerAsync<BattleTimers, BattleTick>(
-        TimeSpan.Zero,
-        TimeSpan.FromMilliseconds(50),
-        nameof(BattleTimers.TickAsync),
-        new BattleTick("default"),
-        call.CancellationToken);
-
-    call.State.Items["battle.timer"] = timerId;
+    internal TimerId BattleTimerId;
 }
 
-public static async ValueTask StopAsync(HotfixFeatureStopCall call)
+[FriendOf(typeof(BattleActor))]
+[HotfixBehaviorOf(typeof(BattleActor))]
+public static partial class BattleBehavior
 {
-    if (call.State.Items.TryGetValue("battle.timer", out var value) &&
-        value is TimerId timerId)
+    [ActorStart]
+    public static async ValueTask StartAsync(BattleActor self, ActorStartCall call)
     {
-        await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None);
+        self.BattleTimerId = await LakonaTimer.CreatePeriodicTimerAsync<BattleTimers, BattleTick>(
+            TimeSpan.Zero,
+            TimeSpan.FromMilliseconds(50),
+            nameof(BattleTimers.TickAsync),
+            new BattleTick(call.ActorId.ToString()!),
+            call.CancellationToken);
     }
 
-    call.State.Items.Remove("battle.timer");
+    [ActorStop]
+    public static async ValueTask StopAsync(BattleActor self, ActorStopCall call)
+    {
+        await LakonaTimer.DestroyTimerAsync(
+            self.BattleTimerId,
+            call.CleanupCancellationToken);
+    }
 }
 ```
 
@@ -70,8 +78,8 @@ public sealed class BattleTimers
 }
 ```
 
-Use noncancelable cleanup for feature timer destruction when a canceled stop
-token must not leave a timer registered.
+Use `ActorStopCall.CleanupCancellationToken` for timer destruction when a
+canceled stop token must not leave a timer registered.
 
 ## Server hotfix flow
 

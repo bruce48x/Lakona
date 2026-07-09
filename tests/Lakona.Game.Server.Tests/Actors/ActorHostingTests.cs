@@ -290,7 +290,6 @@ public sealed class ActorHostingTests
             1,
             scan.Methods,
             scan.Services,
-            scan.Features,
             scan.ActorMethods,
             scan.ActorLifecycles);
         await using var hotfixServices = new ServiceCollection()
@@ -298,7 +297,6 @@ public sealed class ActorHostingTests
             .BuildServiceProvider();
         var snapshot = new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(table),
-            new HotfixFeatureCommandInvoker(table),
             hotfixServices,
             table,
             hotfixServices,

@@ -146,7 +146,7 @@ public sealed class DependencyPlannerTests
             persistence,
             NuGetForUnitySource.OpenUpm,
             DeploymentProfile.None,
-            ProjectFeatureCatalog.DefaultFeatures);
+            ProjectCapabilityCatalog.DefaultCapabilities);
     }
 
     private static void AssertPackage(

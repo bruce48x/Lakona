@@ -169,10 +169,6 @@ public static class LakonaGameReadinessProbe
                     LakonaGameValueSource.Configuration,
                     "Lakona:Cluster:Serializer"),
                 runtime.Cluster.Seeds),
-            Feature: new LakonaGameResolvedFeature(
-                Configured: runtime.Feature,
-                Active: Array.Empty<string>(),
-                StartupOrder: Array.Empty<string>()),
             Hotfix: new LakonaGameResolvedHotfix(
                 AssemblyPath: new LakonaGameResolvedValue<string>(hotfixAssemblyPath, LakonaGameValueSource.GeneratedConvention),
                 AssemblyFileName: new LakonaGameResolvedValue<string>("Server.Hotfix.dll", LakonaGameValueSource.GeneratedConvention)),

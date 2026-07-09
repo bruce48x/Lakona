@@ -7,7 +7,7 @@ namespace Lakona.Tool.Tests.Domain;
 public sealed class ProjectSpecFactoryTests
 {
     [Fact]
-    public void Create_UsesOptionsAndDefaultFeatures()
+    public void Create_UsesOptionsAndDefaultCapabilities()
     {
         var options = new NewProjectOptions(
             ProjectName: "Space Arena",
@@ -36,13 +36,13 @@ public sealed class ProjectSpecFactoryTests
         Assert.Equal(DeploymentProfile.Compose, spec.DeploymentProfile);
         Assert.Equal(
             [
-                ProjectFeature.ClusterLocal,
-                ProjectFeature.Hotfix,
-                ProjectFeature.ReliablePush,
-                ProjectFeature.LoginSlice,
-                ProjectFeature.ChatSlice
+                ProjectCapability.ClusterLocal,
+                ProjectCapability.Hotfix,
+                ProjectCapability.ReliablePush,
+                ProjectCapability.LoginSlice,
+                ProjectCapability.ChatSlice
             ],
-            spec.Features);
+            spec.Capabilities);
     }
 
     [Fact]

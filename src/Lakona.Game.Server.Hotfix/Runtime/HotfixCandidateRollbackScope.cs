@@ -12,7 +12,7 @@ internal sealed class HotfixCandidateRollbackScope : IAsyncDisposable
     }
 
     public static async ValueTask<HotfixCandidateRollbackScope> BeginAsync(
-        string featureName,
+        string candidateName,
         IServiceProvider services,
         CancellationToken cancellationToken)
     {
@@ -23,7 +23,7 @@ internal sealed class HotfixCandidateRollbackScope : IAsyncDisposable
             foreach (var participant in participants)
             {
                 var handle = await participant
-                    .BeginCandidateFeatureStartAsync(featureName, services, cancellationToken)
+                    .BeginCandidateStartupAsync(candidateName, services, cancellationToken)
                     .ConfigureAwait(false);
                 scope._handles.Add(handle);
             }

@@ -58,11 +58,6 @@ public sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurator
             RouteDirectoryBinder.Bind(context.Builder.ServiceRegistry, routeDirectory);
         }
 
-        if (context.Services.GetService(typeof(IFeatureMessageHandler)) is IFeatureMessageHandler featureHandler)
-        {
-            FeatureMessageBinder.Bind(context.Builder.ServiceRegistry, featureHandler);
-        }
-
         if (context.Services.GetService(typeof(LocalClientNotificationCommandDispatcher)) is
             LocalClientNotificationCommandDispatcher notificationDispatcher)
         {

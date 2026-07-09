@@ -2,8 +2,8 @@ namespace Lakona.Game.Server.Hotfix;
 
 public interface IHotfixCandidateRollbackParticipant
 {
-    ValueTask<IHotfixCandidateRollbackHandle> BeginCandidateFeatureStartAsync(
-        string featureName,
+    ValueTask<IHotfixCandidateRollbackHandle> BeginCandidateStartupAsync(
+        string candidateName,
         IServiceProvider services,
         CancellationToken cancellationToken = default);
 }

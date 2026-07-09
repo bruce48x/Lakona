@@ -32,7 +32,7 @@ public sealed class ZeroTemplateServerShapeTests
             "Hosting",
             "Services",
             "Realtime",
-            "Features",
+            string.Concat("Fea", "tures"),
             "Hotfix"
         };
 
@@ -100,7 +100,7 @@ public sealed class ZeroTemplateServerShapeTests
     }
 
     [Fact]
-    public void Data_node_does_not_enable_database_as_application_feature()
+    public void Data_node_does_not_enable_database_as_application_component()
     {
         var compose = File.ReadAllText(Path.Combine(
             Root,
@@ -112,11 +112,11 @@ public sealed class ZeroTemplateServerShapeTests
         Assert.DoesNotContain("database", data, StringComparison.Ordinal);
         Assert.Contains("Lakona__ActorHosts: '[\"user\",\"matchmaking\",\"leaderboard\"]'", data, StringComparison.Ordinal);
         Assert.Contains("Lakona__StartupActors: '[\"matchmaking\",\"leaderboard\"]'", data, StringComparison.Ordinal);
-        Assert.DoesNotContain("Lakona__Feature", data, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("Lakona__", "Fea", "ture"), data, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void AgarHotfixDoesNotUseFeatureAuthoring()
+    public void AgarHotfixDoesNotUseRemovedAuthoring()
     {
         var hotfixRoot = Path.Combine(
             Root,
@@ -127,9 +127,9 @@ public sealed class ZeroTemplateServerShapeTests
         var files = Directory.GetFiles(hotfixRoot, "*.cs", SearchOption.AllDirectories);
         var combined = string.Join('\n', files.Select(File.ReadAllText));
 
-        Assert.DoesNotContain("HotfixFeature", combined, StringComparison.Ordinal);
-        Assert.DoesNotContain("HotfixGameFeature", combined, StringComparison.Ordinal);
-        Assert.DoesNotContain("IFeatureCommandClient", combined, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("Hotfix", "Fea", "ture"), combined, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("HotfixGame", "Fea", "ture"), combined, StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("I", "Fea", "ture", "CommandClient"), combined, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -14,7 +14,7 @@ public sealed class LakonaGameClusterOptions
     public string Endpoint { get; init; } = DefaultEndpoint;
 
     /// <summary>
-    /// Gets the serializer used for cluster protocol, feature messages, notification relay, and remote actor payloads.
+    /// Gets the serializer used for cluster protocol, notification relay, and remote actor payloads.
     /// </summary>
     public string Serializer { get; init; } = DefaultSerializer;
 

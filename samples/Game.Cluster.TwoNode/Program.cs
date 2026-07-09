@@ -419,17 +419,14 @@ static NodeRegistration WorkerRegistration(int port)
         {
             ["cluster"] = new NodeEndpoint($"tcp://127.0.0.1:{port}")
         },
-        new[]
-        {
-            new NodeFeatureDescriptor(
-                "worker-room",
-                new Dictionary<string, string>
-                {
-                    ["sample"] = "cluster-two-node"
-                })
-        },
         DateTimeOffset.UtcNow.AddMinutes(5),
-        NodeState.Ready);
+        NodeState.Ready,
+        new Dictionary<string, string>
+        {
+            ["service.kind"] = "room",
+            ["service.name"] = "worker-room",
+            ["sample"] = "cluster-two-node"
+        });
 }
 
 static Dictionary<string, string> WorkerRouteMetadata()

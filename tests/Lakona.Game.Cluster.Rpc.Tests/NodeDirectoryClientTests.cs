@@ -51,7 +51,15 @@ public sealed class NodeDirectoryClientTests
         var heartbeat = await directory.HeartbeatAsync("local", "node-a", record.NodeEpoch, now.AddSeconds(40), now, TestContext.Current.CancellationToken);
         var update = await directory.UpdateStateAsync("local", "node-a", record.NodeEpoch, NodeState.Draining, now, TestContext.Current.CancellationToken);
         var resolved = await directory.ResolveAsync("local", "node-a", now, TestContext.Current.CancellationToken);
-        var queried = await directory.QueryAsync(new NodeDirectoryQuery("local", featureName: "gateway"), now, TestContext.Current.CancellationToken);
+        var queried = await directory.QueryAsync(
+            new NodeDirectoryQuery(
+                "local",
+                labels: new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["role"] = "gateway"
+                }),
+            now,
+            TestContext.Current.CancellationToken);
         var expired = await directory.ExpireAsync("local", now.AddMinutes(1), TestContext.Current.CancellationToken);
 
         Assert.Equal(NodeRegistrationStatus.Registered, registered.Status);
@@ -195,8 +203,8 @@ public sealed class NodeDirectoryClientTests
         Assert.Equal(register.Record.NodeEpoch, resolve.Record.NodeEpoch);
         Assert.Equal("tcp://127.0.0.1:21001", resolve.Record.Endpoints!["cluster"].Address);
         Assert.Equal("tcp", resolve.Record.Endpoints["cluster"].Metadata!["transport"]);
-        Assert.Equal("gateway", resolve.Record.Features![0].Name);
-        Assert.Equal("us-east", resolve.Record.Features[0].Metadata!["region"]);
+        Assert.Equal("gateway", resolve.Record.Labels!["role"]);
+        Assert.Equal("us-east", resolve.Record.Labels["region"]);
     }
 
     [Fact]
@@ -288,7 +296,12 @@ public sealed class NodeDirectoryClientTests
             ClusterProtocol.QueryNodesMethodId,
             new NodeQueryRequest
             {
-                Query = NodeDirectoryRecordConverter.ToDto(new NodeDirectoryQuery("local", featureName: "room")),
+                Query = NodeDirectoryRecordConverter.ToDto(new NodeDirectoryQuery(
+                    "local",
+                    labels: new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["role"] = "room"
+                    })),
                 Now = now
             });
 
@@ -425,7 +438,7 @@ public sealed class NodeDirectoryClientTests
         string clusterName,
         string nodeId,
         DateTimeOffset now,
-        string featureName = "gateway",
+        string role = "gateway",
         IReadOnlyList<NodeActorHostDescriptor>? actorHosts = null)
     {
         return new NodeRegistration(
@@ -440,20 +453,13 @@ public sealed class NodeDirectoryClientTests
                         ["transport"] = "tcp"
                     })
             },
-            new[]
-            {
-                new NodeFeatureDescriptor(
-                    featureName,
-                    new Dictionary<string, string>
-                    {
-                        ["region"] = "us-east"
-                    })
-            },
             actorHosts ?? Array.Empty<NodeActorHostDescriptor>(),
             now.AddSeconds(30),
             NodeState.Ready,
             new Dictionary<string, string>
             {
+                ["role"] = role,
+                ["region"] = "us-east",
                 ["zone"] = "a"
             });
     }
@@ -465,7 +471,6 @@ public sealed class NodeDirectoryClientTests
             registration.NodeId,
             nodeEpoch,
             registration.Endpoints,
-            registration.Features,
             registration.ActorHosts,
             registration.Labels,
             registration.State,

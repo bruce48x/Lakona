@@ -97,7 +97,7 @@ public sealed class ActorDirectoryClient : IActorDirectory
         }
 
         var discovered = await _nodeDiscovery.AnyAsync(
-            ActorDirectoryFeatures.ActorDirectory,
+            ActorDirectoryLabels.Values,
             cancellationToken).ConfigureAwait(false);
 
         if (discovered is not { } descriptor)

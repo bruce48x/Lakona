@@ -1348,7 +1348,6 @@ public sealed class LakonaTimerIntegrationTests
             var services = new ServiceCollection().BuildServiceProvider();
             var snapshot = new HotfixRuntimeSnapshot(
                 new HotfixServiceInvoker(table),
-                EmptyHotfixFeatureCommandInvoker.Instance,
                 services,
                 table,
                 services,
@@ -1400,7 +1399,6 @@ public sealed class LakonaTimerIntegrationTests
         var services = new ServiceCollection().BuildServiceProvider();
         return new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(table),
-            EmptyHotfixFeatureCommandInvoker.Instance,
             services,
             table,
             services,
@@ -1925,7 +1923,6 @@ public sealed class LakonaTimerIntegrationTests
         var table = new HotfixDispatchTable(44, Array.Empty<HotfixMethodBinding>());
         var snapshot = new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(table),
-            EmptyHotfixFeatureCommandInvoker.Instance,
             services,
             table,
             services,

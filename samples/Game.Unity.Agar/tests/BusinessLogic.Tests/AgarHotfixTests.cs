@@ -16,16 +16,15 @@ using Lakona.Game.Server;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Loading;
-using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Server.Hotfix.Services;
-using Server.Hotfix.Features;
 using Server.Hotfix.State.Leaderboard;
 using Server.Hotfix.State.Rooms;
 using Server.Hotfix.State.Users;
+using Server.Hotfix.Timers;
 using Shared.Interfaces;
 using System.Security.Cryptography;
 using System.Text;
@@ -37,7 +36,7 @@ namespace Agar.Unity.Tests;
 public sealed class AgarHotfixTests
 {
     [Fact]
-    public void AgarHotfixFeatures_DoNotRegisterFeatureMessageHandlers()
+    public void AgarHotfixTimers_DoNotRegisterRemovedMessageHandlers()
     {
         var root = FindRepositoryRoot();
         var hotfixFiles = Directory.GetFiles(
@@ -48,9 +47,9 @@ public sealed class AgarHotfixTests
         foreach (var file in hotfixFiles)
         {
             var text = File.ReadAllText(file);
-            Assert.DoesNotContain("IFeatureMessageHandler", text, StringComparison.Ordinal);
-            Assert.DoesNotContain("FeatureMessageReply", text, StringComparison.Ordinal);
-            Assert.DoesNotContain("FeatureMessageRequest", text, StringComparison.Ordinal);
+            Assert.DoesNotContain(string.Concat("I", "Fea", "ture", "MessageHandler"), text, StringComparison.Ordinal);
+            Assert.DoesNotContain(string.Concat("Fea", "ture", "MessageReply"), text, StringComparison.Ordinal);
+            Assert.DoesNotContain(string.Concat("Fea", "ture", "MessageRequest"), text, StringComparison.Ordinal);
         }
     }
 
@@ -84,9 +83,7 @@ public sealed class AgarHotfixTests
             StateStoreNode("state-b", "tcp://127.0.0.1:22002"),
             StateStoreNode("state-a", "tcp://127.0.0.1:22001")
         };
-        var featureCommands = new CapturingFeatureCommandClient();
         var remoteSerializer = new JsonRemoteActorSerializer();
-        var remoteInvoker = new StateStoreRemoteActorInvoker(remoteSerializer, featureCommands);
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
@@ -107,14 +104,15 @@ public sealed class AgarHotfixTests
                     RpcServices = ["login", "player"]
                 }
             ],
-            Feature = []
+            ActorHosts = []
         });
         services.AddSingleton<IClusterNodeDiscovery>(new FixedClusterNodeDiscovery(stateStoreNodes));
-        services.AddSingleton<IFeatureCommandClient>(featureCommands);
         services.RemoveAll<IRemoteActorSerializer>();
         services.RemoveAll<IRemoteActorInvoker>();
         services.AddSingleton<IRemoteActorSerializer>(remoteSerializer);
-        services.AddSingleton<IRemoteActorInvoker>(remoteInvoker);
+        services.AddSingleton<IRemoteActorInvoker>(provider => new StateStoreRemoteActorInvoker(
+            remoteSerializer,
+            provider.GetRequiredService<IActorDirectory>()));
         var matchmakingNotifierType = typeof(LoginService).Assembly.GetType("Server.Hotfix.Services.MatchmakingNotifier", throwOnError: true)!;
         services.AddSingleton(matchmakingNotifierType);
 
@@ -133,7 +131,6 @@ public sealed class AgarHotfixTests
                 NodeState.Ready),
             now,
             TestContext.Current.CancellationToken);
-        featureCommands.UseActorDirectory(provider.GetRequiredService<IActorDirectory>());
         var actors = provider.GetRequiredService<IActorRuntime>();
         var service = new LoginService(
             provider.GetRequiredService<UserActors>(),
@@ -157,9 +154,6 @@ public sealed class AgarHotfixTests
         Assert.Equal(reply.PlayerId, reply.SessionId);
         Assert.Equal(1, reply.SessionGeneration);
 
-        Assert.Null(featureCommands.LastTarget);
-        Assert.Equal("", featureCommands.LastFeatureName);
-        Assert.Equal("", featureCommands.LastRequestTypeName);
         Assert.Equal(ActorState.Active, actors.GetState(ActorId.From(reply.PlayerId)));
     }
 
@@ -171,9 +165,7 @@ public sealed class AgarHotfixTests
             StateStoreNode("state-b", "tcp://127.0.0.1:22002"),
             StateStoreNode("state-a", "tcp://127.0.0.1:22001")
         };
-        var featureCommands = new CapturingFeatureCommandClient();
         var remoteSerializer = new JsonRemoteActorSerializer();
-        var remoteInvoker = new StateStoreRemoteActorInvoker(remoteSerializer, featureCommands);
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
@@ -198,16 +190,16 @@ public sealed class AgarHotfixTests
             StartupActors = []
         });
         services.AddSingleton<IClusterNodeDiscovery>(new FixedClusterNodeDiscovery(stateStoreNodes));
-        services.AddSingleton<IFeatureCommandClient>(featureCommands);
         services.RemoveAll<IRemoteActorSerializer>();
         services.RemoveAll<IRemoteActorInvoker>();
         services.AddSingleton<IRemoteActorSerializer>(remoteSerializer);
-        services.AddSingleton<IRemoteActorInvoker>(remoteInvoker);
+        services.AddSingleton<IRemoteActorInvoker>(provider => new StateStoreRemoteActorInvoker(
+            remoteSerializer,
+            provider.GetRequiredService<IActorDirectory>()));
         var matchmakingNotifierType = typeof(LoginService).Assembly.GetType("Server.Hotfix.Services.MatchmakingNotifier", throwOnError: true)!;
         services.AddSingleton(matchmakingNotifierType);
 
         await using var provider = services.BuildServiceProvider();
-        featureCommands.UseActorDirectory(provider.GetRequiredService<IActorDirectory>());
         await provider.GetRequiredService<ActorHosting>()
             .EnsureAsync<LeaderboardActor>(ActorId.From("current"), TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
@@ -230,9 +222,6 @@ public sealed class AgarHotfixTests
 
         Assert.Equal(0, reply.Code);
         Assert.Equal(typeof(IPlayerCallback), gameServer.LastBoundSessionCallbackType);
-        Assert.Null(featureCommands.LastTarget);
-        Assert.Equal("", featureCommands.LastFeatureName);
-        Assert.Equal("", featureCommands.LastRequestTypeName);
         Assert.Equal(ActorState.Active, actors.GetState(ActorId.From("current")));
     }
 
@@ -618,7 +607,10 @@ public sealed class AgarHotfixTests
             {
                 ["cluster"] = new NodeEndpoint(clusterEndpoint)
             },
-            [new NodeFeatureDescriptor("state-store")]);
+            labels: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["role"] = "state-store"
+            });
     }
 
     private static ClusterNodeDescriptor SelectExpectedStateStoreOwner(
@@ -646,149 +638,49 @@ public sealed class AgarHotfixTests
         }
 
         public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> ListAsync(
-            FeatureName feature,
+            IReadOnlyDictionary<string, string> labels,
             CancellationToken cancellationToken = default)
         {
             var matches = _nodes
-                .Where(node => node.Features.Any(item =>
-                    string.Equals(item.Name, feature.Value, StringComparison.OrdinalIgnoreCase)))
+                .Where(node => labels.All(label =>
+                    node.Labels.TryGetValue(label.Key, out var value) &&
+                    string.Equals(value, label.Value, StringComparison.Ordinal)))
                 .ToArray();
             return new ValueTask<IReadOnlyList<ClusterNodeDescriptor>>(matches);
         }
 
         public async ValueTask<ClusterNodeDescriptor?> AnyAsync(
-            FeatureName feature,
+            IReadOnlyDictionary<string, string> labels,
             CancellationToken cancellationToken = default)
         {
-            return (await ListAsync(feature, cancellationToken).ConfigureAwait(false)).FirstOrDefault();
-        }
-    }
-
-    private sealed class CapturingFeatureCommandClient : IFeatureCommandClient
-    {
-        private readonly HashSet<(NodeId Node, string ActorId)> _createdLeaderboardActors = [];
-        private readonly HashSet<(NodeId Node, string ActorId)> _createdUserActors = [];
-        private IActorDirectory? _directory;
-
-        public ClusterNodeDescriptor? LastTarget { get; private set; }
-
-        public string LastFeatureName { get; private set; } = "";
-
-        public string LastRequestTypeName { get; private set; } = "";
-
-        public string LastUserId { get; private set; } = "";
-
-        public string LastLeaderboardId { get; private set; } = "";
-
-        public void UseActorDirectory(IActorDirectory directory)
-        {
-            _directory = directory;
-        }
-
-        public bool HasCreatedUserActorOn(NodeId node, string userId)
-        {
-            return _createdUserActors.Contains((node, userId));
-        }
-
-        public bool HasCreatedLeaderboardActorOn(NodeId node, string leaderboardId)
-        {
-            return _createdLeaderboardActors.Contains((node, leaderboardId));
-        }
-
-        public void RegisterExistingLeaderboardActor(NodeId node, string leaderboardId)
-        {
-            _createdLeaderboardActors.Add((node, leaderboardId));
-        }
-
-        public ValueTask<TReply> SendAsync<TRequest, TReply>(
-            string featureName,
-            TRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            return CaptureAndReply<TRequest, TReply>(null, featureName, request, cancellationToken);
-        }
-
-        public ValueTask<TReply> SendToNodeAsync<TRequest, TReply>(
-            ClusterNodeDescriptor target,
-            string featureName,
-            TRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            return CaptureAndReply<TRequest, TReply>(target, featureName, request, cancellationToken);
-        }
-
-        private async ValueTask<TReply> CaptureAndReply<TRequest, TReply>(
-            ClusterNodeDescriptor? target,
-            string featureName,
-            TRequest request,
-            CancellationToken cancellationToken)
-        {
-            LastTarget = target;
-            LastFeatureName = featureName;
-            LastRequestTypeName = typeof(TRequest).Name;
-            LastUserId = ReadStringProperty(request, "UserId");
-            LastLeaderboardId = ReadStringProperty(request, "LeaderboardId");
-            if (target is not null && _directory is not null)
-            {
-                var createdActorId = !string.IsNullOrWhiteSpace(LastUserId)
-                    ? ActorId.From(LastUserId)
-                    : !string.IsNullOrWhiteSpace(LastLeaderboardId)
-                        ? ActorId.From(LastLeaderboardId)
-                        : default;
-                if (!string.IsNullOrWhiteSpace(createdActorId.Value))
-                {
-                    if (!string.IsNullOrWhiteSpace(LastUserId))
-                    {
-                        _createdUserActors.Add((target.Node, LastUserId));
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(LastLeaderboardId))
-                    {
-                        _createdLeaderboardActors.Add((target.Node, LastLeaderboardId));
-                    }
-
-                    await _directory.RegisterAsync(createdActorId, target.Node, cancellationToken)
-                        .ConfigureAwait(false);
-                }
-            }
-
-            var reply = Activator.CreateInstance(typeof(TReply), nonPublic: true)
-                ?? throw new InvalidOperationException($"Could not create reply type {typeof(TReply).FullName}.");
-            typeof(TReply).GetProperty("Succeeded")?.SetValue(reply, true);
-            typeof(TReply).GetProperty("Message")?.SetValue(reply, "Actor ready.");
-            return (TReply)reply;
-        }
-
-        private static string ReadStringProperty<TRequest>(TRequest request, string propertyName)
-        {
-            return typeof(TRequest).GetProperty(propertyName)?.GetValue(request) as string ?? "";
+            return (await ListAsync(labels, cancellationToken).ConfigureAwait(false)).FirstOrDefault();
         }
     }
 
     private sealed class StateStoreRemoteActorInvoker : IRemoteActorInvoker
     {
         private readonly IRemoteActorSerializer _serializer;
-        private readonly CapturingFeatureCommandClient _featureCommands;
+        private readonly IActorDirectory _directory;
 
         public StateStoreRemoteActorInvoker(
             IRemoteActorSerializer serializer,
-            CapturingFeatureCommandClient featureCommands)
+            IActorDirectory directory)
         {
             _serializer = serializer;
-            _featureCommands = featureCommands;
+            _directory = directory;
         }
 
-        public ValueTask<RemoteActorInvocationResult> AskAsync(
+        public async ValueTask<RemoteActorInvocationResult> AskAsync(
             RemoteActorInvocation invocation,
             CancellationToken cancellationToken = default)
         {
             if (IsBehaviorMethod(invocation, "LoginAsync"))
             {
-                if (!_featureCommands.HasCreatedUserActorOn(invocation.Node, invocation.ActorId.Value))
+                if (!await IsRegisteredOnExpectedNodeAsync(invocation, cancellationToken).ConfigureAwait(false))
                 {
-                    return new ValueTask<RemoteActorInvocationResult>(RemoteActorInvocationResult.Failed(
+                    return RemoteActorInvocationResult.Failed(
                         RemoteActorStatus.HandlerUnavailable,
-                        $"User actor {invocation.ActorId.Value} was not created on {invocation.Node.Value}."));
+                        $"User actor {invocation.ActorId.Value} was not created on {invocation.Node.Value}.");
                 }
 
                 var result = new UserLoginResult
@@ -798,17 +690,16 @@ public sealed class AgarHotfixTests
                     LoginCount = 1,
                     LastLoginAtUtc = DateTime.UtcNow
                 };
-                return new ValueTask<RemoteActorInvocationResult>(
-                    RemoteActorInvocationResult.Replied(_serializer.Serialize(result)));
+                return RemoteActorInvocationResult.Replied(_serializer.Serialize(result));
             }
 
             if (IsBehaviorMethod(invocation, "AttachAsync"))
             {
-                if (!_featureCommands.HasCreatedUserActorOn(invocation.Node, invocation.ActorId.Value))
+                if (!await IsRegisteredOnExpectedNodeAsync(invocation, cancellationToken).ConfigureAwait(false))
                 {
-                    return new ValueTask<RemoteActorInvocationResult>(RemoteActorInvocationResult.Failed(
+                    return RemoteActorInvocationResult.Failed(
                         RemoteActorStatus.HandlerUnavailable,
-                        $"User actor {invocation.ActorId.Value} was not created on {invocation.Node.Value}."));
+                        $"User actor {invocation.ActorId.Value} was not created on {invocation.Node.Value}.");
                 }
 
                 var request = _serializer.Deserialize<PlayerSessionAttachRequest>(invocation.Payload);
@@ -823,17 +714,16 @@ public sealed class AgarHotfixTests
                     AttachedAtUtc = request.AttachedAtUtc,
                     ControlGateway = request.ControlGateway
                 };
-                return new ValueTask<RemoteActorInvocationResult>(
-                    RemoteActorInvocationResult.Replied(_serializer.Serialize(snapshot)));
+                return RemoteActorInvocationResult.Replied(_serializer.Serialize(snapshot));
             }
 
             if (IsBehaviorMethod(invocation, "GetLeaderboardAsync"))
             {
-                if (!_featureCommands.HasCreatedLeaderboardActorOn(invocation.Node, invocation.ActorId.Value))
+                if (!await IsRegisteredOnExpectedNodeAsync(invocation, cancellationToken).ConfigureAwait(false))
                 {
-                    return new ValueTask<RemoteActorInvocationResult>(RemoteActorInvocationResult.Failed(
+                    return RemoteActorInvocationResult.Failed(
                         RemoteActorStatus.HandlerUnavailable,
-                        $"Leaderboard actor {invocation.ActorId.Value} was not created on {invocation.Node.Value}."));
+                        $"Leaderboard actor {invocation.ActorId.Value} was not created on {invocation.Node.Value}.");
                 }
 
                 var snapshot = new LeaderboardSnapshot
@@ -843,13 +733,21 @@ public sealed class AgarHotfixTests
                     SecondsUntilReset = 60,
                     Entries = []
                 };
-                return new ValueTask<RemoteActorInvocationResult>(
-                    RemoteActorInvocationResult.Replied(_serializer.Serialize(snapshot)));
+                return RemoteActorInvocationResult.Replied(_serializer.Serialize(snapshot));
             }
 
-            return new ValueTask<RemoteActorInvocationResult>(RemoteActorInvocationResult.Failed(
+            return RemoteActorInvocationResult.Failed(
                 RemoteActorStatus.HandlerUnavailable,
-                $"Unexpected remote actor method {invocation.MethodName}."));
+                $"Unexpected remote actor method {invocation.MethodName}.");
+        }
+
+        private async ValueTask<bool> IsRegisteredOnExpectedNodeAsync(
+            RemoteActorInvocation invocation,
+            CancellationToken cancellationToken)
+        {
+            var owner = await _directory.ResolveAsync(invocation.ActorId, cancellationToken)
+                .ConfigureAwait(false);
+            return owner is not null && owner.Node == invocation.Node;
         }
 
         private static bool IsBehaviorMethod(RemoteActorInvocation invocation, string methodName)

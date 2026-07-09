@@ -11,7 +11,7 @@ namespace Lakona.Game.Cluster
         Failed = 6,
         StaleRoute = 7,
         NodeEpochMismatch = 8,
-        FeatureNotFound = 9,
+        TargetNotFound = 9,
         NodeUnavailable = 10,
         SerializationFailed = 11,
         DeserializationFailed = 12,

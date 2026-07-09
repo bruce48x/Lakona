@@ -6,9 +6,9 @@ namespace Lakona.Game.Server.Hotfix.Abstractions.Timers;
 /// Creates and destroys framework-owned hotfix timers.
 /// </summary>
 /// <remarks>
-/// Timers must be created inside an active hotfix execution scope, usually from
-/// a hotfix feature <c>StartAsync</c> method. Store the returned <see cref="TimerId"/>
-/// in <see cref="HotfixFeatureState"/> when the timer should be destroyed later.
+/// Timers must be created inside an active hotfix execution scope. Store the
+/// returned <see cref="TimerId"/> in stable state when the timer should be
+/// destroyed later.
 /// Timer callbacks are resolved by type and method name so hotfix reload can call
 /// the same method name on the newest loaded hotfix assembly.
 /// </remarks>
@@ -89,7 +89,7 @@ public static class LakonaTimer
     /// <param name="cancellationToken">A token that cancels timer destruction.</param>
     /// <returns>A task-like value that completes when the timer is removed.</returns>
     /// <remarks>
-    /// Feature shutdown code should usually pass <see cref="CancellationToken.None"/>
+    /// Shutdown code should usually pass <see cref="CancellationToken.None"/>
     /// so cleanup still runs when the stop request token has already been canceled.
     /// </remarks>
     public static ValueTask DestroyTimerAsync(TimerId timerId, CancellationToken cancellationToken = default)

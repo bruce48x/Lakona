@@ -20,26 +20,16 @@ public interface IHotfixRuntimeAccessor
 public sealed class HotfixRuntimeSnapshot
 {
     public HotfixRuntimeSnapshot(IHotfixServiceInvoker invoker, IServiceProvider services)
-        : this(invoker, EmptyHotfixFeatureCommandInvoker.Instance, services)
+        : this(invoker, services, onRetired: null)
     {
     }
 
     public HotfixRuntimeSnapshot(
         IHotfixServiceInvoker invoker,
-        IHotfixFeatureCommandInvoker featureCommands,
-        IServiceProvider services)
-        : this(invoker, featureCommands, services, onRetired: null)
-    {
-    }
-
-    public HotfixRuntimeSnapshot(
-        IHotfixServiceInvoker invoker,
-        IHotfixFeatureCommandInvoker featureCommands,
         IServiceProvider services,
         IReadOnlyList<ActorPlacementDeclaration> actorPlacements)
         : this(
             invoker,
-            featureCommands,
             services,
             dispatchTable: null,
             hotfixServices: services,
@@ -55,12 +45,10 @@ public sealed class HotfixRuntimeSnapshot
 
     internal HotfixRuntimeSnapshot(
         IHotfixServiceInvoker invoker,
-        IHotfixFeatureCommandInvoker featureCommands,
         IServiceProvider services,
         Action? onRetired)
         : this(
             invoker,
-            featureCommands,
             services,
             dispatchTable: null,
             hotfixServices: services,
@@ -75,7 +63,6 @@ public sealed class HotfixRuntimeSnapshot
 
     internal HotfixRuntimeSnapshot(
         IHotfixServiceInvoker invoker,
-        IHotfixFeatureCommandInvoker featureCommands,
         IServiceProvider services,
         HotfixDispatchTable? dispatchTable,
         IServiceProvider? hotfixServices,
@@ -89,7 +76,6 @@ public sealed class HotfixRuntimeSnapshot
         IReadOnlyList<ActorPlacementDeclaration>? actorPlacements = null)
     {
         Invoker = invoker ?? throw new ArgumentNullException(nameof(invoker));
-        FeatureCommands = featureCommands ?? throw new ArgumentNullException(nameof(featureCommands));
         Services = services ?? throw new ArgumentNullException(nameof(services));
         DispatchTable = dispatchTable;
         HotfixServices = hotfixServices ?? services;
@@ -110,8 +96,6 @@ public sealed class HotfixRuntimeSnapshot
     private int _retirementCompleted;
 
     public IHotfixServiceInvoker Invoker { get; }
-
-    public IHotfixFeatureCommandInvoker FeatureCommands { get; }
 
     public IServiceProvider Services { get; }
 

@@ -94,7 +94,6 @@ public sealed class GameSessionLifecycleBridgeTests
         var snapshotServices = new TrackingServiceProvider(innerServices);
         var snapshot = new HotfixRuntimeSnapshot(
             invoker,
-            EmptyHotfixFeatureCommandInvoker.Instance,
             snapshotServices,
             onRetired: snapshotServices.Dispose);
         var services = new ServiceCollection();

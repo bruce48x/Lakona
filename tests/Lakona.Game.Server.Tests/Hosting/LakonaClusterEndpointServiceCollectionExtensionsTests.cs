@@ -5,7 +5,6 @@ using Lakona.Game.Cluster.Sql;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
-using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Sessions;
 using Lakona.Rpc.Core;
@@ -280,7 +279,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public async Task AddLakonaGameClusterEndpoint_registers_feature_message_transport()
+    public async Task AddLakonaGameClusterEndpoint_registers_only_cluster_router_dependencies()
     {
         var services = new ServiceCollection();
         services.AddSingleton(new LakonaGameRuntimeOptions
@@ -296,9 +295,8 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         services.AddLakonaGameClusterEndpoint();
         await using var provider = services.BuildServiceProvider();
 
-        Assert.IsType<RpcFeatureMessageTransport>(provider.GetRequiredService<IFeatureMessageTransport>());
-        Assert.IsType<RpcFeatureMessageSerializer>(provider.GetRequiredService<IFeatureMessageSerializer>());
-        Assert.IsType<FeatureMessageBus>(provider.GetRequiredService<IFeatureMessageBus>());
+        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IClusterRouter));
+        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IClusterNodeSender));
     }
 
     [Fact]
@@ -367,7 +365,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             .Build();
         var services = new ServiceCollection();
 
-        services.AddLakonaGame(configuration, _ => { });
+        services.AddLakonaGameServer(configuration);
         using var provider = services.BuildServiceProvider();
 
         Assert.IsType<SqlNodeDirectory>(provider.GetRequiredService<INodeDirectory>());

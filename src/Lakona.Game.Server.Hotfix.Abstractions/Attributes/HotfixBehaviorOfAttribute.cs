@@ -5,8 +5,8 @@ namespace Lakona.Game.Server.Hotfix.Abstractions;
 /// </summary>
 /// <remarks>
 /// Behavior methods execute inside the target actor turn and may mutate the
-/// actor's stable state. Long-lived runtime handles should be owned by feature
-/// lifecycle instead of static behavior state.
+/// actor's stable state. Long-lived runtime handles should be owned by actor
+/// startup or application services instead of static behavior state.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
 public sealed class HotfixBehaviorOfAttribute : Attribute

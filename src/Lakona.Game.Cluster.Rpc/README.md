@@ -26,7 +26,7 @@ It does not provide durable route directory storage, external platform discovery
 
 The shared node and route directories are ordinary node-local implementations exposed over the node's advertised cluster endpoint. A data node can own durable directory storage while gateway and battle nodes use `Lakona:Cluster:Seeds` to create remote directory clients.
 
-Example data node that owns the shared directories and business features:
+Example data node that owns the shared directories and actor hosting:
 
 ```json
 {
@@ -34,7 +34,8 @@ Example data node that owns the shared directories and business features:
     "Node": {
       "Id": "data-1"
     },
-    "Feature": [ "state-store", "matchmaking", "leaderboard" ],
+    "ActorHosts": [ "matchmaking", "leaderboard" ],
+    "StartupActors": [ "matchmaking" ],
     "Cluster": {
       "Endpoint": "tcp://10.0.0.1:21001",
       "Serializer": "memorypack",
@@ -58,7 +59,8 @@ Example gateway node with only endpoint-local client RPC exposure:
     "Node": {
       "Id": "gateway-1"
     },
-    "Feature": [],
+    "ActorHosts": [],
+    "StartupActors": [],
     "Endpoints": [
       {
         "Transport": "websocket",
@@ -78,7 +80,12 @@ Example gateway node with only endpoint-local client RPC exposure:
 }
 ```
 
-`Feature` declares cluster-discoverable node capability. `RpcServices` declares services exposed only on that client endpoint. Nodes that do not register a local `INodeDirectory` or `IRouteDirectory` use `Lakona:Cluster:Seeds` as the public bootstrap input and register themselves, client-session routes, and lease refreshes through the remote directory node.
+`ActorHosts` declares actor kinds the node may create locally. `StartupActors`
+declares named actors created during node startup. `RpcServices` declares
+services exposed only on that client endpoint. Nodes that do not register a
+local `INodeDirectory` or `IRouteDirectory` use `Lakona:Cluster:Seeds` as the
+public bootstrap input and register themselves, client-session routes, and
+lease refreshes through the remote directory node.
 
 `Lakona:Cluster:Serializer` is required when cluster is configured. Supported
 values are `json` and `memorypack`, and all communicating cluster nodes must

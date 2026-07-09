@@ -6,7 +6,7 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>Lakona.Game.Cluster.Rpc.MemoryPack</RootNamespace>
     <PackageId>Lakona.Game.Cluster.Rpc.MemoryPack</PackageId>
-    <Version>0.1.7</Version>
+    <Version>0.1.8</Version>
     <Description>Generated MemoryPack formatter catalog for Lakona.Game cluster RPC protocol DTOs.</Description>
     <PackageTags>lakona-game;cluster;rpc;memorypack;serializer</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

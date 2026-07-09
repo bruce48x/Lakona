@@ -131,7 +131,6 @@ public sealed class ActorPlacementServiceTests
         hostClient ??= new RecordingActorHostClient();
         var runtime = new FixedHotfixRuntimeAccessor(new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(new HotfixDispatchTable(1, [], [])),
-            new HotfixFeatureCommandInvoker(new HotfixDispatchTable(1, [], [])),
             new ServiceCollection().BuildServiceProvider(),
             dispatchTable: null,
             hotfixServices: null,

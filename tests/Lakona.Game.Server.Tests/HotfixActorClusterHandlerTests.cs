@@ -515,7 +515,6 @@ public sealed class HotfixActorClusterHandlerTests
         var services = new ServiceCollection().BuildServiceProvider();
         return new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(table),
-            EmptyHotfixFeatureCommandInvoker.Instance,
             services,
             table,
             services,
@@ -538,7 +537,6 @@ public sealed class HotfixActorClusterHandlerTests
         var services = new ServiceCollection().BuildServiceProvider();
         return new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(table),
-            EmptyHotfixFeatureCommandInvoker.Instance,
             services,
             table,
             services,

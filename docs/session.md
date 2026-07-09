@@ -218,7 +218,7 @@ serializer. Framework-internal payloads stay on `LakonaInternalCodec`; the
 endpoint business serializer is not part of the default framework handshake and
 begins only at business RPC payloads after handshake succeeds.
 `LakonaInternalCodec` also does not follow `Lakona:Cluster:Serializer`; the
-cluster serializer is for node-to-node cluster, feature-message,
+cluster serializer is for node-to-node cluster,
 notification-relay, and remote actor payloads.
 
 `LakonaInternalCodec` is the framework-owned v1 payload codec for

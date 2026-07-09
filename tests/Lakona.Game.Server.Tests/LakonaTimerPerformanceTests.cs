@@ -454,7 +454,6 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
                 var table = new HotfixDispatchTable(1, Array.Empty<HotfixMethodBinding>());
                 var snapshot = new HotfixRuntimeSnapshot(
                     new HotfixServiceInvoker(table),
-                    EmptyHotfixFeatureCommandInvoker.Instance,
                     services,
                     table,
                     services,

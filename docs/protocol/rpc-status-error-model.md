@@ -92,7 +92,7 @@ This design does not add:
 - Per-method timeout configuration.
 - Authentication or authorization status codes.
 
-Those can be handled by application DTOs or later framework features if they become unavoidable. They should not be added speculatively to `RpcStatus`.
+Those can be handled by application DTOs or later framework capabilities if they become unavoidable. They should not be added speculatively to `RpcStatus`.
 
 ## Compatibility Position
 

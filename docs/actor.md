@@ -259,14 +259,13 @@ transaction across local actor activation, `ActorDirectory`, and
 `ActorDirectoryCache`. User code should not separately publish or clear actor
 routes for actors created through `ActorHosting`.
 
-Cross-node creation is a feature command to the owning feature; the owning
-feature calls `ActorHosting` on its own node.
+Cross-node creation goes through the registered actor placement strategy. The
+selected node calls `ActorHosting` on its own process.
 
-Creation, placement, capacity, and idempotency belong at the feature-command
+Creation, placement, capacity, and idempotency belong at the actor placement
 boundary. Once an actor exists, services and gateways should call ordinary
-business behavior through generated actor refs, not keep sending every actor
-method through the feature command handler. Raw `IActorRuntime.AskAsync` and
-`TellAsync` remain framework-level escape hatches.
+business behavior through generated actor refs. Raw `IActorRuntime.AskAsync`
+and `TellAsync` remain framework-level escape hatches.
 
 Lifecycle method semantics:
 
@@ -312,44 +311,17 @@ cache/local actor state for the requested type.
 ## Timers
 
 Hotfix timers are framework-owned callbacks created through `LakonaTimer`.
-Features usually create periodic timers from `StartAsync`, where the framework
-installs the current hotfix execution scope:
+Actor startup is declared from `HotfixStartup`, while periodic work should stay
+inside hotfix actor behavior or explicit timer callbacks:
 
 ```csharp
-[HotfixFeature("battle-runtime")]
-public sealed class BattleRuntimeFeature : HotfixGameFeature
+public static class HotfixStartup
 {
-    public static void Configure(HotfixFeatureContext context)
+    public static void ConfigureActors(ActorHostBuilder actors)
     {
-    }
-
-    public static async ValueTask StartAsync(HotfixFeatureStartCall call)
-    {
-        await call.Services
-            .GetRequiredService<ActorHosting>()
-            .CreateAsync<MatchmakingActor>(ActorId.From("default"), call.CancellationToken);
-
-        var timerId = await LakonaTimer.CreatePeriodicTimerAsync<BattleRuntimeTimers, BattleRuntimeTick>(
-            TimeSpan.Zero,
-            TimeSpan.FromMilliseconds(50),
-            nameof(BattleRuntimeTimers.TickAsync),
-            new BattleRuntimeTick("default"),
-            call.CancellationToken);
-
-        call.State.Items["battle-runtime.timer"] = timerId;
-    }
-
-    public static async ValueTask StopAsync(HotfixFeatureStopCall call)
-    {
-        await call.Services
-            .GetRequiredService<ActorHosting>()
-            .DestroyAsync<MatchmakingActor>(ActorId.From("default"), CancellationToken.None);
-
-        if (call.State.Items.TryGetValue("battle-runtime.timer", out var value) &&
-            value is TimerId timerId)
-        {
-            await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None);
-        }
+        actors.RegisterStartup(
+            "matchmaking",
+            static _ => ActorStartupPlan.Create<MatchmakingActor>(ActorId.From("default")));
     }
 }
 

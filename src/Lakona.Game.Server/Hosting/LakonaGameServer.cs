@@ -5,7 +5,6 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Lakona.Game.Server.Configuration;
-using Lakona.Game.Server.Features;
 using Lakona.Game.Server.Guardrails;
 using Lakona.Game.Server.Health;
 using Lakona.Game.Server.Hotfix;
@@ -80,27 +79,6 @@ public static class LakonaGameServer
         var clusterOptions = runtimeOptions.ToClusterOptions(builder.Configuration);
         builder.Services.AddSingleton(clusterOptions);
         builder.Services.AddLakonaGameClusterEndpoint();
-
-        // Feature registration
-        var featureConfig = serverBuilder.GetFeatureConfiguration();
-        if (featureConfig is not null)
-        {
-            var catalogBuilder = new LakonaGameFeatureCatalogBuilder();
-            featureConfig(catalogBuilder);
-            FeatureServiceCollectionExtensions.RegisterLakonaGameFeatures(
-                builder.Services,
-                builder.Configuration,
-                runtimeOptions,
-                catalogBuilder);
-        }
-        else if (!builder.Services.Any(static service => service.ServiceType == typeof(LakonaGameFeatureCatalog)))
-        {
-            DiscoverAndRegisterFeatures(
-                builder.Services,
-                builder.Configuration,
-                AppContext.BaseDirectory,
-                runtimeOptions);
-        }
 
         // Hotfix
         var hotfixBuildTag = HotfixBuildTag.Get(Assembly.GetEntryAssembly() ?? typeof(LakonaGameServer).Assembly);
@@ -458,60 +436,6 @@ public static class LakonaGameServer
         {
             return ex.Types.Where(static type => type is not null)!;
         }
-    }
-
-    internal static void DiscoverStableFeaturesForTesting(
-        IServiceCollection services,
-        IConfiguration configuration,
-        string baseDirectory)
-    {
-        DiscoverAndRegisterFeatures(
-            services,
-            configuration,
-            baseDirectory,
-            LakonaGameRuntimeOptions.FromConfiguration(configuration));
-    }
-
-    internal static void DiscoverStableFeaturesForTesting(
-        IServiceCollection services,
-        IConfiguration configuration,
-        string baseDirectory,
-        LakonaGameRuntimeOptions options)
-    {
-        DiscoverAndRegisterFeatures(services, configuration, baseDirectory, options);
-    }
-
-    internal static void DiscoverAndRegisterFeatures(
-        IServiceCollection services,
-        IConfiguration configuration,
-        string baseDirectory,
-        LakonaGameRuntimeOptions options)
-    {
-        _ = baseDirectory;
-        var catalogBuilder = new LakonaGameFeatureCatalogBuilder();
-        var definitions = DiscoverApplicationAssemblies()
-            .Where(static assembly => !IsTestAssembly(assembly))
-            .SelectMany(static assembly => LakonaGameFeatureDiscovery.Discover(
-                assembly,
-                GetLoadableTypes(assembly)
-                    .Where(static type => typeof(LakonaGameFeature).IsAssignableFrom(type)
-                        && !type.IsAbstract
-                        && !type.IsInterface
-                        && type.Name.EndsWith("Feature", StringComparison.Ordinal))
-                    .ToArray()))
-            .OrderBy(static definition => definition.Name, StringComparer.Ordinal)
-            .ToArray();
-
-        foreach (var definition in definitions)
-        {
-            catalogBuilder.Feature(definition.Name, definition.ImplementationType);
-        }
-
-        FeatureServiceCollectionExtensions.RegisterLakonaGameFeatures(
-            services,
-            configuration,
-            options,
-            catalogBuilder);
     }
 
     private static bool IsTestAssembly(Assembly assembly)

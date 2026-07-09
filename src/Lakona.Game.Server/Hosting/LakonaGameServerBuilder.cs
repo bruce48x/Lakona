@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Lakona.Game.Server.Features;
 using Lakona.Rpc.Server;
 
 namespace Lakona.Game.Server.Hosting;
@@ -11,13 +10,12 @@ namespace Lakona.Game.Server.Hosting;
 /// </summary>
 /// <remarks>
 /// The builder is used by the high-level hosting entry points to collect user
-/// service registrations, app configuration sources, feature declarations, and
-/// RPC service bindings while preserving the framework's default startup shape.
+/// service registrations, app configuration sources, and RPC service bindings
+/// while preserving the framework's default startup shape.
 /// </remarks>
 public sealed class LakonaGameServerBuilder
 {
     private Action<RpcServiceRegistry, IServiceProvider>? _serviceBinder;
-    private Action<LakonaGameFeatureCatalogBuilder>? _configureFeatures;
     private readonly List<Action<IServiceCollection, IConfiguration>> _serviceRegistrations = new();
     private readonly List<Action<IConfigurationBuilder>> _configActions = new();
 
@@ -61,22 +59,6 @@ public sealed class LakonaGameServerBuilder
     {
         ArgumentNullException.ThrowIfNull(configure);
         _configActions.Add(configure);
-        return this;
-    }
-
-    /// <summary>
-    /// Configures stable game features that should be available during startup.
-    /// </summary>
-    /// <param name="configure">The feature catalog callback.</param>
-    /// <returns>The same builder for chaining.</returns>
-    /// <remarks>
-    /// Use this for framework-level stable features. Hotfix feature declarations
-    /// remain owned by the hotfix package and its scanned feature descriptors.
-    /// </remarks>
-    public LakonaGameServerBuilder ConfigureFeatures(Action<LakonaGameFeatureCatalogBuilder> configure)
-    {
-        ArgumentNullException.ThrowIfNull(configure);
-        _configureFeatures = configure;
         return this;
     }
 
@@ -126,6 +108,4 @@ public sealed class LakonaGameServerBuilder
     }
 
     internal Action<RpcServiceRegistry, IServiceProvider>? GetServiceBinder() => _serviceBinder;
-
-    internal Action<LakonaGameFeatureCatalogBuilder>? GetFeatureConfiguration() => _configureFeatures;
 }

@@ -38,7 +38,7 @@ Maintainers should treat the following as active simplification pressure:
 - Remove obsolete public options, aliases, and compatibility fields instead of
   keeping them as passive documentation of old behavior.
 - Prefer generated, typed binding over stringly runtime lookup for hotfix
-  callbacks, feature commands, and service dispatch surfaces.
+  callbacks, actor calls, and service dispatch surfaces.
 - Keep process, DI, serializer, cluster, and hotfix-generation boundaries
   visible. Hidden fallback providers, global service replacement, or ambient
   scopes must remain isolated and documented until they can be replaced by an
@@ -63,9 +63,9 @@ Current high-priority simplification targets:
 - Hotfix activation should move from implicit root-provider fallback toward an
   explicit stable-dependency bridge so reloadable code can see which stable
   services are intentionally available.
-- Timer callbacks and feature command handlers should move toward typed or
-  behavior-first binding instead of user-authored method-name strings where the
-  ergonomics can stay good.
+- Timer callbacks and actor calls should move toward typed or behavior-first
+  binding instead of user-authored method-name strings where the ergonomics can
+  stay good.
 - Cluster serializers and remote actor payload serializers should move toward
   explicit channel services rather than global `IRpcSerializer` replacement as
   the extension model.
@@ -76,7 +76,7 @@ Current high-priority simplification targets:
   named composition steps.
 
 Complexity review is separate from runtime correctness. Tests can prove that a
-feature works without proving that the authoring model is minimal. Generated
+capability works without proving that the authoring model is minimal. Generated
 starter projects are the strictest user-experience test: if a starter teaches a
 concept, that concept should be worth carrying.
 
@@ -147,8 +147,8 @@ explicit lost-state outcome instead of silent data corruption.
 
 ### Node Is The Deployment Unit
 
-A node is one OS process. In development, one process can host all features. In
-production, features can be split across nodes through configuration. The code
+A node is one OS process. In development, one process can host all actor kinds. In
+production, actor hosts can be split across nodes through configuration. The code
 model stays the same; topology is explicit configuration.
 
 ### Framework Scope Is Intentionally Narrow

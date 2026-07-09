@@ -9,20 +9,20 @@
       "properties": [ "Address", "Metadata" ]
     },
     {
-      "name": "NodeFeatureDto",
-      "properties": [ "Name", "Metadata" ]
+      "name": "NodeActorHostDto",
+      "properties": [ "Actor", "PolicyHash", "BuildTag", "Metadata" ]
     },
     {
       "name": "NodeRegistrationDto",
-      "properties": [ "ClusterName", "Node", "Endpoints", "Features", "Labels", "State", "LeaseExpiresAt" ]
+      "properties": [ "ClusterName", "Node", "Endpoints", "ActorHosts", "Labels", "State", "LeaseExpiresAt" ]
     },
     {
       "name": "NodeRecordDto",
-      "properties": [ "ClusterName", "Node", "NodeEpoch", "Endpoints", "Features", "Labels", "State", "LeaseExpiresAt", "UpdatedAt" ]
+      "properties": [ "ClusterName", "Node", "NodeEpoch", "Endpoints", "ActorHosts", "Labels", "State", "LeaseExpiresAt", "UpdatedAt" ]
     },
     {
       "name": "NodeDirectoryClientQueryDto",
-      "properties": [ "ClusterName", "FeatureName", "State", "Labels", "IncludeExpired" ]
+      "properties": [ "ClusterName", "ActorHostName", "ActorHostPolicyHash", "State", "Labels", "IncludeExpired" ]
     },
     {
       "name": "NodeRegisterRequest",
@@ -135,14 +135,6 @@
     {
       "name": "ClusterSendReply",
       "properties": [ "Status" ]
-    },
-    {
-      "name": "FeatureSendRequest",
-      "properties": [ "Feature", "Kind", "Payload", "ExpiresAt", "SourceNode", "CorrelationId" ]
-    },
-    {
-      "name": "FeatureSendReply",
-      "properties": [ "Status", "Payload", "ErrorMessage" ]
     },
     {
       "name": "ClientNotificationDispatchRequest",

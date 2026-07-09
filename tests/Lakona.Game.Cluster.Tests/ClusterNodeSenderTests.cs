@@ -140,7 +140,7 @@ public sealed class ClusterNodeSenderTests
             {
                 [endpointName] = endpoint
             },
-            [new NodeFeatureDescriptor("actor-host")],
+            actorHosts: [],
             labels: null,
             NodeState.Ready,
             DateTimeOffset.UtcNow.AddMinutes(5),

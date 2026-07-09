@@ -24,7 +24,7 @@ Every generated project includes:
 - reliable push services
 - a default health/check command that explains the derived runtime state
 
-The default local topology is one process with generated defaults for the node-directory, route-directory, gateway, and `Lakona:Cluster` endpoint. It is still the normal cluster model; local development simply starts with one node. Project/game features can be added by project code and selected with configuration when needed, and production deployments can split features across nodes without changing the user-facing game code structure.
+The default local topology is one process with generated defaults for the node-directory, route-directory, gateway, and `Lakona:Cluster` endpoint. It is still the normal cluster model; local development simply starts with one node. Project/game actor hosts can be added by project code and selected with configuration when needed, and production deployments can split actor hosts across nodes without changing the user-facing game code structure.
 
 ## Configuration Principle
 
@@ -41,8 +41,9 @@ using Lakona.Game.Server.Hosting;
 return await LakonaGameServer.RunAsync(args);
 ```
 
-Single-node starter projects omit `Lakona:Feature`; generated defaults are
-discovered by convention and explained by the check command.
+Single-node starter projects omit component selection; generated defaults
+are explicit actor host and startup actor declarations explained by the check
+command.
 
 The generated `appsettings.json` should contain only source values the user can understand and may reasonably change.
 
@@ -52,7 +53,7 @@ It should not contain:
 - implementation paths such as `Hotfix.Directory`
 - internal storage selectors such as `ReliablePush.Outbox`
 - topology abstractions such as `Node.Profile`
-- derived cluster values such as advertised endpoints, bootstrap endpoints, feature descriptors, route lease seconds, or send timeout milliseconds
+- derived cluster values such as advertised endpoints, bootstrap endpoints, actor host descriptors, route lease seconds, or send timeout milliseconds
 
 Reliable Push is enabled by default and generated local configuration should
 not include `Lakona:ReliablePush:Enabled`. Users may explicitly set
@@ -167,7 +168,7 @@ Generated projects should guide users toward three editing areas:
 ```txt
 Shared/Contracts/      RPC and reliable push DTOs
 Server/App/            zero-template host metadata, configuration, and actor state shells
-Server/Hotfix/         services, actor behaviors, lifecycle reactions, and feature declarations
+Server/Hotfix/         services, actor behaviors, lifecycle reactions, actor startup, and timer callbacks
 ```
 
 The framework still allows user-owned RPC contracts to live in any compiled shared assembly path and namespace. The generated project uses `Shared/Contracts/<Domain>/` as the recommended convention so new projects have one obvious place for RPC services, notification contracts, DTOs, and named RPC contract IDs.
@@ -188,14 +189,14 @@ RPC enters generated hotfix-backed service binding, the current
 hotfix behavior. The generated project must not use static mutable process
 state as the room concurrency model.
 
-The hotfix Chat feature must own the fixed local room actor explicitly:
+The hotfix Chat startup must own the fixed local room actor explicitly:
 
 ```csharp
-public static async ValueTask StartAsync(HotfixFeatureStartCall call)
+public static void ConfigureActors(ActorHostBuilder actors)
 {
-    await call.Services
-        .GetRequiredService<ActorHosting>()
-        .CreateAsync<ChatRoomActor>(ActorId.From("chat-room/global"), call.CancellationToken);
+    actors.RegisterStartup(
+        "chat-room",
+        static _ => ActorStartupPlan.Create<ChatRoomActor>(ActorId.From("chat-room/global")));
 }
 ```
 
@@ -220,7 +221,7 @@ The command should print derived runtime state in stable, readable lines:
 ```txt
 cluster: ok tcp://127.0.0.1:21001
 node: ok dev-1
-features: ok local generated defaults
+actor-hosts: ok local generated defaults
 hotfix: ok local-build Server.Hotfix.dll
 reliable-push: ok pending limit 256, replay window 120s
 rpc: ok kcp://127.0.0.1:20000
