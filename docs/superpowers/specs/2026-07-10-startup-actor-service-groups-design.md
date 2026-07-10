@@ -2,7 +2,7 @@
 
 ## Status
 
-Approved architecture, pending written-spec review.
+Approved for implementation.
 
 ## Problem
 
