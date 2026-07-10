@@ -1,6 +1,7 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
+using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Scanning;
 using Microsoft.Extensions.DependencyInjection;
@@ -319,6 +320,48 @@ public sealed class ActorHostingTests
         await hosting.DestroyAsync<HotfixLifecycleHostedFixture.RoomActor>(actorId, cancellationToken);
 
         Assert.Equal(["start:hosting/hotfix-lifecycle:hotfix", "stop:hosting/hotfix-lifecycle:hotfix"], HotfixLifecycleHostedFixture.Events);
+    }
+
+    [Fact]
+    public async Task ActorHosting_allows_hotfix_actor_start_hook_to_create_timer()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var timerBackend = new LifecycleTimerBackend();
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(HotfixLifecycleTimerFixture.RoomBehavior).Assembly,
+            [typeof(HotfixLifecycleTimerFixture.RoomBehavior)]);
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        var table = new HotfixDispatchTable(
+            1,
+            scan.Methods,
+            scan.Services,
+            scan.ActorMethods,
+            scan.ActorLifecycles);
+        await using var hotfixServices = new ServiceCollection()
+            .AddSingleton<ILakonaTimerBackend>(timerBackend)
+            .BuildServiceProvider();
+        var snapshot = new HotfixRuntimeSnapshot(
+            new HotfixServiceInvoker(table),
+            hotfixServices,
+            table,
+            hotfixServices,
+            typeof(HotfixLifecycleTimerFixture.RoomBehavior).Assembly,
+            loadContext: null,
+            sourceVersion: "test",
+            sourcePath: null,
+            ownsRuntimeResources: false,
+            onRetired: null);
+        var rootServices = new ServiceCollection()
+            .AddSingleton<IHotfixRuntimeAccessor>(new FixedHotfixRuntimeAccessor(snapshot))
+            .AddSingleton<HotfixActorLifecycleInvoker>()
+            .BuildServiceProvider();
+        var dispatcher = new HotfixActorLifecycleDispatcher(rootServices);
+        await using var provider = CreateProvider(lifecycleDispatcher: dispatcher);
+
+        await provider.GetRequiredService<ActorHosting>()
+            .CreateAsync<HotfixLifecycleTimerFixture.RoomActor>(ActorId.From("hosting/hotfix-lifecycle-timer"), cancellationToken);
+
+        Assert.Equal(1, timerBackend.PeriodicTimerCount);
     }
 
     [Fact]
@@ -759,6 +802,48 @@ public sealed class ActorHostingTests
                 return default;
             }
         }
+    }
+
+    public static class HotfixLifecycleTimerFixture
+    {
+        public sealed class RoomActor : GameActor;
+
+        public sealed class TimerArgs;
+
+        public sealed class TimerCallback;
+
+        [Lakona.Game.Server.Hotfix.Abstractions.HotfixBehaviorOf(typeof(RoomActor))]
+        public static class RoomBehavior
+        {
+            [Lakona.Game.Server.Hotfix.Abstractions.ActorStart]
+            public static async ValueTask StartAsync(RoomActor self, Lakona.Game.Server.Hotfix.Abstractions.ActorStartCall call)
+            {
+                _ = self;
+                await LakonaTimer.CreatePeriodicTimerAsync<TimerCallback, TimerArgs>(
+                    TimeSpan.Zero,
+                    TimeSpan.FromSeconds(1),
+                    "TickAsync",
+                    new TimerArgs(),
+                    call.CancellationToken);
+            }
+        }
+    }
+
+    private sealed class LifecycleTimerBackend : ILakonaTimerBackend
+    {
+        public int PeriodicTimerCount { get; private set; }
+
+        public ValueTask<TimerId> CreateOnceTimerAsync<TCallback, TArgs>(TimeSpan dueTime, string methodName, TArgs args, CancellationToken cancellationToken)
+            where TCallback : class => new(TimerId.FromGuid(Guid.NewGuid()));
+
+        public ValueTask<TimerId> CreatePeriodicTimerAsync<TCallback, TArgs>(TimeSpan dueTime, TimeSpan period, string methodName, TArgs args, CancellationToken cancellationToken)
+            where TCallback : class
+        {
+            PeriodicTimerCount++;
+            return new ValueTask<TimerId>(TimerId.FromGuid(Guid.NewGuid()));
+        }
+
+        public ValueTask DestroyTimerAsync(TimerId timerId, CancellationToken cancellationToken) => default;
     }
 
     private sealed class FixedHotfixRuntimeAccessor(HotfixRuntimeSnapshot snapshot) : IHotfixRuntimeAccessor

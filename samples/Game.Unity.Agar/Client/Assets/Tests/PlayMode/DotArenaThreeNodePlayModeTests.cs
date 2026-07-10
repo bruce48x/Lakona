@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections;
+using System.Threading.Tasks;
 using NUnit.Framework;
 using SampleClient.Gameplay;
 using UnityEngine;
@@ -71,7 +72,8 @@ namespace SampleClient.Gameplay.Tests
                 45f);
 
             var beforeMove = game.BuildTestSnapshot();
-            game.SetEditorMoveOverrideForTest(Vector2.right);
+            var submitInput = game.SetEditorMoveOverrideForTest(Vector2.right);
+            yield return WaitForTask(submitInput, "rightward input submission did not complete", 10f);
             yield return WaitForSnapshot(
                 game,
                 snapshot => snapshot.LocalPlayerX > beforeMove.LocalPlayerX + 0.25f,
@@ -101,6 +103,18 @@ namespace SampleClient.Gameplay.Tests
             }
 
             NUnitAssert.Fail($"{failure}. Last snapshot: {FormatSnapshot(last)}");
+        }
+
+        private static IEnumerator WaitForTask(Task task, string failure, float timeoutSeconds)
+        {
+            var start = Time.realtimeSinceStartup;
+            while (!task.IsCompleted && Time.realtimeSinceStartup - start < timeoutSeconds)
+            {
+                yield return null;
+            }
+
+            NUnitAssert.That(task.IsCompleted, Is.True, failure);
+            NUnitAssert.That(task.IsFaulted, Is.False, task.Exception?.ToString());
         }
 
         private static string FormatSnapshot(DotArenaGameTestSnapshot? snapshot)

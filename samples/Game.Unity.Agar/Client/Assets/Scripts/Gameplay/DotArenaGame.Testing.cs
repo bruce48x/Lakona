@@ -1,6 +1,7 @@
 #nullable enable
 
 #if UNITY_INCLUDE_TESTS
+using System.Threading.Tasks;
 using UnityEngine;
 
 namespace SampleClient.Gameplay
@@ -47,12 +48,14 @@ namespace SampleClient.Gameplay
             BeginMultiplayerMatchmaking();
         }
 
-        public void SetEditorMoveOverrideForTest(Vector2 move)
+        public Task SetEditorMoveOverrideForTest(Vector2 move)
         {
 #if UNITY_EDITOR
             _editorMoveOverride = move;
             _hasEditorInputOverride = true;
+            _nextInputAt = 0f;
 #endif
+            return SendInputAsync(move);
         }
 
         public void ClearEditorMoveOverrideForTest()

@@ -14,7 +14,7 @@ public sealed class MatchmakingTimerCallbacks
         var actors = tick.Services.GetRequiredService<MatchmakingActors>();
         await actors
             .Local(new MatchmakingQueueId("default"))
-            .PostAsync(
+            .CallAsync(
                 MatchmakingBehavior.RunTickAsync,
                 new MatchmakingTickRequest
             {

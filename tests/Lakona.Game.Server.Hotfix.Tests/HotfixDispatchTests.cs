@@ -135,6 +135,29 @@ public sealed class HotfixDispatchTests
         Assert.Equal("hello", text);
     }
 
+    [Fact]
+    public async Task InvokeActorAsync_enters_timer_scope_for_actor_behavior()
+    {
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(ActorTimerDispatchBehavior).Assembly,
+            [typeof(ActorTimerDispatchBehavior)]);
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        var descriptor = Assert.Single(scan.ActorMethods);
+        var table = new HotfixDispatchTable(1, scan.Methods, scan.Services, scan.ActorMethods);
+        var backend = new RecordingTimerBackend();
+        using var runtime = CreateScopedRuntime(table, backend, publish: false);
+        using var lease = runtime.Snapshot.AcquireLease();
+
+        await table.InvokeActorAsync(
+            descriptor.MethodKey,
+            new ActorTimerDispatchTestActor(),
+            1,
+            expectedResultType: typeof(void),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("actor-dispatch", backend.LastArgs?.Value);
+    }
+
     public static class ActorLifecycleDispatchFixture
     {
         public static List<string> Events { get; } = [];
@@ -1003,6 +1026,23 @@ public static class MalformedTickBehavior
     {
         _ = actor;
         return default;
+    }
+}
+
+public sealed class ActorTimerDispatchTestActor : Actor<string>;
+
+[HotfixBehaviorOf(typeof(ActorTimerDispatchTestActor))]
+public static class ActorTimerDispatchBehavior
+{
+    public static async ValueTask StartAsync(this ActorTimerDispatchTestActor self, int request, CancellationToken cancellationToken = default)
+    {
+        _ = self;
+        _ = request;
+        await LakonaTimer.CreateOnceTimerAsync<TimerCallbackTarget, TimerArgs>(
+            TimeSpan.Zero,
+            nameof(TimerCallbackBehavior.HandleAsync),
+            new TimerArgs("actor-dispatch"),
+            cancellationToken);
     }
 }
 

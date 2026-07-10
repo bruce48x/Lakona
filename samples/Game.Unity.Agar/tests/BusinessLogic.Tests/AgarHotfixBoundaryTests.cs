@@ -670,9 +670,11 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("TimerTick<MatchmakingTimerArgs>", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.Contains("GetRequiredService<MatchmakingActors>", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.Contains("Local(new MatchmakingQueueId(\"default\"))", matchmakingCallbacks, StringComparison.Ordinal);
+        Assert.Contains("CallAsync(", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.Contains("MatchmakingBehavior.RunTickAsync", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.Contains("ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.DoesNotContain("GetRequiredService<IActorRuntime>", matchmakingCallbacks, StringComparison.Ordinal);
+        Assert.DoesNotContain("PostAsync(", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.DoesNotContain("TryTell<MatchmakingActor>", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.DoesNotContain("ActorId.From(\"default\")", matchmakingCallbacks, StringComparison.Ordinal);
 

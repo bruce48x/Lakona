@@ -25,6 +25,7 @@ public sealed class HotfixActorLifecycleInvoker
             return;
         }
 
+        using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
         var call = new ActorStartCall(actorId, services, cancellationToken);
         await InvokeAsync(descriptor.StartMethod, actor, call).ConfigureAwait(false);
     }
@@ -46,6 +47,7 @@ public sealed class HotfixActorLifecycleInvoker
             return;
         }
 
+        using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
         var call = new ActorStopCall(actorId, services, cancellationToken);
         await InvokeAsync(descriptor.StopMethod, actor, call).ConfigureAwait(false);
     }

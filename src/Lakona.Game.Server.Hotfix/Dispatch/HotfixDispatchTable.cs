@@ -184,6 +184,7 @@ public sealed class HotfixDispatchTable
                 $"Hotfix actor method '{methodKey}' result type '{actualResultType.FullName}' does not match expected result type '{expectedResultType.FullName}'.");
         }
 
+        using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
         object? result;
         try
         {
