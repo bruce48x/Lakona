@@ -121,6 +121,33 @@ public sealed class RemoteActorGatewayTests
     }
 
     [Fact]
+    public void TryCancelPending_only_exposes_cancellation_semantics()
+    {
+        var method = Assert.Single(
+            typeof(RemoteActorGateway).GetMethods(),
+            static candidate => candidate.Name == nameof(RemoteActorGateway.TryCancelPending));
+
+        var parameter = Assert.Single(method.GetParameters());
+        Assert.Equal(typeof(string), parameter.ParameterType);
+    }
+
+    [Fact]
+    public async Task TryCancelPending_cancels_the_removed_pending_request()
+    {
+        var gateway = new RemoteActorGateway();
+        var pending = gateway.RegisterPendingAsync(
+            "cancelled-request",
+            TimeSpan.FromSeconds(5),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(gateway.TryCancelPending("cancelled-request"));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await pending);
+        Assert.True(pending.IsCanceled);
+        Assert.Equal(0, gateway.PendingCount);
+    }
+
+    [Fact]
     public async Task Reply_handler_accepts_late_reply_after_timeout_without_recreating_pending_state()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

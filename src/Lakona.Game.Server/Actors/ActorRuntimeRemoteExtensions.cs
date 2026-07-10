@@ -59,9 +59,7 @@ public static class ActorRuntimeRemoteExtensions
 
         if (status != ClusterSendStatus.Accepted)
         {
-            gateway.TryCancelPending(
-                correlationId,
-                new InvalidOperationException($"Remote actor call failed with status: {status}."));
+            gateway.TryCancelPending(correlationId);
             throw new InvalidOperationException(
                 $"Remote actor call failed with status: {status}. ActorId={actorId}, Kind={kind}");
         }

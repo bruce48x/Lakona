@@ -63,9 +63,7 @@ public sealed class RemoteActorGateway
         return tcs.Task;
     }
 
-    public bool TryCancelPending(
-        string correlationId,
-        Exception? exception = null)
+    public bool TryCancelPending(string correlationId)
     {
         if (!_pending.TryRemove(correlationId, out var pending))
         {
@@ -73,14 +71,7 @@ public sealed class RemoteActorGateway
         }
 
         pending.Dispose();
-        if (exception is null)
-        {
-            pending.Completion.TrySetCanceled();
-        }
-        else
-        {
-            pending.Completion.TrySetException(exception);
-        }
+        pending.Completion.TrySetCanceled();
 
         return true;
     }
