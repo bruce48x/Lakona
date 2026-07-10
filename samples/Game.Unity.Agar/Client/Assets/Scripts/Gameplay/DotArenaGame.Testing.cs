@@ -50,16 +50,16 @@ namespace SampleClient.Gameplay
 
         public Task SetEditorMoveOverrideForTest(Vector2 move)
         {
-            _editorMoveOverride = move;
-            _hasEditorInputOverride = true;
+            _testMoveOverride = move;
+            _hasTestInputOverride = true;
             _nextInputAt = 0f;
             return SendInputAsync(move);
         }
 
         public void ClearEditorMoveOverrideForTest()
         {
-            _editorMoveOverride = Vector2.zero;
-            _hasEditorInputOverride = false;
+            _testMoveOverride = Vector2.zero;
+            _hasTestInputOverride = false;
         }
     }
 

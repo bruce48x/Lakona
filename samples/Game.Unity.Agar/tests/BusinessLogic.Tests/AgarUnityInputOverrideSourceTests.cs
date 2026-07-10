@@ -21,6 +21,12 @@ public sealed class AgarUnityInputOverrideSourceTests
 
         Assert.Contains("#if UNITY_EDITOR || UNITY_INCLUDE_TESTS", game, StringComparison.Ordinal);
         Assert.Contains("#if UNITY_EDITOR || UNITY_INCLUDE_TESTS", input, StringComparison.Ordinal);
+        Assert.Contains("private Vector2 _testMoveOverride;", game, StringComparison.Ordinal);
+        Assert.Contains("private bool _hasTestInputOverride;", game, StringComparison.Ordinal);
+        Assert.Contains("if (_hasTestInputOverride)", input, StringComparison.Ordinal);
+        Assert.Contains("_testMoveOverride = move;", testing, StringComparison.Ordinal);
+        Assert.Contains("_hasTestInputOverride = true;", testing, StringComparison.Ordinal);
+        Assert.DoesNotContain("_editorMoveOverride = move;", testing, StringComparison.Ordinal);
         Assert.DoesNotContain("#if UNITY_EDITOR\n", testing, StringComparison.Ordinal);
     }
 

@@ -78,6 +78,12 @@ namespace SampleClient.Gameplay
 
         private Vector2 ReadMoveVector()
         {
+#if UNITY_INCLUDE_TESTS
+            if (_hasTestInputOverride)
+            {
+                return _testMoveOverride.sqrMagnitude > 1f ? _testMoveOverride.normalized : _testMoveOverride;
+            }
+#endif
 #if UNITY_EDITOR || UNITY_INCLUDE_TESTS
             if (_hasEditorInputOverride)
             {

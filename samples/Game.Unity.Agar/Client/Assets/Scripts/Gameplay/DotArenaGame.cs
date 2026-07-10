@@ -71,6 +71,10 @@ namespace SampleClient.Gameplay
         private Vector2 _editorMoveOverride;
         private bool _hasEditorInputOverride;
 #endif
+#if UNITY_INCLUDE_TESTS
+        private Vector2 _testMoveOverride;
+        private bool _hasTestInputOverride;
+#endif
 
         private bool HasActiveSession => _flowState is FrontendFlowState.Matchmaking or FrontendFlowState.InMatch;
         private DotArenaNetworkSession NetworkSession => _networkSession ??= new DotArenaNetworkSession(OnDisconnected);
