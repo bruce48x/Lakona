@@ -337,7 +337,7 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
     {
         foreach (var placement in snapshot.ActorPlacements)
         {
-            if (string.Equals(ResolveActorName(placement.ActorType), actorName, StringComparison.Ordinal))
+            if (string.Equals(ActorNameResolver.Resolve(placement.ActorType), actorName, StringComparison.Ordinal))
             {
                 return placement.ActorType;
             }
@@ -365,15 +365,6 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
             .MakeGenericMethod(actorType)
             .Invoke(hosting, [actorId, cancellationToken])!;
         await task.ConfigureAwait(false);
-    }
-
-    private static string ResolveActorName(Type actorType)
-    {
-        var attribute = (ActorNameAttribute?)Attribute.GetCustomAttribute(
-            actorType,
-            typeof(ActorNameAttribute),
-            inherit: false);
-        return attribute?.Name ?? actorType.Name;
     }
 
     private static ClusterSendStatus MapTellResult(ActorTellResult result)

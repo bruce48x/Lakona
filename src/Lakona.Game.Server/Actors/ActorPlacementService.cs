@@ -32,7 +32,7 @@ public sealed class ActorPlacementService(
         }
 
         var placement = ResolvePlacement<TActor, TKey>(actorType, actorId);
-        var actorName = ResolveActorName(actorType);
+        var actorName = ActorNameResolver.Resolve(actorType);
         var now = DateTimeOffset.UtcNow;
         var records = await nodeDirectory.QueryAsync(
             new NodeDirectoryQuery(
@@ -155,22 +155,6 @@ public sealed class ActorPlacementService(
         return key is ActorId actorId
             ? actorId
             : ActorId.From(key.ToString() ?? throw new ArgumentException("Actor key cannot convert to an actor id.", nameof(key)));
-    }
-
-    private static string ResolveActorName(Type actorType)
-    {
-        var attribute = (ActorNameAttribute?)Attribute.GetCustomAttribute(actorType, typeof(ActorNameAttribute), inherit: false);
-        if (attribute is not null)
-        {
-            return attribute.Name;
-        }
-
-        var name = actorType.Name.EndsWith("Actor", StringComparison.Ordinal)
-            ? actorType.Name[..^"Actor".Length]
-            : actorType.Name;
-        return string.IsNullOrWhiteSpace(name)
-            ? actorType.Name.ToLowerInvariant()
-            : char.ToLowerInvariant(name[0]) + name[1..];
     }
 
     private static string ToWireMode(ActorPlacementCreateMode createMode)

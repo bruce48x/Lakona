@@ -470,7 +470,7 @@ public sealed class HotfixActorClusterHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_actor_host_create_replies_directly_to_source_node()
+    public async Task HandleAsync_actor_host_create_resolves_default_actor_name_and_replies_directly_to_source_node()
     {
         var actorId = ActorId.From("room/created");
         var router = new RecordingClusterNodeSender();
@@ -490,7 +490,7 @@ public sealed class HotfixActorClusterHandlerTests
             new LocalActorNodeIdentity("local"),
             provider);
         var request = new ActorHostCreateRequest(
-            "host-create-room",
+            "hostCreate",
             actorId.Value,
             "ensure",
             "test-build");
@@ -679,7 +679,6 @@ public sealed class HotfixActorClusterHandlerTests
         }
     }
 
-    [ActorName("host-create-room")]
     private sealed class HostCreateActor : GameActor;
 
     private sealed class RecordingActorRuntime : IActorRuntime
