@@ -7,6 +7,25 @@ namespace Lakona.Game.Server.Tests.Actors;
 
 public sealed class ActorDirectoryClusterHandlerTests
 {
+    [Theory]
+    [InlineData(null)]
+    [InlineData(" ")]
+    public async Task HandleAsync_missing_correlation_returns_rejected_without_reply(string? correlationId)
+    {
+        var sender = new RecordingClusterNodeSender();
+        var handler = CreateHandler(new InMemoryActorDirectory(), sender);
+
+        var status = await handler.HandleAsync(
+            CreateMessage(
+                ActorDirectoryClusterProtocol.ResolveKind,
+                new ActorDirectoryRequest("user/player-1", null),
+                correlationId),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.Rejected, status);
+        Assert.Equal(0, sender.SendCount);
+    }
+
     [Fact]
     public async Task HandleAsync_missing_actor_id_sends_typed_error_reply()
     {
@@ -163,13 +182,16 @@ public sealed class ActorDirectoryClusterHandlerTests
             sender,
             new LocalActorNodeIdentity(new NodeId("data-1")));
 
-    private static ClusterMessage CreateMessage(string kind, ActorDirectoryRequest request) => new(
+    private static ClusterMessage CreateMessage(
+        string kind,
+        ActorDirectoryRequest request,
+        string? correlationId = "correlation-1") => new(
         ActorDirectoryClusterProtocol.Route,
         kind,
         JsonSerializer.SerializeToUtf8Bytes(request),
         DateTimeOffset.UtcNow.AddSeconds(5),
         new NodeId("gateway-1"),
-        "correlation-1");
+        correlationId);
 
     private static ClusterMessage CreateMessage(string kind, ReadOnlyMemory<byte> payload) => new(
         ActorDirectoryClusterProtocol.Route,

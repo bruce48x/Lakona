@@ -32,6 +32,11 @@ internal sealed class ActorDirectoryClusterHandler : IClusterMessageHandler
             return ClusterSendStatus.RouteNotFound;
         }
 
+        if (string.IsNullOrWhiteSpace(message.CorrelationId))
+        {
+            return ClusterSendStatus.Rejected;
+        }
+
         ActorDirectoryRequest? request;
         try
         {
