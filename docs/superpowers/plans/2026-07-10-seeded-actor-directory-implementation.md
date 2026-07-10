@@ -389,7 +389,7 @@ Run:
 
 ```powershell
 pwsh -NoProfile -File scripts/rpc/check-docs-consistency.ps1
-pwsh -NoProfile -File scripts/nuget/check-package-version-graph.ps1 -BaseRef 13026ba4
+pwsh -NoProfile -File scripts/nuget/check-package-version-graph.ps1 -Base 13026ba4
 ```
 
 Expected: both pass. `Lakona.Game.Server` remains `0.12.0` because this work belongs to the same unreleased integrated source change; no second bump is added.

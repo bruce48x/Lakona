@@ -79,6 +79,13 @@ exposing client RPC endpoints:
 }
 ```
 
+Actor-directory wiring follows `Lakona:Cluster:Seeds`. The node whose cluster
+endpoint is the configured seed owns the ephemeral in-memory actor directory;
+remote nodes use that seed for actor ownership operations without any separate
+actor-directory configuration. Restarting the seed may clear ownership
+records. Persistent actor ownership, replication, and directory failover are
+not provided by this topology.
+
 ## Node Directory
 
 The node directory stores live membership metadata:
@@ -93,6 +100,10 @@ The node directory stores live membership metadata:
 
 SQL storage is provided by `Lakona.Game.Cluster.Sql`. Projects may replace the
 directory with another adapter if they preserve the same membership semantics.
+
+Node-directory persistence is separate from actor ownership. Nodes advertise
+their configured actor hosts, but no node advertises or discovers an
+actor-directory label; the configured seed is the only actor-directory target.
 
 `INodeDirectory` is the lookup boundary for traffic whose destination
 `NodeId` is already known. `IClusterNodeSender` uses it to resolve the node's
@@ -120,6 +131,11 @@ go through `IClusterNodeSender` and `INodeDirectory`. The
 `ClusterActorRouteKeys.ForReply(nodeId)` value on a reply message (currently
 `actor-reply:<node-id>`) is only the destination node's local handler key; it
 is never registered as a cluster route in `IRouteDirectory`.
+
+Actor ownership lookup, registration, and removal use the Actor Directory on
+the seed. Transport failures, serialization or deserialization failures, and
+seed unavailability surface as `ActorDirectoryUnavailableException`; explicit
+caller cancellation remains cancellation and is not wrapped.
 
 ## Startup Order
 
