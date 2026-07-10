@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Xunit;
 
 namespace Lakona.Tool.Tests;
@@ -31,6 +32,17 @@ public sealed class LakonaBrandTests
         foreach (var line in writer.ToString().Split('\n'))
             _output.WriteLine(line.TrimEnd('\r'));
 
-        Assert.Contains("/\\_/\\", writer.ToString(), StringComparison.Ordinal);
+        var rendered = Regex.Replace(
+            writer.ToString(),
+            "\\x1b\\[[0-9;]*m",
+            "");
+        const string expected =
+            "╔══════════════════════════════╗\n" +
+            "║        /\\_/\\                 ║\n" +
+            "║       ( oᴥo )     Lakona     ║\n" +
+            "║        U___U                 ║\n" +
+            "╚══════════════════════════════╝\n";
+
+        Assert.Equal(expected, rendered);
     }
 }
