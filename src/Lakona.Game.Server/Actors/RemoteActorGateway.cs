@@ -9,6 +9,8 @@ public sealed class RemoteActorGateway
 
     private readonly ConcurrentDictionary<string, PendingRegistration> _pending = new();
 
+    internal int PendingCount => _pending.Count;
+
     public IClusterMessageHandler CreateReplyHandler()
     {
         return new ReplyHandler(this);
@@ -83,24 +85,27 @@ public sealed class RemoteActorGateway
         return true;
     }
 
-    public static async ValueTask SendReplyAsync(
-        IClusterRouter router,
-        NodeId sourceNode,
+    public static ValueTask<ClusterSendStatus> SendReplyAsync(
+        IClusterNodeSender nodeSender,
+        NodeId replyingNode,
+        NodeId destinationNode,
         string correlationId,
         ReadOnlyMemory<byte> payload,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(router);
+        ArgumentNullException.ThrowIfNull(nodeSender);
+        ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);
 
-        var replyMessage = new ClusterMessage(
-            ClusterActorRouteKeys.ForReply(sourceNode),
+        var route = ClusterActorRouteKeys.ForReply(destinationNode);
+        var reply = new ClusterMessage(
+            route,
             ReplyKind,
             payload,
             DateTimeOffset.UtcNow.AddSeconds(30),
-            sourceNode,
+            replyingNode,
             correlationId);
 
-        await router.SendAsync(replyMessage, cancellationToken).ConfigureAwait(false);
+        return nodeSender.SendAsync(destinationNode, route, reply, cancellationToken);
     }
 
     private sealed class ReplyHandler : IClusterMessageHandler
