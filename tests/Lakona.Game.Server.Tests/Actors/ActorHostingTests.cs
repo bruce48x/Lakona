@@ -430,14 +430,16 @@ public sealed class ActorHostingTests
     public async Task DestroyAsync_does_not_restore_local_route_when_deactivation_times_out_but_kernel_stop_drains()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        await using var provider = CreateProvider(options => options.CallTimeout = TimeSpan.FromMilliseconds(20));
+        await using var provider = CreateProvider();
         var hosting = provider.GetRequiredService<ActorHosting>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
+        var options = provider.GetRequiredService<ActorRuntimeOptions>();
         var directory = provider.GetRequiredService<IActorDirectory>();
         var cache = provider.GetRequiredService<IActorDirectoryCache>();
         var actorId = ActorId.From("hosting/stop-timeout");
 
         await hosting.CreateAsync<BlockingDeactivateActor>(actorId, cancellationToken);
+        options.CallTimeout = TimeSpan.FromMilliseconds(20);
         await hosting.DestroyAsync<BlockingDeactivateActor>(actorId, cancellationToken);
 
         Assert.Null(await directory.ResolveAsync(actorId, cancellationToken));
@@ -451,15 +453,15 @@ public sealed class ActorHostingTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var directory = new RemoteOwnerAfterLocalUnregisterDirectory(RemoteNode);
-        await using var provider = CreateProvider(
-            options => options.CallTimeout = TimeSpan.FromMilliseconds(20),
-            directory);
+        await using var provider = CreateProvider(directory: directory);
         var hosting = provider.GetRequiredService<ActorHosting>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
+        var options = provider.GetRequiredService<ActorRuntimeOptions>();
         var cache = provider.GetRequiredService<IActorDirectoryCache>();
         var actorId = ActorId.From("hosting/timeout-remote-steals");
 
         await hosting.CreateAsync<BlockingDeactivateActor>(actorId, cancellationToken);
+        options.CallTimeout = TimeSpan.FromMilliseconds(20);
         await hosting.DestroyAsync<BlockingDeactivateActor>(actorId, cancellationToken);
 
         var record = await directory.ResolveAsync(actorId, cancellationToken);
