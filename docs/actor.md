@@ -227,10 +227,21 @@ The generated typed API sits above existing cluster primitives:
 game service code
   -> generated RoomActors.Local/Route refs
   -> ActorDirectory cache / local actor invoker / remote actor invoker
-  -> IActorRuntime / IClusterRouter
+  -> IActorRuntime / IClusterRouter / IClusterNodeSender
   -> ClusterActorEnvelope
   -> ClusterMessage / RouteLocation / cluster serializer / transport adapter
 ```
+
+Distributed actor traffic uses two routing planes. Business actor requests
+resolve actor ownership through `IClusterRouter` and `IRouteDirectory`.
+Framework control messages and replies that already carry a destination
+`NodeId` use `IClusterNodeSender`, which resolves that node through
+`INodeDirectory`.
+
+The `reply/<node-id>` key carried by a reply message is only a local handler key
+on the destination node. It is never registered in `IRouteDirectory` as a
+cluster route. Reply correlations are likewise destination-local pending-call
+state rather than cluster routing state.
 
 `ActorDirectory` lives in `Lakona.Game.Server`. Business code should not
 receive endpoint addresses or directory endpoint names.

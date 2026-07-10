@@ -94,6 +94,11 @@ The node directory stores live membership metadata:
 SQL storage is provided by `Lakona.Game.Cluster.Sql`. Projects may replace the
 directory with another adapter if they preserve the same membership semantics.
 
+`INodeDirectory` is the lookup boundary for traffic whose destination
+`NodeId` is already known. `IClusterNodeSender` uses it to resolve the node's
+advertised cluster endpoint and send framework control messages or replies
+directly to that node.
+
 ## Actor Routing
 
 Generated actor selectors express placement intent:
@@ -107,6 +112,13 @@ await rooms.Local(roomId).PostAsync(RoomBehavior.RunTickAsync, request, ct);
 policies include stable hash, random ready node, fixed node, or product-owned
 logic. The framework only requires the policy to choose from eligible ready
 nodes and return a valid target.
+
+Business actor routes are ownership mappings resolved through
+`IRouteDirectory` by `IClusterRouter`. They are distinct from node-directed
+framework traffic: control messages and replies addressed to a known `NodeId`
+go through `IClusterNodeSender` and `INodeDirectory`. The
+`reply/<node-id>` value on a reply message is only the destination node's local
+handler key; it is never registered as a cluster route in `IRouteDirectory`.
 
 ## Startup Order
 
