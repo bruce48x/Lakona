@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Lakona.Game.Server.Hotfix.Dispatch;
@@ -92,22 +93,28 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
     }
 
     [Fact]
-    public async Task Partial_advance_while_scheduler_arms_delay_preserves_original_due_time()
+    public async Task Repeated_partial_advances_while_scheduler_arms_delay_preserve_original_due_time()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
         var observer = new RecordingTimerSchedulerObserver { BlockQueued = true };
         await using var fixture = SchedulerFixture.Create(time, observer: observer);
         await fixture.StartAsync(cancellationToken);
-        time.BlockNextTimerCreation();
+        time.BlockNextTimerCreations(2);
         fixture.Add("partial-arm-race", time.GetUtcNow().AddSeconds(1));
 
         try
         {
-            await time.WaitForTimerCreationAsync(cancellationToken);
-            time.Advance(TimeSpan.FromMilliseconds(500));
-            time.ReleaseTimerCreation();
-            await time.WaitForTimerCreatedAsync(cancellationToken);
+            await time.WaitForTimerCreationAsync(1, cancellationToken);
+            time.Advance(TimeSpan.FromMilliseconds(250));
+            time.ReleaseTimerCreation(1);
+            await time.WaitForTimerCreatedAsync(1, cancellationToken);
+
+            await time.WaitForTimerCreationAsync(2, cancellationToken);
+            time.Advance(TimeSpan.FromMilliseconds(250));
+            time.ReleaseTimerCreation(2);
+            await time.WaitForTimerCreatedAsync(2, cancellationToken);
+            await time.WaitForTimerCreatedAsync(3, cancellationToken);
 
             time.Advance(TimeSpan.FromMilliseconds(500));
 
@@ -116,8 +123,35 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         }
         finally
         {
-            time.ReleaseTimerCreation();
+            time.ReleaseTimerCreation(1);
+            time.ReleaseTimerCreation(2);
             observer.ReleaseQueued();
+        }
+    }
+
+    [Fact]
+    public async Task Sub_millisecond_arming_drift_does_not_rearm_delay()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
+        await using var fixture = SchedulerFixture.Create(time);
+        await fixture.StartAsync(cancellationToken);
+        time.BlockNextTimerCreation();
+        fixture.Add("tolerated-arm-drift", time.GetUtcNow().AddSeconds(1));
+
+        try
+        {
+            await time.WaitForTimerCreationAsync(cancellationToken);
+            time.Advance(TimeSpan.FromTicks(TimeSpan.TicksPerMillisecond / 2));
+            time.ReleaseTimerCreation();
+            await time.WaitForTimerCreatedAsync(cancellationToken);
+            await Task.Delay(50, cancellationToken);
+
+            Assert.Equal(1, time.TimerCreationCount);
+        }
+        finally
+        {
+            time.ReleaseTimerCreation();
         }
     }
 
@@ -888,15 +922,15 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
     {
         private readonly object gate = new();
         private readonly List<ManualTimer> timers = [];
-        private readonly TaskCompletionSource timerCreationStarted =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private readonly TaskCompletionSource releaseTimerCreation =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private readonly TaskCompletionSource timerCreated =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly ConcurrentDictionary<int, TaskCompletionSource> timerCreationStarted = [];
+        private readonly ConcurrentDictionary<int, TaskCompletionSource> releaseTimerCreation = [];
+        private readonly ConcurrentDictionary<int, TaskCompletionSource> timerCreated = [];
         private DateTimeOffset utcNow = initialUtcNow;
         private long timestamp;
-        private int blockNextTimerCreation;
+        private int blockedTimerCreationCount;
+        private int timerCreationCount;
+
+        public int TimerCreationCount => Volatile.Read(ref timerCreationCount);
 
         public override long TimestampFrequency => TimeSpan.TicksPerSecond;
 
@@ -918,10 +952,11 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
 
         public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
         {
-            if (Interlocked.Exchange(ref blockNextTimerCreation, 0) == 1)
+            var creationNumber = Interlocked.Increment(ref timerCreationCount);
+            if (creationNumber <= Volatile.Read(ref blockedTimerCreationCount))
             {
-                timerCreationStarted.TrySetResult();
-                releaseTimerCreation.Task.GetAwaiter().GetResult();
+                GetTimerCreationSignal(timerCreationStarted, creationNumber).TrySetResult();
+                GetTimerCreationSignal(releaseTimerCreation, creationNumber).Task.GetAwaiter().GetResult();
             }
 
             var timer = new ManualTimer(this, callback, state, dueTime, period);
@@ -930,31 +965,62 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
                 timers.Add(timer);
             }
 
-            timerCreated.TrySetResult();
+            GetTimerCreationSignal(timerCreated, creationNumber).TrySetResult();
 
             return timer;
         }
 
         public void BlockNextTimerCreation()
         {
-            Interlocked.Exchange(ref blockNextTimerCreation, 1);
+            BlockNextTimerCreations(1);
+        }
+
+        public void BlockNextTimerCreations(int count)
+        {
+            Interlocked.Exchange(ref blockedTimerCreationCount, count);
         }
 
         public async Task WaitForTimerCreationAsync(CancellationToken cancellationToken)
         {
-            await timerCreationStarted.Task.WaitAsync(TimeSpan.FromSeconds(1), cancellationToken)
+            await WaitForTimerCreationAsync(1, cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task WaitForTimerCreationAsync(int creationNumber, CancellationToken cancellationToken)
+        {
+            await GetTimerCreationSignal(timerCreationStarted, creationNumber).Task
+                .WaitAsync(TimeSpan.FromSeconds(1), cancellationToken)
                 .ConfigureAwait(false);
         }
 
         public void ReleaseTimerCreation()
         {
-            releaseTimerCreation.TrySetResult();
+            ReleaseTimerCreation(1);
+        }
+
+        public void ReleaseTimerCreation(int creationNumber)
+        {
+            GetTimerCreationSignal(releaseTimerCreation, creationNumber).TrySetResult();
         }
 
         public async Task WaitForTimerCreatedAsync(CancellationToken cancellationToken)
         {
-            await timerCreated.Task.WaitAsync(TimeSpan.FromSeconds(1), cancellationToken)
+            await WaitForTimerCreatedAsync(1, cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task WaitForTimerCreatedAsync(int creationNumber, CancellationToken cancellationToken)
+        {
+            await GetTimerCreationSignal(timerCreated, creationNumber).Task
+                .WaitAsync(TimeSpan.FromSeconds(1), cancellationToken)
                 .ConfigureAwait(false);
+        }
+
+        private static TaskCompletionSource GetTimerCreationSignal(
+            ConcurrentDictionary<int, TaskCompletionSource> signals,
+            int creationNumber)
+        {
+            return signals.GetOrAdd(
+                creationNumber,
+                static _ => new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
         }
 
         public void Advance(TimeSpan amount)
