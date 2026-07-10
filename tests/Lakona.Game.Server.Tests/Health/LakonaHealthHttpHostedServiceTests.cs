@@ -39,8 +39,7 @@ public sealed class LakonaHealthHttpHostedServiceTests
                 Timeout = TimeSpan.FromMilliseconds(500)
             };
 
-            var body = await WaitForBodyAsync(
-                http,
+            var body = await http.GetStringAsync(
                 $"http://127.0.0.1:{port}/_lakona/health/live",
                 TestContext.Current.CancellationToken);
 
@@ -52,27 +51,52 @@ public sealed class LakonaHealthHttpHostedServiceTests
         }
     }
 
-    private static async Task<string> WaitForBodyAsync(
-        HttpClient http,
-        string url,
-        CancellationToken cancellationToken)
+    [Fact]
+    public async Task StartAsync_propagates_health_listener_bind_failure()
     {
-        Exception? lastError = null;
-        var deadline = DateTimeOffset.UtcNow.AddSeconds(5);
-        while (DateTimeOffset.UtcNow < deadline)
+        var blocker = new TcpListener(IPAddress.Loopback, 0);
+        blocker.Start();
+        try
         {
-            try
-            {
-                return await http.GetStringAsync(url, cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
-            {
-                lastError = ex;
-                await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-            }
-        }
+            var port = ((IPEndPoint)blocker.LocalEndpoint).Port;
+            var service = CreateHealthService(enabled: true, port: port);
 
-        throw new TimeoutException($"Health endpoint did not respond at {url}.", lastError);
+            await Assert.ThrowsAnyAsync<SocketException>(() =>
+                service.StartAsync(TestContext.Current.CancellationToken));
+        }
+        finally
+        {
+            blocker.Stop();
+        }
+    }
+
+    [Fact]
+    public async Task StartAsync_completes_when_health_listener_is_disabled()
+    {
+        var service = CreateHealthService(enabled: false, port: GetFreePort());
+
+        await service.StartAsync(TestContext.Current.CancellationToken);
+        await service.StopAsync(CancellationToken.None);
+    }
+
+    private static LakonaHealthHttpHostedService CreateHealthService(bool enabled, int port)
+    {
+        return new LakonaHealthHttpHostedService(
+            new LakonaGameRuntimeOptions
+            {
+                Health = new LakonaHealthOptions
+                {
+                    Http = new LakonaHealthHttpOptions
+                    {
+                        Enabled = enabled,
+                        Host = "127.0.0.1",
+                        Port = port,
+                        RequireLoopback = true
+                    }
+                }
+            },
+            new LakonaHealthHttpRouter([LakonaHealthHttpRoutes.Live()]),
+            NullLogger<LakonaHealthHttpHostedService>.Instance);
     }
 
     private static int GetFreePort()

@@ -12,13 +12,21 @@ public sealed class LakonaLocalAdminHostedService : BackgroundService
     private readonly LakonaLocalAdminRouter _router;
     private readonly ILogger<LakonaLocalAdminHostedService> _logger;
     private readonly LakonaLocalAdminRequestTracker _requestTracker;
-    private HttpListener? _listener;
+    private readonly Func<ILakonaLocalAdminListener> _listenerFactory;
+    private readonly TaskCompletionSource _listening = new(
+        TaskCreationOptions.RunContinuationsAsynchronously);
+    private ILakonaLocalAdminListener? _listener;
 
     public LakonaLocalAdminHostedService(
         LakonaObservabilityOptions options,
         LakonaLocalAdminRouter router,
         ILogger<LakonaLocalAdminHostedService> logger)
-        : this(options, router, logger, new LakonaLocalAdminRequestTracker())
+        : this(
+            options,
+            router,
+            logger,
+            new LakonaLocalAdminRequestTracker(),
+            listenerFactory: null)
     {
     }
 
@@ -27,47 +35,85 @@ public sealed class LakonaLocalAdminHostedService : BackgroundService
         LakonaLocalAdminRouter router,
         ILogger<LakonaLocalAdminHostedService> logger,
         LakonaLocalAdminRequestTracker requestTracker)
+        : this(options, router, logger, requestTracker, listenerFactory: null)
+    {
+    }
+
+    internal LakonaLocalAdminHostedService(
+        LakonaObservabilityOptions options,
+        LakonaLocalAdminRouter router,
+        ILogger<LakonaLocalAdminHostedService> logger,
+        LakonaLocalAdminRequestTracker requestTracker,
+        Func<ILakonaLocalAdminListener>? listenerFactory)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _router = router ?? throw new ArgumentNullException(nameof(router));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _requestTracker = requestTracker ?? throw new ArgumentNullException(nameof(requestTracker));
+        _listenerFactory = listenerFactory ?? (static () => new SystemLakonaLocalAdminListener());
+    }
+
+    internal Task Listening => _listening.Task;
+
+    public override async Task StartAsync(CancellationToken cancellationToken)
+    {
+        await base.StartAsync(cancellationToken).ConfigureAwait(false);
+        await _listening.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var localAdmin = _options.LocalAdmin;
-        if (!localAdmin.EffectiveEnabled)
-        {
-            return;
-        }
-
-        var listener = new HttpListener();
-        listener.Prefixes.Add(FormatPrefix(localAdmin.Host, localAdmin.Port));
-        listener.Start();
-        _listener = listener;
-        _logger.LogInformation(
-            "Lakona local admin endpoint listening on {Host}:{Port}.",
-            localAdmin.Host,
-            localAdmin.Port);
-
         try
         {
-            while (!stoppingToken.IsCancellationRequested)
+            var localAdmin = _options.LocalAdmin;
+            if (!localAdmin.EffectiveEnabled)
             {
-                var context = await listener.GetContextAsync().WaitAsync(stoppingToken).ConfigureAwait(false);
-                _ = _requestTracker.Track(() => HandleAndLogAsync(context, stoppingToken));
+                _listening.TrySetResult();
+                return;
+            }
+
+            stoppingToken.ThrowIfCancellationRequested();
+            var listener = _listenerFactory();
+            _listener = listener;
+            listener.AddPrefix(FormatPrefix(localAdmin.Host, localAdmin.Port));
+            listener.Start();
+            _logger.LogInformation(
+                "Lakona local admin endpoint listening on {Host}:{Port}.",
+                localAdmin.Host,
+                localAdmin.Port);
+            _listening.TrySetResult();
+
+            try
+            {
+                while (!stoppingToken.IsCancellationRequested)
+                {
+                    var context = await listener.GetContextAsync(stoppingToken).ConfigureAwait(false);
+                    _ = _requestTracker.Track(() => HandleAndLogAsync(context, stoppingToken));
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (HttpListenerException) when (stoppingToken.IsCancellationRequested || !listener.IsListening)
+            {
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
+            _listening.TrySetCanceled(stoppingToken);
         }
-        catch (HttpListenerException) when (stoppingToken.IsCancellationRequested || !listener.IsListening)
+        catch (Exception exception)
         {
+            _listening.TrySetException(exception);
+            throw;
         }
         finally
         {
-            listener.Close();
+            _listener?.Close();
+            if (!_listening.Task.IsCompleted)
+            {
+                _listening.TrySetCanceled(stoppingToken);
+            }
         }
     }
 

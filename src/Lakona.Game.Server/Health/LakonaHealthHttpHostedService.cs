@@ -13,6 +13,8 @@ public sealed class LakonaHealthHttpHostedService : BackgroundService
     private readonly LakonaHealthHttpRouter _router;
     private readonly ILogger<LakonaHealthHttpHostedService> _logger;
     private readonly LakonaHealthHttpRequestTracker _requestTracker;
+    private readonly TaskCompletionSource _listening = new(
+        TaskCreationOptions.RunContinuationsAsynchronously);
     private TcpListener? _listener;
 
     public LakonaHealthHttpHostedService(
@@ -35,39 +37,66 @@ public sealed class LakonaHealthHttpHostedService : BackgroundService
         _requestTracker = requestTracker ?? throw new ArgumentNullException(nameof(requestTracker));
     }
 
+    internal Task Listening => _listening.Task;
+
+    public override async Task StartAsync(CancellationToken cancellationToken)
+    {
+        await base.StartAsync(cancellationToken).ConfigureAwait(false);
+        await _listening.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var http = _options.Health.Http;
-        if (!http.Enabled)
-        {
-            return;
-        }
-
-        var listener = new TcpListener(ResolveBindAddress(http.Host), http.Port);
-        listener.Start();
-        _listener = listener;
-        _logger.LogInformation(
-            "Lakona health endpoint listening on {Host}:{Port}.",
-            http.Host,
-            http.Port);
-
         try
         {
-            while (!stoppingToken.IsCancellationRequested)
+            var http = _options.Health.Http;
+            if (!http.Enabled)
             {
-                var client = await listener.AcceptTcpClientAsync(stoppingToken).ConfigureAwait(false);
-                _ = _requestTracker.Track(() => HandleAndLogAsync(client, stoppingToken));
+                _listening.TrySetResult();
+                return;
+            }
+
+            stoppingToken.ThrowIfCancellationRequested();
+            var listener = new TcpListener(ResolveBindAddress(http.Host), http.Port);
+            _listener = listener;
+            listener.Start();
+            _logger.LogInformation(
+                "Lakona health endpoint listening on {Host}:{Port}.",
+                http.Host,
+                http.Port);
+            _listening.TrySetResult();
+
+            try
+            {
+                while (!stoppingToken.IsCancellationRequested)
+                {
+                    var client = await listener.AcceptTcpClientAsync(stoppingToken).ConfigureAwait(false);
+                    _ = _requestTracker.Track(() => HandleAndLogAsync(client, stoppingToken));
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (SocketException) when (stoppingToken.IsCancellationRequested)
+            {
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
+            _listening.TrySetCanceled(stoppingToken);
         }
-        catch (SocketException) when (stoppingToken.IsCancellationRequested)
+        catch (Exception exception)
         {
+            _listening.TrySetException(exception);
+            throw;
         }
         finally
         {
-            listener.Stop();
+            _listener?.Stop();
+            if (!_listening.Task.IsCompleted)
+            {
+                _listening.TrySetCanceled(stoppingToken);
+            }
         }
     }
 
