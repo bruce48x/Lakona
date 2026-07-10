@@ -162,6 +162,42 @@ public sealed class ActorDirectoryClusterHandlerTests
     }
 
     [Fact]
+    public async Task Seeded_clients_share_directory_state_through_the_same_handler()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var sharedDirectory = new InMemoryActorDirectory();
+        var replyRouter = new InProcessReplyRouter();
+        var handler = CreateHandler(sharedDirectory, replyRouter);
+
+        var gatewayGateway = new RemoteActorGateway();
+        var battleGateway = new RemoteActorGateway();
+        replyRouter.Add(new NodeId("gateway-1"), gatewayGateway.CreateReplyHandler());
+        replyRouter.Add(new NodeId("battle-1"), battleGateway.CreateReplyHandler());
+
+        var gatewayDirectory = new SeededActorDirectory(
+            gatewayGateway,
+            new InProcessSeedMessenger(handler),
+            new LocalActorNodeIdentity(new NodeId("gateway-1")),
+            "tcp://data-1:21001");
+        var battleDirectory = new SeededActorDirectory(
+            battleGateway,
+            new InProcessSeedMessenger(handler),
+            new LocalActorNodeIdentity(new NodeId("battle-1")),
+            "tcp://data-1:21001");
+        var actorId = ActorId.From("user/player-1");
+
+        var register = await battleDirectory.RegisterAsync(
+            actorId,
+            new NodeId("battle-1"),
+            cancellationToken);
+        var resolved = await gatewayDirectory.ResolveAsync(actorId, cancellationToken);
+
+        Assert.Equal(ActorDirectoryRegisterStatus.Registered, register);
+        Assert.NotNull(resolved);
+        Assert.Equal(new NodeId("battle-1"), resolved.Node);
+    }
+
+    [Fact]
     public async Task HandleAsync_unrelated_kind_returns_route_not_found_without_reply()
     {
         var sender = new RecordingClusterNodeSender();
@@ -236,6 +272,39 @@ public sealed class ActorDirectoryClusterHandlerTests
             DestinationNode = nodeId;
             Message = message;
             return new ValueTask<ClusterSendStatus>(Status);
+        }
+    }
+
+    private sealed class InProcessSeedMessenger(IClusterMessageHandler handler) : INodeMessenger
+    {
+        public ValueTask<ClusterSendStatus> SendAsync(
+            RouteLocation target,
+            ClusterMessage message,
+            CancellationToken cancellationToken = default)
+        {
+            return handler.HandleAsync(message, cancellationToken);
+        }
+    }
+
+    private sealed class InProcessReplyRouter : IClusterNodeSender
+    {
+        private readonly Dictionary<string, IClusterMessageHandler> _replyHandlers =
+            new(StringComparer.Ordinal);
+
+        public void Add(NodeId nodeId, IClusterMessageHandler replyHandler)
+        {
+            _replyHandlers.Add(nodeId.Value, replyHandler);
+        }
+
+        public ValueTask<ClusterSendStatus> SendAsync(
+            NodeId nodeId,
+            RouteKey route,
+            ClusterMessage message,
+            CancellationToken cancellationToken = default)
+        {
+            return _replyHandlers.TryGetValue(nodeId.Value, out var replyHandler)
+                ? replyHandler.HandleAsync(message, cancellationToken)
+                : new ValueTask<ClusterSendStatus>(ClusterSendStatus.RouteNotFound);
         }
     }
 }

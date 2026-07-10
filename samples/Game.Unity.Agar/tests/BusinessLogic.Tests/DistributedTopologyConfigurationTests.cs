@@ -518,6 +518,7 @@ public sealed class DistributedTopologyConfigurationTests
         var runtimeOptions = provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
         var routeDirectory = provider.GetRequiredService<IRouteDirectory>();
 
+        Assert.IsType<InMemoryActorDirectory>(provider.GetRequiredService<IActorDirectory>());
         Assert.Equal("lakona_cluster_nodes", sqlOptions.TableName);
         Assert.False(runtimeOptions.Cluster!.Directory.EnsureSchemaOnStartup);
         Assert.Equal(SqlNodeDirectoryDialect.Postgres, sqlOptions.Dialect);
@@ -664,6 +665,7 @@ public sealed class DistributedTopologyConfigurationTests
         var runtimeOptions = provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
 
         Assert.Empty(runtimeOptions.ActorHosts);
+        Assert.IsType<SeededActorDirectory>(provider.GetRequiredService<IActorDirectory>());
         Assert.IsAssignableFrom<INodeDirectory>(provider.GetRequiredService<INodeDirectory>());
         Assert.IsAssignableFrom<IRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
         Assert.IsType<SeededNodeDirectoryClient>(provider.GetRequiredService<INodeDirectory>());
@@ -679,6 +681,7 @@ public sealed class DistributedTopologyConfigurationTests
         var runtimeOptions = provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
 
         Assert.Equal(["room"], runtimeOptions.ActorHosts);
+        Assert.IsType<SeededActorDirectory>(provider.GetRequiredService<IActorDirectory>());
         Assert.IsType<SeededNodeDirectoryClient>(provider.GetRequiredService<INodeDirectory>());
         Assert.IsType<SeededRouteDirectoryClient>(provider.GetRequiredService<IRouteDirectory>());
     }
