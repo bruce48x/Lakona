@@ -32,10 +32,13 @@ model:
    local `InMemoryActorDirectory`.
 2. A node whose seed points to another cluster endpoint installs a seeded
    `IActorDirectory` client.
-3. The cluster RPC server binds the local `IActorDirectory` service beside the
-   existing node and route directory services.
+3. The seed registers an Actor Directory cluster-message handler backed by its
+   local `IActorDirectory`.
 4. The seeded client performs resolve, register, and unregister calls directly
-   against the configured seed endpoint using the cluster serializer.
+   against the configured seed endpoint through the existing ClusterMessage
+   RPC method. The cluster envelope uses the configured cluster serializer;
+   the Actor Directory request and reply remain opaque JSON payloads owned by
+   `Lakona.Game.Server`.
 5. `ActorHosting`, placement, generated actor refs, and the local directory
    cache keep using `IActorDirectory`; business code receives no new API or
    configuration.
@@ -43,6 +46,10 @@ model:
 The seed-selection rule is exactly the rule already used for Node Directory and
 Route Directory. Actor ownership therefore has one source of truth in the
 current topology and introduces no second discovery or failover model.
+
+Reusing the existing cluster-message envelope also preserves package direction:
+`Lakona.Game.Cluster.Rpc` does not depend on server actor types, and its
+MemoryPack formatter catalog does not need Actor Directory DTOs.
 
 ## Removed Incomplete Surface
 
