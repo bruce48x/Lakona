@@ -102,6 +102,8 @@ public static class LakonaGameServer
             ContentRootPath = AppContext.BaseDirectory
         });
         builder.Logging.ClearProviders();
+        builder.Services.Configure<ConsoleLifetimeOptions>(options =>
+            options.SuppressStatusMessages = true);
         return builder;
     }
 
