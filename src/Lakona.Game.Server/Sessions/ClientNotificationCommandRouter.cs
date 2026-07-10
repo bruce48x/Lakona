@@ -1,22 +1,23 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
+using Lakona.Game.Server.ReliablePush;
 
 namespace Lakona.Game.Server.Sessions;
 
 internal sealed class ClientNotificationCommandRouter : IClientNotificationCommandRouter
 {
-    private readonly LocalClientNotificationCommandDispatcher _localDispatcher;
+    private readonly IReliablePushRuntime _localOwner;
     private readonly IRouteDirectory? _routes;
     private readonly IClientNotificationRemoteDispatcher? _remoteDispatcher;
     private readonly NodeId? _localNode;
 
     public ClientNotificationCommandRouter(
-        LocalClientNotificationCommandDispatcher localDispatcher,
+        IReliablePushRuntime localOwner,
         IRouteDirectory? routes = null,
         IClientNotificationRemoteDispatcher? remoteDispatcher = null,
         NodeId? localNode = null)
     {
-        _localDispatcher = localDispatcher ?? throw new ArgumentNullException(nameof(localDispatcher));
+        _localOwner = localOwner ?? throw new ArgumentNullException(nameof(localOwner));
         _routes = routes;
         _remoteDispatcher = remoteDispatcher;
         _localNode = localNode;
@@ -26,19 +27,14 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         ClientNotificationCommand command,
         CancellationToken cancellationToken = default)
     {
-        var local = await _localDispatcher.DispatchAsync(command, cancellationToken).ConfigureAwait(false);
-        if (local == ClientNotificationStatus.Delivered ||
-            local == ClientNotificationStatus.Failed)
-        {
-            return local;
-        }
+        ArgumentNullException.ThrowIfNull(command);
+        var session = ToSessionKey(command);
 
         if (_routes is null || _remoteDispatcher is null || _localNode is null)
         {
-            return ClientNotificationStatus.RouteNotFound;
+            return await _localOwner.PublishAsync(session, command, cancellationToken).ConfigureAwait(false);
         }
 
-        var session = ToSessionKey(command);
         var route = await _routes.ResolveAsync(
             ClientNotificationRouteKey.FromSession(session),
             DateTimeOffset.UtcNow,
@@ -50,9 +46,10 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
 
         if (route.Node == _localNode.Value)
         {
-            return ClientNotificationStatus.CallbackUnavailable;
+            return await _localOwner.PublishAsync(session, command, cancellationToken).ConfigureAwait(false);
         }
 
+        command.Metadata = null;
         return await _remoteDispatcher.DispatchAsync(route, command, cancellationToken).ConfigureAwait(false);
     }
 

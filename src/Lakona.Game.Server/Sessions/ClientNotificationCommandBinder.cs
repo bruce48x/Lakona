@@ -1,4 +1,5 @@
 using Lakona.Game.Cluster.Rpc;
+using Lakona.Game.Server.ReliablePush;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
 
@@ -6,11 +7,21 @@ namespace Lakona.Game.Server.Sessions;
 
 public sealed class ClientNotificationCommandBinder
 {
-    private readonly LocalClientNotificationCommandDispatcher _dispatcher;
+    private readonly Func<ClientNotificationCommand, CancellationToken, ValueTask<ClientNotificationStatus>> _dispatch;
 
     public ClientNotificationCommandBinder(LocalClientNotificationCommandDispatcher dispatcher)
     {
-        _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+        ArgumentNullException.ThrowIfNull(dispatcher);
+        _dispatch = dispatcher.DispatchAsync;
+    }
+
+    private ClientNotificationCommandBinder(IReliablePushRuntime owner)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        _dispatch = (command, cancellationToken) => owner.PublishAsync(
+            new GameSessionKey(command.OwnerKey, command.SessionId, command.Generation),
+            command,
+            cancellationToken);
     }
 
     public void Bind(RpcServiceRegistry registry)
@@ -29,6 +40,13 @@ public sealed class ClientNotificationCommandBinder
         new ClientNotificationCommandBinder(dispatcher).Bind(registry);
     }
 
+    internal static void BindOwned(
+        RpcServiceRegistry registry,
+        IReliablePushRuntime owner)
+    {
+        new ClientNotificationCommandBinder(owner).Bind(registry);
+    }
+
     private async ValueTask<TransportFrame> DispatchAsync(
         RpcSession session,
         RpcRequestFrame request,
@@ -37,7 +55,7 @@ public sealed class ClientNotificationCommandBinder
         var dto = session.Serializer.Deserialize<ClientNotificationDispatchRequest>(request.Payload.Memory);
         var status = dto.Command is null
             ? ClientNotificationStatus.Failed
-            : await _dispatcher.DispatchAsync(dto.Command, cancellationToken).ConfigureAwait(false);
+            : await _dispatch(dto.Command, cancellationToken).ConfigureAwait(false);
         using var payload = session.Serializer.SerializeFrame(new ClientNotificationDispatchReply
         {
             Status = (int)status

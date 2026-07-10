@@ -16,6 +16,7 @@ public static class ReliablePushServiceCollectionExtensions
         services.TryAddSingleton(options);
         services.TryAddSingleton<IReliablePushOutbox, InMemoryReliablePushOutbox>();
         services.TryAddSingleton<IReliablePushAckService, ReliablePushAckService>();
+        services.TryAddSingleton<IReliablePushRuntime, ReliablePushRuntime>();
         return services;
     }
 

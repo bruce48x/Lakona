@@ -9,18 +9,18 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
 {
     private readonly IReliablePushOutbox _outbox;
     private readonly IReliablePushAckService _acks;
-    private readonly IClientNotificationCommandRouter _router;
+    private readonly LocalClientNotificationCommandDispatcher _localDispatcher;
     private readonly ReliablePushOptions _options;
 
     public ReliablePushRuntime(
         IReliablePushOutbox outbox,
         IReliablePushAckService acks,
-        IClientNotificationCommandRouter router,
+        LocalClientNotificationCommandDispatcher localDispatcher,
         ReliablePushOptions options)
     {
         _outbox = outbox ?? throw new ArgumentNullException(nameof(outbox));
         _acks = acks ?? throw new ArgumentNullException(nameof(acks));
-        _router = router ?? throw new ArgumentNullException(nameof(router));
+        _localDispatcher = localDispatcher ?? throw new ArgumentNullException(nameof(localDispatcher));
         _options = options ?? throw new ArgumentNullException(nameof(options));
     }
 
@@ -33,7 +33,8 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
 
         if (!_options.Enabled)
         {
-            return await _router.DispatchAsync(command, cancellationToken).ConfigureAwait(false);
+            command.Metadata = null;
+            return await _localDispatcher.DispatchAsync(command, cancellationToken).ConfigureAwait(false);
         }
 
         var immediateStatus = ClientNotificationStatus.RouteNotFound;
@@ -100,7 +101,7 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
                 record.Kind))
         };
 
-        return await _router.DispatchAsync(command, cancellationToken).ConfigureAwait(false);
+        return await _localDispatcher.DispatchAsync(command, cancellationToken).ConfigureAwait(false);
     }
 
     private static string CreateRecordKind(ClientNotificationCommand command)

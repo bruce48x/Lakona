@@ -39,6 +39,7 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
         services.TryAddSingleton<INodeMessenger, ClusterNodeMessenger>();
         services.TryAddSingleton<IClusterNodeSender, ClusterNodeSender>();
         services.TryAddSingleton<LocalClientNotificationCommandDispatcher>();
+        RemoveSessionOnlyNotificationDispatcher(services);
         services.TryAddSingleton<IClientNotificationRemoteDispatcher, ClusterClientNotificationDispatcher>();
 
         TryAddConfiguredNodeDirectory(services, runtimeOptions.Cluster);
@@ -112,6 +113,19 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             var descriptor = services[index];
             if (descriptor.ServiceType == typeof(IClusterMessageHandler) &&
                 descriptor.ImplementationType == typeof(ActorDirectoryClusterHandler))
+            {
+                services.RemoveAt(index);
+            }
+        }
+    }
+
+    private static void RemoveSessionOnlyNotificationDispatcher(IServiceCollection services)
+    {
+        for (var index = services.Count - 1; index >= 0; index--)
+        {
+            var descriptor = services[index];
+            if (descriptor.ServiceType == typeof(IClientNotificationRemoteDispatcher) &&
+                descriptor.ImplementationType == typeof(NoopClientNotificationRemoteDispatcher))
             {
                 services.RemoveAt(index);
             }

@@ -110,6 +110,26 @@ actor-directory label; the configured seed is the only actor-directory target.
 advertised cluster endpoint and send framework control messages or replies
 directly to that node.
 
+## Session Notification Relay
+
+The node that owns a client-session route also owns reliable-push state for
+that session generation. Notification publication resolves route ownership
+before sequence allocation:
+
+```text
+local producer -> local route owner -> owner outbox -> callback
+remote producer -> cluster intent -> route owner outbox -> callback
+```
+
+Remote producers relay an unsequenced notification intent. Cluster notification
+commands do not carry authoritative reliable-push metadata; the route owner
+creates metadata from the record it adds to its own outbox. This keeps sequence
+allocation, pending records, acknowledgements, and replay on the same node.
+
+A missing or stale session route returns `RouteNotFound` without creating an
+outbox on the producer. Built-in outboxes are process-local and are not
+transferred when an owner fails or a session generation moves.
+
 ## Actor Routing
 
 Generated actor selectors express placement intent:

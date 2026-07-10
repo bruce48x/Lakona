@@ -22,7 +22,6 @@ public static class SessionServiceCollectionExtensions
         services.TryAddSingleton<IClientNotificationRemoteDispatcher, NoopClientNotificationRemoteDispatcher>();
         services.TryAddSingleton<LocalClientNotificationCommandDispatcher>();
         services.TryAddSingleton<IClientNotificationCommandRouter>(CreateClientNotificationCommandRouter);
-        services.TryAddSingleton<IReliablePushRuntime, ReliablePushRuntime>();
         services.TryAddSingleton<IClientSessionRouteRegistrar>(CreateClientSessionRouteRegistrar);
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IRpcSessionLifecycleObserver, GameSessionRpcLifecycleObserver>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IGameSessionLifecycleHandler, ClientSessionRouteLifecycleHandler>());
@@ -99,11 +98,11 @@ public static class SessionServiceCollectionExtensions
 
     private static IClientNotificationCommandRouter CreateClientNotificationCommandRouter(IServiceProvider services)
     {
-        var dispatcher = services.GetRequiredService<LocalClientNotificationCommandDispatcher>();
+        var localOwner = services.GetRequiredService<IReliablePushRuntime>();
         var routes = services.GetService<IRouteDirectory>();
         var remoteDispatcher = services.GetService<IClientNotificationRemoteDispatcher>();
         var cluster = services.GetService<ClusterOptions>();
         NodeId? localNode = cluster is null ? (NodeId?)null : new NodeId(cluster.NodeId);
-        return new ClientNotificationCommandRouter(dispatcher, routes, remoteDispatcher, localNode);
+        return new ClientNotificationCommandRouter(localOwner, routes, remoteDispatcher, localNode);
     }
 }

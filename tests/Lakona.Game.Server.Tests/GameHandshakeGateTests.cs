@@ -249,7 +249,7 @@ public sealed class GameHandshakeGateTests
                 ["Lakona:Node:Id"] = "node-a"
             })
             .Build();
-        using var provider = new ServiceCollection()
+        await using var provider = new ServiceCollection()
             .AddLogging()
             .AddSingleton(LakonaRpcServiceCatalog.FromTypes([]))
             .AddLakonaGameServer(configuration)

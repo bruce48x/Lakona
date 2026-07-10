@@ -25,6 +25,51 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     private const string Gateway = "tcp://127.0.0.1:21002";
 
     [Fact]
+    public async Task Cluster_endpoint_replaces_session_only_notification_dispatcher()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "data-1" },
+            Cluster = new LakonaGameClusterOptions
+            {
+                Endpoint = Seed,
+                Serializer = "json"
+            }
+        });
+        services.AddLakonaGameServerSessions();
+        services.AddLakonaGameClusterEndpoint();
+
+        await using var provider = services.BuildServiceProvider();
+
+        Assert.IsType<ClusterClientNotificationDispatcher>(
+            provider.GetRequiredService<IClientNotificationRemoteDispatcher>());
+    }
+
+    [Fact]
+    public async Task Cluster_endpoint_preserves_custom_notification_dispatcher()
+    {
+        var custom = new CustomNotificationDispatcher();
+        var services = new ServiceCollection();
+        services.AddSingleton(new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "data-1" },
+            Cluster = new LakonaGameClusterOptions
+            {
+                Endpoint = Seed,
+                Serializer = "json"
+            }
+        });
+        services.AddLakonaGameServerSessions();
+        services.AddSingleton<IClientNotificationRemoteDispatcher>(custom);
+        services.AddLakonaGameClusterEndpoint();
+
+        await using var provider = services.BuildServiceProvider();
+
+        Assert.Same(custom, provider.GetRequiredService<IClientNotificationRemoteDispatcher>());
+    }
+
+    [Fact]
     public void Cluster_endpoint_without_actor_runtime_does_not_wire_actor_directory()
     {
         var services = new ServiceCollection();
@@ -539,6 +584,17 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             Assert.NotNull(_nodeSender);
             Assert.NotNull(_localNode);
             return new ValueTask<ClusterSendStatus>(ClusterSendStatus.RouteNotFound);
+        }
+    }
+
+    private sealed class CustomNotificationDispatcher : IClientNotificationRemoteDispatcher
+    {
+        public ValueTask<ClientNotificationStatus> DispatchAsync(
+            RouteLocation target,
+            ClientNotificationCommand command,
+            CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<ClientNotificationStatus>(ClientNotificationStatus.Delivered);
         }
     }
 
