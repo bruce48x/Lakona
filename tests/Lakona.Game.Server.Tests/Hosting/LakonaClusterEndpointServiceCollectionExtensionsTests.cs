@@ -390,6 +390,9 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         services.AddLakonaGameClusterEndpoint();
 
         await using var provider = services.BuildServiceProvider();
+        Assert.Contains(
+            provider.GetServices<IClusterMessageHandler>(),
+            static handler => handler is HotfixActorClusterHandler);
         var configurator = provider.GetServices<IRpcServerConfigurator>()
             .OfType<LakonaClusterRpcServerConfigurator>()
             .Single();
@@ -412,18 +415,23 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
 
     private sealed class GeneratedActorHandlerWithRouterProbe : IClusterMessageHandler
     {
-        private readonly IClusterRouter _router;
+        private readonly IClusterNodeSender _nodeSender;
+        private readonly LocalActorNodeIdentity _localNode;
 
-        public GeneratedActorHandlerWithRouterProbe(IClusterRouter router)
+        public GeneratedActorHandlerWithRouterProbe(
+            IClusterNodeSender nodeSender,
+            LocalActorNodeIdentity localNode)
         {
-            _router = router;
+            _nodeSender = nodeSender;
+            _localNode = localNode;
         }
 
         public ValueTask<ClusterSendStatus> HandleAsync(
             ClusterMessage message,
             CancellationToken cancellationToken = default)
         {
-            Assert.NotNull(_router);
+            Assert.NotNull(_nodeSender);
+            Assert.NotNull(_localNode);
             return new ValueTask<ClusterSendStatus>(ClusterSendStatus.RouteNotFound);
         }
     }

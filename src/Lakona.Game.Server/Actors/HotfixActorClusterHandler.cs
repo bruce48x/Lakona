@@ -12,18 +12,21 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
 {
     private readonly IActorRuntime _runtime;
     private readonly IRemoteActorSerializer _serializer;
-    private readonly IClusterRouter _router;
+    private readonly IClusterNodeSender _nodeSender;
+    private readonly LocalActorNodeIdentity _localNode;
     private readonly IServiceProvider _services;
 
     public HotfixActorClusterHandler(
         IActorRuntime runtime,
         IRemoteActorSerializer serializer,
-        IClusterRouter router,
+        IClusterNodeSender nodeSender,
+        LocalActorNodeIdentity localNode,
         IServiceProvider services)
     {
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
-        _router = router ?? throw new ArgumentNullException(nameof(router));
+        _nodeSender = nodeSender ?? throw new ArgumentNullException(nameof(nodeSender));
+        _localNode = localNode ?? throw new ArgumentNullException(nameof(localNode));
         _services = services ?? throw new ArgumentNullException(nameof(services));
     }
 
@@ -137,13 +140,13 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
                     return ClusterSendStatus.Failed;
                 }
 
-                await RemoteActorGateway.SendReplyAsync(
-                    _router,
+                return await RemoteActorGateway.SendReplyAsync(
+                    _nodeSender,
+                    _localNode.NodeId,
                     envelope.SourceNode,
                     envelope.ReplyCorrelationId,
                     ReadOnlyMemory<byte>.Empty,
-                    CancellationToken.None).ConfigureAwait(false);
-                return ClusterSendStatus.Accepted;
+                    cancellationToken).ConfigureAwait(false);
             }
 
             if (cancellationToken.IsCancellationRequested)
@@ -236,8 +239,9 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
                     return ClusterSendStatus.SerializationFailed;
                 }
 
-                await RemoteActorGateway.SendReplyAsync(
-                    _router,
+                return await RemoteActorGateway.SendReplyAsync(
+                    _nodeSender,
+                    _localNode.NodeId,
                     envelope.SourceNode,
                     envelope.ReplyCorrelationId,
                     replyPayload,
@@ -302,7 +306,7 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
             {
                 await InvokeHostingAsync(hosting, actorType, actorId, request.Mode, cancellationToken)
                     .ConfigureAwait(false);
-                reply = new ActorHostCreateReply(true, _services.GetRequiredService<LocalActorNodeIdentity>().NodeId.Value, "created");
+                reply = new ActorHostCreateReply(true, _localNode.NodeId.Value, "created");
             }
             catch (ActorHostedElsewhereException ex)
             {
@@ -318,13 +322,13 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
             lease.Dispose();
         }
 
-        await RemoteActorGateway.SendReplyAsync(
-            _router,
+        return await RemoteActorGateway.SendReplyAsync(
+            _nodeSender,
+            _localNode.NodeId,
             message.SourceNode,
             message.CorrelationId,
             JsonSerializer.SerializeToUtf8Bytes(reply),
             cancellationToken).ConfigureAwait(false);
-        return ClusterSendStatus.Accepted;
     }
 
     private static Type? ResolvePlacementActorType(
