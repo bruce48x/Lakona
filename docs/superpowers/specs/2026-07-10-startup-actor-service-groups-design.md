@@ -24,8 +24,10 @@ requests; in-memory state is not replicated and may be lost.
 ## Goal
 
 Provide one Startup Actor service group per actor type. Users declare startup
-and selection once in hotfix code, access it through a generated parameterless
-`Startup` ref, and never construct its internal actor id.
+and selection once in hotfix code, access it through a generated keyed
+`Startup(key)` ref, and never construct its internal actor id. The key supplies
+routing affinity to the fixed selector; it does not identify a physical actor
+or create independent actor state.
 
 ## Non-Goals
 
@@ -49,12 +51,12 @@ public static class GameHotfixStartup
     [HotfixConfigureActors]
     public static void ConfigureActors(ActorHostBuilder actors)
     {
-        actors.RegisterStartup<MatchmakingActor>(
+        actors.RegisterStartup<MatchmakingActor, MatchmakingQueueId>(
             static context => context.Candidates
-                .OrderBy(candidate => candidate.NodeId.Value, StringComparer.Ordinal)
+                .OrderBy(candidate => StableHash(context.Key, candidate.NodeId))
                 .First());
 
-        actors.RegisterStartup<WorkerActor>(
+        actors.RegisterStartup<WorkerActor, WorkAffinityKey>(
             static context => context.Candidates[
                 Random.Shared.Next(context.Candidates.Count)]);
     }
@@ -63,17 +65,26 @@ public static class GameHotfixStartup
 
 The selector is fixed at registration. The framework defines only the selector
 contract and validates its result; selection policy belongs to the user.
+`StableHash` above is an application-owned function, not a framework helper.
 
 Generated actor collections expose:
 
 ```csharp
-await matchmaking.Startup.CallAsync(
+await matchmaking.Startup(new MatchmakingQueueId("default")).CallAsync(
     MatchmakingBehavior.EnqueueAsync,
     request,
     cancellationToken);
 ```
 
-`Startup` requires no key, name, actor id, or strategy argument.
+`Startup` requires a typed selection key but no group name, actor id, or
+strategy argument. `TKey` is available as `context.Key` when the registered
+selector runs. A stable-hash selector can therefore keep the same logical
+queue, tenant, region, or other affinity key on the same healthy replica while
+the candidate set is unchanged.
+
+The key is selection input only. Different keys may select the same physical
+replica and share that replica's actor state. Applications that require one
+isolated state instance per key must use normal keyed actors instead.
 
 ## Configuration Model
 
@@ -81,8 +92,9 @@ await matchmaking.Startup.CallAsync(
 
 The two remaining declarations have separate responsibilities:
 
-- `RegisterStartup<TActor>(selector)` says the actor type has one logical
-  Startup service group and defines how callers choose a replica.
+- `RegisterStartup<TActor, TKey>(selector)` says the actor type has one logical
+  Startup service group, defines the typed routing-affinity key, and defines
+  how callers choose a replica.
 - `Lakona:ActorHosts` says which actor types the current node may host.
 
 Every node whose `ActorHosts` contains a registered Startup Actor type creates
@@ -125,9 +137,11 @@ The framework queries ready, non-expired nodes advertising the requested
 Startup Actor type and compatible hotfix metadata. Candidates are presented in
 stable node-id order so deterministic selectors remain deterministic.
 
-The registered selector receives a non-empty read-only candidate list. The
-framework verifies that the returned candidate belongs to that exact list.
-Selector exceptions and invalid results become typed selection failures.
+The registered selector receives the caller's typed key and a non-empty
+read-only candidate list. The framework verifies that the returned candidate
+belongs to that exact list. Selector exceptions and invalid results become
+typed selection failures. Failover re-runs the same selector with the same key
+and the failed candidate removed.
 
 The chosen replica is invoked locally when owned by the current node and
 through normal node-directed remote actor invocation otherwise. Startup refs
@@ -185,10 +199,11 @@ internal actor ids, request values, correlation ids, or user data in metrics.
 
 ## Generator Changes
 
-For every generated actor collection, the generator emits a `Startup` ref with
-the same behavior-first `CallAsync` and `PostAsync` surface as keyed refs. The
-ref is usable only when a matching startup declaration is present at runtime;
-otherwise invocation returns `StartupActorUnavailableException`.
+For every generated actor collection, the generator emits a typed
+`Startup(TKey key)` ref with the same behavior-first `CallAsync` and `PostAsync`
+surface as keyed refs. The ref is usable only when a matching startup
+declaration is present at runtime; otherwise invocation returns
+`StartupActorUnavailableException`.
 
 No generated lifecycle, spawn, actor-id, or per-call strategy surface is added.
 
@@ -196,17 +211,20 @@ No generated lifecycle, spawn, actor-id, or per-call strategy surface is added.
 
 The implementation requires tests for:
 
-1. Registration accepts one Startup declaration per actor type and rejects
-   duplicates.
+1. Registration accepts one typed-key Startup declaration per actor type and
+   rejects duplicates or key-type mismatches.
 2. A node starts a replica only when its `ActorHosts` contains that type.
 3. A successful local start publishes a descriptor; failed start does not.
-4. Two nodes publish two candidates and the user selector controls selection.
-5. A clearly unavailable selected node is removed and the selector runs again.
+4. Two nodes publish two candidates and a typed-key stable-hash selector keeps
+   the same key on the same candidate while the candidate set is unchanged.
+5. A clearly unavailable selected node is removed and the selector runs again
+   with the original key.
 6. Timeout after acceptance does not retry another replica.
 7. Selector exception and outsider result produce typed failures.
 8. Hotfix add/remove diffs start, withdraw, drain, and stop replicas in order.
 9. Node, SQL, and MemoryPack directory adapters round-trip startup descriptors.
-10. Generated source exposes parameterless `.Startup` and no Startup Actor id.
+10. Generated source exposes `.Startup(TKey key)` and no Startup Actor id or
+    per-call strategy.
 11. Repository scans reject `Lakona:StartupActors` in samples, templates, docs,
     and configuration.
 
