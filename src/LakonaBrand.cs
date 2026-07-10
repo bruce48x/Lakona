@@ -3,9 +3,9 @@ using System.Text;
 internal static class LakonaBrand
 {
     private static readonly string[] Text = {
-        @" /\_/\   L A K O N A",
-        @"( oᴥo )",
-        @" U_⌨_U",
+        @"  /\_/\",
+        @" ( oᴥo )     Lakona",
+        @"  U___U",
     };
 
     private const int Width = 30;
