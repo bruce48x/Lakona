@@ -586,6 +586,21 @@ public sealed class LakonaTimerIntegrationTests
     }
 
     [Fact]
+    public async Task Timer_callback_reset_releases_prior_waiter_without_releasing_new_generation()
+    {
+        TimerRuntimeCallbackLog.Reset();
+        var priorWait = TimerRuntimeCallbackLog.WaitForReleaseAsync().AsTask();
+
+        TimerRuntimeCallbackLog.Reset();
+
+        await priorWait.WaitAsync(TimeSpan.FromMilliseconds(250), TestContext.Current.CancellationToken);
+        var currentWait = TimerRuntimeCallbackLog.WaitForReleaseAsync().AsTask();
+        Assert.False(currentWait.IsCompleted);
+        TimerRuntimeCallbackLog.Release();
+        await currentWait.WaitAsync(TimeSpan.FromMilliseconds(250), TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public async Task Runtime_timer_resolution_deserialization_and_callback_failures_are_reported_and_skipped()
     {
         TimerRuntimeCallbackLog.Reset();
@@ -1847,11 +1862,15 @@ public sealed class LakonaTimerIntegrationTests
 
         public static void Reset()
         {
+            TaskCompletionSource? previousRelease;
             lock (Sync)
             {
                 Records.Clear();
+                previousRelease = release;
                 release = null;
             }
+
+            previousRelease?.TrySetResult();
         }
 
         private static async Task<IReadOnlyList<TimerRuntimeCallbackRecord>> WaitUntilAsync(
