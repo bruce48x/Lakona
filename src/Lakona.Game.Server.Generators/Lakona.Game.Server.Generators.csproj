@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Lakona.Game.Server.Generators</RootNamespace>
     <PackageId>Lakona.Game.Server.Generators</PackageId>
-    <Version>0.1.9</Version>
+    <Version>0.2.0</Version>
     <Description>Source generators for Lakona.Game server actor APIs.</Description>
     <PackageTags>lakona-game;actor;source-generator;roslyn</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
