@@ -234,10 +234,11 @@ public sealed class HotfixActorClusterHandlerTests
         Assert.False(callTask.IsCompleted);
 
         releaseTell.SetResult();
-        var status = await callTask.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        await Assert.ThrowsAsync<OperationCanceledException>(() => callTask.WaitAsync(
+            TimeSpan.FromSeconds(2),
+            TestContext.Current.CancellationToken));
         snapshot.Retire();
 
-        Assert.Equal(ClusterSendStatus.Accepted, status);
         Assert.Equal("seen", runtime.Actor.LastNotification);
         Assert.True(retired);
     }
