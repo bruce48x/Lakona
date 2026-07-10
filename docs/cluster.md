@@ -118,6 +118,8 @@ Server startup follows this high-level order:
 4. Start actor startup declarations selected by `Lakona:StartupActors`.
 5. Register node endpoints, actor hosts, and labels in the node directory.
 6. Start RPC listeners.
+7. After every enabled framework listener has bound and all hosted startup work
+   has completed, log `Lakona server started successfully` with the node id.
 
 On shutdown, RPC listeners stop first, then node membership is marked dead, and
 actor lifecycle cleanup runs through the actor runtime.
