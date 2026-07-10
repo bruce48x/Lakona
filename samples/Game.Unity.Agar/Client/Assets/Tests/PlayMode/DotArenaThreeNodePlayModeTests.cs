@@ -72,12 +72,15 @@ namespace SampleClient.Gameplay.Tests
                 45f);
 
             var beforeMove = game.BuildTestSnapshot();
-            var submitInput = game.SetEditorMoveOverrideForTest(Vector2.right);
-            yield return WaitForTask(submitInput, "rightward input submission did not complete", 10f);
+            var move = beforeMove.LocalPlayerX >= 0f ? Vector2.left : Vector2.right;
+            var submitInput = game.SetEditorMoveOverrideForTest(move);
+            yield return WaitForTask(submitInput, "inward input submission did not complete", 10f);
             yield return WaitForSnapshot(
                 game,
-                snapshot => snapshot.LocalPlayerX > beforeMove.LocalPlayerX + 0.25f,
-                "local player did not move after submitting rightward input",
+                snapshot => move.x < 0f
+                    ? snapshot.LocalPlayerX < beforeMove.LocalPlayerX - 0.25f
+                    : snapshot.LocalPlayerX > beforeMove.LocalPlayerX + 0.25f,
+                "local player did not move toward the arena center after submitting input",
                 10f);
             game.ClearEditorMoveOverrideForTest();
         }

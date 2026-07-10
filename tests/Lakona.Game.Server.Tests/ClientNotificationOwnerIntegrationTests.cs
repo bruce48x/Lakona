@@ -34,6 +34,15 @@ public sealed class ClientNotificationOwnerIntegrationTests
             "control-1",
             callback,
             TestContext.Current.CancellationToken);
+        var routes = new InMemoryRouteDirectory();
+        await routes.RegisterAsync(
+            new RouteLocation(
+                ClientNotificationRouteKey.FromSession(session),
+                new NodeId("gateway-1"),
+                new NodeEndpoint($"tcp://127.0.0.1:{port}"),
+                DateTimeOffset.UtcNow.AddMinutes(1),
+                generation: session.Generation),
+            TestContext.Current.CancellationToken);
 
         var localStatus = await gateway.GetRequiredService<IClientNotifications>()
             .ForSession(session)
@@ -49,9 +58,11 @@ public sealed class ClientNotificationOwnerIntegrationTests
         var builder = RpcServerHostBuilder.Create()
             .UseSerializer(new JsonRpcSerializer())
             .UseAcceptor(new TcpConnectionAcceptor(port, "127.0.0.1"));
-        ClientNotificationCommandBinder.BindOwned(
-            builder.ServiceRegistry,
-            gateway.GetRequiredService<IReliablePushRuntime>());
+        var ownerDispatcher = new ClientNotificationOwnerDispatcher(
+            gateway.GetRequiredService<IReliablePushRuntime>(),
+            routes,
+            new NodeId("gateway-1"));
+        ClientNotificationCommandBinder.BindOwned(builder.ServiceRegistry, ownerDispatcher);
         var serverTask = builder.RunAsync(stop.Token).AsTask();
         await Task.Delay(100, TestContext.Current.CancellationToken);
 

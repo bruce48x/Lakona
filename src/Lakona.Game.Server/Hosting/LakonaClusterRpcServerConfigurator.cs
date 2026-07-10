@@ -59,9 +59,14 @@ public sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurator
             RouteDirectoryBinder.Bind(context.Builder.ServiceRegistry, routeDirectory);
         }
 
-        if (context.Services.GetService(typeof(IReliablePushRuntime)) is IReliablePushRuntime reliablePush)
+        if (context.Services.GetService(typeof(IReliablePushRuntime)) is IReliablePushRuntime reliablePush &&
+            context.Services.GetService(typeof(IRouteDirectory)) is IRouteDirectory notificationRoutes)
         {
-            ClientNotificationCommandBinder.BindOwned(context.Builder.ServiceRegistry, reliablePush);
+            var ownerDispatcher = new ClientNotificationOwnerDispatcher(
+                reliablePush,
+                notificationRoutes,
+                new NodeId(_runtimeOptions.Node.Id));
+            ClientNotificationCommandBinder.BindOwned(context.Builder.ServiceRegistry, ownerDispatcher);
         }
 
         var actorHandlers = context.Services.GetServices<IClusterMessageHandler>().ToList();

@@ -80,9 +80,10 @@ exposing client RPC endpoints:
 ```
 
 Actor-directory wiring follows `Lakona:Cluster:Seeds`. The node whose cluster
-endpoint is the configured seed owns the ephemeral in-memory actor directory;
-remote nodes use that seed for actor ownership operations without any separate
-actor-directory configuration. Restarting the seed may clear ownership
+endpoint matches the first configured seed owns the ephemeral in-memory actor
+directory; later seeds do not become alternate directory owners. Remote nodes
+use the first seed for actor ownership operations without any separate
+actor-directory configuration. Restarting that seed may clear ownership
 records. Persistent actor ownership, replication, and directory failover are
 not provided by this topology.
 

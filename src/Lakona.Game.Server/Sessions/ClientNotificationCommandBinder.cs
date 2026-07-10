@@ -1,5 +1,4 @@
 using Lakona.Game.Cluster.Rpc;
-using Lakona.Game.Server.ReliablePush;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
 
@@ -15,13 +14,10 @@ public sealed class ClientNotificationCommandBinder
         _dispatch = dispatcher.DispatchAsync;
     }
 
-    private ClientNotificationCommandBinder(IReliablePushRuntime owner)
+    private ClientNotificationCommandBinder(ClientNotificationOwnerDispatcher ownerDispatcher)
     {
-        ArgumentNullException.ThrowIfNull(owner);
-        _dispatch = (command, cancellationToken) => owner.PublishAsync(
-            new GameSessionKey(command.OwnerKey, command.SessionId, command.Generation),
-            command,
-            cancellationToken);
+        ArgumentNullException.ThrowIfNull(ownerDispatcher);
+        _dispatch = ownerDispatcher.DispatchAsync;
     }
 
     public void Bind(RpcServiceRegistry registry)
@@ -42,9 +38,9 @@ public sealed class ClientNotificationCommandBinder
 
     internal static void BindOwned(
         RpcServiceRegistry registry,
-        IReliablePushRuntime owner)
+        ClientNotificationOwnerDispatcher ownerDispatcher)
     {
-        new ClientNotificationCommandBinder(owner).Bind(registry);
+        new ClientNotificationCommandBinder(ownerDispatcher).Bind(registry);
     }
 
     private async ValueTask<TransportFrame> DispatchAsync(

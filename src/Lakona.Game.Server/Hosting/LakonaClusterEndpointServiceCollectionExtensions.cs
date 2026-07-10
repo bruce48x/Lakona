@@ -185,15 +185,10 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             return null;
         }
 
-        foreach (var seed in cluster.Seeds)
-        {
-            if (!EndpointEquals(cluster.Endpoint, seed))
-            {
-                return seed;
-            }
-        }
-
-        return null;
+        var canonicalOwner = cluster.Seeds[0];
+        return EndpointEquals(cluster.Endpoint, canonicalOwner)
+            ? null
+            : canonicalOwner;
     }
 
     private static bool EndpointEquals(string left, string right)

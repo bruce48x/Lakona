@@ -435,6 +435,109 @@ public sealed class ClientNotificationRelayTests
     }
 
     [Fact]
+    public async Task Owner_ingress_rejects_missing_route_without_publishing()
+    {
+        var session = new GameSessionKey("player-1", "session-a", 1);
+        var ownerRuntime = new RecordingReliablePushRuntime();
+        var ingress = new ClientNotificationOwnerDispatcher(
+            ownerRuntime,
+            new InMemoryRouteDirectory(),
+            new NodeId("gateway-1"));
+        var command = ClientNotificationCommandFactory.Create<ITestPlayerCallback>(
+            session,
+            callback => callback.Notify("matched"))!;
+
+        var status = await ingress.DispatchAsync(command, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientNotificationStatus.RouteNotFound, status);
+        Assert.Empty(ownerRuntime.Published);
+    }
+
+    [Fact]
+    public async Task Owner_ingress_rejects_stale_generation_without_publishing()
+    {
+        var session = new GameSessionKey("player-1", "session-a", 1);
+        var routes = new InMemoryRouteDirectory();
+        await routes.RegisterAsync(
+            new RouteLocation(
+                ClientNotificationRouteKey.FromSession(session),
+                new NodeId("gateway-1"),
+                new NodeEndpoint("tcp://127.0.0.1:21002"),
+                DateTimeOffset.UtcNow.AddMinutes(1),
+                generation: 2),
+            TestContext.Current.CancellationToken);
+        var ownerRuntime = new RecordingReliablePushRuntime();
+        var ingress = new ClientNotificationOwnerDispatcher(
+            ownerRuntime,
+            routes,
+            new NodeId("gateway-1"));
+        var command = ClientNotificationCommandFactory.Create<ITestPlayerCallback>(
+            session,
+            callback => callback.Notify("matched"))!;
+
+        var status = await ingress.DispatchAsync(command, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientNotificationStatus.RouteNotFound, status);
+        Assert.Empty(ownerRuntime.Published);
+    }
+
+    [Fact]
+    public async Task Owner_ingress_rejects_expired_route_without_publishing()
+    {
+        var session = new GameSessionKey("player-1", "session-a", 1);
+        var routes = new InMemoryRouteDirectory();
+        await routes.RegisterAsync(
+            new RouteLocation(
+                ClientNotificationRouteKey.FromSession(session),
+                new NodeId("gateway-1"),
+                new NodeEndpoint("tcp://127.0.0.1:21002"),
+                DateTimeOffset.UtcNow.AddSeconds(-1),
+                generation: session.Generation),
+            TestContext.Current.CancellationToken);
+        var ownerRuntime = new RecordingReliablePushRuntime();
+        var ingress = new ClientNotificationOwnerDispatcher(
+            ownerRuntime,
+            routes,
+            new NodeId("gateway-1"));
+        var command = ClientNotificationCommandFactory.Create<ITestPlayerCallback>(
+            session,
+            callback => callback.Notify("matched"))!;
+
+        var status = await ingress.DispatchAsync(command, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientNotificationStatus.RouteNotFound, status);
+        Assert.Empty(ownerRuntime.Published);
+    }
+
+    [Fact]
+    public async Task Owner_ingress_rejects_route_moved_to_another_node_without_publishing()
+    {
+        var session = new GameSessionKey("player-1", "session-a", 1);
+        var routes = new InMemoryRouteDirectory();
+        await routes.RegisterAsync(
+            new RouteLocation(
+                ClientNotificationRouteKey.FromSession(session),
+                new NodeId("gateway-2"),
+                new NodeEndpoint("tcp://127.0.0.1:22002"),
+                DateTimeOffset.UtcNow.AddMinutes(1),
+                generation: session.Generation),
+            TestContext.Current.CancellationToken);
+        var ownerRuntime = new RecordingReliablePushRuntime();
+        var ingress = new ClientNotificationOwnerDispatcher(
+            ownerRuntime,
+            routes,
+            new NodeId("gateway-1"));
+        var command = ClientNotificationCommandFactory.Create<ITestPlayerCallback>(
+            session,
+            callback => callback.Notify("matched"))!;
+
+        var status = await ingress.DispatchAsync(command, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientNotificationStatus.RouteNotFound, status);
+        Assert.Empty(ownerRuntime.Published);
+    }
+
+    [Fact]
     public async Task Session_index_is_not_registered_by_framework_sessions()
     {
         await using var provider = new ServiceCollection()

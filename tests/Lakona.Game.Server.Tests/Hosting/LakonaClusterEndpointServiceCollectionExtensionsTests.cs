@@ -173,6 +173,23 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public async Task Multiple_seeds_use_first_seed_as_canonical_actor_directory_owner()
+    {
+        var secondarySeed = "tcp://127.0.0.1:21003";
+        await using var canonicalProvider = BuildProvider(Seed, [Seed, secondarySeed]);
+        await using var secondaryProvider = BuildProvider(secondarySeed, [Seed, secondarySeed]);
+
+        Assert.IsType<InMemoryActorDirectory>(canonicalProvider.GetRequiredService<IActorDirectory>());
+        Assert.Single(
+            canonicalProvider.GetServices<IClusterMessageHandler>(),
+            handler => handler is ActorDirectoryClusterHandler);
+        Assert.IsType<SeededActorDirectory>(secondaryProvider.GetRequiredService<IActorDirectory>());
+        Assert.DoesNotContain(
+            secondaryProvider.GetServices<IClusterMessageHandler>(),
+            handler => handler is ActorDirectoryClusterHandler);
+    }
+
+    [Fact]
     public void AddLakonaGameClusterEndpoint_uses_configured_cluster_serializer()
     {
         var services = new ServiceCollection();
