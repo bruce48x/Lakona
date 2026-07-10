@@ -524,19 +524,70 @@ function Show-LogTail {
     Get-Content -LiteralPath $Path -Tail 120
 }
 
+function Assert-UnityTestResults {
+    param(
+        [string]$Path,
+        [string]$TargetTest
+    )
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "Test result XML was not created: $Path"
+    }
+
+    try {
+        [xml]$resultDocument = Get-Content -LiteralPath $Path -Raw
+    }
+    catch {
+        throw "Test result XML could not be parsed: $Path. $($_.Exception.Message)"
+    }
+
+    $testRun = $resultDocument.SelectSingleNode("/test-run")
+    if ($null -eq $testRun) {
+        throw "Test result XML does not contain a test-run root: $Path"
+    }
+
+    if (-not [string]::Equals($testRun.GetAttribute("result"), "Passed", [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Unity test run result was '$($testRun.GetAttribute("result"))', not Passed: $Path"
+    }
+
+    foreach ($countName in @("failed", "skipped", "inconclusive")) {
+        $count = 0
+        $countText = $testRun.GetAttribute($countName)
+        if (-not [int]::TryParse($countText, [ref]$count)) {
+            throw "Unity test run has an invalid '$countName' count '$countText': $Path"
+        }
+
+        if ($count -ne 0) {
+            throw "Unity test run reported $count $countName test(s): $Path"
+        }
+    }
+
+    $targetCases = @($resultDocument.SelectNodes("//test-case") | Where-Object {
+        [string]::Equals($_.GetAttribute("fullname"), $TargetTest, [StringComparison]::Ordinal)
+    })
+    if ($targetCases.Count -ne 1) {
+        throw "Expected exactly one result for '$TargetTest', but found $($targetCases.Count): $Path"
+    }
+
+    $targetResult = $targetCases[0].GetAttribute("result")
+    if (-not [string]::Equals($targetResult, "Passed", [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Unity target test '$TargetTest' result was '$targetResult', not Passed: $Path"
+    }
+}
+
 function Run-UnityPlayModeTest {
     param(
         [string]$UnityExecutable,
         [int]$Timeout
     )
 
+    $targetTest = "SampleClient.Gameplay.Tests.DotArenaThreeNodePlayModeTests.UnityClientCompletesThreeNodeMultiplayerSmoke"
     $unityArgs = @(
         "-batchmode",
-        "-quit",
         "-projectPath", $clientRoot,
         "-runTests",
         "-testPlatform", "PlayMode",
-        "-testFilter", "SampleClient.Gameplay.Tests.DotArenaThreeNodePlayModeTests.UnityClientCompletesThreeNodeMultiplayerSmoke",
+        "-testFilter", $targetTest,
         "-testResults", $testResults,
         "-logFile", $unityLog,
         "--host", "127.0.0.1",
@@ -546,6 +597,7 @@ function Run-UnityPlayModeTest {
 
     Write-Host "  Unity: $UnityExecutable"
     Write-Host "  Project: $clientRoot"
+    Remove-Item -LiteralPath $testResults -Force -ErrorAction SilentlyContinue
     $process = Start-Process -FilePath $UnityExecutable -ArgumentList $unityArgs -PassThru -NoNewWindow
     if (-not $process.WaitForExit($Timeout * 1000)) {
         Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
@@ -556,6 +608,8 @@ function Run-UnityPlayModeTest {
     if ($process.ExitCode -ne 0) {
         throw "Unity PlayMode test failed with exit code $($process.ExitCode)."
     }
+
+    Assert-UnityTestResults $testResults $targetTest
 }
 
 if ($TimeoutSeconds -lt 60) {

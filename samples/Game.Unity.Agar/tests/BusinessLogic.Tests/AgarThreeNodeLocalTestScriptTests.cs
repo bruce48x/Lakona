@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Xunit;
 
 namespace Agar.Unity.Tests;
@@ -40,9 +41,19 @@ public sealed class AgarThreeNodeLocalTestScriptTests
         Assert.Contains("gateway-1", script, StringComparison.Ordinal);
         Assert.Contains("battle-1", script, StringComparison.Ordinal);
         Assert.Contains("-runTests", script, StringComparison.Ordinal);
+        Assert.DoesNotMatch(new Regex("(?m)^\\s*\"-quit\",?\\s*$", RegexOptions.CultureInvariant), script);
         Assert.Contains("-testPlatform", script, StringComparison.Ordinal);
         Assert.Contains("PlayMode", script, StringComparison.Ordinal);
         Assert.Contains("TestResults.xml", script, StringComparison.Ordinal);
+        Assert.Contains("Remove-Item -LiteralPath $testResults", script, StringComparison.Ordinal);
+        Assert.Contains("Assert-UnityTestResults", script, StringComparison.Ordinal);
+        Assert.Contains("[xml]", script, StringComparison.Ordinal);
+        Assert.Contains("SampleClient.Gameplay.Tests.DotArenaThreeNodePlayModeTests.UnityClientCompletesThreeNodeMultiplayerSmoke", script, StringComparison.Ordinal);
+        Assert.Contains("Test result XML was not created", script, StringComparison.Ordinal);
+        Assert.Contains("SelectSingleNode(\"/test-run\")", script, StringComparison.Ordinal);
+        Assert.Contains("foreach ($countName in @(\"failed\", \"skipped\", \"inconclusive\"))", script, StringComparison.Ordinal);
+        Assert.Contains("Unity test run result was", script, StringComparison.Ordinal);
+        Assert.Contains("Unity target test '$TargetTest' result was", script, StringComparison.Ordinal);
         Assert.Contains("unity-editor.log", script, StringComparison.Ordinal);
         Assert.Contains("docker-compose.log", script, StringComparison.Ordinal);
         Assert.Contains("KeepEnvironment", script, StringComparison.Ordinal);
