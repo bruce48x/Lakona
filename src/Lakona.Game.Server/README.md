@@ -60,6 +60,13 @@ cluster RPC by calling `UseSerializer` directly in the game server host; keep
 client-facing endpoint serializers under `Lakona:Endpoints[]:Serializer` and
 the cluster serializer under `Lakona:Cluster:Serializer`.
 
+Actor-only process-local hosts use `InMemoryActorDirectory` by default. In a
+cluster, the configured seed owns the ephemeral actor directory and remote
+nodes use `Lakona:Cluster:Seeds` to reach it; no additional actor-directory
+configuration or discovery label is required or advertised. Restarting the
+seed may clear actor ownership records. Persistent or highly available actor
+ownership is not provided.
+
 ## Observability
 
 Lakona emits logs, metrics, and traces through standard .NET diagnostics:
@@ -146,6 +153,11 @@ Stable app generator support emits actor selector types with `Local(id)` and
 `CallAsync(Behavior.MethodAsync, request, cancellationToken)` for request/reply
 calls and `PostAsync(Behavior.MethodAsync, request, cancellationToken)` for
 fire-and-forget dispatch after placement is explicit.
+
+Seed transport failures, actor-directory serialization or deserialization
+failures, and seed unavailability surface as
+`ActorDirectoryUnavailableException`. Explicit caller cancellation remains an
+`OperationCanceledException` rather than being wrapped.
 
 ## Advanced Local Actor Runtime
 

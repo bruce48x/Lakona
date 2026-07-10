@@ -6,11 +6,18 @@ namespace Lakona.Game.Server.Sessions;
 
 public sealed class ClientNotificationCommandBinder
 {
-    private readonly LocalClientNotificationCommandDispatcher _dispatcher;
+    private readonly Func<ClientNotificationCommand, CancellationToken, ValueTask<ClientNotificationStatus>> _dispatch;
 
     public ClientNotificationCommandBinder(LocalClientNotificationCommandDispatcher dispatcher)
     {
-        _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+        ArgumentNullException.ThrowIfNull(dispatcher);
+        _dispatch = dispatcher.DispatchAsync;
+    }
+
+    private ClientNotificationCommandBinder(ClientNotificationOwnerDispatcher ownerDispatcher)
+    {
+        ArgumentNullException.ThrowIfNull(ownerDispatcher);
+        _dispatch = ownerDispatcher.DispatchAsync;
     }
 
     public void Bind(RpcServiceRegistry registry)
@@ -29,6 +36,13 @@ public sealed class ClientNotificationCommandBinder
         new ClientNotificationCommandBinder(dispatcher).Bind(registry);
     }
 
+    internal static void BindOwned(
+        RpcServiceRegistry registry,
+        ClientNotificationOwnerDispatcher ownerDispatcher)
+    {
+        new ClientNotificationCommandBinder(ownerDispatcher).Bind(registry);
+    }
+
     private async ValueTask<TransportFrame> DispatchAsync(
         RpcSession session,
         RpcRequestFrame request,
@@ -37,7 +51,7 @@ public sealed class ClientNotificationCommandBinder
         var dto = session.Serializer.Deserialize<ClientNotificationDispatchRequest>(request.Payload.Memory);
         var status = dto.Command is null
             ? ClientNotificationStatus.Failed
-            : await _dispatcher.DispatchAsync(dto.Command, cancellationToken).ConfigureAwait(false);
+            : await _dispatch(dto.Command, cancellationToken).ConfigureAwait(false);
         using var payload = session.Serializer.SerializeFrame(new ClientNotificationDispatchReply
         {
             Status = (int)status

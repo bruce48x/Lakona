@@ -435,6 +435,21 @@ enabled, the framework owns sequence assignment, ack handling, replay, pending
 limits, and route lookup. When disabled, the same publish operation degrades to
 immediate best-effort notification with no ack and no replay.
 
+The current owner of the `GameSessionKey` route is the only node that assigns
+reliable-push sequences, retains pending records, accepts acknowledgements, and
+replays records for that session generation. A remote business node relays an
+unsequenced notification intent to the route owner; it does not create a local
+outbox record or attach authoritative reliable-push metadata. The route owner
+adds the notification to its outbox before dispatching it through the locally
+bound callback.
+
+If no current route exists, or the resolved route generation is stale,
+publication returns `RouteNotFound` without creating an outbox record on the
+calling node. The built-in in-memory outbox is not migrated when an owner
+process fails or a session generation moves to another node. Pending
+notifications may therefore be lost during owner failure; durable or replicated
+outboxes remain an application-provided infrastructure choice.
+
 The public configuration switch is:
 
 ```json
@@ -493,10 +508,11 @@ immediate delivery per notification.
 
 `ClientNotificationStatus` reports the immediate dispatch attempt only:
 `Delivered`, `RouteNotFound`, `CallbackUnavailable`, or `Failed`. It does not
-expose outbox acceptance or replay bookkeeping. Business code should treat the
-session notification call as intent publication and should not retry solely
-because the current route is unavailable when reliable push is enabled; retry
-and replay are framework policy.
+expose outbox acceptance or replay bookkeeping. When the route owner accepted a
+reliable notification but its local callback is temporarily unavailable, the
+owner retains the record for framework replay. `RouteNotFound` means no owner
+accepted the intent and no framework outbox contains it; business code may
+apply product-specific retry policy for that result.
 
 ## Validation Requirements
 

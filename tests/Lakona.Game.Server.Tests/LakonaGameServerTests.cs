@@ -627,7 +627,7 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public void AddLakonaGameServer_registers_client_notifications_after_notification_api_exists()
+    public async Task AddLakonaGameServer_registers_client_notifications_after_notification_api_exists()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -636,7 +636,7 @@ public sealed class LakonaGameServerTests
             })
             .Build();
 
-        using var provider = new ServiceCollection()
+        await using var provider = new ServiceCollection()
             .AddLakonaGameServer(configuration)
             .BuildServiceProvider();
 
@@ -798,7 +798,7 @@ public sealed class LakonaGameServerTests
     {
         var services = new ServiceCollection();
         services.AddLakonaGameServer();
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
         var notifications = provider.GetRequiredService<IClientNotifications>();
         var reliablePush = provider.GetRequiredService<IReliablePushRuntime>();
@@ -834,7 +834,7 @@ public sealed class LakonaGameServerTests
     {
         var services = new ServiceCollection();
         services.AddLakonaGameServer();
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
         var notifications = provider.GetRequiredService<IClientNotifications>();
         var reliablePush = provider.GetRequiredService<IReliablePushRuntime>();

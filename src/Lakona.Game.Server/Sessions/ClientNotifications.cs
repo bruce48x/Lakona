@@ -1,14 +1,12 @@
-using Lakona.Game.Server.ReliablePush;
-
 namespace Lakona.Game.Server.Sessions;
 
 internal sealed class ClientNotifications : IClientNotifications
 {
-    private readonly IReliablePushRuntime _reliablePush;
+    private readonly IClientNotificationCommandRouter _router;
 
-    public ClientNotifications(IReliablePushRuntime reliablePush)
+    public ClientNotifications(IClientNotificationCommandRouter router)
     {
-        _reliablePush = reliablePush ?? throw new ArgumentNullException(nameof(reliablePush));
+        _router = router ?? throw new ArgumentNullException(nameof(router));
     }
 
     public IClientNotificationTarget ForSession(GameSessionKey session)
@@ -39,7 +37,7 @@ internal sealed class ClientNotifications : IClientNotifications
             return ClientNotificationStatus.Failed;
         }
 
-        return await _reliablePush.PublishAsync(session, command, cancellationToken)
+        return await _router.DispatchAsync(command, cancellationToken)
             .ConfigureAwait(false);
     }
 

@@ -14,7 +14,7 @@ namespace Lakona.Game.Server.Tests.Hosting;
 public sealed class LakonaGameClusterRegistrationHostedServiceTests
 {
     [Fact]
-    public async Task StartAsyncRegistersEndpointMapAndActorDirectoryLabel()
+    public async Task StartAsyncRegistersEndpointMapWithoutLabels()
     {
         var directory = new RecordingNodeDirectory();
         var services = new ServiceCollection();
@@ -40,7 +40,7 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
         Assert.Equal(new NodeId("battle-1"), registration.NodeId);
         Assert.Equal("tcp://10.0.0.1:21001", registration.Endpoints["cluster"].Address);
         Assert.Equal("kcp://10.0.0.1:20001", registration.Endpoints["kcp"].Address);
-        Assert.Equal(ActorDirectoryLabels.RoleValue, registration.Labels[ActorDirectoryLabels.RoleKey]);
+        Assert.Empty(registration.Labels);
         Assert.Equal(NodeState.Ready, registration.State);
     }
 

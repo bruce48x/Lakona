@@ -131,6 +131,10 @@ normal game server or cluster endpoint wiring and still use generated
 non-local actor references must explicitly register compatible remote actor
 serialization, cluster routing, directory, and transport-client services.
 
+Process-local actor-only hosts use `InMemoryActorDirectory` by default. They do
+not need cluster or actor-directory configuration unless they opt into routed
+cross-node actor access.
+
 A custom `IRemoteActorSerializer` can intentionally override the built-in
 adapter, but then the project owns cross-node compatibility for every generated
 remote actor request and reply payload. When the cluster serializer is
@@ -227,10 +231,30 @@ The generated typed API sits above existing cluster primitives:
 game service code
   -> generated RoomActors.Local/Route refs
   -> ActorDirectory cache / local actor invoker / remote actor invoker
-  -> IActorRuntime / IClusterRouter
+  -> IActorRuntime / IClusterRouter / IClusterNodeSender
   -> ClusterActorEnvelope
   -> ClusterMessage / RouteLocation / cluster serializer / transport adapter
 ```
+
+Distributed actor traffic uses two routing planes. Business actor requests
+resolve actor ownership through `IClusterRouter` and `IRouteDirectory`.
+Framework control messages and replies that already carry a destination
+`NodeId` use `IClusterNodeSender`, which resolves that node through
+`INodeDirectory`.
+
+The configured cluster seed owns the shared, ephemeral actor directory. Remote
+nodes send actor-directory resolve, register, and unregister operations to that
+seed using their existing `Lakona:Cluster:Seeds` configuration; there is no
+additional actor-directory endpoint or provider configuration. Directory
+ownership records are in memory, so restarting the seed may clear them. This
+does not provide persistent ownership storage, replication, or high
+availability.
+
+The `ClusterActorRouteKeys.ForReply(nodeId)` key carried by a reply message
+(currently `actor-reply:<node-id>`) is only a local handler key on the
+destination node. It is never registered in `IRouteDirectory` as a cluster
+route. Reply correlations are likewise destination-local pending-call state
+rather than cluster routing state.
 
 `ActorDirectory` lives in `Lakona.Game.Server`. Business code should not
 receive endpoint addresses or directory endpoint names.
@@ -287,6 +311,11 @@ Important cases include `ActorAlreadyHostedException`,
 `ActorDirectoryUnavailableException`, and `ActorHostingStopException`.
 Actor call exceptions remain separate; they describe failed calls to already
 selected actors, not actor lifecycle operations.
+
+In a seeded cluster, transport failure, serialization or deserialization
+failure, and an unavailable or invalid directory reply are all surfaced as
+`ActorDirectoryUnavailableException`. Caller-requested cancellation remains an
+`OperationCanceledException` and is not wrapped as directory unavailability.
 
 Missing actor behavior is deterministic:
 

@@ -312,6 +312,232 @@ public sealed class ClientNotificationRelayTests
     }
 
     [Fact]
+    public async Task Disabled_reliable_push_owner_dispatches_without_incoming_metadata()
+    {
+        var services = new ServiceCollection();
+        services.AddLakonaGameServerSessions();
+        services.AddLakonaGameServerReliablePush(options => options.Enabled = false);
+        await using var provider = services.BuildServiceProvider();
+        var sessions = provider.GetRequiredService<IGameSessionRegistry>();
+        var session = await sessions.StartNewSessionAsync(
+            "player-1",
+            TestContext.Current.CancellationToken);
+        var callback = new DispatchTargetCallback();
+        await sessions.BindSessionAsync<ITestPlayerCallback>(
+            session,
+            "control-1",
+            callback,
+            TestContext.Current.CancellationToken);
+        var command = ClientNotificationCommandFactory.Create<ITestPlayerCallback>(
+            session,
+            target => target.Notify("best-effort"))!;
+        command.Metadata = new RpcPushMetadata
+        {
+            Type = "untrusted",
+            Payload = new byte[] { 9 }
+        };
+
+        var status = await provider.GetRequiredService<IReliablePushRuntime>()
+            .PublishAsync(session, command, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientNotificationStatus.Delivered, status);
+        Assert.Null(callback.LastMetadata);
+        Assert.Equal("best-effort", callback.LastArguments.Single());
+    }
+
+    [Fact]
+    public async Task Remote_session_notification_is_relayed_before_local_sequence_assignment()
+    {
+        var session = new GameSessionKey("player-1", "session-a", 1);
+        var routes = new InMemoryRouteDirectory();
+        await routes.RegisterAsync(
+            new RouteLocation(
+                ClientNotificationRouteKey.FromSession(session),
+                new NodeId("gateway-1"),
+                new NodeEndpoint("tcp://127.0.0.1:21002"),
+                DateTimeOffset.UtcNow.AddMinutes(1),
+                generation: session.Generation),
+            TestContext.Current.CancellationToken);
+        var ownerRuntime = new RecordingReliablePushRuntime();
+        var remote = new RecordingRemoteNotificationDispatcher();
+        var router = new ClientNotificationCommandRouter(
+            ownerRuntime,
+            routes,
+            remote,
+            new NodeId("data-1"));
+        var command = ClientNotificationCommandFactory.Create<ITestPlayerCallback>(
+            session,
+            callback => callback.Notify("matched"))!;
+
+        var status = await router.DispatchAsync(command, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientNotificationStatus.Delivered, status);
+        Assert.Empty(ownerRuntime.Published);
+        Assert.Same(command, remote.LastCommand);
+        Assert.Null(remote.LastCommand!.Metadata);
+    }
+
+    [Fact]
+    public async Task Local_session_route_publishes_through_owner_runtime()
+    {
+        var session = new GameSessionKey("player-1", "session-a", 1);
+        var routes = new InMemoryRouteDirectory();
+        await routes.RegisterAsync(
+            new RouteLocation(
+                ClientNotificationRouteKey.FromSession(session),
+                new NodeId("gateway-1"),
+                new NodeEndpoint("tcp://127.0.0.1:21002"),
+                DateTimeOffset.UtcNow.AddMinutes(1),
+                generation: session.Generation),
+            TestContext.Current.CancellationToken);
+        var ownerRuntime = new RecordingReliablePushRuntime();
+        var remote = new RecordingRemoteNotificationDispatcher();
+        var router = new ClientNotificationCommandRouter(
+            ownerRuntime,
+            routes,
+            remote,
+            new NodeId("gateway-1"));
+        var command = ClientNotificationCommandFactory.Create<ITestPlayerCallback>(
+            session,
+            callback => callback.Notify("queued"))!;
+
+        var status = await router.DispatchAsync(command, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientNotificationStatus.Delivered, status);
+        Assert.Collection(ownerRuntime.Published, item =>
+        {
+            Assert.Equal(session, item.Session);
+            Assert.Same(command, item.Command);
+        });
+        Assert.Null(remote.LastCommand);
+    }
+
+    [Fact]
+    public async Task Missing_cluster_route_does_not_create_non_owner_outbox_record()
+    {
+        var session = new GameSessionKey("player-1", "session-a", 1);
+        var ownerRuntime = new RecordingReliablePushRuntime();
+        var remote = new RecordingRemoteNotificationDispatcher();
+        var router = new ClientNotificationCommandRouter(
+            ownerRuntime,
+            new InMemoryRouteDirectory(),
+            remote,
+            new NodeId("data-1"));
+        var command = ClientNotificationCommandFactory.Create<ITestPlayerCallback>(
+            session,
+            callback => callback.Notify("matched"))!;
+
+        var status = await router.DispatchAsync(command, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientNotificationStatus.RouteNotFound, status);
+        Assert.Empty(ownerRuntime.Published);
+        Assert.Null(remote.LastCommand);
+    }
+
+    [Fact]
+    public async Task Owner_ingress_rejects_missing_route_without_publishing()
+    {
+        var session = new GameSessionKey("player-1", "session-a", 1);
+        var ownerRuntime = new RecordingReliablePushRuntime();
+        var ingress = new ClientNotificationOwnerDispatcher(
+            ownerRuntime,
+            new InMemoryRouteDirectory(),
+            new NodeId("gateway-1"));
+        var command = ClientNotificationCommandFactory.Create<ITestPlayerCallback>(
+            session,
+            callback => callback.Notify("matched"))!;
+
+        var status = await ingress.DispatchAsync(command, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientNotificationStatus.RouteNotFound, status);
+        Assert.Empty(ownerRuntime.Published);
+    }
+
+    [Fact]
+    public async Task Owner_ingress_rejects_stale_generation_without_publishing()
+    {
+        var session = new GameSessionKey("player-1", "session-a", 1);
+        var routes = new InMemoryRouteDirectory();
+        await routes.RegisterAsync(
+            new RouteLocation(
+                ClientNotificationRouteKey.FromSession(session),
+                new NodeId("gateway-1"),
+                new NodeEndpoint("tcp://127.0.0.1:21002"),
+                DateTimeOffset.UtcNow.AddMinutes(1),
+                generation: 2),
+            TestContext.Current.CancellationToken);
+        var ownerRuntime = new RecordingReliablePushRuntime();
+        var ingress = new ClientNotificationOwnerDispatcher(
+            ownerRuntime,
+            routes,
+            new NodeId("gateway-1"));
+        var command = ClientNotificationCommandFactory.Create<ITestPlayerCallback>(
+            session,
+            callback => callback.Notify("matched"))!;
+
+        var status = await ingress.DispatchAsync(command, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientNotificationStatus.RouteNotFound, status);
+        Assert.Empty(ownerRuntime.Published);
+    }
+
+    [Fact]
+    public async Task Owner_ingress_rejects_expired_route_without_publishing()
+    {
+        var session = new GameSessionKey("player-1", "session-a", 1);
+        var routes = new InMemoryRouteDirectory();
+        await routes.RegisterAsync(
+            new RouteLocation(
+                ClientNotificationRouteKey.FromSession(session),
+                new NodeId("gateway-1"),
+                new NodeEndpoint("tcp://127.0.0.1:21002"),
+                DateTimeOffset.UtcNow.AddSeconds(-1),
+                generation: session.Generation),
+            TestContext.Current.CancellationToken);
+        var ownerRuntime = new RecordingReliablePushRuntime();
+        var ingress = new ClientNotificationOwnerDispatcher(
+            ownerRuntime,
+            routes,
+            new NodeId("gateway-1"));
+        var command = ClientNotificationCommandFactory.Create<ITestPlayerCallback>(
+            session,
+            callback => callback.Notify("matched"))!;
+
+        var status = await ingress.DispatchAsync(command, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientNotificationStatus.RouteNotFound, status);
+        Assert.Empty(ownerRuntime.Published);
+    }
+
+    [Fact]
+    public async Task Owner_ingress_rejects_route_moved_to_another_node_without_publishing()
+    {
+        var session = new GameSessionKey("player-1", "session-a", 1);
+        var routes = new InMemoryRouteDirectory();
+        await routes.RegisterAsync(
+            new RouteLocation(
+                ClientNotificationRouteKey.FromSession(session),
+                new NodeId("gateway-2"),
+                new NodeEndpoint("tcp://127.0.0.1:22002"),
+                DateTimeOffset.UtcNow.AddMinutes(1),
+                generation: session.Generation),
+            TestContext.Current.CancellationToken);
+        var ownerRuntime = new RecordingReliablePushRuntime();
+        var ingress = new ClientNotificationOwnerDispatcher(
+            ownerRuntime,
+            routes,
+            new NodeId("gateway-1"));
+        var command = ClientNotificationCommandFactory.Create<ITestPlayerCallback>(
+            session,
+            callback => callback.Notify("matched"))!;
+
+        var status = await ingress.DispatchAsync(command, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientNotificationStatus.RouteNotFound, status);
+        Assert.Empty(ownerRuntime.Published);
+    }
+
+    [Fact]
     public async Task Session_index_is_not_registered_by_framework_sessions()
     {
         await using var provider = new ServiceCollection()
@@ -622,6 +848,50 @@ public sealed class ClientNotificationRelayTests
             LastTarget = target;
             LastCommand = command;
             return _gatewayDispatcher.DispatchAsync(command, cancellationToken);
+        }
+    }
+
+    private sealed class RecordingReliablePushRuntime : IReliablePushRuntime
+    {
+        public List<(GameSessionKey Session, ClientNotificationCommand Command)> Published { get; } = [];
+
+        public ValueTask<ClientNotificationStatus> PublishAsync(
+            GameSessionKey session,
+            ClientNotificationCommand command,
+            CancellationToken cancellationToken = default)
+        {
+            Published.Add((session, command));
+            return new ValueTask<ClientNotificationStatus>(ClientNotificationStatus.Delivered);
+        }
+
+        public ValueTask ReplayPendingAsync(
+            GameSessionKey session,
+            CancellationToken cancellationToken = default)
+        {
+            return default;
+        }
+
+        public ValueTask<ReliablePushAckOutcome> AckAsync(
+            GameSessionKey currentSession,
+            GameSessionKey acknowledgedSession,
+            long sequence,
+            CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<ReliablePushAckOutcome>(ReliablePushAckOutcome.Accepted());
+        }
+    }
+
+    private sealed class RecordingRemoteNotificationDispatcher : IClientNotificationRemoteDispatcher
+    {
+        public ClientNotificationCommand? LastCommand { get; private set; }
+
+        public ValueTask<ClientNotificationStatus> DispatchAsync(
+            RouteLocation target,
+            ClientNotificationCommand command,
+            CancellationToken cancellationToken = default)
+        {
+            LastCommand = command;
+            return new ValueTask<ClientNotificationStatus>(ClientNotificationStatus.Delivered);
         }
     }
 }

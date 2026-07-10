@@ -14,6 +14,50 @@ public sealed class HotfixGeneratorTests
     private static readonly string ForbiddenGameEndpointType = string.Concat("Game", "Endpoint", "Name");
 
     [Fact]
+    public void Generator_uses_explicit_actor_wire_name_for_routes_and_remote_invocation()
+    {
+        var appSource = """
+            using Lakona.Game.Server.Actors;
+
+            namespace Game.Server;
+
+            public sealed class PingRequest { }
+
+            [ActorName("battle-room")]
+            public sealed class BattleRoomActor : Actor<string>
+            {
+            }
+            """;
+        var hotfixSource = """
+            using System.Threading.Tasks;
+            using Game.Server;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Hotfix;
+
+            [HotfixBehaviorOf(typeof(BattleRoomActor))]
+            public static partial class BattleRoomBehavior
+            {
+                public static ValueTask PingAsync(this BattleRoomActor self, PingRequest request)
+                {
+                    return default;
+                }
+            }
+            """;
+
+        var result = GeneratorTestHost.RunWithGeneratedAppReference(
+            appSource,
+            hotfixSource,
+            appAssemblyName: "Game.Server",
+            hotfixAssemblyName: "Game.Hotfix");
+
+        Assert.Empty(result.App.ErrorDiagnostics);
+        Assert.Empty(result.Hotfix.ErrorDiagnostics);
+        Assert.Contains("\"battle-room\"", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"battleRoom\"", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Production_and_sample_hotfix_code_does_not_bypass_scoped_service_accessor()
     {
         var root = FindRepositoryRoot();

@@ -50,20 +50,16 @@ namespace SampleClient.Gameplay
 
         public Task SetEditorMoveOverrideForTest(Vector2 move)
         {
-#if UNITY_EDITOR
             _editorMoveOverride = move;
             _hasEditorInputOverride = true;
             _nextInputAt = 0f;
-#endif
             return SendInputAsync(move);
         }
 
         public void ClearEditorMoveOverrideForTest()
         {
-#if UNITY_EDITOR
             _editorMoveOverride = Vector2.zero;
             _hasEditorInputOverride = false;
-#endif
         }
     }
 

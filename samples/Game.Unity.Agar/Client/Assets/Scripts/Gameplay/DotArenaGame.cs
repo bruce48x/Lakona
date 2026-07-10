@@ -67,7 +67,7 @@ namespace SampleClient.Gameplay
         private int _singlePlayerPlaylistIndex = -1;
         private ArenaMapVariant _currentArenaMapVariant = ArenaMapVariant.ClassicSquare;
         private ArenaRuleVariant _currentArenaRuleVariant = ArenaRuleVariant.ClassicElimination;
-#if UNITY_EDITOR
+#if UNITY_EDITOR || UNITY_INCLUDE_TESTS
         private Vector2 _editorMoveOverride;
         private bool _hasEditorInputOverride;
 #endif

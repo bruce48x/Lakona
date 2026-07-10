@@ -39,6 +39,7 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
         services.TryAddSingleton<INodeMessenger, ClusterNodeMessenger>();
         services.TryAddSingleton<IClusterNodeSender, ClusterNodeSender>();
         services.TryAddSingleton<LocalClientNotificationCommandDispatcher>();
+        RemoveSessionOnlyNotificationDispatcher(services);
         services.TryAddSingleton<IClientNotificationRemoteDispatcher, ClusterClientNotificationDispatcher>();
 
         TryAddConfiguredNodeDirectory(services, runtimeOptions.Cluster);
@@ -59,6 +60,35 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             services.TryAddSingleton<IRouteDirectory, InMemoryRouteDirectory>();
         }
 
+        var hasActorRuntime = services.Any(
+            static descriptor => descriptor.ServiceType == typeof(IActorRuntime));
+        RemoveActorDirectoryHandlerDescriptors(services);
+        if (hasActorRuntime && directorySeed is null)
+        {
+            if (services.Any(static descriptor =>
+                    descriptor.ServiceType == typeof(SeededActorDirectory)))
+            {
+                services.RemoveAll<SeededActorDirectory>();
+                services.RemoveAll<IActorDirectory>();
+                services.AddSingleton<IActorDirectory, InMemoryActorDirectory>();
+            }
+
+            services.TryAddEnumerable(
+                ServiceDescriptor.Singleton<IClusterMessageHandler, ActorDirectoryClusterHandler>());
+        }
+        else if (hasActorRuntime && directorySeed is not null)
+        {
+            services.RemoveAll<SeededActorDirectory>();
+            services.RemoveAll<IActorDirectory>();
+            services.AddSingleton(provider => new SeededActorDirectory(
+                provider.GetRequiredService<RemoteActorGateway>(),
+                provider.GetRequiredService<INodeMessenger>(),
+                provider.GetRequiredService<LocalActorNodeIdentity>(),
+                directorySeed));
+            services.AddSingleton<IActorDirectory>(provider =>
+                provider.GetRequiredService<SeededActorDirectory>());
+        }
+
         services.TryAddSingleton<IClusterRouter>(provider => new ClusterRouter(
             new NodeId(runtimeOptions.Node.Id),
             provider.GetRequiredService<IRouteDirectory>(),
@@ -74,6 +104,32 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IRpcServerConfigurator>(
             new LakonaClusterRpcServerConfigurator(runtimeOptions)));
         return services;
+    }
+
+    private static void RemoveActorDirectoryHandlerDescriptors(IServiceCollection services)
+    {
+        for (var index = services.Count - 1; index >= 0; index--)
+        {
+            var descriptor = services[index];
+            if (descriptor.ServiceType == typeof(IClusterMessageHandler) &&
+                descriptor.ImplementationType == typeof(ActorDirectoryClusterHandler))
+            {
+                services.RemoveAt(index);
+            }
+        }
+    }
+
+    private static void RemoveSessionOnlyNotificationDispatcher(IServiceCollection services)
+    {
+        for (var index = services.Count - 1; index >= 0; index--)
+        {
+            var descriptor = services[index];
+            if (descriptor.ServiceType == typeof(IClientNotificationRemoteDispatcher) &&
+                descriptor.ImplementationType == typeof(NoopClientNotificationRemoteDispatcher))
+            {
+                services.RemoveAt(index);
+            }
+        }
     }
 
     private static void TryAddConfiguredNodeDirectory(
@@ -129,15 +185,10 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             return null;
         }
 
-        foreach (var seed in cluster.Seeds)
-        {
-            if (!EndpointEquals(cluster.Endpoint, seed))
-            {
-                return seed;
-            }
-        }
-
-        return null;
+        var canonicalOwner = cluster.Seeds[0];
+        return EndpointEquals(cluster.Endpoint, canonicalOwner)
+            ? null
+            : canonicalOwner;
     }
 
     private static bool EndpointEquals(string left, string right)

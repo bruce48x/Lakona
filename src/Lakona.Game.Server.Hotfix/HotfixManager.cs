@@ -260,7 +260,7 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
 
         foreach (var placement in scan.ActorPlacements)
         {
-            var name = GetActorHostName(placement.ActorType);
+            var name = ActorNameConventions.Resolve(placement.ActorType);
             AddActorHostDescriptor(
                 descriptors,
                 name,
@@ -283,16 +283,6 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             actor,
             policyHash,
             string.IsNullOrWhiteSpace(buildTag) ? "hotfix" : buildTag);
-    }
-
-    private static string GetActorHostName(Type actorType)
-    {
-        var name = actorType.Name.EndsWith("Actor", StringComparison.Ordinal)
-            ? actorType.Name[..^"Actor".Length]
-            : actorType.Name;
-        return string.IsNullOrWhiteSpace(name)
-            ? actorType.Name.ToLowerInvariant()
-            : char.ToLowerInvariant(name[0]) + name[1..];
     }
 
     internal async ValueTask<HotfixReloadResult> PublishCandidateAsync(

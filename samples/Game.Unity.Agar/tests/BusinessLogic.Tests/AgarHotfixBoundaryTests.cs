@@ -662,8 +662,8 @@ public sealed class AgarHotfixBoundaryTests
         var matchmakingBehavior = File.ReadAllText(Path.Combine(sampleRoot, "Server", "Hotfix", "State", "Matchmaking", "MatchmakingBehavior.cs"));
         var roomBehavior = File.ReadAllText(Path.Combine(sampleRoot, "Server", "Hotfix", "State", "Rooms", "RoomBehavior.cs"));
 
-        Assert.Contains("public sealed class MatchmakingTickRequest", matchmakingMessages, StringComparison.Ordinal);
-        Assert.Contains("public sealed class RoomTickRequest", roomMessages, StringComparison.Ordinal);
+        Assert.Contains("public sealed partial class MatchmakingTickRequest", matchmakingMessages, StringComparison.Ordinal);
+        Assert.Contains("public sealed partial class RoomTickRequest", roomMessages, StringComparison.Ordinal);
         Assert.Contains("public static async ValueTask RunTickAsync(this MatchmakingActor self, MatchmakingTickRequest request", matchmakingBehavior, StringComparison.Ordinal);
         Assert.Contains("public static async ValueTask RunTickAsync(this RoomActor self, RoomTickRequest request", roomBehavior, StringComparison.Ordinal);
 

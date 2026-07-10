@@ -40,7 +40,7 @@ public sealed class HotfixActorClusterHandlerTests
     {
         var serializer = new JsonRemoteActorSerializer();
         var runtime = new RecordingActorRuntime();
-        var router = new RecordingClusterRouter();
+        var router = new RecordingClusterNodeSender();
         var handler = CreateHandler(runtime, serializer, router, CreateSnapshot(CreatePingDescriptor()));
         var request = new PingRequest("player-1");
         var message = new ClusterActorEnvelope(
@@ -71,13 +71,39 @@ public sealed class HotfixActorClusterHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_returns_reply_delivery_failure_after_behavior_executes()
+    {
+        var serializer = new JsonRemoteActorSerializer();
+        var runtime = new RecordingActorRuntime();
+        var sender = new RecordingClusterNodeSender { Status = ClusterSendStatus.Failed };
+        var handler = CreateHandler(runtime, serializer, sender, CreateSnapshot(CreatePingDescriptor()));
+        var message = new ClusterActorEnvelope(
+            ClusterActorRouteKeys.ForActor("user/1"),
+            "user/1",
+            HotfixActorApiMetadata.ActorMessageKind,
+            serializer.Serialize(new PingRequest("player-1"), typeof(PingRequest)),
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            new NodeId("source-node"),
+            replyCorrelationId: "reply-failed",
+            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [HotfixActorApiMetadata.MethodIdKey] = PingMethodId
+            }).ToClusterMessage();
+
+        var status = await handler.HandleAsync(message, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.Failed, status);
+        Assert.Equal("player-1", runtime.Actor.LastPing);
+    }
+
+    [Fact]
     public async Task HandleAsync_returns_route_not_found_when_method_id_metadata_is_missing()
     {
         var serializer = new JsonRemoteActorSerializer();
         var handler = CreateHandler(
             new RecordingActorRuntime(),
             serializer,
-            new RecordingClusterRouter(),
+            new RecordingClusterNodeSender(),
             CreateSnapshot(CreatePingDescriptor()));
         var message = new ClusterActorEnvelope(
             ClusterActorRouteKeys.ForActor("user/1"),
@@ -102,7 +128,7 @@ public sealed class HotfixActorClusterHandlerTests
         var handler = CreateHandler(
             runtime,
             serializer,
-            new RecordingClusterRouter(),
+            new RecordingClusterNodeSender(),
             CreateSnapshot(CreateNotifyDescriptor()));
         var message = new ClusterActorEnvelope(
             ClusterActorRouteKeys.ForActor("user/missing"),
@@ -132,7 +158,7 @@ public sealed class HotfixActorClusterHandlerTests
             TellEntered = tellEntered,
             TellRelease = releaseTell.Task
         };
-        var router = new RecordingClusterRouter();
+        var router = new RecordingClusterNodeSender();
         var handler = CreateHandler(runtime, serializer, router, CreateSnapshot(CreateNotifyDescriptor()));
         var message = new ClusterActorEnvelope(
             ClusterActorRouteKeys.ForActor("user/call"),
@@ -182,7 +208,7 @@ public sealed class HotfixActorClusterHandlerTests
             TellRelease = releaseTell.Task
         };
         var snapshot = CreateSnapshot(CreateNotifyDescriptor(), () => retired = true);
-        var handler = CreateHandler(runtime, serializer, new RecordingClusterRouter(), snapshot);
+        var handler = CreateHandler(runtime, serializer, new RecordingClusterNodeSender(), snapshot);
         using var callerCancellation = new CancellationTokenSource();
         var message = new ClusterActorEnvelope(
             ClusterActorRouteKeys.ForActor("user/canceled-call"),
@@ -208,10 +234,11 @@ public sealed class HotfixActorClusterHandlerTests
         Assert.False(callTask.IsCompleted);
 
         releaseTell.SetResult();
-        var status = await callTask.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        await Assert.ThrowsAsync<OperationCanceledException>(() => callTask.WaitAsync(
+            TimeSpan.FromSeconds(2),
+            TestContext.Current.CancellationToken));
         snapshot.Retire();
 
-        Assert.Equal(ClusterSendStatus.Accepted, status);
         Assert.Equal("seen", runtime.Actor.LastNotification);
         Assert.True(retired);
     }
@@ -221,7 +248,7 @@ public sealed class HotfixActorClusterHandlerTests
     {
         var serializer = new JsonRemoteActorSerializer();
         var runtime = new RecordingActorRuntime();
-        var router = new RecordingClusterRouter();
+        var router = new RecordingClusterNodeSender();
         var handler = CreateHandler(runtime, serializer, router, CreateSnapshot(CreateNotifyDescriptor()));
         var message = new ClusterActorEnvelope(
             ClusterActorRouteKeys.ForActor("user/post"),
@@ -270,7 +297,7 @@ public sealed class HotfixActorClusterHandlerTests
         await actorEntered.Task.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
 
         var snapshot = CreateSnapshot(CreateNotifyDescriptor(), () => retired = true);
-        var handler = CreateHandler(runtime, serializer, new RecordingClusterRouter(), snapshot);
+        var handler = CreateHandler(runtime, serializer, new RecordingClusterNodeSender(), snapshot);
         using var callerCancellation = new CancellationTokenSource();
         var message = new ClusterActorEnvelope(
             ClusterActorRouteKeys.ForActor(actorId.Value),
@@ -325,7 +352,7 @@ public sealed class HotfixActorClusterHandlerTests
         var handler = CreateHandler(
             runtime,
             serializer,
-            new RecordingClusterRouter(),
+            new RecordingClusterNodeSender(),
             snapshot);
         var message = new ClusterActorEnvelope(
             ClusterActorRouteKeys.ForActor("user/throw"),
@@ -358,7 +385,7 @@ public sealed class HotfixActorClusterHandlerTests
         var handler = CreateHandler(
             runtime,
             serializer,
-            new RecordingClusterRouter(),
+            new RecordingClusterNodeSender(),
             snapshot);
         using var callerCancellation = new CancellationTokenSource();
         var message = new ClusterActorEnvelope(
@@ -390,7 +417,7 @@ public sealed class HotfixActorClusterHandlerTests
     {
         var serializer = new JsonRemoteActorSerializer();
         var runtime = new RecordingActorRuntime();
-        var router = new RecordingClusterRouter();
+        var router = new RecordingClusterNodeSender();
         var handler = CreateHandler(runtime, serializer, router, CreateSnapshot(CreateThrowDescriptor()));
         var message = new ClusterActorEnvelope(
             ClusterActorRouteKeys.ForActor("user/1"),
@@ -416,7 +443,7 @@ public sealed class HotfixActorClusterHandlerTests
     public async Task HandleAsync_returns_serialization_failed_when_reply_serialization_fails()
     {
         var serializer = new ThrowingReplySerializer();
-        var router = new RecordingClusterRouter();
+        var router = new RecordingClusterNodeSender();
         var handler = CreateHandler(
             new RecordingActorRuntime(),
             serializer,
@@ -443,10 +470,10 @@ public sealed class HotfixActorClusterHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_actor_host_create_ensures_local_actor_and_sends_reply()
+    public async Task HandleAsync_actor_host_create_resolves_default_actor_name_and_replies_directly_to_source_node()
     {
         var actorId = ActorId.From("room/created");
-        var router = new RecordingClusterRouter();
+        var router = new RecordingClusterNodeSender();
         var snapshot = CreatePlacementSnapshot(
         [
             ActorPlacementDeclaration.Create<HostCreateActor, ActorId>(
@@ -460,9 +487,10 @@ public sealed class HotfixActorClusterHandlerTests
             provider.GetRequiredService<IActorRuntime>(),
             new JsonRemoteActorSerializer(),
             router,
+            new LocalActorNodeIdentity("local"),
             provider);
         var request = new ActorHostCreateRequest(
-            "host-create-room",
+            "hostCreate",
             actorId.Value,
             "ensure",
             "test-build");
@@ -482,8 +510,11 @@ public sealed class HotfixActorClusterHandlerTests
             static (_, _) => new ValueTask<bool>(true),
             TestContext.Current.CancellationToken);
         Assert.True(created);
+        Assert.Equal(new NodeId("source-node"), router.LastDestination);
+        Assert.Equal(ClusterActorRouteKeys.ForReply("source-node"), router.LastRoute);
         Assert.NotNull(router.LastMessage);
         Assert.Equal(RemoteActorGateway.ReplyKind, router.LastMessage.Kind);
+        Assert.Equal(new NodeId("local"), router.LastMessage.SourceNode);
         Assert.Equal("host-create-1", router.LastMessage.CorrelationId);
         var reply = JsonSerializer.Deserialize<ActorHostCreateReply>(router.LastMessage.Payload.Span);
         Assert.NotNull(reply);
@@ -494,13 +525,18 @@ public sealed class HotfixActorClusterHandlerTests
     private static HotfixActorClusterHandler CreateHandler(
         IActorRuntime runtime,
         IRemoteActorSerializer serializer,
-        IClusterRouter router,
+        IClusterNodeSender sender,
         HotfixRuntimeSnapshot snapshot)
     {
         var services = new ServiceCollection()
             .AddSingleton<IHotfixRuntimeAccessor>(new FixedRuntimeAccessor(snapshot))
             .BuildServiceProvider();
-        return new HotfixActorClusterHandler(runtime, serializer, router, services);
+        return new HotfixActorClusterHandler(
+            runtime,
+            serializer,
+            sender,
+            new LocalActorNodeIdentity("local"),
+            services);
     }
 
     private static HotfixRuntimeSnapshot CreateSnapshot(
@@ -643,7 +679,6 @@ public sealed class HotfixActorClusterHandlerTests
         }
     }
 
-    [ActorName("host-create-room")]
     private sealed class HostCreateActor : GameActor;
 
     private sealed class RecordingActorRuntime : IActorRuntime
@@ -834,17 +869,27 @@ public sealed class HotfixActorClusterHandlerTests
         }
     }
 
-    private sealed class RecordingClusterRouter : IClusterRouter
+    private sealed class RecordingClusterNodeSender : IClusterNodeSender
     {
+        public NodeId? LastDestination { get; private set; }
+
+        public RouteKey LastRoute { get; private set; }
+
         public ClusterMessage? LastMessage { get; private set; }
 
+        public ClusterSendStatus Status { get; init; } = ClusterSendStatus.Accepted;
+
         public ValueTask<ClusterSendStatus> SendAsync(
+            NodeId nodeId,
+            RouteKey route,
             ClusterMessage message,
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            LastDestination = nodeId;
+            LastRoute = route;
             LastMessage = message;
-            return new ValueTask<ClusterSendStatus>(ClusterSendStatus.Accepted);
+            return new ValueTask<ClusterSendStatus>(Status);
         }
     }
 

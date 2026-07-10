@@ -7,6 +7,10 @@ namespace Lakona.Game.Server.Hotfix.Timers;
 
 internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, IDisposable
 {
+    // Re-arming for ordinary sub-millisecond timer-construction drift creates churn without
+    // materially improving due-time accuracy. Larger drift is corrected against the absolute due time.
+    private static readonly TimeSpan DelayArmingDriftTolerance = TimeSpan.FromMilliseconds(1);
+
     private readonly IHotfixRuntimeAccessor? runtimeAccessor;
     private readonly TimeProvider timeProvider;
     private readonly LakonaTimerOptions options;
@@ -76,6 +80,11 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
     internal DateTimeOffset GetUtcNow()
     {
         return timeProvider.GetUtcNow();
+    }
+
+    internal static bool ShouldCorrectArmingDrift(TimeSpan requestedDelay, TimeSpan remainingDelay)
+    {
+        return requestedDelay - remainingDelay > DelayArmingDriftTolerance;
     }
 
     internal void AttachBackend(ILakonaTimerBackend backend)
@@ -282,11 +291,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
                 }
                 else
                 {
-                    using var waitCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                    var delayTask = Task.Delay(delay.Value, timeProvider, waitCancellation.Token);
-                    var wakeTask = wakeSignal.WaitAsync(waitCancellation.Token);
-                    await Task.WhenAny(delayTask, wakeTask).ConfigureAwait(false);
-                    await waitCancellation.CancelAsync().ConfigureAwait(false);
+                    await WaitForNextDueOrSignalAsync(delay.Value, cancellationToken).ConfigureAwait(false);
                 }
             }
         }
@@ -297,6 +302,52 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         {
             logger.LogError(ex, "Lakona timer scheduler loop stopped unexpectedly.");
             throw;
+        }
+    }
+
+    private async Task WaitForNextDueOrSignalAsync(TimeSpan requestedDelay, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            using var waitCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var delayTask = Task.Delay(requestedDelay, timeProvider, waitCancellation.Token);
+            var wakeTask = wakeSignal.WaitAsync(waitCancellation.Token);
+            var remainingDelay = GetDelayUntilNextDue();
+            if (wakeTask.IsCompletedSuccessfully)
+            {
+                await waitCancellation.CancelAsync().ConfigureAwait(false);
+                return;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            if (remainingDelay is null || remainingDelay == TimeSpan.Zero)
+            {
+                await waitCancellation.CancelAsync().ConfigureAwait(false);
+                return;
+            }
+
+            if (!ShouldCorrectArmingDrift(requestedDelay, remainingDelay.Value))
+            {
+                await Task.WhenAny(delayTask, wakeTask).ConfigureAwait(false);
+                await waitCancellation.CancelAsync().ConfigureAwait(false);
+                return;
+            }
+
+            await waitCancellation.CancelAsync().ConfigureAwait(false);
+            if (wakeTask.IsCompletedSuccessfully)
+            {
+                return;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            remainingDelay = GetDelayUntilNextDue();
+            if (remainingDelay is null || remainingDelay == TimeSpan.Zero)
+            {
+                return;
+            }
+
+            requestedDelay = remainingDelay.Value;
+            await Task.Yield();
         }
     }
 

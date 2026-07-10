@@ -3,6 +3,7 @@ using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.ReliablePush;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Transport.Tcp;
 using Lakona.Game.Server.Sessions;
@@ -58,10 +59,14 @@ public sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurator
             RouteDirectoryBinder.Bind(context.Builder.ServiceRegistry, routeDirectory);
         }
 
-        if (context.Services.GetService(typeof(LocalClientNotificationCommandDispatcher)) is
-            LocalClientNotificationCommandDispatcher notificationDispatcher)
+        if (context.Services.GetService(typeof(IReliablePushRuntime)) is IReliablePushRuntime reliablePush &&
+            context.Services.GetService(typeof(IRouteDirectory)) is IRouteDirectory notificationRoutes)
         {
-            ClientNotificationCommandBinder.Bind(context.Builder.ServiceRegistry, notificationDispatcher);
+            var ownerDispatcher = new ClientNotificationOwnerDispatcher(
+                reliablePush,
+                notificationRoutes,
+                new NodeId(_runtimeOptions.Node.Id));
+            ClientNotificationCommandBinder.BindOwned(context.Builder.ServiceRegistry, ownerDispatcher);
         }
 
         var actorHandlers = context.Services.GetServices<IClusterMessageHandler>().ToList();

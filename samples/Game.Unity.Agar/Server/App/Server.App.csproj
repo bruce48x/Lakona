@@ -16,6 +16,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="MemoryPack.UnityShims" Version="1.21.4" />
+    <PackageReference Include="MemoryPack.Generator" Version="1.21.4" PrivateAssets="all" />
     <PackageReference Include="Npgsql" Version="9.0.4" />
   </ItemGroup>
   <ItemGroup>

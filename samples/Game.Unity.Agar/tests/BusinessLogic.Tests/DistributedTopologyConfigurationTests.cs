@@ -427,6 +427,79 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
+    public async Task MatchmakingStartupTimerAllocatesExpiredPartialBatch()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var services = BuildProgramServices("appsettings.json");
+        var hotfixAssemblyPath = TestHotfix.FindHotfixAssemblyPath();
+        services.AddLakonaGameHotfix(
+            new Lakona.Game.Server.Hotfix.Loading.CurrentDirectoryHotfixAssemblySource(
+                Path.GetDirectoryName(hotfixAssemblyPath)!,
+                Path.GetFileName(hotfixAssemblyPath)),
+            TestHotfix.HostAssemblyNames());
+
+        await using var provider = services.BuildServiceProvider();
+        var reload = await provider.GetRequiredService<IHotfixManager>().ReloadAsync(cancellationToken);
+        Assert.True(reload.Succeeded, TestHotfix.BuildReloadDiagnostics(reload));
+
+        var hostedServices = provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>().ToArray();
+        var timerScheduler = hostedServices.Single(service => service.GetType().Name == "LakonaTimerScheduler");
+        var actorStartup = hostedServices.Single(service => service.GetType().Name == "ActorStartupHostedService");
+        var clusterRegistration = hostedServices.OfType<LakonaGameClusterRegistrationHostedService>().Single();
+
+        await timerScheduler.StartAsync(cancellationToken);
+        await actorStartup.StartAsync(cancellationToken);
+        await clusterRegistration.StartAsync(cancellationToken);
+        try
+        {
+            var login = await LoginAsync(provider, "startup-timer-player");
+            await AttachSessionAsync(provider, new PlayerSessionAttachRequest
+            {
+                UserId = login.UserId,
+                SessionToken = login.SessionToken,
+                ConnectionId = "control-startup-timer",
+                AttachedAtUtc = DateTime.UtcNow,
+                ControlGateway = new Server.App.State.Contracts.GatewayEndpointDescriptor
+                {
+                    InstanceId = "gateway-1",
+                    Transport = "websocket",
+                    Host = "gateway-1",
+                    Port = 20000,
+                    Path = "/ws"
+                }
+            });
+
+            var result = await EnqueueAsync(provider, new MatchmakingEnqueueRequest
+            {
+                UserId = login.UserId,
+                SessionToken = login.SessionToken,
+                EnqueuedAtUtc = DateTime.UtcNow.AddSeconds(-6)
+            });
+            Assert.True(result.Queued);
+
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(3));
+            while (!timeout.IsCancellationRequested)
+            {
+                var status = await GetMatchmakingStatusAsync(provider);
+                if (status.QueuedCount == 0)
+                {
+                    return;
+                }
+
+                await Task.Delay(TimeSpan.FromMilliseconds(50), timeout.Token);
+            }
+
+            Assert.Fail("The startup actor's matchmaking timer did not process the expired ticket.");
+        }
+        finally
+        {
+            await clusterRegistration.StopAsync(CancellationToken.None);
+            await timerScheduler.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
     public async Task ReleasePlayerCleansUserSessionWhenRemoteRoomLeaveFails()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -518,6 +591,7 @@ public sealed class DistributedTopologyConfigurationTests
         var runtimeOptions = provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
         var routeDirectory = provider.GetRequiredService<IRouteDirectory>();
 
+        Assert.IsType<InMemoryActorDirectory>(provider.GetRequiredService<IActorDirectory>());
         Assert.Equal("lakona_cluster_nodes", sqlOptions.TableName);
         Assert.False(runtimeOptions.Cluster!.Directory.EnsureSchemaOnStartup);
         Assert.Equal(SqlNodeDirectoryDialect.Postgres, sqlOptions.Dialect);
@@ -664,6 +738,7 @@ public sealed class DistributedTopologyConfigurationTests
         var runtimeOptions = provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
 
         Assert.Empty(runtimeOptions.ActorHosts);
+        Assert.IsType<SeededActorDirectory>(provider.GetRequiredService<IActorDirectory>());
         Assert.IsAssignableFrom<INodeDirectory>(provider.GetRequiredService<INodeDirectory>());
         Assert.IsAssignableFrom<IRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
         Assert.IsType<SeededNodeDirectoryClient>(provider.GetRequiredService<INodeDirectory>());
@@ -679,6 +754,7 @@ public sealed class DistributedTopologyConfigurationTests
         var runtimeOptions = provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
 
         Assert.Equal(["room"], runtimeOptions.ActorHosts);
+        Assert.IsType<SeededActorDirectory>(provider.GetRequiredService<IActorDirectory>());
         Assert.IsType<SeededNodeDirectoryClient>(provider.GetRequiredService<INodeDirectory>());
         Assert.IsType<SeededRouteDirectoryClient>(provider.GetRequiredService<IRouteDirectory>());
     }

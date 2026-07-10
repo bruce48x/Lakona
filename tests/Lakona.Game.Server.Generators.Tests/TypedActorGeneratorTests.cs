@@ -63,7 +63,6 @@ public sealed class TypedActorGeneratorTests
         Assert.Contains("public global::System.Threading.Tasks.ValueTask PostAsync<TRequest>(", result.GeneratedSource);
         Assert.Contains("private readonly global::Lakona.Game.Server.Actors.IActorDirectory _directory;", result.GeneratedSource);
         Assert.Contains("private readonly global::Lakona.Game.Server.Actors.IActorDirectoryCache _directoryCache;", result.GeneratedSource);
-        Assert.DoesNotContain("LocalActorNodeIdentity", result.GeneratedSource);
         Assert.Contains("private readonly global::Lakona.Game.Server.Actors.IActorRuntime _runtime;", result.GeneratedSource);
         Assert.Contains("return _runtime.AskAsync<global::Game.Server.RoomActor, TResult>", result.GeneratedSource);
         Assert.Contains("global::Lakona.Game.Server.Actors.ActorId.From(\"room/\" + _id.Value)", result.GeneratedSource);
@@ -92,6 +91,13 @@ public sealed class TypedActorGeneratorTests
         Assert.Contains("public async global::System.Threading.Tasks.ValueTask<global::Lakona.Game.Cluster.ClusterSendStatus> HandleAsync", result.GeneratedSource);
         Assert.Contains("case \"join\":", result.GeneratedSource);
         Assert.Contains("global::Lakona.Game.Server.Actors.RemoteActorGateway.SendReplyAsync", result.GeneratedSource);
+        Assert.Contains("private readonly global::Lakona.Game.Cluster.IClusterNodeSender _nodeSender;", result.GeneratedSource);
+        Assert.Contains("private readonly global::Lakona.Game.Server.Actors.LocalActorNodeIdentity _localNode;", result.GeneratedSource);
+        Assert.DoesNotContain("IClusterRouter _router", result.GeneratedSource);
+        Assert.Contains("            _nodeSender,", result.GeneratedSource);
+        Assert.Contains("            _localNode.NodeId,", result.GeneratedSource);
+        Assert.Contains("            envelope.SourceNode,", result.GeneratedSource);
+        Assert.Contains("return await global::Lakona.Game.Server.Actors.RemoteActorGateway.SendReplyAsync", result.GeneratedSource);
         Assert.Contains("public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection AddRoomActors", result.GeneratedSource);
         Assert.Contains("TryAddSingleton<RoomActors>(services);", result.GeneratedSource);
         Assert.Contains("TryAddEnumerable", result.GeneratedSource);

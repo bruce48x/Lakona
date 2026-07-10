@@ -39,6 +39,7 @@ $unityLog = Join-Path $artifactRoot "unity-editor.log"
 $composeLog = Join-Path $artifactRoot "docker-compose.log"
 $composeStartupLog = Join-Path $artifactRoot "docker-compose-startup.log"
 $composeJson = Join-Path $artifactRoot "docker-compose.ps.json"
+$unityResultValidator = Join-Path $scriptRoot "assert-unity-test-results.ps1"
 $deadline = $null
 
 function Write-Banner {
@@ -530,13 +531,13 @@ function Run-UnityPlayModeTest {
         [int]$Timeout
     )
 
+    $targetTest = "SampleClient.Gameplay.Tests.DotArenaThreeNodePlayModeTests.UnityClientCompletesThreeNodeMultiplayerSmoke"
     $unityArgs = @(
         "-batchmode",
-        "-quit",
         "-projectPath", $clientRoot,
         "-runTests",
         "-testPlatform", "PlayMode",
-        "-testFilter", "SampleClient.Gameplay.Tests.DotArenaThreeNodePlayModeTests.UnityClientCompletesThreeNodeMultiplayerSmoke",
+        "-testFilter", $targetTest,
         "-testResults", $testResults,
         "-logFile", $unityLog,
         "--host", "127.0.0.1",
@@ -546,6 +547,7 @@ function Run-UnityPlayModeTest {
 
     Write-Host "  Unity: $UnityExecutable"
     Write-Host "  Project: $clientRoot"
+    Remove-Item -LiteralPath $testResults -Force -ErrorAction SilentlyContinue
     $process = Start-Process -FilePath $UnityExecutable -ArgumentList $unityArgs -PassThru -NoNewWindow
     if (-not $process.WaitForExit($Timeout * 1000)) {
         Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
@@ -556,6 +558,8 @@ function Run-UnityPlayModeTest {
     if ($process.ExitCode -ne 0) {
         throw "Unity PlayMode test failed with exit code $($process.ExitCode)."
     }
+
+    & $unityResultValidator -ResultsPath $testResults -TargetTestName $targetTest
 }
 
 if ($TimeoutSeconds -lt 60) {

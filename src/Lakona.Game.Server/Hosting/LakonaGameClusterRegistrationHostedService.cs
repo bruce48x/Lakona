@@ -304,11 +304,6 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
             .ToArray();
     }
 
-    private static IReadOnlyDictionary<string, string> CreateLabels()
-    {
-        return new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            [ActorDirectoryLabels.RoleKey] = ActorDirectoryLabels.RoleValue
-        };
-    }
+    private static IReadOnlyDictionary<string, string> CreateLabels() =>
+        new Dictionary<string, string>(StringComparer.Ordinal);
 }
