@@ -238,10 +238,11 @@ Framework control messages and replies that already carry a destination
 `NodeId` use `IClusterNodeSender`, which resolves that node through
 `INodeDirectory`.
 
-The `reply/<node-id>` key carried by a reply message is only a local handler key
-on the destination node. It is never registered in `IRouteDirectory` as a
-cluster route. Reply correlations are likewise destination-local pending-call
-state rather than cluster routing state.
+The `ClusterActorRouteKeys.ForReply(nodeId)` key carried by a reply message
+(currently `actor-reply:<node-id>`) is only a local handler key on the
+destination node. It is never registered in `IRouteDirectory` as a cluster
+route. Reply correlations are likewise destination-local pending-call state
+rather than cluster routing state.
 
 `ActorDirectory` lives in `Lakona.Game.Server`. Business code should not
 receive endpoint addresses or directory endpoint names.

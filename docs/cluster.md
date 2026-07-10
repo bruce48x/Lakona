@@ -117,8 +117,9 @@ Business actor routes are ownership mappings resolved through
 `IRouteDirectory` by `IClusterRouter`. They are distinct from node-directed
 framework traffic: control messages and replies addressed to a known `NodeId`
 go through `IClusterNodeSender` and `INodeDirectory`. The
-`reply/<node-id>` value on a reply message is only the destination node's local
-handler key; it is never registered as a cluster route in `IRouteDirectory`.
+`ClusterActorRouteKeys.ForReply(nodeId)` value on a reply message (currently
+`actor-reply:<node-id>`) is only the destination node's local handler key; it
+is never registered as a cluster route in `IRouteDirectory`.
 
 ## Startup Order
 
