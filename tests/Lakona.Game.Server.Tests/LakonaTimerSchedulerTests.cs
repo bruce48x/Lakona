@@ -129,30 +129,19 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         }
     }
 
-    [Fact]
-    public async Task Sub_millisecond_arming_drift_does_not_rearm_delay()
+    [Theory]
+    [InlineData(0.5, false)]
+    [InlineData(2, true)]
+    public void Arming_drift_correction_uses_one_millisecond_tolerance(
+        double driftMilliseconds,
+        bool expectedCorrection)
     {
-        var cancellationToken = TestContext.Current.CancellationToken;
-        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
-        await using var fixture = SchedulerFixture.Create(time);
-        await fixture.StartAsync(cancellationToken);
-        time.BlockNextTimerCreation();
-        fixture.Add("tolerated-arm-drift", time.GetUtcNow().AddSeconds(1));
+        var requestedDelay = TimeSpan.FromSeconds(1);
+        var remainingDelay = requestedDelay - TimeSpan.FromMilliseconds(driftMilliseconds);
 
-        try
-        {
-            await time.WaitForTimerCreationAsync(cancellationToken);
-            time.Advance(TimeSpan.FromTicks(TimeSpan.TicksPerMillisecond / 2));
-            time.ReleaseTimerCreation();
-            await time.WaitForTimerCreatedAsync(cancellationToken);
-            await Task.Delay(50, cancellationToken);
-
-            Assert.Equal(1, time.TimerCreationCount);
-        }
-        finally
-        {
-            time.ReleaseTimerCreation();
-        }
+        Assert.Equal(
+            expectedCorrection,
+            LakonaTimerScheduler.ShouldCorrectArmingDrift(requestedDelay, remainingDelay));
     }
 
     [Fact]

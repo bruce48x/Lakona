@@ -82,6 +82,11 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         return timeProvider.GetUtcNow();
     }
 
+    internal static bool ShouldCorrectArmingDrift(TimeSpan requestedDelay, TimeSpan remainingDelay)
+    {
+        return requestedDelay - remainingDelay > DelayArmingDriftTolerance;
+    }
+
     internal void AttachBackend(ILakonaTimerBackend backend)
     {
         ArgumentNullException.ThrowIfNull(backend);
@@ -321,7 +326,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
                 return;
             }
 
-            if (requestedDelay - remainingDelay.Value <= DelayArmingDriftTolerance)
+            if (!ShouldCorrectArmingDrift(requestedDelay, remainingDelay.Value))
             {
                 await Task.WhenAny(delayTask, wakeTask).ConfigureAwait(false);
                 await waitCancellation.CancelAsync().ConfigureAwait(false);
