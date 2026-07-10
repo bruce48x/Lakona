@@ -66,6 +66,32 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
     }
 
     [Fact]
+    public async Task Advance_while_scheduler_arms_delay_does_not_stall_due_timer()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
+        var observer = new RecordingTimerSchedulerObserver { BlockQueued = true };
+        await using var fixture = SchedulerFixture.Create(time, observer: observer);
+        await fixture.StartAsync(cancellationToken);
+        time.BlockNextTimerCreation();
+        fixture.Add("arm-race", time.GetUtcNow().AddSeconds(1));
+
+        try
+        {
+            await time.WaitForTimerCreationAsync(cancellationToken);
+            time.Advance(TimeSpan.FromSeconds(100));
+            time.ReleaseTimerCreation();
+            await observer.WaitForQueuedAsync(cancellationToken);
+            await TimerCallbackLog.WaitForValueAsync("arm-race", cancellationToken);
+        }
+        finally
+        {
+            time.ReleaseTimerCreation();
+            observer.ReleaseQueued();
+        }
+    }
+
+    [Fact]
     public async Task Forward_wall_clock_jump_does_not_dispatch_before_monotonic_due_time()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -832,8 +858,13 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
     {
         private readonly object gate = new();
         private readonly List<ManualTimer> timers = [];
+        private readonly TaskCompletionSource timerCreationStarted =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource releaseTimerCreation =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
         private DateTimeOffset utcNow = initialUtcNow;
         private long timestamp;
+        private int blockNextTimerCreation;
 
         public override long TimestampFrequency => TimeSpan.TicksPerSecond;
 
@@ -855,6 +886,12 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
 
         public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
         {
+            if (Interlocked.Exchange(ref blockNextTimerCreation, 0) == 1)
+            {
+                timerCreationStarted.TrySetResult();
+                releaseTimerCreation.Task.GetAwaiter().GetResult();
+            }
+
             var timer = new ManualTimer(this, callback, state, dueTime, period);
             lock (gate)
             {
@@ -862,6 +899,22 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
             }
 
             return timer;
+        }
+
+        public void BlockNextTimerCreation()
+        {
+            Interlocked.Exchange(ref blockNextTimerCreation, 1);
+        }
+
+        public async Task WaitForTimerCreationAsync(CancellationToken cancellationToken)
+        {
+            await timerCreationStarted.Task.WaitAsync(TimeSpan.FromSeconds(1), cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        public void ReleaseTimerCreation()
+        {
+            releaseTimerCreation.TrySetResult();
         }
 
         public void Advance(TimeSpan amount)

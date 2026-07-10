@@ -285,6 +285,12 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
                     using var waitCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                     var delayTask = Task.Delay(delay.Value, timeProvider, waitCancellation.Token);
                     var wakeTask = wakeSignal.WaitAsync(waitCancellation.Token);
+                    if (GetDelayUntilNextDue() == TimeSpan.Zero)
+                    {
+                        await waitCancellation.CancelAsync().ConfigureAwait(false);
+                        continue;
+                    }
+
                     await Task.WhenAny(delayTask, wakeTask).ConfigureAwait(false);
                     await waitCancellation.CancelAsync().ConfigureAwait(false);
                 }
