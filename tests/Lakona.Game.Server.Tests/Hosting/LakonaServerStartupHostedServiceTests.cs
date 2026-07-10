@@ -1,0 +1,205 @@
+using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Hosting;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Xunit;
+
+namespace Lakona.Game.Server.Tests.Hosting;
+
+public sealed class LakonaServerStartupHostedServiceTests
+{
+    private const string ExpectedMessage =
+        "Lakona server started successfully. NodeId=node-a.";
+
+    [Fact]
+    public async Task Success_log_is_written_after_all_hosted_services_start()
+    {
+        var events = new List<string>();
+        using var loggerProvider = new RecordingLoggerProvider(events);
+        using var host = CreateHost(
+            loggerProvider,
+            services => services.AddSingleton<IHostedService>(
+                new RecordingHostedService(events)));
+
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            Assert.Equal(["component-started", "startup-log"], events);
+            var entry = Assert.Single(
+                loggerProvider.Entries,
+                entry => entry.Message == ExpectedMessage);
+            Assert.Equal(LogLevel.Information, entry.Level);
+        }
+        finally
+        {
+            await host.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task Success_log_contains_only_node_id_business_property()
+    {
+        using var loggerProvider = new RecordingLoggerProvider([]);
+        using var host = CreateHost(loggerProvider);
+
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            var entry = Assert.Single(
+                loggerProvider.Entries,
+                entry => entry.Message == ExpectedMessage);
+            Assert.Equal("node-a", entry.State["NodeId"]);
+            Assert.DoesNotContain("StartupActors", entry.State.Keys);
+            Assert.DoesNotContain("Listeners", entry.State.Keys);
+        }
+        finally
+        {
+            await host.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task Hosted_service_start_failure_suppresses_success_log()
+    {
+        using var loggerProvider = new RecordingLoggerProvider([]);
+        using var host = CreateHost(
+            loggerProvider,
+            services => services.AddSingleton<IHostedService, ThrowingHostedService>());
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            host.StartAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal("startup failed", exception.Message);
+        Assert.DoesNotContain(
+            loggerProvider.Entries,
+            entry => entry.Message == ExpectedMessage);
+    }
+
+    [Fact]
+    public void AddLakonaGameServer_registers_one_startup_lifecycle_service()
+    {
+        var services = new ServiceCollection();
+
+        services.AddLakonaGameServer();
+        services.AddLakonaGameServer();
+
+        var descriptor = Assert.Single(
+            services,
+            descriptor => descriptor.ServiceType == typeof(IHostedService) &&
+                descriptor.ImplementationType == typeof(LakonaServerStartupHostedService));
+        Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
+    }
+
+    private static IHost CreateHost(
+        RecordingLoggerProvider loggerProvider,
+        Action<IServiceCollection>? configureServices = null)
+    {
+        return Host.CreateDefaultBuilder()
+            .ConfigureLogging(logging => logging
+                .ClearProviders()
+                .AddProvider(loggerProvider))
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton(new LakonaGameRuntimeOptions
+                {
+                    Node = new LakonaGameNodeOptions { Id = "node-a" }
+                });
+                configureServices?.Invoke(services);
+                services.AddSingleton<IHostedService, LakonaServerStartupHostedService>();
+            })
+            .Build();
+    }
+
+    private sealed class RecordingHostedService(List<string> events) : IHostedService
+    {
+        public Task StartAsync(CancellationToken cancellationToken)
+        {
+            events.Add("component-started");
+            return Task.CompletedTask;
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class ThrowingHostedService : IHostedService
+    {
+        public Task StartAsync(CancellationToken cancellationToken)
+        {
+            throw new InvalidOperationException("startup failed");
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingLoggerProvider(List<string> events) : ILoggerProvider
+    {
+        private readonly object _gate = new();
+
+        public List<LogEntry> Entries { get; } = [];
+
+        public ILogger CreateLogger(string categoryName)
+        {
+            return new RecordingLogger(this, categoryName, events);
+        }
+
+        public void Dispose()
+        {
+        }
+
+        private sealed class RecordingLogger(
+            RecordingLoggerProvider owner,
+            string category,
+            List<string> events) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+            {
+                return null;
+            }
+
+            public bool IsEnabled(LogLevel logLevel)
+            {
+                return true;
+            }
+
+            public void Log<TState>(
+                LogLevel logLevel,
+                EventId eventId,
+                TState state,
+                Exception? exception,
+                Func<TState, Exception?, string> formatter)
+            {
+                var message = formatter(state, exception);
+                var properties = state is IEnumerable<KeyValuePair<string, object?>> values
+                    ? values.ToDictionary(static value => value.Key, static value => value.Value)
+                    : new Dictionary<string, object?>();
+                lock (owner._gate)
+                {
+                    owner.Entries.Add(new LogEntry(
+                        category,
+                        logLevel,
+                        message,
+                        exception,
+                        properties));
+                    if (message == ExpectedMessage)
+                    {
+                        events.Add("startup-log");
+                    }
+                }
+            }
+        }
+    }
+
+    private sealed record LogEntry(
+        string Category,
+        LogLevel Level,
+        string Message,
+        Exception? Exception,
+        IReadOnlyDictionary<string, object?> State);
+}

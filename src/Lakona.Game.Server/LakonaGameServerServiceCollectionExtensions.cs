@@ -122,6 +122,7 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.TryAddSingleton<ILakonaGameServer, DefaultLakonaGameServer>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ActorStartupHostedService>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, LakonaGameClusterRegistrationHostedService>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, LakonaServerStartupHostedService>());
         if (configuration is null)
         {
             services.TryAddSingleton(provider =>
