@@ -25,6 +25,87 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     private const string Gateway = "tcp://127.0.0.1:21002";
 
     [Fact]
+    public void Cluster_endpoint_without_actor_runtime_does_not_wire_actor_directory()
+    {
+        var services = new ServiceCollection();
+        var directory = new InMemoryActorDirectory();
+        services.AddSingleton<IActorDirectory>(directory);
+        services.AddSingleton(new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "gateway-1" },
+            Cluster = new LakonaGameClusterOptions
+            {
+                Endpoint = Gateway,
+                Seeds = [Seed],
+                Serializer = "json"
+            }
+        });
+
+        services.AddLakonaGameClusterEndpoint();
+
+        var descriptor = Assert.Single(services, item => item.ServiceType == typeof(IActorDirectory));
+        Assert.Same(directory, descriptor.ImplementationInstance);
+        Assert.DoesNotContain(
+            services,
+            item => item.ImplementationType == typeof(ActorDirectoryClusterHandler));
+    }
+
+    [Fact]
+    public async Task Reconfiguring_cluster_endpoint_from_local_to_remote_removes_local_handler()
+    {
+        var services = new ServiceCollection();
+        services.AddLakonaGameServerActors();
+        AddRuntimeOptions(services, Seed, [Seed]);
+        services.AddLakonaGameClusterEndpoint();
+        AddRuntimeOptions(services, Gateway, [Seed]);
+        services.AddLakonaGameClusterEndpoint();
+
+        await using var provider = services.BuildServiceProvider();
+
+        Assert.IsType<SeededActorDirectory>(provider.GetRequiredService<IActorDirectory>());
+        Assert.DoesNotContain(
+            provider.GetServices<IClusterMessageHandler>(),
+            handler => handler is ActorDirectoryClusterHandler);
+    }
+
+    [Fact]
+    public async Task Reconfiguring_cluster_endpoint_from_remote_to_local_restores_local_directory_once()
+    {
+        var services = new ServiceCollection();
+        services.AddLakonaGameServerActors();
+        AddRuntimeOptions(services, Gateway, [Seed]);
+        services.AddLakonaGameClusterEndpoint();
+        AddRuntimeOptions(services, Seed, [Seed]);
+        services.AddLakonaGameClusterEndpoint();
+
+        await using var provider = services.BuildServiceProvider();
+
+        Assert.IsType<InMemoryActorDirectory>(provider.GetRequiredService<IActorDirectory>());
+        Assert.Single(
+            provider.GetServices<IClusterMessageHandler>(),
+            handler => handler is ActorDirectoryClusterHandler);
+    }
+
+    [Fact]
+    public async Task Cluster_seed_preserves_custom_local_actor_directory()
+    {
+        var services = new ServiceCollection();
+        services.AddLakonaGameServerActors();
+        services.RemoveAll<IActorDirectory>();
+        var directory = new InMemoryActorDirectory();
+        services.AddSingleton<IActorDirectory>(directory);
+        AddRuntimeOptions(services, Seed, [Seed]);
+        services.AddLakonaGameClusterEndpoint();
+
+        await using var provider = services.BuildServiceProvider();
+
+        Assert.Same(directory, provider.GetRequiredService<IActorDirectory>());
+        Assert.Single(
+            provider.GetServices<IClusterMessageHandler>(),
+            handler => handler is ActorDirectoryClusterHandler);
+    }
+
+    [Fact]
     public async Task Cluster_seed_keeps_local_actor_directory_and_registers_handler()
     {
         await using var provider = BuildProvider(Seed, [Seed]);
@@ -477,6 +558,23 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         services.AddLakonaGameServerActors();
         services.AddLakonaGameClusterEndpoint();
         return services.BuildServiceProvider();
+    }
+
+    private static void AddRuntimeOptions(
+        IServiceCollection services,
+        string endpoint,
+        IReadOnlyList<string> seeds)
+    {
+        services.AddSingleton(new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "node-1" },
+            Cluster = new LakonaGameClusterOptions
+            {
+                Endpoint = endpoint,
+                Seeds = seeds,
+                Serializer = "json"
+            }
+        });
     }
 
     private sealed class GeneratedDistributedActorAccessorProbe
