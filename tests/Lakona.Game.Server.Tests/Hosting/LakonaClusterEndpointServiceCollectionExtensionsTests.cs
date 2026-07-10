@@ -21,6 +21,31 @@ namespace Lakona.Game.Server.Tests.Hosting;
 [Collection("Cluster serializer registration")]
 public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
 {
+    private const string Seed = "tcp://127.0.0.1:21001";
+    private const string Gateway = "tcp://127.0.0.1:21002";
+
+    [Fact]
+    public async Task Cluster_seed_keeps_local_actor_directory_and_registers_handler()
+    {
+        await using var provider = BuildProvider(Seed, [Seed]);
+
+        Assert.IsType<InMemoryActorDirectory>(provider.GetRequiredService<IActorDirectory>());
+        Assert.Contains(
+            provider.GetServices<IClusterMessageHandler>(),
+            handler => handler is ActorDirectoryClusterHandler);
+    }
+
+    [Fact]
+    public async Task Remote_node_uses_seeded_actor_directory_without_local_handler()
+    {
+        await using var provider = BuildProvider(Gateway, [Seed]);
+
+        Assert.IsType<SeededActorDirectory>(provider.GetRequiredService<IActorDirectory>());
+        Assert.DoesNotContain(
+            provider.GetServices<IClusterMessageHandler>(),
+            handler => handler is ActorDirectoryClusterHandler);
+    }
+
     [Fact]
     public void AddLakonaGameClusterEndpoint_uses_configured_cluster_serializer()
     {
@@ -434,6 +459,24 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             Assert.NotNull(_localNode);
             return new ValueTask<ClusterSendStatus>(ClusterSendStatus.RouteNotFound);
         }
+    }
+
+    private static ServiceProvider BuildProvider(string endpoint, IReadOnlyList<string> seeds)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "node-1" },
+            Cluster = new LakonaGameClusterOptions
+            {
+                Endpoint = endpoint,
+                Seeds = seeds,
+                Serializer = "json"
+            }
+        });
+        services.AddLakonaGameServerActors();
+        services.AddLakonaGameClusterEndpoint();
+        return services.BuildServiceProvider();
     }
 
     private sealed class GeneratedDistributedActorAccessorProbe

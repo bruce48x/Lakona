@@ -59,6 +59,21 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             services.TryAddSingleton<IRouteDirectory, InMemoryRouteDirectory>();
         }
 
+        if (directorySeed is null)
+        {
+            services.TryAddEnumerable(
+                ServiceDescriptor.Singleton<IClusterMessageHandler, ActorDirectoryClusterHandler>());
+        }
+        else
+        {
+            services.RemoveAll<IActorDirectory>();
+            services.AddSingleton<IActorDirectory>(provider => new SeededActorDirectory(
+                provider.GetRequiredService<RemoteActorGateway>(),
+                provider.GetRequiredService<INodeMessenger>(),
+                provider.GetRequiredService<LocalActorNodeIdentity>(),
+                directorySeed));
+        }
+
         services.TryAddSingleton<IClusterRouter>(provider => new ClusterRouter(
             new NodeId(runtimeOptions.Node.Id),
             provider.GetRequiredService<IRouteDirectory>(),
