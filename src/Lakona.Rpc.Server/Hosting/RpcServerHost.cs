@@ -71,7 +71,9 @@ public sealed class RpcServerHost
                 _limits.MaxPendingAcceptedConnections,
                 _logger,
                 cts.Token);
-            _logger.LogInformation("RPC server listening on {ListenAddress}. Press Ctrl+C to stop.", baseAcceptor.ListenAddress);
+            _logger.LogInformation(
+                "RPC server listening on {ListenAddress}.",
+                baseAcceptor.ListenAddress);
             onListening?.Invoke(baseAcceptor.ListenAddress);
 
             while (!cts.IsCancellationRequested)

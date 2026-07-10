@@ -104,6 +104,33 @@ public class RpcServerHostBuilderTests
     }
 
     [Fact]
+    public async Task RunAsync_LogsListeningAddressWithoutShutdownPrompt()
+    {
+        var listeningLog = new TaskCompletionSource<string>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cts = new CancellationTokenSource();
+        var acceptor = new TrackingNeverAcceptAcceptor(() => { });
+
+        var host = RpcServerHostBuilder.Create()
+            .UseSerializer(new JsonRpcSerializer())
+            .UseAcceptor(_ => ValueTask.FromResult<IRpcConnectionAcceptor>(acceptor))
+            .UseLogger(message =>
+            {
+                if (message.StartsWith("RPC server listening on ", StringComparison.Ordinal))
+                    listeningLog.TrySetResult(message);
+            })
+            .ConfigureServices(_ => { })
+            .Build();
+
+        var runTask = host.RunAsync(cts.Token).AsTask();
+        var message = await listeningLog.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        cts.Cancel();
+        await runTask.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal("RPC server listening on test://tracking.", message);
+    }
+
+    [Fact]
     public async Task RunAsync_NotifiesSessionLifecycleObserverOncePerConnection()
     {
         var observer = new RecordingSessionLifecycleObserver();
