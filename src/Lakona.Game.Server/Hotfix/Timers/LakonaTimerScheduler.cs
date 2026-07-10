@@ -285,14 +285,37 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
                     using var waitCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                     var delayTask = Task.Delay(delay.Value, timeProvider, waitCancellation.Token);
                     var wakeTask = wakeSignal.WaitAsync(waitCancellation.Token);
-                    if (GetDelayUntilNextDue() == TimeSpan.Zero)
+                    var remainingDelay = GetDelayUntilNextDue();
+                    if (remainingDelay is { } currentDelay && currentDelay < delay.Value)
                     {
                         await waitCancellation.CancelAsync().ConfigureAwait(false);
-                        continue;
-                    }
+                        if (wakeTask.IsCompletedSuccessfully)
+                        {
+                            continue;
+                        }
 
-                    await Task.WhenAny(delayTask, wakeTask).ConfigureAwait(false);
-                    await waitCancellation.CancelAsync().ConfigureAwait(false);
+                        cancellationToken.ThrowIfCancellationRequested();
+                        remainingDelay = GetDelayUntilNextDue();
+                        if (remainingDelay is null || remainingDelay == TimeSpan.Zero)
+                        {
+                            continue;
+                        }
+
+                        using var correctedWaitCancellation =
+                            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                        var correctedDelayTask = Task.Delay(
+                            remainingDelay.Value,
+                            timeProvider,
+                            correctedWaitCancellation.Token);
+                        var correctedWakeTask = wakeSignal.WaitAsync(correctedWaitCancellation.Token);
+                        await Task.WhenAny(correctedDelayTask, correctedWakeTask).ConfigureAwait(false);
+                        await correctedWaitCancellation.CancelAsync().ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await Task.WhenAny(delayTask, wakeTask).ConfigureAwait(false);
+                        await waitCancellation.CancelAsync().ConfigureAwait(false);
+                    }
                 }
             }
         }
