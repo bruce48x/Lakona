@@ -130,7 +130,9 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
     }
 
     [Theory]
+    [InlineData(-1, false)]
     [InlineData(0.5, false)]
+    [InlineData(1, false)]
     [InlineData(2, true)]
     public void Arming_drift_correction_uses_one_millisecond_tolerance(
         double driftMilliseconds,
