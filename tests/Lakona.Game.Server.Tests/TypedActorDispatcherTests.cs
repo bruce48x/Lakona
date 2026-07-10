@@ -19,8 +19,12 @@ public sealed partial class TypedActorDispatcherTests
     {
         var runtime = new RecordingActorRuntime();
         var serializer = new JsonRemoteActorSerializer();
-        var router = new RecordingClusterRouter();
-        var handler = new RoomActorClusterHandler(runtime, serializer, router);
+        var router = new RecordingClusterNodeSender();
+        var handler = new RoomActorClusterHandler(
+            runtime,
+            serializer,
+            router,
+            new LocalActorNodeIdentity("local"));
         var request = new JoinRoomRequest("player-1");
         var message = new ClusterActorEnvelope(
             ClusterActorRouteKeys.ForActor("room/42"),
@@ -37,11 +41,40 @@ public sealed partial class TypedActorDispatcherTests
         Assert.Equal(ClusterSendStatus.Accepted, status);
         Assert.Equal(ActorId.From("room/42"), runtime.LastActorId);
         Assert.Equal("player-1", runtime.Actor.LastPlayerId);
+        Assert.Equal(new NodeId("node-a"), router.LastDestination);
+        Assert.Equal(ClusterActorRouteKeys.ForReply("node-a"), router.LastRoute);
         Assert.NotNull(router.LastMessage);
         Assert.Equal(RemoteActorGateway.ReplyKind, router.LastMessage.Kind);
+        Assert.Equal(new NodeId("local"), router.LastMessage.SourceNode);
         Assert.Equal("reply-1", router.LastMessage.CorrelationId);
         var reply = serializer.Deserialize<JoinRoomReply>(router.LastMessage.Payload);
         Assert.True(reply.Accepted);
+    }
+
+    [Fact]
+    public async Task Typed_actor_handler_returns_reply_delivery_failure_after_actor_execution()
+    {
+        var runtime = new RecordingActorRuntime();
+        var serializer = new JsonRemoteActorSerializer();
+        var sender = new RecordingClusterNodeSender { Status = ClusterSendStatus.Failed };
+        var handler = new RoomActorClusterHandler(
+            runtime,
+            serializer,
+            sender,
+            new LocalActorNodeIdentity("local"));
+        var message = new ClusterActorEnvelope(
+            ClusterActorRouteKeys.ForActor("room/failed"),
+            "room/failed",
+            "join",
+            serializer.Serialize(new JoinRoomRequest("player-failed")),
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            new NodeId("node-a"),
+            replyCorrelationId: "reply-failed").ToClusterMessage();
+
+        var status = await handler.HandleAsync(message, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.Failed, status);
+        Assert.Equal("player-failed", runtime.Actor.LastPlayerId);
     }
 
     [Fact]
@@ -49,8 +82,12 @@ public sealed partial class TypedActorDispatcherTests
     {
         var runtime = new RecordingActorRuntime();
         var serializer = new RpcRemoteActorSerializer(new MemoryPackRpcSerializer());
-        var router = new RecordingClusterRouter();
-        var handler = new RoomActorClusterHandler(runtime, serializer, router);
+        var router = new RecordingClusterNodeSender();
+        var handler = new RoomActorClusterHandler(
+            runtime,
+            serializer,
+            router,
+            new LocalActorNodeIdentity("local"));
         var request = new MemoryPackJoinRoomRequest { PlayerId = "player-2" };
         var message = new ClusterActorEnvelope(
             ClusterActorRouteKeys.ForActor("room/43"),
@@ -93,8 +130,12 @@ public sealed partial class TypedActorDispatcherTests
         using var provider = CreateClusterProvider("json", new MemoryPackRpcSerializer());
         var runtime = new RecordingActorRuntime();
         var serializer = provider.GetRequiredService<IRemoteActorSerializer>();
-        var router = new RecordingClusterRouter();
-        var handler = new RoomActorClusterHandler(runtime, serializer, router);
+        var router = new RecordingClusterNodeSender();
+        var handler = new RoomActorClusterHandler(
+            runtime,
+            serializer,
+            router,
+            new LocalActorNodeIdentity("local"));
         var request = new JoinRoomRequest("player-3");
         var message = new ClusterActorEnvelope(
             ClusterActorRouteKeys.ForActor("room/44"),
@@ -121,8 +162,12 @@ public sealed partial class TypedActorDispatcherTests
         using var provider = CreateClusterProvider("memorypack", new JsonRpcSerializer());
         var runtime = new RecordingActorRuntime();
         var serializer = provider.GetRequiredService<IRemoteActorSerializer>();
-        var router = new RecordingClusterRouter();
-        var handler = new RoomActorClusterHandler(runtime, serializer, router);
+        var router = new RecordingClusterNodeSender();
+        var handler = new RoomActorClusterHandler(
+            runtime,
+            serializer,
+            router,
+            new LocalActorNodeIdentity("local"));
         var request = new MemoryPackJoinRoomRequest { PlayerId = "player-4" };
         var message = new ClusterActorEnvelope(
             ClusterActorRouteKeys.ForActor("room/45"),
@@ -149,7 +194,8 @@ public sealed partial class TypedActorDispatcherTests
         var handler = new RoomActorClusterHandler(
             new RecordingActorRuntime(),
             new JsonRemoteActorSerializer(),
-            new RecordingClusterRouter());
+            new RecordingClusterNodeSender(),
+            new LocalActorNodeIdentity("local"));
         var message = new ClusterActorEnvelope(
             ClusterActorRouteKeys.ForActor("room/42"),
             "room/42",
@@ -225,16 +271,19 @@ public sealed partial class TypedActorDispatcherTests
     {
         private readonly IActorRuntime _runtime;
         private readonly IRemoteActorSerializer _serializer;
-        private readonly IClusterRouter _router;
+        private readonly IClusterNodeSender _nodeSender;
+        private readonly LocalActorNodeIdentity _localNode;
 
         public RoomActorClusterHandler(
             IActorRuntime runtime,
             IRemoteActorSerializer serializer,
-            IClusterRouter router)
+            IClusterNodeSender nodeSender,
+            LocalActorNodeIdentity localNode)
         {
             _runtime = runtime;
             _serializer = serializer;
-            _router = router;
+            _nodeSender = nodeSender;
+            _localNode = localNode;
         }
 
         public async ValueTask<ClusterSendStatus> HandleAsync(
@@ -263,8 +312,9 @@ public sealed partial class TypedActorDispatcherTests
                         cancellationToken).ConfigureAwait(false);
                     if (envelope.ReplyCorrelationId is not null)
                     {
-                        await RemoteActorGateway.SendReplyAsync(
-                            _router,
+                        return await RemoteActorGateway.SendReplyAsync(
+                            _nodeSender,
+                            _localNode.NodeId,
                             envelope.SourceNode,
                             envelope.ReplyCorrelationId,
                             _serializer.Serialize(reply),
@@ -283,8 +333,9 @@ public sealed partial class TypedActorDispatcherTests
                         cancellationToken).ConfigureAwait(false);
                     if (envelope.ReplyCorrelationId is not null)
                     {
-                        await RemoteActorGateway.SendReplyAsync(
-                            _router,
+                        return await RemoteActorGateway.SendReplyAsync(
+                            _nodeSender,
+                            _localNode.NodeId,
                             envelope.SourceNode,
                             envelope.ReplyCorrelationId,
                             _serializer.Serialize(reply),
@@ -323,16 +374,26 @@ public sealed partial class TypedActorDispatcherTests
         }
     }
 
-    private sealed class RecordingClusterRouter : IClusterRouter
+    private sealed class RecordingClusterNodeSender : IClusterNodeSender
     {
+        public NodeId? LastDestination { get; private set; }
+
+        public RouteKey LastRoute { get; private set; }
+
         public ClusterMessage? LastMessage { get; private set; }
 
+        public ClusterSendStatus Status { get; init; } = ClusterSendStatus.Accepted;
+
         public ValueTask<ClusterSendStatus> SendAsync(
+            NodeId nodeId,
+            RouteKey route,
             ClusterMessage message,
             CancellationToken cancellationToken = default)
         {
+            LastDestination = nodeId;
+            LastRoute = route;
             LastMessage = message;
-            return ValueTask.FromResult(ClusterSendStatus.Accepted);
+            return ValueTask.FromResult(Status);
         }
     }
 
