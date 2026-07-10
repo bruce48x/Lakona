@@ -4,13 +4,10 @@ namespace Lakona.Game.Server.Actors;
 
 public static class ActorRuntimeRemoteExtensions
 {
-    private static readonly NodeEndpoint PlaceholderEndpoint = new("local");
-
     public static async ValueTask<TResult> AskRemoteAsync<TResult>(
         this IActorRuntime runtime,
         IClusterRouter router,
         RemoteActorGateway gateway,
-        IRouteDirectory routeDirectory,
         NodeId localNode,
         string actorId,
         string kind,
@@ -21,7 +18,6 @@ public static class ActorRuntimeRemoteExtensions
     {
         ArgumentNullException.ThrowIfNull(router);
         ArgumentNullException.ThrowIfNull(gateway);
-        ArgumentNullException.ThrowIfNull(routeDirectory);
         ArgumentNullException.ThrowIfNull(serializeRequest);
         ArgumentNullException.ThrowIfNull(deserializeResult);
 
@@ -37,16 +33,6 @@ public static class ActorRuntimeRemoteExtensions
 
         var correlationId = Guid.NewGuid().ToString("N");
         var now = DateTimeOffset.UtcNow;
-        var replyRoute = ClusterActorRouteKeys.ForReply(localNode);
-        var replyLocation = new RouteLocation(
-            replyRoute,
-            localNode,
-            PlaceholderEndpoint,
-            now.Add(timeout));
-
-        await routeDirectory.RegisterAsync(replyLocation, cancellationToken).ConfigureAwait(false);
-
-        var pendingTask = gateway.RegisterPendingAsync(correlationId, timeout, cancellationToken);
 
         var envelope = new ClusterActorEnvelope(
             ClusterActorRouteKeys.ForActor(actorId),
@@ -57,18 +43,30 @@ public static class ActorRuntimeRemoteExtensions
             localNode,
             replyCorrelationId: correlationId);
 
-        var status = await router.SendAsync(
-            envelope.ToClusterMessage(),
-            cancellationToken).ConfigureAwait(false);
+        var pending = gateway.RegisterPendingAsync(correlationId, timeout, cancellationToken);
+        ClusterSendStatus status;
+        try
+        {
+            status = await router.SendAsync(
+                envelope.ToClusterMessage(),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            gateway.TryCancelPending(correlationId);
+            throw;
+        }
 
         if (status != ClusterSendStatus.Accepted)
         {
+            gateway.TryCancelPending(
+                correlationId,
+                new InvalidOperationException($"Remote actor call failed with status: {status}."));
             throw new InvalidOperationException(
                 $"Remote actor call failed with status: {status}. ActorId={actorId}, Kind={kind}");
         }
 
-        var replyPayload = await pendingTask.ConfigureAwait(false);
-        return deserializeResult(replyPayload);
+        return deserializeResult(await pending.ConfigureAwait(false));
     }
 
     public static async ValueTask TellRemoteAsync(

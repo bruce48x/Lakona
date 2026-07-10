@@ -67,15 +67,14 @@ public sealed class RemoteActorGatewayTests
         var replyHandler = new RecordingReplyHandler(gatewayA.CreateReplyHandler());
         messenger.RegisterNode(nodeA, replyHandler);
 
-        var result = await ActorRuntimeRemoteExtensions.AskRemoteAsync<ReadOnlyMemory<byte>>(
-            runtimeA,
+        var result = await runtimeA.AskRemoteAsync(
             routerA,
             gatewayA,
-            nodeA,
+            new NodeId("node-a"),
             "echo/1",
             EchoKind,
             () => EchoPayload,
-            reply => reply,
+            static reply => reply,
             TimeSpan.FromSeconds(5),
             cancellationToken);
 
@@ -107,15 +106,14 @@ public sealed class RemoteActorGatewayTests
         var runtime = provider.GetRequiredService<IActorRuntime>();
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await ActorRuntimeRemoteExtensions.AskRemoteAsync<ReadOnlyMemory<byte>>(
-                runtime,
+            await runtime.AskRemoteAsync(
                 router,
                 gateway,
                 new NodeId("node-a"),
                 "missing/1",
                 EchoKind,
                 () => EchoPayload,
-                reply => reply,
+                static reply => reply,
                 TimeSpan.FromSeconds(1),
                 cancellationToken));
 
