@@ -5,23 +5,24 @@ namespace Lakona.Game.Server.Actors;
 
 public sealed class SeededActorDirectory : IActorDirectory
 {
-    private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(30);
-
     private readonly RemoteActorGateway _gateway;
     private readonly INodeMessenger _messenger;
     private readonly LocalActorNodeIdentity _localNode;
     private readonly RouteLocation _seedTarget;
+    private readonly TimeSpan _requestTimeout;
 
     public SeededActorDirectory(
         RemoteActorGateway gateway,
         INodeMessenger messenger,
         LocalActorNodeIdentity localNode,
-        string seedEndpoint)
+        string seedEndpoint,
+        RemoteActorOptions? options = null)
     {
         _gateway = gateway ?? throw new ArgumentNullException(nameof(gateway));
         _messenger = messenger ?? throw new ArgumentNullException(nameof(messenger));
         _localNode = localNode ?? throw new ArgumentNullException(nameof(localNode));
         _seedTarget = CreateSeedTarget(seedEndpoint);
+        _requestTimeout = (options ?? new RemoteActorOptions()).DefaultTimeout;
     }
 
     public async ValueTask<ActorDirectoryRecord?> ResolveAsync(
@@ -43,11 +44,27 @@ public sealed class SeededActorDirectory : IActorDirectory
             throw new ActorDirectoryUnavailableException("Actor directory returned an invalid resolve reply.");
         }
 
-        return new ActorDirectoryRecord(
-            ActorId.From(reply.Record.ActorId),
-            new NodeId(reply.Record.Node),
-            reply.Record.Version,
-            reply.Record.UpdatedAt);
+        if (string.IsNullOrWhiteSpace(reply.Record.ActorId) ||
+            string.IsNullOrWhiteSpace(reply.Record.Node))
+        {
+            throw new ActorDirectoryUnavailableException(
+                "Actor directory returned a malformed record.");
+        }
+
+        try
+        {
+            return new ActorDirectoryRecord(
+                ActorId.From(reply.Record.ActorId),
+                new NodeId(reply.Record.Node),
+                reply.Record.Version,
+                reply.Record.UpdatedAt);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new ActorDirectoryUnavailableException(
+                "Actor directory returned a malformed record.",
+                exception);
+        }
     }
 
     public async ValueTask<ActorDirectoryRegisterStatus> RegisterAsync(
@@ -84,7 +101,7 @@ public sealed class SeededActorDirectory : IActorDirectory
         cancellationToken.ThrowIfCancellationRequested();
 
         var correlationId = Guid.NewGuid().ToString("N");
-        var pending = _gateway.RegisterPendingAsync(correlationId, RequestTimeout, cancellationToken);
+        var pending = _gateway.RegisterPendingAsync(correlationId, _requestTimeout, cancellationToken);
         ClusterSendStatus status;
         try
         {
@@ -94,16 +111,23 @@ public sealed class SeededActorDirectory : IActorDirectory
                     ActorDirectoryClusterProtocol.Route,
                     kind,
                     JsonSerializer.SerializeToUtf8Bytes(request),
-                    DateTimeOffset.UtcNow.Add(RequestTimeout),
+                    DateTimeOffset.UtcNow.Add(_requestTimeout),
                     _localNode.NodeId,
                     correlationId,
                     orderedBy: request.ActorId),
                 cancellationToken).ConfigureAwait(false);
         }
-        catch
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             _gateway.TryCancelPending(correlationId);
             throw;
+        }
+        catch (Exception exception)
+        {
+            _gateway.TryCancelPending(correlationId);
+            throw new ActorDirectoryUnavailableException(
+                "Actor directory send failed.",
+                exception);
         }
 
         if (status != ClusterSendStatus.Accepted)
@@ -113,7 +137,22 @@ public sealed class SeededActorDirectory : IActorDirectory
                 $"Actor directory send failed with cluster status: {status}.");
         }
 
-        var payload = await pending.ConfigureAwait(false);
+        ReadOnlyMemory<byte> payload;
+        try
+        {
+            payload = await pending.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            throw new ActorDirectoryUnavailableException(
+                "Actor directory reply was unavailable.",
+                exception);
+        }
+
         try
         {
             var reply = JsonSerializer.Deserialize<ActorDirectoryReply>(payload.Span)

@@ -8,6 +8,36 @@ namespace Lakona.Game.Server.Tests.Actors;
 public sealed class SeededActorDirectoryTests
 {
     [Fact]
+    public Task ResolveAsync_blank_record_actor_id_throws_unavailable()
+    {
+        return AssertMalformedRecordAsync(" ", "data-1");
+    }
+
+    [Fact]
+    public Task ResolveAsync_blank_record_node_throws_unavailable()
+    {
+        return AssertMalformedRecordAsync("user/player-1", " ");
+    }
+
+    [Fact]
+    public async Task ResolveAsync_reply_timeout_throws_unavailable_and_releases_pending()
+    {
+        var gateway = new RemoteActorGateway();
+        var directory = new SeededActorDirectory(
+            gateway,
+            new StatusNodeMessenger(ClusterSendStatus.Accepted),
+            new LocalActorNodeIdentity(new NodeId("gateway-1")),
+            "tcp://10.0.0.1:21001",
+            new RemoteActorOptions { DefaultTimeout = TimeSpan.FromMilliseconds(20) });
+
+        await Assert.ThrowsAsync<ActorDirectoryUnavailableException>(() => directory.ResolveAsync(
+            ActorId.From("user/player-1"),
+            TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Equal(0, gateway.PendingCount);
+    }
+
+    [Fact]
     public async Task ResolveAsync_error_reply_throws_unavailable()
     {
         var gateway = new RemoteActorGateway();
@@ -42,16 +72,16 @@ public sealed class SeededActorDirectoryTests
     }
 
     [Fact]
-    public async Task ResolveAsync_send_exception_releases_pending_and_propagates()
+    public async Task ResolveAsync_send_exception_releases_pending_and_throws_unavailable()
     {
         var gateway = new RemoteActorGateway();
         var directory = CreateDirectory(gateway, new ThrowingNodeMessenger());
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => directory.ResolveAsync(
+        var exception = await Assert.ThrowsAsync<ActorDirectoryUnavailableException>(() => directory.ResolveAsync(
             ActorId.From("user/player-1"),
             TestContext.Current.CancellationToken).AsTask());
 
-        Assert.Equal("send failed", exception.Message);
+        Assert.IsType<InvalidOperationException>(exception.InnerException);
         Assert.Equal(0, gateway.PendingCount);
     }
 
@@ -153,6 +183,21 @@ public sealed class SeededActorDirectoryTests
             messenger,
             new LocalActorNodeIdentity(new NodeId("gateway-1")),
             "tcp://10.0.0.1:21001");
+
+    private static async Task AssertMalformedRecordAsync(string actorId, string node)
+    {
+        var gateway = new RemoteActorGateway();
+        var messenger = new ReplyingNodeMessenger(gateway, new ActorDirectoryReply(
+            ActorDirectoryOperationStatus.Succeeded,
+            new ActorDirectoryRecordDto(actorId, node, 7, DateTimeOffset.UtcNow)));
+        var directory = CreateDirectory(gateway, messenger);
+
+        await Assert.ThrowsAsync<ActorDirectoryUnavailableException>(() => directory.ResolveAsync(
+            ActorId.From("user/player-1"),
+            TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Equal(0, gateway.PendingCount);
+    }
 
     private sealed class ReplyingNodeMessenger(
         RemoteActorGateway gateway,
