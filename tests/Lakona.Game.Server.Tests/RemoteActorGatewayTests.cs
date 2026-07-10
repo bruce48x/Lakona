@@ -12,79 +12,66 @@ public sealed class RemoteActorGatewayTests
     private const string EchoKind = "echo";
 
     [Fact]
-    public async Task AskRemoteAsync_sends_request_and_receives_reply()
+    public async Task AskRemoteAsync_sends_request_and_receives_node_directed_reply()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var now = DateTimeOffset.UtcNow;
+        var nodeA = new NodeId("node-a");
+        var nodeB = new NodeId("node-b");
 
-        // Shared infrastructure
-        var directory = new InMemoryRouteDirectory();
+        var routeDirectory = new InMemoryRouteDirectory();
+        var nodeDirectory = new InMemoryNodeDirectory();
         var messenger = new InMemoryLoopbackNodeMessenger();
+        await RegisterNodeAsync(nodeDirectory, nodeA, now, cancellationToken);
+        await RegisterNodeAsync(nodeDirectory, nodeB, now, cancellationToken);
+        var nodeSenderA = new ClusterNodeSender(nodeDirectory, messenger);
+        var nodeSenderB = new ClusterNodeSender(nodeDirectory, messenger);
 
-        // --- Node B: the target node ---
         var providerB = new ServiceCollection()
             .AddLakonaGameServerActors()
             .BuildServiceProvider();
         var hostingB = providerB.GetRequiredService<ActorHosting>();
         var runtimeB = providerB.GetRequiredService<IActorRuntime>();
         await hostingB.CreateAsync<DummyActor>(ActorId.From("echo/1"), cancellationToken);
-        var gatewayB = new RemoteActorGateway();
-        var routerB = new ClusterRouter("node-b", directory, new RecordingHandler(), messenger, () => now);
 
         var handlerB = new ClusterActorDispatcher<DummyActor>(
             runtimeB,
             async (actor, envelope, ct) =>
             {
-                if (envelope.ReplyCorrelationId is not null)
-                {
-                    await RemoteActorGateway.SendReplyAsync(
-                        routerB,
-                        envelope.SourceNode,
-                        envelope.ReplyCorrelationId,
-                        envelope.Payload,
-                        ct);
-                }
-
-                return ClusterSendStatus.Accepted;
+                var status = await RemoteActorGateway.SendReplyAsync(
+                    nodeSenderB,
+                    replyingNode: nodeB,
+                    destinationNode: envelope.SourceNode,
+                    envelope.ReplyCorrelationId!,
+                    envelope.Payload,
+                    ct);
+                return status;
             });
 
-        messenger.RegisterNode("node-b", handlerB);
+        messenger.RegisterNode(nodeB, handlerB);
 
-        // Register Node B's actor route
         var actorRoute = new RouteLocation(
             ClusterActorRouteKeys.ForActor("echo/1"),
-            "node-b",
+            nodeB,
             new NodeEndpoint("in-memory://node-b"),
             now.AddMinutes(10));
-        await directory.RegisterAsync(actorRoute, cancellationToken);
+        await routeDirectory.RegisterAsync(actorRoute, cancellationToken);
 
-        // --- Node A: the requesting node ---
         var providerA = new ServiceCollection()
             .AddLakonaGameServerActors()
             .BuildServiceProvider();
         var runtimeA = providerA.GetRequiredService<IActorRuntime>();
         var gatewayA = new RemoteActorGateway();
-        var routerA = new ClusterRouter("node-a", directory, new RecordingHandler(), messenger, () => now);
+        var routerA = new ClusterRouter(nodeA, routeDirectory, new RecordingHandler(), messenger, () => now);
 
-        // Node A's reply handler handles incoming replies
-        var replyHandler = gatewayA.CreateReplyHandler();
-        messenger.RegisterNode("node-a", new CompositeClusterMessageHandler(replyHandler, new RecordingHandler()));
+        var replyHandler = new RecordingReplyHandler(gatewayA.CreateReplyHandler());
+        messenger.RegisterNode(nodeA, replyHandler);
 
-        // Register reply route so Node B can send replies to Node A
-        var replyRoute = new RouteLocation(
-            ClusterActorRouteKeys.ForReply("node-a"),
-            "node-a",
-            new NodeEndpoint("in-memory://node-a"),
-            now.AddMinutes(10));
-        await directory.RegisterAsync(replyRoute, cancellationToken);
-
-        // --- Send the remote request ---
         var result = await ActorRuntimeRemoteExtensions.AskRemoteAsync<ReadOnlyMemory<byte>>(
             runtimeA,
             routerA,
             gatewayA,
-            directory,
-            "node-a",
+            nodeA,
             "echo/1",
             EchoKind,
             () => EchoPayload,
@@ -93,6 +80,71 @@ public sealed class RemoteActorGatewayTests
             cancellationToken);
 
         Assert.Equal(EchoPayload, result.ToArray());
+        Assert.NotNull(replyHandler.Message);
+        Assert.Equal(RemoteActorGateway.ReplyKind, replyHandler.Message.Kind);
+        Assert.Equal(nodeB, replyHandler.Message.SourceNode);
+        Assert.Null(await routeDirectory.ResolveAsync(
+            ClusterActorRouteKeys.ForReply(nodeA),
+            now,
+            cancellationToken));
+    }
+
+    [Fact]
+    public async Task AskRemoteAsync_failed_request_send_removes_pending_registration()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var routeDirectory = new InMemoryRouteDirectory();
+        var messenger = new InMemoryLoopbackNodeMessenger();
+        var gateway = new RemoteActorGateway();
+        var router = new ClusterRouter(
+            "node-a",
+            routeDirectory,
+            new RecordingHandler(),
+            messenger);
+        var provider = new ServiceCollection()
+            .AddLakonaGameServerActors()
+            .BuildServiceProvider();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await ActorRuntimeRemoteExtensions.AskRemoteAsync<ReadOnlyMemory<byte>>(
+                runtime,
+                router,
+                gateway,
+                new NodeId("node-a"),
+                "missing/1",
+                EchoKind,
+                () => EchoPayload,
+                reply => reply,
+                TimeSpan.FromSeconds(1),
+                cancellationToken));
+
+        Assert.Equal(0, gateway.PendingCount);
+    }
+
+    [Fact]
+    public async Task Reply_handler_accepts_late_reply_after_timeout_without_recreating_pending_state()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var gateway = new RemoteActorGateway();
+        var pending = gateway.RegisterPendingAsync(
+            "late-reply",
+            TimeSpan.FromMilliseconds(20),
+            cancellationToken);
+        await Assert.ThrowsAsync<TimeoutException>(async () => await pending);
+
+        var status = await gateway.CreateReplyHandler().HandleAsync(
+            new ClusterMessage(
+                ClusterActorRouteKeys.ForReply("node-a"),
+                RemoteActorGateway.ReplyKind,
+                EchoPayload,
+                DateTimeOffset.UtcNow.AddSeconds(30),
+                "node-b",
+                "late-reply"),
+            cancellationToken);
+
+        Assert.Equal(ClusterSendStatus.Accepted, status);
+        Assert.False(gateway.TryCancelPending("late-reply"));
     }
 
     [Fact]
@@ -201,6 +253,39 @@ public sealed class RemoteActorGatewayTests
         {
             return ValueTask.FromResult(ClusterSendStatus.Accepted);
         }
+    }
+
+    private sealed class RecordingReplyHandler(IClusterMessageHandler inner) : IClusterMessageHandler
+    {
+        public ClusterMessage? Message { get; private set; }
+
+        public ValueTask<ClusterSendStatus> HandleAsync(
+            ClusterMessage message,
+            CancellationToken cancellationToken = default)
+        {
+            Message = message;
+            return inner.HandleAsync(message, cancellationToken);
+        }
+    }
+
+    private static async ValueTask RegisterNodeAsync(
+        InMemoryNodeDirectory directory,
+        NodeId node,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        await directory.RegisterAsync(
+            new NodeRegistration(
+                "local",
+                node,
+                new Dictionary<string, NodeEndpoint>
+                {
+                    ["cluster"] = new NodeEndpoint($"in-memory://{node}")
+                },
+                now.AddMinutes(10),
+                NodeState.Ready),
+            now,
+            cancellationToken);
     }
 
     private sealed class StatusHandler(ClusterSendStatus status) : IClusterMessageHandler
