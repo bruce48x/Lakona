@@ -1,3 +1,5 @@
+extern alias GameServer;
+
 using System.Reflection;
 using System.Runtime.Loader;
 using Microsoft.CodeAnalysis;
@@ -8,13 +10,47 @@ using Lakona.Game.Cluster;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
+using Lakona.Game.Server.Hotfix.Scanning;
 using Lakona.Rpc.Core;
 using Xunit;
+using ActorNameAttribute = GameServer::Lakona.Game.Server.Actors.ActorNameAttribute;
 
 namespace Lakona.Game.Server.Hotfix.Tests;
 
 public sealed class HotfixManagerTests
 {
+    [Theory]
+    [InlineData("FooActor", "foo")]
+    [InlineData("Foo", "foo")]
+    [InlineData("Actor", "actor")]
+    public void Actor_name_default_convention_is_stable(string typeName, string expected)
+    {
+        Assert.Equal(expected, ActorNameConventions.ResolveDefault(typeName));
+    }
+
+    [Fact]
+    public void Actor_host_descriptors_use_explicit_actor_wire_name()
+    {
+        var scan = new HotfixBehaviorScanResult(
+            [],
+            [],
+            [],
+            [],
+            [ActorPlacementDeclaration.Create<BattleRoomActor, string>(static context => context.Candidates[0])],
+            [],
+            [],
+            []);
+        var method = typeof(HotfixManager).GetMethod(
+            "CreateActorHostDescriptors",
+            BindingFlags.NonPublic | BindingFlags.Static)!;
+
+        var descriptors = Assert.IsAssignableFrom<IReadOnlyList<HotfixActorHostDescriptor>>(
+            method.Invoke(null, [scan, "test-build"]));
+
+        var descriptor = Assert.Single(descriptors);
+        Assert.Equal("battle-room", descriptor.Actor);
+    }
+
     [Fact]
     public async Task Reload_fails_when_state_type_is_loaded_from_hotfix_context()
     {
@@ -810,6 +846,9 @@ public sealed class HotfixManagerTests
 
         return new WeakReference(loadContext);
     }
+
+    [ActorName("battle-room")]
+    private sealed class BattleRoomActor;
 
     private static async Task AssertLoadContextUnloadedAsync(WeakReference loadContextReference, CancellationToken cancellationToken)
     {

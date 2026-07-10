@@ -515,7 +515,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             AppendHotfixDistributedAskHelper(builder, contract);
 
             builder.AppendLine();
-            AppendHotfixResolveNodeMethod(builder, LowerFirst(GetActorPrefix(contract.Actor.Name)), indentLevel: 1);
+            AppendHotfixResolveNodeMethod(builder, ResolveActorName(contract.Actor), indentLevel: 1);
             builder.AppendLine();
             AppendHotfixIsLocationFailureMethod(builder, indentLevel: 1);
 
@@ -692,7 +692,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
         private static void AppendHotfixDistributedCallNoResultHelper(StringBuilder builder, HotfixActorApiInfo contract)
         {
             var actorType = contract.Actor.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            var actorName = LowerFirst(GetActorPrefix(contract.Actor.Name));
+            var actorName = ResolveActorName(contract.Actor);
 
             builder.AppendLine("    private async global::System.Threading.Tasks.ValueTask __lakona_CallAsync<TRequest>(");
             builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod method,");
@@ -766,7 +766,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
         private static void AppendHotfixLocalPostHelper(StringBuilder builder, HotfixActorApiInfo contract)
         {
-            var actorName = LowerFirst(GetActorPrefix(contract.Actor.Name));
+            var actorName = ResolveActorName(contract.Actor);
 
             builder.AppendLine("    private global::System.Threading.Tasks.ValueTask __lakona_PostAsync<TRequest>(");
             builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod method,");
@@ -886,7 +886,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             HotfixActorApiInfo contract)
         {
             var actorType = contract.Actor.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            var actorName = LowerFirst(GetActorPrefix(contract.Actor.Name));
+            var actorName = ResolveActorName(contract.Actor);
 
             builder.AppendLine("    internal async global::System.Threading.Tasks.ValueTask __lakona_TellAsync<TRequest>(");
             builder.AppendLine("        string behaviorMethodName,");
@@ -934,7 +934,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             HotfixActorApiInfo contract)
         {
             var actorType = contract.Actor.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            var actorName = LowerFirst(GetActorPrefix(contract.Actor.Name));
+            var actorName = ResolveActorName(contract.Actor);
 
             builder.AppendLine("    internal async global::System.Threading.Tasks.ValueTask<TResult> __lakona_AskAsync<TRequest, TResult>(");
             builder.AppendLine("        string behaviorMethodName,");
@@ -2388,6 +2388,23 @@ namespace Lakona.Game.Server.Hotfix.Generators
             return actorName.EndsWith("Actor", System.StringComparison.Ordinal) && actorName.Length > "Actor".Length
                 ? actorName.Substring(0, actorName.Length - "Actor".Length)
                 : actorName;
+        }
+
+        private static string ResolveActorName(INamedTypeSymbol actor)
+        {
+            foreach (var attribute in actor.GetAttributes())
+            {
+                if (attribute.AttributeClass?.ToDisplayString() ==
+                        "Lakona.Game.Server.Actors.ActorNameAttribute" &&
+                    attribute.ConstructorArguments.Length == 1 &&
+                    attribute.ConstructorArguments[0].Value is string explicitName &&
+                    !string.IsNullOrWhiteSpace(explicitName))
+                {
+                    return explicitName;
+                }
+            }
+
+            return LowerFirst(GetActorPrefix(actor.Name));
         }
 
         private static string CreateActorApiMethodKeyConstantName(HotfixActorMethodInfo method)
