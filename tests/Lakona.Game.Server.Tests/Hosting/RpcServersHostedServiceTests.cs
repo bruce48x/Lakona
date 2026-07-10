@@ -50,6 +50,30 @@ public sealed class RpcServersHostedServiceTests
     }
 
     [Fact]
+    public async Task StartAsync_stops_listeners_when_another_acceptor_fails()
+    {
+        var listening = new TrackingConnectionAcceptor("test://listening");
+        await using var services = new ServiceCollection()
+            .AddSingleton(new LakonaGameRuntimeOptions())
+            .BuildServiceProvider();
+        var hosted = new RpcServersHostedService(
+            [new ImmediateConfigurator("listening", listening), new FailingConfigurator()],
+            services);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            hosted.StartAsync(TestContext.Current.CancellationToken));
+
+        try
+        {
+            Assert.True(listening.Disposed.IsCompleted);
+        }
+        finally
+        {
+            await hosted.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
     public async Task StartAsync_completes_when_no_rpc_configurators_exist()
     {
         await using var services = new ServiceCollection()
@@ -113,6 +137,21 @@ public sealed class RpcServersHostedServiceTests
         }
     }
 
+    private sealed class ImmediateConfigurator(
+        string transport,
+        IRpcConnectionAcceptor acceptor) : IRpcServerConfigurator
+    {
+        public string Transport { get; } = transport;
+
+        public void Configure(LakonaGameServerRpcContext context)
+        {
+            context.Builder
+                .UseSerializer(new JsonRpcSerializer())
+                .ConfigureServices(_ => { })
+                .UseAcceptor(acceptor);
+        }
+    }
+
     private sealed class BlockingConnectionAcceptor(string listenAddress) : IRpcConnectionAcceptor
     {
         public string ListenAddress { get; } = listenAddress;
@@ -125,6 +164,28 @@ public sealed class RpcServersHostedServiceTests
 
         public ValueTask DisposeAsync()
         {
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class TrackingConnectionAcceptor(string listenAddress) : IRpcConnectionAcceptor
+    {
+        private readonly TaskCompletionSource _disposed = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public string ListenAddress { get; } = listenAddress;
+
+        public Task Disposed => _disposed.Task;
+
+        public async ValueTask<RpcAcceptedConnection> AcceptAsync(CancellationToken ct = default)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            throw new UnreachableException();
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            _disposed.TrySetResult();
             return ValueTask.CompletedTask;
         }
     }

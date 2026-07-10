@@ -21,8 +21,16 @@ internal sealed class RpcServersHostedService : BackgroundService
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
-        await base.StartAsync(cancellationToken).ConfigureAwait(false);
-        await _listening.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await base.StartAsync(cancellationToken).ConfigureAwait(false);
+            await _listening.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            await base.StopAsync(CancellationToken.None).ConfigureAwait(false);
+            throw;
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
