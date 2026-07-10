@@ -1,12 +1,18 @@
+using MemoryPack;
+
 namespace Server.App.State.Contracts.Rooms;
 
-public sealed class RoomSnapshotRequest
+[MemoryPackable(GenerateType.VersionTolerant)]
+public sealed partial class RoomSnapshotRequest
 {
 }
 
-public sealed class RoomTickRequest
+[MemoryPackable(GenerateType.VersionTolerant)]
+public sealed partial class RoomTickRequest
 {
+    [MemoryPackOrder(0)]
     public DateTime ObservedAtUtc { get; set; }
 
+    [MemoryPackOrder(1)]
     public float DeltaSeconds { get; set; } = 1f / 20f;
 }

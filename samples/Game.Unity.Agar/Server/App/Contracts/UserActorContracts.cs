@@ -1,34 +1,47 @@
+using MemoryPack;
+
 namespace Server.App.State.Contracts.Users;
 
-public sealed class UserLoginRequest
+[MemoryPackable(GenerateType.VersionTolerant)]
+public sealed partial class UserLoginRequest
 {
+    [MemoryPackOrder(0)]
     public string Password { get; set; } = "";
 
+    [MemoryPackOrder(1)]
     public bool Reconnect { get; set; }
 }
 
-public sealed class UserProfileRequest
+[MemoryPackable(GenerateType.VersionTolerant)]
+public sealed partial class UserProfileRequest
 {
 }
 
-public sealed class UserOnlineStatusRequest
+[MemoryPackable(GenerateType.VersionTolerant)]
+public sealed partial class UserOnlineStatusRequest
 {
+    [MemoryPackOrder(0)]
     public bool IsOnline { get; set; }
 }
 
-public sealed class UserWinRequest
+[MemoryPackable(GenerateType.VersionTolerant)]
+public sealed partial class UserWinRequest
 {
 }
 
-public sealed class UserVictoryPointsRequest
+[MemoryPackable(GenerateType.VersionTolerant)]
+public sealed partial class UserVictoryPointsRequest
 {
+    [MemoryPackOrder(0)]
     public int Points { get; set; }
 }
 
-public sealed class UserVictoryPointsResetRequest
+[MemoryPackable(GenerateType.VersionTolerant)]
+public sealed partial class UserVictoryPointsResetRequest
 {
 }
 
-public sealed class PlayerSessionSnapshotRequest
+[MemoryPackable(GenerateType.VersionTolerant)]
+public sealed partial class PlayerSessionSnapshotRequest
 {
 }
