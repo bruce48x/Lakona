@@ -556,15 +556,33 @@ public sealed class LakonaTimerIntegrationTests
 
         await schedulerFixture.StartAsync(TestContext.Current.CancellationToken);
         time.Advance(TimeSpan.FromSeconds(1));
-        await TimerRuntimeCallbackLog.WaitForGenerationAsync("v1-parent", TestContext.Current.CancellationToken);
-        schedulerFixture.Current = v2.Snapshot;
+        try
+        {
+            await TimerRuntimeCallbackLog.WaitForGenerationAsync("v1-parent", TestContext.Current.CancellationToken);
+            schedulerFixture.Current = v2.Snapshot;
+        }
+        finally
+        {
+            TimerRuntimeCallbackLog.Release();
+        }
 
-        TimerRuntimeCallbackLog.Release();
         await TimerRuntimeCallbackLog.WaitForGenerationAsync("v1-created-child", TestContext.Current.CancellationToken);
 
         Assert.Contains(schedulerFixture.Backend.Descriptors, descriptor =>
             descriptor.CallbackFullName == "InFlightReload.ChildCallback"
             && descriptor.Generation == 1);
+    }
+
+    [Fact]
+    public async Task Timer_callback_release_is_latched_when_release_precedes_wait()
+    {
+        TimerRuntimeCallbackLog.Reset();
+
+        TimerRuntimeCallbackLog.Release();
+
+        await TimerRuntimeCallbackLog.WaitForReleaseAsync()
+            .AsTask()
+            .WaitAsync(TimeSpan.FromMilliseconds(250), TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -1812,7 +1830,8 @@ public sealed class LakonaTimerIntegrationTests
         {
             lock (Sync)
             {
-                release?.TrySetResult();
+                release ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                release.TrySetResult();
             }
         }
 
