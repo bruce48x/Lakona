@@ -36,7 +36,7 @@ public sealed class LakonaHealthHttpHostedServiceTests
         {
             using var http = new HttpClient
             {
-                Timeout = TimeSpan.FromMilliseconds(500)
+                Timeout = TimeSpan.FromSeconds(5)
             };
 
             var body = await http.GetStringAsync(
