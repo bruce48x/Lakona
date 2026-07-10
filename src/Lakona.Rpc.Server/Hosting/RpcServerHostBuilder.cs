@@ -321,6 +321,14 @@ public sealed class RpcServerHostBuilder
         return Build().RunAsync(ct);
     }
 
+    internal ValueTask RunAsync(
+        CancellationToken cancellationToken,
+        Action<string> onListening)
+    {
+        ArgumentNullException.ThrowIfNull(onListening);
+        return Build().RunAsync(cancellationToken, onListening);
+    }
+
     /// <summary>
     ///     Resolves the configured port or returns a default.
     /// </summary>

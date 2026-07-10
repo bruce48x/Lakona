@@ -592,6 +592,32 @@ public class RpcSessionTests
     }
 
     [Fact]
+    public async Task RunAsync_notifies_listening_only_after_acceptor_is_created()
+    {
+        var acceptorReady = new TaskCompletionSource<IRpcConnectionAcceptor>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var listening = new TaskCompletionSource<string>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var builder = RpcServerHostBuilder.Create()
+            .UseSerializer(new JsonRpcSerializer())
+            .ConfigureServices(_ => { })
+            .UseAcceptor(ct => new ValueTask<IRpcConnectionAcceptor>(
+                acceptorReady.Task.WaitAsync(ct)));
+
+        var run = builder.RunAsync(
+            cts.Token,
+            address => listening.TrySetResult(address)).AsTask();
+
+        Assert.False(listening.Task.IsCompleted);
+        acceptorReady.SetResult(new BlockingConnectionAcceptor("test://ready"));
+        Assert.Equal("test://ready", await listening.Task.WaitAsync(cts.Token));
+
+        await cts.CancelAsync();
+        await run;
+    }
+
+    [Fact]
     public async Task BoundedConnectionAcceptor_DoesNotReturnDisconnectedQueuedConnection()
     {
         var staleTransport = new ToggleableConnectionTransport(initiallyConnected: false);
@@ -1187,6 +1213,22 @@ public class RpcSessionTests
                 Interlocked.Increment(ref _owner._disposedTransportCount);
                 return ValueTask.CompletedTask;
             }
+        }
+    }
+
+    private sealed class BlockingConnectionAcceptor(string listenAddress) : IRpcConnectionAcceptor
+    {
+        public string ListenAddress { get; } = listenAddress;
+
+        public async ValueTask<RpcAcceptedConnection> AcceptAsync(CancellationToken ct = default)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            throw new UnreachableException();
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            return ValueTask.CompletedTask;
         }
     }
 

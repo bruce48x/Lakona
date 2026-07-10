@@ -40,7 +40,14 @@ public sealed class RpcServerHost
         _sessionLifecycleObservers = sessionLifecycleObservers ?? Array.Empty<IRpcSessionLifecycleObserver>();
     }
 
-    public async ValueTask RunAsync(CancellationToken ct = default)
+    public ValueTask RunAsync(CancellationToken ct = default)
+    {
+        return RunAsync(ct, onListening: null);
+    }
+
+    internal async ValueTask RunAsync(
+        CancellationToken ct,
+        Action<string>? onListening)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         ConsoleCancelEventHandler? cancelHandler = null;
@@ -65,6 +72,7 @@ public sealed class RpcServerHost
                 _logger,
                 cts.Token);
             _logger.LogInformation("RPC server listening on {ListenAddress}. Press Ctrl+C to stop.", baseAcceptor.ListenAddress);
+            onListening?.Invoke(baseAcceptor.ListenAddress);
 
             while (!cts.IsCancellationRequested)
             {
