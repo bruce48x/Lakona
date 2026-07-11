@@ -1,7 +1,7 @@
 # Configuration
 
 Lakona runtime configuration is bound from the `Lakona` root. The runtime model
-is node, endpoints, actor hosting, startup actors, cluster infrastructure,
+is node, endpoints, actor hosting, cluster infrastructure,
 heartbeat, hotfix, and observability.
 
 ## Root Shape
@@ -13,15 +13,6 @@ heartbeat, hotfix, and observability.
       "Id": "dev-1"
     },
     "ActorHosts": [ "user", "matchmaking", "leaderboard", "room" ],
-    "StartupActors": [
-      "matchmaking",
-      {
-        "Name": "leaderboard",
-        "Options": {
-          "period": "weekly"
-        }
-      }
-    ],
     "Endpoints": [
       {
         "Transport": "websocket",
@@ -49,12 +40,10 @@ Lakona accepts both forms for arrays:
 ```bash
 Lakona__ActorHosts__0=user
 Lakona__ActorHosts__1=matchmaking
-Lakona__StartupActors__0=matchmaking
 ```
 
 ```bash
 Lakona__ActorHosts='["user","matchmaking"]'
-Lakona__StartupActors='["matchmaking"]'
 ```
 
 Use JSON string arrays in Docker Compose when compact values are easier to read:
@@ -63,7 +52,6 @@ Use JSON string arrays in Docker Compose when compact values are easier to read:
 environment:
   Lakona__Node__Id: data-1
   Lakona__ActorHosts: '["user","matchmaking","leaderboard"]'
-  Lakona__StartupActors: '["matchmaking","leaderboard"]'
   Lakona__Cluster__Endpoint: tcp://0.0.0.0:21001
   Lakona__Cluster__Serializer: memorypack
 ```
@@ -89,16 +77,19 @@ databases belong under application-owned configuration roots.
 ## Actor Hosting
 
 `Lakona:ActorHosts` is the list of actor kinds this node may create locally.
-`Lakona:StartupActors` is the list of named startup declarations activated on
-this node. Startup entries may be strings or objects with `Name` and `Options`.
+Startup service groups are declared in code with
+`RegisterStartup<TActor,TKey>(selector)`. Every node whose `ActorHosts` contains
+that actor kind starts one local replica and advertises it only after its
+`[ActorStart]` lifecycle succeeds. `Lakona:StartupActors` has been removed and
+is rejected as invalid configuration.
 
-Actor placement policy belongs in code. Keep per-node configuration limited to
-the node's allowed actor kinds and startup declarations.
+Actor placement and Startup selection policy belong in code. Per-node
+configuration only declares which actor kinds the node is capable of hosting.
 
 ## Validation
 
 Readiness validation checks node identity, endpoints, cluster endpoint shape,
-actor host names, startup actor names, hotfix source, heartbeat policy, and
+actor host names, hotfix source, heartbeat policy, and
 observability settings. Enable the independent health HTTP host and request the
 ready endpoint from a live process:
 
@@ -107,7 +98,7 @@ curl http://127.0.0.1:20080/_lakona/health/ready
 ```
 
 The framework emits `Lakona server started successfully. NodeId={NodeId}.` only
-after startup actors and lifecycle callbacks complete, cluster registration
+after Startup replicas and lifecycle callbacks complete, cluster registration
 succeeds, and every enabled RPC, cluster, and health listener has bound
 successfully. When enabled, local-admin routes share the health listener rather
 than opening an additional port.

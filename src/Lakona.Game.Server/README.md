@@ -231,8 +231,9 @@ matchmaking policy, persistence schema, or gameplay DTOs.
 - Cluster notifications: use `IClientNotifications` from business nodes; the
   framework sends serializable callback commands to the gateway that owns the
   session.
-- Actor startup: configure `Lakona:StartupActors` and register startup
-  declarations in a hotfix startup method marked `[HotfixConfigureActors]`.
+- Startup service groups: register `RegisterStartup<TActor,TKey>(selector)` in
+  a hotfix startup method marked `[HotfixConfigureActors]`; every capable
+  `ActorHosts` node starts one ready replica.
 - Hotfix timers: use `LakonaTimer.CreateOnceTimerAsync<TCallback, TArgs>` or
   `LakonaTimer.CreatePeriodicTimerAsync<TCallback, TArgs>` from `[ActorStart]`,
   store the returned `TimerId` in stable actor state, and call

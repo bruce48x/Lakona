@@ -31,8 +31,7 @@ accidentally reviving old ownership.
 ## Cluster Configuration
 
 Runtime configuration uses the application `Lakona` root. Static settings tell a
-node its own identity, which actor kinds it may host, which startup actors to
-create, which client
+node its own identity, which actor kinds it may host, which client
 endpoints to expose, which cluster endpoint to advertise, and which seed
 endpoints can reach the cluster directory. The live cluster view comes from the
 node directory.
@@ -52,7 +51,6 @@ nodes without changing route or messaging code.
       "Id": "dev-1"
     },
     "ActorHosts": [ "room", "matchmaking", "leaderboard" ],
-    "StartupActors": [ "matchmaking" ],
     "Endpoints": [
       {
         "Transport": "websocket",
@@ -94,7 +92,6 @@ local validation.
       "Id": "data-1"
     },
     "ActorHosts": [ "matchmaking", "leaderboard" ],
-    "StartupActors": [ "matchmaking" ],
     "Cluster": {
       "Endpoint": "tcp://10.0.0.1:21001",
       "Serializer": "memorypack",
@@ -118,7 +115,6 @@ local validation.
       "Id": "gateway-1"
     },
     "ActorHosts": [],
-    "StartupActors": [],
     "Endpoints": [
       {
         "Transport": "websocket",
@@ -143,6 +139,10 @@ The data node above can provide persistent framework cluster membership through
 `Lakona:Cluster:Directory` and `Lakona.Game.Cluster.Sql`. The gateway node
 hosts no application actors because `ActorHosts` is empty, but it still exposes
 client RPC services and a node-to-node cluster endpoint.
+
+Startup service groups are declared in hotfix code. Every node whose
+`ActorHosts` includes the actor kind starts one replica and advertises a ready
+descriptor through the node directory. Replica state is node-local.
 
 Every node that configures `Lakona:Cluster:Endpoint` must listen on that
 endpoint. Framework-owned cluster endpoint hosting binds node-directory RPC,

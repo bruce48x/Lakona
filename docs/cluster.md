@@ -12,7 +12,7 @@ relay. It does not define a second application component model.
 | Node | One server process with a stable `Lakona:Node:Id`. |
 | Endpoint | A transport address advertised by the node. |
 | Actor host | An actor kind this node is allowed to create locally. |
-| Startup actor | A named actor that should be created during node startup. |
+| Startup service group | One ready replica per capable node, selected through an application-owned keyed policy. |
 | Label | Low-cardinality node metadata used for framework discovery. |
 | Route | A mapping from route key to the node that currently owns it. |
 
@@ -27,7 +27,6 @@ Cluster configuration lives under the application `Lakona` root:
       "Id": "data-1"
     },
     "ActorHosts": [ "user", "matchmaking", "leaderboard" ],
-    "StartupActors": [ "matchmaking", "leaderboard" ],
     "Cluster": {
       "Endpoint": "tcp://10.0.0.1:21001",
       "Serializer": "memorypack",
@@ -43,12 +42,12 @@ Cluster configuration lives under the application `Lakona` root:
 }
 ```
 
-`ActorHosts` controls which actor kinds a node may create. `StartupActors`
-controls named actors created at startup. Placement and routing policy belongs
-in code, through generated actor selectors and registered route policies, not
-in per-node placement configuration.
+`ActorHosts` controls which actor kinds a node may create. A Startup declaration
+in hotfix code intersects with this capability list: each capable node creates
+one replica and advertises it only while ready. Placement, routing, and Startup
+selection policy belong in code, not per-node configuration.
 
-Gateway-only nodes normally use empty actor-host and startup lists while still
+Gateway-only nodes normally use an empty actor-host list while still
 exposing client RPC endpoints:
 
 ```json
@@ -58,7 +57,6 @@ exposing client RPC endpoints:
       "Id": "gateway-1"
     },
     "ActorHosts": [],
-    "StartupActors": [],
     "Endpoints": [
       {
         "Transport": "websocket",
@@ -138,12 +136,21 @@ Generated actor selectors express placement intent:
 ```csharp
 await rooms.Route(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct);
 await rooms.Local(roomId).PostAsync(RoomBehavior.RunTickAsync, request, ct);
+await matchmaking.Startup(queueId).CallAsync(MatchmakingBehavior.EnqueueAsync, request, ct);
 ```
 
 `Route(id)` may use registered routing policy to select a node. Typical
 policies include stable hash, random ready node, fixed node, or product-owned
 logic. The framework only requires the policy to choose from eligible ready
 nodes and return a valid target.
+
+`Startup(key)` is different from actor placement. `TKey` is routing affinity,
+not the physical actor id: the registered selector receives the key and the
+current ready candidates, and its strategy is fixed at registration time.
+Physical ids such as `matchmaking/@startup/data-1` remain framework-internal.
+On a definitely-not-executed attempt the same key may be reselected against the
+remaining replicas. Ambiguous failures are never retried. Replica state is not
+replicated; after failover an in-memory queue may be empty by design.
 
 Business actor routes are ownership mappings resolved through
 `IRouteDirectory` by `IClusterRouter`. They are distinct from node-directed
@@ -165,8 +172,8 @@ Server startup follows this high-level order:
 1. Bind `Lakona` runtime configuration.
 2. Register generated actor selectors and hotfix service bindings.
 3. Configure RPC endpoints and cluster endpoint serializers.
-4. Start actor startup declarations selected by `Lakona:StartupActors`.
-5. Register node endpoints, actor hosts, and labels in the node directory.
+4. Start one replica for every Startup declaration allowed by `ActorHosts`.
+5. Register node endpoints, actor hosts, and ready Startup descriptors.
 6. Start RPC listeners.
 7. After every enabled framework listener has bound and all hosted startup work
    has completed, log `Lakona server started successfully` with the node id.

@@ -35,7 +35,6 @@ Example data node that owns the shared directories and actor hosting:
       "Id": "data-1"
     },
     "ActorHosts": [ "matchmaking", "leaderboard" ],
-    "StartupActors": [ "matchmaking" ],
     "Cluster": {
       "Endpoint": "tcp://10.0.0.1:21001",
       "Serializer": "memorypack",
@@ -60,7 +59,6 @@ Example gateway node with only endpoint-local client RPC exposure:
       "Id": "gateway-1"
     },
     "ActorHosts": [],
-    "StartupActors": [],
     "Endpoints": [
       {
         "Transport": "websocket",
@@ -80,8 +78,9 @@ Example gateway node with only endpoint-local client RPC exposure:
 }
 ```
 
-`ActorHosts` declares actor kinds the node may create locally. `StartupActors`
-declares named actors created during node startup. `RpcServices` declares
+`ActorHosts` declares actor kinds the node may create locally. Startup service
+groups are code declarations and create one ready replica on every capable
+node. `RpcServices` declares
 services exposed only on that client endpoint. Nodes that do not register a
 local `INodeDirectory` or `IRouteDirectory` use `Lakona:Cluster:Seeds` as the
 public bootstrap input and register themselves, client-session routes, and

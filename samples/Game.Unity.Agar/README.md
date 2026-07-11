@@ -145,14 +145,15 @@ ordinary actor behavior calls.
 ```csharp
 await rooms.Route(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct);    // 默认业务路径，由 Route 负责查目录和选节点
 await rooms.Local(roomId).PostAsync(RoomBehavior.RunTickAsync, request, ct); // 已确认本地归属后，只投递当前节点
+await matchmaking.Startup(queueId).CallAsync(MatchmakingBehavior.EnqueueAsync, request, ct); // 按固定 selector 选择就绪副本
 ```
 
-Matchmaking 是 remote-capable actor 的示例。单进程默认配置通过
-`Lakona:StartupActors` 创建 `MatchmakingActor("default")`，并从 `[ActorStart]`
-创建 LakonaTimer periodic timer 驱动默认匹配队列。三节点拓扑中 `data-1`
-启用 `matchmaking` startup actor，因此默认匹配队列属于 data 节点。RPC service 不应在每次 enqueue/cancel
-前调用 `EnsureCreatedAsync`；创建、放置和迁移是 actor startup/业务 lifecycle 的职责，
-普通调用只应该路由到已经存在的 actor。
+Matchmaking 是 Startup service group 的示例。`HotfixStartup.ConfigureActors`
+注册带 `MatchmakingQueueId` key 的固定 selector；每个允许托管 `matchmaking`
+的节点创建一个副本，并从 `[ActorStart]` 创建 LakonaTimer periodic timer。
+key 只用于选择亲和性，不是物理 actor id。当前三节点拓扑只有 `data-1`
+具备该能力；增加第二个 capable 节点即可增加副本。故障切换不会复制内存队列，
+队列允许清空。RPC service 不应在 enqueue/cancel 前调用 `EnsureCreatedAsync`。
 
 本地 `docker-compose.yml` 会把 `infra/postgres/init` 挂载到 Postgres
 `/docker-entrypoint-initdb.d`，其中 `001-lakona-cluster-nodes.sql` 创建

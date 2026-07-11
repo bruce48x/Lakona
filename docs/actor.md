@@ -340,7 +340,7 @@ cache/local actor state for the requested type.
 ## Timers
 
 Hotfix timers are framework-owned callbacks created through `LakonaTimer`.
-Actor startup is declared from a `[HotfixStartup]` type, while periodic work
+Startup service groups are declared from a `[HotfixStartup]` type, while periodic work
 should stay inside hotfix actor behavior or explicit timer callbacks:
 
 ```csharp
@@ -350,9 +350,8 @@ public static class GameHotfixStartup
     [HotfixConfigureActors]
     public static void Actors(ActorHostBuilder actors)
     {
-        actors.RegisterStartup(
-            "matchmaking",
-            static _ => ActorStartupPlan.Create<MatchmakingActor>(ActorId.From("default")));
+        actors.RegisterStartup<MatchmakingActor, MatchmakingQueueId>(
+            static context => SelectStableHash(context.Candidates, context.Key.Value));
     }
 }
 
@@ -367,6 +366,14 @@ public sealed class BattleRuntimeTimers
     }
 }
 ```
+
+Each capable node starts one physical replica. Generated business code calls
+`.Startup(key)`; the key only supplies affinity to the fixed selector and is not
+an actor id. The framework advertises a replica after `[ActorStart]` succeeds
+and withdraws it before removal. Same-key failover is limited to attempts known
+not to have executed. State is local to each replica, so failover does not
+preserve an in-memory queue. Use the exact physical actor id only for internal
+lifecycle work such as a replica-owned timer.
 
 The method name is explicit on purpose. Use `nameof(...)` so the call site shows
 which callback will run and normal refactoring tools keep the declaration in

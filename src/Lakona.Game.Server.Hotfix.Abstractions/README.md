@@ -36,9 +36,8 @@ public static class GameHotfixStartup
     [HotfixConfigureActors]
     public static void Actors(ActorHostBuilder actors)
     {
-        actors.RegisterStartup(
-            "matchmaking",
-            static _ => ActorStartupPlan.Create<MatchmakingActor>(ActorId.From("default")));
+        actors.RegisterStartup<MatchmakingActor, MatchmakingQueueId>(
+            static context => SelectStableHash(context.Candidates, context.Key.Value));
     }
 }
 ```
@@ -46,6 +45,9 @@ public static class GameHotfixStartup
 Both methods are optional, but when present they must be public static void
 methods with exactly one supported parameter. Startup methods are declaration
 surfaces; the runtime does not construct the `[HotfixStartup]` type.
+`TKey` provides routing affinity to the selector; it is not the replica's actor
+id. The selector is fixed by registration and must return one offered ready
+candidate.
 
 ## Timers
 

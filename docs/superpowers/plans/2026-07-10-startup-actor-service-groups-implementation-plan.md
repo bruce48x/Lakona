@@ -743,11 +743,11 @@ git commit -m "Migrate samples to startup actor groups"
 - Modify: package READMEs under affected `src/Lakona.Game.*` directories.
 - Modify: `samples/Game.Unity.Agar/README.md`
 
-- [ ] **Step 1: Document semantics, not migration history**
+- [x] **Step 1: Document semantics, not migration history**
 
 Document Startup service groups versus keyed actors, `TKey` as routing affinity only, fixed application-owned selector, descriptor readiness, internal identity, same-key failover, non-replicated state, and ActorHosts intersection. Configuration docs must say `Lakona:StartupActors` is invalid, not merely deprecated.
 
-- [ ] **Step 2: Run repository scans**
+- [x] **Step 2: Run repository scans**
 
 ```powershell
 rg -n "Lakona:StartupActors|Lakona__StartupActors|ActorStartupPlan|RegisterStartup\(\s*\"|\.Route\(ChatRoomIds\.Global\)" src tests samples docs --glob "!docs/superpowers/**"
@@ -755,7 +755,7 @@ rg -n "Lakona:StartupActors|Lakona__StartupActors|ActorStartupPlan|RegisterStart
 
 Expected: only the intentional removed-key validation text and tests remain; no active example uses the old model.
 
-- [ ] **Step 3: Run docs checks and commit**
+- [x] **Step 3: Run docs checks and commit**
 
 ```powershell
 pwsh -NoProfile -File scripts/rpc/check-docs-consistency.ps1
