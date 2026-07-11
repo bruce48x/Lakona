@@ -38,8 +38,10 @@ internal sealed class ActorStartupHostedService(
         }
 
         using var lease = hotfixRuntime.AcquireCurrent();
-        var declarations = lease.Snapshot.ActorStartups.ToDictionary(
-            static startup => startup.Name,
+        var declarations = lease.Snapshot.ActorStartups
+            .Where(static startup => startup.IsLegacy)
+            .ToDictionary(
+            static startup => startup.Name!,
             StringComparer.OrdinalIgnoreCase);
 
         foreach (var startup in configured)
@@ -50,7 +52,7 @@ internal sealed class ActorStartupHostedService(
                     $"Lakona:StartupActors contains unknown actor startup '{startup.Name}'.");
             }
 
-            var plan = declaration.CreatePlan(new ActorStartupContext(startup.Name, startup.Options));
+            var plan = declaration.CreatePlan!(new ActorStartupContext(startup.Name, startup.Options));
             foreach (var actor in plan.Actors)
             {
                 await EnsureStartupActorAsync(startup.Name, actor, cancellationToken).ConfigureAwait(false);

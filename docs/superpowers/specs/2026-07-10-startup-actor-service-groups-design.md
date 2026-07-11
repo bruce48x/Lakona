@@ -2,9 +2,7 @@
 
 ## Status
 
-Paused. The design is approved in principle, but implementation is intentionally
-deferred until a later milestone. Keep this document as the restart point; do
-not treat it as an active delivery plan.
+Active. The design is approved and implementation resumed on 2026-07-11.
 
 ## Problem
 

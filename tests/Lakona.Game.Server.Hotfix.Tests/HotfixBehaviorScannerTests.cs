@@ -37,7 +37,8 @@ public sealed class HotfixBehaviorScannerTests
 
         Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
         var startup = Assert.Single(result.ActorStartups);
-        Assert.Equal("matchmaking", startup.Name);
+        Assert.Equal(typeof(StartupScanFixture.RoomActor), startup.ActorType);
+        Assert.Equal(typeof(StartupScanFixture.TenantKey), startup.KeyType);
         var placement = Assert.Single(result.ActorPlacements);
         Assert.Equal(typeof(StartupScanFixture.RoomActor), placement.ActorType);
         Assert.Equal(typeof(ActorId), placement.KeyType);
@@ -65,10 +66,28 @@ public sealed class HotfixBehaviorScannerTests
 
         Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
         var startup = Assert.Single(result.ActorStartups);
-        Assert.Equal("matchmaking", startup.Name);
+        Assert.Equal(typeof(AttributedStartupFixture.RoomActor), startup.ActorType);
+        Assert.Equal(typeof(string), startup.KeyType);
         var service = Assert.Single(result.StartupServices);
         Assert.Equal(typeof(AttributedStartupFixture.IMarkerService), service.ServiceType);
         Assert.Equal(typeof(AttributedStartupFixture.MarkerService), service.ImplementationType);
+    }
+
+    [Fact]
+    public void Scanner_rejects_duplicate_startup_actor_across_startup_classes()
+    {
+        var result = HotfixBehaviorScanner.Scan(
+            typeof(DuplicateStartupActorFixture.FirstStartup).Assembly,
+            [
+                typeof(DuplicateStartupActorFixture.FirstStartup),
+                typeof(DuplicateStartupActorFixture.SecondStartup),
+            ]);
+
+        Assert.False(result.Succeeded);
+        Assert.Empty(result.ActorStartups);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Contains("Duplicate actor startup", StringComparison.Ordinal) &&
+            diagnostic.Contains(typeof(DuplicateStartupActorFixture.RoomActor).FullName!, StringComparison.Ordinal));
     }
 
     [Fact]
@@ -291,15 +310,16 @@ public sealed class HotfixBehaviorScannerTests
         {
         }
 
+        public sealed record TenantKey(string Value);
+
         [HotfixStartup]
         public static class HotfixStartup
         {
             [HotfixConfigureActors]
             public static void ConfigureActors(ActorHostBuilder actors)
             {
-                actors.RegisterStartup(
-                    "matchmaking",
-                    static _ => ActorStartupPlan.Create<RoomActor>(ActorId.From("default")));
+                actors.RegisterStartup<RoomActor, TenantKey>(
+                    static context => context.Candidates[0]);
                 actors.RegisterPlacement<RoomActor, ActorId>(
                     static context => context.Candidates[0]);
             }
@@ -332,9 +352,8 @@ public sealed class HotfixBehaviorScannerTests
             [HotfixConfigureActors]
             public static void Actors(ActorHostBuilder actors)
             {
-                actors.RegisterStartup(
-                    "matchmaking",
-                    static _ => ActorStartupPlan.Create<RoomActor>(ActorId.From("default")));
+                actors.RegisterStartup<RoomActor, string>(
+                    static context => context.Candidates[0]);
             }
 
             [HotfixConfigureServices]
@@ -350,6 +369,35 @@ public sealed class HotfixBehaviorScannerTests
 
         public sealed class MarkerService : IMarkerService
         {
+        }
+    }
+
+    public static class DuplicateStartupActorFixture
+    {
+        public sealed class RoomActor : IActor
+        {
+        }
+
+        [HotfixStartup]
+        public static class FirstStartup
+        {
+            [HotfixConfigureActors]
+            public static void ConfigureActors(ActorHostBuilder actors)
+            {
+                actors.RegisterStartup<RoomActor, string>(
+                    static context => context.Candidates[0]);
+            }
+        }
+
+        [HotfixStartup]
+        public static class SecondStartup
+        {
+            [HotfixConfigureActors]
+            public static void ConfigureActors(ActorHostBuilder actors)
+            {
+                actors.RegisterStartup<RoomActor, int>(
+                    static context => context.Candidates[0]);
+            }
         }
     }
 

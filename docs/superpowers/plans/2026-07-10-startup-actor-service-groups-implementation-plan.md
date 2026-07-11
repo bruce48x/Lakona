@@ -2,9 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Execution status:** Paused by project direction. Resume only after the
-> Startup Actor design is explicitly reopened; the unchecked tasks below are
-> not an active work queue.
+> **Execution status:** Active as of 2026-07-11.
 
 **Goal:** Replace named/configured Startup Actors with replicated, ready-advertised service groups registered as `RegisterStartup<TActor, TKey>(selector)` and called through generated `.Startup(key)` refs with safe failover.
 
@@ -24,6 +22,16 @@
 - **Compatibility:** Breaking by design. Remove the named `RegisterStartup(string, createPlan)` API, `ActorStartupPlan` model, `Lakona:StartupActors`, and old sample/template usage without shims.
 - **State contract:** Replica state is in-memory and not replicated. Failover may lose matchmaking queues and leaderboard state accumulated only on the failed replica.
 - **Primary risks:** advertising before actor start, selecting capability rather than readiness, retrying an ambiguous attempt, hotfix rollback leaving descriptors or actors behind, generator/runtime key-type disagreement, node epoch races, or silently accepting removed configuration.
+- **Sequencing correction:** Task 1 introduces typed registrations while the
+  old startup-plan path remains isolated as an explicitly temporary legacy
+  compile bridge. Task 6 switches lifecycle ownership to typed replicas; Task 9
+  migrates the remaining consumers and deletes the bridge. The final public
+  surface still has no compatibility shim. This avoids an unbuildable interval
+  between the authoring-model and lifecycle milestones.
+- **Versioning correction:** The fixed versions originally listed in Task 11
+  predate later releases. Final versions are derived from the branch base and
+  the package-version graph guard, using minor + 1 and patch zero for every
+  affected release-graph package.
 
 ## Public contracts fixed by this plan
 

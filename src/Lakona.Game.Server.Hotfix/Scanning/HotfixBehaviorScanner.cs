@@ -45,6 +45,8 @@ public static class HotfixBehaviorScanner
         var actorMethodKeys = new HashSet<string>(StringComparer.Ordinal);
         var serviceKeys = new HashSet<string>(StringComparer.Ordinal);
         var startupNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var startupActors = new HashSet<Type>();
+        var invalidStartupActors = new HashSet<Type>();
         var placementActors = new HashSet<Type>();
         var serviceImplementations = new Dictionary<Type, HashSet<Type>>();
         var included = includedTypes is null ? null : new HashSet<Type>(includedTypes);
@@ -112,6 +114,8 @@ public static class HotfixBehaviorScanner
                         startupServices,
                         diagnostics,
                         startupNames,
+                        startupActors,
+                        invalidStartupActors,
                         placementActors);
                 }
 
@@ -181,6 +185,8 @@ public static class HotfixBehaviorScanner
         List<ServiceDescriptor> startupServices,
         List<string> diagnostics,
         HashSet<string> startupNames,
+        HashSet<Type> startupActors,
+        HashSet<Type> invalidStartupActors,
         HashSet<Type> placementActors)
     {
         if (!startupType.IsVisible || !startupType.IsAbstract || !startupType.IsSealed)
@@ -201,7 +207,26 @@ public static class HotfixBehaviorScanner
             {
                 foreach (var startup in builder.Startups)
                 {
-                    if (!startupNames.Add(startup.Name))
+                    if (!startup.IsLegacy)
+                    {
+                        var actorType = startup.ActorType!;
+                        if (!startupActors.Add(actorType))
+                        {
+                            invalidStartupActors.Add(actorType);
+                            actorStartups.RemoveAll(item => item.ActorType == actorType);
+                            diagnostics.Add($"Duplicate actor startup for '{actorType.FullName}'.");
+                            continue;
+                        }
+
+                        if (!invalidStartupActors.Contains(actorType))
+                        {
+                            actorStartups.Add(startup);
+                        }
+
+                        continue;
+                    }
+
+                    if (!startupNames.Add(startup.Name!))
                     {
                         diagnostics.Add($"Duplicate actor startup name '{startup.Name}'.");
                         continue;

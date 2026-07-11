@@ -52,6 +52,33 @@ public sealed class HotfixManagerTests
     }
 
     [Fact]
+    public void Startup_actor_host_descriptor_uses_typed_actor_and_key_identity()
+    {
+        var scan = new HotfixBehaviorScanResult(
+            [],
+            [],
+            [],
+            [ActorStartupDeclaration.Create<BattleRoomActor, string>(static context => context.Candidates[0])],
+            [],
+            [],
+            [],
+            []);
+        var method = typeof(HotfixManager).GetMethod(
+            "CreateActorHostDescriptors",
+            BindingFlags.NonPublic | BindingFlags.Static)!;
+
+        var descriptors = Assert.IsAssignableFrom<IReadOnlyList<HotfixActorHostDescriptor>>(
+            method.Invoke(null, [scan, "test-build"]));
+
+        var descriptor = Assert.Single(descriptors);
+        Assert.Equal("battle-room", descriptor.Actor);
+        Assert.Equal(
+            $"startup:v1:{typeof(BattleRoomActor).FullName}:{typeof(string).FullName}",
+            descriptor.PolicyHash);
+        Assert.Equal("test-build", descriptor.BuildTag);
+    }
+
+    [Fact]
     public async Task Reload_fails_when_state_type_is_loaded_from_hotfix_context()
     {
         using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);

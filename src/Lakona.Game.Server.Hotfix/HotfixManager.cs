@@ -255,7 +255,23 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
         var descriptors = new Dictionary<string, HotfixActorHostDescriptor>(StringComparer.OrdinalIgnoreCase);
         foreach (var startup in scan.ActorStartups)
         {
-            AddActorHostDescriptor(descriptors, startup.Name, "startup:" + startup.Name, buildTag);
+            if (startup.IsLegacy)
+            {
+                AddActorHostDescriptor(
+                    descriptors,
+                    startup.Name!,
+                    "startup:" + startup.Name,
+                    buildTag);
+                continue;
+            }
+
+            var actorType = startup.ActorType!;
+            var keyType = startup.KeyType!;
+            AddActorHostDescriptor(
+                descriptors,
+                ActorNameConventions.Resolve(actorType),
+                $"startup:v1:{actorType.FullName}:{keyType.FullName}",
+                buildTag);
         }
 
         foreach (var placement in scan.ActorPlacements)
