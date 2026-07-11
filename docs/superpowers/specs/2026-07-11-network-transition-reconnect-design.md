@@ -2,9 +2,8 @@
 
 ## Status
 
-Revised through a `grill-with-docs` review and awaiting final approval. This
-document defines the intended contract before any runtime or sample
-implementation begins.
+Approved after a `grill-with-docs` review. This document defines the intended
+contract before any runtime or sample implementation begins.
 
 ## Goal
 
@@ -205,13 +204,13 @@ The server exposes one public recovery-time setting:
 {
   "Lakona": {
     "Sessions": {
-      "ResumeWindowSeconds": 120
+      "ResumeWindowSeconds": 60
     }
   }
 }
 ```
 
-The default is 120 seconds. The Game Session captures an exact
+The default is 60 seconds. The Game Session captures an exact
 `ResumeDeadlineUtc` when its RPC connection disconnects. `TryResume` compares
 against that deadline directly; cleanup timing must not extend the public
 contract.
