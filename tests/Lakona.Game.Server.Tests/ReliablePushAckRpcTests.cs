@@ -21,6 +21,7 @@ public sealed class ReliablePushAckRpcTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var fixture = await ReliablePushAckRpcFixture.StartAsync(cancellationToken);
+        await fixture.HandshakeAsync(cancellationToken);
         var server = fixture.Services.GetRequiredService<ILakonaGameServer>();
         var notifications = fixture.Services.GetRequiredService<IClientNotifications>();
         var session = await server.StartSessionAsync(
@@ -33,7 +34,6 @@ public sealed class ReliablePushAckRpcTests
             .NotifyAsync<IAckTestCallback>(
                 target => target.NotifyAsync("payload"),
                 cancellationToken);
-        await fixture.HandshakeAsync(cancellationToken);
 
         using var response = await fixture.Client.CallRawAsync(
                 GameReliablePushRpcIds.ServiceId,
@@ -154,6 +154,7 @@ public sealed class ReliablePushAckRpcTests
             {
                 Transport = "tcp",
                 Serializer = "json",
+                ReliablePush = true,
                 RpcServices = []
             };
             var configurator = new LakonaEndpointRpcServerConfigurator(endpoint);

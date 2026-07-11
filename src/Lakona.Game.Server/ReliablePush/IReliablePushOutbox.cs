@@ -16,5 +16,7 @@ internal interface IReliablePushOutbox
 
     ValueTask AckAsync(string ownerKey, long sequence, CancellationToken cancellationToken = default);
 
+    ValueTask RemoveAsync(string ownerKey, CancellationToken cancellationToken = default);
+
     long GetLastSequence(string ownerKey);
 }

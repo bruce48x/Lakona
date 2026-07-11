@@ -14,6 +14,8 @@ public static class SessionServiceCollectionExtensions
     public static IServiceCollection AddLakonaGameServerSessions(this IServiceCollection services)
     {
         services.TryAddSingleton<IGameSessionRegistry, InMemoryGameSessionRegistry>();
+        services.TryAddSingleton<TimeProvider>(TimeProvider.System);
+        services.TryAddSingleton<GameConnectionDeliveryPolicyRegistry>();
         services.TryAddSingleton<IGameSessionResumeService, GameSessionResumeService>();
         services.TryAddSingleton<IGameHeartbeatService, GameHeartbeatService>();
         services.TryAddSingleton<IGameSessionConnectionCloser, NoopGameSessionConnectionCloser>();
@@ -83,7 +85,7 @@ public static class SessionServiceCollectionExtensions
             routes,
             new NodeId(cluster.NodeId),
             new NodeEndpoint(clusterEndpoint),
-            TimeSpan.FromSeconds(cluster.RouteLeaseSeconds));
+            services.GetRequiredService<LakonaGameHostingOptions>().Sessions.ResumeWindow);
     }
 
     private static IClientNotificationRelay CreateClientNotificationRelay(IServiceProvider services)

@@ -803,6 +803,8 @@ public sealed class LakonaGameServerTests
         var notifications = provider.GetRequiredService<IClientNotifications>();
         var reliablePush = provider.GetRequiredService<IReliablePushRuntime>();
         var callback = new TestCallback();
+        provider.GetRequiredService<GameConnectionDeliveryPolicyRegistry>()
+            .Set("connection-a", true);
         var session = await server.StartSessionAsync(
             "player-a",
             "connection-a",
@@ -839,6 +841,8 @@ public sealed class LakonaGameServerTests
         var notifications = provider.GetRequiredService<IClientNotifications>();
         var reliablePush = provider.GetRequiredService<IReliablePushRuntime>();
         var callback = new TestCallback();
+        provider.GetRequiredService<GameConnectionDeliveryPolicyRegistry>()
+            .Set("connection-a", true);
         var session = await server.StartSessionAsync(
             "player-a",
             "connection-a",

@@ -174,6 +174,7 @@ public sealed class LakonaGameRuntimeOptions
                 Port = LakonaConfigurationReader.ReadInt(endpoint["Port"]),
                 Path = endpoint["Path"] ?? "",
                 AdvertisedHost = endpoint["AdvertisedHost"] ?? "",
+                ReliablePush = LakonaConfigurationReader.ReadBool(endpoint, "ReliablePush", false),
                 RpcServices = BindStringArray(endpoint.GetSection("RpcServices"))
             })
             .ToArray();

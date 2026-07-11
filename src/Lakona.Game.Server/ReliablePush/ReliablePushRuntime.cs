@@ -10,18 +10,18 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
     private readonly IReliablePushOutbox _outbox;
     private readonly IReliablePushAckService _acks;
     private readonly LocalClientNotificationCommandDispatcher _localDispatcher;
-    private readonly ReliablePushOptions _options;
+    private readonly IGameSessionRegistry _sessions;
 
     public ReliablePushRuntime(
         IReliablePushOutbox outbox,
         IReliablePushAckService acks,
         LocalClientNotificationCommandDispatcher localDispatcher,
-        ReliablePushOptions options)
+        IGameSessionRegistry sessions)
     {
         _outbox = outbox ?? throw new ArgumentNullException(nameof(outbox));
         _acks = acks ?? throw new ArgumentNullException(nameof(acks));
         _localDispatcher = localDispatcher ?? throw new ArgumentNullException(nameof(localDispatcher));
-        _options = options ?? throw new ArgumentNullException(nameof(options));
+        _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
     }
 
     public async ValueTask<ClientNotificationStatus> PublishAsync(
@@ -31,25 +31,33 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        if (!_options.Enabled)
+        if (!await _sessions.GetReliablePushPolicyAsync(session, cancellationToken).ConfigureAwait(false))
         {
             command.Metadata = null;
             return await _localDispatcher.DispatchAsync(command, cancellationToken).ConfigureAwait(false);
         }
 
         var immediateStatus = ClientNotificationStatus.RouteNotFound;
-        await _outbox.PublishAsync(
-            session,
-            CreateRecordKind(command),
-            command,
-            async record =>
-            {
-                immediateStatus = await DispatchRecordAsync(
-                    session,
-                    record,
-                    cancellationToken).ConfigureAwait(false);
-            },
-            cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await _outbox.PublishAsync(
+                session,
+                CreateRecordKind(command),
+                command,
+                async record =>
+                {
+                    immediateStatus = await DispatchRecordAsync(
+                        session,
+                        record,
+                        cancellationToken).ConfigureAwait(false);
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (ReliablePushContinuityLostException)
+        {
+            await _sessions.MarkReliableContinuityLostAsync(session, cancellationToken).ConfigureAwait(false);
+            return ClientNotificationStatus.Failed;
+        }
 
         return immediateStatus;
     }
@@ -58,27 +66,44 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
         GameSessionKey session,
         CancellationToken cancellationToken = default)
     {
-        if (!_options.Enabled)
+        if (!await _sessions.GetReliablePushPolicyAsync(session, cancellationToken).ConfigureAwait(false))
         {
             return;
         }
 
-        await _outbox.ReplayPendingAsync(
-            session,
-            async record =>
-            {
-                await DispatchRecordAsync(session, record, cancellationToken).ConfigureAwait(false);
-            },
-            cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await _outbox.ReplayPendingAsync(
+                session,
+                async record =>
+                {
+                    await DispatchRecordAsync(session, record, cancellationToken).ConfigureAwait(false);
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (ReliablePushContinuityLostException)
+        {
+            await _sessions.MarkReliableContinuityLostAsync(session, cancellationToken).ConfigureAwait(false);
+        }
     }
 
-    public ValueTask<ReliablePushAckOutcome> AckAsync(
+    public async ValueTask<ReliablePushAckOutcome> AckAsync(
         GameSessionKey currentSession,
         GameSessionKey acknowledgedSession,
         long sequence,
         CancellationToken cancellationToken = default)
     {
-        return _acks.AckAsync(currentSession, acknowledgedSession, sequence, cancellationToken);
+        if (!await _sessions.GetReliablePushPolicyAsync(currentSession, cancellationToken).ConfigureAwait(false))
+        {
+            return ReliablePushAckOutcome.SessionMismatch(
+                "Reliable push acknowledgement is disabled for this game session.");
+        }
+
+        return await _acks.AckAsync(
+            currentSession,
+            acknowledgedSession,
+            sequence,
+            cancellationToken).ConfigureAwait(false);
     }
 
     private async ValueTask<ClientNotificationStatus> DispatchRecordAsync(

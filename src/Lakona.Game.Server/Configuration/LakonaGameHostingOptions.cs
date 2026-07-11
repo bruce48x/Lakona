@@ -97,6 +97,8 @@ public sealed class LakonaActorHostingOptions
 /// </summary>
 public sealed class LakonaSessionHostingOptions
 {
+    public TimeSpan ResumeWindow { get; init; } = TimeSpan.FromSeconds(60);
+
     /// <summary>
     /// Gets disconnected-session cleanup options.
     /// </summary>
@@ -109,8 +111,13 @@ public sealed class LakonaSessionHostingOptions
     /// <returns>The bound session hosting options.</returns>
     public static LakonaSessionHostingOptions FromConfiguration(IConfiguration section)
     {
+        var defaults = new LakonaSessionHostingOptions();
         return new LakonaSessionHostingOptions
         {
+            ResumeWindow = LakonaConfigurationReader.ReadSeconds(
+                section,
+                "ResumeWindowSeconds",
+                defaults.ResumeWindow),
             Cleanup = LakonaSessionCleanupHostingOptions.FromConfiguration(section.GetSection("Cleanup"))
         };
     }
@@ -132,11 +139,6 @@ public sealed class LakonaSessionCleanupHostingOptions
     public TimeSpan Interval { get; init; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// Gets how long a disconnected session may remain resumable before cleanup.
-    /// </summary>
-    public TimeSpan DisconnectedSessionRetention { get; init; } = TimeSpan.FromMinutes(2);
-
-    /// <summary>
     /// Binds cleanup options from a <c>Lakona:Sessions:Cleanup</c> configuration section.
     /// </summary>
     /// <param name="section">The session cleanup configuration section.</param>
@@ -147,17 +149,12 @@ public sealed class LakonaSessionCleanupHostingOptions
         return new LakonaSessionCleanupHostingOptions
         {
             Enabled = LakonaConfigurationReader.ReadBool(section, "Enabled", defaults.Enabled),
-            Interval = LakonaConfigurationReader.ReadSeconds(section, "IntervalSeconds", defaults.Interval),
-            DisconnectedSessionRetention = LakonaConfigurationReader.ReadSeconds(
-                section,
-                "DisconnectedRetentionSeconds",
-                defaults.DisconnectedSessionRetention)
+            Interval = LakonaConfigurationReader.ReadSeconds(section, "IntervalSeconds", defaults.Interval)
         };
     }
 
     internal void ApplyTo(Sessions.SessionCleanupOptions options)
     {
         options.Interval = Interval;
-        options.DisconnectedSessionRetention = DisconnectedSessionRetention;
     }
 }

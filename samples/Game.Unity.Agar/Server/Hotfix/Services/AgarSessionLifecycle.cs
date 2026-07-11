@@ -32,14 +32,8 @@ public sealed class AgarSessionLifecycle
 
         if (IsRealtime(call.Request.CallbackContractTypeNames))
         {
-            await ClearRealtimeStateAsync(
-                    call.Services,
-                    logger,
-                    playerId,
-                    call.Request.SessionId,
-                    call.Request.Generation,
-                    "Realtime disconnect")
-                .ConfigureAwait(false);
+            // A transport/RPC disconnect does not end the realtime game session.
+            // Its identity remains resumable until the framework expires it.
             return;
         }
 

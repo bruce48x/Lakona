@@ -32,6 +32,20 @@ public sealed class ReliablePushTrackerTests
     }
 
     [Fact]
+    public void Gap_sequence_is_neither_applied_nor_acknowledged()
+    {
+        var tracker = new ReliablePushTracker();
+        tracker.MarkApplied(3);
+
+        var decision = tracker.Decide(5);
+
+        Assert.True(decision.IsGap);
+        Assert.False(decision.ShouldApply);
+        Assert.False(decision.ShouldAck);
+        Assert.Equal(3, tracker.LastAppliedSequence);
+    }
+
+    [Fact]
     public void NonPositiveSequenceShouldApplyWithoutAcknowledgement()
     {
         var tracker = new ReliablePushTracker();

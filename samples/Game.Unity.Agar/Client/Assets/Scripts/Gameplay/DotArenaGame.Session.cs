@@ -174,14 +174,16 @@ namespace SampleClient.Gameplay
 
         private async Task ReconnectControlAsync()
         {
-            const int maxAttempts = 5;
             var lastError = string.Empty;
+            var attempt = 0;
 
             try
             {
-                for (var attempt = 1; attempt <= maxAttempts && !_cts.IsCancellationRequested; attempt++)
+                while (!_cts.IsCancellationRequested &&
+                       DateTime.UtcNow < NetworkSession.ControlReconnectDeadlineUtc)
                 {
-                    _status = $"Control reconnecting ({attempt}/{maxAttempts})";
+                    attempt += 1;
+                    _status = $"Control reconnecting (attempt {attempt})";
                     _eventMessage = "Restoring multiplayer control connection";
 
                     try

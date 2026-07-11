@@ -229,6 +229,10 @@ namespace Rpc.Testing
             {
                 Debug.Log($"[WS] Matchmaking state={matchmakingStatus.State}, room={matchmakingStatus.RoomId}, queue={matchmakingStatus.QueuePosition}/{matchmakingStatus.QueueSize}, matched={matchmakingStatus.MatchedPlayerCount}/{matchmakingStatus.RoomCapacity}, message={matchmakingStatus.Message}");
             }
+
+            public void OnMatchProgress(MatchProgressUpdate update)
+            {
+            }
         }
     }
 }

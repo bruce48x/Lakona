@@ -1,26 +1,26 @@
 using Lakona.Game.Abstractions.Sessions;
 using Lakona.Game.Server.Configuration;
-using Lakona.Game.Server.ReliablePush;
 
 namespace Lakona.Game.Server.Sessions;
 
 public sealed class GameHandshakeService : IGameHandshakeService
 {
     private readonly LakonaGameRuntimeOptions _runtime;
-    private readonly ReliablePushOptions _reliablePush;
+    private readonly LakonaGameHostingOptions _hosting;
 
     public GameHandshakeService(
         LakonaGameRuntimeOptions runtime,
-        ReliablePushOptions reliablePush)
+        LakonaGameHostingOptions hosting)
     {
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
-        _reliablePush = reliablePush ?? throw new ArgumentNullException(nameof(reliablePush));
+        _hosting = hosting ?? throw new ArgumentNullException(nameof(hosting));
     }
 
     public ValueTask<GameServerHello> HandshakeAsync(
         GameClientHello hello,
         string endpointTransport,
         string endpointSerializer,
+        bool reliablePush,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(hello);
@@ -34,14 +34,17 @@ public sealed class GameHandshakeService : IGameHandshakeService
                 "Client does not support Lakona game handshake protocol version 1.");
         }
 
-        var reliable = _reliablePush.Enabled;
         return new ValueTask<GameServerHello>(new GameServerHello
         {
             SelectedProtocolVersion = 1,
             ReliablePush = new ReliablePushHandshakeSettings
             {
-                Enabled = reliable,
-                AckRequired = reliable,
+                Enabled = reliablePush,
+                AckRequired = reliablePush,
+            },
+            SessionResume = new GameSessionResumeHandshakeSettings
+            {
+                Window = _hosting.Sessions.ResumeWindow,
             },
             Heartbeat = new GameHeartbeatHandshakeSettings
             {

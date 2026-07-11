@@ -12,7 +12,14 @@ public sealed class GameServerHello
 
     public ReliablePushHandshakeSettings ReliablePush { get; set; } = new();
 
+    public GameSessionResumeHandshakeSettings SessionResume { get; set; } = new();
+
     public GameHeartbeatHandshakeSettings Heartbeat { get; set; } = new();
+}
+
+public sealed class GameSessionResumeHandshakeSettings
+{
+    public TimeSpan Window { get; set; } = TimeSpan.FromSeconds(60);
 }
 
 public sealed class ReliablePushHandshakeSettings

@@ -62,6 +62,12 @@ public sealed partial class MatchmakingEnqueueRequest
 
     [MemoryPackOrder(3)]
     public int Priority { get; set; }
+
+    [MemoryPackOrder(4)]
+    public string ControlSessionId { get; set; } = "";
+
+    [MemoryPackOrder(5)]
+    public long ControlSessionGeneration { get; set; }
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
@@ -150,6 +156,12 @@ public sealed partial class MatchmakingQueueTicket
 
     [MemoryPackOrder(5)]
     public int Priority { get; set; }
+
+    [MemoryPackOrder(6)]
+    public string ControlSessionId { get; set; } = "";
+
+    [MemoryPackOrder(7)]
+    public long ControlSessionGeneration { get; set; }
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]

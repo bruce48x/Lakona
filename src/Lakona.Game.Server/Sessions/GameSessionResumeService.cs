@@ -29,6 +29,15 @@ public sealed class GameSessionResumeService : IGameSessionResumeService
             return directoryDecision;
         }
 
+        if (await _directory
+            .IsReliableContinuityLostAsync(request.Session, cancellationToken)
+            .ConfigureAwait(false))
+        {
+            return SessionResumeDecision.StateRefreshRequired(
+                request.Session,
+                "Reliable notification continuity was lost.");
+        }
+
         var tokenValidator = _services.GetService<IGameSessionTokenValidator>();
         if (tokenValidator is not null)
         {

@@ -2,6 +2,7 @@
 
 #if UNITY_INCLUDE_TESTS
 using System.Threading.Tasks;
+using System.Linq;
 using UnityEngine;
 
 namespace SampleClient.Gameplay
@@ -32,7 +33,15 @@ namespace SampleClient.Gameplay
                 LastRealtimeRoomId = realtime?.RoomId ?? string.Empty,
                 LastRealtimeMatchId = realtime?.MatchId ?? string.Empty,
                 LocalPlayerX = localPlayer?.TargetPosition.x ?? 0f,
-                LocalPlayerY = localPlayer?.TargetPosition.y ?? 0f
+                LocalPlayerY = localPlayer?.TargetPosition.y ?? 0f,
+                ControlSessionId = session?.ControlSessionId ?? string.Empty,
+                ControlSessionGeneration = session?.ControlSessionGeneration ?? 0,
+                RealtimeSessionId = session?.RealtimeSessionId ?? string.Empty,
+                RealtimeSessionGeneration = session?.RealtimeSessionGeneration ?? 0,
+                MatchProgressRevisions = _matchProgressHistory.Select(static item => item.ProgressRevision).ToArray(),
+                MatchProgressPublishedAtUtc = _matchProgressHistory.Select(static item => item.PublishedAtUtc).ToArray(),
+                ControlRpcSerial = session?.ControlRpcSerial ?? 0,
+                RealtimeRpcSerial = session?.RealtimeRpcSerial ?? 0
             };
         }
 
@@ -61,6 +70,8 @@ namespace SampleClient.Gameplay
             _testMoveOverride = Vector2.zero;
             _hasTestInputOverride = false;
         }
+
+        public Task SetNetworkGateForTestAsync(bool open) => NetworkSession.SetNetworkGateForTestAsync(open);
     }
 
     public sealed class DotArenaGameTestSnapshot
@@ -82,6 +93,14 @@ namespace SampleClient.Gameplay
         public string LastRealtimeMatchId { get; set; } = string.Empty;
         public float LocalPlayerX { get; set; }
         public float LocalPlayerY { get; set; }
+        public string ControlSessionId { get; set; } = string.Empty;
+        public long ControlSessionGeneration { get; set; }
+        public string RealtimeSessionId { get; set; } = string.Empty;
+        public long RealtimeSessionGeneration { get; set; }
+        public long[] MatchProgressRevisions { get; set; } = System.Array.Empty<long>();
+        public System.DateTime[] MatchProgressPublishedAtUtc { get; set; } = System.Array.Empty<System.DateTime>();
+        public long ControlRpcSerial { get; set; }
+        public long RealtimeRpcSerial { get; set; }
     }
 }
 #endif

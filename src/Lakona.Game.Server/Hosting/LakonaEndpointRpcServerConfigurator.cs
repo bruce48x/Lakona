@@ -87,11 +87,14 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
                 GameServerHello reply;
                 try
                 {
+                    services.GetRequiredService<GameConnectionDeliveryPolicyRegistry>()
+                        .Set(session.ContextId, _endpoint.ReliablePush);
                     var service = services.GetRequiredService<IGameHandshakeService>();
                     reply = await service.HandshakeAsync(
                         hello,
                         _endpoint.Transport,
                         _endpoint.Serializer,
+                        _endpoint.ReliablePush,
                         cancellationToken).ConfigureAwait(false);
                 }
                 catch (GameHandshakeRejectedException ex)
@@ -146,6 +149,13 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
             GameReliablePushRpcIds.AckMethodId,
             async (session, request, cancellationToken) =>
             {
+                if (!_endpoint.ReliablePush)
+                {
+                    return EncodeBadRequest(
+                        request.RequestId,
+                        "Reliable push acknowledgement is disabled on this endpoint.");
+                }
+
                 ReliablePushAckRequest ack;
                 try
                 {

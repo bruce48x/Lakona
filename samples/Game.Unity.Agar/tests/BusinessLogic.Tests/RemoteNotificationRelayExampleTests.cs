@@ -278,6 +278,10 @@ public sealed class RemoteNotificationRelayExampleTests
         {
             LastMatchmakingStatus = matchmakingStatus;
         }
+
+        public void OnMatchProgress(MatchProgressUpdate update)
+        {
+        }
     }
 
     private static ServiceProvider CreateBusinessNotificationServices(

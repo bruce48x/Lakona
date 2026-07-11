@@ -13,6 +13,7 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
     private readonly IGameSessionConnectionCloser _connectionCloser;
     private readonly IReadOnlyList<IGameSessionLifecycleHandler> _lifecycleHandlers;
     private readonly ILogger<DefaultLakonaGameServer> _logger;
+    private readonly GameConnectionDeliveryPolicyRegistry _deliveryPolicies;
 
     public DefaultLakonaGameServer(
         IGameSessionRegistry sessions,
@@ -26,7 +27,8 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
             clientSessionRoutes,
             connectionCloser,
             lifecycleHandlers,
-            NullLogger<DefaultLakonaGameServer>.Instance)
+            NullLogger<DefaultLakonaGameServer>.Instance,
+            new GameConnectionDeliveryPolicyRegistry())
     {
     }
 
@@ -37,6 +39,25 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         IGameSessionConnectionCloser connectionCloser,
         IEnumerable<IGameSessionLifecycleHandler> lifecycleHandlers,
         ILogger<DefaultLakonaGameServer> logger)
+        : this(
+            sessions,
+            resume,
+            clientSessionRoutes,
+            connectionCloser,
+            lifecycleHandlers,
+            logger,
+            new GameConnectionDeliveryPolicyRegistry())
+    {
+    }
+
+    public DefaultLakonaGameServer(
+        IGameSessionRegistry sessions,
+        IGameSessionResumeService resume,
+        IClientSessionRouteRegistrar clientSessionRoutes,
+        IGameSessionConnectionCloser connectionCloser,
+        IEnumerable<IGameSessionLifecycleHandler> lifecycleHandlers,
+        ILogger<DefaultLakonaGameServer> logger,
+        GameConnectionDeliveryPolicyRegistry deliveryPolicies)
     {
         _sessions = sessions;
         _resume = resume;
@@ -44,13 +65,16 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         _connectionCloser = connectionCloser;
         _lifecycleHandlers = lifecycleHandlers?.ToArray() ?? throw new ArgumentNullException(nameof(lifecycleHandlers));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _deliveryPolicies = deliveryPolicies ?? throw new ArgumentNullException(nameof(deliveryPolicies));
     }
 
-    public ValueTask<GameSessionKey> StartSessionAsync(
+    public async ValueTask<GameSessionKey> StartSessionAsync(
         string ownerKey,
         CancellationToken cancellationToken = default)
     {
-        return _sessions.StartNewSessionAsync(ownerKey, cancellationToken);
+        var session = await _sessions.StartNewSessionAsync(ownerKey, cancellationToken).ConfigureAwait(false);
+        await _sessions.SetReliablePushPolicyAsync(session, false, cancellationToken).ConfigureAwait(false);
+        return session;
     }
 
     public async ValueTask<GameSessionKey> StartSessionAsync<TCallback>(
@@ -60,7 +84,11 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         CancellationToken cancellationToken = default)
         where TCallback : class
     {
-        var session = await StartSessionAsync(ownerKey, cancellationToken).ConfigureAwait(false);
+        var session = await _sessions.StartNewSessionAsync(ownerKey, cancellationToken).ConfigureAwait(false);
+        await _sessions.SetReliablePushPolicyAsync(
+            session,
+            _deliveryPolicies.Get(connectionId),
+            cancellationToken).ConfigureAwait(false);
         await BindSessionAsync(session, connectionId, callback, cancellationToken)
             .ConfigureAwait(false);
         return session;
@@ -91,6 +119,10 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         CancellationToken cancellationToken = default)
         where TCallback : class
     {
+        await _sessions.SetReliablePushPolicyAsync(
+            session,
+            _deliveryPolicies.Get(connectionId),
+            cancellationToken).ConfigureAwait(false);
         var result = await _sessions.BindSessionAsync(
             session,
             connectionId,

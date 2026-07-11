@@ -9,6 +9,24 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
     private readonly Lock _gate = new();
     private readonly Dictionary<GameSessionKey, SessionState> _sessions = new();
     private readonly Dictionary<string, GameSessionKey> _connectionToSession = new(StringComparer.Ordinal);
+    private readonly TimeProvider _timeProvider;
+    private readonly TimeSpan _resumeWindow;
+
+    public InMemoryGameSessionRegistry()
+        : this(new Lakona.Game.Server.Configuration.LakonaGameHostingOptions(), TimeProvider.System)
+    {
+    }
+
+    public InMemoryGameSessionRegistry(
+        Lakona.Game.Server.Configuration.LakonaGameHostingOptions hosting,
+        TimeProvider timeProvider)
+    {
+        ArgumentNullException.ThrowIfNull(hosting);
+        _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+        _resumeWindow = hosting.Sessions.ResumeWindow > TimeSpan.Zero
+            ? hosting.Sessions.ResumeWindow
+            : throw new ArgumentOutOfRangeException(nameof(hosting), "Session resume window must be positive.");
+    }
 
     public ValueTask<GameSessionKey> StartNewSessionAsync(
         string ownerKey,
@@ -52,7 +70,82 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                     : SessionResumeDecision.StateLost("Session was terminated."));
             }
 
+            if (state.ResumeDeadlineUtc is { } deadline && _timeProvider.GetUtcNow() >= deadline)
+            {
+                _sessions.Remove(session);
+                return new ValueTask<SessionResumeDecision>(
+                    SessionResumeDecision.StateLost("Session resume window expired."));
+            }
+
             return new ValueTask<SessionResumeDecision>(SessionResumeDecision.Resumed(state.Session));
+        }
+    }
+
+    public ValueTask SetReliablePushPolicyAsync(
+        GameSessionKey session,
+        bool enabled,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateSession(session);
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            if (!_sessions.TryGetValue(session, out var state))
+            {
+                throw new InvalidOperationException($"Game session '{session}' does not exist.");
+            }
+
+            if (state.ReliablePushPolicy is { } current && current != enabled)
+            {
+                throw new InvalidOperationException("Game session reliable-push policy does not match the endpoint.");
+            }
+
+            state.ReliablePushPolicy = enabled;
+        }
+
+        return default;
+    }
+
+    public ValueTask<bool> GetReliablePushPolicyAsync(
+        GameSessionKey session,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateSession(session);
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            return new ValueTask<bool>(
+                _sessions.TryGetValue(session, out var state) && state.ReliablePushPolicy == true);
+        }
+    }
+
+    public ValueTask MarkReliableContinuityLostAsync(
+        GameSessionKey session,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateSession(session);
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            if (_sessions.TryGetValue(session, out var state))
+            {
+                state.ReliableContinuityLost = true;
+            }
+        }
+
+        return default;
+    }
+
+    public ValueTask<bool> IsReliableContinuityLostAsync(
+        GameSessionKey session,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateSession(session);
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            return new ValueTask<bool>(
+                _sessions.TryGetValue(session, out var state) && state.ReliableContinuityLost);
         }
     }
 
@@ -232,7 +325,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
             }
 
             var snapshot = CreateSnapshot(state, connectionId);
-            DisconnectState(state, connectionId, DateTimeOffset.UtcNow);
+            DisconnectState(state, connectionId, _timeProvider.GetUtcNow());
             return new ValueTask<GameSessionSnapshot?>(snapshot);
         }
     }
@@ -264,7 +357,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                 return default;
             }
 
-            DisconnectState(state, activeConnectionId, DateTimeOffset.UtcNow);
+            DisconnectState(state, activeConnectionId, _timeProvider.GetUtcNow());
         }
 
         return default;
@@ -479,6 +572,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         state.ConnectionId = null;
         state.LastDisconnectedConnectionId = connectionId;
         state.DisconnectedAt = disconnectedAt;
+        state.ResumeDeadlineUtc = disconnectedAt.Add(_resumeWindow);
         state.DisconnectedCallbackContractTypes = state.Callbacks.Keys.ToArray();
         state.Callbacks.Clear();
     }
@@ -555,7 +649,8 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         state.LastDisconnectedConnectionId = null;
         state.LastTerminatedConnectionId = null;
         state.DisconnectedAt = null;
-        state.LastHeartbeatAt = DateTimeOffset.UtcNow;
+        state.ResumeDeadlineUtc = null;
+        state.LastHeartbeatAt = _timeProvider.GetUtcNow();
         state.Callbacks[typeof(TCallback)] = callback;
 
         return new GameSessionBindResult(sessionBecameActive
@@ -603,6 +698,12 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         public string? LastTerminatedConnectionId { get; set; }
 
         public DateTimeOffset? DisconnectedAt { get; set; }
+
+        public DateTimeOffset? ResumeDeadlineUtc { get; set; }
+
+        public bool? ReliablePushPolicy { get; set; }
+
+        public bool ReliableContinuityLost { get; set; }
 
         public DateTimeOffset? LastHeartbeatAt { get; set; }
 

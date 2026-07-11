@@ -93,9 +93,7 @@ The default development appsettings file has this shape:
       "Id": "dev-1"
     },
     "Sessions": {
-      "Cleanup": {
-        "DisconnectedRetentionSeconds": 30
-      }
+      "ResumeWindowSeconds": 60
     },
     "Hotfix": {
       "DebugWatcher": "On"
@@ -114,6 +112,7 @@ The default development appsettings file has this shape:
         "Serializer": "memorypack",
         "Host": "127.0.0.1",
         "Port": 20000,
+        "ReliablePush": true,
         "RpcServices": [ "game" ]
       }
     ]

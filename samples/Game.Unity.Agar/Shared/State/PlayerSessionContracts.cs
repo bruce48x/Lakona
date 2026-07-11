@@ -171,6 +171,12 @@ namespace Server.App.State.Contracts.Sessions
 
         [MemoryPackOrder(7)]
         public GatewayEndpointDescriptor RuntimeGateway { get; set; } = new();
+
+        [MemoryPackOrder(8)]
+        public string ControlSessionId { get; set; } = "";
+
+        [MemoryPackOrder(9)]
+        public long ControlSessionGeneration { get; set; }
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]

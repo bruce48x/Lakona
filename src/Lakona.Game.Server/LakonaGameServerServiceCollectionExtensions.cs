@@ -77,6 +77,7 @@ public static class LakonaGameServerServiceCollectionExtensions
         IConfiguration? configuration)
     {
         ArgumentNullException.ThrowIfNull(options);
+        services.TryAddSingleton(options);
         services.TryAddSingleton(new LakonaGameRuntimeOptions());
         services.TryAddSingleton(provider =>
         {
@@ -88,13 +89,18 @@ public static class LakonaGameServerServiceCollectionExtensions
         LakonaGameGeneratedServiceRegistrationDiscovery.RegisterDiscovered(services);
         if (options.Sessions.Cleanup.Enabled)
         {
-            services.AddLakonaGameServerSessionCleanup(sessionOptions => options.Sessions.Cleanup.ApplyTo(sessionOptions));
+            services.AddLakonaGameServerSessionCleanup(sessionOptions =>
+            {
+                options.Sessions.Cleanup.ApplyTo(sessionOptions);
+                sessionOptions.ResumeWindow = options.Sessions.ResumeWindow;
+            });
         }
         else
         {
             services.AddLakonaGameServerSessions();
             var sessionOptions = new SessionCleanupOptions();
             options.Sessions.Cleanup.ApplyTo(sessionOptions);
+            sessionOptions.ResumeWindow = options.Sessions.ResumeWindow;
             services.RemoveAll<SessionCleanupOptions>();
             services.AddSingleton(sessionOptions);
         }

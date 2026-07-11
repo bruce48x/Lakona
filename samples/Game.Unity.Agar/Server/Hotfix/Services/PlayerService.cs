@@ -179,6 +179,8 @@ public sealed class PlayerService
             {
                 UserId = playerId,
                 SessionToken = snapshot.SessionToken,
+                ControlSessionId = snapshot.ControlSessionId,
+                ControlSessionGeneration = snapshot.ControlSessionGeneration,
                 EnqueuedAtUtc = DateTime.UtcNow
             },
                 cancellationToken)

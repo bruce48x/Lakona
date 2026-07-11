@@ -19,7 +19,7 @@ public sealed class GameSessionCleanupHostedServiceTests
             directory,
             new SessionCleanupOptions
             {
-                DisconnectedSessionRetention = TimeSpan.FromMilliseconds(1)
+                ResumeWindow = TimeSpan.FromMilliseconds(1)
             });
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
         await directory.BindSessionAsync(session, "connection-a", new Callback(), TestContext.Current.CancellationToken);
@@ -43,7 +43,7 @@ public sealed class GameSessionCleanupHostedServiceTests
             directory,
             new SessionCleanupOptions
             {
-                DisconnectedSessionRetention = TimeSpan.FromMilliseconds(1)
+                ResumeWindow = TimeSpan.FromMilliseconds(1)
             },
             new IGameSessionLifecycleHandler[] { throwingHandler, recordingHandler },
             NullLogger<GameSessionCleanupHostedService>.Instance);

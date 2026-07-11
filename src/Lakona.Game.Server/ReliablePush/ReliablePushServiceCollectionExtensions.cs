@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Lakona.Game.Server.Sessions;
 
 namespace Lakona.Game.Server.ReliablePush;
 
@@ -17,6 +18,8 @@ public static class ReliablePushServiceCollectionExtensions
         services.TryAddSingleton<IReliablePushOutbox, InMemoryReliablePushOutbox>();
         services.TryAddSingleton<IReliablePushAckService, ReliablePushAckService>();
         services.TryAddSingleton<IReliablePushRuntime, ReliablePushRuntime>();
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IGameSessionLifecycleHandler, ReliablePushSessionLifecycleHandler>());
         return services;
     }
 
@@ -30,14 +33,9 @@ public static class ReliablePushServiceCollectionExtensions
         return services.AddLakonaGameServerReliablePush(options =>
         {
             var section = GetRuntimeSection(configuration).GetSection("ReliablePush");
-            if (bool.TryParse(section["Enabled"], out var enabled))
+            if (int.TryParse(section["MaxPendingPerSession"], out var maxPending))
             {
-                options.Enabled = enabled;
-            }
-
-            if (int.TryParse(section["MaxPendingPerOwner"], out var maxPending))
-            {
-                options.MaxPendingPerOwner = maxPending;
+                options.MaxPendingPerSession = maxPending;
             }
 
             configure?.Invoke(options);

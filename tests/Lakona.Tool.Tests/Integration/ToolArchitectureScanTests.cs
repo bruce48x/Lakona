@@ -355,10 +355,13 @@ public sealed class ToolArchitectureScanTests
         Assert.Contains("OutputItemType=\"Analyzer\"", hotfixProject, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("\"", "Fea", "ture", "\""), appsettings, StringComparison.Ordinal);
         using var document = JsonDocument.Parse(appsettings);
-        var cleanup = document.RootElement.GetProperty("Lakona")
-            .GetProperty("Sessions")
-            .GetProperty("Cleanup");
-        Assert.Equal(30, cleanup.GetProperty("DisconnectedRetentionSeconds").GetInt32());
+        var sessions = document.RootElement.GetProperty("Lakona")
+            .GetProperty("Sessions");
+        Assert.Equal(60, sessions.GetProperty("ResumeWindowSeconds").GetInt32());
+        Assert.True(document.RootElement.GetProperty("Lakona")
+            .GetProperty("Endpoints")[0]
+            .GetProperty("ReliablePush")
+            .GetBoolean());
         var hotfix = document.RootElement.GetProperty("Lakona")
             .GetProperty("Hotfix");
         Assert.Equal("On", hotfix.GetProperty("DebugWatcher").GetString());

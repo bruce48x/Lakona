@@ -251,6 +251,7 @@ internal sealed class ServerAppRenderer : IPlanContributor
             ["Serializer"] = ToolEnumText.ToCliValue(spec.Serializer),
             ["Host"] = "127.0.0.1",
             ["Port"] = 20000,
+            ["ReliablePush"] = true,
             ["RpcServices"] = new[] { "game" }
         };
         if (spec.Transport == TransportKind.WebSocket)
@@ -269,10 +270,7 @@ internal sealed class ServerAppRenderer : IPlanContributor
                 ["ActorHosts"] = new[] { "gameWorld" },
                 ["Sessions"] = new Dictionary<string, object?>
                 {
-                    ["Cleanup"] = new Dictionary<string, object?>
-                    {
-                        ["DisconnectedRetentionSeconds"] = 30
-                    }
+                    ["ResumeWindowSeconds"] = 60
                 },
                 ["Hotfix"] = new Dictionary<string, object?>
                 {

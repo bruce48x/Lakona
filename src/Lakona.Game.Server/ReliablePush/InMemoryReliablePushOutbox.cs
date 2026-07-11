@@ -2,13 +2,13 @@ namespace Lakona.Game.Server.ReliablePush;
 
 internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
 {
-    private readonly Lock _gate = new();
-    private readonly ReliablePushOptions _options;
-    private readonly Dictionary<string, OwnerState> _owners = new(StringComparer.Ordinal);
+    private readonly Lock gate = new();
+    private readonly ReliablePushOptions options;
+    private readonly Dictionary<string, OwnerState> owners = new(StringComparer.Ordinal);
 
     public InMemoryReliablePushOutbox(ReliablePushOptions options)
     {
-        _options = options;
+        this.options = options ?? throw new ArgumentNullException(nameof(options));
     }
 
     public async ValueTask<long> PublishAsync(
@@ -23,39 +23,37 @@ internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
         ArgumentNullException.ThrowIfNull(payload);
         ArgumentNullException.ThrowIfNull(deliver);
 
-        if (!_options.Enabled)
+        var owner = GetOrCreateOwner(ownerKey);
+        await owner.Serial.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            var immediate = new ReliablePushRecord
+            if (owner.ContinuityLost)
             {
-                OwnerKey = ownerKey,
-                Kind = kind,
-                Payload = payload,
-                Sequence = 0,
-                CreatedAtUtc = DateTime.UtcNow
-            };
-            await DeliverAsync(immediate, deliver, cancellationToken).ConfigureAwait(false);
-            return 0;
-        }
+                throw new ReliablePushContinuityLostException();
+            }
 
-        ReliablePushRecord record;
-        lock (_gate)
-        {
-            var owner = GetOrCreateOwner(ownerKey);
-            PruneExpired(owner);
-            record = new ReliablePushRecord
+            if (owner.Pending.Count >= Math.Max(1, options.MaxPendingPerSession))
+            {
+                owner.ContinuityLost = true;
+                throw new ReliablePushContinuityLostException();
+            }
+
+            var record = new ReliablePushRecord
             {
                 OwnerKey = ownerKey,
                 Kind = kind,
                 Payload = payload,
                 Sequence = ++owner.LastSequence,
-                CreatedAtUtc = DateTime.UtcNow
+                CreatedAtUtc = DateTime.UtcNow,
             };
             owner.Pending.Add(record);
-            TrimOverflow(owner);
+            await DeliverAsync(record, deliver, cancellationToken).ConfigureAwait(false);
+            return record.Sequence;
         }
-
-        await DeliverAsync(record, deliver, cancellationToken).ConfigureAwait(false);
-        return record.Sequence;
+        finally
+        {
+            owner.Serial.Release();
+        }
     }
 
     public async ValueTask ReplayPendingAsync(
@@ -65,84 +63,117 @@ internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(ownerKey);
         ArgumentNullException.ThrowIfNull(deliver);
-
-        ReliablePushRecord[] records;
-        lock (_gate)
+        var owner = TryGetOwner(ownerKey);
+        if (owner is null)
         {
-            if (!_owners.TryGetValue(ownerKey, out var owner))
-            {
-                return;
-            }
-
-            PruneExpired(owner);
-            records = owner.Pending.OrderBy(static record => record.Sequence).ToArray();
+            return;
         }
 
-        foreach (var record in records)
+        await owner.Serial.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            await DeliverAsync(record, deliver, cancellationToken).ConfigureAwait(false);
+            if (owner.ContinuityLost)
+            {
+                throw new ReliablePushContinuityLostException();
+            }
+
+            foreach (var record in owner.Pending.OrderBy(static record => record.Sequence).ToArray())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await DeliverAsync(record, deliver, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            owner.Serial.Release();
         }
     }
 
-    public ValueTask AckAsync(string ownerKey, long sequence, CancellationToken cancellationToken = default)
+    public async ValueTask AckAsync(
+        string ownerKey,
+        long sequence,
+        CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(ownerKey);
         if (sequence <= 0)
         {
-            return default;
+            return;
         }
 
-        lock (_gate)
+        var owner = TryGetOwner(ownerKey);
+        if (owner is null)
         {
-            if (!_owners.TryGetValue(ownerKey, out var owner))
-            {
-                return default;
-            }
+            return;
+        }
 
+        await owner.Serial.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
             owner.Pending.RemoveAll(record => record.Sequence <= sequence);
         }
+        finally
+        {
+            owner.Serial.Release();
+        }
+    }
 
-        return default;
+    public async ValueTask RemoveAsync(
+        string ownerKey,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(ownerKey);
+        OwnerState? owner;
+        lock (gate)
+        {
+            owners.TryGetValue(ownerKey, out owner);
+        }
+
+        if (owner is null)
+        {
+            return;
+        }
+
+        await owner.Serial.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            lock (gate)
+            {
+                owners.Remove(ownerKey);
+            }
+        }
+        finally
+        {
+            owner.Serial.Release();
+        }
     }
 
     public long GetLastSequence(string ownerKey)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(ownerKey);
-        lock (_gate)
-        {
-            return _owners.TryGetValue(ownerKey, out var owner) ? owner.LastSequence : 0;
-        }
+        var owner = TryGetOwner(ownerKey);
+        return owner?.LastSequence ?? 0;
     }
 
     private OwnerState GetOrCreateOwner(string ownerKey)
     {
-        if (_owners.TryGetValue(ownerKey, out var owner))
+        lock (gate)
         {
+            if (!owners.TryGetValue(ownerKey, out var owner))
+            {
+                owner = new OwnerState();
+                owners.Add(ownerKey, owner);
+            }
+
             return owner;
         }
-
-        owner = new OwnerState();
-        _owners.Add(ownerKey, owner);
-        return owner;
     }
 
-    private void PruneExpired(OwnerState owner)
+    private OwnerState? TryGetOwner(string ownerKey)
     {
-        var cutoff = DateTime.UtcNow - _options.Retention;
-        owner.Pending.RemoveAll(record => record.CreatedAtUtc < cutoff);
-    }
-
-    private void TrimOverflow(OwnerState owner)
-    {
-        var maxPending = Math.Max(1, _options.MaxPendingPerOwner);
-        if (owner.Pending.Count <= maxPending)
+        lock (gate)
         {
-            return;
+            return owners.TryGetValue(ownerKey, out var owner) ? owner : null;
         }
-
-        owner.Pending.Sort(static (left, right) => left.Sequence.CompareTo(right.Sequence));
-        owner.Pending.RemoveRange(0, owner.Pending.Count - maxPending);
     }
 
     private static async ValueTask DeliverAsync(
@@ -158,8 +189,12 @@ internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
 
     private sealed class OwnerState
     {
+        public SemaphoreSlim Serial { get; } = new(1, 1);
+
         public long LastSequence { get; set; }
 
-        public List<ReliablePushRecord> Pending { get; } = new();
+        public bool ContinuityLost { get; set; }
+
+        public List<ReliablePushRecord> Pending { get; } = [];
     }
 }

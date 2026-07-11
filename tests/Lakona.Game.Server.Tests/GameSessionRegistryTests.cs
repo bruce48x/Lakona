@@ -8,6 +8,30 @@ namespace Lakona.Game.Server.Tests;
 public sealed class GameSessionRegistryTests
 {
     [Fact]
+    public async Task Resume_window_is_enforced_at_the_exact_deadline()
+    {
+        var time = new ManualTimeProvider(new DateTimeOffset(2026, 7, 11, 0, 0, 0, TimeSpan.Zero));
+        var directory = new InMemoryGameSessionRegistry(
+            new Lakona.Game.Server.Configuration.LakonaGameHostingOptions
+            {
+                Sessions = new Lakona.Game.Server.Configuration.LakonaSessionHostingOptions
+                {
+                    ResumeWindow = TimeSpan.FromSeconds(60),
+                },
+            },
+            time);
+        var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "connection-a", new LoginCallback("login"), TestContext.Current.CancellationToken);
+        await directory.MarkConnectionDisconnectedAsync("connection-a", TestContext.Current.CancellationToken);
+
+        time.Advance(TimeSpan.FromSeconds(59));
+        Assert.Equal(SessionResumeStatus.Resumed, (await directory.TryResumeAsync(session, TestContext.Current.CancellationToken)).Status);
+
+        time.Advance(TimeSpan.FromSeconds(1));
+        Assert.Equal(SessionResumeStatus.StateLost, (await directory.TryResumeAsync(session, TestContext.Current.CancellationToken)).Status);
+    }
+
+    [Fact]
     public async Task StartingSecondSessionForSameOwnerLeavesBothSessionsResumable()
     {
         var directory = new InMemoryGameSessionRegistry();
@@ -547,5 +571,14 @@ public sealed class GameSessionRegistryTests
         }
 
         public string Name { get; }
+    }
+
+    private sealed class ManualTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        private DateTimeOffset current = utcNow;
+
+        public override DateTimeOffset GetUtcNow() => current;
+
+        public void Advance(TimeSpan duration) => current = current.Add(duration);
     }
 }

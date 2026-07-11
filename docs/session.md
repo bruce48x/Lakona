@@ -429,7 +429,7 @@ Resume tokens are opaque client-facing credentials. They should not reveal
 state with account, player, character, room, or device records when it needs
 product-specific policy.
 
-Reliable push is framework-provided by default. Business code publishes through
+Reliable push is an explicit endpoint policy. Business code publishes through
 the same notification API whether reliability is enabled or disabled. When
 enabled, the framework owns sequence assignment, ack handling, replay, pending
 limits, and route lookup. When disabled, the same publish operation degrades to
@@ -450,21 +450,36 @@ process fails or a session generation moves to another node. Pending
 notifications may therefore be lost during owner failure; durable or replicated
 outboxes remain an application-provided infrastructure choice.
 
-The public configuration switch is:
+The public configuration shape is:
 
 ```json
 {
   "Lakona": {
-    "ReliablePush": {
-      "Enabled": true
-    }
+    "Sessions": { "ResumeWindowSeconds": 60 },
+    "ReliablePush": { "MaxPendingPerSession": 256 },
+    "Endpoints": [
+      { "Transport": "websocket", "ReliablePush": true }
+    ]
   }
 }
 ```
 
-The default is `true`. Generated development projects usually omit this key
-because the default is derived by the framework. Setting it to `false` is an
-explicit opt-out.
+Endpoint reliable push defaults to `false`; only explicit `true` enables
+sequencing, acknowledgement, and replay. The 60-second resume window is
+negotiated during handshake and is enforced by an exact disconnect deadline.
+Capacity overflow or a client sequence gap returns `StateRefreshRequired`
+instead of silently applying a partial stream.
+
+Reliable application order is contiguous per Game Session generation. A
+duplicate is acknowledged without another business invocation; the exact next
+sequence is applied and acknowledged; a later sequence across a gap is neither
+applied nor acknowledged. Rebind replay is a barrier, so live publication
+cannot overtake older pending commands.
+
+The built-in registry and outbox are process-local. Seamless control recovery
+therefore requires gateway affinity. Owner restart or reconnecting to another
+gateway returns `StateLost`; built-in recovery does not redirect or pretend
+that lost pending state was replayed.
 
 Business services must not expose reliable-push ack RPC methods, and
 `ILakonaGameServer` must not expose reliable-push publish, replay, or ack

@@ -66,27 +66,29 @@ public sealed class ReliablePushOutboxTests
     }
 
     [Fact]
-    public async Task MaxPendingPerOwnerKeepsNewestRecords()
+    public async Task MaxPendingPerSession_marks_continuity_lost_without_dropping_a_prefix()
     {
-        var outbox = CreateOutbox(options => options.MaxPendingPerOwner = 2);
+        var outbox = CreateOutbox(options => options.MaxPendingPerSession = 2);
         var cancellationToken = TestContext.Current.CancellationToken;
         await outbox.PublishAsync("player-a", "First", "one", _ => default, cancellationToken);
         await outbox.PublishAsync("player-a", "Second", "two", _ => default, cancellationToken);
-        await outbox.PublishAsync("player-a", "Third", "three", _ => default, cancellationToken);
+        await Assert.ThrowsAsync<ReliablePushContinuityLostException>(() => outbox
+            .PublishAsync("player-a", "Third", "three", _ => default, cancellationToken)
+            .AsTask());
         var replayed = new List<ReliablePushRecord>();
 
-        await outbox.ReplayPendingAsync("player-a", Capture(replayed), cancellationToken);
+        await Assert.ThrowsAsync<ReliablePushContinuityLostException>(() => outbox
+            .ReplayPendingAsync("player-a", Capture(replayed), cancellationToken)
+            .AsTask());
 
-        Assert.Collection(
-            replayed,
-            record => Assert.Equal(2, record.Sequence),
-            record => Assert.Equal(3, record.Sequence));
+        Assert.Empty(replayed);
+        Assert.Equal(2, outbox.GetLastSequence("player-a"));
     }
 
     [Fact]
-    public async Task PublishInDisabledModeDeliversImmediateRecordWithoutPendingSequence()
+    public async Task Outbox_always_assigns_a_pending_sequence_when_invoked()
     {
-        var outbox = CreateOutbox(options => options.Enabled = false);
+        var outbox = CreateOutbox();
         var cancellationToken = TestContext.Current.CancellationToken;
         var delivered = new List<ReliablePushRecord>();
 
@@ -94,11 +96,11 @@ public sealed class ReliablePushOutboxTests
         var replayed = new List<ReliablePushRecord>();
         await outbox.ReplayPendingAsync("player-a", Capture(replayed), cancellationToken);
 
-        Assert.Equal(0, sequence);
+        Assert.Equal(1, sequence);
         var record = Assert.Single(delivered);
-        Assert.Equal(0, record.Sequence);
-        Assert.Equal(0, outbox.GetLastSequence("player-a"));
-        Assert.Empty(replayed);
+        Assert.Equal(1, record.Sequence);
+        Assert.Equal(1, outbox.GetLastSequence("player-a"));
+        Assert.Single(replayed);
     }
 
     [Fact]
@@ -106,10 +108,10 @@ public sealed class ReliablePushOutboxTests
     {
         var services = new ServiceCollection();
 
-        services.AddLakonaGameServerReliablePush(options => options.MaxPendingPerOwner = 7);
+        services.AddLakonaGameServerReliablePush(options => options.MaxPendingPerSession = 7);
         using var provider = services.BuildServiceProvider();
 
-        Assert.Equal(7, provider.GetRequiredService<ReliablePushOptions>().MaxPendingPerOwner);
+        Assert.Equal(7, provider.GetRequiredService<ReliablePushOptions>().MaxPendingPerSession);
         Assert.NotNull(provider.GetRequiredService<IReliablePushOutbox>());
     }
 

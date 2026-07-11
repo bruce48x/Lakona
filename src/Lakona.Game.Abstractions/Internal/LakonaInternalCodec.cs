@@ -61,13 +61,16 @@ namespace Lakona.Game.Abstractions
 
             ValidatePositiveProtocolVersion(value.SelectedProtocolVersion);
             var reliablePush = value.ReliablePush ?? new ReliablePushHandshakeSettings();
+            var sessionResume = value.SessionResume ?? new GameSessionResumeHandshakeSettings();
             var heartbeat = value.Heartbeat ?? new GameHeartbeatHandshakeSettings();
+            ValidatePositiveDuration(sessionResume.Window, "Session resume window");
             ValidateHeartbeatPolicy(heartbeat.Interval, heartbeat.Timeout);
 
             var writer = CreateWriter(GameServerHelloKind);
             writer.WriteInt32(value.SelectedProtocolVersion);
             writer.WriteBool(reliablePush.Enabled);
             writer.WriteBool(reliablePush.AckRequired);
+            writer.WriteInt64(sessionResume.Window.Ticks);
             writer.WriteInt64(heartbeat.Interval.Ticks);
             writer.WriteInt64(heartbeat.Timeout.Ticks);
             return writer.ToArray();
@@ -84,6 +87,10 @@ namespace Lakona.Game.Abstractions
                     Enabled = reader.ReadBool(),
                     AckRequired = reader.ReadBool(),
                 },
+                SessionResume = new GameSessionResumeHandshakeSettings
+                {
+                    Window = TimeSpan.FromTicks(reader.ReadInt64()),
+                },
                 Heartbeat = new GameHeartbeatHandshakeSettings
                 {
                     Interval = TimeSpan.FromTicks(reader.ReadInt64()),
@@ -92,6 +99,7 @@ namespace Lakona.Game.Abstractions
             };
 
             ValidatePositiveProtocolVersion(value.SelectedProtocolVersion);
+            ValidatePositiveDuration(value.SessionResume.Window, "Session resume window");
             ValidateHeartbeatPolicy(value.Heartbeat.Interval, value.Heartbeat.Timeout);
             reader.EnsureEnd();
             return value;
@@ -383,6 +391,14 @@ namespace Lakona.Game.Abstractions
             if (timeout < interval)
             {
                 throw new InvalidOperationException("Heartbeat timeout must not be shorter than heartbeat interval.");
+            }
+        }
+
+        private static void ValidatePositiveDuration(TimeSpan value, string name)
+        {
+            if (value <= TimeSpan.Zero)
+            {
+                throw new InvalidOperationException(name + " must be greater than zero.");
             }
         }
 

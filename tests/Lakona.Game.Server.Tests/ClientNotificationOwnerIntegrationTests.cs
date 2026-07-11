@@ -28,6 +28,10 @@ public sealed class ClientNotificationOwnerIntegrationTests
         var session = await sessions.StartNewSessionAsync(
             "player-1",
             TestContext.Current.CancellationToken);
+        await sessions.SetReliablePushPolicyAsync(
+            session,
+            true,
+            TestContext.Current.CancellationToken);
         var callback = new SequenceCapturingDispatchTarget();
         await sessions.BindSessionAsync<ITestPlayerCallback>(
             session,

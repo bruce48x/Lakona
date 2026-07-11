@@ -83,7 +83,9 @@ public static partial class MatchmakingBehavior
             SessionToken = request.SessionToken,
             EnqueuedAtUtc = enqueuedAtUtc,
             QueueId = GetQueueId(self),
-            Priority = request.Priority
+            Priority = request.Priority,
+            ControlSessionId = request.ControlSessionId,
+            ControlSessionGeneration = request.ControlSessionGeneration
         };
 
         self.State.PendingTickets.Add(ticket);
@@ -270,6 +272,8 @@ public static partial class MatchmakingBehavior
                     SeatIndex = seatIndex,
                     SessionToken = ticket.SessionToken,
                     ConnectionId = "",
+                    ControlSessionId = ticket.ControlSessionId,
+                    ControlSessionGeneration = ticket.ControlSessionGeneration,
                     AssignedAtUtc = nowUtc,
                     RuntimeGateway = CloneGateway(runtimeGateway)
                 }).ToList();
@@ -629,7 +633,9 @@ public static partial class MatchmakingBehavior
             SessionToken = ticket.SessionToken,
             EnqueuedAtUtc = ticket.EnqueuedAtUtc,
             QueueId = ticket.QueueId,
-            Priority = ticket.Priority
+            Priority = ticket.Priority,
+            ControlSessionId = ticket.ControlSessionId,
+            ControlSessionGeneration = ticket.ControlSessionGeneration,
         };
     }
 
@@ -643,6 +649,8 @@ public static partial class MatchmakingBehavior
             SeatIndex = assignment.SeatIndex,
             SessionToken = assignment.SessionToken,
             ConnectionId = assignment.ConnectionId,
+            ControlSessionId = assignment.ControlSessionId,
+            ControlSessionGeneration = assignment.ControlSessionGeneration,
             AssignedAtUtc = assignment.AssignedAtUtc,
             RuntimeGateway = CloneGateway(assignment.RuntimeGateway)
         };
@@ -667,6 +675,8 @@ public static partial class MatchmakingBehavior
                     SeatIndex = sessionSnapshot.SeatIndex,
                     SessionToken = sessionSnapshot.SessionToken,
                     ConnectionId = sessionSnapshot.ConnectionId,
+                    ControlSessionId = sessionSnapshot.ControlSessionId,
+                    ControlSessionGeneration = sessionSnapshot.ControlSessionGeneration,
                     AssignedAtUtc = assignedAtUtc,
                     RuntimeGateway = CloneGateway(sessionSnapshot.RuntimeGateway)
                 }

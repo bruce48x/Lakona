@@ -6,6 +6,12 @@ namespace Lakona.Game.Server.Configuration;
 public sealed class LakonaGameEndpointOptions
 {
     /// <summary>
+    /// Gets a value indicating whether callback commands are retained for replay
+    /// across RPC connections bound to the same game session.
+    /// </summary>
+    public bool ReliablePush { get; init; }
+
+    /// <summary>
     /// Gets the transport name, such as <c>websocket</c>, <c>kcp</c>, or <c>tcp</c>.
     /// </summary>
     public string Transport { get; init; } = "";

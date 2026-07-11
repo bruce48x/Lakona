@@ -89,7 +89,7 @@ public sealed class AgarSessionLifecycleTests
     }
 
     [Fact]
-    public async Task RealtimeDisconnectClearsExactActorOwnedRealtimeState()
+    public async Task RealtimeDisconnectPreservesActorOwnedRealtimeStateForResume()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await TestHotfix.LoadCurrentAsync(cancellationToken);
@@ -197,12 +197,12 @@ public sealed class AgarSessionLifecycleTests
             (actor, _) => actor.GetSnapshotAsync(new RoomSnapshotRequest()),
             cancellationToken);
         var roomPlayer = Assert.Single(room.Players);
-        Assert.Equal("", user.RealtimeSessionId);
-        Assert.Equal(0, user.RealtimeSessionGeneration);
-        Assert.Equal("", roomPlayer.RealtimeSessionId);
-        Assert.Equal(0, roomPlayer.RealtimeSessionGeneration);
-        Assert.False(roomPlayer.IsReady);
-        Assert.False(roomPlayer.IsConnected);
+        Assert.Equal("realtime-session", user.RealtimeSessionId);
+        Assert.Equal(1, user.RealtimeSessionGeneration);
+        Assert.Equal("realtime-session", roomPlayer.RealtimeSessionId);
+        Assert.Equal(1, roomPlayer.RealtimeSessionGeneration);
+        Assert.True(roomPlayer.IsReady);
+        Assert.True(roomPlayer.IsConnected);
     }
 
     [Fact]

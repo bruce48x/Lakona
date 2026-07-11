@@ -8,15 +8,26 @@ internal sealed class GameSessionRpcLifecycleObserver : IRpcSessionLifecycleObse
     private readonly IGameSessionRegistry _directory;
     private readonly IReadOnlyList<IGameSessionLifecycleHandler> _handlers;
     private readonly ILogger<GameSessionRpcLifecycleObserver> _logger;
+    private readonly GameConnectionDeliveryPolicyRegistry _deliveryPolicies;
 
     public GameSessionRpcLifecycleObserver(
         IGameSessionRegistry directory,
         IEnumerable<IGameSessionLifecycleHandler> handlers,
         ILogger<GameSessionRpcLifecycleObserver> logger)
+        : this(directory, handlers, logger, new GameConnectionDeliveryPolicyRegistry())
+    {
+    }
+
+    public GameSessionRpcLifecycleObserver(
+        IGameSessionRegistry directory,
+        IEnumerable<IGameSessionLifecycleHandler> handlers,
+        ILogger<GameSessionRpcLifecycleObserver> logger,
+        GameConnectionDeliveryPolicyRegistry deliveryPolicies)
     {
         _directory = directory ?? throw new ArgumentNullException(nameof(directory));
         _handlers = handlers?.ToArray() ?? throw new ArgumentNullException(nameof(handlers));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _deliveryPolicies = deliveryPolicies ?? throw new ArgumentNullException(nameof(deliveryPolicies));
     }
 
     public async ValueTask OnSessionStartedAsync(
@@ -46,6 +57,7 @@ internal sealed class GameSessionRpcLifecycleObserver : IRpcSessionLifecycleObse
         Exception? error,
         CancellationToken cancellationToken = default)
     {
+        _deliveryPolicies.Remove(context.ConnectionId);
         var snapshot = await _directory
             .MarkConnectionDisconnectedAsync(context.ConnectionId, cancellationToken)
             .ConfigureAwait(false);

@@ -20,6 +20,7 @@ heartbeat, hotfix, and observability.
         "Host": "127.0.0.1",
         "Port": 20000,
         "Path": "/ws",
+        "ReliablePush": true,
         "RpcServices": [ "login", "player" ]
       }
     ],
@@ -61,6 +62,23 @@ environment:
 `Lakona:Endpoints[]` declares client-facing RPC listeners. Each endpoint owns
 its transport, serializer, bind host, advertised host, port, path, and exposed
 RPC services. Endpoint serializers are separate from the cluster serializer.
+
+`ReliablePush` is an explicit endpoint opt-in. It defaults to `false`; only
+`"ReliablePush": true` retains unacknowledged callback commands for replay
+across RPC connections. Transport choice does not imply this policy.
+
+## Session Resume
+
+`Lakona:Sessions:ResumeWindowSeconds` controls how long a disconnected Game
+Session may resume and defaults to 60 seconds. The server captures an exact
+deadline at disconnect and sends the effective window in `GameServerHello`.
+The same window bounds pending reliable callbacks and client-session route
+availability. Cleanup interval only controls scanning and cannot extend the
+deadline.
+
+`Lakona:ReliablePush:MaxPendingPerSession` defaults to 256. Reaching it marks
+the session `StateRefreshRequired`; Lakona never drops an old prefix and claims
+that replay is complete.
 
 ## Cluster
 

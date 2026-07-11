@@ -12,6 +12,7 @@ namespace SampleClient.Gameplay
         private readonly Queue<PlayerDead> _pendingDeaths = new();
         private MatchEnd? _pendingMatchEnd;
         private MatchmakingStatusUpdate? _pendingMatchmakingStatus;
+        private readonly Queue<MatchProgressUpdate> _pendingMatchProgress = new();
         private string? _pendingRealtimeFallbackMessage;
         private string? _pendingDisconnectMessage;
 
@@ -55,6 +56,22 @@ namespace SampleClient.Gameplay
             }
         }
 
+        public void EnqueueMatchProgress(MatchProgressUpdate update)
+        {
+            lock (_gate)
+            {
+                _pendingMatchProgress.Enqueue(new MatchProgressUpdate
+                {
+                    MatchId = update.MatchId,
+                    RoomId = update.RoomId,
+                    ServerTick = update.ServerTick,
+                    RoundRemainingSeconds = update.RoundRemainingSeconds,
+                    ProgressRevision = update.ProgressRevision,
+                    PublishedAtUtc = update.PublishedAtUtc,
+                });
+            }
+        }
+
         public void EnqueueDisconnected(string? disconnectMessage)
         {
             lock (_gate)
@@ -77,6 +94,7 @@ namespace SampleClient.Gameplay
             WorldState? worldState;
             MatchEnd? matchEnd;
             MatchmakingStatusUpdate? matchmakingStatus;
+            var matchProgress = new List<MatchProgressUpdate>();
             string? realtimeFallbackMessage;
             string? disconnectMessage;
 
@@ -95,6 +113,10 @@ namespace SampleClient.Gameplay
 
                 matchmakingStatus = _pendingMatchmakingStatus;
                 _pendingMatchmakingStatus = null;
+                while (_pendingMatchProgress.Count > 0)
+                {
+                    matchProgress.Add(_pendingMatchProgress.Dequeue());
+                }
 
                 realtimeFallbackMessage = _pendingRealtimeFallbackMessage;
                 _pendingRealtimeFallbackMessage = null;
@@ -103,7 +125,7 @@ namespace SampleClient.Gameplay
                 _pendingDisconnectMessage = null;
             }
 
-            return new DrainedCallbacks(worldState, deadEvents, matchEnd, matchmakingStatus, realtimeFallbackMessage, disconnectMessage);
+            return new DrainedCallbacks(worldState, deadEvents, matchEnd, matchmakingStatus, matchProgress, realtimeFallbackMessage, disconnectMessage);
         }
 
         public void Clear()
@@ -114,6 +136,7 @@ namespace SampleClient.Gameplay
                 _pendingDeaths.Clear();
                 _pendingMatchEnd = null;
                 _pendingMatchmakingStatus = null;
+                _pendingMatchProgress.Clear();
                 _pendingRealtimeFallbackMessage = null;
                 _pendingDisconnectMessage = null;
             }
@@ -190,12 +213,13 @@ namespace SampleClient.Gameplay
 
     internal readonly struct DrainedCallbacks
     {
-        public DrainedCallbacks(WorldState? worldState, List<PlayerDead> deaths, MatchEnd? matchEnd, MatchmakingStatusUpdate? matchmakingStatus, string? realtimeFallbackMessage, string? disconnectedMessage)
+        public DrainedCallbacks(WorldState? worldState, List<PlayerDead> deaths, MatchEnd? matchEnd, MatchmakingStatusUpdate? matchmakingStatus, List<MatchProgressUpdate> matchProgress, string? realtimeFallbackMessage, string? disconnectedMessage)
         {
             WorldState = worldState;
             Deaths = deaths;
             MatchEnd = matchEnd;
             MatchmakingStatus = matchmakingStatus;
+            MatchProgress = matchProgress;
             RealtimeFallbackMessage = realtimeFallbackMessage;
             DisconnectedMessage = disconnectedMessage;
         }
@@ -204,6 +228,7 @@ namespace SampleClient.Gameplay
         public List<PlayerDead> Deaths { get; }
         public MatchEnd? MatchEnd { get; }
         public MatchmakingStatusUpdate? MatchmakingStatus { get; }
+        public List<MatchProgressUpdate> MatchProgress { get; }
         public string? RealtimeFallbackMessage { get; }
         public string? DisconnectedMessage { get; }
     }

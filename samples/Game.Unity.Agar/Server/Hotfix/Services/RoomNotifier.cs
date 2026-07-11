@@ -52,6 +52,44 @@ internal sealed class RoomNotifier
             cancellationToken);
     }
 
+    public async ValueTask PublishMatchProgressAsync(
+        RoomSnapshot room,
+        MatchProgressUpdate update,
+        CancellationToken cancellationToken = default)
+    {
+        foreach (var player in room.Players)
+        {
+            if (string.IsNullOrWhiteSpace(player.ControlSessionId) ||
+                player.ControlSessionGeneration <= 0)
+            {
+                continue;
+            }
+
+            var controlSession = new GameSessionKey(
+                player.UserId,
+                player.ControlSessionId,
+                player.ControlSessionGeneration);
+            var status = await _notifications
+                .ForSession(controlSession)
+                .NotifyAsync<IPlayerCallback>(
+                    callback =>
+                    {
+                        callback.OnMatchProgress(update);
+                        return default;
+                    },
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (status != ClientNotificationStatus.Delivered &&
+                status != ClientNotificationStatus.CallbackUnavailable)
+            {
+                _logger.LogDebug(
+                    "Match progress publication returned {Status} for room {RoomId}.",
+                    status,
+                    room.RoomId);
+            }
+        }
+    }
+
     private async ValueTask PublishAsync(
         RoomSnapshot room,
         Func<IBattleCallback, ValueTask> notify,

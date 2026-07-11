@@ -1,6 +1,7 @@
 using System;
 using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
+using Lakona.Game.Client.ReliablePush;
 
 namespace Lakona.Game.Client
 {
@@ -17,6 +18,12 @@ namespace Lakona.Game.Client
             : base(transport, serializer)
         {
         }
+
+        /// <summary>
+        /// Gets or sets the cursor store shared by replacement RPC clients that
+        /// resume the same game session.
+        /// </summary>
+        public IReliablePushCursorStore? ReliablePushCursorStore { get; set; }
 
         /// <summary>
         ///     Configures compression or encryption for the client transport.

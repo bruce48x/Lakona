@@ -159,7 +159,7 @@ public sealed class LakonaGameClientCoreTests
         var metadata = new ReliablePushMetadata(
             "session-a",
             9,
-            ReliablePushSequence.From(3),
+            ReliablePushSequence.From(1),
             "test.notification");
         var transport = new OneShotReliablePushNotificationTransport(metadata);
         await using var rpc = new RpcClientRuntime(transport, new NoopSerializer());
@@ -185,11 +185,11 @@ public sealed class LakonaGameClientCoreTests
 
         Assert.Equal("session-a", ack.SessionId);
         Assert.Equal(9, ack.SessionGeneration);
-        Assert.Equal(3, ack.Sequence.Value);
+        Assert.Equal(1, ack.Sequence.Value);
         await WaitForAsync(
-            () => client.Snapshot.LastReliableSequence == 3,
+            () => client.Snapshot.LastReliableSequence == 1,
             TestContext.Current.CancellationToken);
-        Assert.Equal(3, client.Snapshot.LastReliableSequence);
+        Assert.Equal(1, client.Snapshot.LastReliableSequence);
         Assert.Equal(9, client.Snapshot.SessionGeneration);
     }
 

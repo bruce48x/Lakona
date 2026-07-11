@@ -18,6 +18,16 @@ namespace Lakona.Game.Client.ReliablePush
                 return new ReliablePushApplyDecision(sequence, shouldApply: false, shouldAck: true, isDuplicate: true);
             }
 
+            if (sequence != LastAppliedSequence + 1)
+            {
+                return new ReliablePushApplyDecision(
+                    sequence,
+                    shouldApply: false,
+                    shouldAck: false,
+                    isDuplicate: false,
+                    isGap: true);
+            }
+
             return new ReliablePushApplyDecision(sequence, shouldApply: true, shouldAck: true, isDuplicate: false);
         }
 

@@ -7,7 +7,7 @@ namespace Lakona.Game.Server.Tests;
 public sealed class LakonaGameServerHostingOptionsTests
 {
     [Fact]
-    public void FromConfiguration_reads_actor_and_session_cleanup_options()
+    public void FromConfiguration_reads_actor_session_resume_and_cleanup_options()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -17,7 +17,7 @@ public sealed class LakonaGameServerHostingOptionsTests
                 ["Lakona:Actors:SlowMessageThresholdSeconds"] = "1",
                 ["Lakona:Sessions:Cleanup:Enabled"] = "false",
                 ["Lakona:Sessions:Cleanup:IntervalSeconds"] = "7",
-                ["Lakona:Sessions:Cleanup:DisconnectedRetentionSeconds"] = "11"
+                ["Lakona:Sessions:ResumeWindowSeconds"] = "11"
             })
             .Build();
 
@@ -28,7 +28,7 @@ public sealed class LakonaGameServerHostingOptionsTests
         Assert.Equal(TimeSpan.FromSeconds(1), options.Actors.SlowMessageThreshold);
         Assert.False(options.Sessions.Cleanup.Enabled);
         Assert.Equal(TimeSpan.FromSeconds(7), options.Sessions.Cleanup.Interval);
-        Assert.Equal(TimeSpan.FromSeconds(11), options.Sessions.Cleanup.DisconnectedSessionRetention);
+        Assert.Equal(TimeSpan.FromSeconds(11), options.Sessions.ResumeWindow);
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public sealed class LakonaGameServerHostingOptionsTests
         Assert.Null(options.Actors.SlowMessageThreshold);
         Assert.True(options.Sessions.Cleanup.Enabled);
         Assert.Equal(TimeSpan.FromSeconds(30), options.Sessions.Cleanup.Interval);
-        Assert.Equal(TimeSpan.FromMinutes(2), options.Sessions.Cleanup.DisconnectedSessionRetention);
+        Assert.Equal(TimeSpan.FromSeconds(60), options.Sessions.ResumeWindow);
     }
 
     [Fact]

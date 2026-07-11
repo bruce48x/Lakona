@@ -23,10 +23,12 @@ public sealed class GameHandshakeTests
             new GameClientHello { ProtocolVersion = 1 },
             "websocket",
             "memorypack",
+            true,
             CancellationToken.None);
 
         Assert.Equal(TimeSpan.FromSeconds(6), hello.Heartbeat.Interval);
         Assert.Equal(TimeSpan.FromSeconds(18), hello.Heartbeat.Timeout);
+        Assert.Equal(TimeSpan.FromSeconds(60), hello.SessionResume.Window);
     }
 
     [Fact]
@@ -39,6 +41,7 @@ public sealed class GameHandshakeTests
             new GameClientHello { ProtocolVersion = 1 },
             "websocket",
             "memorypack",
+            true,
             CancellationToken.None);
 
         Assert.True(hello.ReliablePush.Enabled);
@@ -55,6 +58,7 @@ public sealed class GameHandshakeTests
             new GameClientHello { ProtocolVersion = 1 },
             "websocket",
             "memorypack",
+            false,
             CancellationToken.None);
 
         Assert.False(hello.ReliablePush.Enabled);
@@ -70,13 +74,14 @@ public sealed class GameHandshakeTests
                 Node = new LakonaGameNodeOptions { Id = "node-a" },
                 Heartbeat = LakonaGameHeartbeatOptions.Defaults()
             },
-            new ReliablePushOptions());
+            new LakonaGameHostingOptions());
 
         var exception = await Assert.ThrowsAsync<GameHandshakeRejectedException>(async () =>
             await service.HandshakeAsync(
                 new GameClientHello { ProtocolVersion = 2 },
                 "kcp",
                 "memorypack",
+                false,
                 TestContext.Current.CancellationToken));
 
         Assert.Contains("protocol version 1", exception.Message, StringComparison.Ordinal);
@@ -89,8 +94,7 @@ public sealed class GameHandshakeTests
 
         var options = provider.GetRequiredService<ReliablePushOptions>();
 
-        Assert.True(options.Enabled);
-        Assert.Equal(64, options.MaxPendingPerOwner);
+        Assert.Equal(64, options.MaxPendingPerSession);
     }
 
     [Fact]
@@ -109,8 +113,7 @@ public sealed class GameHandshakeTests
         using var provider = services.BuildServiceProvider();
 
         var options = provider.GetRequiredService<ReliablePushOptions>();
-        Assert.True(options.Enabled);
-        Assert.Equal(256, options.MaxPendingPerOwner);
+        Assert.Equal(256, options.MaxPendingPerSession);
     }
 
     private static ServiceProvider CreateProvider(
@@ -122,11 +125,11 @@ public sealed class GameHandshakeTests
         var values = new Dictionary<string, string?>
         {
             ["Lakona:Node:Id"] = "node-a",
-            ["Lakona:ReliablePush:Enabled"] = reliablePushEnabled.ToString()
+            ["Lakona:Endpoints:0:ReliablePush"] = reliablePushEnabled.ToString()
         };
         if (maxPending.HasValue)
         {
-            values["Lakona:ReliablePush:MaxPendingPerOwner"] = maxPending.Value.ToString();
+            values["Lakona:ReliablePush:MaxPendingPerSession"] = maxPending.Value.ToString();
         }
 
         if (heartbeatInterval.HasValue)

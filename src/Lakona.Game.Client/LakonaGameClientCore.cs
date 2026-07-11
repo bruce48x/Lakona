@@ -18,6 +18,7 @@ namespace Lakona.Game.Client
         private LakonaGameHeartbeatLoop? _heartbeat;
         private TimeSpan _heartbeatInterval = TimeSpan.FromSeconds(15);
         private TimeSpan _heartbeatTimeout = TimeSpan.FromSeconds(45);
+        private TimeSpan _sessionResumeWindow = TimeSpan.FromSeconds(60);
 
         public LakonaGameClientCore(IReliablePushCursorStore? cursorStore = null)
         {
@@ -44,6 +45,11 @@ namespace Lakona.Game.Client
             get { return _heartbeatTimeout; }
         }
 
+        public TimeSpan SessionResumeWindow
+        {
+            get { return _sessionResumeWindow; }
+        }
+
         public void ApplyServerHello(GameServerHello hello)
         {
             if (hello == null) throw new ArgumentNullException(nameof(hello));
@@ -55,6 +61,16 @@ namespace Lakona.Game.Client
 
             ReliablePushEnabled = hello.ReliablePush.Enabled;
             ReliablePushAckRequired = hello.ReliablePush.Enabled && hello.ReliablePush.AckRequired;
+            var resume = hello.SessionResume ?? new GameSessionResumeHandshakeSettings();
+            if (resume.Window <= TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "SessionResume.Window",
+                    resume.Window,
+                    "Lakona game session resume window must be greater than zero.");
+            }
+
+            _sessionResumeWindow = resume.Window;
             ApplyHeartbeatPolicy(hello.Heartbeat ?? new GameHeartbeatHandshakeSettings());
         }
 
@@ -132,6 +148,11 @@ namespace Lakona.Game.Client
                 if (result.Acknowledgement.HasValue)
                 {
                     _sessions.ApplyAckOutcome(result.Acknowledgement.Value);
+                }
+                else if (result.Decision.IsGap)
+                {
+                    _sessions.ApplyAckOutcome(
+                        ReliablePushAckOutcome.StateRefreshRequired("Reliable push sequence gap detected."));
                 }
             });
         }
@@ -252,6 +273,11 @@ namespace Lakona.Game.Client
             if (result.Acknowledgement.HasValue)
             {
                 _sessions.ApplyAckOutcome(result.Acknowledgement.Value);
+            }
+            else if (result.Decision.IsGap)
+            {
+                _sessions.ApplyAckOutcome(
+                    ReliablePushAckOutcome.StateRefreshRequired("Reliable push sequence gap detected."));
             }
 
             return result;

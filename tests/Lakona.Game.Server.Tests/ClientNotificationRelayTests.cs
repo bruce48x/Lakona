@@ -277,7 +277,7 @@ public sealed class ClientNotificationRelayTests
     {
         var services = new ServiceCollection();
         services.AddLakonaGameServerSessions();
-        services.AddLakonaGameServerReliablePush(options => options.Enabled = false);
+        services.AddLakonaGameServerReliablePush();
         await using var provider = services.BuildServiceProvider();
         var directory = provider.GetRequiredService<IGameSessionRegistry>();
         var notifications = provider.GetRequiredService<IClientNotifications>();
@@ -316,7 +316,7 @@ public sealed class ClientNotificationRelayTests
     {
         var services = new ServiceCollection();
         services.AddLakonaGameServerSessions();
-        services.AddLakonaGameServerReliablePush(options => options.Enabled = false);
+        services.AddLakonaGameServerReliablePush();
         await using var provider = services.BuildServiceProvider();
         var sessions = provider.GetRequiredService<IGameSessionRegistry>();
         var session = await sessions.StartNewSessionAsync(

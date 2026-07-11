@@ -8,6 +8,13 @@ namespace Lakona.Game.Server.Tests.Hosting;
 
 public sealed class LakonaEndpointRuntimeDefaultsTests
 {
+    [Fact]
+    public void Endpoint_reliable_push_is_disabled_unless_explicitly_enabled()
+    {
+        Assert.False(new LakonaGameEndpointOptions().ReliablePush);
+        Assert.True(new LakonaGameEndpointOptions { ReliablePush = true }.ReliablePush);
+    }
+
     [Theory]
     [InlineData("json", typeof(JsonRpcSerializer))]
     [InlineData("memorypack", typeof(MemoryPackRpcSerializer))]

@@ -31,7 +31,7 @@ The default local topology is one process with generated defaults for the node-d
 The canonical configuration and startup model is defined in
 [Configuration](../configuration.md).
 Generated projects should use `Lakona:Node:Id`,
-`Lakona:Sessions:Cleanup:DisconnectedRetentionSeconds`, and
+`Lakona:Sessions:ResumeWindowSeconds`, and
 `Lakona:Endpoints[]` with endpoint-local `Serializer` and `RpcServices`.
 Startup is the strict zero-template host:
 
@@ -55,11 +55,9 @@ It should not contain:
 - topology abstractions such as `Node.Profile`
 - derived cluster values such as advertised endpoints, bootstrap endpoints, actor host descriptors, route lease seconds, or send timeout milliseconds
 
-Reliable Push is enabled by default and generated local configuration should
-not include `Lakona:ReliablePush:Enabled`. Users may explicitly set
-`Lakona:ReliablePush:Enabled=false` later to opt out; the framework then keeps
-the same notification API and degrades delivery to immediate best effort with
-no ack or replay.
+Reliable Push is endpoint-local and disabled unless explicitly enabled.
+Generated business endpoints include `"ReliablePush": true`; applications
+that need best-effort callbacks set it to false or omit it.
 
 The default configuration should be:
 
@@ -70,9 +68,7 @@ The default configuration should be:
       "Id": "dev-1"
     },
     "Sessions": {
-      "Cleanup": {
-        "DisconnectedRetentionSeconds": 30
-      }
+      "ResumeWindowSeconds": 60
     },
     "Hotfix": {
       "DebugWatcher": "On"
@@ -91,6 +87,7 @@ The default configuration should be:
         "Serializer": "memorypack",
         "Host": "127.0.0.1",
         "Port": 20000,
+        "ReliablePush": true,
         "RpcServices": [ "game" ]
       }
     ]
@@ -107,9 +104,7 @@ For WebSocket transport, the generated endpoint includes the path:
       "Id": "dev-1"
     },
     "Sessions": {
-      "Cleanup": {
-        "DisconnectedRetentionSeconds": 30
-      }
+      "ResumeWindowSeconds": 60
     },
     "Hotfix": {
       "DebugWatcher": "On"

@@ -859,7 +859,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             writer.Line();
             writer.OpenBlock("public LakonaGameClient(LakonaGameClientOptions options, params object[] callbackReceivers)");
             writer.Line("_options = options ?? throw new ArgumentNullException(nameof(options));");
-            writer.Line("_core = new LakonaGameClientCore();");
+            writer.Line("_core = new LakonaGameClientCore(_options.ReliablePushCursorStore);");
             writer.Line("_rpcClient = CreateRpcClient(callbackReceivers);");
             writer.Line("_rpcClient.Disconnected += HandleDisconnected;");
             writer.CloseBlock();
@@ -869,6 +869,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             writer.Line("public ClientSessionSnapshot Snapshot => _core.Snapshot;");
             writer.Line("public bool ReliablePushEnabled => _core.ReliablePushEnabled;");
             writer.Line("public bool ReliablePushAckRequired => _core.ReliablePushAckRequired;");
+            writer.Line("public global::System.TimeSpan SessionResumeWindow => _core.SessionResumeWindow;");
             writer.Line();
             writer.OpenBlock("public ValueTask StartSessionAsync(string sessionId, long sessionGeneration, CancellationToken cancellationToken = default)");
             writer.Line("return _core.StartSessionAsync(sessionId, sessionGeneration, cancellationToken);");

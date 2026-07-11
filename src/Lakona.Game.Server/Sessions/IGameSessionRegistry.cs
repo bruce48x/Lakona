@@ -12,6 +12,23 @@ public interface IGameSessionRegistry
         GameSessionKey session,
         CancellationToken cancellationToken = default);
 
+    ValueTask SetReliablePushPolicyAsync(
+        GameSessionKey session,
+        bool enabled,
+        CancellationToken cancellationToken = default);
+
+    ValueTask<bool> GetReliablePushPolicyAsync(
+        GameSessionKey session,
+        CancellationToken cancellationToken = default);
+
+    ValueTask MarkReliableContinuityLostAsync(
+        GameSessionKey session,
+        CancellationToken cancellationToken = default);
+
+    ValueTask<bool> IsReliableContinuityLostAsync(
+        GameSessionKey session,
+        CancellationToken cancellationToken = default);
+
     ValueTask<GameSessionBindResult> BindSessionAsync<TCallback>(
         GameSessionKey session,
         string connectionId,

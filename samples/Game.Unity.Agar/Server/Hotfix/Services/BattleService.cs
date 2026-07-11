@@ -80,9 +80,46 @@ internal sealed class BattleService
             };
         }
 
-        var realtimeSession = await call.GameServer
-            .StartSessionAsync(req.PlayerId, call.ConnectionId, call.Callback)
-            .ConfigureAwait(false);
+        GameSessionKey realtimeSession;
+        if (!string.IsNullOrWhiteSpace(req.ResumeSessionId) && req.ResumeSessionGeneration > 0 &&
+            string.Equals(sessionSnapshot.RealtimeSessionId, req.ResumeSessionId, StringComparison.Ordinal) &&
+            sessionSnapshot.RealtimeSessionGeneration == req.ResumeSessionGeneration)
+        {
+            var requestedSession = new GameSessionKey(
+                req.PlayerId,
+                req.ResumeSessionId,
+                req.ResumeSessionGeneration);
+            var resume = await call.GameServer
+                .ResumeSessionAsync(
+                    new GameSessionResumeRequest(requestedSession, req.Token),
+                    call.ConnectionId,
+                    call.Callback)
+                .ConfigureAwait(false);
+            if (resume.Status == SessionResumeStatus.Resumed && resume.Session is { } resumedSession)
+            {
+                realtimeSession = resumedSession;
+            }
+            else if (resume.Status == SessionResumeStatus.StateLost)
+            {
+                realtimeSession = await call.GameServer
+                    .StartSessionAsync(req.PlayerId, call.ConnectionId, call.Callback)
+                    .ConfigureAwait(false);
+            }
+            else
+            {
+                return new RealtimeAttachReply
+                {
+                    Code = 5,
+                    Message = resume.Reason ?? "Realtime session could not be resumed."
+                };
+            }
+        }
+        else
+        {
+            realtimeSession = await call.GameServer
+                .StartSessionAsync(req.PlayerId, call.ConnectionId, call.Callback)
+                .ConfigureAwait(false);
+        }
         try
         {
             sessionSnapshot = await _users

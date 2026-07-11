@@ -815,6 +815,10 @@ public sealed class AgarHotfixTests
         public void OnMatchmakingStatus(MatchmakingStatusUpdate matchmakingStatus)
         {
         }
+
+        public void OnMatchProgress(MatchProgressUpdate update)
+        {
+        }
     }
 
     private sealed class CapturingBattleCallback : IBattleCallback

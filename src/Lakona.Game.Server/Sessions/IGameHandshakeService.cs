@@ -8,5 +8,6 @@ public interface IGameHandshakeService
         GameClientHello hello,
         string endpointTransport,
         string endpointSerializer,
+        bool reliablePush,
         CancellationToken cancellationToken = default);
 }

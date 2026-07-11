@@ -290,6 +290,12 @@ namespace Server.App.State.Contracts.Rooms
 
         [MemoryPackOrder(12)]
         public int Rank { get; set; }
+
+        [MemoryPackOrder(13)]
+        public string ControlSessionId { get; set; } = "";
+
+        [MemoryPackOrder(14)]
+        public long ControlSessionGeneration { get; set; }
     }
 
     public sealed class RoomState
@@ -328,6 +334,10 @@ namespace Server.App.State.Contracts.Rooms
 
         public int LastPublishedWorldTick { get; set; }
 
+        public int LastPublishedProgressRemainingSeconds { get; set; } = -1;
+
+        public long ProgressRevision { get; set; }
+
         public bool MatchCommitted { get; set; }
     }
 
@@ -342,6 +352,10 @@ namespace Server.App.State.Contracts.Rooms
         public string RealtimeSessionId { get; set; } = "";
 
         public long RealtimeSessionGeneration { get; set; }
+
+        public string ControlSessionId { get; set; } = "";
+
+        public long ControlSessionGeneration { get; set; }
 
         public int SeatIndex { get; set; } = -1;
 

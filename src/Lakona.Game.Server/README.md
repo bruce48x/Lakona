@@ -42,9 +42,13 @@ Configure client-facing endpoints in `appsettings.json`:
         "Host": "127.0.0.1",
         "Port": 20000,
         "Path": "/ws",
+        "ReliablePush": true,
         "RpcServices": [ "login", "player" ]
       }
-    ]
+    ],
+    "Sessions": {
+      "ResumeWindowSeconds": 60
+    }
   }
 }
 ```
@@ -59,6 +63,13 @@ the default one-node cluster endpoint and `memorypack`. Do not configure
 cluster RPC by calling `UseSerializer` directly in the game server host; keep
 client-facing endpoint serializers under `Lakona:Endpoints[]:Serializer` and
 the cluster serializer under `Lakona:Cluster:Serializer`.
+
+Reliable push is off unless an endpoint explicitly sets `ReliablePush: true`.
+The endpoint policy is fixed for the lifetime of a Game Session and is sent to
+the client during handshake. `Lakona:Sessions:ResumeWindowSeconds` is the
+single retention window for disconnected Game Sessions and their unacknowledged
+push records; it defaults to 60 seconds. The built-in stores are process-local,
+so resume targets the same gateway and does not provide distributed redirect.
 
 Actor-only process-local hosts use `InMemoryActorDirectory` by default. In a
 cluster, the configured seed owns the ephemeral actor directory and remote

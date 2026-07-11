@@ -55,4 +55,13 @@ internal static class ReliablePushOutboxSessionExtensions
         ArgumentNullException.ThrowIfNull(outbox);
         return outbox.GetLastSequence(ReliablePushSessionOwnerKey.Create(session));
     }
+
+    public static ValueTask RemoveAsync(
+        this IReliablePushOutbox outbox,
+        GameSessionKey session,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(outbox);
+        return outbox.RemoveAsync(ReliablePushSessionOwnerKey.Create(session), cancellationToken);
+    }
 }

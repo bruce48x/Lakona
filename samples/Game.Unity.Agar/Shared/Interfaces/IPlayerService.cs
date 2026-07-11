@@ -43,6 +43,26 @@ namespace Shared.Interfaces
     {
         [RpcNotification(1)]
         void OnMatchmakingStatus(MatchmakingStatusUpdate matchmakingStatus);
+
+        [RpcNotification(2)]
+        void OnMatchProgress(MatchProgressUpdate update);
+    }
+
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public partial class MatchProgressUpdate
+    {
+        [MemoryPackOrder(0)]
+        public string MatchId { get; set; } = "";
+        [MemoryPackOrder(1)]
+        public string RoomId { get; set; } = "";
+        [MemoryPackOrder(2)]
+        public int ServerTick { get; set; }
+        [MemoryPackOrder(3)]
+        public int RoundRemainingSeconds { get; set; }
+        [MemoryPackOrder(4)]
+        public long ProgressRevision { get; set; }
+        [MemoryPackOrder(5)]
+        public System.DateTime PublishedAtUtc { get; set; }
     }
 
     [RpcService(3, NotificationContract = typeof(IBattleCallback))]
@@ -161,6 +181,10 @@ namespace Shared.Interfaces
         public string RoomId { get; set; } = "";
         [MemoryPackOrder(3)]
         public string MatchId { get; set; } = "";
+        [MemoryPackOrder(4)]
+        public string ResumeSessionId { get; set; } = "";
+        [MemoryPackOrder(5)]
+        public long ResumeSessionGeneration { get; set; }
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]

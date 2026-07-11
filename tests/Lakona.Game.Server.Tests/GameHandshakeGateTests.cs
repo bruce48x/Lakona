@@ -359,6 +359,7 @@ public sealed class GameHandshakeGateTests
             GameClientHello hello,
             string endpointTransport,
             string endpointSerializer,
+            bool reliablePush,
             CancellationToken cancellationToken = default)
         {
             throw new InvalidOperationException("Handshake service failed.");

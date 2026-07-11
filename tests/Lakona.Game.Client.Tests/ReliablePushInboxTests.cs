@@ -71,6 +71,35 @@ public sealed class ReliablePushInboxTests
     }
 
     [Fact]
+    public async Task Gap_sequence_is_rejected_before_business_application_or_acknowledgement()
+    {
+        var inbox = new ReliablePushInbox();
+        var applyCount = 0;
+        var ackCount = 0;
+        inbox.StartSession("session-a", sessionGeneration: 1, lastAppliedSequence: 2);
+
+        var result = await inbox.ProcessAsync(
+            ReliablePushSequence.From(4),
+            "gap",
+            (_, _) =>
+            {
+                applyCount++;
+                return default;
+            },
+            (_, _) =>
+            {
+                ackCount++;
+                return new ValueTask<ReliablePushAckOutcome>(ReliablePushAckOutcome.Accepted());
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.Decision.IsGap);
+        Assert.Equal(0, applyCount);
+        Assert.Equal(0, ackCount);
+        Assert.Equal(2, inbox.LastAppliedSequence);
+    }
+
+    [Fact]
     public async Task NewSessionUsesIsolatedCursor()
     {
         var store = new InMemoryReliablePushCursorStore();

@@ -3,6 +3,7 @@
 using System;
 using System.Collections;
 using System.Threading.Tasks;
+using System.Linq;
 using NUnit.Framework;
 using SampleClient.Gameplay;
 using UnityEngine;
@@ -83,6 +84,87 @@ namespace SampleClient.Gameplay.Tests
                 "local player did not move toward the arena center after submitting input",
                 10f);
             game.ClearEditorMoveOverrideForTest();
+
+            yield return WaitForSnapshot(
+                game,
+                snapshot => snapshot.MatchProgressRevisions.Length >= 2,
+                "control match progress callbacks were not received",
+                15f);
+
+            var beforeOffline = game.BuildTestSnapshot();
+            var offlineStart = DateTime.UtcNow;
+            yield return WaitForTask(
+                game.SetNetworkGateForTestAsync(false),
+                "network gate did not close",
+                10f);
+            yield return new WaitForSecondsRealtime(3f);
+            var offlineEnd = DateTime.UtcNow;
+            yield return WaitForTask(
+                game.SetNetworkGateForTestAsync(true),
+                "network gate did not open",
+                10f);
+
+            yield return WaitForSnapshot(
+                game,
+                snapshot => snapshot.IsControlConnected &&
+                            snapshot.IsRealtimeConnected &&
+                            snapshot.FlowState == "InMatch" &&
+                            snapshot.LastWorldTick > beforeOffline.LastWorldTick,
+                "dual-channel recovery did not restore live gameplay",
+                60f);
+
+            yield return WaitForSnapshot(
+                game,
+                snapshot => snapshot.MatchProgressRevisions.Length >=
+                            beforeOffline.MatchProgressRevisions.Length + 2,
+                "replayed control progress callbacks were not applied on the Unity main thread",
+                25f);
+
+            var recovered = game.BuildTestSnapshot();
+            NUnitAssert.That(recovered.ControlSessionId, Is.EqualTo(beforeOffline.ControlSessionId));
+            NUnitAssert.That(recovered.ControlSessionGeneration, Is.EqualTo(beforeOffline.ControlSessionGeneration));
+            NUnitAssert.That(recovered.RealtimeSessionId, Is.EqualTo(beforeOffline.RealtimeSessionId));
+            NUnitAssert.That(recovered.RealtimeSessionGeneration, Is.EqualTo(beforeOffline.RealtimeSessionGeneration));
+            NUnitAssert.That(recovered.ControlRpcSerial, Is.GreaterThan(beforeOffline.ControlRpcSerial));
+            NUnitAssert.That(recovered.RealtimeRpcSerial, Is.GreaterThan(beforeOffline.RealtimeRpcSerial));
+            NUnitAssert.That(recovered.LocalPlayerId, Is.EqualTo(beforeOffline.LocalPlayerId));
+            NUnitAssert.That(recovered.LastRealtimeRoomId, Is.EqualTo(beforeOffline.LastRealtimeRoomId));
+            NUnitAssert.That(recovered.LastRealtimeMatchId, Is.EqualTo(beforeOffline.LastRealtimeMatchId));
+
+            var recoveredMove = recovered.LocalPlayerX >= 0f ? Vector2.left : Vector2.right;
+            yield return WaitForTask(
+                game.SetEditorMoveOverrideForTest(recoveredMove),
+                "post-reconnect input submission did not complete",
+                10f);
+            yield return WaitForSnapshot(
+                game,
+                snapshot => recoveredMove.x < 0f
+                    ? snapshot.LocalPlayerX < recovered.LocalPlayerX - 0.25f
+                    : snapshot.LocalPlayerX > recovered.LocalPlayerX + 0.25f,
+                "local player did not respond to input after dual-channel recovery",
+                10f);
+            game.ClearEditorMoveOverrideForTest();
+
+            var offlineProgress = recovered.MatchProgressPublishedAtUtc
+                .Zip(recovered.MatchProgressRevisions, (published, revision) => new { published, revision })
+                .Where(item => item.published >= offlineStart.AddMilliseconds(-250) &&
+                               item.published <= offlineEnd.AddMilliseconds(250))
+                .ToArray();
+            NUnitAssert.That(offlineProgress.Length, Is.GreaterThanOrEqualTo(2),
+                $"at least two control progress callbacks published offline must replay; " +
+                $"offline=[{offlineStart:O},{offlineEnd:O}], " +
+                $"received=[{string.Join(",", recovered.MatchProgressPublishedAtUtc.Select(static value => value.ToString("O")))}]");
+            NUnitAssert.That(
+                recovered.MatchProgressRevisions.Distinct().Count(),
+                Is.EqualTo(recovered.MatchProgressRevisions.Length),
+                "progress callbacks must be applied at most once");
+            for (var index = 1; index < recovered.MatchProgressRevisions.Length; index++)
+            {
+                NUnitAssert.That(
+                    recovered.MatchProgressRevisions[index],
+                    Is.EqualTo(recovered.MatchProgressRevisions[index - 1] + 1),
+                    "progress revisions must remain contiguous across replay");
+            }
         }
 
         private static IEnumerator WaitForSnapshot(

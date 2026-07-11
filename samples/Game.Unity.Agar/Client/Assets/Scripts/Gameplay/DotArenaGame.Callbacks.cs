@@ -11,6 +11,8 @@ namespace SampleClient.Gameplay
 {
     public sealed partial class DotArenaGame
     {
+        private readonly System.Collections.Generic.List<MatchProgressUpdate> _matchProgressHistory = new();
+
         public void OnWorldState(WorldState worldState)
         {
             _callbackInbox.EnqueueWorldState(worldState);
@@ -29,6 +31,11 @@ namespace SampleClient.Gameplay
         public void OnMatchmakingStatus(MatchmakingStatusUpdate matchmakingStatus)
         {
             _callbackInbox.EnqueueMatchmakingStatus(matchmakingStatus);
+        }
+
+        public void OnMatchProgress(MatchProgressUpdate update)
+        {
+            _callbackInbox.EnqueueMatchProgress(update);
         }
 
         private void ApplyPendingCallbacks()
@@ -64,6 +71,11 @@ namespace SampleClient.Gameplay
             if (pending.MatchmakingStatus != null)
             {
                 HandleMatchmakingStatus(pending.MatchmakingStatus);
+            }
+
+            foreach (var progress in pending.MatchProgress)
+            {
+                _matchProgressHistory.Add(progress);
             }
         }
 

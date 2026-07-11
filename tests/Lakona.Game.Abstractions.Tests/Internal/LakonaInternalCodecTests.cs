@@ -35,6 +35,10 @@ public sealed class LakonaInternalCodecTests
         var hello = new GameServerHello
         {
             SelectedProtocolVersion = 1,
+            SessionResume = new GameSessionResumeHandshakeSettings
+            {
+                Window = TimeSpan.FromSeconds(60),
+            },
             ReliablePush = new ReliablePushHandshakeSettings
             {
                 Enabled = true,
@@ -53,9 +57,10 @@ public sealed class LakonaInternalCodecTests
         Assert.Equal(hello.SelectedProtocolVersion, decoded.SelectedProtocolVersion);
         Assert.Equal(hello.ReliablePush.Enabled, decoded.ReliablePush.Enabled);
         Assert.Equal(hello.ReliablePush.AckRequired, decoded.ReliablePush.AckRequired);
+        Assert.Equal(TimeSpan.FromSeconds(60), decoded.SessionResume.Window);
         Assert.Equal(TimeSpan.FromSeconds(7), decoded.Heartbeat.Interval);
         Assert.Equal(TimeSpan.FromSeconds(21), decoded.Heartbeat.Timeout);
-        Assert.Equal(28, payload.Length);
+        Assert.Equal(36, payload.Length);
     }
 
     [Fact]

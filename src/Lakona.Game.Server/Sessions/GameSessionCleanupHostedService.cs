@@ -41,7 +41,7 @@ public sealed class GameSessionCleanupHostedService : BackgroundService
 
     public async ValueTask CleanupOnceAsync(CancellationToken cancellationToken = default)
     {
-        var disconnectedBefore = DateTimeOffset.UtcNow - GetDisconnectedSessionRetention();
+        var disconnectedBefore = DateTimeOffset.UtcNow - GetResumeWindow();
         var snapshots = await _directory.ExpireDisconnectedSessionsAsync(disconnectedBefore, cancellationToken)
             .ConfigureAwait(false);
 
@@ -77,10 +77,10 @@ public sealed class GameSessionCleanupHostedService : BackgroundService
         return _options.Interval <= TimeSpan.Zero ? TimeSpan.FromSeconds(30) : _options.Interval;
     }
 
-    private TimeSpan GetDisconnectedSessionRetention()
+    private TimeSpan GetResumeWindow()
     {
-        return _options.DisconnectedSessionRetention <= TimeSpan.Zero
-            ? TimeSpan.FromMinutes(2)
-            : _options.DisconnectedSessionRetention;
+        return _options.ResumeWindow <= TimeSpan.Zero
+            ? TimeSpan.FromSeconds(60)
+            : _options.ResumeWindow;
     }
 }

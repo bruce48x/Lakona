@@ -400,6 +400,26 @@ public static partial class RoomBehavior
                 self.State.LastPublishedWorldTick = result.WorldState.Tick;
             }
 
+            if (self.State.LastPublishedProgressRemainingSeconds != result.WorldState.RoundRemainingSeconds)
+            {
+                self.State.LastPublishedProgressRemainingSeconds = result.WorldState.RoundRemainingSeconds;
+                self.State.ProgressRevision += 1;
+                await notifier
+                    .PublishMatchProgressAsync(
+                        room,
+                        new MatchProgressUpdate
+                        {
+                            MatchId = room.MatchId,
+                            RoomId = room.RoomId,
+                            ServerTick = result.WorldState.Tick,
+                            RoundRemainingSeconds = result.WorldState.RoundRemainingSeconds,
+                            ProgressRevision = self.State.ProgressRevision,
+                            PublishedAtUtc = observedAtUtc,
+                        },
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
             foreach (var death in result.Deaths)
             {
                 await notifier
@@ -642,6 +662,8 @@ public static partial class RoomBehavior
 
         existing.SessionToken = request.SessionToken;
         existing.ConnectionId = request.ConnectionId;
+        existing.ControlSessionId = request.ControlSessionId;
+        existing.ControlSessionGeneration = request.ControlSessionGeneration;
         existing.SeatIndex = request.SeatIndex;
         existing.IsConnected = true;
         existing.IsReady = false;
@@ -683,6 +705,8 @@ public static partial class RoomBehavior
                 ConnectionId = player.ConnectionId,
                 RealtimeSessionId = player.RealtimeSessionId,
                 RealtimeSessionGeneration = player.RealtimeSessionGeneration,
+                ControlSessionId = player.ControlSessionId,
+                ControlSessionGeneration = player.ControlSessionGeneration,
                 SeatIndex = player.SeatIndex,
                 IsReady = player.IsReady,
                 IsConnected = player.IsConnected,

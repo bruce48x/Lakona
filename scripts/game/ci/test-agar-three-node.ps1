@@ -256,6 +256,7 @@ services:
             "AdvertisedHost": "127.0.0.1",
             "Port": 20000,
             "Path": "/ws",
+            "ReliablePush": true,
             "RpcServices": [ "login", "player" ]
           }
         ]
@@ -275,6 +276,7 @@ services:
             "Host": "0.0.0.0",
             "AdvertisedHost": "127.0.0.1",
             "Port": 20001,
+            "ReliablePush": false,
             "RpcServices": [ "battle" ]
           }
         ]
