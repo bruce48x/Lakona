@@ -47,7 +47,56 @@ public sealed class StartupActorHostedServiceTests
         }
     }
 
-    private static ServiceProvider CreateProvider(IReadOnlyList<string> actorHosts)
+    [Fact]
+    public async Task PrepareAsync_withdraws_old_build_descriptor_before_runtime_swap()
+    {
+        var refresher = new RecordingRefresher();
+        var provider = CreateProvider(["matchmaking"], refresher);
+        await using (provider)
+        {
+            refresher.Catalog = provider.GetRequiredService<StartupActorDescriptorCatalog>();
+            var hosted = provider.GetRequiredService<StartupActorHostedService>();
+            await hosted.StartAsync(TestContext.Current.CancellationToken);
+            var candidate = Snapshot("build-2");
+
+            await using var transaction = await hosted.PrepareAsync(
+                provider.GetRequiredService<IHotfixRuntimeAccessor>().Current,
+                candidate,
+                TestContext.Current.CancellationToken);
+
+            Assert.Empty(Assert.Single(refresher.Published));
+            await transaction.ActivateAsync(TestContext.Current.CancellationToken);
+            Assert.Equal("build-2", Assert.Single(refresher.Published.Last()).BuildTag);
+        }
+    }
+
+    [Fact]
+    public async Task Rollback_refresh_failure_marks_node_unavailable_and_is_reported()
+    {
+        var refresher = new RecordingRefresher { FailOnRefresh = 3 };
+        var provider = CreateProvider(["matchmaking"], refresher);
+        await using (provider)
+        {
+            refresher.Catalog = provider.GetRequiredService<StartupActorDescriptorCatalog>();
+            var hosted = provider.GetRequiredService<StartupActorHostedService>();
+            await hosted.StartAsync(TestContext.Current.CancellationToken);
+            await using var transaction = await hosted.PrepareAsync(
+                provider.GetRequiredService<IHotfixRuntimeAccessor>().Current,
+                Snapshot("build-2"),
+                TestContext.Current.CancellationToken);
+            await transaction.ActivateAsync(TestContext.Current.CancellationToken);
+
+            await Assert.ThrowsAsync<AggregateException>(async () =>
+                await transaction.RollbackAsync(TestContext.Current.CancellationToken));
+
+            Assert.True(refresher.WasMarkedUnavailable);
+            Assert.Empty(provider.GetRequiredService<StartupActorDescriptorCatalog>().Snapshot());
+        }
+    }
+
+    private static ServiceProvider CreateProvider(
+        IReadOnlyList<string> actorHosts,
+        IClusterNodeRegistrationRefresher? refresher = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton(new LakonaGameRuntimeOptions
@@ -57,19 +106,45 @@ public sealed class StartupActorHostedServiceTests
         });
         services.AddLakonaGameServer();
         services.RemoveAll<IClusterNodeRegistrationRefresher>();
-        services.AddSingleton<IClusterNodeRegistrationRefresher, NoopRefresher>();
-        var snapshot = new HotfixRuntimeSnapshot(
-            new NoopInvoker(),
-            new EmptyProvider(),
-            [ActorStartupDeclaration.Create<MatchmakingActor, string>(static context => context.Candidates[0])],
-            "build-1");
+        services.AddSingleton<IClusterNodeRegistrationRefresher>(refresher ?? new NoopRefresher());
+        var snapshot = Snapshot("build-1");
         services.AddSingleton<IHotfixRuntimeAccessor>(new FixedAccessor(snapshot));
         return services.BuildServiceProvider();
     }
 
+    private static HotfixRuntimeSnapshot Snapshot(string sourceVersion) => new(
+            new NoopInvoker(),
+            new EmptyProvider(),
+            [ActorStartupDeclaration.Create<MatchmakingActor, string>(static context => context.Candidates[0])],
+            sourceVersion);
+
     [ActorName("matchmaking")]
     private sealed class MatchmakingActor : IActor { }
-    private sealed class NoopRefresher : IClusterNodeRegistrationRefresher { public ValueTask RefreshAsync(CancellationToken cancellationToken = default) => default; }
+    private sealed class NoopRefresher : IClusterNodeRegistrationRefresher
+    {
+        public ValueTask RefreshAsync(CancellationToken cancellationToken = default) => default;
+        public ValueTask MarkUnavailableAsync(CancellationToken cancellationToken = default) => default;
+    }
+    private sealed class RecordingRefresher : IClusterNodeRegistrationRefresher
+    {
+        private int _refreshCount;
+        public StartupActorDescriptorCatalog? Catalog { get; set; }
+        public int? FailOnRefresh { get; init; }
+        public bool WasMarkedUnavailable { get; private set; }
+        public List<IReadOnlyList<StartupActorDescriptor>> Published { get; } = [];
+        public ValueTask RefreshAsync(CancellationToken cancellationToken = default)
+        {
+            _refreshCount++;
+            if (_refreshCount == FailOnRefresh) throw new InvalidOperationException("refresh failed");
+            Published.Add(Catalog?.Snapshot() ?? []);
+            return default;
+        }
+        public ValueTask MarkUnavailableAsync(CancellationToken cancellationToken = default)
+        {
+            WasMarkedUnavailable = true;
+            return default;
+        }
+    }
     private sealed class FixedAccessor(HotfixRuntimeSnapshot snapshot) : IHotfixRuntimeAccessor { public HotfixRuntimeSnapshot Current => snapshot; }
     private sealed class EmptyProvider : IServiceProvider { public object? GetService(Type serviceType) => null; }
     private sealed class NoopInvoker : IHotfixServiceInvoker

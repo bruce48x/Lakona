@@ -104,15 +104,20 @@ internal sealed class StartupActorHostedService(
             var after = CreateReplicas(candidate);
             var removed = before.Where(pair => !after.ContainsKey(pair.Key)).Select(static pair => pair.Value).ToArray();
             var added = after.Where(pair => !before.ContainsKey(pair.Key)).Select(static pair => pair.Value).ToArray();
+            var changed = before
+                .Where(pair => after.TryGetValue(pair.Key, out var replacement) && !DescriptorsEqual(pair.Value.Descriptor, replacement.Descriptor))
+                .Select(static pair => pair.Value)
+                .ToArray();
             try
             {
-                _catalog.Replace(before.Values.Where(replica => !removed.Contains(replica)).Select(static replica => replica.Descriptor));
+                _catalog.Replace(before.Values
+                    .Where(replica => !removed.Contains(replica) && !changed.Contains(replica))
+                    .Select(static replica => replica.Descriptor));
                 await _refresher.RefreshAsync(cancellationToken).ConfigureAwait(false);
             }
-            catch
+            catch (Exception exception)
             {
-                _catalog.Replace(before.Values.Select(static replica => replica.Descriptor));
-                try { await _refresher.RefreshAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
+                await RestoreOrMarkUnavailableAsync(before.Values, exception).ConfigureAwait(false);
                 throw;
             }
             return new PublicationTransaction(this, before, after, added, removed);
@@ -121,6 +126,43 @@ internal sealed class StartupActorHostedService(
         {
             _gate.Release();
             throw;
+        }
+    }
+
+    private static bool DescriptorsEqual(StartupActorDescriptor left, StartupActorDescriptor right) =>
+        string.Equals(left.Actor, right.Actor, StringComparison.Ordinal) &&
+        string.Equals(left.PolicyHash, right.PolicyHash, StringComparison.Ordinal) &&
+        string.Equals(left.BuildTag, right.BuildTag, StringComparison.Ordinal) &&
+        left.Metadata.Count == right.Metadata.Count &&
+        left.Metadata.All(pair => right.Metadata.TryGetValue(pair.Key, out var value) && string.Equals(pair.Value, value, StringComparison.Ordinal));
+
+    private async ValueTask RestoreOrMarkUnavailableAsync(IEnumerable<Replica> replicas, Exception cause)
+    {
+        _catalog.Replace(replicas.Select(static replica => replica.Descriptor));
+        try
+        {
+            await _refresher.RefreshAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception restoreException)
+        {
+            _catalog.Replace([]);
+            try
+            {
+                await _refresher.MarkUnavailableAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception withdrawException)
+            {
+                throw new AggregateException(
+                    "Startup Actor publication recovery failed and the node could not be marked unavailable.",
+                    cause,
+                    restoreException,
+                    withdrawException);
+            }
+
+            throw new AggregateException(
+                "Startup Actor publication recovery failed; the node was marked unavailable.",
+                cause,
+                restoreException);
         }
     }
 
@@ -201,8 +243,9 @@ internal sealed class StartupActorHostedService(
             foreach (var replica in _started.AsEnumerable().Reverse())
                 if (!await owner.DestroyQuietlyAsync(replica).ConfigureAwait(false)) owner._cleanupPending.Add(replica);
             owner._active = before;
-            owner._catalog.Replace(before.Values.Select(static replica => replica.Descriptor));
-            try { await owner._refresher.RefreshAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
+            await owner.RestoreOrMarkUnavailableAsync(
+                before.Values,
+                new InvalidOperationException("Startup Actor publication was rolled back.")).ConfigureAwait(false);
         }
 
         public ValueTask DisposeAsync()

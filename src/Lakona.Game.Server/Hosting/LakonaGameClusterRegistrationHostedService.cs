@@ -227,6 +227,11 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService,
         }
     }
 
+    public async ValueTask MarkUnavailableAsync(CancellationToken cancellationToken = default)
+    {
+        await StopAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     private async Task<NodeRecord> RegisterSerializedAsync(
         INodeDirectory directory,
         ClusterOptions options,

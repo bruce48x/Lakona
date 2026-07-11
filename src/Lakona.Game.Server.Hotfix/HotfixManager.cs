@@ -339,28 +339,33 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             }
 
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException cancellationException)
         {
             if (swapped) Volatile.Write(ref _publication, previousPublication);
-            await RollbackPublicationTransactionsAsync(transactions).ConfigureAwait(false);
+            var rollbackFailures = await RollbackPublicationTransactionsAsync(transactions).ConfigureAwait(false);
             await DisposePublicationTransactionsAsync(transactions).ConfigureAwait(false);
             runtimeSnapshot.Retire();
+            if (rollbackFailures.Count != 0)
+                throw new AggregateException("Hotfix publication cancellation rollback failed.", [cancellationException, .. rollbackFailures]);
             throw;
         }
         catch (Exception ex)
         {
             if (swapped) Volatile.Write(ref _publication, previousPublication);
-            await RollbackPublicationTransactionsAsync(transactions).ConfigureAwait(false);
+            var rollbackFailures = await RollbackPublicationTransactionsAsync(transactions).ConfigureAwait(false);
             await DisposePublicationTransactionsAsync(transactions).ConfigureAwait(false);
             runtimeSnapshot.Retire();
+            var failure = rollbackFailures.Count == 0
+                ? ex
+                : new AggregateException("Hotfix publication and rollback failed.", [ex, .. rollbackFailures]);
             return new HotfixReloadResult(
                 HotfixReloadStatus.Failed,
                 previousPublication.Snapshot,
                 requestedVersion ?? snapshot.Version,
                 requestedPath ?? snapshot.SourcePath,
-                [ex.Message],
-                ex.Message,
-                ex.GetType().FullName);
+                [failure.Message, .. rollbackFailures.Select(static item => item.Message)],
+                failure.Message,
+                failure.GetType().FullName);
         }
 
         foreach (var transaction in transactions)
@@ -387,9 +392,10 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             Array.Empty<string>());
     }
 
-    private static async ValueTask RollbackPublicationTransactionsAsync(
+    private async ValueTask<IReadOnlyList<Exception>> RollbackPublicationTransactionsAsync(
         IReadOnlyList<IHotfixRuntimePublicationTransaction> transactions)
     {
+        var failures = new List<Exception>();
         for (var index = transactions.Count - 1; index >= 0; index--)
         {
             try
@@ -397,10 +403,13 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 await transactions[index].RollbackAsync(CancellationToken.None)
                     .ConfigureAwait(false);
             }
-            catch
+            catch (Exception exception)
             {
+                failures.Add(exception);
+                _logger?.LogError(exception, "Hotfix publication rollback failed.");
             }
         }
+        return failures;
     }
 
     private static async ValueTask DisposePublicationTransactionsAsync(
