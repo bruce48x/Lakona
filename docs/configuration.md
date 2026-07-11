@@ -76,6 +76,11 @@ The same window bounds pending reliable callbacks and client-session route
 availability. Cleanup interval only controls scanning and cannot extend the
 deadline.
 
+Automatic Game Session recovery has no separate switch. Once a Game Session
+exists, the generated client retries the same endpoint within this window using
+a framework-only opaque ticket. `ReliablePush` only selects whether callback
+commands produced during the interruption are retained and replayed.
+
 `Lakona:ReliablePush:MaxPendingPerSession` defaults to 256. Reaching it marks
 the session `StateRefreshRequired`; Lakona never drops an old prefix and claims
 that replay is complete.

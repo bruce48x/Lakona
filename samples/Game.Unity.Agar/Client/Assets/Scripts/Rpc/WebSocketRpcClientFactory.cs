@@ -6,6 +6,9 @@ using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Serializer.MemoryPack;
 using Lakona.Rpc.Transport.WebSocket;
+#if UNITY_INCLUDE_TESTS
+using Rpc.Testing;
+#endif
 
 namespace Rpc
 {
@@ -14,7 +17,7 @@ namespace Rpc
         public static LakonaGameClientOptions CreateOptions(string host, int port, string path)
         {
             return new LakonaGameClientOptions(
-                new WsTransport(BuildUrl(host, port, path)),
+                () => new WsTransport(BuildUrl(host, port, path)),
                 new MemoryPackRpcSerializer())
             {
                 KeepAlive = new RpcKeepAliveOptions
@@ -25,6 +28,14 @@ namespace Rpc
                 }
             };
         }
+#if UNITY_INCLUDE_TESTS
+        public static LakonaGameClientOptions CreateOptions(string host, int port, string path, TestTransportGate gate)
+        {
+            return new LakonaGameClientOptions(
+                () => gate.Wrap(new WsTransport(BuildUrl(host, port, path))),
+                new MemoryPackRpcSerializer());
+        }
+#endif
 
         public static string BuildUrl(string host, int port, string path)
         {

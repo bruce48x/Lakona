@@ -315,7 +315,8 @@ public sealed class GameHandshakeGateTests
             var helloPayload = LakonaInternalCodec.EncodeGameClientHello(
                 new GameClientHello
                 {
-                    ProtocolVersion = 1
+                    ProtocolVersion = 1,
+                    ResumeTicket = "unknown-framework-ticket"
                 });
             using var helloFrame = await client.CallRawAsync(
                     GameHandshakeRpcIds.ServiceId,
@@ -327,6 +328,7 @@ public sealed class GameHandshakeGateTests
             var hello = LakonaInternalCodec.DecodeGameServerHello(helloFrame.Memory);
 
             Assert.Equal(1, hello.SelectedProtocolVersion);
+            Assert.Equal(GameSessionRecoveryStatus.StateLost, hello.Recovery.Status);
 
             var heartbeatPayload = LakonaInternalCodec.EncodeGameHeartbeatRequest(new GameHeartbeatRequest());
             using var heartbeatFrame = await client.CallRawAsync(

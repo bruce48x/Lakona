@@ -7,6 +7,9 @@ using Rpc;
 using Client.Generated;
 using Shared.Interfaces;
 using Lakona.Game.Client.ReliablePush;
+#if UNITY_INCLUDE_TESTS
+using Rpc.Testing;
+#endif
 
 namespace SampleClient.Gameplay
 {
@@ -32,6 +35,7 @@ namespace SampleClient.Gameplay
         private TimeSpan _controlResumeWindow = TimeSpan.FromSeconds(60);
 #if UNITY_INCLUDE_TESTS
         private bool _networkGateOpen = true;
+        private readonly TestTransportGate _testTransportGate = new TestTransportGate();
 #endif
         private bool _ignoreControlDisconnect;
         private bool _ignoreRealtimeDisconnect;
@@ -88,7 +92,11 @@ namespace SampleClient.Gameplay
             IsConnecting = true;
             try
             {
-                var controlOptions = WebSocketRpcClientFactory.CreateOptions(host, port, path);
+                var controlOptions = WebSocketRpcClientFactory.CreateOptions(host, port, path
+#if UNITY_INCLUDE_TESTS
+                    , _testTransportGate
+#endif
+                );
                 controlOptions.ReliablePushCursorStore = _controlReliablePushCursors;
                 _controlConnection = new LakonaGameClient(
                     controlOptions,
@@ -97,15 +105,6 @@ namespace SampleClient.Gameplay
                 _controlConnection.Disconnected += HandleControlDisconnected;
 
                 await _controlConnection.ConnectAsync(cancellationToken).ConfigureAwait(false);
-                var preparedResume = reconnect &&
-                    !string.IsNullOrWhiteSpace(_sessionId) &&
-                    _sessionGeneration > 0;
-                if (preparedResume)
-                {
-                    await _controlConnection
-                        .StartSessionAsync(_sessionId, _sessionGeneration, cancellationToken)
-                        .ConfigureAwait(false);
-                }
                 _loginService = _controlConnection.Api.Shared.Login;
                 _controlPlayerService = _controlConnection.Api.Shared.Player;
                 var reply = await _loginService.LoginAsync(new LoginRequest
@@ -125,16 +124,8 @@ namespace SampleClient.Gameplay
 
                 _playerId = reply.PlayerId;
                 _token = reply.Token;
-                _sessionId = reply.SessionId;
-                _sessionGeneration = reply.SessionGeneration;
-                if (!preparedResume ||
-                    !string.Equals(_sessionId, reply.SessionId, StringComparison.Ordinal) ||
-                    _sessionGeneration != reply.SessionGeneration)
-                {
-                    await _controlConnection
-                        .StartSessionAsync(reply.SessionId, reply.SessionGeneration, cancellationToken)
-                        .ConfigureAwait(false);
-                }
+                _sessionId = _controlConnection.Snapshot.SessionId ?? string.Empty;
+                _sessionGeneration = _controlConnection.Snapshot.SessionGeneration;
                 IsConnected = true;
                 _controlResumeWindow = _controlConnection.SessionResumeWindow;
                 return reply;
@@ -256,7 +247,11 @@ namespace SampleClient.Gameplay
             try
             {
                 _realtimeConnection = new LakonaGameClient(
-                    KcpRpcClientFactory.CreateOptions(realtimeConnection.Host, realtimeConnection.Port),
+                    KcpRpcClientFactory.CreateOptions(realtimeConnection.Host, realtimeConnection.Port
+#if UNITY_INCLUDE_TESTS
+                        , _testTransportGate
+#endif
+                    ),
                     callback);
                 _realtimeRpcSerial += 1;
                 _realtimeConnection.Disconnected += HandleRealtimeDisconnected;
@@ -268,9 +263,7 @@ namespace SampleClient.Gameplay
                     PlayerId = _playerId,
                     Token = string.IsNullOrWhiteSpace(realtimeConnection.SessionToken) ? _token : realtimeConnection.SessionToken,
                     RoomId = realtimeConnection.RoomId ?? string.Empty,
-                    MatchId = realtimeConnection.MatchId ?? string.Empty,
-                    ResumeSessionId = _realtimeSessionId,
-                    ResumeSessionGeneration = _realtimeSessionGeneration
+                    MatchId = realtimeConnection.MatchId ?? string.Empty
                 }).ConfigureAwait(false);
 
                 if (reply.Code != 0)
@@ -279,11 +272,8 @@ namespace SampleClient.Gameplay
                     return false;
                 }
 
-                await _realtimeConnection
-                    .StartSessionAsync(reply.SessionId, reply.SessionGeneration, cancellationToken)
-                    .ConfigureAwait(false);
-                _realtimeSessionId = reply.SessionId;
-                _realtimeSessionGeneration = reply.SessionGeneration;
+                _realtimeSessionId = _realtimeConnection.Snapshot.SessionId ?? string.Empty;
+                _realtimeSessionGeneration = _realtimeConnection.Snapshot.SessionGeneration;
                 IsRealtimeConnected = true;
                 return true;
             }
@@ -419,15 +409,7 @@ namespace SampleClient.Gameplay
             }
 
             _networkGateOpen = open;
-            if (open)
-            {
-                return;
-            }
-
-            _controlReconnectDeadlineUtc = DateTime.UtcNow.Add(_controlResumeWindow);
-            await DisposeRealtimeAsync().ConfigureAwait(false);
-            await DisposeControlAsync(logout: false).ConfigureAwait(false);
-            _onDisconnected(new InvalidOperationException("Test network gate closed."));
+            await _testTransportGate.SetOpenAsync(open).ConfigureAwait(false);
         }
 #endif
 

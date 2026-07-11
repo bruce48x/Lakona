@@ -24,6 +24,7 @@ namespace Lakona.Game.Abstractions
         private const byte ReliablePushAckOutcomeKind = 6;
         private const byte SessionTerminationNoticeKind = 7;
         private const byte ReliablePushMetadataKind = 8;
+        private const byte GameSessionEstablishedKind = 9;
 
         public static byte[] EncodeGameClientHello(GameClientHello value)
         {
@@ -36,6 +37,10 @@ namespace Lakona.Game.Abstractions
 
             var writer = CreateWriter(GameClientHelloKind);
             writer.WriteInt32(value.ProtocolVersion);
+            if (!string.IsNullOrEmpty(value.ResumeTicket))
+            {
+                writer.WriteString(value.ResumeTicket);
+            }
             return writer.ToArray();
         }
 
@@ -46,6 +51,10 @@ namespace Lakona.Game.Abstractions
             {
                 ProtocolVersion = reader.ReadInt32(),
             };
+            if (reader.HasRemaining)
+            {
+                value.ResumeTicket = reader.ReadString();
+            }
 
             ValidatePositiveProtocolVersion(value.ProtocolVersion);
             reader.EnsureEnd();
@@ -63,8 +72,10 @@ namespace Lakona.Game.Abstractions
             var reliablePush = value.ReliablePush ?? new ReliablePushHandshakeSettings();
             var sessionResume = value.SessionResume ?? new GameSessionResumeHandshakeSettings();
             var heartbeat = value.Heartbeat ?? new GameHeartbeatHandshakeSettings();
+            var recovery = value.Recovery ?? new GameSessionRecoveryHandshakeResult();
             ValidatePositiveDuration(sessionResume.Window, "Session resume window");
             ValidateHeartbeatPolicy(heartbeat.Interval, heartbeat.Timeout);
+            ValidateEnum(recovery.Status, nameof(recovery.Status));
 
             var writer = CreateWriter(GameServerHelloKind);
             writer.WriteInt32(value.SelectedProtocolVersion);
@@ -73,6 +84,8 @@ namespace Lakona.Game.Abstractions
             writer.WriteInt64(sessionResume.Window.Ticks);
             writer.WriteInt64(heartbeat.Interval.Ticks);
             writer.WriteInt64(heartbeat.Timeout.Ticks);
+            writer.WriteInt32((int)recovery.Status);
+            writer.WriteString(recovery.Reason);
             return writer.ToArray();
         }
 
@@ -97,10 +110,52 @@ namespace Lakona.Game.Abstractions
                     Timeout = TimeSpan.FromTicks(reader.ReadInt64()),
                 },
             };
+            if (reader.HasRemaining)
+            {
+                value.Recovery = new GameSessionRecoveryHandshakeResult
+                {
+                    Status = reader.ReadEnum<GameSessionRecoveryStatus>(),
+                    Reason = reader.ReadString(),
+                };
+            }
 
             ValidatePositiveProtocolVersion(value.SelectedProtocolVersion);
             ValidatePositiveDuration(value.SessionResume.Window, "Session resume window");
             ValidateHeartbeatPolicy(value.Heartbeat.Interval, value.Heartbeat.Timeout);
+            reader.EnsureEnd();
+            return value;
+        }
+
+        public static byte[] EncodeGameSessionEstablished(GameSessionEstablished value)
+        {
+            if (value is null)
+            {
+                throw new ArgumentNullException(nameof(value));
+            }
+
+            ValidateRequiredString(value.SessionId, nameof(value.SessionId));
+            ValidatePositiveSessionGeneration(value.SessionGeneration);
+            ValidateRequiredString(value.ResumeTicket, nameof(value.ResumeTicket));
+
+            var writer = CreateWriter(GameSessionEstablishedKind);
+            writer.WriteString(value.SessionId);
+            writer.WriteInt64(value.SessionGeneration);
+            writer.WriteString(value.ResumeTicket);
+            return writer.ToArray();
+        }
+
+        public static GameSessionEstablished DecodeGameSessionEstablished(ReadOnlyMemory<byte> payload)
+        {
+            var reader = CreateReader(payload, GameSessionEstablishedKind);
+            var value = new GameSessionEstablished
+            {
+                SessionId = reader.ReadString() ?? "",
+                SessionGeneration = reader.ReadInt64(),
+                ResumeTicket = reader.ReadString() ?? "",
+            };
+            ValidateRequiredString(value.SessionId, nameof(value.SessionId));
+            ValidatePositiveSessionGeneration(value.SessionGeneration);
+            ValidateRequiredString(value.ResumeTicket, nameof(value.ResumeTicket));
             reader.EnsureEnd();
             return value;
         }

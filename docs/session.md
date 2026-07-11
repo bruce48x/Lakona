@@ -279,9 +279,19 @@ Heartbeat replies report framework session status:
 - `StateLost`: the bound session can no longer be resumed.
 - `Terminated`: the bound session reached a terminal server-side outcome.
 
-Network errors, heartbeat RPC failures, or heartbeat timeouts move the generated
-client to a reconnecting or failed state. Lakona v1 does not provide automatic
-reconnect; users dispose the generated client and create a new one.
+After a Game Session is established, network errors, heartbeat RPC failures, or
+heartbeat timeouts start framework-managed recovery. The generated client keeps
+the same `LakonaGameClient`, `Api`, service proxies, and callback receivers while
+it replaces the internal RPC connection. A framework-only opaque ticket is sent
+in the handshake; business login and realtime contracts do not carry resume
+identity. Calls already assigned to the failed connection fail and are never
+replayed automatically.
+
+Recovery retries the same endpoint until the negotiated resume deadline. It
+either returns to `Active` or reports `StateLost`, `RefreshRequired`, or
+`Terminated`; it never reports success after continuity is lost. Client options
+must use the transport-factory constructor so every connection generation gets
+a fresh transport.
 
 ## Business Session State
 

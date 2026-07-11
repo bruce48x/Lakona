@@ -99,7 +99,7 @@ namespace Client.Login
         private LakonaGameClientOptions CreateLakonaGameClientOptions()
         {
             return new LakonaGameClientOptions(
-                new WsTransport($"ws://{_serverHost}:{_serverPort}{NormalizePath(_serverPath)}"),
+                () => new WsTransport($"ws://{_serverHost}:{_serverPort}{NormalizePath(_serverPath)}"),
                 new MemoryPackRpcSerializer())
                 .UseSecurity(ConfigureTransportSecurity);
         }

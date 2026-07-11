@@ -62,6 +62,7 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
 
             var binder = (LakonaRpcServiceBinder)ActivatorUtilities.CreateInstance(context.Services, descriptor.BinderType);
             binder.Bind(context);
+            context.Services.GetService<GameSessionCallbackProxyRegistry>()?.Add(binder);
         }
 
         _bindServices?.Invoke(builder.ServiceRegistry, context.Services);
@@ -87,6 +88,7 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
                 GameServerHello reply;
                 try
                 {
+                    services.GetRequiredService<GameFrameworkConnectionRegistry>().Set(session);
                     services.GetRequiredService<GameConnectionDeliveryPolicyRegistry>()
                         .Set(session.ContextId, _endpoint.ReliablePush);
                     var service = services.GetRequiredService<IGameHandshakeService>();
@@ -96,6 +98,14 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
                         _endpoint.Serializer,
                         _endpoint.ReliablePush,
                         cancellationToken).ConfigureAwait(false);
+                    reply.Recovery = await services
+                        .GetRequiredService<IGameSessionHandshakeRecoveryService>()
+                        .RecoverAsync(
+                            hello.ResumeTicket,
+                            session,
+                            _endpoint.ReliablePush,
+                            cancellationToken)
+                        .ConfigureAwait(false);
                 }
                 catch (GameHandshakeRejectedException ex)
                 {

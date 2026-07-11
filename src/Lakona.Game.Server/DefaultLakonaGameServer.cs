@@ -14,6 +14,8 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
     private readonly IReadOnlyList<IGameSessionLifecycleHandler> _lifecycleHandlers;
     private readonly ILogger<DefaultLakonaGameServer> _logger;
     private readonly GameConnectionDeliveryPolicyRegistry _deliveryPolicies;
+    private readonly IGameSessionResumeTicketStore _resumeTickets;
+    private readonly IGameSessionEstablishedNotifier _sessionEstablished;
 
     public DefaultLakonaGameServer(
         IGameSessionRegistry sessions,
@@ -58,6 +60,29 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         IEnumerable<IGameSessionLifecycleHandler> lifecycleHandlers,
         ILogger<DefaultLakonaGameServer> logger,
         GameConnectionDeliveryPolicyRegistry deliveryPolicies)
+        : this(
+            sessions,
+            resume,
+            clientSessionRoutes,
+            connectionCloser,
+            lifecycleHandlers,
+            logger,
+            deliveryPolicies,
+            new InMemoryGameSessionResumeTicketStore(),
+            new NoopGameSessionEstablishedNotifier())
+    {
+    }
+
+    public DefaultLakonaGameServer(
+        IGameSessionRegistry sessions,
+        IGameSessionResumeService resume,
+        IClientSessionRouteRegistrar clientSessionRoutes,
+        IGameSessionConnectionCloser connectionCloser,
+        IEnumerable<IGameSessionLifecycleHandler> lifecycleHandlers,
+        ILogger<DefaultLakonaGameServer> logger,
+        GameConnectionDeliveryPolicyRegistry deliveryPolicies,
+        IGameSessionResumeTicketStore resumeTickets,
+        IGameSessionEstablishedNotifier sessionEstablished)
     {
         _sessions = sessions;
         _resume = resume;
@@ -66,6 +91,8 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         _lifecycleHandlers = lifecycleHandlers?.ToArray() ?? throw new ArgumentNullException(nameof(lifecycleHandlers));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _deliveryPolicies = deliveryPolicies ?? throw new ArgumentNullException(nameof(deliveryPolicies));
+        _resumeTickets = resumeTickets ?? throw new ArgumentNullException(nameof(resumeTickets));
+        _sessionEstablished = sessionEstablished ?? throw new ArgumentNullException(nameof(sessionEstablished));
     }
 
     public async ValueTask<GameSessionKey> StartSessionAsync(
@@ -91,6 +118,16 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
             cancellationToken).ConfigureAwait(false);
         await BindSessionAsync(session, connectionId, callback, cancellationToken)
             .ConfigureAwait(false);
+        var resumeTicket = await _resumeTickets.IssueAsync(session, cancellationToken).ConfigureAwait(false);
+        await _sessionEstablished.NotifyAsync(
+            connectionId,
+            new Lakona.Game.Abstractions.Sessions.GameSessionEstablished
+            {
+                SessionId = session.SessionId,
+                SessionGeneration = session.Generation,
+                ResumeTicket = resumeTicket,
+            },
+            cancellationToken).ConfigureAwait(false);
         return session;
     }
 

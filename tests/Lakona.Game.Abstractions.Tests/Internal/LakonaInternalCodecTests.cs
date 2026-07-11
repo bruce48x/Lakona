@@ -16,6 +16,7 @@ public sealed class LakonaInternalCodecTests
     private const byte GameHeartbeatReplyKind = 4;
     private const byte ReliablePushAckRequestKind = 5;
     private const byte SessionTerminationNoticeKind = 7;
+    private const byte GameSessionEstablishedKind = 9;
 
     [Fact]
     public void GameClientHello_roundtrips_protocol_version_only()
@@ -27,6 +28,21 @@ public sealed class LakonaInternalCodecTests
 
         Assert.Equal(hello.ProtocolVersion, decoded.ProtocolVersion);
         Assert.Equal(10, payload.Length);
+    }
+
+    [Fact]
+    public void GameClientHello_roundtrips_an_opaque_resume_ticket()
+    {
+        var hello = new GameClientHello
+        {
+            ProtocolVersion = 1,
+            ResumeTicket = "opaque-ticket-a"
+        };
+
+        var decoded = LakonaInternalCodec.DecodeGameClientHello(
+            LakonaInternalCodec.EncodeGameClientHello(hello));
+
+        Assert.Equal("opaque-ticket-a", decoded.ResumeTicket);
     }
 
     [Fact]
@@ -60,7 +76,46 @@ public sealed class LakonaInternalCodecTests
         Assert.Equal(TimeSpan.FromSeconds(60), decoded.SessionResume.Window);
         Assert.Equal(TimeSpan.FromSeconds(7), decoded.Heartbeat.Interval);
         Assert.Equal(TimeSpan.FromSeconds(21), decoded.Heartbeat.Timeout);
-        Assert.Equal(36, payload.Length);
+        Assert.Equal(GameSessionRecoveryStatus.NotRequested, decoded.Recovery.Status);
+    }
+
+    [Fact]
+    public void GameServerHello_roundtrips_recovery_outcome()
+    {
+        var hello = new GameServerHello
+        {
+            SelectedProtocolVersion = 1,
+            Recovery = new GameSessionRecoveryHandshakeResult
+            {
+                Status = GameSessionRecoveryStatus.Resumed,
+                Reason = "restored"
+            }
+        };
+
+        var decoded = LakonaInternalCodec.DecodeGameServerHello(
+            LakonaInternalCodec.EncodeGameServerHello(hello));
+
+        Assert.Equal(GameSessionRecoveryStatus.Resumed, decoded.Recovery.Status);
+        Assert.Equal("restored", decoded.Recovery.Reason);
+    }
+
+    [Fact]
+    public void GameSessionEstablished_roundtrips_framework_identity_and_ticket()
+    {
+        var established = new GameSessionEstablished
+        {
+            SessionId = "session-a",
+            SessionGeneration = 7,
+            ResumeTicket = "opaque-ticket-a"
+        };
+
+        var payload = LakonaInternalCodec.EncodeGameSessionEstablished(established);
+        var decoded = LakonaInternalCodec.DecodeGameSessionEstablished(payload);
+
+        Assert.Equal("session-a", decoded.SessionId);
+        Assert.Equal(7, decoded.SessionGeneration);
+        Assert.Equal("opaque-ticket-a", decoded.ResumeTicket);
+        Assert.Equal(GameSessionEstablishedKind, payload[5]);
     }
 
     [Fact]

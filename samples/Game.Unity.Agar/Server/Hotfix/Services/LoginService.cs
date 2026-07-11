@@ -151,9 +151,7 @@ public sealed class LoginService
             WinCount = loginResult.WinCount,
             VictoryPoints = loginResult.VictoryPoints,
             Account = account,
-            Password = req.GuestLogin ? password : string.Empty,
-            SessionId = sessionKey.SessionId,
-            SessionGeneration = sessionKey.Generation
+            Password = req.GuestLogin ? password : string.Empty
         };
     }
 

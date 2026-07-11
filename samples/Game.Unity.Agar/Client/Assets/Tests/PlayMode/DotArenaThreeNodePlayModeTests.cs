@@ -129,8 +129,10 @@ namespace SampleClient.Gameplay.Tests
             NUnitAssert.That(recovered.ControlSessionGeneration, Is.EqualTo(beforeOffline.ControlSessionGeneration));
             NUnitAssert.That(recovered.RealtimeSessionId, Is.EqualTo(beforeOffline.RealtimeSessionId));
             NUnitAssert.That(recovered.RealtimeSessionGeneration, Is.EqualTo(beforeOffline.RealtimeSessionGeneration));
-            NUnitAssert.That(recovered.ControlRpcSerial, Is.GreaterThan(beforeOffline.ControlRpcSerial));
-            NUnitAssert.That(recovered.RealtimeRpcSerial, Is.GreaterThan(beforeOffline.RealtimeRpcSerial));
+            NUnitAssert.That(recovered.ControlRpcSerial, Is.EqualTo(beforeOffline.ControlRpcSerial),
+                "framework recovery must preserve the control client facade");
+            NUnitAssert.That(recovered.RealtimeRpcSerial, Is.EqualTo(beforeOffline.RealtimeRpcSerial),
+                "framework recovery must preserve the realtime client facade");
             NUnitAssert.That(recovered.LocalPlayerId, Is.EqualTo(beforeOffline.LocalPlayerId));
             NUnitAssert.That(recovered.LastRealtimeRoomId, Is.EqualTo(beforeOffline.LastRealtimeRoomId));
             NUnitAssert.That(recovered.LastRealtimeMatchId, Is.EqualTo(beforeOffline.LastRealtimeMatchId));

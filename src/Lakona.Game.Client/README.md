@@ -45,10 +45,14 @@ Use `LakonaGameClientCore` directly only when you are building a custom client
 wrapper instead of using generated `Client.Generated.LakonaGameClient`.
 
 The core primitive owns framework handshake state, heartbeat state, reliable
-push client state, and connection snapshots. The framework handshake carries
-only `ProtocolVersion = 1`; platform, game version, build id, runtime, and
-capability metadata are application concerns. It does not expose business
-services; generated wrappers expose business services through `gameClient.Api`.
+push client state, opaque resume tickets, and connection snapshots. Platform,
+game version, build id, runtime, and capability metadata remain application
+concerns. Generated wrappers expose business services through `gameClient.Api`.
+
+Construct `LakonaGameClientOptions` with `Func<ITransport>` for automatic
+recovery. The wrapper creates a fresh transport per connection generation while
+application-held API/service proxies remain stable. Business code does not save
+session ids or call login again during a transient disconnect.
 
 Normal clients should not call reliable-push ack RPCs. The generated wrapper
 uses the framework protocol negotiated by handshake. If the server disables

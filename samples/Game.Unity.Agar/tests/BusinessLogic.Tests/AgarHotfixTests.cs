@@ -152,8 +152,6 @@ public sealed class AgarHotfixTests
         Assert.StartsWith("guest-", reply.Account, StringComparison.Ordinal);
         Assert.False(string.IsNullOrWhiteSpace(reply.Password));
         Assert.Equal(reply.Account, reply.PlayerId);
-        Assert.Equal(reply.PlayerId, reply.SessionId);
-        Assert.Equal(1, reply.SessionGeneration);
 
         Assert.Equal(ActorState.Active, actors.GetState(ActorId.From(reply.PlayerId)));
     }

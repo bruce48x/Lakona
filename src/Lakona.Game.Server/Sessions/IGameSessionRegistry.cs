@@ -44,6 +44,13 @@ public interface IGameSessionRegistry
         CancellationToken cancellationToken = default)
         where TCallback : class;
 
+    ValueTask<GameSessionBindResult> BindSessionCallbackAsync(
+        GameSessionKey session,
+        string connectionId,
+        Type callbackContractType,
+        object callback,
+        CancellationToken cancellationToken = default);
+
     ValueTask<GameSessionBindResult> BindCurrentSessionAsync<TCallback>(
         string connectionId,
         TCallback callback,
@@ -52,6 +59,10 @@ public interface IGameSessionRegistry
 
     ValueTask<GameSessionKey?> GetCurrentSessionAsync(
         string connectionId,
+        CancellationToken cancellationToken = default);
+
+    ValueTask<IReadOnlyList<Type>> GetCallbackContractTypesAsync(
+        GameSessionKey session,
         CancellationToken cancellationToken = default);
 
     ValueTask SetSessionItemAsync(

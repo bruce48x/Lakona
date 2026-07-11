@@ -120,10 +120,6 @@ namespace Shared.Interfaces
         public string Message { get; set; } = "";
         [MemoryPackOrder(7)]
         public int VictoryPoints { get; set; }
-        [MemoryPackOrder(8)]
-        public string SessionId { get; set; } = "";
-        [MemoryPackOrder(9)]
-        public long SessionGeneration { get; set; }
     }
 
     public static class LoginResultCodes
@@ -181,10 +177,6 @@ namespace Shared.Interfaces
         public string RoomId { get; set; } = "";
         [MemoryPackOrder(3)]
         public string MatchId { get; set; } = "";
-        [MemoryPackOrder(4)]
-        public string ResumeSessionId { get; set; } = "";
-        [MemoryPackOrder(5)]
-        public long ResumeSessionGeneration { get; set; }
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]
@@ -200,10 +192,6 @@ namespace Shared.Interfaces
         public string RoomId { get; set; } = "";
         [MemoryPackOrder(4)]
         public string MatchId { get; set; } = "";
-        [MemoryPackOrder(5)]
-        public string SessionId { get; set; } = "";
-        [MemoryPackOrder(6)]
-        public long SessionGeneration { get; set; }
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]

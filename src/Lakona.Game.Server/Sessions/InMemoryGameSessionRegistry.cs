@@ -196,6 +196,27 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         }
     }
 
+    public ValueTask<GameSessionBindResult> BindSessionCallbackAsync(
+        GameSessionKey session,
+        string connectionId,
+        Type callbackContractType,
+        object callback,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateSession(session);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
+        ArgumentNullException.ThrowIfNull(callbackContractType);
+        ArgumentNullException.ThrowIfNull(callback);
+        if (!callbackContractType.IsInstanceOfType(callback))
+            throw new ArgumentException("Callback does not implement the requested contract.", nameof(callback));
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            return new ValueTask<GameSessionBindResult>(
+                BindSessionCore(session, connectionId, callbackContractType, callback));
+        }
+    }
+
     public ValueTask<GameSessionBindResult> BindCurrentSessionAsync<TCallback>(
         string connectionId,
         TCallback callback,
@@ -233,6 +254,24 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                 _sessions.ContainsKey(session)
                     ? session
                     : null);
+        }
+    }
+
+    public ValueTask<IReadOnlyList<Type>> GetCallbackContractTypesAsync(
+        GameSessionKey session,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateSession(session);
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            if (!_sessions.TryGetValue(session, out var state))
+                return new ValueTask<IReadOnlyList<Type>>(Array.Empty<Type>());
+
+            IReadOnlyList<Type> result = state.Callbacks.Count == 0
+                ? state.DisconnectedCallbackContractTypes.ToArray()
+                : state.Callbacks.Keys.ToArray();
+            return new ValueTask<IReadOnlyList<Type>>(result);
         }
     }
 
@@ -644,6 +683,13 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         string connectionId,
         TCallback callback)
         where TCallback : class
+        => BindSessionCore(session, connectionId, typeof(TCallback), callback);
+
+    private GameSessionBindResult BindSessionCore(
+        GameSessionKey session,
+        string connectionId,
+        Type callbackContractType,
+        object callback)
     {
         if (!_sessions.TryGetValue(session, out var state))
         {
@@ -684,7 +730,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         state.DisconnectedAt = null;
         state.ResumeDeadlineUtc = null;
         state.LastHeartbeatAt = _timeProvider.GetUtcNow();
-        state.Callbacks[typeof(TCallback)] = callback;
+        state.Callbacks[callbackContractType] = callback;
 
         return new GameSessionBindResult(sessionBecameActive
             ? CreateSnapshot(state, connectionId)

@@ -14,8 +14,13 @@ public static class SessionServiceCollectionExtensions
     public static IServiceCollection AddLakonaGameServerSessions(this IServiceCollection services)
     {
         services.TryAddSingleton<IGameSessionRegistry, InMemoryGameSessionRegistry>();
+        services.TryAddSingleton<IGameSessionResumeTicketStore, InMemoryGameSessionResumeTicketStore>();
         services.TryAddSingleton<TimeProvider>(TimeProvider.System);
         services.TryAddSingleton<GameConnectionDeliveryPolicyRegistry>();
+        services.TryAddSingleton<GameFrameworkConnectionRegistry>();
+        services.TryAddSingleton<GameSessionCallbackProxyRegistry>();
+        services.TryAddSingleton<IGameSessionEstablishedNotifier, GameSessionEstablishedNotifier>();
+        services.TryAddSingleton<IGameSessionHandshakeRecoveryService, GameSessionHandshakeRecoveryService>();
         services.TryAddSingleton<IGameSessionResumeService, GameSessionResumeService>();
         services.TryAddSingleton<IGameHeartbeatService, GameHeartbeatService>();
         services.TryAddSingleton<IGameSessionConnectionCloser, NoopGameSessionConnectionCloser>();
@@ -27,6 +32,7 @@ public static class SessionServiceCollectionExtensions
         services.TryAddSingleton<IClientSessionRouteRegistrar>(CreateClientSessionRouteRegistrar);
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IRpcSessionLifecycleObserver, GameSessionRpcLifecycleObserver>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IGameSessionLifecycleHandler, ClientSessionRouteLifecycleHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IGameSessionLifecycleHandler, GameSessionResumeTicketLifecycleHandler>());
         return services;
     }
 

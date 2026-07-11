@@ -43,6 +43,26 @@ public sealed class LakonaGameClientCoreTests
     }
 
     [Fact]
+    public async Task Session_established_notification_activates_framework_session_and_stores_opaque_ticket()
+    {
+        var client = new LakonaGameClientCore();
+
+        await client.ApplyGameSessionEstablishedAsync(
+            new GameSessionEstablished
+            {
+                SessionId = "session-a",
+                SessionGeneration = 7,
+                ResumeTicket = "opaque-ticket-a"
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientSessionPhase.Active, client.Snapshot.Phase);
+        Assert.Equal("session-a", client.Snapshot.SessionId);
+        Assert.Equal(7, client.Snapshot.SessionGeneration);
+        Assert.Equal("opaque-ticket-a", client.ResumeTicket);
+    }
+
+    [Fact]
     public void ApplyServerHello_rejects_unsupported_protocol_version()
     {
         var client = new LakonaGameClientCore();

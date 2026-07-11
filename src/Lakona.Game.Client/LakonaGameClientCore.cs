@@ -19,6 +19,7 @@ namespace Lakona.Game.Client
         private TimeSpan _heartbeatInterval = TimeSpan.FromSeconds(15);
         private TimeSpan _heartbeatTimeout = TimeSpan.FromSeconds(45);
         private TimeSpan _sessionResumeWindow = TimeSpan.FromSeconds(60);
+        private string? _resumeTicket;
 
         public LakonaGameClientCore(IReliablePushCursorStore? cursorStore = null)
         {
@@ -50,6 +51,28 @@ namespace Lakona.Game.Client
             get { return _sessionResumeWindow; }
         }
 
+        public string? ResumeTicket
+        {
+            get { return _resumeTicket; }
+        }
+
+        public async ValueTask ApplyGameSessionEstablishedAsync(
+            GameSessionEstablished established,
+            CancellationToken cancellationToken = default)
+        {
+            if (established == null) throw new ArgumentNullException(nameof(established));
+            if (string.IsNullOrWhiteSpace(established.ResumeTicket))
+            {
+                throw new InvalidOperationException("Game session resume ticket is required.");
+            }
+
+            await StartSessionAsync(
+                established.SessionId,
+                established.SessionGeneration,
+                cancellationToken).ConfigureAwait(false);
+            _resumeTicket = established.ResumeTicket;
+        }
+
         public void ApplyServerHello(GameServerHello hello)
         {
             if (hello == null) throw new ArgumentNullException(nameof(hello));
@@ -74,6 +97,24 @@ namespace Lakona.Game.Client
             ApplyHeartbeatPolicy(hello.Heartbeat ?? new GameHeartbeatHandshakeSettings());
         }
 
+        public void ApplyRecoveryRejection(GameSessionRecoveryHandshakeResult recovery)
+        {
+            if (recovery == null) throw new ArgumentNullException(nameof(recovery));
+            switch (recovery.Status)
+            {
+                case GameSessionRecoveryStatus.StateRefreshRequired:
+                    _sessions.ApplyAckOutcome(ReliablePushAckOutcome.StateRefreshRequired(recovery.Reason));
+                    break;
+                case GameSessionRecoveryStatus.Terminated:
+                    _sessions.ApplySessionTerminationNotice(
+                        new SessionTerminationNotice(SessionTerminationReason.Application, recovery.Reason));
+                    break;
+                default:
+                    _sessions.MarkStateLost();
+                    break;
+            }
+        }
+
         public void StartHeartbeat(RpcClientRuntime rpcClient)
         {
             if (rpcClient == null) throw new ArgumentNullException(nameof(rpcClient));
@@ -93,6 +134,18 @@ namespace Lakona.Game.Client
                 heartbeat.Start();
                 _heartbeat = heartbeat;
             }
+        }
+
+        public async ValueTask ReplaceHeartbeatAsync(RpcClientRuntime rpcClient)
+        {
+            LakonaGameHeartbeatLoop? previous;
+            lock (_heartbeatLock)
+            {
+                previous = _heartbeat;
+                _heartbeat = null;
+            }
+            if (previous is not null) await previous.DisposeAsync().ConfigureAwait(false);
+            StartHeartbeat(rpcClient);
         }
 
         private void ApplyHeartbeatPolicy(GameHeartbeatHandshakeSettings heartbeat)
