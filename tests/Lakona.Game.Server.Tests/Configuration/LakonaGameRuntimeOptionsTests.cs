@@ -73,7 +73,7 @@ public sealed class LakonaGameRuntimeOptionsTests
     }
 
     [Fact]
-    public void FromConfiguration_binds_string_startup_actor_entries()
+    public void FromConfiguration_rejects_removed_startup_actor_array()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>
         {
@@ -81,32 +81,13 @@ public sealed class LakonaGameRuntimeOptionsTests
             ["Lakona:StartupActors:1"] = "leaderboard"
         });
 
-        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
-
-        Assert.Collection(
-            options.StartupActors,
-            actor => Assert.Equal("matchmaking", actor.Name),
-            actor => Assert.Equal("leaderboard", actor.Name));
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            LakonaGameRuntimeOptions.FromConfiguration(configuration));
+        Assert.Contains("RegisterStartup<TActor, TKey>", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void FromConfiguration_binds_object_startup_actor_entries()
-    {
-        var configuration = BuildConfiguration(new Dictionary<string, string?>
-        {
-            ["Lakona:StartupActors:0:Name"] = "matchmaking",
-            ["Lakona:StartupActors:0:Options:queue"] = "ranked"
-        });
-
-        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
-
-        var actor = Assert.Single(options.StartupActors);
-        Assert.Equal("matchmaking", actor.Name);
-        Assert.Equal("ranked", actor.Options["queue"]);
-    }
-
-    [Fact]
-    public void FromConfiguration_binds_json_object_startup_actor_entries_case_insensitively()
+    public void FromConfiguration_rejects_removed_startup_actor_json()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>
         {
@@ -123,11 +104,9 @@ public sealed class LakonaGameRuntimeOptionsTests
                 """
         });
 
-        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
-
-        var actor = Assert.Single(options.StartupActors);
-        Assert.Equal("matchmaking", actor.Name);
-        Assert.Equal("ranked", actor.Options["queue"]);
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            LakonaGameRuntimeOptions.FromConfiguration(configuration));
+        Assert.Contains("Lakona:ActorHosts", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]

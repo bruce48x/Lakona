@@ -418,28 +418,6 @@ public sealed class LakonaGameRuntimeValidatorTests
     }
 
     [Fact]
-    public void RuntimeValidator_Fails_WhenStartupActorsContainBlankOrDuplicateNames()
-    {
-        var runtime = TestRuntime() with
-        {
-            StartupActors =
-            [
-                new LakonaGameResolvedStartupActor(
-                    new LakonaGameResolvedValue<string>("matchmaking", LakonaGameValueSource.Configuration, "Lakona:StartupActors:0")),
-                new LakonaGameResolvedStartupActor(
-                    new LakonaGameResolvedValue<string>(" ", LakonaGameValueSource.Configuration, "Lakona:StartupActors:1")),
-                new LakonaGameResolvedStartupActor(
-                    new LakonaGameResolvedValue<string>("Matchmaking", LakonaGameValueSource.Configuration, "Lakona:StartupActors:2"))
-            ]
-        };
-
-        var result = Validate(runtime);
-
-        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK103");
-        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK104");
-    }
-
-    [Fact]
     public void RuntimeValidator_includes_heartbeat_rule_by_default()
     {
         var services = new ServiceCollection();

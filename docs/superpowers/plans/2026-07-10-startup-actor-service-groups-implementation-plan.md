@@ -632,7 +632,7 @@ Expected: PASS and generated sources compile under the test host.
 - Modify: `src/Lakona.Game.Server/Guardrails/Rules/ActorHostConfigurationRule.cs`
 - Modify: corresponding configuration/readiness/guardrail tests.
 
-- [ ] **Step 1: Write removed-key red tests**
+- [x] **Step 1: Write removed-key red tests**
 
 Add one configuration test for array syntax and one for environment JSON syntax. Both must throw with this actionable content:
 
@@ -642,7 +642,7 @@ HotfixStartup.ConfigureActors with RegisterStartup<TActor, TKey>(selector),
 and use Lakona:ActorHosts to choose capable nodes.
 ```
 
-- [ ] **Step 2: Run red tests**
+- [x] **Step 2: Run red tests**
 
 ```powershell
 dotnet test tests/Lakona.Game.Server.Tests/Lakona.Game.Server.Tests.csproj --no-restore --filter "FullyQualifiedName~LakonaGameRuntimeOptionsTests|FullyQualifiedName~LakonaGameRuntimeValidatorTests"
@@ -650,11 +650,11 @@ dotnet test tests/Lakona.Game.Server.Tests/Lakona.Game.Server.Tests.csproj --no-
 
 Expected: FAIL because the old key still binds.
 
-- [ ] **Step 3: Reject then remove old model**
+- [x] **Step 3: Reject then remove old model**
 
 At the beginning of `FromConfiguration`, detect `section.GetSection("StartupActors").Exists()` and throw the message above. Remove `StartupActors`, `LakonaGameStartupActorOptions`, all binding/parsing helpers, readiness projection, resolved record, and uniqueness rule.
 
-- [ ] **Step 4: Run tests and commit**
+- [x] **Step 4: Run tests and commit**
 
 ```powershell
 dotnet test tests/Lakona.Game.Server.Tests/Lakona.Game.Server.Tests.csproj --no-restore --filter "FullyQualifiedName~Configuration|FullyQualifiedName~Guardrail|FullyQualifiedName~Readiness"

@@ -71,14 +71,6 @@ internal static class LakonaGameReadinessRuntime
                     actor,
                     LakonaGameValueSource.Configuration,
                     $"Lakona:ActorHosts:{index}"))
-                .ToArray(),
-            StartupActors: runtime.StartupActors
-                .Select((actor, index) => new LakonaGameResolvedStartupActor(
-                    new LakonaGameResolvedValue<string>(
-                        actor.Name,
-                        LakonaGameValueSource.Configuration,
-                        $"Lakona:StartupActors:{index}:Name"),
-                    actor.Options))
                 .ToArray());
     }
 

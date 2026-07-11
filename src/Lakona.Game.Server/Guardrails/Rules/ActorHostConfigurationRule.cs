@@ -15,16 +15,6 @@ public sealed class ActorHostConfigurationRule : ILakonaGameValidationRule
         {
             yield return diagnostic;
         }
-
-        foreach (var diagnostic in ValidateNames(
-            (runtime.StartupActors ?? []).Select(static actor => actor.Name),
-            blankCode: "ULINK103",
-            duplicateCode: "ULINK104",
-            blankMessage: "Lakona:StartupActors entries must not be empty.",
-            duplicateMessage: "Lakona:StartupActors entries must be unique."))
-        {
-            yield return diagnostic;
-        }
     }
 
     private static IEnumerable<LakonaGameDiagnostic> ValidateNames(
