@@ -1,5 +1,6 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Hotfix;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests;
@@ -81,7 +82,7 @@ public sealed class RemoteActorInvokerTests
         Assert.True(ClusterActorEnvelope.TryFromClusterMessage(sender.LastMessage, out var envelope));
         Assert.NotNull(envelope);
         Assert.Equal(invocation.ActorId.Value, envelope.ActorId);
-        Assert.Equal(invocation.MethodName, envelope.Kind);
+        Assert.Equal(HotfixActorApiMetadata.ActorMessageKind, envelope.Kind);
         Assert.Equal(invocation.Payload.ToArray(), envelope.Payload.ToArray());
         Assert.Equal(new NodeId("node-local"), envelope.SourceNode);
         Assert.Equal(invocation.CorrelationId, envelope.CorrelationId);

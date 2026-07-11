@@ -72,6 +72,7 @@ public sealed class StartupActorInvokerTests
         Assert.Equal(2, remote.Invocations.Count);
         Assert.Equal([["node-a", "node-b"], ["node-b"]], selections);
         Assert.Equal([1L, 2L], remote.Invocations.Select(static invocation => invocation.ExpectedNodeEpoch));
+        Assert.Equal("1", remote.Invocations[0].Metadata[HotfixActorApiMetadata.MethodIdKey]);
     }
 
     [Fact]

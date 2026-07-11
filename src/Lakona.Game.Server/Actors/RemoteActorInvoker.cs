@@ -1,4 +1,5 @@
 using Lakona.Game.Cluster;
+using Lakona.Game.Server.Hotfix;
 
 namespace Lakona.Game.Server.Actors;
 
@@ -140,7 +141,7 @@ public sealed class RemoteActorInvoker : IRemoteActorInvoker
         var envelope = new ClusterActorEnvelope(
             ClusterActorRouteKeys.ForActor(invocation.ActorId.Value),
             invocation.ActorId.Value,
-            invocation.MethodName,
+            HotfixActorApiMetadata.ActorMessageKind,
             invocation.Payload,
             invocation.Deadline,
             _localNode,

@@ -2,6 +2,7 @@ using Lakona.Game.Cluster;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using System.Globalization;
 using System.Reflection;
 using System.Text.Json;
@@ -15,19 +16,22 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
     private readonly IClusterNodeSender _nodeSender;
     private readonly LocalActorNodeIdentity _localNode;
     private readonly IServiceProvider _services;
+    private readonly ILogger<HotfixActorClusterHandler>? _logger;
 
     public HotfixActorClusterHandler(
         IActorRuntime runtime,
         IRemoteActorSerializer serializer,
         IClusterNodeSender nodeSender,
         LocalActorNodeIdentity localNode,
-        IServiceProvider services)
+        IServiceProvider services,
+        ILogger<HotfixActorClusterHandler>? logger = null)
     {
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
         _nodeSender = nodeSender ?? throw new ArgumentNullException(nameof(nodeSender));
         _localNode = localNode ?? throw new ArgumentNullException(nameof(localNode));
         _services = services ?? throw new ArgumentNullException(nameof(services));
+        _logger = logger;
     }
 
     public async ValueTask<ClusterSendStatus> HandleAsync(
@@ -70,6 +74,7 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
         var table = snapshot.DispatchTable;
         if (table is null || !table.TryResolveActorMethod(methodId, out var descriptor))
         {
+            _logger?.LogWarning("Remote actor method {MethodId} was not found for actor id {ActorId}.", methodId, envelope.ActorId);
             lease.Dispose();
             return ClusterSendStatus.RouteNotFound;
         }
@@ -132,6 +137,7 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
                 catch (ActorCallException exception)
                 {
                     callState.DisposeLease();
+                    LogActorCallFailure(actorId, descriptor.ActorType, exception);
                     return MapCallException(exception);
                 }
                 catch
@@ -193,6 +199,7 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
             if (result != ActorTellResult.Accepted)
             {
                 postState.DisposeLease();
+                _logger?.LogWarning("Remote actor tell for {ActorType} at {ActorId} was rejected with {Result}.", descriptor.ActorType.FullName, actorId.Value, result);
             }
 
             return MapTellResult(result);
@@ -220,6 +227,7 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
             }
             catch (ActorCallException exception)
             {
+                LogActorCallFailure(actorId, descriptor.ActorType, exception);
                 return MapCallException(exception);
             }
             catch
@@ -254,6 +262,16 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
         {
             lease.Dispose();
         }
+    }
+
+    private void LogActorCallFailure(ActorId actorId, Type actorType, ActorCallException exception)
+    {
+        _logger?.LogWarning(
+            exception,
+            "Remote actor call for {ActorType} at {ActorId} failed with {Status}.",
+            actorType.FullName,
+            actorId.Value,
+            exception.Status);
     }
 
     private async ValueTask<ClusterSendStatus> HandleActorHostCreateAsync(

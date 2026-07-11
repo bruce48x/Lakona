@@ -49,6 +49,10 @@ internal sealed class StartupActorHostedService(
                 {
                     await EnsureAsync(replica, cancellationToken).ConfigureAwait(false);
                     started.Add(replica);
+                    logger?.LogInformation(
+                        "Startup Actor replica {ActorType} is ready at {ActorId}.",
+                        replica.ActorType.FullName,
+                        replica.ActorId.Value);
                 }
             }
             catch

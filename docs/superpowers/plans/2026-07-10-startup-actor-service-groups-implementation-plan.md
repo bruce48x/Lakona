@@ -771,7 +771,7 @@ Expected: PASS.
 
 - Modify package `.csproj` files identified below and any additional package required by the graph guard.
 
-- [ ] **Step 1: Apply minor+1 versions**
+- [x] **Step 1: Apply minor+1 versions**
 
 Set the packages first modified by this plan to:
 
@@ -787,7 +787,7 @@ Lakona.Game.Server.Hotfix.Generators        0.4.0
 
 `Lakona.Game.Server` remains `0.12.0` and `Lakona.Tool` remains `0.18.0` from the prerequisite plan; they are already bumped once relative to the shared base and must not be bumped a second time for the same integrated release. If executing this plan independently, set them to those versions here. Non-packable `Lakona.Game.Cluster.Rpc.MemoryPack.Generator` receives no version.
 
-- [ ] **Step 2: Build once**
+- [x] **Step 2: Build once**
 
 ```powershell
 dotnet build Lakona.slnx --no-restore
@@ -795,7 +795,7 @@ dotnet build Lakona.slnx --no-restore
 
 Expected: PASS.
 
-- [ ] **Step 3: Run affected suites sequentially**
+- [x] **Step 3: Run affected suites sequentially**
 
 ```powershell
 dotnet test tests/Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj --no-build --no-restore
@@ -811,7 +811,7 @@ dotnet test samples/Game.Unity.Agar/tests/BusinessLogic.Tests/BusinessLogic.Test
 
 Expected: all PASS.
 
-- [ ] **Step 4: Run package graph and old-surface guard**
+- [x] **Step 4: Run package graph and old-surface guard**
 
 ```powershell
 pwsh -NoProfile -File scripts/nuget/check-package-version-graph.ps1
@@ -820,7 +820,7 @@ rg -n "Lakona:StartupActors|Lakona__StartupActors|ActorStartupPlan|ActorStartupI
 
 Expected: version graph PASS; scan output contains only deliberate rejection tests/messages.
 
-- [ ] **Step 5: Run Godot and Agar acceptance**
+- [x] **Step 5: Run Godot and Agar acceptance**
 
 ```powershell
 pwsh -NoProfile -File samples/Game.Godot.Chat/test-game-godot-chat-e2e.ps1
@@ -833,7 +833,7 @@ matchmaking reaches battle in five seconds. The two-replica selection/failover
 contract is proven by `StartupActorInvokerTests` and lifecycle integration
 tests because the checked-in three-node topology currently has one data node.
 
-- [ ] **Step 6: Run hygiene and inspect ownership**
+- [x] **Step 6: Run hygiene and inspect ownership**
 
 ```powershell
 git diff --check
@@ -843,7 +843,7 @@ git diff --stat
 
 Expected: no generated output/build artifacts; no stale old API; the user's DebugWatcher Compose change remains correctly attributed and unstaged unless separately authorized.
 
-- [ ] **Step 7: Commit release metadata**
+- [x] **Step 7: Commit release metadata**
 
 ```powershell
 git add src/Lakona.Game.Cluster/*.csproj src/Lakona.Game.Cluster.Rpc/*.csproj src/Lakona.Game.Cluster.Rpc.MemoryPack/*.csproj src/Lakona.Game.Cluster.Sql/*.csproj src/Lakona.Game.Server.Hotfix.Abstractions/*.csproj src/Lakona.Game.Server.Hotfix/*.csproj src/Lakona.Game.Server.Hotfix.Generators/*.csproj

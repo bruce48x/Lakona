@@ -2,6 +2,7 @@ using System.Globalization;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Microsoft.Extensions.Logging;
 
 namespace Lakona.Game.Server.Actors;
 
@@ -12,7 +13,8 @@ public sealed class StartupActorInvoker(
     IRemoteActorInvoker remote,
     IRemoteActorSerializer serializer,
     ClusterNodeSenderOptions clusterOptions,
-    RemoteActorOptions remoteOptions) : IStartupActorInvoker
+    RemoteActorOptions remoteOptions,
+    ILogger<StartupActorInvoker>? logger = null) : IStartupActorInvoker
 {
     public async ValueTask CallAsync<TActor, TKey, TRequest>(TKey key, string actorName, string methodName, ulong remoteMethodId, TRequest request, Func<ActorId, TRequest, CancellationToken, ValueTask> invokeLocal, CancellationToken cancellationToken = default) where TActor : class, IActor
     {
@@ -32,7 +34,7 @@ public sealed class StartupActorInvoker(
 
             var result = await remote.AskAsync(CreateInvocation(target, actorName, methodName, remoteMethodId, request), cancellationToken).ConfigureAwait(false);
             if (result.Status == RemoteActorStatus.Replied) return;
-            if (result.RetrySafety == RemoteActorRetrySafety.DefinitelyNotExecuted) { ExcludeOrThrow<TActor>(target, excluded, ref remainingAttempts); continue; }
+            if (result.RetrySafety == RemoteActorRetrySafety.DefinitelyNotExecuted) { LogExcluded<TActor>(target, result); ExcludeOrThrow<TActor>(target, excluded, ref remainingAttempts); continue; }
             RemoteActorCall.EnsureReplied(result, target.ActorId, actorName, methodName, target.Node);
         }
     }
@@ -55,7 +57,7 @@ public sealed class StartupActorInvoker(
 
             var result = await remote.AskAsync(CreateInvocation(target, actorName, methodName, remoteMethodId, request), cancellationToken).ConfigureAwait(false);
             if (result.Status == RemoteActorStatus.Replied) return serializer.Deserialize<TResult>(result.Payload);
-            if (result.RetrySafety == RemoteActorRetrySafety.DefinitelyNotExecuted) { ExcludeOrThrow<TActor>(target, excluded, ref remainingAttempts); continue; }
+            if (result.RetrySafety == RemoteActorRetrySafety.DefinitelyNotExecuted) { LogExcluded<TActor>(target, result); ExcludeOrThrow<TActor>(target, excluded, ref remainingAttempts); continue; }
             RemoteActorCall.EnsureReplied(result, target.ActorId, actorName, methodName, target.Node);
         }
     }
@@ -80,7 +82,7 @@ public sealed class StartupActorInvoker(
 
             var remoteResult = await remote.TellAsync(CreateInvocation(target, actorName, methodName, remoteMethodId, request), cancellationToken).ConfigureAwait(false);
             if (remoteResult.Status == RemoteActorStatus.Accepted) return;
-            if (remoteResult.RetrySafety == RemoteActorRetrySafety.DefinitelyNotExecuted) { ExcludeOrThrow<TActor>(target, excluded, ref remainingAttempts); continue; }
+            if (remoteResult.RetrySafety == RemoteActorRetrySafety.DefinitelyNotExecuted) { LogExcluded<TActor>(target, remoteResult); ExcludeOrThrow<TActor>(target, excluded, ref remainingAttempts); continue; }
             RemoteActorCall.EnsureAccepted(remoteResult, target.ActorId, actorName, methodName, target.Node);
         }
     }
@@ -124,10 +126,21 @@ public sealed class StartupActorInvoker(
         if (remainingAttempts <= 0) throw new StartupActorUnavailableException(typeof(TActor));
     }
 
+    private void LogExcluded<TActor>(StartupActorTarget target, RemoteActorInvocationResult result)
+    {
+        logger?.LogWarning(
+            "Startup Actor attempt for {ActorType} on {NodeId} epoch {NodeEpoch} was definitely not executed ({Status}): {Error}",
+            typeof(TActor).FullName,
+            target.Node.Value,
+            target.NodeEpoch,
+            result.Status,
+            result.Message);
+    }
+
     private RemoteActorInvocation CreateInvocation<TRequest>(StartupActorTarget target, string actorName, string methodName, ulong remoteMethodId, TRequest request)
     {
         var correlationId = Guid.NewGuid().ToString("N");
         return new RemoteActorInvocation(target.Node, target.ActorId, actorName, methodName, serializer.Serialize(request), DateTimeOffset.UtcNow.Add(remoteOptions.DefaultTimeout), correlationId,
-            new Dictionary<string, string> { ["lakona.remote-method-id"] = remoteMethodId.ToString(CultureInfo.InvariantCulture) }, target.NodeEpoch);
+            new Dictionary<string, string> { [HotfixActorApiMetadata.MethodIdKey] = remoteMethodId.ToString(CultureInfo.InvariantCulture) }, target.NodeEpoch);
     }
 }
