@@ -6,6 +6,7 @@ using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Lakona.Game.Server.Actors;
 
@@ -15,7 +16,8 @@ internal sealed class StartupActorHostedService(
     LakonaGameRuntimeOptions options,
     LocalActorNodeIdentity localNode,
     StartupActorDescriptorCatalog catalog,
-    IClusterNodeRegistrationRefresher refresher) : IHostedService
+    IClusterNodeRegistrationRefresher refresher,
+    ILogger<StartupActorHostedService>? logger = null) : IHostedService
 {
     private static readonly MethodInfo EnsureMethod = FindGeneric(nameof(ActorHosting.EnsureAsync));
     private static readonly MethodInfo DestroyMethod = FindGeneric(nameof(ActorHosting.DestroyAsync));
@@ -23,6 +25,7 @@ internal sealed class StartupActorHostedService(
     private readonly StartupActorDescriptorCatalog _catalog = catalog;
     private readonly IClusterNodeRegistrationRefresher _refresher = refresher;
     private Dictionary<Type, Replica> _active = [];
+    private readonly List<Replica> _cleanupPending = [];
     private bool _started;
 
     internal bool IsStarted => Volatile.Read(ref _started);
@@ -72,9 +75,13 @@ internal sealed class StartupActorHostedService(
         {
             _catalog.Replace([]);
             await _refresher.RefreshAsync(cancellationToken).ConfigureAwait(false);
-            foreach (var replica in _active.Values.Reverse())
-                await DestroyAsync(replica, cancellationToken).ConfigureAwait(false);
+            foreach (var replica in _active.Values.Concat(_cleanupPending).Distinct().Reverse())
+            {
+                try { await DestroyAsync(replica, cancellationToken).ConfigureAwait(false); }
+                catch (Exception exception) { logger?.LogError(exception, "Failed to stop Startup Actor replica {ActorType}.", replica.ActorType.FullName); }
+            }
             _active = [];
+            _cleanupPending.Clear();
             Volatile.Write(ref _started, false);
         }
         finally { _gate.Release(); }
@@ -106,7 +113,11 @@ internal sealed class StartupActorHostedService(
             }
             return new PublicationTransaction(this, before, after, added, removed);
         }
-        finally { _gate.Release(); }
+        catch
+        {
+            _gate.Release();
+            throw;
+        }
     }
 
     private Dictionary<Type, Replica> CreateReplicas(HotfixRuntimeSnapshot snapshot)
@@ -138,9 +149,14 @@ internal sealed class StartupActorHostedService(
     private ValueTask DestroyAsync(Replica replica, CancellationToken cancellationToken) =>
         (ValueTask)DestroyMethod.MakeGenericMethod(replica.ActorType).Invoke(actorHosting, [replica.ActorId, cancellationToken])!;
 
-    private async ValueTask DestroyQuietlyAsync(Replica replica)
+    private async ValueTask<bool> DestroyQuietlyAsync(Replica replica)
     {
-        try { await DestroyAsync(replica, CancellationToken.None).ConfigureAwait(false); } catch { }
+        try { await DestroyAsync(replica, CancellationToken.None).ConfigureAwait(false); return true; }
+        catch (Exception exception)
+        {
+            logger?.LogError(exception, "Failed to clean up Startup Actor replica {ActorType}.", replica.ActorType.FullName);
+            return false;
+        }
     }
 
     private static MethodInfo FindGeneric(string name) => typeof(ActorHosting).GetMethods()
@@ -156,6 +172,7 @@ internal sealed class StartupActorHostedService(
         IReadOnlyList<Replica> removed) : IHotfixRuntimePublicationTransaction
     {
         private readonly List<Replica> _started = [];
+        private int _disposed;
 
         public async ValueTask ActivateAsync(CancellationToken cancellationToken = default)
         {
@@ -172,18 +189,22 @@ internal sealed class StartupActorHostedService(
         {
             owner._active = after;
             foreach (var replica in removed)
-                await owner.DestroyQuietlyAsync(replica).ConfigureAwait(false);
+                if (!await owner.DestroyQuietlyAsync(replica).ConfigureAwait(false)) owner._cleanupPending.Add(replica);
         }
 
         public async ValueTask RollbackAsync(CancellationToken cancellationToken = default)
         {
             foreach (var replica in _started.AsEnumerable().Reverse())
-                await owner.DestroyQuietlyAsync(replica).ConfigureAwait(false);
+                if (!await owner.DestroyQuietlyAsync(replica).ConfigureAwait(false)) owner._cleanupPending.Add(replica);
             owner._active = before;
             owner._catalog.Replace(before.Values.Select(static replica => replica.Descriptor));
             try { await owner._refresher.RefreshAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
         }
 
-        public ValueTask DisposeAsync() => default;
+        public ValueTask DisposeAsync()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) == 0) owner._gate.Release();
+            return default;
+        }
     }
 }

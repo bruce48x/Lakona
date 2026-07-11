@@ -54,6 +54,28 @@ public sealed class HotfixManagerTests
         Assert.Null(manager.Current.Version);
     }
 
+    [Fact]
+    public async Task PublishCandidate_does_not_roll_back_after_cleanup_commit_failure()
+    {
+        var events = new List<string>();
+        var manager = new HotfixManager(
+            new FixedAssemblySource("unused"),
+            participants:
+            [
+                new RecordingPublicationParticipant(events),
+                new RecordingPublicationParticipant(events, failCommit: true)
+            ]);
+
+        var result = await manager.PublishCandidateAsync(
+            CreateRuntimeSnapshot("v2"),
+            CreateSnapshot("v2"),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.Succeeded);
+        Assert.DoesNotContain("rollback", events);
+        Assert.Equal("v2", manager.Current.Version);
+    }
+
     private static HotfixRuntimeSnapshot CreateRuntimeSnapshot(string version) => new(
         new HotfixServiceInvoker(new HotfixDispatchTable(1, [])),
         new ServiceCollection().BuildServiceProvider(),
@@ -63,7 +85,10 @@ public sealed class HotfixManagerTests
     private static HotfixSnapshot CreateSnapshot(string version) => new(
         version, null, DateTimeOffset.UtcNow, 1, [], HotfixReloadStatus.Succeeded, null, null);
 
-    private sealed class RecordingPublicationParticipant(List<string> events, bool failActivation = false)
+    private sealed class RecordingPublicationParticipant(
+        List<string> events,
+        bool failActivation = false,
+        bool failCommit = false)
         : IHotfixRuntimePublicationParticipant
     {
         public ValueTask<IHotfixRuntimePublicationTransaction> PrepareAsync(
@@ -72,10 +97,10 @@ public sealed class HotfixManagerTests
             CancellationToken cancellationToken = default)
         {
             events.Add("prepare");
-            return ValueTask.FromResult<IHotfixRuntimePublicationTransaction>(new Transaction(events, failActivation));
+            return ValueTask.FromResult<IHotfixRuntimePublicationTransaction>(new Transaction(events, failActivation, failCommit));
         }
 
-        private sealed class Transaction(List<string> events, bool failActivation)
+        private sealed class Transaction(List<string> events, bool failActivation, bool failCommit)
             : IHotfixRuntimePublicationTransaction
         {
             public ValueTask ActivateAsync(CancellationToken cancellationToken = default)
@@ -84,7 +109,12 @@ public sealed class HotfixManagerTests
                 if (failActivation) throw new InvalidOperationException("activation failed");
                 return default;
             }
-            public ValueTask CommitAsync(CancellationToken cancellationToken = default) { events.Add("commit"); return default; }
+            public ValueTask CommitAsync(CancellationToken cancellationToken = default)
+            {
+                events.Add("commit");
+                if (failCommit) throw new InvalidOperationException("cleanup failed");
+                return default;
+            }
             public ValueTask RollbackAsync(CancellationToken cancellationToken = default) { events.Add("rollback"); return default; }
             public ValueTask DisposeAsync() { events.Add("dispose"); return default; }
         }

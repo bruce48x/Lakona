@@ -338,15 +338,12 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 await transaction.ActivateAsync(cancellationToken).ConfigureAwait(false);
             }
 
-            foreach (var transaction in transactions)
-            {
-                await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
-            }
         }
         catch (OperationCanceledException)
         {
             if (swapped) Volatile.Write(ref _publication, previousPublication);
             await RollbackPublicationTransactionsAsync(transactions).ConfigureAwait(false);
+            await DisposePublicationTransactionsAsync(transactions).ConfigureAwait(false);
             runtimeSnapshot.Retire();
             throw;
         }
@@ -354,6 +351,7 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
         {
             if (swapped) Volatile.Write(ref _publication, previousPublication);
             await RollbackPublicationTransactionsAsync(transactions).ConfigureAwait(false);
+            await DisposePublicationTransactionsAsync(transactions).ConfigureAwait(false);
             runtimeSnapshot.Retire();
             return new HotfixReloadResult(
                 HotfixReloadStatus.Failed,
@@ -364,13 +362,20 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 ex.Message,
                 ex.GetType().FullName);
         }
-        finally
+
+        foreach (var transaction in transactions)
         {
-            foreach (var transaction in transactions)
+            try
             {
-                await transaction.DisposeAsync().ConfigureAwait(false);
+                await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Hotfix publication cleanup commit failed.");
             }
         }
+
+        await DisposePublicationTransactionsAsync(transactions).ConfigureAwait(false);
 
         previousPublication.Runtime.Retire();
 
@@ -395,6 +400,15 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             catch
             {
             }
+        }
+    }
+
+    private static async ValueTask DisposePublicationTransactionsAsync(
+        IReadOnlyList<IHotfixRuntimePublicationTransaction> transactions)
+    {
+        foreach (var transaction in transactions)
+        {
+            try { await transaction.DisposeAsync().ConfigureAwait(false); } catch { }
         }
     }
 

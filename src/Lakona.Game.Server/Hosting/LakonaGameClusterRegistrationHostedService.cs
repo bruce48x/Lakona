@@ -22,6 +22,7 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService,
     private ActorHostDescriptorCatalog? _actorHostCatalog;
     private StartupActorDescriptorCatalog? _startupActorCatalog;
     private NodeRecord? _record;
+    private int _stopping;
 
     public LakonaGameClusterRegistrationHostedService(IServiceProvider services)
     {
@@ -30,6 +31,7 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService,
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        Volatile.Write(ref _stopping, 0);
         var directory = _services.GetService<INodeDirectory>();
         var options = _services.GetService<ClusterOptions>();
         var actorHostCatalog = _services.GetService<ActorHostDescriptorCatalog>();
@@ -55,6 +57,7 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService,
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
+        Volatile.Write(ref _stopping, 1);
         CancellationTokenSource? heartbeatCts;
         Task? heartbeatTask;
         lock (_gate)
@@ -204,6 +207,7 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService,
 
     public async ValueTask RefreshAsync(CancellationToken cancellationToken = default)
     {
+        if (Volatile.Read(ref _stopping) != 0) return;
         var directory = _directory;
         var options = _options;
         if (directory is null || options is null)
@@ -214,6 +218,7 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService,
         await _registrationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            if (Volatile.Read(ref _stopping) != 0) return;
             _record = await RegisterAsync(directory, options, cancellationToken).ConfigureAwait(false);
         }
         finally
