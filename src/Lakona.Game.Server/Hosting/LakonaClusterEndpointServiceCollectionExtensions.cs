@@ -37,6 +37,7 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             provider.GetRequiredService<LakonaClusterRpcSerializer>().Serializer));
         services.TryAddSingleton<ClusterLocalMessageHandler>();
         services.TryAddSingleton<INodeMessenger, ClusterNodeMessenger>();
+        services.TryAddSingleton(new ClusterNodeSenderOptions());
         services.TryAddSingleton<IClusterNodeSender, ClusterNodeSender>();
         services.TryAddSingleton<LocalClientNotificationCommandDispatcher>();
         RemoveSessionOnlyNotificationDispatcher(services);

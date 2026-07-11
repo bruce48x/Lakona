@@ -342,6 +342,32 @@ public sealed class RemoteActorInvokerTests
         Assert.Equal(expected, result.RetrySafety);
     }
 
+    [Fact]
+    public async Task TellAsync_classifies_only_pre_dispatch_statuses_as_definitely_not_executed()
+    {
+        var safeStatuses = new HashSet<ClusterSendStatus>
+        {
+            ClusterSendStatus.RouteNotFound,
+            ClusterSendStatus.HandlerUnavailable,
+            ClusterSendStatus.StaleRoute,
+            ClusterSendStatus.NodeEpochMismatch
+        };
+
+        foreach (var status in Enum.GetValues<ClusterSendStatus>())
+        {
+            var invoker = CreateInvoker(nodeSender: new RecordingClusterNodeSender { Status = status });
+            var result = await invoker.TellAsync(
+                CreateInvocation(expectedNodeEpoch: 7),
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(
+                safeStatuses.Contains(status)
+                    ? RemoteActorRetrySafety.DefinitelyNotExecuted
+                    : RemoteActorRetrySafety.Indeterminate,
+                result.RetrySafety);
+        }
+    }
+
     [Theory]
     [InlineData(typeof(RemoteActorInvocation))]
     [InlineData(typeof(RemoteActorInvocationResult))]

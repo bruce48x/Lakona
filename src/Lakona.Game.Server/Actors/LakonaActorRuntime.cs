@@ -484,7 +484,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             return cell;
         }
 
-        throw new ActorNotFoundException(
+        throw ActorNotFoundException.BeforeDispatch(
             id,
             actorType.Name,
             methodName,

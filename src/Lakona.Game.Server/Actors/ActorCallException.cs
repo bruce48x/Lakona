@@ -84,6 +84,25 @@ public sealed class ActorNotFoundException : ActorCallException
         : base(ActorCallStatus.ActorNotFound, actorId, actorName, methodName, message, node, correlationId, innerException)
     {
     }
+
+    private ActorNotFoundException(
+        ActorId actorId,
+        string actorName,
+        string methodName,
+        string message,
+        bool definitelyNotExecuted)
+        : base(ActorCallStatus.ActorNotFound, actorId, actorName, methodName, message)
+    {
+        DefinitelyNotExecuted = definitelyNotExecuted;
+    }
+
+    internal bool DefinitelyNotExecuted { get; }
+
+    internal static ActorNotFoundException BeforeDispatch(
+        ActorId actorId,
+        string actorName,
+        string methodName,
+        string message) => new(actorId, actorName, methodName, message, definitelyNotExecuted: true);
 }
 
 /// <summary>

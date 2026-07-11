@@ -18,18 +18,21 @@ public sealed class StartupActorInvoker(
     {
         ArgumentNullException.ThrowIfNull(invokeLocal);
         var excluded = new HashSet<(NodeId, long)>();
+        int? remainingAttempts = null;
         while (true)
         {
-            var target = await SelectAsync<TActor, TKey>(key, actorName, excluded, cancellationToken).ConfigureAwait(false);
+            var selection = await SelectAsync<TActor, TKey>(key, actorName, excluded, cancellationToken).ConfigureAwait(false);
+            var target = selection.Target;
+            remainingAttempts ??= selection.CandidateCount;
             if (target.Node == localNode.NodeId)
             {
                 try { await invokeLocal(target.ActorId, request, cancellationToken).ConfigureAwait(false); return; }
-                catch (ActorNotFoundException) { excluded.Add((target.Node, target.NodeEpoch)); continue; }
+                catch (ActorNotFoundException exception) when (exception.DefinitelyNotExecuted) { ExcludeOrThrow<TActor>(target, excluded, ref remainingAttempts); continue; }
             }
 
             var result = await remote.AskAsync(CreateInvocation(target, actorName, methodName, remoteMethodId, request), cancellationToken).ConfigureAwait(false);
             if (result.Status == RemoteActorStatus.Replied) return;
-            if (result.RetrySafety == RemoteActorRetrySafety.DefinitelyNotExecuted) { excluded.Add((target.Node, target.NodeEpoch)); continue; }
+            if (result.RetrySafety == RemoteActorRetrySafety.DefinitelyNotExecuted) { ExcludeOrThrow<TActor>(target, excluded, ref remainingAttempts); continue; }
             RemoteActorCall.EnsureReplied(result, target.ActorId, actorName, methodName, target.Node);
         }
     }
@@ -38,18 +41,21 @@ public sealed class StartupActorInvoker(
     {
         ArgumentNullException.ThrowIfNull(invokeLocal);
         var excluded = new HashSet<(NodeId, long)>();
+        int? remainingAttempts = null;
         while (true)
         {
-            var target = await SelectAsync<TActor, TKey>(key, actorName, excluded, cancellationToken).ConfigureAwait(false);
+            var selection = await SelectAsync<TActor, TKey>(key, actorName, excluded, cancellationToken).ConfigureAwait(false);
+            var target = selection.Target;
+            remainingAttempts ??= selection.CandidateCount;
             if (target.Node == localNode.NodeId)
             {
                 try { return await invokeLocal(target.ActorId, request, cancellationToken).ConfigureAwait(false); }
-                catch (ActorNotFoundException) { excluded.Add((target.Node, target.NodeEpoch)); continue; }
+                catch (ActorNotFoundException exception) when (exception.DefinitelyNotExecuted) { ExcludeOrThrow<TActor>(target, excluded, ref remainingAttempts); continue; }
             }
 
             var result = await remote.AskAsync(CreateInvocation(target, actorName, methodName, remoteMethodId, request), cancellationToken).ConfigureAwait(false);
             if (result.Status == RemoteActorStatus.Replied) return serializer.Deserialize<TResult>(result.Payload);
-            if (result.RetrySafety == RemoteActorRetrySafety.DefinitelyNotExecuted) { excluded.Add((target.Node, target.NodeEpoch)); continue; }
+            if (result.RetrySafety == RemoteActorRetrySafety.DefinitelyNotExecuted) { ExcludeOrThrow<TActor>(target, excluded, ref remainingAttempts); continue; }
             RemoteActorCall.EnsureReplied(result, target.ActorId, actorName, methodName, target.Node);
         }
     }
@@ -58,25 +64,28 @@ public sealed class StartupActorInvoker(
     {
         ArgumentNullException.ThrowIfNull(invokeLocal);
         var excluded = new HashSet<(NodeId, long)>();
+        int? remainingAttempts = null;
         while (true)
         {
-            var target = await SelectAsync<TActor, TKey>(key, actorName, excluded, cancellationToken).ConfigureAwait(false);
+            var selection = await SelectAsync<TActor, TKey>(key, actorName, excluded, cancellationToken).ConfigureAwait(false);
+            var target = selection.Target;
+            remainingAttempts ??= selection.CandidateCount;
             if (target.Node == localNode.NodeId)
             {
                 var result = await invokeLocal(target.ActorId, request, cancellationToken).ConfigureAwait(false);
                 if (result == ActorTellResult.Accepted) return;
-                if (result == ActorTellResult.ActorNotFound) { excluded.Add((target.Node, target.NodeEpoch)); continue; }
+                if (result == ActorTellResult.ActorNotFound) { ExcludeOrThrow<TActor>(target, excluded, ref remainingAttempts); continue; }
                 throw new InvalidOperationException($"Startup Actor post was not accepted: {result}.");
             }
 
             var remoteResult = await remote.TellAsync(CreateInvocation(target, actorName, methodName, remoteMethodId, request), cancellationToken).ConfigureAwait(false);
             if (remoteResult.Status == RemoteActorStatus.Accepted) return;
-            if (remoteResult.RetrySafety == RemoteActorRetrySafety.DefinitelyNotExecuted) { excluded.Add((target.Node, target.NodeEpoch)); continue; }
+            if (remoteResult.RetrySafety == RemoteActorRetrySafety.DefinitelyNotExecuted) { ExcludeOrThrow<TActor>(target, excluded, ref remainingAttempts); continue; }
             RemoteActorCall.EnsureAccepted(remoteResult, target.ActorId, actorName, methodName, target.Node);
         }
     }
 
-    private async ValueTask<StartupActorTarget> SelectAsync<TActor, TKey>(TKey key, string actorName, HashSet<(NodeId, long)> excluded, CancellationToken cancellationToken) where TActor : class, IActor
+    private async ValueTask<(StartupActorTarget Target, int CandidateCount)> SelectAsync<TActor, TKey>(TKey key, string actorName, HashSet<(NodeId, long)> excluded, CancellationToken cancellationToken) where TActor : class, IActor
     {
         var registeredActorName = ActorNameResolver.Resolve(typeof(TActor));
         if (!string.Equals(actorName, registeredActorName, StringComparison.Ordinal))
@@ -104,7 +113,14 @@ public sealed class StartupActorInvoker(
         if (selected is null || !candidates.Any(candidate => ReferenceEquals(candidate, selected)))
             throw new StartupActorSelectionException(typeof(TActor), $"Startup Actor selector for '{typeof(TActor).FullName}' returned a candidate that was not offered.");
         var node = new NodeId(selected.NodeId);
-        return new StartupActorTarget(StartupActorIdentity.CreateReplicaId(actorName, node), node, selected.NodeEpoch);
+        return (new StartupActorTarget(StartupActorIdentity.CreateReplicaId(actorName, node), node, selected.NodeEpoch), candidates.Length);
+    }
+
+    private static void ExcludeOrThrow<TActor>(StartupActorTarget target, HashSet<(NodeId, long)> excluded, ref int? remainingAttempts)
+    {
+        excluded.Add((target.Node, target.NodeEpoch));
+        remainingAttempts--;
+        if (remainingAttempts <= 0) throw new StartupActorUnavailableException(typeof(TActor));
     }
 
     private RemoteActorInvocation CreateInvocation<TRequest>(StartupActorTarget target, string actorName, string methodName, ulong remoteMethodId, TRequest request)

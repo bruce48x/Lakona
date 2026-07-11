@@ -3,12 +3,28 @@ using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.Hosting;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests.Actors;
 
 public sealed class StartupActorInvokerTests
 {
+    [Fact]
+    public async Task Production_registrations_resolve_startup_actor_invoker()
+    {
+        var declaration = ActorStartupDeclaration.Create<TestActor, string>(static context => context.Candidates[0]);
+        var snapshot = new HotfixRuntimeSnapshot(new NoopHotfixInvoker(), new EmptyServiceProvider(), [declaration], "build-1");
+        var services = new ServiceCollection();
+        services.AddLakonaGameServerActors();
+        services.AddLakonaGameClusterEndpoint();
+        services.AddSingleton<IHotfixRuntimeAccessor>(new StubHotfixAccessor(snapshot));
+        await using var provider = services.BuildServiceProvider();
+
+        Assert.IsType<StartupActorInvoker>(provider.GetRequiredService<IStartupActorInvoker>());
+    }
+
     [Fact]
     public async Task CallAsync_sorts_candidates_and_preserves_metadata()
     {
@@ -134,6 +150,29 @@ public sealed class StartupActorInvokerTests
                 "tenant", "test", "Ping", 1, new Request("hello"),
                 static (_, _, _) => ValueTask.CompletedTask,
                 TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task CallAsync_does_not_reselect_business_actor_not_found_exception()
+    {
+        var selectorCalls = 0;
+        var declaration = ActorStartupDeclaration.Create<TestActor, string>(context =>
+        {
+            selectorCalls++;
+            return context.Candidates[0];
+        });
+        var invoker = CreateInvoker(declaration, [Node("node-a", 1), Node("node-b", 2)]);
+        var businessFailure = new ActorNotFoundException(
+            ActorId.From("business/reference"), "dependency", "Load", "missing business entity");
+
+        var actual = await Assert.ThrowsAsync<ActorNotFoundException>(async () =>
+            await invoker.CallAsync<TestActor, string, Request>(
+                "tenant", "test", "Ping", 1, new Request("hello"),
+                (_, _, _) => ValueTask.FromException(businessFailure),
+                TestContext.Current.CancellationToken));
+
+        Assert.Same(businessFailure, actual);
+        Assert.Equal(1, selectorCalls);
     }
 
     private static StartupActorInvoker CreateInvoker(
