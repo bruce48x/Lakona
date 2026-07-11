@@ -52,7 +52,8 @@ public sealed class ClusterRpcMemoryPackSchemaTests
         "ClientNotificationDispatchRequest",
         "ClientNotificationDispatchReply",
         "ClientNotificationCommand",
-        "ClientNotificationArgument"
+        "ClientNotificationArgument",
+        "StartupActorDto"
     ];
 
     [Fact]

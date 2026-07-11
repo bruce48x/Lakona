@@ -36,6 +36,8 @@ namespace Lakona.Game.Cluster.Rpc
         public int State { get; set; }
 
         public DateTimeOffset LeaseExpiresAt { get; set; }
+
+        public List<StartupActorDto>? StartupActors { get; set; }
     }
 
     public sealed class NodeRecordDto
@@ -57,6 +59,8 @@ namespace Lakona.Game.Cluster.Rpc
         public DateTimeOffset LeaseExpiresAt { get; set; }
 
         public DateTimeOffset UpdatedAt { get; set; }
+
+        public List<StartupActorDto>? StartupActors { get; set; }
     }
 
     public sealed class NodeDirectoryClientQueryDto
@@ -72,6 +76,10 @@ namespace Lakona.Game.Cluster.Rpc
         public Dictionary<string, string>? Labels { get; set; }
 
         public bool IncludeExpired { get; set; }
+
+        public string? StartupActorName { get; set; }
+
+        public string? StartupActorPolicyHash { get; set; }
     }
 
     public sealed class NodeRegisterRequest
@@ -160,5 +168,16 @@ namespace Lakona.Game.Cluster.Rpc
     public sealed class NodeExpireReply
     {
         public int Expired { get; set; }
+    }
+
+    public sealed class StartupActorDto
+    {
+        public string Actor { get; set; } = string.Empty;
+
+        public string PolicyHash { get; set; } = string.Empty;
+
+        public string BuildTag { get; set; } = string.Empty;
+
+        public Dictionary<string, string>? Metadata { get; set; }
     }
 }

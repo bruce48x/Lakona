@@ -58,6 +58,7 @@ namespace Lakona.Game.Cluster.Sql
                         epoch,
                         registration.Endpoints,
                         registration.ActorHosts,
+                        registration.StartupActors,
                         registration.Labels,
                         registration.State,
                         registration.LeaseExpiresAt,
@@ -212,7 +213,7 @@ namespace Lakona.Game.Cluster.Sql
             await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
             using var command = connection.CreateCommand();
             command.CommandText =
-                "SELECT cluster_name, node_id, node_epoch, state, endpoints_json, actor_hosts_json, labels_json, lease_expires_at, updated_at " +
+                "SELECT cluster_name, node_id, node_epoch, state, endpoints_json, actor_hosts_json, COALESCE(startup_actors_json, '[]'), labels_json, lease_expires_at, updated_at " +
                 "FROM " + _options.TableName + " WHERE cluster_name = @cluster_name";
             AddParameter(command, "@cluster_name", query.ClusterName);
 
@@ -311,7 +312,7 @@ namespace Lakona.Game.Cluster.Sql
             using var command = connection.CreateCommand();
             command.Transaction = transaction;
             command.CommandText =
-                "SELECT cluster_name, node_id, node_epoch, state, endpoints_json, actor_hosts_json, labels_json, lease_expires_at, updated_at " +
+                "SELECT cluster_name, node_id, node_epoch, state, endpoints_json, actor_hosts_json, COALESCE(startup_actors_json, '[]'), labels_json, lease_expires_at, updated_at " +
                 "FROM " + _options.TableName + " " +
                 "WHERE cluster_name = @cluster_name AND node_id = @node_id";
             AddParameter(command, "@cluster_name", clusterName);
@@ -369,8 +370,8 @@ namespace Lakona.Game.Cluster.Sql
             command.Transaction = transaction;
             command.CommandText =
                 "INSERT INTO " + _options.TableName + " " +
-                "(cluster_name, node_id, node_epoch, state, endpoints_json, actor_hosts_json, labels_json, lease_expires_at, updated_at) " +
-                "VALUES (@cluster_name, @node_id, @node_epoch, @state, @endpoints_json, @actor_hosts_json, @labels_json, @lease_expires_at, @updated_at)";
+                "(cluster_name, node_id, node_epoch, state, endpoints_json, actor_hosts_json, startup_actors_json, labels_json, lease_expires_at, updated_at) " +
+                "VALUES (@cluster_name, @node_id, @node_epoch, @state, @endpoints_json, @actor_hosts_json, @startup_actors_json, @labels_json, @lease_expires_at, @updated_at)";
             AddRecordParameters(command, record);
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -386,7 +387,7 @@ namespace Lakona.Game.Cluster.Sql
             command.CommandText =
                 "UPDATE " + _options.TableName + " " +
                 "SET node_epoch = @node_epoch, state = @state, endpoints_json = @endpoints_json, " +
-                "actor_hosts_json = @actor_hosts_json, labels_json = @labels_json, lease_expires_at = @lease_expires_at, updated_at = @updated_at " +
+                "actor_hosts_json = @actor_hosts_json, startup_actors_json = @startup_actors_json, labels_json = @labels_json, lease_expires_at = @lease_expires_at, updated_at = @updated_at " +
                 "WHERE cluster_name = @cluster_name AND node_id = @node_id";
             AddRecordParameters(command, record);
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -400,6 +401,7 @@ namespace Lakona.Game.Cluster.Sql
             AddParameter(command, "@state", (int)record.State);
             AddParameter(command, "@endpoints_json", SerializeEndpoints(record.Endpoints));
             AddParameter(command, "@actor_hosts_json", SerializeActorHosts(record.ActorHosts));
+            AddParameter(command, "@startup_actors_json", SerializeStartupActors(record.StartupActors));
             AddParameter(command, "@labels_json", SerializeStringDictionary(record.Labels));
             AddParameter(command, "@lease_expires_at", ToUtcTicks(record.LeaseExpiresAt));
             AddParameter(command, "@updated_at", ToUtcTicks(record.UpdatedAt));
@@ -421,10 +423,11 @@ namespace Lakona.Game.Cluster.Sql
                 reader.GetInt64(2),
                 DeserializeEndpoints(reader.GetString(4)),
                 DeserializeActorHosts(reader.GetString(5)),
-                DeserializeStringDictionary(reader.GetString(6)),
+                DeserializeStartupActors(reader.GetString(6)),
+                DeserializeStringDictionary(reader.GetString(7)),
                 (NodeState)reader.GetInt32(3),
-                FromUtcTicks(reader.GetInt64(7)),
-                FromUtcTicks(reader.GetInt64(8)));
+                FromUtcTicks(reader.GetInt64(8)),
+                FromUtcTicks(reader.GetInt64(9)));
         }
 
         private static bool MatchesQuery(NodeRecord record, NodeDirectoryQuery query, DateTimeOffset now)
@@ -441,6 +444,14 @@ namespace Lakona.Game.Cluster.Sql
 
             if (query.ActorHostName is not null
                 && !record.HasActorHost(query.ActorHostName, query.ActorHostPolicyHash))
+            {
+                return false;
+            }
+
+            if (query.StartupActorName is not null
+                && (record.State != NodeState.Ready
+                    || record.IsExpired(now)
+                    || !record.HasStartupActor(query.StartupActorName, query.StartupActorPolicyHash)))
             {
                 return false;
             }
@@ -512,6 +523,35 @@ namespace Lakona.Game.Cluster.Sql
             }
 
             return new ReadOnlyCollection<NodeActorHostDescriptor>(actorHosts);
+        }
+
+        private static string SerializeStartupActors(IReadOnlyList<StartupActorDescriptor> startupActors)
+        {
+            var dto = startupActors
+                .Select(startup => new StartupActorDto(
+                    startup.Actor,
+                    startup.PolicyHash,
+                    startup.BuildTag,
+                    startup.Metadata))
+                .ToArray();
+            return JsonSerializer.Serialize(dto, JsonOptions);
+        }
+
+        private static IReadOnlyList<StartupActorDescriptor> DeserializeStartupActors(string json)
+        {
+            var dto = JsonSerializer.Deserialize<StartupActorDto[]>(json, JsonOptions)
+                ?? Array.Empty<StartupActorDto>();
+            var startupActors = new List<StartupActorDescriptor>(dto.Length);
+            foreach (var startup in dto)
+            {
+                startupActors.Add(new StartupActorDescriptor(
+                    startup.Actor,
+                    startup.PolicyHash,
+                    startup.BuildTag,
+                    ToOrdinalDictionary(startup.Metadata)));
+            }
+
+            return new ReadOnlyCollection<StartupActorDescriptor>(startupActors);
         }
 
         private static string SerializeStringDictionary(IReadOnlyDictionary<string, string> values)
@@ -638,6 +678,37 @@ namespace Lakona.Game.Cluster.Sql
             }
 
             public ActorHostDto(
+                string actor,
+                string policyHash,
+                string buildTag,
+                IReadOnlyDictionary<string, string> metadata)
+            {
+                Actor = actor;
+                PolicyHash = policyHash;
+                BuildTag = buildTag;
+                Metadata = ToOrdinalDictionary(metadata);
+            }
+
+            public string Actor { get; set; }
+
+            public string PolicyHash { get; set; }
+
+            public string BuildTag { get; set; }
+
+            public Dictionary<string, string> Metadata { get; set; }
+        }
+
+        private sealed class StartupActorDto
+        {
+            public StartupActorDto()
+            {
+                Actor = string.Empty;
+                PolicyHash = string.Empty;
+                BuildTag = string.Empty;
+                Metadata = new Dictionary<string, string>(StringComparer.Ordinal);
+            }
+
+            public StartupActorDto(
                 string actor,
                 string policyHash,
                 string buildTag,

@@ -70,6 +70,19 @@ public sealed class ClusterRpcMemoryPackDtoTests
                             }
                         }
                     ],
+                    StartupActors =
+                    [
+                        new StartupActorDto
+                        {
+                            Actor = "matchmaking",
+                            PolicyHash = "startup-policy",
+                            BuildTag = "build-a",
+                            Metadata = new Dictionary<string, string>
+                            {
+                                ["region"] = "us-east"
+                            }
+                        }
+                    ],
                     Labels = new Dictionary<string, string>
                     {
                         ["zone"] = "a"
@@ -89,6 +102,7 @@ public sealed class ClusterRpcMemoryPackDtoTests
         Assert.Equal(9, record.NodeEpoch);
         Assert.Equal("tcp://127.0.0.1:22001", record.Endpoints!["cluster"].Address);
         Assert.Equal("room", Assert.Single(record.ActorHosts!).Actor);
+        Assert.Equal("matchmaking", Assert.Single(record.StartupActors!).Actor);
         Assert.Equal("a", record.Labels!["zone"]);
         Assert.Equal(new DateTimeOffset(2026, 6, 24, 5, 7, 8, TimeSpan.Zero), record.UpdatedAt);
     }

@@ -265,11 +265,11 @@ Expected: PASS.
 - Test: `tests/Lakona.Game.Cluster.Rpc.Tests/ClusterRpcMemoryPackDtoTests.cs`
 - Test: `tests/Lakona.Game.Cluster.Rpc.Tests/ClusterRpcMemoryPackSchemaTests.cs`
 
-- [ ] **Step 1: Write adapter red tests**
+- [x] **Step 1: Write adapter red tests**
 
 Round-trip two startup descriptors with different build tags/metadata through SQL registration/query, RPC DTO conversion, and MemoryPack. Assert a startup query does not match a capability-only record.
 
-- [ ] **Step 2: Run the red tests**
+- [x] **Step 2: Run the red tests**
 
 ```powershell
 dotnet test tests/Lakona.Game.Cluster.Sql.Tests/Lakona.Game.Cluster.Sql.Tests.csproj --no-restore --filter "FullyQualifiedName~Startup"
@@ -278,7 +278,7 @@ dotnet test tests/Lakona.Game.Cluster.Rpc.Tests/Lakona.Game.Cluster.Rpc.Tests.cs
 
 Expected: FAIL because adapters omit the new property.
 
-- [ ] **Step 3: Add SQL storage with upgrade support**
+- [x] **Step 3: Add SQL storage with upgrade support**
 
 New tables contain:
 
@@ -288,11 +288,11 @@ startup_actors_json TEXT NOT NULL
 
 `EnsureCreatedAsync` must also support existing tables: probe `SELECT startup_actors_json ... WHERE 1 = 0`; if the column is absent, execute dialect-safe `ALTER TABLE ... ADD COLUMN startup_actors_json TEXT NULL`, tolerate a concurrent duplicate-column race by re-probing, then backfill null rows to `'[]'`. Reads use `COALESCE(startup_actors_json, '[]')` until the migration is complete. Inserts and updates always write the serialized descriptor list.
 
-- [ ] **Step 4: Append RPC/MemoryPack fields compatibly**
+- [x] **Step 4: Append RPC/MemoryPack fields compatibly**
 
 Add `StartupActorDto`, append `StartupActors` to `NodeRegistrationDto` and `NodeRecordDto`, and append startup query fields after existing fields. In `cluster-rpc-memorypack.schema.json`, append properties rather than reordering existing properties so MemoryPack member indexes remain stable.
 
-- [ ] **Step 5: Run adapter suites and commit**
+- [x] **Step 5: Run adapter suites and commit**
 
 ```powershell
 dotnet test tests/Lakona.Game.Cluster.Sql.Tests/Lakona.Game.Cluster.Sql.Tests.csproj --no-restore

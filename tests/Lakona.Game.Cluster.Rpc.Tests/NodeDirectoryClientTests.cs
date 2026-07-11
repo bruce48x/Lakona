@@ -262,6 +262,56 @@ public sealed class NodeDirectoryClientTests
     }
 
     [Fact]
+    public async Task ResolveAndQueryPreserveStartupActors()
+    {
+        var registry = new RpcServiceRegistry();
+        var directory = new InMemoryNodeDirectory();
+        NodeDirectoryBinder.Bind(registry, directory);
+        var serializer = new JsonTestSerializer();
+        await using var session = new RpcSession(new FakeTransport(), serializer);
+        var now = DateTimeOffset.UtcNow;
+        var registration = TestRegistration(
+            "local",
+            "data-1",
+            now,
+            startupActors:
+            [
+                new StartupActorDescriptor(
+                    "matchmaking",
+                    "policy-1",
+                    "build-1",
+                    new Dictionary<string, string> { ["region"] = "us-east" })
+            ]);
+
+        await InvokeAsync<NodeRegisterRequest, NodeRegisterReply>(
+            registry,
+            session,
+            ClusterProtocol.RegisterNodeMethodId,
+            new NodeRegisterRequest
+            {
+                Registration = NodeDirectoryRecordConverter.ToDto(registration),
+                Now = now
+            });
+        var query = await InvokeAsync<NodeQueryRequest, NodeQueryReply>(
+            registry,
+            session,
+            ClusterProtocol.QueryNodesMethodId,
+            new NodeQueryRequest
+            {
+                Query = NodeDirectoryRecordConverter.ToDto(new NodeDirectoryQuery(
+                    "local",
+                    startupActorName: "matchmaking",
+                    startupActorPolicyHash: "policy-1")),
+                Now = now.AddSeconds(1)
+            });
+
+        var record = Assert.Single(query.Records!);
+        var startup = Assert.Single(record.StartupActors!);
+        Assert.Equal("matchmaking", startup.Actor);
+        Assert.Equal("us-east", startup.Metadata!["region"]);
+    }
+
+    [Fact]
     public async Task QueryReturnsServiceFilteredNodes()
     {
         var directory = new InMemoryNodeDirectory();
@@ -439,7 +489,8 @@ public sealed class NodeDirectoryClientTests
         string nodeId,
         DateTimeOffset now,
         string role = "gateway",
-        IReadOnlyList<NodeActorHostDescriptor>? actorHosts = null)
+        IReadOnlyList<NodeActorHostDescriptor>? actorHosts = null,
+        IReadOnlyList<StartupActorDescriptor>? startupActors = null)
     {
         return new NodeRegistration(
             clusterName,
@@ -454,6 +505,7 @@ public sealed class NodeDirectoryClientTests
                     })
             },
             actorHosts ?? Array.Empty<NodeActorHostDescriptor>(),
+            startupActors ?? Array.Empty<StartupActorDescriptor>(),
             now.AddSeconds(30),
             NodeState.Ready,
             new Dictionary<string, string>
@@ -472,6 +524,7 @@ public sealed class NodeDirectoryClientTests
             nodeEpoch,
             registration.Endpoints,
             registration.ActorHosts,
+            registration.StartupActors,
             registration.Labels,
             registration.State,
             registration.LeaseExpiresAt,

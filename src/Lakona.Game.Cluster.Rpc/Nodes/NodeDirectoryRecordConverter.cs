@@ -21,7 +21,8 @@ namespace Lakona.Game.Cluster.Rpc
                 ActorHosts = CopyActorHosts(registration.ActorHosts),
                 Labels = CopyDictionary(registration.Labels),
                 State = (int)registration.State,
-                LeaseExpiresAt = registration.LeaseExpiresAt
+                LeaseExpiresAt = registration.LeaseExpiresAt,
+                StartupActors = CopyStartupActors(registration.StartupActors)
             };
         }
 
@@ -37,6 +38,7 @@ namespace Lakona.Game.Cluster.Rpc
                 dto.Node,
                 ToEndpoints(dto.Endpoints),
                 ToActorHosts(dto.ActorHosts),
+                ToStartupActors(dto.StartupActors),
                 dto.LeaseExpiresAt,
                 ToNodeState(dto.State),
                 CopyDictionary(dto.Labels));
@@ -59,7 +61,8 @@ namespace Lakona.Game.Cluster.Rpc
                 Labels = CopyDictionary(record.Labels),
                 State = (int)record.State,
                 LeaseExpiresAt = record.LeaseExpiresAt,
-                UpdatedAt = record.UpdatedAt
+                UpdatedAt = record.UpdatedAt,
+                StartupActors = CopyStartupActors(record.StartupActors)
             };
         }
 
@@ -76,6 +79,7 @@ namespace Lakona.Game.Cluster.Rpc
                 dto.NodeEpoch,
                 ToEndpoints(dto.Endpoints),
                 ToActorHosts(dto.ActorHosts),
+                ToStartupActors(dto.StartupActors),
                 CopyDictionary(dto.Labels),
                 ToNodeState(dto.State),
                 dto.LeaseExpiresAt,
@@ -96,7 +100,9 @@ namespace Lakona.Game.Cluster.Rpc
                 ActorHostPolicyHash = query.ActorHostPolicyHash,
                 State = query.State.HasValue ? (int)query.State.Value : (int?)null,
                 Labels = CopyDictionary(query.Labels),
-                IncludeExpired = query.IncludeExpired
+                IncludeExpired = query.IncludeExpired,
+                StartupActorName = query.StartupActorName,
+                StartupActorPolicyHash = query.StartupActorPolicyHash
             };
         }
 
@@ -113,7 +119,9 @@ namespace Lakona.Game.Cluster.Rpc
                 actorHostPolicyHash: dto.ActorHostPolicyHash,
                 state: dto.State.HasValue ? ToNodeState(dto.State.Value) : (NodeState?)null,
                 labels: CopyDictionary(dto.Labels),
-                includeExpired: dto.IncludeExpired);
+                includeExpired: dto.IncludeExpired,
+                startupActorName: dto.StartupActorName,
+                startupActorPolicyHash: dto.StartupActorPolicyHash);
         }
 
         private static Dictionary<string, NodeEndpointDto> CopyEndpoints(
@@ -191,6 +199,50 @@ namespace Lakona.Game.Cluster.Rpc
             for (var i = 0; i < source.Count; i++)
             {
                 copy.Add(new NodeActorHostDescriptor(
+                    source[i].Actor,
+                    source[i].PolicyHash,
+                    source[i].BuildTag,
+                    CopyDictionary(source[i].Metadata)));
+            }
+
+            return copy;
+        }
+
+        private static List<StartupActorDto> CopyStartupActors(
+            IReadOnlyList<StartupActorDescriptor>? source)
+        {
+            var copy = new List<StartupActorDto>();
+            if (source is null)
+            {
+                return copy;
+            }
+
+            for (var i = 0; i < source.Count; i++)
+            {
+                copy.Add(new StartupActorDto
+                {
+                    Actor = source[i].Actor,
+                    PolicyHash = source[i].PolicyHash,
+                    BuildTag = source[i].BuildTag,
+                    Metadata = CopyDictionary(source[i].Metadata)
+                });
+            }
+
+            return copy;
+        }
+
+        private static List<StartupActorDescriptor> ToStartupActors(
+            IReadOnlyList<StartupActorDto>? source)
+        {
+            var copy = new List<StartupActorDescriptor>();
+            if (source is null)
+            {
+                return copy;
+            }
+
+            for (var i = 0; i < source.Count; i++)
+            {
+                copy.Add(new StartupActorDescriptor(
                     source[i].Actor,
                     source[i].PolicyHash,
                     source[i].BuildTag,

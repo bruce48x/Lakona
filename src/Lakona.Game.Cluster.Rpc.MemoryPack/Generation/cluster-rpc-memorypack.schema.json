@@ -14,15 +14,15 @@
     },
     {
       "name": "NodeRegistrationDto",
-      "properties": [ "ClusterName", "Node", "Endpoints", "ActorHosts", "Labels", "State", "LeaseExpiresAt" ]
+      "properties": [ "ClusterName", "Node", "Endpoints", "ActorHosts", "Labels", "State", "LeaseExpiresAt", "StartupActors" ]
     },
     {
       "name": "NodeRecordDto",
-      "properties": [ "ClusterName", "Node", "NodeEpoch", "Endpoints", "ActorHosts", "Labels", "State", "LeaseExpiresAt", "UpdatedAt" ]
+      "properties": [ "ClusterName", "Node", "NodeEpoch", "Endpoints", "ActorHosts", "Labels", "State", "LeaseExpiresAt", "UpdatedAt", "StartupActors" ]
     },
     {
       "name": "NodeDirectoryClientQueryDto",
-      "properties": [ "ClusterName", "ActorHostName", "ActorHostPolicyHash", "State", "Labels", "IncludeExpired" ]
+      "properties": [ "ClusterName", "ActorHostName", "ActorHostPolicyHash", "State", "Labels", "IncludeExpired", "StartupActorName", "StartupActorPolicyHash" ]
     },
     {
       "name": "NodeRegisterRequest",
@@ -151,6 +151,10 @@
     {
       "name": "ClientNotificationArgument",
       "properties": [ "TypeName", "Payload" ]
+    },
+    {
+      "name": "StartupActorDto",
+      "properties": [ "Actor", "PolicyHash", "BuildTag", "Metadata" ]
     }
   ]
 }

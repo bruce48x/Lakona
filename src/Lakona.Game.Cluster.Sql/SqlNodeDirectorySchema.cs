@@ -27,6 +27,32 @@ namespace Lakona.Game.Cluster.Sql
             using var command = connection.CreateCommand();
             command.CommandText = CreateTableSql(dialect, tableName);
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+            var validatedTableName = ValidateTableName(tableName);
+            if (!await HasStartupActorsColumnAsync(connection, validatedTableName, cancellationToken).ConfigureAwait(false))
+            {
+                try
+                {
+                    using var alter = connection.CreateCommand();
+                    alter.CommandText =
+                        "ALTER TABLE " + validatedTableName +
+                        " ADD COLUMN startup_actors_json TEXT NULL";
+                    await alter.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (DbException)
+                {
+                    if (!await HasStartupActorsColumnAsync(connection, validatedTableName, cancellationToken).ConfigureAwait(false))
+                    {
+                        throw;
+                    }
+                }
+            }
+
+            using var backfill = connection.CreateCommand();
+            backfill.CommandText =
+                "UPDATE " + validatedTableName +
+                " SET startup_actors_json = '[]' WHERE startup_actors_json IS NULL";
+            await backfill.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public static async ValueTask VerifyReadyAsync(
@@ -85,6 +111,7 @@ namespace Lakona.Game.Cluster.Sql
                         "state INTEGER NOT NULL, " +
                         "endpoints_json TEXT NOT NULL, " +
                         "actor_hosts_json TEXT NOT NULL, " +
+                        "startup_actors_json TEXT NOT NULL, " +
                         "labels_json TEXT NOT NULL, " +
                         "lease_expires_at INTEGER NOT NULL, " +
                         "updated_at INTEGER NOT NULL, " +
@@ -98,6 +125,7 @@ namespace Lakona.Game.Cluster.Sql
                         "state INTEGER NOT NULL, " +
                         "endpoints_json TEXT NOT NULL, " +
                         "actor_hosts_json TEXT NOT NULL, " +
+                        "startup_actors_json TEXT NOT NULL, " +
                         "labels_json TEXT NOT NULL, " +
                         "lease_expires_at BIGINT NOT NULL, " +
                         "updated_at BIGINT NOT NULL, " +
@@ -111,6 +139,7 @@ namespace Lakona.Game.Cluster.Sql
                         "state INT NOT NULL, " +
                         "endpoints_json TEXT NOT NULL, " +
                         "actor_hosts_json TEXT NOT NULL, " +
+                        "startup_actors_json TEXT NOT NULL, " +
                         "labels_json TEXT NOT NULL, " +
                         "lease_expires_at BIGINT NOT NULL, " +
                         "updated_at BIGINT NOT NULL, " +
@@ -128,10 +157,29 @@ namespace Lakona.Game.Cluster.Sql
                 case SqlNodeDirectoryDialect.Postgres:
                 case SqlNodeDirectoryDialect.MySql:
                     return
-                        "SELECT cluster_name, node_id, node_epoch, state, endpoints_json, actor_hosts_json, labels_json, lease_expires_at, updated_at " +
+                        "SELECT cluster_name, node_id, node_epoch, state, endpoints_json, actor_hosts_json, startup_actors_json, labels_json, lease_expires_at, updated_at " +
                         "FROM " + tableName + " WHERE 1 = 0";
                 default:
                     throw new ArgumentOutOfRangeException(nameof(dialect), dialect, "Unsupported SQL node directory dialect.");
+            }
+        }
+
+        private static async ValueTask<bool> HasStartupActorsColumnAsync(
+            DbConnection connection,
+            string tableName,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                using var probe = connection.CreateCommand();
+                probe.CommandText =
+                    "SELECT startup_actors_json FROM " + tableName + " WHERE 1 = 0";
+                await using var reader = await probe.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                return true;
+            }
+            catch (DbException)
+            {
+                return false;
             }
         }
     }
