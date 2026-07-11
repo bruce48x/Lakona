@@ -2,6 +2,10 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Execution status:** Paused by project direction. Resume only after the
+> Startup Actor design is explicitly reopened; the unchecked tasks below are
+> not an active work queue.
+
 **Goal:** Replace named/configured Startup Actors with replicated, ready-advertised service groups registered as `RegisterStartup<TActor, TKey>(selector)` and called through generated `.Startup(key)` refs with safe failover.
 
 **Architecture:** Hotfix registration defines one Startup group and one fixed, application-owned selector per actor type. Every node whose `Lakona:ActorHosts` includes that actor starts one framework-identified local replica; only successfully started replicas are advertised in node membership. A generated Startup ref delegates selection and invocation to a runtime service that preserves the typed key, uses stable candidate ordering, validates selector output, retries only definitely-not-executed attempts, and never exposes the physical actor id.
@@ -13,7 +17,8 @@
 ## Scope and risk checkpoint
 
 - **Classification:** Large cross-cutting change. It changes public registration and generated call APIs, node membership protocol/storage, hotfix publication lifecycle, runtime selection/retry behavior, configuration, templates, and samples.
-- **Prerequisite:** Execute and validate `2026-07-10-node-directed-actor-replies-implementation-plan.md` first. This plan assumes replies no longer depend on route-directory entries.
+- **Prerequisite:** The node-directed actor-reply milestone is already shipped;
+  this plan assumes replies no longer depend on route-directory entries.
 - **Continuity owner:** One implementation owner must own the descriptor model, publication transaction, internal replica identity, resolver, retry classification, and generated Startup ref until the runtime milestone is green.
 - **Safe independent slices after runtime stabilizes:** SQL/RPC adapter checklist review, docs/source scans, and sample text migration. Do not delegate concurrent edits to the same generator, lifecycle, or server-runtime files.
 - **Compatibility:** Breaking by design. Remove the named `RegisterStartup(string, createPlan)` API, `ActorStartupPlan` model, `Lakona:StartupActors`, and old sample/template usage without shims.
