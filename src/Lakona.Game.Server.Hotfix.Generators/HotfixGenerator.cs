@@ -19,6 +19,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
         private const string ActorStopAttributeName = "Lakona.Game.Server.Hotfix.Abstractions.ActorStopAttribute";
         private const string RpcServiceAttributeName = "Lakona.Rpc.Core.RpcServiceAttribute";
         private const string RpcMethodAttributeName = "Lakona.Rpc.Core.RpcMethodAttribute";
+        private const string ActorHostBuilderName = "Lakona.Game.Server.Hotfix.Abstractions.ActorHostBuilder";
         private const string DefaultGeneratedServerNamespace = "Server.App.Generated";
         private const string StableRpcServicesKey = "build_property.LakonaHotfixGenerateStableRpcServices";
 
@@ -72,7 +73,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     var (compilation, _) = input;
                     return new HotfixActorGenerationInput(
                         compilation.Assembly.Identity.Name,
-                        DiscoverHotfixBehaviors(compilation, cancellationToken).ToArray());
+                        DiscoverHotfixBehaviors(compilation, cancellationToken).ToArray(),
+                        DiscoverStartupRegistrations(compilation, cancellationToken).ToArray());
                 });
 
             context.RegisterSourceOutput(actorContracts, GenerateActorContracts);
@@ -166,7 +168,11 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     continue;
                 }
 
-                var contract = CreateBehaviorActorContract(behavior, input.AssemblyName);
+                var startupKeyType = input.StartupRegistrations
+                    .Where(registration => SymbolEqualityComparer.Default.Equals(registration.Actor, behavior.Actor))
+                    .Select(static registration => registration.KeyType)
+                    .FirstOrDefault();
+                var contract = CreateBehaviorActorContract(behavior, input.AssemblyName, startupKeyType);
                 foreach (var diagnostic in contract.Diagnostics)
                 {
                     context.ReportDiagnostic(Diagnostic.Create(
@@ -322,6 +328,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             var routeRefType = prefix + "RouteRef";
             var localRefType = prefix + "LocalRef";
             var placementRefType = prefix + "PlacementRef";
+            var startupRefType = prefix + "StartupRef";
             var keyType = contract.KeyType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             var namespaceName = contract.Actor.ContainingNamespace.IsGlobalNamespace
                 ? null
@@ -335,13 +342,18 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
             AppendHotfixActorApiMetadata(builder, contract);
             builder.AppendLine();
-            AppendHotfixActorsClass(builder, contract, actorsType, routeRefType, localRefType, placementRefType, keyType);
+            AppendHotfixActorsClass(builder, contract, actorsType, routeRefType, localRefType, placementRefType, startupRefType, keyType);
             builder.AppendLine();
             AppendHotfixDistributedRef(builder, contract, routeRefType, keyType);
             builder.AppendLine();
             AppendHotfixPlacementRef(builder, contract, placementRefType, keyType);
             builder.AppendLine();
             AppendHotfixLocalRef(builder, contract, localRefType, keyType);
+            if (contract.StartupKeyType is not null)
+            {
+                builder.AppendLine();
+                AppendHotfixStartupRef(builder, contract, startupRefType);
+            }
 
             if (namespaceName != null)
             {
@@ -383,6 +395,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             string routeRefType,
             string localRefType,
             string placementRefType,
+            string startupRefType,
             string keyType)
         {
             builder.Append(contract.ApiAccessibility).Append(" sealed class ").Append(actorsType).AppendLine();
@@ -393,6 +406,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorDirectory _directory;");
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorDirectoryCache _directoryCache;");
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorPlacementService _placement;");
+            if (contract.StartupKeyType is not null) builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IStartupActorInvoker _startupActors;");
             builder.AppendLine();
             builder.Append("    public ").Append(actorsType).AppendLine("(");
             builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorRuntime runtime,");
@@ -400,7 +414,9 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        global::Lakona.Game.Server.Actors.RemoteActorOptions options,");
             builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorDirectory directory,");
             builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorDirectoryCache directoryCache,");
-            builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorPlacementService placement)");
+            builder.Append("        global::Lakona.Game.Server.Actors.IActorPlacementService placement");
+            if (contract.StartupKeyType is not null) builder.AppendLine(",").AppendLine("        global::Lakona.Game.Server.Actors.IStartupActorInvoker startupActors)");
+            else builder.AppendLine(")");
             builder.AppendLine("    {");
             builder.AppendLine("        _runtime = runtime;");
             builder.AppendLine("        _services = services;");
@@ -408,6 +424,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        _directory = directory;");
             builder.AppendLine("        _directoryCache = directoryCache;");
             builder.AppendLine("        _placement = placement;");
+            if (contract.StartupKeyType is not null) builder.AppendLine("        _startupActors = startupActors;");
             builder.AppendLine("    }");
             builder.AppendLine();
             builder.Append("    public ").Append(localRefType).Append(" Local(").Append(keyType).AppendLine(" id)");
@@ -424,6 +441,15 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("    {");
             builder.Append("        return new ").Append(placementRefType).AppendLine("(_placement, id);");
             builder.AppendLine("    }");
+            if (contract.StartupKeyType is not null)
+            {
+                var startupKeyType = contract.StartupKeyType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                builder.AppendLine();
+                builder.Append("    public ").Append(startupRefType).Append(" Startup(").Append(startupKeyType).AppendLine(" key)");
+                builder.AppendLine("    {");
+                builder.Append("        return new ").Append(startupRefType).AppendLine("(_startupActors, _runtime, key);");
+                builder.AppendLine("    }");
+            }
             builder.AppendLine("}");
         }
 
@@ -466,6 +492,93 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("            cancellationToken);");
             builder.AppendLine("    }");
             builder.AppendLine("}");
+        }
+
+        private static void AppendHotfixStartupRef(
+            StringBuilder builder,
+            HotfixActorApiInfo contract,
+            string refType)
+        {
+            var actorType = contract.Actor.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            var keyType = contract.StartupKeyType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            var actorName = ResolveActorName(contract.Actor);
+            builder.Append(contract.ApiAccessibility).Append(" readonly partial struct ").Append(refType).AppendLine();
+            builder.AppendLine("{");
+            builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IStartupActorInvoker _startup;");
+            builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorRuntime _runtime;");
+            builder.Append("    private readonly ").Append(keyType).AppendLine(" _key;");
+            builder.AppendLine();
+            builder.Append("    public ").Append(refType).AppendLine("(");
+            builder.AppendLine("        global::Lakona.Game.Server.Actors.IStartupActorInvoker startup,");
+            builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorRuntime runtime,");
+            builder.Append("        ").Append(keyType).AppendLine(" key)");
+            builder.AppendLine("    {");
+            builder.AppendLine("        _startup = startup;");
+            builder.AppendLine("        _runtime = runtime;");
+            builder.AppendLine("        _key = key;");
+            builder.AppendLine("    }");
+            builder.AppendLine();
+            AppendHotfixActorCallApi(builder, contract);
+            builder.AppendLine();
+            AppendHotfixResolveBehaviorMethod(builder, contract);
+            builder.AppendLine();
+            builder.AppendLine("    private global::System.Threading.Tasks.ValueTask __lakona_CallAsync<TRequest>(global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod method, TRequest request, global::System.Threading.CancellationToken cancellationToken)");
+            builder.AppendLine("    {");
+            builder.AppendLine("        var runtime = _runtime;");
+            builder.Append("        return _startup.CallAsync<").Append(actorType).Append(", ").Append(keyType).AppendLine(", TRequest>(");
+            AppendStartupInvocationArguments(builder, actorType, actorName, isResult: false, isPost: false);
+            builder.AppendLine("    }");
+            builder.AppendLine();
+            builder.AppendLine("    private global::System.Threading.Tasks.ValueTask<TResult> __lakona_CallAsync<TRequest, TResult>(global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod method, TRequest request, global::System.Threading.CancellationToken cancellationToken)");
+            builder.AppendLine("    {");
+            builder.AppendLine("        var runtime = _runtime;");
+            builder.Append("        return _startup.CallAsync<").Append(actorType).Append(", ").Append(keyType).AppendLine(", TRequest, TResult>(");
+            AppendStartupInvocationArguments(builder, actorType, actorName, isResult: true, isPost: false);
+            builder.AppendLine("    }");
+            builder.AppendLine();
+            builder.AppendLine("    private global::System.Threading.Tasks.ValueTask __lakona_PostAsync<TRequest>(global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod method, TRequest request, global::System.Threading.CancellationToken cancellationToken)");
+            builder.AppendLine("    {");
+            builder.AppendLine("        var runtime = _runtime;");
+            builder.Append("        return _startup.PostAsync<").Append(actorType).Append(", ").Append(keyType).AppendLine(", TRequest>(");
+            AppendStartupInvocationArguments(builder, actorType, actorName, isResult: false, isPost: true);
+            builder.AppendLine("    }");
+            builder.AppendLine("}");
+        }
+
+        private static void AppendStartupInvocationArguments(
+            StringBuilder builder,
+            string actorType,
+            string actorName,
+            bool isResult,
+            bool isPost)
+        {
+            builder.AppendLine("            _key,");
+            builder.Append("            \"").Append(EscapeStringLiteral(actorName)).AppendLine("\",");
+            builder.AppendLine("            method.MethodName,");
+            builder.AppendLine("            method.RemoteMethodId,");
+            builder.AppendLine("            request,");
+            if (isPost)
+            {
+                builder.Append("            (actorId, value, ct) => global::System.Threading.Tasks.ValueTask.FromResult(runtime.TryTell<").Append(actorType).AppendLine(">(actorId,");
+            }
+            else if (isResult)
+            {
+                builder.Append("            (actorId, value, ct) => runtime.AskAsync<").Append(actorType).AppendLine(", TResult>(actorId,");
+            }
+            else
+            {
+                builder.Append("            (actorId, value, ct) => runtime.TellAsync<").Append(actorType).AppendLine(">(actorId,");
+            }
+            builder.Append("                (actor, innerCt) => global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync");
+            if (isResult) builder.Append("<TResult>");
+            builder.AppendLine("(");
+            builder.Append("                    typeof(").Append(actorType).AppendLine("), method.MethodName, actor,");
+            builder.AppendLine("                    method.PassCancellationToken ? new global::System.Type[] { typeof(TRequest), typeof(global::System.Threading.CancellationToken) } : new global::System.Type[] { typeof(TRequest) },");
+            builder.AppendLine("                    method.PassCancellationToken ? new object[] { value, innerCt } : new object[] { value }),");
+            builder.Append("                ct)");
+            if (isPost) builder.Append(")");
+            builder.AppendLine(",");
+            builder.AppendLine("            cancellationToken);");
         }
 
         private static void AppendHotfixDistributedRef(
@@ -1200,6 +1313,30 @@ namespace Lakona.Game.Server.Hotfix.Generators
             }
         }
 
+        private static IEnumerable<StartupRegistrationInfo> DiscoverStartupRegistrations(
+            Compilation compilation,
+            CancellationToken cancellationToken)
+        {
+            foreach (var tree in compilation.SyntaxTrees)
+            {
+                var model = compilation.GetSemanticModel(tree);
+                foreach (var invocation in tree.GetRoot(cancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>())
+                {
+                    if (model.GetSymbolInfo(invocation, cancellationToken).Symbol is not IMethodSymbol method ||
+                        method.Name != "RegisterStartup" ||
+                        method.TypeArguments.Length != 2 ||
+                        method.ContainingType.ToDisplayString() != ActorHostBuilderName)
+                    {
+                        continue;
+                    }
+
+                    yield return new StartupRegistrationInfo(
+                        (INamedTypeSymbol)method.TypeArguments[0],
+                        method.TypeArguments[1]);
+                }
+            }
+        }
+
         private static IEnumerable<HotfixBehaviorInfo> DiscoverHotfixBehaviors(Compilation compilation, CancellationToken cancellationToken)
         {
             foreach (var type in EnumerateTypes(compilation.Assembly.GlobalNamespace))
@@ -1243,7 +1380,10 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 attribute.AttributeClass?.ToDisplayString() == metadataName);
         }
 
-        private static HotfixActorApiInfo CreateBehaviorActorContract(HotfixBehaviorInfo behavior, string hotfixAssemblyName)
+        private static HotfixActorApiInfo CreateBehaviorActorContract(
+            HotfixBehaviorInfo behavior,
+            string hotfixAssemblyName,
+            ITypeSymbol? startupKeyType)
         {
             var diagnostics = new List<HotfixGeneratorDiagnosticInfo>();
             var keyType = GetActorKeyType(behavior.Actor);
@@ -1322,6 +1462,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 behavior.Behavior,
                 behavior.Actor,
                 resolvedKeyType,
+                startupKeyType,
                 apiAccessibility,
                 diagnostics.Count == 0 ? methods.ToArray() : Array.Empty<HotfixActorMethodInfo>(),
                 diagnostics.ToArray());
@@ -2592,15 +2733,32 @@ namespace Lakona.Game.Server.Hotfix.Generators
         {
             public HotfixActorGenerationInput(
                 string assemblyName,
-                HotfixBehaviorInfo[] behaviors)
+                HotfixBehaviorInfo[] behaviors,
+                StartupRegistrationInfo[] startupRegistrations)
             {
                 AssemblyName = assemblyName;
                 Behaviors = behaviors;
+                StartupRegistrations = startupRegistrations;
             }
 
             public string AssemblyName { get; }
 
             public HotfixBehaviorInfo[] Behaviors { get; }
+
+            public StartupRegistrationInfo[] StartupRegistrations { get; }
+        }
+
+        private sealed class StartupRegistrationInfo
+        {
+            public StartupRegistrationInfo(INamedTypeSymbol actor, ITypeSymbol keyType)
+            {
+                Actor = actor;
+                KeyType = keyType;
+            }
+
+            public INamedTypeSymbol Actor { get; }
+
+            public ITypeSymbol KeyType { get; }
         }
 
         private readonly struct HotfixGeneratorOptions : System.IEquatable<HotfixGeneratorOptions>
@@ -2663,6 +2821,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 INamedTypeSymbol behavior,
                 INamedTypeSymbol actor,
                 ITypeSymbol keyType,
+                ITypeSymbol? startupKeyType,
                 string apiAccessibility,
                 HotfixActorMethodInfo[] methods,
                 HotfixGeneratorDiagnosticInfo[] diagnostics)
@@ -2670,6 +2829,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 Behavior = behavior;
                 Actor = actor;
                 KeyType = keyType;
+                StartupKeyType = startupKeyType;
                 ApiAccessibility = apiAccessibility;
                 Methods = methods;
                 Diagnostics = diagnostics;
@@ -2680,6 +2840,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
             public INamedTypeSymbol Actor { get; }
 
             public ITypeSymbol KeyType { get; }
+
+            public ITypeSymbol? StartupKeyType { get; }
 
             public string ApiAccessibility { get; }
 

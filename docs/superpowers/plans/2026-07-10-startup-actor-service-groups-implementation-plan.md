@@ -577,7 +577,7 @@ Expected: PASS.
 - Modify: `tests/Lakona.Game.Server.Hotfix.Generators.Tests/HotfixGeneratorTests.cs`
 - Modify: `tests/Lakona.Game.Server.Hotfix.Generators.Tests/GeneratorTestHost.cs`
 
-- [ ] **Step 1: Write generated-source red tests**
+- [x] **Step 1: Write generated-source red tests**
 
 Compile a source containing a behavior and:
 
@@ -588,7 +588,7 @@ actors.RegisterStartup<RoomActor, TenantAffinityKey>(
 
 Assert `RoomActors` exposes `RoomStartupRef Startup(TenantAffinityKey key)`, the ref holds `IStartupActorInvoker`, and its `CallAsync`/`PostAsync` methods pass the same key, actor name, method name/id, request, and local delegate. Assert no actor id or per-call selector appears. A non-startup actor collection must not expose `Startup`.
 
-- [ ] **Step 2: Run the red test**
+- [x] **Step 2: Run the red test**
 
 ```powershell
 dotnet test tests/Lakona.Game.Server.Hotfix.Generators.Tests/Lakona.Game.Server.Hotfix.Generators.Tests.csproj --no-restore --filter "FullyQualifiedName~Startup"
@@ -596,11 +596,11 @@ dotnet test tests/Lakona.Game.Server.Hotfix.Generators.Tests/Lakona.Game.Server.
 
 Expected: FAIL because registration invocations are not analyzed and no Startup ref is emitted.
 
-- [ ] **Step 3: Discover registrations semantically**
+- [x] **Step 3: Discover registrations semantically**
 
 Scan invocation syntax, resolve the method symbol, and accept only the original definition `ActorHostBuilder.RegisterStartup<TActor,TKey>`. Build a map from actor symbol to key-type symbol. Report a deterministic error diagnostic for duplicate actor registrations or a registration whose actor has no generated hotfix behavior contract.
 
-- [ ] **Step 4: Emit the typed ref**
+- [x] **Step 4: Emit the typed ref**
 
 Add `StartupKeyType` to the generation info. Generate:
 
@@ -611,7 +611,7 @@ public MatchmakingStartupRef Startup(MatchmakingQueueId key)
 
 The ref uses the same behavior-method resolution already emitted for Local/Route refs and delegates actual selection/failover to `IStartupActorInvoker`. It never derives the physical id.
 
-- [ ] **Step 5: Run generator tests and commit**
+- [x] **Step 5: Run generator tests and commit**
 
 ```powershell
 dotnet test tests/Lakona.Game.Server.Hotfix.Generators.Tests/Lakona.Game.Server.Hotfix.Generators.Tests.csproj --no-restore

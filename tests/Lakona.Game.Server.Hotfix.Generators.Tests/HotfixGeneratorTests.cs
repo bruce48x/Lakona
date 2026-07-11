@@ -128,6 +128,16 @@ public sealed class HotfixGeneratorTests
                     return default;
                 }
             }
+
+            [HotfixStartup]
+            public static class Startup
+            {
+                [HotfixConfigureActors]
+                public static void ConfigureActors(ActorHostBuilder actors)
+                {
+                    actors.RegisterStartup<UserActor, string>(static context => context.Candidates[0]);
+                }
+            }
             """;
 
         var result = GeneratorTestHost.RunWithGeneratedAppReference(
@@ -145,6 +155,8 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("public UserLocalRef Local(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
         Assert.Contains("public UserRouteRef Route(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
         Assert.Contains("public UserPlacementRef Place(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
+        Assert.Contains("public UserStartupRef Startup(string key)", generated, StringComparison.Ordinal);
+        Assert.Contains("IStartupActorInvoker", generated, StringComparison.Ordinal);
         Assert.Contains("global::Lakona.Game.Server.Actors.ActorPlacementCreateMode.Ensure", generated, StringComparison.Ordinal);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask<TResult> CallAsync<TRequest, TResult>(", generated, StringComparison.Ordinal);
         Assert.Contains("global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorCall<global::Game.Server.UserActor, TRequest, TResult> method", generated, StringComparison.Ordinal);
