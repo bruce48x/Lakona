@@ -265,7 +265,7 @@ public sealed class LakonaGameServerTests
             new LakonaHealthReadinessState(context.HotfixAssemblyPath),
             CreateRuntimeValidator()).Evaluate();
 
-        Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "ULINK134");
+        Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "LAKONA134");
     }
 
     [Fact]
@@ -352,7 +352,7 @@ public sealed class LakonaGameServerTests
                 CreateRuntimeValidator()).Evaluate();
 
             Assert.True(snapshot.Succeeded);
-            Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "ULINK071");
+            Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "LAKONA071");
         }
         finally
         {
@@ -430,7 +430,7 @@ public sealed class LakonaGameServerTests
                         }));
                 }));
 
-        Assert.Contains("ULINK134", error.Message, StringComparison.Ordinal);
+        Assert.Contains("LAKONA134", error.Message, StringComparison.Ordinal);
         Assert.Contains("Trace export is enabled but no OpenTelemetry integration is registered.", error.Message, StringComparison.Ordinal);
         Assert.Contains("1 startup validation error", error.Message, StringComparison.Ordinal);
     }

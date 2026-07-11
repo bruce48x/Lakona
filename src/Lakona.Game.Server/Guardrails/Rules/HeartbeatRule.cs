@@ -9,7 +9,7 @@ public sealed class HeartbeatRule : ILakonaGameValidationRule
         if (runtime.Heartbeat.Interval.Value <= TimeSpan.Zero)
         {
             yield return new LakonaGameDiagnostic(
-                "ULINK090",
+                "LAKONA090",
                 LakonaGameDiagnosticSeverity.Error,
                 "Lakona:Heartbeat:Interval must be greater than zero.",
                 "Set Lakona:Heartbeat:Interval to a TimeSpan such as 00:00:15.");
@@ -18,7 +18,7 @@ public sealed class HeartbeatRule : ILakonaGameValidationRule
         if (runtime.Heartbeat.Timeout.Value <= TimeSpan.Zero)
         {
             yield return new LakonaGameDiagnostic(
-                "ULINK091",
+                "LAKONA091",
                 LakonaGameDiagnosticSeverity.Error,
                 "Lakona:Heartbeat:Timeout must be greater than zero.",
                 "Set Lakona:Heartbeat:Timeout to a TimeSpan such as 00:00:45.");
@@ -29,7 +29,7 @@ public sealed class HeartbeatRule : ILakonaGameValidationRule
             && runtime.Heartbeat.Timeout.Value < runtime.Heartbeat.Interval.Value)
         {
             yield return new LakonaGameDiagnostic(
-                "ULINK092",
+                "LAKONA092",
                 LakonaGameDiagnosticSeverity.Error,
                 "Lakona:Heartbeat:Timeout must not be shorter than Lakona:Heartbeat:Interval.",
                 "Increase Lakona:Heartbeat:Timeout or reduce Lakona:Heartbeat:Interval.");

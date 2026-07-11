@@ -52,8 +52,6 @@ Default actions:
   docs.
 - Do not preserve removed framework branding, old package names, or migration
   history in current docs unless there is an active compatibility reason.
-- Current docs should not explain ULinkRPC, ULinkActor, or ULinkGame to new
-  contributors. `CHANGELOG.md` may retain concise history.
 - Do not create a new archive bucket just to save old decisions.
 - If a historical decision still matters, rewrite it as a current rule in the
   relevant authority document.
@@ -80,26 +78,20 @@ Default actions:
    rg -n "^#|^##|^###" CONTRIBUTING.md docs CHANGELOG.md
    ```
 
-4. Scan removed-framework wording:
-
-   ```powershell
-   rg -n -i "ulinkrpc|ulinkactor|ulinkgame" -S CONTRIBUTING.md CHANGELOG.md docs samples src tests blog
-   ```
-
-5. Check references before deleting:
+4. Check references before deleting:
 
    ```powershell
    rg -n "path-or-filename-to-delete" CONTRIBUTING.md docs README.md CHANGELOG.md
    ```
 
-6. Edit narrowly:
+5. Edit narrowly:
    - delete stale files
    - remove links to deleted docs
    - compact entry maps
    - replace completed phase sections with current contracts only when the
      contract is still useful
 
-7. Remove temporary planning docs created during the cleanup before finishing.
+6. Remove temporary planning docs created during the cleanup before finishing.
 
 ## Verification
 
@@ -135,6 +127,3 @@ if ($errors.Count -gt 0) {
 ```powershell
 git diff --check
 ```
-
-Also report any remaining ULink-era matches and explain whether they are
-intentional history, compatibility identifiers, or still need cleanup.

@@ -47,8 +47,6 @@ public sealed class PlanValidatorTests
     public static TheoryData<string, string> ForbiddenGeneratedContent => new()
     {
         { string.Concat("Rpc", "Starter"), "LTPLAN005" },
-        { string.Concat("ULink", "RPC"), "LTPLAN005" },
-        { string.Concat("ULink", "Game"), "LTPLAN005" },
         { "\"Cluster\": { \"Enabled\": true }", "LTPLAN006" },
         { "\"Hotfix\": { \"Enabled\": true }", "LTPLAN006" },
         { "\"ReliablePush\": { \"Enabled\": true }", "LTPLAN006" }

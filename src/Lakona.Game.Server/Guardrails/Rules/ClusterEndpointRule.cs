@@ -18,7 +18,7 @@ public sealed class ClusterEndpointRule : ILakonaGameValidationRule
         if (string.IsNullOrWhiteSpace(runtime.ClusterEndpoint.Endpoint.Value))
         {
             yield return new LakonaGameDiagnostic(
-                "ULINK040",
+                "LAKONA040",
                 LakonaGameDiagnosticSeverity.Error,
                 "Lakona:Cluster:Endpoint is required when Cluster is configured.",
                 "Set Lakona:Cluster:Endpoint to a URI such as tcp://127.0.0.1:21001.");
@@ -29,7 +29,7 @@ public sealed class ClusterEndpointRule : ILakonaGameValidationRule
             || !IsSupportedTcpUri(uri))
         {
             yield return new LakonaGameDiagnostic(
-                "ULINK043",
+                "LAKONA043",
                 LakonaGameDiagnosticSeverity.Error,
                 "Lakona:Cluster:Endpoint must be a tcp URI with host and explicit port.",
                 "Use a value such as tcp://127.0.0.1:21001.");
@@ -39,7 +39,7 @@ public sealed class ClusterEndpointRule : ILakonaGameValidationRule
         if (string.IsNullOrWhiteSpace(runtime.ClusterEndpoint.Serializer.Value))
         {
             yield return new LakonaGameDiagnostic(
-                "ULINK044",
+                "LAKONA044",
                 LakonaGameDiagnosticSeverity.Error,
                 "Lakona:Cluster:Serializer must not be empty.",
                 "Set Lakona:Cluster:Serializer to json or memorypack, or omit Lakona:Cluster to use defaults.");
@@ -49,7 +49,7 @@ public sealed class ClusterEndpointRule : ILakonaGameValidationRule
         if (!KnownSerializers.Contains(runtime.ClusterEndpoint.Serializer.Value))
         {
             yield return new LakonaGameDiagnostic(
-                "ULINK044",
+                "LAKONA044",
                 LakonaGameDiagnosticSeverity.Error,
                 $"Lakona:Cluster:Serializer '{runtime.ClusterEndpoint.Serializer.Value}' is unknown.",
                 "Use json or memorypack.");
@@ -61,7 +61,7 @@ public sealed class ClusterEndpointRule : ILakonaGameValidationRule
             if (endpoint.Port.Value == uri.Port)
             {
                 yield return new LakonaGameDiagnostic(
-                    "ULINK042",
+                    "LAKONA042",
                     LakonaGameDiagnosticSeverity.Error,
                     $"Cluster endpoint port {uri.Port} conflicts with a business endpoint.",
                     "Use a different port for Lakona:Cluster:Endpoint.");

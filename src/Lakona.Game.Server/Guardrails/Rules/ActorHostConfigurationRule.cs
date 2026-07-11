@@ -8,8 +8,8 @@ public sealed class ActorHostConfigurationRule : ILakonaGameValidationRule
 
         foreach (var diagnostic in ValidateNames(
             runtime.ActorHosts ?? [],
-            blankCode: "ULINK101",
-            duplicateCode: "ULINK102",
+            blankCode: "LAKONA101",
+            duplicateCode: "LAKONA102",
             blankMessage: "Lakona:ActorHosts entries must not be empty.",
             duplicateMessage: "Lakona:ActorHosts entries must be unique."))
         {

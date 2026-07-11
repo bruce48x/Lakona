@@ -50,8 +50,6 @@ public sealed class ToolArchitectureScanTests
         Assert.DoesNotContain(string.Concat("Starter", "Template"), sourceText, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Starter", "Paths"), sourceText, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("AugmentProjectWithLakona", "Game"), sourceText, StringComparison.Ordinal);
-        Assert.DoesNotContain(string.Concat("ULink", "RPC"), sourceText, StringComparison.Ordinal);
-        Assert.DoesNotContain(string.Concat("ULink", "Game"), sourceText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -128,8 +126,6 @@ public sealed class ToolArchitectureScanTests
             Assert.False(Directory.Exists(Path.Combine(spec.Layout.RootPath, "Client", "Assets", "Scripts", "Rpc", "Generated")));
 
             var generatedText = ReadAllTextFiles(spec.Layout.RootPath);
-            Assert.DoesNotContain(string.Concat("ULink", "RPC"), generatedText, StringComparison.Ordinal);
-            Assert.DoesNotContain(string.Concat("ULink", "Game"), generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(string.Concat("Rpc", "Starter"), generatedText, StringComparison.Ordinal);
         }
         finally

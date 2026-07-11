@@ -26,7 +26,8 @@ $forbiddenSnippets = @(
         Reason = "forbidden ValueTask pattern in Unity-compatible code examples"
         Allow = {
             param($relativePath, $line)
-            $relativePath -eq "CONTRIBUTING.md" -and $line.Trim() -eq "- ``ValueTask.FromResult(...)``"
+            ($relativePath -eq "CONTRIBUTING.md" -and $line.Trim() -eq "- ``ValueTask.FromResult(...)``") -or
+            ($relativePath -eq "docs/contributing/engineering.md" -and $line.Contains("Do not use ``ValueTask.CompletedTask`` or ``ValueTask.FromResult(...)``"))
         }
     }
 )
@@ -59,6 +60,19 @@ foreach ($file in $files) {
                 }
             }
         }
+    }
+}
+
+$changelogPath = Join-Path $repoRoot "CHANGELOG.md"
+$changelogLines = Get-Content -LiteralPath $changelogPath
+for ($i = 0; $i -lt $changelogLines.Count; $i++) {
+    $line = $changelogLines[$i]
+    if ($line.StartsWith("## ") -and $line -notmatch '^## \d{4}-\d{2}-\d{2} — \S') {
+        $failures.Add(("CHANGELOG.md:{0}: milestone headings must use '## YYYY-MM-DD — Title'" -f ($i + 1)))
+    }
+
+    if ($line.StartsWith("**Key releases:**") -and $line -notmatch '`[^`]+ \d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?`') {
+        $failures.Add(("CHANGELOG.md:{0}: Key releases must include a package ID and semantic version in backticks" -f ($i + 1)))
     }
 }
 

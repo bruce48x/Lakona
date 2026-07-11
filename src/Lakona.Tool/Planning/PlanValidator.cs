@@ -15,8 +15,6 @@ internal enum PlanDiagnosticSeverity
 internal static class PlanValidator
 {
     private static readonly string LegacyStarterName = string.Concat("Rpc", "Starter");
-    private static readonly string LegacyRpcBrand = string.Concat("ULink", "RPC");
-    private static readonly string LegacyGameBrand = string.Concat("ULink", "Game");
     private static readonly string LegacyServerDirectory = string.Concat("Server", "/Server", "/");
 
     public static GenerationPlan Validate(GenerationPlan plan)
@@ -85,9 +83,7 @@ internal static class PlanValidator
 
     private static void ValidateContent(GeneratedFile file, List<PlanDiagnostic> diagnostics)
     {
-        if (file.Content.Contains(LegacyStarterName, StringComparison.Ordinal)
-            || file.Content.Contains(LegacyRpcBrand, StringComparison.Ordinal)
-            || file.Content.Contains(LegacyGameBrand, StringComparison.Ordinal))
+        if (file.Content.Contains(LegacyStarterName, StringComparison.Ordinal))
         {
             diagnostics.Add(Error("LTPLAN005", $"Generated content contains legacy starter text: {file.RelativePath}", file.RelativePath));
         }

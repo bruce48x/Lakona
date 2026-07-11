@@ -29,13 +29,13 @@ guardrail diagnostic is fatal.
 
 ## Diagnostics Ranges
 
-- `ULINK001-ULINK019`: node identity and common runtime shape
-- `ULINK020-ULINK039`: endpoint transport and RPC service configuration
-- `ULINK040-ULINK069`: cluster endpoint, serializer, node directory, route directory
-- `ULINK070-ULINK089`: hotfix source and reload readiness
-- `ULINK090-ULINK099`: heartbeat policy
-- `ULINK101-ULINK109`: actor host and startup actor configuration
-- `ULINK130-ULINK149`: observability and local diagnostics exposure
+- `LAKONA001-LAKONA019`: node identity and common runtime shape
+- `LAKONA020-LAKONA039`: endpoint transport and RPC service configuration
+- `LAKONA040-LAKONA069`: cluster endpoint, serializer, node directory, route directory
+- `LAKONA070-LAKONA089`: hotfix source and reload readiness
+- `LAKONA090-LAKONA099`: heartbeat policy
+- `LAKONA101-LAKONA109`: actor host and startup actor configuration
+- `LAKONA130-LAKONA149`: observability and local diagnostics exposure
 
 ## Production Boundary
 

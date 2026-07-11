@@ -18,7 +18,7 @@ public sealed class ObservabilityGuardrailTests
                 localAdminRequireLoopback: true)
         });
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK130");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA130");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Contains("Lakona:Health:Http:Host", diagnostic.Message, StringComparison.Ordinal);
         Assert.Contains("127.0.0.1", diagnostic.Repair, StringComparison.Ordinal);
@@ -32,7 +32,7 @@ public sealed class ObservabilityGuardrailTests
             Observability = TestObservability(detailEnabled: true)
         });
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK131");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA131");
         Assert.Equal(LakonaGameDiagnosticSeverity.Warning, diagnostic.Severity);
     }
 
@@ -47,7 +47,7 @@ public sealed class ObservabilityGuardrailTests
                 detailEnabled: true)
         });
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK132");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA132");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
     }
 
@@ -59,7 +59,7 @@ public sealed class ObservabilityGuardrailTests
             Observability = TestObservability(fileLoggingEnabled: true)
         });
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK133");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA133");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
     }
 
@@ -71,7 +71,7 @@ public sealed class ObservabilityGuardrailTests
             Observability = TestObservability(traceExportEnabled: true)
         });
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK134");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA134");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
     }
 
@@ -83,7 +83,7 @@ public sealed class ObservabilityGuardrailTests
             Observability = TestObservability(prometheusEnabled: true)
         });
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK135");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA135");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
     }
 
@@ -103,7 +103,7 @@ public sealed class ObservabilityGuardrailTests
                 prometheusPath: path)
         });
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK136");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA136");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Contains("Lakona:Observability:Metrics:Prometheus:Path", diagnostic.Message, StringComparison.Ordinal);
         Assert.Contains("/_lakona/metrics", diagnostic.Repair, StringComparison.Ordinal);
@@ -119,7 +119,7 @@ public sealed class ObservabilityGuardrailTests
                 prometheusPath: "metrics")
         });
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK136");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA136");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
     }
 
@@ -133,7 +133,7 @@ public sealed class ObservabilityGuardrailTests
             Observability = TestObservability(eventBufferCapacity: capacity)
         });
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK137");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA137");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Contains("Lakona:Observability:Diagnostics:EventBuffer:Capacity", diagnostic.Message, StringComparison.Ordinal);
         Assert.Contains("positive integer", diagnostic.Repair, StringComparison.Ordinal);
@@ -149,7 +149,7 @@ public sealed class ObservabilityGuardrailTests
             Observability = TestObservability(eventBufferCapacityRaw: capacity)
         });
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK137");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA137");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Contains("Lakona:Observability:Diagnostics:EventBuffer:Capacity", diagnostic.Message, StringComparison.Ordinal);
         Assert.Contains("positive integer", diagnostic.Repair, StringComparison.Ordinal);
@@ -167,7 +167,7 @@ public sealed class ObservabilityGuardrailTests
                 loggingMinimumLevel: minimumLevel)
         });
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK138");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA138");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Contains("Lakona:Observability:Logging:MinimumLevel", diagnostic.Message, StringComparison.Ordinal);
         Assert.Contains("Information", diagnostic.Repair, StringComparison.Ordinal);
@@ -183,7 +183,7 @@ public sealed class ObservabilityGuardrailTests
             Observability = TestObservability(traceSampleRate: sampleRate)
         });
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK139");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA139");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Contains("Lakona:Observability:Tracing:Export:SampleRate", diagnostic.Message, StringComparison.Ordinal);
         Assert.Contains("0.0 and 1.0", diagnostic.Repair, StringComparison.Ordinal);
@@ -199,7 +199,7 @@ public sealed class ObservabilityGuardrailTests
             Observability = TestObservability(traceSampleRateRaw: sampleRate)
         });
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK139");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA139");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Contains("Lakona:Observability:Tracing:Export:SampleRate", diagnostic.Message, StringComparison.Ordinal);
         Assert.Contains("0.0 and 1.0", diagnostic.Repair, StringComparison.Ordinal);

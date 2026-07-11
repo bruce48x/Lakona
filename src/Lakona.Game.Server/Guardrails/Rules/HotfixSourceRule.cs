@@ -7,7 +7,7 @@ public sealed class HotfixSourceRule : ILakonaGameValidationRule
         if (!File.Exists(runtime.Hotfix.AssemblyPath.Value))
         {
             yield return new LakonaGameDiagnostic(
-                "ULINK071",
+                "LAKONA071",
                 LakonaGameDiagnosticSeverity.Error,
                 "Hotfix assembly was not found.",
                 "dotnet build Server/Hotfix/Server.Hotfix.csproj");

@@ -16,7 +16,7 @@ public sealed class LakonaGameReadinessEvaluatorTests
         var runtime = RuntimeWithObservability(LakonaObservabilityOptions.Defaults());
         var snapshot = CreateEvaluator(runtime).Evaluate();
 
-        Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "ULINK040");
+        Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "LAKONA040");
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public sealed class LakonaGameReadinessEvaluatorTests
         var snapshot = CreateEvaluator(runtime).Evaluate();
 
         Assert.False(snapshot.Succeeded);
-        var diagnostic = Assert.Single(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "ULINK133");
+        var diagnostic = Assert.Single(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "LAKONA133");
         Assert.Contains("Lakona:Observability:Logging:File:Enabled", diagnostic.Repair, StringComparison.Ordinal);
     }
 
@@ -59,7 +59,7 @@ public sealed class LakonaGameReadinessEvaluatorTests
         Assert.False(snapshot.Succeeded);
         Assert.Contains(
             snapshot.Diagnostics,
-            static diagnostic => diagnostic.Code == "ULINK138"
+            static diagnostic => diagnostic.Code == "LAKONA138"
                 && diagnostic.Message.Contains(
                     "Lakona:Observability:Logging:MinimumLevel",
                     StringComparison.Ordinal));
@@ -79,8 +79,8 @@ public sealed class LakonaGameReadinessEvaluatorTests
 
         var snapshot = CreateEvaluator(runtime).Evaluate();
 
-        Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "ULINK130");
-        Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "ULINK132");
+        Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "LAKONA130");
+        Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "LAKONA132");
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public sealed class LakonaGameReadinessEvaluatorTests
 
         var snapshot = CreateEvaluator(runtime).Evaluate();
 
-        Assert.Contains(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "ULINK132");
+        Assert.Contains(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "LAKONA132");
     }
 
     private static LakonaGameReadinessEvaluator CreateEvaluator(

@@ -16,7 +16,7 @@ public sealed class ObservabilityRule : ILakonaGameValidationRule
             && !localHttpIsLoopback)
         {
             yield return new LakonaGameDiagnostic(
-                "ULINK130",
+                "LAKONA130",
                 LakonaGameDiagnosticSeverity.Error,
                 "Lakona:Health:Http:Host binds local admin to a non-loopback host while Lakona:Observability:LocalAdmin:RequireLoopback is true.",
                 "Set Lakona:Health:Http:Host to 127.0.0.1, localhost, or ::1, or disable Lakona:Observability:LocalAdmin:RequireLoopback only in trusted local environments.");
@@ -25,7 +25,7 @@ public sealed class ObservabilityRule : ILakonaGameValidationRule
         if (observability.DetailEnabled.Value)
         {
             yield return new LakonaGameDiagnostic(
-                "ULINK131",
+                "LAKONA131",
                 LakonaGameDiagnosticSeverity.Warning,
                 "Detailed diagnostics are enabled and may expose sensitive runtime state.",
                 "Set Lakona:Observability:Diagnostics:DetailEnabled to false outside trusted local development.");
@@ -36,7 +36,7 @@ public sealed class ObservabilityRule : ILakonaGameValidationRule
             && !localHttpIsLoopback)
         {
             yield return new LakonaGameDiagnostic(
-                "ULINK132",
+                "LAKONA132",
                 LakonaGameDiagnosticSeverity.Error,
                 "Detailed diagnostics are exposed through non-loopback local admin.",
                 "Bind Lakona:Health:Http:Host to localhost, 127.0.0.1, or ::1.");
@@ -46,7 +46,7 @@ public sealed class ObservabilityRule : ILakonaGameValidationRule
             && !observability.FileLoggingIntegrationRegistered)
         {
             yield return new LakonaGameDiagnostic(
-                "ULINK133",
+                "LAKONA133",
                 LakonaGameDiagnosticSeverity.Error,
                 "File logging is enabled but no file logging integration is registered.",
                 "Disable Lakona:Observability:Logging:File:Enabled or register a file logging integration.");
@@ -56,7 +56,7 @@ public sealed class ObservabilityRule : ILakonaGameValidationRule
             && !observability.OpenTelemetryIntegrationRegistered)
         {
             yield return new LakonaGameDiagnostic(
-                "ULINK134",
+                "LAKONA134",
                 LakonaGameDiagnosticSeverity.Error,
                 "Trace export is enabled but no OpenTelemetry integration is registered.",
                 "Disable Lakona:Observability:Tracing:Export:Enabled or register an OpenTelemetry integration.");
@@ -66,7 +66,7 @@ public sealed class ObservabilityRule : ILakonaGameValidationRule
             && !observability.PrometheusEndpointRegistered)
         {
             yield return new LakonaGameDiagnostic(
-                "ULINK135",
+                "LAKONA135",
                 LakonaGameDiagnosticSeverity.Error,
                 "Prometheus metrics are enabled but no Prometheus endpoint integration is registered.",
                 "Disable Lakona:Observability:Metrics:Prometheus:Enabled or register a Prometheus endpoint integration.");
@@ -75,7 +75,7 @@ public sealed class ObservabilityRule : ILakonaGameValidationRule
         if (!IsValidPrometheusPath(observability.PrometheusPath.Value))
         {
             yield return new LakonaGameDiagnostic(
-                "ULINK136",
+                "LAKONA136",
                 LakonaGameDiagnosticSeverity.Error,
                 "Lakona:Observability:Metrics:Prometheus:Path must be an absolute non-root path without query or fragment.",
                 "Use an absolute non-root path such as /_lakona/metrics without query or fragment.");
@@ -90,7 +90,7 @@ public sealed class ObservabilityRule : ILakonaGameValidationRule
             || observability.EventBufferCapacity.Value <= 0)
         {
             yield return new LakonaGameDiagnostic(
-                "ULINK137",
+                "LAKONA137",
                 LakonaGameDiagnosticSeverity.Error,
                 "Lakona:Observability:Diagnostics:EventBuffer:Capacity must be greater than zero.",
                 "Set Lakona:Observability:Diagnostics:EventBuffer:Capacity to a positive integer.");
@@ -103,7 +103,7 @@ public sealed class ObservabilityRule : ILakonaGameValidationRule
             || !Enum.IsDefined(typeof(LogLevel), loggingMinimumLevel))
         {
             yield return new LakonaGameDiagnostic(
-                "ULINK138",
+                "LAKONA138",
                 LakonaGameDiagnosticSeverity.Error,
                 "Lakona:Observability:Logging:MinimumLevel is invalid.",
                 "Use Trace, Debug, Information, Warning, Error, Critical, or None.");
@@ -122,7 +122,7 @@ public sealed class ObservabilityRule : ILakonaGameValidationRule
             || double.IsInfinity(observability.TraceSampleRate.Value))
         {
             yield return new LakonaGameDiagnostic(
-                "ULINK139",
+                "LAKONA139",
                 LakonaGameDiagnosticSeverity.Error,
                 "Lakona:Observability:Tracing:Export:SampleRate must be between 0.0 and 1.0.",
                 "Set Lakona:Observability:Tracing:Export:SampleRate between 0.0 and 1.0.");

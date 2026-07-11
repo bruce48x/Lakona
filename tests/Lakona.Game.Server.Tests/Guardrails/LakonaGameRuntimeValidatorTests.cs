@@ -12,8 +12,8 @@ public sealed class LakonaGameRuntimeValidatorTests
     {
         var result = new LakonaGameValidationResult(
             [
-                new LakonaGameDiagnostic("ULINK000", LakonaGameDiagnosticSeverity.Info, "ok"),
-                new LakonaGameDiagnostic("ULINK050", LakonaGameDiagnosticSeverity.Warning, "local default")
+                new LakonaGameDiagnostic("LAKONA000", LakonaGameDiagnosticSeverity.Info, "ok"),
+                new LakonaGameDiagnostic("LAKONA050", LakonaGameDiagnosticSeverity.Warning, "local default")
             ]);
 
         Assert.True(result.Succeeded);
@@ -24,7 +24,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     {
         var result = new LakonaGameValidationResult(
             [
-                new LakonaGameDiagnostic("ULINK001", LakonaGameDiagnosticSeverity.Error, "Node id is required.")
+                new LakonaGameDiagnostic("LAKONA001", LakonaGameDiagnosticSeverity.Error, "Node id is required.")
             ]);
 
         Assert.False(result.Succeeded);
@@ -63,7 +63,7 @@ public sealed class LakonaGameRuntimeValidatorTests
         var result = Validate(runtime);
 
         Assert.False(result.Succeeded);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "ULINK001");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "LAKONA001");
     }
 
     [Fact]
@@ -76,7 +76,7 @@ public sealed class LakonaGameRuntimeValidatorTests
         var result = Validate(runtime);
 
         Assert.False(result.Succeeded);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "ULINK023");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "LAKONA023");
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public sealed class LakonaGameRuntimeValidatorTests
         var result = Validate(runtime);
 
         Assert.False(result.Succeeded);
-        var diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "ULINK071");
+        var diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "LAKONA071");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Equal("dotnet build Server/Hotfix/Server.Hotfix.csproj", diagnostic.Repair);
     }
@@ -112,7 +112,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK024");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA024");
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK020");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA020");
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK021");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA021");
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK028");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA028");
     }
 
     [Fact]
@@ -164,7 +164,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK028");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA028");
     }
 
     [Theory]
@@ -179,7 +179,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK022");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA022");
     }
 
     [Fact]
@@ -192,7 +192,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK020");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA020");
     }
 
     [Fact]
@@ -209,7 +209,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK026");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA026");
     }
 
     [Fact]
@@ -222,7 +222,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK023");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA023");
     }
 
     [Fact]
@@ -235,7 +235,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK025");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA025");
     }
 
     [Fact]
@@ -256,7 +256,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK027");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA027");
     }
 
     [Fact]
@@ -272,7 +272,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK040");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA040");
     }
 
     [Fact]
@@ -285,7 +285,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK044");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA044");
         Assert.Equal("Lakona:Cluster:Serializer must not be empty.", diagnostic.Message);
         Assert.Equal("Set Lakona:Cluster:Serializer to json or memorypack, or omit Lakona:Cluster to use defaults.", diagnostic.Repair);
     }
@@ -300,7 +300,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK044");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA044");
         Assert.Contains("protobuf", diagnostic.Message, StringComparison.Ordinal);
         Assert.Equal("Use json or memorypack.", diagnostic.Repair);
     }
@@ -319,7 +319,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK043");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA043");
     }
 
     [Fact]
@@ -333,7 +333,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK042");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA042");
     }
 
     [Fact]
@@ -361,7 +361,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK090");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA090");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Contains("Lakona:Heartbeat:Interval", diagnostic.Message, StringComparison.Ordinal);
     }
@@ -376,7 +376,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK091");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA091");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Contains("Lakona:Heartbeat:Timeout", diagnostic.Message, StringComparison.Ordinal);
     }
@@ -393,7 +393,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK092");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA092");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Contains("must not be shorter", diagnostic.Message, StringComparison.Ordinal);
     }
@@ -413,8 +413,8 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK101");
-        Assert.Contains(result.Diagnostics, d => d.Code == "ULINK102");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA101");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA102");
     }
 
     [Fact]
