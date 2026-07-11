@@ -51,6 +51,7 @@ public static class ActorServiceCollectionExtensions
         services.TryAddSingleton<IActorLifecycleDispatcher, NoopActorLifecycleDispatcher>();
         services.TryAddSingleton<IActorPlacementService, ActorPlacementService>();
         services.TryAddSingleton<IActorHostClient, ActorHostClient>();
+        services.TryAddSingleton<IStartupActorInvoker, StartupActorInvoker>();
         services.TryAddSingleton<ActorHostingRollbackRecorder>();
         services.TryAddSingleton(provider => new ActorHosting(
             provider.GetRequiredService<IActorHostingRuntime>(),

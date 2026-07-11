@@ -391,7 +391,7 @@ Expected: PASS.
 - Modify: `src/Lakona.Game.Server/Actors/ActorServiceCollectionExtensions.cs`
 - Create: `tests/Lakona.Game.Server.Tests/Actors/StartupActorInvokerTests.cs`
 
-- [ ] **Step 1: Write resolver/invoker red tests**
+- [x] **Step 1: Write resolver/invoker red tests**
 
 Cover all of these independently:
 
@@ -404,7 +404,7 @@ Cover all of these independently:
 7. timeout, `Failed`, reply-delivery failure, cancellation, serialization failure, and backpressure do not reselect;
 8. after all candidates are excluded, return unavailable without looping.
 
-- [ ] **Step 2: Run the red tests**
+- [x] **Step 2: Run the red tests**
 
 ```powershell
 dotnet test tests/Lakona.Game.Server.Tests/Lakona.Game.Server.Tests.csproj --no-restore --filter "FullyQualifiedName~StartupActorInvokerTests"
@@ -412,7 +412,7 @@ dotnet test tests/Lakona.Game.Server.Tests/Lakona.Game.Server.Tests.csproj --no-
 
 Expected: FAIL because the service does not exist.
 
-- [ ] **Step 3: Implement identity and target**
+- [x] **Step 3: Implement identity and target**
 
 ```csharp
 internal static ActorId CreateReplicaId(string actorName, NodeId node)
@@ -426,7 +426,7 @@ public sealed record StartupActorTarget(
 
 Actor names use the same `[ActorName]`/type-name normalization as placement.
 
-- [ ] **Step 4: Define the runtime invocation surface**
+- [x] **Step 4: Define the runtime invocation surface**
 
 `IStartupActorInvoker` provides three generic operations: acknowledged `CallAsync` with and without result, and fire-and-forget `PostAsync`. Each receives `TActor`, `TKey`, request, actor/method names and remote method id, plus a generated local delegate accepting the resolved physical `ActorId`. This keeps local invocation reflection-free and keeps selection/retry in one runtime implementation.
 
@@ -444,7 +444,7 @@ ValueTask<TResult> CallAsync<TActor, TKey, TRequest, TResult>(
     where TActor : class, IActor;
 ```
 
-- [ ] **Step 5: Implement selection validation and bounded failover**
+- [x] **Step 5: Implement selection validation and bounded failover**
 
 For each attempt, acquire the current hotfix snapshot, find the single declaration by actor type, verify `KeyType == typeof(TKey)`, query ready descriptors matching actor/policy/build tag, remove excluded `(NodeId, NodeEpoch)` pairs, sort, invoke the typed selector, and verify the selected candidate is one of the exact offered candidates.
 
@@ -455,7 +455,7 @@ deterministic policy identity without hashing delegate instances or key values.
 
 The loop excludes a target only when the local runtime reports actor-not-found before dispatch or the remote result says `DefinitelyNotExecuted`. Never catch and retry business exceptions.
 
-- [ ] **Step 6: Register and test**
+- [x] **Step 6: Register and test**
 
 Register `IStartupActorInvoker` as singleton with all existing actor dependencies. Run:
 
@@ -465,7 +465,7 @@ dotnet test tests/Lakona.Game.Server.Tests/Lakona.Game.Server.Tests.csproj --no-
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```powershell
 git add src/Lakona.Game.Server/Actors tests/Lakona.Game.Server.Tests/Actors/StartupActorInvokerTests.cs
