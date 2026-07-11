@@ -45,8 +45,6 @@ public sealed class LakonaObservabilityOptionsTests
         Assert.Equal("Information", options.Logging.Categories["Lakona.Game.Hotfix"]);
         Assert.Equal("Information", options.Logging.Categories["Lakona.Game.Observability"]);
 
-        Assert.Equal("127.0.0.1", options.LocalAdmin.Host);
-        Assert.Equal(20090, options.LocalAdmin.Port);
         Assert.True(options.LocalAdmin.RequireLoopback);
         Assert.False(options.LocalAdmin.EffectiveEnabled);
 
@@ -120,8 +118,6 @@ public sealed class LakonaObservabilityOptionsTests
 
         Assert.True(options.LocalAdmin.Enabled);
         Assert.True(options.LocalAdmin.EffectiveEnabled);
-        Assert.Equal("0.0.0.0", options.LocalAdmin.Host);
-        Assert.Equal(20100, options.LocalAdmin.Port);
         Assert.False(options.LocalAdmin.RequireLoopback);
 
         Assert.True(options.Diagnostics.DetailEnabled);

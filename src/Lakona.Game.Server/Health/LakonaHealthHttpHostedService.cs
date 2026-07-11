@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.InternalHttp;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -10,7 +11,7 @@ namespace Lakona.Game.Server.Health;
 public sealed class LakonaHealthHttpHostedService : BackgroundService
 {
     private readonly LakonaGameRuntimeOptions _options;
-    private readonly LakonaHealthHttpRouter _router;
+    private readonly LakonaHttpRouter _router;
     private readonly ILogger<LakonaHealthHttpHostedService> _logger;
     private readonly LakonaHealthHttpRequestTracker _requestTracker;
     private readonly TaskCompletionSource _listening = new(
@@ -19,7 +20,7 @@ public sealed class LakonaHealthHttpHostedService : BackgroundService
 
     public LakonaHealthHttpHostedService(
         LakonaGameRuntimeOptions options,
-        LakonaHealthHttpRouter router,
+        LakonaHttpRouter router,
         ILogger<LakonaHealthHttpHostedService> logger)
         : this(options, router, logger, new LakonaHealthHttpRequestTracker())
     {
@@ -27,7 +28,7 @@ public sealed class LakonaHealthHttpHostedService : BackgroundService
 
     internal LakonaHealthHttpHostedService(
         LakonaGameRuntimeOptions options,
-        LakonaHealthHttpRouter router,
+        LakonaHttpRouter router,
         ILogger<LakonaHealthHttpHostedService> logger,
         LakonaHealthHttpRequestTracker requestTracker)
     {
@@ -160,18 +161,17 @@ public sealed class LakonaHealthHttpHostedService : BackgroundService
         using (client)
         await using (var stream = client.GetStream())
         {
-            var requestLine = await ReadRequestLineAsync(stream, cancellationToken).ConfigureAwait(false);
-            var request = ParseRequestLine(requestLine);
+            var request = await ReadRequestAsync(stream, cancellationToken).ConfigureAwait(false);
             var remoteAddress = (client.Client.RemoteEndPoint as IPEndPoint)?.Address;
 
             var response = request is null
-                ? LakonaHealthHttpResponse.Json(new { error = "Invalid health request." }, 400)
+                ? LakonaHttpResponse.Json(new { error = "Invalid health request." }, 400)
                 : await _router.RouteAsync(
-                    new LakonaHealthHttpRequest(
+                    new LakonaHttpRequest(
                         request.Value.Method,
                         request.Value.Path,
-                        IsLoopback(remoteAddress),
-                        _options.Health.Http.RequireLoopback),
+                        request.Value.Body,
+                        IsLoopback(remoteAddress)),
                     cancellationToken).ConfigureAwait(false);
 
             await WriteResponseAsync(stream, response, cancellationToken).ConfigureAwait(false);
@@ -185,7 +185,7 @@ public sealed class LakonaHealthHttpHostedService : BackgroundService
 
     private static async Task WriteResponseAsync(
         NetworkStream stream,
-        LakonaHealthHttpResponse healthResponse,
+        LakonaHttpResponse healthResponse,
         CancellationToken cancellationToken)
     {
         var bytes = Encoding.UTF8.GetBytes(healthResponse.Body);
@@ -208,20 +208,77 @@ public sealed class LakonaHealthHttpHostedService : BackgroundService
         await stream.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
     }
 
-    private static async Task<string> ReadRequestLineAsync(
+    private static async Task<(string Method, string Path, Stream Body)?> ReadRequestAsync(
         NetworkStream stream,
         CancellationToken cancellationToken)
     {
-        var buffer = new byte[2048];
-        var length = await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
-        if (length == 0)
+        var buffer = new byte[16 * 1024];
+        var length = 0;
+        var headerLength = -1;
+        while (length < buffer.Length && headerLength < 0)
         {
-            return "";
+            var read = await stream.ReadAsync(buffer.AsMemory(length), cancellationToken).ConfigureAwait(false);
+            if (read == 0)
+            {
+                return null;
+            }
+
+            length += read;
+            headerLength = FindHeaderEnd(buffer, length);
         }
 
-        var text = Encoding.ASCII.GetString(buffer, 0, length);
-        var lineEnd = text.IndexOf("\r\n", StringComparison.Ordinal);
-        return lineEnd >= 0 ? text[..lineEnd] : text;
+        if (headerLength < 0)
+        {
+            return null;
+        }
+
+        var headers = Encoding.ASCII.GetString(buffer, 0, headerLength);
+        var lineEnd = headers.IndexOf("\r\n", StringComparison.Ordinal);
+        var request = ParseRequestLine(lineEnd >= 0 ? headers[..lineEnd] : headers);
+        if (request is null)
+        {
+            return null;
+        }
+
+        var contentLength = headers.Split("\r\n", StringSplitOptions.RemoveEmptyEntries)
+            .Skip(1)
+            .Select(static line => line.Split(':', 2))
+            .Where(static parts => parts.Length == 2 && string.Equals(parts[0].Trim(), "Content-Length", StringComparison.OrdinalIgnoreCase))
+            .Select(static parts => int.TryParse(parts[1].Trim(), out var value) ? value : 0)
+            .FirstOrDefault();
+        if (contentLength < 0 || contentLength > buffer.Length - headerLength)
+        {
+            return null;
+        }
+
+        var bodyOffset = headerLength + 4;
+        var bodyRead = length - bodyOffset;
+        while (bodyRead < contentLength)
+        {
+            var read = await stream.ReadAsync(buffer.AsMemory(bodyOffset + bodyRead, contentLength - bodyRead), cancellationToken).ConfigureAwait(false);
+            if (read == 0)
+            {
+                return null;
+            }
+
+            bodyRead += read;
+        }
+
+        return (request.Value.Method, request.Value.Path, new MemoryStream(buffer, bodyOffset, contentLength, writable: false));
+    }
+
+    private static int FindHeaderEnd(byte[] buffer, int length)
+    {
+        for (var index = 0; index <= length - 4; index++)
+        {
+            if (buffer[index] == '\r' && buffer[index + 1] == '\n'
+                && buffer[index + 2] == '\r' && buffer[index + 3] == '\n')
+            {
+                return index;
+            }
+        }
+
+        return -1;
     }
 
     private static (string Method, string Path)? ParseRequestLine(string requestLine)

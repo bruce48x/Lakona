@@ -167,9 +167,9 @@ lakona-tool hotfix install artifacts/hotfix/Server.Hotfix-v20260612-153045Z.zip 
 Activate, inspect, or roll back the loopback-only admin endpoint:
 
 ```bash
-lakona-tool hotfix activate v20260612-153045Z --server http://127.0.0.1:20090
-lakona-tool hotfix status --server http://127.0.0.1:20090
-lakona-tool hotfix rollback --server http://127.0.0.1:20090
+lakona-tool hotfix activate v20260612-153045Z --server http://127.0.0.1:20080
+lakona-tool hotfix status --server http://127.0.0.1:20080
+lakona-tool hotfix rollback --server http://127.0.0.1:20080
 ```
 
 ## Distributed Configuration
