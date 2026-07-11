@@ -2,8 +2,9 @@
 
 ## Status
 
-Proposed for review. This document defines the intended contract before any
-runtime or sample implementation begins.
+Revised through a `grill-with-docs` review and awaiting final approval. This
+document defines the intended contract before any runtime or sample
+implementation begins.
 
 ## Goal
 
@@ -30,7 +31,7 @@ caching messages, or implementing retry loops.
 
 ## Current State At The Design Baseline
 
-This design is based on repository `main` at `d695e5ff`.
+This design revision is verified against repository `main` at `9da1a478`.
 
 The current implementation already provides the following foundations:
 
@@ -55,6 +56,11 @@ The current implementation does not yet satisfy this design:
 - `ReliablePushRuntime` applies the same policy to every game session;
 - a game session does not retain the effective delivery policy of the endpoint
   on which it was first bound;
+- Game Session retention, reliable-push retention, client-session route lease,
+  and Agar retry attempts use independent time limits;
+- client-session routes use the general cluster route lease and are not renewed
+  by the game heartbeat, so the route may expire while its Game Session is still
+  active or resumable;
 - Agar clears realtime actor state as soon as the KCP RPC session disconnects;
 - Agar's next KCP attach creates a new game session rather than resuming the
   existing realtime game session;
@@ -82,6 +88,21 @@ The framework-owned resumable identity represented by `GameSessionKey`. It owns
 game-session items, callback binding state, reliable-push identity, and retention
 semantics. A new RPC session may bind an existing game session after successful
 resume validation.
+
+### Player Session
+
+The Agar-owned continuity of an authenticated player, including current room
+and match participation. It references a Control Game Session and, while the
+player is attached to realtime gameplay, a Realtime Game Session.
+
+The Control Game Session is the recovery anchor. Loss of only the Realtime Game
+Session does not destroy an otherwise valid Player Session.
+
+If the Control Game Session is `StateLost`, the framework can no longer prove
+reliable-push outbox, sequence, and client-cursor continuity. That outcome does
+not qualify as seamless recovery. The client exits the reconnect flow and uses
+an explicit reauthentication or state-rebuild path; this design does not promise
+to retain the current Player Session in that case.
 
 ### Required invariants
 
@@ -112,6 +133,14 @@ Agar actor state, Unity connection recovery, and three-node acceptance coverage.
   - per-game-session delivery policy retention;
   - handshake, publication, acknowledgement, and replay decisions;
   - session disconnect, resume, expiration, and termination cleanup.
+- `Lakona.Game.Abstractions`
+  - handshake contract for the negotiated Game Session Resume Window.
+- `Lakona.Game.Client`
+  - handshake application, contiguous reliable-sequence validation, cursor, and
+    gap outcomes.
+- `Lakona.Rpc.Analyzers`
+  - generated client surface for the negotiated Resume Window if the generated
+    `LakonaGameClient` API exposes it alongside existing handshake policy.
 - Framework documentation
   - `docs/configuration.md`;
   - `docs/session.md`;
@@ -126,9 +155,10 @@ Agar actor state, Unity connection recovery, and three-node acceptance coverage.
   - Unity reconnect coordination and test-only network fault injection;
   - business tests, PlayMode acceptance, and sample documentation.
 - `Lakona.Tool`
-  - only if generated endpoint configuration or source-shape guards explicitly
-    emit or reject the new endpoint property. The default remains backward
-    compatible when no endpoint override is emitted.
+  - generated default business endpoints explicitly emit
+    `"ReliablePush": true`;
+  - template and source-shape guards reject reliance on the removed global
+    switch or an implicit enabled default.
 
 ### Coupling assessment
 
@@ -143,36 +173,79 @@ are independent only after runtime behavior is stable.
 
 ### Compatibility stance
 
-Existing configuration remains valid:
+This design deliberately makes a breaking configuration cleanup:
 
-- the global `Lakona:ReliablePush:Enabled` setting remains the default;
-- endpoints without an override inherit the global value;
-- no wire-protocol shape changes are required because `GameServerHello` already
-  carries effective reliable-push settings;
+- remove the global `Lakona:ReliablePush:Enabled` setting;
+- reliable push defaults to disabled on every endpoint;
+- only an explicit endpoint `"ReliablePush": true` enables outbox, sequence,
+  acknowledgement, and replay;
+- no wire-protocol shape change is needed for the enabled flag because
+  `GameServerHello` already carries the endpoint's effective policy;
 - existing business notification calls remain unchanged.
 
-Adding a nullable endpoint override is additive. Internal session and delivery
-policy APIs may be redesigned cleanly. If a public framework API must change,
-the old ambiguous surface should be removed rather than preserved through a
-compatibility shim, consistent with repository policy.
+Internal session and delivery-policy APIs may be redesigned cleanly. The old
+global switch and inheritance behavior are removed rather than preserved
+through a compatibility shim, consistent with repository policy.
 
 ### Versioning impact
 
-Any shippable change under `src/Lakona.Game.Server/**` requires a
-`Lakona.Game.Server` package version bump. `Lakona.Tool` requires a bump only if
-its shippable source or templates change. Other packages require bumps only if
-implementation proves that their shipped contracts must change.
+Expected shippable changes require version bumps for
+`Lakona.Game.Abstractions`, `Lakona.Game.Client`, `Lakona.Game.Server`,
+`Lakona.Rpc.Analyzers`, and `Lakona.Tool`. The final implementation must run the
+package-version graph guard and bump every additional package in the dependency
+closure that ships changed content.
 
 ## Endpoint Reliable-Push Configuration
 
-Each client-facing endpoint gains an optional boolean override:
+### One resume window
+
+The server exposes one public recovery-time setting:
 
 ```json
 {
   "Lakona": {
-    "ReliablePush": {
-      "Enabled": true
-    },
+    "Sessions": {
+      "ResumeWindowSeconds": 120
+    }
+  }
+}
+```
+
+The default is 120 seconds. The Game Session captures an exact
+`ResumeDeadlineUtc` when its RPC connection disconnects. `TryResume` compares
+against that deadline directly; cleanup timing must not extend the public
+contract.
+
+The same window governs:
+
+- Game Session resume eligibility;
+- automatic client reconnect deadline;
+- reliable-push pending lifetime for the disconnected Game Session;
+- how long a disconnected client-session route must remain usable.
+
+The server sends the effective window in `GameServerHello.SessionResume.Window`.
+The client uses the negotiated deadline instead of a configured retry count or
+Agar-specific maximum-attempt constant. Cancellation, logout, termination,
+unauthorized token results, and explicit state loss may end recovery earlier.
+
+`ReliablePush.Retention` and
+`Lakona:Sessions:Cleanup:DisconnectedRetentionSeconds` cease to be independent
+public time settings. Cleanup interval remains an operational garbage-collection
+setting and does not affect resume eligibility.
+
+Client-session routes are renewed by the game heartbeat while connected. Each
+renewal extends the route far enough to cover the complete Resume Window after
+the last successful heartbeat. Expiration or termination removes the route.
+The general cluster route lease remains cluster infrastructure and no longer
+defines the client-session recovery window.
+
+### Endpoint delivery policy
+
+Each client-facing endpoint gains an optional explicit opt-in property:
+
+```json
+{
+  "Lakona": {
     "Endpoints": [
       {
         "Transport": "websocket",
@@ -199,16 +272,52 @@ Each client-facing endpoint gains an optional boolean override:
 The effective value is:
 
 ```text
-endpoint.ReliablePush ?? Lakona.ReliablePush.Enabled
+endpoint.ReliablePush == true
 ```
 
-The global default remains `true`. Omitting the endpoint property preserves
-current behavior.
+Omitting the endpoint property disables reliable push. There is no global
+enable switch and no inheritance rule.
+
+The framework default and generated-project default are intentionally different:
+
+- a hand-authored endpoint is best effort unless it explicitly opts in;
+- `lakona-tool new` explicitly emits `"ReliablePush": true` for its default
+  business endpoint so the generated application demonstrates reliable push;
+- generated KCP projects also opt in because transport choice does not determine
+  callback semantics;
+- Agar explicitly enables the WebSocket control endpoint and explicitly disables
+  the KCP world-state endpoint.
 
 The property configures framework notification delivery, not transport
 reliability. KCP may still retransmit packets within one live KCP connection.
 Setting endpoint reliable push to `false` means callback commands are not placed
 in the game-session outbox for replay across a later RPC session.
+
+### Pending capacity and overflow
+
+The only public reliable-push resource limit is:
+
+```json
+{
+  "Lakona": {
+    "ReliablePush": {
+      "MaxPendingPerSession": 256
+    }
+  }
+}
+```
+
+Capacity is a resource guard, not a second recovery-time setting. The outbox
+must not silently evict old records and continue advertising an intact reliable
+sequence. When a reliable Game Session reaches its pending capacity, the owner
+atomically marks reliable continuity as `StateRefreshRequired`, emits low-
+cardinality diagnostics, and stops ordinary replay for that session generation.
+
+The Game Session may still exist, but a later resume cannot be reported as an
+ordinary seamless resume. Agar treats `StateRefreshRequired` on its Control Game
+Session as recovery failure because full business-state refresh is outside this
+design. Best-effort endpoints do not create pending records and are unaffected
+by this limit.
 
 ## Delivery Policy Ownership
 
@@ -239,10 +348,12 @@ session-policy mismatch. A game session must not silently change from reliable
 to best effort, or the reverse, because pending sequences and client cursor
 semantics would become ambiguous.
 
-Sessions created through advanced unbound APIs capture the global default at
-creation. Their later callback binding must match that fixed policy. The
-implementation should keep this policy internal rather than exposing transport
-or endpoint names through business session state.
+Sessions created through advanced unbound APIs capture disabled reliable-push
+policy at creation. Their later callback binding must match that fixed policy.
+Reliable sessions therefore require connection-bound creation from an endpoint
+that explicitly enables reliable push. The implementation should keep this
+policy internal rather than exposing transport or endpoint names through
+business session state.
 
 Policy state is removed on game-session expiration or termination, not on RPC
 disconnect.
@@ -263,6 +374,51 @@ remote business node
 If no route owner accepts the notification, no outbox record exists and the
 existing `RouteNotFound` semantics continue to apply.
 
+The built-in Game Session registry and outbox are process-local. A client-only
+network interruption leaves the gateway owner alive and is the normal seamless-
+recovery case. If that owner process fails or restarts, the built-in stores lose
+session, pending, and sequence continuity; recovery returns `StateLost` and must
+not claim a complete replay. Durable or replicated stores may be supplied by a
+future or application-specific implementation without changing business
+`NotifyAsync` calls, but are outside this design and its three-node acceptance.
+
+Seamless control recovery also requires Gateway Affinity: during the Resume
+Window, the new WebSocket RPC session must return to the same gateway owner.
+Multi-gateway deployments provide this through load-balancer affinity,
+consistent routing, or an owner-directed public endpoint. A different gateway
+does not create a replacement Control Game Session and does not redirect the
+client in this design; it returns `StateLost`. Distributed session/outbox state,
+cross-gateway migration, and resume redirect protocols are explicitly excluded.
+
+### Ordered replay barrier
+
+Reliable push guarantees a contiguous application order for one Game Session
+generation:
+
+- transport delivery is at least once;
+- sequence assignment is monotonic at the route owner;
+- application is strictly contiguous and at most once at the client;
+- cumulative acknowledgement covers only the contiguous applied prefix.
+
+When a callback is rebound, the owner enters a per-session `Replaying` state.
+Pending records are delivered in sequence order. New publications continue to
+append to the same outbox but cannot bypass the replay barrier and reach the
+callback ahead of older pending records. After delivery catches up to the
+current tail, the owner transitions to `Live` delivery. Publication, replay,
+and acknowledgement state transitions are serialized per Game Session rather
+than protected only by a process-wide snapshot lock.
+
+The client applies these rules:
+
+```text
+sequence == lastApplied + 1  -> apply, persist cursor, acknowledge
+sequence <= lastApplied      -> duplicate; do not apply, acknowledge prefix
+sequence > lastApplied + 1   -> gap; do not apply or advance acknowledgement
+```
+
+A detected gap transitions recovery to `StateRefreshRequired`. The client must
+not apply the later command and then classify the missing prefix as duplicate.
+
 ### Handshake, acknowledgement, and replay
 
 - `GameServerHello.ReliablePush` reports the endpoint's effective policy.
@@ -270,6 +426,12 @@ existing `RouteNotFound` semantics continue to apply.
 - A best-effort endpoint advertises both values as false.
 - Replay runs only for game sessions whose retained policy is reliable.
 - Best-effort sessions never create reliable metadata or pending records.
+- Pending overflow transitions the session generation to
+  `StateRefreshRequired`; it never drops a prefix and continues normal replay.
+- Rebound delivery uses a per-session replay barrier, and live publication
+  cannot overtake pending replay.
+- Client acknowledgement advances only over a contiguous applied prefix; a gap
+  is `StateRefreshRequired`.
 - Reliable-push acknowledgements are accepted only when both the connection and
   its bound game session use reliable policy.
 - A mismatched connection/session policy fails deterministically and does not
@@ -298,7 +460,8 @@ void OnMatchProgress(MatchProgressUpdate update);
 - `RoomId`;
 - authoritative `ServerTick`;
 - `RoundRemainingSeconds`;
-- a per-match monotonic `ProgressRevision`.
+- a per-match monotonic `ProgressRevision`;
+- `PublishedAtUtc`, assigned by the server when the update is published.
 
 During an active match, the battle runtime publishes one update per second to
 each player's control `GameSessionKey`. The publisher always calls
@@ -340,12 +503,19 @@ new KCP RPC connection
 The attach contract may carry explicit reconnect intent, but the server remains
 authoritative. It resumes only when the authenticated player, retained realtime
 game session, room, and match all agree. Initial attach creates a new game
-session only when no resumable realtime session exists.
+session only when no realtime game-session identity exists.
+
+If the Control Game Session resumes successfully but the retained Realtime Game
+Session returns `StateLost`, the Player Session remains valid. The control plane
+revalidates the authoritative player, room, and match state, clears the stale
+realtime identity, creates a replacement Realtime Game Session, and attaches it
+to the same match. This is a degradation path, not the expected short-network-
+transition path. The primary acceptance still requires both original game
+sessions to resume unchanged.
 
 Realtime identity is cleared when:
 
-- the realtime game session expires after the configured disconnected retention
-  window;
+- the realtime game session expires after the Game Session Resume Window;
 - it is explicitly terminated;
 - the room or match ends;
 - product policy deliberately supersedes it.
@@ -353,6 +523,31 @@ Realtime identity is cleared when:
 It is not cleared merely because its RPC session disconnected.
 
 ## Unity Recovery State Machine
+
+### Responsibility boundary
+
+This design does not add a generic framework recovery coordinator. Authentication,
+control login, room membership, realtime attach, and the dependency between the
+two channels are application policy that Lakona cannot infer.
+
+The framework owns:
+
+- the handshake-provided Game Session Resume Window;
+- Game Session resume and callback rebinding;
+- endpoint reliable-push policy;
+- outbox, ordered sequence, acknowledgement, replay barrier, deduplication, and
+  gap detection;
+- explicit `StateRefreshRequired`, `StateLost`, unauthorized, and terminated
+  outcomes.
+
+Agar owns one application-level recovery state machine that creates new
+WebSocket and KCP RPC sessions, performs reconnect login and realtime attach,
+and maps final outcomes to its UI. It uses the negotiated Resume Window and does
+not define a competing retry-count limit.
+
+Business notification publishers remain connection-agnostic: they publish
+through `IClientNotifications` and do not implement online checks, caching,
+retry, sequence, acknowledgement, or replay.
 
 A simultaneous network transition is one recovery episode even though two
 transport callbacks may arrive in either order.
@@ -383,13 +578,15 @@ Rules:
 7. Reliable control callbacks replay automatically after control resume.
 8. Historical KCP world states are not replayed because the KCP endpoint is
    best effort; the client continues from the first new authoritative state.
-9. A state-lost or terminated decision exits recovery through the existing
-   explicit reset path rather than silently creating a replacement game session
-   inside the same match.
+9. Control Game Session `StateLost` or termination exits recovery through the
+   existing explicit reset path.
+10. Realtime Game Session `StateLost` after successful control resume may create
+    a replacement Realtime Game Session only after the control plane confirms
+    the same Player Session, room, and match remain authoritative.
 
-Retry timing remains bounded and cancellation-safe. The design does not require
-an infinite retry loop; the initial acceptance window only needs to survive a
-short network transition inside the game-session retention period.
+Retry timing remains bounded and cancellation-safe. The handshake-provided Game
+Session Resume Window is the retry deadline; the client uses backoff between
+attempts but does not stop early because of a fixed attempt count.
 
 ## Deterministic Network Fault Injection
 
@@ -429,11 +626,11 @@ login, matchmaking, KCP attach, world-state, and movement checks:
 1. Record control and realtime `GameSessionKey` values, connection serials,
    player id, room id, match id, world tick, and the latest control progress
    revision.
-2. Close the Unity network gate for three seconds.
+2. Record `offlineStart` and close the Unity network gate for three seconds.
 3. Observe both old connections end and both client channels enter recovery.
 4. Confirm that the server continues publishing control progress while no
    callback is bound.
-5. Open the gate.
+5. Record `offlineEnd` and open the gate.
 6. Wait for control game-session resume and reliable replay.
 7. Wait for realtime game-session resume and a fresh world state.
 8. Submit movement and observe the authoritative player position change.
@@ -444,17 +641,21 @@ Required assertions:
 - control `GameSessionKey` is unchanged;
 - realtime `GameSessionKey` is unchanged;
 - player, room, and match identities are unchanged;
+- at least two replayed progress updates have server `PublishedAtUtc` values
+  within the offline window, allowing a small host/container clock tolerance;
 - progress revisions produced during the offline window arrive in order;
 - replayed progress is applied once despite possible duplicate delivery;
+- replay catches up and subsequent live progress remains contiguous;
 - the KCP endpoint reports reliable push disabled;
 - the resumed world tick advances beyond the pre-fault tick;
 - no historical KCP replay queue is created;
 - input is rejected or suppressed during recovery and works after fresh state;
 - no second login, rematch, or replacement game session occurs.
 
-Failures must report the recovery phase, old and new session identities,
-connection serials, reliable progress revisions, world ticks, and the current UI
-state in the Unity test snapshot and existing test artifacts.
+Failures must report the recovery phase, offline window, old and new session
+identities, connection serials, reliable progress revisions and publish times,
+last reliable sequence, world ticks, and the current UI state in the Unity test
+snapshot and existing test artifacts.
 
 ## Focused Test Coverage
 
@@ -462,21 +663,42 @@ state in the Unity test snapshot and existing test artifacts.
 
 `tests/Lakona.Game.Server.Tests/Lakona.Game.Server.Tests.csproj` must cover:
 
-- endpoint override inheritance from the global default;
+- omitted endpoint policy defaults to disabled and explicit `true` enables it;
+- the removed global enable setting is rejected by configuration/source guards;
+- generated default endpoints explicitly opt in instead of relying on framework
+  defaults;
 - endpoint-specific handshake advertisement;
+- handshake advertisement and client application of the Game Session Resume
+  Window;
+- exact deadline rejection independent of cleanup scan timing;
+- heartbeat renewal keeps client-session routes valid through the Resume Window;
 - first binding captures game-session delivery policy;
 - disconnect retains policy and expiration/termination removes it;
 - resume with matching policy succeeds;
 - resume with mismatched policy fails without rebinding;
 - reliable session publication sequences and retains records;
 - best-effort session publication creates no outbox record or metadata;
+- pending-capacity overflow marks continuity `StateRefreshRequired` without
+  silent eviction or partial replay;
+- concurrent replay and publication preserve contiguous application order;
+- client gap detection refuses to apply or acknowledge a later sequence;
 - replay and ack are disabled for best-effort sessions;
 - remote publication is still sequenced only by the route owner;
 - stale or missing routes do not create caller-side outbox records.
 
-`tests/Lakona.Game.Client.Tests/Lakona.Game.Client.Tests.csproj` is required only
-if framework client state changes. Existing handshake, inbox deduplication, and
-cursor behavior must remain covered.
+`tests/Lakona.Game.Abstractions.Tests/Lakona.Game.Abstractions.Tests.csproj` must
+cover handshake codec round trips for the Resume Window.
+
+`tests/Lakona.Game.Client.Tests/Lakona.Game.Client.Tests.csproj` must cover
+handshake application, negotiated window validation, contiguous sequence
+application, duplicate acknowledgement, gap rejection, and cursor persistence.
+
+`tests/Lakona.Rpc.Analyzers.Tests/Lakona.Rpc.Analyzers.Tests.csproj` must cover
+the generated client policy surface if the source generator exposes the Resume
+Window.
+
+`tests/Lakona.Tool.Tests/Lakona.Tool.Tests.csproj` must cover explicit
+`ReliablePush: true` generation and the removal of the global enable setting.
 
 ### Agar business tests
 
@@ -510,8 +732,11 @@ Before implementation is considered complete:
 
 ```powershell
 dotnet build Lakona.slnx
+dotnet test tests/Lakona.Game.Abstractions.Tests/Lakona.Game.Abstractions.Tests.csproj --no-build
 dotnet test tests/Lakona.Game.Server.Tests/Lakona.Game.Server.Tests.csproj --no-build
 dotnet test tests/Lakona.Game.Client.Tests/Lakona.Game.Client.Tests.csproj --no-build
+dotnet test tests/Lakona.Rpc.Analyzers.Tests/Lakona.Rpc.Analyzers.Tests.csproj --no-build
+dotnet test tests/Lakona.Tool.Tests/Lakona.Tool.Tests.csproj --no-build
 dotnet test samples/Game.Unity.Agar/tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj --no-build
 pwsh -NoProfile -File scripts/rpc/check-docs-consistency.ps1
 pwsh -NoProfile -File scripts/nuget/check-package-version-graph.ps1
@@ -535,7 +760,8 @@ must be recorded with its exact reason and residual risk.
    - endpoint policy, progress callback, stable identities, realtime resume;
    - focused business tests and hotfix boundary review.
 4. **Unity recovery and fault injection**
-   - one recovery coordinator, pending UI state, test-only network gate;
+   - one Agar-owned recovery state machine, pending UI state, test-only network
+     gate;
    - PlayMode review for callback threading and cancellation.
 5. **Three-node acceptance and documentation**
    - extend audited smoke, update authority docs and sample README;
@@ -549,10 +775,15 @@ No implementation milestone begins until this design is reviewed and approved.
   reliable-push policy;
 - replay coalescing or payload-aware dropping by the framework;
 - durable or replicated outbox storage across gateway process failure;
+- seamless recovery after the Game Session route-owner process restarts;
 - gateway or battle node restart acceptance;
 - network packet-loss, latency, jitter, or repeated flap simulation;
 - cross-gateway game-session migration;
+- cross-gateway resume redirect or shared Game Session/outbox state;
+- seamless control recovery without Gateway Affinity;
 - infinite client retry;
+- a public generic client recovery coordinator or framework-owned business
+  authentication/room-attach workflow;
 - business-authored offline caches or resend loops;
 - replay of historical KCP world-state callbacks when the KCP endpoint has
   reliable push disabled.

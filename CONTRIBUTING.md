@@ -30,6 +30,7 @@ Current architecture and maintainer contracts:
 
 | Area | Authority |
 | --- | --- |
+| Domain language | [Context](./CONTEXT.md) |
 | Product principles | [Design Philosophy](./docs/design-philosophy.md) |
 | Actors and cluster | [Actors](./docs/actor.md), [Cluster](./docs/cluster.md) |
 | Sessions and configuration | [Sessions](./docs/session.md), [Configuration](./docs/configuration.md) |
