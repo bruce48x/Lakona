@@ -29,6 +29,7 @@ public sealed class ActorHostClient(
         {
             status = await nodeSender.SendAsync(
                 node,
+                expectedNodeEpoch: null,
                 Route,
                 new ClusterMessage(
                     Route,

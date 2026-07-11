@@ -22,6 +22,7 @@ namespace Lakona.Game.Cluster
 
         public async ValueTask<ClusterSendStatus> SendAsync(
             NodeId nodeId,
+            long? expectedNodeEpoch,
             RouteKey route,
             ClusterMessage message,
             CancellationToken cancellationToken = default)
@@ -42,12 +43,17 @@ namespace Lakona.Game.Cluster
 
             if (record is null || record.IsExpired(now))
             {
-                return ClusterSendStatus.Failed;
+                return ClusterSendStatus.StaleRoute;
+            }
+
+            if (expectedNodeEpoch is not null && record.NodeEpoch != expectedNodeEpoch.Value)
+            {
+                return ClusterSendStatus.NodeEpochMismatch;
             }
 
             if (!record.Endpoints.TryGetValue(_options.EndpointName, out var endpoint))
             {
-                return ClusterSendStatus.Failed;
+                return ClusterSendStatus.HandlerUnavailable;
             }
 
             var target = new RouteLocation(

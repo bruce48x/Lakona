@@ -16,7 +16,8 @@ public sealed class RemoteActorInvocation
         ReadOnlyMemory<byte> payload,
         DateTimeOffset deadline,
         string correlationId,
-        IReadOnlyDictionary<string, string>? metadata = null)
+        IReadOnlyDictionary<string, string>? metadata = null,
+        long? expectedNodeEpoch = null)
     {
         Node = node;
         ActorId = actorId;
@@ -25,6 +26,7 @@ public sealed class RemoteActorInvocation
         Payload = payload.ToArray();
         Deadline = deadline;
         CorrelationId = correlationId;
+        ExpectedNodeEpoch = expectedNodeEpoch;
         Metadata = metadata is null
             ? EmptyMetadata
             : new ReadOnlyDictionary<string, string>(
@@ -44,6 +46,8 @@ public sealed class RemoteActorInvocation
     public DateTimeOffset Deadline { get; }
 
     public string CorrelationId { get; }
+
+    public long? ExpectedNodeEpoch { get; }
 
     public IReadOnlyDictionary<string, string> Metadata { get; }
 }

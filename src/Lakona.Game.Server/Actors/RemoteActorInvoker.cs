@@ -127,6 +127,7 @@ public sealed class RemoteActorInvoker : IRemoteActorInvoker
 
         return await _nodeSender.SendAsync(
             invocation.Node,
+            invocation.ExpectedNodeEpoch,
             route,
             CreateMessage(invocation, includeReply),
             cancellationToken).ConfigureAwait(false);
@@ -154,12 +155,19 @@ public sealed class RemoteActorInvoker : IRemoteActorInvoker
     private static RemoteActorInvocationResult ToResult(ClusterSendStatus status)
     {
         var remoteStatus = MapStatus(status);
+        var retrySafety = status is ClusterSendStatus.RouteNotFound
+            or ClusterSendStatus.HandlerUnavailable
+            or ClusterSendStatus.StaleRoute
+            or ClusterSendStatus.NodeEpochMismatch
+            ? RemoteActorRetrySafety.DefinitelyNotExecuted
+            : RemoteActorRetrySafety.Indeterminate;
         return remoteStatus switch
         {
             RemoteActorStatus.Accepted => RemoteActorInvocationResult.Accepted(),
             _ => RemoteActorInvocationResult.Failed(
                 remoteStatus,
-                $"Remote actor send failed with cluster status: {status}.")
+                $"Remote actor send failed with cluster status: {status}.",
+                retrySafety)
         };
     }
 

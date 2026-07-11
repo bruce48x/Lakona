@@ -321,11 +321,11 @@ Expected: PASS, including schema order checks.
 - Test: `tests/Lakona.Game.Server.Tests/HotfixActorClusterHandlerTests.cs`
 - Test: `tests/Lakona.Game.Server.Tests/TypedActorDispatcherTests.cs`
 
-- [ ] **Step 1: Write epoch and ambiguity red tests**
+- [x] **Step 1: Write epoch and ambiguity red tests**
 
 Test that a sender given expected epoch 7 returns `NodeEpochMismatch` without calling `INodeMessenger` when the directory record is epoch 8. Missing/expired node returns `StaleRoute` without dispatch. A transport/handler `Failed` result remains indeterminate. `RouteNotFound`, `HandlerUnavailable`, `StaleRoute`, and `NodeEpochMismatch` are the only statuses classified `DefinitelyNotExecuted`.
 
-- [ ] **Step 2: Run the red tests**
+- [x] **Step 2: Run the red tests**
 
 ```powershell
 dotnet test tests/Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj --no-restore --filter "FullyQualifiedName~ClusterNodeSenderTests"
@@ -334,7 +334,7 @@ dotnet test tests/Lakona.Game.Server.Tests/Lakona.Game.Server.Tests.csproj --no-
 
 Expected: FAIL because sends do not carry an expected epoch and invocation results do not classify retry safety.
 
-- [ ] **Step 3: Change the node sender contract**
+- [x] **Step 3: Change the node sender contract**
 
 ```csharp
 ValueTask<ClusterSendStatus> SendAsync(
@@ -353,7 +353,7 @@ epoch. `ClusterNodeSender` returns `StaleRoute` for missing/expired records,
 `HandlerUnavailable` for a missing cluster endpoint. It passes the actual
 record epoch into `RouteLocation`.
 
-- [ ] **Step 4: Carry safety through remote invocation**
+- [x] **Step 4: Carry safety through remote invocation**
 
 Add nullable `ExpectedNodeEpoch` to `RemoteActorInvocation`. Add:
 
@@ -367,7 +367,7 @@ public enum RemoteActorRetrySafety
 
 `RemoteActorInvocationResult` exposes `RetrySafety`. Only the four statuses listed above map to `DefinitelyNotExecuted`; timeout, cancellation, backpressure, serialization, deserialization, `Failed`, and reply-delivery failures remain `Indeterminate`.
 
-- [ ] **Step 5: Run suites and commit**
+- [x] **Step 5: Run suites and commit**
 
 ```powershell
 dotnet test tests/Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj --no-restore

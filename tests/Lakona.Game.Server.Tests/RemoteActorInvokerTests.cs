@@ -234,12 +234,13 @@ public sealed class RemoteActorInvokerTests
         var requestedNode = new NodeId("node-requested");
         var sender = new RecordingClusterNodeSender();
         var invoker = CreateInvoker(nodeSender: sender);
-        var invocation = CreateInvocation(node: requestedNode);
+        var invocation = CreateInvocation(node: requestedNode, expectedNodeEpoch: 7);
 
         var result = await invoker.TellAsync(invocation, TestContext.Current.CancellationToken);
 
         Assert.Equal(RemoteActorStatus.Accepted, result.Status);
         Assert.Equal(requestedNode, sender.LastNode);
+        Assert.Equal(7, sender.LastExpectedNodeEpoch);
         Assert.Equal(ClusterActorRouteKeys.ForActor(invocation.ActorId.Value), sender.LastRoute);
         Assert.NotNull(sender.LastMessage);
         Assert.True(ClusterActorEnvelope.TryFromClusterMessage(sender.LastMessage, out var envelope));
@@ -320,6 +321,28 @@ public sealed class RemoteActorInvokerTests
     }
 
     [Theory]
+    [InlineData(ClusterSendStatus.RouteNotFound, RemoteActorRetrySafety.DefinitelyNotExecuted)]
+    [InlineData(ClusterSendStatus.HandlerUnavailable, RemoteActorRetrySafety.DefinitelyNotExecuted)]
+    [InlineData(ClusterSendStatus.StaleRoute, RemoteActorRetrySafety.DefinitelyNotExecuted)]
+    [InlineData(ClusterSendStatus.NodeEpochMismatch, RemoteActorRetrySafety.DefinitelyNotExecuted)]
+    [InlineData(ClusterSendStatus.Failed, RemoteActorRetrySafety.Indeterminate)]
+    [InlineData(ClusterSendStatus.Timeout, RemoteActorRetrySafety.Indeterminate)]
+    [InlineData(ClusterSendStatus.Backpressure, RemoteActorRetrySafety.Indeterminate)]
+    [InlineData(ClusterSendStatus.SerializationFailed, RemoteActorRetrySafety.Indeterminate)]
+    public async Task TellAsync_classifies_retry_safety(
+        ClusterSendStatus status,
+        RemoteActorRetrySafety expected)
+    {
+        var invoker = CreateInvoker(nodeSender: new RecordingClusterNodeSender { Status = status });
+
+        var result = await invoker.TellAsync(
+            CreateInvocation(expectedNodeEpoch: 7),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(expected, result.RetrySafety);
+    }
+
+    [Theory]
     [InlineData(typeof(RemoteActorInvocation))]
     [InlineData(typeof(RemoteActorInvocationResult))]
     public void RemoteActor_payload_has_no_public_setter(Type type)
@@ -354,7 +377,8 @@ public sealed class RemoteActorInvokerTests
     private static RemoteActorInvocation CreateInvocation(
         DateTimeOffset? deadline = null,
         NodeId? node = null,
-        IReadOnlyDictionary<string, string>? metadata = null)
+        IReadOnlyDictionary<string, string>? metadata = null,
+        long? expectedNodeEpoch = null)
     {
         return new RemoteActorInvocation(
             node ?? new NodeId("node-b"),
@@ -364,7 +388,8 @@ public sealed class RemoteActorInvokerTests
             new byte[] { 1, 2, 3 },
             deadline ?? DateTimeOffset.UtcNow.AddSeconds(5),
             "corr-1",
-            metadata);
+            metadata,
+            expectedNodeEpoch);
     }
 
     private static RemoteActorInvoker CreateInvoker(
@@ -382,6 +407,8 @@ public sealed class RemoteActorInvokerTests
     {
         public NodeId LastNode { get; private set; }
 
+        public long? LastExpectedNodeEpoch { get; private set; }
+
         public ClusterMessage? LastMessage { get; private set; }
 
         public RouteKey LastRoute { get; private set; } = default!;
@@ -394,11 +421,13 @@ public sealed class RemoteActorInvokerTests
 
         public ValueTask<ClusterSendStatus> SendAsync(
             NodeId nodeId,
+            long? expectedNodeEpoch,
             RouteKey route,
             ClusterMessage message,
             CancellationToken cancellationToken = default)
         {
             LastNode = nodeId;
+            LastExpectedNodeEpoch = expectedNodeEpoch;
             LastRoute = route;
             LastMessage = message;
             OnSend?.Invoke(message);

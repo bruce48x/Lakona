@@ -96,7 +96,7 @@ public sealed class RemoteActorGateway
             replyingNode,
             correlationId);
 
-        return nodeSender.SendAsync(destinationNode, route, reply, cancellationToken);
+        return nodeSender.SendAsync(destinationNode, expectedNodeEpoch: null, route, reply, cancellationToken);
     }
 
     private sealed class ReplyHandler : IClusterMessageHandler

@@ -386,6 +386,7 @@ public sealed partial class TypedActorDispatcherTests
 
         public ValueTask<ClusterSendStatus> SendAsync(
             NodeId nodeId,
+            long? expectedNodeEpoch,
             RouteKey route,
             ClusterMessage message,
             CancellationToken cancellationToken = default)

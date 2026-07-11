@@ -264,6 +264,7 @@ public sealed class ActorDirectoryClusterHandlerTests
 
         public ValueTask<ClusterSendStatus> SendAsync(
             NodeId nodeId,
+            long? expectedNodeEpoch,
             RouteKey route,
             ClusterMessage message,
             CancellationToken cancellationToken = default)
@@ -298,6 +299,7 @@ public sealed class ActorDirectoryClusterHandlerTests
 
         public ValueTask<ClusterSendStatus> SendAsync(
             NodeId nodeId,
+            long? expectedNodeEpoch,
             RouteKey route,
             ClusterMessage message,
             CancellationToken cancellationToken = default)

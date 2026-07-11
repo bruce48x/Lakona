@@ -881,6 +881,7 @@ public sealed class HotfixActorClusterHandlerTests
 
         public ValueTask<ClusterSendStatus> SendAsync(
             NodeId nodeId,
+            long? expectedNodeEpoch,
             RouteKey route,
             ClusterMessage message,
             CancellationToken cancellationToken = default)

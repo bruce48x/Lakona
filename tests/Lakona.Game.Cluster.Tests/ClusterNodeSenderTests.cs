@@ -31,7 +31,12 @@ public sealed class ClusterNodeSenderTests
             DateTimeOffset.UtcNow.AddSeconds(5),
             new NodeId("node-a"));
 
-        var status = await sender.SendAsync(requestedNode, route, message, TestContext.Current.CancellationToken);
+        var status = await sender.SendAsync(
+            requestedNode,
+            expectedNodeEpoch: 7,
+            route,
+            message,
+            TestContext.Current.CancellationToken);
 
         Assert.Equal(ClusterSendStatus.Accepted, status);
         Assert.Equal("game", directory.LastClusterName);
@@ -45,7 +50,7 @@ public sealed class ClusterNodeSenderTests
     }
 
     [Fact]
-    public async Task SendAsync_returns_failed_when_node_is_missing()
+    public async Task SendAsync_returns_stale_route_when_node_is_missing()
     {
         var sender = new ClusterNodeSender(
             new StubNodeDirectory(),
@@ -54,15 +59,16 @@ public sealed class ClusterNodeSenderTests
 
         var status = await sender.SendAsync(
             new NodeId("node-b"),
+            expectedNodeEpoch: 7,
             "room/42",
             CreateMessage(),
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(ClusterSendStatus.Failed, status);
+        Assert.Equal(ClusterSendStatus.StaleRoute, status);
     }
 
     [Fact]
-    public async Task SendAsync_returns_failed_when_configured_endpoint_is_missing()
+    public async Task SendAsync_returns_handler_unavailable_when_configured_endpoint_is_missing()
     {
         var sender = new ClusterNodeSender(
             new StubNodeDirectory
@@ -79,11 +85,40 @@ public sealed class ClusterNodeSenderTests
 
         var status = await sender.SendAsync(
             new NodeId("node-b"),
+            expectedNodeEpoch: 1,
             "room/42",
             CreateMessage(),
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(ClusterSendStatus.Failed, status);
+        Assert.Equal(ClusterSendStatus.HandlerUnavailable, status);
+    }
+
+    [Fact]
+    public async Task SendAsync_rejects_expected_epoch_mismatch_without_dispatching()
+    {
+        var messenger = new RecordingNodeMessenger();
+        var sender = new ClusterNodeSender(
+            new StubNodeDirectory
+            {
+                Record = CreateNodeRecord(
+                    clusterName: "local",
+                    node: new NodeId("node-b"),
+                    endpointName: "cluster",
+                    endpoint: new NodeEndpoint("tcp://node-b:21000"),
+                    nodeEpoch: 8)
+            },
+            messenger,
+            new ClusterNodeSenderOptions());
+
+        var status = await sender.SendAsync(
+            new NodeId("node-b"),
+            expectedNodeEpoch: 7,
+            "room/42",
+            CreateMessage(),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.NodeEpochMismatch, status);
+        Assert.Null(messenger.LastMessage);
     }
 
     [Fact]
@@ -108,6 +143,7 @@ public sealed class ClusterNodeSenderTests
 
         var status = await sender.SendAsync(
             new NodeId("node-b"),
+            expectedNodeEpoch: null,
             "room/42",
             CreateMessage(),
             TestContext.Current.CancellationToken);

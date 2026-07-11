@@ -5,11 +5,13 @@ public sealed class RemoteActorInvocationResult
     public RemoteActorInvocationResult(
         RemoteActorStatus status,
         ReadOnlyMemory<byte> payload,
-        string? message = null)
+        string? message = null,
+        RemoteActorRetrySafety retrySafety = RemoteActorRetrySafety.Indeterminate)
     {
         Status = status;
         Payload = payload.ToArray();
         Message = message;
+        RetrySafety = retrySafety;
     }
 
     public RemoteActorStatus Status { get; }
@@ -17,6 +19,8 @@ public sealed class RemoteActorInvocationResult
     public ReadOnlyMemory<byte> Payload { get; }
 
     public string? Message { get; }
+
+    public RemoteActorRetrySafety RetrySafety { get; }
 
     public static RemoteActorInvocationResult Accepted()
     {
@@ -28,8 +32,11 @@ public sealed class RemoteActorInvocationResult
         return new RemoteActorInvocationResult(RemoteActorStatus.Replied, payload);
     }
 
-    public static RemoteActorInvocationResult Failed(RemoteActorStatus status, string message)
+    public static RemoteActorInvocationResult Failed(
+        RemoteActorStatus status,
+        string message,
+        RemoteActorRetrySafety retrySafety = RemoteActorRetrySafety.Indeterminate)
     {
-        return new RemoteActorInvocationResult(status, ReadOnlyMemory<byte>.Empty, message);
+        return new RemoteActorInvocationResult(status, ReadOnlyMemory<byte>.Empty, message, retrySafety);
     }
 }
