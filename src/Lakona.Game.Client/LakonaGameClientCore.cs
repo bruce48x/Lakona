@@ -142,7 +142,7 @@ namespace Lakona.Game.Client
                 var result = await _reliablePush.ProcessAsync(
                     reliableMetadata,
                     _ => next(),
-                    (ack, cancellationToken) => SendReliablePushAckAsync(rpcClient, ack, cancellationToken),
+                    (ack, _) => QueueReliablePushAck(rpcClient, ack),
                     CancellationToken.None).ConfigureAwait(false);
 
                 if (result.Acknowledgement.HasValue)
@@ -295,6 +295,33 @@ namespace Lakona.Game.Client
                 payload,
                 cancellationToken).ConfigureAwait(false);
             return LakonaInternalCodec.DecodeReliablePushAckOutcome(response.Memory);
+        }
+
+        private ValueTask<ReliablePushAckOutcome> QueueReliablePushAck(
+            RpcClientRuntime rpcClient,
+            ReliablePushAckRequest ack)
+        {
+            // Notifications may be replayed while the server is handling the
+            // replay heartbeat on this same RPC session. Waiting for
+            // the acknowledgement here would create a reentrant RPC deadlock.
+            _ = SendReliablePushAckInBackgroundAsync(rpcClient, ack);
+            return new ValueTask<ReliablePushAckOutcome>(ReliablePushAckOutcome.Accepted());
+        }
+
+        private async Task SendReliablePushAckInBackgroundAsync(
+            RpcClientRuntime rpcClient,
+            ReliablePushAckRequest ack)
+        {
+            try
+            {
+                var outcome = await SendReliablePushAckAsync(rpcClient, ack, CancellationToken.None)
+                    .ConfigureAwait(false);
+                _sessions.ApplyAckOutcome(outcome);
+            }
+            catch
+            {
+                _sessions.MarkReconnecting();
+            }
         }
 
         public async ValueTask DisposeAsync()

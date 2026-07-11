@@ -7,6 +7,21 @@ namespace Lakona.Game.Server.Tests.Configuration;
 public sealed class LakonaGameRuntimeOptionsTests
 {
     [Fact]
+    public void FromConfiguration_binds_resume_and_reliable_push_limits_for_runtime_diagnostics()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:Sessions:ResumeWindowSeconds"] = "37",
+            ["Lakona:ReliablePush:MaxPendingPerSession"] = "91"
+        });
+
+        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
+
+        Assert.Equal(TimeSpan.FromSeconds(37), options.Sessions.ResumeWindow);
+        Assert.Equal(91, options.ReliablePush.MaxPendingPerSession);
+    }
+
+    [Fact]
     public void FromConfiguration_defaults_heartbeat_policy()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>

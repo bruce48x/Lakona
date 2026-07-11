@@ -50,8 +50,14 @@ internal static class LakonaGameReadinessRuntime
                 AssemblyFileName: new LakonaGameResolvedValue<string>("Server.Hotfix.dll", LakonaGameValueSource.GeneratedConvention)),
             ReliablePush: new LakonaGameResolvedReliablePush(
                 StorageMode: new LakonaGameResolvedValue<string>("InMemory", LakonaGameValueSource.Default),
-                PendingLimit: new LakonaGameResolvedValue<int>(256, LakonaGameValueSource.Default),
-                ReplayWindowSeconds: new LakonaGameResolvedValue<int>(120, LakonaGameValueSource.Default),
+                PendingLimit: new LakonaGameResolvedValue<int>(
+                    runtime.ReliablePush.MaxPendingPerSession,
+                    LakonaGameValueSource.Configuration,
+                    "Lakona:ReliablePush:MaxPendingPerSession"),
+                ResumeWindowSeconds: new LakonaGameResolvedValue<int>(
+                    checked((int)runtime.Sessions.ResumeWindow.TotalSeconds),
+                    LakonaGameValueSource.Configuration,
+                    "Lakona:Sessions:ResumeWindowSeconds"),
                 HasSessionIdentityResolver: true),
             Heartbeat: new LakonaGameResolvedHeartbeat(
                 Interval: new LakonaGameResolvedValue<TimeSpan>(

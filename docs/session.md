@@ -473,8 +473,11 @@ instead of silently applying a partial stream.
 Reliable application order is contiguous per Game Session generation. A
 duplicate is acknowledged without another business invocation; the exact next
 sequence is applied and acknowledged; a later sequence across a gap is neither
-applied nor acknowledged. Rebind replay is a barrier, so live publication
-cannot overtake older pending commands.
+applied nor acknowledged, and the generation remains poisoned until a new
+validated session generation starts. After rebind, live reliable publication
+is retained but withheld until the next framework heartbeat establishes the
+replay barrier. Serialized outbox publication then sends pending commands in
+order before allowing newer live commands to reach the client.
 
 The built-in registry and outbox are process-local. Seamless control recovery
 therefore requires gateway affinity. Owner restart or reconnecting to another

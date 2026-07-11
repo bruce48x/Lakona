@@ -8,6 +8,25 @@ namespace Lakona.Game.Server.Tests;
 public sealed class GameSessionRegistryTests
 {
     [Fact]
+    public async Task Callback_rebind_does_not_clear_resumed_session_replay_barrier()
+    {
+        var directory = new InMemoryGameSessionRegistry();
+        var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
+        await directory.SetReliablePushPolicyAsync(session, true, TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "connection-a", new LoginCallback("first"), TestContext.Current.CancellationToken);
+        await directory.MarkConnectionDisconnectedAsync("connection-a", TestContext.Current.CancellationToken);
+
+        await directory.BindSessionAsync(session, "connection-b", new LoginCallback("resumed"), TestContext.Current.CancellationToken);
+        Assert.True(await directory.IsReliableReplayPendingAsync(session, TestContext.Current.CancellationToken));
+
+        await directory.BindSessionAsync(session, "connection-b", new ChatCallback("additional"), TestContext.Current.CancellationToken);
+        Assert.True(await directory.IsReliableReplayPendingAsync(session, TestContext.Current.CancellationToken));
+
+        await directory.MarkReliableReplayReadyAsync(session, TestContext.Current.CancellationToken);
+        Assert.False(await directory.IsReliableReplayPendingAsync(session, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task Resume_window_is_enforced_at_the_exact_deadline()
     {
         var time = new ManualTimeProvider(new DateTimeOffset(2026, 7, 11, 0, 0, 0, TimeSpan.Zero));
@@ -29,6 +48,11 @@ public sealed class GameSessionRegistryTests
 
         time.Advance(TimeSpan.FromSeconds(1));
         Assert.Equal(SessionResumeStatus.StateLost, (await directory.TryResumeAsync(session, TestContext.Current.CancellationToken)).Status);
+
+        var expired = await directory.ExpireDisconnectedSessionsAsync(
+            time.GetUtcNow(),
+            TestContext.Current.CancellationToken);
+        Assert.Contains(expired, snapshot => snapshot.Session == session);
     }
 
     [Fact]

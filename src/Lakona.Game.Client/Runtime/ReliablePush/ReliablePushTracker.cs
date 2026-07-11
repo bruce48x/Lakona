@@ -6,11 +6,23 @@ namespace Lakona.Game.Client.ReliablePush
     {
         public long LastAppliedSequence { get; private set; }
 
+        public bool IsContinuityLost { get; private set; }
+
         public ReliablePushApplyDecision Decide(long sequence)
         {
             if (sequence <= 0)
             {
                 return new ReliablePushApplyDecision(sequence, shouldApply: true, shouldAck: false, isDuplicate: false);
+            }
+
+            if (IsContinuityLost)
+            {
+                return new ReliablePushApplyDecision(
+                    sequence,
+                    shouldApply: false,
+                    shouldAck: false,
+                    isDuplicate: false,
+                    isGap: true);
             }
 
             if (sequence <= LastAppliedSequence)
@@ -20,6 +32,7 @@ namespace Lakona.Game.Client.ReliablePush
 
             if (sequence != LastAppliedSequence + 1)
             {
+                IsContinuityLost = true;
                 return new ReliablePushApplyDecision(
                     sequence,
                     shouldApply: false,
@@ -44,6 +57,7 @@ namespace Lakona.Game.Client.ReliablePush
         public void Reset()
         {
             LastAppliedSequence = 0;
+            IsContinuityLost = false;
         }
     }
 }

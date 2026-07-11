@@ -59,6 +59,9 @@ namespace SampleClient.Gameplay
         public long RealtimeSessionGeneration => _realtimeSessionGeneration;
         public long ControlRpcSerial => _controlRpcSerial;
         public long RealtimeRpcSerial => _realtimeRpcSerial;
+        public bool ControlReliablePushEnabled => _controlConnection?.ReliablePushEnabled ?? false;
+        public bool RealtimeReliablePushEnabled => _realtimeConnection?.ReliablePushEnabled ?? false;
+        public long ControlLastReliableSequence => _controlConnection?.Snapshot.LastReliableSequence ?? 0;
 
         public async Task<LoginReply> ConnectAndLoginAsync(
             string host,

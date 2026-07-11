@@ -46,6 +46,25 @@ public sealed class ReliablePushTrackerTests
     }
 
     [Fact]
+    public void Gap_poisons_the_generation_until_reset()
+    {
+        var tracker = new ReliablePushTracker();
+        tracker.MarkApplied(3);
+
+        Assert.True(tracker.Decide(5).IsGap);
+        var lateMissingSequence = tracker.Decide(4);
+
+        Assert.True(lateMissingSequence.IsGap);
+        Assert.False(lateMissingSequence.ShouldApply);
+        Assert.False(lateMissingSequence.ShouldAck);
+        Assert.Equal(3, tracker.LastAppliedSequence);
+
+        tracker.Reset();
+        tracker.MarkApplied(3);
+        Assert.True(tracker.Decide(4).ShouldApply);
+    }
+
+    [Fact]
     public void NonPositiveSequenceShouldApplyWithoutAcknowledgement()
     {
         var tracker = new ReliablePushTracker();

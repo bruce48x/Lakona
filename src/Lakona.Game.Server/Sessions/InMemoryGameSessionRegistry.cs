@@ -72,7 +72,6 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
 
             if (state.ResumeDeadlineUtc is { } deadline && _timeProvider.GetUtcNow() >= deadline)
             {
-                _sessions.Remove(session);
                 return new ValueTask<SessionResumeDecision>(
                     SessionResumeDecision.StateLost("Session resume window expired."));
             }
@@ -147,6 +146,36 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
             return new ValueTask<bool>(
                 _sessions.TryGetValue(session, out var state) && state.ReliableContinuityLost);
         }
+    }
+
+    public ValueTask<bool> IsReliableReplayPendingAsync(
+        GameSessionKey session,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateSession(session);
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            return new ValueTask<bool>(
+                _sessions.TryGetValue(session, out var state) && state.ReliableReplayPending);
+        }
+    }
+
+    public ValueTask MarkReliableReplayReadyAsync(
+        GameSessionKey session,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateSession(session);
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            if (_sessions.TryGetValue(session, out var state))
+            {
+                state.ReliableReplayPending = false;
+            }
+        }
+
+        return default;
     }
 
     public ValueTask<GameSessionBindResult> BindSessionAsync<TCallback>(
@@ -646,6 +675,10 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
             _connectionToSession[connectionId] = session;
         }
 
+        if (sessionBecameActive && state.ResumeDeadlineUtc.HasValue && state.ReliablePushPolicy == true)
+        {
+            state.ReliableReplayPending = true;
+        }
         state.LastDisconnectedConnectionId = null;
         state.LastTerminatedConnectionId = null;
         state.DisconnectedAt = null;
@@ -704,6 +737,8 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         public bool? ReliablePushPolicy { get; set; }
 
         public bool ReliableContinuityLost { get; set; }
+
+        public bool ReliableReplayPending { get; set; }
 
         public DateTimeOffset? LastHeartbeatAt { get; set; }
 

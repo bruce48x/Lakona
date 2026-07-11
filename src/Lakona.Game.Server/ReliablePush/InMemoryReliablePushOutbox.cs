@@ -27,26 +27,30 @@ internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
         await owner.Serial.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (owner.ContinuityLost)
+            ReliablePushRecord record;
+            lock (owner.Gate)
             {
-                throw new ReliablePushContinuityLostException();
-            }
+                if (owner.ContinuityLost)
+                {
+                    throw new ReliablePushContinuityLostException();
+                }
 
-            if (owner.Pending.Count >= Math.Max(1, options.MaxPendingPerSession))
-            {
-                owner.ContinuityLost = true;
-                throw new ReliablePushContinuityLostException();
-            }
+                if (owner.Pending.Count >= Math.Max(1, options.MaxPendingPerSession))
+                {
+                    owner.ContinuityLost = true;
+                    throw new ReliablePushContinuityLostException(newlyLost: true);
+                }
 
-            var record = new ReliablePushRecord
-            {
-                OwnerKey = ownerKey,
-                Kind = kind,
-                Payload = payload,
-                Sequence = ++owner.LastSequence,
-                CreatedAtUtc = DateTime.UtcNow,
-            };
-            owner.Pending.Add(record);
+                record = new ReliablePushRecord
+                {
+                    OwnerKey = ownerKey,
+                    Kind = kind,
+                    Payload = payload,
+                    Sequence = ++owner.LastSequence,
+                    CreatedAtUtc = DateTime.UtcNow,
+                };
+                owner.Pending.Add(record);
+            }
             await DeliverAsync(record, deliver, cancellationToken).ConfigureAwait(false);
             return record.Sequence;
         }
@@ -72,12 +76,18 @@ internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
         await owner.Serial.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (owner.ContinuityLost)
+            ReliablePushRecord[] pending;
+            lock (owner.Gate)
             {
-                throw new ReliablePushContinuityLostException();
+                if (owner.ContinuityLost)
+                {
+                    throw new ReliablePushContinuityLostException();
+                }
+
+                pending = owner.Pending.OrderBy(static record => record.Sequence).ToArray();
             }
 
-            foreach (var record in owner.Pending.OrderBy(static record => record.Sequence).ToArray())
+            foreach (var record in pending)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 await DeliverAsync(record, deliver, cancellationToken).ConfigureAwait(false);
@@ -89,7 +99,7 @@ internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
         }
     }
 
-    public async ValueTask AckAsync(
+    public ValueTask AckAsync(
         string ownerKey,
         long sequence,
         CancellationToken cancellationToken = default)
@@ -97,24 +107,20 @@ internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
         ArgumentException.ThrowIfNullOrWhiteSpace(ownerKey);
         if (sequence <= 0)
         {
-            return;
+            return default;
         }
 
         var owner = TryGetOwner(ownerKey);
         if (owner is null)
         {
-            return;
+            return default;
         }
 
-        await owner.Serial.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
+        lock (owner.Gate)
         {
             owner.Pending.RemoveAll(record => record.Sequence <= sequence);
         }
-        finally
-        {
-            owner.Serial.Release();
-        }
+        return default;
     }
 
     public async ValueTask RemoveAsync(
@@ -151,7 +157,15 @@ internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(ownerKey);
         var owner = TryGetOwner(ownerKey);
-        return owner?.LastSequence ?? 0;
+        if (owner is null)
+        {
+            return 0;
+        }
+
+        lock (owner.Gate)
+        {
+            return owner.LastSequence;
+        }
     }
 
     private OwnerState GetOrCreateOwner(string ownerKey)
@@ -189,6 +203,8 @@ internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
 
     private sealed class OwnerState
     {
+        public object Gate { get; } = new();
+
         public SemaphoreSlim Serial { get; } = new(1, 1);
 
         public long LastSequence { get; set; }

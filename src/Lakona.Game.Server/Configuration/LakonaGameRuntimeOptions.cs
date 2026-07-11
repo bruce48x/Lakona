@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Lakona.Game.Server.Observability;
+using Lakona.Game.Server.ReliablePush;
 using Microsoft.Extensions.Configuration;
 
 namespace Lakona.Game.Server.Configuration;
@@ -56,6 +57,10 @@ public sealed class LakonaGameRuntimeOptions
     /// </summary>
     public LakonaGameHeartbeatOptions Heartbeat { get; init; } = LakonaGameHeartbeatOptions.Defaults();
 
+    public LakonaSessionHostingOptions Sessions { get; init; } = new();
+
+    public ReliablePushOptions ReliablePush { get; init; } = new();
+
     /// <summary>
     /// Binds runtime options from the <c>Lakona</c> configuration root.
     /// </summary>
@@ -77,8 +82,22 @@ public sealed class LakonaGameRuntimeOptions
             ActorHosts = BindStringArray(section.GetSection("ActorHosts")),
             Cluster = BindCluster(section.GetSection("Cluster")),
             Heartbeat = LakonaGameHeartbeatOptions.FromConfiguration(section.GetSection("Heartbeat")),
+            Sessions = LakonaSessionHostingOptions.FromConfiguration(section.GetSection("Sessions")),
+            ReliablePush = BindReliablePush(section.GetSection("ReliablePush")),
             Health = LakonaHealthOptions.FromConfiguration(section.GetSection("Health")),
             Observability = LakonaObservabilityOptions.FromConfiguration(configuration)
+        };
+    }
+
+    private static ReliablePushOptions BindReliablePush(IConfiguration section)
+    {
+        var defaults = new ReliablePushOptions();
+        return new ReliablePushOptions
+        {
+            MaxPendingPerSession = LakonaConfigurationReader.ReadInt(
+                section,
+                "MaxPendingPerSession",
+                defaults.MaxPendingPerSession)
         };
     }
 

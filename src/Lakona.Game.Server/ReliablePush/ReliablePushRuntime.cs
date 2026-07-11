@@ -38,6 +38,9 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
         }
 
         var immediateStatus = ClientNotificationStatus.RouteNotFound;
+        var replayPending = await _sessions
+            .IsReliableReplayPendingAsync(session, cancellationToken)
+            .ConfigureAwait(false);
         try
         {
             await _outbox.PublishAsync(
@@ -46,6 +49,11 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
                 command,
                 async record =>
                 {
+                    if (replayPending)
+                    {
+                        immediateStatus = ClientNotificationStatus.Delivered;
+                        return;
+                    }
                     immediateStatus = await DispatchRecordAsync(
                         session,
                         record,
@@ -53,8 +61,14 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
                 },
                 cancellationToken).ConfigureAwait(false);
         }
-        catch (ReliablePushContinuityLostException)
+        catch (ReliablePushContinuityLostException ex)
         {
+            if (ex.NewlyLost)
+            {
+                ReliablePushDiagnostics.ContinuityLost.Add(
+                    1,
+                    new KeyValuePair<string, object?>("reason", "capacity"));
+            }
             await _sessions.MarkReliableContinuityLostAsync(session, cancellationToken).ConfigureAwait(false);
             return ClientNotificationStatus.Failed;
         }
@@ -73,6 +87,7 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
 
         try
         {
+            await _sessions.MarkReliableReplayReadyAsync(session, cancellationToken).ConfigureAwait(false);
             await _outbox.ReplayPendingAsync(
                 session,
                 async record =>

@@ -72,14 +72,16 @@ public sealed class ReliablePushOutboxTests
         var cancellationToken = TestContext.Current.CancellationToken;
         await outbox.PublishAsync("player-a", "First", "one", _ => default, cancellationToken);
         await outbox.PublishAsync("player-a", "Second", "two", _ => default, cancellationToken);
-        await Assert.ThrowsAsync<ReliablePushContinuityLostException>(() => outbox
+        var overflow = await Assert.ThrowsAsync<ReliablePushContinuityLostException>(() => outbox
             .PublishAsync("player-a", "Third", "three", _ => default, cancellationToken)
             .AsTask());
+        Assert.True(overflow.NewlyLost);
         var replayed = new List<ReliablePushRecord>();
 
-        await Assert.ThrowsAsync<ReliablePushContinuityLostException>(() => outbox
+        var replayFailure = await Assert.ThrowsAsync<ReliablePushContinuityLostException>(() => outbox
             .ReplayPendingAsync("player-a", Capture(replayed), cancellationToken)
             .AsTask());
+        Assert.False(replayFailure.NewlyLost);
 
         Assert.Empty(replayed);
         Assert.Equal(2, outbox.GetLastSequence("player-a"));
@@ -101,6 +103,37 @@ public sealed class ReliablePushOutboxTests
         Assert.Equal(1, record.Sequence);
         Assert.Equal(1, outbox.GetLastSequence("player-a"));
         Assert.Single(replayed);
+    }
+
+    [Fact]
+    public async Task Ack_does_not_wait_for_the_delivery_ordering_barrier()
+    {
+        var outbox = CreateOutbox();
+        var enteredDelivery = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseDelivery = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var publish = outbox.PublishAsync(
+            "player-a",
+            "Progress",
+            "payload",
+            async _ =>
+            {
+                enteredDelivery.SetResult();
+                await releaseDelivery.Task;
+            },
+            TestContext.Current.CancellationToken).AsTask();
+
+        await enteredDelivery.Task;
+        await outbox.AckAsync("player-a", 1, TestContext.Current.CancellationToken);
+        releaseDelivery.SetResult();
+        await publish;
+
+        var replayed = new List<ReliablePushRecord>();
+        await outbox.ReplayPendingAsync(
+            "player-a",
+            Capture(replayed),
+            TestContext.Current.CancellationToken);
+        Assert.Empty(replayed);
     }
 
     [Fact]

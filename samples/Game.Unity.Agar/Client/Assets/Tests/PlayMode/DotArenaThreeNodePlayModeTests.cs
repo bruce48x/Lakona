@@ -92,6 +92,10 @@ namespace SampleClient.Gameplay.Tests
                 15f);
 
             var beforeOffline = game.BuildTestSnapshot();
+            NUnitAssert.That(beforeOffline.ControlReliablePushEnabled, Is.True,
+                "WebSocket control handshake must advertise reliable push enabled");
+            NUnitAssert.That(beforeOffline.RealtimeReliablePushEnabled, Is.False,
+                "KCP realtime handshake must advertise reliable push disabled");
             var offlineStart = DateTime.UtcNow;
             yield return WaitForTask(
                 game.SetNetworkGateForTestAsync(false),
@@ -130,6 +134,9 @@ namespace SampleClient.Gameplay.Tests
             NUnitAssert.That(recovered.LocalPlayerId, Is.EqualTo(beforeOffline.LocalPlayerId));
             NUnitAssert.That(recovered.LastRealtimeRoomId, Is.EqualTo(beforeOffline.LastRealtimeRoomId));
             NUnitAssert.That(recovered.LastRealtimeMatchId, Is.EqualTo(beforeOffline.LastRealtimeMatchId));
+            NUnitAssert.That(recovered.ControlLastReliableSequence,
+                Is.GreaterThan(beforeOffline.ControlLastReliableSequence),
+                "reliable sequence must advance after offline replay");
 
             var recoveredMove = recovered.LocalPlayerX >= 0f ? Vector2.left : Vector2.right;
             yield return WaitForTask(
@@ -226,6 +233,13 @@ namespace SampleClient.Gameplay.Tests
                 $"rtPort={snapshot.LastRealtimePort}",
                 $"room={snapshot.LastRealtimeRoomId}",
                 $"match={snapshot.LastRealtimeMatchId}",
+                $"controlSession={snapshot.ControlSessionId}/{snapshot.ControlSessionGeneration}",
+                $"realtimeSession={snapshot.RealtimeSessionId}/{snapshot.RealtimeSessionGeneration}",
+                $"rpcSerials={snapshot.ControlRpcSerial}/{snapshot.RealtimeRpcSerial}",
+                $"reliablePolicy={snapshot.ControlReliablePushEnabled}/{snapshot.RealtimeReliablePushEnabled}",
+                $"reliableSequence={snapshot.ControlLastReliableSequence}",
+                $"progressRevisions=[{string.Join(",", snapshot.MatchProgressRevisions)}]",
+                $"progressTimes=[{string.Join(",", snapshot.MatchProgressPublishedAtUtc.Select(static value => value.ToString("O")))}]",
                 $"local=({snapshot.LocalPlayerX:0.00},{snapshot.LocalPlayerY:0.00})");
         }
 

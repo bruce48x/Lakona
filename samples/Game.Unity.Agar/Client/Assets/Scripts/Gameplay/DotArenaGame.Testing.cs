@@ -41,7 +41,10 @@ namespace SampleClient.Gameplay
                 MatchProgressRevisions = _matchProgressHistory.Select(static item => item.ProgressRevision).ToArray(),
                 MatchProgressPublishedAtUtc = _matchProgressHistory.Select(static item => item.PublishedAtUtc).ToArray(),
                 ControlRpcSerial = session?.ControlRpcSerial ?? 0,
-                RealtimeRpcSerial = session?.RealtimeRpcSerial ?? 0
+                RealtimeRpcSerial = session?.RealtimeRpcSerial ?? 0,
+                ControlReliablePushEnabled = session?.ControlReliablePushEnabled ?? false,
+                RealtimeReliablePushEnabled = session?.RealtimeReliablePushEnabled ?? false,
+                ControlLastReliableSequence = session?.ControlLastReliableSequence ?? 0
             };
         }
 
@@ -101,6 +104,9 @@ namespace SampleClient.Gameplay
         public System.DateTime[] MatchProgressPublishedAtUtc { get; set; } = System.Array.Empty<System.DateTime>();
         public long ControlRpcSerial { get; set; }
         public long RealtimeRpcSerial { get; set; }
+        public bool ControlReliablePushEnabled { get; set; }
+        public bool RealtimeReliablePushEnabled { get; set; }
+        public long ControlLastReliableSequence { get; set; }
     }
 }
 #endif

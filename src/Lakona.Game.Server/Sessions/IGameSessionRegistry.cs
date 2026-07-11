@@ -29,6 +29,14 @@ public interface IGameSessionRegistry
         GameSessionKey session,
         CancellationToken cancellationToken = default);
 
+    ValueTask<bool> IsReliableReplayPendingAsync(
+        GameSessionKey session,
+        CancellationToken cancellationToken = default);
+
+    ValueTask MarkReliableReplayReadyAsync(
+        GameSessionKey session,
+        CancellationToken cancellationToken = default);
+
     ValueTask<GameSessionBindResult> BindSessionAsync<TCallback>(
         GameSessionKey session,
         string connectionId,

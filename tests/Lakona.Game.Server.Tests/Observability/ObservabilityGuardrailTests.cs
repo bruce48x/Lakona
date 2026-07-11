@@ -224,7 +224,7 @@ public sealed class ObservabilityGuardrailTests
             ReliablePush: new LakonaGameResolvedReliablePush(
                 StorageMode: new LakonaGameResolvedValue<string>("InMemory", LakonaGameValueSource.Default),
                 PendingLimit: new LakonaGameResolvedValue<int>(256, LakonaGameValueSource.Default),
-                ReplayWindowSeconds: new LakonaGameResolvedValue<int>(120, LakonaGameValueSource.Default),
+                ResumeWindowSeconds: new LakonaGameResolvedValue<int>(60, LakonaGameValueSource.Default),
                 HasSessionIdentityResolver: true),
             Heartbeat: new LakonaGameResolvedHeartbeat(
                 Interval: new LakonaGameResolvedValue<TimeSpan>(
