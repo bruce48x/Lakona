@@ -7,9 +7,9 @@ date and package versions of important releases are retained.
 ## 2026-07-11 — Resilient game runtime and game-first scaffolding
 
 **Key releases:** `Lakona.Game.Abstractions 0.2.7`,
-`Lakona.Game.Client 0.3.10`, `Lakona.Game.Server 0.18.1`,
+`Lakona.Game.Client 0.3.11`, `Lakona.Game.Server 0.18.2`,
 `Lakona.Game.Server.Hotfix 0.8.0`, `Lakona.Rpc.Analyzers 0.3.9`,
-`Lakona.Game.Server.Hotfix.Generators 0.5.2`, `Lakona.Tool 0.25.3`,
+`Lakona.Game.Server.Hotfix.Generators 0.5.2`, `Lakona.Tool 0.25.4`,
 `Lakona.Cluster 0.5.0`, `Lakona.Cluster.Rpc 0.4.0`,
 `Lakona.Cluster.Rpc.MemoryPack 0.3.0`, and `Lakona.Cluster.Sql 0.4.0`.
 
