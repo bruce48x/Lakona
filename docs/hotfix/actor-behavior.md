@@ -25,6 +25,20 @@ public static partial class RoomBehavior
 Behavior methods should mutate only the target actor state and use generated
 actor selectors for calls to other actors.
 
+## Actor State Access
+
+Stable actor fields and properties should be `internal` unless they are an
+intentional public contract. The stable App assembly grants its Hotfix assembly
+internal visibility so behavior code can compile across the assembly seam.
+
+The Hotfix analyzer then narrows that assembly-wide visibility: a non-public
+field or property declared by an `Actor<TKey>` may only be referenced by the
+actor itself or by the unique class whose
+`[HotfixBehaviorOf(typeof(ActorType))]` targets that actor. Access from service,
+lifecycle, helper, or another actor's behavior code produces `LKNHOTFIX031` as
+a build error. Explicitly public actor fields and properties are not restricted
+by this diagnostic.
+
 ## Lifecycle Hooks
 
 Use `[ActorStart]` and `[ActorStop]` for startup and cleanup. Long-lived runtime

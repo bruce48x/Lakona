@@ -9,12 +9,14 @@ date and package versions of important releases are retained.
 **Key releases:** `Lakona.Game.Abstractions 0.2.7`,
 `Lakona.Game.Client 0.3.10`, `Lakona.Game.Server 0.18.1`,
 `Lakona.Game.Server.Hotfix 0.8.0`, `Lakona.Rpc.Analyzers 0.3.9`,
-`Lakona.Tool 0.25.1`,
+`Lakona.Game.Server.Hotfix.Generators 0.5.2`, `Lakona.Tool 0.25.3`,
 `Lakona.Cluster 0.5.0`, `Lakona.Cluster.Rpc 0.4.0`,
 `Lakona.Cluster.Rpc.MemoryPack 0.3.0`, and `Lakona.Cluster.Sql 0.4.0`.
 
 - Added keyed Startup Actor service groups with application-defined selection,
-  replica failover, and transactional publication during hotfix reload.
+  replica failover, transactional publication during hotfix reload, and
+  compile-time enforcement that non-public actor state remains owned by its
+  unique Hotfix behavior.
 - Added persistent and remote node and actor directories, unified local health,
   diagnostics, and administration endpoints, and strengthened startup readiness.
 - Replaced the default Chat scaffold with a server-authoritative top-down arena

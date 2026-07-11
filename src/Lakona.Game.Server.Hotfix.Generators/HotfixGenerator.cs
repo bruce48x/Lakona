@@ -24,7 +24,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
         private const string StableRpcServicesKey = "build_property.LakonaHotfixGenerateStableRpcServices";
 
         private static readonly DiagnosticDescriptor UnsupportedHotfixBehaviorWrapperTarget = new DiagnosticDescriptor(
-            "ULGHOTFIX021",
+            "LKNHOTFIX021",
             "Hotfix behavior cannot receive generated actor ref wrappers",
             "Hotfix behavior '{0}' cannot receive generated actor ref wrappers because generated extension methods require a non-file-local, non-generic, top-level static partial class",
             "Lakona.Game.Hotfix",

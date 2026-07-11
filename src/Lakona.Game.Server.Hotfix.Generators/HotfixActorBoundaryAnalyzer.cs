@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Operations;
 
 namespace Lakona.Game.Server.Hotfix.Generators
 {
@@ -19,7 +20,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 HotfixGeneratorDiagnostics.HotfixBehaviorTargetMustDeriveActor,
                 HotfixGeneratorDiagnostics.DuplicateHotfixBehaviorForActor,
                 HotfixGeneratorDiagnostics.HotfixBehaviorMustBeStaticPartial,
-                HotfixGeneratorDiagnostics.HotfixBehaviorNameMustMatchActor);
+                HotfixGeneratorDiagnostics.HotfixBehaviorNameMustMatchActor,
+                HotfixGeneratorDiagnostics.ActorStateMemberAccessMustStayInBehavior);
 
         public override void Initialize(AnalysisContext context)
         {
@@ -36,6 +38,19 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     AnalyzeActorType(symbolContext, type);
                     AnalyzeBehaviorType(symbolContext, type, hotfixBehaviorOfAttribute, behaviorReports);
                 }, SymbolKind.NamedType);
+
+                startContext.RegisterOperationAction(
+                    operationContext => AnalyzeActorStateAccess(
+                        operationContext,
+                        ((IFieldReferenceOperation)operationContext.Operation).Field,
+                        hotfixBehaviorOfAttribute),
+                    OperationKind.FieldReference);
+                startContext.RegisterOperationAction(
+                    operationContext => AnalyzeActorStateAccess(
+                        operationContext,
+                        ((IPropertyReferenceOperation)operationContext.Operation).Property,
+                        hotfixBehaviorOfAttribute),
+                    OperationKind.PropertyReference);
 
                 startContext.RegisterCompilationEndAction(endContext =>
                 {
@@ -65,6 +80,49 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     }
                 });
             });
+        }
+
+        private static void AnalyzeActorStateAccess(
+            OperationAnalysisContext context,
+            ISymbol member,
+            INamedTypeSymbol? hotfixBehaviorOfAttribute)
+        {
+            if (member.DeclaredAccessibility == Accessibility.Public ||
+                member.ContainingType is not INamedTypeSymbol actorType ||
+                !DerivesFromGenericActor(actorType))
+            {
+                return;
+            }
+
+            var accessingType = context.ContainingSymbol?.ContainingType;
+            if (SymbolEqualityComparer.Default.Equals(accessingType, actorType) ||
+                (accessingType is not null && IsBehaviorOf(accessingType, actorType, hotfixBehaviorOfAttribute)))
+            {
+                return;
+            }
+
+            context.ReportDiagnostic(Diagnostic.Create(
+                HotfixGeneratorDiagnostics.ActorStateMemberAccessMustStayInBehavior,
+                context.Operation.Syntax.GetLocation(),
+                actorType.ToDisplayString(),
+                member.Name));
+        }
+
+        private static bool IsBehaviorOf(
+            INamedTypeSymbol accessingType,
+            INamedTypeSymbol actorType,
+            INamedTypeSymbol? hotfixBehaviorOfAttribute)
+        {
+            if (hotfixBehaviorOfAttribute is null)
+            {
+                return false;
+            }
+
+            return accessingType.GetAttributes().Any(attribute =>
+                SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, hotfixBehaviorOfAttribute) &&
+                attribute.ConstructorArguments.Length == 1 &&
+                attribute.ConstructorArguments[0].Value is INamedTypeSymbol behaviorActor &&
+                SymbolEqualityComparer.Default.Equals(behaviorActor, actorType));
         }
 
         private static void AnalyzeActorType(SymbolAnalysisContext context, INamedTypeSymbol type)

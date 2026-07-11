@@ -22,7 +22,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             """);
 
         var diagnostic = Assert.Single(diagnostics);
-        Assert.Equal("ULGHOTFIX011", diagnostic.Id);
+        Assert.Equal("LKNHOTFIX011", diagnostic.Id);
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             """);
 
         Assert.Equal(2, diagnostics.Length);
-        Assert.All(diagnostics, diagnostic => Assert.Equal("ULGHOTFIX011", diagnostic.Id));
+        Assert.All(diagnostics, diagnostic => Assert.Equal("LKNHOTFIX011", diagnostic.Id));
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             """);
 
         var diagnostic = Assert.Single(diagnostics);
-        Assert.Equal("ULGHOTFIX011", diagnostic.Id);
+        Assert.Equal("LKNHOTFIX011", diagnostic.Id);
     }
 
     [Fact]
@@ -114,7 +114,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """);
 
-        var diagnostic = Assert.Single(diagnostics, item => item.Id == "ULGHOTFIX017");
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LKNHOTFIX017");
         Assert.Contains("ArenaSimulation", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -135,7 +135,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """);
 
-        var diagnostic = Assert.Single(diagnostics, item => item.Id == "ULGHOTFIX017");
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LKNHOTFIX017");
         Assert.Contains("LegacyActor", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -183,7 +183,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """);
 
-        var diagnostic = Assert.Single(diagnostics, item => item.Id == "ULGHOTFIX018");
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LKNHOTFIX018");
         Assert.Contains("UserActor", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -216,9 +216,9 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """);
 
-        var diagnostic = Assert.Single(diagnostics, item => item.Id == "ULGHOTFIX018");
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LKNHOTFIX018");
         Assert.Contains("UserActor", diagnostic.GetMessage(), StringComparison.Ordinal);
-        Assert.DoesNotContain(diagnostics, item => item.Id == "ULGHOTFIX020");
+        Assert.DoesNotContain(diagnostics, item => item.Id == "LKNHOTFIX020");
     }
 
     [Fact]
@@ -239,7 +239,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """);
 
-        var diagnostic = Assert.Single(diagnostics, item => item.Id == "ULGHOTFIX019");
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LKNHOTFIX019");
         Assert.Contains("RoomBehavior", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -261,7 +261,134 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """);
 
-        var diagnostic = Assert.Single(diagnostics, item => item.Id == "ULGHOTFIX020");
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LKNHOTFIX020");
         Assert.Contains("MatchmakingBehavior", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Allows_matching_behavior_to_access_non_public_actor_state_across_assemblies()
+    {
+        var app = CreateActorStateReference();
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using Game.App;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            [HotfixBehaviorOf(typeof(RoomActor))]
+            internal static partial class RoomBehavior
+            {
+                public static void Update(RoomActor self)
+                {
+                    self.Members++;
+                    self.Name = "room";
+                    _ = RoomActor.MaxMembers;
+                }
+            }
+            """, app);
+
+        Assert.Empty(diagnostics);
+    }
+
+    [Fact]
+    public async Task Reports_other_hotfix_type_accessing_non_public_actor_state()
+    {
+        var app = CreateActorStateReference();
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using Game.App;
+
+            internal static class RoomService
+            {
+                public static void Update(RoomActor room)
+                {
+                    room.Members++;
+                    room.Name = "room";
+                    _ = RoomActor.MaxMembers;
+                }
+            }
+            """, app);
+
+        Assert.Equal(3, diagnostics.Length);
+        Assert.All(diagnostics, diagnostic => Assert.Equal("LKNHOTFIX031", diagnostic.Id));
+    }
+
+    [Fact]
+    public async Task Reports_behavior_for_different_actor_accessing_non_public_actor_state()
+    {
+        var app = CreateActorStateReference();
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using Game.App;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            internal static partial class UserBehavior
+            {
+                public static void Update(RoomActor room)
+                {
+                    room.Members++;
+                }
+            }
+            """, app);
+
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LKNHOTFIX031");
+        Assert.Contains("RoomActor.Members", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Allows_any_type_to_access_public_actor_state()
+    {
+        var app = CreateActorStateReference();
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using Game.App;
+
+            internal static class RoomService
+            {
+                public static void Read(RoomActor room)
+                {
+                    _ = room.PublicScore;
+                }
+            }
+            """, app);
+
+        Assert.Empty(diagnostics);
+    }
+
+    [Fact]
+    public async Task Allows_actor_to_access_its_own_non_public_state()
+    {
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using Lakona.Game.Server.Actors;
+
+            internal sealed class RoomActor : Actor<string>
+            {
+                internal int Members;
+                internal int Snapshot => Members;
+            }
+            """);
+
+        Assert.Empty(diagnostics);
+    }
+
+    private static Microsoft.CodeAnalysis.MetadataReference CreateActorStateReference()
+    {
+        return AnalyzerTestHost.CreateReference("Game.App", """
+            using System.Runtime.CompilerServices;
+            using Lakona.Game.Server.Actors;
+
+            [assembly: InternalsVisibleTo("AnalyzerTest")]
+
+            namespace Game.App
+            {
+                internal sealed class RoomActor : Actor<string>
+                {
+                    internal const int MaxMembers = 100;
+                    internal int Members;
+                    internal string Name { get; set; } = string.Empty;
+                    public int PublicScore { get; set; }
+                }
+
+                internal sealed class UserActor : Actor<string>
+                {
+                }
+            }
+            """);
     }
 }

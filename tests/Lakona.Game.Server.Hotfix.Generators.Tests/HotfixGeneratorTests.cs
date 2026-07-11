@@ -260,7 +260,7 @@ public sealed class HotfixGeneratorTests
             "PingAsync",
             "request",
             "hotfix",
-            expectedId: "ULGHOTFIX027");
+            expectedId: "LKNHOTFIX027");
     }
 
     [Fact]
@@ -425,7 +425,7 @@ public sealed class HotfixGeneratorTests
             "PingAsync",
             "duplicate",
             "generated");
-        Assert.Contains(result.Hotfix.GeneratorDiagnostics, diagnostic => diagnostic.Id == "ULGHOTFIX030");
+        Assert.Contains(result.Hotfix.GeneratorDiagnostics, diagnostic => diagnostic.Id == "LKNHOTFIX030");
         Assert.DoesNotContain("this global::Game.Server.UserRef self", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
     }
 
@@ -878,7 +878,7 @@ public sealed class HotfixGeneratorTests
 
         var result = GeneratorTestHost.RunWithGeneratedAppReference(appSource, hotfixSource, appAssemblyName: "Game.Server", hotfixAssemblyName: "Game.Hotfix");
 
-        Assert.Contains(result.Hotfix.GeneratorDiagnostics, diagnostic => diagnostic.Id == "ULGHOTFIX018");
+        Assert.Contains(result.Hotfix.GeneratorDiagnostics, diagnostic => diagnostic.Id == "LKNHOTFIX018");
         Assert.DoesNotContain("this global::Game.Server.UserRef self", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
     }
 
@@ -918,7 +918,7 @@ public sealed class HotfixGeneratorTests
 
         var result = GeneratorTestHost.RunWithGeneratedAppReference(appSource, hotfixSource, appAssemblyName: "Game.Server", hotfixAssemblyName: "Game.Hotfix");
 
-        Assert.Contains(result.Hotfix.GeneratorDiagnostics, diagnostic => diagnostic.Id == "ULGHOTFIX021");
+        Assert.Contains(result.Hotfix.GeneratorDiagnostics, diagnostic => diagnostic.Id == "LKNHOTFIX021");
         Assert.DoesNotContain("this global::Game.Server.UserRef self", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
     }
 
@@ -959,7 +959,7 @@ public sealed class HotfixGeneratorTests
 
         var result = GeneratorTestHost.RunWithGeneratedAppReference(appSource, hotfixSource, appAssemblyName: "Game.Server", hotfixAssemblyName: "Game.Hotfix");
 
-        Assert.Contains(result.Hotfix.GeneratorDiagnostics, diagnostic => diagnostic.Id == "ULGHOTFIX021");
+        Assert.Contains(result.Hotfix.GeneratorDiagnostics, diagnostic => diagnostic.Id == "LKNHOTFIX021");
         Assert.DoesNotContain("this global::Game.Server.UserRef self", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
     }
 
@@ -995,7 +995,7 @@ public sealed class HotfixGeneratorTests
 
         var result = GeneratorTestHost.RunWithGeneratedAppReference(appSource, hotfixSource, appAssemblyName: "Game.Server", hotfixAssemblyName: "Game.Hotfix");
 
-        Assert.Contains(result.Hotfix.GeneratorDiagnostics, diagnostic => diagnostic.Id == "ULGHOTFIX021");
+        Assert.Contains(result.Hotfix.GeneratorDiagnostics, diagnostic => diagnostic.Id == "LKNHOTFIX021");
         Assert.DoesNotContain("this global::Game.Server.UserRef self", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
     }
 
@@ -1373,7 +1373,7 @@ public sealed class HotfixGeneratorTests
 
         var result = GeneratorTestHost.Run(source);
 
-        Assert.DoesNotContain(result.GeneratorDiagnostics, diagnostic => diagnostic.Id == "ULGHOTFIX028");
+        Assert.DoesNotContain(result.GeneratorDiagnostics, diagnostic => diagnostic.Id == "LKNHOTFIX028");
         Assert.Empty(result.ErrorDiagnostics);
         Assert.DoesNotContain("StartAsync", result.GeneratedSource, StringComparison.Ordinal);
     }
@@ -1723,10 +1723,10 @@ public sealed class HotfixGeneratorTests
     }
 
     [Theory]
-    [InlineData("[RpcService(1)] public interface IMissingRpcMethod { ValueTask PingAsync(Request request); }", "ULGHOTFIX007")]
-    [InlineData("[RpcService(1)] public interface ITwoParameters { [RpcMethod(1)] ValueTask PingAsync(Request request, Request other); }", "ULGHOTFIX008")]
-    [InlineData("[RpcService(1)] public interface IUnsupportedReturn { [RpcMethod(1)] Task PingAsync(Request request); }", "ULGHOTFIX009")]
-    [InlineData("[RpcService(1, NotificationContract = typeof(BadCallback))] public interface IBadCallbackService { [RpcMethod(1)] ValueTask PingAsync(Request request); } public sealed class BadCallback { }", "ULGHOTFIX010")]
+    [InlineData("[RpcService(1)] public interface IMissingRpcMethod { ValueTask PingAsync(Request request); }", "LKNHOTFIX007")]
+    [InlineData("[RpcService(1)] public interface ITwoParameters { [RpcMethod(1)] ValueTask PingAsync(Request request, Request other); }", "LKNHOTFIX008")]
+    [InlineData("[RpcService(1)] public interface IUnsupportedReturn { [RpcMethod(1)] Task PingAsync(Request request); }", "LKNHOTFIX009")]
+    [InlineData("[RpcService(1, NotificationContract = typeof(BadCallback))] public interface IBadCallbackService { [RpcMethod(1)] ValueTask PingAsync(Request request); } public sealed class BadCallback { }", "LKNHOTFIX010")]
     public void Generator_reports_diagnostics_for_unsupported_hotfix_rpc_service_shapes(
         string contractSource,
         string diagnosticId)
@@ -1813,7 +1813,7 @@ public sealed class HotfixGeneratorTests
 
         var result = GeneratorTestHost.Run(source);
 
-        var diagnostic = Assert.Single(result.ErrorDiagnostics, static diagnostic => diagnostic.Id == "ULGHOTFIX001");
+        var diagnostic = Assert.Single(result.ErrorDiagnostics, static diagnostic => diagnostic.Id == "LKNHOTFIX001");
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
     }
 
@@ -1985,7 +1985,7 @@ public sealed class HotfixGeneratorTests
 
         var result = GeneratorTestHost.Run(source);
 
-        var diagnostic = Assert.Single(result.ErrorDiagnostics, static diagnostic => diagnostic.Id == "ULGHOTFIX002");
+        var diagnostic = Assert.Single(result.ErrorDiagnostics, static diagnostic => diagnostic.Id == "LKNHOTFIX002");
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
     }
 

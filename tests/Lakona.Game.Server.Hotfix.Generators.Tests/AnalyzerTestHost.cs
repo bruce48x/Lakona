@@ -9,17 +9,29 @@ namespace Lakona.Game.Server.Hotfix.Generators.Tests;
 
 internal static class AnalyzerTestHost
 {
-    public static async Task<ImmutableArray<Diagnostic>> RunAsync(string source)
+    public static async Task<ImmutableArray<Diagnostic>> RunAsync(
+        string source,
+        params MetadataReference[] additionalReferences)
     {
         var compilation = CSharpCompilation.Create(
             "AnalyzerTest",
             [CSharpSyntaxTree.ParseText(source)],
-            CreateDefaultReferences(),
+            CreateDefaultReferences().Concat(additionalReferences),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var analyzers = ImmutableArray.Create<DiagnosticAnalyzer>(
             new HotfixActorBoundaryAnalyzer());
         return await compilation.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync().ConfigureAwait(false);
+    }
+
+    public static MetadataReference CreateReference(string assemblyName, string source)
+    {
+        return CSharpCompilation.Create(
+                assemblyName,
+                [CSharpSyntaxTree.ParseText(source)],
+                CreateDefaultReferences(),
+                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary))
+            .ToMetadataReference();
     }
 
     private static MetadataReference[] CreateDefaultReferences()

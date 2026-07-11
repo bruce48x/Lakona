@@ -10,6 +10,14 @@ metadata, and the stable cluster handler provide the cross-node dispatch
 boundary for route lookup, local dispatch, remote dispatch, serialization, and
 actor-call error mapping.
 
+Non-public fields and properties declared by an `Actor<TKey>` are owned by the
+actor's unique `[HotfixBehaviorOf]` class. Diagnostic `LKNHOTFIX031` rejects
+direct access from other classes, including other code in the Hotfix assembly.
+Explicitly public actor state remains available to normal callers. Stable App
+projects should keep actor state `internal` and grant their Hotfix assembly
+`InternalsVisibleTo`; the analyzer supplies the finer type-level restriction
+that C# does not provide.
+
 The generator discovers `[HotfixState]` partial classes and emits generated friend accessors for private fields.
 
 ```csharp

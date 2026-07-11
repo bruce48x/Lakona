@@ -390,7 +390,7 @@ Analyzer rules apply across the actor and hotfix boundary:
 | `ULA001` no self-call | actor kernel |
 | `ULA002` no blocking wait | actor kernel |
 | `ULA003` no discarded call | actor kernel |
-| `ULGHOTFIX011` no actor business methods in stable app | hotfix authoring |
+| `LKNHOTFIX011` no actor business methods in stable app | hotfix authoring |
 
 Future actor isolation or thread-safety rules should live in shared analyzer
 packages when they affect both the kernel and the public game-facing facade.
