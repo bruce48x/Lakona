@@ -18,7 +18,7 @@ internal sealed class HotfixActivateCommand
             throw new CliUsageException("Missing hotfix version.");
         }
 
-        var server = ReadOption(args, "--server") ?? "http://127.0.0.1:20090";
+        var server = ReadOption(args, "--server") ?? "http://127.0.0.1:20080";
         var json = await new HotfixAdminClient().PostAsync(
             server,
             "/_lakona/hotfix/activate",

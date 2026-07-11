@@ -25,7 +25,6 @@ public static class LakonaObservabilityServiceCollectionExtensions
         services.AddLakonaDiagnosticsSnapshotProviders();
         services.AddLakonaDiagnosticsLocalAdminRoutes();
         services.TryAddSingleton<LakonaLocalAdminRouter>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, LakonaLocalAdminHostedService>());
         return services;
     }
 

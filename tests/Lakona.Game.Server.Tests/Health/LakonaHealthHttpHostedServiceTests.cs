@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Net.Sockets;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Health;
+using Lakona.Game.Server.InternalHttp;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -28,7 +29,7 @@ public sealed class LakonaHealthHttpHostedServiceTests
                     }
                 }
             },
-            new LakonaHealthHttpRouter([LakonaHealthHttpRoutes.Live()]),
+            new LakonaHttpRouter([new LakonaHealthHttpRouteAdapter(LakonaHealthHttpRoutes.Live(), true)]),
             NullLogger<LakonaHealthHttpHostedService>.Instance);
 
         await service.StartAsync(TestContext.Current.CancellationToken);
@@ -95,7 +96,7 @@ public sealed class LakonaHealthHttpHostedServiceTests
                     }
                 }
             },
-            new LakonaHealthHttpRouter([LakonaHealthHttpRoutes.Live()]),
+            new LakonaHttpRouter([new LakonaHealthHttpRouteAdapter(LakonaHealthHttpRoutes.Live(), true)]),
             NullLogger<LakonaHealthHttpHostedService>.Instance);
     }
 

@@ -13,7 +13,7 @@ internal sealed class HotfixRollbackCommand
 
     public async Task<int> RunAsync(string[] args, CancellationToken cancellationToken)
     {
-        var server = ReadOption(args, "--server") ?? "http://127.0.0.1:20090";
+        var server = ReadOption(args, "--server") ?? "http://127.0.0.1:20080";
         terminal.WriteLine(await new HotfixAdminClient().PostAsync(server, "/_lakona/hotfix/rollback", new { }, cancellationToken).ConfigureAwait(false));
         return 0;
     }
