@@ -15,7 +15,9 @@ namespace Lakona.Game.Cluster
             string? actorHostPolicyHash = null,
             NodeState? state = null,
             IReadOnlyDictionary<string, string>? labels = null,
-            bool includeExpired = false)
+            bool includeExpired = false,
+            string? startupActorName = null,
+            string? startupActorPolicyHash = null)
         {
             if (string.IsNullOrWhiteSpace(clusterName))
             {
@@ -37,9 +39,28 @@ namespace Lakona.Game.Cluster
                 throw new ArgumentException("Actor host name is required when actor host policy hash is set.", nameof(actorHostName));
             }
 
+            if (startupActorName is not null && string.IsNullOrWhiteSpace(startupActorName))
+            {
+                throw new ArgumentException("Startup actor name cannot be empty.", nameof(startupActorName));
+            }
+
+            if (startupActorPolicyHash is not null && string.IsNullOrWhiteSpace(startupActorPolicyHash))
+            {
+                throw new ArgumentException("Startup actor policy hash cannot be empty.", nameof(startupActorPolicyHash));
+            }
+
+            if (startupActorPolicyHash is not null && startupActorName is null)
+            {
+                throw new ArgumentException(
+                    "Startup actor name is required when startup actor policy hash is set.",
+                    nameof(startupActorName));
+            }
+
             ClusterName = clusterName;
             ActorHostName = actorHostName;
             ActorHostPolicyHash = actorHostPolicyHash;
+            StartupActorName = startupActorName;
+            StartupActorPolicyHash = startupActorPolicyHash;
             State = state;
             Labels = CopyStringDictionary(labels, nameof(labels));
             IncludeExpired = includeExpired;
@@ -50,6 +71,10 @@ namespace Lakona.Game.Cluster
         public string? ActorHostName { get; }
 
         public string? ActorHostPolicyHash { get; }
+
+        public string? StartupActorName { get; }
+
+        public string? StartupActorPolicyHash { get; }
 
         public NodeState? State { get; }
 

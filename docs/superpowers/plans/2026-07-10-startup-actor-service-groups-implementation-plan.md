@@ -109,7 +109,7 @@ await matchmaking
 - Test: `tests/Lakona.Game.Server.Hotfix.Tests/ActorHostBuilderTests.cs`
 - Test: `tests/Lakona.Game.Server.Hotfix.Tests/HotfixBehaviorScannerTests.cs`
 
-- [ ] **Step 1: Write registration red tests**
+- [x] **Step 1: Write registration red tests**
 
 Add tests proving:
 
@@ -120,7 +120,7 @@ builder.RegisterStartup<TestActor, TenantKey>(
 
 produces one declaration with `ActorType == typeof(TestActor)`, `KeyType == typeof(TenantKey)`, and an invokable typed selector. Add duplicate-actor tests even when the second registration uses a different key type. Add scanner tests for duplicates across two `[HotfixStartup]` classes.
 
-- [ ] **Step 2: Run the red tests**
+- [x] **Step 2: Run the red tests**
 
 ```powershell
 dotnet test tests/Lakona.Game.Server.Hotfix.Tests/Lakona.Game.Server.Hotfix.Tests.csproj --no-restore --filter "FullyQualifiedName~ActorHostBuilderTests|FullyQualifiedName~HotfixBehaviorScannerTests"
@@ -128,7 +128,7 @@ dotnet test tests/Lakona.Game.Server.Hotfix.Tests/Lakona.Game.Server.Hotfix.Test
 
 Expected: FAIL because only the named startup API exists.
 
-- [ ] **Step 3: Implement immutable selector inputs**
+- [x] **Step 3: Implement immutable selector inputs**
 
 Use these public shapes:
 
@@ -150,7 +150,7 @@ public sealed record StartupActorSelectionContext<TKey>(
 
 `StartupActorCandidate` copies metadata into an ordinal read-only dictionary and exposes `string NodeId`, `long NodeEpoch`, and metadata. Its constructor rejects blank node ids and negative epochs.
 
-- [ ] **Step 4: Replace builder state and API**
+- [x] **Step 4: Replace builder state and API**
 
 ```csharp
 private readonly HashSet<Type> _startupActors = [];
@@ -171,11 +171,11 @@ public void RegisterStartup<TActor, TKey>(
 
 Delete the named overload and plan/instance types.
 
-- [ ] **Step 5: Update scanner duplicate identity**
+- [x] **Step 5: Update scanner duplicate identity**
 
 Replace startup-name sets with actor-type sets. Diagnostics must name the actor type and both declarations must not enter the snapshot.
 
-- [ ] **Step 6: Run tests and commit**
+- [x] **Step 6: Run tests and commit**
 
 ```powershell
 dotnet test tests/Lakona.Game.Server.Hotfix.Tests/Lakona.Game.Server.Hotfix.Tests.csproj --no-restore --filter "FullyQualifiedName~ActorHostBuilderTests|FullyQualifiedName~HotfixBehaviorScannerTests"
@@ -198,11 +198,11 @@ Expected: PASS; old startup classes and named registration no longer compile any
 - Test: `tests/Lakona.Game.Cluster.Tests/NodeDirectoryModelTests.cs`
 - Test: `tests/Lakona.Game.Cluster.Tests/InMemoryNodeDirectoryTests.cs`
 
-- [ ] **Step 1: Write descriptor and query red tests**
+- [x] **Step 1: Write descriptor and query red tests**
 
 Test constructor copying/validation, `NodeRecord.HasStartupActor`, registration round-trip, and a query that returns only Ready, non-expired nodes advertising the requested startup actor and policy hash. Also prove `ActorHosts` capability alone does not satisfy a Startup query.
 
-- [ ] **Step 2: Run the red tests**
+- [x] **Step 2: Run the red tests**
 
 ```powershell
 dotnet test tests/Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj --no-restore --filter "FullyQualifiedName~NodeDirectoryModelTests|FullyQualifiedName~InMemoryNodeDirectoryTests"
@@ -210,7 +210,7 @@ dotnet test tests/Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj --n
 
 Expected: FAIL because the model has no startup descriptor list.
 
-- [ ] **Step 3: Implement the descriptor**
+- [x] **Step 3: Implement the descriptor**
 
 ```csharp
 public sealed class StartupActorDescriptor
@@ -230,15 +230,15 @@ public sealed class StartupActorDescriptor
 
 Match `NodeActorHostDescriptor` validation and defensive-copy behavior, but keep it a distinct type.
 
-- [ ] **Step 4: Extend node records without conflating capability and readiness**
+- [x] **Step 4: Extend node records without conflating capability and readiness**
 
 Add `IReadOnlyList<StartupActorDescriptor> StartupActors` to `NodeRegistration`, `NodeRecord`, and `ClusterNodeDescriptor`. Add it as a new constructor argument after `actorHosts`; update every construction site explicitly. Provide only constructor delegation needed to keep internal test setup readable; do not preserve a public semantic path that silently drops descriptors.
 
-- [ ] **Step 5: Extend queries**
+- [x] **Step 5: Extend queries**
 
 Add `StartupActorName` and `StartupActorPolicyHash` to `NodeDirectoryQuery`, require name when hash is set, and update in-memory matching. Query results remain stably ordered by callers, not by the directory.
 
-- [ ] **Step 6: Run tests and commit**
+- [x] **Step 6: Run tests and commit**
 
 ```powershell
 dotnet test tests/Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj --no-restore --filter "FullyQualifiedName~NodeDirectoryModelTests|FullyQualifiedName~InMemoryNodeDirectoryTests"

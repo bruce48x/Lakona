@@ -162,6 +162,60 @@ public sealed class InMemoryNodeDirectoryTests
     }
 
     [Fact]
+    public async Task StartupQueryReturnsOnlyReadyUnexpiredAdvertisedReplicas()
+    {
+        var directory = new InMemoryNodeDirectory();
+        var now = DateTimeOffset.UtcNow;
+        var startup = new StartupActorDescriptor("matchmaking", "policy-1", "build-1");
+
+        await directory.RegisterAsync(
+            TestRegistration(
+                "local",
+                "ready-replica",
+                now,
+                actorHosts: [new NodeActorHostDescriptor("matchmaking", "host-policy", "build-1")],
+                startupActors: [startup]),
+            now,
+            TestContext.Current.CancellationToken);
+        await directory.RegisterAsync(
+            TestRegistration(
+                "local",
+                "capability-only",
+                now,
+                actorHosts: [new NodeActorHostDescriptor("matchmaking", "host-policy", "build-1")]),
+            now,
+            TestContext.Current.CancellationToken);
+        await directory.RegisterAsync(
+            TestRegistration(
+                "local",
+                "starting-replica",
+                now,
+                startupActors: [startup],
+                state: NodeState.Starting),
+            now,
+            TestContext.Current.CancellationToken);
+        await directory.RegisterAsync(
+            TestRegistration(
+                "local",
+                "expired-replica",
+                now.AddMinutes(-2),
+                startupActors: [startup]),
+            now.AddMinutes(-2),
+            TestContext.Current.CancellationToken);
+
+        var records = await directory.QueryAsync(
+            new NodeDirectoryQuery(
+                "local",
+                startupActorName: "matchmaking",
+                startupActorPolicyHash: "policy-1"),
+            now,
+            TestContext.Current.CancellationToken);
+
+        var record = Assert.Single(records);
+        Assert.Equal("ready-replica", record.NodeId.Value);
+    }
+
+    [Fact]
     public async Task ExpireMarksExpiredNodesDead()
     {
         var directory = new InMemoryNodeDirectory();
@@ -308,7 +362,9 @@ public sealed class InMemoryNodeDirectoryTests
         string nodeId,
         DateTimeOffset now,
         string role = "gateway",
-        IReadOnlyList<NodeActorHostDescriptor>? actorHosts = null)
+        IReadOnlyList<NodeActorHostDescriptor>? actorHosts = null,
+        IReadOnlyList<StartupActorDescriptor>? startupActors = null,
+        NodeState state = NodeState.Ready)
     {
         return new NodeRegistration(
             clusterName,
@@ -318,8 +374,9 @@ public sealed class InMemoryNodeDirectoryTests
                 ["cluster"] = new NodeEndpoint($"tcp://127.0.0.1:{21000 + Math.Abs(nodeId.GetHashCode() % 1000)}")
             },
             actorHosts ?? Array.Empty<NodeActorHostDescriptor>(),
+            startupActors ?? Array.Empty<StartupActorDescriptor>(),
             now.AddSeconds(30),
-            NodeState.Ready,
+            state,
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 ["role"] = role

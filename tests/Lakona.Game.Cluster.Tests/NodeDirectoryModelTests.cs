@@ -48,6 +48,65 @@ public sealed class NodeDirectoryModelTests
     }
 
     [Fact]
+    public void StartupActorDescriptorValidatesAndCopiesMetadata()
+    {
+        Assert.Throws<ArgumentException>(() => new StartupActorDescriptor(" ", "policy-a", "build-a"));
+        Assert.Throws<ArgumentException>(() => new StartupActorDescriptor("matchmaking", " ", "build-a"));
+        Assert.Throws<ArgumentException>(() => new StartupActorDescriptor("matchmaking", "policy-a", " "));
+        var metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Region"] = "east",
+        };
+
+        var descriptor = new StartupActorDescriptor("matchmaking", "policy-a", "build-a", metadata);
+        metadata["Region"] = "west";
+
+        Assert.Equal("east", descriptor.Metadata["Region"]);
+        Assert.False(descriptor.Metadata.ContainsKey("region"));
+    }
+
+    [Fact]
+    public void NodeRegistrationAndRecordPreserveReadyStartupActors()
+    {
+        var startup = new StartupActorDescriptor("matchmaking", "policy-a", "build-a");
+        var registration = new NodeRegistration(
+            "game",
+            new NodeId("data-1"),
+            new Dictionary<string, NodeEndpoint>
+            {
+                ["cluster"] = new NodeEndpoint("tcp://127.0.0.1:21001")
+            },
+            [new NodeActorHostDescriptor("matchmaking", "host-policy", "build-a")],
+            [startup],
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            NodeState.Ready);
+        var record = new NodeRecord(
+            registration.ClusterName,
+            registration.NodeId,
+            7,
+            registration.Endpoints,
+            registration.ActorHosts,
+            registration.StartupActors,
+            registration.Labels,
+            registration.State,
+            registration.LeaseExpiresAt,
+            DateTimeOffset.UtcNow);
+
+        Assert.Same(startup, Assert.Single(registration.StartupActors));
+        Assert.True(record.HasStartupActor("matchmaking", "policy-a"));
+        Assert.False(record.HasStartupActor("matchmaking", "other-policy"));
+        var descriptor = ClusterNodeDescriptor.FromRecord(record);
+        Assert.Equal("matchmaking", Assert.Single(descriptor.StartupActors).Actor);
+    }
+
+    [Fact]
+    public void StartupActorQueryRequiresNameWhenPolicyHashIsSet()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            new NodeDirectoryQuery("game", startupActorPolicyHash: "policy-a"));
+    }
+
+    [Fact]
     public void NodeRegistrationAllowsActorHosts()
     {
         var registration = new NodeRegistration(

@@ -12,11 +12,23 @@ namespace Lakona.Game.Cluster
             IReadOnlyDictionary<string, NodeEndpoint> endpoints,
             IReadOnlyList<NodeActorHostDescriptor>? actorHosts = null,
             IReadOnlyDictionary<string, string>? labels = null)
+            : this(node, state, endpoints, actorHosts, Array.Empty<StartupActorDescriptor>(), labels)
+        {
+        }
+
+        public ClusterNodeDescriptor(
+            NodeId node,
+            NodeState state,
+            IReadOnlyDictionary<string, NodeEndpoint> endpoints,
+            IReadOnlyList<NodeActorHostDescriptor>? actorHosts,
+            IReadOnlyList<StartupActorDescriptor> startupActors,
+            IReadOnlyDictionary<string, string>? labels = null)
         {
             Node = node;
             State = state;
             Endpoints = CopyEndpoints(endpoints);
             ActorHosts = CopyActorHosts(actorHosts ?? Array.Empty<NodeActorHostDescriptor>());
+            StartupActors = CopyStartupActors(startupActors);
             Labels = CopyLabels(labels);
         }
 
@@ -27,6 +39,8 @@ namespace Lakona.Game.Cluster
         public IReadOnlyDictionary<string, NodeEndpoint> Endpoints { get; }
 
         public IReadOnlyList<NodeActorHostDescriptor> ActorHosts { get; }
+
+        public IReadOnlyList<StartupActorDescriptor> StartupActors { get; }
 
         public IReadOnlyDictionary<string, string> Labels { get; }
 
@@ -42,6 +56,7 @@ namespace Lakona.Game.Cluster
                 record.State,
                 record.Endpoints,
                 record.ActorHosts,
+                record.StartupActors,
                 record.Labels);
         }
 
@@ -61,6 +76,17 @@ namespace Lakona.Game.Cluster
             IReadOnlyList<NodeActorHostDescriptor> actorHosts)
         {
             return new ReadOnlyCollection<NodeActorHostDescriptor>(new List<NodeActorHostDescriptor>(actorHosts));
+        }
+
+        private static IReadOnlyList<StartupActorDescriptor> CopyStartupActors(
+            IReadOnlyList<StartupActorDescriptor> startupActors)
+        {
+            if (startupActors is null)
+            {
+                throw new ArgumentNullException(nameof(startupActors));
+            }
+
+            return new ReadOnlyCollection<StartupActorDescriptor>(new List<StartupActorDescriptor>(startupActors));
         }
 
         private static IReadOnlyDictionary<string, string> CopyLabels(
