@@ -9,10 +9,10 @@ internal sealed class HotfixRenderer : IPlanContributor
     public void AddFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
         builder.AddFile("Server/Hotfix/Server.Hotfix.csproj", RenderProject(spec), FileWriteMode.Replace, GeneratedFileKind.Project);
-        builder.AddFile("Server/Hotfix/Login/LoginService.cs", RenderLoginService(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Server/Hotfix/Chat/ChatService.cs", RenderChatService(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Server/Hotfix/Chat/ChatSessionLifecycle.cs", RenderChatSessionLifecycle(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Server/Hotfix/Chat/ChatRoomBehavior.cs", RenderChatRoomBehavior(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Server/Hotfix/Game/GameService.cs", RenderGameService(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Server/Hotfix/Game/GameSessionLifecycle.cs", RenderGameSessionLifecycle(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Server/Hotfix/Game/GameWorldBehavior.cs", RenderGameWorldBehavior(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Server/Hotfix/Game/GameWorldTimer.cs", RenderGameWorldTimer(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/Hotfix/HotfixStartup.cs", RenderHotfixStartup(), FileWriteMode.Replace, GeneratedFileKind.Text);
     }
 
@@ -54,17 +54,9 @@ internal sealed class HotfixRenderer : IPlanContributor
             <PropertyGroup>
               <LakonaHotfixOutputDir>$(ProjectDir)..\App\bin\$(Configuration)\$(TargetFramework)\hotfix\</LakonaHotfixOutputDir>
             </PropertyGroup>
-            <Copy
-              SourceFiles="$(TargetPath)"
-              DestinationFolder="$(LakonaHotfixOutputDir)" />
-            <Copy
-              SourceFiles="$(TargetDir)$(AssemblyName).pdb"
-              DestinationFolder="$(LakonaHotfixOutputDir)"
-              Condition="Exists('$(TargetDir)$(AssemblyName).pdb')" />
-            <Copy
-              SourceFiles="$(ProjectDepsFilePath)"
-              DestinationFolder="$(LakonaHotfixOutputDir)"
-              Condition="Exists('$(ProjectDepsFilePath)')" />
+            <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(LakonaHotfixOutputDir)" />
+            <Copy SourceFiles="$(TargetDir)$(AssemblyName).pdb" DestinationFolder="$(LakonaHotfixOutputDir)" Condition="Exists('$(TargetDir)$(AssemblyName).pdb')" />
+            <Copy SourceFiles="$(ProjectDepsFilePath)" DestinationFolder="$(LakonaHotfixOutputDir)" Condition="Exists('$(ProjectDepsFilePath)')" />
             <WriteLinesToFile
               File="$(LakonaHotfixOutputDir)reload.signal"
               Lines="{ &quot;assembly&quot;: &quot;$(TargetFileName)&quot;, &quot;builtAtUtc&quot;: &quot;$([System.DateTime]::UtcNow.ToString('O'))&quot; }"
@@ -74,262 +66,168 @@ internal sealed class HotfixRenderer : IPlanContributor
         """;
     }
 
-    private static string RenderLoginService()
+    private static string RenderGameService()
     {
         return """
-        using System;
         using Lakona.Game.Server;
-        using Server.App.Chat;
-        using Server.Hotfix.Chat;
-        using Shared.Contracts.Chat;
         using Lakona.Game.Server.Hotfix;
         using Lakona.Game.Server.Hotfix.Abstractions;
+        using Server.App.Game;
+        using Shared.Contracts.Game;
 
-        namespace Server.Hotfix.Login
+        namespace Server.Hotfix.Game
         {
-            [HotfixService(typeof(ILoginService))]
-            internal sealed class LoginService
+            [HotfixService(typeof(IGameService))]
+            internal sealed class GameService
             {
-                private readonly ChatRoomActors _rooms;
+                private readonly GameWorldActors _worlds;
                 private readonly ILakonaGameServer _gameServer;
 
-                public LoginService(ChatRoomActors rooms, ILakonaGameServer gameServer)
+                public GameService(GameWorldActors worlds, ILakonaGameServer gameServer)
                 {
-                    _rooms = rooms;
+                    _worlds = worlds;
                     _gameServer = gameServer;
                 }
 
-                public async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, ILoginCallback> call)
+                public async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, IGameCallback> call)
                 {
-                    var playerName = string.IsNullOrWhiteSpace(call.Request.PlayerName)
-                        ? "Player"
-                        : call.Request.PlayerName.Trim();
-                    var reply = await _rooms
-                        .Startup(ChatRoomIds.Global)
+                    var playerName = call.Request.PlayerName?.Trim() ?? "";
+                    if (playerName.Length is < 1 or > 20)
+                    {
+                        return new LoginReply { Success = false, Error = "Name must contain 1 to 20 characters." };
+                    }
+
+                    var reply = await _worlds
+                        .Startup(GameWorldIds.Global)
                         .CallAsync(
-                            ChatRoomBehavior.LoginAsync,
-                            new ChatRoomLoginRequest
+                            GameWorldBehavior.LoginAsync,
+                            new GameLoginRequest
                             {
                                 ConnectionId = call.ConnectionId,
                                 PlayerName = playerName,
-                                LoginCallback = call.Callback
+                                Callback = call.Callback
                             },
                             CancellationToken.None);
-                    await _gameServer.StartSessionAsync(
-                        playerName,
-                        call.ConnectionId,
-                        call.Callback);
+                    if (!reply.Success)
+                    {
+                        return reply;
+                    }
+
+                    try
+                    {
+                        await _gameServer.StartSessionAsync(playerName, call.ConnectionId, call.Callback);
+                    }
+                    catch
+                    {
+                        await DisconnectAsync(call.ConnectionId);
+                        throw;
+                    }
+
                     return reply;
                 }
-            }
-        }
-        """;
-    }
 
-    private static string RenderChatService()
-    {
-        return """
-        using System;
-        using Lakona.Game.Server;
-        using Server.App.Chat;
-        using Shared.Contracts.Chat;
-        using Lakona.Game.Server.Hotfix;
-        using Lakona.Game.Server.Hotfix.Abstractions;
-        using Microsoft.Extensions.Logging;
-
-        namespace Server.Hotfix.Chat
-        {
-            [HotfixService(typeof(IChatService))]
-            internal sealed class ChatService
-            {
-                private readonly ChatRoomActors _rooms;
-                private readonly ILakonaGameServer _gameServer;
-                private readonly ILogger<ChatService> _logger;
-
-                public ChatService(ChatRoomActors rooms, ILakonaGameServer gameServer, ILogger<ChatService> logger)
+                public ValueTask SubmitInputAsync(HotfixServiceCall<PlayerInput, IGameCallback> call)
                 {
-                    _rooms = rooms;
-                    _gameServer = gameServer;
-                    _logger = logger;
-                }
-
-                public async ValueTask BindAsync(HotfixServiceCall<ChatBindRequest, IChatCallback> call)
-                {
-                    await _gameServer.BindCurrentSessionAsync(
-                        call.ConnectionId,
-                        call.Callback);
-                    await BindChatCallbackAsync(call.ConnectionId, call.Callback);
-                }
-
-                public async ValueTask SendAsync(HotfixServiceCall<ChatSendRequest, IChatCallback> call)
-                {
-                    var text = call.Request.Text ?? "";
-                    _logger.LogInformation("Sending {CharacterCount} characters", text.Length);
-                    await BindChatCallbackAsync(call.ConnectionId, call.Callback);
-                    await _rooms
-                        .Startup(ChatRoomIds.Global)
-                        .CallAsync(
-                            ChatRoomBehavior.SendAsync,
-                            new ChatRoomSendRequest
+                    return _worlds
+                        .Startup(GameWorldIds.Global)
+                        .PostAsync(
+                            GameWorldBehavior.SubmitInputAsync,
+                            new GameInputRequest
                             {
                                 ConnectionId = call.ConnectionId,
-                                Text = FilterMessage(text)
+                                DirectionX = call.Request.DirectionX,
+                                DirectionY = call.Request.DirectionY
                             },
                             CancellationToken.None);
                 }
 
-                private async ValueTask BindChatCallbackAsync(string connectionId, IChatCallback callback)
+                public ValueTask<WorldSnapshot> GetWorldAsync(HotfixServiceCall<WorldQuery, IGameCallback> call)
                 {
-                    await _rooms
-                        .Startup(ChatRoomIds.Global)
+                    return _worlds
+                        .Startup(GameWorldIds.Global)
                         .CallAsync(
-                            ChatRoomBehavior.BindChatAsync,
-                            new ChatRoomBindRequest
-                            {
-                                ConnectionId = connectionId,
-                                ChatCallback = callback
-                            },
+                            GameWorldBehavior.GetWorldAsync,
+                            new GameSnapshotRequest(),
                             CancellationToken.None);
                 }
 
-                private static string FilterMessage(string text)
+                private ValueTask DisconnectAsync(string connectionId)
                 {
-                    if (string.IsNullOrWhiteSpace(text))
-                    {
-                        return "<empty>";
-                    }
-
-                    var filtered = text.Length > 500 ? text[..500] : text;
-                    filtered = filtered.Replace("badword", "***", StringComparison.OrdinalIgnoreCase);
-                    return filtered;
+                    return _worlds
+                        .Startup(GameWorldIds.Global)
+                        .PostAsync(
+                            GameWorldBehavior.DisconnectAsync,
+                            new GameDisconnectRequest { ConnectionId = connectionId },
+                            CancellationToken.None);
                 }
             }
         }
         """;
     }
 
-    private static string RenderChatRoomBehavior()
+    private static string RenderGameSessionLifecycle()
     {
         return """
-        using System;
-        using System.Linq;
-        using Server.App.Chat;
-        using Shared.Contracts.Chat;
+        using Lakona.Game.Server.Hotfix;
         using Lakona.Game.Server.Hotfix.Abstractions;
+        using Microsoft.Extensions.DependencyInjection;
+        using Server.App.Game;
 
-        namespace Server.Hotfix.Chat
+        namespace Server.Hotfix.Game
         {
-            [HotfixBehaviorOf(typeof(ChatRoomActor))]
-            internal static partial class ChatRoomBehavior
+            [HotfixLifecycle(typeof(IGameSessionLifecycle))]
+            internal sealed class GameSessionLifecycle
             {
-                public static ValueTask<LoginReply> LoginAsync(
-                    this ChatRoomActor self,
-                    ChatRoomLoginRequest request,
-                    CancellationToken cancellationToken = default)
+                public static ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
                 {
-                    _ = cancellationToken;
-                    var member = new ChatMember { Name = request.PlayerName };
-                    self.Members[request.ConnectionId] = new ChatRoomMember(request.PlayerName, request.LoginCallback, null);
-
-                    BroadcastLogin(self, callback => callback.OnUserJoined(member));
-
-                    return new ValueTask<LoginReply>(new LoginReply
-                    {
-                        Members = self.Members.Values.Select(value => new ChatMember { Name = value.Name }).ToList(),
-                        RecentMessages = self.RecentMessages.ToList()
-                    });
-                }
-
-                public static ValueTask BindChatAsync(
-                    this ChatRoomActor self,
-                    ChatRoomBindRequest request,
-                    CancellationToken cancellationToken = default)
-                {
-                    _ = cancellationToken;
-                    if (self.Members.TryGetValue(request.ConnectionId, out var entry))
-                    {
-                        self.Members[request.ConnectionId] = entry with { ChatCallback = request.ChatCallback };
-                    }
-
-                    return default;
-                }
-
-                public static ValueTask SendAsync(
-                    this ChatRoomActor self,
-                    ChatRoomSendRequest request,
-                    CancellationToken cancellationToken = default)
-                {
-                    _ = cancellationToken;
-                    if (!self.Members.TryGetValue(request.ConnectionId, out var entry))
+                    if (string.IsNullOrWhiteSpace(call.Request.ConnectionId))
                     {
                         return default;
                     }
 
-                    var msg = new ChatMessage
-                    {
-                        SenderName = entry.Name,
-                        Text = request.Text,
-                        Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
-                    };
+                    return call.Services
+                        .GetRequiredService<GameWorldActors>()
+                        .Startup(GameWorldIds.Global)
+                        .PostAsync(
+                            GameWorldBehavior.DisconnectAsync,
+                            new GameDisconnectRequest { ConnectionId = call.Request.ConnectionId },
+                            CancellationToken.None);
+                }
 
-                    self.RecentMessages.Enqueue(msg);
-                    while (self.RecentMessages.Count > ChatRoomActor.MaxRecentMessages)
-                    {
-                        self.RecentMessages.Dequeue();
-                    }
-
-                    BroadcastChat(self, callback => callback.OnMessageReceived(msg));
+                public static ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call)
+                {
+                    // Player state intentionally remains in this in-memory world for name-based reconnects.
                     return default;
                 }
+            }
+        }
+        """;
+    }
 
-                public static ValueTask LeaveAsync(
-                    this ChatRoomActor self,
-                    ChatRoomLeaveRequest request,
-                    CancellationToken cancellationToken = default)
+    private static string RenderGameWorldTimer()
+    {
+        return """
+        using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+        using Microsoft.Extensions.DependencyInjection;
+        using Server.App.Game;
+
+        namespace Server.Hotfix.Game
+        {
+            public sealed class GameWorldTimerArgs
+            {
+            }
+
+            public sealed class GameWorldTimerCallbacks
+            {
+                public static ValueTask TickAsync(TimerTick<GameWorldTimerArgs> tick)
                 {
-                    _ = cancellationToken;
-                    if (!self.Members.Remove(request.ConnectionId, out var entry))
-                    {
-                        return default;
-                    }
-
-                    BroadcastLogin(self, callback => callback.OnUserLeft(new ChatUserLeft { Name = entry.Name }));
-                    return default;
-                }
-
-                private static void BroadcastLogin(ChatRoomActor self, Action<ILoginCallback> action)
-                {
-                    foreach (var entry in self.Members.Values)
-                    {
-                        try
-                        {
-                            action(entry.LoginCallback);
-                        }
-                        catch (Exception)
-                        {
-                            // Callback exceptions are ignored so one stale client does not prevent other clients from receiving room events.
-                        }
-                    }
-                }
-
-                private static void BroadcastChat(ChatRoomActor self, Action<IChatCallback> action)
-                {
-                    foreach (var entry in self.Members.Values)
-                    {
-                        if (entry.ChatCallback is null)
-                        {
-                            continue;
-                        }
-
-                        try
-                        {
-                            action(entry.ChatCallback);
-                        }
-                        catch (Exception)
-                        {
-                            // Callback exceptions are ignored so one stale client does not prevent other clients from receiving room events.
-                        }
-                    }
+                    return tick.Services
+                        .GetRequiredService<GameWorldActors>()
+                        .Startup(GameWorldIds.Global)
+                        .PostAsync(
+                            GameWorldBehavior.TickAsync,
+                            new GameTickRequest(),
+                            tick.CancellationToken);
                 }
             }
         }
@@ -339,10 +237,10 @@ internal sealed class HotfixRenderer : IPlanContributor
     private static string RenderHotfixStartup()
     {
         return """
-        using Server.App.Chat;
         using Lakona.Game.Server.Actors;
         using Lakona.Game.Server.Hotfix.Abstractions;
         using Microsoft.Extensions.DependencyInjection;
+        using Server.App.Game;
 
         namespace Server.Hotfix
         {
@@ -357,56 +255,426 @@ internal sealed class HotfixRenderer : IPlanContributor
                 [HotfixConfigureActors]
                 public static void ConfigureActors(ActorHostBuilder actors)
                 {
-                    actors.RegisterStartup<ChatRoomActor, string>(
-                        static context => context.Candidates[0]);
+                    actors.RegisterStartup<GameWorldActor, string>(static context => context.Candidates[0]);
                 }
             }
         }
         """;
     }
 
-    private static string RenderChatSessionLifecycle()
+    private static string RenderGameWorldBehavior()
     {
         return """
-        using Server.App.Chat;
-        using Lakona.Game.Server.Hotfix;
         using Lakona.Game.Server.Hotfix.Abstractions;
+        using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+        using Server.App.Game;
+        using Shared.Contracts.Game;
 
-        namespace Server.Hotfix.Chat
+        namespace Server.Hotfix.Game
         {
-            [HotfixLifecycle(typeof(IGameSessionLifecycle))]
-            internal sealed class ChatSessionLifecycle
+            [HotfixBehaviorOf(typeof(GameWorldActor))]
+            internal static partial class GameWorldBehavior
             {
-                private readonly ChatRoomActors _rooms;
-
-                public ChatSessionLifecycle(ChatRoomActors rooms)
+                public static async ValueTask<LoginReply> LoginAsync(
+                    this GameWorldActor self,
+                    GameLoginRequest request,
+                    CancellationToken cancellationToken = default)
                 {
-                    _rooms = rooms;
+                    await EnsureSimulationTimerAsync(self, cancellationToken);
+
+                    if (self.PlayersByConnection.ContainsKey(request.ConnectionId))
+                    {
+                        return new LoginReply { Success = false, Error = "This connection is already logged in." };
+                    }
+
+                    if (self.PlayersByName.TryGetValue(request.PlayerName, out var player))
+                    {
+                        if (player.IsOnline)
+                        {
+                            return new LoginReply { Success = false, Error = "That name is already in use." };
+                        }
+                    }
+                    else
+                    {
+                        player = CreatePlayer(self, request.PlayerName);
+                        self.PlayersByName.Add(player.Name, player);
+                    }
+
+                    player.ConnectionId = request.ConnectionId;
+                    player.Callback = request.Callback;
+                    player.IsOnline = true;
+                    player.InputX = 0f;
+                    player.InputY = 0f;
+                    self.PlayersByConnection[request.ConnectionId] = player;
+
+                    var snapshot = BuildSnapshot(self);
+                    Broadcast(self, snapshot);
+                    return new LoginReply
+                    {
+                        Success = true,
+                        PlayerId = player.PlayerId,
+                        World = snapshot
+                    };
                 }
 
-                public ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
+                public static ValueTask SubmitInputAsync(
+                    this GameWorldActor self,
+                    GameInputRequest request,
+                    CancellationToken cancellationToken = default)
                 {
-                    // Disconnected sessions stay in the room during the retention window so a client can reconnect without flickering presence.
+                    _ = cancellationToken;
+                    if (!self.PlayersByConnection.TryGetValue(request.ConnectionId, out var player) ||
+                        !player.IsOnline ||
+                        !player.IsAlive)
+                    {
+                        return default;
+                    }
+
+                    var length = MathF.Sqrt(request.DirectionX * request.DirectionX + request.DirectionY * request.DirectionY);
+                    if (length > 1f)
+                    {
+                        request.DirectionX /= length;
+                        request.DirectionY /= length;
+                    }
+
+                    player.InputX = request.DirectionX;
+                    player.InputY = request.DirectionY;
+                    if (length > 0.001f)
+                    {
+                        player.DirectionX = request.DirectionX;
+                        player.DirectionY = request.DirectionY;
+                    }
+
                     return default;
                 }
 
-                public async ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call)
+                public static ValueTask DisconnectAsync(
+                    this GameWorldActor self,
+                    GameDisconnectRequest request,
+                    CancellationToken cancellationToken = default)
                 {
-                    var connectionId = call.Request.ConnectionId;
-                    if (string.IsNullOrWhiteSpace(connectionId))
+                    _ = cancellationToken;
+                    if (!self.PlayersByConnection.Remove(request.ConnectionId, out var player) ||
+                        !string.Equals(player.ConnectionId, request.ConnectionId, StringComparison.Ordinal))
+                    {
+                        return default;
+                    }
+
+                    player.IsOnline = false;
+                    player.ConnectionId = "";
+                    player.Callback = null;
+                    player.InputX = 0f;
+                    player.InputY = 0f;
+                    Broadcast(self, BuildSnapshot(self));
+                    return default;
+                }
+
+                public static ValueTask<WorldSnapshot> GetWorldAsync(
+                    this GameWorldActor self,
+                    GameSnapshotRequest request,
+                    CancellationToken cancellationToken = default)
+                {
+                    _ = request;
+                    _ = cancellationToken;
+                    return new ValueTask<WorldSnapshot>(BuildSnapshot(self));
+                }
+
+                public static ValueTask TickAsync(
+                    this GameWorldActor self,
+                    GameTickRequest request,
+                    CancellationToken cancellationToken = default)
+                {
+                    _ = request;
+                    _ = cancellationToken;
+                    self.Tick++;
+                    self.SimulationSeconds += GameRules.SimulationStepSeconds;
+
+                    UpdatePlayers(self);
+                    SpawnMonsterIfDue(self);
+                    UpdateMonsters(self);
+                    UpdateBullets(self);
+
+                    return default;
+                }
+
+                private static PlayerState CreatePlayer(GameWorldActor self, string name)
+                {
+                    var id = self.NextPlayerId++;
+                    var position = SpawnPosition(id);
+                    return new PlayerState
+                    {
+                        PlayerId = id,
+                        Name = name,
+                        X = position.X,
+                        Y = position.Y,
+                        NextShotSeconds = self.SimulationSeconds + GameRules.ShotIntervalSeconds
+                    };
+                }
+
+                private static void UpdatePlayers(GameWorldActor self)
+                {
+                    foreach (var player in self.PlayersByName.Values)
+                    {
+                        if (!player.IsAlive)
+                        {
+                            if (self.SimulationSeconds >= player.RespawnAtSeconds)
+                            {
+                                var position = SpawnPosition(player.PlayerId + self.Tick);
+                                player.X = position.X;
+                                player.Y = position.Y;
+                                player.Health = GameRules.PlayerMaxHealth;
+                                player.IsAlive = true;
+                                player.NextShotSeconds = self.SimulationSeconds + GameRules.ShotIntervalSeconds;
+                            }
+
+                            continue;
+                        }
+
+                        if (!player.IsOnline)
+                        {
+                            continue;
+                        }
+
+                        player.X = Math.Clamp(
+                            player.X + player.InputX * GameRules.PlayerSpeed * GameRules.SimulationStepSeconds,
+                            0.5f,
+                            GameRules.WorldWidth - 0.5f);
+                        player.Y = Math.Clamp(
+                            player.Y + player.InputY * GameRules.PlayerSpeed * GameRules.SimulationStepSeconds,
+                            0.5f,
+                            GameRules.WorldHeight - 0.5f);
+
+                        if (self.SimulationSeconds >= player.NextShotSeconds)
+                        {
+                            player.NextShotSeconds = self.SimulationSeconds + GameRules.ShotIntervalSeconds;
+                            self.Bullets.Add(new BulletState
+                            {
+                                BulletId = self.NextBulletId++,
+                                OwnerPlayerId = player.PlayerId,
+                                X = player.X + player.DirectionX * 0.6f,
+                                Y = player.Y + player.DirectionY * 0.6f,
+                                DirectionX = player.DirectionX,
+                                DirectionY = player.DirectionY
+                            });
+                        }
+                    }
+                }
+
+                private static void SpawnMonsterIfDue(GameWorldActor self)
+                {
+                    if (self.SimulationSeconds < self.NextMonsterSpawnSeconds ||
+                        self.Monsters.Count >= GameRules.MaxMonsters ||
+                        !self.PlayersByName.Values.Any(static player => player.IsOnline && player.IsAlive))
                     {
                         return;
                     }
 
-                    await _rooms
-                        .Startup(ChatRoomIds.Global)
-                        .CallAsync(
-                            ChatRoomBehavior.LeaveAsync,
-                            new ChatRoomLeaveRequest
+                    self.NextMonsterSpawnSeconds = self.SimulationSeconds + GameRules.MonsterSpawnIntervalSeconds;
+                    var id = self.NextMonsterId++;
+                    var edge = (int)(id % 4);
+                    var fraction = ((id * 37) % 100) / 100f;
+                    var monster = new MonsterState { MonsterId = id };
+                    switch (edge)
+                    {
+                        case 0: monster.X = 0.3f; monster.Y = fraction * GameRules.WorldHeight; break;
+                        case 1: monster.X = GameRules.WorldWidth - 0.3f; monster.Y = fraction * GameRules.WorldHeight; break;
+                        case 2: monster.X = fraction * GameRules.WorldWidth; monster.Y = 0.3f; break;
+                        default: monster.X = fraction * GameRules.WorldWidth; monster.Y = GameRules.WorldHeight - 0.3f; break;
+                    }
+
+                    self.Monsters.Add(monster);
+                }
+
+                private static void UpdateMonsters(GameWorldActor self)
+                {
+                    foreach (var monster in self.Monsters)
+                    {
+                        var target = self.PlayersByName.Values
+                            .Where(static player => player.IsOnline && player.IsAlive)
+                            .OrderBy(player => DistanceSquared(monster.X, monster.Y, player.X, player.Y))
+                            .FirstOrDefault();
+                        if (target is null)
+                        {
+                            continue;
+                        }
+
+                        var dx = target.X - monster.X;
+                        var dy = target.Y - monster.Y;
+                        var distance = MathF.Sqrt(dx * dx + dy * dy);
+                        if (distance > 0.001f)
+                        {
+                            var step = MathF.Min(distance, GameRules.MonsterSpeed * GameRules.SimulationStepSeconds);
+                            monster.X += dx / distance * step;
+                            monster.Y += dy / distance * step;
+                        }
+
+                        if (distance <= 0.85f && self.SimulationSeconds >= monster.NextAttackSeconds)
+                        {
+                            monster.NextAttackSeconds = self.SimulationSeconds + GameRules.MonsterAttackIntervalSeconds;
+                            DamagePlayer(self, target, GameRules.MonsterContactDamage, 0);
+                        }
+                    }
+                }
+
+                private static void UpdateBullets(GameWorldActor self)
+                {
+                    for (var index = self.Bullets.Count - 1; index >= 0; index--)
+                    {
+                        var bullet = self.Bullets[index];
+                        bullet.X += bullet.DirectionX * GameRules.BulletSpeed * GameRules.SimulationStepSeconds;
+                        bullet.Y += bullet.DirectionY * GameRules.BulletSpeed * GameRules.SimulationStepSeconds;
+                        bullet.RemainingSeconds -= GameRules.SimulationStepSeconds;
+                        if (bullet.RemainingSeconds <= 0f ||
+                            bullet.X < 0f || bullet.X > GameRules.WorldWidth ||
+                            bullet.Y < 0f || bullet.Y > GameRules.WorldHeight)
+                        {
+                            self.Bullets.RemoveAt(index);
+                            continue;
+                        }
+
+                        var hitMonster = self.Monsters.FirstOrDefault(monster =>
+                            DistanceSquared(bullet.X, bullet.Y, monster.X, monster.Y) <= 0.35f);
+                        if (hitMonster is not null)
+                        {
+                            hitMonster.Health -= GameRules.BulletDamage;
+                            self.Bullets.RemoveAt(index);
+                            if (hitMonster.Health <= 0)
                             {
-                                ConnectionId = connectionId
-                            },
-                            CancellationToken.None);
+                                self.Monsters.Remove(hitMonster);
+                                FindPlayer(self, bullet.OwnerPlayerId)?.Score += GameRules.MonsterKillScore;
+                            }
+
+                            continue;
+                        }
+
+                        var hitPlayer = self.PlayersByName.Values.FirstOrDefault(player =>
+                            player.IsOnline && player.IsAlive && player.PlayerId != bullet.OwnerPlayerId &&
+                            DistanceSquared(bullet.X, bullet.Y, player.X, player.Y) <= 0.36f);
+                        if (hitPlayer is not null)
+                        {
+                            DamagePlayer(self, hitPlayer, GameRules.BulletDamage, bullet.OwnerPlayerId);
+                            self.Bullets.RemoveAt(index);
+                        }
+                    }
+                }
+
+                private static void DamagePlayer(GameWorldActor self, PlayerState victim, int damage, long attackerPlayerId)
+                {
+                    victim.Health = Math.Max(0, victim.Health - damage);
+                    if (victim.Health > 0)
+                    {
+                        return;
+                    }
+
+                    victim.IsAlive = false;
+                    victim.InputX = 0f;
+                    victim.InputY = 0f;
+                    victim.RespawnAtSeconds = self.SimulationSeconds + GameRules.RespawnDelaySeconds;
+                    var halfScore = (victim.Score + 1) / 2;
+                    victim.Score = halfScore;
+                    if (attackerPlayerId != 0 && FindPlayer(self, attackerPlayerId) is { } attacker)
+                    {
+                        attacker.Score += halfScore;
+                    }
+                }
+
+                private static PlayerState? FindPlayer(GameWorldActor self, long playerId)
+                {
+                    return self.PlayersByName.Values.FirstOrDefault(player => player.PlayerId == playerId);
+                }
+
+                private static WorldSnapshot BuildSnapshot(GameWorldActor self)
+                {
+                    return new WorldSnapshot
+                    {
+                        Tick = self.Tick,
+                        Width = GameRules.WorldWidth,
+                        Height = GameRules.WorldHeight,
+                        Players = self.PlayersByName.Values
+                            .Where(static player => player.IsOnline)
+                            .OrderBy(static player => player.PlayerId)
+                            .Select(player => new PlayerSnapshot
+                            {
+                                PlayerId = player.PlayerId,
+                                Name = player.Name,
+                                X = player.X,
+                                Y = player.Y,
+                                DirectionX = player.DirectionX,
+                                DirectionY = player.DirectionY,
+                                Health = player.Health,
+                                MaxHealth = GameRules.PlayerMaxHealth,
+                                Score = player.Score,
+                                IsAlive = player.IsAlive,
+                                RespawnSeconds = player.IsAlive ? 0f : MathF.Max(0f, player.RespawnAtSeconds - self.SimulationSeconds)
+                            })
+                            .ToList(),
+                        Monsters = self.Monsters.Select(monster => new MonsterSnapshot
+                        {
+                            MonsterId = monster.MonsterId,
+                            X = monster.X,
+                            Y = monster.Y,
+                            Health = monster.Health,
+                            MaxHealth = GameRules.MonsterMaxHealth
+                        }).ToList(),
+                        Bullets = self.Bullets.Select(bullet => new BulletSnapshot
+                        {
+                            BulletId = bullet.BulletId,
+                            OwnerPlayerId = bullet.OwnerPlayerId,
+                            X = bullet.X,
+                            Y = bullet.Y
+                        }).ToList()
+                    };
+                }
+
+                private static void Broadcast(GameWorldActor self, WorldSnapshot snapshot)
+                {
+                    foreach (var player in self.PlayersByName.Values)
+                    {
+                        if (!player.IsOnline || player.Callback is null)
+                        {
+                            continue;
+                        }
+
+                        try
+                        {
+                            player.Callback.OnWorldUpdated(snapshot);
+                        }
+                        catch (Exception)
+                        {
+                            // A stale connection must not prevent updates from reaching the rest of the world.
+                        }
+                    }
+                }
+
+                private static async ValueTask EnsureSimulationTimerAsync(GameWorldActor self, CancellationToken cancellationToken)
+                {
+                    if (self.SimulationTimerId.IsValid)
+                    {
+                        return;
+                    }
+
+                    self.NextMonsterSpawnSeconds = self.SimulationSeconds + GameRules.MonsterSpawnIntervalSeconds;
+                    self.SimulationTimerId = await LakonaTimer
+                        .CreatePeriodicTimerAsync<GameWorldTimerCallbacks, GameWorldTimerArgs>(
+                            TimeSpan.Zero,
+                            TimeSpan.FromSeconds(GameRules.SimulationStepSeconds),
+                            nameof(GameWorldTimerCallbacks.TickAsync),
+                            new GameWorldTimerArgs(),
+                            cancellationToken);
+                }
+
+                private static (float X, float Y) SpawnPosition(long seed)
+                {
+                    var x = 2f + ((seed * 7) % 28);
+                    var y = 2f + ((seed * 11) % 14);
+                    return (x, y);
+                }
+
+                private static float DistanceSquared(float ax, float ay, float bx, float by)
+                {
+                    var dx = ax - bx;
+                    var dy = ay - by;
+                    return dx * dx + dy * dy;
                 }
             }
         }

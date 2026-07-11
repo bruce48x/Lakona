@@ -4,6 +4,11 @@ namespace Lakona.Tool.Rendering.Client;
 
 internal static class UnityClientAssetTemplates
 {
+    public const string GameClientGuid = "11a1f98ba46486884b824d248c98d6e3";
+    public const string GameControllerGuid = "25a1b8c3d2e4f6a7b8c9d0e1f2a3b4cd";
+    public const string GameUxmlGuid = "3a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d";
+    public const string GameUssGuid = "4b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e";
+    public const string GameSceneGuid = "57a244091a9bb4d7a9f119d19bc86c01";
     public const string LoginClientGuid = "1a1f98ba46486884b824d248c98d6e38";
     public const string ChatClientGuid = "fff9f5180f8be804a88038c0f7860779";
     public const string ChatSessionGuid = "c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6";
@@ -111,6 +116,166 @@ internal static class UnityClientAssetTemplates
           userData:
           assetBundleName:
           assetBundleVariant:
+        """;
+    }
+
+    public static string RenderGameUxml()
+    {
+        return """
+        <ui:UXML xmlns:ui="UnityEngine.UIElements">
+          <Style src="Game.uss" />
+          <ui:VisualElement class="root">
+            <ui:VisualElement name="login-panel" class="login-panel">
+              <ui:Label text="LAKONA ARENA" class="title" />
+              <ui:Label text="Server-authoritative multiplayer demo" class="subtitle" />
+              <ui:TextField name="name-field" label="PLAYER NAME" max-length="20" class="name-field" />
+              <ui:Button name="connect-button" text="PLAY" class="connect-button" />
+              <ui:Label name="status-label" text="Enter a name to join." class="status" />
+            </ui:VisualElement>
+            <ui:VisualElement name="hud" class="hud">
+              <ui:Label name="player-label" text="Player" class="hud-label" />
+              <ui:Label name="score-label" text="Score 0" class="hud-label" />
+              <ui:Label name="health-label" text="HP 100/100" class="hud-label" />
+              <ui:Label text="WASD to move · firing is automatic" class="hint" />
+            </ui:VisualElement>
+          </ui:VisualElement>
+        </ui:UXML>
+        """;
+    }
+
+    public static string RenderGameUss()
+    {
+        return """
+        .root {
+            flex-grow: 1;
+            background-color: rgb(9, 13, 20);
+            color: rgb(238, 244, 255);
+        }
+
+        .login-panel {
+            position: absolute;
+            width: 420px;
+            left: 50%;
+            top: 50%;
+            translate: -210px -170px;
+            padding: 32px;
+            background-color: rgba(19, 28, 43, 0.98);
+            border-radius: 12px;
+        }
+
+        .title { font-size: 32px; -unity-font-style: bold; color: rgb(117, 183, 255); }
+        .subtitle { margin-top: 4px; margin-bottom: 24px; color: rgb(165, 178, 198); }
+        .name-field { margin-bottom: 14px; }
+        .connect-button { height: 42px; background-color: rgb(45, 123, 220); -unity-font-style: bold; }
+        .status { margin-top: 14px; min-height: 22px; color: rgb(255, 203, 112); }
+
+        .hud {
+            display: none;
+            height: 64px;
+            padding-left: 24px;
+            padding-right: 24px;
+            flex-direction: row;
+            align-items: center;
+            background-color: rgba(10, 15, 24, 0.94);
+        }
+
+        .hud-label { margin-right: 28px; font-size: 16px; -unity-font-style: bold; }
+        .hint { flex-grow: 1; unity-text-align: middle-right; color: rgb(155, 172, 197); }
+        """;
+    }
+
+    public static string RenderGameScene(TransportKind transport)
+    {
+        var defaultPath = transport == TransportKind.WebSocket ? "/ws" : string.Empty;
+        return RenderSceneHeader() + $$"""
+        --- !u!1 &217437972
+        GameObject:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          serializedVersion: 6
+          m_Component:
+          - component: {fileID: 217437974}
+          - component: {fileID: 217437975}
+          - component: {fileID: 217437973}
+          m_Layer: 0
+          m_Name: Lakona Arena Game
+          m_TagString: Untagged
+          m_Icon: {fileID: 0}
+          m_NavMeshLayer: 0
+          m_StaticEditorFlags: 0
+          m_IsActive: 1
+        --- !u!114 &217437973
+        MonoBehaviour:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          m_GameObject: {fileID: 217437972}
+          m_Enabled: 1
+          m_EditorHideFlags: 0
+          m_Script: {fileID: 11500000, guid: {{GameControllerGuid}}, type: 3}
+          m_Name:
+          m_EditorClassIdentifier:
+          _serverHost: 127.0.0.1
+          _serverPort: 20000
+          _serverPath: {{defaultPath}}
+        --- !u!114 &217437975
+        MonoBehaviour:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          m_GameObject: {fileID: 217437972}
+          m_Enabled: 1
+          m_EditorHideFlags: 0
+          m_Script: {fileID: 19102, guid: 0000000000000000e000000000000000, type: 0}
+          m_Name:
+          m_EditorClassIdentifier:
+          m_PanelSettings: {fileID: 11400000, guid: {{PanelSettingsGuid}}, type: 2}
+          m_ParentUI: {fileID: 0}
+          sourceAsset: {fileID: 9197481963319205126, guid: {{GameUxmlGuid}}, type: 3}
+          m_SortingOrder: 0
+        --- !u!4 &217437974
+        Transform:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          m_GameObject: {fileID: 217437972}
+          serializedVersion: 2
+          m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+          m_LocalPosition: {x: 0, y: 0, z: 0}
+          m_LocalScale: {x: 1, y: 1, z: 1}
+          m_ConstrainProportionsScale: 0
+          m_Children: []
+          m_Father: {fileID: 0}
+          m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+        {{RenderMainCamera(217438972, 217438973, 217438974, 217438975)}}
+        --- !u!1660057539 &9223372036854775807
+        SceneRoots:
+          m_ObjectHideFlags: 0
+          m_Roots:
+          - {fileID: 217437974}
+          - {fileID: 217438973}
+        """;
+    }
+
+    public static string RenderGameEditorBuildSettings()
+    {
+        return $$"""
+        %YAML 1.1
+        %TAG !u! tag:unity3d.com,2011:
+        --- !u!1045 &1
+        EditorBuildSettings:
+          m_ObjectHideFlags: 0
+          serializedVersion: 2
+          m_Scenes:
+          - enabled: 1
+            path: Assets/Scenes/Game.unity
+            guid: {{GameSceneGuid}}
+          m_configObjects: {}
         """;
     }
 
@@ -387,7 +552,7 @@ internal static class UnityClientAssetTemplates
           m_Enabled: 1
           m_EditorHideFlags: 0
           m_Script: {fileID: 19101, guid: 0000000000000000e000000000000000, type: 0}
-          m_Name: LakonaGameChatPanelSettings
+          m_Name: LakonaGamePanelSettings
           m_EditorClassIdentifier:
           themeUss: {fileID: -4733365628477956816, guid: {{RuntimeThemeGuid}}, type: 3}
           m_TargetTexture: {fileID: 0}

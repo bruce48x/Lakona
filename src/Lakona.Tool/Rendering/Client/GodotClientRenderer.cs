@@ -16,8 +16,7 @@ internal sealed class GodotClientRenderer : IClientRenderer
         builder.AddFile("Client/project.godot", RenderProjectGodot(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Client/Client.csproj", RenderClientProject(spec), FileWriteMode.Replace, GeneratedFileKind.Project);
         builder.AddFile("Client/Theme/LakonaTheme.tres", GodotClientAssetTemplates.RenderTheme(), FileWriteMode.Replace, GeneratedFileKind.GodotTheme);
-        builder.AddFile("Client/Login.tscn", GodotClientAssetTemplates.RenderLoginScene(), FileWriteMode.Replace, GeneratedFileKind.GodotScene);
-        builder.AddFile("Client/Chat.tscn", GodotClientAssetTemplates.RenderChatScene(), FileWriteMode.Replace, GeneratedFileKind.GodotScene);
+        builder.AddFile("Client/Game.tscn", GodotClientAssetTemplates.RenderGameScene(), FileWriteMode.Replace, GeneratedFileKind.GodotScene);
         AddClientCodeFiles(spec, builder);
     }
 
@@ -70,12 +69,8 @@ internal sealed class GodotClientRenderer : IClientRenderer
         [application]
 
         config/name="{{spec.Name}}"
-        run/main_scene="res://Login.tscn"
+        run/main_scene="res://Game.tscn"
         config/features=PackedStringArray("4.6", "C#")
-
-        [autoload]
-
-        ChatSession="*res://Scripts/Chat/ChatSession.cs"
 
         [dotnet]
 
@@ -85,16 +80,9 @@ internal sealed class GodotClientRenderer : IClientRenderer
 
     private static void AddClientCodeFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
-        builder.AddFile("Client/Scripts/Login/LoginClient.cs", GodotClientCodeTemplates.RenderLoginClient(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Scripts/Login/LoginClient.cs.uid", GodotClientAssetTemplates.RenderUid(GodotClientAssetTemplates.LoginClientUid), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Scripts/Login/LoginScene.cs", GodotClientCodeTemplates.RenderLoginScene(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Scripts/Login/LoginScene.cs.uid", GodotClientAssetTemplates.RenderUid(GodotClientAssetTemplates.LoginSceneUid), FileWriteMode.Replace, GeneratedFileKind.Text);
-
-        builder.AddFile("Client/Scripts/Chat/ChatClient.cs", GodotClientCodeTemplates.RenderChatClient(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Scripts/Chat/ChatClient.cs.uid", GodotClientAssetTemplates.RenderUid(GodotClientAssetTemplates.ChatClientUid), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Scripts/Chat/ChatSession.cs", GodotClientCodeTemplates.RenderChatSession(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Scripts/Chat/ChatSession.cs.uid", GodotClientAssetTemplates.RenderUid(GodotClientAssetTemplates.ChatSessionUid), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Scripts/Chat/ChatScene.cs", GodotClientCodeTemplates.RenderChatScene(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Scripts/Chat/ChatScene.cs.uid", GodotClientAssetTemplates.RenderUid(GodotClientAssetTemplates.ChatSceneUid), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Scripts/Game/GameClient.cs", GodotClientCodeTemplates.RenderGameClient(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Scripts/Game/GameClient.cs.uid", GodotClientAssetTemplates.RenderUid(GodotClientAssetTemplates.GameClientUid), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Scripts/Game/GameScene.cs", GodotClientCodeTemplates.RenderGameScene(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Scripts/Game/GameScene.cs.uid", GodotClientAssetTemplates.RenderUid(GodotClientAssetTemplates.GameSceneScriptUid), FileWriteMode.Replace, GeneratedFileKind.Text);
     }
 }

@@ -2,6 +2,8 @@ namespace Lakona.Tool.Rendering.Client;
 
 internal static class GodotClientAssetTemplates
 {
+    public const string GameClientUid = "uid://bgameclient001";
+    public const string GameSceneScriptUid = "uid://bgamescene0001";
     public const string LoginClientUid = "uid://dud7ml45qrep2";
     public const string ChatClientUid = "uid://b1qinooxr8f6s";
     public const string ChatSessionUid = "uid://vwckwksgbs03";
@@ -9,6 +11,104 @@ internal static class GodotClientAssetTemplates
     public const string ChatSceneUid = "uid://dyo6cbh1f6nkd";
 
     public static string RenderUid(string uid) => uid;
+
+    public static string RenderGameScene()
+    {
+        return $$"""
+        [gd_scene load_steps=3 format=3]
+
+        [ext_resource type="Script" uid="{{GameSceneScriptUid}}" path="res://Scripts/Game/GameScene.cs" id="1_game"]
+        [ext_resource type="Theme" path="res://Theme/LakonaTheme.tres" id="2_theme"]
+
+        [node name="Game" type="Node2D"]
+        script = ExtResource("1_game")
+
+        [node name="Ui" type="Control" parent="."]
+        layout_mode = 3
+        anchors_preset = 15
+        anchor_right = 1.0
+        anchor_bottom = 1.0
+        grow_horizontal = 2
+        grow_vertical = 2
+        mouse_filter = 2
+        theme = ExtResource("2_theme")
+
+        [node name="LoginPanel" type="PanelContainer" parent="Ui"]
+        layout_mode = 0
+        anchor_left = 0.5
+        anchor_top = 0.5
+        anchor_right = 0.5
+        anchor_bottom = 0.5
+        offset_left = -210.0
+        offset_top = -170.0
+        offset_right = 210.0
+        offset_bottom = 170.0
+        mouse_filter = 0
+
+        [node name="VBox" type="VBoxContainer" parent="Ui/LoginPanel"]
+        layout_mode = 2
+        theme_override_constants/separation = 14
+
+        [node name="Title" type="Label" parent="Ui/LoginPanel/VBox"]
+        layout_mode = 2
+        theme_override_font_sizes/font_size = 32
+        text = "LAKONA ARENA"
+        horizontal_alignment = 1
+
+        [node name="Subtitle" type="Label" parent="Ui/LoginPanel/VBox"]
+        layout_mode = 2
+        text = "Server-authoritative multiplayer demo"
+        horizontal_alignment = 1
+
+        [node name="Name" type="LineEdit" parent="Ui/LoginPanel/VBox"]
+        custom_minimum_size = Vector2(0, 44)
+        layout_mode = 2
+        max_length = 20
+        placeholder_text = "Player name"
+
+        [node name="Play" type="Button" parent="Ui/LoginPanel/VBox"]
+        custom_minimum_size = Vector2(0, 44)
+        layout_mode = 2
+        text = "PLAY"
+
+        [node name="Status" type="Label" parent="Ui/LoginPanel/VBox"]
+        custom_minimum_size = Vector2(0, 42)
+        layout_mode = 2
+        text = "Enter a name to join."
+        horizontal_alignment = 1
+        autowrap_mode = 2
+
+        [node name="Hud" type="PanelContainer" parent="Ui"]
+        visible = false
+        layout_mode = 0
+        anchor_right = 1.0
+        offset_bottom = 64.0
+        grow_horizontal = 2
+        mouse_filter = 2
+
+        [node name="HBox" type="HBoxContainer" parent="Ui/Hud"]
+        layout_mode = 2
+        theme_override_constants/separation = 28
+
+        [node name="Player" type="Label" parent="Ui/Hud/HBox"]
+        layout_mode = 2
+        text = "Player"
+
+        [node name="Score" type="Label" parent="Ui/Hud/HBox"]
+        layout_mode = 2
+        text = "Score 0"
+
+        [node name="Health" type="Label" parent="Ui/Hud/HBox"]
+        layout_mode = 2
+        text = "HP 100/100"
+
+        [node name="Hint" type="Label" parent="Ui/Hud/HBox"]
+        layout_mode = 2
+        size_flags_horizontal = 3
+        text = "WASD to move · firing is automatic"
+        horizontal_alignment = 2
+        """;
+    }
 
     public static string RenderTheme()
     {
@@ -158,8 +258,8 @@ internal static class GodotClientAssetTemplates
 
         PanelVBox/type = "VBoxContainer"
         PanelVBox/constants/separation = 12
-        ChatVBox/type = "VBoxContainer"
-        ChatVBox/constants/separation = 0
+        ArenaVBox/type = "VBoxContainer"
+        ArenaVBox/constants/separation = 0
         HeaderRow/type = "HBoxContainer"
         HeaderRow/constants/separation = 12
         SendRow/type = "HBoxContainer"
@@ -173,10 +273,10 @@ internal static class GodotClientAssetTemplates
 
         LoginPanel/type = "PanelContainer"
         LoginPanel/styles/panel = SubResource("5")
-        ChatHeader/type = "PanelContainer"
-        ChatHeader/styles/panel = SubResource("6")
-        ChatFooter/type = "PanelContainer"
-        ChatFooter/styles/panel = SubResource("7")
+        ArenaHeader/type = "PanelContainer"
+        ArenaHeader/styles/panel = SubResource("6")
+        ArenaFooter/type = "PanelContainer"
+        ArenaFooter/styles/panel = SubResource("7")
         """;
     }
 

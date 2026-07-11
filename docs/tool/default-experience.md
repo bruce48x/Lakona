@@ -91,7 +91,7 @@ The default configuration should be:
         "Serializer": "memorypack",
         "Host": "127.0.0.1",
         "Port": 20000,
-        "RpcServices": [ "login", "chat" ]
+        "RpcServices": [ "game" ]
       }
     ]
   }
@@ -129,7 +129,7 @@ For WebSocket transport, the generated endpoint includes the path:
         "Host": "127.0.0.1",
         "Port": 20000,
         "Path": "/ws",
-        "RpcServices": [ "login", "chat" ]
+        "RpcServices": [ "game" ]
       }
     ]
   }
@@ -195,34 +195,37 @@ Server/Hotfix/         services, actor behaviors, lifecycle reactions, actor sta
 
 The framework still allows user-owned RPC contracts to live in any compiled shared assembly path and namespace. The generated project uses `Shared/Contracts/<Domain>/` as the recommended convention so new projects have one obvious place for RPC services, notification contracts, DTOs, and named RPC contract IDs.
 
-The generated application should include a small vertical slice that demonstrates:
+The generated application includes a compact top-down multiplayer arena that demonstrates:
 
-- login creating a session
-- session callback binding
-- cluster route registration
-- reliable welcome notification
-- reconnect with pending reliable push replay
+- name-based login creating or reconnecting an in-memory player session
+- server-assigned player ids and deterministic client-side player colors
+- client direction input with server-authoritative movement and simulation
+- client-polled world snapshots with callbacks reserved for immediate presence changes
+- automatic projectiles, player-versus-player damage, monster spawning and pursuit
+- health, score, death, five-second respawn, disconnect presence, and reconnect recovery
 - generated hotfix-backed service binding calling current hotfix code
 
-The generated Chat vertical slice must use the core Lakona.Game runtime model:
-RPC enters generated hotfix-backed service binding, the current
-`Server/Hotfix` service implementation talks to the pre-created
-`ChatRoomActor` state shell, and actor behavior remains reloadable through the
-hotfix behavior. The generated project must not use static mutable process
-state as the room concurrency model.
+Unity and Godot render the arena entirely from engine-provided drawing primitives;
+the generated project contains no external art assets. The Console client provides
+headless smoke and load flows for the same contracts.
 
-The hotfix Chat startup must own the fixed local room actor explicitly:
+The generated arena must use the core Lakona.Game runtime model. RPC enters a
+generated hotfix-backed service binding, and the current `Server/Hotfix`
+implementation talks to the pre-created `GameWorldActor` state shell. The actor
+owns all mutable world state and the 20 Hz simulation timer serializes gameplay
+decisions. Behavior remains reloadable through hotfix code. The generated project
+must not use static mutable process state as the world concurrency model.
+
+The hotfix startup owns the fixed local world actor explicitly:
 
 ```csharp
 [HotfixStartup]
-public static class GameHotfixStartup
+public static class HotfixStartup
 {
     [HotfixConfigureActors]
-    public static void Actors(ActorHostBuilder actors)
+    public static void ConfigureActors(ActorHostBuilder actors)
     {
-        actors.RegisterStartup(
-            "chat-room",
-            static _ => ActorStartupPlan.Create<ChatRoomActor>(ActorId.From("chat-room/global")));
+        actors.RegisterStartup<GameWorldActor, string>(static context => context.Candidates[0]);
     }
 }
 ```

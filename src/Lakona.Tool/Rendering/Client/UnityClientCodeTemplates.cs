@@ -4,6 +4,351 @@ namespace Lakona.Tool.Rendering.Client;
 
 internal static class UnityClientCodeTemplates
 {
+    public static string RenderGameClient()
+    {
+        return """
+        using System;
+        using System.Collections.Concurrent;
+        using System.Threading;
+        using System.Threading.Tasks;
+        using Client.Generated;
+        using Lakona.Game.Client;
+        using Shared.Contracts.Game;
+
+        namespace Client.Game
+        {
+            public sealed class GameClient : IGameCallback, IAsyncDisposable
+            {
+                private readonly LakonaGameClient _client;
+                private readonly ConcurrentQueue<WorldSnapshot> _snapshots = new();
+                private int _disconnected;
+
+                public GameClient(LakonaGameClientOptions options)
+                {
+                    _client = new LakonaGameClient(options, this);
+                    _client.Disconnected += _ => Interlocked.Exchange(ref _disconnected, 1);
+                }
+
+                public async Task ConnectAsync(CancellationToken cancellationToken)
+                {
+                    await _client.ConnectAsync(cancellationToken);
+                }
+
+                public async Task<LoginReply> LoginAsync(string playerName)
+                {
+                    return await _client.Api.Shared.Game.LoginAsync(new LoginRequest { PlayerName = playerName });
+                }
+
+                public async ValueTask SubmitInputAsync(float x, float y)
+                {
+                    await _client.Api.Shared.Game.SubmitInputAsync(new PlayerInput { DirectionX = x, DirectionY = y });
+                }
+
+                public async ValueTask RefreshWorldAsync()
+                {
+                    _snapshots.Enqueue(await _client.Api.Shared.Game.GetWorldAsync(new WorldQuery()));
+                }
+
+                public bool TryDequeueSnapshot(out WorldSnapshot snapshot)
+                {
+                    return _snapshots.TryDequeue(out snapshot!);
+                }
+
+                public bool ConsumeDisconnected()
+                {
+                    return Interlocked.Exchange(ref _disconnected, 0) != 0;
+                }
+
+                public ValueTask DisposeAsync()
+                {
+                    return _client.DisposeAsync();
+                }
+
+                void IGameCallback.OnWorldUpdated(WorldSnapshot snapshot)
+                {
+                    _snapshots.Enqueue(snapshot);
+                }
+            }
+        }
+        """;
+    }
+
+    public static string RenderGameController(LakonaProjectSpec spec)
+    {
+        var transportUsing = RenderTransportUsing(spec.Transport);
+        var serializerUsing = RenderSerializerUsing(spec.Serializer);
+        var transportExpression = RenderTransportExpression(spec.Transport);
+        var serializerExpression = RenderSerializerExpression(spec.Serializer);
+        var defaultPath = spec.Transport == TransportKind.WebSocket ? "/ws" : string.Empty;
+
+        return $$"""
+        using System;
+        using System.Threading;
+        using System.Threading.Tasks;
+        using Lakona.Game.Client;
+        using Lakona.Rpc.Client;
+        using Lakona.Rpc.Core;
+        using Shared.Contracts.Game;
+        {{serializerUsing}}
+        {{transportUsing}}
+        using UnityEngine;
+        using UnityEngine.UIElements;
+
+        namespace Client.Game
+        {
+            [RequireComponent(typeof(UIDocument))]
+            public sealed class GameController : MonoBehaviour
+            {
+                [SerializeField] private string _serverHost = "127.0.0.1";
+                [SerializeField] private int _serverPort = 20000;
+                [SerializeField] private string _serverPath = "{{defaultPath}}";
+
+                private CancellationTokenSource? _cts;
+                private GameClient? _client;
+                private WorldSnapshot? _world;
+                private long _localPlayerId;
+                private TextField? _nameField;
+                private Button? _connectButton;
+                private Label? _statusLabel;
+                private VisualElement? _loginPanel;
+                private VisualElement? _hud;
+                private Label? _playerLabel;
+                private Label? _scoreLabel;
+                private Label? _healthLabel;
+                private Texture2D? _circleTexture;
+                private bool _loginPending;
+                private bool _inputPending;
+                private bool _snapshotPending;
+                private float _nextInputAt;
+                private float _nextSnapshotAt;
+
+                private void Start()
+                {
+                    var root = GetComponent<UIDocument>().rootVisualElement;
+                    _nameField = root.Q<TextField>("name-field");
+                    _connectButton = root.Q<Button>("connect-button");
+                    _statusLabel = root.Q<Label>("status-label");
+                    _loginPanel = root.Q<VisualElement>("login-panel");
+                    _hud = root.Q<VisualElement>("hud");
+                    _playerLabel = root.Q<Label>("player-label");
+                    _scoreLabel = root.Q<Label>("score-label");
+                    _healthLabel = root.Q<Label>("health-label");
+                    if (_connectButton != null) _connectButton.clicked += OnConnectClicked;
+                    _nameField?.RegisterCallback<KeyDownEvent>(evt =>
+                    {
+                        if (evt.keyCode is KeyCode.Return or KeyCode.KeypadEnter) OnConnectClicked();
+                    });
+                    ShowLogin("Enter a name to join.");
+                    _circleTexture = CreateCircleTexture(64);
+                }
+
+                private void Update()
+                {
+                    if (_client is null) return;
+                    while (_client.TryDequeueSnapshot(out var snapshot)) _world = snapshot;
+                    if (_client.ConsumeDisconnected())
+                    {
+                        ShowLogin("Disconnected. Re-enter your name to reconnect.");
+                        _ = DisposeClientAsync();
+                        return;
+                    }
+
+                    RefreshHud();
+                    if (Time.unscaledTime >= _nextSnapshotAt && !_snapshotPending)
+                    {
+                        _nextSnapshotAt = Time.unscaledTime + 0.1f;
+                        _ = RefreshWorldAsync();
+                    }
+                    if (_localPlayerId == 0 || Time.unscaledTime < _nextInputAt || _inputPending) return;
+                    _nextInputAt = Time.unscaledTime + 0.05f;
+                    var x = Input.GetAxisRaw("Horizontal");
+                    var y = Input.GetAxisRaw("Vertical");
+                    var length = Mathf.Sqrt(x * x + y * y);
+                    if (length > 1f) { x /= length; y /= length; }
+                    _ = SendInputAsync(x, y);
+                }
+
+                private async void OnConnectClicked()
+                {
+                    if (_loginPending) return;
+                    var name = _nameField?.value?.Trim() ?? "";
+                    if (name.Length is < 1 or > 20) { SetStatus("Name must contain 1 to 20 characters."); return; }
+
+                    _loginPending = true;
+                    if (_connectButton != null) { _connectButton.SetEnabled(false); _connectButton.text = "CONNECTING..."; }
+                    SetStatus("Connecting...");
+                    _cts = new CancellationTokenSource();
+                    var client = new GameClient(CreateLakonaGameClientOptions());
+                    try
+                    {
+                        await client.ConnectAsync(_cts.Token);
+                        var reply = await client.LoginAsync(name);
+                        if (!reply.Success)
+                        {
+                            SetStatus(reply.Error);
+                            await client.DisposeAsync();
+                            return;
+                        }
+
+                        _client = client;
+                        _localPlayerId = reply.PlayerId;
+                        _world = reply.World;
+                        ShowGame();
+                    }
+                    catch (Exception ex)
+                    {
+                        SetStatus($"Connection failed: {ex.Message}");
+                        await client.DisposeAsync();
+                    }
+                    finally
+                    {
+                        _loginPending = false;
+                        if (_connectButton != null) { _connectButton.SetEnabled(true); _connectButton.text = "PLAY"; }
+                    }
+                }
+
+                private async Task SendInputAsync(float x, float y)
+                {
+                    if (_client is null) return;
+                    _inputPending = true;
+                    try { await _client.SubmitInputAsync(x, y); }
+                    catch (Exception) { ShowLogin("Connection lost. Re-enter your name to reconnect."); await DisposeClientAsync(); }
+                    finally { _inputPending = false; }
+                }
+
+                private async Task RefreshWorldAsync()
+                {
+                    if (_client is null) return;
+                    _snapshotPending = true;
+                    try { await _client.RefreshWorldAsync(); }
+                    catch (Exception) { ShowLogin("Connection lost. Re-enter your name to reconnect."); await DisposeClientAsync(); }
+                    finally { _snapshotPending = false; }
+                }
+
+                private void OnGUI()
+                {
+                    if (_world is null || _localPlayerId == 0 || _circleTexture is null) return;
+                    var arena = new Rect(24f, 78f, Screen.width - 48f, Screen.height - 102f);
+                    DrawRect(arena, new Color(0.05f, 0.07f, 0.1f, 1f));
+                    for (var i = 1; i < 16; i++) DrawRect(new Rect(arena.x + arena.width * i / 16f, arena.y, 1f, arena.height), new Color(1f, 1f, 1f, 0.05f));
+                    for (var i = 1; i < 9; i++) DrawRect(new Rect(arena.x, arena.y + arena.height * i / 9f, arena.width, 1f), new Color(1f, 1f, 1f, 0.05f));
+
+                    foreach (var bullet in _world.Bullets) DrawCircle(WorldToScreen(arena, bullet.X, bullet.Y, _world), 5f, Color.white);
+                    foreach (var monster in _world.Monsters) DrawCircle(WorldToScreen(arena, monster.X, monster.Y, _world), 12f, new Color(0.2f, 0.9f, 0.3f));
+                    foreach (var player in _world.Players)
+                    {
+                        var point = WorldToScreen(arena, player.X, player.Y, _world);
+                        var color = PlayerColor(player.PlayerId);
+                        if (player.PlayerId == _localPlayerId) DrawCircle(point, 18f, Color.white);
+                        DrawCircle(point, player.IsAlive ? 14f : 9f, player.IsAlive ? color : new Color(color.r, color.g, color.b, 0.35f));
+                        DrawLine(point, point + new Vector2(player.DirectionX, -player.DirectionY) * 21f, Color.white, 3f);
+                        DrawRect(new Rect(point.x - 16f, point.y - 24f, 32f, 4f), new Color(0.4f, 0.05f, 0.05f));
+                        DrawRect(new Rect(point.x - 16f, point.y - 24f, 32f * player.Health / Mathf.Max(1f, player.MaxHealth), 4f), new Color(0.2f, 0.9f, 0.3f));
+                    }
+                }
+
+                private void RefreshHud()
+                {
+                    var local = _world?.Players.Find(player => player.PlayerId == _localPlayerId);
+                    if (local is null) return;
+                    if (_playerLabel != null) _playerLabel.text = $"{local.Name}  #{local.PlayerId}";
+                    if (_scoreLabel != null) _scoreLabel.text = $"Score {local.Score}";
+                    if (_healthLabel != null) _healthLabel.text = local.IsAlive ? $"HP {local.Health}/{local.MaxHealth}" : $"Respawn in {local.RespawnSeconds:0.0}s";
+                }
+
+                private void ShowLogin(string status)
+                {
+                    _localPlayerId = 0;
+                    _world = null;
+                    if (_loginPanel != null) _loginPanel.style.display = DisplayStyle.Flex;
+                    if (_hud != null) _hud.style.display = DisplayStyle.None;
+                    SetStatus(status);
+                }
+
+                private void ShowGame()
+                {
+                    if (_loginPanel != null) _loginPanel.style.display = DisplayStyle.None;
+                    if (_hud != null) _hud.style.display = DisplayStyle.Flex;
+                }
+
+                private void SetStatus(string text) { if (_statusLabel != null) _statusLabel.text = text; }
+
+                private LakonaGameClientOptions CreateLakonaGameClientOptions()
+                {
+                    return new LakonaGameClientOptions({{transportExpression}}, {{serializerExpression}}).UseSecurity(ConfigureTransportSecurity);
+                }
+
+                private static string NormalizePath(string path) => string.IsNullOrWhiteSpace(path) ? "" : path.StartsWith("/", StringComparison.Ordinal) ? path : "/" + path;
+                private static void ConfigureTransportSecurity(TransportSecurityConfig security)
+                {
+                    security.EnableCompression = false;
+                    security.EnableEncryption = false;
+                    security.EncryptionKeyBase64 = null;
+                }
+
+                private static Vector2 WorldToScreen(Rect arena, float x, float y, WorldSnapshot world) =>
+                    new(arena.x + x / world.Width * arena.width, arena.y + (world.Height - y) / world.Height * arena.height);
+
+                private static Color PlayerColor(long playerId)
+                {
+                    var palette = new[]
+                    {
+                        new Color(0.26f, 0.53f, 0.96f),
+                        new Color(0.94f, 0.33f, 0.31f),
+                        new Color(1f, 0.84f, 0.31f),
+                        new Color(0.67f, 0.28f, 0.74f),
+                        new Color(1f, 0.54f, 0.27f),
+                        new Color(0.15f, 0.78f, 0.85f),
+                        new Color(0.93f, 0.44f, 0.69f)
+                    };
+                    unchecked
+                    {
+                        uint hash = 2166136261;
+                        foreach (var ch in playerId.ToString(System.Globalization.CultureInfo.InvariantCulture)) { hash ^= ch; hash *= 16777619; }
+                        return palette[(int)(hash % (uint)palette.Length)];
+                    }
+                }
+
+                private static Texture2D CreateCircleTexture(int size)
+                {
+                    var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+                    var pixels = new Color[size * size];
+                    var center = (size - 1) * 0.5f;
+                    for (var y = 0; y < size; y++) for (var x = 0; x < size; x++)
+                        pixels[y * size + x] = (x - center) * (x - center) + (y - center) * (y - center) <= center * center ? Color.white : Color.clear;
+                    texture.SetPixels(pixels); texture.Apply(); return texture;
+                }
+
+                private void DrawCircle(Vector2 center, float radius, Color color)
+                {
+                    var old = GUI.color; GUI.color = color; GUI.DrawTexture(new Rect(center.x - radius, center.y - radius, radius * 2f, radius * 2f), _circleTexture); GUI.color = old;
+                }
+                private static void DrawRect(Rect rect, Color color) { var old = GUI.color; GUI.color = color; GUI.DrawTexture(rect, Texture2D.whiteTexture); GUI.color = old; }
+                private static void DrawLine(Vector2 from, Vector2 to, Color color, float width)
+                {
+                    var oldMatrix = GUI.matrix; var old = GUI.color; GUI.color = color;
+                    var angle = Vector2.SignedAngle(Vector2.right, to - from); GUIUtility.RotateAroundPivot(angle, from);
+                    GUI.DrawTexture(new Rect(from.x, from.y - width * 0.5f, Vector2.Distance(from, to), width), Texture2D.whiteTexture);
+                    GUI.matrix = oldMatrix; GUI.color = old;
+                }
+
+                private async Task DisposeClientAsync()
+                {
+                    var client = _client; _client = null;
+                    if (client != null) await client.DisposeAsync();
+                }
+
+                private void OnDestroy()
+                {
+                    _cts?.Cancel(); _cts?.Dispose();
+                    if (_circleTexture != null) Destroy(_circleTexture);
+                    _ = DisposeClientAsync();
+                }
+            }
+        }
+        """;
+    }
+
     public static string RenderDefaultSceneLoader()
     {
         return """
@@ -14,7 +359,7 @@ internal static class UnityClientCodeTemplates
         [InitializeOnLoad]
         public static class DefaultSceneLoader
         {
-            private const string TargetScenePath = "Assets/Scenes/LoginScene.unity";
+            private const string TargetScenePath = "Assets/Scenes/Game.unity";
 
             static DefaultSceneLoader()
             {
@@ -28,7 +373,7 @@ internal static class UnityClientCodeTemplates
                     return;
                 }
 
-                var initKey = $"Lakona.LoginScene.Initialized:{Application.dataPath}";
+                var initKey = $"Lakona.GameScene.Initialized:{Application.dataPath}";
                 if (EditorPrefs.HasKey(initKey))
                 {
                     return;
@@ -37,7 +382,7 @@ internal static class UnityClientCodeTemplates
                 var sceneAsset = AssetDatabase.LoadAssetAtPath<SceneAsset>(TargetScenePath);
                 if (sceneAsset == null)
                 {
-                    Debug.LogWarning($"[Lakona.Tool] Missing default LoginScene at path: {TargetScenePath}");
+                    Debug.LogWarning($"[Lakona.Tool] Missing default Game scene at path: {TargetScenePath}");
                     return;
                 }
 
@@ -54,7 +399,7 @@ internal static class UnityClientCodeTemplates
                 if (EditorSceneManager.GetActiveScene().path != TargetScenePath)
                 {
                     EditorSceneManager.OpenScene(TargetScenePath, OpenSceneMode.Single);
-                    Debug.Log($"[Lakona.Tool] Opened default LoginScene: {TargetScenePath}");
+                    Debug.Log($"[Lakona.Tool] Opened default Game scene: {TargetScenePath}");
                 }
 
                 EditorPrefs.SetBool(initKey, true);

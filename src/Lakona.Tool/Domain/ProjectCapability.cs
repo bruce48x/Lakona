@@ -6,7 +6,7 @@ internal enum ProjectCapability
     Hotfix,
     ReliablePush,
     LoginSlice,
-    ChatSlice
+    GameSlice
 }
 
 internal static class ProjectCapabilityCatalog
@@ -17,6 +17,6 @@ internal static class ProjectCapabilityCatalog
         ProjectCapability.Hotfix,
         ProjectCapability.ReliablePush,
         ProjectCapability.LoginSlice,
-        ProjectCapability.ChatSlice
+        ProjectCapability.GameSlice
     ];
 }

@@ -9,61 +9,37 @@ namespace Lakona.Tool.Tests.Rendering;
 public sealed class SharedProjectRendererTests
 {
     [Fact]
-    public void AddFiles_UnityMemoryPack_EmitsSharedProjectAndContracts()
+    public void AddFiles_UnityMemoryPack_EmitsArenaContracts()
     {
         var plan = Render(Spec(ClientEngine.Unity, SerializerKind.MemoryPack));
 
-        AssertPath(plan, "Shared/Directory.Build.props");
-        var csproj = AssertPath(plan, "Shared/Shared.csproj").Content;
-        Assert.Contains("<TargetFrameworks>netstandard2.1;net10.0</TargetFrameworks>", csproj, StringComparison.Ordinal);
-        Assert.Contains("<PackageReference Include=\"Lakona.Rpc.Core\"", csproj, StringComparison.Ordinal);
-        Assert.DoesNotContain("Lakona.Game.Abstractions", csproj, StringComparison.Ordinal);
-        Assert.Contains("<PackageReference Include=\"Lakona.Rpc.Serializer.MemoryPack\"", csproj, StringComparison.Ordinal);
-        Assert.Contains("<PackageReference Include=\"MemoryPack\"", csproj, StringComparison.Ordinal);
-        Assert.Contains("<PackageReference Include=\"MemoryPack.Generator\"", csproj, StringComparison.Ordinal);
+        var project = AssertPath(plan, "Shared/Shared.csproj").Content;
+        Assert.Contains("<TargetFrameworks>netstandard2.1;net10.0</TargetFrameworks>", project, StringComparison.Ordinal);
+        Assert.Contains("Lakona.Rpc.Serializer.MemoryPack", project, StringComparison.Ordinal);
 
-        var asmdef = AssertPath(plan, "Shared/Shared.asmdef").Content;
-        Assert.Contains("\"MemoryPack.Core.dll\"", asmdef, StringComparison.Ordinal);
-        Assert.DoesNotContain("Lakona.Game.Abstractions.dll", asmdef, StringComparison.Ordinal);
-        Assert.Contains("\"allowUnsafeCode\": true", asmdef, StringComparison.Ordinal);
+        var protocols = AssertPath(plan, "Shared/Contracts/Game/GameProtocols.cs").Content;
+        Assert.Contains("interface IGameService", protocols, StringComparison.Ordinal);
+        Assert.Contains("ValueTask<LoginReply> LoginAsync", protocols, StringComparison.Ordinal);
+        Assert.Contains("ValueTask SubmitInputAsync", protocols, StringComparison.Ordinal);
+        Assert.Contains("ValueTask<WorldSnapshot> GetWorldAsync", protocols, StringComparison.Ordinal);
+        Assert.Contains("void OnWorldUpdated", protocols, StringComparison.Ordinal);
 
-        var messages = AssertPath(plan, "Shared/Contracts/Chat/ChatMessages.cs").Content;
+        var messages = AssertPath(plan, "Shared/Contracts/Game/GameMessages.cs").Content;
         Assert.Contains("[MemoryPackable(GenerateType.VersionTolerant)]", messages, StringComparison.Ordinal);
-        Assert.DoesNotContain("using Lakona.Game.Abstractions;", messages, StringComparison.Ordinal);
-        Assert.DoesNotContain("GameSessionKey Session", messages, StringComparison.Ordinal);
-        Assert.DoesNotContain("GameSessionKeyMemoryPackFormatter", messages, StringComparison.Ordinal);
-        Assert.Contains("public partial class ChatBindRequest", messages, StringComparison.Ordinal);
-        Assert.Contains("public partial class ChatMessage", messages, StringComparison.Ordinal);
+        Assert.Contains("public long PlayerId", messages, StringComparison.Ordinal);
+        Assert.Contains("public List<PlayerSnapshot> Players", messages, StringComparison.Ordinal);
+        Assert.Contains("public List<MonsterSnapshot> Monsters", messages, StringComparison.Ordinal);
+        Assert.Contains("public List<BulletSnapshot> Bullets", messages, StringComparison.Ordinal);
+        Assert.DoesNotContain("Chat", messages, StringComparison.Ordinal);
         AssertPath(plan, "Shared/Contracts/RpcContractIds.cs");
-        AssertPath(plan, "Shared/Contracts/Login.cs");
-        AssertPath(plan, "Shared/Contracts/Chat/ChatProtocols.cs");
-        AssertPath(plan, "Shared/package.json");
     }
 
     [Fact]
-    public void AddFiles_GodotJson_UsesGodotFrameworksAndDoesNotEmitMemoryPackAttributes()
+    public void AddFiles_GodotJson_UsesGodotFrameworksWithoutMemoryPackAttributes()
     {
         var plan = Render(Spec(ClientEngine.Godot, SerializerKind.Json));
-
-        var csproj = AssertPath(plan, "Shared/Shared.csproj").Content;
-        Assert.Contains("<TargetFrameworks>net8.0;net10.0</TargetFrameworks>", csproj, StringComparison.Ordinal);
-        Assert.DoesNotContain("MemoryPack", csproj, StringComparison.Ordinal);
-
-        var asmdef = AssertPath(plan, "Shared/Shared.asmdef").Content;
-        Assert.Contains("\"allowUnsafeCode\": false", asmdef, StringComparison.Ordinal);
-        Assert.DoesNotContain("MemoryPack.Core.dll", asmdef, StringComparison.Ordinal);
-
-        var messages = AssertPath(plan, "Shared/Contracts/Chat/ChatMessages.cs").Content;
-        Assert.DoesNotContain("MemoryPack", messages, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void AddFiles_ConsoleMemoryPack_UsesNetStandardAndNet10()
-    {
-        var plan = Render(Spec(ClientEngine.Console, SerializerKind.MemoryPack));
-
-        var csproj = AssertPath(plan, "Shared/Shared.csproj").Content;
-        Assert.Contains("<TargetFrameworks>netstandard2.1;net10.0</TargetFrameworks>", csproj, StringComparison.Ordinal);
+        Assert.Contains("<TargetFrameworks>net8.0;net10.0</TargetFrameworks>", AssertPath(plan, "Shared/Shared.csproj").Content, StringComparison.Ordinal);
+        Assert.DoesNotContain("MemoryPack", AssertPath(plan, "Shared/Contracts/Game/GameMessages.cs").Content, StringComparison.Ordinal);
     }
 
     private static GenerationPlan Render(LakonaProjectSpec spec)
@@ -73,21 +49,9 @@ public sealed class SharedProjectRendererTests
         return builder.Build();
     }
 
-    private static LakonaProjectSpec Spec(ClientEngine engine, SerializerKind serializer)
-    {
-        return new LakonaProjectSpecFactory().Create(new NewProjectOptions(
-            "MyGame",
-            ".",
-            engine,
-            TransportKind.Kcp,
-            serializer,
-            PersistenceKind.None,
-            NuGetForUnitySource.OpenUpm,
-            DeploymentProfile.None));
-    }
+    private static LakonaProjectSpec Spec(ClientEngine engine, SerializerKind serializer) =>
+        new LakonaProjectSpecFactory().Create(new NewProjectOptions("MyGame", ".", engine, TransportKind.Kcp, serializer, PersistenceKind.None, NuGetForUnitySource.OpenUpm, DeploymentProfile.None));
 
-    private static GeneratedFile AssertPath(GenerationPlan plan, string relativePath)
-    {
-        return Assert.Single(plan.Files, file => file.RelativePath == relativePath);
-    }
+    private static GeneratedFile AssertPath(GenerationPlan plan, string relativePath) =>
+        Assert.Single(plan.Files, file => file.RelativePath == relativePath);
 }

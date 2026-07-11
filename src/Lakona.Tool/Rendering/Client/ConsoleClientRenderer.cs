@@ -17,8 +17,8 @@ internal sealed class ConsoleClientRenderer : IClientRenderer
         builder.AddFile("Client/Program.cs", ConsoleClientCodeTemplates.RenderProgram(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Client/ClientRuntime/ConsoleClientSettings.cs", ConsoleClientCodeTemplates.RenderConsoleClientSettings(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Client/ClientRuntime/GameClientFactory.cs", ConsoleClientCodeTemplates.RenderGameClientFactory(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/LoadScenarios/LoginChatLoadScenario.cs", ConsoleClientCodeTemplates.RenderLoginChatLoadScenario(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/LoadScenarios/LoginChatLoadScenarioOptions.cs", ConsoleClientCodeTemplates.RenderLoginChatLoadScenarioOptions(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/LoadScenarios/GameLoadScenario.cs", ConsoleClientCodeTemplates.RenderGameLoadScenario(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/LoadScenarios/GameLoadScenarioOptions.cs", ConsoleClientCodeTemplates.RenderGameLoadScenarioOptions(), FileWriteMode.Replace, GeneratedFileKind.Text);
     }
 
     private static string RenderClientProject(LakonaProjectSpec spec)

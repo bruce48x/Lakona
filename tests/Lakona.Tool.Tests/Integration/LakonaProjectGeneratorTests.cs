@@ -157,7 +157,7 @@ public sealed class LakonaProjectGeneratorTests
 
             Assert.True(File.Exists(Path.Combine(spec.Layout.RootPath, "Client", "Client.csproj")));
             Assert.True(File.Exists(Path.Combine(spec.Layout.RootPath, "Client", "Program.cs")));
-            Assert.True(File.Exists(Path.Combine(spec.Layout.RootPath, "Client", "LoadScenarios", "LoginChatLoadScenario.cs")));
+            Assert.True(File.Exists(Path.Combine(spec.Layout.RootPath, "Client", "LoadScenarios", "GameLoadScenario.cs")));
             Assert.False(Directory.Exists(Path.Combine(spec.Layout.RootPath, "Client", "Assets")));
             Assert.False(File.Exists(Path.Combine(spec.Layout.RootPath, "Client", "project.godot")));
         }

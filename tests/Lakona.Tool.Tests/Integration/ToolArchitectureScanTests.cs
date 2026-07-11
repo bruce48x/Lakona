@@ -156,21 +156,22 @@ public sealed class ToolArchitectureScanTests
 
             Assert.False(File.Exists(Path.Combine(spec.Layout.RootPath, "Server", "App", "Services", $"{ForbiddenGeneratedGlueFile}.cs")));
             Assert.False(Directory.Exists(Path.Combine(spec.Layout.RootPath, "Server", "App", "Hotfix")));
-            Assert.True(File.Exists(Path.Combine(spec.Layout.RootPath, "Server", "App", "Chat", "ChatRoomMessages.cs")));
-            Assert.False(File.Exists(Path.Combine(spec.Layout.RootPath, "Server", "App", "Chat", "ChatRoomActorContracts.cs")));
+            Assert.True(File.Exists(Path.Combine(spec.Layout.RootPath, "Server", "App", "Game", "GameWorldMessages.cs")));
+            Assert.False(Directory.Exists(Path.Combine(spec.Layout.RootPath, "Server", "App", "Chat")));
 
             var generatedText = ReadAllTextFiles(spec.Layout.RootPath);
             var generatedSharedText = ReadAllTextFiles(Path.Combine(spec.Layout.RootPath, "Shared"));
+            Assert.DoesNotContain("Chat", generatedText, StringComparison.Ordinal);
             Assert.Contains("<CompilerVisibleProperty Include=\"LakonaRpcGenerateServer\" />", generatedText, StringComparison.Ordinal);
             Assert.Contains("<CompilerVisibleProperty Include=\"LakonaRpcServerGeneratedNamespace\" />", generatedText, StringComparison.Ordinal);
-            Assert.Contains("await _gameServer.BindCurrentSessionAsync", generatedText, StringComparison.Ordinal);
+            Assert.Contains("await _gameServer.StartSessionAsync", generatedText, StringComparison.Ordinal);
             Assert.Contains("RPC services that target actors whose", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(ForbiddenContractAttribute, generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(ForbiddenChatRoomContractInterface, generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(ForbiddenStableActorRefsProperty, generatedText, StringComparison.Ordinal);
-            Assert.Contains("public LoginService(ChatRoomActors rooms, ILakonaGameServer gameServer)", generatedText, StringComparison.Ordinal);
-            Assert.Contains("private readonly ChatRoomActors _rooms;", generatedText, StringComparison.Ordinal);
-            Assert.Contains(".Startup(ChatRoomIds.Global)", generatedText, StringComparison.Ordinal);
+            Assert.Contains("public GameService(GameWorldActors worlds, ILakonaGameServer gameServer)", generatedText, StringComparison.Ordinal);
+            Assert.Contains("private readonly GameWorldActors _worlds;", generatedText, StringComparison.Ordinal);
+            Assert.Contains(".Startup(GameWorldIds.Global)", generatedText, StringComparison.Ordinal);
             Assert.Contains(".CallAsync(", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("call.Actors is node-local", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("var starterNodeLocalActors = call.Actors;", generatedText, StringComparison.Ordinal);
@@ -201,15 +202,15 @@ public sealed class ToolArchitectureScanTests
             Assert.Contains("[HotfixStartup]", generatedText, StringComparison.Ordinal);
             Assert.Contains("[HotfixConfigureActors]", generatedText, StringComparison.Ordinal);
             Assert.Contains("ConfigureActors(ActorHostBuilder actors)", generatedText, StringComparison.Ordinal);
-            Assert.Contains("actors.RegisterStartup<ChatRoomActor, string>", generatedText, StringComparison.Ordinal);
+            Assert.Contains("actors.RegisterStartup<GameWorldActor, string>", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(string.Concat("[Hotfix", "Fea", "ture(\"chat\")]"), generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(string.Concat("HotfixGame", "Fea", "ture"), generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(".GetRequiredService<ActorHosting>()", generatedText, StringComparison.Ordinal);
-            Assert.DoesNotContain(".CreateAsync<ChatRoomActor>", generatedText, StringComparison.Ordinal);
-            Assert.DoesNotContain(".EnsureAsync<ChatRoomActor>", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain(".CreateAsync<GameWorldActor>", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain(".EnsureAsync<GameWorldActor>", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(string.Concat("Ensure", "Local", "Actor"), generatedText, StringComparison.Ordinal);
-            Assert.DoesNotContain(string.Concat("Create", "Local", "Async<ChatRoomActor>"), generatedText, StringComparison.Ordinal);
-            Assert.Contains("ChatSessionLifecycle", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain(string.Concat("Create", "Local", "Async<GameWorldActor>"), generatedText, StringComparison.Ordinal);
+            Assert.Contains("GameSessionLifecycle", generatedText, StringComparison.Ordinal);
             Assert.Contains("[HotfixLifecycle(typeof(IGameSessionLifecycle))]", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("IChatRuntimeService", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("ChatRuntimeContracts", generatedText, StringComparison.Ordinal);
@@ -228,7 +229,7 @@ public sealed class ToolArchitectureScanTests
             Assert.DoesNotContain(".HandshakeAsync(", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("public RpcClient RpcClient", generatedText, StringComparison.Ordinal);
             Assert.Contains("new LakonaGameClient(options, this)", generatedText, StringComparison.Ordinal);
-            Assert.Contains("gameClient.Api.Shared", generatedText, StringComparison.Ordinal);
+            Assert.Contains(".Api.Shared.Game", generatedText, StringComparison.Ordinal);
 
             var appsettings = File.ReadAllText(Path.Combine(spec.Layout.RootPath, "Server", "App", "appsettings.json"));
             Assert.DoesNotContain(string.Concat("\"", "Fea", "ture", "\""), appsettings, StringComparison.Ordinal);
@@ -396,10 +397,9 @@ public sealed class ToolArchitectureScanTests
     }
 
     [Fact]
-    public async Task GeneratedAndSampleChatRoomsUseSingleGlobalActorId()
+    public async Task GeneratedArenaUsesSingleGlobalGameWorldActorId()
     {
-        var repositoryRoot = FindRepositoryRoot();
-        var parentRoot = Path.Combine(Path.GetTempPath(), "lakona-tool-chat-room-id-tests", Guid.NewGuid().ToString("N"));
+        var parentRoot = Path.Combine(Path.GetTempPath(), "lakona-tool-game-world-id-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(parentRoot);
         try
         {
@@ -416,8 +416,11 @@ public sealed class ToolArchitectureScanTests
 
             var result = await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
 
-            AssertChatRoomIdContract(spec.Layout.RootPath, expectStartupActors: true);
-            AssertChatRoomIdContract(Path.Combine(repositoryRoot, "samples", "Game.Godot.Chat"), expectStartupActors: true);
+            var appGame = ReadAllTextFiles(Path.Combine(spec.Layout.RootPath, "Server", "App", "Game"));
+            var hotfix = ReadAllTextFiles(Path.Combine(spec.Layout.RootPath, "Server", "Hotfix"));
+            Assert.Contains("public const string Global = \"game-world/global\";", appGame, StringComparison.Ordinal);
+            Assert.Contains("RegisterStartup<GameWorldActor, string>", hotfix, StringComparison.Ordinal);
+            Assert.Contains(".Startup(GameWorldIds.Global)", hotfix, StringComparison.Ordinal);
         }
         finally
         {

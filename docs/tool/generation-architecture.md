@@ -297,7 +297,7 @@ Default generation-time capabilities include:
 - `Hotfix`
 - `ReliablePush`
 - `LoginSlice`
-- `ChatSlice`
+- `GameSlice`
 
 These are generation choices. They do not become runtime `Enabled` flags in
 `appsettings.json`.
@@ -491,7 +491,7 @@ must not reference the hotfix project as a normal compile dependency.
 - `Client/ProjectSettings/ProjectVersion.txt`
 - `Client/Assets/packages.config`
 - `Client/Assets/NuGet.config`
-- login and chat scripts
+- arena login, input, snapshot, and procedural rendering scripts
 - UXML, USS, PanelSettings, scene files, meta files
 - NuGet package import guard
 
@@ -531,13 +531,14 @@ selected by their project files.
 - `Client/project.godot`
 - `Client/Client.csproj`
 - `Client/NuGet.config` when local Godot SDK packages are used
-- `Client/Login.tscn`
-- `Client/Chat.tscn`
+- `Client/Game.tscn`
 - `Client/Theme/LakonaTheme.tres`
-- login and chat scripts
+- arena login, input, snapshot, and procedural drawing scripts
 
 Godot UI should be file-backed. Do not reintroduce C# `BuildUi` methods for
-the default scenes.
+the default scene. Unity and Godot game visuals must use engine-provided drawing
+primitives and generated runtime textures only; default projects do not pack
+external art assets.
 
 `ConsoleClientRenderer` owns a lightweight SDK-style .NET client:
 
@@ -583,13 +584,10 @@ MyGame/
       Server.App.csproj
       Program.cs
       appsettings.json
-      Hosting/
-      Chat/
-      Login/
+      Game/
     Hotfix/
       Server.Hotfix.csproj
-      Login/
-      Chat/
+      Game/
   Client/
     ...
   ops/
@@ -605,17 +603,31 @@ The default generated project demonstrates Lakona.Game as one vertical slice:
 ```txt
 client login RPC
   -> framework/source-generated hotfix-backed service binding
-  -> current Server.Hotfix ChatService
-  -> pre-created ChatRoomActor state shell
-  -> current Server.Hotfix ChatRoomBehavior inside the actor turn
-  -> reliable chat callback or notification
+  -> current Server.Hotfix GameService
+  -> pre-created GameWorldActor state shell
+  -> current Server.Hotfix GameWorldBehavior inside the actor turn
+  -> periodic authoritative world simulation
+  -> client-polled world snapshots plus immediate presence callbacks
 ```
 
-The generated server must not use static mutable process state for chat room
-concurrency. Room state belongs in an actor. A hotfix-enabled actor should keep
-fields and mailbox ownership only. Replaceable request logic belongs in
+The generated server must not use static mutable process state for world
+concurrency. Player identity and online state, monsters, bullets, health,
+scores, respawn timers, and simulation time belong in one `GameWorldActor`.
+The state is intentionally in memory only and is lost on server restart.
+A hotfix-enabled actor should keep fields and mailbox ownership only.
+Replaceable request and simulation logic belongs in
 `Server.Hotfix` Service classes, and actor state behavior belongs in
 one-to-one `Server.Hotfix` Behavior classes.
+
+The arena accepts player direction input only; the server computes movement,
+automatic firing, monster spawning and pursuit, collision damage, PvP/PvE
+scores, death, and five-second respawn. A disconnected player is removed from
+published snapshots immediately through a low-frequency presence callback while
+normal world state is polled by clients every 100 milliseconds. High-frequency
+simulation frames must not use the reliable callback path. Player state remains available for a
+same-name reconnect. Online duplicate names are rejected. Client player colors
+come from a stable FNV-1a hash of the server-assigned player id and a fixed
+palette that excludes monster green.
 
 Generated RPC bindings are framework/source-generated hotfix-backed bindings,
 not generated business orchestration in `Server/App`. They must dispatch to the
@@ -654,7 +666,7 @@ Generated `Server/App/appsettings.json` contains only compact source values:
         "Serializer": "memorypack",
         "Host": "127.0.0.1",
         "Port": 20000,
-        "RpcServices": [ "login", "chat" ]
+        "RpcServices": [ "game" ]
       }
     ]
   }
@@ -683,18 +695,16 @@ change the `LakonaInternalCodec` used for framework handshake, heartbeat,
 reliable push ack, and session termination notice payloads.
 
 Generated hotfix startup hooks own fixed local actor creation through startup
-declarations. The Chat startup hook declares its room actor with:
+declarations. The arena startup hook declares its world actor with:
 
 ```csharp
 [HotfixStartup]
-public static class GameHotfixStartup
+public static class HotfixStartup
 {
     [HotfixConfigureActors]
-    public static void Actors(ActorHostBuilder actors)
+    public static void ConfigureActors(ActorHostBuilder actors)
     {
-        actors.RegisterStartup(
-            "chat-room",
-            static _ => ActorStartupPlan.Create<ChatRoomActor>(ActorId.From("chat-room/global")));
+        actors.RegisterStartup<GameWorldActor, string>(static context => context.Candidates[0]);
     }
 }
 ```

@@ -21,7 +21,7 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 
         This is a generated Lakona.Game project with server host, shared contracts,
         {{EngineDescription(spec.ClientEngine)}}, local cluster defaults, hotfixable rules,
-        reliable business push, and a generated login and chat vertical slice.
+        reliable business push, and a generated server-authoritative arena game.
 
         ## Generated Options
 
@@ -98,12 +98,29 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
           -> client login RPC
           -> generated hotfix-backed service binding
           -> current Server/Hotfix service implementation
-          -> actor-backed chat room state
-          -> reliable callback or notification
+          -> actor-owned in-memory game world
+          -> periodic authoritative simulation
+          -> polled world snapshots plus immediate presence callbacks
         ```
 
-        The hotfix actor startup path ensures the fixed local ChatRoomActor exists
-        before business RPC asks it for work.
+        The hotfix actor startup path ensures the fixed local `GameWorldActor` exists
+        before login or input RPC asks it for work. The actor owns all mutable player,
+        monster, bullet, health, score, online, and respawn state. No database is used;
+        restarting the server clears the world.
+
+        ## Demo Rules
+
+        - Enter a player name. A new name receives a new server-assigned `PlayerId`;
+          an offline existing name restores its in-memory state; an online name is rejected.
+        - Move with WASD. The client sends direction only and the server computes movement.
+        - Players automatically fire in their last movement direction every 0.5 seconds.
+        - A green monster spawns every 3 seconds, chases the nearest living online player,
+          and deals contact damage with a cooldown.
+        - Killing a monster awards 10 points. Killing a player awards half of the victim's
+          pre-death score, rounded up; the victim keeps the same rounded half.
+        - Dead players respawn after 5 seconds. Disconnects disappear immediately while
+          their state remains available for same-name reconnects.
+        - {{ProceduralArtSentence(spec.ClientEngine)}}
 
         Cluster, hotfix, and reliable push are part of the generated default model.
 
@@ -126,12 +143,12 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         `Server/Hotfix` code owns behavior.
 
         ```csharp
-        [HotfixBehaviorOf(typeof(ChatRoomActor))]
-        internal static partial class ChatRoomBehavior
+        [HotfixBehaviorOf(typeof(GameWorldActor))]
+        internal static partial class GameWorldBehavior
         {
             public static ValueTask<LoginReply> LoginAsync(
-                this ChatRoomActor self,
-                ChatRoomLoginRequest request,
+                this GameWorldActor self,
+                GameLoginRequest request,
                 CancellationToken cancellationToken = default)
             {
                 _ = self;
@@ -143,14 +160,14 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         ```
 
         ```csharp
-        public LoginService(ChatRoomActors rooms, ILakonaGameServer gameServer)
+        public GameService(GameWorldActors worlds, ILakonaGameServer gameServer)
         {
-            _rooms = rooms;
+            _worlds = worlds;
             _gameServer = gameServer;
         }
 
-        var reply = await _rooms.Startup(ChatRoomIds.Global).CallAsync(
-            ChatRoomBehavior.LoginAsync,
+        var reply = await _worlds.Startup(GameWorldIds.Global).CallAsync(
+            GameWorldBehavior.LoginAsync,
             request,
             ct);
         ```
@@ -214,9 +231,9 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
     private static string ClientStartupSentence(ClientEngine engine) => engine switch
     {
         ClientEngine.Unity or ClientEngine.UnityCn or ClientEngine.Tuanjie =>
-            "Open the Unity-compatible project at Client/ and run the generated login scene.",
+            "Open the Unity-compatible project at Client/ and run the generated Game scene.",
         ClientEngine.Godot =>
-            "Open the Godot project at Client/ and run the generated login scene.",
+            "Open the Godot project at Client/ and run the generated Game scene.",
         ClientEngine.Console =>
             "Run the console client from Client/Client.csproj after the server is running.",
         _ => throw new ArgumentOutOfRangeException(nameof(engine), engine, null)
@@ -225,13 +242,24 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
     private static string ClientNotes(ClientEngine engine) => engine switch
     {
         ClientEngine.Unity or ClientEngine.UnityCn or ClientEngine.Tuanjie =>
-            "The generated client uses UI Toolkit for UI. NuGetForUnity manages package " +
-            "dependencies. Unity-generated package folders and editor caches are ignored by Git.",
+            "The generated Game scene contains its login and HUD structure in scene/UI Toolkit assets. " +
+            "Runtime code draws gameplay with generated textures and basic shapes. NuGetForUnity manages package dependencies.",
         ClientEngine.Godot =>
-            "Scenes and theme resources are file-backed. The generated Godot project uses " +
-            "SDK-style package references.",
+            "The Game scene and theme are file-backed. Node2D custom drawing renders gameplay " +
+            "without textures, and the project uses SDK-style package references.",
         ClientEngine.Console =>
             "The console client is intended for smoke/load flows and generates no game-engine assets.",
+        _ => throw new ArgumentOutOfRangeException(nameof(engine), engine, null)
+    };
+
+    private static string ProceduralArtSentence(ClientEngine engine) => engine switch
+    {
+        ClientEngine.Unity or ClientEngine.UnityCn or ClientEngine.Tuanjie =>
+            "Unity draws the map, players, monsters, bullets, directions, and health bars from engine primitives. No external art files are included.",
+        ClientEngine.Godot =>
+            "Godot draws the map, players, monsters, bullets, directions, and health bars from engine primitives. No external art files are included.",
+        ClientEngine.Console =>
+            "The headless console client submits movement input and prints smoke/load results without game-engine assets.",
         _ => throw new ArgumentOutOfRangeException(nameof(engine), engine, null)
     };
 

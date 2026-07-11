@@ -47,20 +47,20 @@ internal static class ConsoleClientCodeTemplates
             var settings = ParseClientSettings(args, allowLoadOptions: false);
             await using var client = GameClientFactory.Create(settings);
             await client.ConnectAsync();
-            var login = client.Api.Shared.Login;
-            var chat = client.Api.Shared.Chat;
+            var game = client.Api.Shared.Game;
             var name = "smoke-user";
-            var reply = await login.LoginAsync(new Shared.Contracts.Chat.LoginRequest { PlayerName = name });
-            await chat.BindAsync(new Shared.Contracts.Chat.ChatBindRequest());
-            await chat.SendAsync(new Shared.Contracts.Chat.ChatSendRequest { Text = "smoke" });
-            Console.WriteLine("Smoke succeeded.");
+            var reply = await game.LoginAsync(new Shared.Contracts.Game.LoginRequest { PlayerName = name });
+            if (!reply.Success) throw new InvalidOperationException(reply.Error);
+            await game.SubmitInputAsync(new Shared.Contracts.Game.PlayerInput { DirectionX = 1f });
+            var world = await game.GetWorldAsync(new Shared.Contracts.Game.WorldQuery());
+            Console.WriteLine($"Smoke succeeded. player={reply.PlayerId} players={world.Players.Count}");
             return 0;
         }
 
         static async Task<int> RunLoadAsync(string[] args)
         {
             var options = ParseLoadOptions(args);
-            var scenario = new LoginChatLoadScenario(new LoginChatLoadScenarioOptions(options.ClientSettings, options.MessageRatePerUser));
+            var scenario = new GameLoadScenario(new GameLoadScenarioOptions(options.ClientSettings, options.InputRatePerUser));
             var runner = new Lakona.Game.LoadTesting.LoadRunner();
             var summary = await runner.RunAsync(scenario, new Lakona.Game.LoadTesting.LoadRunOptions(options.Users, options.RampUp, options.Duration));
             Console.WriteLine(Lakona.Game.LoadTesting.LoadRunSummaryFormatter.Format(summary));
@@ -93,7 +93,7 @@ internal static class ConsoleClientCodeTemplates
                     case "--users":
                     case "--ramp-up":
                     case "--duration":
-                    case "--message-rate":
+                    case "--input-rate":
                         if (!allowLoadOptions)
                         {
                             throw new ArgumentException($"Unsupported option '{args[index]}'.");
@@ -115,7 +115,7 @@ internal static class ConsoleClientCodeTemplates
             int? users = null;
             TimeSpan rampUp = TimeSpan.Zero;
             TimeSpan? duration = null;
-            var messageRate = 1;
+            var messageRate = 10;
             for (var index = 0; index < args.Length; index++)
             {
                 switch (args[index])
@@ -134,8 +134,8 @@ internal static class ConsoleClientCodeTemplates
                     case "--duration":
                         duration = ParseDuration(ReadValue(args, ref index, "--duration"));
                         break;
-                    case "--message-rate":
-                        messageRate = int.Parse(ReadValue(args, ref index, "--message-rate"), System.Globalization.CultureInfo.InvariantCulture);
+                    case "--input-rate":
+                        messageRate = int.Parse(ReadValue(args, ref index, "--input-rate"), System.Globalization.CultureInfo.InvariantCulture);
                         break;
                     default:
                         throw new ArgumentException($"Unsupported option '{args[index]}'.");
@@ -159,7 +159,7 @@ internal static class ConsoleClientCodeTemplates
 
             if (messageRate < 0)
             {
-                throw new ArgumentException("--message-rate must be zero or positive.");
+                throw new ArgumentException("--input-rate must be zero or positive.");
             }
 
             return new LoadCommandOptions(settings, users.Value, rampUp, duration.Value, messageRate);
@@ -210,7 +210,7 @@ internal static class ConsoleClientCodeTemplates
         {
             Console.Error.WriteLine("Usage:");
             Console.Error.WriteLine("  dotnet run -- smoke [--host 127.0.0.1] [--port 20000] [--path /ws]");
-            Console.Error.WriteLine("  dotnet run -- load --users 100 --duration 5m [--ramp-up 30s] [--message-rate 1]");
+            Console.Error.WriteLine("  dotnet run -- load --users 100 --duration 5m [--ramp-up 30s] [--input-rate 10]");
         }
 
         internal sealed record LoadCommandOptions(
@@ -218,7 +218,7 @@ internal static class ConsoleClientCodeTemplates
             int Users,
             TimeSpan RampUp,
             TimeSpan Duration,
-            int MessageRatePerUser);
+            int InputRatePerUser);
         """;
     }
 
@@ -238,6 +238,7 @@ internal static class ConsoleClientCodeTemplates
         using Lakona.Rpc.Client;
         using Lakona.Rpc.Core;
         using Client.Generated;
+        using Shared.Contracts.Game;
         {{RenderSerializerUsing(spec.Serializer)}}
         {{RenderTransportUsing(spec.Transport)}}
 
@@ -250,7 +251,7 @@ internal static class ConsoleClientCodeTemplates
                 return new LakonaGameClient(new LakonaGameClientOptions(
                     {{RenderTransportExpression(spec.Transport)}},
                     {{RenderSerializerExpression(spec.Serializer)}})
-                    .UseSecurity(ConfigureTransportSecurity));
+                    .UseSecurity(ConfigureTransportSecurity), new ConsoleGameCallback());
             }
 
             private static string NormalizePath(string path)
@@ -270,64 +271,70 @@ internal static class ConsoleClientCodeTemplates
                 security.EnableEncryption = false;
                 security.EncryptionKeyBase64 = null;
             }
+
+            private sealed class ConsoleGameCallback : IGameCallback
+            {
+                public void OnWorldUpdated(WorldSnapshot snapshot)
+                {
+                }
+            }
         }
         """;
     }
 
-    public static string RenderLoginChatLoadScenario()
+    public static string RenderGameLoadScenario()
     {
         return """
         using Client.ClientRuntime;
         using Lakona.Game.LoadTesting;
-        using Shared.Contracts.Chat;
+        using Shared.Contracts.Game;
 
         namespace Client.LoadScenarios;
 
-        public sealed class LoginChatLoadScenario : ILoadScenario
+        public sealed class GameLoadScenario : ILoadScenario
         {
-            private readonly LoginChatLoadScenarioOptions options;
+            private readonly GameLoadScenarioOptions options;
 
-            public LoginChatLoadScenario(LoginChatLoadScenarioOptions options)
+            public GameLoadScenario(GameLoadScenarioOptions options)
             {
                 this.options = options;
             }
 
-            public string Name => "login-chat";
+            public string Name => "arena-game";
 
             public async ValueTask RunUserAsync(LoadUserContext context, CancellationToken cancellationToken)
             {
                 await using var client = GameClientFactory.Create(options.ClientSettings);
                 await context.MeasureAsync("connect", token => client.ConnectAsync(token), cancellationToken);
-                var login = client.Api.Shared.Login;
-                var chat = client.Api.Shared.Chat;
+                var game = client.Api.Shared.Game;
                 LoginReply? reply = null;
                 await context.MeasureAsync("login", async token =>
                 {
-                    reply = await login.LoginAsync(new LoginRequest { PlayerName = context.UserName });
+                    reply = await game.LoginAsync(new LoginRequest { PlayerName = context.UserName });
                 }, cancellationToken);
-                if (reply == null)
+                if (reply == null || !reply.Success)
                 {
-                    throw new InvalidOperationException("Login did not return a reply.");
+                    throw new InvalidOperationException(reply?.Error ?? "Login did not return a reply.");
                 }
 
-                await context.MeasureAsync("bind", async token =>
-                {
-                    await chat.BindAsync(new ChatBindRequest());
-                }, cancellationToken);
-
-                if (options.MessageRatePerUser == 0)
+                if (options.InputRatePerUser == 0)
                 {
                     await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
                     return;
                 }
 
-                var delay = TimeSpan.FromSeconds(1.0 / options.MessageRatePerUser);
-                var messageIndex = 0;
+                var delay = TimeSpan.FromSeconds(1.0 / options.InputRatePerUser);
+                var inputIndex = 0;
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    await context.MeasureAsync("send", async token =>
+                    await context.MeasureAsync("input", async token =>
                     {
-                        await chat.SendAsync(new ChatSendRequest { Text = $"load {context.UserName} {messageIndex++}" });
+                        var angle = inputIndex++ * 0.25;
+                        await game.SubmitInputAsync(new PlayerInput
+                        {
+                            DirectionX = (float)Math.Cos(angle),
+                            DirectionY = (float)Math.Sin(angle)
+                        });
                     }, cancellationToken);
                     await Task.Delay(delay, cancellationToken);
                 }
@@ -336,14 +343,14 @@ internal static class ConsoleClientCodeTemplates
         """;
     }
 
-    public static string RenderLoginChatLoadScenarioOptions()
+    public static string RenderGameLoadScenarioOptions()
     {
         return """
         using Client.ClientRuntime;
 
         namespace Client.LoadScenarios;
 
-        public sealed record LoginChatLoadScenarioOptions(ConsoleClientSettings ClientSettings, int MessageRatePerUser);
+        public sealed record GameLoadScenarioOptions(ConsoleClientSettings ClientSettings, int InputRatePerUser);
         """;
     }
 

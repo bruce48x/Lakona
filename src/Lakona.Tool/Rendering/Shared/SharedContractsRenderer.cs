@@ -8,9 +8,8 @@ internal sealed class SharedContractsRenderer : IPlanContributor
     public void AddFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
         builder.AddFile("Shared/Contracts/RpcContractIds.cs", RenderRpcContractIds(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Shared/Contracts/Login.cs", RenderLoginProtocols(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Shared/Contracts/Chat/ChatProtocols.cs", RenderChatProtocols(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Shared/Contracts/Chat/ChatMessages.cs", RenderChatMessages(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Shared/Contracts/Game/GameProtocols.cs", RenderGameProtocols(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Shared/Contracts/Game/GameMessages.cs", RenderGameMessages(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
     }
 
     private static string RenderRpcContractIds()
@@ -22,142 +21,130 @@ internal sealed class SharedContractsRenderer : IPlanContributor
             {
                 public static class Services
                 {
-                    public const int Login = 1;
-                    public const int Chat = 2;
+                    public const int Game = 1;
                 }
 
-                public static class LoginServiceMethods
+                public static class GameServiceMethods
                 {
                     public const int LoginAsync = 1;
+                    public const int SubmitInputAsync = 2;
+                    public const int GetWorldAsync = 3;
                 }
 
-                public static class LoginNotifications
+                public static class GameNotifications
                 {
-                    public const int UserJoined = 1;
-                    public const int UserLeft = 2;
-                }
-
-                public static class ChatServiceMethods
-                {
-                    public const int BindAsync = 1;
-                    public const int SendAsync = 2;
-                }
-
-                public static class ChatNotifications
-                {
-                    public const int MessageReceived = 1;
+                    public const int WorldUpdated = 1;
                 }
             }
         }
         """;
     }
 
-    private static string RenderLoginProtocols()
+    private static string RenderGameProtocols()
     {
         return """
         using System.Threading.Tasks;
-        using Shared.Contracts;
         using Lakona.Rpc.Core;
 
-        namespace Shared.Contracts.Chat
+        namespace Shared.Contracts.Game
         {
-            [RpcService(RpcContractIds.Services.Login, NotificationContract = typeof(ILoginCallback))]
-            public interface ILoginService
+            [RpcService(RpcContractIds.Services.Game, NotificationContract = typeof(IGameCallback))]
+            public interface IGameService
             {
-                [RpcMethod(RpcContractIds.LoginServiceMethods.LoginAsync)]
-                ValueTask<LoginReply> LoginAsync(LoginRequest req);
+                [RpcMethod(RpcContractIds.GameServiceMethods.LoginAsync)]
+                ValueTask<LoginReply> LoginAsync(LoginRequest request);
+
+                [RpcMethod(RpcContractIds.GameServiceMethods.SubmitInputAsync)]
+                ValueTask SubmitInputAsync(PlayerInput request);
+
+                [RpcMethod(RpcContractIds.GameServiceMethods.GetWorldAsync)]
+                ValueTask<WorldSnapshot> GetWorldAsync(WorldQuery request);
             }
 
-            [RpcNotificationContract(typeof(ILoginService))]
-            public interface ILoginCallback
+            [RpcNotificationContract(typeof(IGameService))]
+            public interface IGameCallback
             {
-                [RpcNotification(RpcContractIds.LoginNotifications.UserJoined)]
-                void OnUserJoined(ChatMember member);
-
-                [RpcNotification(RpcContractIds.LoginNotifications.UserLeft)]
-                void OnUserLeft(ChatUserLeft evt);
+                [RpcNotification(RpcContractIds.GameNotifications.WorldUpdated)]
+                void OnWorldUpdated(WorldSnapshot snapshot);
             }
         }
         """;
     }
 
-    private static string RenderChatProtocols()
-    {
-        return """
-        using System.Threading.Tasks;
-        using Shared.Contracts;
-        using Lakona.Rpc.Core;
-
-        namespace Shared.Contracts.Chat
-        {
-            [RpcService(RpcContractIds.Services.Chat, NotificationContract = typeof(IChatCallback))]
-            public interface IChatService
-            {
-                [RpcMethod(RpcContractIds.ChatServiceMethods.BindAsync)]
-                ValueTask BindAsync(ChatBindRequest req);
-
-                [RpcMethod(RpcContractIds.ChatServiceMethods.SendAsync)]
-                ValueTask SendAsync(ChatSendRequest req);
-            }
-
-            [RpcNotificationContract(typeof(IChatService))]
-            public interface IChatCallback
-            {
-                [RpcNotification(RpcContractIds.ChatNotifications.MessageReceived)]
-                void OnMessageReceived(ChatMessage msg);
-            }
-        }
-        """;
-    }
-
-    private static string RenderChatMessages(LakonaProjectSpec spec)
+    private static string RenderGameMessages(LakonaProjectSpec spec)
     {
         var memoryPackUsing = spec.Serializer == SerializerKind.MemoryPack ? "using MemoryPack;\n" : "";
         var memoryPackable = spec.Serializer == SerializerKind.MemoryPack ? "[MemoryPackable(GenerateType.VersionTolerant)]\n    " : "";
-        var order0 = spec.Serializer == SerializerKind.MemoryPack ? "[MemoryPackOrder(0)] " : "";
-        var order1 = spec.Serializer == SerializerKind.MemoryPack ? "[MemoryPackOrder(1)] " : "";
-        var order2 = spec.Serializer == SerializerKind.MemoryPack ? "[MemoryPackOrder(2)] " : "";
+        string Order(int value) => spec.Serializer == SerializerKind.MemoryPack ? $"[MemoryPackOrder({value})] " : "";
 
         return $$"""
         using System.Collections.Generic;
         {{memoryPackUsing}}
-        namespace Shared.Contracts.Chat
+        namespace Shared.Contracts.Game
         {
             {{memoryPackable}}public partial class LoginRequest
             {
-                {{order0}}public string PlayerName { get; set; } = "";
+                {{Order(0)}}public string PlayerName { get; set; } = "";
             }
 
             {{memoryPackable}}public partial class LoginReply
             {
-                {{order0}}public List<ChatMember> Members { get; set; } = new();
-                {{order1}}public List<ChatMessage> RecentMessages { get; set; } = new();
+                {{Order(0)}}public bool Success { get; set; }
+                {{Order(1)}}public string Error { get; set; } = "";
+                {{Order(2)}}public long PlayerId { get; set; }
+                {{Order(3)}}public WorldSnapshot World { get; set; } = new();
             }
 
-            {{memoryPackable}}public partial class ChatSendRequest
+            {{memoryPackable}}public partial class PlayerInput
             {
-                {{order0}}public string Text { get; set; } = "";
+                {{Order(0)}}public float DirectionX { get; set; }
+                {{Order(1)}}public float DirectionY { get; set; }
             }
 
-            {{memoryPackable}}public partial class ChatBindRequest
+            {{memoryPackable}}public partial class WorldQuery
             {
             }
 
-            {{memoryPackable}}public partial class ChatUserLeft
+            {{memoryPackable}}public partial class WorldSnapshot
             {
-                {{order0}}public string Name { get; set; } = "";
+                {{Order(0)}}public long Tick { get; set; }
+                {{Order(1)}}public float Width { get; set; }
+                {{Order(2)}}public float Height { get; set; }
+                {{Order(3)}}public List<PlayerSnapshot> Players { get; set; } = new();
+                {{Order(4)}}public List<MonsterSnapshot> Monsters { get; set; } = new();
+                {{Order(5)}}public List<BulletSnapshot> Bullets { get; set; } = new();
             }
 
-            {{memoryPackable}}public partial class ChatMember
+            {{memoryPackable}}public partial class PlayerSnapshot
             {
-                {{order0}}public string Name { get; set; } = "";
+                {{Order(0)}}public long PlayerId { get; set; }
+                {{Order(1)}}public string Name { get; set; } = "";
+                {{Order(2)}}public float X { get; set; }
+                {{Order(3)}}public float Y { get; set; }
+                {{Order(4)}}public float DirectionX { get; set; }
+                {{Order(5)}}public float DirectionY { get; set; }
+                {{Order(6)}}public int Health { get; set; }
+                {{Order(7)}}public int MaxHealth { get; set; }
+                {{Order(8)}}public int Score { get; set; }
+                {{Order(9)}}public bool IsAlive { get; set; }
+                {{Order(10)}}public float RespawnSeconds { get; set; }
             }
 
-            {{memoryPackable}}public partial class ChatMessage
+            {{memoryPackable}}public partial class MonsterSnapshot
             {
-                {{order0}}public string SenderName { get; set; } = "";
-                {{order1}}public string Text { get; set; } = "";
-                {{order2}}public long Timestamp { get; set; }
+                {{Order(0)}}public long MonsterId { get; set; }
+                {{Order(1)}}public float X { get; set; }
+                {{Order(2)}}public float Y { get; set; }
+                {{Order(3)}}public int Health { get; set; }
+                {{Order(4)}}public int MaxHealth { get; set; }
+            }
+
+            {{memoryPackable}}public partial class BulletSnapshot
+            {
+                {{Order(0)}}public long BulletId { get; set; }
+                {{Order(1)}}public long OwnerPlayerId { get; set; }
+                {{Order(2)}}public float X { get; set; }
+                {{Order(3)}}public float Y { get; set; }
             }
         }
         """;

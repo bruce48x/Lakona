@@ -114,7 +114,7 @@ The default development appsettings file has this shape:
         "Serializer": "memorypack",
         "Host": "127.0.0.1",
         "Port": 20000,
-        "RpcServices": [ "login", "chat" ]
+        "RpcServices": [ "game" ]
       }
     ]
   }

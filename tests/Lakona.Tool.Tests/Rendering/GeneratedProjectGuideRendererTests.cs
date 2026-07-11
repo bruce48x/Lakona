@@ -180,8 +180,8 @@ public sealed class GeneratedProjectGuideRendererTests
         var plan = builder.Build();
         var readme = Assert.Single(plan.Files, file => file.RelativePath == "README.md");
         Assert.Contains("node-local actor runtime", readme.Content, StringComparison.Ordinal);
-        Assert.Contains("public LoginService(ChatRoomActors rooms, ILakonaGameServer gameServer)", readme.Content, StringComparison.Ordinal);
-        Assert.Contains("await _rooms.Startup(ChatRoomIds.Global).CallAsync(", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("public GameService(GameWorldActors worlds, ILakonaGameServer gameServer)", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("await _worlds.Startup(GameWorldIds.Global).CallAsync(", readme.Content, StringComparison.Ordinal);
         Assert.DoesNotContain("starterNodeLocalActors.AskAsync", readme.Content, StringComparison.Ordinal);
         Assert.DoesNotContain(".AskAsync", readme.Content, StringComparison.Ordinal);
         Assert.Contains("RPC services that target actors whose", readme.Content, StringComparison.Ordinal);
@@ -205,7 +205,9 @@ public sealed class GeneratedProjectGuideRendererTests
         var readme = Assert.Single(plan.Files, file => file.RelativePath == "README.md");
         Assert.Contains("Server/App/    Stable server host, actor state shells, configuration", readme.Content, StringComparison.Ordinal);
         Assert.Contains("Server/Hotfix/ Reloadable services, actor behaviors, actor startup, timer callbacks", readme.Content, StringComparison.Ordinal);
-        Assert.Contains("hotfix actor startup path ensures the fixed local ChatRoomActor exists", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("hotfix actor startup path ensures the fixed local `GameWorldActor` exists", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("Killing a player awards half", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("No external art files are included", readme.Content, StringComparison.Ordinal);
         Assert.Contains("Lakona:Hotfix:DebugWatcher=On", readme.Content, StringComparison.Ordinal);
         Assert.Contains("reload.signal", readme.Content, StringComparison.Ordinal);
         Assert.DoesNotContain("stable Server/App service binding", readme.Content, StringComparison.Ordinal);

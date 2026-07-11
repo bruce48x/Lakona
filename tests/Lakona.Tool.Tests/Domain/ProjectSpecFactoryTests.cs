@@ -40,7 +40,7 @@ public sealed class ProjectSpecFactoryTests
                 ProjectCapability.Hotfix,
                 ProjectCapability.ReliablePush,
                 ProjectCapability.LoginSlice,
-                ProjectCapability.ChatSlice
+                ProjectCapability.GameSlice
             ],
             spec.Capabilities);
     }

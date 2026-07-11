@@ -4,10 +4,10 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-07-11 — Startup Actor service groups and operational readiness
+## 2026-07-11 — Startup Actor readiness and game-first scaffolding
 
 **Key releases:** `Lakona.Game.Server 0.18.0`,
-`Lakona.Game.Server.Hotfix 0.8.0`, `Lakona.Tool 0.24.0`,
+`Lakona.Game.Server.Hotfix 0.8.0`, `Lakona.Tool 0.25.0`,
 `Lakona.Cluster 0.5.0`, `Lakona.Cluster.Rpc 0.4.0`,
 `Lakona.Cluster.Rpc.MemoryPack 0.3.0`, and `Lakona.Cluster.Sql 0.4.0`.
 
@@ -15,7 +15,8 @@ date and package versions of important releases are retained.
   replica failover, and transactional publication during hotfix reload.
 - Added persistent and remote node and actor directories, unified local health,
   diagnostics, and administration endpoints, and strengthened startup readiness.
-- Completed dedicated three-node Agar and Godot Chat end-to-end coverage.
+- Replaced the default Chat scaffold with a server-authoritative top-down arena
+  for Unity, Tuanjie, Godot, and Console, using engine primitives with no art assets.
 
 ## 2026-07-10 — Unified cluster actor protocol
 
