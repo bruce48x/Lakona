@@ -8,18 +8,19 @@ using Microsoft.Extensions.Hosting;
 
 namespace Lakona.Game.Server.Hosting;
 
-public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
+public sealed class LakonaGameClusterRegistrationHostedService : IHostedService, IClusterNodeRegistrationRefresher
 {
     private const string ClusterName = "local";
 
     private readonly IServiceProvider _services;
     private readonly object _gate = new();
+    private readonly SemaphoreSlim _registrationGate = new(1, 1);
     private CancellationTokenSource? _heartbeatCts;
     private Task? _heartbeatTask;
     private INodeDirectory? _directory;
     private ClusterOptions? _options;
     private ActorHostDescriptorCatalog? _actorHostCatalog;
-    private IHotfixManager? _hotfix;
+    private StartupActorDescriptorCatalog? _startupActorCatalog;
     private NodeRecord? _record;
 
     public LakonaGameClusterRegistrationHostedService(IServiceProvider services)
@@ -40,13 +41,8 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
         _directory = directory;
         _options = options;
         _actorHostCatalog = actorHostCatalog;
-        _hotfix = _services.GetService<IHotfixManager>();
-        _record = await RegisterAsync(directory, options, cancellationToken, _hotfix?.Current)
-            .ConfigureAwait(false);
-        if (_hotfix is not null)
-        {
-            _hotfix.Reloaded += OnHotfixReloaded;
-        }
+        _startupActorCatalog = _services.GetService<StartupActorDescriptorCatalog>();
+        _record = await RegisterSerializedAsync(directory, options, cancellationToken).ConfigureAwait(false);
 
         var heartbeatInterval = ResolveHeartbeatInterval(options);
         var heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -67,12 +63,6 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
             heartbeatTask = _heartbeatTask;
             _heartbeatCts = null;
             _heartbeatTask = null;
-        }
-
-        if (_hotfix is not null)
-        {
-            _hotfix.Reloaded -= OnHotfixReloaded;
-            _hotfix = null;
         }
 
         if (heartbeatCts is not null)
@@ -127,6 +117,9 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
 
     private async Task HeartbeatAsync(CancellationToken cancellationToken)
     {
+        await _registrationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
         var directory = _directory;
         var options = _options;
         var record = _record;
@@ -153,6 +146,7 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
                 record.NodeEpoch,
                 record.Endpoints,
                 record.ActorHosts,
+                record.StartupActors,
                 record.Labels,
                 record.State,
                 leaseExpiresAt,
@@ -174,6 +168,11 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
                 _heartbeatCts?.Cancel();
             }
         }
+        }
+        finally
+        {
+            _registrationGate.Release();
+        }
     }
 
     private async Task<NodeRecord> RegisterAsync(
@@ -187,7 +186,8 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
             ClusterName,
             new NodeId(options.NodeId),
             CreateEndpoints(options.AdvertisedEndpoints),
-            CreateActorHosts(_services.GetService<LakonaGameRuntimeOptions>(), _actorHostCatalog, hotfixSnapshot),
+            CreateActorHosts(_services.GetService<LakonaGameRuntimeOptions>(), _actorHostCatalog, hotfixSnapshot ?? _services.GetService<IHotfixManager>()?.Current),
+            _startupActorCatalog?.Snapshot() ?? [],
             now.AddSeconds(options.RouteLeaseSeconds),
             NodeState.Ready,
             CreateLabels());
@@ -202,17 +202,7 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
         return result.Record;
     }
 
-    private void OnHotfixReloaded(object? sender, HotfixReloadResult result)
-    {
-        if (!result.Succeeded)
-        {
-            return;
-        }
-
-        _ = RefreshRegistrationAsync(result.Current);
-    }
-
-    private async Task RefreshRegistrationAsync(HotfixSnapshot snapshot)
+    public async ValueTask RefreshAsync(CancellationToken cancellationToken = default)
     {
         var directory = _directory;
         var options = _options;
@@ -221,11 +211,31 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService
             return;
         }
 
-        _record = await RegisterAsync(
-            directory,
-            options,
-            CancellationToken.None,
-            snapshot).ConfigureAwait(false);
+        await _registrationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            _record = await RegisterAsync(directory, options, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _registrationGate.Release();
+        }
+    }
+
+    private async Task<NodeRecord> RegisterSerializedAsync(
+        INodeDirectory directory,
+        ClusterOptions options,
+        CancellationToken cancellationToken)
+    {
+        await _registrationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await RegisterAsync(directory, options, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _registrationGate.Release();
+        }
     }
 
     private TimeSpan ResolveHeartbeatInterval(ClusterOptions options)

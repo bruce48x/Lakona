@@ -313,38 +313,48 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
         cancellationToken.ThrowIfCancellationRequested();
 
         var previousPublication = Volatile.Read(ref _publication);
+        var transactions = new List<IHotfixRuntimePublicationTransaction>(_publicationParticipants.Count);
+        var swapped = false;
         try
         {
             foreach (var participant in _publicationParticipants)
             {
-                await participant.BeforePublishAsync(runtimeSnapshot, cancellationToken)
-                    .ConfigureAwait(false);
+                transactions.Add(await participant.PrepareAsync(
+                    previousPublication.Runtime,
+                    runtimeSnapshot,
+                    cancellationToken).ConfigureAwait(false));
+            }
+
+            var nextPublication = new HotfixPublicationState(
+                snapshot,
+                runtimeSnapshot,
+                runtimeSnapshot.DispatchTable ?? previousPublication.DispatchTable);
+            HotfixDispatch.ReplaceProvider(() => Volatile.Read(ref _publication).DispatchTable);
+            Volatile.Write(ref _publication, nextPublication);
+            swapped = true;
+
+            foreach (var transaction in transactions)
+            {
+                await transaction.ActivateAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            foreach (var transaction in transactions)
+            {
+                await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException)
         {
-            try
-            {
-                await RollbackPublicationParticipantsAsync(runtimeSnapshot).ConfigureAwait(false);
-            }
-            finally
-            {
-                runtimeSnapshot.Retire();
-            }
-
+            if (swapped) Volatile.Write(ref _publication, previousPublication);
+            await RollbackPublicationTransactionsAsync(transactions).ConfigureAwait(false);
+            runtimeSnapshot.Retire();
             throw;
         }
         catch (Exception ex)
         {
-            try
-            {
-                await RollbackPublicationParticipantsAsync(runtimeSnapshot).ConfigureAwait(false);
-            }
-            finally
-            {
-                runtimeSnapshot.Retire();
-            }
-
+            if (swapped) Volatile.Write(ref _publication, previousPublication);
+            await RollbackPublicationTransactionsAsync(transactions).ConfigureAwait(false);
+            runtimeSnapshot.Retire();
             return new HotfixReloadResult(
                 HotfixReloadStatus.Failed,
                 previousPublication.Snapshot,
@@ -354,23 +364,11 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 ex.Message,
                 ex.GetType().FullName);
         }
-
-        var nextPublication = new HotfixPublicationState(
-            snapshot,
-            runtimeSnapshot,
-            runtimeSnapshot.DispatchTable ?? previousPublication.DispatchTable);
-        HotfixDispatch.ReplaceProvider(() => Volatile.Read(ref _publication).DispatchTable);
-        Volatile.Write(ref _publication, nextPublication);
-
-        foreach (var participant in _publicationParticipants)
+        finally
         {
-            try
+            foreach (var transaction in transactions)
             {
-                await participant.AfterPublishAsync(previousPublication.Runtime, runtimeSnapshot, CancellationToken.None)
-                    .ConfigureAwait(false);
-            }
-            catch
-            {
+                await transaction.DisposeAsync().ConfigureAwait(false);
             }
         }
 
@@ -384,13 +382,14 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             Array.Empty<string>());
     }
 
-    private async ValueTask RollbackPublicationParticipantsAsync(HotfixRuntimeSnapshot candidate)
+    private static async ValueTask RollbackPublicationTransactionsAsync(
+        IReadOnlyList<IHotfixRuntimePublicationTransaction> transactions)
     {
-        for (var index = _publicationParticipants.Count - 1; index >= 0; index--)
+        for (var index = transactions.Count - 1; index >= 0; index--)
         {
             try
             {
-                await _publicationParticipants[index].RollbackPublishAsync(candidate, CancellationToken.None)
+                await transactions[index].RollbackAsync(CancellationToken.None)
                     .ConfigureAwait(false);
             }
             catch

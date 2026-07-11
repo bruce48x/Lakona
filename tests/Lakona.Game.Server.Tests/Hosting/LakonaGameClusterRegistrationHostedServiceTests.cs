@@ -125,6 +125,32 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
     }
 
     [Fact]
+    public async Task RegistrationPublishesOnlyReadyStartupActorDescriptors()
+    {
+        var directory = new RecordingNodeDirectory();
+        var services = CreateRegistrationServices(directory);
+        services.AddSingleton(new StartupActorDescriptorCatalog(
+        [
+            new StartupActorDescriptor(
+                "matchmaking",
+                "startup:v1:Matchmaking:QueueKey",
+                "build-v1",
+                new Dictionary<string, string> { ["region"] = "cn-east" })
+        ]));
+        await using var provider = services.BuildServiceProvider();
+        var hosted = provider.GetRequiredService<IHostedService>();
+
+        await hosted.StartAsync(TestContext.Current.CancellationToken);
+
+        var registration = Assert.Single(directory.Registrations);
+        var startup = Assert.Single(registration.StartupActors);
+        Assert.Equal("matchmaking", startup.Actor);
+        Assert.Equal("startup:v1:Matchmaking:QueueKey", startup.PolicyHash);
+        Assert.Equal("build-v1", startup.BuildTag);
+        Assert.Equal("cn-east", startup.Metadata["region"]);
+    }
+
+    [Fact]
     public async Task RegistrationFailsForUnknownConfiguredActorHost()
     {
         var directory = new RecordingNodeDirectory();
@@ -184,9 +210,8 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
         await hosted.StartAsync(TestContext.Current.CancellationToken);
         manager.RaiseSucceeded(CreateHotfixSnapshot(
             new HotfixActorHostDescriptor("room", "policy-v2", "build-v2")));
-        await WaitUntilAsync(
-            () => directory.Registrations.Count > 1,
-            TestContext.Current.CancellationToken);
+        await ((IClusterNodeRegistrationRefresher)hosted)
+            .RefreshAsync(TestContext.Current.CancellationToken);
 
         var record = directory.Registrations.Last();
         var host = Assert.Single(record.ActorHosts);
@@ -409,6 +434,7 @@ public sealed class LakonaGameClusterRegistrationHostedServiceTests
                 Registrations.Count,
                 registration.Endpoints,
                 registration.ActorHosts,
+                registration.StartupActors,
                 registration.Labels,
                 registration.State,
                 registration.LeaseExpiresAt,

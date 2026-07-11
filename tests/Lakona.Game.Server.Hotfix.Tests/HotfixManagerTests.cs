@@ -19,6 +19,77 @@ namespace Lakona.Game.Server.Hotfix.Tests;
 
 public sealed class HotfixManagerTests
 {
+    [Fact]
+    public async Task PublishCandidate_runs_publication_transaction_in_order()
+    {
+        var events = new List<string>();
+        var participant = new RecordingPublicationParticipant(events);
+        var manager = new HotfixManager(new FixedAssemblySource("unused"), participants: [participant]);
+        var candidate = CreateRuntimeSnapshot("v2");
+
+        var result = await manager.PublishCandidateAsync(
+            candidate,
+            CreateSnapshot("v2"),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(["prepare", "activate", "commit", "dispose"], events);
+        Assert.Equal("v2", manager.Current.Version);
+    }
+
+    [Fact]
+    public async Task PublishCandidate_restores_previous_publication_and_rolls_back_on_activation_failure()
+    {
+        var events = new List<string>();
+        var participant = new RecordingPublicationParticipant(events, failActivation: true);
+        var manager = new HotfixManager(new FixedAssemblySource("unused"), participants: [participant]);
+
+        var result = await manager.PublishCandidateAsync(
+            CreateRuntimeSnapshot("v2"),
+            CreateSnapshot("v2"),
+            TestContext.Current.CancellationToken);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(["prepare", "activate", "rollback", "dispose"], events);
+        Assert.Null(manager.Current.Version);
+    }
+
+    private static HotfixRuntimeSnapshot CreateRuntimeSnapshot(string version) => new(
+        new HotfixServiceInvoker(new HotfixDispatchTable(1, [])),
+        new ServiceCollection().BuildServiceProvider(),
+        actorStartups: [],
+        sourceVersion: version);
+
+    private static HotfixSnapshot CreateSnapshot(string version) => new(
+        version, null, DateTimeOffset.UtcNow, 1, [], HotfixReloadStatus.Succeeded, null, null);
+
+    private sealed class RecordingPublicationParticipant(List<string> events, bool failActivation = false)
+        : IHotfixRuntimePublicationParticipant
+    {
+        public ValueTask<IHotfixRuntimePublicationTransaction> PrepareAsync(
+            HotfixRuntimeSnapshot previous,
+            HotfixRuntimeSnapshot candidate,
+            CancellationToken cancellationToken = default)
+        {
+            events.Add("prepare");
+            return ValueTask.FromResult<IHotfixRuntimePublicationTransaction>(new Transaction(events, failActivation));
+        }
+
+        private sealed class Transaction(List<string> events, bool failActivation)
+            : IHotfixRuntimePublicationTransaction
+        {
+            public ValueTask ActivateAsync(CancellationToken cancellationToken = default)
+            {
+                events.Add("activate");
+                if (failActivation) throw new InvalidOperationException("activation failed");
+                return default;
+            }
+            public ValueTask CommitAsync(CancellationToken cancellationToken = default) { events.Add("commit"); return default; }
+            public ValueTask RollbackAsync(CancellationToken cancellationToken = default) { events.Add("rollback"); return default; }
+            public ValueTask DisposeAsync() { events.Add("dispose"); return default; }
+        }
+    }
+
     [Theory]
     [InlineData("FooActor", "foo")]
     [InlineData("Foo", "foo")]

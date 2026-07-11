@@ -489,11 +489,11 @@ git commit -m "Invoke keyed startup actor replicas"
 - Test: `tests/Lakona.Game.Server.Tests/Hosting/LakonaGameClusterRegistrationHostedServiceTests.cs`
 - Test: `tests/Lakona.Game.Server.Hotfix.Tests/HotfixManagerTests.cs`
 
-- [ ] **Step 1: Write initial lifecycle red tests**
+- [x] **Step 1: Write initial lifecycle red tests**
 
 Test that startup creates exactly one replica only when local `ActorHosts` contains the actor name, uses `matchmaking/@startup/node-a`, runs `[ActorStart]` before the descriptor appears, and publishes nothing on start failure. A gateway with empty `ActorHosts` starts none.
 
-- [ ] **Step 2: Write reload transaction red tests**
+- [x] **Step 2: Write reload transaction red tests**
 
 Test add, selector-only change, removal, activation failure, and rollback. Record events and assert exact order:
 
@@ -508,7 +508,7 @@ stop removed replica
 
 On activation failure assert current runtime is restored, newly created replicas are destroyed, and the previous descriptor set is republished.
 
-- [ ] **Step 3: Run the red tests**
+- [x] **Step 3: Run the red tests**
 
 ```powershell
 dotnet test tests/Lakona.Game.Server.Tests/Lakona.Game.Server.Tests.csproj --no-restore --filter "FullyQualifiedName~StartupActorHostedServiceTests|FullyQualifiedName~LakonaGameClusterRegistrationHostedServiceTests"
@@ -517,7 +517,7 @@ dotnet test tests/Lakona.Game.Server.Hotfix.Tests/Lakona.Game.Server.Hotfix.Test
 
 Expected: FAIL because the old hosted service is configuration-driven and hotfix publication cannot roll back post-swap activation.
 
-- [ ] **Step 4: Replace publication callbacks with transactions**
+- [x] **Step 4: Replace publication callbacks with transactions**
 
 Use this contract:
 
@@ -540,11 +540,11 @@ public interface IHotfixRuntimePublicationTransaction : IAsyncDisposable
 
 `HotfixManager` prepares all participants, swaps to the candidate, activates all, and only then commits. If prepare/activate fails, restore the previous publication, roll back prepared transactions in reverse order, retire the candidate, and report reload failure. `CommitAsync` is cleanup-only; participant implementations catch/log cleanup failures so they cannot create a half-rolled-back publication.
 
-- [ ] **Step 5: Serialize node registration refreshes**
+- [x] **Step 5: Serialize node registration refreshes**
 
 `LakonaGameClusterRegistrationHostedService` implements `IClusterNodeRegistrationRefresher`, protects register/heartbeat/refresh with one `SemaphoreSlim`, and builds `NodeRegistration` from both capability `ActorHosts` and the immutable ready-descriptor catalog. Remove fire-and-forget `Reloaded` event refresh; publication transactions explicitly refresh and can observe failure.
 
-- [ ] **Step 6: Implement startup lifecycle coordinator**
+- [x] **Step 6: Implement startup lifecycle coordinator**
 
 At initial host start, intersect snapshot registrations with `LakonaGameRuntimeOptions.ActorHosts`, create/ensure eligible replicas, then replace the descriptor catalog. The cluster registration hosted service starts afterward and publishes the ready set.
 
@@ -556,7 +556,7 @@ the initial hotfix snapshot can publish before hosted services run. The hosted
 service owns initial replica start/catalog population; later reloads use the
 transaction path exactly once.
 
-- [ ] **Step 7: Run lifecycle suites and commit**
+- [x] **Step 7: Run lifecycle suites and commit**
 
 ```powershell
 dotnet test tests/Lakona.Game.Server.Hotfix.Tests/Lakona.Game.Server.Hotfix.Tests.csproj --no-restore

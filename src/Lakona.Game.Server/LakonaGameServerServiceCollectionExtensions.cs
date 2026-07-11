@@ -119,9 +119,14 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.Replace(ServiceDescriptor.Singleton<IActorLifecycleDispatcher, HotfixActorLifecycleDispatcher>());
         services.TryAddSingleton<IGameHandshakeService, GameHandshakeService>();
         services.TryAddSingleton(new ActorHostDescriptorCatalog([]));
+        services.TryAddSingleton(new StartupActorDescriptorCatalog([]));
         services.TryAddSingleton<ILakonaGameServer, DefaultLakonaGameServer>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ActorStartupHostedService>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, LakonaGameClusterRegistrationHostedService>());
+        services.TryAddSingleton<StartupActorHostedService>();
+        services.AddSingleton<IHostedService>(provider => provider.GetRequiredService<StartupActorHostedService>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHotfixRuntimePublicationParticipant, StartupActorPublicationParticipant>());
+        services.TryAddSingleton<LakonaGameClusterRegistrationHostedService>();
+        services.TryAddSingleton<IClusterNodeRegistrationRefresher>(provider => provider.GetRequiredService<LakonaGameClusterRegistrationHostedService>());
+        services.AddSingleton<IHostedService>(provider => provider.GetRequiredService<LakonaGameClusterRegistrationHostedService>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, LakonaServerStartupHostedService>());
         if (configuration is null)
         {
