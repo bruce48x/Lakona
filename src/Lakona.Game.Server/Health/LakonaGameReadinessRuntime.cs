@@ -62,7 +62,10 @@ internal static class LakonaGameReadinessRuntime
                     runtime.Heartbeat.Timeout,
                     LakonaGameValueSource.Configuration,
                     "Lakona:Heartbeat:Timeout")),
-            Observability: ToResolvedObservability(runtime.Observability, observabilityCapabilities),
+            Observability: ToResolvedObservability(
+                runtime.Observability,
+                runtime.Health.Http.Host,
+                observabilityCapabilities),
             ActorHosts: runtime.ActorHosts
                 .Select((actor, index) => new LakonaGameResolvedValue<string>(
                     actor,
@@ -81,6 +84,7 @@ internal static class LakonaGameReadinessRuntime
 
     private static LakonaGameResolvedObservability ToResolvedObservability(
         LakonaObservabilityOptions observability,
+        string localHttpHost,
         LakonaObservabilityCapabilities? capabilities)
     {
         capabilities ??= new LakonaObservabilityCapabilities();
@@ -92,10 +96,10 @@ internal static class LakonaGameReadinessRuntime
                     ? LakonaGameValueSource.Configuration
                     : LakonaGameValueSource.Default,
                 "Lakona:Observability:LocalAdmin:Enabled"),
-            LocalAdminHost: new LakonaGameResolvedValue<string>(
-                observability.LocalAdmin.Host,
+            LocalHttpHost: new LakonaGameResolvedValue<string>(
+                localHttpHost,
                 LakonaGameValueSource.Configuration,
-                "Lakona:Observability:LocalAdmin:Host"),
+                "Lakona:Health:Http:Host"),
             LocalAdminRequireLoopback: new LakonaGameResolvedValue<bool>(
                 observability.LocalAdmin.RequireLoopback,
                 LakonaGameValueSource.Configuration,

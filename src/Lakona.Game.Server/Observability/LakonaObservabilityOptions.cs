@@ -136,8 +136,6 @@ public sealed class LakonaLocalAdminObservabilityOptions
 {
     public bool? Enabled { get; init; }
     public bool EffectiveEnabled { get; init; }
-    public string Host { get; init; } = "127.0.0.1";
-    public int Port { get; init; } = 20080;
     public bool RequireLoopback { get; init; } = true;
 
     public static LakonaLocalAdminObservabilityOptions FromConfiguration(IConfiguration section)
@@ -148,8 +146,6 @@ public sealed class LakonaLocalAdminObservabilityOptions
         {
             Enabled = enabled,
             EffectiveEnabled = enabled ?? false,
-            Host = LakonaConfigurationReader.ReadString(section, "Host", "127.0.0.1"),
-            Port = LakonaConfigurationReader.ReadInt(section, "Port", 20080),
             RequireLoopback = LakonaConfigurationReader.ReadBool(section, "RequireLoopback", true)
         };
     }

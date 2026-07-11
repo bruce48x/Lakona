@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Text;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.InternalHttp;
+using Lakona.Game.Server.Observability;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -11,6 +12,7 @@ namespace Lakona.Game.Server.Health;
 public sealed class LakonaHealthHttpHostedService : BackgroundService
 {
     private readonly LakonaGameRuntimeOptions _options;
+    private readonly LakonaObservabilityOptions _observabilityOptions;
     private readonly LakonaHttpRouter _router;
     private readonly ILogger<LakonaHealthHttpHostedService> _logger;
     private readonly LakonaHealthHttpRequestTracker _requestTracker;
@@ -20,19 +22,22 @@ public sealed class LakonaHealthHttpHostedService : BackgroundService
 
     public LakonaHealthHttpHostedService(
         LakonaGameRuntimeOptions options,
+        LakonaObservabilityOptions observabilityOptions,
         LakonaHttpRouter router,
         ILogger<LakonaHealthHttpHostedService> logger)
-        : this(options, router, logger, new LakonaHealthHttpRequestTracker())
+        : this(options, observabilityOptions, router, logger, new LakonaHealthHttpRequestTracker())
     {
     }
 
     internal LakonaHealthHttpHostedService(
         LakonaGameRuntimeOptions options,
+        LakonaObservabilityOptions observabilityOptions,
         LakonaHttpRouter router,
         ILogger<LakonaHealthHttpHostedService> logger,
         LakonaHealthHttpRequestTracker requestTracker)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
+        _observabilityOptions = observabilityOptions ?? throw new ArgumentNullException(nameof(observabilityOptions));
         _router = router ?? throw new ArgumentNullException(nameof(router));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _requestTracker = requestTracker ?? throw new ArgumentNullException(nameof(requestTracker));
@@ -51,7 +56,7 @@ public sealed class LakonaHealthHttpHostedService : BackgroundService
         try
         {
             var http = _options.Health.Http;
-            if (!http.Enabled)
+            if (!http.Enabled && !_observabilityOptions.LocalAdmin.EffectiveEnabled)
             {
                 _listening.TrySetResult();
                 return;
@@ -246,12 +251,12 @@ public sealed class LakonaHealthHttpHostedService : BackgroundService
             .Where(static parts => parts.Length == 2 && string.Equals(parts[0].Trim(), "Content-Length", StringComparison.OrdinalIgnoreCase))
             .Select(static parts => int.TryParse(parts[1].Trim(), out var value) ? value : 0)
             .FirstOrDefault();
-        if (contentLength < 0 || contentLength > buffer.Length - headerLength)
+        var bodyOffset = headerLength + 4;
+        if (contentLength < 0 || contentLength > buffer.Length - bodyOffset)
         {
             return null;
         }
 
-        var bodyOffset = headerLength + 4;
         var bodyRead = length - bodyOffset;
         while (bodyRead < contentLength)
         {

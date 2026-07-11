@@ -471,7 +471,7 @@ public sealed class LakonaGameRuntimeValidatorTests
             Heartbeat: TestHeartbeat(),
             Observability: new LakonaGameResolvedObservability(
                 LocalAdminEnabled: new LakonaGameResolvedValue<bool>(false, LakonaGameValueSource.Default, "Lakona:Observability:LocalAdmin:Enabled"),
-                LocalAdminHost: new LakonaGameResolvedValue<string>("127.0.0.1", LakonaGameValueSource.Default, "Lakona:Observability:LocalAdmin:Host"),
+                LocalHttpHost: new LakonaGameResolvedValue<string>("127.0.0.1", LakonaGameValueSource.Default, "Lakona:Health:Http:Host"),
                 LocalAdminRequireLoopback: new LakonaGameResolvedValue<bool>(true, LakonaGameValueSource.Default, "Lakona:Observability:LocalAdmin:RequireLoopback"),
                 DetailEnabled: new LakonaGameResolvedValue<bool>(false, LakonaGameValueSource.Default, "Lakona:Observability:Diagnostics:DetailEnabled"),
                 FileLoggingEnabled: new LakonaGameResolvedValue<bool>(false, LakonaGameValueSource.Default, "Lakona:Observability:Logging:File:Enabled"),

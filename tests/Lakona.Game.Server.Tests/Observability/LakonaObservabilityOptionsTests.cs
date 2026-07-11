@@ -12,6 +12,13 @@ namespace Lakona.Game.Server.Tests.Observability;
 public sealed class LakonaObservabilityOptionsTests
 {
     [Fact]
+    public void LocalAdmin_options_do_not_own_shared_listener_address()
+    {
+        Assert.Null(typeof(LakonaLocalAdminObservabilityOptions).GetProperty("Host"));
+        Assert.Null(typeof(LakonaLocalAdminObservabilityOptions).GetProperty("Port"));
+    }
+
+    [Fact]
     public void LocalAdmin_default_effective_enablement_is_disabled_when_unconfigured()
     {
         var options = LakonaObservabilityOptions.FromConfiguration(BuildConfiguration([]));
@@ -88,8 +95,6 @@ public sealed class LakonaObservabilityOptionsTests
             ["Lakona:Observability:Logging:File:RetainedFileCount"] = "3",
             ["Lakona:Observability:Logging:File:FileSizeLimitMB"] = "64",
             ["Lakona:Observability:LocalAdmin:Enabled"] = "true",
-            ["Lakona:Observability:LocalAdmin:Host"] = "0.0.0.0",
-            ["Lakona:Observability:LocalAdmin:Port"] = "20100",
             ["Lakona:Observability:LocalAdmin:RequireLoopback"] = "false",
             ["Lakona:Observability:Diagnostics:DetailEnabled"] = "true",
             ["Lakona:Observability:Diagnostics:EventBuffer:Enabled"] = "false",

@@ -71,7 +71,7 @@ public sealed class LakonaGameReadinessEvaluatorTests
         var runtime = RuntimeFromConfiguration(
             new Dictionary<string, string?>
             {
-                ["Lakona:Observability:LocalAdmin:Host"] = "0.0.0.0",
+                ["Lakona:Health:Http:Host"] = "0.0.0.0",
                 ["Lakona:Observability:Diagnostics:DetailEnabled"] = "true"
             });
 
@@ -81,6 +81,29 @@ public sealed class LakonaGameReadinessEvaluatorTests
 
         Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "ULINK130");
         Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "ULINK132");
+    }
+
+    [Fact]
+    public void Evaluate_uses_shared_listener_host_for_local_admin_exposure_guardrail()
+    {
+        var runtime = RuntimeFromConfiguration(
+            new Dictionary<string, string?>
+            {
+                ["Lakona:Endpoints:0:Transport"] = "websocket",
+                ["Lakona:Endpoints:0:Serializer"] = "json",
+                ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
+                ["Lakona:Endpoints:0:Port"] = "20000",
+                ["Lakona:Endpoints:0:Path"] = "/ws",
+                ["Lakona:Health:Http:Enabled"] = "true",
+                ["Lakona:Health:Http:Host"] = "0.0.0.0",
+                ["Lakona:Observability:LocalAdmin:Enabled"] = "true",
+                ["Lakona:Observability:LocalAdmin:RequireLoopback"] = "false",
+                ["Lakona:Observability:Diagnostics:DetailEnabled"] = "true"
+            });
+
+        var snapshot = CreateEvaluator(runtime).Evaluate();
+
+        Assert.Contains(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "ULINK132");
     }
 
     private static LakonaGameReadinessEvaluator CreateEvaluator(

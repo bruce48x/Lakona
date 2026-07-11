@@ -8,19 +8,19 @@ namespace Lakona.Game.Server.Tests.Observability;
 public sealed class ObservabilityGuardrailTests
 {
     [Fact]
-    public void Validate_EmitsError_WhenLocalAdminRequiresLoopbackButBindsNonLoopback()
+    public void Validate_EmitsError_WhenLocalAdminRequiresLoopbackButSharedListenerBindsNonLoopback()
     {
         var result = Validate(TestRuntime() with
         {
             Observability = TestObservability(
                 localAdminEnabled: true,
-                localAdminHost: "0.0.0.0",
+                localHttpHost: "0.0.0.0",
                 localAdminRequireLoopback: true)
         });
 
         var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "ULINK130");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
-        Assert.Contains("Lakona:Observability:LocalAdmin:Host", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("Lakona:Health:Http:Host", diagnostic.Message, StringComparison.Ordinal);
         Assert.Contains("127.0.0.1", diagnostic.Repair, StringComparison.Ordinal);
     }
 
@@ -43,7 +43,7 @@ public sealed class ObservabilityGuardrailTests
         {
             Observability = TestObservability(
                 localAdminEnabled: true,
-                localAdminHost: "192.168.1.20",
+                localHttpHost: "192.168.1.20",
                 detailEnabled: true)
         });
 
@@ -240,7 +240,7 @@ public sealed class ObservabilityGuardrailTests
 
     private static LakonaGameResolvedObservability TestObservability(
         bool localAdminEnabled = false,
-        string localAdminHost = "127.0.0.1",
+        string localHttpHost = "127.0.0.1",
         bool localAdminRequireLoopback = true,
         bool detailEnabled = false,
         bool fileLoggingEnabled = false,
@@ -258,7 +258,7 @@ public sealed class ObservabilityGuardrailTests
     {
         return new LakonaGameResolvedObservability(
             LocalAdminEnabled: new LakonaGameResolvedValue<bool>(localAdminEnabled, LakonaGameValueSource.Configuration, "Lakona:Observability:LocalAdmin:Enabled"),
-            LocalAdminHost: new LakonaGameResolvedValue<string>(localAdminHost, LakonaGameValueSource.Configuration, "Lakona:Observability:LocalAdmin:Host"),
+            LocalHttpHost: new LakonaGameResolvedValue<string>(localHttpHost, LakonaGameValueSource.Configuration, "Lakona:Health:Http:Host"),
             LocalAdminRequireLoopback: new LakonaGameResolvedValue<bool>(localAdminRequireLoopback, LakonaGameValueSource.Configuration, "Lakona:Observability:LocalAdmin:RequireLoopback"),
             DetailEnabled: new LakonaGameResolvedValue<bool>(detailEnabled, LakonaGameValueSource.Configuration, "Lakona:Observability:Diagnostics:DetailEnabled"),
             FileLoggingEnabled: new LakonaGameResolvedValue<bool>(fileLoggingEnabled, LakonaGameValueSource.Configuration, "Lakona:Observability:Logging:File:Enabled"),
