@@ -108,8 +108,9 @@ curl http://127.0.0.1:20080/_lakona/health/ready
 
 The framework emits `Lakona server started successfully. NodeId={NodeId}.` only
 after startup actors and lifecycle callbacks complete, cluster registration
-succeeds, and every enabled RPC, cluster, health, and local-admin listener has
-bound successfully.
+succeeds, and every enabled RPC, cluster, and health listener has bound
+successfully. When enabled, local-admin routes share the health listener rather
+than opening an additional port.
 
 The validation boundary should report configuration problems before runtime
 listeners are opened.

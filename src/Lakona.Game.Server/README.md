@@ -74,9 +74,9 @@ Lakona emits logs, metrics, and traces through standard .NET diagnostics:
 
 Local admin diagnostics are disabled by default. Enable them explicitly with
 `Lakona:Observability:LocalAdmin:Enabled=true` for processes that should expose
-the loopback diagnostics host.
+loopback diagnostics routes on the health HTTP listener.
 
-Diagnostics routes live under the loopback local admin host, including
+Diagnostics routes share the health HTTP port (default `20080`) and include
 `/_lakona/diagnostics/summary`, `/_lakona/diagnostics/events`, and
 `/_lakona/diagnostics/netstat`.
 

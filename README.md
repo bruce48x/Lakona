@@ -310,8 +310,9 @@ the same diagnostics to production probes while the process is alive.
 
 Lakona is designed to make server failures inspectable. Framework logging is
 configured under `Lakona:Observability:Logging`, startup validation reports
-guardrail diagnostics through `/_lakona/health/ready`, and the local admin host
-can be explicitly enabled on loopback for runtime snapshots.
+guardrail diagnostics through `/_lakona/health/ready`, and local-admin routes
+can be explicitly enabled on the same loopback health listener for runtime
+snapshots.
 
 ```json
 {
@@ -319,8 +320,6 @@ can be explicitly enabled on loopback for runtime snapshots.
     "Observability": {
       "LocalAdmin": {
         "Enabled": true,
-        "Host": "127.0.0.1",
-        "Port": 20090,
         "RequireLoopback": true
       }
     }
@@ -328,7 +327,8 @@ can be explicitly enabled on loopback for runtime snapshots.
 }
 ```
 
-When local admin is enabled, local diagnostics include:
+When local admin is enabled, the same `http://127.0.0.1:20080` listener also
+serves local diagnostics, including:
 
 - process uptime, working set, and GC heap
 - hotfix loaded version, dispatch table size, and last reload status
