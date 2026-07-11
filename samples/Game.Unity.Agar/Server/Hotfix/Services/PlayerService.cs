@@ -59,7 +59,7 @@ public sealed class PlayerService
         var topN = req.TopN <= 0 ? 10 : req.TopN;
         var leaderboardId = new LeaderboardId(AgarHotfixIds.GlobalLeaderboardActorId);
         var snapshot = await _leaderboards
-            .Route(leaderboardId)
+            .Startup(leaderboardId)
             .CallAsync(
                 LeaderboardBehavior.GetLeaderboardAsync,
                 new LeaderboardQueryRequest { TopN = topN },
@@ -172,7 +172,7 @@ public sealed class PlayerService
         }
 
         var result = await matchmaking
-            .Route(new MatchmakingQueueId("default"))
+            .Startup(new MatchmakingQueueId("default"))
             .CallAsync(
                 MatchmakingBehavior.EnqueueAsync,
                 new MatchmakingEnqueueRequest
@@ -259,7 +259,7 @@ public sealed class PlayerService
         }
 
         await matchmaking
-            .Route(new MatchmakingQueueId("default"))
+            .Startup(new MatchmakingQueueId("default"))
             .CallAsync(
                 MatchmakingBehavior.CancelAsync,
                 new MatchmakingCancelRequest

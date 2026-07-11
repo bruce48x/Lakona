@@ -45,7 +45,6 @@ public sealed class DistributedTopologyConfigurationTests
 
         Assert.Equal("data-1", options.Node.Id);
         Assert.Equal(new[] { "user", "matchmaking", "leaderboard" }, options.ActorHosts);
-        Assert.Equal(new[] { "matchmaking", "leaderboard" }, options.StartupActors.Select(actor => actor.Name));
         Assert.Empty(options.Endpoints);
         Assert.Equal("tcp://10.0.0.1:21001", options.Cluster!.Endpoint);
         Assert.Equal("memorypack", options.Cluster.Serializer);
@@ -63,7 +62,6 @@ public sealed class DistributedTopologyConfigurationTests
 
         Assert.Equal("gateway-1", options.Node.Id);
         Assert.Empty(options.ActorHosts);
-        Assert.Empty(options.StartupActors);
         Assert.Equal("memorypack", options.Cluster!.Serializer);
 
         var endpoint = Assert.Single(options.Endpoints);
@@ -84,7 +82,6 @@ public sealed class DistributedTopologyConfigurationTests
 
         Assert.Equal("battle-1", options.Node.Id);
         Assert.Equal(new[] { "room" }, options.ActorHosts);
-        Assert.Empty(options.StartupActors);
         Assert.Equal("memorypack", options.Cluster!.Serializer);
 
         var endpoint = Assert.Single(options.Endpoints);
@@ -103,7 +100,7 @@ public sealed class DistributedTopologyConfigurationTests
         using var document = Open("appsettings.json");
         var lakona = document.RootElement.GetProperty("Lakona");
         var actorHosts = lakona.GetProperty("ActorHosts").EnumerateArray().Select(item => item.GetString()).ToArray();
-        var startupActors = lakona.GetProperty("StartupActors").EnumerateArray().Select(item => item.GetString()).ToArray();
+        Assert.False(lakona.TryGetProperty("StartupActors", out _));
         var cluster = lakona.GetProperty("Cluster");
         var endpoints = lakona.GetProperty("Endpoints").EnumerateArray().ToArray();
 
@@ -113,7 +110,6 @@ public sealed class DistributedTopologyConfigurationTests
             string.Equals(endpoint.GetProperty("Transport").GetString(), "kcp", StringComparison.Ordinal));
 
         Assert.Equal(new[] { "user", "matchmaking", "leaderboard", "room" }, actorHosts);
-        Assert.Equal(new[] { "matchmaking", "leaderboard" }, startupActors);
         Assert.Equal("tcp://127.0.0.1:21001", cluster.GetProperty("Endpoint").GetString());
         Assert.Equal("memorypack", cluster.GetProperty("Serializer").GetString());
         Assert.Equal(new[] { "tcp://127.0.0.1:21001" }, cluster.GetProperty("Seeds").EnumerateArray().Select(item => item.GetString()).ToArray());
@@ -444,7 +440,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         var hostedServices = provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>().ToArray();
         var timerScheduler = hostedServices.Single(service => service.GetType().Name == "LakonaTimerScheduler");
-        var actorStartup = hostedServices.Single(service => service.GetType().Name == "ActorStartupHostedService");
+        var actorStartup = hostedServices.Single(service => service.GetType().Name == "StartupActorHostedService");
         var clusterRegistration = hostedServices.OfType<LakonaGameClusterRegistrationHostedService>().Single();
 
         await timerScheduler.StartAsync(cancellationToken);
@@ -667,7 +663,7 @@ public sealed class DistributedTopologyConfigurationTests
         var data = ExtractComposeService(compose, "data-1");
         Assert.Contains("Lakona__Node__Id: data-1", data, StringComparison.Ordinal);
         Assert.Contains("Lakona__ActorHosts: '[\"user\",\"matchmaking\",\"leaderboard\"]'", data, StringComparison.Ordinal);
-        Assert.Contains("Lakona__StartupActors: '[\"matchmaking\",\"leaderboard\"]'", data, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona__StartupActors", data, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.0.0.1:21001", data, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Serializer: memorypack", data, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Seeds: '[\"tcp://10.0.0.1:21001\"]'", data, StringComparison.Ordinal);
@@ -681,7 +677,7 @@ public sealed class DistributedTopologyConfigurationTests
         var gateway = ExtractComposeService(compose, "gateway-1");
         Assert.Contains("Lakona__Node__Id: gateway-1", gateway, StringComparison.Ordinal);
         Assert.Contains("Lakona__ActorHosts: '[]'", gateway, StringComparison.Ordinal);
-        Assert.Contains("Lakona__StartupActors: '[]'", gateway, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona__StartupActors", gateway, StringComparison.Ordinal);
         Assert.Contains("Lakona__Endpoints: >-", gateway, StringComparison.Ordinal);
         Assert.Contains("\"Transport\": \"websocket\"", gateway, StringComparison.Ordinal);
         Assert.Contains("\"Serializer\": \"memorypack\"", gateway, StringComparison.Ordinal);
@@ -698,7 +694,7 @@ public sealed class DistributedTopologyConfigurationTests
         var battle = ExtractComposeService(compose, "battle-1");
         Assert.Contains("Lakona__Node__Id: battle-1", battle, StringComparison.Ordinal);
         Assert.Contains("Lakona__ActorHosts: '[\"room\"]'", battle, StringComparison.Ordinal);
-        Assert.Contains("Lakona__StartupActors: '[]'", battle, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona__StartupActors", battle, StringComparison.Ordinal);
         Assert.Contains("Lakona__Endpoints: >-", battle, StringComparison.Ordinal);
         Assert.Contains("\"Transport\": \"kcp\"", battle, StringComparison.Ordinal);
         Assert.Contains("\"Serializer\": \"memorypack\"", battle, StringComparison.Ordinal);
@@ -1024,7 +1020,6 @@ public sealed class DistributedTopologyConfigurationTests
             case "data-1":
                 values["Lakona:Node:Id"] = "data-1";
                 values["Lakona:ActorHosts"] = """["user","matchmaking","leaderboard"]""";
-                values["Lakona:StartupActors"] = """["matchmaking","leaderboard"]""";
                 values["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.1:21001";
                 values["Lakona:Cluster:Serializer"] = "memorypack";
                 values["Lakona:Cluster:Seeds"] = """["tcp://10.0.0.1:21001"]""";
@@ -1042,7 +1037,6 @@ public sealed class DistributedTopologyConfigurationTests
             case "gateway-1":
                 values["Lakona:Node:Id"] = "gateway-1";
                 values["Lakona:ActorHosts"] = "[]";
-                values["Lakona:StartupActors"] = "[]";
                 values["Lakona:Endpoints"] =
                     """
                     [
@@ -1064,7 +1058,6 @@ public sealed class DistributedTopologyConfigurationTests
             case "battle-1":
                 values["Lakona:Node:Id"] = "battle-1";
                 values["Lakona:ActorHosts"] = """["room"]""";
-                values["Lakona:StartupActors"] = "[]";
                 values["Lakona:Endpoints"] =
                     """
                     [

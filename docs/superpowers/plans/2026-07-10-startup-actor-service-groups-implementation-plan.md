@@ -675,7 +675,7 @@ Expected: PASS.
 - Modify: `samples/Game.Godot.Chat/Server/Hotfix/HotfixStartup.cs`, all ChatRoom `.Route` call sites, appsettings, and tests.
 - Modify: `samples/Game.Unity.Agar/Server/Hotfix/HotfixStartup.cs`, Matchmaking/Leaderboard call sites, timer args/callback, appsettings, `docker-compose.yml`, README, and business/source-scan tests.
 
-- [ ] **Step 1: Change Tool expectations first**
+- [x] **Step 1: Change Tool expectations first**
 
 Generated Chat projects must contain:
 
@@ -686,15 +686,15 @@ actors.RegisterStartup<ChatRoomActor, string>(
 
 and calls use `.Startup(ChatRoomIds.Global)`. Generated appsettings contains `ActorHosts` but no `StartupActors`. Run Tool tests and confirm they fail before renderer edits.
 
-- [ ] **Step 2: Migrate Tool renderers**
+- [x] **Step 2: Migrate Tool renderers**
 
 Update renderer strings and architecture scans. Do not emit generated source folders or new configuration sections.
 
-- [ ] **Step 3: Migrate Godot Chat**
+- [x] **Step 3: Migrate Godot Chat**
 
 Use `RegisterStartup<ChatRoomActor, string>` and replace the four global room `.Route(ChatRoomIds.Global)` calls with `.Startup(ChatRoomIds.Global)`. Remove `StartupActors` from appsettings.
 
-- [ ] **Step 4: Migrate Agar registration and calls**
+- [x] **Step 4: Migrate Agar registration and calls**
 
 Use:
 
@@ -707,15 +707,15 @@ actors.RegisterStartup<LeaderboardActor, LeaderboardId>(
 
 Replace global Matchmaking/Leaderboard `.Route(...)` calls with `.Startup(...)`. Keep User/Room placement unchanged.
 
-- [ ] **Step 5: Keep each matchmaking timer bound to its physical replica**
+- [x] **Step 5: Keep each matchmaking timer bound to its physical replica**
 
 At timer creation, place `self.Context.Id.Value` in `MatchmakingTimerArgs.OwnerActorId`. In the callback use `IActorRuntime` with that exact `ActorId` to call `RunTickAsync`; do not call `.Startup(default)` because two replica timers would both select and tick the same primary. This internal lifecycle plumbing is not added to generated business APIs.
 
-- [ ] **Step 6: Remove config while preserving the user's Compose edit**
+- [x] **Step 6: Remove config while preserving the user's Compose edit**
 
 Remove every `Lakona__StartupActors` entry from Agar Compose and appsettings. Preserve the existing uncommitted `Lakona__Hotfix__DebugWatcher: "On"` lines exactly. Review the file-specific diff before staging.
 
-- [ ] **Step 7: Run sample and Tool tests**
+- [x] **Step 7: Run sample and Tool tests**
 
 ```powershell
 dotnet test tests/Lakona.Tool.Tests/Lakona.Tool.Tests.csproj --no-restore
@@ -725,7 +725,7 @@ pwsh -NoProfile -File samples/Game.Godot.Chat/test-game-godot-chat-e2e.ps1
 
 Expected: PASS; generated and checked-in samples contain no old registration/config/call surface.
 
-- [ ] **Step 8: Commit migration without staging unrelated Compose hunks**
+- [x] **Step 8: Commit migration without staging unrelated Compose hunks**
 
 Stage the intended removal hunks and all sample/tool changes. Inspect `git diff --cached -- samples/Game.Unity.Agar/docker-compose.yml` and confirm the DebugWatcher additions are not claimed as implementation changes unless the user explicitly asks to include them.
 

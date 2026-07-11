@@ -534,7 +534,7 @@ public static partial class RoomBehavior
                     CancellationToken.None)
                 .ConfigureAwait(false);
             await leaderboards
-                .Route(new LeaderboardId(AgarHotfixIds.GlobalLeaderboardActorId))
+                .Startup(new LeaderboardId(AgarHotfixIds.GlobalLeaderboardActorId))
                 .CallAsync(
                     LeaderboardBehavior.RecordVictoryPointsAsync,
                     new LeaderboardVictoryPointsRequest

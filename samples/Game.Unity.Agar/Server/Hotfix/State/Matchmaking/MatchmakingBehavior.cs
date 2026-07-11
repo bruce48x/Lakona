@@ -212,7 +212,7 @@ public static partial class MatchmakingBehavior
                     TimeSpan.Zero,
                     TimeSpan.FromSeconds(1),
                     nameof(MatchmakingTimerCallbacks.TickAsync),
-                    new MatchmakingTimerArgs(),
+                    new MatchmakingTimerArgs { OwnerActorId = self.Context.Id.Value },
                     cancellationToken)
                 .ConfigureAwait(false);
         }

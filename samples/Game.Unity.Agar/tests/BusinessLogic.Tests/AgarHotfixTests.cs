@@ -1,4 +1,5 @@
 using System.Reflection;
+using Server.App.State.Contracts;
 using Server.App.State.Contracts.Leaderboard;
 using Server.App.State.Contracts.Rooms;
 using Server.App.State.Contracts.Sessions;
@@ -186,8 +187,7 @@ public sealed class AgarHotfixTests
                     RpcServices = ["login", "player"]
                 }
             ],
-            ActorHosts = [],
-            StartupActors = []
+            ActorHosts = []
         });
         services.AddSingleton<IClusterNodeDiscovery>(new FixedClusterNodeDiscovery(stateStoreNodes));
         services.RemoveAll<IRemoteActorSerializer>();
@@ -200,8 +200,23 @@ public sealed class AgarHotfixTests
         services.AddSingleton(matchmakingNotifierType);
 
         await using var provider = services.BuildServiceProvider();
+        var now = DateTimeOffset.UtcNow;
+        await provider.GetRequiredService<INodeDirectory>().RegisterAsync(
+            new NodeRegistration(
+                "local",
+                new NodeId("gateway-1"),
+                new Dictionary<string, NodeEndpoint> { ["cluster"] = new("tcp://127.0.0.1:21001") },
+                [],
+                [new StartupActorDescriptor(
+                    "leaderboard",
+                    $"startup:v1:{typeof(LeaderboardActor).FullName}:{typeof(LeaderboardId).FullName}",
+                    "hotfix")],
+                now.AddMinutes(1),
+                NodeState.Ready),
+            now,
+            TestContext.Current.CancellationToken);
         await provider.GetRequiredService<ActorHosting>()
-            .EnsureAsync<LeaderboardActor>(ActorId.From("current"), TestContext.Current.CancellationToken);
+            .EnsureAsync<LeaderboardActor>(ActorId.From("leaderboard/@startup/gateway-1"), TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
         var hotfixRuntime = await TestHotfix.LoadCurrentRuntimeAsync(provider, TestContext.Current.CancellationToken);
         var gameServer = new TestGameServer();
@@ -222,7 +237,7 @@ public sealed class AgarHotfixTests
 
         Assert.Equal(0, reply.Code);
         Assert.Equal(typeof(IPlayerCallback), gameServer.LastBoundSessionCallbackType);
-        Assert.Equal(ActorState.Active, actors.GetState(ActorId.From("current")));
+        Assert.Equal(ActorState.Active, actors.GetState(ActorId.From("leaderboard/@startup/gateway-1")));
     }
 
     [Fact]
@@ -281,11 +296,8 @@ public sealed class AgarHotfixTests
 
         Server.Hotfix.HotfixStartup.ConfigureActors(actors);
 
-        var declaration = Assert.Single(actors.Startups, startup => startup.Name == "leaderboard");
-        var plan = declaration.CreatePlan(new ActorStartupContext("leaderboard", new Dictionary<string, string>()));
-        var actor = Assert.Single(plan.Actors);
-        Assert.Equal(typeof(LeaderboardActor), actor.ActorType);
-        Assert.Equal(ActorId.From("current"), actor.ActorId);
+        var declaration = Assert.Single(actors.Startups, startup => startup.ActorType == typeof(LeaderboardActor));
+        Assert.Equal(typeof(LeaderboardId), declaration.KeyType);
     }
 
     [Fact]

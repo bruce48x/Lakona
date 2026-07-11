@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS lakona_cluster_nodes (
     state INTEGER NOT NULL,
     endpoints_json TEXT NOT NULL,
     actor_hosts_json TEXT NOT NULL,
+    startup_actors_json TEXT NOT NULL,
     labels_json TEXT NOT NULL,
     lease_expires_at BIGINT NOT NULL,
     updated_at BIGINT NOT NULL,

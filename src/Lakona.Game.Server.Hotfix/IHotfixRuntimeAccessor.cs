@@ -63,6 +63,19 @@ public sealed class HotfixRuntimeSnapshot
     {
     }
 
+    public HotfixRuntimeSnapshot(
+        IHotfixServiceInvoker invoker,
+        IServiceProvider services,
+        IReadOnlyList<ActorStartupDeclaration> actorStartups,
+        IReadOnlyList<ActorPlacementDeclaration> actorPlacements,
+        string? sourceVersion = null)
+        : this(
+            invoker, services, null, services, null, null, sourceVersion, null,
+            ownsRuntimeResources: false, onRetired: null,
+            actorStartups: actorStartups, actorPlacements: actorPlacements)
+    {
+    }
+
     internal HotfixRuntimeSnapshot(
         IHotfixServiceInvoker invoker,
         IServiceProvider services,

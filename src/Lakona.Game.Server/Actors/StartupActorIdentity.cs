@@ -16,4 +16,7 @@ internal static class StartupActorIdentity
         ArgumentNullException.ThrowIfNull(keyType);
         return $"startup:v1:{actorType.FullName ?? actorType.Name}:{keyType.FullName ?? keyType.Name}";
     }
+
+    public static string NormalizeBuildTag(string? sourceVersion) =>
+        string.IsNullOrWhiteSpace(sourceVersion) ? "hotfix" : sourceVersion;
 }

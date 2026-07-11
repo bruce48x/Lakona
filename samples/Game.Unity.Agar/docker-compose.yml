@@ -10,7 +10,6 @@ services:
       DOTNET_ENVIRONMENT: data-1
       Lakona__Node__Id: data-1
       Lakona__ActorHosts: '["user","matchmaking","leaderboard"]'
-      Lakona__StartupActors: '["matchmaking","leaderboard"]'
       Lakona__Cluster__Endpoint: tcp://10.0.0.1:21001
       Lakona__Cluster__Serializer: memorypack
       Lakona__Cluster__Seeds: '["tcp://10.0.0.1:21001"]'
@@ -44,7 +43,6 @@ services:
       Lakona__Node__Id: gateway-1
       Lakona__Hotfix__DebugWatcher: "On"
       Lakona__ActorHosts: '[]'
-      Lakona__StartupActors: '[]'
       Lakona__Endpoints: >-
         [
           {
@@ -81,7 +79,6 @@ services:
       Lakona__Node__Id: battle-1
       Lakona__Hotfix__DebugWatcher: "On"
       Lakona__ActorHosts: '["room"]'
-      Lakona__StartupActors: '[]'
       Lakona__Endpoints: >-
         [
           {

@@ -30,7 +30,7 @@ namespace Server.Hotfix.Chat
             }
 
             await _rooms
-                .Route(ChatRoomIds.Global)
+                .Startup(ChatRoomIds.Global)
                 .CallAsync(
                     ChatRoomBehavior.LeaveAsync,
                     new ChatRoomLeaveRequest

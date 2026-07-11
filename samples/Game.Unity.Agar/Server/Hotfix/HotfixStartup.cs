@@ -28,12 +28,10 @@ public static class HotfixStartup
     [HotfixConfigureActors]
     public static void ConfigureActors(ActorHostBuilder actors)
     {
-        actors.RegisterStartup(
-            "matchmaking",
-            static _ => ActorStartupPlan.Create<MatchmakingActor>(ActorId.From("default")));
-        actors.RegisterStartup(
-            "leaderboard",
-            static _ => ActorStartupPlan.Create<LeaderboardActor>(ActorId.From(AgarHotfixIds.GlobalLeaderboardActorId)));
+        actors.RegisterStartup<MatchmakingActor, MatchmakingQueueId>(static context =>
+            SelectStartupStableHash(context.Candidates, context.Key.Value));
+        actors.RegisterStartup<LeaderboardActor, LeaderboardId>(static context =>
+            SelectStartupStableHash(context.Candidates, context.Key.Value));
         actors.RegisterPlacement<UserActor, UserId>(static context =>
             SelectStableHash(context.Candidates, context.Key.Value));
         actors.RegisterPlacement<RoomActor, RoomId>(static context =>
@@ -49,6 +47,14 @@ public static class HotfixStartup
             throw new InvalidOperationException("No actor host candidates are available.");
         }
 
+        return candidates[(int)(ComputeStableHash(key) % (uint)candidates.Count)];
+    }
+
+    private static StartupActorCandidate SelectStartupStableHash(
+        IReadOnlyList<StartupActorCandidate> candidates,
+        string key)
+    {
+        if (candidates.Count == 0) throw new InvalidOperationException("No startup actor candidates are available.");
         return candidates[(int)(ComputeStableHash(key) % (uint)candidates.Count)];
     }
 

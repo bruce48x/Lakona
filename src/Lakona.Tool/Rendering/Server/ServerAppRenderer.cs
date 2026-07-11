@@ -199,8 +199,7 @@ internal sealed class ServerAppRenderer : IPlanContributor
                 {
                     ["Id"] = "dev-1"
                 },
-                ["ActorHosts"] = new[] { "chat-room" },
-                ["StartupActors"] = new[] { "chat-room" },
+                ["ActorHosts"] = new[] { "chatRoom" },
                 ["Sessions"] = new Dictionary<string, object?>
                 {
                     ["Cleanup"] = new Dictionary<string, object?>

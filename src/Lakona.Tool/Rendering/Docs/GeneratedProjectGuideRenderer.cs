@@ -149,7 +149,7 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
             _gameServer = gameServer;
         }
 
-        var reply = await _rooms.Route(ChatRoomIds.Global).CallAsync(
+        var reply = await _rooms.Startup(ChatRoomIds.Global).CallAsync(
             ChatRoomBehavior.LoginAsync,
             request,
             ct);

@@ -140,7 +140,7 @@ internal sealed class StartupActorHostedService(
             new StartupActorDescriptor(
                 actorName,
                 StartupActorIdentity.CreatePolicyHash(actorType, declaration.KeyType!),
-                string.IsNullOrWhiteSpace(buildTag) ? "hotfix" : buildTag));
+                StartupActorIdentity.NormalizeBuildTag(buildTag)));
     }
 
     private ValueTask EnsureAsync(Replica replica, CancellationToken cancellationToken) =>

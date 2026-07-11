@@ -1,6 +1,7 @@
 using Server.App.State.Contracts;
 using Server.App.State.Contracts.Matchmaking;
 using Server.App.State.Matchmaking;
+using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.State.Matchmaking;
@@ -11,16 +12,17 @@ public sealed class MatchmakingTimerCallbacks
 {
     public static async ValueTask TickAsync(TimerTick<MatchmakingTimerArgs> tick)
     {
-        var actors = tick.Services.GetRequiredService<MatchmakingActors>();
-        await actors
-            .Local(new MatchmakingQueueId("default"))
-            .CallAsync(
-                MatchmakingBehavior.RunTickAsync,
+        var runtime = tick.Services.GetRequiredService<IActorRuntime>();
+        await runtime.TellAsync<MatchmakingActor>(
+            ActorId.From(tick.Args.OwnerActorId),
+            (actor, cancellationToken) => MatchmakingBehavior.RunTickAsync(
+                actor,
                 new MatchmakingTickRequest
             {
                 ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime
             },
-                tick.CancellationToken)
+                cancellationToken),
+            tick.CancellationToken)
             .ConfigureAwait(false);
     }
 }

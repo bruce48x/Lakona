@@ -111,7 +111,7 @@ public sealed class ZeroTemplateServerShapeTests
 
         Assert.DoesNotContain("database", data, StringComparison.Ordinal);
         Assert.Contains("Lakona__ActorHosts: '[\"user\",\"matchmaking\",\"leaderboard\"]'", data, StringComparison.Ordinal);
-        Assert.Contains("Lakona__StartupActors: '[\"matchmaking\",\"leaderboard\"]'", data, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona__StartupActors", data, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Lakona__", "Fea", "ture"), data, StringComparison.Ordinal);
     }
 

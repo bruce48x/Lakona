@@ -169,7 +169,9 @@ internal static class AgarTestServiceCollectionExtensions
             Current = new HotfixRuntimeSnapshot(
                 new HotfixServiceInvoker(),
                 services,
-                actors.Placements);
+                actors.Startups,
+                actors.Placements,
+                "hotfix");
         }
 
         public HotfixRuntimeSnapshot Current { get; }

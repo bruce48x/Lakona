@@ -10,9 +10,8 @@ namespace Server.Hotfix
         [HotfixConfigureActors]
         public static void ConfigureActors(ActorHostBuilder actors)
         {
-            actors.RegisterStartup(
-                "chat-room",
-                static _ => ActorStartupPlan.Create<ChatRoomActor>(ActorId.From(ChatRoomIds.Global)));
+            actors.RegisterStartup<ChatRoomActor, string>(
+                static context => context.Candidates[0]);
         }
     }
 }

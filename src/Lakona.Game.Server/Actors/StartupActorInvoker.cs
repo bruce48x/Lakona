@@ -97,10 +97,11 @@ public sealed class StartupActorInvoker(
             throw new StartupActorSelectionException(typeof(TActor), $"Startup Actor registration for '{typeof(TActor).FullName}' does not use key type '{typeof(TKey).FullName}'.");
 
         var policy = StartupActorIdentity.CreatePolicyHash(typeof(TActor), typeof(TKey));
+        var buildTag = StartupActorIdentity.NormalizeBuildTag(snapshot.SourceVersion);
         var records = await nodeDirectory.QueryAsync(new NodeDirectoryQuery(clusterOptions.ClusterName, state: NodeState.Ready, startupActorName: actorName, startupActorPolicyHash: policy), DateTimeOffset.UtcNow, cancellationToken).ConfigureAwait(false);
         var candidates = records
             .Where(record => record.State == NodeState.Ready && !record.IsExpired(DateTimeOffset.UtcNow) && !excluded.Contains((record.NodeId, record.NodeEpoch)))
-            .Select(record => (Record: record, Descriptor: record.StartupActors.SingleOrDefault(descriptor => descriptor.Actor == actorName && descriptor.PolicyHash == policy && descriptor.BuildTag == snapshot.SourceVersion)))
+            .Select(record => (Record: record, Descriptor: record.StartupActors.SingleOrDefault(descriptor => descriptor.Actor == actorName && descriptor.PolicyHash == policy && descriptor.BuildTag == buildTag)))
             .Where(static pair => pair.Descriptor is not null)
             .OrderBy(static pair => pair.Record.NodeId.Value, StringComparer.Ordinal)
             .Select(static pair => new StartupActorCandidate(pair.Record.NodeId.Value, pair.Record.NodeEpoch, pair.Descriptor!.Metadata))

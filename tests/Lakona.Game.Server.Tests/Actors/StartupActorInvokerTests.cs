@@ -153,6 +153,18 @@ public sealed class StartupActorInvokerTests
     }
 
     [Fact]
+    public async Task CallAsync_matches_the_default_build_tag_when_source_version_is_missing()
+    {
+        var declaration = ActorStartupDeclaration.Create<TestActor, string>(static context => context.Candidates[0]);
+        var invoker = CreateInvoker(declaration, [Node("node-a", 1, buildTag: "hotfix")], sourceVersion: null);
+
+        await invoker.CallAsync<TestActor, string, Request>(
+            "tenant", "test", "Ping", 1, new Request("hello"),
+            static (_, _, _) => ValueTask.CompletedTask,
+            TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public async Task CallAsync_does_not_reselect_business_actor_not_found_exception()
     {
         var selectorCalls = 0;
@@ -179,13 +191,14 @@ public sealed class StartupActorInvokerTests
         ActorStartupDeclaration declaration,
         IReadOnlyList<NodeRecord> nodes,
         RecordingRemoteInvoker? remote = null,
-        string localNode = "node-a")
+        string localNode = "node-a",
+        string? sourceVersion = "build-1")
     {
         var snapshot = new HotfixRuntimeSnapshot(
             new NoopHotfixInvoker(),
             new EmptyServiceProvider(),
             [declaration],
-            "build-1");
+            sourceVersion);
         return new StartupActorInvoker(
             new StubHotfixAccessor(snapshot),
             new StubNodeDirectory(nodes),
@@ -196,10 +209,10 @@ public sealed class StartupActorInvokerTests
             new RemoteActorOptions());
     }
 
-    private static NodeRecord Node(string id, long epoch, string zone = "zone") => new(
+    private static NodeRecord Node(string id, long epoch, string zone = "zone", string buildTag = "build-1") => new(
         "local", new NodeId(id), epoch,
         new Dictionary<string, NodeEndpoint> { ["cluster"] = new($"tcp://{id}:21000") },
-        [], [new StartupActorDescriptor("test", Policy(), "build-1", new Dictionary<string, string> { ["zone"] = zone })],
+        [], [new StartupActorDescriptor("test", Policy(), buildTag, new Dictionary<string, string> { ["zone"] = zone })],
         null, NodeState.Ready, DateTimeOffset.UtcNow.AddMinutes(1), DateTimeOffset.UtcNow);
 
     private static string Policy() => $"startup:v1:{typeof(TestActor).FullName}:{typeof(string).FullName}";

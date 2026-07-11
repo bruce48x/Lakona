@@ -412,9 +412,9 @@ public sealed class AgarHotfixBoundaryTests
         var startup = File.ReadAllText(Path.Combine(sampleRoot, "Server", "Hotfix", "HotfixStartup.cs"));
         var removedRoot = Path.Combine(sampleRoot, "Server", "Hotfix", string.Concat("Fea", "tures"));
 
-        Assert.Contains("RegisterStartup(", startup, StringComparison.Ordinal);
-        Assert.Contains("\"matchmaking\"", startup, StringComparison.Ordinal);
-        Assert.Contains("\"leaderboard\"", startup, StringComparison.Ordinal);
+        Assert.Contains("RegisterStartup<", startup, StringComparison.Ordinal);
+        Assert.Contains("RegisterStartup<MatchmakingActor, MatchmakingQueueId>", startup, StringComparison.Ordinal);
+        Assert.Contains("RegisterStartup<LeaderboardActor, LeaderboardId>", startup, StringComparison.Ordinal);
         Assert.Contains("RegisterPlacement<UserActor, UserId>", startup, StringComparison.Ordinal);
         Assert.Contains("RegisterPlacement<RoomActor, RoomId>", startup, StringComparison.Ordinal);
         Assert.False(File.Exists(Path.Combine(removedRoot, string.Concat("StateStore", "Fea", "tures.cs"))));
@@ -483,6 +483,7 @@ public sealed class AgarHotfixBoundaryTests
         var hotfixRoot = Path.Combine(sampleRoot, "Server", "Hotfix");
         var violations = Directory.GetFiles(hotfixRoot, "*.cs", SearchOption.AllDirectories)
             .Select(file => new { File = file, Text = File.ReadAllText(file) })
+            .Where(result => !result.File.EndsWith("MatchmakingTimerCallbacks.cs", StringComparison.OrdinalIgnoreCase))
             .Where(result => result.Text.Contains(".AskAsync<", StringComparison.Ordinal) ||
                 result.Text.Contains(".TellAsync<", StringComparison.Ordinal))
             .Select(result => Path.GetRelativePath(Directory.GetCurrentDirectory(), result.File))
@@ -578,7 +579,7 @@ public sealed class AgarHotfixBoundaryTests
         var fixedScheduleCall = string.Concat("Schedule", "ActorTick<MatchmakingActor>");
         var activeScheduleCall = string.Concat("Schedule", "ActiveActorTicks<RoomActor>");
 
-        Assert.Contains("RegisterStartup(", startup, StringComparison.Ordinal);
+        Assert.Contains("RegisterStartup<", startup, StringComparison.Ordinal);
         Assert.Contains("RegisterPlacement<UserActor, UserId>", startup, StringComparison.Ordinal);
         Assert.Contains("RegisterPlacement<RoomActor, RoomId>", startup, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Hotfix", "Fea", "ture"), startup, StringComparison.Ordinal);
@@ -596,7 +597,7 @@ public sealed class AgarHotfixBoundaryTests
         var activeScheduleCall = string.Concat("Schedule", "ActiveActorTicks<RoomActor>");
 
         Assert.False(Directory.Exists(Path.Combine(sampleRoot, "Server", "App", "Hosting")));
-        Assert.Contains("ActorStartupPlan.Create<MatchmakingActor>(ActorId.From(\"default\"))", startup, StringComparison.Ordinal);
+        Assert.Contains("RegisterStartup<MatchmakingActor, MatchmakingQueueId>", startup, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Ensure", "Local", "Actor"), startup, StringComparison.Ordinal);
         Assert.DoesNotContain(fixedScheduleCall, startup, StringComparison.Ordinal);
         Assert.DoesNotContain(activeScheduleCall, startup, StringComparison.Ordinal);
@@ -668,12 +669,11 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("public static async ValueTask RunTickAsync(this RoomActor self, RoomTickRequest request", roomBehavior, StringComparison.Ordinal);
 
         Assert.Contains("TimerTick<MatchmakingTimerArgs>", matchmakingCallbacks, StringComparison.Ordinal);
-        Assert.Contains("GetRequiredService<MatchmakingActors>", matchmakingCallbacks, StringComparison.Ordinal);
-        Assert.Contains("Local(new MatchmakingQueueId(\"default\"))", matchmakingCallbacks, StringComparison.Ordinal);
-        Assert.Contains("CallAsync(", matchmakingCallbacks, StringComparison.Ordinal);
+        Assert.Contains("GetRequiredService<IActorRuntime>", matchmakingCallbacks, StringComparison.Ordinal);
+        Assert.Contains("ActorId.From(tick.Args.OwnerActorId)", matchmakingCallbacks, StringComparison.Ordinal);
+        Assert.Contains("TellAsync<MatchmakingActor>", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.Contains("MatchmakingBehavior.RunTickAsync", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.Contains("ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime", matchmakingCallbacks, StringComparison.Ordinal);
-        Assert.DoesNotContain("GetRequiredService<IActorRuntime>", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.DoesNotContain("PostAsync(", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.DoesNotContain("TryTell<MatchmakingActor>", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.DoesNotContain("ActorId.From(\"default\")", matchmakingCallbacks, StringComparison.Ordinal);

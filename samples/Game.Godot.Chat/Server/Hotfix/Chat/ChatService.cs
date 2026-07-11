@@ -37,7 +37,7 @@ namespace Server.Hotfix.Chat
             _logger.LogInformation("Sending {CharacterCount} characters", text.Length);
             await BindChatCallbackAsync(call.ConnectionId, call.Callback);
             await _rooms
-                .Route(ChatRoomIds.Global)
+                .Startup(ChatRoomIds.Global)
                 .CallAsync(
                     ChatRoomBehavior.SendAsync,
                     new ChatRoomSendRequest
@@ -51,7 +51,7 @@ namespace Server.Hotfix.Chat
         private async ValueTask BindChatCallbackAsync(string connectionId, IChatCallback callback)
         {
             await _rooms
-                .Route(ChatRoomIds.Global)
+                .Startup(ChatRoomIds.Global)
                 .CallAsync(
                     ChatRoomBehavior.BindChatAsync,
                     new ChatRoomBindRequest

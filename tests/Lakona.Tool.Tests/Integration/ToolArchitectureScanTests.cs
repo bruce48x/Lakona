@@ -174,7 +174,7 @@ public sealed class ToolArchitectureScanTests
             Assert.DoesNotContain(ForbiddenStableActorRefsProperty, generatedText, StringComparison.Ordinal);
             Assert.Contains("public LoginService(ChatRoomActors rooms, ILakonaGameServer gameServer)", generatedText, StringComparison.Ordinal);
             Assert.Contains("private readonly ChatRoomActors _rooms;", generatedText, StringComparison.Ordinal);
-            Assert.Contains(".Route(ChatRoomIds.Global)", generatedText, StringComparison.Ordinal);
+            Assert.Contains(".Startup(ChatRoomIds.Global)", generatedText, StringComparison.Ordinal);
             Assert.Contains(".CallAsync(", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("call.Actors is node-local", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("var starterNodeLocalActors = call.Actors;", generatedText, StringComparison.Ordinal);
@@ -205,8 +205,7 @@ public sealed class ToolArchitectureScanTests
             Assert.Contains("[HotfixStartup]", generatedText, StringComparison.Ordinal);
             Assert.Contains("[HotfixConfigureActors]", generatedText, StringComparison.Ordinal);
             Assert.Contains("ConfigureActors(ActorHostBuilder actors)", generatedText, StringComparison.Ordinal);
-            Assert.Contains("actors.RegisterStartup(", generatedText, StringComparison.Ordinal);
-            Assert.Contains("ActorStartupPlan.Create<ChatRoomActor>(ActorId.From(ChatRoomIds.Global))", generatedText, StringComparison.Ordinal);
+            Assert.Contains("actors.RegisterStartup<ChatRoomActor, string>", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(string.Concat("[Hotfix", "Fea", "ture(\"chat\")]"), generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(string.Concat("HotfixGame", "Fea", "ture"), generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(".GetRequiredService<ActorHosting>()", generatedText, StringComparison.Ordinal);
@@ -238,7 +237,7 @@ public sealed class ToolArchitectureScanTests
             var appsettings = File.ReadAllText(Path.Combine(spec.Layout.RootPath, "Server", "App", "appsettings.json"));
             Assert.DoesNotContain(string.Concat("\"", "Fea", "ture", "\""), appsettings, StringComparison.Ordinal);
             Assert.Contains("\"ActorHosts\"", appsettings, StringComparison.Ordinal);
-            Assert.Contains("\"StartupActors\"", appsettings, StringComparison.Ordinal);
+            Assert.DoesNotContain("\"StartupActors\"", appsettings, StringComparison.Ordinal);
         }
         finally
         {
@@ -312,7 +311,7 @@ public sealed class ToolArchitectureScanTests
         Assert.Contains("public ChatService(ChatRoomActors rooms, ILakonaGameServer gameServer, ILogger<ChatService> logger)", chatService, StringComparison.Ordinal);
         Assert.Contains("private readonly ChatRoomActors _rooms;", chatService, StringComparison.Ordinal);
         Assert.Contains("await _gameServer.BindCurrentSessionAsync", chatService, StringComparison.Ordinal);
-        Assert.Contains(".Route(ChatRoomIds.Global)", chatService, StringComparison.Ordinal);
+        Assert.Contains(".Startup(ChatRoomIds.Global)", chatService, StringComparison.Ordinal);
         Assert.Contains("ChatRoomBehavior.SendAsync", chatService, StringComparison.Ordinal);
         Assert.Contains("ChatRoomBehavior.BindChatAsync", chatService, StringComparison.Ordinal);
         Assert.Contains("var text = call.Request.Text ?? \"\";", chatService, StringComparison.Ordinal);
@@ -323,7 +322,7 @@ public sealed class ToolArchitectureScanTests
         Assert.DoesNotContain("FilterMessage(call.Request.Text ?? \"\")", chatService, StringComparison.Ordinal);
         Assert.Contains("public LoginService(ChatRoomActors rooms, ILakonaGameServer gameServer)", loginService, StringComparison.Ordinal);
         Assert.Contains("private readonly ChatRoomActors _rooms;", loginService, StringComparison.Ordinal);
-        Assert.Contains(".Route(ChatRoomIds.Global)", loginService, StringComparison.Ordinal);
+        Assert.Contains(".Startup(ChatRoomIds.Global)", loginService, StringComparison.Ordinal);
         Assert.Contains("ChatRoomBehavior.LoginAsync", loginService, StringComparison.Ordinal);
         Assert.Contains("await _gameServer.StartSessionAsync", loginService, StringComparison.Ordinal);
         Assert.DoesNotContain("var starterNodeLocalActors = call.Actors;", chatService, StringComparison.Ordinal);
@@ -372,8 +371,7 @@ public sealed class ToolArchitectureScanTests
         Assert.Contains("public static class HotfixStartup", hotfixText, StringComparison.Ordinal);
         Assert.Contains("[HotfixStartup]", hotfixText, StringComparison.Ordinal);
         Assert.Contains("[HotfixConfigureActors]", hotfixText, StringComparison.Ordinal);
-        Assert.Contains("actors.RegisterStartup(", hotfixText, StringComparison.Ordinal);
-        Assert.Contains("ActorStartupPlan.Create<ChatRoomActor>(ActorId.From(ChatRoomIds.Global))", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("actors.RegisterStartup<ChatRoomActor, string>", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Hotfix", "Fea", "ture"), hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("HotfixGame", "Fea", "ture"), hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Hotfix", "Fea", "tureContext"), hotfixText, StringComparison.Ordinal);
@@ -445,7 +443,7 @@ public sealed class ToolArchitectureScanTests
         Assert.Contains("may be local or remote", readme, StringComparison.Ordinal);
         Assert.Contains("typed selector", readme, StringComparison.Ordinal);
         Assert.Contains(".Route(new UserId(", hotfixServices, StringComparison.Ordinal);
-        Assert.Contains(".Route(new MatchmakingQueueId(", hotfixServices, StringComparison.Ordinal);
+        Assert.Contains(".Startup(new MatchmakingQueueId(", hotfixServices, StringComparison.Ordinal);
         Assert.Contains(".Local(roomId)", hotfixServices, StringComparison.Ordinal);
         Assert.DoesNotContain(".Remote(new NodeId(", hotfixServices, StringComparison.Ordinal);
         Assert.DoesNotContain("call.Actors", hotfixServices, StringComparison.Ordinal);
@@ -660,7 +658,7 @@ public sealed class ToolArchitectureScanTests
             Assert.Contains("[HotfixStartup]", hotfixChat, StringComparison.Ordinal);
             Assert.Contains("[HotfixConfigureActors]", hotfixChat, StringComparison.Ordinal);
             Assert.Contains("ConfigureActors(ActorHostBuilder actors)", hotfixChat, StringComparison.Ordinal);
-            Assert.Contains("ActorStartupPlan.Create<ChatRoomActor>(ActorId.From(ChatRoomIds.Global))", hotfixChat, StringComparison.Ordinal);
+            Assert.Contains("RegisterStartup<ChatRoomActor, string>", hotfixChat, StringComparison.Ordinal);
             Assert.DoesNotContain(".GetRequiredService<ActorHosting>()", hotfixChat, StringComparison.Ordinal);
             Assert.DoesNotContain(".CreateAsync<ChatRoomActor>", hotfixChat, StringComparison.Ordinal);
         }
@@ -672,7 +670,7 @@ public sealed class ToolArchitectureScanTests
 
         Assert.DoesNotContain(".EnsureAsync<ChatRoomActor>", hotfixChat, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Ensure", "Local", "Actor"), hotfixChat, StringComparison.Ordinal);
-        Assert.Contains(".Route(ChatRoomIds.Global)", hotfixChat, StringComparison.Ordinal);
+        Assert.Contains(".Startup(ChatRoomIds.Global)", hotfixChat, StringComparison.Ordinal);
         Assert.DoesNotContain("private const string RoomKey", hotfixChat, StringComparison.Ordinal);
         Assert.DoesNotContain(".Get(\"global\")", hotfixChat, StringComparison.Ordinal);
     }

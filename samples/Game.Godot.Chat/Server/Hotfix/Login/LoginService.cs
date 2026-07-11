@@ -27,7 +27,7 @@ namespace Server.Hotfix.Login
                 ? "Player"
                 : call.Request.PlayerName.Trim();
             var reply = await _rooms
-                .Route(ChatRoomIds.Global)
+                .Startup(ChatRoomIds.Global)
                 .CallAsync(
                     ChatRoomBehavior.LoginAsync,
                     new ChatRoomLoginRequest

@@ -105,7 +105,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                         ? "Player"
                         : call.Request.PlayerName.Trim();
                     var reply = await _rooms
-                        .Route(ChatRoomIds.Global)
+                        .Startup(ChatRoomIds.Global)
                         .CallAsync(
                             ChatRoomBehavior.LoginAsync,
                             new ChatRoomLoginRequest
@@ -167,7 +167,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                     _logger.LogInformation("Sending {CharacterCount} characters", text.Length);
                     await BindChatCallbackAsync(call.ConnectionId, call.Callback);
                     await _rooms
-                        .Route(ChatRoomIds.Global)
+                        .Startup(ChatRoomIds.Global)
                         .CallAsync(
                             ChatRoomBehavior.SendAsync,
                             new ChatRoomSendRequest
@@ -181,7 +181,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                 private async ValueTask BindChatCallbackAsync(string connectionId, IChatCallback callback)
                 {
                     await _rooms
-                        .Route(ChatRoomIds.Global)
+                        .Startup(ChatRoomIds.Global)
                         .CallAsync(
                             ChatRoomBehavior.BindChatAsync,
                             new ChatRoomBindRequest
@@ -357,9 +357,8 @@ internal sealed class HotfixRenderer : IPlanContributor
                 [HotfixConfigureActors]
                 public static void ConfigureActors(ActorHostBuilder actors)
                 {
-                    actors.RegisterStartup(
-                        "chat-room",
-                        static _ => ActorStartupPlan.Create<ChatRoomActor>(ActorId.From(ChatRoomIds.Global)));
+                    actors.RegisterStartup<ChatRoomActor, string>(
+                        static context => context.Candidates[0]);
                 }
             }
         }
@@ -400,7 +399,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                     }
 
                     await _rooms
-                        .Route(ChatRoomIds.Global)
+                        .Startup(ChatRoomIds.Global)
                         .CallAsync(
                             ChatRoomBehavior.LeaveAsync,
                             new ChatRoomLeaveRequest

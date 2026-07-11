@@ -46,7 +46,7 @@ public sealed class HotfixRendererTests
         Assert.Contains("public async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, ILoginCallback> call)", loginService, StringComparison.Ordinal);
         Assert.Contains("await _rooms", loginService, StringComparison.Ordinal);
         Assert.DoesNotContain("call.Services.GetRequiredService<ChatRoomActors>()", loginService, StringComparison.Ordinal);
-        Assert.Contains(".Route(ChatRoomIds.Global)", loginService, StringComparison.Ordinal);
+        Assert.Contains(".Startup(ChatRoomIds.Global)", loginService, StringComparison.Ordinal);
         Assert.Contains(".CallAsync(", loginService, StringComparison.Ordinal);
         Assert.Contains("new ChatRoomLoginRequest", loginService, StringComparison.Ordinal);
         Assert.DoesNotContain(".AskAsync", loginService, StringComparison.Ordinal);
@@ -73,7 +73,7 @@ public sealed class HotfixRendererTests
         Assert.Contains("call.Callback", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("call.Services.GetRequiredService<ChatRoomActors>()", chatService, StringComparison.Ordinal);
         Assert.Contains("public async ValueTask SendAsync(HotfixServiceCall<ChatSendRequest, IChatCallback> call)", chatService, StringComparison.Ordinal);
-        Assert.Contains(".Route(ChatRoomIds.Global)", chatService, StringComparison.Ordinal);
+        Assert.Contains(".Startup(ChatRoomIds.Global)", chatService, StringComparison.Ordinal);
         Assert.Contains("ChatRoomBehavior.SendAsync", chatService, StringComparison.Ordinal);
         Assert.Contains("ChatRoomBehavior.BindChatAsync", chatService, StringComparison.Ordinal);
         Assert.Contains("CancellationToken.None", chatService, StringComparison.Ordinal);
@@ -113,9 +113,7 @@ public sealed class HotfixRendererTests
         Assert.Contains("[HotfixConfigureActors]", startup, StringComparison.Ordinal);
         Assert.Contains("ConfigureServices(IServiceCollection services)", startup, StringComparison.Ordinal);
         Assert.Contains("ConfigureActors(ActorHostBuilder actors)", startup, StringComparison.Ordinal);
-        Assert.Contains("actors.RegisterStartup(", startup, StringComparison.Ordinal);
-        Assert.Contains("\"chat-room\"", startup, StringComparison.Ordinal);
-        Assert.Contains("ActorStartupPlan.Create<ChatRoomActor>(ActorId.From(ChatRoomIds.Global))", startup, StringComparison.Ordinal);
+        Assert.Contains("actors.RegisterStartup<ChatRoomActor, string>", startup, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Hotfix", "Fea", "ture"), startup, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("HotfixGame", "Fea", "ture"), startup, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("I", "Fea", "tureMessageHandler"), startup, StringComparison.Ordinal);
@@ -138,7 +136,7 @@ public sealed class HotfixRendererTests
         Assert.Contains("Disconnected sessions stay in the room during the retention window so a client can reconnect without flickering presence.", lifecycle, StringComparison.Ordinal);
         Assert.Contains("public async ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call)", lifecycle, StringComparison.Ordinal);
         Assert.Contains("private readonly ChatRoomActors _rooms;", lifecycle, StringComparison.Ordinal);
-        Assert.Contains(".Route(ChatRoomIds.Global)", lifecycle, StringComparison.Ordinal);
+        Assert.Contains(".Startup(ChatRoomIds.Global)", lifecycle, StringComparison.Ordinal);
         Assert.Contains("ChatRoomBehavior.LeaveAsync", lifecycle, StringComparison.Ordinal);
         Assert.DoesNotContain(".AskAsync", lifecycle, StringComparison.Ordinal);
         Assert.DoesNotContain("starterLocalActors", lifecycle, StringComparison.Ordinal);
