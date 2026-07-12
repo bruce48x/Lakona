@@ -98,6 +98,11 @@ public sealed class RpcRequestLoggingTests
         using var response = await ReceiveResponseAsync(clientTransport);
 
         Assert.Equal(RpcStatus.NotFound, response.Status);
+        await WaitForLogEntryAsync(loggerProvider, entry =>
+            entry.Category == "Lakona.Rpc.Server.Request" &&
+            entry.Level == LogLevel.Warning &&
+            entry.Message.Contains("RPC request completed", StringComparison.Ordinal) &&
+            entry.Message.Contains("status NotFound", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(loggerProvider.Entries, entry =>
             entry.Category == "Lakona.Rpc.Server.Request" &&
             entry.Level == LogLevel.Warning &&
@@ -106,6 +111,23 @@ public sealed class RpcRequestLoggingTests
 
         await server.StopAsync();
         await clientTransport.DisposeAsync();
+    }
+
+    private static async Task WaitForLogEntryAsync(
+        CategoryRecordingLoggerProvider loggerProvider,
+        Func<CategoryRecordingLoggerProvider.LogEntry, bool> predicate)
+    {
+        var timeout = TimeSpan.FromSeconds(5);
+        var startedAt = TimeProvider.System.GetTimestamp();
+        while (!loggerProvider.Contains(predicate))
+        {
+            if (TimeProvider.System.GetElapsedTime(startedAt) >= timeout)
+            {
+                return;
+            }
+
+            await Task.Delay(10);
+        }
     }
 
     [Fact]
@@ -207,6 +229,14 @@ public sealed class RpcRequestLoggingTests
     {
         public List<LogEntry> Entries { get; } = [];
 
+        public bool Contains(Func<LogEntry, bool> predicate)
+        {
+            lock (Entries)
+            {
+                return Entries.Any(predicate);
+            }
+        }
+
         public ILogger CreateLogger(string categoryName)
         {
             return new CategoryRecordingLogger(categoryName, Entries);
@@ -231,7 +261,10 @@ public sealed class RpcRequestLoggingTests
                 Exception? exception,
                 Func<TState, Exception?, string> formatter)
             {
-                entries.Add(new LogEntry(category, logLevel, formatter(state, exception), exception));
+                lock (entries)
+                {
+                    entries.Add(new LogEntry(category, logLevel, formatter(state, exception), exception));
+                }
             }
         }
 
