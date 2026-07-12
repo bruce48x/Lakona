@@ -59,6 +59,7 @@ internal static class GodotClientCodeTemplates
 
         return $$"""
         using System;
+        using System.Collections.Generic;
         using System.Threading;
         using System.Threading.Tasks;
         using Godot;
@@ -85,6 +86,7 @@ internal static class GodotClientCodeTemplates
             private Label _playerLabel = null!;
             private Label _scoreLabel = null!;
             private Label _healthLabel = null!;
+            private ProgressBar _healthBar = null!;
             private CancellationTokenSource? _cts;
             private GameClient? _client;
             private WorldSnapshot? _world;
@@ -94,17 +96,20 @@ internal static class GodotClientCodeTemplates
             private bool _snapshotPending;
             private double _inputAccumulator;
             private double _snapshotAccumulator;
+            private readonly List<HitEffect> _hitEffects = new();
+            private const double HitEffectDuration = 0.22;
 
             public override void _Ready()
             {
-                _nameField = GetNode<LineEdit>("Ui/LoginPanel/VBox/Name");
-                _connectButton = GetNode<Button>("Ui/LoginPanel/VBox/Play");
+                _nameField = GetNode<LineEdit>("Ui/LoginPanel/VBox/Action/Name");
+                _connectButton = GetNode<Button>("Ui/LoginPanel/VBox/Action/Play");
                 _statusLabel = GetNode<Label>("Ui/LoginPanel/VBox/Status");
                 _loginPanel = GetNode<Control>("Ui/LoginPanel");
                 _hud = GetNode<Control>("Ui/Hud");
                 _playerLabel = GetNode<Label>("Ui/Hud/HBox/Player");
                 _scoreLabel = GetNode<Label>("Ui/Hud/HBox/Score");
-                _healthLabel = GetNode<Label>("Ui/Hud/HBox/Health");
+                _healthLabel = GetNode<Label>("Ui/Hud/HBox/HealthBox/Health");
+                _healthBar = GetNode<ProgressBar>("Ui/Hud/HBox/HealthBox/HealthBar");
                 _connectButton.Pressed += OnConnectPressed;
                 _nameField.TextSubmitted += _ => OnConnectPressed();
                 ShowLogin("Enter a name to join.");
@@ -112,8 +117,8 @@ internal static class GodotClientCodeTemplates
 
             public override void _Process(double delta)
             {
-                if (_client is null) return;
-                while (_client.TryDequeueSnapshot(out var snapshot)) { _world = snapshot; QueueRedraw(); }
+                if (_client is null) { QueueRedraw(); return; }
+                while (_client.TryDequeueSnapshot(out var snapshot)) ApplyWorldSnapshot(snapshot);
                 if (_client.ConsumeDisconnected())
                 {
                     ShowLogin("Disconnected. Re-enter your name to reconnect.");
@@ -122,6 +127,10 @@ internal static class GodotClientCodeTemplates
                 }
 
                 RefreshHud();
+                var now = Time.GetTicksMsec() / 1000.0;
+                var hadHitEffects = _hitEffects.Count > 0;
+                _hitEffects.RemoveAll(effect => effect.ExpiresAt <= now);
+                if (hadHitEffects) QueueRedraw();
                 _inputAccumulator += delta;
                 _snapshotAccumulator += delta;
                 if (_snapshotAccumulator >= 0.1 && !_snapshotPending)
@@ -142,25 +151,129 @@ internal static class GodotClientCodeTemplates
 
             public override void _Draw()
             {
-                if (_world is null || _localPlayerId == 0) return;
                 var size = GetViewportRect().Size;
-                var arena = new Rect2(24f, 78f, MathF.Max(1f, size.X - 48f), MathF.Max(1f, size.Y - 102f));
-                DrawRect(arena, new Color("0d121a"));
-                for (var i = 1; i < 16; i++) DrawLine(new Vector2(arena.Position.X + arena.Size.X * i / 16f, arena.Position.Y), new Vector2(arena.Position.X + arena.Size.X * i / 16f, arena.End.Y), new Color(1f, 1f, 1f, 0.05f));
-                for (var i = 1; i < 9; i++) DrawLine(new Vector2(arena.Position.X, arena.Position.Y + arena.Size.Y * i / 9f), new Vector2(arena.End.X, arena.Position.Y + arena.Size.Y * i / 9f), new Color(1f, 1f, 1f, 0.05f));
+                var arena = new Rect2(Vector2.Zero, size);
+                DrawArenaBackdrop(arena);
+                if (_world is null || _localPlayerId == 0)
+                {
+                    DrawDemoBattle(arena);
+                    return;
+                }
 
-                foreach (var bullet in _world.Bullets) DrawCircle(WorldToScreen(arena, bullet.X, bullet.Y), 5f, Colors.White);
-                foreach (var monster in _world.Monsters) DrawCircle(WorldToScreen(arena, monster.X, monster.Y), 12f, new Color("33e64d"));
+                foreach (var bullet in _world.Bullets)
+                {
+                    var point = WorldToScreen(arena, bullet.X, bullet.Y);
+                    DrawLine(point - new Vector2(12f, 0f), point + new Vector2(4f, 0f), new Color("bee31c"), 3f);
+                }
+                foreach (var monster in _world.Monsters)
+                {
+                    var point = WorldToScreen(arena, monster.X, monster.Y);
+                    DrawAgent(point, new Color("ff4c40"), Vector2.Left, 12f);
+                    DrawSegmentedHealth(point + new Vector2(0f, -23f), 36f, monster.Health, monster.MaxHealth, new Color("ff4c40"));
+                }
                 foreach (var player in _world.Players)
                 {
                     var point = WorldToScreen(arena, player.X, player.Y);
                     var color = PlayerColor(player.PlayerId);
-                    if (player.PlayerId == _localPlayerId) DrawCircle(point, 18f, Colors.White);
-                    DrawCircle(point, player.IsAlive ? 14f : 9f, player.IsAlive ? color : new Color(color, 0.35f));
-                    DrawLine(point, point + new Vector2(player.DirectionX, -player.DirectionY) * 21f, Colors.White, 3f);
-                    DrawRect(new Rect2(point.X - 16f, point.Y - 24f, 32f, 4f), new Color("661010"));
-                    DrawRect(new Rect2(point.X - 16f, point.Y - 24f, 32f * player.Health / Math.Max(1f, player.MaxHealth), 4f), new Color("33e64d"));
+                    var direction = new Vector2(player.DirectionX, -player.DirectionY);
+                    if (player.PlayerId == _localPlayerId) DrawArc(point, 21f, 0f, MathF.Tau, 40, new Color("bee31c"), 3f);
+                    DrawAgent(point, player.IsAlive ? color : new Color(color, 0.35f), direction, player.IsAlive ? 14f : 9f);
+                    DrawSegmentedHealth(point + new Vector2(0f, -26f), 42f, player.Health, player.MaxHealth, color);
                 }
+
+                var now = Time.GetTicksMsec() / 1000.0;
+                foreach (var effect in _hitEffects)
+                {
+                    var remaining = effect.ExpiresAt - now;
+                    var progress = 1.0 - remaining / HitEffectDuration;
+                    var alpha = (float)Math.Clamp(remaining / HitEffectDuration, 0.0, 1.0);
+                    DrawArc(WorldToScreen(arena, effect.X, effect.Y), (float)(16.0 + 14.0 * progress), 0f, MathF.Tau, 40, new Color(1f, 0.8f, 0.12f, alpha), 3f);
+                }
+            }
+
+            private void DrawArenaBackdrop(Rect2 arena)
+            {
+                DrawRect(arena, new Color("0c0e0e"));
+                const float spacing = 48f;
+                for (var x = 0f; x < arena.Size.X; x += spacing) DrawLine(new Vector2(x, 0f), new Vector2(x, arena.Size.Y), new Color(1f, 1f, 1f, 0.035f));
+                for (var y = 0f; y < arena.Size.Y; y += spacing) DrawLine(new Vector2(0f, y), new Vector2(arena.Size.X, y), new Color(1f, 1f, 1f, 0.035f));
+                var center = arena.GetCenter();
+                var radius = MathF.Min(arena.Size.X, arena.Size.Y) * 0.43f;
+                DrawArc(center, radius, 0f, MathF.Tau, 96, new Color(1f, 1f, 1f, 0.13f), 8f);
+                DrawArc(center, radius * 0.58f, 0f, MathF.Tau, 72, new Color(1f, 1f, 1f, 0.1f), 4f);
+                DrawLine(new Vector2(center.X, center.Y - radius), new Vector2(center.X, center.Y - radius * 0.72f), new Color(1f, 1f, 1f, 0.16f), 4f);
+                DrawLine(new Vector2(center.X, center.Y + radius * 0.72f), new Vector2(center.X, center.Y + radius), new Color(1f, 1f, 1f, 0.16f), 4f);
+                DrawLine(new Vector2(center.X - radius, center.Y), new Vector2(center.X - radius * 0.72f, center.Y), new Color(1f, 1f, 1f, 0.16f), 4f);
+                DrawLine(new Vector2(center.X + radius * 0.72f, center.Y), new Vector2(center.X + radius, center.Y), new Color(1f, 1f, 1f, 0.16f), 4f);
+            }
+
+            private void DrawDemoBattle(Rect2 arena)
+            {
+                var lime = new Color("bee31c");
+                var coral = new Color("ff4c40");
+                DrawAgent(new Vector2(arena.Size.X * 0.18f, arena.Size.Y * 0.2f), lime, new Vector2(0.9f, 0.35f), 17f);
+                DrawAgent(new Vector2(arena.Size.X * 0.13f, arena.Size.Y * 0.62f), coral, new Vector2(0.95f, 0.2f), 15f);
+                DrawAgent(new Vector2(arena.Size.X * 0.84f, arena.Size.Y * 0.16f), coral, new Vector2(-0.9f, 0.35f), 17f);
+                DrawAgent(new Vector2(arena.Size.X * 0.88f, arena.Size.Y * 0.58f), lime, new Vector2(-0.9f, -0.2f), 15f);
+                DrawSegmentedHealth(new Vector2(arena.Size.X * 0.18f, arena.Size.Y * 0.2f - 30f), 48f, 4, 5, lime);
+                DrawSegmentedHealth(new Vector2(arena.Size.X * 0.84f, arena.Size.Y * 0.16f - 30f), 48f, 3, 5, coral);
+                DrawLine(new Vector2(arena.Size.X * 0.21f, arena.Size.Y * 0.22f), new Vector2(arena.Size.X * 0.29f, arena.Size.Y * 0.27f), lime, 4f);
+                DrawLine(new Vector2(arena.Size.X * 0.79f, arena.Size.Y * 0.2f), new Vector2(arena.Size.X * 0.72f, arena.Size.Y * 0.27f), coral, 4f);
+            }
+
+            private void DrawAgent(Vector2 point, Color color, Vector2 direction, float radius)
+            {
+                DrawArc(point, radius + 6f, 0f, MathF.Tau, 36, color, 3f);
+                DrawCircle(point, radius, color);
+                if (direction.LengthSquared() > 0.001f) DrawLine(point, point + direction.Normalized() * (radius + 18f), color, 4f);
+            }
+
+            private void DrawSegmentedHealth(Vector2 center, float width, int health, int maxHealth, Color color)
+            {
+                const int segments = 5;
+                const float gap = 2f;
+                var segmentWidth = (width - gap * (segments - 1)) / segments;
+                var ratio = health / Math.Max(1f, maxHealth);
+                for (var index = 0; index < segments; index++)
+                {
+                    var x = center.X - width * 0.5f + index * (segmentWidth + gap);
+                    var filled = ratio > index / (float)segments;
+                    DrawRect(new Rect2(x, center.Y, segmentWidth, 5f), filled ? color : new Color("383d38"));
+                }
+            }
+
+            private void ApplyWorldSnapshot(WorldSnapshot snapshot)
+            {
+                if (_world is not null && snapshot.Tick <= _world.Tick) return;
+                if (_world is not null)
+                {
+                    foreach (var monster in snapshot.Monsters)
+                    {
+                        var previous = _world.Monsters.Find(value => value.MonsterId == monster.MonsterId);
+                        if (previous is not null && monster.Health < previous.Health) AddHitEffect(monster.X, monster.Y);
+                    }
+                    foreach (var previous in _world.Monsters)
+                    {
+                        if (snapshot.Monsters.Find(value => value.MonsterId == previous.MonsterId) is null) AddHitEffect(previous.X, previous.Y);
+                    }
+                    foreach (var player in snapshot.Players)
+                    {
+                        var previous = _world.Players.Find(value => value.PlayerId == player.PlayerId);
+                        if (previous is not null && player.Health < previous.Health) AddHitEffect(player.X, player.Y);
+                    }
+                }
+                _world = snapshot;
+                QueueRedraw();
+            }
+
+            private void AddHitEffect(float x, float y) => _hitEffects.Add(new HitEffect(x, y, Time.GetTicksMsec() / 1000.0 + HitEffectDuration));
+
+            private sealed class HitEffect
+            {
+                public HitEffect(float x, float y, double expiresAt) { X = x; Y = y; ExpiresAt = expiresAt; }
+                public float X { get; }
+                public float Y { get; }
+                public double ExpiresAt { get; }
             }
 
             private async void OnConnectPressed()
@@ -182,8 +295,9 @@ internal static class GodotClientCodeTemplates
                     _client = client;
                     _localPlayerId = reply.PlayerId;
                     _world = reply.World;
+                    _hitEffects.Clear();
                     _loginPanel.Visible = false;
-                    _hud.Visible = true;
+                    _hud.Visible = GetViewportRect().Size.Y >= 600.0f;
                     QueueRedraw();
                 }
                 catch (Exception ex)
@@ -195,7 +309,7 @@ internal static class GodotClientCodeTemplates
                 {
                     _loginPending = false;
                     _connectButton.Disabled = false;
-                    _connectButton.Text = "PLAY";
+                    _connectButton.Text = "PLAY NOW";
                 }
             }
 
@@ -221,17 +335,26 @@ internal static class GodotClientCodeTemplates
             {
                 var player = _world?.Players.Find(value => value.PlayerId == _localPlayerId);
                 if (player is null) return;
-                _playerLabel.Text = $"{player.Name}  #{player.PlayerId}";
-                _scoreLabel.Text = $"Score {player.Score}";
-                _healthLabel.Text = player.IsAlive ? $"HP {player.Health}/{player.MaxHealth}" : $"Respawn in {player.RespawnSeconds:0.0}s";
+                _playerLabel.Text = $"{player.Name.ToUpperInvariant()}  #{player.PlayerId:00}";
+                _scoreLabel.Text = $"SCORE {player.Score}";
+                _healthLabel.Text = player.IsAlive ? $"HEALTH {player.Health} / {player.MaxHealth}" : $"RESPAWN {player.RespawnSeconds:0.0}s";
+                _healthBar.Value = player.IsAlive ? 100.0 * player.Health / Math.Max(1, player.MaxHealth) : 0.0;
             }
 
             private void ShowLogin(string status)
             {
                 _localPlayerId = 0;
                 _world = null;
+                _hitEffects.Clear();
                 if (IsInstanceValid(_loginPanel)) _loginPanel.Visible = true;
-                if (IsInstanceValid(_hud)) _hud.Visible = false;
+                if (IsInstanceValid(_hud))
+                {
+                    _hud.Visible = true;
+                    _playerLabel.Text = "LAKONA_01";
+                    _scoreLabel.Text = "SCORE 12,540";
+                    _healthLabel.Text = "HEALTH 100 / 100";
+                    _healthBar.Value = 100.0;
+                }
                 if (IsInstanceValid(_statusLabel)) _statusLabel.Text = status;
                 QueueRedraw();
             }
@@ -240,7 +363,7 @@ internal static class GodotClientCodeTemplates
 
             private static Color PlayerColor(long playerId)
             {
-                var palette = new[] { new Color("4287f5"), new Color("ef5350"), new Color("ffd54f"), new Color("ab47bc"), new Color("ff8a45"), new Color("26c6da"), new Color("ec6faf") };
+                var palette = new[] { new Color("bee31c"), new Color("45a7ff"), new Color("f4f1e2"), new Color("9b7cff"), new Color("35d0ba"), new Color("ffb238"), new Color("e97cb3") };
                 unchecked
                 {
                     uint hash = 2166136261;

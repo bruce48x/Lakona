@@ -423,7 +423,7 @@ function New-E2EClient {
 
     $program = @"
 using Client.Generated;
-using Shared.Contracts.Chat;
+using Shared.Contracts.Game;
 using Lakona.Game.Client;
 using Lakona.Rpc.Client;
 $transportUsing
@@ -440,11 +440,12 @@ try
     await client.ConnectAsync();
     Console.WriteLine("[E2E] Connected.");
 
-    var reply = await client.Api.Shared.Login.LoginAsync(
+    var reply = await client.Api.Shared.Game.LoginAsync(
         new LoginRequest { PlayerName = "E2ETest" });
 
-    Console.WriteLine("[E2E] Members={0}, RecentMessages={1}", reply.Members.Count, reply.RecentMessages.Count);
-    if (reply.Members.Count == 1 && reply.Members[0].Name == "E2ETest")
+    Console.WriteLine("[E2E] Success={0}, PlayerId={1}, Tick={2}", reply.Success, reply.PlayerId, reply.World.Tick);
+    if (reply.Success && reply.PlayerId > 0 &&
+        reply.World.Players.Exists(player => player.PlayerId == reply.PlayerId && player.Name == "E2ETest"))
     {
         Console.WriteLine("[E2E] SUCCESS");
         return;
@@ -459,17 +460,9 @@ catch (Exception ex)
     Environment.Exit(1);
 }
 
-internal sealed class E2ECallbacks : ILoginCallback, IChatCallback
+internal sealed class E2ECallbacks : IGameCallback
 {
-    public void OnUserJoined(ChatMember member)
-    {
-    }
-
-    public void OnUserLeft(ChatUserLeft evt)
-    {
-    }
-
-    public void OnMessageReceived(ChatMessage msg)
+    public void OnWorldUpdated(WorldSnapshot snapshot)
     {
     }
 }

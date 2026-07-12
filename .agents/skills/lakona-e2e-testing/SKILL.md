@@ -115,7 +115,7 @@ The unified script is at `.agents/skills/lakona-e2e-testing/scripts/run-e2e.ps1`
 8. **Run E2E client**: Calls `LoginAsync` and verifies the response
 9. **Report**: Writes Markdown report and JSON summary to `$WorkDir`
 
-The E2E client uses `LakonaGameClient` with `ILoginCallback`/`IChatCallback` callbacks and source-generated `client.Api.Shared.Login.LoginAsync()` — this tests the full generated game client stack that end users experience.
+The E2E client uses `LakonaGameClient` with an `IGameCallback` and source-generated `client.Api.Shared.Game.LoginAsync()` — this tests the full generated game client stack that end users experience.
 
 ### E2E Client Architecture
 

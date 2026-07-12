@@ -30,6 +30,7 @@ public sealed class ServerAppRendererTests
         Assert.Contains("RespawnDelaySeconds = 5f", messages, StringComparison.Ordinal);
         Assert.Contains("MonsterKillScore = 10", messages, StringComparison.Ordinal);
         Assert.Contains("MaxMonsters = 50", messages, StringComparison.Ordinal);
+        Assert.Contains("MonsterSpeed = 1.25f", messages, StringComparison.Ordinal);
 
         using var document = JsonDocument.Parse(AssertPath(plan, "Server/App/appsettings.json").Content);
         var lakona = document.RootElement.GetProperty("Lakona");

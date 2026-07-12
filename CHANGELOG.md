@@ -9,7 +9,7 @@ date and package versions of important releases are retained.
 **Key releases:** `Lakona.Game.Abstractions 0.2.7`,
 `Lakona.Game.Client 0.3.11`, `Lakona.Game.Server 0.18.2`,
 `Lakona.Game.Server.Hotfix 0.8.0`, `Lakona.Rpc.Analyzers 0.3.9`,
-`Lakona.Game.Server.Hotfix.Generators 0.5.2`, `Lakona.Tool 0.25.4`,
+`Lakona.Game.Server.Hotfix.Generators 0.5.2`, `Lakona.Tool 0.25.7`,
 `Lakona.Cluster 0.5.0`, `Lakona.Cluster.Rpc 0.4.0`,
 `Lakona.Cluster.Rpc.MemoryPack 0.3.0`, and `Lakona.Cluster.Sql 0.4.0`.
 
@@ -23,6 +23,9 @@ date and package versions of important releases are retained.
   for Unity, Tuanjie, Godot, and Console, using engine primitives with no art
   assets; added endpoint-scoped reliable push and negotiated 60-second Game
   Session resume for ordered recovery after short network transitions.
+- Redesigned the generated arena across Unity, Tuanjie, and Godot with a live
+  battlefield login, broadcast-style HUD, segmented health, readable input,
+  slower monsters, and stronger projectile and hit feedback.
 
 ## 2026-07-10 — Unified cluster actor protocol
 

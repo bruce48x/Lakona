@@ -83,6 +83,7 @@ internal static class UnityClientCodeTemplates
 
         return $$"""
         using System;
+        using System.Collections.Generic;
         using System.Threading;
         using System.Threading.Tasks;
         using Lakona.Game.Client;
@@ -115,16 +116,23 @@ internal static class UnityClientCodeTemplates
                 private Label? _playerLabel;
                 private Label? _scoreLabel;
                 private Label? _healthLabel;
-                private Texture2D? _circleTexture;
+                private VisualElement? _healthFill;
+                private VisualElement? _arenaView;
+                private VisualElement? _root;
                 private bool _loginPending;
                 private bool _inputPending;
                 private bool _snapshotPending;
                 private float _nextInputAt;
                 private float _nextSnapshotAt;
+                private readonly List<HitEffect> _hitEffects = new();
+                private const float HitEffectDuration = 0.22f;
 
                 private void Start()
                 {
                     var root = GetComponent<UIDocument>().rootVisualElement;
+                    _root = root;
+                    root.RegisterCallback<GeometryChangedEvent>(OnRootGeometryChanged);
+                    _arenaView = root.Q<VisualElement>("arena-view");
                     _nameField = root.Q<TextField>("name-field");
                     _connectButton = root.Q<Button>("connect-button");
                     _statusLabel = root.Q<Label>("status-label");
@@ -133,19 +141,21 @@ internal static class UnityClientCodeTemplates
                     _playerLabel = root.Q<Label>("player-label");
                     _scoreLabel = root.Q<Label>("score-label");
                     _healthLabel = root.Q<Label>("health-label");
+                    _healthFill = root.Q<VisualElement>("health-fill");
+                    if (_arenaView != null) _arenaView.generateVisualContent += GenerateArenaVisualContent;
                     if (_connectButton != null) _connectButton.clicked += OnConnectClicked;
                     _nameField?.RegisterCallback<KeyDownEvent>(evt =>
                     {
                         if (evt.keyCode is KeyCode.Return or KeyCode.KeypadEnter) OnConnectClicked();
                     });
                     ShowLogin("Enter a name to join.");
-                    _circleTexture = CreateCircleTexture(64);
                 }
 
                 private void Update()
                 {
+                    _arenaView?.MarkDirtyRepaint();
                     if (_client is null) return;
-                    while (_client.TryDequeueSnapshot(out var snapshot)) _world = snapshot;
+                    while (_client.TryDequeueSnapshot(out var snapshot)) ApplyWorldSnapshot(snapshot);
                     if (_client.ConsumeDisconnected())
                     {
                         ShowLogin("Disconnected. Re-enter your name to reconnect.");
@@ -193,6 +203,7 @@ internal static class UnityClientCodeTemplates
                         _client = client;
                         _localPlayerId = reply.PlayerId;
                         _world = reply.World;
+                        _hitEffects.Clear();
                         ShowGame();
                     }
                     catch (Exception ex)
@@ -203,7 +214,7 @@ internal static class UnityClientCodeTemplates
                     finally
                     {
                         _loginPending = false;
-                        if (_connectButton != null) { _connectButton.SetEnabled(true); _connectButton.text = "PLAY"; }
+                        if (_connectButton != null) { _connectButton.SetEnabled(true); _connectButton.text = "PLAY NOW"; }
                     }
                 }
 
@@ -225,43 +236,159 @@ internal static class UnityClientCodeTemplates
                     finally { _snapshotPending = false; }
                 }
 
-                private void OnGUI()
+                private void GenerateArenaVisualContent(MeshGenerationContext context)
                 {
-                    if (_world is null || _localPlayerId == 0 || _circleTexture is null) return;
-                    var arena = new Rect(24f, 78f, Screen.width - 48f, Screen.height - 102f);
-                    DrawRect(arena, new Color(0.05f, 0.07f, 0.1f, 1f));
-                    for (var i = 1; i < 16; i++) DrawRect(new Rect(arena.x + arena.width * i / 16f, arena.y, 1f, arena.height), new Color(1f, 1f, 1f, 0.05f));
-                    for (var i = 1; i < 9; i++) DrawRect(new Rect(arena.x, arena.y + arena.height * i / 9f, arena.width, 1f), new Color(1f, 1f, 1f, 0.05f));
+                    if (_arenaView is null) return;
+                    var painter = context.painter2D;
+                    var arena = _arenaView.contentRect;
+                    if (arena.width <= 1f || arena.height <= 1f) return;
+                    DrawArenaBackdrop(painter, arena);
+                    if (_world is null || _localPlayerId == 0)
+                    {
+                        DrawDemoBattle(painter, arena);
+                        return;
+                    }
 
-                    foreach (var bullet in _world.Bullets) DrawCircle(WorldToScreen(arena, bullet.X, bullet.Y, _world), 5f, Color.white);
-                    foreach (var monster in _world.Monsters) DrawCircle(WorldToScreen(arena, monster.X, monster.Y, _world), 12f, new Color(0.2f, 0.9f, 0.3f));
+                    foreach (var bullet in _world.Bullets)
+                    {
+                        var point = WorldToScreen(arena, bullet.X, bullet.Y, _world);
+                        DrawLine(painter, point - new Vector2(12f, 0f), point + new Vector2(4f, 0f), new Color(0.75f, 0.89f, 0.11f), 3f);
+                    }
+                    foreach (var monster in _world.Monsters)
+                    {
+                        var point = WorldToScreen(arena, monster.X, monster.Y, _world);
+                        DrawAgent(painter, point, new Color(1f, 0.3f, 0.25f), Vector2.left, 12f);
+                        DrawSegmentedHealth(painter, point + new Vector2(0f, -23f), 36f, monster.Health, monster.MaxHealth, new Color(1f, 0.3f, 0.25f));
+                    }
                     foreach (var player in _world.Players)
                     {
                         var point = WorldToScreen(arena, player.X, player.Y, _world);
                         var color = PlayerColor(player.PlayerId);
-                        if (player.PlayerId == _localPlayerId) DrawCircle(point, 18f, Color.white);
-                        DrawCircle(point, player.IsAlive ? 14f : 9f, player.IsAlive ? color : new Color(color.r, color.g, color.b, 0.35f));
-                        DrawLine(point, point + new Vector2(player.DirectionX, -player.DirectionY) * 21f, Color.white, 3f);
-                        DrawRect(new Rect(point.x - 16f, point.y - 24f, 32f, 4f), new Color(0.4f, 0.05f, 0.05f));
-                        DrawRect(new Rect(point.x - 16f, point.y - 24f, 32f * player.Health / Mathf.Max(1f, player.MaxHealth), 4f), new Color(0.2f, 0.9f, 0.3f));
+                        var direction = new Vector2(player.DirectionX, -player.DirectionY);
+                        if (player.PlayerId == _localPlayerId) DrawRing(painter, point, 21f, new Color(0.75f, 0.89f, 0.11f));
+                        DrawAgent(painter, point, player.IsAlive ? color : new Color(color.r, color.g, color.b, 0.35f), direction, player.IsAlive ? 14f : 9f);
+                        DrawSegmentedHealth(painter, point + new Vector2(0f, -26f), 42f, player.Health, player.MaxHealth, color);
                     }
+
+                    for (var index = _hitEffects.Count - 1; index >= 0; index--)
+                    {
+                        var effect = _hitEffects[index];
+                        var remaining = effect.ExpiresAt - Time.unscaledTime;
+                        if (remaining <= 0f) { _hitEffects.RemoveAt(index); continue; }
+                        var progress = 1f - remaining / HitEffectDuration;
+                        var alpha = Mathf.Clamp01(remaining / HitEffectDuration);
+                        DrawRing(painter, WorldToScreen(arena, effect.X, effect.Y, _world), Mathf.Lerp(16f, 30f, progress), new Color(1f, 0.8f, 0.12f, alpha));
+                    }
+                }
+
+                private static void DrawArenaBackdrop(Painter2D painter, Rect arena)
+                {
+                    DrawRect(painter, arena, new Color(0.045f, 0.052f, 0.05f, 1f));
+                    const float spacing = 48f;
+                    for (var x = 0f; x < arena.width; x += spacing) DrawRect(painter, new Rect(x, 0f, 1f, arena.height), new Color(1f, 1f, 1f, 0.035f));
+                    for (var y = 0f; y < arena.height; y += spacing) DrawRect(painter, new Rect(0f, y, arena.width, 1f), new Color(1f, 1f, 1f, 0.035f));
+                    var center = arena.center;
+                    var radius = Mathf.Min(arena.width, arena.height) * 0.43f;
+                    DrawRing(painter, center, radius, new Color(1f, 1f, 1f, 0.12f), 8f);
+                    DrawRing(painter, center, radius * 0.58f, new Color(1f, 1f, 1f, 0.1f), 4f);
+                    DrawLine(painter, new Vector2(center.x, center.y - radius), new Vector2(center.x, center.y - radius * 0.72f), new Color(1f, 1f, 1f, 0.16f), 4f);
+                    DrawLine(painter, new Vector2(center.x, center.y + radius * 0.72f), new Vector2(center.x, center.y + radius), new Color(1f, 1f, 1f, 0.16f), 4f);
+                    DrawLine(painter, new Vector2(center.x - radius, center.y), new Vector2(center.x - radius * 0.72f, center.y), new Color(1f, 1f, 1f, 0.16f), 4f);
+                    DrawLine(painter, new Vector2(center.x + radius * 0.72f, center.y), new Vector2(center.x + radius, center.y), new Color(1f, 1f, 1f, 0.16f), 4f);
+                }
+
+                private static void DrawDemoBattle(Painter2D painter, Rect arena)
+                {
+                    var lime = new Color(0.75f, 0.89f, 0.11f);
+                    var coral = new Color(1f, 0.3f, 0.25f);
+                    DrawAgent(painter, new Vector2(arena.width * 0.18f, arena.height * 0.2f), lime, new Vector2(0.9f, 0.35f), 17f);
+                    DrawAgent(painter, new Vector2(arena.width * 0.13f, arena.height * 0.62f), coral, new Vector2(0.95f, 0.2f), 15f);
+                    DrawAgent(painter, new Vector2(arena.width * 0.84f, arena.height * 0.16f), coral, new Vector2(-0.9f, 0.35f), 17f);
+                    DrawAgent(painter, new Vector2(arena.width * 0.88f, arena.height * 0.58f), lime, new Vector2(-0.9f, -0.2f), 15f);
+                    DrawSegmentedHealth(painter, new Vector2(arena.width * 0.18f, arena.height * 0.2f - 30f), 48f, 4, 5, lime);
+                    DrawSegmentedHealth(painter, new Vector2(arena.width * 0.84f, arena.height * 0.16f - 30f), 48f, 3, 5, coral);
+                    DrawLine(painter, new Vector2(arena.width * 0.21f, arena.height * 0.22f), new Vector2(arena.width * 0.29f, arena.height * 0.27f), lime, 4f);
+                    DrawLine(painter, new Vector2(arena.width * 0.79f, arena.height * 0.2f), new Vector2(arena.width * 0.72f, arena.height * 0.27f), coral, 4f);
+                }
+
+                private static void DrawAgent(Painter2D painter, Vector2 point, Color color, Vector2 direction, float radius)
+                {
+                    DrawRing(painter, point, radius + 6f, color, 3f);
+                    DrawCircle(painter, point, radius, color);
+                    if (direction.sqrMagnitude > 0.001f) DrawLine(painter, point, point + direction.normalized * (radius + 18f), color, 4f);
+                }
+
+                private static void DrawSegmentedHealth(Painter2D painter, Vector2 center, float width, int health, int maxHealth, Color color)
+                {
+                    const int segments = 5;
+                    const float gap = 2f;
+                    var segmentWidth = (width - gap * (segments - 1)) / segments;
+                    var ratio = health / Mathf.Max(1f, maxHealth);
+                    for (var index = 0; index < segments; index++)
+                    {
+                        var x = center.x - width * 0.5f + index * (segmentWidth + gap);
+                        var filled = ratio > index / (float)segments;
+                        DrawRect(painter, new Rect(x, center.y, segmentWidth, 5f), filled ? color : new Color(0.22f, 0.24f, 0.22f));
+                    }
+                }
+
+                private void ApplyWorldSnapshot(WorldSnapshot snapshot)
+                {
+                    if (_world is not null && snapshot.Tick <= _world.Tick) return;
+                    if (_world is not null)
+                    {
+                        foreach (var monster in snapshot.Monsters)
+                        {
+                            var previous = _world.Monsters.Find(value => value.MonsterId == monster.MonsterId);
+                            if (previous is not null && monster.Health < previous.Health) AddHitEffect(monster.X, monster.Y);
+                        }
+                        foreach (var previous in _world.Monsters)
+                        {
+                            if (snapshot.Monsters.Find(value => value.MonsterId == previous.MonsterId) is null) AddHitEffect(previous.X, previous.Y);
+                        }
+                        foreach (var player in snapshot.Players)
+                        {
+                            var previous = _world.Players.Find(value => value.PlayerId == player.PlayerId);
+                            if (previous is not null && player.Health < previous.Health) AddHitEffect(player.X, player.Y);
+                        }
+                    }
+                    _world = snapshot;
+                }
+
+                private void AddHitEffect(float x, float y) => _hitEffects.Add(new HitEffect(x, y, Time.unscaledTime + HitEffectDuration));
+
+                private sealed class HitEffect
+                {
+                    public HitEffect(float x, float y, float expiresAt) { X = x; Y = y; ExpiresAt = expiresAt; }
+                    public float X { get; }
+                    public float Y { get; }
+                    public float ExpiresAt { get; }
                 }
 
                 private void RefreshHud()
                 {
                     var local = _world?.Players.Find(player => player.PlayerId == _localPlayerId);
                     if (local is null) return;
-                    if (_playerLabel != null) _playerLabel.text = $"{local.Name}  #{local.PlayerId}";
-                    if (_scoreLabel != null) _scoreLabel.text = $"Score {local.Score}";
-                    if (_healthLabel != null) _healthLabel.text = local.IsAlive ? $"HP {local.Health}/{local.MaxHealth}" : $"Respawn in {local.RespawnSeconds:0.0}s";
+                    if (_playerLabel != null) _playerLabel.text = $"{local.Name.ToUpperInvariant()}  #{local.PlayerId:00}";
+                    if (_scoreLabel != null) _scoreLabel.text = $"SCORE {local.Score:N0}";
+                    if (_healthLabel != null) _healthLabel.text = local.IsAlive ? $"HEALTH {local.Health} / {local.MaxHealth}" : $"RESPAWN {local.RespawnSeconds:0.0}s";
+                    if (_healthFill != null) _healthFill.style.width = Length.Percent(local.IsAlive ? 100f * local.Health / Mathf.Max(1f, local.MaxHealth) : 0f);
                 }
 
                 private void ShowLogin(string status)
                 {
                     _localPlayerId = 0;
                     _world = null;
+                    _hitEffects.Clear();
                     if (_loginPanel != null) _loginPanel.style.display = DisplayStyle.Flex;
-                    if (_hud != null) _hud.style.display = DisplayStyle.None;
+                    if (_hud != null)
+                    {
+                        if (_playerLabel != null) _playerLabel.text = "LAKONA_01";
+                        if (_scoreLabel != null) _scoreLabel.text = "SCORE 12,540";
+                        if (_healthLabel != null) _healthLabel.text = "HEALTH 100 / 100";
+                        if (_healthFill != null) _healthFill.style.width = Length.Percent(100f);
+                    }
+                    UpdateLoginHudVisibility();
                     SetStatus(status);
                 }
 
@@ -269,6 +396,19 @@ internal static class UnityClientCodeTemplates
                 {
                     if (_loginPanel != null) _loginPanel.style.display = DisplayStyle.None;
                     if (_hud != null) _hud.style.display = DisplayStyle.Flex;
+                }
+
+                private void OnRootGeometryChanged(GeometryChangedEvent evt)
+                {
+                    if (_loginPanel?.resolvedStyle.display == DisplayStyle.Flex) UpdateLoginHudVisibility();
+                }
+
+                private void UpdateLoginHudVisibility()
+                {
+                    if (_hud == null || _root == null) return;
+                    var compact = _root.resolvedStyle.height < 600f;
+                    _root.EnableInClassList("compact", compact);
+                    _hud.style.display = compact ? DisplayStyle.None : DisplayStyle.Flex;
                 }
 
                 private void SetStatus(string text) { if (_statusLabel != null) _statusLabel.text = text; }
@@ -293,13 +433,13 @@ internal static class UnityClientCodeTemplates
                 {
                     var palette = new[]
                     {
-                        new Color(0.26f, 0.53f, 0.96f),
-                        new Color(0.94f, 0.33f, 0.31f),
-                        new Color(1f, 0.84f, 0.31f),
-                        new Color(0.67f, 0.28f, 0.74f),
-                        new Color(1f, 0.54f, 0.27f),
-                        new Color(0.15f, 0.78f, 0.85f),
-                        new Color(0.93f, 0.44f, 0.69f)
+                        new Color(0.75f, 0.89f, 0.11f),
+                        new Color(0.27f, 0.65f, 1f),
+                        new Color(0.96f, 0.95f, 0.89f),
+                        new Color(0.61f, 0.49f, 1f),
+                        new Color(0.21f, 0.82f, 0.73f),
+                        new Color(1f, 0.7f, 0.22f),
+                        new Color(0.91f, 0.49f, 0.7f)
                     };
                     unchecked
                     {
@@ -309,27 +449,43 @@ internal static class UnityClientCodeTemplates
                     }
                 }
 
-                private static Texture2D CreateCircleTexture(int size)
+                private static void DrawCircle(Painter2D painter, Vector2 center, float radius, Color color)
                 {
-                    var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
-                    var pixels = new Color[size * size];
-                    var center = (size - 1) * 0.5f;
-                    for (var y = 0; y < size; y++) for (var x = 0; x < size; x++)
-                        pixels[y * size + x] = (x - center) * (x - center) + (y - center) * (y - center) <= center * center ? Color.white : Color.clear;
-                    texture.SetPixels(pixels); texture.Apply(); return texture;
+                    painter.fillColor = color;
+                    painter.BeginPath();
+                    painter.Arc(center, radius, 0f, 360f);
+                    painter.Fill();
                 }
 
-                private void DrawCircle(Vector2 center, float radius, Color color)
+                private static void DrawRing(Painter2D painter, Vector2 center, float radius, Color color, float width = 3f)
                 {
-                    var old = GUI.color; GUI.color = color; GUI.DrawTexture(new Rect(center.x - radius, center.y - radius, radius * 2f, radius * 2f), _circleTexture); GUI.color = old;
+                    painter.strokeColor = color;
+                    painter.lineWidth = width;
+                    painter.BeginPath();
+                    painter.Arc(center, radius, 0f, 360f);
+                    painter.Stroke();
                 }
-                private static void DrawRect(Rect rect, Color color) { var old = GUI.color; GUI.color = color; GUI.DrawTexture(rect, Texture2D.whiteTexture); GUI.color = old; }
-                private static void DrawLine(Vector2 from, Vector2 to, Color color, float width)
+
+                private static void DrawRect(Painter2D painter, Rect rect, Color color)
                 {
-                    var oldMatrix = GUI.matrix; var old = GUI.color; GUI.color = color;
-                    var angle = Vector2.SignedAngle(Vector2.right, to - from); GUIUtility.RotateAroundPivot(angle, from);
-                    GUI.DrawTexture(new Rect(from.x, from.y - width * 0.5f, Vector2.Distance(from, to), width), Texture2D.whiteTexture);
-                    GUI.matrix = oldMatrix; GUI.color = old;
+                    painter.fillColor = color;
+                    painter.BeginPath();
+                    painter.MoveTo(new Vector2(rect.xMin, rect.yMin));
+                    painter.LineTo(new Vector2(rect.xMax, rect.yMin));
+                    painter.LineTo(new Vector2(rect.xMax, rect.yMax));
+                    painter.LineTo(new Vector2(rect.xMin, rect.yMax));
+                    painter.ClosePath();
+                    painter.Fill();
+                }
+
+                private static void DrawLine(Painter2D painter, Vector2 from, Vector2 to, Color color, float width)
+                {
+                    painter.strokeColor = color;
+                    painter.lineWidth = width;
+                    painter.BeginPath();
+                    painter.MoveTo(from);
+                    painter.LineTo(to);
+                    painter.Stroke();
                 }
 
                 private async Task DisposeClientAsync()
@@ -341,7 +497,8 @@ internal static class UnityClientCodeTemplates
                 private void OnDestroy()
                 {
                     _cts?.Cancel(); _cts?.Dispose();
-                    if (_circleTexture != null) Destroy(_circleTexture);
+                    if (_arenaView != null) _arenaView.generateVisualContent -= GenerateArenaVisualContent;
+                    if (_root != null) _root.UnregisterCallback<GeometryChangedEvent>(OnRootGeometryChanged);
                     _ = DisposeClientAsync();
                 }
             }

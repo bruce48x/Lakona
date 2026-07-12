@@ -203,7 +203,7 @@ internal sealed class ServerAppRenderer : IPlanContributor
                 public const int MonsterContactDamage = 10;
                 public const int MonsterKillScore = 10;
                 public const float PlayerSpeed = 5f;
-                public const float MonsterSpeed = 2f;
+                public const float MonsterSpeed = 1.25f;
                 public const float BulletSpeed = 12f;
                 public const float BulletLifetimeSeconds = 2.5f;
                 public const float ShotIntervalSeconds = 0.5f;

@@ -125,18 +125,45 @@ internal static class UnityClientAssetTemplates
         <ui:UXML xmlns:ui="UnityEngine.UIElements">
           <Style src="Game.uss" />
           <ui:VisualElement class="root">
+            <ui:VisualElement name="arena-view" class="arena-view" />
+            <ui:VisualElement class="online-pill">
+              <ui:VisualElement class="online-dot" />
+              <ui:Label text="ONLINE" class="online-label" />
+            </ui:VisualElement>
             <ui:VisualElement name="login-panel" class="login-panel">
-              <ui:Label text="LAKONA ARENA" class="title" />
-              <ui:Label text="Server-authoritative multiplayer demo" class="subtitle" />
-              <ui:TextField name="name-field" label="PLAYER NAME" max-length="20" class="name-field" />
-              <ui:Button name="connect-button" text="PLAY" class="connect-button" />
+              <ui:VisualElement class="title-block">
+                <ui:Label text="LAKONA" class="title title-primary" />
+                <ui:Label text="ARENA" class="title title-accent" />
+              </ui:VisualElement>
+              <ui:VisualElement class="callsign-heading">
+                <ui:VisualElement class="heading-rule" />
+                <ui:Label text="CHOOSE YOUR CALLSIGN" class="callsign-label" />
+                <ui:VisualElement class="heading-rule" />
+              </ui:VisualElement>
+              <ui:VisualElement class="login-action">
+                <ui:TextField name="name-field" label="CALLSIGN" max-length="20" class="name-field" />
+                <ui:Button name="connect-button" text="PLAY NOW" class="connect-button" />
+              </ui:VisualElement>
               <ui:Label name="status-label" text="Enter a name to join." class="status" />
             </ui:VisualElement>
             <ui:VisualElement name="hud" class="hud">
-              <ui:Label name="player-label" text="Player" class="hud-label" />
-              <ui:Label name="score-label" text="Score 0" class="hud-label" />
-              <ui:Label name="health-label" text="HP 100/100" class="hud-label" />
-              <ui:Label text="WASD to move · firing is automatic" class="hint" />
+              <ui:VisualElement class="player-badge"><ui:VisualElement class="player-core" /></ui:VisualElement>
+              <ui:VisualElement class="identity-group">
+                <ui:Label name="player-label" text="LAKONA_01" class="player-name" />
+                <ui:Label name="score-label" text="SCORE 12,540" class="score-label" />
+              </ui:VisualElement>
+              <ui:VisualElement class="hud-divider" />
+              <ui:VisualElement class="health-group">
+                <ui:Label name="health-label" text="HEALTH 100 / 100" class="metric-label" />
+                <ui:VisualElement class="health-track"><ui:VisualElement name="health-fill" class="health-fill" /></ui:VisualElement>
+              </ui:VisualElement>
+              <ui:VisualElement class="hud-divider" />
+              <ui:VisualElement class="controls-group">
+                <ui:VisualElement class="key-row">
+                  <ui:Label text="W" class="key-chip" /><ui:Label text="A" class="key-chip" /><ui:Label text="S" class="key-chip" /><ui:Label text="D" class="key-chip" />
+                </ui:VisualElement>
+                <ui:Label text="MOVE · AUTO FIRE" class="hint" />
+              </ui:VisualElement>
             </ui:VisualElement>
           </ui:VisualElement>
         </ui:UXML>
@@ -148,39 +175,132 @@ internal static class UnityClientAssetTemplates
         return """
         .root {
             flex-grow: 1;
-            background-color: rgb(9, 13, 20);
-            color: rgb(238, 244, 255);
+            background-color: rgba(13, 15, 15, 0);
+            color: rgb(244, 241, 226);
+        }
+
+        .arena-view {
+            position: absolute;
+            left: 0;
+            top: 0;
+            right: 0;
+            bottom: 0;
         }
 
         .login-panel {
             position: absolute;
-            width: 420px;
+            width: 820px;
+            height: 500px;
             left: 50%;
             top: 50%;
-            translate: -210px -170px;
-            padding: 32px;
-            background-color: rgba(19, 28, 43, 0.98);
-            border-radius: 12px;
+            translate: -410px -240px;
+            align-items: center;
+            justify-content: center;
         }
 
-        .title { font-size: 32px; -unity-font-style: bold; color: rgb(117, 183, 255); }
-        .subtitle { margin-top: 4px; margin-bottom: 24px; color: rgb(165, 178, 198); }
-        .name-field { margin-bottom: 14px; }
-        .connect-button { height: 42px; background-color: rgb(45, 123, 220); -unity-font-style: bold; }
-        .status { margin-top: 14px; min-height: 22px; color: rgb(255, 203, 112); }
+        .online-pill {
+            position: absolute;
+            left: 30px;
+            top: 26px;
+            height: 34px;
+            flex-direction: row;
+            align-items: center;
+            border-bottom-width: 2px;
+            border-bottom-color: rgb(190, 226, 28);
+        }
+        .online-dot { width: 14px; height: 14px; margin-right: 10px; border-radius: 7px; background-color: rgb(190, 226, 28); }
+        .online-label { font-size: 18px; -unity-font-style: bold; color: rgb(190, 226, 28); letter-spacing: 2px; }
+        .title-block { align-items: center; margin-bottom: 24px; }
+        .title { -unity-font-style: bold; -unity-text-align: middle-center; letter-spacing: 8px; }
+        .title-primary { height: 90px; font-size: 82px; color: rgb(244, 241, 226); }
+        .title-accent { height: 76px; margin-top: -16px; font-size: 70px; color: rgb(190, 226, 28); }
+        .callsign-heading { width: 620px; margin-bottom: 12px; flex-direction: row; align-items: center; }
+        .heading-rule { height: 2px; flex-grow: 1; background-color: rgb(190, 226, 28); opacity: 0.8; }
+        .callsign-label { margin-left: 14px; margin-right: 14px; color: rgb(244, 241, 226); -unity-font-style: bold; letter-spacing: 2px; }
+        .login-action { width: 700px; height: 76px; flex-direction: row; }
+        .name-field { width: 460px; height: 76px; color: rgb(244, 241, 226); }
+        .name-field > .unity-text-field__label { display: none; }
+        .name-field .unity-text-field__input {
+            height: 76px;
+            padding-left: 22px;
+            font-size: 24px;
+            -unity-font-style: bold;
+            color: rgb(244, 241, 226);
+            background-color: rgba(10, 12, 12, 0.96);
+            border-left-width: 3px;
+            border-top-width: 3px;
+            border-bottom-width: 3px;
+            border-right-width: 0;
+            border-left-color: rgb(190, 226, 28);
+            border-top-color: rgb(190, 226, 28);
+            border-bottom-color: rgb(190, 226, 28);
+        }
+        .connect-button {
+            width: 240px;
+            height: 76px;
+            font-size: 25px;
+            color: rgb(244, 241, 226);
+            background-color: rgb(255, 76, 64);
+            border-left-width: 0;
+            border-right-width: 3px;
+            border-top-width: 3px;
+            border-bottom-width: 3px;
+            border-right-color: rgb(244, 241, 226);
+            border-top-color: rgb(244, 241, 226);
+            border-bottom-color: rgb(244, 241, 226);
+            -unity-font-style: bold;
+            letter-spacing: 2px;
+        }
+        .connect-button:hover { background-color: rgb(255, 101, 83); }
+        .status { margin-top: 14px; min-height: 24px; color: rgb(244, 241, 226); letter-spacing: 1px; }
+
+        .compact .login-panel { height: 430px; translate: -410px -205px; }
+        .compact .title-block { margin-bottom: 12px; }
+        .compact .title-primary { height: 70px; font-size: 62px; }
+        .compact .title-accent { height: 58px; margin-top: -12px; font-size: 52px; }
+        .compact .callsign-heading { margin-bottom: 8px; }
+        .compact .login-action { height: 66px; }
+        .compact .name-field { height: 66px; }
+        .compact .name-field .unity-text-field__input { height: 66px; }
+        .compact .connect-button { height: 66px; }
+        .compact .status { margin-top: 8px; }
 
         .hud {
             display: none;
-            height: 64px;
-            padding-left: 24px;
-            padding-right: 24px;
+            position: absolute;
+            left: 32px;
+            right: 32px;
+            bottom: 24px;
+            height: 94px;
+            padding-left: 22px;
+            padding-right: 22px;
             flex-direction: row;
             align-items: center;
-            background-color: rgba(10, 15, 24, 0.94);
+            background-color: rgba(10, 12, 12, 0.96);
+            border-left-width: 2px;
+            border-right-width: 2px;
+            border-top-width: 2px;
+            border-bottom-width: 2px;
+            border-left-color: rgb(190, 226, 28);
+            border-right-color: rgb(190, 226, 28);
+            border-top-color: rgb(190, 226, 28);
+            border-bottom-color: rgb(190, 226, 28);
         }
 
-        .hud-label { margin-right: 28px; font-size: 16px; -unity-font-style: bold; }
-        .hint { flex-grow: 1; unity-text-align: middle-right; color: rgb(155, 172, 197); }
+        .player-badge { width: 58px; height: 58px; margin-right: 16px; align-items: center; justify-content: center; border-radius: 29px; border-left-width: 3px; border-right-width: 3px; border-top-width: 3px; border-bottom-width: 3px; border-left-color: rgb(190, 226, 28); border-right-color: rgb(190, 226, 28); border-top-color: rgb(190, 226, 28); border-bottom-color: rgb(190, 226, 28); }
+        .player-core { width: 28px; height: 28px; border-radius: 14px; background-color: rgb(190, 226, 28); }
+        .identity-group { width: 210px; }
+        .player-name { font-size: 19px; color: rgb(190, 226, 28); -unity-font-style: bold; letter-spacing: 1px; }
+        .score-label { margin-top: 3px; font-size: 17px; color: rgb(244, 241, 226); -unity-font-style: bold; }
+        .hud-divider { width: 1px; height: 58px; margin-left: 18px; margin-right: 24px; background-color: rgb(88, 91, 84); }
+        .health-group { flex-grow: 1; max-width: 430px; }
+        .metric-label { margin-bottom: 8px; color: rgb(244, 241, 226); -unity-font-style: bold; letter-spacing: 1px; }
+        .health-track { height: 20px; background-color: rgb(54, 57, 53); }
+        .health-fill { width: 100%; height: 20px; background-color: rgb(190, 226, 28); }
+        .controls-group { width: 260px; align-items: center; }
+        .key-row { flex-direction: row; }
+        .key-chip { width: 34px; height: 30px; margin-left: 3px; margin-right: 3px; -unity-text-align: middle-center; color: rgb(244, 241, 226); border-left-width: 1px; border-right-width: 1px; border-top-width: 1px; border-bottom-width: 1px; border-left-color: rgb(244, 241, 226); border-right-color: rgb(244, 241, 226); border-top-color: rgb(244, 241, 226); border-bottom-color: rgb(244, 241, 226); border-radius: 4px; -unity-font-style: bold; }
+        .hint { margin-top: 5px; color: rgb(190, 226, 28); -unity-font-style: bold; letter-spacing: 1px; }
         """;
     }
 
