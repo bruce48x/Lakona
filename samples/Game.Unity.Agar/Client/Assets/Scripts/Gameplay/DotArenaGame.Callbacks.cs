@@ -164,7 +164,7 @@ namespace SampleClient.Gameplay
 
             PushEvent(deadEvent.PlayerId == _localPlayerId
                 ? "You were consumed"
-                : $"{deadEvent.PlayerId} was consumed");
+                : "A rival was consumed");
         }
 
         private void HandleMatchEnd(MatchEnd matchEnd)
@@ -182,7 +182,7 @@ namespace SampleClient.Gameplay
 
             PushEvent(matchEnd.WinnerPlayerId == _localPlayerId
                 ? "Victory"
-                : $"Winner: {matchEnd.WinnerPlayerId}");
+                : "Round complete");
 
             _ = ReturnToMainMenuAfterMatchAsync(
                 _sessionMode == SessionMode.Multiplayer,
@@ -218,7 +218,7 @@ namespace SampleClient.Gameplay
             {
                 _lastRealtimeConnection = CloneRealtimeConnection(realtimeConnection);
                 _status = "Room ready, connecting KCP";
-                _eventMessage = $"Opening realtime connection {realtimeConnection.Host}:{realtimeConnection.Port}";
+                _eventMessage = "Entering arena";
                 _ = EnsureRealtimeSessionAsync(realtimeConnection);
             }
 

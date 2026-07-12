@@ -122,11 +122,11 @@ namespace SampleClient.Gameplay
                 renderState.Radius = player.Radius;
                 renderState.MoveSpeed = player.MoveSpeed;
 
-                view.SetIdentity(player.PlayerId, player.Mass);
                 if (_playerOverlayViews.TryGetValue(player.PlayerId, out var overlay))
                 {
-                    overlay.NameText.text = player.PlayerId;
-                    overlay.MassText.text = $"mass {DotArenaPresentation.FormatMass(player.Mass)}";
+                    overlay.NameText.text = string.Equals(player.PlayerId, localPlayerId, StringComparison.Ordinal)
+                        ? "You"
+                        : "Rival";
                 }
 
                 if (player.Mass > previousMass + 0.9f && player.PlayerId == localPlayerId)

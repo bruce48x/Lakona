@@ -7,13 +7,13 @@ namespace SampleClient.Gameplay
 {
     internal static class DotArenaUiTextComposer
     {
-        public static string BuildSettlementDetail(SessionMode sessionMode, float localMass, int localWinCount, string winnerPlayerId, bool localPlayerWon, ArenaMapVariant mapVariant, ArenaRuleVariant ruleVariant)
+        public static string BuildSettlementDetail(SessionMode sessionMode, float localMass, int localWinCount, bool localPlayerWon, ArenaMapVariant mapVariant, ArenaRuleVariant ruleVariant)
         {
             var modeText = sessionMode == SessionMode.SinglePlayer ? "Single Player" : "Multiplayer";
-            var resultText = localPlayerWon ? "Win" : "failed";
+            var resultText = localPlayerWon ? "Victory" : "Defeat";
             var presetLabel = DotArenaSinglePlayerCatalog.GetPresetLabel(mapVariant, ruleVariant);
             var presetLine = sessionMode == SessionMode.SinglePlayer ? $"\nPreset: {presetLabel}" : string.Empty;
-            return $"Mode: {modeText}{presetLine}\nResult: {resultText}\nWinner: {winnerPlayerId}\nMass: {DotArenaPresentation.FormatMass(localMass)}\nWins: {localWinCount}";
+            return $"{resultText}\nMode: {modeText}{presetLine}\nFinal mass: {DotArenaPresentation.FormatMass(localMass)}\nWins: {localWinCount}";
         }
 
         public static string BuildSettlementRewardSummary(SessionMode sessionMode, DotArenaRewardSummary? lastRewardSummary)

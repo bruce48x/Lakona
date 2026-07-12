@@ -38,7 +38,7 @@ namespace SampleClient.Gameplay
             SetText(_hudModeText, string.Empty);
             SetText(_hudHintText, string.Empty);
             SetText(_matchRankingTitleText, "Live Ranking");
-            SetText(_matchRankingHeaderText, "Rank    Player            Mass");
+            SetText(_matchRankingHeaderText, "Rank   Player       Mass");
             RefreshMatchRankingRows(snapshot.MatchRankingEntries, showHud);
             if (snapshot.HasSession && snapshot.SessionMode == SessionMode.Multiplayer)
             {
@@ -132,7 +132,7 @@ namespace SampleClient.Gameplay
 
                 var entry = entries[i];
                 SetText(row.RankText, $"#{entry.Rank}");
-                SetText(row.NameText, entry.PlayerId);
+                SetText(row.NameText, entry.DisplayName);
                 SetText(row.MassText, DotArenaPresentation.FormatMass(entry.Mass));
 
                 var rowBackground = (i & 1) == 0

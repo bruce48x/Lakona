@@ -266,6 +266,28 @@ namespace SampleClient.Gameplay.Tests
         }
 
         [Test]
+        public void PlayerFacingPresentationDoesNotExposeInternalIdsOrDuplicateWorldLabels()
+        {
+            var gameplayRoot = Path.Combine(Application.dataPath, "Scripts", "Gameplay");
+            var viewSource = File.ReadAllText(Path.Combine(gameplayRoot, "DotArenaGame.Views.cs"));
+            var overlaySource = File.ReadAllText(Path.Combine(gameplayRoot, "DotArenaPlayerOverlayPresenter.cs"));
+            var synchronizerSource = File.ReadAllText(Path.Combine(gameplayRoot, "DotArenaWorldSynchronizer.cs"));
+            var callbackSource = File.ReadAllText(Path.Combine(gameplayRoot, "DotArenaGame.Callbacks.cs"));
+            var presenterSource = File.ReadAllText(Path.Combine(gameplayRoot, "DotArenaSceneUiPresenter.cs"));
+
+            Assert.That(viewSource, Does.Not.Contain("NameBackdrop"));
+            Assert.That(viewSource, Does.Not.Contain("MassBackdrop"));
+            Assert.That(viewSource, Does.Not.Contain("NameLabel"));
+            Assert.That(viewSource, Does.Not.Contain("MassLabel"));
+            Assert.That(overlaySource, Does.Not.Contain("MassText"));
+            Assert.That(overlaySource, Does.Contain("RectTransformUtility.ScreenPointToLocalPointInRectangle"));
+            Assert.That(synchronizerSource, Does.Not.Contain("overlay.NameText.text = player.PlayerId"));
+            Assert.That(callbackSource, Does.Not.Contain("realtimeConnection.Host"));
+            Assert.That(callbackSource, Does.Not.Contain("Winner: {matchEnd.WinnerPlayerId}"));
+            Assert.That(presenterSource, Does.Contain("private const int MatchRankingMaxRows = 6;"));
+        }
+
+        [Test]
         public void SceneUiPrefabTopStatusTextsShareOneNonOverlappingOverlayRegion()
         {
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(SceneUiPrefabPath);

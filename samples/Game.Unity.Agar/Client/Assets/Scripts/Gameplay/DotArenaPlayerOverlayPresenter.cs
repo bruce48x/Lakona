@@ -29,7 +29,7 @@ namespace SampleClient.Gameplay
             rootRect.anchorMin = new Vector2(0f, 1f);
             rootRect.anchorMax = new Vector2(0f, 1f);
             rootRect.pivot = new Vector2(0.5f, 0.5f);
-            rootRect.sizeDelta = new Vector2(140f, 40f);
+            rootRect.sizeDelta = new Vector2(128f, 24f);
 
             var nameObject = new GameObject("NameText", typeof(RectTransform), typeof(TextMeshProUGUI));
             nameObject.transform.SetParent(root.transform, false);
@@ -37,37 +37,19 @@ namespace SampleClient.Gameplay
             nameRect.anchorMin = new Vector2(0.5f, 0.5f);
             nameRect.anchorMax = new Vector2(0.5f, 0.5f);
             nameRect.pivot = new Vector2(0.5f, 0.5f);
-            nameRect.anchoredPosition = new Vector2(0f, -10f);
-            nameRect.sizeDelta = new Vector2(140f, 20f);
+            nameRect.anchoredPosition = Vector2.zero;
+            nameRect.sizeDelta = new Vector2(128f, 22f);
 
             var nameText = nameObject.GetComponent<TextMeshProUGUI>();
             nameText.font = ResolveOverlayFontAsset();
-            nameText.fontSize = 16;
+            nameText.fontSize = 14;
             nameText.fontStyle = FontStyles.Bold;
             nameText.alignment = TextAlignmentOptions.Center;
             nameText.enableWordWrapping = false;
             nameText.overflowMode = TextOverflowModes.Ellipsis;
             nameText.color = UiPrimaryTextColor;
 
-            var massObject = new GameObject("MassText", typeof(RectTransform), typeof(TextMeshProUGUI));
-            massObject.transform.SetParent(root.transform, false);
-            var massRect = (RectTransform)massObject.transform;
-            massRect.anchorMin = new Vector2(0.5f, 0.5f);
-            massRect.anchorMax = new Vector2(0.5f, 0.5f);
-            massRect.pivot = new Vector2(0.5f, 0.5f);
-            massRect.anchoredPosition = new Vector2(0f, 8f);
-            massRect.sizeDelta = new Vector2(140f, 18f);
-
-            var massText = massObject.GetComponent<TextMeshProUGUI>();
-            massText.font = ResolveOverlayFontAsset();
-            massText.fontSize = 14;
-            massText.fontStyle = FontStyles.Bold;
-            massText.alignment = TextAlignmentOptions.Center;
-            massText.enableWordWrapping = false;
-            massText.overflowMode = TextOverflowModes.Ellipsis;
-            massText.color = UiAccentTextColor;
-
-            _views.Add(playerId, new PlayerOverlayView(root, rootRect, nameText, massText));
+            _views.Add(playerId, new PlayerOverlayView(root, rootRect, nameText));
         }
 
         public void UpdateOverlayViews(
@@ -91,7 +73,10 @@ namespace SampleClient.Gameplay
                 return;
             }
 
-            var pixelsPerWorldUnit = Screen.height / (camera.orthographicSize * 2f);
+            var canvas = sceneUiPresenter.OverlayLayer.GetComponentInParent<Canvas>();
+            var uiCamera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay
+                ? canvas.worldCamera
+                : null;
 
             foreach (var entry in _views)
             {
@@ -110,26 +95,25 @@ namespace SampleClient.Gameplay
                 }
 
                 entry.Value.Root.SetActive(true);
-                var serverRadius = !float.IsNaN(renderState.Radius) && !float.IsInfinity(renderState.Radius) && renderState.Radius > 0f
-                    ? renderState.Radius
-                    : GameplayConfig.PlayerVisualRadius;
-                var diameterPixels = serverRadius * 2f * pixelsPerWorldUnit;
-                var labelWidth = Mathf.Max(96f, diameterPixels * 2f);
-                var nameHeight = Mathf.Max(18f, diameterPixels * 0.36f);
-                var massHeight = Mathf.Max(16f, diameterPixels * 0.3f);
+                if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                        sceneUiPresenter.OverlayLayer,
+                        screenPosition,
+                        uiCamera,
+                        out var localPoint))
+                {
+                    entry.Value.Root.SetActive(false);
+                    continue;
+                }
 
-                entry.Value.RootRect.anchoredPosition = new Vector2(screenPosition.x, screenPosition.y);
-                entry.Value.RootRect.sizeDelta = new Vector2(labelWidth, nameHeight + massHeight + 4f);
+                const float labelWidth = 128f;
+                const float nameHeight = 22f;
+                entry.Value.RootRect.anchoredPosition = localPoint + new Vector2(0f, 26f);
+                entry.Value.RootRect.sizeDelta = new Vector2(labelWidth, nameHeight);
 
                 var nameRect = entry.Value.NameText.rectTransform;
                 nameRect.sizeDelta = new Vector2(labelWidth, nameHeight);
-                nameRect.anchoredPosition = new Vector2(0f, nameHeight * 0.55f);
-                entry.Value.NameText.fontSize = Mathf.RoundToInt(Mathf.Clamp(diameterPixels * 0.24f, 14f, 22f));
-
-                var massRect = entry.Value.MassText.rectTransform;
-                massRect.sizeDelta = new Vector2(labelWidth, massHeight);
-                massRect.anchoredPosition = new Vector2(0f, -(massHeight * 0.55f));
-                entry.Value.MassText.fontSize = Mathf.RoundToInt(Mathf.Clamp(diameterPixels * 0.22f, 13f, 20f));
+                nameRect.anchoredPosition = Vector2.zero;
+                entry.Value.NameText.fontSize = 14f;
             }
         }
 

@@ -16,11 +16,8 @@ namespace SampleClient.Gameplay
         public EntryMenuState EntryMenuState { get; set; }
         public SessionMode SessionMode { get; set; }
         public string Status { get; set; }
-        public string LocalPlayerId { get; set; }
         public string Account { get; set; }
         public string Password { get; set; }
-        public string LocalPlayerMassText { get; set; }
-        public int LocalWinCount { get; set; }
         public int LastRoundRemainingSeconds { get; set; }
         public bool IsConnecting { get; set; }
         public bool IsBusy { get; set; }
@@ -38,23 +35,23 @@ namespace SampleClient.Gameplay
 
     internal readonly struct DotArenaMatchRankingEntry
     {
-        public DotArenaMatchRankingEntry(int rank, string playerId, float mass, bool isLocalPlayer)
+        public DotArenaMatchRankingEntry(int rank, string displayName, float mass, bool isLocalPlayer)
         {
             Rank = rank;
-            PlayerId = playerId;
+            DisplayName = displayName;
             Mass = mass;
             IsLocalPlayer = isLocalPlayer;
         }
 
         public int Rank { get; }
-        public string PlayerId { get; }
+        public string DisplayName { get; }
         public float Mass { get; }
         public bool IsLocalPlayer { get; }
     }
 
     internal sealed partial class DotArenaSceneUiPresenter
     {
-        private const int MatchRankingMaxRows = 10;
+        private const int MatchRankingMaxRows = 6;
 
         private Transform? _owner;
         private GameObject? _sceneUiRoot;

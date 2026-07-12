@@ -206,7 +206,7 @@ namespace SampleClient.Gameplay
             _settlementSummary = new MatchSettlementSummary
             {
                 Title = preserveLoginState ? "Multiplayer results" : "Single-player results",
-                Detail = DotArenaUiTextComposer.BuildSettlementDetail(sessionMode, localMass, _localWinCount, winnerPlayerId, localPlayerWon, _currentArenaMapVariant, _currentArenaRuleVariant),
+                Detail = DotArenaUiTextComposer.BuildSettlementDetail(sessionMode, localMass, _localWinCount, localPlayerWon, _currentArenaMapVariant, _currentArenaRuleVariant),
                 RewardSummary = DotArenaUiTextComposer.BuildSettlementRewardSummary(sessionMode, _lastRewardSummary),
                 TaskSummary = DotArenaUiTextComposer.BuildSettlementTaskSummary(_metaState),
                 NextStepSummary = DotArenaUiTextComposer.BuildSettlementNextStepSummary(sessionMode, _currentArenaMapVariant, _currentArenaRuleVariant),

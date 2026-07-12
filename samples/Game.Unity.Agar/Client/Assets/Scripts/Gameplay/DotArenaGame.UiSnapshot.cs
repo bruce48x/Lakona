@@ -24,11 +24,8 @@ namespace SampleClient.Gameplay
                     EntryMenuState = _owner._entryMenuState,
                     SessionMode = _owner._sessionMode,
                     Status = _owner._status,
-                    LocalPlayerId = _owner._localPlayerId,
                     Account = _owner._account,
                     Password = _owner._password,
-                    LocalPlayerMassText = _owner.GetLocalPlayerMassText(),
-                    LocalWinCount = _owner._localWinCount,
                     LastRoundRemainingSeconds = _owner._lastRoundRemainingSeconds,
                     MatchRankingEntries = BuildMatchRankingEntries(),
                     IsConnecting = _owner.IsConnecting,
@@ -79,7 +76,9 @@ namespace SampleClient.Gameplay
                     var renderState = rankedStates[i].Value;
                     entries.Add(new DotArenaMatchRankingEntry(
                         i + 1,
-                        playerId,
+                        string.Equals(playerId, _owner._localPlayerId, StringComparison.Ordinal)
+                            ? "You"
+                            : $"Player {i + 1}",
                         NormalizeRankingMass(renderState.Mass),
                         string.Equals(playerId, _owner._localPlayerId, StringComparison.Ordinal)));
                 }

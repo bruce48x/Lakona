@@ -35,17 +35,17 @@ namespace SampleClient.Gameplay
             }
 
             var panelRect = (RectTransform)_matchRankingPanel.transform;
-            panelRect.anchorMin = new Vector2(1f, 0.5f);
-            panelRect.anchorMax = new Vector2(1f, 0.5f);
-            panelRect.pivot = new Vector2(1f, 0.5f);
-            panelRect.anchoredPosition = new Vector2(-18f, 0f);
-            panelRect.sizeDelta = new Vector2(246f, 410f);
+            panelRect.anchorMin = Vector2.one;
+            panelRect.anchorMax = Vector2.one;
+            panelRect.pivot = Vector2.one;
+            panelRect.anchoredPosition = new Vector2(-18f, -18f);
+            panelRect.sizeDelta = new Vector2(220f, 246f);
 
             _matchRankingTitleText = EnsureMatchRankingText(
                 _matchRankingPanel.transform,
                 "TitleText",
                 new Vector2(0f, -18f),
-                new Vector2(220f, 28f),
+                new Vector2(196f, 28f),
                 18f,
                 FontStyles.Bold,
                 TextAlignmentOptions.Center);
@@ -53,7 +53,7 @@ namespace SampleClient.Gameplay
                 _matchRankingPanel.transform,
                 "HeaderText",
                 new Vector2(0f, -52f),
-                new Vector2(224f, 20f),
+                new Vector2(198f, 20f),
                 12f,
                 FontStyles.Bold,
                 TextAlignmentOptions.Center);
@@ -105,8 +105,8 @@ namespace SampleClient.Gameplay
             rect.anchorMin = new Vector2(0.5f, 1f);
             rect.anchorMax = new Vector2(0.5f, 1f);
             rect.pivot = new Vector2(0.5f, 1f);
-            rect.anchoredPosition = new Vector2(0f, -84f - (index * 30f));
-            rect.sizeDelta = new Vector2(216f, 25f);
+            rect.anchoredPosition = new Vector2(0f, -80f - (index * 27f));
+            rect.sizeDelta = new Vector2(196f, 23f);
 
             var background = rowObject.GetComponent<Image>();
             if (background == null)
@@ -118,8 +118,8 @@ namespace SampleClient.Gameplay
             background.raycastTarget = false;
 
             var rankText = EnsureMatchRankingRowText(rowObject.transform, "RankText", 0f, 34f, TextAlignmentOptions.Left);
-            var nameText = EnsureMatchRankingRowText(rowObject.transform, "NameText", 36f, 118f, TextAlignmentOptions.Left);
-            var massText = EnsureMatchRankingRowText(rowObject.transform, "MassText", 164f, 56f, TextAlignmentOptions.Right);
+            var nameText = EnsureMatchRankingRowText(rowObject.transform, "NameText", 34f, 104f, TextAlignmentOptions.Left);
+            var massText = EnsureMatchRankingRowText(rowObject.transform, "MassText", 140f, 52f, TextAlignmentOptions.Right);
             if (rankText == null || nameText == null || massText == null)
             {
                 return null;

@@ -20,18 +20,16 @@ namespace SampleClient.Gameplay
 
     internal sealed class PlayerOverlayView
     {
-        public PlayerOverlayView(GameObject root, RectTransform rootRect, TextMeshProUGUI nameText, TextMeshProUGUI massText)
+        public PlayerOverlayView(GameObject root, RectTransform rootRect, TextMeshProUGUI nameText)
         {
             Root = root;
             RootRect = rootRect;
             NameText = nameText;
-            MassText = massText;
         }
 
         public GameObject Root { get; }
         public RectTransform RootRect { get; }
         public TextMeshProUGUI NameText { get; }
-        public TextMeshProUGUI MassText { get; }
     }
 
     internal enum EntryMenuState
