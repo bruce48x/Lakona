@@ -83,23 +83,6 @@ public sealed class PlayerSessionActorStateTests
         Assert.Equal(realtimeAttachedAtUtc, realtimeAttached.LastConnectedAtUtc);
         Assert.Equal(realtimeAttachedAtUtc, realtimeAttached.LastHeartbeatAtUtc);
 
-        var reconnected = await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
-            ActorId.From(userId),
-            (actor, _) => actor.ReconnectAsync(new PlayerSessionReconnectRequest
-            {
-                UserId = userId,
-                SessionToken = "token-1",
-                ConnectionId = "control-connection-2",
-                ControlSessionId = "control-session-2",
-                ControlSessionGeneration = 12,
-                ReconnectedAtUtc = DateTime.UtcNow
-            }),
-            cancellationToken);
-
-        Assert.Equal("control-session-2", reconnected.ControlSessionId);
-        Assert.Equal(12, reconnected.ControlSessionGeneration);
-        Assert.Equal("realtime-session-1", reconnected.RealtimeSessionId);
-        Assert.Equal(11, reconnected.RealtimeSessionGeneration);
     }
 
     [Fact]

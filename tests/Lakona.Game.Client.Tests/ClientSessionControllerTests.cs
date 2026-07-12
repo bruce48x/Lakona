@@ -68,6 +68,21 @@ public sealed class ClientSessionControllerTests
     }
 
     [Fact]
+    public void MarkRecoveredRestoresActiveSessionIdentity()
+    {
+        var controller = new ClientSessionController();
+        controller.StartSessionWithGeneration("session-a", sessionGeneration: 7, lastReliableSequence: 3);
+        controller.MarkReconnecting();
+
+        controller.MarkRecovered();
+
+        Assert.Equal(ClientSessionPhase.Active, controller.Snapshot.Phase);
+        Assert.Equal("session-a", controller.Snapshot.SessionId);
+        Assert.Equal(7, controller.Snapshot.SessionGeneration);
+        Assert.Equal(3, controller.Snapshot.LastReliableSequence);
+    }
+
+    [Fact]
     public void SessionTerminationNoticeMakesControllerTerminated()
     {
         var controller = new ClientSessionController();

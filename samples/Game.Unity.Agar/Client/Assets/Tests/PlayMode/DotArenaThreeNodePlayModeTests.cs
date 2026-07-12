@@ -143,7 +143,7 @@ namespace SampleClient.Gameplay.Tests
             var recoveredMove = recovered.LocalPlayerX >= 0f ? Vector2.left : Vector2.right;
             yield return WaitForTask(
                 game.SetEditorMoveOverrideForTest(recoveredMove),
-                "post-reconnect input submission did not complete",
+                "post-recovery input submission did not complete",
                 10f);
             yield return WaitForSnapshot(
                 game,

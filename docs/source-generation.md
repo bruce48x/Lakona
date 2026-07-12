@@ -90,8 +90,10 @@ or hard-code framework heartbeat RPC ids. `RpcClient` remains a pure RPC client
 and does not know about `LakonaGameClient`; the generated wrapper composes the
 generated `RpcClient` with `Lakona.Game.Client.LakonaGameClientCore`.
 
-The generated wrapper is single-use. `ConnectAsync` is the only normal
-connection entry point and performs the full framework connection sequence:
+The generated wrapper is a stable facade. Application code calls `ConnectAsync`
+once; after a Game Session is established, the wrapper may create multiple
+internal RPC connection generations during framework-managed recovery. The
+initial connection sequence is:
 
 1. validate the wrapper is not disposed and has not already started;
 2. move the core state to connecting;
@@ -110,8 +112,11 @@ successful connection throws:
 LakonaGameClient is not connected. Call ConnectAsync first.
 ```
 
-After a connection failure or disconnect, the wrapper is not reusable; dispose
-it and create a new generated `LakonaGameClient`.
+Before a Game Session is established, a connection failure fails normally.
+After establishment, disconnect starts bounded recovery on the same wrapper.
+The public `Api`, service proxies, and callback receivers remain stable while
+the internal RPC client and transport are replaced. Terminal recovery outcomes
+raise `Disconnected`; disposal cancels and joins any in-progress recovery.
 
 Generated constructors accept game client options:
 

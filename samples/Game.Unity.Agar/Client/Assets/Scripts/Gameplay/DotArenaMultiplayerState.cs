@@ -18,13 +18,12 @@ namespace SampleClient.Gameplay
         public string AuthenticatedPlayerId { get; set; } = string.Empty;
         public int LocalWinCount { get; set; }
         public PendingUiRequest PendingUiRequest { get; set; }
-        public bool ControlReconnectInProgress { get; set; }
         public float MatchmakingStartedAt { get; set; } = -1f;
         public RealtimeConnectionInfo? LastRealtimeConnection { get; set; }
         public ClientSessionController SessionController { get; }
 
         public bool HasPendingUiRequest => PendingUiRequest != PendingUiRequest.None;
-        public bool HasRecoverableLogin => SessionMode == SessionMode.Multiplayer && HasAuthenticatedProfile;
+        public bool HasAuthenticatedMultiplayerProfile => SessionMode == SessionMode.Multiplayer && HasAuthenticatedProfile;
 
         public DotArenaAuthenticatedProfile CaptureAuthenticatedProfile()
         {
@@ -60,14 +59,6 @@ namespace SampleClient.Gameplay
             StartFrameworkSession(playerId, sessionToken, sessionId, sessionGeneration);
         }
 
-        public void ApplyControlReconnect(string playerId, string sessionToken, string sessionId, long sessionGeneration, int winCount)
-        {
-            LocalPlayerId = playerId;
-            SessionMode = SessionMode.Multiplayer;
-            ApplyAuthenticatedProfile(playerId, winCount);
-            StartFrameworkSession(playerId, sessionToken, sessionId, sessionGeneration);
-        }
-
         public void ClearSession()
         {
             SessionMode = SessionMode.None;
@@ -84,7 +75,6 @@ namespace SampleClient.Gameplay
         public void ClearRequestState(bool resetSessionState)
         {
             PendingUiRequest = PendingUiRequest.None;
-            ControlReconnectInProgress = false;
             LastRealtimeConnection = null;
             MatchmakingStartedAt = -1f;
 

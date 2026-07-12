@@ -8,6 +8,7 @@ internal interface IGameSessionHandshakeRecoveryService
     ValueTask<GameSessionRecoveryHandshakeResult> RecoverAsync(
         string? resumeTicket,
         RpcSession connection,
+        string endpointScope,
         bool reliablePush,
         CancellationToken cancellationToken = default);
 }
@@ -22,13 +23,14 @@ internal sealed class GameSessionHandshakeRecoveryService(
     public async ValueTask<GameSessionRecoveryHandshakeResult> RecoverAsync(
         string? resumeTicket,
         RpcSession connection,
+        string endpointScope,
         bool reliablePush,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(resumeTicket))
             return new GameSessionRecoveryHandshakeResult { Status = GameSessionRecoveryStatus.NotRequested };
 
-        var session = await tickets.ResolveAsync(resumeTicket, cancellationToken).ConfigureAwait(false);
+        var session = await tickets.ResolveAsync(resumeTicket, endpointScope, cancellationToken).ConfigureAwait(false);
         if (session is null)
             return Lost("The resume ticket is unknown or expired.");
 

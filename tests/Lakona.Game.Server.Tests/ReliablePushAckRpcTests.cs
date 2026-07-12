@@ -22,6 +22,7 @@ public sealed class ReliablePushAckRpcTests
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var fixture = await ReliablePushAckRpcFixture.StartAsync(cancellationToken);
         await fixture.HandshakeAsync(cancellationToken);
+        fixture.EnableSessionEstablishedAcknowledgement(cancellationToken);
         var server = fixture.Services.GetRequiredService<ILakonaGameServer>();
         var notifications = fixture.Services.GetRequiredService<IClientNotifications>();
         var session = await server.StartSessionAsync(
@@ -195,6 +196,22 @@ public sealed class ReliablePushAckRpcTests
                 .AsTask()
                 .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
             LakonaInternalCodec.DecodeGameServerHello(hello.Memory);
+        }
+
+        public void EnableSessionEstablishedAcknowledgement(CancellationToken cancellationToken)
+        {
+            Client.RegisterRawNotificationHandler(
+                GameSessionNotificationRpcIds.ServiceId,
+                GameSessionNotificationRpcIds.EstablishedNotificationId,
+                async payload =>
+                {
+                    _ = LakonaInternalCodec.DecodeGameSessionEstablished(payload);
+                    using var acknowledgement = await Client.CallRawAsync(
+                        GameSessionEstablishedRpcIds.ServiceId,
+                        GameSessionEstablishedRpcIds.AckMethodId,
+                        ReadOnlyMemory<byte>.Empty,
+                        cancellationToken);
+                });
         }
 
         public async ValueTask DisposeAsync()

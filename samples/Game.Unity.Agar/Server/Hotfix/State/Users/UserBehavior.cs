@@ -32,10 +32,7 @@ public static partial class UserBehavior
             throw new InvalidOperationException("Invalid password.");
         }
 
-        if (!request.Reconnect || string.IsNullOrWhiteSpace(self.State.SessionToken))
-        {
-            self.State.SessionToken = Guid.NewGuid().ToString("N");
-        }
+        self.State.SessionToken = Guid.NewGuid().ToString("N");
 
         self.State.LoginCount += 1;
         self.State.LastLoginAtUtc = now;
@@ -139,30 +136,8 @@ public static partial class UserBehavior
         session.AttachedAtUtc = attachedAtUtc;
         session.LastConnectedAtUtc = attachedAtUtc;
         session.LastHeartbeatAtUtc = attachedAtUtc;
-        session.ReconnectToken = EnsureReconnectToken(session.ReconnectToken);
         session.ControlGateway = CloneGateway(request.ControlGateway);
         session.RuntimeGateway = new GatewayEndpointDescriptor();
-
-        return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
-    }
-
-    public static ValueTask<PlayerSessionSnapshot> ReconnectAsync(this UserActor self, PlayerSessionReconnectRequest request, CancellationToken cancellationToken = default)
-    {
-        var userId = NormalizeUserId(request.UserId);
-        var reconnectedAtUtc = NormalizeUtc(request.ReconnectedAtUtc);
-        EnsureState(self, userId);
-
-        self.State.UserId = userId;
-        var session = self.State.Session;
-        session.SessionToken = request.SessionToken;
-        session.ConnectionId = request.ConnectionId;
-        session.ControlSessionId = request.ControlSessionId;
-        session.ControlSessionGeneration = request.ControlSessionGeneration;
-        session.IsOnline = true;
-        session.LastConnectedAtUtc = reconnectedAtUtc;
-        session.LastHeartbeatAtUtc = reconnectedAtUtc;
-        session.ReconnectToken = EnsureReconnectToken(session.ReconnectToken);
-        session.ControlGateway = CloneGateway(request.ControlGateway);
 
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
@@ -255,7 +230,6 @@ public static partial class UserBehavior
         session.IsOnline = true;
         session.LastConnectedAtUtc = assignedAtUtc;
         session.LastHeartbeatAtUtc = assignedAtUtc;
-        session.ReconnectToken = EnsureReconnectToken(session.ReconnectToken);
         session.RuntimeGateway = CloneGateway(request.RuntimeGateway);
 
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
@@ -313,8 +287,7 @@ public static partial class UserBehavior
         {
             self.State.Session = new PlayerSessionState
             {
-                UserId = userId,
-                ReconnectToken = Guid.NewGuid().ToString("N")
+                UserId = userId
             };
             self.SessionRecordExists = true;
             return;
@@ -358,7 +331,6 @@ public static partial class UserBehavior
             LastConnectedAtUtc = session.LastConnectedAtUtc,
             LastDisconnectedAtUtc = session.LastDisconnectedAtUtc,
             LastHeartbeatAtUtc = session.LastHeartbeatAtUtc,
-            ReconnectToken = session.ReconnectToken,
             ControlGateway = CloneGateway(session.ControlGateway),
             RuntimeGateway = CloneGateway(session.RuntimeGateway)
         };
@@ -377,11 +349,6 @@ public static partial class UserBehavior
     private static DateTime NormalizeUtc(DateTime value)
     {
         return value == default ? DateTime.UtcNow : value;
-    }
-
-    private static string EnsureReconnectToken(string value)
-    {
-        return string.IsNullOrWhiteSpace(value) ? Guid.NewGuid().ToString("N") : value;
     }
 
     private static GatewayEndpointDescriptor CloneGateway(GatewayEndpointDescriptor? gateway)

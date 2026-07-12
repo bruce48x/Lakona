@@ -86,6 +86,14 @@ namespace Lakona.Game.Client.Sessions
             }
         }
 
+        public void MarkRecovered()
+        {
+            if (Snapshot.Phase == ClientSessionPhase.Reconnecting && Snapshot.SessionId is not null)
+            {
+                SetPhase(ClientSessionPhase.Active);
+            }
+        }
+
         public void ApplyAckOutcome(ReliablePushAckOutcome outcome)
         {
             if (IsTerminalPhase(Snapshot.Phase))

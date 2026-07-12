@@ -6,10 +6,12 @@ internal interface IGameSessionResumeTicketStore
 {
     ValueTask<string> IssueAsync(
         GameSessionKey session,
+        string endpointScope,
         CancellationToken cancellationToken = default);
 
     ValueTask<GameSessionKey?> ResolveAsync(
         string ticket,
+        string endpointScope,
         CancellationToken cancellationToken = default);
 
     ValueTask RevokeAsync(

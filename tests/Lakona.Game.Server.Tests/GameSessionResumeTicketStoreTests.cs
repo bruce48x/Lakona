@@ -12,8 +12,8 @@ public sealed class GameSessionResumeTicketStoreTests
         var store = new InMemoryGameSessionResumeTicketStore();
         var session = new GameSessionKey("player-a", "session-a", 7);
 
-        var ticket = await store.IssueAsync(session, TestContext.Current.CancellationToken);
-        var resolved = await store.ResolveAsync(ticket, TestContext.Current.CancellationToken);
+        var ticket = await store.IssueAsync(session, "websocket|memorypack|reliable", TestContext.Current.CancellationToken);
+        var resolved = await store.ResolveAsync(ticket, "websocket|memorypack|reliable", TestContext.Current.CancellationToken);
 
         Assert.DoesNotContain("player-a", ticket, StringComparison.Ordinal);
         Assert.DoesNotContain("session-a", ticket, StringComparison.Ordinal);
@@ -26,8 +26,8 @@ public sealed class GameSessionResumeTicketStoreTests
         var store = new InMemoryGameSessionResumeTicketStore();
         var session = new GameSessionKey("player-a", "session-a", 1);
 
-        var first = await store.IssueAsync(session, TestContext.Current.CancellationToken);
-        var second = await store.IssueAsync(session, TestContext.Current.CancellationToken);
+        var first = await store.IssueAsync(session, "websocket|memorypack|reliable", TestContext.Current.CancellationToken);
+        var second = await store.IssueAsync(session, "websocket|memorypack|reliable", TestContext.Current.CancellationToken);
 
         Assert.Equal(first, second);
     }
@@ -37,10 +37,25 @@ public sealed class GameSessionResumeTicketStoreTests
     {
         var store = new InMemoryGameSessionResumeTicketStore();
         var session = new GameSessionKey("player-a", "session-a", 1);
-        var ticket = await store.IssueAsync(session, TestContext.Current.CancellationToken);
+        var ticket = await store.IssueAsync(session, "websocket|memorypack|reliable", TestContext.Current.CancellationToken);
 
         await store.RevokeAsync(session, TestContext.Current.CancellationToken);
 
-        Assert.Null(await store.ResolveAsync(ticket, TestContext.Current.CancellationToken));
+        Assert.Null(await store.ResolveAsync(ticket, "websocket|memorypack|reliable", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Ticket_cannot_resume_on_a_different_endpoint_scope()
+    {
+        var store = new InMemoryGameSessionResumeTicketStore();
+        var session = new GameSessionKey("player-a", "session-a", 1);
+        var ticket = await store.IssueAsync(session, "websocket|memorypack|reliable", TestContext.Current.CancellationToken);
+
+        var resolved = await store.ResolveAsync(
+            ticket,
+            "kcp|memorypack|best-effort",
+            TestContext.Current.CancellationToken);
+
+        Assert.Null(resolved);
     }
 }

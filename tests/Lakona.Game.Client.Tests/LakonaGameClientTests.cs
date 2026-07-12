@@ -24,6 +24,24 @@ public sealed class LakonaGameClientCoreTests
     }
 
     [Fact]
+    public void Connection_generations_share_the_injected_recovery_scheduler()
+    {
+        var scheduler = new TestRecoveryScheduler();
+        var options = new LakonaGameClientOptions(
+            static () => new NoopTransport(),
+            new NoopSerializer())
+        {
+            RecoveryScheduler = scheduler
+        };
+
+        var first = options.CreateConnectionGeneration();
+        var second = options.CreateConnectionGeneration();
+
+        Assert.Same(scheduler, first.RecoveryScheduler);
+        Assert.Same(scheduler, second.RecoveryScheduler);
+    }
+
+    [Fact]
     public void ApplyServerHello_applies_heartbeat_policy()
     {
         var client = new LakonaGameClientCore();
@@ -912,6 +930,17 @@ public sealed class LakonaGameClientCoreTests
         {
             throw new NotSupportedException();
         }
+    }
+
+    private sealed class TestRecoveryScheduler : IGameSessionRecoveryScheduler
+    {
+        public DateTimeOffset GetUtcNow() => DateTimeOffset.UnixEpoch;
+
+        public TimeSpan GetDelay(int attempt) => TimeSpan.FromMilliseconds(attempt + 1);
+
+        public ValueTask DelayAsync(
+            TimeSpan delay,
+            CancellationToken cancellationToken = default) => default;
     }
 
     private sealed class DelayedReliablePushCursorStore : IReliablePushCursorStore

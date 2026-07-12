@@ -136,7 +136,7 @@ public sealed class AgarSessionLifecycle
                 call.Services.GetRequiredService<LocalActorNodeIdentity>(),
                 call.Services.GetRequiredService<ILogger<PlayerService>>(),
                 playerId,
-                "Reconnect grace period expired",
+                "Session recovery window expired",
                 CancellationToken.None)
             .ConfigureAwait(false);
     }

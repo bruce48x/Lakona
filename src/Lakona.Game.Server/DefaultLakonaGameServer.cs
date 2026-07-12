@@ -118,7 +118,9 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
             cancellationToken).ConfigureAwait(false);
         await BindSessionAsync(session, connectionId, callback, cancellationToken)
             .ConfigureAwait(false);
-        var resumeTicket = await _resumeTickets.IssueAsync(session, cancellationToken).ConfigureAwait(false);
+        var resumeTicket = await _resumeTickets
+            .IssueAsync(session, _deliveryPolicies.GetEndpointScope(connectionId), cancellationToken)
+            .ConfigureAwait(false);
         await _sessionEstablished.NotifyAsync(
             connectionId,
             new Lakona.Game.Abstractions.Sessions.GameSessionEstablished

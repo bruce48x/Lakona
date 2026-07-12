@@ -292,6 +292,11 @@ namespace Lakona.Game.Client
             _sessions.MarkReconnecting();
         }
 
+        public void MarkRecovered()
+        {
+            _sessions.MarkRecovered();
+        }
+
         public void ApplyAckOutcome(ReliablePushAckOutcome outcome)
         {
             _sessions.ApplyAckOutcome(outcome);

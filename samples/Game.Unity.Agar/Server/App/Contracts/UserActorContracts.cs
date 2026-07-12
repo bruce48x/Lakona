@@ -8,8 +8,6 @@ public sealed partial class UserLoginRequest
     [MemoryPackOrder(0)]
     public string Password { get; set; } = "";
 
-    [MemoryPackOrder(1)]
-    public bool Reconnect { get; set; }
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]

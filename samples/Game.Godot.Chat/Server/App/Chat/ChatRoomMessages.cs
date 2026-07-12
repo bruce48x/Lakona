@@ -1,4 +1,5 @@
 using Shared.Contracts.Chat;
+using Lakona.Game.Server.Sessions;
 
 namespace Server.App.Chat
 {
@@ -9,29 +10,42 @@ namespace Server.App.Chat
 
     public sealed class ChatRoomLoginRequest
     {
-        public string ConnectionId { get; set; } = "";
+        public GameSessionKey Session { get; set; }
 
         public string PlayerName { get; set; } = "";
 
-        public ILoginCallback LoginCallback { get; set; } = null!;
     }
 
-    public sealed class ChatRoomBindRequest
+    public sealed class ChatRoomLoginResult
     {
-        public string ConnectionId { get; set; } = "";
+        public LoginReply Reply { get; set; } = new();
 
-        public IChatCallback ChatCallback { get; set; } = null!;
+        public IReadOnlyList<GameSessionKey> Recipients { get; set; } = Array.Empty<GameSessionKey>();
     }
 
     public sealed class ChatRoomSendRequest
     {
-        public string ConnectionId { get; set; } = "";
+        public GameSessionKey Session { get; set; }
 
         public string Text { get; set; } = "";
     }
 
+    public sealed class ChatRoomSendResult
+    {
+        public ChatMessage Message { get; set; } = new();
+
+        public IReadOnlyList<GameSessionKey> Recipients { get; set; } = Array.Empty<GameSessionKey>();
+    }
+
     public sealed class ChatRoomLeaveRequest
     {
-        public string ConnectionId { get; set; } = "";
+        public GameSessionKey Session { get; set; }
+    }
+
+    public sealed class ChatRoomLeaveResult
+    {
+        public string Name { get; set; } = "";
+
+        public IReadOnlyList<GameSessionKey> Recipients { get; set; } = Array.Empty<GameSessionKey>();
     }
 }

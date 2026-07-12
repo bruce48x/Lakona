@@ -35,8 +35,10 @@ await gameClient.StartSessionAsync(
 ```
 
 `ConnectAsync` owns the framework handshake and heartbeat startup.
-`StartSessionAsync` tells the framework which server-issued session is active;
-reliable push replay and acknowledgements remain framework protocol details.
+Normal generated clients learn the active framework Session through the
+server's acknowledged establishment notification; reliable push replay and
+acknowledgements remain framework protocol details. `StartSessionAsync` exists
+for custom wrappers and advanced integrations.
 Business RPC services are exposed through `gameClient.Api`.
 
 ## Core Client Primitive

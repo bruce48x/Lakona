@@ -53,95 +53,28 @@ public sealed class LoginService
             return new LoginReply { Code = LoginResultCodes.InvalidRequest, Message = "Login request is incomplete." };
         }
 
-        var loginRequest = new UserLoginRequest { Password = password, Reconnect = req.Reconnect };
+        var loginRequest = new UserLoginRequest { Password = password };
         var loginResult = await LoginUserAsync(call.Services, account, loginRequest, CancellationToken.None).ConfigureAwait(false);
 
-        GameSessionKey sessionKey;
-        if (req.Reconnect)
-        {
-            var snapshot = await _users
-                .Route(new UserId(loginResult.UserId))
-                .CallAsync(
-                    UserBehavior.GetSnapshotAsync,
-                    new PlayerSessionSnapshotRequest(),
-                    CancellationToken.None)
-                .ConfigureAwait(false);
-            if (string.IsNullOrWhiteSpace(snapshot.ControlSessionId) ||
-                snapshot.ControlSessionGeneration <= 0 ||
-                !string.Equals(snapshot.SessionToken, loginResult.SessionToken, StringComparison.Ordinal))
-            {
-                return new LoginReply
+        var sessionKey = await call.GameServer
+            .StartSessionAsync(loginResult.UserId, call.ConnectionId, call.Callback)
+            .ConfigureAwait(false);
+        await _users
+            .Route(new UserId(loginResult.UserId))
+            .CallAsync(
+                UserBehavior.AttachAsync,
+                new PlayerSessionAttachRequest
                 {
-                    Code = LoginResultCodes.ReconnectStateLost,
-                    PlayerId = loginResult.UserId,
-                    Account = account,
-                    Message = "Server session state was lost. Start a new session instead of reconnecting."
-                };
-            }
-
-            var controlSession = new GameSessionKey(
-                loginResult.UserId,
-                snapshot.ControlSessionId,
-                snapshot.ControlSessionGeneration);
-            var resumeDecision = await call.GameServer
-                .ResumeSessionAsync(
-                    new GameSessionResumeRequest(controlSession, loginResult.SessionToken),
-                    call.ConnectionId,
-                    call.Callback)
-                .ConfigureAwait(false);
-            if (resumeDecision.Status != SessionResumeStatus.Resumed || resumeDecision.Session is null)
-            {
-                return new LoginReply
-                {
-                    Code = LoginResultCodes.ReconnectStateLost,
-                    PlayerId = loginResult.UserId,
-                    Account = account,
-                    Message = string.IsNullOrWhiteSpace(resumeDecision.Reason)
-                        ? "Server session state was lost. Start a new session instead of reconnecting."
-                        : resumeDecision.Reason
-                };
-            }
-
-            sessionKey = resumeDecision.Session.Value;
-            await _users
-                .Route(new UserId(loginResult.UserId))
-                .CallAsync(
-                    UserBehavior.ReconnectAsync,
-                    new PlayerSessionReconnectRequest
-                    {
-                        UserId = loginResult.UserId,
-                        SessionToken = loginResult.SessionToken,
-                        ConnectionId = call.ConnectionId,
-                        ControlSessionId = sessionKey.SessionId,
-                        ControlSessionGeneration = sessionKey.Generation,
-                        ReconnectedAtUtc = DateTime.UtcNow,
-                        ControlGateway = CloneGateway(controlGateway)
-                    },
-                    CancellationToken.None)
-                .ConfigureAwait(false);
-        }
-        else
-        {
-            sessionKey = await call.GameServer
-                .StartSessionAsync(loginResult.UserId, call.ConnectionId, call.Callback)
-                .ConfigureAwait(false);
-            await _users
-                .Route(new UserId(loginResult.UserId))
-                .CallAsync(
-                    UserBehavior.AttachAsync,
-                    new PlayerSessionAttachRequest
-                    {
-                        UserId = loginResult.UserId,
-                        SessionToken = loginResult.SessionToken,
-                        ConnectionId = call.ConnectionId,
-                        ControlSessionId = sessionKey.SessionId,
-                        ControlSessionGeneration = sessionKey.Generation,
-                        AttachedAtUtc = DateTime.UtcNow,
-                        ControlGateway = CloneGateway(controlGateway)
-                    },
-                    CancellationToken.None)
-                .ConfigureAwait(false);
-        }
+                    UserId = loginResult.UserId,
+                    SessionToken = loginResult.SessionToken,
+                    ConnectionId = call.ConnectionId,
+                    ControlSessionId = sessionKey.SessionId,
+                    ControlSessionGeneration = sessionKey.Generation,
+                    AttachedAtUtc = DateTime.UtcNow,
+                    ControlGateway = CloneGateway(controlGateway)
+                },
+                CancellationToken.None)
+            .ConfigureAwait(false);
 
         return new LoginReply
         {

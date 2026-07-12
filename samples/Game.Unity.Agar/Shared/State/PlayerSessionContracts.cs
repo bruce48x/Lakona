@@ -5,37 +5,6 @@ using MemoryPack;
 namespace Server.App.State.Contracts.Sessions
 {
     [MemoryPackable(GenerateType.VersionTolerant)]
-    public sealed partial class PlayerSessionReconnectRequest
-    {
-        [MemoryPackOrder(0)]
-        public string UserId { get; set; } = "";
-
-        [MemoryPackOrder(1)]
-        public string SessionToken { get; set; } = "";
-
-        [MemoryPackOrder(2)]
-        public string ConnectionId { get; set; } = "";
-
-        [MemoryPackOrder(3)]
-        public string ControlSessionId { get; set; } = "";
-
-        [MemoryPackOrder(4)]
-        public long ControlSessionGeneration { get; set; }
-
-        [MemoryPackOrder(5)]
-        public string RealtimeSessionId { get; set; } = "";
-
-        [MemoryPackOrder(6)]
-        public long RealtimeSessionGeneration { get; set; }
-
-        [MemoryPackOrder(7)]
-        public DateTime ReconnectedAtUtc { get; set; }
-
-        [MemoryPackOrder(8)]
-        public GatewayEndpointDescriptor ControlGateway { get; set; } = new();
-    }
-
-    [MemoryPackable(GenerateType.VersionTolerant)]
     public sealed partial class PlayerSessionAttachRequest
     {
         [MemoryPackOrder(0)]
@@ -271,9 +240,6 @@ namespace Server.App.State.Contracts.Sessions
         [MemoryPackOrder(18)]
         public DateTime LastHeartbeatAtUtc { get; set; }
 
-        [MemoryPackOrder(19)]
-        public string ReconnectToken { get; set; } = "";
-
         [MemoryPackOrder(20)]
         public GatewayEndpointDescriptor ControlGateway { get; set; } = new();
 
@@ -320,8 +286,6 @@ namespace Server.App.State.Contracts.Sessions
         public DateTime LastDisconnectedAtUtc { get; set; }
 
         public DateTime LastHeartbeatAtUtc { get; set; }
-
-        public string ReconnectToken { get; set; } = "";
 
         public GatewayEndpointDescriptor ControlGateway { get; set; } = new();
 

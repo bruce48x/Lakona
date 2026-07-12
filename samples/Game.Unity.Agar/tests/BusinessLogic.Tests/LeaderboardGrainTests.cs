@@ -146,7 +146,7 @@ public sealed class LeaderboardActorTests
         await hosting.EnsureAsync<LeaderboardActor>(ActorId.From("current"), cancellationToken);
         var login = await actors.AskAsync<UserActor, UserLoginResult>(
             ActorId.From(userId),
-            (actor, _) => actor.LoginAsync(new UserLoginRequest { Password = "pw", Reconnect = false }),
+            (actor, _) => actor.LoginAsync(new UserLoginRequest { Password = "pw" }),
             cancellationToken);
         await actors.TellAsync<UserActor>(
             ActorId.From(login.UserId),

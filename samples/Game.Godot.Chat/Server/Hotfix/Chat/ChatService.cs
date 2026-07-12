@@ -15,12 +15,14 @@ namespace Server.Hotfix.Chat
         private readonly ChatRoomActors _rooms;
         private readonly ILakonaGameServer _gameServer;
         private readonly ILogger<ChatService> _logger;
+        private readonly ChatNotifier _notifications;
 
-        public ChatService(ChatRoomActors rooms, ILakonaGameServer gameServer, ILogger<ChatService> logger)
+        public ChatService(ChatRoomActors rooms, ILakonaGameServer gameServer, ILogger<ChatService> logger, ChatNotifier notifications)
         {
             _rooms = rooms;
             _gameServer = gameServer;
             _logger = logger;
+            _notifications = notifications;
         }
 
         public async ValueTask BindAsync(HotfixServiceCall<ChatBindRequest, IChatCallback> call)
@@ -28,38 +30,28 @@ namespace Server.Hotfix.Chat
             await _gameServer.BindCurrentSessionAsync(
                 call.ConnectionId,
                 call.Callback);
-            await BindChatCallbackAsync(call.ConnectionId, call.Callback);
         }
 
         public async ValueTask SendAsync(HotfixServiceCall<ChatSendRequest, IChatCallback> call)
         {
             var text = call.Request.Text ?? "";
             _logger.LogInformation("Sending {CharacterCount} characters", text.Length);
-            await BindChatCallbackAsync(call.ConnectionId, call.Callback);
-            await _rooms
+            var session = call.CurrentSession
+                ?? throw new InvalidOperationException("Chat send requires an active Game Session.");
+            var result = await _rooms
                 .Startup(ChatRoomIds.Global)
                 .CallAsync(
                     ChatRoomBehavior.SendAsync,
                     new ChatRoomSendRequest
                     {
-                        ConnectionId = call.ConnectionId,
+                        Session = session,
                         Text = FilterMessage(text)
                     },
                     CancellationToken.None);
-        }
-
-        private async ValueTask BindChatCallbackAsync(string connectionId, IChatCallback callback)
-        {
-            await _rooms
-                .Startup(ChatRoomIds.Global)
-                .CallAsync(
-                    ChatRoomBehavior.BindChatAsync,
-                    new ChatRoomBindRequest
-                    {
-                        ConnectionId = connectionId,
-                        ChatCallback = callback
-                    },
-                    CancellationToken.None);
+            if (result is not null)
+            {
+                await _notifications.MessageAsync(result.Recipients, result.Message);
+            }
         }
 
         private static string FilterMessage(string text)

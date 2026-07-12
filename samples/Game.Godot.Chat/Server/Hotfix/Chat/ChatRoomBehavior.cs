@@ -9,47 +9,35 @@ namespace Server.Hotfix.Chat
     [HotfixBehaviorOf(typeof(ChatRoomActor))]
     internal static partial class ChatRoomBehavior
     {
-        public static ValueTask<LoginReply> LoginAsync(
+        public static ValueTask<ChatRoomLoginResult> LoginAsync(
             this ChatRoomActor self,
             ChatRoomLoginRequest request,
             CancellationToken cancellationToken = default)
         {
             _ = cancellationToken;
             var member = new ChatMember { Name = request.PlayerName };
-            self.Members[request.ConnectionId] = new ChatRoomMember(request.PlayerName, request.LoginCallback, null);
+            self.Members[request.Session] = new ChatRoomMember(request.PlayerName);
 
-            BroadcastLogin(self, callback => callback.OnUserJoined(member));
-
-            return new ValueTask<LoginReply>(new LoginReply
+            return new ValueTask<ChatRoomLoginResult>(new ChatRoomLoginResult
             {
-                Members = self.Members.Values.Select(value => new ChatMember { Name = value.Name }).ToList(),
-                RecentMessages = self.RecentMessages.ToList()
+                Reply = new LoginReply
+                {
+                    Members = self.Members.Values.Select(value => new ChatMember { Name = value.Name }).ToList(),
+                    RecentMessages = self.RecentMessages.ToList()
+                },
+                Recipients = self.Members.Keys.ToArray()
             });
         }
 
-        public static ValueTask BindChatAsync(
-            this ChatRoomActor self,
-            ChatRoomBindRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            _ = cancellationToken;
-            if (self.Members.TryGetValue(request.ConnectionId, out var entry))
-            {
-                self.Members[request.ConnectionId] = entry with { ChatCallback = request.ChatCallback };
-            }
-
-            return default;
-        }
-
-        public static ValueTask SendAsync(
+        public static ValueTask<ChatRoomSendResult?> SendAsync(
             this ChatRoomActor self,
             ChatRoomSendRequest request,
             CancellationToken cancellationToken = default)
         {
             _ = cancellationToken;
-            if (!self.Members.TryGetValue(request.ConnectionId, out var entry))
+            if (!self.Members.TryGetValue(request.Session, out var entry))
             {
-                return default;
+                return new ValueTask<ChatRoomSendResult?>((ChatRoomSendResult?)null);
             }
 
             var msg = new ChatMessage
@@ -65,58 +53,29 @@ namespace Server.Hotfix.Chat
                 self.RecentMessages.Dequeue();
             }
 
-            BroadcastChat(self, callback => callback.OnMessageReceived(msg));
-            return default;
+            return new ValueTask<ChatRoomSendResult?>(new ChatRoomSendResult
+            {
+                Message = msg,
+                Recipients = self.Members.Keys.ToArray()
+            });
         }
 
-        public static ValueTask LeaveAsync(
+        public static ValueTask<ChatRoomLeaveResult?> LeaveAsync(
             this ChatRoomActor self,
             ChatRoomLeaveRequest request,
             CancellationToken cancellationToken = default)
         {
             _ = cancellationToken;
-            if (!self.Members.Remove(request.ConnectionId, out var entry))
+            if (!self.Members.Remove(request.Session, out var entry))
             {
-                return default;
+                return new ValueTask<ChatRoomLeaveResult?>((ChatRoomLeaveResult?)null);
             }
 
-            BroadcastLogin(self, callback => callback.OnUserLeft(new ChatUserLeft { Name = entry.Name }));
-            return default;
-        }
-
-        private static void BroadcastLogin(ChatRoomActor self, Action<ILoginCallback> action)
-        {
-            foreach (var entry in self.Members.Values)
+            return new ValueTask<ChatRoomLeaveResult?>(new ChatRoomLeaveResult
             {
-                try
-                {
-                    action(entry.LoginCallback);
-                }
-                catch (Exception)
-                {
-                    // Callback exceptions are ignored so one stale client does not prevent other clients from receiving room events.
-                }
-            }
-        }
-
-        private static void BroadcastChat(ChatRoomActor self, Action<IChatCallback> action)
-        {
-            foreach (var entry in self.Members.Values)
-            {
-                if (entry.ChatCallback is null)
-                {
-                    continue;
-                }
-
-                try
-                {
-                    action(entry.ChatCallback);
-                }
-                catch (Exception)
-                {
-                    // Callback exceptions are ignored so one stale client does not prevent other clients from receiving room events.
-                }
-            }
+                Name = entry.Name,
+                Recipients = self.Members.Keys.ToArray()
+            });
         }
     }
 }

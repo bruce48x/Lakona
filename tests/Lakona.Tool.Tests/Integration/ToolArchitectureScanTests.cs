@@ -305,26 +305,25 @@ public sealed class ToolArchitectureScanTests
             "Login",
             "LoginService.cs"));
 
-        Assert.Contains("public ChatService(ChatRoomActors rooms, ILakonaGameServer gameServer, ILogger<ChatService> logger)", chatService, StringComparison.Ordinal);
+        Assert.Contains("public ChatService(ChatRoomActors rooms, ILakonaGameServer gameServer, ILogger<ChatService> logger, ChatNotifier notifications)", chatService, StringComparison.Ordinal);
         Assert.Contains("private readonly ChatRoomActors _rooms;", chatService, StringComparison.Ordinal);
         Assert.Contains("await _gameServer.BindCurrentSessionAsync", chatService, StringComparison.Ordinal);
         Assert.Contains(".Startup(ChatRoomIds.Global)", chatService, StringComparison.Ordinal);
         Assert.Contains("ChatRoomBehavior.SendAsync", chatService, StringComparison.Ordinal);
-        Assert.Contains("ChatRoomBehavior.BindChatAsync", chatService, StringComparison.Ordinal);
         Assert.Contains("var text = call.Request.Text ?? \"\";", chatService, StringComparison.Ordinal);
         Assert.Contains("_logger.LogInformation(\"Sending {CharacterCount} characters\", text.Length);", chatService, StringComparison.Ordinal);
-        Assert.Contains("await BindChatCallbackAsync(call.ConnectionId, call.Callback);", chatService, StringComparison.Ordinal);
-        Assert.Contains("private async ValueTask BindChatCallbackAsync(string connectionId, IChatCallback callback)", chatService, StringComparison.Ordinal);
+        Assert.Contains("await _gameServer.BindCurrentSessionAsync", chatService, StringComparison.Ordinal);
+        Assert.Contains("await _notifications.MessageAsync(result.Recipients, result.Message);", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("call.Request.Text.Length", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("FilterMessage(call.Request.Text ?? \"\")", chatService, StringComparison.Ordinal);
-        Assert.Contains("public LoginService(ChatRoomActors rooms, ILakonaGameServer gameServer)", loginService, StringComparison.Ordinal);
+        Assert.Contains("public LoginService(ChatRoomActors rooms, ILakonaGameServer gameServer, ChatNotifier notifications)", loginService, StringComparison.Ordinal);
         Assert.Contains("private readonly ChatRoomActors _rooms;", loginService, StringComparison.Ordinal);
         Assert.Contains(".Startup(ChatRoomIds.Global)", loginService, StringComparison.Ordinal);
         Assert.Contains("ChatRoomBehavior.LoginAsync", loginService, StringComparison.Ordinal);
         Assert.Contains("await _gameServer.StartSessionAsync", loginService, StringComparison.Ordinal);
         Assert.DoesNotContain("var starterNodeLocalActors = call.Actors;", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("call.Actors is node-local", chatService, StringComparison.Ordinal);
-        Assert.Contains("call.ConnectionId", chatService, StringComparison.Ordinal);
+        Assert.Contains("call.CurrentSession", chatService, StringComparison.Ordinal);
         Assert.Contains("call.Callback", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("starterLocalActors", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("var localActors = call.Actors;", chatService, StringComparison.Ordinal);
@@ -334,7 +333,6 @@ public sealed class ToolArchitectureScanTests
         Assert.DoesNotContain("localActors.AskAsync", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("call.Request.Session", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain(ForbiddenGameSessionKeyType, ReadAllTextFiles(Path.Combine(repositoryRoot, "samples", "Game.Godot.Chat", "Shared")), StringComparison.Ordinal);
-        Assert.DoesNotContain(ForbiddenGameSessionContractField, sampleText, StringComparison.Ordinal);
         Assert.DoesNotContain(ForbiddenGameSessionFormatter, sampleText, StringComparison.Ordinal);
     }
 
@@ -384,7 +382,8 @@ public sealed class ToolArchitectureScanTests
         Assert.Contains("internal static partial class ChatRoomBehavior", hotfixText, StringComparison.Ordinal);
         Assert.Contains("ChatSessionLifecycle", hotfixText, StringComparison.Ordinal);
         Assert.Contains("Disconnected sessions stay in the room during the retention window so a client can reconnect without flickering presence.", hotfixText, StringComparison.Ordinal);
-        Assert.Contains("Callback exceptions are ignored so one stale client does not prevent other clients from receiving room events.", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("_notifications.ForSession(recipient)", hotfixText, StringComparison.Ordinal);
+        Assert.Contains(".NotifyAsync(notify, cancellationToken)", hotfixText, StringComparison.Ordinal);
         Assert.Contains("[HotfixLifecycle(typeof(IGameSessionLifecycle))]", hotfixText, StringComparison.Ordinal);
         Assert.Contains("new ChatRoomLeaveRequest", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain(".AskAsync", hotfixText, StringComparison.Ordinal);
@@ -489,7 +488,7 @@ public sealed class ToolArchitectureScanTests
         Assert.False(File.Exists(registrationPath), "Agar hotfix should not own PlayerSessionRegistration.cs.");
         Assert.Contains("call.GameServer", hotfixServices, StringComparison.Ordinal);
         Assert.Contains(".StartSessionAsync", hotfixServices, StringComparison.Ordinal);
-        Assert.Contains(".ResumeSessionAsync", hotfixServices, StringComparison.Ordinal);
+        Assert.DoesNotContain(".ResumeSessionAsync", hotfixServices, StringComparison.Ordinal);
         Assert.Contains(".TerminateSessionAsync", hotfixServices, StringComparison.Ordinal);
         Assert.DoesNotContain("IGameSessionRegistry", hotfixBusinessCode, StringComparison.Ordinal);
         Assert.DoesNotContain("InMemoryGameSessionRegistry", hotfixBusinessCode, StringComparison.Ordinal);

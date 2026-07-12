@@ -890,7 +890,7 @@ public sealed class DistributedTopologyConfigurationTests
         await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorId.From(playerId));
         return await actors.AskAsync<UserActor, UserLoginResult>(
             ActorId.From(playerId),
-            (actor, _) => actor.LoginAsync(new UserLoginRequest { Password = "pw", Reconnect = false }));
+            (actor, _) => actor.LoginAsync(new UserLoginRequest { Password = "pw" }));
     }
 
     private static async ValueTask<PlayerSessionSnapshot> AttachSessionAsync(IServiceProvider provider, PlayerSessionAttachRequest request)

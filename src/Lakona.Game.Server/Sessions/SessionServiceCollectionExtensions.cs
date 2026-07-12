@@ -19,6 +19,7 @@ public static class SessionServiceCollectionExtensions
         services.TryAddSingleton<GameConnectionDeliveryPolicyRegistry>();
         services.TryAddSingleton<GameFrameworkConnectionRegistry>();
         services.TryAddSingleton<GameSessionCallbackProxyRegistry>();
+        services.TryAddSingleton<GameSessionEstablishedAcknowledgements>();
         services.TryAddSingleton<IGameSessionEstablishedNotifier, GameSessionEstablishedNotifier>();
         services.TryAddSingleton<IGameSessionHandshakeRecoveryService, GameSessionHandshakeRecoveryService>();
         services.TryAddSingleton<IGameSessionResumeService, GameSessionResumeService>();

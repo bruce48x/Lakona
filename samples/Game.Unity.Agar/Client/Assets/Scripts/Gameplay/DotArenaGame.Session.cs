@@ -26,7 +26,7 @@ namespace SampleClient.Gameplay
 
             try
             {
-                var reply = await NetworkSession.ConnectAndLoginAsync(_host, _port, _path, _account, _password, guestLogin: false, reconnect: false, this, _cts.Token);
+                var reply = await NetworkSession.ConnectAndLoginAsync(_host, _port, _path, _account, _password, guestLogin: false, this, _cts.Token);
 
                 if (reply.Code != 0)
                 {
@@ -93,7 +93,7 @@ namespace SampleClient.Gameplay
 
             try
             {
-                var reply = await NetworkSession.ConnectAndLoginAsync(_host, _port, _path, string.Empty, string.Empty, guestLogin: true, reconnect: false, this, _cts.Token);
+                var reply = await NetworkSession.ConnectAndLoginAsync(_host, _port, _path, string.Empty, string.Empty, guestLogin: true, this, _cts.Token);
 
                 if (reply.Code != 0)
                 {
@@ -154,118 +154,6 @@ namespace SampleClient.Gameplay
             }
 
             _callbackInbox.EnqueueDisconnected(ex?.Message);
-        }
-
-        private void BeginControlReconnect(string? disconnectMessage)
-        {
-            if (_controlReconnectInProgress)
-            {
-                return;
-            }
-
-            _controlReconnectInProgress = true;
-            _multiplayerState.SessionController.MarkReconnecting();
-            _status = string.IsNullOrWhiteSpace(disconnectMessage)
-                ? "Control connection lost, reconnecting"
-                : $"Control connection lost, reconnecting: {disconnectMessage}";
-            _eventMessage = "Restoring multiplayer control connection";
-            _ = ReconnectControlAsync();
-        }
-
-        private async Task ReconnectControlAsync()
-        {
-            var lastError = string.Empty;
-            var attempt = 0;
-
-            try
-            {
-                while (!_cts.IsCancellationRequested &&
-                       DateTime.UtcNow < NetworkSession.ControlReconnectDeadlineUtc)
-                {
-                    attempt += 1;
-                    _status = $"Control reconnecting (attempt {attempt})";
-                    _eventMessage = "Restoring multiplayer control connection";
-
-                    try
-                    {
-                        var reply = await NetworkSession.ConnectAndLoginAsync(
-                            _host,
-                            _port,
-                            _path,
-                            _account,
-                            _password,
-                            guestLogin: false,
-                            reconnect: true,
-                            this,
-                            _cts.Token);
-
-                        if (reply.Code == LoginResultCodes.Ok)
-                        {
-                            var playerId = string.IsNullOrWhiteSpace(reply.PlayerId) ? _authenticatedPlayerId : reply.PlayerId;
-                            _multiplayerState.ApplyControlReconnect(playerId, reply.Token, NetworkSession.ControlSessionId, NetworkSession.ControlSessionGeneration, reply.WinCount);
-                            EnsureMetaState(_localPlayerId);
-                            _ = RefreshLeaderboardAsync();
-                            _status = _flowState == FrontendFlowState.InMatch
-                                ? $"In match: {_localPlayerId}"
-                                : $"Multiplayer lobby: {_localPlayerId}";
-                            _eventMessage = "Control connection restored";
-
-                            if (_lastRealtimeConnection != null && !NetworkSession.IsRealtimeConnected)
-                            {
-                                _ = EnsureRealtimeSessionAsync(_lastRealtimeConnection);
-                            }
-
-                            return;
-                        }
-
-                        if (reply.Code == LoginResultCodes.ReconnectStateLost)
-                        {
-                            _status = "Multiplayer state expired, signing in again";
-                            _eventMessage = string.IsNullOrWhiteSpace(reply.Message)
-                                ? "Server session expired, starting a new connection"
-                                : reply.Message;
-                            await StartNewConnectionAfterStateLostAsync().ConfigureAwait(false);
-                            return;
-                        }
-
-                        lastError = $"code={reply.Code}";
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        return;
-                    }
-                    catch (Exception ex)
-                    {
-                        lastError = ex.Message;
-                        Debug.LogWarning($"[DotArena] Control reconnect attempt {attempt} failed: {ex.Message}");
-                    }
-
-                    await Task.Delay(TimeSpan.FromSeconds(Math.Min(1 << attempt, 8)), _cts.Token);
-                }
-            }
-            finally
-            {
-                _controlReconnectInProgress = false;
-            }
-
-            ResetToModeSelect(
-                status: string.IsNullOrWhiteSpace(lastError) ? "Control reconnect failed" : $"Control reconnect failed: {lastError}",
-                eventMessage: "Multiplayer connection disconnected. Log in again",
-                toastMessage: null);
-        }
-
-        private async Task StartNewConnectionAfterStateLostAsync()
-        {
-            await NetworkSession.DisposeRealtimeAsync().ConfigureAwait(false);
-            _multiplayerState.MarkSessionStateLost();
-            ResetSessionPresentation();
-            _callbackInbox.Clear();
-            _multiplayerState.ClearRequestState(resetSessionState: false);
-            _flowState = FrontendFlowState.Entry;
-            _entryMenuState = EntryMenuState.MultiplayerAuth;
-            _multiplayerState.ClearSession();
-            _localMatch = null;
-            await ConnectAsync().ConfigureAwait(false);
         }
 
         private Task ReturnToMainMenuAfterMatchAsync(bool preserveLoginState)
@@ -395,7 +283,7 @@ namespace SampleClient.Gameplay
                 return;
             }
 
-            var preserveLoginState = _multiplayerState.HasRecoverableLogin;
+            var preserveLoginState = _multiplayerState.HasAuthenticatedMultiplayerProfile;
             var authenticatedProfile = _multiplayerState.CaptureAuthenticatedProfile();
 
             if (_sessionMode == SessionMode.Multiplayer)

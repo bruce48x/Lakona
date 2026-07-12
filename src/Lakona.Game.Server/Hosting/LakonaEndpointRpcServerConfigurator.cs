@@ -90,7 +90,7 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
                 {
                     services.GetRequiredService<GameFrameworkConnectionRegistry>().Set(session);
                     services.GetRequiredService<GameConnectionDeliveryPolicyRegistry>()
-                        .Set(session.ContextId, _endpoint.ReliablePush);
+                        .Set(session.ContextId, _endpoint.ReliablePush, GetRecoveryScope());
                     var service = services.GetRequiredService<IGameHandshakeService>();
                     reply = await service.HandshakeAsync(
                         hello,
@@ -103,6 +103,7 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
                         .RecoverAsync(
                             hello.ResumeTicket,
                             session,
+                            GetRecoveryScope(),
                             _endpoint.ReliablePush,
                             cancellationToken)
                         .ConfigureAwait(false);
@@ -123,6 +124,33 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
                     request.RequestId,
                     RpcStatus.Ok,
                     payload);
+            });
+
+        registry.Register(
+            GameSessionEstablishedRpcIds.ServiceId,
+            GameSessionEstablishedRpcIds.AckMethodId,
+            (session, request, cancellationToken) =>
+            {
+                _ = cancellationToken;
+                if (!request.Payload.IsEmpty)
+                {
+                    return new ValueTask<TransportFrame>(EncodeBadRequest(
+                        request.RequestId,
+                        "Game Session establishment acknowledgement payload must be empty."));
+                }
+
+                if (!services.GetRequiredService<GameSessionEstablishedAcknowledgements>()
+                    .Acknowledge(session.ContextId))
+                {
+                    return new ValueTask<TransportFrame>(EncodeBadRequest(
+                        request.RequestId,
+                        "No Game Session establishment acknowledgement is pending."));
+                }
+
+                return new ValueTask<TransportFrame>(RpcEnvelopeCodec.EncodeResponse(
+                    request.RequestId,
+                    RpcStatus.Ok,
+                    ReadOnlyMemory<byte>.Empty));
             });
 
         registry.Register(
@@ -206,6 +234,18 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
                     RpcStatus.Ok,
                     payload);
             });
+    }
+
+    private string GetRecoveryScope()
+    {
+        return string.Join("|",
+            _endpoint.Transport.Trim().ToLowerInvariant(),
+            _endpoint.Serializer.Trim().ToLowerInvariant(),
+            _endpoint.Host.Trim().ToLowerInvariant(),
+            _endpoint.Port.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            _endpoint.Path.Trim(),
+            _endpoint.ReliablePush ? "reliable" : "best-effort",
+            string.Join(",", _endpoint.RpcServices.OrderBy(static value => value, StringComparer.OrdinalIgnoreCase)));
     }
 
     private static TransportFrame EncodeBadRequest(uint requestId, string message)

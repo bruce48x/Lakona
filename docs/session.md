@@ -287,11 +287,19 @@ in the handshake; business login and realtime contracts do not carry resume
 identity. Calls already assigned to the failed connection fail and are never
 replayed automatically.
 
+Session establishment uses a reserved framework notification followed by a
+reserved acknowledgement. `StartSessionAsync` does not let the surrounding
+business RPC complete until the client has applied the Session id, generation,
+and opaque ticket. This prevents a successful login response from racing the
+client's recovery state.
+
 Recovery retries the same endpoint until the negotiated resume deadline. It
 either returns to `Active` or reports `StateLost`, `RefreshRequired`, or
 `Terminated`; it never reports success after continuity is lost. Client options
 must use the transport-factory constructor so every connection generation gets
 a fresh transport.
+Retry scheduling uses bounded exponential backoff with jitter through an
+injectable recovery scheduler so tests can advance time deterministically.
 
 ## Business Session State
 
@@ -438,6 +446,10 @@ Resume tokens are opaque client-facing credentials. They should not reveal
 `GameSessionKey` or become business identity. User code may associate resume
 state with account, player, character, room, or device records when it needs
 product-specific policy.
+
+The built-in resume ticket is scoped to the exact endpoint recovery identity,
+including transport, serializer, listener address/path, delivery policy, and
+exposed RPC-service set. Presenting it to another endpoint returns `StateLost`.
 
 Reliable push is an explicit endpoint policy. Business code publishes through
 the same notification API whether reliability is enabled or disabled. When

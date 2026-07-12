@@ -97,8 +97,6 @@ namespace Shared.Interfaces
         public string Password { get; set; } = "";
         [MemoryPackOrder(2)]
         public bool GuestLogin { get; set; }
-        [MemoryPackOrder(3)]
-        public bool Reconnect { get; set; }
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]
@@ -127,7 +125,6 @@ namespace Shared.Interfaces
         public const int Ok = 0;
         public const int InvalidRequest = 1;
         public const int Rejected = 2;
-        public const int ReconnectStateLost = 3;
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]

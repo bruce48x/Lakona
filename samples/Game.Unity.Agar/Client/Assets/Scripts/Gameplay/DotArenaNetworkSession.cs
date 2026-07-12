@@ -31,8 +31,6 @@ namespace SampleClient.Gameplay
         private long _realtimeSessionGeneration;
         private long _controlRpcSerial;
         private long _realtimeRpcSerial;
-        private DateTime _controlReconnectDeadlineUtc;
-        private TimeSpan _controlResumeWindow = TimeSpan.FromSeconds(60);
 #if UNITY_INCLUDE_TESTS
         private bool _networkGateOpen = true;
         private readonly TestTransportGate _testTransportGate = new TestTransportGate();
@@ -56,7 +54,6 @@ namespace SampleClient.Gameplay
 
         public bool CanSubmitGameplayInput => IsRealtimeConnected;
 
-        public DateTime ControlReconnectDeadlineUtc => _controlReconnectDeadlineUtc;
         public string ControlSessionId => _sessionId;
         public long ControlSessionGeneration => _sessionGeneration;
         public string RealtimeSessionId => _realtimeSessionId;
@@ -74,7 +71,6 @@ namespace SampleClient.Gameplay
             string account,
             string password,
             bool guestLogin,
-            bool reconnect,
             IPlayerCallback callback,
             CancellationToken cancellationToken)
         {
@@ -111,8 +107,7 @@ namespace SampleClient.Gameplay
                 {
                     Account = account,
                     Password = password,
-                    GuestLogin = guestLogin,
-                    Reconnect = reconnect
+                    GuestLogin = guestLogin
                 });
 
                 if (reply.Code != 0)
@@ -127,7 +122,6 @@ namespace SampleClient.Gameplay
                 _sessionId = _controlConnection.Snapshot.SessionId ?? string.Empty;
                 _sessionGeneration = _controlConnection.Snapshot.SessionGeneration;
                 IsConnected = true;
-                _controlResumeWindow = _controlConnection.SessionResumeWindow;
                 return reply;
             }
             catch
@@ -392,8 +386,6 @@ namespace SampleClient.Gameplay
             }
 
             IsConnected = false;
-            _controlReconnectDeadlineUtc = DateTime.UtcNow.Add(
-                _controlResumeWindow);
             _loginService = null;
             _controlPlayerService = null;
             _ = DisposeControlAfterDisconnectAsync();

@@ -14,6 +14,8 @@ namespace Lakona.Game.Client
     {
         private readonly Func<ITransport>? _transportFactory;
         private int _transportCreated;
+
+        public IGameSessionRecoveryScheduler RecoveryScheduler { get; set; } = new GameSessionRecoveryScheduler();
         /// <summary>
         ///     Creates game client options from a transport and serializer.
         /// </summary>
@@ -42,6 +44,7 @@ namespace Lakona.Game.Client
                 KeepAlive = KeepAlive,
                 LoggerFactory = LoggerFactory,
                 ReliablePushCursorStore = ReliablePushCursorStore,
+                RecoveryScheduler = RecoveryScheduler,
             };
             generation.Security.EnableCompression = Security.EnableCompression;
             generation.Security.CompressionThresholdBytes = Security.CompressionThresholdBytes;

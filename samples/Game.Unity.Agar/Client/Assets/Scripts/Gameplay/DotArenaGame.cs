@@ -83,7 +83,7 @@ namespace SampleClient.Gameplay
         private bool IsRealtimeConnected => NetworkSession.IsRealtimeConnected;
         private bool CanSubmitGameplayInput => NetworkSession.CanSubmitGameplayInput;
         private bool HasPendingUiRequest => _multiplayerState.HasPendingUiRequest;
-        private bool IsUiBusy => IsConnecting || HasPendingUiRequest || _controlReconnectInProgress;
+        private bool IsUiBusy => IsConnecting || HasPendingUiRequest;
         private string _localPlayerId { get => _multiplayerState.LocalPlayerId; set => _multiplayerState.LocalPlayerId = value; }
         private SessionMode _sessionMode { get => _multiplayerState.SessionMode; set => _multiplayerState.SessionMode = value; }
         private float _matchmakingStartedAt { get => _multiplayerState.MatchmakingStartedAt; set => _multiplayerState.MatchmakingStartedAt = value; }
@@ -91,7 +91,6 @@ namespace SampleClient.Gameplay
         private bool _hasAuthenticatedProfile { get => _multiplayerState.HasAuthenticatedProfile; set => _multiplayerState.HasAuthenticatedProfile = value; }
         private string _authenticatedPlayerId { get => _multiplayerState.AuthenticatedPlayerId; set => _multiplayerState.AuthenticatedPlayerId = value; }
         private PendingUiRequest _pendingUiRequest { get => _multiplayerState.PendingUiRequest; set => _multiplayerState.PendingUiRequest = value; }
-        private bool _controlReconnectInProgress { get => _multiplayerState.ControlReconnectInProgress; set => _multiplayerState.ControlReconnectInProgress = value; }
         private RealtimeConnectionInfo? _lastRealtimeConnection { get => _multiplayerState.LastRealtimeConnection; set => _multiplayerState.LastRealtimeConnection = value; }
 
         private DotArenaWorldSynchronizer WorldSynchronizer => _worldSynchronizer ??= new DotArenaWorldSynchronizer(

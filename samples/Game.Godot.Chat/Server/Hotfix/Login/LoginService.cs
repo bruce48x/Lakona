@@ -14,11 +14,13 @@ namespace Server.Hotfix.Login
     {
         private readonly ChatRoomActors _rooms;
         private readonly ILakonaGameServer _gameServer;
+        private readonly ChatNotifier _notifications;
 
-        public LoginService(ChatRoomActors rooms, ILakonaGameServer gameServer)
+        public LoginService(ChatRoomActors rooms, ILakonaGameServer gameServer, ChatNotifier notifications)
         {
             _rooms = rooms;
             _gameServer = gameServer;
+            _notifications = notifications;
         }
 
         public async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, ILoginCallback> call)
@@ -26,22 +28,24 @@ namespace Server.Hotfix.Login
             var playerName = string.IsNullOrWhiteSpace(call.Request.PlayerName)
                 ? "Player"
                 : call.Request.PlayerName.Trim();
-            var reply = await _rooms
+            var session = await _gameServer.StartSessionAsync(
+                playerName,
+                call.ConnectionId,
+                call.Callback);
+            var result = await _rooms
                 .Startup(ChatRoomIds.Global)
                 .CallAsync(
                     ChatRoomBehavior.LoginAsync,
                     new ChatRoomLoginRequest
                     {
-                        ConnectionId = call.ConnectionId,
+                        Session = session,
                         PlayerName = playerName,
-                        LoginCallback = call.Callback
                     },
                     CancellationToken.None);
-            await _gameServer.StartSessionAsync(
-                playerName,
-                call.ConnectionId,
-                call.Callback);
-            return reply;
+            await _notifications.UserJoinedAsync(
+                result.Recipients,
+                new ChatMember { Name = playerName });
+            return result.Reply;
         }
     }
 }

@@ -274,20 +274,12 @@ function Write-HarnessProject {
 using Client.Chat;
 using Client.Login;
 using Lakona.Game.Client;
+using Lakona.Game.Client.Sessions;
+using Lakona.Rpc.Core;
 using Lakona.Rpc.Serializer.MemoryPack;
 using Lakona.Rpc.Transport.WebSocket;
 using Shared.Contracts.Chat;
-
-static async Task<T> WaitAsync<T>(Task<T> task, TimeSpan timeout, string label)
-{
-    var completed = await Task.WhenAny(task, Task.Delay(timeout));
-    if (!ReferenceEquals(completed, task))
-    {
-        throw new TimeoutException($"Timed out waiting for {label}.");
-    }
-
-    return await task;
-}
+using System.Collections.Concurrent;
 
 var endpoint = args.Length > 0 ? args[0] : "ws://127.0.0.1:20000/ws";
 var playerName = args.Length > 1 ? args[1] : "E2E-GodotChat";
@@ -297,19 +289,57 @@ var timeout = TimeSpan.FromSeconds(15);
 Console.WriteLine("[E2E] Starting client harness.");
 Console.WriteLine("[E2E] Endpoint: {0}", endpoint);
 
+var gate = new TestTransportGate();
 await using var loginClient = new LoginClient(new LakonaGameClientOptions(
-    new WsTransport(endpoint),
+    () => gate.Wrap(new WsTransport(endpoint)),
     new MemoryPackRpcSerializer()));
 
-var pushedMessage = new TaskCompletionSource<ChatMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
+var pushedMessages = new ConcurrentQueue<ChatMessage>();
+var pushCounts = new ConcurrentDictionary<string, int>(StringComparer.Ordinal);
+var pushAvailable = new SemaphoreSlim(0);
 loginClient.OnMessageReceived += message =>
 {
     Console.WriteLine("[E2E] Push received: {0}: {1}", message.SenderName, message.Text);
-    if (message.SenderName == playerName && message.Text == messageText)
-    {
-        pushedMessage.TrySetResult(message);
-    }
+    pushedMessages.Enqueue(message);
+    pushCounts.AddOrUpdate(message.SenderName + "\n" + message.Text, 1, static (_, count) => count + 1);
+    pushAvailable.Release();
 };
+
+async Task<ChatMessage> WaitForPushAsync(string sender, string text, string label)
+{
+    var deadline = DateTimeOffset.UtcNow + timeout;
+    while (DateTimeOffset.UtcNow < deadline)
+    {
+        while (pushedMessages.TryDequeue(out var message))
+        {
+            if (message.SenderName == sender && message.Text == text)
+            {
+                return message;
+            }
+        }
+
+        var remaining = deadline - DateTimeOffset.UtcNow;
+        await pushAvailable.WaitAsync(remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero);
+    }
+
+    throw new TimeoutException($"Timed out waiting for {label}.");
+}
+
+async Task WaitForPhaseAsync(ClientSessionPhase phase, string label)
+{
+    var deadline = DateTimeOffset.UtcNow + timeout;
+    while (DateTimeOffset.UtcNow < deadline)
+    {
+        if (loginClient.GameClient.Snapshot.Phase == phase)
+        {
+            return;
+        }
+
+        await Task.Delay(20);
+    }
+
+    throw new TimeoutException($"Timed out waiting for {label}; current phase is {loginClient.GameClient.Snapshot.Phase}.");
+}
 
 await loginClient.ConnectAsync();
 Console.WriteLine("[E2E] Connected.");
@@ -324,6 +354,15 @@ if (!loginReply.Members.Any(member => member.Name == playerName))
     throw new InvalidOperationException("LoginAsync reply did not include the E2E player.");
 }
 
+var originalSessionId = loginClient.GameClient.Snapshot.SessionId;
+var originalSessionGeneration = loginClient.GameClient.Snapshot.SessionGeneration;
+if (loginClient.GameClient.Snapshot.Phase != ClientSessionPhase.Active ||
+    string.IsNullOrWhiteSpace(originalSessionId) ||
+    originalSessionGeneration <= 0)
+{
+    throw new InvalidOperationException("LoginAsync completed before the framework Session establishment barrier.");
+}
+
 var chatClient = new ChatClient(loginClient);
 await chatClient.BindAsync(loginReply);
 Console.WriteLine("[E2E] BindAsync completed.");
@@ -331,13 +370,143 @@ Console.WriteLine("[E2E] BindAsync completed.");
 await chatClient.SendAsync(messageText);
 Console.WriteLine("[E2E] SendAsync completed.");
 
-var received = await WaitAsync(pushedMessage.Task, timeout, "chat push");
+var received = await WaitForPushAsync(playerName, messageText, "chat push");
 if (received.Text != messageText || received.SenderName != playerName)
 {
     throw new InvalidOperationException("Received chat push did not match the sent message.");
 }
 
-Console.WriteLine("[E2E] SUCCESS: Login response, chat send, and chat push verified.");
+var peerName = playerName + "-peer";
+await using var peer = new LoginClient(new LakonaGameClientOptions(
+    () => new WsTransport(endpoint),
+    new MemoryPackRpcSerializer()));
+await peer.ConnectAsync();
+var peerReply = await peer.LoginAsync(peerName);
+var peerChat = new ChatClient(peer);
+await peerChat.BindAsync(peerReply);
+
+await gate.SetOpenAsync(false);
+await WaitForPhaseAsync(ClientSessionPhase.Reconnecting, "client to enter reconnecting");
+
+var offlineOne = messageText + " offline-1";
+var offlineTwo = messageText + " offline-2";
+await peerChat.SendAsync(offlineOne);
+await peerChat.SendAsync(offlineTwo);
+
+await gate.SetOpenAsync(true);
+await WaitForPhaseAsync(ClientSessionPhase.Active, "client recovery");
+if (loginClient.GameClient.Snapshot.SessionId != originalSessionId ||
+    loginClient.GameClient.Snapshot.SessionGeneration != originalSessionGeneration)
+{
+    throw new InvalidOperationException("Framework recovery did not preserve the original Game Session generation.");
+}
+
+var replayedOne = await WaitForPushAsync(peerName, offlineOne, "first offline replay");
+var replayedTwo = await WaitForPushAsync(peerName, offlineTwo, "second offline replay");
+if (replayedOne.Text != offlineOne || replayedTwo.Text != offlineTwo)
+{
+    throw new InvalidOperationException("Reliable replay was not delivered in order.");
+}
+
+var postRecovery = messageText + " after-recovery";
+await chatClient.SendAsync(postRecovery);
+await WaitForPushAsync(playerName, postRecovery, "post-recovery push through held proxy");
+
+if (pushCounts.GetValueOrDefault(peerName + "\n" + offlineOne) != 1 ||
+    pushCounts.GetValueOrDefault(peerName + "\n" + offlineTwo) != 1)
+{
+    throw new InvalidOperationException("Reliable replay delivered a duplicate offline message.");
+}
+
+Console.WriteLine("[E2E] SUCCESS: login, stable-session recovery, ordered reliable replay, and held proxy reuse verified.");
+
+sealed class TestTransportGate
+{
+    private readonly object _gate = new();
+    private readonly HashSet<GatedTransport> _active = new();
+    private bool _open = true;
+
+    public ITransport Wrap(ITransport inner) => new GatedTransport(this, inner);
+
+    public async Task SetOpenAsync(bool open)
+    {
+        GatedTransport[] active;
+        lock (_gate)
+        {
+            _open = open;
+            active = open ? Array.Empty<GatedTransport>() : _active.ToArray();
+        }
+
+        foreach (var transport in active)
+        {
+            await transport.DisposeAsync();
+        }
+    }
+
+    private bool TryActivate(GatedTransport transport)
+    {
+        lock (_gate)
+        {
+            if (!_open)
+            {
+                return false;
+            }
+
+            _active.Add(transport);
+            return true;
+        }
+    }
+
+    private void Remove(GatedTransport transport)
+    {
+        lock (_gate)
+        {
+            _active.Remove(transport);
+        }
+    }
+
+    private sealed class GatedTransport : ITransport
+    {
+        private readonly TestTransportGate _owner;
+        private readonly ITransport _inner;
+        private int _disposed;
+
+        public GatedTransport(TestTransportGate owner, ITransport inner)
+        {
+            _owner = owner;
+            _inner = inner;
+        }
+
+        public bool IsConnected => Volatile.Read(ref _disposed) == 0 && _inner.IsConnected;
+
+        public async ValueTask ConnectAsync(CancellationToken cancellationToken = default)
+        {
+            await _inner.ConnectAsync(cancellationToken);
+            if (!_owner.TryActivate(this))
+            {
+                await DisposeAsync();
+                throw new IOException("The E2E transport gate is closed.");
+            }
+        }
+
+        public ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken cancellationToken = default) =>
+            _inner.SendFrameAsync(frame, cancellationToken);
+
+        public ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken cancellationToken = default) =>
+            _inner.ReceiveFrameAsync(cancellationToken);
+
+        public async ValueTask DisposeAsync()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            {
+                return;
+            }
+
+            _owner.Remove(this);
+            await _inner.DisposeAsync();
+        }
+    }
+}
 '@
 
     Set-Content -LiteralPath (Join-Path $harnessDir "Program.cs") -Value $programContent -Encoding UTF8

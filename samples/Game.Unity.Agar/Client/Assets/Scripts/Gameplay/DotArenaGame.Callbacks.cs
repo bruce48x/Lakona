@@ -87,12 +87,6 @@ namespace SampleClient.Gameplay
                 return;
             }
 
-            if (_multiplayerState.HasRecoverableLogin && !_shutdownStarted)
-            {
-                BeginControlReconnect(disconnectMessage);
-                return;
-            }
-
             ResetToModeSelect(
                 status: string.IsNullOrWhiteSpace(disconnectMessage) ? "Disconnected" : $"Disconnected: {disconnectMessage}",
                 eventMessage: "Multiplayer connection disconnected",

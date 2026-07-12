@@ -11,7 +11,8 @@ internal interface IGameSessionEstablishedNotifier
 }
 
 internal sealed class GameSessionEstablishedNotifier(
-    GameFrameworkConnectionRegistry connections) : IGameSessionEstablishedNotifier
+    GameFrameworkConnectionRegistry connections,
+    GameSessionEstablishedAcknowledgements acknowledgements) : IGameSessionEstablishedNotifier
 {
     public ValueTask NotifyAsync(
         string connectionId,
@@ -23,11 +24,30 @@ internal sealed class GameSessionEstablishedNotifier(
         {
             return default;
         }
-        return connection.SendRawNotificationAsync(
-            GameSessionNotificationRpcIds.ServiceId,
-            GameSessionNotificationRpcIds.EstablishedNotificationId,
-            Lakona.Game.Abstractions.LakonaInternalCodec.EncodeGameSessionEstablished(established),
-            cancellationToken);
+        return NotifyAndWaitAsync(connection, established, cancellationToken);
+    }
+
+    private async ValueTask NotifyAndWaitAsync(
+        Lakona.Rpc.Server.RpcSession connection,
+        GameSessionEstablished established,
+        CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+        var acknowledgement = acknowledgements.WaitAsync(connection.ContextId, timeout.Token);
+        try
+        {
+            await connection.SendRawNotificationAsync(
+                GameSessionNotificationRpcIds.ServiceId,
+                GameSessionNotificationRpcIds.EstablishedNotificationId,
+                Lakona.Game.Abstractions.LakonaInternalCodec.EncodeGameSessionEstablished(established),
+                timeout.Token).ConfigureAwait(false);
+            await acknowledgement.ConfigureAwait(false);
+        }
+        finally
+        {
+            acknowledgements.Cancel(connection.ContextId);
+        }
     }
 }
 

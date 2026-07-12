@@ -9,10 +9,12 @@ namespace Server.Hotfix.Chat
     internal sealed class ChatSessionLifecycle
     {
         private readonly ChatRoomActors _rooms;
+        private readonly ChatNotifier _notifications;
 
-        public ChatSessionLifecycle(ChatRoomActors rooms)
+        public ChatSessionLifecycle(ChatRoomActors rooms, ChatNotifier notifications)
         {
             _rooms = rooms;
+            _notifications = notifications;
         }
 
         public ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
@@ -23,21 +25,22 @@ namespace Server.Hotfix.Chat
 
         public async ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call)
         {
-            var connectionId = call.Request.ConnectionId;
-            if (string.IsNullOrWhiteSpace(connectionId))
-            {
-                return;
-            }
-
-            await _rooms
+            var result = await _rooms
                 .Startup(ChatRoomIds.Global)
                 .CallAsync(
                     ChatRoomBehavior.LeaveAsync,
                     new ChatRoomLeaveRequest
                     {
-                        ConnectionId = connectionId
+                        Session = new Lakona.Game.Server.Sessions.GameSessionKey(
+                            call.Request.OwnerKey,
+                            call.Request.SessionId,
+                            call.Request.Generation)
                     },
                     CancellationToken.None);
+            if (result is not null)
+            {
+                await _notifications.UserLeftAsync(result.Recipients, result.Name);
+            }
         }
     }
 }
