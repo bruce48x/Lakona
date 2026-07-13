@@ -490,7 +490,8 @@ must not reference the hotfix project as a normal compile dependency.
 - `Client/Packages/manifest.json`
 - `Client/ProjectSettings/ProjectVersion.txt`
 - `Client/ProjectSettings/ProjectSettings.asset`, including the default 800×600
-  windowed desktop player configuration
+  windowed, resizable desktop player configuration and the legacy input backend
+  used by generated UI Toolkit and `UnityEngine.Input` code
 - `Client/Assets/packages.config`
 - `Client/Assets/NuGet.config`
 - arena login, input, snapshot, and procedural rendering scripts

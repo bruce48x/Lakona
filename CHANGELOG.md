@@ -4,6 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-13 — Usable generated Unity desktop input
+
+**Key releases:** `Lakona.Tool 0.25.15`.
+
+- Made generated Unity, Unity-CN, and Tuanjie projects explicitly use the legacy
+  input backend required by their UI Toolkit and `UnityEngine.Input` code.
+- Completed the generated Windows Standalone settings for an 800×600 windowed,
+  resizable player instead of relying on Unity to infer omitted fields.
+
 ## 2026-07-13 — Explicit management HTTP ownership
 
 **Key releases:** `Lakona.Game.Server 0.18.8` and `Lakona.Tool 0.25.14`.

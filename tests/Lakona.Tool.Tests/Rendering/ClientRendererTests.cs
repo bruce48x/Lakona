@@ -23,6 +23,10 @@ public sealed class ClientRendererTests
         Assert.Contains("defaultScreenWidth: 800", playerSettings, StringComparison.Ordinal);
         Assert.Contains("defaultScreenHeight: 600", playerSettings, StringComparison.Ordinal);
         Assert.Contains("fullscreenMode: 3", playerSettings, StringComparison.Ordinal);
+        Assert.Contains("resizableWindow: 1", playerSettings, StringComparison.Ordinal);
+        Assert.Contains("allowFullscreenSwitch: 1", playerSettings, StringComparison.Ordinal);
+        Assert.Contains("useFlipModelSwapchain: 1", playerSettings, StringComparison.Ordinal);
+        Assert.Contains("activeInputHandler: 0", playerSettings, StringComparison.Ordinal);
         var controller = AssertPath(plan, "Client/Assets/Scripts/Game/GameController.cs").Content;
         AssertValidCSharp(controller, LanguageVersion.CSharp9);
         Assert.Contains("private bool _loginPending", controller, StringComparison.Ordinal);

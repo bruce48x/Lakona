@@ -415,8 +415,13 @@ internal static class UnityClientAssetTemplates
           defaultScreenHeight: 600
           defaultIsNativeResolution: 0
           runInBackground: 1
+          forceSingleInstance: 0
+          useFlipModelSwapchain: 1
           resizableWindow: 1
+          visibleInBackground: 1
+          allowFullscreenSwitch: 1
           fullscreenMode: 3
+          activeInputHandler: 0
         """;
     }
 
