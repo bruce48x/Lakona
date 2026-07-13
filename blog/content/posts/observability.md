@@ -49,6 +49,29 @@ Then request readiness from another terminal:
   <pre><code>curl http://127.0.0.1:20080/_lakona/health/ready</code></pre>
 </div>
 
+`20080` is the generated server's default local HTTP port. It is configured in
+`Server/App/appsettings.json` under `Lakona:Health:Http`. The readiness,
+liveness, and enabled local-admin diagnostics routes share this one listener:
+
+```json
+{
+  "Lakona": {
+    "Health": {
+      "Http": {
+        "Enabled": true,
+        "Host": "127.0.0.1",
+        "Port": 20080,
+        "RequireLoopback": true
+      }
+    }
+  }
+}
+```
+
+Change `Lakona:Health:Http:Port` if `20080` conflicts with another process,
+then use that same port for every `/_lakona/health/*` and
+`/_lakona/diagnostics/*` URL below.
+
 The server fails startup before opening listeners when fatal startup guardrails
 do not pass. Once the process is alive, the readiness endpoint keeps exposing
 the same validation surface to orchestration probes.
@@ -114,7 +137,9 @@ one subsystem, keep the global level higher and lower one category, such as
 
 Local admin diagnostics are disabled by default. Enable them explicitly in
 `Server/App/appsettings.json` when you want runtime snapshots during local
-development:
+development. They share the `Lakona:Health:Http` listener; `LocalAdmin` only
+controls whether the diagnostics routes are registered and whether they require
+a loopback caller:
 
 ```json
 {
@@ -122,8 +147,6 @@ development:
     "Observability": {
       "LocalAdmin": {
         "Enabled": true,
-        "Host": "127.0.0.1",
-        "Port": 20090,
         "RequireLoopback": true
       }
     }
@@ -142,14 +165,14 @@ Then open the summary endpoint in a browser:
 
 <div class="command-card">
   <div class="command-label">Open diagnostics summary</div>
-  <pre><code>http://127.0.0.1:20090/_lakona/diagnostics/summary</code></pre>
+  <pre><code>http://127.0.0.1:20080/_lakona/diagnostics/summary</code></pre>
 </div>
 
 Or fetch it from a terminal:
 
 <div class="command-card">
   <div class="command-label">Fetch diagnostics summary</div>
-  <pre><code>curl http://127.0.0.1:20090/_lakona/diagnostics/summary</code></pre>
+  <pre><code>curl http://127.0.0.1:20080/_lakona/diagnostics/summary</code></pre>
 </div>
 
 The summary response contains a `status`, a timestamp, and named sections. The
@@ -202,7 +225,8 @@ are done.
 
 Local admin is disabled by default, which is the right default for production
 and shared environments. If you need it during an incident, enable it
-temporarily and keep it bound to loopback:
+temporarily, keep the shared `Lakona:Health:Http` listener bound to loopback,
+and require a loopback caller:
 
 ```json
 {
@@ -210,8 +234,6 @@ temporarily and keep it bound to loopback:
     "Observability": {
       "LocalAdmin": {
         "Enabled": true,
-        "Host": "127.0.0.1",
-        "Port": 20090,
         "RequireLoopback": true
       }
     }
@@ -224,10 +246,10 @@ to inspect a remote server, prefer an SSH tunnel:
 
 <div class="command-card">
   <div class="command-label">Tunnel local admin from a server</div>
-  <pre><code>ssh -L 20090:127.0.0.1:20090 user@server</code></pre>
+  <pre><code>ssh -L 20080:127.0.0.1:20080 user@server</code></pre>
 </div>
 
-Then open `http://127.0.0.1:20090/_lakona/diagnostics/summary` on your local
+Then open `http://127.0.0.1:20080/_lakona/diagnostics/summary` on your local
 machine.
 
 `Lakona:Observability:Diagnostics:DetailEnabled` should stay `false` unless
