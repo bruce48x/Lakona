@@ -49,26 +49,29 @@ Then request readiness from another terminal:
   <pre><code>curl http://127.0.0.1:20080/_lakona/health/ready</code></pre>
 </div>
 
-`20080` is the generated server's default local HTTP port. It is configured in
-`Server/App/appsettings.json` under `Lakona:Health:Http`. The readiness,
-liveness, and enabled local-admin diagnostics routes share this one listener:
+`20080` is the generated server's default management HTTP port. Its listener
+address is configured in `Server/App/appsettings.json` under
+`Lakona:Management:Http`. Health and local-admin each control their own routes
+and access policy, while sharing this one listener:
 
 ```json
 {
   "Lakona": {
-    "Health": {
+    "Management": {
       "Http": {
-        "Enabled": true,
         "Host": "127.0.0.1",
-        "Port": 20080,
-        "RequireLoopback": true
+        "Port": 20080
       }
+    },
+    "Health": {
+      "Enabled": true,
+      "RequireLoopback": true
     }
   }
 }
 ```
 
-Change `Lakona:Health:Http:Port` if `20080` conflicts with another process,
+Change `Lakona:Management:Http:Port` if `20080` conflicts with another process,
 then use that same port for every `/_lakona/health/*` and
 `/_lakona/diagnostics/*` URL below.
 
@@ -137,9 +140,9 @@ one subsystem, keep the global level higher and lower one category, such as
 
 Local admin diagnostics are disabled by default. Enable them explicitly in
 `Server/App/appsettings.json` when you want runtime snapshots during local
-development. They share the `Lakona:Health:Http` listener; `LocalAdmin` only
-controls whether the diagnostics routes are registered and whether they require
-a loopback caller:
+development. They share the `Lakona:Management:Http` listener; `LocalAdmin`
+only controls whether the diagnostics routes are registered and whether they
+require a loopback caller:
 
 ```json
 {
@@ -225,12 +228,18 @@ are done.
 
 Local admin is disabled by default, which is the right default for production
 and shared environments. If you need it during an incident, enable it
-temporarily, keep the shared `Lakona:Health:Http` listener bound to loopback,
-and require a loopback caller:
+temporarily, keep the shared `Lakona:Management:Http` listener bound to
+loopback, and require a loopback caller:
 
 ```json
 {
   "Lakona": {
+    "Management": {
+      "Http": {
+        "Host": "127.0.0.1",
+        "Port": 20080
+      }
+    },
     "Observability": {
       "LocalAdmin": {
         "Enabled": true,
