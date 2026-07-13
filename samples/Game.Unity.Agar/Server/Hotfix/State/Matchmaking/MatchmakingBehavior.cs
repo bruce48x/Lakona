@@ -93,7 +93,6 @@ public static partial class MatchmakingBehavior
         await MarkQueuedAsync(self, new PlayerSessionQueueRequest
         {
             UserId = userId,
-            QueueId = GetQueueId(self),
             TicketId = ticket.TicketId,
             QueuedAtUtc = enqueuedAtUtc
         }).ConfigureAwait(false);
@@ -149,7 +148,6 @@ public static partial class MatchmakingBehavior
         await ClearQueueAsync(self, new PlayerSessionQueueClearRequest
         {
             UserId = userId,
-            QueueId = ticket.QueueId,
             TicketId = ticket.TicketId,
             ClearedAtUtc = cancelledAtUtc,
             Reason = request.Reason

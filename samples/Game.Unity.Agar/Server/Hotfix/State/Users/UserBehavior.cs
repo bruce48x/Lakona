@@ -131,7 +131,6 @@ public static partial class UserBehavior
         session.ControlSessionGeneration = request.ControlSessionGeneration;
         session.RealtimeSessionId = "";
         session.RealtimeSessionGeneration = 0;
-        session.QueueId = "";
         session.MatchmakingTicketId = "";
         session.CurrentRoomId = "";
         session.CurrentMatchId = "";
@@ -181,7 +180,6 @@ public static partial class UserBehavior
 
         self.State.UserId = userId;
         var session = self.State.Session;
-        session.QueueId = request.QueueId;
         session.MatchmakingTicketId = request.TicketId;
 
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
@@ -193,7 +191,6 @@ public static partial class UserBehavior
         EnsureState(self, userId);
 
         var session = self.State.Session;
-        session.QueueId = "";
         session.MatchmakingTicketId = "";
 
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
@@ -210,7 +207,6 @@ public static partial class UserBehavior
         session.CurrentRoomId = request.RoomId;
         session.CurrentMatchId = request.MatchId;
         session.SeatIndex = request.SeatIndex;
-        session.QueueId = "";
         session.MatchmakingTicketId = "";
         session.RuntimeGateway = CloneGateway(request.RuntimeGateway);
 
@@ -296,7 +292,6 @@ public static partial class UserBehavior
             ControlSessionGeneration = session.ControlSessionGeneration,
             RealtimeSessionId = session.RealtimeSessionId,
             RealtimeSessionGeneration = session.RealtimeSessionGeneration,
-            QueueId = session.QueueId,
             MatchmakingTicketId = session.MatchmakingTicketId,
             CurrentRoomId = session.CurrentRoomId,
             CurrentMatchId = session.CurrentMatchId,

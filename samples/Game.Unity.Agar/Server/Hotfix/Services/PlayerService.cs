@@ -183,7 +183,6 @@ public sealed class PlayerService
                     new PlayerSessionQueueClearRequest
                 {
                     UserId = playerId,
-                    QueueId = "default",
                     ClearedAtUtc = DateTime.UtcNow,
                     Reason = result.Matched ? "Matched" : "Matchmaking enqueue did not return a ticket."
                 },
@@ -199,7 +198,6 @@ public sealed class PlayerService
                     new PlayerSessionQueueRequest
                 {
                     UserId = playerId,
-                    QueueId = "default",
                     TicketId = result.TicketId,
                     QueuedAtUtc = DateTime.UtcNow
                 },
@@ -269,7 +267,6 @@ public sealed class PlayerService
                 new PlayerSessionQueueClearRequest
             {
                 UserId = playerId,
-                QueueId = string.IsNullOrWhiteSpace(snapshot.QueueId) ? "default" : snapshot.QueueId,
                 TicketId = snapshot.MatchmakingTicketId,
                 ClearedAtUtc = DateTime.UtcNow,
                 Reason = reason
@@ -474,7 +471,6 @@ public sealed class PlayerService
                     new PlayerSessionQueueClearRequest
                 {
                     UserId = player.UserId,
-                    QueueId = string.IsNullOrWhiteSpace(snapshot.QueueId) ? "default" : snapshot.QueueId,
                     TicketId = snapshot.MatchmakingTicketId,
                     ClearedAtUtc = DateTime.UtcNow,
                     Reason = "Matched"
