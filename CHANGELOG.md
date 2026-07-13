@@ -6,13 +6,15 @@ date and package versions of important releases are retained.
 
 ## 2026-07-13 — Explicit management HTTP ownership
 
-**Key releases:** `Lakona.Game.Server 0.18.8` and `Lakona.Tool 0.25.13`.
+**Key releases:** `Lakona.Game.Server 0.18.8` and `Lakona.Tool 0.25.14`.
 
 - Moved the shared health and local-admin listener address to
   `Lakona:Management:Http`, while each feature retains its own route enablement
   and loopback policy.
 - Split management HTTP composition and listener hosting from the Health module,
   and made the removed `Lakona:Health:Http` section fail with migration guidance.
+- Made generated local projects enable both loopback health and local-admin
+  routes on the shared management listener.
 
 ## 2026-07-13 — Player-focused generated arena
 

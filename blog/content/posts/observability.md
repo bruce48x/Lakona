@@ -138,11 +138,11 @@ one subsystem, keep the global level higher and lower one category, such as
 
 ## Enable Local Diagnostics
 
-Local admin diagnostics are disabled by default. Enable them explicitly in
-`Server/App/appsettings.json` when you want runtime snapshots during local
-development. They share the `Lakona:Management:Http` listener; `LocalAdmin`
-only controls whether the diagnostics routes are registered and whether they
-require a loopback caller:
+The framework default keeps local admin diagnostics disabled, while projects
+created by `lakona-tool new` enable them on loopback for the local development
+experience. They share the `Lakona:Management:Http` listener; `LocalAdmin` only
+controls whether the diagnostics routes are registered and whether they require
+a loopback caller:
 
 ```json
 {
@@ -226,10 +226,11 @@ are done.
 
 ## Keep Production Locked Down
 
-Local admin is disabled by default, which is the right default for production
-and shared environments. If you need it during an incident, enable it
-temporarily, keep the shared `Lakona:Management:Http` listener bound to
-loopback, and require a loopback caller:
+The framework default keeps local admin disabled, which is the right production
+default. Generated local projects explicitly enable it, so disable it before
+deploying to a shared environment unless you intentionally need it. During an
+incident, keep the shared `Lakona:Management:Http` listener bound to loopback
+and require a loopback caller:
 
 ```json
 {

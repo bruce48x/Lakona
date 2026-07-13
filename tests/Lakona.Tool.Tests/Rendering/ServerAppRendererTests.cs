@@ -49,6 +49,9 @@ public sealed class ServerAppRendererTests
         Assert.True(health.GetProperty("Enabled").GetBoolean());
         Assert.True(health.GetProperty("RequireLoopback").GetBoolean());
         Assert.False(health.TryGetProperty("Http", out _));
+        var localAdmin = lakona.GetProperty("Observability").GetProperty("LocalAdmin");
+        Assert.True(localAdmin.GetProperty("Enabled").GetBoolean());
+        Assert.True(localAdmin.GetProperty("RequireLoopback").GetBoolean());
         var endpoint = lakona.GetProperty("Endpoints")[0];
         Assert.Equal("kcp", endpoint.GetProperty("Transport").GetString());
         Assert.Equal("memorypack", endpoint.GetProperty("Serializer").GetString());

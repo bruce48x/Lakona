@@ -83,6 +83,12 @@ The default configuration should be:
       "Enabled": true,
       "RequireLoopback": true
     },
+    "Observability": {
+      "LocalAdmin": {
+        "Enabled": true,
+        "RequireLoopback": true
+      }
+    },
     "Endpoints": [
       {
         "Transport": "kcp",
@@ -120,6 +126,12 @@ For WebSocket transport, the generated endpoint includes the path:
     "Health": {
       "Enabled": true,
       "RequireLoopback": true
+    },
+    "Observability": {
+      "LocalAdmin": {
+        "Enabled": true,
+        "RequireLoopback": true
+      }
     },
     "Endpoints": [
       {
@@ -258,6 +270,12 @@ enable health routes independently:
     "Health": {
       "Enabled": true,
       "RequireLoopback": true
+    },
+    "Observability": {
+      "LocalAdmin": {
+        "Enabled": true,
+        "RequireLoopback": true
+      }
     }
   }
 }
@@ -268,9 +286,9 @@ The generated server exposes:
 - `GET /_lakona/health/live`: liveness, HTTP 200 with `{ "status": "ok" }`
 - `GET /_lakona/health/ready`: readiness, HTTP 200 when guardrails pass or HTTP 503 with JSON diagnostics when they fail
 
-When `Lakona:Observability:LocalAdmin:Enabled=true`, diagnostics and hotfix
-admin routes share this listener; they remain loopback-only by default and do
-not open a second HTTP port.
+Generated projects also enable local-admin diagnostics on this listener. Health
+and local-admin routes remain loopback-only by default and do not open a second
+HTTP port.
 
 Generated local configuration should set `Lakona:Hotfix:DebugWatcher=On` so
 `reload.signal` rebuilds reload the current output directory. The readiness

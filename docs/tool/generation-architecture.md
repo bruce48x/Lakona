@@ -661,6 +661,22 @@ Generated `Server/App/appsettings.json` contains only compact source values:
     "Sessions": {
       "ResumeWindowSeconds": 60
     },
+    "Management": {
+      "Http": {
+        "Host": "127.0.0.1",
+        "Port": 20080
+      }
+    },
+    "Health": {
+      "Enabled": true,
+      "RequireLoopback": true
+    },
+    "Observability": {
+      "LocalAdmin": {
+        "Enabled": true,
+        "RequireLoopback": true
+      }
+    },
     "Endpoints": [
       {
         "Transport": "kcp",
@@ -740,6 +756,11 @@ default JSON.
 Generated business endpoints explicitly emit `"ReliablePush": true`.
 Hand-authored endpoints default to best effort when the property is omitted;
 there is no global reliable-push enable switch.
+
+Generated local projects bind one loopback management HTTP listener and enable
+both health and local-admin routes. The listener address belongs to
+`Lakona:Management:Http`; each route family keeps its own enablement and
+loopback policy.
 
 `Lakona:Cluster:Directory` is valid generated output only for a topology that
 explicitly creates a cluster directory owner. It must not appear as a hidden

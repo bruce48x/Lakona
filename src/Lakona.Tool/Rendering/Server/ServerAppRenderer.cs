@@ -310,6 +310,11 @@ internal sealed class ServerAppRenderer : IPlanContributor
                 },
                 ["Observability"] = new Dictionary<string, object?>
                 {
+                    ["LocalAdmin"] = new Dictionary<string, object?>
+                    {
+                        ["Enabled"] = true,
+                        ["RequireLoopback"] = true
+                    },
                     ["Logging"] = new Dictionary<string, object?>
                     {
                         ["Categories"] = new Dictionary<string, object?>

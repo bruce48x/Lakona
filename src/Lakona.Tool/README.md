@@ -108,6 +108,12 @@ The default development appsettings file has this shape:
       "Enabled": true,
       "RequireLoopback": true
     },
+    "Observability": {
+      "LocalAdmin": {
+        "Enabled": true,
+        "RequireLoopback": true
+      }
+    },
     "Endpoints": [
       {
         "Transport": "kcp",
