@@ -4,6 +4,14 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-13 — Safe local cluster directory bootstrap
+
+**Key releases:** `Lakona.Game.Server 0.18.5` and `Lakona.Tool 0.25.8`.
+
+- Added opt-in SQL directory schema bootstrap before cluster node registration,
+  allowing local Agar deployments to reuse and upgrade existing PostgreSQL
+  volumes while production deployments retain controlled schema migration.
+
 ## 2026-07-11 — Resilient game runtime and game-first scaffolding
 
 **Key releases:** `Lakona.Game.Abstractions 0.2.7`,

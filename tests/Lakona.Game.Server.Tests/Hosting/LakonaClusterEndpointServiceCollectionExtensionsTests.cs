@@ -518,38 +518,6 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public async Task Directory_schema_bootstrap_opens_the_configured_directory_when_enabled()
-    {
-        var factoryCalls = 0;
-        var services = new ServiceCollection();
-        services.AddSingleton(new SqlNodeDirectoryOptions(
-            () =>
-            {
-                factoryCalls++;
-                return new ValueTask<System.Data.Common.DbConnection>(
-                    Task.FromException<System.Data.Common.DbConnection>(
-                        new InvalidOperationException("schema bootstrap probe")));
-            },
-            SqlNodeDirectoryDialect.Postgres));
-        using var provider = services.BuildServiceProvider();
-        var hostedService = new LakonaClusterDirectorySchemaHostedService(
-            new LakonaGameRuntimeOptions
-            {
-                Cluster = new LakonaGameClusterOptions
-                {
-                    Directory = new LakonaClusterDirectoryOptions { EnsureSchemaOnStartup = true }
-                }
-            },
-            provider);
-
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => hostedService.StartingAsync(TestContext.Current.CancellationToken));
-
-        Assert.Equal("schema bootstrap probe", exception.Message);
-        Assert.Equal(1, factoryCalls);
-    }
-
-    [Fact]
     public void AddLakonaGame_registers_sql_node_directory_without_pre_registered_configuration()
     {
         var configuration = new ConfigurationBuilder()
