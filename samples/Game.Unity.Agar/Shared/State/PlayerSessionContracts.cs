@@ -25,8 +25,6 @@ namespace Server.App.State.Contracts.Sessions
         [MemoryPackOrder(5)]
         public long RealtimeSessionGeneration { get; set; }
 
-        [MemoryPackOrder(6)]
-        public DateTime AttachedAtUtc { get; set; }
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]
@@ -173,12 +171,6 @@ namespace Server.App.State.Contracts.Sessions
         [MemoryPackOrder(6)]
         public long RealtimeSessionGeneration { get; set; }
 
-        [MemoryPackOrder(7)]
-        public bool IsOnline { get; set; }
-
-        [MemoryPackOrder(8)]
-        public bool IsQueued { get; set; }
-
         [MemoryPackOrder(9)]
         public string QueueId { get; set; } = "";
 
@@ -193,21 +185,6 @@ namespace Server.App.State.Contracts.Sessions
 
         [MemoryPackOrder(13)]
         public int SeatIndex { get; set; } = -1;
-
-        [MemoryPackOrder(14)]
-        public DateTime AttachedAtUtc { get; set; }
-
-        [MemoryPackOrder(15)]
-        public DateTime LastQueuedAtUtc { get; set; }
-
-        [MemoryPackOrder(16)]
-        public DateTime LastConnectedAtUtc { get; set; }
-
-        [MemoryPackOrder(17)]
-        public DateTime LastDisconnectedAtUtc { get; set; }
-
-        [MemoryPackOrder(18)]
-        public DateTime LastHeartbeatAtUtc { get; set; }
 
         [MemoryPackOrder(21)]
         public GatewayEndpointDescriptor RuntimeGateway { get; set; } = new();
@@ -229,10 +206,6 @@ namespace Server.App.State.Contracts.Sessions
 
         public long RealtimeSessionGeneration { get; set; }
 
-        public bool IsOnline { get; set; }
-
-        public bool IsQueued { get; set; }
-
         public string QueueId { get; set; } = "";
 
         public string MatchmakingTicketId { get; set; } = "";
@@ -242,16 +215,6 @@ namespace Server.App.State.Contracts.Sessions
         public string CurrentMatchId { get; set; } = "";
 
         public int SeatIndex { get; set; } = -1;
-
-        public DateTime AttachedAtUtc { get; set; }
-
-        public DateTime LastQueuedAtUtc { get; set; }
-
-        public DateTime LastConnectedAtUtc { get; set; }
-
-        public DateTime LastDisconnectedAtUtc { get; set; }
-
-        public DateTime LastHeartbeatAtUtc { get; set; }
 
         public GatewayEndpointDescriptor RuntimeGateway { get; set; } = new();
     }

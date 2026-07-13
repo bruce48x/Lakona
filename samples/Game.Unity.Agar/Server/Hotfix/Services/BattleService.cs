@@ -96,8 +96,7 @@ internal sealed class BattleService
                         RoomId = req.RoomId,
                         MatchId = req.MatchId,
                         RealtimeSessionId = realtimeSession.SessionId,
-                        RealtimeSessionGeneration = realtimeSession.Generation,
-                        AttachedAtUtc = DateTime.UtcNow
+                        RealtimeSessionGeneration = realtimeSession.Generation
                     },
                     CancellationToken.None)
                 .ConfigureAwait(false);

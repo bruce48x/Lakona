@@ -75,7 +75,6 @@ public sealed class AgarSessionLifecycleTests
             ActorId.From("player-1"),
             (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()),
             cancellationToken);
-        Assert.False(snapshot.IsOnline);
         Assert.Equal("", snapshot.ConnectionId);
         Assert.Equal("control-session", snapshot.ControlSessionId);
         Assert.Equal(1, snapshot.ControlSessionGeneration);
@@ -120,8 +119,7 @@ public sealed class AgarSessionLifecycleTests
                 RoomId = "room-1",
                 MatchId = "match-1",
                 RealtimeSessionId = "realtime-session",
-                RealtimeSessionGeneration = 1,
-                AttachedAtUtc = DateTime.UtcNow
+                RealtimeSessionGeneration = 1
             }),
             cancellationToken);
         await actors.AskAsync<RoomActor, RoomSettlementResult>(
@@ -227,7 +225,6 @@ public sealed class AgarSessionLifecycleTests
             ActorId.From("player-1"),
             (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()),
             cancellationToken);
-        Assert.True(snapshot.IsOnline);
         Assert.Equal("control-new", snapshot.ConnectionId);
         Assert.Equal("control-session-new", snapshot.ControlSessionId);
         Assert.Equal(2, snapshot.ControlSessionGeneration);
@@ -248,8 +245,7 @@ public sealed class AgarSessionLifecycleTests
                 Password = "pw",
                 ConnectionId = connectionId,
                 ControlSessionId = controlSessionId,
-                ControlSessionGeneration = controlSessionGeneration,
-                AttachedAtUtc = DateTime.UtcNow
+                ControlSessionGeneration = controlSessionGeneration
             }),
             cancellationToken);
     }

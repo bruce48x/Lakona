@@ -121,7 +121,6 @@ public static partial class UserBehavior
     private static void AttachSession(UserActor self, UserLoginResult login, UserLoginAndAttachRequest request)
     {
         var userId = NormalizeUserId(login.UserId);
-        var attachedAtUtc = NormalizeUtc(request.AttachedAtUtc);
         EnsureState(self, userId);
 
         self.State.UserId = userId;
@@ -132,23 +131,17 @@ public static partial class UserBehavior
         session.ControlSessionGeneration = request.ControlSessionGeneration;
         session.RealtimeSessionId = "";
         session.RealtimeSessionGeneration = 0;
-        session.IsOnline = true;
-        session.IsQueued = false;
         session.QueueId = "";
         session.MatchmakingTicketId = "";
         session.CurrentRoomId = "";
         session.CurrentMatchId = "";
         session.SeatIndex = -1;
-        session.AttachedAtUtc = attachedAtUtc;
-        session.LastConnectedAtUtc = attachedAtUtc;
-        session.LastHeartbeatAtUtc = attachedAtUtc;
         session.RuntimeGateway = new GatewayEndpointDescriptor();
     }
 
     public static ValueTask<PlayerSessionSnapshot> AttachRealtimeAsync(this UserActor self, PlayerRealtimeAttachRequest request, CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(request.UserId);
-        var attachedAtUtc = NormalizeUtc(request.AttachedAtUtc);
         EnsureState(self, userId);
 
         var session = self.State.Session;
@@ -161,8 +154,6 @@ public static partial class UserBehavior
 
         session.RealtimeSessionId = request.RealtimeSessionId;
         session.RealtimeSessionGeneration = request.RealtimeSessionGeneration;
-        session.LastConnectedAtUtc = attachedAtUtc;
-        session.LastHeartbeatAtUtc = attachedAtUtc;
 
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
@@ -170,7 +161,6 @@ public static partial class UserBehavior
     public static ValueTask<PlayerSessionSnapshot> ClearRealtimeAsync(this UserActor self, PlayerRealtimeClearRequest request, CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(request.UserId);
-        var clearedAtUtc = NormalizeUtc(request.ClearedAtUtc);
         EnsureState(self, userId);
 
         var session = self.State.Session;
@@ -179,8 +169,6 @@ public static partial class UserBehavior
         {
             session.RealtimeSessionId = "";
             session.RealtimeSessionGeneration = 0;
-            session.LastDisconnectedAtUtc = clearedAtUtc;
-            session.LastHeartbeatAtUtc = clearedAtUtc;
         }
 
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
@@ -189,15 +177,12 @@ public static partial class UserBehavior
     public static ValueTask<PlayerSessionSnapshot> MarkQueuedAsync(this UserActor self, PlayerSessionQueueRequest request, CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(request.UserId);
-        var queuedAtUtc = NormalizeUtc(request.QueuedAtUtc);
         EnsureState(self, userId);
 
         self.State.UserId = userId;
         var session = self.State.Session;
-        session.IsQueued = true;
         session.QueueId = request.QueueId;
         session.MatchmakingTicketId = request.TicketId;
-        session.LastQueuedAtUtc = queuedAtUtc;
 
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
@@ -208,7 +193,6 @@ public static partial class UserBehavior
         EnsureState(self, userId);
 
         var session = self.State.Session;
-        session.IsQueued = false;
         session.QueueId = "";
         session.MatchmakingTicketId = "";
 
@@ -218,7 +202,6 @@ public static partial class UserBehavior
     public static ValueTask<PlayerSessionSnapshot> AssignRoomAsync(this UserActor self, PlayerRoomAssignment request, CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(request.UserId);
-        var assignedAtUtc = NormalizeUtc(request.AssignedAtUtc);
         EnsureState(self, userId);
 
         var session = self.State.Session;
@@ -227,12 +210,8 @@ public static partial class UserBehavior
         session.CurrentRoomId = request.RoomId;
         session.CurrentMatchId = request.MatchId;
         session.SeatIndex = request.SeatIndex;
-        session.IsQueued = false;
         session.QueueId = "";
         session.MatchmakingTicketId = "";
-        session.IsOnline = true;
-        session.LastConnectedAtUtc = assignedAtUtc;
-        session.LastHeartbeatAtUtc = assignedAtUtc;
         session.RuntimeGateway = CloneGateway(request.RuntimeGateway);
 
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
@@ -257,7 +236,6 @@ public static partial class UserBehavior
     public static ValueTask<PlayerSessionSnapshot> MarkDisconnectedAsync(this UserActor self, PlayerSessionDisconnectRequest request, CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(request.UserId);
-        var disconnectedAtUtc = NormalizeUtc(request.DisconnectedAtUtc);
         EnsureState(self, userId);
 
         var session = self.State.Session;
@@ -265,10 +243,6 @@ public static partial class UserBehavior
         {
             session.ConnectionId = "";
         }
-
-        session.IsOnline = false;
-        session.LastDisconnectedAtUtc = disconnectedAtUtc;
-        session.LastHeartbeatAtUtc = disconnectedAtUtc;
 
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
@@ -322,18 +296,11 @@ public static partial class UserBehavior
             ControlSessionGeneration = session.ControlSessionGeneration,
             RealtimeSessionId = session.RealtimeSessionId,
             RealtimeSessionGeneration = session.RealtimeSessionGeneration,
-            IsOnline = session.IsOnline,
-            IsQueued = session.IsQueued,
             QueueId = session.QueueId,
             MatchmakingTicketId = session.MatchmakingTicketId,
             CurrentRoomId = session.CurrentRoomId,
             CurrentMatchId = session.CurrentMatchId,
             SeatIndex = session.SeatIndex,
-            AttachedAtUtc = session.AttachedAtUtc,
-            LastQueuedAtUtc = session.LastQueuedAtUtc,
-            LastConnectedAtUtc = session.LastConnectedAtUtc,
-            LastDisconnectedAtUtc = session.LastDisconnectedAtUtc,
-            LastHeartbeatAtUtc = session.LastHeartbeatAtUtc,
             RuntimeGateway = CloneGateway(session.RuntimeGateway)
         };
     }

@@ -17,9 +17,6 @@ public sealed partial class UserLoginAndAttachRequest
     [MemoryPackOrder(3)]
     public long ControlSessionGeneration { get; set; }
 
-    [MemoryPackOrder(4)]
-    public DateTime AttachedAtUtc { get; set; }
-
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]

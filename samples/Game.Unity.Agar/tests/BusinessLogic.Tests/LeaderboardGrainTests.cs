@@ -151,8 +151,7 @@ public sealed class LeaderboardActorTests
                 Password = "pw",
                 ConnectionId = "control-weekly-reset",
                 ControlSessionId = "control-session-weekly-reset",
-                ControlSessionGeneration = 1,
-                AttachedAtUtc = DateTime.UtcNow
+                ControlSessionGeneration = 1
             }),
             cancellationToken);
         await actors.TellAsync<UserActor>(

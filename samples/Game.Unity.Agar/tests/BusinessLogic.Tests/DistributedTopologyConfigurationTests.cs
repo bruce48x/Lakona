@@ -501,7 +501,6 @@ public sealed class DistributedTopologyConfigurationTests
         await ReleasePlayerThroughInternalBoundaryAsync(provider, "player-stale", "test stale room");
 
         var snapshot = await GetSessionSnapshotAsync(provider, "player-stale");
-        Assert.False(snapshot.IsOnline);
         Assert.Equal("", snapshot.ConnectionId);
         Assert.Equal("", snapshot.CurrentRoomId);
         Assert.Equal("", snapshot.CurrentMatchId);
@@ -856,8 +855,7 @@ public sealed class DistributedTopologyConfigurationTests
                 Password = "pw",
                 ConnectionId = connectionId,
                 ControlSessionId = controlSessionId,
-                ControlSessionGeneration = controlSessionGeneration,
-                AttachedAtUtc = DateTime.UtcNow
+                ControlSessionGeneration = controlSessionGeneration
             }));
     }
 

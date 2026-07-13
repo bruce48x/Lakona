@@ -57,8 +57,7 @@ public sealed class LoginService
                         Password = password,
                         ConnectionId = call.ConnectionId,
                         ControlSessionId = sessionKey.SessionId,
-                        ControlSessionGeneration = sessionKey.Generation,
-                        AttachedAtUtc = DateTime.UtcNow
+                        ControlSessionGeneration = sessionKey.Generation
                     },
                     CancellationToken.None)
                 .ConfigureAwait(false);
