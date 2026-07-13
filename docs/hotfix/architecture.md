@@ -17,6 +17,13 @@ Hotfix code is loaded through `HotfixManager`. Reload validation builds a
 dispatch table, verifies required contracts, creates a candidate service
 provider, and rolls back candidate-created actors if activation fails.
 
+The stable host and collectible Hotfix load context share framework assemblies,
+the entry assembly, and the assemblies that own generated required service
+contracts. Assembly identity comes from the discovered contract `Type` objects;
+the runtime must not guess project names such as `Shared`, `Server.App`, or
+`State.Contracts`. This keeps custom contract assembly names valid while
+preventing duplicate type identities across load contexts.
+
 ## Actor Lifecycle
 
 Use explicit actor lifecycle attributes:

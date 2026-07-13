@@ -565,13 +565,16 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public void Default_hotfix_host_assemblies_include_generated_project_boundaries()
+    public void Default_hotfix_host_assemblies_are_discovered_from_required_contracts()
     {
-        var names = Lakona.Game.Server.Hosting.LakonaGameServer.GetDefaultHotfixHostAssemblyNames();
+        var names = Lakona.Game.Server.Hosting.LakonaGameServer.GetDefaultHotfixHostAssemblyNames(
+            [typeof(IConfiguration)]);
 
-        Assert.Contains("Shared", names);
-        Assert.Contains("Server.App", names);
-        Assert.Contains("State.Contracts", names);
+        Assert.Contains(typeof(IConfiguration).Assembly.GetName().Name!, names);
+        Assert.DoesNotContain("Shared", names);
+        Assert.DoesNotContain("Server.App", names);
+        Assert.DoesNotContain("State.Contracts", names);
+        Assert.Contains(Assembly.GetEntryAssembly()!.GetName().Name!, names);
         Assert.Contains(typeof(ILakonaGameServer).Assembly.GetName().Name!, names);
     }
 

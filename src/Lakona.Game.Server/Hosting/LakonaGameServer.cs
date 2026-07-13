@@ -432,21 +432,39 @@ public static class LakonaGameServer
 
     internal static IReadOnlyList<string> GetDefaultHotfixHostAssemblyNames()
     {
+        return GetDefaultHotfixHostAssemblyNames(
+            DiscoverHotfixRequiredServiceContracts(DiscoverApplicationAssemblies()));
+    }
+
+    internal static IReadOnlyList<string> GetDefaultHotfixHostAssemblyNames(
+        IReadOnlyList<Type> requiredContractTypes)
+    {
+        ArgumentNullException.ThrowIfNull(requiredContractTypes);
         var names = new HashSet<string>(StringComparer.Ordinal)
         {
-            typeof(ILakonaGameServer).Assembly.GetName().Name!,
-            "Shared",
-            "Server.App",
-            "State.Contracts"
+            typeof(ILakonaGameServer).Assembly.GetName().Name!
         };
 
-        var entryName = Assembly.GetEntryAssembly()?.GetName().Name;
-        if (!string.IsNullOrWhiteSpace(entryName))
+        foreach (var contract in requiredContractTypes)
         {
-            names.Add(entryName);
+            AddAssemblyName(contract.Assembly);
+        }
+
+        if (Assembly.GetEntryAssembly() is { } entryAssembly)
+        {
+            AddAssemblyName(entryAssembly);
         }
 
         return names.OrderBy(static name => name, StringComparer.Ordinal).ToArray();
+
+        void AddAssemblyName(Assembly assembly)
+        {
+            var name = assembly.GetName().Name;
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                names.Add(name);
+            }
+        }
     }
 
     internal static void ConfigureDefaultHotfixForTesting(
