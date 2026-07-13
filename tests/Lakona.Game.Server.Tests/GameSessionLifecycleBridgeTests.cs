@@ -43,8 +43,7 @@ public sealed class GameSessionLifecycleBridgeTests
         await handler.OnSessionExpiredAsync(
             new GameSessionBindingContext(
                 new GameSessionKey("player-a", "session-a", 1),
-                "connection-a",
-                [typeof(LoginCallback)]),
+                "connection-a"),
             TestContext.Current.CancellationToken);
     }
 
@@ -71,8 +70,7 @@ public sealed class GameSessionLifecycleBridgeTests
         await handler.OnSessionExpiredAsync(
             new GameSessionBindingContext(
                 new GameSessionKey("player-a", "session-a", 3),
-                "connection-a",
-                [typeof(LoginCallback)]),
+                "connection-a"),
             TestContext.Current.CancellationToken);
 
         var call = Assert.IsType<HotfixLifecycleCall<GameSessionExpiredRequest>>(invoker.Argument);
@@ -108,8 +106,7 @@ public sealed class GameSessionLifecycleBridgeTests
         var expired = handler.OnSessionExpiredAsync(
             new GameSessionBindingContext(
                 new GameSessionKey("player-a", "session-a", 3),
-                "connection-a",
-                [typeof(LoginCallback)]),
+                "connection-a"),
             TestContext.Current.CancellationToken).AsTask();
         await invoker.Invoked.Task.WaitAsync(TestContext.Current.CancellationToken);
 
@@ -140,8 +137,7 @@ public sealed class GameSessionLifecycleBridgeTests
         await handler.OnSessionExpiredAsync(
             new GameSessionBindingContext(
                 new GameSessionKey("player-a", "session-a", 3),
-                "connection-a",
-                [typeof(LoginCallback), typeof(ChatCallback)]),
+                "connection-a"),
             TestContext.Current.CancellationToken);
 
         Assert.Equal(typeof(IGameSessionLifecycle), invoker.ContractType);
@@ -153,12 +149,6 @@ public sealed class GameSessionLifecycleBridgeTests
         Assert.Equal("session-a", call.Request.SessionId);
         Assert.Equal(3, call.Request.Generation);
         Assert.Equal("connection-a", call.Request.ConnectionId);
-        Assert.Equal(
-            [
-                typeof(LoginCallback).FullName ?? typeof(LoginCallback).Name,
-                typeof(ChatCallback).FullName ?? typeof(ChatCallback).Name
-            ],
-            call.Request.CallbackContractTypeNames);
     }
 
     [Fact]
@@ -179,8 +169,7 @@ public sealed class GameSessionLifecycleBridgeTests
         await handler.OnSessionDisconnectedAsync(
             new GameSessionBindingContext(
                 new GameSessionKey("player-a", "session-a", 3),
-                "connection-a",
-                [typeof(LoginCallback), typeof(ChatCallback)]),
+                "connection-a"),
             TestContext.Current.CancellationToken);
 
         Assert.Equal(typeof(IGameSessionLifecycle), invoker.ContractType);
@@ -192,12 +181,6 @@ public sealed class GameSessionLifecycleBridgeTests
         Assert.Equal("session-a", call.Request.SessionId);
         Assert.Equal(3, call.Request.Generation);
         Assert.Equal("connection-a", call.Request.ConnectionId);
-        Assert.Equal(
-            [
-                typeof(LoginCallback).FullName ?? typeof(LoginCallback).Name,
-                typeof(ChatCallback).FullName ?? typeof(ChatCallback).Name
-            ],
-            call.Request.CallbackContractTypeNames);
     }
 
     [Fact]

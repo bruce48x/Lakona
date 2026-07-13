@@ -27,7 +27,6 @@ public sealed class GameSessionDisconnectedRequest
 
     public string ConnectionId { get; set; } = "";
 
-    public List<string> CallbackContractTypeNames { get; set; } = [];
 }
 
 public sealed class GameSessionExpiredRequest
@@ -40,5 +39,4 @@ public sealed class GameSessionExpiredRequest
 
     public string ConnectionId { get; set; } = "";
 
-    public List<string> CallbackContractTypeNames { get; set; } = [];
 }

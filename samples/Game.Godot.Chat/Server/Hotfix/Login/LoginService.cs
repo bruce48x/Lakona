@@ -30,8 +30,7 @@ namespace Server.Hotfix.Login
                 : call.Request.PlayerName.Trim();
             var session = await _gameServer.StartSessionAsync(
                 playerName,
-                call.ConnectionId,
-                call.Callback);
+                call.ConnectionId);
             var result = await _rooms
                 .Startup(ChatRoomIds.Global)
                 .CallAsync(

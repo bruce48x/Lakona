@@ -184,8 +184,8 @@ actor management and diagnostics rather than ordinary gameplay calls.
 
 ## Sessions And Push
 
-`ILakonaGameServer` is the high-level entry point for game sessions, typed
-callback binding, and session lifecycle. Publish callback intent through
+`ILakonaGameServer` is the high-level entry point for game sessions, connection
+binding, and session lifecycle. Publish callback intent through
 `IClientNotifications`; reliable push sequencing, replay, and acknowledgements
 are framework protocol details.
 
@@ -209,10 +209,9 @@ public sealed class MatchPushService
     public ValueTask<GameSessionKey> LoginAsync(
         string playerId,
         string connectionId,
-        IPlayerCallback callback,
         CancellationToken cancellationToken)
     {
-        return _server.StartSessionAsync(playerId, connectionId, callback, cancellationToken);
+        return _server.StartSessionAsync(playerId, connectionId, cancellationToken);
     }
 
     public ValueTask<ClientNotificationStatus> PublishMatchedAsync(

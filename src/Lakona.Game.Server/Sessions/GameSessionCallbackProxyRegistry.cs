@@ -27,4 +27,17 @@ internal sealed class GameSessionCallbackProxyRegistry
         throw new InvalidOperationException(
             $"No RPC callback proxy is registered for '{callbackContractType.FullName}'.");
     }
+
+    public object? TryCreate(Type callbackContractType, RpcSession session)
+    {
+        LakonaRpcServiceBinder[] binders;
+        lock (_gate) binders = [.. _binders];
+        foreach (var binder in binders)
+        {
+            if (binder.TryCreateCallback(callbackContractType, session, out var callback) && callback is not null)
+                return callback;
+        }
+
+        return null;
+    }
 }

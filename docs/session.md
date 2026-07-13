@@ -3,7 +3,7 @@
 Lakona owns one framework game session per accepted game RPC session. It does
 not own account, player, character, room, or device aggregation.
 
-This document defines session identity, callback binding, disconnect,
+This document defines session identity, connection binding, callback resolution, disconnect,
 expiration, termination, resume, and the Gate / Watchdog / Agent composition
 pattern.
 
@@ -33,7 +33,7 @@ For hotfix-backed service binding, see
 | RPC connection | One accepted transport connection known to the RPC server. |
 | Connection id | Stable framework id for one accepted RPC connection while it exists. |
 | Game session | One framework-owned game session identified by `GameSessionKey`. |
-| Session callback binding | A callback contract instance bound to a game session and connection id. |
+| Callback proxy | A transient typed proxy resolved from the session's current RPC connection when sending. |
 | Business session group | User-owned grouping such as account, player, character, room member, or device. |
 | Transport endpoint | Listener configuration from `Lakona:Endpoints[]`; not part of session identity. |
 | Business presence | User-owned online/offline policy derived from session lifecycle hooks. |
@@ -68,15 +68,19 @@ The framework session directory stores sessions by `GameSessionKey`, not by
 owner or endpoint. It is framework infrastructure, not a user-authored
 `Server.App` business class such as the removed Agar `SessionDirectory`.
 
-Each session stores callback bindings by callback contract type:
+Each session stores only its current connection id:
 
 ```txt
 GameSessionKey
-  -> ILoginCallback: connection id + callback + state
-  -> IChatCallback: connection id + callback + state
+  -> connection id
 ```
 
-Binding a callback contract for a session replaces only that callback contract.
+Callback objects and callback contract types are not session state. When code
+publishes through `IClientNotifications`, the framework resolves the session's
+current `RpcSession` and asks the generated endpoint binders for the requested
+callback proxy. Any callback contract exposed by that connection can therefore
+be used through the same session.
+
 Binding a different active `GameSessionKey` to a connection id that already has
 an active session binding is invalid. User code must explicitly terminate or
 expire the old session before reusing that RPC connection for another game
@@ -96,23 +100,15 @@ User-facing game server APIs must stay session-oriented:
 ```csharp
 public interface ILakonaGameServer
 {
-    ValueTask<GameSessionKey> StartSessionAsync<TCallback>(
+    ValueTask<GameSessionKey> StartSessionAsync(
         string ownerKey,
         string connectionId,
-        TCallback callback,
-        CancellationToken cancellationToken = default)
-        where TCallback : class;
+        CancellationToken cancellationToken = default);
 
-    ValueTask BindCurrentSessionAsync<TCallback>(
-        string connectionId,
-        TCallback callback,
-        CancellationToken cancellationToken = default)
-        where TCallback : class;
-
-    ValueTask<TCallback?> GetCallbackAsync<TCallback>(
+    ValueTask BindSessionAsync(
         GameSessionKey session,
-        CancellationToken cancellationToken = default)
-        where TCallback : class;
+        string connectionId,
+        CancellationToken cancellationToken = default);
 
     ValueTask TerminateSessionAsync(
         GameSessionKey session,
@@ -187,8 +183,6 @@ Both request types carry framework session state only:
 - `SessionId`: the framework session id.
 - `Generation`: the owner session generation.
 - `ConnectionId`: the last RPC connection associated with the event.
-- `CallbackContractTypeNames`: callback contracts bound before disconnect or
-  expiration.
 
 Product policy still belongs in hotfix code, where it can map the session event
 to presence, room, matchmaking, or other business cleanup.
@@ -303,7 +297,7 @@ injectable recovery scheduler so tests can advance time deterministically.
 
 ## Business Session State
 
-The framework owns `GameSessionKey`, callback bindings, resume tokens, reliable
+The framework owns `GameSessionKey`, connection bindings, resume tokens, reliable
 push protocol state, route indexes, and transport connection state. Business
 code owns account, player, character, room, and device policy.
 
@@ -438,7 +432,8 @@ resume/login.
 
 ## Reliable Push And Resume
 
-Reliable push uses the callback binding for a `GameSessionKey`. Resume policy
+Reliable push resolves the requested callback proxy from the live connection
+for a `GameSessionKey`. Resume policy
 may rebind a disconnected game session to a new RPC connection when the resume
 token and retention policy allow it.
 

@@ -81,7 +81,7 @@ internal sealed class BattleService
         }
 
         var realtimeSession = await call.GameServer
-            .StartSessionAsync(req.PlayerId, call.ConnectionId, call.Callback)
+            .StartSessionAsync(req.PlayerId, call.ConnectionId)
             .ConfigureAwait(false);
         try
         {

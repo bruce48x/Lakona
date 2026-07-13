@@ -19,6 +19,10 @@ public static class SessionServiceCollectionExtensions
         services.TryAddSingleton<GameConnectionDeliveryPolicyRegistry>();
         services.TryAddSingleton<GameFrameworkConnectionRegistry>();
         services.TryAddSingleton<GameSessionCallbackProxyRegistry>();
+        services.TryAddSingleton(static provider => new GameSessionCallbackResolver(
+            provider.GetRequiredService<IGameSessionRegistry>(),
+            provider.GetRequiredService<GameFrameworkConnectionRegistry>(),
+            provider.GetRequiredService<GameSessionCallbackProxyRegistry>()));
         services.TryAddSingleton<GameSessionEstablishedAcknowledgements>();
         services.TryAddSingleton<IGameSessionEstablishedNotifier, GameSessionEstablishedNotifier>();
         services.TryAddSingleton<IGameSessionHandshakeRecoveryService, GameSessionHandshakeRecoveryService>();
@@ -28,7 +32,8 @@ public static class SessionServiceCollectionExtensions
         services.TryAddSingleton<IClientNotifications, ClientNotifications>();
         services.TryAddSingleton<IClientNotificationRelay>(CreateClientNotificationRelay);
         services.TryAddSingleton<IClientNotificationRemoteDispatcher, NoopClientNotificationRemoteDispatcher>();
-        services.TryAddSingleton<LocalClientNotificationCommandDispatcher>();
+        services.TryAddSingleton(static provider => new LocalClientNotificationCommandDispatcher(
+            provider.GetRequiredService<GameSessionCallbackResolver>()));
         services.TryAddSingleton<IClientNotificationCommandRouter>(CreateClientNotificationCommandRouter);
         services.TryAddSingleton<IClientSessionRouteRegistrar>(CreateClientSessionRouteRegistrar);
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IRpcSessionLifecycleObserver, GameSessionRpcLifecycleObserver>());
@@ -98,11 +103,12 @@ public static class SessionServiceCollectionExtensions
     private static IClientNotificationRelay CreateClientNotificationRelay(IServiceProvider services)
     {
         var sessions = services.GetRequiredService<IGameSessionRegistry>();
+        var callbacks = services.GetRequiredService<GameSessionCallbackResolver>();
         var routes = services.GetService<IRouteDirectory>();
         var dispatcher = services.GetService<IClientNotificationRemoteDispatcher>();
         var cluster = services.GetService<ClusterOptions>();
         NodeId? localNode = cluster is null ? (NodeId?)null : new NodeId(cluster.NodeId);
-        return new ClientNotificationRelay(sessions, routes, dispatcher, localNode);
+        return new ClientNotificationRelay(sessions, callbacks, routes, dispatcher, localNode);
     }
 
     private static IClientNotificationCommandRouter CreateClientNotificationCommandRouter(IServiceProvider services)

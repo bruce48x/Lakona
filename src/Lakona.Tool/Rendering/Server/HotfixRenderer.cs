@@ -115,7 +115,7 @@ internal sealed class HotfixRenderer : IPlanContributor
 
                     try
                     {
-                        await _gameServer.StartSessionAsync(playerName, call.ConnectionId, call.Callback);
+                        await _gameServer.StartSessionAsync(playerName, call.ConnectionId);
                     }
                     catch
                     {

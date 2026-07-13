@@ -30,13 +30,6 @@ public sealed class AgarSessionLifecycle
             return;
         }
 
-        if (IsRealtime(call.Request.CallbackContractTypeNames))
-        {
-            // A transport/RPC disconnect does not end the realtime game session.
-            // Its identity remains resumable until the framework expires it.
-            return;
-        }
-
         var users = call.Services.GetService<UserActors>();
         if (users is null)
         {
@@ -49,6 +42,25 @@ public sealed class AgarSessionLifecycle
 
         try
         {
+            var disconnectedSession = new GameSessionKey(
+                call.Request.OwnerKey,
+                call.Request.SessionId,
+                call.Request.Generation);
+            var snapshot = await users
+                .Route(new UserId(playerId))
+                .CallAsync(
+                    UserBehavior.GetSnapshotAsync,
+                    new PlayerSessionSnapshotRequest(),
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+            if (MatchesRealtimeSession(snapshot, disconnectedSession) ||
+                !MatchesControlSession(snapshot, disconnectedSession))
+            {
+                // A realtime transport disconnect remains resumable. Stale sessions
+                // must not mutate the player's current control presence either.
+                return;
+            }
+
             await users
                 .Route(new UserId(playerId))
                 .CallAsync(
@@ -225,12 +237,6 @@ public sealed class AgarSessionLifecycle
                 generation,
                 playerId);
         }
-    }
-
-    private static bool IsRealtime(IReadOnlyList<string> callbackContractTypeNames)
-    {
-        return callbackContractTypeNames.Any(static name =>
-            string.Equals(name, typeof(IBattleCallback).FullName, StringComparison.Ordinal));
     }
 
     private static bool MatchesControlSession(PlayerSessionSnapshot snapshot, GameSessionKey session)

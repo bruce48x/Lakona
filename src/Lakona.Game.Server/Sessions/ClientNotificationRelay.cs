@@ -5,12 +5,13 @@ namespace Lakona.Game.Server.Sessions;
 internal sealed class ClientNotificationRelay : IClientNotificationRelay
 {
     private readonly IGameSessionRegistry _sessions;
+    private readonly GameSessionCallbackResolver? _callbacks;
     private readonly IRouteDirectory? _routes;
     private readonly IClientNotificationRemoteDispatcher? _remoteDispatcher;
     private readonly NodeId? _localNode;
 
     public ClientNotificationRelay(IGameSessionRegistry sessions)
-        : this(sessions, null, null, null)
+        : this(sessions, null, null, null, null)
     {
     }
 
@@ -19,8 +20,19 @@ internal sealed class ClientNotificationRelay : IClientNotificationRelay
         IRouteDirectory? routes,
         IClientNotificationRemoteDispatcher? remoteDispatcher,
         NodeId? localNode)
+        : this(sessions, null, routes, remoteDispatcher, localNode)
+    {
+    }
+
+    public ClientNotificationRelay(
+        IGameSessionRegistry sessions,
+        GameSessionCallbackResolver? callbacks,
+        IRouteDirectory? routes,
+        IClientNotificationRemoteDispatcher? remoteDispatcher,
+        NodeId? localNode)
     {
         _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
+        _callbacks = callbacks;
         _routes = routes;
         _remoteDispatcher = remoteDispatcher;
         _localNode = localNode;
@@ -35,8 +47,9 @@ internal sealed class ClientNotificationRelay : IClientNotificationRelay
         ArgumentNullException.ThrowIfNull(notify);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var callback = await _sessions.GetCallbackAsync<TCallback>(session, cancellationToken)
-            .ConfigureAwait(false);
+        var callback = _callbacks is null
+            ? await _sessions.GetCallbackAsync<TCallback>(session, cancellationToken).ConfigureAwait(false)
+            : await _callbacks.ResolveAsync<TCallback>(session, cancellationToken).ConfigureAwait(false);
         if (callback is null)
         {
             return await TryNotifyRemoteAsync(session, notify, cancellationToken)

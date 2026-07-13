@@ -30,8 +30,7 @@ public sealed class AgarSessionLifecycleTests
                 OwnerKey = "player-1",
                 SessionId = "realtime-session",
                 Generation = 1,
-                ConnectionId = "realtime-1",
-                CallbackContractTypeNames = [typeof(IBattleCallback).FullName!]
+                ConnectionId = "realtime-1"
             },
             "realtime-1",
             provider,
@@ -68,8 +67,7 @@ public sealed class AgarSessionLifecycleTests
                 OwnerKey = "player-1",
                 SessionId = "control-session",
                 Generation = 1,
-                ConnectionId = "control-1",
-                CallbackContractTypeNames = [typeof(ILoginCallback).FullName!]
+                ConnectionId = "control-1"
             },
             "control-1",
             provider,
@@ -178,8 +176,7 @@ public sealed class AgarSessionLifecycleTests
                 OwnerKey = "player-1",
                 SessionId = "realtime-session",
                 Generation = 1,
-                ConnectionId = "realtime-1",
-                CallbackContractTypeNames = [typeof(IBattleCallback).FullName!]
+                ConnectionId = "realtime-1"
             },
             "realtime-1",
             provider,
@@ -232,8 +229,7 @@ public sealed class AgarSessionLifecycleTests
                 OwnerKey = "player-1",
                 SessionId = "control-session-old",
                 Generation = 1,
-                ConnectionId = "control-old",
-                CallbackContractTypeNames = [typeof(ILoginCallback).FullName!]
+                ConnectionId = "control-old"
             },
             "control-old",
             provider,
@@ -339,6 +335,14 @@ public sealed class AgarSessionLifecycleTests
             return new ValueTask<GameSessionKey>(new GameSessionKey(ownerKey, "session", 1));
         }
 
+        public ValueTask<GameSessionKey> StartSessionAsync(
+            string ownerKey,
+            string connectionId,
+            CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<GameSessionKey>(new GameSessionKey(ownerKey, "session", 1));
+        }
+
         public ValueTask<GameSessionKey> StartSessionAsync<TCallback>(
             string ownerKey,
             string connectionId,
@@ -365,6 +369,14 @@ public sealed class AgarSessionLifecycleTests
             TCallback callback,
             CancellationToken cancellationToken = default)
             where TCallback : class
+        {
+            return default;
+        }
+
+        public ValueTask BindSessionAsync(
+            GameSessionKey session,
+            string connectionId,
+            CancellationToken cancellationToken = default)
         {
             return default;
         }

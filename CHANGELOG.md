@@ -4,6 +4,18 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-13 — Connection-owned Game Session callbacks
+
+**Key releases:** `Lakona.Game.Server 0.18.6`,
+`Lakona.Game.Server.Hotfix 0.8.1`, and `Lakona.Tool 0.25.9`.
+
+- Changed Game Sessions to retain only their current RPC connection id. Client
+  callback proxies are now resolved from that live connection when a notification
+  is sent, so one session can use any callback contract exposed by its endpoint
+  without registering callback objects on the session.
+- Added connection-only session start and bind APIs, migrated generated projects
+  and samples, and deprecated the callback-binding compatibility overloads.
+
 ## 2026-07-13 — Safe local cluster directory bootstrap
 
 **Key releases:** `Lakona.Game.Server 0.18.5` and `Lakona.Tool 0.25.8`.

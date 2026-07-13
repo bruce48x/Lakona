@@ -38,10 +38,7 @@ internal sealed class GameSessionHotfixLifecycleHandler : IGameSessionLifecycleH
             OwnerKey = context.Session.OwnerKey,
             SessionId = context.Session.SessionId,
             Generation = context.Session.Generation,
-            ConnectionId = context.ConnectionId,
-            CallbackContractTypeNames = context.CallbackContractTypes
-                .Select(static type => type.FullName ?? type.Name)
-                .ToList()
+            ConnectionId = context.ConnectionId
         };
 
         await snapshot.Invoker.InvokeAsync<IGameSessionLifecycle, HotfixLifecycleCall<GameSessionDisconnectedRequest>>(
@@ -69,10 +66,7 @@ internal sealed class GameSessionHotfixLifecycleHandler : IGameSessionLifecycleH
             OwnerKey = context.Session.OwnerKey,
             SessionId = context.Session.SessionId,
             Generation = context.Session.Generation,
-            ConnectionId = context.ConnectionId,
-            CallbackContractTypeNames = context.CallbackContractTypes
-                .Select(static type => type.FullName ?? type.Name)
-                .ToList()
+            ConnectionId = context.ConnectionId
         };
 
         await snapshot.Invoker.InvokeAsync<IGameSessionLifecycle, HotfixLifecycleCall<GameSessionExpiredRequest>>(

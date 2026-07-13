@@ -131,7 +131,7 @@ public sealed class GameSessionRegistryTests
     }
 
     [Fact]
-    public async Task MarkConnectionDisconnectedReturnsOneSessionSnapshotAndClearsCallbacks()
+    public async Task MarkConnectionDisconnectedReturnsOneConnectionSnapshot()
     {
         var directory = new InMemoryGameSessionRegistry();
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
@@ -144,9 +144,6 @@ public sealed class GameSessionRegistryTests
         Assert.NotNull(disconnected);
         Assert.Equal(session, disconnected.Session);
         Assert.Equal("connection-a", disconnected.ConnectionId);
-        Assert.Equal(2, disconnected.CallbackContractTypes.Count);
-        Assert.Contains(typeof(LoginCallback), disconnected.CallbackContractTypes);
-        Assert.Contains(typeof(ChatCallback), disconnected.CallbackContractTypes);
         Assert.Null(await directory.GetCallbackAsync<LoginCallback>(session, TestContext.Current.CancellationToken));
         Assert.Null(await directory.GetCallbackAsync<ChatCallback>(session, TestContext.Current.CancellationToken));
     }
@@ -166,7 +163,6 @@ public sealed class GameSessionRegistryTests
         var snapshot = Assert.Single(expired);
         Assert.Equal(session, snapshot.Session);
         Assert.Equal("connection-a", snapshot.ConnectionId);
-        Assert.Equal(2, snapshot.CallbackContractTypes.Count);
     }
 
     [Fact]

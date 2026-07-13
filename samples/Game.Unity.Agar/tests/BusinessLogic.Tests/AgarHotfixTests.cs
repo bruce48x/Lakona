@@ -234,7 +234,6 @@ public sealed class AgarHotfixTests
                 TestContext.Current.CancellationToken);
 
         Assert.Equal(0, reply.Code);
-        Assert.Equal(typeof(IPlayerCallback), gameServer.LastBoundSessionCallbackType);
         Assert.Equal(ActorState.Active, actors.GetState(ActorId.From("leaderboard/@startup/gateway-1")));
     }
 
@@ -368,7 +367,7 @@ public sealed class AgarHotfixTests
         var hotfixRuntime = await TestHotfix.LoadCurrentRuntimeAsync(provider, cancellationToken);
         var gameServer = provider.GetRequiredService<ILakonaGameServer>();
         var session = await gameServer
-            .StartSessionAsync("player-1", "battle-connection-1", new CapturingBattleCallback(), cancellationToken)
+            .StartSessionAsync("player-1", "battle-connection-1", cancellationToken)
             .ConfigureAwait(false);
         return new BattleInputContext(provider, hotfixRuntime, actors, gameServer, session, roomId);
     }
@@ -862,10 +861,16 @@ public sealed class AgarHotfixTests
 
     private sealed class TestGameServer : ILakonaGameServer
     {
-        public Type? LastBoundSessionCallbackType { get; private set; }
+        public ValueTask<GameSessionKey> StartSessionAsync(
+            string ownerKey,
+            CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<GameSessionKey>(new GameSessionKey(ownerKey, ownerKey, 1));
+        }
 
         public ValueTask<GameSessionKey> StartSessionAsync(
             string ownerKey,
+            string connectionId,
             CancellationToken cancellationToken = default)
         {
             return new ValueTask<GameSessionKey>(new GameSessionKey(ownerKey, ownerKey, 1));
@@ -898,7 +903,14 @@ public sealed class AgarHotfixTests
             CancellationToken cancellationToken = default)
             where TCallback : class
         {
-            LastBoundSessionCallbackType = typeof(TCallback);
+            return default;
+        }
+
+        public ValueTask BindSessionAsync(
+            GameSessionKey session,
+            string connectionId,
+            CancellationToken cancellationToken = default)
+        {
             return default;
         }
 

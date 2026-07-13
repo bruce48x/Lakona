@@ -39,15 +39,12 @@ public sealed class GameSessionBindingContext
     /// </summary>
     /// <param name="session">The session affected by the lifecycle event.</param>
     /// <param name="connectionId">The RPC connection currently associated with the endpoint.</param>
-    /// <param name="callbackContractTypes">The callback contracts exposed by the bound client endpoint.</param>
     public GameSessionBindingContext(
         GameSessionKey session,
-        string connectionId,
-        IReadOnlyList<Type> callbackContractTypes)
+        string connectionId)
     {
         Session = session;
         ConnectionId = connectionId ?? throw new ArgumentNullException(nameof(connectionId));
-        CallbackContractTypes = callbackContractTypes ?? throw new ArgumentNullException(nameof(callbackContractTypes));
     }
 
     /// <summary>
@@ -60,10 +57,6 @@ public sealed class GameSessionBindingContext
     /// </summary>
     public string ConnectionId { get; }
 
-    /// <summary>
-    /// Gets the callback contracts exposed by the bound client endpoint.
-    /// </summary>
-    public IReadOnlyList<Type> CallbackContractTypes { get; }
 }
 
 /// <summary>

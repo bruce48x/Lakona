@@ -284,7 +284,7 @@ public sealed class ToolArchitectureScanTests
     }
 
     [Fact]
-    public void GodotChatSample_BindsChatCallbackThroughFrameworkSessionRegistry()
+    public void GodotChatSample_UsesSessionConnectionWithoutBindingChatCallback()
     {
         var repositoryRoot = FindRepositoryRoot();
         var sampleText = ReadAllTextFiles(Path.Combine(repositoryRoot, "samples", "Game.Godot.Chat"));
@@ -305,14 +305,13 @@ public sealed class ToolArchitectureScanTests
             "Login",
             "LoginService.cs"));
 
-        Assert.Contains("public ChatService(ChatRoomActors rooms, ILakonaGameServer gameServer, ILogger<ChatService> logger, ChatNotifier notifications)", chatService, StringComparison.Ordinal);
+        Assert.Contains("public ChatService(ChatRoomActors rooms, ILogger<ChatService> logger, ChatNotifier notifications)", chatService, StringComparison.Ordinal);
         Assert.Contains("private readonly ChatRoomActors _rooms;", chatService, StringComparison.Ordinal);
-        Assert.Contains("await _gameServer.BindCurrentSessionAsync", chatService, StringComparison.Ordinal);
+        Assert.DoesNotContain("BindCurrentSessionAsync", chatService, StringComparison.Ordinal);
         Assert.Contains(".Startup(ChatRoomIds.Global)", chatService, StringComparison.Ordinal);
         Assert.Contains("ChatRoomBehavior.SendAsync", chatService, StringComparison.Ordinal);
         Assert.Contains("var text = call.Request.Text ?? \"\";", chatService, StringComparison.Ordinal);
         Assert.Contains("_logger.LogInformation(\"Sending {CharacterCount} characters\", text.Length);", chatService, StringComparison.Ordinal);
-        Assert.Contains("await _gameServer.BindCurrentSessionAsync", chatService, StringComparison.Ordinal);
         Assert.Contains("await _notifications.MessageAsync(result.Recipients, result.Message);", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("call.Request.Text.Length", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("FilterMessage(call.Request.Text ?? \"\")", chatService, StringComparison.Ordinal);
@@ -324,7 +323,7 @@ public sealed class ToolArchitectureScanTests
         Assert.DoesNotContain("var starterNodeLocalActors = call.Actors;", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("call.Actors is node-local", chatService, StringComparison.Ordinal);
         Assert.Contains("call.CurrentSession", chatService, StringComparison.Ordinal);
-        Assert.Contains("call.Callback", chatService, StringComparison.Ordinal);
+        Assert.DoesNotContain("call.Callback", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("starterLocalActors", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("var localActors = call.Actors;", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain(".AskAsync", chatService, StringComparison.Ordinal);

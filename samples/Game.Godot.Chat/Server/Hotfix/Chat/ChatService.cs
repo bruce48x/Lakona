@@ -13,23 +13,21 @@ namespace Server.Hotfix.Chat
     internal sealed class ChatService
     {
         private readonly ChatRoomActors _rooms;
-        private readonly ILakonaGameServer _gameServer;
         private readonly ILogger<ChatService> _logger;
         private readonly ChatNotifier _notifications;
 
-        public ChatService(ChatRoomActors rooms, ILakonaGameServer gameServer, ILogger<ChatService> logger, ChatNotifier notifications)
+        public ChatService(ChatRoomActors rooms, ILogger<ChatService> logger, ChatNotifier notifications)
         {
             _rooms = rooms;
-            _gameServer = gameServer;
             _logger = logger;
             _notifications = notifications;
         }
 
-        public async ValueTask BindAsync(HotfixServiceCall<ChatBindRequest, IChatCallback> call)
+        public ValueTask BindAsync(HotfixServiceCall<ChatBindRequest, IChatCallback> call)
         {
-            await _gameServer.BindCurrentSessionAsync(
-                call.ConnectionId,
-                call.Callback);
+            // The session already owns the connection. Callback proxies are resolved
+            // from that connection when notifications are sent.
+            return default;
         }
 
         public async ValueTask SendAsync(HotfixServiceCall<ChatSendRequest, IChatCallback> call)

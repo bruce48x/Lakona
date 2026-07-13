@@ -82,8 +82,7 @@ internal sealed class GameSessionRpcLifecycleObserver : IRpcSessionLifecycleObse
 
         var sessionContext = new GameSessionBindingContext(
             snapshot.Session,
-            snapshot.ConnectionId,
-            snapshot.CallbackContractTypes);
+            snapshot.ConnectionId);
         foreach (var handler in _handlers)
         {
             try

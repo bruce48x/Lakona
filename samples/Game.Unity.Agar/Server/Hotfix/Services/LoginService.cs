@@ -57,7 +57,7 @@ public sealed class LoginService
         var loginResult = await LoginUserAsync(call.Services, account, loginRequest, CancellationToken.None).ConfigureAwait(false);
 
         var sessionKey = await call.GameServer
-            .StartSessionAsync(loginResult.UserId, call.ConnectionId, call.Callback)
+            .StartSessionAsync(loginResult.UserId, call.ConnectionId)
             .ConfigureAwait(false);
         await _users
             .Route(new UserId(loginResult.UserId))

@@ -49,8 +49,7 @@ public sealed class GameSessionCleanupHostedService : BackgroundService
         {
             var context = new GameSessionBindingContext(
                 snapshot.Session,
-                snapshot.ConnectionId,
-                snapshot.CallbackContractTypes);
+                snapshot.ConnectionId);
             foreach (var handler in _handlers)
             {
                 try

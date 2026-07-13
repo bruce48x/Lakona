@@ -16,7 +16,6 @@ internal interface IGameSessionHandshakeRecoveryService
 internal sealed class GameSessionHandshakeRecoveryService(
     IGameSessionResumeTicketStore tickets,
     IGameSessionRegistry sessions,
-    GameSessionCallbackProxyRegistry callbackProxies,
     IClientSessionRouteRegistrar routes,
     IEnumerable<IGameSessionLifecycleHandler> lifecycleHandlers) : IGameSessionHandshakeRecoveryService
 {
@@ -34,9 +33,6 @@ internal sealed class GameSessionHandshakeRecoveryService(
         if (session is null)
             return Lost("The resume ticket is unknown or expired.");
 
-        var callbackTypes = await sessions
-            .GetCallbackContractTypesAsync(session.Value, cancellationToken)
-            .ConfigureAwait(false);
         var decision = await sessions.TryResumeAsync(session.Value, cancellationToken).ConfigureAwait(false);
         if (decision.Status == SessionResumeStatus.Terminated)
             return new GameSessionRecoveryHandshakeResult
@@ -67,26 +63,18 @@ internal sealed class GameSessionHandshakeRecoveryService(
             return Lost(exception.Message);
         }
 
-        GameSessionSnapshot? activated = null;
-        foreach (var callbackType in callbackTypes)
-        {
-            var callback = callbackProxies.Create(callbackType, connection);
-            var result = await sessions.BindSessionCallbackAsync(
-                session.Value,
-                connection.ContextId,
-                callbackType,
-                callback,
-                cancellationToken).ConfigureAwait(false);
-            activated ??= result.SessionBecameActive;
-        }
+        var result = await sessions.BindSessionAsync(
+            session.Value,
+            connection.ContextId,
+            cancellationToken).ConfigureAwait(false);
+        var activated = result.SessionBecameActive;
 
         if (activated is not null)
         {
             await routes.RegisterAsync(activated.Session, cancellationToken).ConfigureAwait(false);
             var context = new GameSessionBindingContext(
                 activated.Session,
-                activated.ConnectionId,
-                activated.CallbackContractTypes);
+                activated.ConnectionId);
             foreach (var handler in lifecycleHandlers)
                 await handler.OnSessionBoundAsync(context, cancellationToken).ConfigureAwait(false);
         }

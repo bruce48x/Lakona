@@ -1,6 +1,7 @@
 using Lakona.Game.Abstractions;
 using Lakona.Game.Abstractions.Sessions;
 using Lakona.Game.Server.Sessions;
+using Lakona.Game.Server.Hosting;
 using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Serializer.Json;
@@ -40,14 +41,15 @@ public sealed class SessionTerminationNotificationRpcTests
         services.AddLakonaGameServer();
         await using var provider = services.BuildServiceProvider();
         var gameServer = provider.GetRequiredService<ILakonaGameServer>();
+        provider.GetRequiredService<GameSessionCallbackProxyRegistry>()
+            .Add(new TerminationCallbackBinder());
         await client.StartAsync(cancellationToken);
         await serverSession.StartAsync(cancellationToken);
-        var callback = new RawTerminationCallback(serverSession);
         var session = await gameServer.StartSessionAsync(
             "player-a",
             ConnectionId,
-            callback,
             cancellationToken);
+        provider.GetRequiredService<GameFrameworkConnectionRegistry>().Set(serverSession);
 
         await gameServer.TerminateSessionAsync(
             session,
@@ -75,6 +77,24 @@ public sealed class SessionTerminationNotificationRpcTests
                 GameSessionNotificationRpcIds.TerminatedNotificationId,
                 payload,
                 cancellationToken);
+        }
+    }
+
+    private sealed class TerminationCallbackBinder : LakonaRpcServiceBinder
+    {
+        public override void Bind(LakonaGameServerRpcContext context)
+        {
+        }
+
+        public override bool TryCreateCallback(
+            Type callbackContractType,
+            RpcSession session,
+            out object? callback)
+        {
+            callback = callbackContractType == typeof(ILakonaGameSessionCallback)
+                ? new RawTerminationCallback(session)
+                : null;
+            return callback is not null;
         }
     }
 

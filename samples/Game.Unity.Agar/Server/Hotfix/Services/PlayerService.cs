@@ -53,7 +53,6 @@ public sealed class PlayerService
 
     public async ValueTask<LeaderboardReply> GetLeaderboardAsync(HotfixServiceCall<LeaderboardRequest, IPlayerCallback> call)
     {
-        await BindControlCallbackAsync(call).ConfigureAwait(false);
         var req = call.Request;
 
         var topN = req.TopN <= 0 ? 10 : req.TopN;
@@ -128,18 +127,7 @@ public sealed class PlayerService
             return null;
         }
 
-        await BindControlCallbackAsync(call).ConfigureAwait(false);
-
         return currentSession.OwnerKey;
-    }
-
-    private static ValueTask BindControlCallbackAsync<TRequest, TCallback>(
-        HotfixServiceCall<TRequest, TCallback> call)
-        where TCallback : class
-    {
-        return call.CurrentSession is { } currentSession
-            ? call.GameServer.BindSessionAsync(currentSession, call.ConnectionId, call.Callback)
-            : default;
     }
 
     private Task EnqueuePlayerAsync(IServiceProvider services, string playerId, CancellationToken cancellationToken)

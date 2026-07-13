@@ -5,7 +5,7 @@ contracts to hotfix-backed server logic.
 
 For the hotfix loading model, dispatch publication, `BuildTag`, development
 reload, and production activation, see [Hotfix Architecture](architecture.md).
-For game session identity, callback binding, disconnect, resume, and
+For game session identity, connection binding, callback resolution, disconnect, resume, and
 termination semantics, see [Session Lifecycle](../session.md).
 
 ## Purpose
@@ -149,7 +149,7 @@ local to the hot method and resolve only the required dependencies from
 ## Session Lifecycle Boundary
 
 Generated binding code may call session-oriented game server APIs when a
-service needs to start a game session, bind callbacks, look up callbacks, or
+service needs to start a game session, publish callbacks, or
 terminate a session. This document does not define those lifecycle contracts.
 
 The boundary is:

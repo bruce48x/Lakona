@@ -7,11 +7,17 @@ namespace Lakona.Game.Server.Sessions;
 
 public sealed class LocalClientNotificationCommandDispatcher
 {
-    private readonly IGameSessionRegistry _sessions;
+    private readonly GameSessionCallbackResolver? _callbacks;
+    private readonly IGameSessionRegistry? _sessions;
 
     public LocalClientNotificationCommandDispatcher(IGameSessionRegistry sessions)
     {
         _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
+    }
+
+    internal LocalClientNotificationCommandDispatcher(GameSessionCallbackResolver callbacks)
+    {
+        _callbacks = callbacks ?? throw new ArgumentNullException(nameof(callbacks));
     }
 
     public async ValueTask<ClientNotificationStatus> DispatchAsync(
@@ -27,8 +33,9 @@ public sealed class LocalClientNotificationCommandDispatcher
             return ClientNotificationStatus.CallbackUnavailable;
         }
 
-        var callback = await GetCallbackAsync(callbackType, ToSessionKey(command), cancellationToken)
-            .ConfigureAwait(false);
+        var callback = _callbacks is not null
+            ? await _callbacks.ResolveAsync(callbackType, ToSessionKey(command), cancellationToken).ConfigureAwait(false)
+            : await GetLegacyCallbackAsync(callbackType, ToSessionKey(command), cancellationToken).ConfigureAwait(false);
         if (callback is null)
         {
             return ClientNotificationStatus.CallbackUnavailable;
@@ -78,7 +85,7 @@ public sealed class LocalClientNotificationCommandDispatcher
         }
     }
 
-    private async ValueTask<object?> GetCallbackAsync(
+    private async ValueTask<object?> GetLegacyCallbackAsync(
         Type callbackType,
         GameSessionKey session,
         CancellationToken cancellationToken)
@@ -87,13 +94,8 @@ public sealed class LocalClientNotificationCommandDispatcher
             .GetMethod(nameof(IGameSessionRegistry.GetCallbackAsync))!
             .MakeGenericMethod(callbackType);
         var valueTask = method.Invoke(_sessions, [session, cancellationToken]);
-        if (valueTask is null)
-        {
-            return null;
-        }
-
-        var asTask = valueTask.GetType().GetMethod("AsTask")!;
-        var task = (Task)asTask.Invoke(valueTask, null)!;
+        if (valueTask is null) return null;
+        var task = (Task)valueTask.GetType().GetMethod("AsTask")!.Invoke(valueTask, null)!;
         await task.ConfigureAwait(false);
         return task.GetType().GetProperty("Result")?.GetValue(task);
     }
