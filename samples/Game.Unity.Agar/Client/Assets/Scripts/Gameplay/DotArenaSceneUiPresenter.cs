@@ -51,7 +51,7 @@ namespace SampleClient.Gameplay
 
     internal sealed partial class DotArenaSceneUiPresenter
     {
-        private const int MatchRankingMaxRows = 6;
+        private const int MatchRankingMaxRows = 10;
 
         private Transform? _owner;
         private GameObject? _sceneUiRoot;
@@ -169,8 +169,7 @@ namespace SampleClient.Gameplay
             OverlayLayer = FindSceneUiRect("SceneUI/OverlayLayer");
             _hudPanel = FindSceneUiObject("SceneUI/HUDPanel");
             EnsureTopStatusPanel();
-            EnsureMatchRankingPanel();
-            _matchRankingPanel = FindSceneUiObject("SceneUI/MatchRankingPanel");
+            BindMatchRankingPanel();
             EnsureMatchmakingPanel();
             _matchmakingPanel = FindSceneUiObject("SceneUI/MatchmakingPanel");
             EnsureLobbyPanel();
@@ -190,8 +189,6 @@ namespace SampleClient.Gameplay
             _hudModeText = FindSceneUiText("SceneUI/HUDPanel/ModeText");
             _hudHintText = FindSceneUiText("SceneUI/HUDPanel/HintText");
             _hudCountdownText = FindSceneUiText("SceneUI/OverlayLayer/TopStatusPanel/CountdownText");
-            _matchRankingTitleText = FindSceneUiText("SceneUI/MatchRankingPanel/TitleText");
-            _matchRankingHeaderText = FindSceneUiText("SceneUI/MatchRankingPanel/HeaderText");
             EnsureTopStatusPanel();
 
             _entryTitleText = FindSceneUiText("SceneUI/LoginPanel/TitleText");

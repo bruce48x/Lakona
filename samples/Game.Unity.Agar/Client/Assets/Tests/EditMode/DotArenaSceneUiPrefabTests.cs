@@ -1,7 +1,10 @@
 #nullable enable
 
+using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using NUnit.Framework;
 using TMPro;
 using UnityEditor;
@@ -284,7 +287,129 @@ namespace SampleClient.Gameplay.Tests
             Assert.That(synchronizerSource, Does.Not.Contain("overlay.NameText.text = player.PlayerId"));
             Assert.That(callbackSource, Does.Not.Contain("realtimeConnection.Host"));
             Assert.That(callbackSource, Does.Not.Contain("Winner: {matchEnd.WinnerPlayerId}"));
-            Assert.That(presenterSource, Does.Contain("private const int MatchRankingMaxRows = 6;"));
+            Assert.That(presenterSource, Does.Contain("private const int MatchRankingMaxRows = 10;"));
+        }
+
+        [Test]
+        public void LiveRankingUsesAndContainsAllTenAuthoredRows()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(SceneUiPrefabPath);
+            Assert.That(prefab, Is.Not.Null);
+
+            Assert.That(prefab!.transform.Find("MatchRankingPanel")!.gameObject.activeSelf, Is.False);
+            AssertRect(prefab, "MatchRankingPanel", new Vector2(-18f, 0f), new Vector2(246f, 410f));
+            AssertAnchorsAndPivot(prefab, "MatchRankingPanel", new Vector2(1f, 0.5f), new Vector2(1f, 0.5f));
+            Assert.That(prefab.transform.Find("MatchRankingPanel")!.GetComponent<Image>().raycastTarget, Is.False);
+            AssertRect(prefab, "MatchRankingPanel/TitleText", new Vector2(0f, -16f), new Vector2(220f, 28f));
+            AssertRect(prefab, "MatchRankingPanel/HeaderText", new Vector2(0f, -48f), new Vector2(224f, 20f));
+            AssertAnchorsAndPivot(prefab, "MatchRankingPanel/TitleText", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f));
+            AssertAnchorsAndPivot(prefab, "MatchRankingPanel/HeaderText", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f));
+            AssertNoSiblingRectOverlap(prefab, "MatchRankingPanel", "TitleText", "HeaderText");
+
+            for (var rank = 1; rank <= 10; rank++)
+            {
+                var rowPath = $"MatchRankingPanel/Row{rank}";
+                AssertRect(prefab, rowPath, new Vector2(0f, -76f - ((rank - 1) * 29f)), new Vector2(224f, 24f));
+                AssertAnchorsAndPivot(prefab, rowPath, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f));
+                Assert.That(prefab.transform.Find(rowPath)!.GetComponent<Image>().raycastTarget, Is.False, rowPath);
+                AssertRect(prefab, $"{rowPath}/RankText", new Vector2(0f, 0f), new Vector2(40f, 22f));
+                AssertRect(prefab, $"{rowPath}/NameText", new Vector2(40f, 0f), new Vector2(124f, 22f));
+                AssertRect(prefab, $"{rowPath}/MassText", new Vector2(164f, 0f), new Vector2(60f, 22f));
+                AssertAnchorsAndPivot(prefab, $"{rowPath}/RankText", new Vector2(0f, 0.5f), new Vector2(0f, 0.5f));
+                AssertAnchorsAndPivot(prefab, $"{rowPath}/NameText", new Vector2(0f, 0.5f), new Vector2(0f, 0.5f));
+                AssertAnchorsAndPivot(prefab, $"{rowPath}/MassText", new Vector2(0f, 0.5f), new Vector2(0f, 0.5f));
+                AssertNoSiblingRectOverlap(prefab, rowPath, "RankText", "NameText");
+                AssertNoSiblingRectOverlap(prefab, rowPath, "NameText", "MassText");
+            }
+
+            var authoredLayout = CaptureMatchRankingLayout(prefab);
+
+            var instance = UnityEngine.Object.Instantiate(prefab);
+            try
+            {
+                var gameplayAssembly = typeof(SampleClient.Gameplay.DotArenaGame).Assembly;
+                var presenterType = gameplayAssembly.GetType("SampleClient.Gameplay.DotArenaSceneUiPresenter", throwOnError: true)!;
+                var entryType = gameplayAssembly.GetType("SampleClient.Gameplay.DotArenaMatchRankingEntry", throwOnError: true)!;
+                var presenter = System.Activator.CreateInstance(presenterType)!;
+                var panel = instance.transform.Find("MatchRankingPanel");
+                Assert.That(panel, Is.Not.Null);
+
+                presenterType
+                    .GetField("_matchRankingPanel", BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .SetValue(presenter, panel!.gameObject);
+                presenterType
+                    .GetMethod("BindMatchRankingPanelContents", BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .Invoke(presenter, null);
+
+                AssertMatchRankingLayoutUnchanged(instance, authoredLayout);
+
+                var entries = (IList)System.Activator.CreateInstance(typeof(System.Collections.Generic.List<>).MakeGenericType(entryType))!;
+                for (var rank = 1; rank <= 10; rank++)
+                {
+                    entries.Add(System.Activator.CreateInstance(entryType, rank, $"Player {rank}", 1000f - rank, rank == 10)!);
+                }
+
+                presenterType
+                    .GetMethod("RefreshMatchRankingRows", BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .Invoke(presenter, new object[] { entries, true });
+
+                AssertChildRectInsideParent(instance, "MatchRankingPanel", "MatchRankingPanel/Row10");
+                for (var rank = 8; rank <= 10; rank++)
+                {
+                    var row = panel.Find($"Row{rank}");
+                    Assert.That(row, Is.Not.Null);
+                    Assert.That(row!.gameObject.activeSelf, Is.True);
+                    Assert.That(row.Find("RankText").GetComponent<TMP_Text>().text, Is.EqualTo($"#{rank}"));
+                    Assert.That(row.Find("NameText").GetComponent<TMP_Text>().text, Is.EqualTo($"Player {rank}"));
+                    Assert.That(row.Find("MassText").GetComponent<TMP_Text>().text, Is.Not.EqualTo("0"));
+                }
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(instance);
+            }
+        }
+
+        private static Dictionary<string, string> CaptureMatchRankingLayout(GameObject root)
+        {
+            var layout = new Dictionary<string, string>();
+            AddRectState(layout, root, "MatchRankingPanel");
+            AddRectState(layout, root, "MatchRankingPanel/TitleText");
+            AddRectState(layout, root, "MatchRankingPanel/HeaderText");
+            for (var rank = 1; rank <= 10; rank++)
+            {
+                var rowPath = $"MatchRankingPanel/Row{rank}";
+                AddRectState(layout, root, rowPath);
+                AddRectState(layout, root, $"{rowPath}/RankText");
+                AddRectState(layout, root, $"{rowPath}/NameText");
+                AddRectState(layout, root, $"{rowPath}/MassText");
+            }
+
+            return layout;
+        }
+
+        private static void AddRectState(IDictionary<string, string> layout, GameObject root, string path)
+        {
+            var rect = root.transform.Find(path)?.GetComponent<RectTransform>();
+            Assert.That(rect, Is.Not.Null, path);
+            layout.Add(path, CaptureRectState(rect!));
+        }
+
+        private static void AssertMatchRankingLayoutUnchanged(GameObject root, IReadOnlyDictionary<string, string> authoredLayout)
+        {
+            foreach (var pair in authoredLayout)
+            {
+                var rect = root.transform.Find(pair.Key)?.GetComponent<RectTransform>();
+                Assert.That(rect, Is.Not.Null, pair.Key);
+                Assert.That(CaptureRectState(rect!), Is.EqualTo(pair.Value), $"Runtime binding changed authored layout: {pair.Key}");
+            }
+        }
+
+        private static string CaptureRectState(RectTransform rect)
+        {
+            return $"{rect.anchorMin.x:R},{rect.anchorMin.y:R};{rect.anchorMax.x:R},{rect.anchorMax.y:R};" +
+                   $"{rect.pivot.x:R},{rect.pivot.y:R};{rect.anchoredPosition.x:R},{rect.anchoredPosition.y:R};" +
+                   $"{rect.sizeDelta.x:R},{rect.sizeDelta.y:R}";
         }
 
         [Test]
@@ -419,6 +544,16 @@ namespace SampleClient.Gameplay.Tests
             Assert.That(rect.anchoredPosition.y, Is.EqualTo(anchoredPosition.y).Within(0.01f), $"{path} y");
             Assert.That(rect.sizeDelta.x, Is.EqualTo(sizeDelta.x).Within(0.01f), $"{path} width");
             Assert.That(rect.sizeDelta.y, Is.EqualTo(sizeDelta.y).Within(0.01f), $"{path} height");
+        }
+
+        private static void AssertAnchorsAndPivot(GameObject root, string path, Vector2 anchors, Vector2 pivot)
+        {
+            var rect = root.transform.Find(path)?.GetComponent<RectTransform>();
+
+            Assert.That(rect, Is.Not.Null, path);
+            Assert.That(rect!.anchorMin, Is.EqualTo(anchors), $"{path} anchorMin");
+            Assert.That(rect.anchorMax, Is.EqualTo(anchors), $"{path} anchorMax");
+            Assert.That(rect.pivot, Is.EqualTo(pivot), $"{path} pivot");
         }
 
         private static void AssertStretchRect(GameObject root, string path, Vector2 offsetMin, Vector2 offsetMax)

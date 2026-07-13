@@ -9,7 +9,7 @@ namespace SampleClient.Gameplay
 {
     internal sealed partial class DotArenaSceneUiPresenter
     {
-        private void EnsureMatchRankingPanel()
+        private void BindMatchRankingPanel()
         {
             if (_sceneUiRoot == null)
             {
@@ -23,45 +23,23 @@ namespace SampleClient.Gameplay
                 return;
             }
 
-            EnsureMatchRankingPanelContents();
-            _matchRankingPanel.SetActive(false);
+            BindMatchRankingPanelContents();
         }
 
-        private void EnsureMatchRankingPanelContents()
+        private void BindMatchRankingPanelContents()
         {
             if (_matchRankingPanel == null)
             {
                 return;
             }
 
-            var panelRect = (RectTransform)_matchRankingPanel.transform;
-            panelRect.anchorMin = Vector2.one;
-            panelRect.anchorMax = Vector2.one;
-            panelRect.pivot = Vector2.one;
-            panelRect.anchoredPosition = new Vector2(-18f, -18f);
-            panelRect.sizeDelta = new Vector2(220f, 246f);
-
-            _matchRankingTitleText = EnsureMatchRankingText(
-                _matchRankingPanel.transform,
-                "TitleText",
-                new Vector2(0f, -18f),
-                new Vector2(196f, 28f),
-                18f,
-                FontStyles.Bold,
-                TextAlignmentOptions.Center);
-            _matchRankingHeaderText = EnsureMatchRankingText(
-                _matchRankingPanel.transform,
-                "HeaderText",
-                new Vector2(0f, -52f),
-                new Vector2(198f, 20f),
-                12f,
-                FontStyles.Bold,
-                TextAlignmentOptions.Center);
+            _matchRankingTitleText = BindMatchRankingText(_matchRankingPanel.transform, "TitleText");
+            _matchRankingHeaderText = BindMatchRankingText(_matchRankingPanel.transform, "HeaderText");
 
             _matchRankingRows.Clear();
             for (var i = 0; i < MatchRankingMaxRows; i++)
             {
-                var row = EnsureMatchRankingRow(i);
+                var row = BindMatchRankingRow(i);
                 if (row != null)
                 {
                     _matchRankingRows.Add(row);
@@ -69,14 +47,7 @@ namespace SampleClient.Gameplay
             }
         }
 
-        private TMP_Text? EnsureMatchRankingText(
-            Transform parent,
-            string name,
-            Vector2 anchoredPosition,
-            Vector2 size,
-            float fontSize,
-            FontStyles fontStyles,
-            TextAlignmentOptions alignment)
+        private TMP_Text? BindMatchRankingText(Transform parent, string name)
         {
             var target = parent.Find(name);
             if (target == null || !target.TryGetComponent<TMP_Text>(out var text))
@@ -85,12 +56,10 @@ namespace SampleClient.Gameplay
                 return null;
             }
 
-            DotArenaUiRect.TopCenter(anchoredPosition, size).Apply(text.rectTransform);
-            DotArenaUiStyleCatalog.ApplyText(text, DotArenaUiStyleCatalog.RankingText(fontSize, fontStyles, alignment));
             return text;
         }
 
-        private MatchRankingRowUi? EnsureMatchRankingRow(int index)
+        private MatchRankingRowUi? BindMatchRankingRow(int index)
         {
             var rowName = $"Row{index + 1}";
             var rowTransform = _matchRankingPanel!.transform.Find(rowName);
@@ -101,13 +70,6 @@ namespace SampleClient.Gameplay
             }
 
             var rowObject = rowTransform.gameObject;
-            var rect = (RectTransform)rowObject.transform;
-            rect.anchorMin = new Vector2(0.5f, 1f);
-            rect.anchorMax = new Vector2(0.5f, 1f);
-            rect.pivot = new Vector2(0.5f, 1f);
-            rect.anchoredPosition = new Vector2(0f, -80f - (index * 27f));
-            rect.sizeDelta = new Vector2(196f, 23f);
-
             var background = rowObject.GetComponent<Image>();
             if (background == null)
             {
@@ -115,31 +77,15 @@ namespace SampleClient.Gameplay
                 return null;
             }
 
-            background.raycastTarget = false;
-
-            var rankText = EnsureMatchRankingRowText(rowObject.transform, "RankText", 0f, 34f, TextAlignmentOptions.Left);
-            var nameText = EnsureMatchRankingRowText(rowObject.transform, "NameText", 34f, 104f, TextAlignmentOptions.Left);
-            var massText = EnsureMatchRankingRowText(rowObject.transform, "MassText", 140f, 52f, TextAlignmentOptions.Right);
+            var rankText = BindMatchRankingText(rowObject.transform, "RankText");
+            var nameText = BindMatchRankingText(rowObject.transform, "NameText");
+            var massText = BindMatchRankingText(rowObject.transform, "MassText");
             if (rankText == null || nameText == null || massText == null)
             {
                 return null;
             }
 
             return new MatchRankingRowUi(rowObject, background, rankText, nameText, massText);
-        }
-
-        private TMP_Text? EnsureMatchRankingRowText(Transform parent, string name, float x, float width, TextAlignmentOptions alignment)
-        {
-            var target = parent.Find(name);
-            if (target == null || !target.TryGetComponent<TMP_Text>(out var text))
-            {
-                WarnMissingAuthoredSceneUi($"{BuildSceneUiPath(parent)}/{name}");
-                return null;
-            }
-
-            DotArenaUiRect.LeftMiddle(new Vector2(x, 0f), new Vector2(width, 21f)).Apply(text.rectTransform);
-            DotArenaUiStyleCatalog.ApplyText(text, DotArenaUiStyleCatalog.RankingText(12f, FontStyles.Bold, alignment));
-            return text;
         }
 
         private void EnsureTopStatusPanel()
