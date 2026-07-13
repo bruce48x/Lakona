@@ -204,6 +204,10 @@ Unity and Godot render the arena entirely from engine-provided drawing primitive
 the generated project contains no external art assets. The Console client provides
 headless smoke and load flows for the same contracts.
 
+Generated Unity, Unity-CN, and Tuanjie desktop players start in a resizable
+800×600 window. The default is stored in `Client/ProjectSettings/ProjectSettings.asset`
+so it applies to player builds without runtime resolution overrides.
+
 The generated arena must use the core Lakona.Game runtime model. RPC enters a
 generated hotfix-backed service binding, and the current `Server/Hotfix`
 implementation talks to the pre-created `GameWorldActor` state shell. The actor

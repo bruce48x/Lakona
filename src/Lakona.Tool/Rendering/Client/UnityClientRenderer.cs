@@ -22,6 +22,7 @@ internal sealed class UnityClientRenderer : IClientRenderer
 
         builder.AddFile("Client/Packages/manifest.json", RenderManifest(spec), FileWriteMode.Replace, GeneratedFileKind.Json);
         builder.AddFile("Client/ProjectSettings/ProjectVersion.txt", RenderProjectVersion(spec.ClientEngine), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/ProjectSettings/ProjectSettings.asset", UnityClientAssetTemplates.RenderPlayerSettings(spec.Name), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Client/Assets/packages.config", RenderPackagesConfig(spec), FileWriteMode.Replace, GeneratedFileKind.Xml);
         builder.AddFile("Client/Assets/NuGet.config", RenderNuGetConfig(spec.ClientEngine), FileWriteMode.Replace, GeneratedFileKind.Xml);
         AddClientCodeFiles(spec, builder);

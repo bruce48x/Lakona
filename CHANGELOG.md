@@ -6,12 +6,14 @@ date and package versions of important releases are retained.
 
 ## 2026-07-13 — Player-focused generated arena
 
-**Key releases:** `Lakona.Tool 0.25.11`.
+**Key releases:** `Lakona.Tool 0.25.12`.
 
 - Changed generated arena snapshots from client polling to server push resolved
   through each player's current Game Session, without storing callback objects.
 - Added direction-aware projectile rendering and player-following cameras for
   generated Unity, Tuanjie, and Godot clients.
+- Set generated Unity, Unity-CN, and Tuanjie desktop players to start in an
+  800×600 resizable window.
 
 ## 2026-07-13 — Discovered Hotfix host assembly identity
 

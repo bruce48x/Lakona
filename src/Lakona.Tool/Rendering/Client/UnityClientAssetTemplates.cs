@@ -399,6 +399,27 @@ internal static class UnityClientAssetTemplates
         """;
     }
 
+    public static string RenderPlayerSettings(string productName)
+    {
+        var yamlProductName = productName.Replace("'", "''", StringComparison.Ordinal);
+        return $$"""
+        %YAML 1.1
+        %TAG !u! tag:unity3d.com,2011:
+        --- !u!129 &1
+        PlayerSettings:
+          m_ObjectHideFlags: 0
+          serializedVersion: 26
+          companyName: Lakona
+          productName: '{{yamlProductName}}'
+          defaultScreenWidth: 800
+          defaultScreenHeight: 600
+          defaultIsNativeResolution: 0
+          runInBackground: 1
+          resizableWindow: 1
+          fullscreenMode: 3
+        """;
+    }
+
     public static string RenderLoginUxml()
     {
         return """

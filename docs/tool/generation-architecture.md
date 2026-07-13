@@ -489,6 +489,8 @@ must not reference the hotfix project as a normal compile dependency.
 
 - `Client/Packages/manifest.json`
 - `Client/ProjectSettings/ProjectVersion.txt`
+- `Client/ProjectSettings/ProjectSettings.asset`, including the default 800×600
+  windowed desktop player configuration
 - `Client/Assets/packages.config`
 - `Client/Assets/NuGet.config`
 - arena login, input, snapshot, and procedural rendering scripts

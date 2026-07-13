@@ -19,6 +19,10 @@ public sealed class ClientRendererTests
         AssertPath(plan, "Client/Assets/Scenes/Game.unity");
         AssertPath(plan, "Client/Assets/UI/Game.uxml");
         AssertPath(plan, "Client/Assets/UI/Game.uss");
+        var playerSettings = AssertPath(plan, "Client/ProjectSettings/ProjectSettings.asset").Content;
+        Assert.Contains("defaultScreenWidth: 800", playerSettings, StringComparison.Ordinal);
+        Assert.Contains("defaultScreenHeight: 600", playerSettings, StringComparison.Ordinal);
+        Assert.Contains("fullscreenMode: 3", playerSettings, StringComparison.Ordinal);
         var controller = AssertPath(plan, "Client/Assets/Scripts/Game/GameController.cs").Content;
         AssertValidCSharp(controller, LanguageVersion.CSharp9);
         Assert.Contains("private bool _loginPending", controller, StringComparison.Ordinal);
