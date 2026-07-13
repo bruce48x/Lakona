@@ -699,7 +699,7 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Contains("\"Transport\": \"kcp\"", battle, StringComparison.Ordinal);
         Assert.Contains("\"Serializer\": \"memorypack\"", battle, StringComparison.Ordinal);
         Assert.Contains("\"Host\": \"0.0.0.0\"", battle, StringComparison.Ordinal);
-        Assert.Contains("\"AdvertisedHost\": \"battle-1\"", battle, StringComparison.Ordinal);
+        Assert.Contains("\"AdvertisedHost\": \"${AGAR_BATTLE_ADVERTISED_HOST:-127.0.0.1}\"", battle, StringComparison.Ordinal);
         Assert.Contains("\"Port\": 20001", battle, StringComparison.Ordinal);
         Assert.Contains("\"RpcServices\": [ \"battle\" ]", battle, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.0.0.3:21003", battle, StringComparison.Ordinal);

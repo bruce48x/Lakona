@@ -86,7 +86,7 @@ services:
             "Transport": "kcp",
             "Serializer": "memorypack",
             "Host": "0.0.0.0",
-            "AdvertisedHost": "battle-1",
+            "AdvertisedHost": "${AGAR_BATTLE_ADVERTISED_HOST:-127.0.0.1}",
             "Port": 20001,
             "ReliablePush": false,
             "RpcServices": [ "battle" ]

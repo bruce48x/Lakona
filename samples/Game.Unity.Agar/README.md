@@ -100,6 +100,8 @@ dotnet run --project Server/App/Server.App.csproj
 
 三节点 sample 拓扑可通过 `docker-compose.yml` 启动 `data-1`、`gateway-1`、`battle-1`、Postgres 和 Redis。`data-1` 使用 `Lakona:Cluster:Directory` 把 cluster node directory 接到 Postgres，并在 data 进程内提供共享 route directory；Agar 自身持久化配置位于 `Agar:Persistence`。`gateway-1` 和 `battle-1` 通过 `Lakona:Cluster:Seeds` 使用 seeded directory clients 访问 data 节点。远程客户端通知通过 battle/data 侧的 `ClusterClientNotificationDispatcher` 调用 gateway cluster endpoint 上的 binder，再由 gateway 的本地 session callback 发给客户端。当前阶段 Postgres 用于 cluster membership；route directory 是 sample V1 的 data-local in-memory 实现；完整 gameplay state 持久化和 Redis 排行榜索引仍是后续 sample 工作，不应把回调对象或会话 callback 状态写入 Postgres/Redis。
 
+直接在本机运行 `docker compose up -d --build` 时，battle KCP endpoint 默认向宿主机客户端广告 `127.0.0.1:20001`。如果 Unity 运行在另一台机器，可在启动前设置 `AGAR_BATTLE_ADVERTISED_HOST` 为 Docker 主机可达的 IP 或 DNS 名称。
+
 ### 本地三节点一键验收
 
 本地开发机可以用脚本启动真实三节点拓扑并通过 Unity PlayMode 测试驱动现有客户端：
@@ -124,7 +126,7 @@ pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 -UnityPath "C:\Pr
 - `-SkipBuild`：复用已有镜像，不让 Docker Compose 重新 build。
 - `-KeepEnvironment`：测试结束后保留容器和 volume，便于排查。
 
-脚本只把 `gateway-1` 和 `battle-1` 的客户端广告地址覆盖为 `127.0.0.1`，让宿主机上的 Unity 客户端可以连接；cluster endpoint 和 seed 仍然走 Compose 网络内的节点地址。
+脚本会确保 `gateway-1` 和 `battle-1` 的客户端广告地址都是 `127.0.0.1`，让宿主机上的 Unity 客户端可以连接；cluster endpoint 和 seed 仍然走 Compose 网络内的节点地址。
 
 失败时脚本会把 Unity 日志、测试结果和 Docker Compose 日志写到 `.tmp/agar-three-node/`，主要包括 `TestResults.xml`、`unity-editor.log`、`docker-compose.log` 和 `docker-compose.ps.json`。脚本会在失败摘要中标出阶段，例如 Docker 不可用、Unity 未找到、Postgres 未 healthy、gateway 端口不可达、登录未进入多人大厅、KCP 实时连接未 attach、或未收到 world state。
 
