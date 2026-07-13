@@ -2,7 +2,7 @@ namespace Lakona.Game.Server.Guardrails;
 
 public sealed record LakonaGameResolvedObservability(
     LakonaGameResolvedValue<bool> LocalAdminEnabled,
-    LakonaGameResolvedValue<string> LocalHttpHost,
+    LakonaGameResolvedValue<string> ManagementHttpHost,
     LakonaGameResolvedValue<bool> LocalAdminRequireLoopback,
     LakonaGameResolvedValue<bool> DetailEnabled,
     LakonaGameResolvedValue<bool> FileLoggingEnabled,

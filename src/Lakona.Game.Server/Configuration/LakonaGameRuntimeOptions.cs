@@ -53,6 +53,11 @@ public sealed class LakonaGameRuntimeOptions
     public LakonaHealthOptions Health { get; init; } = LakonaHealthOptions.Defaults();
 
     /// <summary>
+    /// Gets the shared management-plane listener settings used by health and local-admin routes.
+    /// </summary>
+    public LakonaManagementOptions Management { get; init; } = LakonaManagementOptions.Defaults();
+
+    /// <summary>
     /// Gets server-owned game heartbeat timing policy.
     /// </summary>
     public LakonaGameHeartbeatOptions Heartbeat { get; init; } = LakonaGameHeartbeatOptions.Defaults();
@@ -75,6 +80,12 @@ public sealed class LakonaGameRuntimeOptions
                 "Lakona:StartupActors was removed. Register Startup Actors in HotfixStartup.ConfigureActors with RegisterStartup<TActor, TKey>(selector), and use Lakona:ActorHosts to choose capable nodes.");
         }
 
+        if (section.GetSection("Health").GetSection("Http").Exists())
+        {
+            throw new InvalidOperationException(
+                "Lakona:Health:Http was removed. Configure the shared listener under Lakona:Management:Http, and configure health route policy under Lakona:Health.");
+        }
+
         return new LakonaGameRuntimeOptions
         {
             Node = BindNode(section.GetSection("Node")),
@@ -85,6 +96,7 @@ public sealed class LakonaGameRuntimeOptions
             Sessions = LakonaSessionHostingOptions.FromConfiguration(section.GetSection("Sessions")),
             ReliablePush = BindReliablePush(section.GetSection("ReliablePush")),
             Health = LakonaHealthOptions.FromConfiguration(section.GetSection("Health")),
+            Management = LakonaManagementOptions.FromConfiguration(section.GetSection("Management")),
             Observability = LakonaObservabilityOptions.FromConfiguration(configuration)
         };
     }
@@ -386,7 +398,9 @@ public sealed class LakonaGameHeartbeatOptions
 
 public sealed class LakonaHealthOptions
 {
-    public LakonaHealthHttpOptions Http { get; init; } = LakonaHealthHttpOptions.Defaults();
+    public bool Enabled { get; init; }
+
+    public bool RequireLoopback { get; init; } = true;
 
     public static LakonaHealthOptions Defaults()
     {
@@ -397,34 +411,47 @@ public sealed class LakonaHealthOptions
     {
         return new LakonaHealthOptions
         {
-            Http = LakonaHealthHttpOptions.FromConfiguration(section.GetSection("Http"))
+            Enabled = LakonaConfigurationReader.ReadBool(section, "Enabled", false),
+            RequireLoopback = LakonaConfigurationReader.ReadBool(section, "RequireLoopback", true)
         };
     }
 }
 
-public sealed class LakonaHealthHttpOptions
+public sealed class LakonaManagementOptions
 {
-    public bool Enabled { get; init; }
+    public LakonaManagementHttpOptions Http { get; init; } = LakonaManagementHttpOptions.Defaults();
 
+    public static LakonaManagementOptions Defaults()
+    {
+        return new LakonaManagementOptions();
+    }
+
+    public static LakonaManagementOptions FromConfiguration(IConfigurationSection section)
+    {
+        return new LakonaManagementOptions
+        {
+            Http = LakonaManagementHttpOptions.FromConfiguration(section.GetSection("Http"))
+        };
+    }
+}
+
+public sealed class LakonaManagementHttpOptions
+{
     public string Host { get; init; } = "127.0.0.1";
 
     public int Port { get; init; } = 20080;
 
-    public bool RequireLoopback { get; init; } = true;
-
-    public static LakonaHealthHttpOptions Defaults()
+    public static LakonaManagementHttpOptions Defaults()
     {
-        return new LakonaHealthHttpOptions();
+        return new LakonaManagementHttpOptions();
     }
 
-    public static LakonaHealthHttpOptions FromConfiguration(IConfiguration section)
+    public static LakonaManagementHttpOptions FromConfiguration(IConfiguration section)
     {
-        return new LakonaHealthHttpOptions
+        return new LakonaManagementHttpOptions
         {
-            Enabled = LakonaConfigurationReader.ReadBool(section, "Enabled", false),
             Host = LakonaConfigurationReader.ReadString(section, "Host", "127.0.0.1"),
-            Port = LakonaConfigurationReader.ReadInt(section, "Port", 20080),
-            RequireLoopback = LakonaConfigurationReader.ReadBool(section, "RequireLoopback", true)
+            Port = LakonaConfigurationReader.ReadInt(section, "Port", 20080)
         };
     }
 }

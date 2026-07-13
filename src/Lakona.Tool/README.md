@@ -98,13 +98,15 @@ The default development appsettings file has this shape:
     "Hotfix": {
       "DebugWatcher": "On"
     },
-    "Health": {
+    "Management": {
       "Http": {
-        "Enabled": true,
         "Host": "127.0.0.1",
-        "Port": 20080,
-        "RequireLoopback": true
+        "Port": 20080
       }
+    },
+    "Health": {
+      "Enabled": true,
+      "RequireLoopback": true
     },
     "Endpoints": [
       {

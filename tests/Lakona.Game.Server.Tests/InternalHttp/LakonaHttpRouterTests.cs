@@ -1,6 +1,7 @@
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Health;
 using Lakona.Game.Server.InternalHttp;
+using Lakona.Game.Server.Management;
 using Lakona.Game.Server.Observability;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -36,20 +37,18 @@ public sealed class LakonaHttpRouterTests
     }
 
     [Fact]
-    public async Task Health_registration_injects_router_logger()
+    public async Task Management_registration_injects_router_logger()
     {
         var logger = new RecordingLogger<LakonaHttpRouter>();
         var services = new ServiceCollection();
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
-            Health = new LakonaHealthOptions
-            {
-                Http = new LakonaHealthHttpOptions { Enabled = true }
-            }
+            Health = new LakonaHealthOptions { Enabled = true }
         });
         services.AddSingleton(LakonaObservabilityOptions.Defaults());
         services.AddSingleton<ILogger<LakonaHttpRouter>>(logger);
         services.AddLakonaGameHealth();
+        services.AddLakonaManagement();
         services.RemoveAll<ILakonaHealthHttpRoute>();
         services.AddSingleton<ILakonaHealthHttpRoute>(new ThrowingHealthRoute());
         using var provider = services.BuildServiceProvider();
@@ -66,16 +65,13 @@ public sealed class LakonaHttpRouterTests
     }
 
     [Fact]
-    public async Task Health_registration_omits_health_routes_when_health_http_is_disabled()
+    public async Task Management_registration_omits_health_routes_when_health_is_disabled()
     {
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
-            Health = new LakonaHealthOptions
-            {
-                Http = new LakonaHealthHttpOptions { Enabled = false }
-            }
+            Health = new LakonaHealthOptions { Enabled = false }
         });
         services.AddSingleton(new LakonaObservabilityOptions
         {
@@ -86,6 +82,7 @@ public sealed class LakonaHttpRouterTests
             }
         });
         services.AddLakonaGameHealth();
+        services.AddLakonaManagement();
         services.RemoveAll<ILakonaHealthHttpRoute>();
         services.AddSingleton<ILakonaHealthHttpRoute>(new TestHealthRoute());
         using var provider = services.BuildServiceProvider();

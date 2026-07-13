@@ -20,7 +20,7 @@ public sealed class ObservabilityGuardrailTests
 
         var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA130");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
-        Assert.Contains("Lakona:Health:Http:Host", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("Lakona:Management:Http:Host", diagnostic.Message, StringComparison.Ordinal);
         Assert.Contains("127.0.0.1", diagnostic.Repair, StringComparison.Ordinal);
     }
 
@@ -258,7 +258,7 @@ public sealed class ObservabilityGuardrailTests
     {
         return new LakonaGameResolvedObservability(
             LocalAdminEnabled: new LakonaGameResolvedValue<bool>(localAdminEnabled, LakonaGameValueSource.Configuration, "Lakona:Observability:LocalAdmin:Enabled"),
-            LocalHttpHost: new LakonaGameResolvedValue<string>(localHttpHost, LakonaGameValueSource.Configuration, "Lakona:Health:Http:Host"),
+            ManagementHttpHost: new LakonaGameResolvedValue<string>(localHttpHost, LakonaGameValueSource.Configuration, "Lakona:Management:Http:Host"),
             LocalAdminRequireLoopback: new LakonaGameResolvedValue<bool>(localAdminRequireLoopback, LakonaGameValueSource.Configuration, "Lakona:Observability:LocalAdmin:RequireLoopback"),
             DetailEnabled: new LakonaGameResolvedValue<bool>(detailEnabled, LakonaGameValueSource.Configuration, "Lakona:Observability:Diagnostics:DetailEnabled"),
             FileLoggingEnabled: new LakonaGameResolvedValue<bool>(fileLoggingEnabled, LakonaGameValueSource.Configuration, "Lakona:Observability:Logging:File:Enabled"),

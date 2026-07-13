@@ -42,6 +42,13 @@ public sealed class ServerAppRendererTests
         using var document = JsonDocument.Parse(AssertPath(plan, "Server/App/appsettings.json").Content);
         var lakona = document.RootElement.GetProperty("Lakona");
         Assert.Equal(new[] { "gameWorld" }, lakona.GetProperty("ActorHosts").EnumerateArray().Select(value => value.GetString()).ToArray());
+        var managementHttp = lakona.GetProperty("Management").GetProperty("Http");
+        Assert.Equal("127.0.0.1", managementHttp.GetProperty("Host").GetString());
+        Assert.Equal(20080, managementHttp.GetProperty("Port").GetInt32());
+        var health = lakona.GetProperty("Health");
+        Assert.True(health.GetProperty("Enabled").GetBoolean());
+        Assert.True(health.GetProperty("RequireLoopback").GetBoolean());
+        Assert.False(health.TryGetProperty("Http", out _));
         var endpoint = lakona.GetProperty("Endpoints")[0];
         Assert.Equal("kcp", endpoint.GetProperty("Transport").GetString());
         Assert.Equal("memorypack", endpoint.GetProperty("Serializer").GetString());

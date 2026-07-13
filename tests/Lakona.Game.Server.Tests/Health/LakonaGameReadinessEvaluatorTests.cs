@@ -71,7 +71,7 @@ public sealed class LakonaGameReadinessEvaluatorTests
         var runtime = RuntimeFromConfiguration(
             new Dictionary<string, string?>
             {
-                ["Lakona:Health:Http:Host"] = "0.0.0.0",
+                ["Lakona:Management:Http:Host"] = "0.0.0.0",
                 ["Lakona:Observability:Diagnostics:DetailEnabled"] = "true"
             });
 
@@ -94,8 +94,8 @@ public sealed class LakonaGameReadinessEvaluatorTests
                 ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
                 ["Lakona:Endpoints:0:Port"] = "20000",
                 ["Lakona:Endpoints:0:Path"] = "/ws",
-                ["Lakona:Health:Http:Enabled"] = "true",
-                ["Lakona:Health:Http:Host"] = "0.0.0.0",
+                ["Lakona:Health:Enabled"] = "true",
+                ["Lakona:Management:Http:Host"] = "0.0.0.0",
                 ["Lakona:Observability:LocalAdmin:Enabled"] = "true",
                 ["Lakona:Observability:LocalAdmin:RequireLoopback"] = "false",
                 ["Lakona:Observability:Diagnostics:DetailEnabled"] = "true"

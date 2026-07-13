@@ -36,33 +36,48 @@ public sealed class LakonaGameRuntimeOptionsTests
     }
 
     [Fact]
-    public void FromConfiguration_defaults_health_http_probe_hosting()
+    public void FromConfiguration_defaults_management_listener_and_health_policy()
     {
         var options = LakonaGameRuntimeOptions.FromConfiguration(new ConfigurationBuilder().Build());
 
-        Assert.False(options.Health.Http.Enabled);
-        Assert.Equal("127.0.0.1", options.Health.Http.Host);
-        Assert.Equal(20080, options.Health.Http.Port);
-        Assert.True(options.Health.Http.RequireLoopback);
+        Assert.False(options.Health.Enabled);
+        Assert.True(options.Health.RequireLoopback);
+        Assert.Equal("127.0.0.1", options.Management.Http.Host);
+        Assert.Equal(20080, options.Management.Http.Port);
     }
 
     [Fact]
-    public void FromConfiguration_binds_health_http_probe_hosting()
+    public void FromConfiguration_binds_management_listener_and_health_policy()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>
         {
-            ["Lakona:Health:Http:Enabled"] = "true",
-            ["Lakona:Health:Http:Host"] = "0.0.0.0",
-            ["Lakona:Health:Http:Port"] = "20180",
-            ["Lakona:Health:Http:RequireLoopback"] = "false"
+            ["Lakona:Health:Enabled"] = "true",
+            ["Lakona:Health:RequireLoopback"] = "false",
+            ["Lakona:Management:Http:Host"] = "0.0.0.0",
+            ["Lakona:Management:Http:Port"] = "20180"
         });
 
         var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
 
-        Assert.True(options.Health.Http.Enabled);
-        Assert.Equal("0.0.0.0", options.Health.Http.Host);
-        Assert.Equal(20180, options.Health.Http.Port);
-        Assert.False(options.Health.Http.RequireLoopback);
+        Assert.True(options.Health.Enabled);
+        Assert.False(options.Health.RequireLoopback);
+        Assert.Equal("0.0.0.0", options.Management.Http.Host);
+        Assert.Equal(20180, options.Management.Http.Port);
+    }
+
+    [Fact]
+    public void FromConfiguration_rejects_removed_health_http_section()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:Health:Http:Port"] = "20180"
+        });
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            LakonaGameRuntimeOptions.FromConfiguration(configuration));
+
+        Assert.Contains("Lakona:Health:Http was removed", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Lakona:Management:Http", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]

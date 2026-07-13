@@ -73,13 +73,15 @@ The default configuration should be:
     "Hotfix": {
       "DebugWatcher": "On"
     },
-    "Health": {
+    "Management": {
       "Http": {
-        "Enabled": true,
         "Host": "127.0.0.1",
-        "Port": 20080,
-        "RequireLoopback": true
+        "Port": 20080
       }
+    },
+    "Health": {
+      "Enabled": true,
+      "RequireLoopback": true
     },
     "Endpoints": [
       {
@@ -109,13 +111,15 @@ For WebSocket transport, the generated endpoint includes the path:
     "Hotfix": {
       "DebugWatcher": "On"
     },
-    "Health": {
+    "Management": {
       "Http": {
-        "Enabled": true,
         "Host": "127.0.0.1",
-        "Port": 20080,
-        "RequireLoopback": true
+        "Port": 20080
       }
+    },
+    "Health": {
+      "Enabled": true,
+      "RequireLoopback": true
     },
     "Endpoints": [
       {
@@ -239,18 +243,21 @@ lower-level generated `RpcClient`.
 
 ## Health Endpoints
 
-Generated projects should enable the independent health HTTP host on loopback:
+Generated projects should bind the management HTTP listener on loopback and
+enable health routes independently:
 
 ```json
 {
   "Lakona": {
-    "Health": {
+    "Management": {
       "Http": {
-        "Enabled": true,
         "Host": "127.0.0.1",
-        "Port": 20080,
-        "RequireLoopback": true
+        "Port": 20080
       }
+    },
+    "Health": {
+      "Enabled": true,
+      "RequireLoopback": true
     }
   }
 }

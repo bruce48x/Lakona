@@ -85,9 +85,9 @@ Lakona emits logs, metrics, and traces through standard .NET diagnostics:
 
 Local admin diagnostics are disabled by default. Enable them explicitly with
 `Lakona:Observability:LocalAdmin:Enabled=true` for processes that should expose
-loopback diagnostics routes on the health HTTP listener.
+loopback diagnostics routes on the management HTTP listener.
 
-Diagnostics routes share the health HTTP port (default `20080`) and include
+Diagnostics and health routes share the management HTTP port (default `20080`) and include
 `/_lakona/diagnostics/summary`, `/_lakona/diagnostics/events`, and
 `/_lakona/diagnostics/netstat`.
 
@@ -235,7 +235,7 @@ matchmaking policy, persistence schema, or gameplay DTOs.
 ## Optional Runtime Capabilities
 
 - Runtime validation: expose `/_lakona/health/live` and
-  `/_lakona/health/ready` through `Lakona:Health:Http`.
+  `/_lakona/health/ready` through `Lakona:Management:Http`, with route policy under `Lakona:Health`.
 - Message recording: configure the framework default recorder to store recent
   actor dispatch records in an in-memory ring buffer.
 - Cluster notifications: use `IClientNotifications` from business nodes; the

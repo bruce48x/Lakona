@@ -112,9 +112,36 @@ configuration only declares which actor kinds the node is capable of hosting.
 ## Validation
 
 Readiness validation checks node identity, endpoints, cluster endpoint shape,
-actor host names, hotfix source, heartbeat policy, and
-observability settings. Enable the independent health HTTP host and request the
-ready endpoint from a live process:
+actor host names, hotfix source, heartbeat policy, and observability settings.
+The shared management HTTP listener is configured independently from the routes
+it serves:
+
+```json
+{
+  "Lakona": {
+    "Management": {
+      "Http": {
+        "Host": "127.0.0.1",
+        "Port": 20080
+      }
+    },
+    "Health": {
+      "Enabled": true,
+      "RequireLoopback": true
+    },
+    "Observability": {
+      "LocalAdmin": {
+        "Enabled": true,
+        "RequireLoopback": true
+      }
+    }
+  }
+}
+```
+
+`Lakona:Management:Http` owns the shared listener address. `Lakona:Health` and
+`Lakona:Observability:LocalAdmin` independently own route enablement and access
+policy. Request the ready endpoint from a live process:
 
 ```bash
 curl http://127.0.0.1:20080/_lakona/health/ready
@@ -122,9 +149,9 @@ curl http://127.0.0.1:20080/_lakona/health/ready
 
 The framework emits `Lakona server started successfully. NodeId={NodeId}.` only
 after Startup replicas and lifecycle callbacks complete, cluster registration
-succeeds, and every enabled RPC, cluster, and health listener has bound
-successfully. When enabled, local-admin routes share the health listener rather
-than opening an additional port.
+succeeds, and every enabled RPC, cluster, and management listener has bound
+successfully. Health and local-admin routes share that listener rather than
+opening separate ports.
 
 The validation boundary should report configuration problems before runtime
 listeners are opened.

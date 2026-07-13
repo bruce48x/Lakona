@@ -1,6 +1,6 @@
-namespace Lakona.Game.Server.Health;
+namespace Lakona.Game.Server.Management;
 
-internal sealed class LakonaHealthHttpRequestTracker
+internal sealed class LakonaManagementHttpRequestTracker
 {
     private readonly object _lock = new();
     private readonly HashSet<Task> _inFlight = [];

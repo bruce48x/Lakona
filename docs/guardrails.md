@@ -18,7 +18,7 @@ Readiness validation checks:
 - hotfix assembly source
 - observability configuration and required integrations
 
-Run readiness validation through the independent health HTTP endpoint:
+Run readiness validation through the health route on the management HTTP listener:
 
 ```bash
 curl http://127.0.0.1:20080/_lakona/health/ready

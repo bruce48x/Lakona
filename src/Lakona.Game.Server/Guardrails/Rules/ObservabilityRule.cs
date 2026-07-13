@@ -9,17 +9,17 @@ public sealed class ObservabilityRule : ILakonaGameValidationRule
     public IEnumerable<LakonaGameDiagnostic> Validate(LakonaGameResolvedRuntime runtime)
     {
         var observability = runtime.Observability;
-        var localHttpIsLoopback = IsLoopbackHost(observability.LocalHttpHost.Value);
+        var managementHttpIsLoopback = IsLoopbackHost(observability.ManagementHttpHost.Value);
 
         if (observability.LocalAdminEnabled.Value
             && observability.LocalAdminRequireLoopback.Value
-            && !localHttpIsLoopback)
+            && !managementHttpIsLoopback)
         {
             yield return new LakonaGameDiagnostic(
                 "LAKONA130",
                 LakonaGameDiagnosticSeverity.Error,
-                "Lakona:Health:Http:Host binds local admin to a non-loopback host while Lakona:Observability:LocalAdmin:RequireLoopback is true.",
-                "Set Lakona:Health:Http:Host to 127.0.0.1, localhost, or ::1, or disable Lakona:Observability:LocalAdmin:RequireLoopback only in trusted local environments.");
+                "Lakona:Management:Http:Host binds local admin to a non-loopback host while Lakona:Observability:LocalAdmin:RequireLoopback is true.",
+                "Set Lakona:Management:Http:Host to 127.0.0.1, localhost, or ::1, or disable Lakona:Observability:LocalAdmin:RequireLoopback only in trusted local environments.");
         }
 
         if (observability.DetailEnabled.Value)
@@ -33,13 +33,13 @@ public sealed class ObservabilityRule : ILakonaGameValidationRule
 
         if (observability.DetailEnabled.Value
             && observability.LocalAdminEnabled.Value
-            && !localHttpIsLoopback)
+            && !managementHttpIsLoopback)
         {
             yield return new LakonaGameDiagnostic(
                 "LAKONA132",
                 LakonaGameDiagnosticSeverity.Error,
                 "Detailed diagnostics are exposed through non-loopback local admin.",
-                "Bind Lakona:Health:Http:Host to localhost, 127.0.0.1, or ::1.");
+                "Bind Lakona:Management:Http:Host to localhost, 127.0.0.1, or ::1.");
         }
 
         if (observability.FileLoggingEnabled.Value

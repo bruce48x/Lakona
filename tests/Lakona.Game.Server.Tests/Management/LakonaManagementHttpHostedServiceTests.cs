@@ -6,6 +6,7 @@ using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Health;
 using Lakona.Game.Server.InternalHttp;
 using Lakona.Game.Server.LocalAdmin;
+using Lakona.Game.Server.Management;
 using Lakona.Game.Server.Observability;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -13,31 +14,30 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
-namespace Lakona.Game.Server.Tests.Health;
+namespace Lakona.Game.Server.Tests.Management;
 
-public sealed class LakonaHealthHttpHostedServiceTests
+public sealed class LakonaManagementHttpHostedServiceTests
 {
     [Fact]
     public async Task Enabled_health_host_serves_liveness_without_http_listener_urlacl()
     {
         var port = GetFreePort();
-        var service = new LakonaHealthHttpHostedService(
+        var service = new LakonaManagementHttpHostedService(
             new LakonaGameRuntimeOptions
             {
-                Health = new LakonaHealthOptions
+                Health = new LakonaHealthOptions { Enabled = true, RequireLoopback = true },
+                Management = new LakonaManagementOptions
                 {
-                    Http = new LakonaHealthHttpOptions
+                    Http = new LakonaManagementHttpOptions
                     {
-                        Enabled = true,
                         Host = "127.0.0.1",
-                        Port = port,
-                        RequireLoopback = true
+                        Port = port
                     }
                 }
             },
             LakonaObservabilityOptions.Defaults(),
             new LakonaHttpRouter([new LakonaHealthHttpRouteAdapter(LakonaHealthHttpRoutes.Live(), true)]),
-            NullLogger<LakonaHealthHttpHostedService>.Instance);
+            NullLogger<LakonaManagementHttpHostedService>.Instance);
 
         await service.StartAsync(TestContext.Current.CancellationToken);
         try
@@ -60,7 +60,7 @@ public sealed class LakonaHealthHttpHostedServiceTests
     }
 
     [Fact]
-    public async Task StartAsync_propagates_health_listener_bind_failure()
+    public async Task StartAsync_propagates_management_listener_bind_failure()
     {
         var blocker = new TcpListener(IPAddress.Loopback, 0);
         blocker.Start();
@@ -79,7 +79,7 @@ public sealed class LakonaHealthHttpHostedServiceTests
     }
 
     [Fact]
-    public async Task StartAsync_completes_when_health_listener_is_disabled()
+    public async Task StartAsync_completes_when_all_management_routes_are_disabled()
     {
         var service = CreateHealthService(enabled: false, port: GetFreePort());
 
@@ -99,14 +99,14 @@ public sealed class LakonaHealthHttpHostedServiceTests
                 EffectiveEnabled = true
             }
         };
-        var service = new LakonaHealthHttpHostedService(
+        var service = new LakonaManagementHttpHostedService(
             new LakonaGameRuntimeOptions
             {
-                Health = new LakonaHealthOptions
+                Health = new LakonaHealthOptions { Enabled = false },
+                Management = new LakonaManagementOptions
                 {
-                    Http = new LakonaHealthHttpOptions
+                    Http = new LakonaManagementHttpOptions
                     {
-                        Enabled = false,
                         Host = "127.0.0.1",
                         Port = port
                     }
@@ -114,7 +114,7 @@ public sealed class LakonaHealthHttpHostedServiceTests
             },
             observability,
             new LakonaHttpRouter([new TestLocalAdminRoute()]),
-            NullLogger<LakonaHealthHttpHostedService>.Instance);
+            NullLogger<LakonaManagementHttpHostedService>.Instance);
 
         await service.StartAsync(TestContext.Current.CancellationToken);
         try
@@ -139,11 +139,11 @@ public sealed class LakonaHealthHttpHostedServiceTests
         var services = new ServiceCollection();
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
-            Health = new LakonaHealthOptions
+            Health = new LakonaHealthOptions { Enabled = false },
+            Management = new LakonaManagementOptions
             {
-                Http = new LakonaHealthHttpOptions
+                Http = new LakonaManagementHttpOptions
                 {
-                    Enabled = false,
                     Host = "127.0.0.1",
                     Port = port
                 }
@@ -160,9 +160,10 @@ public sealed class LakonaHealthHttpHostedServiceTests
         services.RemoveAll<ILakonaLocalAdminRoute>();
         services.AddSingleton<ILakonaLocalAdminRoute>(new TestLocalAdminRoute());
         services.AddLakonaGameHealth();
+        services.AddLakonaManagement();
         services.RemoveAll<ILakonaHealthHttpRoute>();
         await using var provider = services.BuildServiceProvider();
-        var service = provider.GetServices<IHostedService>().OfType<LakonaHealthHttpHostedService>().Single();
+        var service = provider.GetServices<IHostedService>().OfType<LakonaManagementHttpHostedService>().Single();
 
         await service.StartAsync(TestContext.Current.CancellationToken);
         try
@@ -211,25 +212,24 @@ public sealed class LakonaHealthHttpHostedServiceTests
         }
     }
 
-    private static LakonaHealthHttpHostedService CreateHealthService(bool enabled, int port)
+    private static LakonaManagementHttpHostedService CreateHealthService(bool enabled, int port)
     {
-        return new LakonaHealthHttpHostedService(
+        return new LakonaManagementHttpHostedService(
             new LakonaGameRuntimeOptions
             {
-                Health = new LakonaHealthOptions
+                Health = new LakonaHealthOptions { Enabled = enabled, RequireLoopback = true },
+                Management = new LakonaManagementOptions
                 {
-                    Http = new LakonaHealthHttpOptions
+                    Http = new LakonaManagementHttpOptions
                     {
-                        Enabled = enabled,
                         Host = "127.0.0.1",
-                        Port = port,
-                        RequireLoopback = true
+                        Port = port
                     }
                 }
             },
             LakonaObservabilityOptions.Defaults(),
             new LakonaHttpRouter([new LakonaHealthHttpRouteAdapter(LakonaHealthHttpRoutes.Live(), true)]),
-            NullLogger<LakonaHealthHttpHostedService>.Instance);
+            NullLogger<LakonaManagementHttpHostedService>.Instance);
     }
 
     private static int GetFreePort()

@@ -7,34 +7,34 @@ using Lakona.Game.Server.Observability;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace Lakona.Game.Server.Health;
+namespace Lakona.Game.Server.Management;
 
-public sealed class LakonaHealthHttpHostedService : BackgroundService
+public sealed class LakonaManagementHttpHostedService : BackgroundService
 {
     private readonly LakonaGameRuntimeOptions _options;
     private readonly LakonaObservabilityOptions _observabilityOptions;
     private readonly LakonaHttpRouter _router;
-    private readonly ILogger<LakonaHealthHttpHostedService> _logger;
-    private readonly LakonaHealthHttpRequestTracker _requestTracker;
+    private readonly ILogger<LakonaManagementHttpHostedService> _logger;
+    private readonly LakonaManagementHttpRequestTracker _requestTracker;
     private readonly TaskCompletionSource _listening = new(
         TaskCreationOptions.RunContinuationsAsynchronously);
     private TcpListener? _listener;
 
-    public LakonaHealthHttpHostedService(
+    public LakonaManagementHttpHostedService(
         LakonaGameRuntimeOptions options,
         LakonaObservabilityOptions observabilityOptions,
         LakonaHttpRouter router,
-        ILogger<LakonaHealthHttpHostedService> logger)
-        : this(options, observabilityOptions, router, logger, new LakonaHealthHttpRequestTracker())
+        ILogger<LakonaManagementHttpHostedService> logger)
+        : this(options, observabilityOptions, router, logger, new LakonaManagementHttpRequestTracker())
     {
     }
 
-    internal LakonaHealthHttpHostedService(
+    internal LakonaManagementHttpHostedService(
         LakonaGameRuntimeOptions options,
         LakonaObservabilityOptions observabilityOptions,
         LakonaHttpRouter router,
-        ILogger<LakonaHealthHttpHostedService> logger,
-        LakonaHealthHttpRequestTracker requestTracker)
+        ILogger<LakonaManagementHttpHostedService> logger,
+        LakonaManagementHttpRequestTracker requestTracker)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _observabilityOptions = observabilityOptions ?? throw new ArgumentNullException(nameof(observabilityOptions));
@@ -55,8 +55,8 @@ public sealed class LakonaHealthHttpHostedService : BackgroundService
     {
         try
         {
-            var http = _options.Health.Http;
-            if (!http.Enabled && !_observabilityOptions.LocalAdmin.EffectiveEnabled)
+            var http = _options.Management.Http;
+            if (!_options.Health.Enabled && !_observabilityOptions.LocalAdmin.EffectiveEnabled)
             {
                 _listening.TrySetResult();
                 return;
@@ -67,7 +67,7 @@ public sealed class LakonaHealthHttpHostedService : BackgroundService
             _listener = listener;
             listener.Start();
             _logger.LogInformation(
-                "Lakona health endpoint listening on {Host}:{Port}.",
+                "Lakona management HTTP listening on {Host}:{Port}.",
                 http.Host,
                 http.Port);
             _listening.TrySetResult();
@@ -157,7 +157,7 @@ public sealed class LakonaHealthHttpHostedService : BackgroundService
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception, "Lakona health request handling failed.");
+            _logger.LogError(exception, "Lakona management HTTP request handling failed.");
         }
     }
 
@@ -170,7 +170,7 @@ public sealed class LakonaHealthHttpHostedService : BackgroundService
             var remoteAddress = (client.Client.RemoteEndPoint as IPEndPoint)?.Address;
 
             var response = request is null
-                ? LakonaHttpResponse.Json(new { error = "Invalid health request." }, 400)
+                ? LakonaHttpResponse.Json(new { error = "Invalid management HTTP request." }, 400)
                 : await _router.RouteAsync(
                     new LakonaHttpRequest(
                         request.Value.Method,
