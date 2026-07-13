@@ -209,9 +209,6 @@ namespace Server.App.State.Contracts.Sessions
         [MemoryPackOrder(18)]
         public DateTime LastHeartbeatAtUtc { get; set; }
 
-        [MemoryPackOrder(20)]
-        public GatewayEndpointDescriptor ControlGateway { get; set; } = new();
-
         [MemoryPackOrder(21)]
         public GatewayEndpointDescriptor RuntimeGateway { get; set; } = new();
     }
@@ -255,8 +252,6 @@ namespace Server.App.State.Contracts.Sessions
         public DateTime LastDisconnectedAtUtc { get; set; }
 
         public DateTime LastHeartbeatAtUtc { get; set; }
-
-        public GatewayEndpointDescriptor ControlGateway { get; set; } = new();
 
         public GatewayEndpointDescriptor RuntimeGateway { get; set; } = new();
     }

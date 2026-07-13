@@ -38,15 +38,7 @@ public sealed class PlayerSessionActorStateTests
                 ConnectionId = "control-connection-1",
                 ControlSessionId = "control-session-1",
                 ControlSessionGeneration = 7,
-                AttachedAtUtc = attachedAtUtc,
-                ControlGateway = new Server.App.State.Contracts.GatewayEndpointDescriptor
-                {
-                    InstanceId = "gateway-1",
-                    Transport = "websocket",
-                    Host = "127.0.0.1",
-                    Port = 20000,
-                    Path = "/ws"
-                }
+                AttachedAtUtc = attachedAtUtc
             }),
             cancellationToken);
         var session = await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
@@ -61,7 +53,6 @@ public sealed class PlayerSessionActorStateTests
         Assert.Equal("control-session-1", session.ControlSessionId);
         Assert.Equal(7, session.ControlSessionGeneration);
         Assert.Equal(attachedAtUtc, session.AttachedAtUtc);
-        Assert.Equal("gateway-1", session.ControlGateway.InstanceId);
         Assert.True(session.IsOnline);
     }
 

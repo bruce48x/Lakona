@@ -62,9 +62,6 @@ namespace Server.App.State.Contracts.Users
         [MemoryPackOrder(10)]
         public string ControlConnectionId { get; set; } = "";
 
-        [MemoryPackOrder(11)]
-        public string ControlGatewayNodeId { get; set; } = "";
-
         [MemoryPackOrder(12)]
         public string RealtimeSessionId { get; set; } = "";
 

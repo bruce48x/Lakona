@@ -1,5 +1,4 @@
 using MemoryPack;
-using Server.App.State.Contracts;
 
 namespace Server.App.State.Contracts.Users;
 
@@ -21,8 +20,6 @@ public sealed partial class UserLoginAndAttachRequest
     [MemoryPackOrder(4)]
     public DateTime AttachedAtUtc { get; set; }
 
-    [MemoryPackOrder(5)]
-    public GatewayEndpointDescriptor ControlGateway { get; set; } = new();
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]

@@ -70,7 +70,6 @@ public static partial class UserBehavior
             VictoryPoints = Math.Max(0, self.State.VictoryPoints),
             SessionToken = session.SessionToken,
             ControlConnectionId = session.ConnectionId,
-            ControlGatewayNodeId = session.ControlGateway.InstanceId,
             RealtimeGatewayNodeId = session.RuntimeGateway.InstanceId,
             CurrentRoomId = session.CurrentRoomId,
             CurrentMatchId = session.CurrentMatchId,
@@ -143,7 +142,6 @@ public static partial class UserBehavior
         session.AttachedAtUtc = attachedAtUtc;
         session.LastConnectedAtUtc = attachedAtUtc;
         session.LastHeartbeatAtUtc = attachedAtUtc;
-        session.ControlGateway = CloneGateway(request.ControlGateway);
         session.RuntimeGateway = new GatewayEndpointDescriptor();
     }
 
@@ -336,7 +334,6 @@ public static partial class UserBehavior
             LastConnectedAtUtc = session.LastConnectedAtUtc,
             LastDisconnectedAtUtc = session.LastDisconnectedAtUtc,
             LastHeartbeatAtUtc = session.LastHeartbeatAtUtc,
-            ControlGateway = CloneGateway(session.ControlGateway),
             RuntimeGateway = CloneGateway(session.RuntimeGateway)
         };
     }

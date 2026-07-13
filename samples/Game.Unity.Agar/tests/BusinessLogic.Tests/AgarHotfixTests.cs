@@ -135,8 +135,6 @@ public sealed class AgarHotfixTests
         var actors = provider.GetRequiredService<IActorRuntime>();
         var service = new LoginService(
             provider.GetRequiredService<UserActors>(),
-            provider.GetRequiredService<LakonaGameRuntimeOptions>(),
-            provider.GetRequiredService<LocalActorNodeIdentity>(),
             provider.GetRequiredService<ILogger<LoginService>>());
         var call = new HotfixServiceCall<LoginRequest, ILoginCallback>(
             new LoginRequest { GuestLogin = true },

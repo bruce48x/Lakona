@@ -3,7 +3,6 @@ using Server.App.State.Contracts.Users;
 using Server.App.State.Users;
 using Lakona.Game.Abstractions;
 using Lakona.Game.Server.Actors;
-using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
@@ -18,27 +17,19 @@ namespace Server.Hotfix.Services;
 public sealed class LoginService
 {
     private readonly UserActors _users;
-    private readonly LakonaGameRuntimeOptions _runtime;
-    private readonly LocalActorNodeIdentity _localNode;
     private readonly ILogger<LoginService> _logger;
 
     public LoginService(
         UserActors users,
-        LakonaGameRuntimeOptions runtime,
-        LocalActorNodeIdentity localNode,
         ILogger<LoginService> logger)
     {
         _users = users;
-        _runtime = runtime;
-        _localNode = localNode;
         _logger = logger;
     }
 
     public async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, ILoginCallback> call)
     {
         var req = call.Request;
-        var controlGateway = ResolveLocalControlGateway();
-
         var account = req.Account;
         var password = req.Password;
         if (req.GuestLogin)
@@ -67,8 +58,7 @@ public sealed class LoginService
                         ConnectionId = call.ConnectionId,
                         ControlSessionId = sessionKey.SessionId,
                         ControlSessionGeneration = sessionKey.Generation,
-                        AttachedAtUtc = DateTime.UtcNow,
-                        ControlGateway = CloneGateway(controlGateway)
+                        AttachedAtUtc = DateTime.UtcNow
                     },
                     CancellationToken.None)
                 .ConfigureAwait(false);
@@ -88,41 +78,6 @@ public sealed class LoginService
             VictoryPoints = loginResult.VictoryPoints,
             Account = account,
             Password = req.GuestLogin ? password : string.Empty
-        };
-    }
-
-    private static GatewayEndpointDescriptor CloneGateway(GatewayEndpointDescriptor gateway)
-    {
-        return new GatewayEndpointDescriptor
-        {
-            InstanceId = gateway.InstanceId,
-            Transport = gateway.Transport,
-            Host = gateway.Host,
-            Port = gateway.Port,
-            Path = gateway.Path
-        };
-    }
-
-    private GatewayEndpointDescriptor ResolveLocalControlGateway()
-    {
-        var node = _localNode.NodeId.Value;
-        var endpoint = _runtime.Endpoints.FirstOrDefault(static endpoint =>
-            endpoint.RpcServices.Any(service =>
-                string.Equals(service, "login", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(service, "player", StringComparison.OrdinalIgnoreCase)));
-        if (endpoint is null)
-        {
-            return new GatewayEndpointDescriptor { InstanceId = node };
-        }
-
-        var uri = new System.Uri(endpoint.ToAdvertisedEndpoint(), System.UriKind.Absolute);
-        return new GatewayEndpointDescriptor
-        {
-            InstanceId = node,
-            Transport = endpoint.Transport,
-            Host = uri.Host,
-            Port = uri.Port,
-            Path = uri.AbsolutePath == "/" ? string.Empty : uri.AbsolutePath
         };
     }
 

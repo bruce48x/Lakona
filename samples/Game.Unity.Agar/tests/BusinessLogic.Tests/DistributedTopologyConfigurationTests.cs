@@ -286,15 +286,7 @@ public sealed class DistributedTopologyConfigurationTests
             var login = await LoginAndAttachAsync(
                 provider,
                 playerId,
-                $"control-{i}",
-                new Server.App.State.Contracts.GatewayEndpointDescriptor
-                {
-                    InstanceId = "gateway-1",
-                    Transport = "websocket",
-                    Host = "gateway-1",
-                    Port = 20000,
-                    Path = "/ws"
-                });
+                $"control-{i}");
 
             result = await EnqueueAsync(provider, new MatchmakingEnqueueRequest
             {
@@ -362,15 +354,7 @@ public sealed class DistributedTopologyConfigurationTests
             var login = await LoginAndAttachAsync(
                 provider,
                 "local-runtime-player",
-                "control-local-runtime",
-                new Server.App.State.Contracts.GatewayEndpointDescriptor
-                {
-                    InstanceId = "gateway-1",
-                    Transport = "websocket",
-                    Host = "gateway-1",
-                    Port = 20000,
-                    Path = "/ws"
-                });
+                "control-local-runtime");
 
             var result = await EnqueueAsync(provider, new MatchmakingEnqueueRequest
             {
@@ -441,15 +425,7 @@ public sealed class DistributedTopologyConfigurationTests
             var login = await LoginAndAttachAsync(
                 provider,
                 "startup-timer-player",
-                "control-startup-timer",
-                new Server.App.State.Contracts.GatewayEndpointDescriptor
-                {
-                    InstanceId = "gateway-1",
-                    Transport = "websocket",
-                    Host = "gateway-1",
-                    Port = 20000,
-                    Path = "/ws"
-                });
+                "control-startup-timer");
 
             var result = await EnqueueAsync(provider, new MatchmakingEnqueueRequest
             {
@@ -499,7 +475,6 @@ public sealed class DistributedTopologyConfigurationTests
             provider,
             "player-stale",
             "control-stale",
-            new Server.App.State.Contracts.GatewayEndpointDescriptor(),
             "control-session-stale",
             1);
         await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
@@ -869,7 +844,6 @@ public sealed class DistributedTopologyConfigurationTests
         IServiceProvider provider,
         string playerId,
         string connectionId,
-        Server.App.State.Contracts.GatewayEndpointDescriptor controlGateway,
         string controlSessionId = "",
         long controlSessionGeneration = 0)
     {
@@ -883,8 +857,7 @@ public sealed class DistributedTopologyConfigurationTests
                 ConnectionId = connectionId,
                 ControlSessionId = controlSessionId,
                 ControlSessionGeneration = controlSessionGeneration,
-                AttachedAtUtc = DateTime.UtcNow,
-                ControlGateway = controlGateway
+                AttachedAtUtc = DateTime.UtcNow
             }));
     }
 
