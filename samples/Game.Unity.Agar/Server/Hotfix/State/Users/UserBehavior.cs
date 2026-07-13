@@ -11,10 +11,17 @@ namespace Server.Hotfix.State.Users;
 [HotfixBehaviorOf(typeof(UserActor))]
 public static partial class UserBehavior
 {
-    public static ValueTask<UserLoginResult> LoginAsync(this UserActor self, UserLoginRequest request, CancellationToken cancellationToken = default)
+    public static ValueTask<UserLoginResult> LoginAndAttachAsync(this UserActor self, UserLoginAndAttachRequest request, CancellationToken cancellationToken = default)
+    {
+        var result = Login(self, request.Password);
+        AttachSession(self, result, request);
+        return new ValueTask<UserLoginResult>(result);
+    }
+
+    private static UserLoginResult Login(UserActor self, string password)
     {
         var userId = self.Context.Id.Value;
-        var passwordHash = ComputePasswordHash(request.Password);
+        var passwordHash = ComputePasswordHash(password);
         var now = DateTime.UtcNow;
 
         if (!self.RecordExists)
@@ -38,7 +45,7 @@ public static partial class UserBehavior
         self.State.LastLoginAtUtc = now;
         self.State.IsOnline = true;
 
-        return new ValueTask<UserLoginResult>(new UserLoginResult
+        return new UserLoginResult
         {
             UserId = self.State.UserId,
             SessionToken = self.State.SessionToken,
@@ -46,7 +53,7 @@ public static partial class UserBehavior
             LastLoginAtUtc = self.State.LastLoginAtUtc,
             WinCount = Math.Max(0, self.State.WinCount),
             VictoryPoints = Math.Max(0, self.State.VictoryPoints)
-        });
+        };
     }
 
     public static ValueTask<UserProfileSnapshot> GetProfileAsync(this UserActor self, UserProfileRequest request, CancellationToken cancellationToken = default)
@@ -112,15 +119,15 @@ public static partial class UserBehavior
         return default;
     }
 
-    public static ValueTask<PlayerSessionSnapshot> AttachAsync(this UserActor self, PlayerSessionAttachRequest request, CancellationToken cancellationToken = default)
+    private static void AttachSession(UserActor self, UserLoginResult login, UserLoginAndAttachRequest request)
     {
-        var userId = NormalizeUserId(request.UserId);
+        var userId = NormalizeUserId(login.UserId);
         var attachedAtUtc = NormalizeUtc(request.AttachedAtUtc);
         EnsureState(self, userId);
 
         self.State.UserId = userId;
         var session = self.State.Session;
-        session.SessionToken = request.SessionToken;
+        session.SessionToken = login.SessionToken;
         session.ConnectionId = request.ConnectionId;
         session.ControlSessionId = request.ControlSessionId;
         session.ControlSessionGeneration = request.ControlSessionGeneration;
@@ -138,8 +145,6 @@ public static partial class UserBehavior
         session.LastHeartbeatAtUtc = attachedAtUtc;
         session.ControlGateway = CloneGateway(request.ControlGateway);
         session.RuntimeGateway = new GatewayEndpointDescriptor();
-
-        return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
     public static ValueTask<PlayerSessionSnapshot> AttachRealtimeAsync(this UserActor self, PlayerRealtimeAttachRequest request, CancellationToken cancellationToken = default)

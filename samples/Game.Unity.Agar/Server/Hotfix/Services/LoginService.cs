@@ -1,13 +1,12 @@
 using Server.App.State.Contracts;
-using Server.App.State.Contracts.Sessions;
 using Server.App.State.Contracts.Users;
 using Server.App.State.Users;
+using Lakona.Game.Abstractions;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Server.Hotfix.State.Users;
 using Shared.Interfaces;
@@ -53,28 +52,32 @@ public sealed class LoginService
             return new LoginReply { Code = LoginResultCodes.InvalidRequest, Message = "Login request is incomplete." };
         }
 
-        var loginRequest = new UserLoginRequest { Password = password };
-        var loginResult = await LoginUserAsync(call.Services, account, loginRequest, CancellationToken.None).ConfigureAwait(false);
-
         var sessionKey = await call.GameServer
-            .StartSessionAsync(loginResult.UserId, call.ConnectionId)
+            .StartSessionAsync(account, call.ConnectionId)
             .ConfigureAwait(false);
-        await _users
-            .Route(new UserId(loginResult.UserId))
-            .CallAsync(
-                UserBehavior.AttachAsync,
-                new PlayerSessionAttachRequest
-                {
-                    UserId = loginResult.UserId,
-                    SessionToken = loginResult.SessionToken,
-                    ConnectionId = call.ConnectionId,
-                    ControlSessionId = sessionKey.SessionId,
-                    ControlSessionGeneration = sessionKey.Generation,
-                    AttachedAtUtc = DateTime.UtcNow,
-                    ControlGateway = CloneGateway(controlGateway)
-                },
-                CancellationToken.None)
-            .ConfigureAwait(false);
+        UserLoginResult loginResult;
+        try
+        {
+            loginResult = await LoginUserAsync(
+                    call.Services,
+                    account,
+                    new UserLoginAndAttachRequest
+                    {
+                        Password = password,
+                        ConnectionId = call.ConnectionId,
+                        ControlSessionId = sessionKey.SessionId,
+                        ControlSessionGeneration = sessionKey.Generation,
+                        AttachedAtUtc = DateTime.UtcNow,
+                        ControlGateway = CloneGateway(controlGateway)
+                    },
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+        catch
+        {
+            await RollbackLoginSessionAsync(call, sessionKey).ConfigureAwait(false);
+            throw;
+        }
 
         return new LoginReply
         {
@@ -136,15 +139,40 @@ public sealed class LoginService
     private async ValueTask<UserLoginResult> LoginUserAsync(
         IServiceProvider services,
         string account,
-        UserLoginRequest request,
+        UserLoginAndAttachRequest request,
         CancellationToken cancellationToken)
     {
         var userId = new UserId(account);
         await CreateUserActorOnStateStoreAsync(services, account).ConfigureAwait(false);
         return await _users
             .Route(userId)
-            .CallAsync(UserBehavior.LoginAsync, request, cancellationToken)
+            .CallAsync(UserBehavior.LoginAndAttachAsync, request, cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    private async ValueTask RollbackLoginSessionAsync(
+        HotfixServiceCall<LoginRequest, ILoginCallback> call,
+        GameSessionKey sessionKey)
+    {
+        try
+        {
+            await call.GameServer
+                .TerminateSessionAsync(
+                    sessionKey,
+                    SessionTerminationReason.Application,
+                    "Login did not complete.",
+                    new SessionTerminationOptions
+                    {
+                        NotifyTimeout = TimeSpan.Zero,
+                        KeepTerminalStateForResume = false
+                    },
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Failed to roll back login session {SessionId}.", sessionKey.SessionId);
+        }
     }
 
     private async ValueTask CreateUserActorOnStateStoreAsync(

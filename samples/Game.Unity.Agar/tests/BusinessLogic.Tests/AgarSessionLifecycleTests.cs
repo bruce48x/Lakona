@@ -48,17 +48,12 @@ public sealed class AgarSessionLifecycleTests
         await using var provider = BuildLifecycleServices(includeActors: true).BuildServiceProvider();
         var actors = provider.GetRequiredService<IActorRuntime>();
         await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorId.From("player-1"), cancellationToken);
-        await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
-            ActorId.From("player-1"),
-            (actor, _) => actor.AttachAsync(new PlayerSessionAttachRequest
-            {
-                UserId = "player-1",
-                SessionToken = "token-1",
-                ConnectionId = "control-1",
-                ControlSessionId = "control-session",
-                ControlSessionGeneration = 1,
-                AttachedAtUtc = DateTime.UtcNow
-            }),
+        await LoginAndAttachUserAsync(
+            actors,
+            "player-1",
+            "control-1",
+            "control-session",
+            1,
             cancellationToken);
 
         var call = new HotfixLifecycleCall<GameSessionDisconnectedRequest>(
@@ -97,24 +92,19 @@ public sealed class AgarSessionLifecycleTests
         await hosting.EnsureAsync<UserActor>(ActorId.From("player-1"), cancellationToken);
         await hosting.EnsureAsync<RoomActor>(ActorId.From("room-1"), cancellationToken);
 
-        await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
-            ActorId.From("player-1"),
-            (actor, _) => actor.AttachAsync(new PlayerSessionAttachRequest
-            {
-                UserId = "player-1",
-                SessionToken = "token-1",
-                ConnectionId = "control-1",
-                ControlSessionId = "control-session",
-                ControlSessionGeneration = 1,
-                AttachedAtUtc = DateTime.UtcNow
-            }),
+        var login = await LoginAndAttachUserAsync(
+            actors,
+            "player-1",
+            "control-1",
+            "control-session",
+            1,
             cancellationToken);
         await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
             ActorId.From("player-1"),
             (actor, _) => actor.AssignRoomAsync(new PlayerRoomAssignment
             {
                 UserId = "player-1",
-                SessionToken = "token-1",
+                SessionToken = login.SessionToken,
                 RoomId = "room-1",
                 MatchId = "match-1",
                 SeatIndex = 0,
@@ -126,7 +116,7 @@ public sealed class AgarSessionLifecycleTests
             (actor, _) => actor.AttachRealtimeAsync(new PlayerRealtimeAttachRequest
             {
                 UserId = "player-1",
-                SessionToken = "token-1",
+                SessionToken = login.SessionToken,
                 RoomId = "room-1",
                 MatchId = "match-1",
                 RealtimeSessionId = "realtime-session",
@@ -147,7 +137,7 @@ public sealed class AgarSessionLifecycleTests
                     new PlayerRoomAssignment
                     {
                         UserId = "player-1",
-                        SessionToken = "token-1",
+                        SessionToken = login.SessionToken,
                         ConnectionId = "control-1",
                         RoomId = "room-1",
                         MatchId = "match-1",
@@ -210,17 +200,12 @@ public sealed class AgarSessionLifecycleTests
         await using var provider = BuildLifecycleServices(includeActors: true).BuildServiceProvider();
         var actors = provider.GetRequiredService<IActorRuntime>();
         await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorId.From("player-1"), cancellationToken);
-        await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
-            ActorId.From("player-1"),
-            (actor, _) => actor.AttachAsync(new PlayerSessionAttachRequest
-            {
-                UserId = "player-1",
-                SessionToken = "token-new",
-                ConnectionId = "control-new",
-                ControlSessionId = "control-session-new",
-                ControlSessionGeneration = 2,
-                AttachedAtUtc = DateTime.UtcNow
-            }),
+        await LoginAndAttachUserAsync(
+            actors,
+            "player-1",
+            "control-new",
+            "control-session-new",
+            2,
             cancellationToken);
 
         var call = new HotfixLifecycleCall<GameSessionExpiredRequest>(
@@ -246,6 +231,27 @@ public sealed class AgarSessionLifecycleTests
         Assert.Equal("control-new", snapshot.ConnectionId);
         Assert.Equal("control-session-new", snapshot.ControlSessionId);
         Assert.Equal(2, snapshot.ControlSessionGeneration);
+    }
+
+    private static ValueTask<UserLoginResult> LoginAndAttachUserAsync(
+        IActorRuntime actors,
+        string userId,
+        string connectionId,
+        string controlSessionId,
+        long controlSessionGeneration,
+        CancellationToken cancellationToken)
+    {
+        return actors.AskAsync<UserActor, UserLoginResult>(
+            ActorId.From(userId),
+            (actor, _) => actor.LoginAndAttachAsync(new UserLoginAndAttachRequest
+            {
+                Password = "pw",
+                ConnectionId = connectionId,
+                ControlSessionId = controlSessionId,
+                ControlSessionGeneration = controlSessionGeneration,
+                AttachedAtUtc = DateTime.UtcNow
+            }),
+            cancellationToken);
     }
 
     private static ServiceCollection BuildLifecycleServices(bool includeActors)

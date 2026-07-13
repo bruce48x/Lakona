@@ -6,6 +6,30 @@ namespace BusinessLogic.Tests;
 public sealed class AgarHotfixBoundaryTests
 {
     [Fact]
+    public void Login_service_dispatches_one_combined_user_actor_call()
+    {
+        var loginService = File.ReadAllText(
+            FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Services/LoginService.cs").FullName);
+        var userBehavior = File.ReadAllText(
+            FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/State/Users/UserBehavior.cs").FullName);
+        var userContracts = File.ReadAllText(
+            FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Contracts/UserActorContracts.cs").FullName);
+        var sessionContracts = File.ReadAllText(
+            FindRepositoryFile("samples/Game.Unity.Agar/Shared/State/PlayerSessionContracts.cs").FullName);
+
+        Assert.Contains("UserBehavior.LoginAndAttachAsync", loginService, StringComparison.Ordinal);
+        Assert.DoesNotContain("UserBehavior.LoginAsync", loginService, StringComparison.Ordinal);
+        Assert.DoesNotContain("UserBehavior.AttachAsync", loginService, StringComparison.Ordinal);
+        Assert.Single(Regex.Matches(loginService, @"\.CallAsync\(").Cast<Match>());
+        Assert.Contains("RollbackLoginSessionAsync", loginService, StringComparison.Ordinal);
+        Assert.Contains(".TerminateSessionAsync(", loginService, StringComparison.Ordinal);
+        Assert.DoesNotContain(" LoginAsync(this UserActor", userBehavior, StringComparison.Ordinal);
+        Assert.DoesNotContain(" AttachAsync(this UserActor", userBehavior, StringComparison.Ordinal);
+        Assert.DoesNotContain("UserLoginRequest", userContracts, StringComparison.Ordinal);
+        Assert.DoesNotContain("PlayerSessionAttachRequest", sessionContracts, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Agar_hotfix_has_one_partial_behavior_per_actor()
     {
         var hotfixRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Server.Hotfix.csproj")

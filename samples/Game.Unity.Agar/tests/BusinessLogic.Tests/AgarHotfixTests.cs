@@ -683,7 +683,7 @@ public sealed class AgarHotfixTests
             RemoteActorInvocation invocation,
             CancellationToken cancellationToken = default)
         {
-            if (IsBehaviorMethod(invocation, "LoginAsync"))
+            if (IsBehaviorMethod(invocation, "LoginAndAttachAsync"))
             {
                 if (!await IsRegisteredOnExpectedNodeAsync(invocation, cancellationToken).ConfigureAwait(false))
                 {
@@ -692,6 +692,7 @@ public sealed class AgarHotfixTests
                         $"User actor {invocation.ActorId.Value} was not created on {invocation.Node.Value}.");
                 }
 
+                _ = _serializer.Deserialize<UserLoginAndAttachRequest>(invocation.Payload);
                 var result = new UserLoginResult
                 {
                     UserId = invocation.ActorId.Value,
@@ -700,30 +701,6 @@ public sealed class AgarHotfixTests
                     LastLoginAtUtc = DateTime.UtcNow
                 };
                 return RemoteActorInvocationResult.Replied(_serializer.Serialize(result));
-            }
-
-            if (IsBehaviorMethod(invocation, "AttachAsync"))
-            {
-                if (!await IsRegisteredOnExpectedNodeAsync(invocation, cancellationToken).ConfigureAwait(false))
-                {
-                    return RemoteActorInvocationResult.Failed(
-                        RemoteActorStatus.HandlerUnavailable,
-                        $"User actor {invocation.ActorId.Value} was not created on {invocation.Node.Value}.");
-                }
-
-                var request = _serializer.Deserialize<PlayerSessionAttachRequest>(invocation.Payload);
-                var snapshot = new PlayerSessionSnapshot
-                {
-                    UserId = request.UserId,
-                    SessionToken = request.SessionToken,
-                    ConnectionId = request.ConnectionId,
-                    ControlSessionId = request.ControlSessionId,
-                    ControlSessionGeneration = request.ControlSessionGeneration,
-                    IsOnline = true,
-                    AttachedAtUtc = request.AttachedAtUtc,
-                    ControlGateway = request.ControlGateway
-                };
-                return RemoteActorInvocationResult.Replied(_serializer.Serialize(snapshot));
             }
 
             if (IsBehaviorMethod(invocation, "GetLeaderboardAsync"))

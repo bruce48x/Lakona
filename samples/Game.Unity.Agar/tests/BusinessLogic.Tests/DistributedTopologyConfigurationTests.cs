@@ -283,23 +283,18 @@ public sealed class DistributedTopologyConfigurationTests
         {
             var playerId = $"no-runtime-player-{i}";
             playerIds.Add(playerId);
-            var login = await LoginAsync(provider, playerId);
-
-            await AttachSessionAsync(provider, new PlayerSessionAttachRequest
-            {
-                UserId = login.UserId,
-                SessionToken = login.SessionToken,
-                ConnectionId = $"control-{i}",
-                AttachedAtUtc = DateTime.UtcNow,
-                ControlGateway = new Server.App.State.Contracts.GatewayEndpointDescriptor
+            var login = await LoginAndAttachAsync(
+                provider,
+                playerId,
+                $"control-{i}",
+                new Server.App.State.Contracts.GatewayEndpointDescriptor
                 {
                     InstanceId = "gateway-1",
                     Transport = "websocket",
                     Host = "gateway-1",
                     Port = 20000,
                     Path = "/ws"
-                }
-            });
+                });
 
             result = await EnqueueAsync(provider, new MatchmakingEnqueueRequest
             {
@@ -364,23 +359,18 @@ public sealed class DistributedTopologyConfigurationTests
 
         try
         {
-            var login = await LoginAsync(provider, "local-runtime-player");
-
-            await AttachSessionAsync(provider, new PlayerSessionAttachRequest
-            {
-                UserId = login.UserId,
-                SessionToken = login.SessionToken,
-                ConnectionId = "control-local-runtime",
-                AttachedAtUtc = DateTime.UtcNow,
-                ControlGateway = new Server.App.State.Contracts.GatewayEndpointDescriptor
+            var login = await LoginAndAttachAsync(
+                provider,
+                "local-runtime-player",
+                "control-local-runtime",
+                new Server.App.State.Contracts.GatewayEndpointDescriptor
                 {
                     InstanceId = "gateway-1",
                     Transport = "websocket",
                     Host = "gateway-1",
                     Port = 20000,
                     Path = "/ws"
-                }
-            });
+                });
 
             var result = await EnqueueAsync(provider, new MatchmakingEnqueueRequest
             {
@@ -448,22 +438,18 @@ public sealed class DistributedTopologyConfigurationTests
         await clusterRegistration.StartAsync(cancellationToken);
         try
         {
-            var login = await LoginAsync(provider, "startup-timer-player");
-            await AttachSessionAsync(provider, new PlayerSessionAttachRequest
-            {
-                UserId = login.UserId,
-                SessionToken = login.SessionToken,
-                ConnectionId = "control-startup-timer",
-                AttachedAtUtc = DateTime.UtcNow,
-                ControlGateway = new Server.App.State.Contracts.GatewayEndpointDescriptor
+            var login = await LoginAndAttachAsync(
+                provider,
+                "startup-timer-player",
+                "control-startup-timer",
+                new Server.App.State.Contracts.GatewayEndpointDescriptor
                 {
                     InstanceId = "gateway-1",
                     Transport = "websocket",
                     Host = "gateway-1",
                     Port = 20000,
                     Path = "/ws"
-                }
-            });
+                });
 
             var result = await EnqueueAsync(provider, new MatchmakingEnqueueRequest
             {
@@ -509,24 +495,19 @@ public sealed class DistributedTopologyConfigurationTests
         await using var provider = services.BuildServiceProvider();
         var actors = provider.GetRequiredService<IActorRuntime>();
         await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorId.From("player-stale"), cancellationToken);
-        await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
-            ActorId.From("player-stale"),
-            (actor, _) => actor.AttachAsync(new PlayerSessionAttachRequest
-            {
-                UserId = "player-stale",
-                SessionToken = "token-stale",
-                ConnectionId = "control-stale",
-                ControlSessionId = "control-session-stale",
-                ControlSessionGeneration = 1,
-                AttachedAtUtc = DateTime.UtcNow
-            }),
-            cancellationToken);
+        var login = await LoginAndAttachAsync(
+            provider,
+            "player-stale",
+            "control-stale",
+            new Server.App.State.Contracts.GatewayEndpointDescriptor(),
+            "control-session-stale",
+            1);
         await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
             ActorId.From("player-stale"),
             (actor, _) => actor.AssignRoomAsync(new PlayerRoomAssignment
             {
                 UserId = "player-stale",
-                SessionToken = "token-stale",
+                SessionToken = login.SessionToken,
                 ConnectionId = "control-stale",
                 RoomId = "stale-room",
                 MatchId = "stale-match",
@@ -884,22 +865,27 @@ public sealed class DistributedTopologyConfigurationTests
             ?? throw new InvalidOperationException($"Could not find server type '{typeName}'.");
     }
 
-    private static async ValueTask<UserLoginResult> LoginAsync(IServiceProvider provider, string playerId)
+    private static async ValueTask<UserLoginResult> LoginAndAttachAsync(
+        IServiceProvider provider,
+        string playerId,
+        string connectionId,
+        Server.App.State.Contracts.GatewayEndpointDescriptor controlGateway,
+        string controlSessionId = "",
+        long controlSessionGeneration = 0)
     {
         var actors = provider.GetRequiredService<IActorRuntime>();
         await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorId.From(playerId));
         return await actors.AskAsync<UserActor, UserLoginResult>(
             ActorId.From(playerId),
-            (actor, _) => actor.LoginAsync(new UserLoginRequest { Password = "pw" }));
-    }
-
-    private static async ValueTask<PlayerSessionSnapshot> AttachSessionAsync(IServiceProvider provider, PlayerSessionAttachRequest request)
-    {
-        var actors = provider.GetRequiredService<IActorRuntime>();
-        await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(UserId(request.UserId));
-        return await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
-            UserId(request.UserId),
-            (actor, _) => actor.AttachAsync(request));
+            (actor, _) => actor.LoginAndAttachAsync(new UserLoginAndAttachRequest
+            {
+                Password = "pw",
+                ConnectionId = connectionId,
+                ControlSessionId = controlSessionId,
+                ControlSessionGeneration = controlSessionGeneration,
+                AttachedAtUtc = DateTime.UtcNow,
+                ControlGateway = controlGateway
+            }));
     }
 
     private static async ValueTask<MatchmakingEnqueueResult> EnqueueAsync(IServiceProvider provider, MatchmakingEnqueueRequest request)

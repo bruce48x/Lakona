@@ -20,6 +20,52 @@ public sealed class PlayerSessionActorStateTests
     private const long RealtimeInputSessionGeneration = 3;
 
     [Fact]
+    public async Task UserActorLoginAndAttachUpdatesAccountAndControlSessionInOneTurn()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = CreateActorServices();
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        var userId = "player-login-and-attach";
+        var attachedAtUtc = DateTime.UtcNow;
+
+        await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorId.From(userId), cancellationToken);
+
+        var login = await actors.AskAsync<UserActor, UserLoginResult>(
+            ActorId.From(userId),
+            (actor, _) => actor.LoginAndAttachAsync(new UserLoginAndAttachRequest
+            {
+                Password = "pw",
+                ConnectionId = "control-connection-1",
+                ControlSessionId = "control-session-1",
+                ControlSessionGeneration = 7,
+                AttachedAtUtc = attachedAtUtc,
+                ControlGateway = new Server.App.State.Contracts.GatewayEndpointDescriptor
+                {
+                    InstanceId = "gateway-1",
+                    Transport = "websocket",
+                    Host = "127.0.0.1",
+                    Port = 20000,
+                    Path = "/ws"
+                }
+            }),
+            cancellationToken);
+        var session = await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
+            ActorId.From(userId),
+            (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()),
+            cancellationToken);
+
+        Assert.Equal(userId, login.UserId);
+        Assert.False(string.IsNullOrWhiteSpace(login.SessionToken));
+        Assert.Equal(login.SessionToken, session.SessionToken);
+        Assert.Equal("control-connection-1", session.ConnectionId);
+        Assert.Equal("control-session-1", session.ControlSessionId);
+        Assert.Equal(7, session.ControlSessionGeneration);
+        Assert.Equal(attachedAtUtc, session.AttachedAtUtc);
+        Assert.Equal("gateway-1", session.ControlGateway.InstanceId);
+        Assert.True(session.IsOnline);
+    }
+
+    [Fact]
     public async Task UserActorPersistsControlAndRealtimeFrameworkSessionMetadata()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -31,17 +77,17 @@ public sealed class PlayerSessionActorStateTests
 
         await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorId.From(userId), cancellationToken);
 
+        var login = await LoginAndAttachUserAsync(
+            actors,
+            userId,
+            "control-connection-1",
+            "control-session-1",
+            7,
+            attachedAtUtc,
+            cancellationToken);
         var attached = await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
             ActorId.From(userId),
-            (actor, _) => actor.AttachAsync(new PlayerSessionAttachRequest
-            {
-                UserId = userId,
-                SessionToken = "token-1",
-                ConnectionId = "control-connection-1",
-                ControlSessionId = "control-session-1",
-                ControlSessionGeneration = 7,
-                AttachedAtUtc = attachedAtUtc
-            }),
+            (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()),
             cancellationToken);
 
         Assert.Equal("control-session-1", attached.ControlSessionId);
@@ -54,7 +100,7 @@ public sealed class PlayerSessionActorStateTests
             (actor, _) => actor.AssignRoomAsync(new PlayerRoomAssignment
             {
                 UserId = userId,
-                SessionToken = "token-1",
+                SessionToken = login.SessionToken,
                 RoomId = "room-1",
                 MatchId = "match-1",
                 SeatIndex = 3,
@@ -67,7 +113,7 @@ public sealed class PlayerSessionActorStateTests
             (actor, _) => actor.AttachRealtimeAsync(new PlayerRealtimeAttachRequest
             {
                 UserId = userId,
-                SessionToken = "token-1",
+                SessionToken = login.SessionToken,
                 RoomId = "room-1",
                 MatchId = "match-1",
                 RealtimeSessionId = "realtime-session-1",
@@ -94,16 +140,13 @@ public sealed class PlayerSessionActorStateTests
         var userId = "player-realtime-reject";
 
         await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorId.From(userId), cancellationToken);
-        await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
-            ActorId.From(userId),
-            (actor, _) => actor.AttachAsync(new PlayerSessionAttachRequest
-            {
-                UserId = userId,
-                SessionToken = "token-1",
-                ControlSessionId = "control-session-1",
-                ControlSessionGeneration = 1,
-                AttachedAtUtc = DateTime.UtcNow
-            }),
+        var login = await LoginAndAttachUserAsync(
+            actors,
+            userId,
+            "control-connection-1",
+            "control-session-1",
+            1,
+            DateTime.UtcNow,
             cancellationToken);
 
         await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
@@ -111,7 +154,7 @@ public sealed class PlayerSessionActorStateTests
             (actor, _) => actor.AssignRoomAsync(new PlayerRoomAssignment
             {
                 UserId = userId,
-                SessionToken = "token-1",
+                SessionToken = login.SessionToken,
                 RoomId = "room-1",
                 MatchId = "match-1",
                 SeatIndex = 0,
@@ -140,7 +183,7 @@ public sealed class PlayerSessionActorStateTests
                 (actor, _) => actor.AttachRealtimeAsync(new PlayerRealtimeAttachRequest
                 {
                     UserId = userId,
-                    SessionToken = "token-1",
+                    SessionToken = login.SessionToken,
                     RoomId = "wrong-room",
                     MatchId = "match-1",
                     RealtimeSessionId = "realtime-session-2",
@@ -155,7 +198,7 @@ public sealed class PlayerSessionActorStateTests
                 (actor, _) => actor.AttachRealtimeAsync(new PlayerRealtimeAttachRequest
                 {
                     UserId = userId,
-                    SessionToken = "token-1",
+                    SessionToken = login.SessionToken,
                     RoomId = "room-1",
                     MatchId = "wrong-match",
                     RealtimeSessionId = "realtime-session-3",
@@ -229,23 +272,20 @@ public sealed class PlayerSessionActorStateTests
         var userId = "player-realtime-clear";
 
         await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorId.From(userId), cancellationToken);
-        await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
-            ActorId.From(userId),
-            (actor, _) => actor.AttachAsync(new PlayerSessionAttachRequest
-            {
-                UserId = userId,
-                SessionToken = "token-1",
-                ControlSessionId = "control-session-1",
-                ControlSessionGeneration = 1,
-                AttachedAtUtc = DateTime.UtcNow
-            }),
+        var login = await LoginAndAttachUserAsync(
+            actors,
+            userId,
+            "control-connection-1",
+            "control-session-1",
+            1,
+            DateTime.UtcNow,
             cancellationToken);
         await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
             ActorId.From(userId),
             (actor, _) => actor.AssignRoomAsync(new PlayerRoomAssignment
             {
                 UserId = userId,
-                SessionToken = "token-1",
+                SessionToken = login.SessionToken,
                 RoomId = "room-1",
                 MatchId = "match-1",
                 SeatIndex = 0,
@@ -257,7 +297,7 @@ public sealed class PlayerSessionActorStateTests
             (actor, _) => actor.AttachRealtimeAsync(new PlayerRealtimeAttachRequest
             {
                 UserId = userId,
-                SessionToken = "token-1",
+                SessionToken = login.SessionToken,
                 RoomId = "room-1",
                 MatchId = "match-1",
                 RealtimeSessionId = "realtime-session-2",
@@ -528,6 +568,28 @@ public sealed class PlayerSessionActorStateTests
         return actors.AskAsync<RoomActor, SubmittedInputState>(
             ActorId.From(roomId),
             (actor, _) => new ValueTask<SubmittedInputState>(ReadSubmittedInput(actor)),
+            cancellationToken);
+    }
+
+    private static ValueTask<UserLoginResult> LoginAndAttachUserAsync(
+        IActorRuntime actors,
+        string userId,
+        string connectionId,
+        string controlSessionId,
+        long controlSessionGeneration,
+        DateTime attachedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        return actors.AskAsync<UserActor, UserLoginResult>(
+            ActorId.From(userId),
+            (actor, _) => actor.LoginAndAttachAsync(new UserLoginAndAttachRequest
+            {
+                Password = "pw",
+                ConnectionId = connectionId,
+                ControlSessionId = controlSessionId,
+                ControlSessionGeneration = controlSessionGeneration,
+                AttachedAtUtc = attachedAtUtc
+            }),
             cancellationToken);
     }
 
