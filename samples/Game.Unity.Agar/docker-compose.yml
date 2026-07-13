@@ -16,7 +16,7 @@ services:
       Lakona__Cluster__Directory__Provider: postgres
       Lakona__Cluster__Directory__ConnectionStringName: LakonaClusterPostgres
       Lakona__Cluster__Directory__NodeTable: lakona_cluster_nodes
-      Lakona__Cluster__Directory__EnsureSchemaOnStartup: false
+      Lakona__Cluster__Directory__EnsureSchemaOnStartup: "true"
       Lakona__Hotfix__DebugWatcher: "On"
       Agar__Persistence__Provider: postgres
       Agar__Persistence__ConnectionStringName: AgarGamePostgres

@@ -78,6 +78,21 @@ public sealed class AgarThreeNodeLocalTestScriptTests
     }
 
     [Fact]
+    public void ThreeNodeComposeAllowsTheDataNodeToUpgradeItsPersistentDirectorySchema()
+    {
+        var composePath = Path.Combine(
+            FindRepositoryRoot(),
+            "samples",
+            "Game.Unity.Agar",
+            "docker-compose.yml");
+
+        Assert.True(File.Exists(composePath), "The Agar Docker Compose file should exist.");
+        var compose = File.ReadAllText(composePath);
+
+        Assert.Contains("Lakona__Cluster__Directory__EnsureSchemaOnStartup: \"true\"", compose, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void UnityResultValidatorAcceptsOnlyTheSingleExpectedPassedTest()
     {
         var result = RunUnityResultValidator(CreateTestRun());

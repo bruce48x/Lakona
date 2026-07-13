@@ -130,6 +130,7 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.TryAddSingleton<StartupActorHostedService>();
         services.AddSingleton<IHostedService>(provider => provider.GetRequiredService<StartupActorHostedService>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHotfixRuntimePublicationParticipant, StartupActorPublicationParticipant>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, LakonaClusterDirectorySchemaHostedService>());
         services.TryAddSingleton<LakonaGameClusterRegistrationHostedService>();
         services.TryAddSingleton<IClusterNodeRegistrationRefresher>(provider => provider.GetRequiredService<LakonaGameClusterRegistrationHostedService>());
         services.AddSingleton<IHostedService>(provider => provider.GetRequiredService<LakonaGameClusterRegistrationHostedService>());

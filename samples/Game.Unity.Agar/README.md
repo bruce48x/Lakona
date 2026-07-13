@@ -162,12 +162,10 @@ key 只用于选择亲和性，不是物理 actor id。当前三节点拓扑只�
 本地 `docker-compose.yml` 会把 `infra/postgres/init` 挂载到 Postgres
 `/docker-entrypoint-initdb.d`，其中 `001-lakona-cluster-nodes.sql` 创建
 Lakona cluster node directory 表，`002-dapper-grain-storage.sql` 创建 sample
-状态表。`data-1` 启动时默认只验证 schema 是否可用，不执行建表；只有显式设置
-`Lakona:Cluster:Directory:EnsureSchemaOnStartup=true` 时才会用当前连接执行
-`CREATE TABLE IF NOT EXISTS`。这个开关只用于本地开发、测试或一次性 admin
-bootstrap，不是生产运行建议。已有旧本地 Postgres volume 的开发环境不会自动补跑
-新的 init SQL；可重建本地 volume、用 admin-capable 账号手动执行
-`001-lakona-cluster-nodes.sql`，或临时用上述开关做一次 admin/bootstrap 启动。
+状态表。为支持复用旧的本地 Postgres volume，`data-1` 会启用
+`Lakona:Cluster:Directory:EnsureSchemaOnStartup=true`，在节点注册前用当前连接
+执行幂等的 schema bootstrap，并补齐已知的 directory 列。这个开关只用于本地开发、
+测试或一次性 admin bootstrap，不是生产运行建议；生产部署应通过受控迁移更新 schema。
 
 ## 开发命令
 
