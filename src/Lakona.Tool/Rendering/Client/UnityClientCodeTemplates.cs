@@ -88,6 +88,7 @@ internal static class UnityClientCodeTemplates
         {{serializerUsing}}
         {{transportUsing}}
         using UnityEngine;
+        using UnityEngine.InputSystem;
         using UnityEngine.UIElements;
 
         namespace Client.Game
@@ -98,8 +99,10 @@ internal static class UnityClientCodeTemplates
                 [SerializeField] private string _serverHost = "127.0.0.1";
                 [SerializeField] private int _serverPort = 20000;
                 [SerializeField] private string _serverPath = "{{defaultPath}}";
+                [SerializeField] private InputActionAsset _inputActions = null!;
 
                 private CancellationTokenSource? _cts;
+                private InputAction _moveAction = null!;
                 private GameClient? _client;
                 private WorldSnapshot? _world;
                 private long _localPlayerId;
@@ -119,6 +122,17 @@ internal static class UnityClientCodeTemplates
                 private float _nextInputAt;
                 private readonly List<HitEffect> _hitEffects = new();
                 private const float HitEffectDuration = 0.22f;
+
+                private void OnEnable()
+                {
+                    _moveAction = _inputActions.FindAction("Player/Move", true);
+                    _moveAction.Enable();
+                }
+
+                private void OnDisable()
+                {
+                    _moveAction?.Disable();
+                }
 
                 private void Start()
                 {
@@ -159,8 +173,9 @@ internal static class UnityClientCodeTemplates
                     RefreshHud();
                     if (_localPlayerId == 0 || Time.unscaledTime < _nextInputAt || _inputPending) return;
                     _nextInputAt = Time.unscaledTime + 0.05f;
-                    var x = Input.GetAxisRaw("Horizontal");
-                    var y = Input.GetAxisRaw("Vertical");
+                    var direction = _moveAction.ReadValue<Vector2>();
+                    var x = direction.x;
+                    var y = direction.y;
                     var length = Mathf.Sqrt(x * x + y * y);
                     if (length > 1f) { x /= length; y /= length; }
                     _ = SendInputAsync(x, y);

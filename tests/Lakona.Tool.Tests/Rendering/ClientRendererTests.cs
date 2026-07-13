@@ -26,14 +26,16 @@ public sealed class ClientRendererTests
         Assert.Contains("resizableWindow: 1", playerSettings, StringComparison.Ordinal);
         Assert.Contains("allowFullscreenSwitch: 1", playerSettings, StringComparison.Ordinal);
         Assert.Contains("useFlipModelSwapchain: 1", playerSettings, StringComparison.Ordinal);
-        Assert.Contains("activeInputHandler: 0", playerSettings, StringComparison.Ordinal);
+        Assert.Contains("activeInputHandler: 1", playerSettings, StringComparison.Ordinal);
         var controller = AssertPath(plan, "Client/Assets/Scripts/Game/GameController.cs").Content;
         AssertValidCSharp(controller, LanguageVersion.CSharp9);
         Assert.Contains("private bool _loginPending", controller, StringComparison.Ordinal);
         Assert.Contains("while (_client.TryDequeueSnapshot", controller, StringComparison.Ordinal);
         Assert.DoesNotContain("RefreshWorldAsync", controller, StringComparison.Ordinal);
         Assert.DoesNotContain("GetWorldAsync", controller, StringComparison.Ordinal);
-        Assert.Contains("Input.GetAxisRaw(\"Horizontal\")", controller, StringComparison.Ordinal);
+        Assert.Contains("using UnityEngine.InputSystem;", controller, StringComparison.Ordinal);
+        Assert.Contains("_moveAction.ReadValue<Vector2>()", controller, StringComparison.Ordinal);
+        Assert.DoesNotContain("Input.GetAxisRaw", controller, StringComparison.Ordinal);
         Assert.Contains("context.painter2D", controller, StringComparison.Ordinal);
         Assert.Contains("DrawCircle", controller, StringComparison.Ordinal);
         Assert.Contains("DrawSegmentedHealth", controller, StringComparison.Ordinal);
@@ -50,8 +52,22 @@ public sealed class ClientRendererTests
 
         var scene = AssertPath(plan, "Client/Assets/Scenes/Game.unity").Content;
         Assert.Contains("m_Name: Lakona Arena Game", scene, StringComparison.Ordinal);
+        Assert.Contains("m_Name: EventSystem", scene, StringComparison.Ordinal);
+        Assert.Contains("01614664b831546d2ae94a42149d80ac", scene, StringComparison.Ordinal);
+        Assert.Contains("76c392e42b5098c458856cdf6ecaaaa1", scene, StringComparison.Ordinal);
+        Assert.DoesNotContain("4f231c4fb786f3946a6b90b886c48677", scene, StringComparison.Ordinal);
         Assert.Contains(UnityClientAssetTemplates.GameControllerGuid, scene, StringComparison.Ordinal);
         Assert.Contains(UnityClientAssetTemplates.GameUxmlGuid, scene, StringComparison.Ordinal);
+        Assert.Contains(UnityClientAssetTemplates.InputActionsGuid, scene, StringComparison.Ordinal);
+        Assert.Contains($"_inputActions: {{fileID: -944628639613478452, guid: {UnityClientAssetTemplates.InputActionsGuid}, type: 3}}", scene, StringComparison.Ordinal);
+        var inputActions = AssertPath(plan, "Client/Assets/Input/LakonaInputActions.inputactions").Content;
+        using (var inputDocument = JsonDocument.Parse(inputActions))
+        {
+            var playerMap = Assert.Single(inputDocument.RootElement.GetProperty("maps").EnumerateArray());
+            Assert.Equal("Player", playerMap.GetProperty("name").GetString());
+            Assert.Contains(playerMap.GetProperty("actions").EnumerateArray(), action => action.GetProperty("name").GetString() == "Move");
+        }
+        AssertPath(plan, "Client/Assets/Input/LakonaInputActions.inputactions.meta");
         Assert.Contains("name=\"login-panel\"", AssertPath(plan, "Client/Assets/UI/Game.uxml").Content, StringComparison.Ordinal);
         Assert.Contains("name=\"hud\"", AssertPath(plan, "Client/Assets/UI/Game.uxml").Content, StringComparison.Ordinal);
         Assert.Contains("name=\"health-fill\"", AssertPath(plan, "Client/Assets/UI/Game.uxml").Content, StringComparison.Ordinal);
@@ -142,6 +158,8 @@ public sealed class ClientRendererTests
         var plan = Render(new UnityClientRenderer(), Spec(Enum.Parse<ClientEngine>(engineName), TransportKind.Kcp, SerializerKind.MemoryPack, Enum.Parse<NuGetForUnitySource>(sourceName)));
         using var document = JsonDocument.Parse(AssertPath(plan, "Client/Packages/manifest.json").Content);
         Assert.True(document.RootElement.GetProperty("dependencies").TryGetProperty("com.unity.modules.uielements", out _));
+        Assert.Equal("1.14.0", document.RootElement.GetProperty("dependencies").GetProperty("com.unity.inputsystem").GetString());
+        Assert.Equal("1.0.0", document.RootElement.GetProperty("dependencies").GetProperty("com.unity.ugui").GetString());
     }
 
     [Fact]

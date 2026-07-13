@@ -6,10 +6,11 @@ date and package versions of important releases are retained.
 
 ## 2026-07-13 — Usable generated Unity desktop input
 
-**Key releases:** `Lakona.Tool 0.25.15`.
+**Key releases:** `Lakona.Tool 0.25.16`.
 
-- Made generated Unity, Unity-CN, and Tuanjie projects explicitly use the legacy
-  input backend required by their UI Toolkit and `UnityEngine.Input` code.
+- Made generated Unity, Unity-CN, and Tuanjie projects install and exclusively
+  use the new Input System, with file-backed movement actions and a scene-owned
+  `EventSystem` plus `InputSystemUIInputModule` for UI Toolkit input.
 - Completed the generated Windows Standalone settings for an 800×600 windowed,
   resizable player instead of relying on Unity to infer omitted fields.
 

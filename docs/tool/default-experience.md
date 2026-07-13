@@ -224,6 +224,11 @@ Generated Unity, Unity-CN, and Tuanjie desktop players start in a resizable
 800×600 window. The default is stored in `Client/ProjectSettings/ProjectSettings.asset`
 so it applies to player builds without runtime resolution overrides.
 
+Those Unity-compatible clients install the new Input System and use it as their
+only active input backend. Their scene contains an `EventSystem` with
+`InputSystemUIInputModule` for UI Toolkit, while gameplay movement is defined in
+a generated Input Actions asset with WASD, arrow-key, and gamepad bindings.
+
 The generated arena must use the core Lakona.Game runtime model. RPC enters a
 generated hotfix-backed service binding, and the current `Server/Hotfix`
 implementation talks to the pre-created `GameWorldActor` state shell. The actor

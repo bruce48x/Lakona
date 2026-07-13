@@ -8,6 +8,7 @@ internal static class UnityClientAssetTemplates
     public const string GameControllerGuid = "25a1b8c3d2e4f6a7b8c9d0e1f2a3b4cd";
     public const string GameUxmlGuid = "3a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d";
     public const string GameUssGuid = "4b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e";
+    public const string InputActionsGuid = "6c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f";
     public const string GameSceneGuid = "57a244091a9bb4d7a9f119d19bc86c01";
     public const string LoginClientGuid = "1a1f98ba46486884b824d248c98d6e38";
     public const string ChatClientGuid = "fff9f5180f8be804a88038c0f7860779";
@@ -89,6 +90,176 @@ internal static class UnityClientAssetTemplates
           assetBundleVariant:
           script: {fileID: 12388, guid: 0000000000000000e000000000000000, type: 0}
           disableValidation: 0
+        """;
+    }
+
+    public static string RenderInputActions()
+    {
+        return """
+        {
+          "name": "LakonaInputActions",
+          "maps": [
+            {
+              "name": "Player",
+              "id": "c66f74f2-f270-4d2c-8174-f856c173308b",
+              "actions": [
+                {
+                  "name": "Move",
+                  "type": "Value",
+                  "id": "8f451bed-340a-4841-941d-2de211d8ff35",
+                  "expectedControlType": "Vector2",
+                  "processors": "",
+                  "interactions": "",
+                  "initialStateCheck": true
+                }
+              ],
+              "bindings": [
+                {
+                  "name": "",
+                  "id": "5713188c-80b0-40df-822d-bc1b54b81b82",
+                  "path": "<Gamepad>/leftStick",
+                  "interactions": "",
+                  "processors": "",
+                  "groups": "",
+                  "action": "Move",
+                  "isComposite": false,
+                  "isPartOfComposite": false
+                },
+                {
+                  "name": "WASD",
+                  "id": "235307da-ae68-4898-acb2-4fc6de69a9ce",
+                  "path": "Dpad",
+                  "interactions": "",
+                  "processors": "",
+                  "groups": "",
+                  "action": "Move",
+                  "isComposite": true,
+                  "isPartOfComposite": false
+                },
+                {
+                  "name": "up",
+                  "id": "a5612595-a421-4c9d-b089-e6e6cdce49f7",
+                  "path": "<Keyboard>/w",
+                  "interactions": "",
+                  "processors": "",
+                  "groups": "",
+                  "action": "Move",
+                  "isComposite": false,
+                  "isPartOfComposite": true
+                },
+                {
+                  "name": "down",
+                  "id": "2df48f76-c1bf-438f-8c66-c5fd0e2dc1f1",
+                  "path": "<Keyboard>/s",
+                  "interactions": "",
+                  "processors": "",
+                  "groups": "",
+                  "action": "Move",
+                  "isComposite": false,
+                  "isPartOfComposite": true
+                },
+                {
+                  "name": "left",
+                  "id": "eac8a9a0-6e79-4e35-8a21-71833dd908b3",
+                  "path": "<Keyboard>/a",
+                  "interactions": "",
+                  "processors": "",
+                  "groups": "",
+                  "action": "Move",
+                  "isComposite": false,
+                  "isPartOfComposite": true
+                },
+                {
+                  "name": "right",
+                  "id": "538bc295-e566-4304-b11a-915bdac5e639",
+                  "path": "<Keyboard>/d",
+                  "interactions": "",
+                  "processors": "",
+                  "groups": "",
+                  "action": "Move",
+                  "isComposite": false,
+                  "isPartOfComposite": true
+                },
+                {
+                  "name": "Arrows",
+                  "id": "9084b649-3817-4235-9489-41c5759d2aac",
+                  "path": "Dpad",
+                  "interactions": "",
+                  "processors": "",
+                  "groups": "",
+                  "action": "Move",
+                  "isComposite": true,
+                  "isPartOfComposite": false
+                },
+                {
+                  "name": "up",
+                  "id": "6f1f990e-100a-4100-af98-085784ae0a52",
+                  "path": "<Keyboard>/upArrow",
+                  "interactions": "",
+                  "processors": "",
+                  "groups": "",
+                  "action": "Move",
+                  "isComposite": false,
+                  "isPartOfComposite": true
+                },
+                {
+                  "name": "down",
+                  "id": "3b42d60f-2417-430d-915a-6fb0dad026df",
+                  "path": "<Keyboard>/downArrow",
+                  "interactions": "",
+                  "processors": "",
+                  "groups": "",
+                  "action": "Move",
+                  "isComposite": false,
+                  "isPartOfComposite": true
+                },
+                {
+                  "name": "left",
+                  "id": "a0a33689-f3f5-4c7a-8124-b1f4891623f3",
+                  "path": "<Keyboard>/leftArrow",
+                  "interactions": "",
+                  "processors": "",
+                  "groups": "",
+                  "action": "Move",
+                  "isComposite": false,
+                  "isPartOfComposite": true
+                },
+                {
+                  "name": "right",
+                  "id": "9b3dd172-1d60-4096-b91c-47e3b38e9510",
+                  "path": "<Keyboard>/rightArrow",
+                  "interactions": "",
+                  "processors": "",
+                  "groups": "",
+                  "action": "Move",
+                  "isComposite": false,
+                  "isPartOfComposite": true
+                }
+              ]
+            }
+          ],
+          "controlSchemes": []
+        }
+        """;
+    }
+
+    public static string RenderInputActionsMeta()
+    {
+        return $$"""
+        fileFormatVersion: 2
+        guid: {{InputActionsGuid}}
+        ScriptedImporter:
+          internalIDToNameTable: []
+          externalObjects: {}
+          serializedVersion: 2
+          userData:
+          assetBundleName:
+          assetBundleVariant:
+          script: {fileID: 11500000, guid: 8404be70184654265930450def6a9037, type: 3}
+          generateWrapperCode: 0
+          wrapperCodePath:
+          wrapperClassName:
+          wrapperCodeNamespace:
         """;
     }
 
@@ -341,6 +512,7 @@ internal static class UnityClientAssetTemplates
           _serverHost: 127.0.0.1
           _serverPort: 20000
           _serverPath: {{defaultPath}}
+          _inputActions: {fileID: -944628639613478452, guid: {{InputActionsGuid}}, type: 3}
         --- !u!114 &217437975
         MonoBehaviour:
           m_ObjectHideFlags: 0
@@ -373,12 +545,14 @@ internal static class UnityClientAssetTemplates
           m_Father: {fileID: 0}
           m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
         {{RenderMainCamera(217438972, 217438973, 217438974, 217438975)}}
+        {{RenderInputSystemEventSystem(217439972, 217439973, 217439974, 217439975)}}
         --- !u!1660057539 &9223372036854775807
         SceneRoots:
           m_ObjectHideFlags: 0
           m_Roots:
           - {fileID: 217437974}
           - {fileID: 217438973}
+          - {fileID: 217439975}
         """;
     }
 
@@ -421,7 +595,7 @@ internal static class UnityClientAssetTemplates
           visibleInBackground: 1
           allowFullscreenSwitch: 1
           fullscreenMode: 3
-          activeInputHandler: 0
+          activeInputHandler: 1
         """;
     }
 
@@ -956,6 +1130,88 @@ internal static class UnityClientAssetTemplates
           m_ObjectHideFlags: 0
           m_NavMeshData: {fileID: 0}
 
+        """;
+    }
+
+    private static string RenderInputSystemEventSystem(int gameObjectId, int inputModuleId, int eventSystemId, int transformId)
+    {
+        return $$"""
+        --- !u!1 &{{gameObjectId}}
+        GameObject:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          serializedVersion: 6
+          m_Component:
+          - component: {fileID: {{transformId}}}
+          - component: {fileID: {{inputModuleId}}}
+          - component: {fileID: {{eventSystemId}}}
+          m_Layer: 0
+          m_Name: EventSystem
+          m_TagString: Untagged
+          m_Icon: {fileID: 0}
+          m_NavMeshLayer: 0
+          m_StaticEditorFlags: 0
+          m_IsActive: 1
+        --- !u!114 &{{inputModuleId}}
+        MonoBehaviour:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          m_GameObject: {fileID: {{gameObjectId}}}
+          m_Enabled: 1
+          m_EditorHideFlags: 0
+          m_Script: {fileID: 11500000, guid: 01614664b831546d2ae94a42149d80ac, type: 3}
+          m_Name:
+          m_EditorClassIdentifier:
+          m_MoveRepeatDelay: 0.5
+          m_MoveRepeatRate: 0.1
+          m_ActionsAsset: {fileID: 0}
+          m_PointAction: {fileID: 0}
+          m_MoveAction: {fileID: 0}
+          m_SubmitAction: {fileID: 0}
+          m_CancelAction: {fileID: 0}
+          m_LeftClickAction: {fileID: 0}
+          m_MiddleClickAction: {fileID: 0}
+          m_RightClickAction: {fileID: 0}
+          m_ScrollWheelAction: {fileID: 0}
+          m_TrackedDevicePositionAction: {fileID: 0}
+          m_TrackedDeviceOrientationAction: {fileID: 0}
+          m_DeselectOnBackgroundClick: 1
+          m_PointerBehavior: 0
+          m_CursorLockBehavior: 0
+        --- !u!114 &{{eventSystemId}}
+        MonoBehaviour:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          m_GameObject: {fileID: {{gameObjectId}}}
+          m_Enabled: 1
+          m_EditorHideFlags: 0
+          m_Script: {fileID: 11500000, guid: 76c392e42b5098c458856cdf6ecaaaa1, type: 3}
+          m_Name:
+          m_EditorClassIdentifier:
+          m_FirstSelected: {fileID: 0}
+          m_sendNavigationEvents: 1
+          m_DragThreshold: 10
+        --- !u!4 &{{transformId}}
+        Transform:
+          m_ObjectHideFlags: 0
+          m_CorrespondingSourceObject: {fileID: 0}
+          m_PrefabInstance: {fileID: 0}
+          m_PrefabAsset: {fileID: 0}
+          m_GameObject: {fileID: {{gameObjectId}}}
+          serializedVersion: 2
+          m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+          m_LocalPosition: {x: 0, y: 0, z: 0}
+          m_LocalScale: {x: 1, y: 1, z: 1}
+          m_ConstrainProportionsScale: 0
+          m_Children: []
+          m_Father: {fileID: 0}
+          m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
         """;
     }
 

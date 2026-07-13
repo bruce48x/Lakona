@@ -490,13 +490,19 @@ must not reference the hotfix project as a normal compile dependency.
 - `Client/Packages/manifest.json`
 - `Client/ProjectSettings/ProjectVersion.txt`
 - `Client/ProjectSettings/ProjectSettings.asset`, including the default 800×600
-  windowed, resizable desktop player configuration and the legacy input backend
-  used by generated UI Toolkit and `UnityEngine.Input` code
+  windowed, resizable desktop player configuration and the new Input System as
+  the sole active input backend
 - `Client/Assets/packages.config`
 - `Client/Assets/NuGet.config`
+- a file-backed Input Actions asset for gameplay movement
 - arena login, input, snapshot, and procedural rendering scripts
 - UXML, USS, PanelSettings, scene files, meta files
 - NuGet package import guard
+
+The generated scene owns an `EventSystem` with `InputSystemUIInputModule` so UI
+Toolkit pointer, keyboard, and text-field input is functional without the
+legacy Input Manager. Gameplay code reads the generated `Player/Move` action;
+it must not fall back to `UnityEngine.Input` or use `Active Input Handling = Both`.
 
 Unity and Tuanjie generated scripts must obey the repository Unity rules:
 

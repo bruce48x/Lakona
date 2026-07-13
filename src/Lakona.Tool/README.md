@@ -63,7 +63,7 @@ By default, the generated project includes:
 
 Generated server projects reference `Lakona.Game.Server.Hotfix.Generators` as an analyzer so public `[HotfixBehaviorOf]` extension methods define actor APIs, and Hotfix-owned generated behavior-derived selectors/refs are available at build time.
 
-For Unity and Tuanjie clients, the tool pins `Lakona.Game.Client` and `Lakona.Game.Abstractions` in `Assets/packages.config` and generates an editor import guard that prevents NuGet analyzer/generator DLLs and incompatible multi-TFM plugins (for example `lib/net10.0/`) from being loaded as Unity runtime plugins, while explicitly enabling `netstandard2.1` runtime DLLs under `Assets/Packages`.
+For Unity and Tuanjie clients, the tool installs Unity's new Input System with a file-backed movement action and scene-owned UI input module. It also pins `Lakona.Game.Client` and `Lakona.Game.Abstractions` in `Assets/packages.config` and generates an editor import guard that prevents NuGet analyzer/generator DLLs and incompatible multi-TFM plugins (for example `lib/net10.0/`) from being loaded as Unity runtime plugins, while explicitly enabling `netstandard2.1` runtime DLLs under `Assets/Packages`.
 
 The generated `appsettings.json` intentionally stays small. It contains only the local node identity, session cleanup retention, health endpoint binding, and endpoint-local serializer/RPC service exposure under `Lakona`; cluster discovery, hotfix defaults, reliable push defaults, and readiness diagnostics are derived by generated server helper code.
 

@@ -36,6 +36,8 @@ internal sealed class UnityClientRenderer : IClientRenderer
           "dependencies": {
         {{RenderNuGetForUnityDependencyLine(spec)}}
             "{{spec.Layout.UnityPackageId}}.shared": "file:../../Shared",
+            "com.unity.inputsystem": "1.14.0",
+            "com.unity.ugui": "1.0.0",
             "com.unity.modules.audio": "1.0.0",
             "com.unity.modules.imgui": "1.0.0",
             "com.unity.modules.ui": "1.0.0",
@@ -140,6 +142,9 @@ internal sealed class UnityClientRenderer : IClientRenderer
 
     private static void AddUnityAssetFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
+        builder.AddFile("Client/Assets/Input/LakonaInputActions.inputactions", UnityClientAssetTemplates.RenderInputActions(), FileWriteMode.Replace, GeneratedFileKind.Json);
+        builder.AddFile("Client/Assets/Input/LakonaInputActions.inputactions.meta", UnityClientAssetTemplates.RenderInputActionsMeta(), FileWriteMode.Replace, GeneratedFileKind.Text);
+
         builder.AddFile("Client/Assets/UI/Game.uxml", UnityClientAssetTemplates.RenderGameUxml(), FileWriteMode.Replace, GeneratedFileKind.Xml);
         builder.AddFile("Client/Assets/UI/Game.uxml.meta", UnityClientAssetTemplates.RenderUxmlMeta(UnityClientAssetTemplates.GameUxmlGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Client/Assets/UI/Game.uss", UnityClientAssetTemplates.RenderGameUss(), FileWriteMode.Replace, GeneratedFileKind.Text);

@@ -112,7 +112,8 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 
         - Enter a player name. A new name receives a new server-assigned `PlayerId`;
           an offline existing name restores its in-memory state; an online name is rejected.
-        - Move with WASD. The client sends direction only and the server computes movement.
+        - Move with WASD, the arrow keys, or a gamepad left stick. The client sends
+          direction only and the server computes movement.
         - Players automatically fire in their last movement direction every 0.5 seconds.
         - A green monster spawns every 3 seconds, chases the nearest living online player,
           and deals contact damage with a cooldown.
@@ -243,6 +244,7 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
     {
         ClientEngine.Unity or ClientEngine.UnityCn or ClientEngine.Tuanjie =>
             "The generated Game scene contains its login and HUD structure in scene/UI Toolkit assets. " +
+            "Edit Assets/Input/LakonaInputActions.inputactions to customize movement bindings. " +
             "Runtime code draws gameplay with generated textures and basic shapes. NuGetForUnity manages package dependencies.",
         ClientEngine.Godot =>
             "The Game scene and theme are file-backed. Node2D custom drawing renders gameplay " +
