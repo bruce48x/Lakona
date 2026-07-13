@@ -1,4 +1,0 @@
-interface:
-  display_name: "Lakona Large Change Workflow"
-  short_description: "Guide large cross-cutting Lakona changes"
-  default_prompt: "Use $lakona-large-change-workflow before implementing a large cross-cutting Lakona change."
