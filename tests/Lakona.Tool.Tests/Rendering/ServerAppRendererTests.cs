@@ -23,6 +23,10 @@ public sealed class ServerAppRendererTests
         Assert.Contains("List<MonsterState>", actor, StringComparison.Ordinal);
         Assert.Contains("List<BulletState>", actor, StringComparison.Ordinal);
         Assert.Contains("TimerId SimulationTimerId", actor, StringComparison.Ordinal);
+        Assert.Contains("string SessionId", actor, StringComparison.Ordinal);
+        Assert.Contains("long SessionGeneration", actor, StringComparison.Ordinal);
+        Assert.DoesNotContain("GameSessionKey", actor, StringComparison.Ordinal);
+        Assert.DoesNotContain("IGameCallback? Callback", actor, StringComparison.Ordinal);
         Assert.DoesNotContain("HotfixBehaviorOf", actor, StringComparison.Ordinal);
 
         var messages = AssertPath(plan, "Server/App/Game/GameWorldMessages.cs").Content;
@@ -31,6 +35,9 @@ public sealed class ServerAppRendererTests
         Assert.Contains("MonsterKillScore = 10", messages, StringComparison.Ordinal);
         Assert.Contains("MaxMonsters = 50", messages, StringComparison.Ordinal);
         Assert.Contains("MonsterSpeed = 1.25f", messages, StringComparison.Ordinal);
+        Assert.Contains("List<GameWorldRecipient> Recipients", messages, StringComparison.Ordinal);
+        Assert.DoesNotContain("GameSessionKey", messages, StringComparison.Ordinal);
+        Assert.DoesNotContain("GameSnapshotRequest", messages, StringComparison.Ordinal);
 
         using var document = JsonDocument.Parse(AssertPath(plan, "Server/App/appsettings.json").Content);
         var lakona = document.RootElement.GetProperty("Lakona");

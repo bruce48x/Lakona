@@ -434,7 +434,8 @@ try
     var transport = $transportCtor;
     var serializer = $serializerCtor;
     var options = new LakonaGameClientOptions(transport, serializer);
-    await using var client = new LakonaGameClient(options, new E2ECallbacks());
+    var callbacks = new E2ECallbacks();
+    await using var client = new LakonaGameClient(options, callbacks);
 
     Console.WriteLine("[E2E] Connecting to server...");
     await client.ConnectAsync();
@@ -442,10 +443,12 @@ try
 
     var reply = await client.Api.Shared.Game.LoginAsync(
         new LoginRequest { PlayerName = "E2ETest" });
+    var pushedWorld = await callbacks.WaitForWorldAsync(TimeSpan.FromSeconds(3));
 
-    Console.WriteLine("[E2E] Success={0}, PlayerId={1}, Tick={2}", reply.Success, reply.PlayerId, reply.World.Tick);
+    Console.WriteLine("[E2E] Success={0}, PlayerId={1}, LoginTick={2}, PushTick={3}", reply.Success, reply.PlayerId, reply.World.Tick, pushedWorld.Tick);
     if (reply.Success && reply.PlayerId > 0 &&
-        reply.World.Players.Exists(player => player.PlayerId == reply.PlayerId && player.Name == "E2ETest"))
+        reply.World.Players.Exists(player => player.PlayerId == reply.PlayerId && player.Name == "E2ETest") &&
+        pushedWorld.Tick > reply.World.Tick)
     {
         Console.WriteLine("[E2E] SUCCESS");
         return;
@@ -462,9 +465,14 @@ catch (Exception ex)
 
 internal sealed class E2ECallbacks : IGameCallback
 {
+    private readonly TaskCompletionSource<WorldSnapshot> _world = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
     public void OnWorldUpdated(WorldSnapshot snapshot)
     {
+        _world.TrySetResult(snapshot);
     }
+
+    public Task<WorldSnapshot> WaitForWorldAsync(TimeSpan timeout) => _world.Task.WaitAsync(timeout);
 }
 "@
 

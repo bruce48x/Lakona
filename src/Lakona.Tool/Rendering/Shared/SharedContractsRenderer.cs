@@ -28,7 +28,6 @@ internal sealed class SharedContractsRenderer : IPlanContributor
                 {
                     public const int LoginAsync = 1;
                     public const int SubmitInputAsync = 2;
-                    public const int GetWorldAsync = 3;
                 }
 
                 public static class GameNotifications
@@ -56,9 +55,6 @@ internal sealed class SharedContractsRenderer : IPlanContributor
 
                 [RpcMethod(RpcContractIds.GameServiceMethods.SubmitInputAsync)]
                 ValueTask SubmitInputAsync(PlayerInput request);
-
-                [RpcMethod(RpcContractIds.GameServiceMethods.GetWorldAsync)]
-                ValueTask<WorldSnapshot> GetWorldAsync(WorldQuery request);
             }
 
             [RpcNotificationContract(typeof(IGameService))]
@@ -101,10 +97,6 @@ internal sealed class SharedContractsRenderer : IPlanContributor
                 {{Order(1)}}public float DirectionY { get; set; }
             }
 
-            {{memoryPackable}}public partial class WorldQuery
-            {
-            }
-
             {{memoryPackable}}public partial class WorldSnapshot
             {
                 {{Order(0)}}public long Tick { get; set; }
@@ -145,6 +137,8 @@ internal sealed class SharedContractsRenderer : IPlanContributor
                 {{Order(1)}}public long OwnerPlayerId { get; set; }
                 {{Order(2)}}public float X { get; set; }
                 {{Order(3)}}public float Y { get; set; }
+                {{Order(4)}}public float DirectionX { get; set; }
+                {{Order(5)}}public float DirectionY { get; set; }
             }
         }
         """;

@@ -142,7 +142,9 @@ internal sealed class ServerAppRenderer : IPlanContributor
                 internal long PlayerId;
                 internal string Name = "";
                 internal string ConnectionId = "";
-                internal IGameCallback? Callback;
+                internal string SessionOwnerKey = "";
+                internal string SessionId = "";
+                internal long SessionGeneration;
                 internal float X;
                 internal float Y;
                 internal float DirectionX = 1f;
@@ -183,6 +185,7 @@ internal sealed class ServerAppRenderer : IPlanContributor
     private static string RenderGameWorldMessages()
     {
         return """
+        using System.Collections.Generic;
         using Shared.Contracts.Game;
 
         namespace Server.App.Game
@@ -217,7 +220,14 @@ internal sealed class ServerAppRenderer : IPlanContributor
             {
                 public string ConnectionId { get; set; } = "";
                 public string PlayerName { get; set; } = "";
-                public IGameCallback Callback { get; set; } = null!;
+            }
+
+            public sealed class GameAttachSessionRequest
+            {
+                public string ConnectionId { get; set; } = "";
+                public string OwnerKey { get; set; } = "";
+                public string SessionId { get; set; } = "";
+                public long Generation { get; set; }
             }
 
             public sealed class GameInputRequest
@@ -232,12 +242,21 @@ internal sealed class ServerAppRenderer : IPlanContributor
                 public string ConnectionId { get; set; } = "";
             }
 
-            public sealed class GameSnapshotRequest
+            public sealed class GameTickRequest
             {
             }
 
-            public sealed class GameTickRequest
+            public sealed class GameWorldUpdate
             {
+                public WorldSnapshot Snapshot { get; set; } = new();
+                public List<GameWorldRecipient> Recipients { get; set; } = new();
+            }
+
+            public sealed class GameWorldRecipient
+            {
+                public string OwnerKey { get; set; } = "";
+                public string SessionId { get; set; } = "";
+                public long Generation { get; set; }
             }
         }
         """;

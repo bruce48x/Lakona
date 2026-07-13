@@ -607,7 +607,7 @@ client login RPC
   -> pre-created GameWorldActor state shell
   -> current Server.Hotfix GameWorldBehavior inside the actor turn
   -> periodic authoritative world simulation
-  -> client-polled world snapshots plus immediate presence callbacks
+  -> server-pushed world snapshots resolved from each current Game Session
 ```
 
 The generated server must not use static mutable process state for world
@@ -622,9 +622,10 @@ one-to-one `Server.Hotfix` Behavior classes.
 The arena accepts player direction input only; the server computes movement,
 automatic firing, monster spawning and pursuit, collision damage, PvP/PvE
 scores, death, and five-second respawn. A disconnected player is removed from
-published snapshots immediately through a low-frequency presence callback while
-normal world state is polled by clients every 100 milliseconds. High-frequency
-simulation frames must not use the reliable callback path. Player state remains available for a
+published snapshots immediately. The simulation timer publishes authoritative
+world snapshots to online players by their current `GameSessionKey`; callback
+proxies are resolved at send time and are never stored in actor or session
+state. Player state remains available for a
 same-name reconnect. Online duplicate names are rejected. Client player colors
 come from a stable FNV-1a hash of the server-assigned player id and a fixed
 palette that excludes monster green.

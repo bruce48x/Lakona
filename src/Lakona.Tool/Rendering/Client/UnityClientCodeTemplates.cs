@@ -44,11 +44,6 @@ internal static class UnityClientCodeTemplates
                     await _client.Api.Shared.Game.SubmitInputAsync(new PlayerInput { DirectionX = x, DirectionY = y });
                 }
 
-                public async ValueTask RefreshWorldAsync()
-                {
-                    _snapshots.Enqueue(await _client.Api.Shared.Game.GetWorldAsync(new WorldQuery()));
-                }
-
                 public bool TryDequeueSnapshot(out WorldSnapshot snapshot)
                 {
                     return _snapshots.TryDequeue(out snapshot!);
@@ -121,9 +116,7 @@ internal static class UnityClientCodeTemplates
                 private VisualElement? _root;
                 private bool _loginPending;
                 private bool _inputPending;
-                private bool _snapshotPending;
                 private float _nextInputAt;
-                private float _nextSnapshotAt;
                 private readonly List<HitEffect> _hitEffects = new();
                 private const float HitEffectDuration = 0.22f;
 
@@ -164,11 +157,6 @@ internal static class UnityClientCodeTemplates
                     }
 
                     RefreshHud();
-                    if (Time.unscaledTime >= _nextSnapshotAt && !_snapshotPending)
-                    {
-                        _nextSnapshotAt = Time.unscaledTime + 0.1f;
-                        _ = RefreshWorldAsync();
-                    }
                     if (_localPlayerId == 0 || Time.unscaledTime < _nextInputAt || _inputPending) return;
                     _nextInputAt = Time.unscaledTime + 0.05f;
                     var x = Input.GetAxisRaw("Horizontal");
@@ -227,15 +215,6 @@ internal static class UnityClientCodeTemplates
                     finally { _inputPending = false; }
                 }
 
-                private async Task RefreshWorldAsync()
-                {
-                    if (_client is null) return;
-                    _snapshotPending = true;
-                    try { await _client.RefreshWorldAsync(); }
-                    catch (Exception) { ShowLogin("Connection lost. Re-enter your name to reconnect."); await DisposeClientAsync(); }
-                    finally { _snapshotPending = false; }
-                }
-
                 private void GenerateArenaVisualContent(MeshGenerationContext context)
                 {
                     if (_arenaView is null) return;
@@ -252,7 +231,10 @@ internal static class UnityClientCodeTemplates
                     foreach (var bullet in _world.Bullets)
                     {
                         var point = WorldToScreen(arena, bullet.X, bullet.Y, _world);
-                        DrawLine(painter, point - new Vector2(12f, 0f), point + new Vector2(4f, 0f), new Color(0.75f, 0.89f, 0.11f), 3f);
+                        var direction = new Vector2(bullet.DirectionX, -bullet.DirectionY);
+                        if (direction.sqrMagnitude < 0.001f) direction = Vector2.right;
+                        direction.Normalize();
+                        DrawLine(painter, point - direction * 12f, point + direction * 4f, new Color(0.75f, 0.89f, 0.11f), 3f);
                     }
                     foreach (var monster in _world.Monsters)
                     {
@@ -426,8 +408,25 @@ internal static class UnityClientCodeTemplates
                     security.EncryptionKeyBase64 = null;
                 }
 
-                private static Vector2 WorldToScreen(Rect arena, float x, float y, WorldSnapshot world) =>
-                    new(arena.x + x / world.Width * arena.width, arena.y + (world.Height - y) / world.Height * arena.height);
+                private Vector2 CameraCenter(Rect arena, WorldSnapshot world)
+                {
+                    var local = world.Players.Find(player => player.PlayerId == _localPlayerId);
+                    if (local is null) return new Vector2(world.Width * 0.5f, world.Height * 0.5f);
+                    var visibleHeight = Mathf.Min(world.Height, 12f);
+                    var visibleWidth = Mathf.Min(world.Width, visibleHeight * arena.width / Mathf.Max(1f, arena.height));
+                    var centerX = visibleWidth >= world.Width ? world.Width * 0.5f : Mathf.Clamp(local.X, visibleWidth * 0.5f, world.Width - visibleWidth * 0.5f);
+                    var centerY = visibleHeight >= world.Height ? world.Height * 0.5f : Mathf.Clamp(local.Y, visibleHeight * 0.5f, world.Height - visibleHeight * 0.5f);
+                    return new Vector2(centerX, centerY);
+                }
+
+                private Vector2 WorldToScreen(Rect arena, float x, float y, WorldSnapshot world)
+                {
+                    var visibleHeight = Mathf.Min(world.Height, 12f);
+                    var visibleWidth = Mathf.Min(world.Width, visibleHeight * arena.width / Mathf.Max(1f, arena.height));
+                    var scale = Mathf.Min(arena.width / visibleWidth, arena.height / visibleHeight);
+                    var camera = CameraCenter(arena, world);
+                    return arena.center + new Vector2((x - camera.x) * scale, -(y - camera.y) * scale);
+                }
 
                 private static Color PlayerColor(long playerId)
                 {

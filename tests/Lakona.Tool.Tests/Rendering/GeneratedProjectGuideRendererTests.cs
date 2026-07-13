@@ -78,6 +78,8 @@ public sealed class GeneratedProjectGuideRendererTests
         var plan = builder.Build();
         var readme = Assert.Single(plan.Files, file => file.RelativePath == "README.md");
         Assert.StartsWith("# MyGame", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("server-pushed world snapshots", readme.Content, StringComparison.Ordinal);
+        Assert.DoesNotContain("polled world snapshots", readme.Content, StringComparison.Ordinal);
     }
 
     [Fact]

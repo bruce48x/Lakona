@@ -195,7 +195,7 @@ The generated application includes a compact top-down multiplayer arena that dem
 - name-based login creating or reconnecting an in-memory player session
 - server-assigned player ids and deterministic client-side player colors
 - client direction input with server-authoritative movement and simulation
-- client-polled world snapshots with callbacks reserved for immediate presence changes
+- server-pushed world snapshots resolved from each player's current game session
 - automatic projectiles, player-versus-player damage, monster spawning and pursuit
 - health, score, death, five-second respawn, disconnect presence, and reconnect recovery
 - generated hotfix-backed service binding calling current hotfix code

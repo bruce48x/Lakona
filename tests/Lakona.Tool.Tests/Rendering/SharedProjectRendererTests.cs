@@ -21,7 +21,7 @@ public sealed class SharedProjectRendererTests
         Assert.Contains("interface IGameService", protocols, StringComparison.Ordinal);
         Assert.Contains("ValueTask<LoginReply> LoginAsync", protocols, StringComparison.Ordinal);
         Assert.Contains("ValueTask SubmitInputAsync", protocols, StringComparison.Ordinal);
-        Assert.Contains("ValueTask<WorldSnapshot> GetWorldAsync", protocols, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetWorldAsync", protocols, StringComparison.Ordinal);
         Assert.Contains("void OnWorldUpdated", protocols, StringComparison.Ordinal);
 
         var messages = AssertPath(plan, "Shared/Contracts/Game/GameMessages.cs").Content;
@@ -30,6 +30,9 @@ public sealed class SharedProjectRendererTests
         Assert.Contains("public List<PlayerSnapshot> Players", messages, StringComparison.Ordinal);
         Assert.Contains("public List<MonsterSnapshot> Monsters", messages, StringComparison.Ordinal);
         Assert.Contains("public List<BulletSnapshot> Bullets", messages, StringComparison.Ordinal);
+        Assert.Contains("public float DirectionX", messages, StringComparison.Ordinal);
+        Assert.Contains("public float DirectionY", messages, StringComparison.Ordinal);
+        Assert.DoesNotContain("WorldQuery", messages, StringComparison.Ordinal);
         Assert.DoesNotContain("Chat", messages, StringComparison.Ordinal);
         AssertPath(plan, "Shared/Contracts/RpcContractIds.cs");
     }

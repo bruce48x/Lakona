@@ -104,8 +104,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                             new GameLoginRequest
                             {
                                 ConnectionId = call.ConnectionId,
-                                PlayerName = playerName,
-                                Callback = call.Callback
+                                PlayerName = playerName
                             },
                             CancellationToken.None);
                     if (!reply.Success)
@@ -115,7 +114,19 @@ internal sealed class HotfixRenderer : IPlanContributor
 
                     try
                     {
-                        await _gameServer.StartSessionAsync(playerName, call.ConnectionId);
+                        var session = await _gameServer.StartSessionAsync(playerName, call.ConnectionId);
+                        await _worlds
+                            .Startup(GameWorldIds.Global)
+                            .PostAsync(
+                                GameWorldBehavior.AttachSessionAsync,
+                                new GameAttachSessionRequest
+                                {
+                                    ConnectionId = call.ConnectionId,
+                                    OwnerKey = session.OwnerKey,
+                                    SessionId = session.SessionId,
+                                    Generation = session.Generation
+                                },
+                                CancellationToken.None);
                     }
                     catch
                     {
@@ -138,16 +149,6 @@ internal sealed class HotfixRenderer : IPlanContributor
                                 DirectionX = call.Request.DirectionX,
                                 DirectionY = call.Request.DirectionY
                             },
-                            CancellationToken.None);
-                }
-
-                public ValueTask<WorldSnapshot> GetWorldAsync(HotfixServiceCall<WorldQuery, IGameCallback> call)
-                {
-                    return _worlds
-                        .Startup(GameWorldIds.Global)
-                        .CallAsync(
-                            GameWorldBehavior.GetWorldAsync,
-                            new GameSnapshotRequest(),
                             CancellationToken.None);
                 }
 
@@ -207,9 +208,11 @@ internal sealed class HotfixRenderer : IPlanContributor
     private static string RenderGameWorldTimer()
     {
         return """
+        using Lakona.Game.Server.Sessions;
         using Lakona.Game.Server.Hotfix.Abstractions.Timers;
         using Microsoft.Extensions.DependencyInjection;
         using Server.App.Game;
+        using Shared.Contracts.Game;
 
         namespace Server.Hotfix.Game
         {
@@ -219,15 +222,33 @@ internal sealed class HotfixRenderer : IPlanContributor
 
             public sealed class GameWorldTimerCallbacks
             {
-                public static ValueTask TickAsync(TimerTick<GameWorldTimerArgs> tick)
+                public static async ValueTask TickAsync(TimerTick<GameWorldTimerArgs> tick)
                 {
-                    return tick.Services
+                    var update = await tick.Services
                         .GetRequiredService<GameWorldActors>()
                         .Startup(GameWorldIds.Global)
-                        .PostAsync(
+                        .CallAsync(
                             GameWorldBehavior.TickAsync,
                             new GameTickRequest(),
                             tick.CancellationToken);
+
+                    var notifications = tick.Services.GetRequiredService<IClientNotifications>();
+                    foreach (var recipient in update.Recipients)
+                    {
+                        var session = new GameSessionKey(
+                            recipient.OwnerKey,
+                            recipient.SessionId,
+                            recipient.Generation);
+                        await notifications
+                            .ForSession(session)
+                            .NotifyAsync<IGameCallback>(
+                                callback =>
+                                {
+                                    callback.OnWorldUpdated(update.Snapshot);
+                                    return default;
+                                },
+                                tick.CancellationToken);
+                    }
                 }
             }
         }
@@ -301,20 +322,35 @@ internal sealed class HotfixRenderer : IPlanContributor
                     }
 
                     player.ConnectionId = request.ConnectionId;
-                    player.Callback = request.Callback;
                     player.IsOnline = true;
                     player.InputX = 0f;
                     player.InputY = 0f;
                     self.PlayersByConnection[request.ConnectionId] = player;
 
                     var snapshot = BuildSnapshot(self);
-                    Broadcast(self, snapshot);
                     return new LoginReply
                     {
                         Success = true,
                         PlayerId = player.PlayerId,
                         World = snapshot
                     };
+                }
+
+                public static ValueTask AttachSessionAsync(
+                    this GameWorldActor self,
+                    GameAttachSessionRequest request,
+                    CancellationToken cancellationToken = default)
+                {
+                    _ = cancellationToken;
+                    if (self.PlayersByConnection.TryGetValue(request.ConnectionId, out var player) &&
+                        player.IsOnline)
+                    {
+                        player.SessionOwnerKey = request.OwnerKey;
+                        player.SessionId = request.SessionId;
+                        player.SessionGeneration = request.Generation;
+                    }
+
+                    return default;
                 }
 
                 public static ValueTask SubmitInputAsync(
@@ -362,24 +398,15 @@ internal sealed class HotfixRenderer : IPlanContributor
 
                     player.IsOnline = false;
                     player.ConnectionId = "";
-                    player.Callback = null;
+                    player.SessionOwnerKey = "";
+                    player.SessionId = "";
+                    player.SessionGeneration = 0;
                     player.InputX = 0f;
                     player.InputY = 0f;
-                    Broadcast(self, BuildSnapshot(self));
                     return default;
                 }
 
-                public static ValueTask<WorldSnapshot> GetWorldAsync(
-                    this GameWorldActor self,
-                    GameSnapshotRequest request,
-                    CancellationToken cancellationToken = default)
-                {
-                    _ = request;
-                    _ = cancellationToken;
-                    return new ValueTask<WorldSnapshot>(BuildSnapshot(self));
-                }
-
-                public static ValueTask TickAsync(
+                public static ValueTask<GameWorldUpdate> TickAsync(
                     this GameWorldActor self,
                     GameTickRequest request,
                     CancellationToken cancellationToken = default)
@@ -394,7 +421,22 @@ internal sealed class HotfixRenderer : IPlanContributor
                     UpdateMonsters(self);
                     UpdateBullets(self);
 
-                    return default;
+                    return new ValueTask<GameWorldUpdate>(new GameWorldUpdate
+                    {
+                        Snapshot = BuildSnapshot(self),
+                        Recipients = self.PlayersByName.Values
+                            .Where(static player =>
+                                player.IsOnline &&
+                                player.SessionId.Length > 0 &&
+                                player.SessionGeneration > 0)
+                            .Select(static player => new GameWorldRecipient
+                            {
+                                OwnerKey = player.SessionOwnerKey,
+                                SessionId = player.SessionId,
+                                Generation = player.SessionGeneration
+                            })
+                            .ToList()
+                    });
                 }
 
                 private static PlayerState CreatePlayer(GameWorldActor self, string name)
@@ -621,29 +663,11 @@ internal sealed class HotfixRenderer : IPlanContributor
                             BulletId = bullet.BulletId,
                             OwnerPlayerId = bullet.OwnerPlayerId,
                             X = bullet.X,
-                            Y = bullet.Y
+                            Y = bullet.Y,
+                            DirectionX = bullet.DirectionX,
+                            DirectionY = bullet.DirectionY
                         }).ToList()
                     };
-                }
-
-                private static void Broadcast(GameWorldActor self, WorldSnapshot snapshot)
-                {
-                    foreach (var player in self.PlayersByName.Values)
-                    {
-                        if (!player.IsOnline || player.Callback is null)
-                        {
-                            continue;
-                        }
-
-                        try
-                        {
-                            player.Callback.OnWorldUpdated(snapshot);
-                        }
-                        catch (Exception)
-                        {
-                            // A stale connection must not prevent updates from reaching the rest of the world.
-                        }
-                    }
                 }
 
                 private static async ValueTask EnsureSimulationTimerAsync(GameWorldActor self, CancellationToken cancellationToken)

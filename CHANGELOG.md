@@ -4,6 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-13 — Player-focused generated arena
+
+**Key releases:** `Lakona.Tool 0.25.11`.
+
+- Changed generated arena snapshots from client polling to server push resolved
+  through each player's current Game Session, without storing callback objects.
+- Added direction-aware projectile rendering and player-following cameras for
+  generated Unity, Tuanjie, and Godot clients.
+
 ## 2026-07-13 — Discovered Hotfix host assembly identity
 
 **Key releases:** `Lakona.Game.Server 0.18.7` and `Lakona.Tool 0.25.10`.

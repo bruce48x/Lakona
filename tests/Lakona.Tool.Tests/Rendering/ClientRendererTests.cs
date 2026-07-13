@@ -3,6 +3,8 @@ using Lakona.Tool.Cli.Options;
 using Lakona.Tool.Domain;
 using Lakona.Tool.Planning;
 using Lakona.Tool.Rendering.Client;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Xunit;
 
 namespace Lakona.Tool.Tests.Rendering;
@@ -18,9 +20,11 @@ public sealed class ClientRendererTests
         AssertPath(plan, "Client/Assets/UI/Game.uxml");
         AssertPath(plan, "Client/Assets/UI/Game.uss");
         var controller = AssertPath(plan, "Client/Assets/Scripts/Game/GameController.cs").Content;
+        AssertValidCSharp(controller, LanguageVersion.CSharp9);
         Assert.Contains("private bool _loginPending", controller, StringComparison.Ordinal);
         Assert.Contains("while (_client.TryDequeueSnapshot", controller, StringComparison.Ordinal);
-        Assert.Contains("_client.RefreshWorldAsync", controller, StringComparison.Ordinal);
+        Assert.DoesNotContain("RefreshWorldAsync", controller, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetWorldAsync", controller, StringComparison.Ordinal);
         Assert.Contains("Input.GetAxisRaw(\"Horizontal\")", controller, StringComparison.Ordinal);
         Assert.Contains("context.painter2D", controller, StringComparison.Ordinal);
         Assert.Contains("DrawCircle", controller, StringComparison.Ordinal);
@@ -28,6 +32,8 @@ public sealed class ClientRendererTests
         Assert.Contains("DrawDemoBattle", controller, StringComparison.Ordinal);
         Assert.Contains("GenerateArenaVisualContent", controller, StringComparison.Ordinal);
         Assert.Contains("ApplyWorldSnapshot", controller, StringComparison.Ordinal);
+        Assert.Contains("new Vector2(bullet.DirectionX, -bullet.DirectionY)", controller, StringComparison.Ordinal);
+        Assert.Contains("CameraCenter", controller, StringComparison.Ordinal);
         Assert.Contains("HitEffectDuration", controller, StringComparison.Ordinal);
         Assert.Contains("2166136261", controller, StringComparison.Ordinal);
         Assert.DoesNotContain("new Color(0.2f, 0.9f, 0.3f)", PlayerPaletteSource(controller), StringComparison.Ordinal);
@@ -74,6 +80,7 @@ public sealed class ClientRendererTests
         Assert.Contains("res://Scripts/Game/GameScene.cs", scene, StringComparison.Ordinal);
 
         var code = AssertPath(plan, "Client/Scripts/Game/GameScene.cs").Content;
+        AssertValidCSharp(code, LanguageVersion.Latest);
         Assert.Contains("public override void _Draw()", code, StringComparison.Ordinal);
         Assert.Contains("DrawCircle", code, StringComparison.Ordinal);
         Assert.Contains("DrawSegmentedHealth", code, StringComparison.Ordinal);
@@ -82,7 +89,10 @@ public sealed class ClientRendererTests
         Assert.Contains("HitEffectDuration", code, StringComparison.Ordinal);
         Assert.Contains("Input.IsKeyPressed(Key.W)", code, StringComparison.Ordinal);
         Assert.Contains("while (_client.TryDequeueSnapshot", code, StringComparison.Ordinal);
-        Assert.Contains("_client.RefreshWorldAsync", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("RefreshWorldAsync", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetWorldAsync", code, StringComparison.Ordinal);
+        Assert.Contains("new Vector2(bullet.DirectionX, -bullet.DirectionY)", code, StringComparison.Ordinal);
+        Assert.Contains("CameraCenter", code, StringComparison.Ordinal);
         Assert.Contains("_loginPending = true", code, StringComparison.Ordinal);
         Assert.Contains("new WsTransport", code, StringComparison.Ordinal);
         Assert.Contains("new JsonRpcSerializer()", code, StringComparison.Ordinal);
@@ -103,7 +113,7 @@ public sealed class ClientRendererTests
         var program = AssertPath(plan, "Client/Program.cs").Content;
         Assert.Contains("client.Api.Shared.Game", program, StringComparison.Ordinal);
         Assert.Contains("SubmitInputAsync", program, StringComparison.Ordinal);
-        Assert.Contains("GetWorldAsync", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetWorldAsync", program, StringComparison.Ordinal);
         Assert.Contains("case \"smoke\"", program, StringComparison.Ordinal);
         Assert.Contains("case \"load\"", program, StringComparison.Ordinal);
         var scenario = AssertPath(plan, "Client/LoadScenarios/GameLoadScenario.cs").Content;
@@ -139,6 +149,16 @@ public sealed class ClientRendererTests
     {
         var start = source.IndexOf("private static Color PlayerColor", StringComparison.Ordinal);
         return start < 0 ? source : source[start..];
+    }
+
+    private static void AssertValidCSharp(string source, LanguageVersion languageVersion)
+    {
+        var diagnostics = CSharpSyntaxTree
+            .ParseText(source, new CSharpParseOptions(languageVersion))
+            .GetDiagnostics()
+            .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.Empty(diagnostics);
     }
 
     private static bool IsExternalArt(string path) =>

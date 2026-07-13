@@ -52,7 +52,7 @@ internal static class ConsoleClientCodeTemplates
             var reply = await game.LoginAsync(new Shared.Contracts.Game.LoginRequest { PlayerName = name });
             if (!reply.Success) throw new InvalidOperationException(reply.Error);
             await game.SubmitInputAsync(new Shared.Contracts.Game.PlayerInput { DirectionX = 1f });
-            var world = await game.GetWorldAsync(new Shared.Contracts.Game.WorldQuery());
+            var world = reply.World;
             Console.WriteLine($"Smoke succeeded. player={reply.PlayerId} players={world.Players.Count}");
             return 0;
         }

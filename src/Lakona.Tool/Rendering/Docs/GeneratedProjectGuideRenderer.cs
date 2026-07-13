@@ -100,7 +100,7 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
           -> current Server/Hotfix service implementation
           -> actor-owned in-memory game world
           -> periodic authoritative simulation
-          -> polled world snapshots plus immediate presence callbacks
+          -> server-pushed world snapshots resolved through the current game session
         ```
 
         The hotfix actor startup path ensures the fixed local `GameWorldActor` exists
