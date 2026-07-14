@@ -14,7 +14,7 @@ public sealed class NewProjectOptionParserTests
             [
                 "--name", "Arena",
                 "--output", "out",
-                "--client-engine", "unity-cn",
+                "--client-engine", "unity",
                 "--transport", "websocket",
                 "--serializer", "json",
                 "--persistence", "mysql",
@@ -24,7 +24,7 @@ public sealed class NewProjectOptionParserTests
 
         Assert.Equal("Arena", options.ProjectName);
         Assert.Equal("out", options.OutputPath);
-        Assert.Equal(ClientEngine.UnityCn, options.ClientEngine);
+        Assert.Equal(ClientEngine.Unity, options.ClientEngine);
         Assert.Equal(TransportKind.WebSocket, options.Transport);
         Assert.Equal(SerializerKind.Json, options.Serializer);
         Assert.Equal(PersistenceKind.MySql, options.Persistence);
@@ -38,6 +38,16 @@ public sealed class NewProjectOptionParserTests
         Assert.True(options.HasExplicit(NewProjectOptionPresence.Persistence));
         Assert.True(options.HasExplicit(NewProjectOptionPresence.NuGetForUnitySource));
         Assert.True(options.HasExplicit(NewProjectOptionPresence.DeployProfile));
+    }
+
+    [Fact]
+    public void Parse_RejectsRemovedUnityCnClientEngine()
+    {
+        var exception = Assert.Throws<CliUsageException>(() =>
+            NewProjectOptionParser.Parse(["--client-engine", "unity-cn"], ToolText.ForCulture(CultureInfo.InvariantCulture)));
+
+        Assert.Contains("unity-cn", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("--client-engine", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]

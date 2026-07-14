@@ -67,12 +67,9 @@ public sealed class LakonaProjectGeneratorTests
         }
     }
 
-    [Theory]
-    [InlineData("UnityCn")]
-    [InlineData("Tuanjie")]
-    public async Task GenerateAsync_UnityChinaFriendlyEngines_WriteEmbeddedNuGetForUnity(string engineName)
+    [Fact]
+    public async Task GenerateAsync_Tuanjie_WritesEmbeddedNuGetForUnity()
     {
-        var engine = Enum.Parse<ClientEngine>(engineName);
         var parentRoot = Path.Combine(Path.GetTempPath(), "lakona-project-generator-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(parentRoot);
         try
@@ -80,7 +77,7 @@ public sealed class LakonaProjectGeneratorTests
             var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions(
                 "MyGame",
                 parentRoot,
-                engine,
+                ClientEngine.Tuanjie,
                 TransportKind.Kcp,
                 SerializerKind.MemoryPack,
                 PersistenceKind.None,

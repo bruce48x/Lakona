@@ -37,12 +37,7 @@ internal sealed class UnityClientRenderer : IClientRenderer
         {{RenderNuGetForUnityDependencyLine(spec)}}
             "{{spec.Layout.UnityPackageId}}.shared": "file:../../Shared",
             "com.unity.inputsystem": "1.14.0",
-            "com.unity.ugui": "1.0.0",
-            "com.unity.modules.audio": "1.0.0",
-            "com.unity.modules.imgui": "1.0.0",
-            "com.unity.modules.ui": "1.0.0",
-            "com.unity.modules.physics": "1.0.0",
-            "com.unity.modules.physics2d": "1.0.0",
+        {{RenderClientEngineDependencyLines(spec.ClientEngine)}}
             "com.unity.modules.uielements": "1.0.0"
           }{{RenderScopedRegistriesBlock(spec)}}
         }
@@ -54,6 +49,84 @@ internal sealed class UnityClientRenderer : IClientRenderer
         return spec.NuGetForUnitySource == NuGetForUnitySource.OpenUpm
             ? "    \"com.github-glitchenzo.nugetforunity\": \"4.5.0\",\n"
             : string.Empty;
+    }
+
+    private static string RenderClientEngineDependencyLines(ClientEngine engine)
+    {
+        return engine == ClientEngine.Unity
+            ? "    \"com.unity.collab-proxy\": \"2.12.4\",\n" +
+              "    \"com.unity.feature.development\": \"1.0.1\",\n" +
+              "    \"com.unity.textmeshpro\": \"3.0.7\",\n" +
+              "    \"com.unity.timeline\": \"1.7.7\",\n" +
+              "    \"com.unity.ugui\": \"1.0.0\",\n" +
+              "    \"com.unity.visualscripting\": \"1.9.4\",\n" +
+              "    \"com.unity.modules.ai\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.androidjni\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.animation\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.assetbundle\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.audio\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.cloth\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.director\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.imageconversion\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.imgui\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.jsonserialize\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.particlesystem\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.physics\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.physics2d\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.screencapture\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.terrain\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.terrainphysics\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.tilemap\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.ui\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.umbra\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.unityanalytics\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.unitywebrequest\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.unitywebrequestassetbundle\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.unitywebrequestaudio\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.unitywebrequesttexture\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.unitywebrequestwww\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.vehicles\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.video\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.vr\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.wind\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.xr\": \"1.0.0\",\n"
+            : "    \"cn.tuanjie.codely.bridge\": \"1.0.69\",\n" +
+              "    \"com.unity.collab-proxy\": \"2.5.1\",\n" +
+              "    \"com.unity.feature.development\": \"1.0.1\",\n" +
+              "    \"com.unity.textmeshpro\": \"3.0.7\",\n" +
+              "    \"com.unity.timeline\": \"1.7.7\",\n" +
+              "    \"com.unity.ugui\": \"1.0.0\",\n" +
+              "    \"com.unity.visualscripting\": \"1.9.4\",\n" +
+              "    \"com.unity.modules.ai\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.androidjni\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.animation\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.assetbundle\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.audio\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.cloth\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.director\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.imageconversion\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.imgui\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.infinity\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.jsonserialize\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.particlesystem\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.physics\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.physics2d\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.screencapture\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.terrain\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.terrainphysics\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.tilemap\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.ui\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.unityanalytics\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.unitywebrequest\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.unitywebrequestassetbundle\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.unitywebrequestaudio\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.unitywebrequesttexture\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.unitywebrequestwww\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.vehicles\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.video\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.vr\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.wind\": \"1.0.0\",\n" +
+              "    \"com.unity.modules.xr\": \"1.0.0\",\n";
     }
 
     private static string RenderScopedRegistriesBlock(LakonaProjectSpec spec)
@@ -79,7 +152,6 @@ internal sealed class UnityClientRenderer : IClientRenderer
         return engine switch
         {
             ClientEngine.Tuanjie => $"m_EditorVersion: {ClientEngineVersions.TuanjieUnityEditor}\nm_TuanjieEditorVersion: {ClientEngineVersions.Tuanjie}",
-            ClientEngine.UnityCn => "m_EditorVersion: 2022.3.62f3c1",
             _ => "m_EditorVersion: 2022.3.62f1"
         };
     }

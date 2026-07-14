@@ -17,14 +17,6 @@ public sealed class GitRendererTests
     }
 
     [Fact]
-    public void AddFiles_EmitsUnityCnGitFiles()
-    {
-        AssertGitFiles(ClientEngine.UnityCn,
-            expectUnitySpecific: true,
-            expectGodotSpecific: false);
-    }
-
-    [Fact]
     public void AddFiles_EmitsTuanjieGitFiles()
     {
         AssertGitFiles(ClientEngine.Tuanjie,

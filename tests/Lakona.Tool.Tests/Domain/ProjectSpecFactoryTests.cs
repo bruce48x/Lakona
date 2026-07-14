@@ -65,16 +65,13 @@ public sealed class ProjectSpecFactoryTests
         Assert.Equal("Lakona 99 Arena", spec.Layout.GeneratedDocsTitle);
     }
 
-    [Theory]
-    [InlineData("UnityCn")]
-    [InlineData("Tuanjie")]
-    public void Create_ForcesEmbeddedNuGetForUnitySource_ForChinaFriendlyUnityEngines(string engineName)
+    [Fact]
+    public void Create_ForcesEmbeddedNuGetForUnitySource_ForTuanjie()
     {
-        var engine = Enum.Parse<ClientEngine>(engineName);
         var options = new NewProjectOptions(
             ProjectName: "ChinaNet",
             OutputPath: ".",
-            ClientEngine: engine,
+            ClientEngine: ClientEngine.Tuanjie,
             Transport: TransportKind.Kcp,
             Serializer: SerializerKind.MemoryPack,
             Persistence: PersistenceKind.None,

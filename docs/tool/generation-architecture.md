@@ -250,7 +250,7 @@ Supported user-facing options:
 
 - `--name`
 - `--output`
-- `--client-engine unity|unity-cn|tuanjie|godot|console`
+- `--client-engine unity|tuanjie|godot|console`
 - `--transport tcp|websocket|kcp`
 - `--serializer json|memorypack`
 - `--persistence none|mysql|postgres`
@@ -488,6 +488,13 @@ must not reference the hotfix project as a normal compile dependency.
 `UnityClientRenderer` owns Unity and Tuanjie files:
 
 - `Client/Packages/manifest.json`
+- the complete Unity 2022.3 new-project package baseline, including Version
+  Control, Engineering tools, TextMeshPro, Timeline, Visual Scripting, and the
+  default built-in modules; Lakona-specific packages are added on top
+- the complete Tuanjie new-project package baseline for Tuanjie clients,
+  including Codely Bridge, Tuanjie Version Control, Engineering tools,
+  TextMeshPro, Timeline, Visual Scripting, Infinity, and its default built-in
+  modules; Lakona-specific packages are added on top
 - `Client/ProjectSettings/ProjectVersion.txt`
 - `Client/ProjectSettings/ProjectSettings.asset`, including the default 800×600
   windowed, resizable desktop player configuration and the new Input System as
@@ -511,7 +518,7 @@ Unity and Tuanjie generated scripts must obey the repository Unity rules:
 - no runtime code generation
 - no checked-in RPC generated client source
 
-Generated Unity, Unity-CN, and Tuanjie clients consume Lakona's multi-TFM NuGet
+Generated Unity and Tuanjie clients consume Lakona's multi-TFM NuGet
 packages through Unity's single plugin import model. They must keep shared
 Lakona packages multi-targeted for SDK clients, but Unity import state must be
 deterministic:

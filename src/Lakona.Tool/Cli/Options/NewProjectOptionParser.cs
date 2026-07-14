@@ -79,7 +79,6 @@ internal static class NewProjectOptionParser
         return ValidateChoice("--client-engine", value, new Dictionary<string, ClientEngine>(StringComparer.Ordinal)
         {
             ["unity"] = ClientEngine.Unity,
-            ["unity-cn"] = ClientEngine.UnityCn,
             ["tuanjie"] = ClientEngine.Tuanjie,
             ["godot"] = ClientEngine.Godot,
             ["console"] = ClientEngine.Console

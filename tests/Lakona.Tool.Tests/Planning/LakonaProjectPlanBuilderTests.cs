@@ -78,7 +78,6 @@ public sealed class LakonaProjectPlanBuilderTests
 
     [Theory]
     [InlineData("Unity")]
-    [InlineData("UnityCn")]
     [InlineData("Tuanjie")]
     public void Build_SelectsUnityRenderer_ForUnityCompatibleEngines(string engineName)
     {

@@ -220,7 +220,7 @@ Unity and Godot render the arena entirely from engine-provided drawing primitive
 the generated project contains no external art assets. The Console client provides
 headless smoke and load flows for the same contracts.
 
-Generated Unity, Unity-CN, and Tuanjie desktop players start in a resizable
+Generated Unity and Tuanjie desktop players start in a resizable
 800×600 window. The default is stored in `Client/ProjectSettings/ProjectSettings.asset`
 so it applies to player builds without runtime resolution overrides.
 

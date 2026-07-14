@@ -33,7 +33,7 @@ internal sealed class NewProjectPrompter(global::ToolText text, global::ICliTerm
             {
                 ClientEngine = PromptChoice(
                     text.ClientEnginePrompt,
-                    [ClientEngine.Unity, ClientEngine.UnityCn, ClientEngine.Tuanjie, ClientEngine.Godot, ClientEngine.Console],
+                    [ClientEngine.Unity, ClientEngine.Tuanjie, ClientEngine.Godot, ClientEngine.Console],
                     ClientEngine.Unity),
                 Presence = options.Presence | NewProjectOptionPresence.ClientEngine
             };

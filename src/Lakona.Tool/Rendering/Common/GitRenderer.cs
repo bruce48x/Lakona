@@ -7,7 +7,7 @@ internal sealed class GitRenderer : IPlanContributor
 {
     public void AddFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
-        var isUnity = spec.ClientEngine is ClientEngine.Unity or ClientEngine.UnityCn or ClientEngine.Tuanjie;
+        var isUnity = spec.ClientEngine is ClientEngine.Unity or ClientEngine.Tuanjie;
         var isGodot = spec.ClientEngine is ClientEngine.Godot;
         builder.AddFile(".gitignore", RenderGitIgnore(isUnity, isGodot), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile(".gitattributes", RenderGitAttributes(), FileWriteMode.Replace, GeneratedFileKind.Text);

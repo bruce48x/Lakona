@@ -157,7 +157,6 @@ public sealed class ClientRendererTests
     [Theory]
     [InlineData("Unity", "OpenUpm")]
     [InlineData("Unity", "Embedded")]
-    [InlineData("UnityCn", "Embedded")]
     [InlineData("Tuanjie", "Embedded")]
     public void UnityClientRenderer_ManifestIsValidJson(string engineName, string sourceName)
     {
@@ -166,6 +165,116 @@ public sealed class ClientRendererTests
         Assert.True(document.RootElement.GetProperty("dependencies").TryGetProperty("com.unity.modules.uielements", out _));
         Assert.Equal("1.14.0", document.RootElement.GetProperty("dependencies").GetProperty("com.unity.inputsystem").GetString());
         Assert.Equal("1.0.0", document.RootElement.GetProperty("dependencies").GetProperty("com.unity.ugui").GetString());
+    }
+
+    [Fact]
+    public void UnityClientRenderer_ManifestIncludesUnity2022DefaultPackages()
+    {
+        var plan = Render(new UnityClientRenderer(), Spec(ClientEngine.Unity, TransportKind.Kcp, SerializerKind.MemoryPack));
+        using var document = JsonDocument.Parse(AssertPath(plan, "Client/Packages/manifest.json").Content);
+        var dependencies = document.RootElement.GetProperty("dependencies");
+        var expected = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["com.unity.collab-proxy"] = "2.12.4",
+            ["com.unity.feature.development"] = "1.0.1",
+            ["com.unity.textmeshpro"] = "3.0.7",
+            ["com.unity.timeline"] = "1.7.7",
+            ["com.unity.ugui"] = "1.0.0",
+            ["com.unity.visualscripting"] = "1.9.4",
+            ["com.unity.modules.ai"] = "1.0.0",
+            ["com.unity.modules.androidjni"] = "1.0.0",
+            ["com.unity.modules.animation"] = "1.0.0",
+            ["com.unity.modules.assetbundle"] = "1.0.0",
+            ["com.unity.modules.audio"] = "1.0.0",
+            ["com.unity.modules.cloth"] = "1.0.0",
+            ["com.unity.modules.director"] = "1.0.0",
+            ["com.unity.modules.imageconversion"] = "1.0.0",
+            ["com.unity.modules.imgui"] = "1.0.0",
+            ["com.unity.modules.jsonserialize"] = "1.0.0",
+            ["com.unity.modules.particlesystem"] = "1.0.0",
+            ["com.unity.modules.physics"] = "1.0.0",
+            ["com.unity.modules.physics2d"] = "1.0.0",
+            ["com.unity.modules.screencapture"] = "1.0.0",
+            ["com.unity.modules.terrain"] = "1.0.0",
+            ["com.unity.modules.terrainphysics"] = "1.0.0",
+            ["com.unity.modules.tilemap"] = "1.0.0",
+            ["com.unity.modules.ui"] = "1.0.0",
+            ["com.unity.modules.uielements"] = "1.0.0",
+            ["com.unity.modules.umbra"] = "1.0.0",
+            ["com.unity.modules.unityanalytics"] = "1.0.0",
+            ["com.unity.modules.unitywebrequest"] = "1.0.0",
+            ["com.unity.modules.unitywebrequestassetbundle"] = "1.0.0",
+            ["com.unity.modules.unitywebrequestaudio"] = "1.0.0",
+            ["com.unity.modules.unitywebrequesttexture"] = "1.0.0",
+            ["com.unity.modules.unitywebrequestwww"] = "1.0.0",
+            ["com.unity.modules.vehicles"] = "1.0.0",
+            ["com.unity.modules.video"] = "1.0.0",
+            ["com.unity.modules.vr"] = "1.0.0",
+            ["com.unity.modules.wind"] = "1.0.0",
+            ["com.unity.modules.xr"] = "1.0.0"
+        };
+
+        foreach (var (packageId, version) in expected)
+        {
+            Assert.Equal(version, dependencies.GetProperty(packageId).GetString());
+        }
+    }
+
+    [Fact]
+    public void UnityClientRenderer_ManifestIncludesTuanjieDefaultPackages()
+    {
+        var plan = Render(new UnityClientRenderer(), Spec(ClientEngine.Tuanjie, TransportKind.Kcp, SerializerKind.MemoryPack, NuGetForUnitySource.Embedded));
+        using var document = JsonDocument.Parse(AssertPath(plan, "Client/Packages/manifest.json").Content);
+        var dependencies = document.RootElement.GetProperty("dependencies");
+        var expected = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["cn.tuanjie.codely.bridge"] = "1.0.69",
+            ["com.unity.collab-proxy"] = "2.5.1",
+            ["com.unity.feature.development"] = "1.0.1",
+            ["com.unity.textmeshpro"] = "3.0.7",
+            ["com.unity.timeline"] = "1.7.7",
+            ["com.unity.ugui"] = "1.0.0",
+            ["com.unity.visualscripting"] = "1.9.4",
+            ["com.unity.modules.ai"] = "1.0.0",
+            ["com.unity.modules.androidjni"] = "1.0.0",
+            ["com.unity.modules.animation"] = "1.0.0",
+            ["com.unity.modules.assetbundle"] = "1.0.0",
+            ["com.unity.modules.audio"] = "1.0.0",
+            ["com.unity.modules.cloth"] = "1.0.0",
+            ["com.unity.modules.director"] = "1.0.0",
+            ["com.unity.modules.imageconversion"] = "1.0.0",
+            ["com.unity.modules.imgui"] = "1.0.0",
+            ["com.unity.modules.infinity"] = "1.0.0",
+            ["com.unity.modules.jsonserialize"] = "1.0.0",
+            ["com.unity.modules.particlesystem"] = "1.0.0",
+            ["com.unity.modules.physics"] = "1.0.0",
+            ["com.unity.modules.physics2d"] = "1.0.0",
+            ["com.unity.modules.screencapture"] = "1.0.0",
+            ["com.unity.modules.terrain"] = "1.0.0",
+            ["com.unity.modules.terrainphysics"] = "1.0.0",
+            ["com.unity.modules.tilemap"] = "1.0.0",
+            ["com.unity.modules.ui"] = "1.0.0",
+            ["com.unity.modules.uielements"] = "1.0.0",
+            ["com.unity.modules.unityanalytics"] = "1.0.0",
+            ["com.unity.modules.unitywebrequest"] = "1.0.0",
+            ["com.unity.modules.unitywebrequestassetbundle"] = "1.0.0",
+            ["com.unity.modules.unitywebrequestaudio"] = "1.0.0",
+            ["com.unity.modules.unitywebrequesttexture"] = "1.0.0",
+            ["com.unity.modules.unitywebrequestwww"] = "1.0.0",
+            ["com.unity.modules.vehicles"] = "1.0.0",
+            ["com.unity.modules.video"] = "1.0.0",
+            ["com.unity.modules.vr"] = "1.0.0",
+            ["com.unity.modules.wind"] = "1.0.0",
+            ["com.unity.modules.xr"] = "1.0.0"
+        };
+
+        foreach (var (packageId, version) in expected)
+        {
+            Assert.Equal(version, dependencies.GetProperty(packageId).GetString());
+        }
+
+        Assert.Equal(expected.Count + 2, dependencies.EnumerateObject().Count());
+        Assert.False(dependencies.TryGetProperty("com.unity.modules.umbra", out _));
     }
 
     [Fact]

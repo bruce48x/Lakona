@@ -20,7 +20,7 @@
 - Color and contrast: passed. Warm ivory, acid lime, coral, and charcoal match the selected direction; input text remains visible against the field background.
 - Spacing and responsive behavior: passed. The compact Unity view has no clipped primary controls or overlapping HUD.
 - Gameplay language: passed. Arena grid, targeting rings, players, monsters, projectile streaks, segmented health, and hit rings form one coherent system.
-- Cross-engine parity: passed. Unity/UnityCn/Tuanjie share the UI Toolkit implementation; Godot uses the same layout, palette, HUD, and native canvas primitives.
+- Cross-engine parity: passed. Unity and Tuanjie share the UI Toolkit implementation; Godot uses the same layout, palette, HUD, and native canvas primitives.
 - Copy: passed. Login and gameplay labels are concise and consistent.
 - Remaining low-priority variance: the native Unity field uses helper copy below the control instead of the reference's in-field icon/placeholder treatment.
 

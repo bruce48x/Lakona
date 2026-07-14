@@ -214,7 +214,6 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
     private static string EngineDescription(ClientEngine engine) => engine switch
     {
         ClientEngine.Unity => "Unity 2022.3 client using UI Toolkit",
-        ClientEngine.UnityCn => "Unity 2022.3 China-friendly client using UI Toolkit",
         ClientEngine.Tuanjie => "Tuanjie client using UI Toolkit",
         ClientEngine.Godot => "Godot C# client",
         ClientEngine.Console => ".NET console client for smoke/load flows",
@@ -231,7 +230,7 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 
     private static string ClientStartupSentence(ClientEngine engine) => engine switch
     {
-        ClientEngine.Unity or ClientEngine.UnityCn or ClientEngine.Tuanjie =>
+        ClientEngine.Unity or ClientEngine.Tuanjie =>
             "Open the Unity-compatible project at Client/ and run the generated Game scene.",
         ClientEngine.Godot =>
             "Open the Godot project at Client/ and run the generated Game scene.",
@@ -242,7 +241,7 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 
     private static string ClientNotes(ClientEngine engine) => engine switch
     {
-        ClientEngine.Unity or ClientEngine.UnityCn or ClientEngine.Tuanjie =>
+        ClientEngine.Unity or ClientEngine.Tuanjie =>
             "The generated Game scene contains its login and HUD structure in scene/UI Toolkit assets. " +
             "Edit Assets/Input/LakonaInputActions.inputactions to customize movement bindings. " +
             "Runtime code draws gameplay with generated textures and basic shapes. NuGetForUnity manages package dependencies.",
@@ -256,7 +255,7 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 
     private static string ProceduralArtSentence(ClientEngine engine) => engine switch
     {
-        ClientEngine.Unity or ClientEngine.UnityCn or ClientEngine.Tuanjie =>
+        ClientEngine.Unity or ClientEngine.Tuanjie =>
             "Unity draws the map, players, monsters, bullets, directions, and health bars from engine primitives. No external art files are included.",
         ClientEngine.Godot =>
             "Godot draws the map, players, monsters, bullets, directions, and health bars from engine primitives. No external art files are included.",

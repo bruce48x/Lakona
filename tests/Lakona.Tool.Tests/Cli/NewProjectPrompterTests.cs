@@ -19,7 +19,7 @@ public sealed class NewProjectPrompterTests
     [Fact]
     public void Complete_PromptsOnlyRequiredValues()
     {
-        var terminal = new FakeTerminal(["Arena", "5", "2", "1"]);
+        var terminal = new FakeTerminal(["Arena", "4", "2", "1"]);
         var prompter = new NewProjectPrompter(ToolText.ForCulture(System.Globalization.CultureInfo.InvariantCulture), terminal);
 
         var options = prompter.Complete(NewProjectOptionParser.Parse([]));
@@ -42,6 +42,7 @@ public sealed class NewProjectPrompterTests
         _ = prompter.Complete(NewProjectOptionParser.Parse([]));
 
         Assert.Contains(terminal.Output, line => line.Contains("console", StringComparison.Ordinal));
+        Assert.DoesNotContain(terminal.Output, line => line.Contains("unity-cn", StringComparison.Ordinal));
     }
 
     private sealed class FakeTerminal : ICliTerminal

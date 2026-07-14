@@ -42,7 +42,7 @@ curl http://127.0.0.1:20080/_lakona/health/ready
 
 Supported values:
 
-- `--client-engine`: `unity`, `unity-cn`, `tuanjie`, `godot`, `console`
+- `--client-engine`: `unity`, `tuanjie`, `godot`, `console`
 - `--transport`: `websocket`, `tcp`, `kcp`
 - `--serializer`: `json`, `memorypack`
 - `--persistence`: `none`, `postgres`, `mysql`

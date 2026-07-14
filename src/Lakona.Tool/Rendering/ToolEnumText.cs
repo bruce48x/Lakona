@@ -7,7 +7,6 @@ internal static class ToolEnumText
     public static string ToCliValue(ClientEngine value) => value switch
     {
         ClientEngine.Unity => "unity",
-        ClientEngine.UnityCn => "unity-cn",
         ClientEngine.Tuanjie => "tuanjie",
         ClientEngine.Godot => "godot",
         ClientEngine.Console => "console",

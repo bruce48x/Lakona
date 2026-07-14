@@ -4,6 +4,14 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-14 — Complete Unity-family project generation
+
+**Key release:** `Lakona.Tool 0.25.18`.
+
+- Matched generated Unity and Tuanjie projects to each editor's complete default
+  package baseline, with Lakona's Input System and networking dependencies added
+  on top; simplified client-engine choices to Unity, Tuanjie, Godot, and Console.
+
 ## 2026-07-13 — Generated multiplayer projects and local operations
 
 **Key releases:** `Lakona.Game.Server 0.18.8`,
