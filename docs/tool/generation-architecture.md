@@ -251,6 +251,8 @@ Supported user-facing options:
 - `--name`
 - `--output`
 - `--client-engine unity|tuanjie|godot|console`
+- `--client-engine-version 2022|6.0|6.3` for Unity, `1.6.7` for Tuanjie,
+  and `4.6` for Godot; the option does not apply to Console
 - `--transport tcp|websocket|kcp`
 - `--serializer json|memorypack`
 - `--persistence none|mysql|postgres`
@@ -261,15 +263,18 @@ Do not reintroduce `--network-profile`, `single`, or `realtime` generation
 paths. Unsupported historical options should fail with normal
 unsupported-option diagnostics.
 
-Interactive prompting asks only for values needed to form a project spec:
+Interactive prompting asks for values needed to form a project spec:
 
 1. project name
 2. client engine
-3. transport
-4. serializer
+3. Unity version when Unity is selected
+4. transport
+5. serializer
 
-Persistence, NuGetForUnity source, deployment profile, and output path keep
-documented defaults unless explicitly provided.
+Non-interactive generation defaults Unity to `2022`. Tuanjie and Godot resolve
+their single current supported versions automatically. Persistence,
+NuGetForUnity source, deployment profile, and output path keep documented
+defaults unless explicitly provided.
 
 ### Build Project Spec
 
@@ -280,6 +285,7 @@ internal sealed record LakonaProjectSpec(
     string Name,
     ProjectLayout Layout,
     ClientEngine ClientEngine,
+    ClientEngineVersion? ClientEngineVersion,
     TransportKind Transport,
     SerializerKind Serializer,
     PersistenceKind Persistence,
@@ -488,9 +494,9 @@ must not reference the hotfix project as a normal compile dependency.
 `UnityClientRenderer` owns Unity and Tuanjie files:
 
 - `Client/Packages/manifest.json`
-- the complete Unity 2022.3 new-project package baseline, including Version
-  Control, Engineering tools, TextMeshPro, Timeline, Visual Scripting, and the
-  default built-in modules; Lakona-specific packages are added on top
+- the complete version-specific Unity new-project package baseline for Unity
+  `2022`, `6.0`, or `6.3`; package identities and versions come from the
+  selected editor baseline, and Lakona-specific packages are added on top
 - the complete Tuanjie new-project package baseline for Tuanjie clients,
   including Codely Bridge, Tuanjie Version Control, Engineering tools,
   TextMeshPro, Timeline, Visual Scripting, Infinity, and its default built-in

@@ -29,6 +29,7 @@ public sealed class ProjectSpecFactoryTests
         Assert.Equal("Shared", spec.Layout.SharedProjectName);
         Assert.Equal("Client", spec.Layout.GodotAssemblyName);
         Assert.Equal(ClientEngine.Godot, spec.ClientEngine);
+        Assert.Equal(ClientEngineVersion.Godot46, spec.ClientEngineVersion);
         Assert.Equal(TransportKind.WebSocket, spec.Transport);
         Assert.Equal(SerializerKind.Json, spec.Serializer);
         Assert.Equal(PersistenceKind.Postgres, spec.Persistence);
@@ -43,6 +44,41 @@ public sealed class ProjectSpecFactoryTests
                 ProjectCapability.GameSlice
             ],
             spec.Capabilities);
+    }
+
+    [Theory]
+    [InlineData("Unity", null, "Unity2022")]
+    [InlineData("Unity", "Unity60", "Unity60")]
+    [InlineData("Unity", "Unity63", "Unity63")]
+    [InlineData("Tuanjie", null, "Tuanjie167")]
+    [InlineData("Godot", null, "Godot46")]
+    [InlineData("Console", null, null)]
+    public void Create_ResolvesClientEngineVersion(
+        string engineName,
+        string? requestedName,
+        string? expectedName)
+    {
+        var engine = Enum.Parse<ClientEngine>(engineName);
+        var requested = requestedName is null
+            ? (ClientEngineVersion?)null
+            : Enum.Parse<ClientEngineVersion>(requestedName);
+        var expected = expectedName is null
+            ? (ClientEngineVersion?)null
+            : Enum.Parse<ClientEngineVersion>(expectedName);
+        var options = new NewProjectOptions(
+            "VersionedClient",
+            ".",
+            engine,
+            TransportKind.Kcp,
+            SerializerKind.MemoryPack,
+            PersistenceKind.None,
+            NuGetForUnitySource.OpenUpm,
+            DeploymentProfile.None,
+            ClientEngineVersion: requested);
+
+        var spec = new LakonaProjectSpecFactory().Create(options);
+
+        Assert.Equal(expected, spec.ClientEngineVersion);
     }
 
     [Fact]

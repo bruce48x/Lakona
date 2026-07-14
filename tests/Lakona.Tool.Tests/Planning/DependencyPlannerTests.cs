@@ -141,6 +141,7 @@ public sealed class DependencyPlannerTests
             "MyGame",
             layout,
             engine,
+            ClientEngineVersionPolicy.GetDefaultVersion(engine),
             transport,
             serializer,
             persistence,

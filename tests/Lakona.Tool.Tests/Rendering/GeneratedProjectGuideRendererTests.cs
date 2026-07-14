@@ -94,8 +94,27 @@ public sealed class GeneratedProjectGuideRendererTests
         var plan = builder.Build();
         var readme = Assert.Single(plan.Files, file => file.RelativePath == "README.md");
         Assert.Contains("| Client engine | unity |", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("| Client engine version | 2022 |", readme.Content, StringComparison.Ordinal);
         Assert.Contains("| Transport | kcp |", readme.Content, StringComparison.Ordinal);
         Assert.Contains("| Serializer | memorypack |", readme.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Readme_ReflectsSelectedUnityVersion()
+    {
+        var spec = Spec(
+            ClientEngine.Unity,
+            TransportKind.Kcp,
+            SerializerKind.MemoryPack,
+            DeploymentProfile.None,
+            ClientEngineVersion.Unity63);
+        var builder = new GenerationPlanBuilder("Root");
+
+        new GeneratedProjectGuideRenderer().AddFiles(spec, builder);
+
+        var readme = Assert.Single(builder.Build().Files, file => file.RelativePath == "README.md");
+        Assert.Contains("Unity 6.3 client using UI Toolkit", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("| Client engine version | 6.3 |", readme.Content, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -259,7 +278,8 @@ public sealed class GeneratedProjectGuideRendererTests
     }
 
     private static LakonaProjectSpec Spec(ClientEngine engine, TransportKind transport,
-        SerializerKind serializer, DeploymentProfile deploy)
+        SerializerKind serializer, DeploymentProfile deploy,
+        ClientEngineVersion? version = null)
     {
         return new LakonaProjectSpecFactory().Create(new NewProjectOptions(
             "MyGame",
@@ -269,6 +289,7 @@ public sealed class GeneratedProjectGuideRendererTests
             serializer,
             PersistenceKind.None,
             NuGetForUnitySource.OpenUpm,
-            deploy));
+            deploy,
+            ClientEngineVersion: version));
     }
 }

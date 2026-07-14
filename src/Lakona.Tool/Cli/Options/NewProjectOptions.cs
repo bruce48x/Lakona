@@ -13,7 +13,8 @@ internal enum NewProjectOptionPresence
     Serializer = 1 << 4,
     Persistence = 1 << 5,
     NuGetForUnitySource = 1 << 6,
-    DeployProfile = 1 << 7
+    DeployProfile = 1 << 7,
+    ClientEngineVersion = 1 << 8
 }
 
 internal readonly record struct NewProjectOptions(
@@ -25,7 +26,8 @@ internal readonly record struct NewProjectOptions(
     PersistenceKind Persistence,
     NuGetForUnitySource NuGetForUnitySource,
     DeploymentProfile DeploymentProfile,
-    NewProjectOptionPresence Presence = NewProjectOptionPresence.None)
+    NewProjectOptionPresence Presence = NewProjectOptionPresence.None,
+    ClientEngineVersion? ClientEngineVersion = null)
 {
     public bool HasExplicit(NewProjectOptionPresence option)
     {

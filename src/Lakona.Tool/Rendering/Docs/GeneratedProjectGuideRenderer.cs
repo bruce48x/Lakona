@@ -20,7 +20,7 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         ## Project Overview
 
         This is a generated Lakona.Game project with server host, shared contracts,
-        {{EngineDescription(spec.ClientEngine)}}, local cluster defaults, hotfixable rules,
+        {{EngineDescription(spec)}}, local cluster defaults, hotfixable rules,
         reliable business push, and a generated server-authoritative arena game.
 
         ## Generated Options
@@ -28,6 +28,7 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         | Option | Value |
         | --- | --- |
         | Client engine | {{ToolEnumText.ToCliValue(spec.ClientEngine)}} |
+        | Client engine version | {{ClientEngineVersionText(spec)}} |
         | Transport | {{ToolEnumText.ToCliValue(spec.Transport)}} |
         | Serializer | {{ToolEnumText.ToCliValue(spec.Serializer)}} |
         | Persistence | {{ToolEnumText.ToCliValue(spec.Persistence)}} |
@@ -211,14 +212,19 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         """;
     }
 
-    private static string EngineDescription(ClientEngine engine) => engine switch
+    private static string EngineDescription(LakonaProjectSpec spec) => spec.ClientEngine switch
     {
-        ClientEngine.Unity => "Unity 2022.3 client using UI Toolkit",
+        ClientEngine.Unity => $"Unity {ClientEngineVersionText(spec)} client using UI Toolkit",
         ClientEngine.Tuanjie => "Tuanjie client using UI Toolkit",
         ClientEngine.Godot => "Godot C# client",
         ClientEngine.Console => ".NET console client for smoke/load flows",
-        _ => throw new ArgumentOutOfRangeException(nameof(engine), engine, null)
+        _ => throw new ArgumentOutOfRangeException(nameof(spec.ClientEngine), spec.ClientEngine, null)
     };
+
+    private static string ClientEngineVersionText(LakonaProjectSpec spec) =>
+        spec.ClientEngineVersion is { } version
+            ? ToolEnumText.ToCliValue(version)
+            : "n/a";
 
     private static string ListenerSentence(TransportKind transport) => transport switch
     {

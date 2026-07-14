@@ -11,6 +11,53 @@ namespace Lakona.Tool.Tests.Rendering;
 
 public sealed class ClientRendererTests
 {
+    private static readonly string[] Unity60PackageIds =
+    [
+        "com.unity.ai.navigation",
+        "com.unity.collab-proxy",
+        "com.unity.ide.rider",
+        "com.unity.ide.visualstudio",
+        "com.unity.inputsystem",
+        "com.unity.multiplayer.center",
+        "com.unity.render-pipelines.universal",
+        "com.unity.test-framework",
+        "com.unity.timeline",
+        "com.unity.ugui",
+        "com.unity.visualscripting",
+        "com.unity.modules.accessibility",
+        "com.unity.modules.ai",
+        "com.unity.modules.androidjni",
+        "com.unity.modules.animation",
+        "com.unity.modules.assetbundle",
+        "com.unity.modules.audio",
+        "com.unity.modules.cloth",
+        "com.unity.modules.director",
+        "com.unity.modules.imageconversion",
+        "com.unity.modules.imgui",
+        "com.unity.modules.jsonserialize",
+        "com.unity.modules.particlesystem",
+        "com.unity.modules.physics",
+        "com.unity.modules.physics2d",
+        "com.unity.modules.screencapture",
+        "com.unity.modules.terrain",
+        "com.unity.modules.terrainphysics",
+        "com.unity.modules.tilemap",
+        "com.unity.modules.ui",
+        "com.unity.modules.uielements",
+        "com.unity.modules.umbra",
+        "com.unity.modules.unityanalytics",
+        "com.unity.modules.unitywebrequest",
+        "com.unity.modules.unitywebrequestassetbundle",
+        "com.unity.modules.unitywebrequestaudio",
+        "com.unity.modules.unitywebrequesttexture",
+        "com.unity.modules.unitywebrequestwww",
+        "com.unity.modules.vehicles",
+        "com.unity.modules.video",
+        "com.unity.modules.vr",
+        "com.unity.modules.wind",
+        "com.unity.modules.xr"
+    ];
+
     [Fact]
     public void UnityClientRenderer_EmitsSceneFirstProceduralArenaWithoutArtAssets()
     {
@@ -277,6 +324,132 @@ public sealed class ClientRendererTests
         Assert.False(dependencies.TryGetProperty("com.unity.modules.umbra", out _));
     }
 
+    [Theory]
+    [InlineData(
+        "Unity60",
+        "6000.0.52f1",
+        "9e4086222921",
+        45,
+        "2.0.8",
+        "2.13.3",
+        "3.0.36",
+        "2.0.23",
+        "1.14.0",
+        "1.0.0",
+        "17.0.4",
+        "1.5.1",
+        "1.8.7",
+        "2.0.0",
+        "1.9.7")]
+    [InlineData(
+        "Unity63",
+        "6000.3.3f1",
+        "ef04196de0d6",
+        47,
+        "2.0.9",
+        "2.10.2",
+        "3.0.38",
+        "2.0.25",
+        "1.17.0",
+        "1.0.1",
+        "17.3.0",
+        "1.6.0",
+        "1.8.10",
+        "2.0.0",
+        "1.9.9")]
+    public void UnityClientRenderer_UsesSelectedUnity6PackageBaseline(
+        string versionName,
+        string editorVersion,
+        string revision,
+        int expectedGeneratedDependencyCount,
+        string navigationVersion,
+        string collabVersion,
+        string riderVersion,
+        string visualStudioVersion,
+        string inputSystemVersion,
+        string multiplayerCenterVersion,
+        string universalRenderPipelineVersion,
+        string testFrameworkVersion,
+        string timelineVersion,
+        string uguiVersion,
+        string visualScriptingVersion)
+    {
+        var version = Enum.Parse<ClientEngineVersion>(versionName);
+        var plan = Render(
+            new UnityClientRenderer(),
+            Spec(
+                ClientEngine.Unity,
+                TransportKind.Kcp,
+                SerializerKind.MemoryPack,
+                version: version));
+        using var document = JsonDocument.Parse(AssertPath(plan, "Client/Packages/manifest.json").Content);
+        var dependencies = document.RootElement.GetProperty("dependencies");
+
+        Assert.Equal(expectedGeneratedDependencyCount, dependencies.EnumerateObject().Count());
+        Assert.Equal(navigationVersion, dependencies.GetProperty("com.unity.ai.navigation").GetString());
+        Assert.Equal(collabVersion, dependencies.GetProperty("com.unity.collab-proxy").GetString());
+        Assert.Equal(riderVersion, dependencies.GetProperty("com.unity.ide.rider").GetString());
+        Assert.Equal(visualStudioVersion, dependencies.GetProperty("com.unity.ide.visualstudio").GetString());
+        Assert.Equal(inputSystemVersion, dependencies.GetProperty("com.unity.inputsystem").GetString());
+        Assert.Equal(multiplayerCenterVersion, dependencies.GetProperty("com.unity.multiplayer.center").GetString());
+        Assert.Equal(universalRenderPipelineVersion, dependencies.GetProperty("com.unity.render-pipelines.universal").GetString());
+        Assert.Equal(testFrameworkVersion, dependencies.GetProperty("com.unity.test-framework").GetString());
+        Assert.Equal(timelineVersion, dependencies.GetProperty("com.unity.timeline").GetString());
+        Assert.Equal(uguiVersion, dependencies.GetProperty("com.unity.ugui").GetString());
+        Assert.Equal(visualScriptingVersion, dependencies.GetProperty("com.unity.visualscripting").GetString());
+        Assert.Equal("1.0.0", dependencies.GetProperty("com.unity.modules.accessibility").GetString());
+        Assert.Equal("1.0.0", dependencies.GetProperty("com.unity.modules.uielements").GetString());
+
+        var expectedPackageIds = version == ClientEngineVersion.Unity63
+            ? Unity60PackageIds
+                .Append("com.unity.modules.adaptiveperformance")
+                .Append("com.unity.modules.vectorgraphics")
+                .Order(StringComparer.Ordinal)
+                .ToArray()
+            : Unity60PackageIds.Order(StringComparer.Ordinal).ToArray();
+        var actualPackageIds = dependencies
+            .EnumerateObject()
+            .Select(static dependency => dependency.Name)
+            .Where(static packageId =>
+                packageId != "com.github-glitchenzo.nugetforunity" &&
+                !packageId.StartsWith("com.lakona.", StringComparison.Ordinal))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        Assert.Equal(expectedPackageIds, actualPackageIds);
+
+        if (version == ClientEngineVersion.Unity63)
+        {
+            Assert.Equal("1.0.0", dependencies.GetProperty("com.unity.modules.adaptiveperformance").GetString());
+            Assert.Equal("1.0.0", dependencies.GetProperty("com.unity.modules.vectorgraphics").GetString());
+        }
+        else
+        {
+            Assert.False(dependencies.TryGetProperty("com.unity.modules.adaptiveperformance", out _));
+            Assert.False(dependencies.TryGetProperty("com.unity.modules.vectorgraphics", out _));
+        }
+
+        var projectVersion = AssertPath(plan, "Client/ProjectSettings/ProjectVersion.txt").Content;
+        Assert.Contains($"m_EditorVersion: {editorVersion}", projectVersion, StringComparison.Ordinal);
+        Assert.Contains(
+            $"m_EditorVersionWithRevision: {editorVersion} ({revision})",
+            projectVersion,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void UnityClientRenderer_DefaultsToUnity2022ReferenceVersion()
+    {
+        var plan = Render(
+            new UnityClientRenderer(),
+            Spec(ClientEngine.Unity, TransportKind.Kcp, SerializerKind.MemoryPack));
+
+        var projectVersion = AssertPath(plan, "Client/ProjectSettings/ProjectVersion.txt").Content;
+        Assert.Equal(
+            "m_EditorVersion: 2022.3.62f3c1\n" +
+            "m_EditorVersionWithRevision: 2022.3.62f3c1 (1623fc0bbb97)",
+            projectVersion);
+    }
+
     [Fact]
     public void UnityClientRenderer_EmbeddedSourceRequestsNuGetForUnityArchive()
     {
@@ -320,8 +493,19 @@ public sealed class ClientRendererTests
         ClientEngine engine,
         TransportKind transport,
         SerializerKind serializer,
-        NuGetForUnitySource source = NuGetForUnitySource.OpenUpm) =>
-        new LakonaProjectSpecFactory().Create(new NewProjectOptions("MyGame", ".", engine, transport, serializer, PersistenceKind.None, source, DeploymentProfile.None, NewProjectOptionPresence.NuGetForUnitySource));
+        NuGetForUnitySource source = NuGetForUnitySource.OpenUpm,
+        ClientEngineVersion? version = null) =>
+        new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+            "MyGame",
+            ".",
+            engine,
+            transport,
+            serializer,
+            PersistenceKind.None,
+            source,
+            DeploymentProfile.None,
+            NewProjectOptionPresence.NuGetForUnitySource,
+            version));
 
     private static GeneratedFile AssertPath(GenerationPlan plan, string relativePath) =>
         Assert.Single(plan.Files, file => file.RelativePath == relativePath);

@@ -9,6 +9,7 @@ internal static class NewProjectOptionParser
         "--name",
         "--output",
         "--client-engine",
+        "--client-engine-version",
         "--transport",
         "--serializer",
         "--persistence",
@@ -23,6 +24,7 @@ internal static class NewProjectOptionParser
         string? name = null;
         string? outputPath = null;
         var clientEngine = ClientEngine.Unity;
+        ClientEngineVersion? clientEngineVersion = null;
         var transport = TransportKind.Kcp;
         var serializer = SerializerKind.MemoryPack;
         var persistence = PersistenceKind.None;
@@ -45,6 +47,12 @@ internal static class NewProjectOptionParser
                 case "--client-engine":
                     clientEngine = ParseClientEngine(ReadOptionValue(args, ref index, "--client-engine", text), text);
                     presence |= NewProjectOptionPresence.ClientEngine;
+                    break;
+                case "--client-engine-version":
+                    clientEngineVersion = ParseClientEngineVersion(
+                        ReadOptionValue(args, ref index, "--client-engine-version", text),
+                        text);
+                    presence |= NewProjectOptionPresence.ClientEngineVersion;
                     break;
                 case "--transport":
                     transport = ParseTransport(ReadOptionValue(args, ref index, "--transport", text), text);
@@ -71,7 +79,23 @@ internal static class NewProjectOptionParser
             }
         }
 
-        return new NewProjectOptions(name, outputPath, clientEngine, transport, serializer, persistence, nuGetForUnitySource, deployProfile, presence);
+        if ((presence & (NewProjectOptionPresence.ClientEngine | NewProjectOptionPresence.ClientEngineVersion)) ==
+            (NewProjectOptionPresence.ClientEngine | NewProjectOptionPresence.ClientEngineVersion))
+        {
+            ValidateClientEngineVersion(clientEngine, clientEngineVersion, text);
+        }
+
+        return new NewProjectOptions(
+            name,
+            outputPath,
+            clientEngine,
+            transport,
+            serializer,
+            persistence,
+            nuGetForUnitySource,
+            deployProfile,
+            presence,
+            clientEngineVersion);
     }
 
     private static ClientEngine ParseClientEngine(string value, global::ToolText text)
@@ -83,6 +107,36 @@ internal static class NewProjectOptionParser
             ["godot"] = ClientEngine.Godot,
             ["console"] = ClientEngine.Console
         }, text);
+    }
+
+    private static ClientEngineVersion ParseClientEngineVersion(string value, global::ToolText text)
+    {
+        return ValidateChoice("--client-engine-version", value, new Dictionary<string, ClientEngineVersion>(StringComparer.Ordinal)
+        {
+            ["2022"] = ClientEngineVersion.Unity2022,
+            ["6.0"] = ClientEngineVersion.Unity60,
+            ["6.3"] = ClientEngineVersion.Unity63,
+            ["1.6.7"] = ClientEngineVersion.Tuanjie167,
+            ["4.6"] = ClientEngineVersion.Godot46
+        }, text);
+    }
+
+    internal static void ValidateClientEngineVersion(
+        ClientEngine engine,
+        ClientEngineVersion? version,
+        global::ToolText text)
+    {
+        if (version is null || ClientEngineVersionPolicy.GetSupportedVersions(engine).Contains(version.Value))
+        {
+            return;
+        }
+
+        var value = Rendering.ToolEnumText.ToCliValue(version.Value);
+        var engineValue = Rendering.ToolEnumText.ToCliValue(engine);
+        var supportedValues = ClientEngineVersionPolicy.GetSupportedVersions(engine)
+            .Select(Rendering.ToolEnumText.ToCliValue)
+            .ToArray();
+        throw new CliUsageException(text.UnsupportedClientEngineVersion(value, engineValue, supportedValues));
     }
 
     private static TransportKind ParseTransport(string value, global::ToolText text)

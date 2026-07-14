@@ -13,6 +13,16 @@ internal static class ToolEnumText
         _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
     };
 
+    public static string ToCliValue(ClientEngineVersion value) => value switch
+    {
+        ClientEngineVersion.Unity2022 => "2022",
+        ClientEngineVersion.Unity60 => "6.0",
+        ClientEngineVersion.Unity63 => "6.3",
+        ClientEngineVersion.Tuanjie167 => "1.6.7",
+        ClientEngineVersion.Godot46 => "4.6",
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
+    };
+
     public static string ToCliValue(TransportKind value) => value switch
     {
         TransportKind.Tcp => "tcp",

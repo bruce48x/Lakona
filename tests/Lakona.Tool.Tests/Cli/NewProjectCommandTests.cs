@@ -90,6 +90,50 @@ public sealed class NewProjectCommandTests
     }
 
     [Fact]
+    public async Task RunAsync_Unity63Client_PrintsSelectedUnityVersion()
+    {
+        var outputRoot = Path.Combine(
+            Path.GetTempPath(),
+            "lakona-new-command-tests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(outputRoot);
+        try
+        {
+            var terminal = new FakeTerminal([], isInputRedirected: true);
+            var command = CreateCommand(terminal);
+
+            var exitCode = await command.RunAsync(
+                [
+                    "--name", "MyGame",
+                    "--output", outputRoot,
+                    "--client-engine", "unity",
+                    "--client-engine-version", "6.3",
+                    "--transport", "kcp",
+                    "--serializer", "memorypack"
+                ],
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(0, exitCode);
+            Assert.Contains(
+                terminal.Output,
+                line => line.Contains("Unity Hub (Unity 6.3)", StringComparison.Ordinal));
+            var projectVersion = await File.ReadAllTextAsync(
+                Path.Combine(
+                    outputRoot,
+                    "MyGame",
+                    "Client",
+                    "ProjectSettings",
+                    "ProjectVersion.txt"),
+                TestContext.Current.CancellationToken);
+            Assert.Contains("m_EditorVersion: 6000.3.3f1", projectVersion, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(outputRoot, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task RunAsync_TuanjieClient_PrintsTuanjieOpenStep()
     {
         var outputRoot = Path.Combine(Path.GetTempPath(), "lakona-new-command-tests", Guid.NewGuid().ToString("N"));

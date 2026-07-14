@@ -63,9 +63,9 @@ internal sealed class ToolText
 
             命令:
               lakona-tool new
-                  交互式创建项目。会询问项目名称、客户端引擎、传输协议、序列化器（输出目录、持久化、NuGetForUnity 来源、部署配置均可选，使用默认值）。
+                  交互式创建项目。会询问项目名称、客户端引擎、Unity 版本、传输协议、序列化器（输出目录、持久化、NuGetForUnity 来源、部署配置均可选，使用默认值）。
 
-              lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack [--output .] [--persistence none] [--nugetforunity-source openupm] [--deploy-profile none]
+              lakona-tool new --name MyGame --client-engine unity [--client-engine-version 2022|6.0|6.3] --transport kcp --serializer memorypack [--output .] [--persistence none] [--nugetforunity-source openupm] [--deploy-profile none]
                   用于脚本和 CI 的非交互式创建。输入被重定向时，缺少必填选项会失败。
 
               lakona-tool server pack --runtime linux-x64 [--configuration Release] [--output artifacts/server]
@@ -83,9 +83,9 @@ internal sealed class ToolText
 
             命令:
               lakona-tool new
-                  互動式建立專案。會詢問專案名稱、用戶端引擎、傳輸協定、序列化器（輸出目錄、持久化、NuGetForUnity 來源、部署設定均可選，使用預設值）。
+                  互動式建立專案。會詢問專案名稱、用戶端引擎、Unity 版本、傳輸協定、序列化器（輸出目錄、持久化、NuGetForUnity 來源、部署設定均可選，使用預設值）。
 
-              lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack [--output .] [--persistence none] [--nugetforunity-source openupm] [--deploy-profile none]
+              lakona-tool new --name MyGame --client-engine unity [--client-engine-version 2022|6.0|6.3] --transport kcp --serializer memorypack [--output .] [--persistence none] [--nugetforunity-source openupm] [--deploy-profile none]
                   用於指令碼和 CI 的非互動式建立。輸入被重新導向時，缺少必填選項會失敗。
 
               lakona-tool server pack --runtime linux-x64 [--configuration Release] [--output artifacts/server]
@@ -103,9 +103,9 @@ internal sealed class ToolText
 
             Commands:
               lakona-tool new
-                  Interactive project creation. Prompts for project name, client engine, transport, and serializer (output directory, persistence, NuGetForUnity source, and deploy profile are optional with defaults).
+                  Interactive project creation. Prompts for project name, client engine, Unity version, transport, and serializer (output directory, persistence, NuGetForUnity source, and deploy profile are optional with defaults).
 
-              lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack [--output .] [--persistence none] [--nugetforunity-source openupm] [--deploy-profile none]
+              lakona-tool new --name MyGame --client-engine unity [--client-engine-version 2022|6.0|6.3] --transport kcp --serializer memorypack [--output .] [--persistence none] [--nugetforunity-source openupm] [--deploy-profile none]
                   Non-interactive project creation for scripts and CI. Missing required choices fail when input is redirected.
 
               lakona-tool server pack --runtime linux-x64 [--configuration Release] [--output artifacts/server]
@@ -145,6 +145,13 @@ internal sealed class ToolText
         ToolLanguage.SimplifiedChinese => "客户端引擎",
         ToolLanguage.TraditionalChinese => "用戶端引擎",
         _ => "Client engine"
+    };
+
+    public string ClientEngineVersionPrompt => Language switch
+    {
+        ToolLanguage.SimplifiedChinese => "客户端引擎版本",
+        ToolLanguage.TraditionalChinese => "用戶端引擎版本",
+        _ => "Client engine version"
     };
 
     public string TransportPrompt => Language switch
@@ -225,6 +232,29 @@ internal sealed class ToolText
         return suggestion is null ? message : $"{message} {DidYouMeanValue(suggestion)}";
     }
 
+    public string UnsupportedClientEngineVersion(
+        string value,
+        string clientEngine,
+        IReadOnlyCollection<string> supportedValues)
+    {
+        if (supportedValues.Count == 0)
+        {
+            return Language switch
+            {
+                ToolLanguage.SimplifiedChinese => $"--client-engine-version 不适用于客户端引擎 '{clientEngine}'。",
+                ToolLanguage.TraditionalChinese => $"--client-engine-version 不適用於用戶端引擎 '{clientEngine}'。",
+                _ => $"--client-engine-version does not apply to client engine '{clientEngine}'."
+            };
+        }
+
+        return Language switch
+        {
+            ToolLanguage.SimplifiedChinese => $"客户端引擎 '{clientEngine}' 不支持版本 '{value}'。应为以下之一: {string.Join("|", supportedValues)}。",
+            ToolLanguage.TraditionalChinese => $"用戶端引擎 '{clientEngine}' 不支援版本 '{value}'。應為以下之一: {string.Join("|", supportedValues)}。",
+            _ => $"Client engine '{clientEngine}' does not support version '{value}'. Expected one of: {string.Join("|", supportedValues)}."
+        };
+    }
+
     public string UnexpectedArgument(string argument) => Language switch
     {
         ToolLanguage.SimplifiedChinese => $"意外参数: {argument}。",
@@ -272,7 +302,7 @@ internal sealed class ToolText
         _ => "Lakona.Game project ready. Next steps:"
     };
 
-    public string OpenClientStep(string clientEngine)
+    public string OpenClientStep(string clientEngine, string? clientEngineVersion)
     {
         var isGodot = string.Equals(clientEngine, "godot", StringComparison.OrdinalIgnoreCase);
         var isConsole = string.Equals(clientEngine, "console", StringComparison.OrdinalIgnoreCase);
@@ -285,21 +315,21 @@ internal sealed class ToolText
                 ? "  6) 在 Godot Engine 中打开 Client/"
                 : isTuanjie
                 ? $"  6) 用团结引擎打开 Client/ (团结 {ClientEngineVersions.Tuanjie})"
-                : "  6) 在 Unity Hub 中打开 Client/（Unity 2022 LTS）",
+                : $"  6) 在 Unity Hub 中打开 Client/（Unity {clientEngineVersion}）",
             ToolLanguage.TraditionalChinese => isConsole
                 ? "  6) dotnet run --project \"Client/Client.csproj\" -- smoke"
                 : isGodot
                 ? "  6) 在 Godot Engine 中開啟 Client/"
                 : isTuanjie
                 ? $"  6) 用團結引擎開啟 Client/ (團結 {ClientEngineVersions.Tuanjie})"
-                : "  6) 在 Unity Hub 中開啟 Client/（Unity 2022 LTS）",
+                : $"  6) 在 Unity Hub 中開啟 Client/（Unity {clientEngineVersion}）",
             _ => isConsole
                 ? "  6) dotnet run --project \"Client/Client.csproj\" -- smoke"
                 : isGodot
                 ? "  6) Open Client/ in Godot Engine"
                 : isTuanjie
                 ? $"  6) Open Client/ in Tuanjie Engine (Tuanjie {ClientEngineVersions.Tuanjie})"
-                : "  6) Open Client/ in Unity Hub (Unity 2022 LTS)"
+                : $"  6) Open Client/ in Unity Hub (Unity {clientEngineVersion})"
         };
     }
 

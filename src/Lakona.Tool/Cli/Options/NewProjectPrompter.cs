@@ -39,6 +39,28 @@ internal sealed class NewProjectPrompter(global::ToolText text, global::ICliTerm
             };
         }
 
+        if (!options.HasExplicit(NewProjectOptionPresence.ClientEngineVersion) &&
+            options.ClientEngine == ClientEngine.Unity)
+        {
+            options = options with
+            {
+                ClientEngineVersion = PromptChoice(
+                    text.ClientEngineVersionPrompt,
+                    [
+                        ClientEngineVersion.Unity2022,
+                        ClientEngineVersion.Unity60,
+                        ClientEngineVersion.Unity63
+                    ],
+                    ClientEngineVersion.Unity2022),
+                Presence = options.Presence | NewProjectOptionPresence.ClientEngineVersion
+            };
+        }
+
+        NewProjectOptionParser.ValidateClientEngineVersion(
+            options.ClientEngine,
+            options.ClientEngineVersion,
+            text);
+
         if (!options.HasExplicit(NewProjectOptionPresence.Transport))
         {
             options = options with
@@ -117,6 +139,7 @@ internal sealed class NewProjectPrompter(global::ToolText text, global::ICliTerm
         return value switch
         {
             ClientEngine clientEngine => Rendering.ToolEnumText.ToCliValue(clientEngine),
+            ClientEngineVersion clientEngineVersion => Rendering.ToolEnumText.ToCliValue(clientEngineVersion),
             TransportKind transport => Rendering.ToolEnumText.ToCliValue(transport),
             SerializerKind serializer => Rendering.ToolEnumText.ToCliValue(serializer),
             _ => value.ToString()

@@ -17,10 +17,18 @@ dotnet tool install -g Lakona.Tool
 lakona-tool new
 ```
 
-For scripts and CI, provide the required options explicitly (--output, --persistence, --nugetforunity-source, and --deploy-profile default to `.`, `none`, `openupm`, and `none` respectively):
+For scripts and CI, provide the required options explicitly (`--client-engine-version`,
+`--output`, `--persistence`, `--nugetforunity-source`, and `--deploy-profile`
+are optional and use engine-specific or documented defaults):
 
 ```bash
 lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack
+```
+
+Select a supported Unity generation baseline explicitly when needed:
+
+```bash
+lakona-tool new --name MyGame --client-engine unity --client-engine-version 6.3 --transport kcp --serializer memorypack
 ```
 
 For a lightweight headless client for smoke and load checks:
@@ -43,6 +51,9 @@ curl http://127.0.0.1:20080/_lakona/health/ready
 Supported values:
 
 - `--client-engine`: `unity`, `tuanjie`, `godot`, `console`
+- `--client-engine-version`: Unity supports `2022`, `6.0`, and `6.3`;
+  Tuanjie supports its current `1.6.7`; Godot supports its current `4.6`;
+  the option does not apply to `console`
 - `--transport`: `websocket`, `tcp`, `kcp`
 - `--serializer`: `json`, `memorypack`
 - `--persistence`: `none`, `postgres`, `mysql`
@@ -62,6 +73,11 @@ By default, the generated project includes:
 - Reliable Push infrastructure
 
 Generated server projects reference `Lakona.Game.Server.Hotfix.Generators` as an analyzer so public `[HotfixBehaviorOf]` extension methods define actor APIs, and Hotfix-owned generated behavior-derived selectors/refs are available at build time.
+
+For Unity clients, `--client-engine-version` selects the exact editor and default
+package baseline: Unity `2022` is the default, while `6.0` and `6.3` use their
+corresponding Unity 6 package sets. Tuanjie and Godot remain pinned to their
+single current supported versions.
 
 For Unity and Tuanjie clients, the tool installs Unity's new Input System with a file-backed movement action and scene-owned UI input module. It also pins `Lakona.Game.Client` and `Lakona.Game.Abstractions` in `Assets/packages.config` and generates an editor import guard that prevents NuGet analyzer/generator DLLs and incompatible multi-TFM plugins (for example `lib/net10.0/`) from being loaded as Unity runtime plugins, while explicitly enabling `netstandard2.1` runtime DLLs under `Assets/Packages`.
 

@@ -6,11 +6,13 @@ date and package versions of important releases are retained.
 
 ## 2026-07-14 — Complete Unity-family project generation
 
-**Key release:** `Lakona.Tool 0.25.18`.
+**Key release:** `Lakona.Tool 0.25.19`.
 
 - Matched generated Unity and Tuanjie projects to each editor's complete default
   package baseline, with Lakona's Input System and networking dependencies added
-  on top; simplified client-engine choices to Unity, Tuanjie, Godot, and Console.
+  on top; Unity generation now selects `2022`, `6.0`, or `6.3` through
+  `--client-engine-version`, while Tuanjie and Godot remain pinned to their
+  current supported versions.
 
 ## 2026-07-13 — Generated multiplayer projects and local operations
 

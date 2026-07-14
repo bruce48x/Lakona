@@ -45,6 +45,25 @@ public sealed class NewProjectPrompterTests
         Assert.DoesNotContain(terminal.Output, line => line.Contains("unity-cn", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void Complete_PromptsForSupportedUnityVersion()
+    {
+        var terminal = new FakeTerminal(["Arena", "1", "3", "1", "2"]);
+        var prompter = new NewProjectPrompter(
+            ToolText.ForCulture(System.Globalization.CultureInfo.InvariantCulture),
+            terminal);
+
+        var options = prompter.Complete(NewProjectOptionParser.Parse([]));
+
+        Assert.Equal(ClientEngine.Unity, options.ClientEngine);
+        Assert.Equal(ClientEngineVersion.Unity63, options.ClientEngineVersion);
+        Assert.Contains(
+            terminal.Output,
+            line => line.Contains("Client engine version", StringComparison.Ordinal));
+        Assert.Contains(terminal.Output, line => line.Contains("6.0", StringComparison.Ordinal));
+        Assert.Contains(terminal.Output, line => line.Contains("6.3", StringComparison.Ordinal));
+    }
+
     private sealed class FakeTerminal : ICliTerminal
     {
         private readonly Queue<string?> input;

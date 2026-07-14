@@ -11,11 +11,15 @@ internal sealed class LakonaProjectSpecFactory
         var nuGetForUnitySource = ClientEnginePolicy.GetEffectiveNuGetForUnitySource(
             options.ClientEngine,
             options.NuGetForUnitySource);
+        var clientEngineVersion = ClientEngineVersionPolicy.Resolve(
+            options.ClientEngine,
+            options.ClientEngineVersion);
 
         return new LakonaProjectSpec(
             projectName,
             layout,
             options.ClientEngine,
+            clientEngineVersion,
             options.Transport,
             options.Serializer,
             options.Persistence,

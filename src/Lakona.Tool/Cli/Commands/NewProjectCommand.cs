@@ -26,7 +26,11 @@ internal sealed class NewProjectCommand(
             terminal.WriteLine(text.BuildHotfixStep);
             terminal.WriteLine(text.StartServerStep);
             terminal.WriteLine(text.CheckProjectStep);
-            terminal.WriteLine(text.OpenClientStep(Rendering.ToolEnumText.ToCliValue(spec.ClientEngine)));
+            terminal.WriteLine(text.OpenClientStep(
+                Rendering.ToolEnumText.ToCliValue(spec.ClientEngine),
+                spec.ClientEngineVersion is { } version
+                    ? Rendering.ToolEnumText.ToCliValue(version)
+                    : null));
             return 0;
         }
         catch (global::CliUsageException ex)

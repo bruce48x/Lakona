@@ -26,7 +26,7 @@ internal sealed class GodotClientRenderer : IClientRenderer
             DependencyPlanner.Create(ProjectTarget.GodotClient, spec).PackageReferences);
 
         return $$"""
-        <Project Sdk="Godot.NET.Sdk/4.6.1">
+        <Project Sdk="Godot.NET.Sdk/{{ClientEngineVersions.GodotSdk}}">
           <PropertyGroup>
             <TargetFramework>net8.0</TargetFramework>
             <EnableDynamicLoading>true</EnableDynamicLoading>
@@ -70,7 +70,7 @@ internal sealed class GodotClientRenderer : IClientRenderer
 
         config/name="{{spec.Name}}"
         run/main_scene="res://Game.tscn"
-        config/features=PackedStringArray("4.6", "C#")
+        config/features=PackedStringArray("{{ClientEngineVersions.Godot}}", "C#")
 
         [dotnet]
 
