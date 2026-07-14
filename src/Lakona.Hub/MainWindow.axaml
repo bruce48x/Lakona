@@ -1,0 +1,594 @@
+<Window
+    x:Class="Lakona.Hub.MainWindow"
+    x:DataType="local:MainWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:applications="using:Lakona.Hub.Applications"
+    xmlns:icons="using:FluentIcons.Avalonia"
+    xmlns:local="using:Lakona.Hub"
+    Title="Lakona Hub"
+    Width="1440"
+    Height="1024"
+    MinWidth="980"
+    MinHeight="680"
+    Background="Transparent"
+    FontFamily="Microsoft YaHei UI"
+    TransparencyLevelHint="Transparent"
+    WindowDecorations="None"
+    WindowStartupLocation="CenterScreen">
+  <Window.Styles>
+    <Style Selector="TextBlock">
+      <Setter Property="Foreground" Value="#F2F1ED" />
+    </Style>
+    <Style Selector="TextBlock.muted">
+      <Setter Property="Foreground" Value="#9C9B97" />
+    </Style>
+    <Style Selector="TextBlock.gold">
+      <Setter Property="Foreground" Value="#EFBE3E" />
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="#EFBE3E" />
+      <Setter Property="Foreground" Value="#15120A" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="Height" Value="64" />
+      <Setter Property="Padding" Value="24,14" />
+      <Setter Property="FontSize" Value="17" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.primary.hero">
+      <Setter Property="Height" Value="74" />
+      <Setter Property="MinWidth" Value="242" />
+      <Setter Property="FontSize" Value="19" />
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#F7CE62" />
+    </Style>
+    <Style Selector="Button.secondary">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#E6E4DE" />
+      <Setter Property="BorderBrush" Value="#B68E2F" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="Height" Value="64" />
+      <Setter Property="Padding" Value="23,13" />
+      <Setter Property="FontSize" Value="17" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.secondary.hero">
+      <Setter Property="Height" Value="74" />
+      <Setter Property="MinWidth" Value="258" />
+      <Setter Property="FontSize" Value="19" />
+    </Style>
+    <Style Selector="Button.secondary:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#171611" />
+      <Setter Property="BorderBrush" Value="#EFBE3E" />
+    </Style>
+    <Style Selector="Button.nav">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#B4B2AC" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Padding" Value="20,15" />
+      <Setter Property="FontSize" Value="16" />
+    </Style>
+    <Style Selector="Button.nav:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#181816" />
+    </Style>
+    <Style Selector="Button.nav.selected">
+      <Setter Property="Background" Value="#1B1B18" />
+      <Setter Property="Foreground" Value="#EFBE3E" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="BorderBrush" Value="#EFBE3E" />
+      <Setter Property="BorderThickness" Value="4,0,0,0" />
+    </Style>
+    <Style Selector="Button.server-open">
+      <Setter Property="Width" Value="58" />
+      <Setter Property="Height" Value="48" />
+      <Setter Property="Padding" Value="8,10" />
+      <Setter Property="Background" Value="#EFBE3E" />
+      <Setter Property="Foreground" Value="#15120A" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.server-open:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#F7CE62" />
+    </Style>
+    <Style Selector="Button.client-open">
+      <Setter Property="MinWidth" Value="142" />
+      <Setter Property="Height" Value="48" />
+      <Setter Property="Padding" Value="13,9" />
+      <Setter Property="Background" Value="#111213" />
+      <Setter Property="Foreground" Value="#E8E6E0" />
+      <Setter Property="BorderBrush" Value="#66645F" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+    </Style>
+    <Style Selector="Button.client-open:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#1A1916" />
+      <Setter Property="BorderBrush" Value="#B68E2F" />
+    </Style>
+    <Style Selector="Button:disabled">
+      <Setter Property="Opacity" Value="0.42" />
+    </Style>
+    <Style Selector="ComboBox.server-editor">
+      <Setter Property="MinWidth" Value="168" />
+      <Setter Property="Height" Value="48" />
+      <Setter Property="Padding" Value="10,6" />
+      <Setter Property="Background" Value="#111213" />
+      <Setter Property="Foreground" Value="#E8E6E0" />
+      <Setter Property="BorderBrush" Value="#B68E2F" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="FontSize" Value="14" />
+    </Style>
+    <Style Selector="ComboBox.server-editor:pointerover /template/ Border#Background">
+      <Setter Property="BorderBrush" Value="#EFBE3E" />
+    </Style>
+    <Style Selector="TextBox.form-field">
+      <Setter Property="Height" Value="52" />
+      <Setter Property="Padding" Value="14,10" />
+      <Setter Property="Background" Value="#111213" />
+      <Setter Property="Foreground" Value="#F2F1ED" />
+      <Setter Property="BorderBrush" Value="#4A4944" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="FontSize" Value="15" />
+    </Style>
+    <Style Selector="TextBox.form-field:focus /template/ Border#PART_BorderElement">
+      <Setter Property="BorderBrush" Value="#EFBE3E" />
+    </Style>
+    <Style Selector="ComboBox.form-field">
+      <Setter Property="Height" Value="52" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="Padding" Value="12,8" />
+      <Setter Property="Background" Value="#111213" />
+      <Setter Property="Foreground" Value="#F2F1ED" />
+      <Setter Property="BorderBrush" Value="#4A4944" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="FontSize" Value="15" />
+    </Style>
+    <Style Selector="ComboBox.form-field:pointerover /template/ Border#Background">
+      <Setter Property="BorderBrush" Value="#EFBE3E" />
+    </Style>
+    <Style Selector="Button.form-browse">
+      <Setter Property="Width" Value="92" />
+      <Setter Property="Height" Value="52" />
+      <Setter Property="Background" Value="#171713" />
+      <Setter Property="Foreground" Value="#EFBE3E" />
+      <Setter Property="BorderBrush" Value="#6F5923" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="FontSize" Value="14" />
+    </Style>
+    <Style Selector="Button.form-browse:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#211F17" />
+      <Setter Property="BorderBrush" Value="#EFBE3E" />
+    </Style>
+    <Style Selector="Button.back">
+      <Setter Property="Width" Value="44" />
+      <Setter Property="Height" Value="44" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#C8C6BF" />
+      <Setter Property="BorderBrush" Value="#4A4944" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="7" />
+    </Style>
+    <Style Selector="Button.back:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#181816" />
+      <Setter Property="BorderBrush" Value="#EFBE3E" />
+      <Setter Property="Foreground" Value="#EFBE3E" />
+    </Style>
+    <Style Selector="ListBox.project-list">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="ListBox.project-list ListBoxItem">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="ListBox.project-list ListBoxItem:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#121313" />
+    </Style>
+    <Style Selector="ListBox.project-list ListBoxItem:selected /template/ ContentPresenter">
+      <Setter Property="Background" Value="#171712" />
+    </Style>
+    <Style Selector="Button.window-control">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#A9A8A4" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Width" Value="48" />
+      <Setter Property="Height" Value="40" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="Button.window-control:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#242421" />
+    </Style>
+    <Style Selector="Button.window-control.close:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#B3261E" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Border.window-frame">
+      <Setter Property="CornerRadius" Value="14" />
+    </Style>
+    <Style Selector="Border.window-frame.maximized">
+      <Setter Property="CornerRadius" Value="0" />
+    </Style>
+  </Window.Styles>
+
+  <Border x:Name="WindowFrame" Classes="window-frame" Background="#0B0C0D" ClipToBounds="True">
+  <Grid ColumnDefinitions="220,*">
+    <Border Grid.Column="0" Background="#0E0F10" BorderBrush="#2A2A27" BorderThickness="0,0,1,0">
+      <Grid RowDefinitions="190,Auto,*,Auto" Margin="10,22,10,24">
+        <StackPanel Grid.Row="0" Spacing="2" HorizontalAlignment="Left" Margin="24,0,0,0">
+          <Image Width="102" Height="102" HorizontalAlignment="Left" Source="avares://Lakona.Hub/Assets/lakona-cat.png" />
+          <TextBlock Text="Lakona Hub" FontSize="22" FontWeight="SemiBold" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Spacing="12">
+          <Button x:Name="ProjectsNavButton" Classes="nav selected" Click="Projects_Click">
+            <StackPanel Orientation="Horizontal" Spacing="14">
+              <icons:FluentIcon Icon="Folder" IconVariant="Regular" IconSize="Size24" />
+              <TextBlock Text="{Binding Localization.Text.Projects}" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button x:Name="SettingsNavButton" Classes="nav" Click="Settings_Click">
+            <StackPanel Orientation="Horizontal" Spacing="14">
+              <icons:FluentIcon Icon="Settings" IconVariant="Regular" IconSize="Size24" />
+              <TextBlock Text="{Binding Localization.Text.Settings}" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </StackPanel>
+
+        <Border Grid.Row="3" BorderBrush="#2A2A27" BorderThickness="0,1,0,0" Padding="4,24,4,0">
+          <Button Classes="nav" Click="Help_Click">
+            <StackPanel Orientation="Horizontal" Spacing="14">
+              <icons:FluentIcon Icon="QuestionCircle" IconVariant="Regular" IconSize="Size24" />
+              <TextBlock Text="{Binding Localization.Text.HelpAndFeedback}" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </Border>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Column="1" RowDefinitions="56,*" Background="#0B0C0D">
+      <Border Grid.Row="0" Background="#0B0C0D" PointerPressed="TitleBar_PointerPressed">
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+          <Button Classes="window-control" Click="Minimize_Click" ToolTip.Tip="{Binding Localization.Text.Minimize}">
+            <icons:FluentIcon Icon="Subtract" IconVariant="Regular" IconSize="Size16" />
+          </Button>
+          <Button Classes="window-control" Click="Maximize_Click" ToolTip.Tip="{Binding Localization.Text.Maximize}">
+            <icons:FluentIcon Icon="Square" IconVariant="Regular" IconSize="Size16" />
+          </Button>
+          <Button Classes="window-control close" Click="Close_Click" ToolTip.Tip="{Binding Localization.Text.Close}">
+            <icons:FluentIcon Icon="Dismiss" IconVariant="Regular" IconSize="Size20" />
+          </Button>
+        </StackPanel>
+      </Border>
+
+      <Grid Grid.Row="1">
+        <ScrollViewer x:Name="EmptyExperience">
+          <StackPanel Margin="82,96,72,64" Spacing="0" MaxWidth="900" HorizontalAlignment="Left">
+            <TextBlock Text="{Binding Localization.Text.WelcomeTitle}" FontSize="48" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding Localization.Text.WelcomeDescription}" Classes="muted" FontSize="17" Margin="0,18,0,0" />
+
+            <StackPanel Orientation="Horizontal" Spacing="18" Margin="0,44,0,0">
+              <Button Classes="primary hero" Click="CreateProject_Click">
+                <StackPanel Orientation="Horizontal" Spacing="13">
+                  <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size28" />
+                  <TextBlock Text="{Binding Localization.Text.CreateProject}" Foreground="#15120A" FontSize="19" FontWeight="SemiBold" />
+                </StackPanel>
+              </Button>
+              <Button Classes="secondary hero" Click="ImportProject_Click">
+                <StackPanel Orientation="Horizontal" Spacing="13">
+                  <icons:FluentIcon Icon="FolderArrowRight" IconVariant="Regular" IconSize="Size28" />
+                  <TextBlock Text="{Binding Localization.Text.ImportExistingProject}" Foreground="#E6E4DE" FontSize="19" FontWeight="SemiBold" />
+                </StackPanel>
+              </Button>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="15" Margin="0,38,0,0">
+              <icons:FluentIcon Icon="CheckmarkCircle" IconVariant="Regular" IconSize="Size24" Foreground="#EFBE3E" />
+              <TextBlock Text="{Binding Localization.Text.DotNetReady}" FontSize="15" VerticalAlignment="Center" />
+              <Border Width="1" Height="22" Background="#4A4944" Margin="8,0" />
+              <TextBlock x:Name="EmptyEnvironmentSummaryText" Classes="muted" FontSize="14" VerticalAlignment="Center" />
+            </StackPanel>
+
+          </StackPanel>
+        </ScrollViewer>
+
+        <ScrollViewer x:Name="ProjectExperience" IsVisible="False" HorizontalScrollBarVisibility="Auto">
+          <StackPanel Margin="64,52,36,48" MinWidth="1060">
+            <Grid ColumnDefinitions="196,24,196,16,220,*">
+              <TextBlock Grid.Column="0" Text="{Binding Localization.Text.MyProjects}" FontSize="38" FontWeight="SemiBold" VerticalAlignment="Center" />
+              <Button Grid.Column="2" Classes="primary" Click="CreateProject_Click">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                  <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size24" />
+                  <TextBlock Text="{Binding Localization.Text.CreateProject}" Foreground="#15120A" FontSize="17" FontWeight="SemiBold" />
+                </StackPanel>
+              </Button>
+              <Button Grid.Column="4" Classes="secondary" Click="ImportProject_Click">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                  <icons:FluentIcon Icon="FolderArrowRight" IconVariant="Regular" IconSize="Size24" />
+                  <TextBlock Text="{Binding Localization.Text.ImportExistingProject}" Foreground="#E6E4DE" FontSize="17" FontWeight="SemiBold" />
+                </StackPanel>
+              </Button>
+            </Grid>
+
+            <StackPanel Orientation="Horizontal" Spacing="15" Margin="0,24,0,0">
+              <icons:FluentIcon Icon="CheckmarkCircle" IconVariant="Regular" IconSize="Size24" Foreground="#EFBE3E" />
+              <TextBlock Text="{Binding Localization.Text.DotNetReady}" Classes="muted" FontSize="14" VerticalAlignment="Center" />
+              <Border Width="1" Height="22" Background="#4A4944" Margin="8,0" />
+              <TextBlock x:Name="ProjectEnvironmentSummaryText" Classes="muted" FontSize="14" VerticalAlignment="Center" />
+            </StackPanel>
+
+            <StackPanel Margin="0,66,0,0" Spacing="0">
+              <Grid ColumnDefinitions="1.45*,0.9*,1.0*,0.8*,1.65*,1.15*" Margin="0,0,0,22">
+                <TextBlock Grid.Column="0" Text="{Binding Localization.Text.ProjectName}" Classes="muted" FontSize="14" />
+                <TextBlock Grid.Column="1" Text="{Binding Localization.Text.EngineVersion}" Classes="muted" FontSize="14" />
+                <TextBlock Grid.Column="2" Text="{Binding Localization.Text.LakonaVersion}" Classes="muted" FontSize="14" />
+                <TextBlock Grid.Column="3" Text="{Binding Localization.Text.LastOpened}" Classes="muted" FontSize="14" />
+                <TextBlock Grid.Column="4" Text="{Binding Localization.Text.OpenServer}" Classes="muted" FontSize="14" HorizontalAlignment="Center" />
+                <TextBlock Grid.Column="5" Text="{Binding Localization.Text.OpenClient}" Classes="muted" FontSize="14" HorizontalAlignment="Center" />
+              </Grid>
+
+              <Border BorderBrush="#33332F" BorderThickness="0,1,0,0">
+                <ListBox x:Name="ProjectList" Classes="project-list" ItemsSource="{Binding Projects}" SelectionChanged="ProjectList_SelectionChanged">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="local:ProjectListItem">
+                      <Border BorderBrush="#33332F" BorderThickness="0,0,0,1" MinHeight="96" Padding="0,20">
+                        <Grid ColumnDefinitions="1.45*,0.9*,1.0*,0.8*,1.65*,1.15*">
+                          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                            <icons:FluentIcon Icon="Cube" IconVariant="Regular" IconSize="Size24" Foreground="#EFBE3E" />
+                            <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                          </StackPanel>
+                          <TextBlock Grid.Column="1" Text="{Binding Client}" Classes="muted" FontSize="15" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                          <TextBlock Grid.Column="2" Text="{Binding LakonaVersion}" Classes="muted" FontSize="15" VerticalAlignment="Center" />
+                          <TextBlock Grid.Column="3" Text="{Binding LastOpened}" Classes="muted" FontSize="15" VerticalAlignment="Center" />
+
+                          <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="9" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <ComboBox Classes="server-editor" ItemsSource="{Binding ServerEditors}" SelectedItem="{Binding SelectedServerEditor, Mode=TwoWay}" IsEnabled="{Binding CanOpenServer}" ToolTip.Tip="{Binding ServerOpenToolTip}">
+                              <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="applications:LocalApplicationInstallation">
+                                  <StackPanel Orientation="Horizontal" Spacing="9">
+                                    <icons:FluentIcon Icon="Code" IconVariant="Regular" IconSize="Size20" Foreground="#EFBE3E" />
+                                    <TextBlock Text="{Binding DisplayName}" FontSize="14" VerticalAlignment="Center" />
+                                  </StackPanel>
+                                </DataTemplate>
+                              </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <Button Classes="server-open" Content="{Binding OpenText}" Click="OpenServer_Click" IsEnabled="{Binding CanOpenServer}" ToolTip.Tip="{Binding ServerOpenToolTip}" />
+                          </StackPanel>
+
+                          <Button Grid.Column="5" Classes="client-open" Click="OpenClient_Click" IsEnabled="{Binding CanOpenClient}" ToolTip.Tip="{Binding ClientOpenToolTip}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="9">
+                              <icons:FluentIcon Icon="WindowDevEdit" IconVariant="Regular" IconSize="Size20" />
+                              <TextBlock Text="{Binding ClientActionText}" Foreground="{Binding $parent[Button].Foreground}" FontSize="14" />
+                            </StackPanel>
+                          </Button>
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </Border>
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+
+        <ScrollViewer x:Name="CreateExperience" IsVisible="False" HorizontalScrollBarVisibility="Disabled" DataContext="{Binding CreationForm}">
+          <StackPanel x:DataType="local:ProjectCreationForm" Margin="64,44,42,54" MaxWidth="1120" HorizontalAlignment="Stretch">
+            <StackPanel Orientation="Horizontal" Spacing="18">
+              <Button Classes="back" Click="CancelCreateProject_Click" ToolTip.Tip="{Binding Text.BackToProjects}">
+                <icons:FluentIcon Icon="ArrowLeft" IconVariant="Regular" IconSize="Size24" />
+              </Button>
+              <StackPanel Spacing="5" VerticalAlignment="Center">
+                <TextBlock Text="{Binding Text.CreateProject}" FontSize="38" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding Text.CreateDescription}" Classes="muted" FontSize="15" />
+              </StackPanel>
+            </StackPanel>
+
+            <Grid ColumnDefinitions="1*,42,1*" Margin="0,42,0,0">
+              <StackPanel Grid.Column="0" Spacing="0">
+                <TextBlock Text="{Binding Text.BasicInformation}" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,18" />
+
+                <StackPanel Spacing="8">
+                  <TextBlock Text="{Binding Text.ProjectName}" FontSize="14" FontWeight="SemiBold" />
+                  <TextBox Classes="form-field" Text="{Binding ProjectName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="MyGame" />
+                  <TextBlock Text="{Binding Text.ProjectFolderHint}" Classes="muted" FontSize="12" />
+                </StackPanel>
+
+                <StackPanel Spacing="8" Margin="0,22,0,0">
+                  <TextBlock Text="{Binding Text.OutputLocation}" FontSize="14" FontWeight="SemiBold" />
+                  <Grid ColumnDefinitions="*,12,92">
+                    <TextBox Grid.Column="0" Classes="form-field" Text="{Binding OutputDirectory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    <Button Grid.Column="2" Classes="form-browse" Content="{Binding Text.Browse}" Click="BrowseProjectOutput_Click" />
+                  </Grid>
+                  <TextBlock Text="{Binding Text.OutputLocationHint}" Classes="muted" FontSize="12" />
+                </StackPanel>
+
+                <StackPanel Spacing="8" Margin="0,22,0,0">
+                  <TextBlock Text="{Binding Text.ClientType}" FontSize="14" FontWeight="SemiBold" />
+                  <ComboBox Classes="form-field" ItemsSource="{Binding ClientOptions}" SelectedItem="{Binding SelectedClient, Mode=TwoWay}" />
+                  <TextBlock Text="{Binding Text.ClientTypeHint}" Classes="muted" FontSize="12" />
+                </StackPanel>
+
+                <StackPanel Spacing="8" Margin="0,22,0,0">
+                  <TextBlock Text="{Binding Text.ClientVersion}" FontSize="14" FontWeight="SemiBold" />
+                  <ComboBox Classes="form-field" ItemsSource="{Binding ClientVersionOptions}" SelectedItem="{Binding SelectedClientVersion, Mode=TwoWay}" IsEnabled="{Binding HasClientVersion}" />
+                  <TextBlock Text="{Binding ClientVersionHint}" Classes="muted" FontSize="12" />
+                </StackPanel>
+              </StackPanel>
+
+              <Border Grid.Column="1" Width="1" Background="#33332F" HorizontalAlignment="Center" />
+
+              <StackPanel Grid.Column="2" Spacing="0">
+                <TextBlock Text="{Binding Text.ProjectConfiguration}" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,18" />
+
+                <Grid ColumnDefinitions="1*,18,1*">
+                  <StackPanel Grid.Column="0" Spacing="8">
+                    <TextBlock Text="{Binding Text.Transport}" FontSize="14" FontWeight="SemiBold" />
+                    <ComboBox Classes="form-field" ItemsSource="{Binding TransportOptions}" SelectedItem="{Binding SelectedTransport, Mode=TwoWay}" />
+                    <TextBlock Text="{Binding Text.DefaultKcp}" Classes="muted" FontSize="12" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="2" Spacing="8">
+                    <TextBlock Text="{Binding Text.Serializer}" FontSize="14" FontWeight="SemiBold" />
+                    <ComboBox Classes="form-field" ItemsSource="{Binding SerializerOptions}" SelectedItem="{Binding SelectedSerializer, Mode=TwoWay}" />
+                    <TextBlock Text="{Binding Text.DefaultMemoryPack}" Classes="muted" FontSize="12" />
+                  </StackPanel>
+                </Grid>
+
+                <StackPanel Spacing="8" Margin="0,22,0,0">
+                  <TextBlock Text="{Binding Text.Persistence}" FontSize="14" FontWeight="SemiBold" />
+                  <ComboBox Classes="form-field" ItemsSource="{Binding PersistenceOptions}" SelectedItem="{Binding SelectedPersistence, Mode=TwoWay}" />
+                  <TextBlock Text="{Binding Text.PersistenceHint}" Classes="muted" FontSize="12" />
+                </StackPanel>
+
+                <StackPanel Spacing="8" Margin="0,22,0,0">
+                  <TextBlock Text="{Binding Text.NuGetForUnitySource}" FontSize="14" FontWeight="SemiBold" />
+                  <ComboBox Classes="form-field" ItemsSource="{Binding NuGetForUnitySourceOptions}" SelectedItem="{Binding SelectedNuGetForUnitySource, Mode=TwoWay}" IsEnabled="{Binding UsesNuGetForUnity}" />
+                  <TextBlock Text="{Binding NuGetForUnityHint}" Classes="muted" FontSize="12" />
+                </StackPanel>
+
+                <StackPanel Spacing="8" Margin="0,22,0,0">
+                  <TextBlock Text="{Binding Text.DeploymentProfile}" FontSize="14" FontWeight="SemiBold" />
+                  <ComboBox Classes="form-field" ItemsSource="{Binding DeploymentProfileOptions}" SelectedItem="{Binding SelectedDeploymentProfile, Mode=TwoWay}" />
+                  <TextBlock Text="{Binding Text.DeploymentProfileHint}" Classes="muted" FontSize="12" />
+                </StackPanel>
+              </StackPanel>
+            </Grid>
+
+            <Border BorderBrush="#33332F" BorderThickness="0,1,0,0" Margin="0,38,0,0" Padding="0,24,0,0">
+              <Grid ColumnDefinitions="*,18,132,12,174">
+                <StackPanel Grid.Column="0" Spacing="6" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Text.ProjectWillBeCreatedAt}" Classes="muted" FontSize="12" />
+                  <TextBlock Text="{Binding TargetPath}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding ValidationMessage}" Classes="gold" FontSize="12" />
+                </StackPanel>
+                <Button Grid.Column="2" Classes="secondary" Height="56" Content="{Binding Text.Cancel}" Click="CancelCreateProject_Click" />
+                <Button Grid.Column="4" Classes="primary" Height="56" Click="ContinueCreateProject_Click" IsEnabled="{Binding CanCreate}">
+                  <StackPanel Orientation="Horizontal" Spacing="10">
+                    <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size24" />
+                    <TextBlock Text="{Binding Text.ContinueCreating}" Foreground="#15120A" FontSize="16" FontWeight="SemiBold" />
+                  </StackPanel>
+                </Button>
+              </Grid>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+
+        <ScrollViewer x:Name="SettingsExperience" IsVisible="False" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Margin="64,52,56,64" MaxWidth="1080" HorizontalAlignment="Stretch">
+            <StackPanel Spacing="8">
+              <TextBlock Text="{Binding Localization.Text.Settings}" FontSize="38" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding Localization.Text.SettingsDescription}" Classes="muted" FontSize="16" />
+            </StackPanel>
+
+            <Grid ColumnDefinitions="0.9*,24,1.1*" Margin="0,42,0,0">
+              <Border Grid.Column="0" Background="#111213" BorderBrush="#34342F" BorderThickness="1" CornerRadius="10" Padding="28">
+                <StackPanel Spacing="0">
+                  <Border Width="48" Height="48" CornerRadius="8" Background="#211F17" HorizontalAlignment="Left">
+                    <icons:FluentIcon Icon="LocalLanguage" IconVariant="Regular" IconSize="Size24" Foreground="#EFBE3E" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                  <TextBlock Text="{Binding Localization.Text.LanguageAndRegion}" FontSize="22" FontWeight="SemiBold" Margin="0,22,0,0" />
+                  <TextBlock Text="{Binding Localization.Text.LanguageDescription}" Classes="muted" FontSize="14" TextWrapping="Wrap" Margin="0,9,0,0" />
+
+                  <Border BorderBrush="#33332F" BorderThickness="0,1,0,0" Margin="0,28,0,0" Padding="0,24,0,0">
+                    <StackPanel Spacing="9">
+                      <TextBlock Text="{Binding Localization.Text.DisplayLanguage}" FontSize="14" FontWeight="SemiBold" />
+                      <ComboBox Classes="form-field"
+                                ItemsSource="{Binding Localization.LanguageOptions}"
+                                SelectedItem="{Binding Localization.SelectedLanguage, Mode=TwoWay}" />
+                      <TextBlock Text="{Binding Localization.Text.DisplayLanguageHint}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </Border>
+
+              <Border Grid.Column="2" Background="#111213" BorderBrush="#34342F" BorderThickness="1" CornerRadius="10" Padding="28">
+                <StackPanel Spacing="0">
+                  <Grid ColumnDefinitions="48,*,Auto">
+                    <Border Grid.Column="0" Width="48" Height="48" CornerRadius="8" Background="#211F17">
+                      <icons:FluentIcon Icon="DeveloperBoard" IconVariant="Regular" IconSize="Size24" Foreground="#EFBE3E" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="16,0,18,0" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Localization.Text.DevelopmentEnvironment}" FontSize="22" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding Localization.Text.DevelopmentEnvironmentDescription}" Classes="muted" FontSize="13" TextWrapping="Wrap" Margin="0,5,0,0" />
+                    </StackPanel>
+                    <Border Grid.Column="2" Background="#211F17" BorderBrush="#6F5923" BorderThickness="1" CornerRadius="12" Padding="12,6" VerticalAlignment="Top">
+                      <TextBlock Text="{Binding Localization.Text.EnvironmentReady}" Classes="gold" FontSize="12" FontWeight="SemiBold" />
+                    </Border>
+                  </Grid>
+
+                  <Border BorderBrush="#33332F" BorderThickness="0,1,0,0" Margin="0,28,0,0" Padding="0,24,0,0">
+                    <Grid ColumnDefinitions="32,*">
+                      <icons:FluentIcon Grid.Column="0" Icon="CheckmarkCircle" IconVariant="Regular" IconSize="Size20" Foreground="#EFBE3E" />
+                      <StackPanel Grid.Column="1" Spacing="5">
+                        <TextBlock Text="{Binding Localization.Text.RuntimeStatus}" Classes="muted" FontSize="12" />
+                        <TextBlock Text="{Binding Localization.Text.RuntimeReadyTitle}" FontSize="15" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Localization.Text.RuntimeReadyDescription}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+
+                  <Border BorderBrush="#33332F" BorderThickness="0,1,0,0" Margin="0,24,0,0" Padding="0,24,0,0">
+                    <Grid ColumnDefinitions="*,16,142">
+                      <StackPanel Grid.Column="0" Spacing="6" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Localization.Text.DetectedTools}" Classes="muted" FontSize="12" />
+                        <TextBlock x:Name="SettingsEnvironmentSummaryText" FontSize="14" TextWrapping="Wrap" />
+                      </StackPanel>
+                      <Button Grid.Column="2" Classes="secondary" Height="48" Padding="14,8" Click="RefreshEnvironment_Click">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                          <icons:FluentIcon Icon="ArrowSync" IconVariant="Regular" IconSize="Size20" />
+                          <TextBlock Text="{Binding Localization.Text.RefreshDetection}" Foreground="{Binding $parent[Button].Foreground}" FontSize="13" />
+                        </StackPanel>
+                      </Button>
+                    </Grid>
+                  </Border>
+                </StackPanel>
+              </Border>
+            </Grid>
+
+            <Border Background="#111213" BorderBrush="#34342F" BorderThickness="1" CornerRadius="10" Padding="28" Margin="0,24,0,0">
+              <Grid ColumnDefinitions="48,20,*,24,190">
+                <Border Grid.Column="0" Width="48" Height="48" CornerRadius="8" Background="#211F17" VerticalAlignment="Top">
+                  <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="Size24" Foreground="#EFBE3E" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel Grid.Column="2" Spacing="6" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Localization.Text.ApplicationUpdates}" FontSize="22" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Localization.Text.ApplicationUpdatesDescription}" Classes="muted" FontSize="13" TextWrapping="Wrap" />
+                  <TextBlock x:Name="CurrentHubVersionText" Classes="gold" FontSize="12" FontWeight="SemiBold" Margin="0,8,0,0" />
+                  <TextBlock x:Name="UpdateStatusText" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                </StackPanel>
+                <Button x:Name="UpdateButton" Grid.Column="4" Classes="primary" Height="48" Padding="18,8" Click="CheckUpdate_Click" VerticalAlignment="Center">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <icons:FluentIcon Icon="ArrowSync" IconVariant="Regular" IconSize="Size20" Foreground="#15120A" />
+                    <TextBlock x:Name="UpdateButtonText" Foreground="#15120A" FontSize="13" FontWeight="SemiBold" />
+                  </StackPanel>
+                </Button>
+              </Grid>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+
+        <Border x:Name="ActionFeedback" IsVisible="False" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="24" Padding="18,12" CornerRadius="7" Background="#20201B" BorderBrush="#6F5923" BorderThickness="1" MaxWidth="760">
+          <TextBlock x:Name="ActionFeedbackText" Classes="muted" FontSize="13" TextWrapping="Wrap" />
+        </Border>
+      </Grid>
+    </Grid>
+  </Grid>
+  </Border>
+</Window>

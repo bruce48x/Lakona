@@ -1,0 +1,180 @@
+name: Publish Lakona Hub
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Semantic version without the hub-v prefix
+        required: true
+        type: string
+  push:
+    tags:
+      - "hub-v*"
+
+concurrency:
+  group: publish-lakona-hub
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  DOTNET_SDK_VERSION: 10.0.100
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            sdk_os: win
+            sdk_arch: x64
+          - rid: linux-x64
+            sdk_os: linux
+            sdk_arch: x64
+          - rid: osx-x64
+            sdk_os: osx
+            sdk_arch: x64
+          - rid: osx-arm64
+            sdk_os: osx
+            sdk_arch: arm64
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        run: |
+          $version = if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            '${{ inputs.version }}'
+          } else {
+            '${{ github.ref_name }}'.Substring('hub-v'.Length)
+          }
+          if ($version -notmatch '^\d+\.\d+\.\d+([-.][0-9A-Za-z.-]+)?$') {
+            throw "Invalid Hub version: $version"
+          }
+          "value=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Publish self-contained app
+        run: >-
+          dotnet publish src/Lakona.Hub/Lakona.Hub.csproj
+          -c Release
+          -r ${{ matrix.rid }}
+          --self-contained true
+          -o artifacts/publish/hub-${{ matrix.rid }}
+          -p:Version=${{ steps.version.outputs.value }}
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:DebugType=None
+          -p:DebugSymbols=false
+
+      - name: Add private .NET 10 SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          find "artifacts/publish/hub-${{ matrix.rid }}" -type f -name '*.pdb' -delete
+          curl -fsSL https://dot.net/v1/dotnet-install.sh -o dotnet-install.sh
+          bash dotnet-install.sh \
+            --version "$DOTNET_SDK_VERSION" \
+            --os "${{ matrix.sdk_os }}" \
+            --architecture "${{ matrix.sdk_arch }}" \
+            --install-dir "artifacts/publish/hub-${{ matrix.rid }}/dotnet" \
+            --no-path
+
+      - name: Upload platform files
+        uses: actions/upload-artifact@v7
+        with:
+          name: hub-${{ matrix.rid }}
+          path: artifacts/publish/hub-${{ matrix.rid }}
+          if-no-files-found: error
+          retention-days: 2
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Resolve version and tag
+        id: version
+        shell: pwsh
+        run: |
+          $version = if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            '${{ inputs.version }}'
+          } else {
+            '${{ github.ref_name }}'.Substring('hub-v'.Length)
+          }
+          "value=$version" >> $env:GITHUB_OUTPUT
+          "tag=hub-v$version" >> $env:GITHUB_OUTPUT
+
+      - name: Download platform files
+        uses: actions/download-artifact@v8
+        with:
+          pattern: hub-*
+          path: artifacts/publish
+
+      - name: Download previous Hub release
+        id: previous
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $currentTag = '${{ steps.version.outputs.tag }}'
+          $releases = gh release list --limit 100 --json tagName,isDraft,isPrerelease | ConvertFrom-Json
+          $previous = $releases |
+            Where-Object { -not $_.isDraft -and -not $_.isPrerelease -and $_.tagName.StartsWith('hub-v') -and $_.tagName -ne $currentTag } |
+            Select-Object -First 1
+          if ($null -eq $previous) {
+            'found=false' >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          New-Item -ItemType Directory -Path artifacts/previous -Force | Out-Null
+          gh release download $previous.tagName --pattern 'lakona-hub-manifest.json' --dir artifacts/previous
+          gh release download $previous.tagName --pattern 'lakona-hub-*-win-x64.zip' --dir artifacts/previous
+          gh release download $previous.tagName --pattern 'lakona-hub-*-linux-x64.zip' --dir artifacts/previous
+          gh release download $previous.tagName --pattern 'lakona-hub-*-osx-x64.zip' --dir artifacts/previous
+          gh release download $previous.tagName --pattern 'lakona-hub-*-osx-arm64.zip' --dir artifacts/previous
+          'found=true' >> $env:GITHUB_OUTPUT
+
+      - name: Build full and incremental release assets
+        shell: pwsh
+        run: |
+          $parameters = @{
+            Version = '${{ steps.version.outputs.value }}'
+            Tag = '${{ steps.version.outputs.tag }}'
+            Repository = '${{ github.repository }}'
+            PublishRoot = 'artifacts/publish'
+            OutputRoot = 'artifacts/release'
+          }
+          if ('${{ steps.previous.outputs.found }}' -eq 'true') {
+            $parameters.PreviousRoot = 'artifacts/previous'
+          }
+          ./scripts/hub/New-HubRelease.ps1 @parameters
+
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag='${{ steps.version.outputs.tag }}'
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" artifacts/release/* --clobber
+          else
+            gh release create "$tag" artifacts/release/* \
+              --title "Lakona Hub ${{ steps.version.outputs.value }}" \
+              --generate-notes
+          fi

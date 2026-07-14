@@ -1,3 +1,4 @@
+using Lakona.ProjectSystem;
 using Lakona.Tool.Execution;
 using Lakona.Tool.Planning;
 using Xunit;
@@ -20,7 +21,7 @@ public sealed class TransactionalOutputWriterTests
                 [new GeneratedDirectory("Server/App")],
                 []);
 
-            await new TransactionalOutputWriter(Text).WriteAsync(plan, TestContext.Current.CancellationToken);
+            await new TransactionalOutputWriter().WriteAsync(plan, TestContext.Current.CancellationToken);
 
             Assert.True(Directory.Exists(Path.Combine(targetRoot, "Server", "App")));
             Assert.Equal(
@@ -46,8 +47,8 @@ public sealed class TransactionalOutputWriterTests
         {
             var plan = new GenerationPlan(targetRoot, [], [], []);
 
-            var exception = await Assert.ThrowsAsync<CliUsageException>(() =>
-                new TransactionalOutputWriter(Text).WriteAsync(plan, TestContext.Current.CancellationToken));
+            var exception = await Assert.ThrowsAsync<LakonaProjectCreationException>(() =>
+                new TransactionalOutputWriter().WriteAsync(plan, TestContext.Current.CancellationToken));
 
             Assert.Contains("Target directory already exists and is not empty", exception.Message, StringComparison.Ordinal);
             Assert.True(File.Exists(Path.Combine(targetRoot, "existing.txt")));
@@ -74,7 +75,7 @@ public sealed class TransactionalOutputWriterTests
                     "Lakona.Tool.Rendering.Client.TemplateAssets.NuGetForUnity.4.5.0.zip",
                     "Client/Packages")]);
 
-            await new TransactionalOutputWriter(Text).WriteAsync(plan, TestContext.Current.CancellationToken);
+            await new TransactionalOutputWriter().WriteAsync(plan, TestContext.Current.CancellationToken);
 
             Assert.True(File.Exists(Path.Combine(
                 targetRoot,
@@ -107,7 +108,7 @@ public sealed class TransactionalOutputWriterTests
                 []);
 
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                new TransactionalOutputWriter(Text).WriteAsync(plan, TestContext.Current.CancellationToken));
+                new TransactionalOutputWriter().WriteAsync(plan, TestContext.Current.CancellationToken));
 
             Assert.False(Directory.Exists(targetRoot));
             Assert.False(File.Exists(Path.Combine(parentRoot, "escape.txt")));
@@ -134,7 +135,7 @@ public sealed class TransactionalOutputWriterTests
                 []);
 
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                new GenerationExecutor(new TransactionalOutputWriter(Text)).ExecuteAsync(plan, TestContext.Current.CancellationToken));
+                new GenerationExecutor(new TransactionalOutputWriter()).ExecuteAsync(plan, TestContext.Current.CancellationToken));
 
             Assert.Contains("LTPLAN003", exception.Message, StringComparison.Ordinal);
             Assert.False(Directory.Exists(targetRoot));

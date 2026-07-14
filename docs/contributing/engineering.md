@@ -29,8 +29,13 @@ blog/     Hugo article sources
   diagnostics, health, hotfix, and scaffolding infrastructure.
 - Game projects own accounts, matchmaking policy, room rules, gameplay,
   persistence schema, UI, and product-specific DTOs.
-- `Lakona.Tool` owns project generation and maintenance commands. Runtime code
-  belongs in runtime packages.
+- `Lakona.ProjectSystem` owns reusable project inspection and project creation,
+  including defaults, validation, planning, rendering, transactional writes,
+  and Git initialization. Future project maintenance behavior belongs behind
+  the same boundary.
+  `Lakona.Tool` and `Lakona.Hub` are user-facing adapters over that tooling
+  seam and must not implement parallel project generators. Runtime code belongs
+  in runtime packages.
 - Shared contracts are authoritative. Do not duplicate them into server-local
   copies.
 

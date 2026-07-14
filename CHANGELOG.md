@@ -4,6 +4,23 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-14 — Lakona Hub desktop foundation
+
+**Key releases:** `Lakona.ProjectSystem 0.1.0` and `Lakona.Tool 0.25.20`.
+
+- Added the first Avalonia-based Lakona Hub desktop slice, a reusable read-only
+  ProjectSystem inspector, and a non-invasive project contract that keeps Hub
+  metadata outside project directories.
+- Added the black-and-gold project workspace, fully expanded guided creation
+  form, local editor discovery, per-project IDE selection, and a unified
+  Settings page with immediate Simplified Chinese and English switching plus
+  manual, verified application updates.
+- Moved the canonical project creation pipeline behind
+  `LakonaProjectCreator`, so the CLI and Hub share defaults, validation,
+  rendering, transactional writes, and future generator changes; added a
+  GitHub Releases pipeline for self-contained Windows, Linux, and macOS
+  packages with a bundled .NET 10 SDK and file-level incremental updates.
+
 ## 2026-07-14 — Complete Unity-family project generation
 
 **Key release:** `Lakona.Tool 0.25.19`.

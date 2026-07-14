@@ -24,7 +24,6 @@ Before changing anything, every contributor and AI agent must:
 | Tests, validation, CI verification, or source-scan coverage | [Testing](./docs/contributing/testing.md) |
 | Shippable content under `src/**`, package versions, packing, or publishing | [NuGet Publishing](./docs/contributing/nuget-publishing.md) |
 | Changelog or release milestone | [Changelog Maintenance](./docs/changelog.md) |
-| Large cross-package, public API, lifecycle, hotfix, scheduling, concurrency, generation, or sample change | [Large Cross-Cutting Changes](./docs/agent-workflows/large-cross-cutting-change.md) |
 
 Current architecture and maintainer contracts:
 
@@ -38,7 +37,7 @@ Current architecture and maintainer contracts:
 | RPC and generation | [RPC](./docs/rpc.md), [Source Generation](./docs/source-generation.md) |
 | Hotfix | [Architecture](./docs/hotfix/architecture.md), [Actor Behavior](./docs/hotfix/actor-behavior.md), [Service Binding](./docs/hotfix/service-binding.md) |
 | Protocol and API stability | [Wire Protocol](./docs/protocol/wire-protocol-v1.md), [Status Model](./docs/protocol/rpc-status-error-model.md), [Public API Boundaries](./docs/api-stability/public-api-boundaries.md) |
-| Project tooling | [Default Experience](./docs/tool/default-experience.md), [Generation Architecture](./docs/tool/generation-architecture.md), [Package Version Graph](./docs/tool/package-version-graph.md), [Server Pack](./docs/tool/server-pack-command.md) |
+| Project tooling | [Default Experience](./docs/tool/default-experience.md), [Generation Architecture](./docs/tool/generation-architecture.md), [Lakona Hub](./docs/tool/lakona-hub.md), [Package Version Graph](./docs/tool/package-version-graph.md), [Server Pack](./docs/tool/server-pack-command.md) |
 
 Durable design notes belong under `docs/**`. Delete completed plans, obsolete
 roadmaps, and history-only notes instead of retaining them in the default

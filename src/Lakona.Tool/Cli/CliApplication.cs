@@ -1,17 +1,8 @@
+using Lakona.ProjectSystem;
 using Lakona.Tool.Cli.Commands;
 using Lakona.Tool.Cli.Commands.Hotfix;
 using Lakona.Tool.Cli.Commands.Server;
 using Lakona.Tool.Cli.Options;
-using Lakona.Tool.Domain;
-using Lakona.Tool.Execution;
-using Lakona.Tool.Planning;
-using Lakona.Tool.Rendering.Client;
-using Lakona.Tool.Rendering.Common;
-using Lakona.Tool.Rendering.Docs;
-using Lakona.Tool.Rendering.Operations;
-using Lakona.Tool.Rendering.Server;
-using Lakona.Tool.Infrastructure;
-using Lakona.Tool.Rendering.Shared;
 
 internal sealed class CliApplication
 {
@@ -81,20 +72,7 @@ internal sealed class CliApplication
     {
         return new NewProjectCommand(
             new NewProjectPrompter(text, terminal),
-            new LakonaProjectSpecFactory(),
-            new LakonaProjectGenerator(
-                new LakonaProjectPlanBuilder(
-                    [
-                        new GitRenderer(),
-                        new SharedProjectRenderer(),
-                        new ServerAppRenderer(),
-                        new HotfixRenderer(),
-                        new OperationsRenderer(),
-                        new GeneratedProjectGuideRenderer()
-                    ],
-                    [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
-                new GenerationExecutor(new TransactionalOutputWriter(text)),
-                new GitInitializer(new GitCommandRunner())),
+            new LakonaProjectCreator(),
             text,
             terminal);
     }

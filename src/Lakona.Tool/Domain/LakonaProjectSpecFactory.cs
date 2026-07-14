@@ -2,29 +2,14 @@ using Lakona.Tool.Cli.Options;
 
 namespace Lakona.Tool.Domain;
 
+// Adapts CLI options for legacy unit-test seams. All project defaults and
+// validation remain owned by ProjectSystem's ProjectSpecFactory.
 internal sealed class LakonaProjectSpecFactory
 {
+    private readonly ProjectSpecFactory inner = new();
+
     public LakonaProjectSpec Create(NewProjectOptions options)
     {
-        var projectName = string.IsNullOrWhiteSpace(options.ProjectName) ? "MyGame" : options.ProjectName;
-        var layout = ProjectLayout.Create(projectName, options.OutputPath);
-        var nuGetForUnitySource = ClientEnginePolicy.GetEffectiveNuGetForUnitySource(
-            options.ClientEngine,
-            options.NuGetForUnitySource);
-        var clientEngineVersion = ClientEngineVersionPolicy.Resolve(
-            options.ClientEngine,
-            options.ClientEngineVersion);
-
-        return new LakonaProjectSpec(
-            projectName,
-            layout,
-            options.ClientEngine,
-            clientEngineVersion,
-            options.Transport,
-            options.Serializer,
-            options.Persistence,
-            nuGetForUnitySource,
-            options.DeploymentProfile,
-            ProjectCapabilityCatalog.DefaultCapabilities);
+        return inner.Create(options.ToCreationRequest());
     }
 }

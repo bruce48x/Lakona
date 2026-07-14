@@ -1,4 +1,4 @@
-# Lakona.Tool Generation Architecture
+# Lakona Project Generation Architecture
 
 Status: implemented maintenance reference
 Date: 2026-06-11
@@ -6,11 +6,13 @@ Audience: maintainers and contributors
 
 ## Purpose
 
-`src/Lakona.Tool` owns generated Lakona.Game project creation. The implemented
-architecture is a single generation pipeline:
+`src/Lakona.ProjectSystem` owns generated Lakona.Game project creation. Both
+`Lakona.Tool` and `Lakona.Hub` are adapters over the same public creation
+interface and the same generation pipeline:
 
 ```txt
-CLI options -> LakonaProjectSpec -> GenerationPlan -> transactional write
+user intent -> LakonaProjectCreationRequest -> LakonaProjectSpec
+            -> GenerationPlan -> transactional write
 ```
 
 This document preserves the durable maintenance rules behind that pipeline. It
@@ -27,13 +29,21 @@ It generates a runnable Lakona.Game project with Shared contracts, Server/App,
 Server/Hotfix, a client project, compact configuration, cluster defaults,
 hotfix defaults, reliable push defaults, and generated project docs.
 
-`Lakona.Tool` also owns the v1 production hotfix package format and local node
+`Lakona.Tool` also exposes the v1 production hotfix package format and local node
 operations. It does not own remote deployment or multi-node orchestration.
+
+`LakonaProjectCreator.CreateAsync` is the canonical creation seam. It accepts a
+`LakonaProjectCreationRequest` and returns a `LakonaProjectCreationResult`.
+Defaults, validation, project layout, package versions, rendering,
+transactional writes, and Git initialization remain internal to
+`Lakona.ProjectSystem`. The CLI remains a supported adapter; the desktop
+application does not replace it.
 
 ## Architecture Decision
 
-`Lakona.Tool` is one coherent project generator. It must not contain a hidden
-standalone RPC starter layer or a two-phase `Starter -> Augment` flow.
+`Lakona.ProjectSystem` is one coherent project generator. Neither adapter may
+contain a hidden standalone RPC starter layer, a second renderer graph, or a
+two-phase `Starter -> Augment` flow.
 
 The tool answers one question:
 
@@ -54,7 +64,9 @@ separate internal product that the Game generator wraps.
 
 These invariants are regression boundaries:
 
-- One `new` command builds one `LakonaProjectSpec`.
+- Tool and Hub map their input to one `LakonaProjectCreationRequest`.
+- Only `LakonaProjectSystem.LakonaProjectCreator` turns that request into one
+  `LakonaProjectSpec`.
 - One `LakonaProjectSpec` builds one `GenerationPlan`.
 - The `new` command writes only from a validated plan.
 - No renderer writes to disk directly.
@@ -76,7 +88,7 @@ as `sync` or `upgrade`. The `new` command stays create-from-plan only.
 The implemented source tree is organized by responsibility:
 
 ```txt
-Cli/
+src/Lakona.Tool/Cli/
   Program.cs
   CliApplication.cs
   Commands/
@@ -91,7 +103,12 @@ Cli/
     ICliTerminal.cs
     ConsoleCliTerminal.cs
 
-Domain/
+src/Lakona.ProjectSystem/
+  LakonaProjectCreationRequest.cs
+  LakonaProjectCreationResult.cs
+  LakonaProjectCreator.cs
+
+src/Lakona.ProjectSystem/Generation/Domain/
   ClientEngine.cs
   TransportKind.cs
   SerializerKind.cs
@@ -104,7 +121,7 @@ Domain/
   ProjectLayout.cs
   PackageCatalog.cs
 
-Planning/
+src/Lakona.ProjectSystem/Generation/Planning/
   LakonaProjectGenerator.cs
   LakonaProjectPlanBuilder.cs
   GenerationPlan.cs
@@ -118,7 +135,7 @@ Planning/
   PackageReferenceSpec.cs
   PlanValidator.cs
 
-Rendering/
+src/Lakona.ProjectSystem/Generation/Rendering/
   Common/
   Shared/
   Server/
@@ -126,7 +143,7 @@ Rendering/
   Operations/
   Docs/
 
-Execution/
+src/Lakona.ProjectSystem/Generation/Execution/
   GenerationExecutor.cs
   TransactionalOutputWriter.cs
   GitInitializer.cs
@@ -134,7 +151,7 @@ Execution/
   IGitCommandRunner.cs
   ToolFileSystem.cs
 
-Infrastructure/
+src/Lakona.ProjectSystem/Generation/Infrastructure/
   GitCommandRunner.cs
 ```
 
@@ -795,8 +812,9 @@ persistence.
 
 ## Regression Checks
 
-Tool changes should keep or update focused tests under `tests/Lakona.Tool.Tests`
-for:
+Generation changes should keep or update public-facade tests under
+`tests/Lakona.ProjectSystem.Tests` and adapter/legacy pipeline tests under
+`tests/Lakona.Tool.Tests` for:
 
 - option parsing and interactive prompting
 - project spec defaults

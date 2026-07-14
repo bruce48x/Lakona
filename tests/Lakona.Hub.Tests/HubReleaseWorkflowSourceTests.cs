@@ -1,0 +1,137 @@
+using Xunit;
+using System.Diagnostics;
+using System.Text.Json;
+
+namespace Lakona.Hub.Tests;
+
+public sealed class HubReleaseWorkflowSourceTests
+{
+    [Fact]
+    public void Workflow_PublishesThreeOperatingSystemsWithBundledSdkAndReleaseManifest()
+    {
+        var root = FindRepositoryRoot();
+        var workflow = File.ReadAllText(Path.Combine(root, ".github", "workflows", "publish-hub.yml"));
+        var packager = File.ReadAllText(Path.Combine(root, "scripts", "hub", "New-HubRelease.ps1"));
+
+        Assert.Contains("win-x64", workflow, StringComparison.Ordinal);
+        Assert.Contains("linux-x64", workflow, StringComparison.Ordinal);
+        Assert.Contains("osx-x64", workflow, StringComparison.Ordinal);
+        Assert.Contains("osx-arm64", workflow, StringComparison.Ordinal);
+        Assert.Contains("--self-contained true", workflow, StringComparison.Ordinal);
+        Assert.Contains("DOTNET_SDK_VERSION: 10.0.100", workflow, StringComparison.Ordinal);
+        Assert.Contains("-name '*.pdb' -delete", workflow, StringComparison.Ordinal);
+        Assert.Contains("New-HubRelease.ps1", workflow, StringComparison.Ordinal);
+        Assert.Contains("hub-delta.json", packager, StringComparison.Ordinal);
+        Assert.Contains("lakona-hub-manifest.json", packager, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Packager_CreatesFullPackagesThenDeltaPackagesFromPreviousRelease()
+    {
+        var root = FindRepositoryRoot();
+        var temporary = Path.Combine(Path.GetTempPath(), $"lakona-hub-packager-{Guid.NewGuid():N}");
+        var publish = Path.Combine(temporary, "publish");
+        var first = Path.Combine(temporary, "first");
+        var second = Path.Combine(temporary, "second");
+        try
+        {
+            foreach (var rid in new[] { "win-x64", "linux-x64", "osx-x64", "osx-arm64" })
+            {
+                var platform = Path.Combine(publish, $"hub-{rid}");
+                var sdk = Path.Combine(platform, "dotnet");
+                Directory.CreateDirectory(sdk);
+                await File.WriteAllTextAsync(
+                    Path.Combine(platform, rid == "win-x64" ? "Lakona.Hub.exe" : "Lakona.Hub"),
+                    "app-v1",
+                    TestContext.Current.CancellationToken);
+                await File.WriteAllTextAsync(
+                    Path.Combine(sdk, rid == "win-x64" ? "dotnet.exe" : "dotnet"),
+                    "sdk",
+                    TestContext.Current.CancellationToken);
+            }
+
+            await RunPackagerAsync(root, publish, first, "1.0.0", null);
+            await File.WriteAllTextAsync(
+                Path.Combine(publish, "hub-linux-x64", "Lakona.Hub"),
+                "app-v2",
+                TestContext.Current.CancellationToken);
+            await RunPackagerAsync(root, publish, second, "1.1.0", first);
+
+            using var manifest = JsonDocument.Parse(await File.ReadAllTextAsync(
+                Path.Combine(second, "lakona-hub-manifest.json"),
+                TestContext.Current.CancellationToken));
+            var platforms = manifest.RootElement.GetProperty("platforms");
+            Assert.Equal(4, platforms.EnumerateObject().Count());
+            foreach (var platform in platforms.EnumerateObject())
+            {
+                Assert.True(File.Exists(Path.Combine(second, platform.Value.GetProperty("full").GetProperty("assetName").GetString()!)));
+                var delta = Assert.Single(platform.Value.GetProperty("deltas").EnumerateArray());
+                Assert.Equal("1.0.0", delta.GetProperty("fromVersion").GetString());
+                Assert.True(File.Exists(Path.Combine(second, delta.GetProperty("assetName").GetString()!)));
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(temporary))
+            {
+                Directory.Delete(temporary, recursive: true);
+            }
+        }
+    }
+
+    private static async Task RunPackagerAsync(
+        string root,
+        string publish,
+        string output,
+        string version,
+        string? previous)
+    {
+        var startInfo = new ProcessStartInfo("pwsh")
+        {
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            UseShellExecute = false,
+            WorkingDirectory = root
+        };
+        foreach (var argument in new[]
+        {
+            "-NoProfile", "-File", Path.Combine(root, "scripts", "hub", "New-HubRelease.ps1"),
+            "-Version", version,
+            "-Tag", $"hub-v{version}",
+            "-Repository", "bruce48x/Lakona",
+            "-PublishRoot", publish,
+            "-OutputRoot", output
+        })
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+        if (previous is not null)
+        {
+            startInfo.ArgumentList.Add("-PreviousRoot");
+            startInfo.ArgumentList.Add(previous);
+        }
+
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Could not start PowerShell.");
+        var outputText = await process.StandardOutput.ReadToEndAsync(TestContext.Current.CancellationToken);
+        var errorText = await process.StandardError.ReadToEndAsync(TestContext.Current.CancellationToken);
+        await process.WaitForExitAsync(TestContext.Current.CancellationToken);
+        Assert.True(process.ExitCode == 0, $"Packager failed. Output: {outputText}{Environment.NewLine}Error: {errorText}");
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "Lakona.slnx")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new InvalidOperationException("Could not locate repository root.");
+    }
+}
