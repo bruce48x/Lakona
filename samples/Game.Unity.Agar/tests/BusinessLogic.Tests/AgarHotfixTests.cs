@@ -134,7 +134,7 @@ public sealed class AgarHotfixTests
             TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
         var service = new LoginService(
-            provider.GetRequiredService<UserActors>(),
+            provider.GetRequiredService<ActorAccess>(),
             provider.GetRequiredService<ILogger<LoginService>>());
         var call = new HotfixServiceCall<LoginRequest, ILoginCallback>(
             new LoginRequest { GuestLogin = true },

@@ -134,9 +134,9 @@ transferred when an owner fails or a session generation moves.
 Generated actor selectors express placement intent:
 
 ```csharp
-await rooms.Route(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct);
-await rooms.Local(roomId).PostAsync(RoomBehavior.RunTickAsync, request, ct);
-await matchmaking.Startup(queueId).CallAsync(MatchmakingBehavior.EnqueueAsync, request, ct);
+await actors.Route<RoomActor>(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct);
+await actors.Local<RoomActor>(roomId).PostAsync(RoomBehavior.RunTickAsync, request, ct);
+await actors.Startup<MatchmakingActor>(queueId).CallAsync(MatchmakingBehavior.EnqueueAsync, request, ct);
 ```
 
 `Route(id)` may use registered routing policy to select a node. Typical

@@ -151,17 +151,23 @@ public sealed class HotfixGeneratorTests
         Assert.Empty(result.App.ErrorDiagnostics);
         Assert.Empty(result.Hotfix.ErrorDiagnostics);
         Assert.DoesNotContain("UserActors", result.App.GeneratedSource, StringComparison.Ordinal);
-        Assert.Contains("public sealed class UserActors", generated, StringComparison.Ordinal);
-        Assert.Contains("public UserLocalRef Local(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
-        Assert.Contains("public UserRouteRef Route(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
-        Assert.Contains("public UserPlacementRef Place(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
-        Assert.Contains("public UserStartupRef Startup(string key)", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("UserActors", generated, StringComparison.Ordinal);
+        Assert.Contains("public sealed class ActorAccess", generated, StringComparison.Ordinal);
+        Assert.Contains("public LocalActor<TActor> Local<TActor>(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
+        Assert.Contains("public ActorRoute<TActor> Route<TActor>(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
+        Assert.Contains("public ActorPlacement<TActor, global::Game.Server.UserId> Place<TActor>(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
+        Assert.Contains("public StartupActor<TActor, string> Startup<TActor>(string key)", generated, StringComparison.Ordinal);
         Assert.Contains("IStartupActorInvoker", generated, StringComparison.Ordinal);
         Assert.Contains("global::Lakona.Game.Server.Actors.ActorPlacementCreateMode.Ensure", generated, StringComparison.Ordinal);
+        Assert.Contains("public readonly struct ActorRoute<TActor>", generated, StringComparison.Ordinal);
+        Assert.Contains("public readonly struct LocalActor<TActor>", generated, StringComparison.Ordinal);
+        Assert.Contains("private readonly ActorAccess _actors;", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("dynamic", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("object _inner", generated, StringComparison.Ordinal);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask<TResult> CallAsync<TRequest, TResult>(", generated, StringComparison.Ordinal);
-        Assert.Contains("global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorCall<global::Game.Server.UserActor, TRequest, TResult> method", generated, StringComparison.Ordinal);
+        Assert.Contains("global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorCall<TActor, TRequest, TResult> method", generated, StringComparison.Ordinal);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask CallAsync<TRequest>(", generated, StringComparison.Ordinal);
-        Assert.Contains("global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorPost<global::Game.Server.UserActor, TRequest> method", generated, StringComparison.Ordinal);
+        Assert.Contains("global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorPost<TActor, TRequest> method", generated, StringComparison.Ordinal);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask PostAsync<TRequest>(", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("public UserRef Get(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("public UserRemoteRef Remote(", generated, StringComparison.Ordinal);
@@ -172,6 +178,115 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("metadata);", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Hotfix", "Actor", "Contract"), result.Hotfix.GeneratedSource, StringComparison.Ordinal);
         Assert.DoesNotContain("UserActorClusterHandler", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generated_actor_access_supports_actor_only_type_arguments_and_method_group_inference()
+    {
+        var appSource = """
+            using System.Runtime.CompilerServices;
+            using Lakona.Game.Server.Actors;
+
+            [assembly: InternalsVisibleTo("Game.Hotfix")]
+
+            namespace Game.Server;
+
+            public readonly record struct UserId(string Value);
+            public sealed class LoginRequest { }
+            public sealed class LoginReply { }
+            public sealed class UserActor : Actor<UserId> { }
+            """;
+
+        var hotfixSource = """
+            using System.Threading.Tasks;
+            using Game.Server;
+            using Lakona.Game.Server.Hotfix;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Hotfix;
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            public static partial class UserBehavior
+            {
+                public static ValueTask<LoginReply> LoginAsync(this UserActor self, LoginRequest request)
+                {
+                    return new ValueTask<LoginReply>(new LoginReply());
+                }
+            }
+
+            internal sealed class Caller(ActorAccess actors)
+            {
+                public ValueTask<LoginReply> LoginAsync(UserId userId)
+                {
+                    return actors.Route<UserActor>(userId).CallAsync(UserBehavior.LoginAsync, new LoginRequest());
+                }
+            }
+            """;
+
+        var result = GeneratorTestHost.RunWithGeneratedAppReference(
+            appSource,
+            hotfixSource,
+            appAssemblyName: "Game.Server",
+            hotfixAssemblyName: "Game.Hotfix");
+
+        Assert.Empty(result.App.ErrorDiagnostics);
+        Assert.Empty(result.Hotfix.ErrorDiagnostics);
+    }
+
+    [Fact]
+    public void Generated_actor_access_rejects_an_actor_key_mismatch_at_compile_time()
+    {
+        var appSource = """
+            using System.Runtime.CompilerServices;
+            using Lakona.Game.Server.Actors;
+
+            [assembly: InternalsVisibleTo("Game.Hotfix")]
+
+            namespace Game.Server;
+
+            public readonly record struct UserId(string Value);
+            public readonly record struct RoomId(string Value);
+            public sealed class PingRequest { }
+            public sealed class UserActor : Actor<UserId> { }
+            public sealed class RoomActor : Actor<RoomId> { }
+            """;
+
+        var hotfixSource = """
+            using System.Threading.Tasks;
+            using Game.Server;
+            using Lakona.Game.Server.Hotfix;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Hotfix;
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            public static partial class UserBehavior
+            {
+                public static ValueTask PingAsync(this UserActor self, PingRequest request) => default;
+            }
+
+            [HotfixBehaviorOf(typeof(RoomActor))]
+            public static partial class RoomBehavior
+            {
+                public static ValueTask PingAsync(this RoomActor self, PingRequest request) => default;
+            }
+
+            internal sealed class Caller(ActorAccess actors)
+            {
+                public void Invalid(RoomId roomId)
+                {
+                    _ = actors.Route<UserActor>(roomId);
+                }
+            }
+            """;
+
+        var result = GeneratorTestHost.RunWithGeneratedAppReference(
+            appSource,
+            hotfixSource,
+            appAssemblyName: "Game.Server",
+            hotfixAssemblyName: "Game.Hotfix");
+
+        Assert.Contains(result.Hotfix.ErrorDiagnostics, diagnostic => diagnostic.Id == "CS0311");
     }
 
     [Fact]
@@ -223,12 +338,12 @@ public sealed class HotfixGeneratorTests
 
         Assert.Empty(result.App.ErrorDiagnostics);
         Assert.Empty(result.Hotfix.ErrorDiagnostics);
-        Assert.Contains("internal sealed class UserActors", generated, StringComparison.Ordinal);
-        Assert.Contains("internal readonly partial struct UserRouteRef", generated, StringComparison.Ordinal);
-        Assert.Contains("internal readonly partial struct UserLocalRef", generated, StringComparison.Ordinal);
-        Assert.DoesNotContain("public sealed class UserActors", generated, StringComparison.Ordinal);
-        Assert.DoesNotContain("public readonly partial struct UserRouteRef", generated, StringComparison.Ordinal);
-        Assert.DoesNotContain("public readonly partial struct UserLocalRef", generated, StringComparison.Ordinal);
+        Assert.Contains("public sealed class ActorAccess", generated, StringComparison.Ordinal);
+        Assert.Contains("internal ActorRoute<TActor> Route<TActor>(string id)", generated, StringComparison.Ordinal);
+        Assert.Contains("internal LocalActor<TActor> Local<TActor>(string id)", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("UserActors", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("UserRouteRef", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("UserLocalRef", generated, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -610,9 +725,10 @@ public sealed class HotfixGeneratorTests
         var result = GeneratorTestHost.RunWithGeneratedAppReference(appSource, hotfixSource, appAssemblyName: "Game.Server", hotfixAssemblyName: "Game.Hotfix");
 
         Assert.Empty(result.Hotfix.ErrorDiagnostics);
-        Assert.DoesNotContain("public sealed class UserActors", result.App.GeneratedSource, StringComparison.Ordinal);
-        Assert.Contains("public sealed class UserActors", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
-        Assert.Contains("public UserRouteRef Route(global::Game.Server.UserId id)", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("public sealed class ActorAccess", result.App.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("public sealed class ActorAccess", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("public ActorRoute<TActor> Route<TActor>(global::Game.Server.UserId id)", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("UserActors", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
         Assert.DoesNotContain("this global::Game.Server.UserRef self", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
     }
 
@@ -662,13 +778,13 @@ public sealed class HotfixGeneratorTests
         Assert.Empty(result.Hotfix.ErrorDiagnostics);
         Assert.Contains("namespace Game.Hotfix.Users", generated, StringComparison.Ordinal);
         Assert.Contains("public static partial class UserBehavior", generated, StringComparison.Ordinal);
-        Assert.Contains("public sealed class UserActors", generated, StringComparison.Ordinal);
-        Assert.Contains("public UserLocalRef Local(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
-        Assert.Contains("public UserRouteRef Route(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
+        Assert.Contains("public sealed class ActorAccess", generated, StringComparison.Ordinal);
+        Assert.Contains("public LocalActor<TActor> Local<TActor>(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
+        Assert.Contains("public ActorRoute<TActor> Route<TActor>(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask<TResult> CallAsync<TRequest, TResult>(", generated, StringComparison.Ordinal);
-        Assert.Contains("global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorCall<global::Game.Server.UserActor, TRequest, TResult> method", generated, StringComparison.Ordinal);
+        Assert.Contains("global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorCall<TActor, TRequest, TResult> method", generated, StringComparison.Ordinal);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask CallAsync<TRequest>(", generated, StringComparison.Ordinal);
-        Assert.Contains("global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorPost<global::Game.Server.UserActor, TRequest> method", generated, StringComparison.Ordinal);
+        Assert.Contains("global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorPost<TActor, TRequest> method", generated, StringComparison.Ordinal);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask PostAsync<TRequest>(", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("public UserRef Get(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("public UserRemoteRef Remote(", generated, StringComparison.Ordinal);
@@ -717,13 +833,15 @@ public sealed class HotfixGeneratorTests
 
         Assert.Empty(result.Hotfix.ErrorDiagnostics);
         Assert.Contains("internal static partial class RoomBehavior", generated, StringComparison.Ordinal);
-        Assert.Contains("readonly partial struct RoomLocalRef", generated, StringComparison.Ordinal);
-        Assert.Contains("readonly partial struct RoomRouteRef", generated, StringComparison.Ordinal);
-        Assert.Contains("__lakona_ResolveBehaviorMethod(method", generated, StringComparison.Ordinal);
-        Assert.Contains("__lakona_CallAsync<TRequest, TResult>(", generated, StringComparison.Ordinal);
-        Assert.Contains("__lakona_CallAsync<TRequest>(", generated, StringComparison.Ordinal);
-        Assert.Contains("__lakona_PostAsync<TRequest>(", generated, StringComparison.Ordinal);
-        Assert.DoesNotContain("readonly partial struct RoomRemoteRef", generated, StringComparison.Ordinal);
+        Assert.Contains("public readonly struct LocalActor<TActor>", generated, StringComparison.Ordinal);
+        Assert.Contains("public readonly struct ActorRoute<TActor>", generated, StringComparison.Ordinal);
+        Assert.Contains("GeneratedActorMetadata<TActor>.ResolveBehaviorMethod(method", generated, StringComparison.Ordinal);
+        Assert.Contains("CallCoreAsync<TRequest, TResult>(", generated, StringComparison.Ordinal);
+        Assert.Contains("CallCoreAsync<TRequest>(", generated, StringComparison.Ordinal);
+        Assert.Contains("PostCoreAsync<TRequest>(", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("RoomActors", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("RoomLocalRef", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("RoomRouteRef", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("public static global::System.Threading.Tasks.ValueTask PingAsync(", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("TryPingAsync", generated, StringComparison.Ordinal);
     }
@@ -1202,7 +1320,8 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("public sealed class GeneratedHotfixActorRegistration", emitted.Result.GeneratedSource, StringComparison.Ordinal);
         Assert.Contains("global::Lakona.Game.Server.Hotfix.IHotfixGeneratedServiceRegistration", emitted.Result.GeneratedSource, StringComparison.Ordinal);
         Assert.DoesNotContain("public interface IHotfixGeneratedServiceRegistration", emitted.Result.GeneratedSource, StringComparison.Ordinal);
-        Assert.Contains("TryAddSingleton<global::Game.Server.UserActors>(services);", emitted.Result.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("TryAddSingleton<global::Lakona.Game.Server.Hotfix.ActorAccess>(services);", emitted.Result.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("UserActors", emitted.Result.GeneratedSource, StringComparison.Ordinal);
         Assert.DoesNotContain("IClusterMessageHandler", emitted.Result.GeneratedSource, StringComparison.Ordinal);
 
         var registration = emitted.Assembly.GetType("GeneratedHotfixActorRegistration", throwOnError: true);
@@ -1425,9 +1544,10 @@ public sealed class HotfixGeneratorTests
 
         Assert.Empty(result.App.ErrorDiagnostics);
         Assert.Empty(result.Hotfix.ErrorDiagnostics);
-        Assert.DoesNotContain("public sealed class UserActors", result.App.GeneratedSource, StringComparison.Ordinal);
-        Assert.Contains("public sealed class UserActors", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
-        Assert.Contains("public UserRouteRef Route(global::Game.Server.UserId id)", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("public sealed class ActorAccess", result.App.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("public sealed class ActorAccess", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("public ActorRoute<TActor> Route<TActor>(global::Game.Server.UserId id)", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("UserActors", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
         Assert.DoesNotContain("this global::Game.Server.UserRef self", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
     }
 

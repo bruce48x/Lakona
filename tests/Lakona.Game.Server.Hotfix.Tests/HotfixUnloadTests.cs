@@ -167,8 +167,8 @@ public sealed class HotfixUnloadTests
     {
         var exportsType = hotfixAssembly.GetType("HotfixUnload.HotfixUnloadExports", throwOnError: true)!;
         var actorType = appAssembly.GetType("HotfixUnload.RoomActor", throwOnError: true)!;
-        var rooms = exportsType
-            .GetMethod("CreateRooms", BindingFlags.Public | BindingFlags.Static)!
+        var actors = exportsType
+            .GetMethod("CreateActorAccess", BindingFlags.Public | BindingFlags.Static)!
             .Invoke(
                 null,
                 [
@@ -181,7 +181,7 @@ public sealed class HotfixUnloadTests
                 ])!;
 
         return new HotfixUnloadHarness(
-            rooms,
+            actors,
             actorType,
             GetStaticValue<string>(exportsType, "RoomId"),
             GetStaticValue<Delegate>(exportsType, "JoinAsync"),
@@ -218,6 +218,7 @@ public sealed class HotfixUnloadTests
             using System.Threading;
             using System.Threading.Tasks;
             using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix;
             using Lakona.Game.Server.Hotfix.Abstractions;
             using Lakona.Game.Server.Hotfix.Abstractions.Actors;
 
@@ -287,7 +288,7 @@ public sealed class HotfixUnloadTests
 
                 public static HotfixActorPost<RoomActor, int> RunTickAsync => RoomBehavior.RunTickAsync;
 
-                public static RoomActors CreateRooms(
+                public static ActorAccess CreateActorAccess(
                     IActorRuntime runtime,
                     IServiceProvider services,
                     RemoteActorOptions options,
@@ -295,7 +296,7 @@ public sealed class HotfixUnloadTests
                     IActorDirectoryCache directoryCache,
                     IActorPlacementService placement)
                 {
-                    return new RoomActors(runtime, services, options, directory, directoryCache, placement);
+                    return new ActorAccess(runtime, services, options, directory, directoryCache, placement);
                 }
             }
             """;
@@ -445,7 +446,7 @@ public sealed class HotfixUnloadTests
     }
 
     private sealed class HotfixUnloadHarness(
-        object rooms,
+        object actors,
         Type actorType,
         string roomId,
         Delegate joinAsync,
@@ -465,7 +466,7 @@ public sealed class HotfixUnloadTests
 
         public async Task<int> CallRouteAsync(Delegate method, int request)
         {
-            var route = rooms.GetType().GetMethod("Route")!.Invoke(rooms, [RoomId])!;
+            var route = CreateSelector("Route");
             var callAsync = route.GetType()
                 .GetMethods(BindingFlags.Instance | BindingFlags.Public)
                 .Single(candidate =>
@@ -483,7 +484,7 @@ public sealed class HotfixUnloadTests
 
         public Task CallRouteNoResultAsync(Delegate method, int request)
         {
-            var route = rooms.GetType().GetMethod("Route")!.Invoke(rooms, [RoomId])!;
+            var route = CreateSelector("Route");
             var callAsync = route.GetType()
                 .GetMethods(BindingFlags.Instance | BindingFlags.Public)
                 .Single(candidate =>
@@ -500,7 +501,7 @@ public sealed class HotfixUnloadTests
 
         public async Task PostLocalAsync(Delegate method, int request)
         {
-            var local = rooms.GetType().GetMethod("Local")!.Invoke(rooms, [RoomId])!;
+            var local = CreateSelector("Local");
             var postAsync = local.GetType()
                 .GetMethods(BindingFlags.Instance | BindingFlags.Public)
                 .Single(candidate =>
@@ -523,6 +524,19 @@ public sealed class HotfixUnloadTests
             }
 
             await call.ConfigureAwait(false);
+        }
+
+        private object CreateSelector(string methodName)
+        {
+            var selector = actors.GetType()
+                .GetMethods(BindingFlags.Instance | BindingFlags.Public)
+                .Single(candidate =>
+                    candidate.Name == methodName &&
+                    candidate.IsGenericMethodDefinition &&
+                    candidate.GetParameters().Length == 1 &&
+                    candidate.GetParameters()[0].ParameterType == typeof(string))
+                .MakeGenericMethod(ActorType);
+            return selector.Invoke(actors, [RoomId])!;
         }
 
         public void ResetGate()

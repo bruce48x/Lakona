@@ -4,8 +4,9 @@ Source generators for Lakona.Game server Hotfix behaviors and generated RPC serv
 
 Public extension methods in `[HotfixBehaviorOf]` classes define the actor API.
 Stable App projects own actor state, actor identity, and actor DTOs. Hotfix
-projects own the behavior-derived selectors, refs, and wrappers that expose
-those methods to service and lifecycle code. Stable runtime services, actor
+projects own the generated `ActorAccess` root and readonly selectors that
+expose those methods to service and lifecycle code. The generator does not
+emit one plural collection class per actor. Stable runtime services, actor
 metadata, and the stable cluster handler provide the cross-node dispatch
 boundary for route lookup, local dispatch, remote dispatch, serialization, and
 actor-call error mapping.

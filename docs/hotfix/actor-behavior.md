@@ -50,8 +50,8 @@ during cleanup with a noncancelable cleanup token when required.
 Generated selectors make placement intent explicit:
 
 ```csharp
-await rooms.Route(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct);
-await rooms.Local(roomId).PostAsync(RoomBehavior.RunTickAsync, request, ct);
+await actors.Route<RoomActor>(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct);
+await actors.Local<RoomActor>(roomId).PostAsync(RoomBehavior.RunTickAsync, request, ct);
 ```
 
 Business services should not use transport callbacks, session callback objects,

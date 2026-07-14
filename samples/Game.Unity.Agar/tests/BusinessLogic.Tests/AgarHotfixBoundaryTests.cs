@@ -151,8 +151,9 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("call.CurrentSession", text, StringComparison.Ordinal);
         Assert.Contains("IsLocalRuntimeOwner", text, StringComparison.Ordinal);
         Assert.Contains("_localNode", text, StringComparison.Ordinal);
-        Assert.Contains("_users", text, StringComparison.Ordinal);
-        Assert.Contains("_rooms", text, StringComparison.Ordinal);
+        Assert.Contains("private readonly ActorAccess _actors;", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("UserActors", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("RoomActors", text, StringComparison.Ordinal);
         Assert.DoesNotContain("call.Services.GetRequiredService", text, StringComparison.Ordinal);
     }
 
@@ -276,8 +277,8 @@ public sealed class AgarHotfixBoundaryTests
             "samples/Game.Unity.Agar/Server/Hotfix/State/Matchmaking/MatchmakingBehavior.cs").FullName);
 
         Assert.Contains("private static async ValueTask<RoomSettlementResult> AllocateRoomAsync", matchmaking, StringComparison.Ordinal);
-        Assert.Contains("GetRequiredService<RoomActors>()", matchmaking, StringComparison.Ordinal);
-        Assert.Contains(".Place(roomId).CreateAsync", matchmaking, StringComparison.Ordinal);
+        Assert.Contains("GetRequiredService<ActorAccess>()", matchmaking, StringComparison.Ordinal);
+        Assert.Contains(".Place<RoomActor>(roomId).CreateAsync", matchmaking, StringComparison.Ordinal);
         Assert.Contains("RoomBehavior.CreateAsync", matchmaking, StringComparison.Ordinal);
         Assert.Contains("RoomBehavior.StartAsync", matchmaking, StringComparison.Ordinal);
         Assert.DoesNotContain("BattleRuntimeRoomAllocation", matchmaking, StringComparison.Ordinal);
@@ -422,7 +423,7 @@ public sealed class AgarHotfixBoundaryTests
             "Matchmaking",
             "MatchmakingBehavior.cs"));
 
-        Assert.Contains(".Place(roomId).CreateAsync", matchmaking, StringComparison.Ordinal);
+        Assert.Contains(".Place<RoomActor>(roomId).CreateAsync", matchmaking, StringComparison.Ordinal);
         Assert.Contains("RoomBehavior.CreateAsync", matchmaking, StringComparison.Ordinal);
         Assert.Contains("RoomBehavior.StartAsync", matchmaking, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("BattleRuntime", "Fea", "ture"), matchmaking, StringComparison.Ordinal);
@@ -703,8 +704,8 @@ public sealed class AgarHotfixBoundaryTests
         Assert.DoesNotContain("ActorId.From(\"default\")", matchmakingCallbacks, StringComparison.Ordinal);
 
         Assert.Contains("TimerTick<BattleRuntimeTimerArgs>", battleRuntimeCallbacks, StringComparison.Ordinal);
-        Assert.Contains("GetRequiredService<RoomActors>", battleRuntimeCallbacks, StringComparison.Ordinal);
-        Assert.Contains("Local(new RoomId(tick.Args.RoomId))", battleRuntimeCallbacks, StringComparison.Ordinal);
+        Assert.Contains("GetRequiredService<ActorAccess>", battleRuntimeCallbacks, StringComparison.Ordinal);
+        Assert.Contains("Local<RoomActor>(new RoomId(tick.Args.RoomId))", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.Contains("PostAsync(", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.Contains("RoomBehavior.RunTickAsync", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.Contains("new RoomTickRequest", battleRuntimeCallbacks, StringComparison.Ordinal);

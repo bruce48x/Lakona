@@ -893,9 +893,7 @@ public sealed class DistributedTopologyConfigurationTests
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
             ?? throw new InvalidOperationException("Could not find PlayerService.ReleasePlayerAsync.");
         var task = method.Invoke(null, [
-            provider.GetRequiredService<UserActors>(),
-            provider.GetRequiredService<RoomActors>(),
-            provider.GetRequiredService<MatchmakingActors>(),
+            provider.GetRequiredService<ActorAccess>(),
             provider.GetService<MatchmakingNotifier>() ??
                 ActivatorUtilities.CreateInstance<MatchmakingNotifier>(provider),
             new LocalActorNodeIdentity(new NodeId("gateway-1")),

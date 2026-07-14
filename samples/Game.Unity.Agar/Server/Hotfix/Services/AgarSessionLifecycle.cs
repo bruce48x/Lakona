@@ -30,11 +30,11 @@ public sealed class AgarSessionLifecycle
             return;
         }
 
-        var users = call.Services.GetService<UserActors>();
-        if (users is null)
+        var actors = call.Services.GetService<ActorAccess>();
+        if (actors is null)
         {
             logger.LogWarning(
-                "Cannot mark player {PlayerId} disconnected for control connection {ConnectionId} because UserActors is unavailable.",
+                "Cannot mark player {PlayerId} disconnected for control connection {ConnectionId} because ActorAccess is unavailable.",
                 playerId,
                 call.Request.ConnectionId);
             return;
@@ -46,8 +46,8 @@ public sealed class AgarSessionLifecycle
                 call.Request.OwnerKey,
                 call.Request.SessionId,
                 call.Request.Generation);
-            var snapshot = await users
-                .Route(new UserId(playerId))
+            var snapshot = await actors
+                .Route<UserActor>(new UserId(playerId))
                 .CallAsync(
                     UserBehavior.GetSnapshotAsync,
                     new PlayerSessionSnapshotRequest(),
@@ -61,8 +61,8 @@ public sealed class AgarSessionLifecycle
                 return;
             }
 
-            await users
-                .Route(new UserId(playerId))
+            await actors
+                .Route<UserActor>(new UserId(playerId))
                 .CallAsync(
                     UserBehavior.MarkDisconnectedAsync,
                     new PlayerSessionDisconnectRequest
@@ -98,11 +98,11 @@ public sealed class AgarSessionLifecycle
             return;
         }
 
-        var users = call.Services.GetService<UserActors>();
-        if (users is null)
+        var actors = call.Services.GetService<ActorAccess>();
+        if (actors is null)
         {
             logger.LogWarning(
-                "Cannot expire session {SessionId}/{Generation} for player {PlayerId} because UserActors is unavailable.",
+                "Cannot expire session {SessionId}/{Generation} for player {PlayerId} because ActorAccess is unavailable.",
                 call.Request.SessionId,
                 call.Request.Generation,
                 playerId);
@@ -113,8 +113,8 @@ public sealed class AgarSessionLifecycle
             call.Request.OwnerKey,
             call.Request.SessionId,
             call.Request.Generation);
-        var snapshot = await users
-            .Route(new UserId(playerId))
+        var snapshot = await actors
+            .Route<UserActor>(new UserId(playerId))
             .CallAsync(
                 UserBehavior.GetSnapshotAsync,
                 new PlayerSessionSnapshotRequest(),
@@ -141,9 +141,7 @@ public sealed class AgarSessionLifecycle
 
         await PlayerService
             .ReleasePlayerAsync(
-                call.Services.GetRequiredService<UserActors>(),
-                call.Services.GetRequiredService<RoomActors>(),
-                call.Services.GetRequiredService<MatchmakingActors>(),
+                actors,
                 HotfixNotificationServices.GetMatchmakingNotifier(call.Services),
                 call.Services.GetRequiredService<LocalActorNodeIdentity>(),
                 call.Services.GetRequiredService<ILogger<PlayerService>>(),
@@ -168,16 +166,16 @@ public sealed class AgarSessionLifecycle
             return;
         }
 
-        var users = services.GetService<UserActors>();
-        if (users is null)
+        var actors = services.GetService<ActorAccess>();
+        if (actors is null)
         {
             return;
         }
 
         try
         {
-            var snapshot = await users
-                .Route(new UserId(playerId))
+            var snapshot = await actors
+                .Route<UserActor>(new UserId(playerId))
                 .CallAsync(
                     UserBehavior.GetSnapshotAsync,
                     new PlayerSessionSnapshotRequest(),
@@ -189,8 +187,8 @@ public sealed class AgarSessionLifecycle
                 return;
             }
 
-            await users
-                .Route(new UserId(playerId))
+            await actors
+                .Route<UserActor>(new UserId(playerId))
                 .CallAsync(
                     UserBehavior.ClearRealtimeAsync,
                     new PlayerRealtimeClearRequest
@@ -204,11 +202,10 @@ public sealed class AgarSessionLifecycle
                     CancellationToken.None)
                 .ConfigureAwait(false);
 
-            if (!string.IsNullOrWhiteSpace(snapshot.CurrentRoomId) &&
-                services.GetService<RoomActors>() is { } rooms)
+            if (!string.IsNullOrWhiteSpace(snapshot.CurrentRoomId))
             {
-                await rooms
-                    .Route(new RoomId(snapshot.CurrentRoomId))
+                await actors
+                    .Route<RoomActor>(new RoomId(snapshot.CurrentRoomId))
                     .CallAsync(
                         RoomBehavior.ClearRealtimeAsync,
                         new RoomRealtimeClearRequest

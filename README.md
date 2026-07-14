@@ -236,12 +236,12 @@ public static partial class RoomBehavior
     }
 }
 
-// Typed selectors generated at compile time.
-var rooms = provider.GetRequiredService<RoomActors>();
+// One typed access root generated at compile time.
+var actors = provider.GetRequiredService<ActorAccess>();
 
-await rooms.Route(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct);      // Directory-routed call
-await rooms.Local(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct);      // Current node only
-await rooms.Place(roomId).EnsureAsync(ct);                 // Create through placement policy
+await actors.Route<RoomActor>(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct); // Directory-routed call
+await actors.Local<RoomActor>(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct); // Current node only
+await actors.Place<RoomActor>(roomId).EnsureAsync(ct);     // Create through placement policy
 ```
 
 Public methods on `RoomBehavior` declare the generated actor ref call surface
@@ -253,8 +253,9 @@ normal actor calls, `Local(id)` only after the caller has chosen the current
 process intentionally, and `Place(id)` when code needs to create or ensure an
 actor through the registered placement policy.
 
-Source generators produce `RoomActors` with `Route`, `Local`, and `Place`
-selectors. Generated refs expose generic `CallAsync` and `PostAsync` helpers
+Source generators produce one `ActorAccess` root with constrained `Route<TActor>`,
+`Local<TActor>`, and `Place<TActor>` selectors. Generated selectors expose
+generic `CallAsync` and `PostAsync` helpers
 that accept behavior method groups such as `RoomBehavior.JoinAsync`. No
 reflection, no string-based dispatch.
 
@@ -352,7 +353,7 @@ across nodes through explicit route directories and node messaging.
 
 ```csharp
 // Same API, single node or cluster: the directory handles routing.
-await rooms.Route(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct);
+await actors.Route<RoomActor>(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct);
 ```
 
 Lakona provides in-memory directories for development and SQL-backed node

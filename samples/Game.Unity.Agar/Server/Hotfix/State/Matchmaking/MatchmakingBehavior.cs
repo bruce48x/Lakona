@@ -336,13 +336,13 @@ public static partial class MatchmakingBehavior
             return;
         }
 
-        var users = services.GetRequiredService<UserActors>();
+        var actors = services.GetRequiredService<ActorAccess>();
         foreach (var assignment in assignments
             .Where(static assignment => !string.IsNullOrWhiteSpace(assignment.RoomId))
             .GroupBy(static assignment => assignment.RoomId, StringComparer.Ordinal)
             .Select(static group => group.First()))
         {
-            await PlayerService.PublishMatchedAsync(users, matchmakingNotifier, assignment).ConfigureAwait(false);
+            await PlayerService.PublishMatchedAsync(actors, matchmakingNotifier, assignment).ConfigureAwait(false);
         }
     }
 
@@ -359,8 +359,8 @@ public static partial class MatchmakingBehavior
 
     private static ValueTask<PlayerSessionSnapshot> GetSessionSnapshotAsync(MatchmakingActor self, string userId)
     {
-        var users = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<UserActors>();
-        return users.Route(new UserId(userId)).CallAsync(
+        var actors = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<ActorAccess>();
+        return actors.Route<UserActor>(new UserId(userId)).CallAsync(
             UserBehavior.GetSnapshotAsync,
             new PlayerSessionSnapshotRequest(),
             CancellationToken.None);
@@ -368,8 +368,8 @@ public static partial class MatchmakingBehavior
 
     private static ValueTask<PlayerSessionSnapshot> MarkQueuedAsync(MatchmakingActor self, PlayerSessionQueueRequest request)
     {
-        var users = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<UserActors>();
-        return users.Route(new UserId(request.UserId)).CallAsync(
+        var actors = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<ActorAccess>();
+        return actors.Route<UserActor>(new UserId(request.UserId)).CallAsync(
             UserBehavior.MarkQueuedAsync,
             request,
             CancellationToken.None);
@@ -377,8 +377,8 @@ public static partial class MatchmakingBehavior
 
     private static ValueTask<PlayerSessionSnapshot> ClearQueueAsync(MatchmakingActor self, PlayerSessionQueueClearRequest request)
     {
-        var users = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<UserActors>();
-        return users.Route(new UserId(request.UserId)).CallAsync(
+        var actors = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<ActorAccess>();
+        return actors.Route<UserActor>(new UserId(request.UserId)).CallAsync(
             UserBehavior.ClearQueueAsync,
             request,
             CancellationToken.None);
@@ -386,8 +386,8 @@ public static partial class MatchmakingBehavior
 
     private static ValueTask<PlayerSessionSnapshot> AssignRoomAsync(MatchmakingActor self, PlayerRoomAssignment request)
     {
-        var users = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<UserActors>();
-        return users.Route(new UserId(request.UserId)).CallAsync(
+        var actors = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<ActorAccess>();
+        return actors.Route<UserActor>(new UserId(request.UserId)).CallAsync(
             UserBehavior.AssignRoomAsync,
             request,
             CancellationToken.None);
@@ -395,11 +395,11 @@ public static partial class MatchmakingBehavior
 
     private static async ValueTask<RoomSettlementResult> AllocateRoomAsync(MatchmakingActor self, RoomCreateRequest request)
     {
-        var rooms = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<RoomActors>();
+        var actors = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<ActorAccess>();
         var roomId = new RoomId(request.RoomId);
         try
         {
-            await rooms.Place(roomId).CreateAsync(CancellationToken.None).ConfigureAwait(false);
+            await actors.Place<RoomActor>(roomId).CreateAsync(CancellationToken.None).ConfigureAwait(false);
         }
         catch (ActorPlacementException ex)
         {
@@ -411,7 +411,7 @@ public static partial class MatchmakingBehavior
             };
         }
 
-        var create = await rooms.Route(roomId).CallAsync(
+        var create = await actors.Route<RoomActor>(roomId).CallAsync(
             RoomBehavior.CreateAsync,
             request,
             CancellationToken.None).ConfigureAwait(false);
@@ -421,7 +421,7 @@ public static partial class MatchmakingBehavior
         }
 
         var firstPlayer = request.Players[0];
-        var start = await rooms.Route(roomId).CallAsync(
+        var start = await actors.Route<RoomActor>(roomId).CallAsync(
             RoomBehavior.StartAsync,
             new RoomStartRequest
             {

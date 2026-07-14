@@ -45,39 +45,35 @@ public sealed class TypedActorGeneratorTests
         var result = GeneratorTestHost.Run(source);
 
         Assert.Empty(result.ErrorDiagnostics);
-        Assert.Contains("public sealed class RoomActors", result.GeneratedSource);
-        Assert.Contains("public RoomLocalRef Local(RoomId id)", result.GeneratedSource);
-        Assert.Contains("public RoomRouteRef Route(RoomId id)", result.GeneratedSource);
-        Assert.Contains("return new RoomRouteRef(_runtime, _remote, _serializer, _options, _directory, _directoryCache, id);", result.GeneratedSource);
-        Assert.DoesNotContain("public RoomRef Get(RoomId id)", result.GeneratedSource);
-        Assert.DoesNotContain("public RoomRemoteRef Remote(", result.GeneratedSource);
-        Assert.DoesNotContain("RoomRemoteRef", result.GeneratedSource);
-        Assert.Contains("public delegate global::System.Threading.Tasks.ValueTask<TResult> RoomActorCall<in TRequest, TResult>(", result.GeneratedSource);
-        Assert.Contains("public delegate global::System.Threading.Tasks.ValueTask<TResult> RoomActorCallNoCancellation<in TRequest, TResult>(", result.GeneratedSource);
-        Assert.Contains("public delegate global::System.Threading.Tasks.ValueTask RoomActorPost<in TRequest>(", result.GeneratedSource);
-        Assert.Contains("public delegate global::System.Threading.Tasks.ValueTask RoomActorPostNoCancellation<in TRequest>(", result.GeneratedSource);
+        Assert.Contains("public sealed class ActorAccess", result.GeneratedSource);
+        Assert.Contains("public LocalActor<TActor> Local<TActor>(global::Game.Server.RoomId id)", result.GeneratedSource);
+        Assert.Contains("public ActorRoute<TActor> Route<TActor>(global::Game.Server.RoomId id)", result.GeneratedSource);
+        Assert.Contains("public ActorPlacement<TActor, global::Game.Server.RoomId> Place<TActor>(global::Game.Server.RoomId id)", result.GeneratedSource);
+        Assert.DoesNotContain("RoomActors", result.GeneratedSource);
+        Assert.DoesNotContain("RoomRouteRef", result.GeneratedSource);
+        Assert.DoesNotContain("RoomLocalRef", result.GeneratedSource);
+        Assert.Contains("public delegate global::System.Threading.Tasks.ValueTask<TResult> ActorCall<in TActor, in TRequest, TResult>(", result.GeneratedSource);
+        Assert.Contains("public delegate global::System.Threading.Tasks.ValueTask<TResult> ActorCallNoCancellation<in TActor, in TRequest, TResult>(", result.GeneratedSource);
+        Assert.Contains("public delegate global::System.Threading.Tasks.ValueTask ActorPost<in TActor, in TRequest>(", result.GeneratedSource);
+        Assert.Contains("public delegate global::System.Threading.Tasks.ValueTask ActorPostNoCancellation<in TActor, in TRequest>(", result.GeneratedSource);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask<TResult> CallAsync<TRequest, TResult>(", result.GeneratedSource);
-        Assert.Contains("RoomActorCall<TRequest, TResult> method", result.GeneratedSource);
+        Assert.Contains("ActorCall<TActor, TRequest, TResult> method", result.GeneratedSource);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask CallAsync<TRequest>(", result.GeneratedSource);
-        Assert.Contains("RoomActorPost<TRequest> method", result.GeneratedSource);
+        Assert.Contains("ActorPost<TActor, TRequest> method", result.GeneratedSource);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask PostAsync<TRequest>(", result.GeneratedSource);
-        Assert.Contains("private readonly global::Lakona.Game.Server.Actors.IActorDirectory _directory;", result.GeneratedSource);
-        Assert.Contains("private readonly global::Lakona.Game.Server.Actors.IActorDirectoryCache _directoryCache;", result.GeneratedSource);
-        Assert.Contains("private readonly global::Lakona.Game.Server.Actors.IActorRuntime _runtime;", result.GeneratedSource);
-        Assert.Contains("return _runtime.AskAsync<global::Game.Server.RoomActor, TResult>", result.GeneratedSource);
-        Assert.Contains("global::Lakona.Game.Server.Actors.ActorId.From(\"room/\" + _id.Value)", result.GeneratedSource);
-        Assert.Contains("var payload = _serializer.Serialize(request);", result.GeneratedSource);
-        Assert.Contains("new global::Lakona.Game.Server.Actors.RemoteActorInvocation(node, actorId, \"room\", methodName, payload, deadline, correlationId)", result.GeneratedSource);
-        Assert.Contains("var result = await _remote.AskAsync(invocation, cancellationToken).ConfigureAwait(false);", result.GeneratedSource);
-        Assert.Contains("global::Lakona.Game.Server.Actors.RemoteActorCall.EnsureReplied(result, actorId, \"room\", methodName, node, correlationId);", result.GeneratedSource);
-        Assert.Contains("global::Lakona.Game.Server.Actors.RemoteActorCall.EnsureAccepted(result, actorId, \"room\", methodName, node, correlationId);", result.GeneratedSource);
-        Assert.Contains("var localResult = _runtime.TryTell<global::Game.Server.RoomActor>(actorId, (actor, ct) => method(actor, request, ct), cancellationToken);", result.GeneratedSource);
+        Assert.Contains("GeneratedActorMetadata<TActor>.ActorName + \"/\" + id.Value", result.GeneratedSource);
+        Assert.Contains("var payload = _actors.Serializer.Serialize(request);", result.GeneratedSource);
+        Assert.Contains("new global::Lakona.Game.Server.Actors.RemoteActorInvocation(", result.GeneratedSource);
+        Assert.Contains("var result = await _actors.Remote.AskAsync(invocation, cancellationToken).ConfigureAwait(false);", result.GeneratedSource);
+        Assert.Contains("global::Lakona.Game.Server.Actors.RemoteActorCall.EnsureReplied(", result.GeneratedSource);
+        Assert.Contains("global::Lakona.Game.Server.Actors.RemoteActorCall.EnsureAccepted(", result.GeneratedSource);
+        Assert.Contains("var localResult = _actors.Runtime.TryTell<TActor>(", result.GeneratedSource);
         Assert.Contains("Routed local actor post was rejected with result", result.GeneratedSource);
-        Assert.Contains("if (_runtime.GetState(actorId) != global::Lakona.Game.Server.Actors.ActorState.Dead)", result.GeneratedSource);
-        Assert.Contains("if (!_directoryCache.TryGet(actorId, out var node))", result.GeneratedSource);
-        Assert.Contains("var record = await _directory.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);", result.GeneratedSource);
-        Assert.Contains("_directoryCache.Set(actorId, node);", result.GeneratedSource);
-        Assert.Contains("_directoryCache.Remove(actorId);", result.GeneratedSource);
+        Assert.Contains("if (_actors.Runtime.GetState(_actorId) != global::Lakona.Game.Server.Actors.ActorState.Dead)", result.GeneratedSource);
+        Assert.Contains("if (!_actors.DirectoryCache.TryGet(_actorId, out var node))", result.GeneratedSource);
+        Assert.Contains("var record = await _actors.Directory.ResolveAsync(_actorId, cancellationToken).ConfigureAwait(false);", result.GeneratedSource);
+        Assert.Contains("_actors.DirectoryCache.Set(_actorId, node);", result.GeneratedSource);
+        Assert.Contains("_actors.DirectoryCache.Remove(_actorId);", result.GeneratedSource);
         Assert.DoesNotContain("public global::System.Threading.Tasks.ValueTask<JoinRoomReply> JoinAsync", result.GeneratedSource);
         Assert.DoesNotContain("public global::System.Threading.Tasks.ValueTask LeaveAsync", result.GeneratedSource);
         Assert.DoesNotContain("TryJoinAsync", result.GeneratedSource);
@@ -86,7 +82,7 @@ public sealed class TypedActorGeneratorTests
         Assert.DoesNotContain("if (result.Status != global::Lakona.Game.Server.Actors.RemoteActorStatus.Accepted)", result.GeneratedSource);
         Assert.DoesNotContain("RemoteActorStatus", result.GeneratedSource);
         Assert.DoesNotContain("new global::Lakona.Game.Server.Actors.RemoteActorException", result.GeneratedSource);
-        Assert.Contains("return _serializer.Deserialize<TResult>(result.Payload);", result.GeneratedSource);
+        Assert.Contains("return _actors.Serializer.Deserialize<TResult>(result.Payload);", result.GeneratedSource);
         Assert.Contains("public sealed class RoomActorClusterHandler", result.GeneratedSource);
         Assert.Contains("public async global::System.Threading.Tasks.ValueTask<global::Lakona.Game.Cluster.ClusterSendStatus> HandleAsync", result.GeneratedSource);
         Assert.Contains("case \"join\":", result.GeneratedSource);
@@ -98,8 +94,8 @@ public sealed class TypedActorGeneratorTests
         Assert.Contains("            _localNode.NodeId,", result.GeneratedSource);
         Assert.Contains("            envelope.SourceNode,", result.GeneratedSource);
         Assert.Contains("return await global::Lakona.Game.Server.Actors.RemoteActorGateway.SendReplyAsync", result.GeneratedSource);
-        Assert.Contains("public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection AddRoomActors", result.GeneratedSource);
-        Assert.Contains("TryAddSingleton<RoomActors>(services);", result.GeneratedSource);
+        Assert.Contains("public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection AddGeneratedActorAccess", result.GeneratedSource);
+        Assert.Contains("TryAddSingleton<ActorAccess>(services);", result.GeneratedSource);
         Assert.Contains("TryAddEnumerable", result.GeneratedSource);
         Assert.Contains("RoomActorClusterHandler", result.GeneratedSource);
     }
@@ -135,7 +131,7 @@ public sealed class TypedActorGeneratorTests
         var result = GeneratorTestHost.Run(source);
 
         Assert.Empty(result.ErrorDiagnostics);
-        Assert.Contains("global::Lakona.Game.Server.Actors.ActorId.From(\"session/\" + _id.ToString())", result.GeneratedSource);
+        Assert.Contains("GeneratedActorMetadata<TActor>.ActorName + \"/\" + id.ToString()", result.GeneratedSource);
     }
 
     [Fact]
@@ -165,14 +161,14 @@ public sealed class TypedActorGeneratorTests
 
         Assert.Empty(result.ErrorDiagnostics);
         Assert.Contains("private readonly global::Lakona.Game.Server.Actors.IActorPlacementService _placement;", result.GeneratedSource);
-        Assert.Contains("public RoomPlacementRef Place(RoomId id)", result.GeneratedSource);
-        Assert.Contains("return new RoomPlacementRef(_placement, id);", result.GeneratedSource);
-        Assert.Contains("public readonly struct RoomPlacementRef", result.GeneratedSource);
+        Assert.Contains("public ActorPlacement<TActor, global::Game.Server.RoomId> Place<TActor>(global::Game.Server.RoomId id)", result.GeneratedSource);
+        Assert.Contains("return new ActorPlacement<TActor, global::Game.Server.RoomId>(_placement, id);", result.GeneratedSource);
+        Assert.Contains("public readonly struct ActorPlacement<TActor, TKey>", result.GeneratedSource);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask<global::Lakona.Game.Server.Actors.ActorPlacementResult> CreateAsync(", result.GeneratedSource);
         Assert.Contains("global::Lakona.Game.Server.Actors.ActorPlacementCreateMode.Create", result.GeneratedSource);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask<global::Lakona.Game.Server.Actors.ActorPlacementResult> EnsureAsync(", result.GeneratedSource);
         Assert.Contains("global::Lakona.Game.Server.Actors.ActorPlacementCreateMode.Ensure", result.GeneratedSource);
-        Assert.Contains("return _placement.PlaceAsync<global::Game.Server.RoomActor, RoomId>(", result.GeneratedSource);
+        Assert.Contains("return _placement.PlaceAsync<TActor, TKey>(", result.GeneratedSource);
     }
 
     [Fact]
@@ -205,7 +201,7 @@ public sealed class TypedActorGeneratorTests
         var result = GeneratorTestHost.Run(source);
 
         Assert.Empty(result.ErrorDiagnostics);
-        Assert.Contains("global::Lakona.Game.Server.Actors.ActorId.From(\"session/\" + _id)", result.GeneratedSource);
+        Assert.Contains("GeneratedActorMetadata<TActor>.ActorName + \"/\" + id", result.GeneratedSource);
     }
 
     [Fact]
@@ -255,9 +251,10 @@ public sealed class TypedActorGeneratorTests
         var result = GeneratorTestHost.Run(source);
 
         Assert.Empty(result.ErrorDiagnostics);
-        Assert.Contains("global::Lakona.Game.Server.Actors.ActorId.From(\"battle-room/\" + _id.Value)", result.GeneratedSource);
+        Assert.Contains("GeneratedActorMetadata<TActor>.ActorName + \"/\" + id.Value", result.GeneratedSource);
         Assert.Contains("return \"join\";", result.GeneratedSource);
-        Assert.Contains("new global::Lakona.Game.Server.Actors.RemoteActorInvocation(node, actorId, \"battle-room\", methodName, payload, deadline, correlationId)", result.GeneratedSource);
+        Assert.Contains("return \"battle-room\";", result.GeneratedSource);
+        Assert.Contains("new global::Lakona.Game.Server.Actors.RemoteActorInvocation(", result.GeneratedSource);
     }
 
     [Fact]
@@ -314,13 +311,13 @@ public sealed class TypedActorGeneratorTests
         var result = GeneratorTestHost.Run(source);
 
         Assert.Empty(result.ErrorDiagnostics);
-        Assert.Contains("public RoomLocalRef Local(RoomId id)", result.GeneratedSource);
-        Assert.Contains("public RoomRouteRef Route(RoomId id)", result.GeneratedSource);
+        Assert.Contains("public LocalActor<TActor> Local<TActor>(global::Game.Server.RoomId id)", result.GeneratedSource);
+        Assert.Contains("public ActorRoute<TActor> Route<TActor>(global::Game.Server.RoomId id)", result.GeneratedSource);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask<TResult> CallAsync<TRequest, TResult>(", result.GeneratedSource);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask CallAsync<TRequest>(", result.GeneratedSource);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask PostAsync<TRequest>(", result.GeneratedSource);
-        Assert.DoesNotContain("public RoomRef Get(RoomId id)", result.GeneratedSource);
-        Assert.DoesNotContain("public RoomRemoteRef Remote(", result.GeneratedSource);
+        Assert.DoesNotContain("RoomActors", result.GeneratedSource);
+        Assert.DoesNotContain("RoomRouteRef", result.GeneratedSource);
         Assert.DoesNotContain("public global::System.Threading.Tasks.ValueTask PingAsync(PingRequest request, global::System.Threading.CancellationToken cancellationToken = default)", result.GeneratedSource);
         Assert.DoesNotContain(string.Concat("Spawn", "Async"), result.GeneratedSource);
         Assert.DoesNotContain(string.Concat("Destroy", "Async"), result.GeneratedSource);
@@ -360,11 +357,11 @@ public sealed class TypedActorGeneratorTests
         var result = GeneratorTestHost.Run(source);
 
         Assert.Empty(result.ErrorDiagnostics);
-        Assert.Contains("public delegate global::System.Threading.Tasks.ValueTask<TResult> SessionActorCallNoCancellation<in TRequest, TResult>(", result.GeneratedSource);
-        Assert.Contains("public delegate global::System.Threading.Tasks.ValueTask SessionActorPostNoCancellation<in TRequest>(", result.GeneratedSource);
-        Assert.Contains("SessionActorCallNoCancellation<TRequest, TResult> method", result.GeneratedSource);
-        Assert.Contains("SessionActorPostNoCancellation<TRequest> method", result.GeneratedSource);
-        Assert.Contains("method(actor, argument)", result.GeneratedSource);
+        Assert.Contains("public delegate global::System.Threading.Tasks.ValueTask<TResult> ActorCallNoCancellation<in TActor, in TRequest, TResult>(", result.GeneratedSource);
+        Assert.Contains("public delegate global::System.Threading.Tasks.ValueTask ActorPostNoCancellation<in TActor, in TRequest>(", result.GeneratedSource);
+        Assert.Contains("ActorCallNoCancellation<TActor, TRequest, TResult> method", result.GeneratedSource);
+        Assert.Contains("ActorPostNoCancellation<TActor, TRequest> method", result.GeneratedSource);
+        Assert.Contains("method(actor, value)", result.GeneratedSource);
     }
 
     [Fact]
@@ -393,14 +390,89 @@ public sealed class TypedActorGeneratorTests
         var result = GeneratorTestHost.Run(source);
 
         Assert.Empty(result.ErrorDiagnostics);
-        Assert.DoesNotContain("public MetricsRef Get(MetricsId id)", result.GeneratedSource);
-        Assert.Contains("public MetricsLocalRef Local(MetricsId id)", result.GeneratedSource);
+        Assert.Contains("public LocalActor<TActor> Local<TActor>(global::Game.Server.MetricsId id)", result.GeneratedSource);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask<TResult> CallAsync<TRequest, TResult>(", result.GeneratedSource);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask CallAsync<TRequest>(", result.GeneratedSource);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask PostAsync<TRequest>(", result.GeneratedSource);
-        Assert.DoesNotContain("public MetricsRouteRef Route(MetricsId id)", result.GeneratedSource);
-        Assert.DoesNotContain("MetricsRouteRef", result.GeneratedSource);
+        Assert.DoesNotContain("ActorRoute<TActor> Route<TActor>(global::Game.Server.MetricsId id)", result.GeneratedSource);
+        Assert.DoesNotContain("ActorPlacement<TActor, global::Game.Server.MetricsId> Place<TActor>", result.GeneratedSource);
         Assert.DoesNotContain("MetricsActorClusterHandler", result.GeneratedSource);
+    }
+
+    [Fact]
+    public void Generated_actor_access_supports_actor_only_type_arguments_and_typed_method_lambdas()
+    {
+        var source = """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Generated;
+
+            namespace Game.Server;
+
+            public readonly record struct RoomId(string Value);
+            public sealed record PingRequest;
+            public sealed record PingReply;
+
+            public sealed class RoomActor : Actor<RoomId>
+            {
+                public ValueTask<PingReply> PingAsync(PingRequest request)
+                {
+                    return new ValueTask<PingReply>(new PingReply());
+                }
+            }
+
+            public sealed class Caller(ActorAccess actors)
+            {
+                public ValueTask<PingReply> PingAsync(RoomId roomId)
+                {
+                    return actors.Route<RoomActor>(roomId).CallAsync(
+                        (RoomActor actor, PingRequest request) => actor.PingAsync(request),
+                        new PingRequest());
+                }
+            }
+            """;
+
+        var result = GeneratorTestHost.Run(source);
+
+        Assert.Empty(result.ErrorDiagnostics);
+    }
+
+    [Fact]
+    public void Generated_actor_access_rejects_an_actor_key_mismatch_at_compile_time()
+    {
+        var source = """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Generated;
+
+            namespace Game.Server;
+
+            public readonly record struct UserId(string Value);
+            public readonly record struct RoomId(string Value);
+            public sealed record PingRequest;
+
+            public sealed class UserActor : Actor<UserId>
+            {
+                public ValueTask PingAsync(PingRequest request) => default;
+            }
+
+            public sealed class RoomActor : Actor<RoomId>
+            {
+                public ValueTask PingAsync(PingRequest request) => default;
+            }
+
+            public sealed class Caller(ActorAccess actors)
+            {
+                public void Invalid(RoomId roomId)
+                {
+                    _ = actors.Route<UserActor>(roomId);
+                }
+            }
+            """;
+
+        var result = GeneratorTestHost.Run(source);
+
+        Assert.Contains(result.ErrorDiagnostics, diagnostic => diagnostic.Id == "CS0311");
     }
 
     [Fact]

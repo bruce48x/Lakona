@@ -2,6 +2,7 @@ using Server.App.State.Contracts;
 using Server.App.State.Contracts.Rooms;
 using Server.App.State.Rooms;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -13,7 +14,7 @@ public sealed class BattleRuntimeTimerCallbacks
 {
     public static async ValueTask TickAsync(TimerTick<BattleRuntimeTimerArgs> tick)
     {
-        var rooms = tick.Services.GetRequiredService<RoomActors>();
+        var actors = tick.Services.GetRequiredService<ActorAccess>();
         var logger = tick.Services.GetRequiredService<ILogger<BattleRuntimeTimerCallbacks>>();
         if (string.IsNullOrWhiteSpace(tick.Args.RoomId))
         {
@@ -21,8 +22,8 @@ public sealed class BattleRuntimeTimerCallbacks
             return;
         }
 
-        await rooms
-            .Local(new RoomId(tick.Args.RoomId))
+        await actors
+            .Local<RoomActor>(new RoomId(tick.Args.RoomId))
             .PostAsync(
                 RoomBehavior.RunTickAsync,
                 new RoomTickRequest

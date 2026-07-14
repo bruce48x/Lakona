@@ -498,8 +498,7 @@ public static partial class RoomBehavior
         }).ConfigureAwait(false);
 
         var services = GetCurrentHotfixServices(self.Context.Services);
-        var users = services.GetRequiredService<UserActors>();
-        var leaderboards = services.GetRequiredService<LeaderboardActors>();
+        var actors = services.GetRequiredService<ActorAccess>();
         var completedUserIds = roomSnapshot.Players
             .Select(static player => player.UserId)
             .Concat(settlement.Entries
@@ -510,8 +509,8 @@ public static partial class RoomBehavior
             .ToArray();
         foreach (var userId in completedUserIds)
         {
-            await users
-                .Route(new UserId(userId))
+            await actors
+                .Route<UserActor>(new UserId(userId))
                 .CallAsync(
                     UserBehavior.ClearRoomAsync,
                     new PlayerRoomClearRequest
@@ -528,8 +527,8 @@ public static partial class RoomBehavior
         var winnerEntry = settlement.Entries.FirstOrDefault(static entry => entry.IsWinner);
         if (winnerEntry is not null && !winnerEntry.IsBot)
         {
-            await users
-                .Route(new UserId(winnerEntry.PlayerId))
+            await actors
+                .Route<UserActor>(new UserId(winnerEntry.PlayerId))
                 .CallAsync(
                     UserBehavior.AddWinAsync,
                     new UserWinRequest(),
@@ -540,22 +539,22 @@ public static partial class RoomBehavior
         foreach (var entry in settlement.Entries.Where(static entry => !entry.IsBot && entry.VictoryPoints > 0))
         {
             var userId = new UserId(entry.PlayerId);
-            await users
-                .Route(userId)
+            await actors
+                .Route<UserActor>(userId)
                 .CallAsync(
                     UserBehavior.AddVictoryPointsAsync,
                     new UserVictoryPointsRequest { Points = entry.VictoryPoints },
                     CancellationToken.None)
                 .ConfigureAwait(false);
-            var profile = await users
-                .Route(userId)
+            var profile = await actors
+                .Route<UserActor>(userId)
                 .CallAsync(
                     UserBehavior.GetProfileAsync,
                     new UserProfileRequest(),
                     CancellationToken.None)
                 .ConfigureAwait(false);
-            await leaderboards
-                .Startup(new LeaderboardId(AgarHotfixIds.GlobalLeaderboardActorId))
+            await actors
+                .Startup<LeaderboardActor>(new LeaderboardId(AgarHotfixIds.GlobalLeaderboardActorId))
                 .CallAsync(
                     LeaderboardBehavior.RecordVictoryPointsAsync,
                     new LeaderboardVictoryPointsRequest

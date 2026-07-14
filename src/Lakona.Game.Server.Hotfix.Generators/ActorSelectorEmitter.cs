@@ -1,0 +1,178 @@
+using System.Text;
+
+namespace Lakona.Game.Server.Hotfix.Generators
+{
+    public sealed partial class HotfixGenerator
+    {
+        private static void AppendLocalActorSelector(StringBuilder builder)
+        {
+            builder.AppendLine("public readonly struct LocalActor<TActor>");
+            builder.AppendLine("    where TActor : global::Lakona.Game.Server.Actors.Actor");
+            builder.AppendLine("{");
+            builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorRuntime _runtime;");
+            builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.ActorId _actorId;");
+            builder.AppendLine();
+            builder.AppendLine("    internal LocalActor(");
+            builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorRuntime runtime,");
+            builder.AppendLine("        global::Lakona.Game.Server.Actors.ActorId actorId)");
+            builder.AppendLine("    {");
+            builder.AppendLine("        _runtime = runtime;");
+            builder.AppendLine("        _actorId = actorId;");
+            builder.AppendLine("    }");
+            builder.AppendLine();
+            AppendActorCallApi(builder);
+            builder.AppendLine();
+            builder.AppendLine("    private global::System.Threading.Tasks.ValueTask CallCoreAsync<TRequest>(");
+            builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod method,");
+            builder.AppendLine("        TRequest request,");
+            builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken)");
+            builder.AppendLine("    {");
+            builder.AppendLine("        return TellAsync(method, request, cancellationToken);");
+            builder.AppendLine("    }");
+            builder.AppendLine();
+            builder.AppendLine("    private global::System.Threading.Tasks.ValueTask<TResult> CallCoreAsync<TRequest, TResult>(");
+            builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod method,");
+            builder.AppendLine("        TRequest request,");
+            builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken)");
+            builder.AppendLine("    {");
+            builder.AppendLine("        return AskAsync<TRequest, TResult>(method, request, cancellationToken);");
+            builder.AppendLine("    }");
+            builder.AppendLine();
+            builder.AppendLine("    private global::System.Threading.Tasks.ValueTask PostCoreAsync<TRequest>(");
+            builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod method,");
+            builder.AppendLine("        TRequest request,");
+            builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken)");
+            builder.AppendLine("    {");
+            builder.AppendLine("        cancellationToken.ThrowIfCancellationRequested();");
+            builder.AppendLine("        var result = TryTell(method, request, cancellationToken);");
+            builder.AppendLine("        if (result == global::Lakona.Game.Server.Actors.ActorTellResult.Accepted)");
+            builder.AppendLine("        {");
+            builder.AppendLine("            return default;");
+            builder.AppendLine("        }");
+            builder.AppendLine();
+            builder.AppendLine("        var status = result == global::Lakona.Game.Server.Actors.ActorTellResult.MailboxFull");
+            builder.AppendLine("            ? global::Lakona.Game.Server.Actors.ActorCallStatus.Backpressure");
+            builder.AppendLine("            : result == global::Lakona.Game.Server.Actors.ActorTellResult.ActorNotFound");
+            builder.AppendLine("                ? global::Lakona.Game.Server.Actors.ActorCallStatus.ActorNotFound");
+            builder.AppendLine("                : global::Lakona.Game.Server.Actors.ActorCallStatus.Failed;");
+            builder.AppendLine("        throw new global::Lakona.Game.Server.Actors.ActorCallException(");
+            builder.AppendLine("            status,");
+            builder.AppendLine("            _actorId,");
+            builder.AppendLine("            GeneratedActorMetadata<TActor>.ActorName,");
+            builder.AppendLine("            method.MethodName,");
+            builder.AppendLine("            \"Local actor post was rejected with result \" + result + \".\");");
+            builder.AppendLine("    }");
+            builder.AppendLine();
+            AppendLocalTellMethod(builder);
+            builder.AppendLine();
+            AppendLocalTryTellMethod(builder);
+            builder.AppendLine();
+            AppendLocalAskMethod(builder);
+            builder.AppendLine("}");
+        }
+
+        private static void AppendLocalTellMethod(StringBuilder builder)
+        {
+            builder.AppendLine("    private async global::System.Threading.Tasks.ValueTask TellAsync<TRequest>(");
+            builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod method,");
+            builder.AppendLine("        TRequest request,");
+            builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken)");
+            builder.AppendLine("    {");
+            builder.AppendLine("        await _runtime.TellAsync<TActor>(");
+            builder.AppendLine("            _actorId,");
+            builder.AppendLine("            (actor, ct) => global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync(");
+            builder.AppendLine("                typeof(TActor),");
+            builder.AppendLine("                method.MethodName,");
+            builder.AppendLine("                actor,");
+            builder.AppendLine("                method.PassCancellationToken");
+            builder.AppendLine("                    ? new global::System.Type[] { typeof(TRequest), typeof(global::System.Threading.CancellationToken) }");
+            builder.AppendLine("                    : new global::System.Type[] { typeof(TRequest) },");
+            builder.AppendLine("                method.PassCancellationToken");
+            builder.AppendLine("                    ? new object[] { request, ct }");
+            builder.AppendLine("                    : new object[] { request }),");
+            builder.AppendLine("            cancellationToken).ConfigureAwait(false);");
+            builder.AppendLine("    }");
+        }
+
+        private static void AppendLocalTryTellMethod(StringBuilder builder)
+        {
+            builder.AppendLine("    private global::Lakona.Game.Server.Actors.ActorTellResult TryTell<TRequest>(");
+            builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod method,");
+            builder.AppendLine("        TRequest request,");
+            builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken)");
+            builder.AppendLine("    {");
+            builder.AppendLine("        return _runtime.TryTell<TActor>(");
+            builder.AppendLine("            _actorId,");
+            builder.AppendLine("            (actor, ct) => global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync(");
+            builder.AppendLine("                typeof(TActor),");
+            builder.AppendLine("                method.MethodName,");
+            builder.AppendLine("                actor,");
+            builder.AppendLine("                method.PassCancellationToken");
+            builder.AppendLine("                    ? new global::System.Type[] { typeof(TRequest), typeof(global::System.Threading.CancellationToken) }");
+            builder.AppendLine("                    : new global::System.Type[] { typeof(TRequest) },");
+            builder.AppendLine("                method.PassCancellationToken");
+            builder.AppendLine("                    ? new object[] { request, ct }");
+            builder.AppendLine("                    : new object[] { request }),");
+            builder.AppendLine("            cancellationToken);");
+            builder.AppendLine("    }");
+        }
+
+        private static void AppendLocalAskMethod(StringBuilder builder)
+        {
+            builder.AppendLine("    private async global::System.Threading.Tasks.ValueTask<TResult> AskAsync<TRequest, TResult>(");
+            builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod method,");
+            builder.AppendLine("        TRequest request,");
+            builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken)");
+            builder.AppendLine("    {");
+            builder.AppendLine("        return await _runtime.AskAsync<TActor, TResult>(");
+            builder.AppendLine("            _actorId,");
+            builder.AppendLine("            (actor, ct) => global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync<TResult>(");
+            builder.AppendLine("                typeof(TActor),");
+            builder.AppendLine("                method.MethodName,");
+            builder.AppendLine("                actor,");
+            builder.AppendLine("                method.PassCancellationToken");
+            builder.AppendLine("                    ? new global::System.Type[] { typeof(TRequest), typeof(global::System.Threading.CancellationToken) }");
+            builder.AppendLine("                    : new global::System.Type[] { typeof(TRequest) },");
+            builder.AppendLine("                method.PassCancellationToken");
+            builder.AppendLine("                    ? new object[] { request, ct }");
+            builder.AppendLine("                    : new object[] { request }),");
+            builder.AppendLine("            cancellationToken).ConfigureAwait(false);");
+            builder.AppendLine("    }");
+        }
+
+        private static void AppendActorPlacementSelector(StringBuilder builder)
+        {
+            builder.AppendLine("public readonly struct ActorPlacement<TActor, TKey>");
+            builder.AppendLine("    where TActor : global::Lakona.Game.Server.Actors.Actor<TKey>");
+            builder.AppendLine("    where TKey : notnull");
+            builder.AppendLine("{");
+            builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorPlacementService _placement;");
+            builder.AppendLine("    private readonly TKey _id;");
+            builder.AppendLine();
+            builder.AppendLine("    internal ActorPlacement(global::Lakona.Game.Server.Actors.IActorPlacementService placement, TKey id)");
+            builder.AppendLine("    {");
+            builder.AppendLine("        _placement = placement;");
+            builder.AppendLine("        _id = id;");
+            builder.AppendLine("    }");
+            builder.AppendLine();
+            builder.AppendLine("    public global::System.Threading.Tasks.ValueTask<global::Lakona.Game.Server.Actors.ActorPlacementResult> CreateAsync(");
+            builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
+            builder.AppendLine("    {");
+            builder.AppendLine("        return _placement.PlaceAsync<TActor, TKey>(");
+            builder.AppendLine("            _id,");
+            builder.AppendLine("            global::Lakona.Game.Server.Actors.ActorPlacementCreateMode.Create,");
+            builder.AppendLine("            cancellationToken);");
+            builder.AppendLine("    }");
+            builder.AppendLine();
+            builder.AppendLine("    public global::System.Threading.Tasks.ValueTask<global::Lakona.Game.Server.Actors.ActorPlacementResult> EnsureAsync(");
+            builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
+            builder.AppendLine("    {");
+            builder.AppendLine("        return _placement.PlaceAsync<TActor, TKey>(");
+            builder.AppendLine("            _id,");
+            builder.AppendLine("            global::Lakona.Game.Server.Actors.ActorPlacementCreateMode.Ensure,");
+            builder.AppendLine("            cancellationToken);");
+            builder.AppendLine("    }");
+            builder.AppendLine("}");
+        }
+    }
+}

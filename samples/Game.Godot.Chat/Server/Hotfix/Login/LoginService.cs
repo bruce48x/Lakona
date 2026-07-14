@@ -12,13 +12,13 @@ namespace Server.Hotfix.Login
     [HotfixService(typeof(ILoginService))]
     internal sealed class LoginService
     {
-        private readonly ChatRoomActors _rooms;
+        private readonly ActorAccess _actors;
         private readonly ILakonaGameServer _gameServer;
         private readonly ChatNotifier _notifications;
 
-        public LoginService(ChatRoomActors rooms, ILakonaGameServer gameServer, ChatNotifier notifications)
+        public LoginService(ActorAccess actors, ILakonaGameServer gameServer, ChatNotifier notifications)
         {
-            _rooms = rooms;
+            _actors = actors;
             _gameServer = gameServer;
             _notifications = notifications;
         }
@@ -31,8 +31,8 @@ namespace Server.Hotfix.Login
             var session = await _gameServer.StartSessionAsync(
                 playerName,
                 call.ConnectionId);
-            var result = await _rooms
-                .Startup(ChatRoomIds.Global)
+            var result = await _actors
+                .Startup<ChatRoomActor>(ChatRoomIds.Global)
                 .CallAsync(
                     ChatRoomBehavior.LoginAsync,
                     new ChatRoomLoginRequest

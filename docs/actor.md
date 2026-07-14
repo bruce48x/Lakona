@@ -75,26 +75,36 @@ The detailed authoring rules are in
 
 ## Generated Actor Access
 
-Generated actor APIs should expose typed accessors for local and routed
-calls without asking business code to hand-write actor ids, route keys,
-serializers, or reply-correlation plumbing.
+Generated actor APIs expose one injectable access root for local, routed,
+placement, and startup calls. Business code does not import one collection
+class per actor or hand-write actor ids, route keys, serializers, or
+reply-correlation plumbing.
 
 ```csharp
-public sealed class RoomActors
+public sealed class ActorAccess
 {
-    public RoomLocalRef Local(RoomId id);
+    public LocalActor<TActor> Local<TActor>(RoomId id)
+        where TActor : Actor<RoomId>;
 
-    public RoomRouteRef Route(RoomId id);
+    public ActorRoute<TActor> Route<TActor>(RoomId id)
+        where TActor : Actor<RoomId>;
 }
 ```
 
 Inside the same actor turn, call the actor instance directly. Across actor
-boundaries, use the generated collection:
+boundaries, use the generated access root:
 
 ```csharp
-await rooms.Route(roomId).CallAsync(RoomBehavior.JoinAsync, request, cancellationToken);
-await rooms.Local(roomId).PostAsync(RoomBehavior.RunTickAsync, request, cancellationToken);
+await actors.Route<RoomActor>(roomId).CallAsync(RoomBehavior.JoinAsync, request, cancellationToken);
+await actors.Local<RoomActor>(roomId).PostAsync(RoomBehavior.RunTickAsync, request, cancellationToken);
 ```
+
+The generated overloads bind each business key type to `Actor<TKey>`, so an
+actor/key mismatch is a compile error. The returned selectors are readonly
+value types. Selecting an actor does not use `dynamic`, reflection-based
+construction, boxing, or a per-call heap allocation. The single root also
+holds shared routing dependencies once instead of repeating them in every
+per-actor collection instance.
 
 Selector semantics:
 
@@ -103,12 +113,12 @@ Selector semantics:
 - `Local(id)` invokes only the process-local actor runtime and should be used
   only after the caller has already proven current-node ownership.
 
-Generated actor collections are call selectors only. They must not expose
+`ActorAccess` is a call-selection root only. It must not expose
 lifecycle helpers such as `SpawnAsync`, `DestroyAsync`, or hidden hook-based
 creation methods. Actor hosting is a separate operation owned by
 `ActorHosting`.
 
-Generated actor refs expose generic `CallAsync` and `PostAsync` helpers.
+Generated actor selectors expose generic `CallAsync` and `PostAsync` helpers.
 `CallAsync` is completion-aware and surfaces the behavior reply or a typed
 actor call failure. `PostAsync` is acceptance-only and completes once the
 mailbox or remote transport accepts the work. Lower-level status-returning
@@ -152,7 +162,8 @@ public sealed class RoomActor : Actor<RoomId>
 ```
 
 This avoids separate key attributes and avoids generator guessing. The
-generator uses `TKey` to type `Local(TKey id)` and `Route(TKey id)`.
+generator uses `TKey` to generate constrained
+`Local<TActor>(TKey id)` and `Route<TActor>(TKey id)` overloads.
 
 Default key-to-string conversion:
 
@@ -191,8 +202,8 @@ exceptions on local or routed failure.
 ```csharp
 try
 {
-    var reply = await rooms
-        .Route(roomId)
+    var reply = await actors
+        .Route<RoomActor>(roomId)
         .CallAsync(RoomBehavior.JoinAsync, request, cancellationToken);
 }
 catch (ActorCallException ex) when (ex.Status == ActorCallStatus.ActorNotFound)
@@ -229,7 +240,7 @@ The generated typed API sits above existing cluster primitives:
 
 ```txt
 game service code
-  -> generated RoomActors.Local/Route refs
+  -> generated ActorAccess.Local<TActor>/Route<TActor> selectors
   -> ActorDirectory cache / local actor invoker / remote actor invoker
   -> IActorRuntime / IClusterRouter / IClusterNodeSender
   -> ClusterActorEnvelope

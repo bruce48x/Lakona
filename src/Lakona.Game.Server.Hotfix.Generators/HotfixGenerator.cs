@@ -11,7 +11,7 @@ using Microsoft.CodeAnalysis.Text;
 namespace Lakona.Game.Server.Hotfix.Generators
 {
     [Generator]
-    public sealed class HotfixGenerator : IIncrementalGenerator
+    public sealed partial class HotfixGenerator : IIncrementalGenerator
     {
         private const string HotfixStateAttributeName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixStateAttribute";
         private const string HotfixBehaviorOfAttributeName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixBehaviorOfAttribute";
@@ -313,12 +313,34 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
             foreach (var contract in contracts)
             {
-                AppendActorContract(builder, contract);
+                AppendActorApiMetadata(builder, contract);
                 builder.AppendLine();
             }
 
+            AppendActorAccess(builder, contracts);
+            builder.AppendLine();
             AppendActorRegistration(builder, contracts);
             return builder.ToString();
+        }
+
+        private static void AppendActorApiMetadata(StringBuilder builder, HotfixActorApiInfo contract)
+        {
+            var namespaceName = contract.Actor.ContainingNamespace.IsGlobalNamespace
+                ? null
+                : contract.Actor.ContainingNamespace.ToDisplayString();
+
+            if (namespaceName != null)
+            {
+                builder.Append("namespace ").Append(namespaceName).AppendLine();
+                builder.AppendLine("{");
+            }
+
+            AppendHotfixActorApiMetadata(builder, contract);
+
+            if (namespaceName != null)
+            {
+                builder.AppendLine("}");
+            }
         }
 
         private static void AppendActorContract(StringBuilder builder, HotfixActorApiInfo contract)
@@ -1097,17 +1119,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("{");
             builder.AppendLine("    public void Register(global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)");
             builder.AppendLine("    {");
-            foreach (var contract in contracts)
-            {
-                var prefix = GetActorPrefix(contract.Actor.Name);
-                var actorNamespace = contract.Actor.ContainingNamespace.IsGlobalNamespace
-                    ? string.Empty
-                    : contract.Actor.ContainingNamespace.ToDisplayString() + ".";
-                builder.Append("        global::Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddSingleton<global::")
-                    .Append(actorNamespace)
-                    .Append(prefix)
-                    .AppendLine("Actors>(services);");
-            }
+            builder.AppendLine("        global::Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddSingleton<global::Lakona.Game.Server.Hotfix.ActorAccess>(services);");
 
             builder.AppendLine("    }");
             builder.AppendLine("}");

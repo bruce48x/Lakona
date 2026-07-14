@@ -169,15 +169,15 @@ public sealed class ToolArchitectureScanTests
             Assert.DoesNotContain(ForbiddenContractAttribute, generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(ForbiddenChatRoomContractInterface, generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(ForbiddenStableActorRefsProperty, generatedText, StringComparison.Ordinal);
-            Assert.Contains("public GameService(GameWorldActors worlds, ILakonaGameServer gameServer)", generatedText, StringComparison.Ordinal);
-            Assert.Contains("private readonly GameWorldActors _worlds;", generatedText, StringComparison.Ordinal);
-            Assert.Contains(".Startup(GameWorldIds.Global)", generatedText, StringComparison.Ordinal);
+            Assert.Contains("public GameService(ActorAccess actors, ILakonaGameServer gameServer)", generatedText, StringComparison.Ordinal);
+            Assert.Contains("private readonly ActorAccess _actors;", generatedText, StringComparison.Ordinal);
+            Assert.Contains(".Startup<GameWorldActor>(GameWorldIds.Global)", generatedText, StringComparison.Ordinal);
             Assert.Contains(".CallAsync(", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("call.Actors is node-local", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("var starterNodeLocalActors = call.Actors;", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("starterNodeLocalActors.AskAsync", generatedText, StringComparison.Ordinal);
-            Assert.Contains("rooms.Route(roomId).CallAsync", generatedText, StringComparison.Ordinal);
-            Assert.Contains("rooms.Local(roomId)", generatedText, StringComparison.Ordinal);
+            Assert.Contains("actors.Route<RoomActor>(roomId).CallAsync", generatedText, StringComparison.Ordinal);
+            Assert.Contains("actors.Local<RoomActor>(roomId)", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("rooms.Remote(nodeId, roomId)", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("starterLocalActors", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("var localActors = call.Actors;", generatedText, StringComparison.Ordinal);
@@ -305,19 +305,19 @@ public sealed class ToolArchitectureScanTests
             "Login",
             "LoginService.cs"));
 
-        Assert.Contains("public ChatService(ChatRoomActors rooms, ILogger<ChatService> logger, ChatNotifier notifications)", chatService, StringComparison.Ordinal);
-        Assert.Contains("private readonly ChatRoomActors _rooms;", chatService, StringComparison.Ordinal);
+        Assert.Contains("public ChatService(ActorAccess actors, ILogger<ChatService> logger, ChatNotifier notifications)", chatService, StringComparison.Ordinal);
+        Assert.Contains("private readonly ActorAccess _actors;", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("BindCurrentSessionAsync", chatService, StringComparison.Ordinal);
-        Assert.Contains(".Startup(ChatRoomIds.Global)", chatService, StringComparison.Ordinal);
+        Assert.Contains(".Startup<ChatRoomActor>(ChatRoomIds.Global)", chatService, StringComparison.Ordinal);
         Assert.Contains("ChatRoomBehavior.SendAsync", chatService, StringComparison.Ordinal);
         Assert.Contains("var text = call.Request.Text ?? \"\";", chatService, StringComparison.Ordinal);
         Assert.Contains("_logger.LogInformation(\"Sending {CharacterCount} characters\", text.Length);", chatService, StringComparison.Ordinal);
         Assert.Contains("await _notifications.MessageAsync(result.Recipients, result.Message);", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("call.Request.Text.Length", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("FilterMessage(call.Request.Text ?? \"\")", chatService, StringComparison.Ordinal);
-        Assert.Contains("public LoginService(ChatRoomActors rooms, ILakonaGameServer gameServer, ChatNotifier notifications)", loginService, StringComparison.Ordinal);
-        Assert.Contains("private readonly ChatRoomActors _rooms;", loginService, StringComparison.Ordinal);
-        Assert.Contains(".Startup(ChatRoomIds.Global)", loginService, StringComparison.Ordinal);
+        Assert.Contains("public LoginService(ActorAccess actors, ILakonaGameServer gameServer, ChatNotifier notifications)", loginService, StringComparison.Ordinal);
+        Assert.Contains("private readonly ActorAccess _actors;", loginService, StringComparison.Ordinal);
+        Assert.Contains(".Startup<ChatRoomActor>(ChatRoomIds.Global)", loginService, StringComparison.Ordinal);
         Assert.Contains("ChatRoomBehavior.LoginAsync", loginService, StringComparison.Ordinal);
         Assert.Contains("await _gameServer.StartSessionAsync", loginService, StringComparison.Ordinal);
         Assert.DoesNotContain("var starterNodeLocalActors = call.Actors;", chatService, StringComparison.Ordinal);
@@ -421,7 +421,7 @@ public sealed class ToolArchitectureScanTests
             var hotfix = ReadAllTextFiles(Path.Combine(spec.Layout.RootPath, "Server", "Hotfix"));
             Assert.Contains("public const string Global = \"game-world/global\";", appGame, StringComparison.Ordinal);
             Assert.Contains("RegisterStartup<GameWorldActor, string>", hotfix, StringComparison.Ordinal);
-            Assert.Contains(".Startup(GameWorldIds.Global)", hotfix, StringComparison.Ordinal);
+            Assert.Contains(".Startup<GameWorldActor>(GameWorldIds.Global)", hotfix, StringComparison.Ordinal);
         }
         finally
         {
@@ -442,9 +442,9 @@ public sealed class ToolArchitectureScanTests
         Assert.Contains("RPC service", readme, StringComparison.Ordinal);
         Assert.Contains("may be local or remote", readme, StringComparison.Ordinal);
         Assert.Contains("typed selector", readme, StringComparison.Ordinal);
-        Assert.Contains(".Route(new UserId(", hotfixServices, StringComparison.Ordinal);
-        Assert.Contains(".Startup(new MatchmakingQueueId(", hotfixServices, StringComparison.Ordinal);
-        Assert.Contains(".Local(roomId)", hotfixServices, StringComparison.Ordinal);
+        Assert.Contains(".Route<UserActor>(new UserId(", hotfixServices, StringComparison.Ordinal);
+        Assert.Contains(".Startup<MatchmakingActor>(new MatchmakingQueueId(", hotfixServices, StringComparison.Ordinal);
+        Assert.Contains(".Local<RoomActor>(roomId)", hotfixServices, StringComparison.Ordinal);
         Assert.DoesNotContain(".Remote(new NodeId(", hotfixServices, StringComparison.Ordinal);
         Assert.DoesNotContain("call.Actors", hotfixServices, StringComparison.Ordinal);
         Assert.DoesNotContain("var localActors = call.Actors;", hotfixServices, StringComparison.Ordinal);
@@ -690,7 +690,7 @@ public sealed class ToolArchitectureScanTests
 
         Assert.DoesNotContain(".EnsureAsync<ChatRoomActor>", hotfixChat, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Ensure", "Local", "Actor"), hotfixChat, StringComparison.Ordinal);
-        Assert.Contains(".Startup(ChatRoomIds.Global)", hotfixChat, StringComparison.Ordinal);
+        Assert.Contains(".Startup<ChatRoomActor>(ChatRoomIds.Global)", hotfixChat, StringComparison.Ordinal);
         Assert.DoesNotContain("private const string RoomKey", hotfixChat, StringComparison.Ordinal);
         Assert.DoesNotContain(".Get(\"global\")", hotfixChat, StringComparison.Ordinal);
     }

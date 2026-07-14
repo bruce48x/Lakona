@@ -8,12 +8,12 @@ namespace Server.Hotfix.Chat
     [HotfixLifecycle(typeof(IGameSessionLifecycle))]
     internal sealed class ChatSessionLifecycle
     {
-        private readonly ChatRoomActors _rooms;
+        private readonly ActorAccess _actors;
         private readonly ChatNotifier _notifications;
 
-        public ChatSessionLifecycle(ChatRoomActors rooms, ChatNotifier notifications)
+        public ChatSessionLifecycle(ActorAccess actors, ChatNotifier notifications)
         {
-            _rooms = rooms;
+            _actors = actors;
             _notifications = notifications;
         }
 
@@ -25,8 +25,8 @@ namespace Server.Hotfix.Chat
 
         public async ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call)
         {
-            var result = await _rooms
-                .Startup(ChatRoomIds.Global)
+            var result = await _actors
+                .Startup<ChatRoomActor>(ChatRoomIds.Global)
                 .CallAsync(
                     ChatRoomBehavior.LeaveAsync,
                     new ChatRoomLeaveRequest

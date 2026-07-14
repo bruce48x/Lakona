@@ -25,16 +25,13 @@ internal sealed class BattleService
     private const string RealtimeSessionGenerationSessionItemKey = "realtimeSessionGeneration";
 
     private readonly LocalActorNodeIdentity _localNode;
-    private readonly RoomActors _rooms;
-    private readonly UserActors _users;
+    private readonly ActorAccess _actors;
 
     public BattleService(
-        UserActors users,
-        RoomActors rooms,
+        ActorAccess actors,
         LocalActorNodeIdentity localNode)
     {
-        _users = users;
-        _rooms = rooms;
+        _actors = actors;
         _localNode = localNode;
     }
 
@@ -53,8 +50,8 @@ internal sealed class BattleService
             };
         }
 
-        var sessionSnapshot = await _users
-            .Route(new UserId(req.PlayerId))
+        var sessionSnapshot = await _actors
+            .Route<UserActor>(new UserId(req.PlayerId))
             .CallAsync(
                 UserBehavior.GetSnapshotAsync,
                 new PlayerSessionSnapshotRequest(),
@@ -85,8 +82,8 @@ internal sealed class BattleService
             .ConfigureAwait(false);
         try
         {
-            await _users
-                .Route(new UserId(req.PlayerId))
+            await _actors
+                .Route<UserActor>(new UserId(req.PlayerId))
                 .CallAsync(
                     UserBehavior.AttachRealtimeAsync,
                     new PlayerRealtimeAttachRequest
@@ -116,8 +113,8 @@ internal sealed class BattleService
             };
         }
 
-        var ready = await _rooms
-            .Local(new RoomId(req.RoomId))
+        var ready = await _actors
+            .Local<RoomActor>(new RoomId(req.RoomId))
             .CallAsync(
                 RoomBehavior.SetReadyAsync,
                 new RoomPlayerReadyRequest
@@ -133,8 +130,8 @@ internal sealed class BattleService
             .ConfigureAwait(false);
         if (!ready.Succeeded)
         {
-            await _users
-                .Route(new UserId(req.PlayerId))
+            await _actors
+                .Route<UserActor>(new UserId(req.PlayerId))
                 .CallAsync(
                     UserBehavior.ClearRealtimeAsync,
                     new PlayerRealtimeClearRequest
@@ -209,8 +206,8 @@ internal sealed class BattleService
             return;
         }
 
-        await _rooms
-            .Local(new RoomId(roomId))
+        await _actors
+            .Local<RoomActor>(new RoomId(roomId))
             .CallAsync(
                 RoomBehavior.SubmitInputAsync,
                 new RoomInputSubmitRequest

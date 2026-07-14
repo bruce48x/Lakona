@@ -12,13 +12,13 @@ namespace Server.Hotfix.Chat
     [HotfixService(typeof(IChatService))]
     internal sealed class ChatService
     {
-        private readonly ChatRoomActors _rooms;
+        private readonly ActorAccess _actors;
         private readonly ILogger<ChatService> _logger;
         private readonly ChatNotifier _notifications;
 
-        public ChatService(ChatRoomActors rooms, ILogger<ChatService> logger, ChatNotifier notifications)
+        public ChatService(ActorAccess actors, ILogger<ChatService> logger, ChatNotifier notifications)
         {
-            _rooms = rooms;
+            _actors = actors;
             _logger = logger;
             _notifications = notifications;
         }
@@ -36,8 +36,8 @@ namespace Server.Hotfix.Chat
             _logger.LogInformation("Sending {CharacterCount} characters", text.Length);
             var session = call.CurrentSession
                 ?? throw new InvalidOperationException("Chat send requires an active Game Session.");
-            var result = await _rooms
-                .Startup(ChatRoomIds.Global)
+            var result = await _actors
+                .Startup<ChatRoomActor>(ChatRoomIds.Global)
                 .CallAsync(
                     ChatRoomBehavior.SendAsync,
                     new ChatRoomSendRequest

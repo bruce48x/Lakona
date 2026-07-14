@@ -4,6 +4,20 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-14 — Unified generated actor access
+
+**Key releases:** `Lakona.Game.Server 0.18.9`,
+`Lakona.Game.Server.Generators 0.3.1`,
+`Lakona.Game.Server.Hotfix.Generators 0.5.4`,
+`Lakona.ProjectSystem 0.1.1`, and `Lakona.Tool 0.25.21`.
+
+- Replaced one generated plural collection per actor with a single injectable
+  `ActorAccess` root and constrained `Route<TActor>`, `Local<TActor>`,
+  `Place<TActor>`, and `Startup<TActor>` selectors.
+- Kept selection allocation-free through readonly value-type selectors,
+  preserved compile-time actor/key checks and Hotfix method-group completion,
+  and migrated generated projects and samples to the smaller API.
+
 ## 2026-07-14 — Lakona Hub desktop foundation
 
 **Key releases:** `Lakona.ProjectSystem 0.1.0` and `Lakona.Tool 0.25.20`.

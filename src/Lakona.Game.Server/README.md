@@ -142,15 +142,15 @@ public static partial class RoomBehavior
     }
 }
 
-var rooms = provider.GetRequiredService<RoomActors>();
+var actors = provider.GetRequiredService<ActorAccess>();
 var roomId = new RoomId("alpha");
 var request = new JoinRoomRequest { PlayerId = 10001 };
 
-var routed = await rooms.Route(roomId).CallAsync(
+var routed = await actors.Route<RoomActor>(roomId).CallAsync(
     RoomBehavior.JoinAsync,
     request,
     cancellationToken);
-var localOnly = await rooms.Local(roomId).CallAsync(
+var localOnly = await actors.Local<RoomActor>(roomId).CallAsync(
     RoomBehavior.JoinAsync,
     request,
     cancellationToken);
@@ -159,8 +159,9 @@ var localOnly = await rooms.Local(roomId).CallAsync(
 Public methods on `RoomBehavior` declare the generated actor ref call surface
 and own the implementation that runs inside the actor turn.
 
-Stable app generator support emits actor selector types with `Local(id)` and
-`Route(id)` selectors for `Actor<TKey>` classes. Generated refs expose generic
+Generator support emits one `ActorAccess` root with constrained
+`Local<TActor>(id)` and `Route<TActor>(id)` selectors for `Actor<TKey>` classes.
+Generated selectors expose generic
 `CallAsync(Behavior.MethodAsync, request, cancellationToken)` for request/reply
 calls and `PostAsync(Behavior.MethodAsync, request, cancellationToken)` for
 fire-and-forget dispatch after placement is explicit.

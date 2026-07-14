@@ -80,12 +80,12 @@ internal sealed class HotfixRenderer : IPlanContributor
             [HotfixService(typeof(IGameService))]
             internal sealed class GameService
             {
-                private readonly GameWorldActors _worlds;
+                private readonly ActorAccess _actors;
                 private readonly ILakonaGameServer _gameServer;
 
-                public GameService(GameWorldActors worlds, ILakonaGameServer gameServer)
+                public GameService(ActorAccess actors, ILakonaGameServer gameServer)
                 {
-                    _worlds = worlds;
+                    _actors = actors;
                     _gameServer = gameServer;
                 }
 
@@ -97,8 +97,8 @@ internal sealed class HotfixRenderer : IPlanContributor
                         return new LoginReply { Success = false, Error = "Name must contain 1 to 20 characters." };
                     }
 
-                    var reply = await _worlds
-                        .Startup(GameWorldIds.Global)
+                    var reply = await _actors
+                        .Startup<GameWorldActor>(GameWorldIds.Global)
                         .CallAsync(
                             GameWorldBehavior.LoginAsync,
                             new GameLoginRequest
@@ -115,8 +115,8 @@ internal sealed class HotfixRenderer : IPlanContributor
                     try
                     {
                         var session = await _gameServer.StartSessionAsync(playerName, call.ConnectionId);
-                        await _worlds
-                            .Startup(GameWorldIds.Global)
+                        await _actors
+                            .Startup<GameWorldActor>(GameWorldIds.Global)
                             .PostAsync(
                                 GameWorldBehavior.AttachSessionAsync,
                                 new GameAttachSessionRequest
@@ -139,8 +139,8 @@ internal sealed class HotfixRenderer : IPlanContributor
 
                 public ValueTask SubmitInputAsync(HotfixServiceCall<PlayerInput, IGameCallback> call)
                 {
-                    return _worlds
-                        .Startup(GameWorldIds.Global)
+                    return _actors
+                        .Startup<GameWorldActor>(GameWorldIds.Global)
                         .PostAsync(
                             GameWorldBehavior.SubmitInputAsync,
                             new GameInputRequest
@@ -154,8 +154,8 @@ internal sealed class HotfixRenderer : IPlanContributor
 
                 private ValueTask DisconnectAsync(string connectionId)
                 {
-                    return _worlds
-                        .Startup(GameWorldIds.Global)
+                    return _actors
+                        .Startup<GameWorldActor>(GameWorldIds.Global)
                         .PostAsync(
                             GameWorldBehavior.DisconnectAsync,
                             new GameDisconnectRequest { ConnectionId = connectionId },
@@ -187,8 +187,8 @@ internal sealed class HotfixRenderer : IPlanContributor
                     }
 
                     return call.Services
-                        .GetRequiredService<GameWorldActors>()
-                        .Startup(GameWorldIds.Global)
+                        .GetRequiredService<ActorAccess>()
+                        .Startup<GameWorldActor>(GameWorldIds.Global)
                         .PostAsync(
                             GameWorldBehavior.DisconnectAsync,
                             new GameDisconnectRequest { ConnectionId = call.Request.ConnectionId },
@@ -209,6 +209,7 @@ internal sealed class HotfixRenderer : IPlanContributor
     {
         return """
         using Lakona.Game.Server.Sessions;
+        using Lakona.Game.Server.Hotfix;
         using Lakona.Game.Server.Hotfix.Abstractions.Timers;
         using Microsoft.Extensions.DependencyInjection;
         using Server.App.Game;
@@ -225,8 +226,8 @@ internal sealed class HotfixRenderer : IPlanContributor
                 public static async ValueTask TickAsync(TimerTick<GameWorldTimerArgs> tick)
                 {
                     var update = await tick.Services
-                        .GetRequiredService<GameWorldActors>()
-                        .Startup(GameWorldIds.Global)
+                        .GetRequiredService<ActorAccess>()
+                        .Startup<GameWorldActor>(GameWorldIds.Global)
                         .CallAsync(
                             GameWorldBehavior.TickAsync,
                             new GameTickRequest(),

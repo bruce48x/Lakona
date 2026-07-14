@@ -15,6 +15,7 @@ internal static class GeneratorTestHost
             {
                 MetadataReference.CreateFromFile(typeof(Lakona.Game.Server.Actors.Actor<>).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(Lakona.Game.Cluster.NodeId).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(IServiceProvider).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(Microsoft.Extensions.DependencyInjection.IServiceCollection).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions).Assembly.Location)
             })

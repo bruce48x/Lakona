@@ -162,13 +162,13 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         ```
 
         ```csharp
-        public GameService(GameWorldActors worlds, ILakonaGameServer gameServer)
+        public GameService(ActorAccess actors, ILakonaGameServer gameServer)
         {
-            _worlds = worlds;
+            _actors = actors;
             _gameServer = gameServer;
         }
 
-        var reply = await _worlds.Startup(GameWorldIds.Global).CallAsync(
+        var reply = await _actors.Startup<GameWorldActor>(GameWorldIds.Global).CallAsync(
             GameWorldBehavior.LoginAsync,
             request,
             ct);
@@ -178,8 +178,8 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         placement:
 
         ```csharp
-        await rooms.Route(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct);      // Normal business path
-        await rooms.Local(roomId).PostAsync(RoomBehavior.RunTickAsync, request, ct);   // Current node only after ownership is proven
+        await actors.Route<RoomActor>(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct);      // Normal business path
+        await actors.Local<RoomActor>(roomId).PostAsync(RoomBehavior.RunTickAsync, request, ct);   // Current node only after ownership is proven
         ```
 
         ## Client Notes

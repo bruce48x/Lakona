@@ -48,12 +48,19 @@ compiler-visible property name through the generator package's
 `Server.App` owns stable RPC service proxies, endpoint binders, required
 hotfix service contract providers, actor state, and actor DTOs. `Server.Hotfix`
 owns replaceable service implementations, lifecycle implementations, behavior
-code, and behavior-derived actor selectors and refs. Public extension methods
-in `[HotfixBehaviorOf]` classes define the actor API those refs expose. The
-hotfix generator emits `Local(id)` and `Route(id)` refs plus generic
+code, and a behavior-derived `ActorAccess` root. Public extension methods
+in `[HotfixBehaviorOf]` classes define the actor API its selectors expose. The
+hotfix generator emits constrained `Local<TActor>(id)` and `Route<TActor>(id)`
+selectors plus generic
 `CallAsync` / `PostAsync` helpers that accept behavior method groups such as
 `RoomBehavior.JoinAsync`; it does not emit business methods whose names mirror
-the behavior methods.
+the behavior methods or one plural collection class per actor.
+
+`Lakona.Game.Server.Generators`, for stable non-hotfix actor methods, emits the
+same single-root selection model in `Lakona.Game.Server.Generated`. Because C#
+does not convert an unbound instance method such as `RoomActor.JoinAsync`
+directly to an open delegate, that path uses a typed lambda. The default
+hotfix path keeps the shorter behavior method-group form.
 
 Generated client projects opt into client glue with the matching client
 generation property or framework-owned Unity analyzer defaults. Generated
@@ -161,7 +168,7 @@ runtime products, the implementation should be split by product boundary:
 - RPC contract discovery, diagnostics, client facades, notification binders,
   and server binders belong to the RPC generator boundary.
 - Hotfix state accessors, stable RPC service proxies, behavior-derived actor
-  refs, generic actor call helpers, and hotfix diagnostics are separate hotfix
+  access, generic actor call helpers, and hotfix diagnostics are separate hotfix
   generator products even when they are packaged in one analyzer assembly.
 - Shared naming, type-display, and literal-escaping helpers should be factored
   as helpers, not used as a reason to keep unrelated emitters in one large

@@ -16,14 +16,14 @@ namespace Server.Hotfix.Services;
 [HotfixService(typeof(ILoginService))]
 public sealed class LoginService
 {
-    private readonly UserActors _users;
+    private readonly ActorAccess _actors;
     private readonly ILogger<LoginService> _logger;
 
     public LoginService(
-        UserActors users,
+        ActorAccess actors,
         ILogger<LoginService> logger)
     {
-        _users = users;
+        _actors = actors;
         _logger = logger;
     }
 
@@ -95,16 +95,16 @@ public sealed class LoginService
         CancellationToken cancellationToken)
     {
         var userId = new UserId(account);
-        var result = await _users
-            .Place(userId)
+        var result = await _actors
+            .Place<UserActor>(userId)
             .EnsureAsync(cancellationToken)
             .ConfigureAwait(false);
         _logger.LogDebug(
             "Ensured user actor {UserId} on node {NodeId}.",
             account,
             result.Owner.Value);
-        return await _users
-            .Route(userId)
+        return await _actors
+            .Route<UserActor>(userId)
             .CallAsync(UserBehavior.LoginAndAttachAsync, request, cancellationToken)
             .ConfigureAwait(false);
     }

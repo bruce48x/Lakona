@@ -59,11 +59,11 @@ public static partial class LeaderboardBehavior
         }
 
         var playerIds = self.State.Players.Keys.ToArray();
-        var users = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<UserActors>();
+        var actors = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<ActorAccess>();
         foreach (var playerId in playerIds)
         {
-            await users
-                .Route(new UserId(playerId))
+            await actors
+                .Route<UserActor>(new UserId(playerId))
                 .CallAsync(
                     UserBehavior.ResetVictoryPointsAsync,
                     new UserVictoryPointsResetRequest(),
