@@ -5,6 +5,13 @@ load-testing packages. It records evidence that deserves measurement; an entry
 is not a confirmed regression until a repeatable benchmark demonstrates the
 impact.
 
+The focused benchmarks required by this register isolate one Lakona runtime
+path and guard one fix. They are distinct from the deferred, framework-neutral
+macrobenchmark platform defined by
+[Cross-Framework Game Server Benchmarking](./framework-benchmarking.md), which
+will compare complete request/response and cluster RPC paths across Lakona and
+other game-server frameworks.
+
 The last repository-wide static audit was performed on 2026-07-14. It covered
 runtime code under `src/**`, excluding source text emitted by generators. The
 audit found 32 runtime files containing 145 `lock` sites. Most locks are scoped
@@ -39,18 +46,120 @@ Statuses are:
 
 ## Recommended Order
 
-1. `PERF-002` KCP global update scheduler
-2. `PERF-003` in-memory route directory
-3. `PERF-001` in-memory Game Session registry
-4. `PERF-004` load-run latency recorder
-5. `PERF-005` Hotfix typed delegate cache
-6. `PERF-006` cluster client cache
-7. `PERF-007` in-memory node directory
-8. `PERF-008` Actor mailbox queue gauge
-9. `PERF-009` bounded diagnostics event buffer
+1. `PERF-010` generated Hotfix request dispatch allocations
+2. `PERF-011` client notification command materialization
+3. `PERF-002` KCP global update scheduler
+4. `PERF-003` in-memory route directory
+5. `PERF-001` in-memory Game Session registry
+6. `PERF-004` load-run latency recorder
+7. `PERF-005` Hotfix typed delegate cache
+8. `PERF-006` cluster client cache
+9. `PERF-007` in-memory node directory
+10. `PERF-008` Actor mailbox queue gauge
+11. `PERF-009` bounded diagnostics event buffer
 
 The order reflects likely shared-path impact, not implementation difficulty.
 Reorder only when measurements or a production trace provide stronger evidence.
+
+## PERF-010: Generated Hotfix Request Dispatch Allocations
+
+- **Status:** Candidate
+- **Priority:** P0
+- **Scope:** `src/Lakona.Game.Server.Hotfix.Generators/HotfixGenerator.cs`,
+  `src/Lakona.Game.Server.Hotfix.Generators/ActorSelectorEmitter.cs`,
+  `src/Lakona.Game.Server.Hotfix/Dispatch/HotfixDispatchTable.cs`,
+  `src/Lakona.Game.Server.Hotfix/Runtime/HotfixRuntimeSnapshotLease.cs`,
+  `src/Lakona.Game.Server.Hotfix/Dispatch/HotfixDispatchRuntimeScope.cs`, and
+  `src/Lakona.Game.Server/Hotfix/HotfixServiceCall.cs`
+
+Generated stable service proxies are scoped to an RPC Session rather than one
+request, but the Hotfix request path performs several request-level
+allocations after entering the proxy:
+
+- A generated proxy acquires a class-based runtime lease and scope, resolves
+  current Game Session state, and constructs a `HotfixServiceCall<TRequest>`
+  or `HotfixServiceCall<TRequest, TCallback>` object.
+- Service dispatch constructs a type array and string method key, activates a
+  new non-static Hotfix service instance, invokes it through
+  `MethodInfo.Invoke` with an object array, and disposes the instance after the
+  returned `ValueTask` completes.
+- Generated Actor selectors create parameter-type and argument arrays before
+  entering reflective Hotfix behavior dispatch. A high-frequency method such
+  as Agar `BattleService.SubmitInputAsync` therefore pays both the service and
+  Actor dispatch costs.
+
+The stable service proxy, request DTO, serializer buffers, user-created
+business objects, and Actor mailbox work item are different lifetimes and must
+not be attributed to the Hotfix dispatch overhead without measurement.
+Likewise, the eager session-items snapshot is owned by `PERF-001` even when a
+generated proxy exposes it on the call context.
+
+The first benchmark must include a direct typed-call control and these warmed
+Hotfix scenarios:
+
+- a no-op instance service method whose `ValueTask` completes synchronously;
+- the same method forced to complete asynchronously;
+- generated proxy dispatch with no current Game Session;
+- generated proxy dispatch with a current session and four session items; and
+- a Battle-like service-to-Actor call using deterministic in-memory runtime
+  adapters.
+
+Run each scenario with 1, 2, 4, 8, and 16 or more workers, including one count
+at or above the machine CPU count. Report operations per second,
+allocated bytes per operation, Gen0 collections, CPU time, and p50/p95/p99
+latency. Also report service constructor and disposal counts, generated method
+key lookups, and the result of a reload-under-load test followed by a
+collectible load-context unload check.
+
+Closure requires one service instance per published Hotfix generation by
+default, a generated numeric-slot typed invocation path without per-call
+string keys, type arrays, object arrays, or reflection, and a readonly request
+context containing only request-scoped data. Constructor dependencies must
+remain generation-owned, one request must observe one generation, and the old
+service provider and load context must be collectible after in-flight calls
+drain. The warmed synchronous dispatch control must allocate no heap bytes
+attributable to framework dispatch; genuinely asynchronous work may retain its
+required completion state but must not recreate the removed dispatch objects.
+
+Generated Actor behavior dispatch must meet the same typed-invocation and
+unload guarantees before the end-to-end service-to-Actor scenario is closed.
+Mutable request state must remain local to the call; generation-scoped service
+instances are concurrent coordinators, while durable mutable state belongs in
+Actors, Game Sessions, or an explicitly synchronized state module.
+
+## PERF-011: Client Notification Command Materialization
+
+- **Status:** Candidate
+- **Priority:** P0/P1
+- **Scope:** `src/Lakona.Game.Server/Sessions/ClientNotifications.cs`,
+  `src/Lakona.Game.Server/Sessions/ClientNotificationCommandFactory.cs`, and
+  generated callback notification adapters
+
+`IClientNotifications.ForSession` creates a target object for every selected
+session. Typical business calls then create a capturing callback delegate.
+`ClientNotificationCommandFactory` creates a `DispatchProxy`, captures a
+reflective invocation, builds argument and command objects, and serializes the
+arguments before dispatch. The Agar `MatchmakingNotifier` and `RoomNotifier`
+objects themselves are Hotfix-generation singletons; the candidate risk is
+the per-notification command path, not their object lifetime.
+
+The first benchmark must compare a direct typed callback control with the
+current notification API for local best-effort, local reliable, and remote
+routed delivery. Cover 1, 8, and 32 or more concurrent publishers and fan-out
+to 1, 10, and 100 sessions. Report notifications per second, allocated bytes
+per notification, Gen0 collections, CPU time, p50/p95/p99 publish latency,
+serialized bytes, and delivery status counts. Remote transport latency must be
+replaced with a deterministic in-memory adapter so command construction and
+routing remain visible.
+
+Closure requires generated typed notification commands or an equivalent
+compile-time adapter that removes the per-send target class, captured lambda,
+`DispatchProxy`, reflection, and argument-list construction. Local,
+reliable/replayable, and remote delivery must preserve ordering, callback
+contract validation, route generation, cancellation, and status semantics.
+The framework may still allocate the payload representation required for
+serialization or replay, but local delivery must not serialize solely to
+rediscover a callback method already known at compile time.
 
 ## PERF-001: In-Memory Game Session Registry
 
@@ -71,15 +180,25 @@ while holding the same lock:
 - `GetDiagnosticsSnapshot` scans all sessions.
 - `ExpireDisconnectedSessionsAsync` copies and scans the complete session map.
 
-The first benchmark must mix active heartbeats, session-item reads and writes,
-bind/disconnect operations, diagnostics, and expiration at 1,000, 10,000, and
-50,000 sessions. It must report latency while cleanup runs, not only steady
-state throughput.
+Generated Hotfix service proxies call `GetCurrentSessionAsync` and then
+`GetSessionItemsAsync` before dispatch. When a session has items,
+`GetSessionItemsAsync` constructs a new `GameSessionItems` and copies the
+complete item dictionary while holding `_gate`. High-frequency request
+benchmarks must therefore distinguish registry/session-snapshot allocation
+from the dispatch allocations tracked by `PERF-010`.
+
+The first benchmark must mix active heartbeats, individual and full-snapshot
+session-item reads, session-item writes, bind/disconnect operations,
+diagnostics, and expiration at 1,000, 10,000, and 50,000 sessions. It must
+report latency and allocation while cleanup runs, not only steady-state
+throughput.
 
 Closure requires eliminating full-map scans from high-frequency paths and
 showing that cleanup does not cause a material p99 latency spike. The session,
 connection, callback, and termination indexes must remain atomically
-consistent.
+consistent. A generated request path that needs session context must be able to
+read one atomically consistent session-and-items snapshot without copying the
+item dictionary for every request.
 
 ## PERF-002: KCP Global Update Scheduler
 
