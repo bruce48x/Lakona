@@ -4,66 +4,19 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-07-13 — Usable generated Unity desktop input
+## 2026-07-13 — Generated multiplayer projects and local operations
 
-**Key releases:** `Lakona.Tool 0.25.16`.
+**Key releases:** `Lakona.Game.Server 0.18.8`,
+`Lakona.Game.Server.Hotfix 0.8.1`, and `Lakona.Tool 0.25.16`.
 
-- Made generated Unity, Unity-CN, and Tuanjie projects install and exclusively
-  use the new Input System, with file-backed movement actions and a scene-owned
-  `EventSystem` plus `InputSystemUIInputModule` for UI Toolkit input.
-- Completed the generated Windows Standalone settings for an 800×600 windowed,
-  resizable player instead of relying on Unity to infer omitted fields.
-
-## 2026-07-13 — Explicit management HTTP ownership
-
-**Key releases:** `Lakona.Game.Server 0.18.8` and `Lakona.Tool 0.25.14`.
-
-- Moved the shared health and local-admin listener address to
-  `Lakona:Management:Http`, while each feature retains its own route enablement
-  and loopback policy.
-- Split management HTTP composition and listener hosting from the Health module,
-  and made the removed `Lakona:Health:Http` section fail with migration guidance.
-- Made generated local projects enable both loopback health and local-admin
-  routes on the shared management listener.
-
-## 2026-07-13 — Player-focused generated arena
-
-**Key releases:** `Lakona.Tool 0.25.12`.
-
-- Changed generated arena snapshots from client polling to server push resolved
-  through each player's current Game Session, without storing callback objects.
-- Added direction-aware projectile rendering and player-following cameras for
-  generated Unity, Tuanjie, and Godot clients.
-- Set generated Unity, Unity-CN, and Tuanjie desktop players to start in an
-  800×600 resizable window.
-
-## 2026-07-13 — Discovered Hotfix host assembly identity
-
-**Key releases:** `Lakona.Game.Server 0.18.7` and `Lakona.Tool 0.25.10`.
-
-- Replaced hard-coded `Shared`, `Server.App`, and obsolete `State.Contracts`
-  Hotfix host assembly names with assembly identities discovered from generated
-  required service contract types and the actual entry assembly.
-
-## 2026-07-13 — Connection-owned Game Session callbacks
-
-**Key releases:** `Lakona.Game.Server 0.18.6`,
-`Lakona.Game.Server.Hotfix 0.8.1`, and `Lakona.Tool 0.25.9`.
-
-- Changed Game Sessions to retain only their current RPC connection id. Client
-  callback proxies are now resolved from that live connection when a notification
-  is sent, so one session can use any callback contract exposed by its endpoint
-  without registering callback objects on the session.
-- Added connection-only session start and bind APIs, migrated generated projects
-  and samples, and deprecated the callback-binding compatibility overloads.
-
-## 2026-07-13 — Safe local cluster directory bootstrap
-
-**Key releases:** `Lakona.Game.Server 0.18.5` and `Lakona.Tool 0.25.8`.
-
-- Added opt-in SQL directory schema bootstrap before cluster node registration,
-  allowing local Agar deployments to reuse and upgrade existing PostgreSQL
-  volumes while production deployments retain controlled schema migration.
+- Unified health and local-admin routes on `Lakona:Management:Http`, with
+  loopback-safe defaults and migration guidance for generated local servers.
+- Made Game Session notifications resolve through the live RPC connection and
+  discovered Hotfix host assembly identities, removing generated-project
+  callback and assembly-name coupling.
+- Improved generated arena projects with server-pushed player state, clearer
+  cross-engine gameplay presentation, and reliable Unity-family desktop input
+  and window defaults.
 
 ## 2026-07-11 — Resilient game runtime and game-first scaffolding
 
