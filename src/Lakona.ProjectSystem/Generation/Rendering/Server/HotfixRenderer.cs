@@ -241,14 +241,8 @@ internal sealed class HotfixRenderer : IPlanContributor
                             recipient.SessionId,
                             recipient.Generation);
                         await notifications
-                            .ForSession(session)
-                            .NotifyAsync<IGameCallback>(
-                                callback =>
-                                {
-                                    callback.OnWorldUpdated(update.Snapshot);
-                                    return default;
-                                },
-                                tick.CancellationToken);
+                            .ForSession<IGameCallback>(session)
+                            .OnWorldUpdated(update.Snapshot, tick.CancellationToken);
                     }
                 }
             }

@@ -31,10 +31,8 @@ public sealed class ReliablePushAckRpcTests
             new AckTestCallback(),
             cancellationToken);
         await notifications
-            .ForSession(session)
-            .NotifyAsync<IAckTestCallback>(
-                target => target.NotifyAsync("payload"),
-                cancellationToken);
+            .ForSession<IAckTestCallback>(session)
+            .DispatchGeneratedAsync(1, 1, nameof(IAckTestCallback.NotifyAsync), "payload", cancellationToken);
 
         using var response = await fixture.Client.CallRawAsync(
                 GameReliablePushRpcIds.ServiceId,

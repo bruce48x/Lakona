@@ -27,6 +27,7 @@ public sealed class HotfixActorMethodDescriptor
         Method = method;
         HasCancellationToken = hasCancellationToken;
         MethodId = HotfixActorApiMetadata.CreateMethodId(methodKey);
+        Invoker = HotfixActorMethodInvoker.Create(actorType, requestType, resultType, method, hasCancellationToken);
     }
 
     public string MethodKey { get; }
@@ -44,4 +45,6 @@ public sealed class HotfixActorMethodDescriptor
     internal MethodInfo Method { get; }
 
     internal bool HasCancellationToken { get; }
+
+    internal IHotfixActorMethodInvoker Invoker { get; }
 }

@@ -138,8 +138,8 @@ public sealed class LoadRunRecorder
 
     private sealed class OperationAggregate
     {
-        private readonly TimeSpan[] latencySamples = new TimeSpan[MaxLatencySamplesPerOperation];
-        private readonly object gate = new();
+        private readonly long[] latencySampleTicks = new long[MaxLatencySamplesPerOperation];
+        private readonly int[] latencySampleReady = new int[MaxLatencySamplesPerOperation];
         private long total;
         private long succeeded;
         private long failed;
@@ -154,12 +154,19 @@ public sealed class LoadRunRecorder
             Interlocked.Increment(ref total);
             Interlocked.Increment(ref succeeded);
             Interlocked.Add(ref succeededTicks, elapsed.Ticks);
-            lock (gate)
+            while (true)
             {
-                if (latencySampleCount < latencySamples.Length)
+                var index = Volatile.Read(ref latencySampleCount);
+                if (index >= latencySampleTicks.Length)
                 {
-                    latencySamples[latencySampleCount] = elapsed;
-                    latencySampleCount++;
+                    return;
+                }
+
+                if (Interlocked.CompareExchange(ref latencySampleCount, index + 1, index) == index)
+                {
+                    latencySampleTicks[index] = elapsed.Ticks;
+                    Volatile.Write(ref latencySampleReady[index], 1);
+                    return;
                 }
             }
         }
@@ -178,10 +185,22 @@ public sealed class LoadRunRecorder
 
         public OperationSnapshot CreateSnapshot(string operationName)
         {
-            TimeSpan[] samples;
-            lock (gate)
+            var reserved = Math.Min(Volatile.Read(ref latencySampleCount), latencySampleTicks.Length);
+            var samples = new TimeSpan[reserved];
+            var published = 0;
+            for (var index = 0; index < reserved; index++)
             {
-                samples = latencySamples[..latencySampleCount];
+                if (Volatile.Read(ref latencySampleReady[index]) == 0)
+                {
+                    continue;
+                }
+
+                samples[published++] = TimeSpan.FromTicks(Volatile.Read(ref latencySampleTicks[index]));
+            }
+
+            if (published != samples.Length)
+            {
+                Array.Resize(ref samples, published);
             }
 
             var succeededCount = (int)Volatile.Read(ref succeeded);

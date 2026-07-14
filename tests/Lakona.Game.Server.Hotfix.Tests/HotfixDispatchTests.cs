@@ -654,20 +654,26 @@ public sealed class HotfixDispatchTests
     [Fact]
     public async Task Invoke_service_uses_constructor_injection_from_call_context_services()
     {
+        ConstructorInjectedDispatchService.ConstructorCount = 0;
         using var provider = new ServiceCollection()
             .AddSingleton(new DispatchInjectedDependency("injected"))
             .BuildServiceProvider();
         var table = CreateServiceTable(typeof(ConstructorInjectedDispatchService));
 
-        var result = await table.InvokeServiceAsync<IConstructorInjectedDispatchContract, HotfixServiceCall<ConstructorInjectedDispatchRequest>, string>(
+        var first = await table.InvokeServiceAsync<IConstructorInjectedDispatchContract, HotfixServiceCall<ConstructorInjectedDispatchRequest>, string>(
+            11,
+            CreateDispatchCall(provider));
+        var second = await table.InvokeServiceAsync<IConstructorInjectedDispatchContract, HotfixServiceCall<ConstructorInjectedDispatchRequest>, string>(
             11,
             CreateDispatchCall(provider));
 
-        Assert.Equal("injected", result);
+        Assert.Equal("injected", first);
+        Assert.Equal("injected", second);
+        Assert.Equal(1, ConstructorInjectedDispatchService.ConstructorCount);
     }
 
     [Fact]
-    public async Task Invoke_service_disposes_idisposable_instance_after_successful_value_task()
+    public async Task Invoke_service_disposes_idisposable_instance_when_generation_is_retired()
     {
         DisposableDispatchService.DisposeCount = 0;
         using var provider = new ServiceCollection().BuildServiceProvider();
@@ -678,11 +684,15 @@ public sealed class HotfixDispatchTests
             CreateDispatchCall(provider));
 
         Assert.Equal("disposed-sync", result);
+        Assert.Equal(0, DisposableDispatchService.DisposeCount);
+
+        await table.DisposeAsync();
+
         Assert.Equal(1, DisposableDispatchService.DisposeCount);
     }
 
     [Fact]
-    public async Task Invoke_service_disposes_async_disposable_instance_after_async_value_task()
+    public async Task Invoke_service_disposes_async_disposable_instance_when_generation_is_retired()
     {
         AsyncDisposableDispatchService.DisposeCount = 0;
         using var provider = new ServiceCollection().BuildServiceProvider();
@@ -693,11 +703,15 @@ public sealed class HotfixDispatchTests
             CreateDispatchCall(provider));
 
         Assert.Equal("disposed-async", result);
+        Assert.Equal(0, AsyncDisposableDispatchService.DisposeCount);
+
+        await table.DisposeAsync();
+
         Assert.Equal(1, AsyncDisposableDispatchService.DisposeCount);
     }
 
     [Fact]
-    public async Task Invoke_service_disposes_instance_after_synchronous_method_exception()
+    public async Task Invoke_service_keeps_generation_instance_after_synchronous_method_exception()
     {
         ThrowingDisposableDispatchService.DisposeCount = 0;
         using var provider = new ServiceCollection().BuildServiceProvider();
@@ -709,6 +723,10 @@ public sealed class HotfixDispatchTests
                 CreateDispatchCall(provider)));
 
         Assert.Equal("dispatch failure", ex.Message);
+        Assert.Equal(0, ThrowingDisposableDispatchService.DisposeCount);
+
+        await table.DisposeAsync();
+
         Assert.Equal(1, ThrowingDisposableDispatchService.DisposeCount);
     }
 
@@ -953,10 +971,13 @@ public interface IConstructorInjectedDispatchContract
 [HotfixService(typeof(IConstructorInjectedDispatchContract))]
 public sealed class ConstructorInjectedDispatchService
 {
+    public static int ConstructorCount;
+
     private readonly DispatchInjectedDependency _dependency;
 
     public ConstructorInjectedDispatchService(DispatchInjectedDependency dependency)
     {
+        Interlocked.Increment(ref ConstructorCount);
         _dependency = dependency;
     }
 

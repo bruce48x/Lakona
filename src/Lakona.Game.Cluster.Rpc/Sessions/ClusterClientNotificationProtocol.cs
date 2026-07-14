@@ -34,6 +34,12 @@ public sealed class ClientNotificationCommand
 
     public string MethodName { get; set; } = "";
 
+    public int ServiceId { get; set; }
+
+    public int MethodId { get; set; }
+
+    public byte[] Payload { get; set; } = [];
+
     public IReadOnlyList<ClientNotificationArgument> Arguments { get; set; } = [];
 
     public RpcPushMetadata? Metadata { get; set; }

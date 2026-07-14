@@ -86,6 +86,32 @@ public sealed class ClusterClientFactoryTests
         Assert.Equal(20011, transportFactory.Calls[1].Endpoint.Port);
     }
 
+    [Fact]
+    public async Task Concurrent_cache_misses_share_one_connection_attempt()
+    {
+        var transportFactory = new BlockingTransportFactory();
+        await using var factory = new ClusterClientFactory(
+            transportFactory,
+            new NoopSerializer());
+        var target = new RouteLocation(
+            "room/1",
+            "node-b",
+            new NodeEndpoint("tcp://127.0.0.1:20010"),
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            nodeEpoch: 1,
+            generation: 1);
+
+        var calls = Enumerable.Range(0, 32)
+            .Select(_ => factory.GetClientAsync(target, TestContext.Current.CancellationToken).AsTask())
+            .ToArray();
+        await transportFactory.Started.Task.WaitAsync(TestContext.Current.CancellationToken);
+        transportFactory.Release.SetResult();
+        var clients = await Task.WhenAll(calls);
+
+        Assert.Equal(1, transportFactory.ConnectCount);
+        Assert.All(clients, client => Assert.Same(clients[0], client));
+    }
+
     private sealed class RecordingTransportFactory : IClusterTransportFactory
     {
         public List<(RouteLocation Target, ClusterEndpoint Endpoint)> Calls { get; } = new();
@@ -98,6 +124,28 @@ public sealed class ClusterClientFactoryTests
             cancellationToken.ThrowIfCancellationRequested();
             Calls.Add((target, endpoint));
             return ValueTask.FromResult<ITransport>(new IdleTransport());
+        }
+    }
+
+    private sealed class BlockingTransportFactory : IClusterTransportFactory
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int ConnectCount;
+
+        public async ValueTask<ITransport> ConnectAsync(
+            RouteLocation target,
+            ClusterEndpoint endpoint,
+            CancellationToken cancellationToken = default)
+        {
+            _ = target;
+            _ = endpoint;
+            Interlocked.Increment(ref ConnectCount);
+            Started.TrySetResult();
+            await Release.Task.WaitAsync(cancellationToken);
+            return new IdleTransport();
         }
     }
 

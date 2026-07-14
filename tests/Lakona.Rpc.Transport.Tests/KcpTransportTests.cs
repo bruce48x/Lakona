@@ -17,6 +17,30 @@ namespace Lakona.Rpc.Transport.Tests;
 public class KcpTransportTests
 {
     [Fact]
+    public async Task Update_scheduler_isolates_a_blocked_registration()
+    {
+        using var timeout = new CancellationTokenSource();
+        timeout.CancelAfter(TimeSpan.FromSeconds(2));
+        using var blocked = new ManualResetEventSlim();
+        using var entered = new ManualResetEventSlim();
+        var fastTicks = 0;
+        using var slow = KcpUpdateScheduler.Register(() =>
+        {
+            entered.Set();
+            blocked.Wait(timeout.Token);
+        });
+        using var fast = KcpUpdateScheduler.Register(() => Interlocked.Increment(ref fastTicks));
+
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(1), timeout.Token));
+        await WithTimeout(
+            WaitUntilAsync(() => Volatile.Read(ref fastTicks) >= 3, timeout.Token),
+            timeout.Token);
+        blocked.Set();
+
+        Assert.True(Volatile.Read(ref fastTicks) >= 3);
+    }
+
+    [Fact]
     public async Task KcpTransport_HandshakeHonorsCancellation()
     {
         using var serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);

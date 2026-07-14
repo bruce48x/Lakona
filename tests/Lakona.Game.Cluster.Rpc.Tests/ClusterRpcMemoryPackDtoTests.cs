@@ -246,6 +246,9 @@ public sealed class ClusterRpcMemoryPackDtoTests
                 Generation = 2,
                 CallbackContractType = "Game.ILoginCallback",
                 MethodName = "OnMatchedAsync",
+                ServiceId = 17,
+                MethodId = 23,
+                Payload = [4, 5, 6],
                 Metadata = new RpcPushMetadata
                 {
                     Type = "lakona.game.reliable-push",
@@ -270,6 +273,9 @@ public sealed class ClusterRpcMemoryPackDtoTests
         Assert.Equal(2, roundtripped.Command.Generation);
         Assert.Equal("Game.ILoginCallback", roundtripped.Command.CallbackContractType);
         Assert.Equal("OnMatchedAsync", roundtripped.Command.MethodName);
+        Assert.Equal(17, roundtripped.Command.ServiceId);
+        Assert.Equal(23, roundtripped.Command.MethodId);
+        Assert.Equal(new byte[] { 4, 5, 6 }, roundtripped.Command.Payload);
         Assert.NotNull(roundtripped.Command.Metadata);
         Assert.Equal("lakona.game.reliable-push", roundtripped.Command.Metadata.Type);
         Assert.Equal(new byte[] { 1, 2, 3 }, roundtripped.Command.Metadata.Payload.ToArray());

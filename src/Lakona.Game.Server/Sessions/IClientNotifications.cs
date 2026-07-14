@@ -15,19 +15,35 @@ public interface IClientNotifications
     /// </summary>
     /// <param name="session">The framework session key that should receive the notification.</param>
     /// <returns>A notification target scoped to <paramref name="session"/>.</returns>
-    IClientNotificationTarget ForSession(GameSessionKey session);
+    ClientNotificationTarget<TCallback> ForSession<TCallback>(GameSessionKey session)
+        where TCallback : class;
 }
 
 /// <summary>
 /// Sends typed callback notifications to one selected game session.
 /// </summary>
-public interface IClientNotificationTarget
+public readonly struct ClientNotificationTarget<TCallback>
+    where TCallback : class
 {
+    private readonly IClientNotificationCommandRouter? _router;
+    private readonly GameSessionKey _session;
+
+    internal ClientNotificationTarget(
+        IClientNotificationCommandRouter router,
+        GameSessionKey session)
+    {
+        _router = router;
+        _session = session;
+    }
+
     /// <summary>
-    /// Invokes a typed client callback for the selected session.
+    /// Dispatches one source-generated client notification command.
     /// </summary>
-    /// <typeparam name="TCallback">The typed callback contract implemented by the client.</typeparam>
-    /// <param name="notify">The callback invocation to perform.</param>
+    /// <typeparam name="TPayload">The notification DTO type.</typeparam>
+    /// <param name="serviceId">The stable RPC service id.</param>
+    /// <param name="methodId">The stable notification method id.</param>
+    /// <param name="methodName">The notification method name used by legacy local callbacks.</param>
+    /// <param name="payload">The notification DTO.</param>
     /// <param name="cancellationToken">A token that cancels notification dispatch before delivery completes.</param>
     /// <returns>The delivery status reported by the notification pipeline.</returns>
     /// <remarks>
@@ -36,10 +52,27 @@ public interface IClientNotificationTarget
     /// call may be sequenced and replayed by the framework before the client ack
     /// closes the notification.
     /// </remarks>
-    ValueTask<ClientNotificationStatus> NotifyAsync<TCallback>(
-        Func<TCallback, ValueTask> notify,
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public ValueTask<ClientNotificationStatus> DispatchGeneratedAsync<TPayload>(
+        int serviceId,
+        int methodId,
+        string methodName,
+        TPayload payload,
         CancellationToken cancellationToken = default)
-        where TCallback : class;
+    {
+        if (_router is null)
+        {
+            throw new InvalidOperationException("The notification target was not created by IClientNotifications.");
+        }
+
+        return _router.DispatchGeneratedAsync<TCallback, TPayload>(
+            _session,
+            serviceId,
+            methodId,
+            methodName,
+            payload,
+            cancellationToken);
+    }
 }
 
 /// <summary>

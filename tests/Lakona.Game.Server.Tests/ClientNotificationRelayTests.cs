@@ -292,9 +292,12 @@ public sealed class ClientNotificationRelayTests
             TestContext.Current.CancellationToken);
 
         var status = await notifications
-            .ForSession(session)
-            .NotifyAsync<IClientNotificationSink<string>>(
-                sink => sink.OnNotificationAsync("payload"),
+            .ForSession<IClientNotificationSink<string>>(session)
+            .DispatchGeneratedAsync(
+                1,
+                1,
+                nameof(IClientNotificationSink<string>.OnNotificationAsync),
+                "payload",
                 TestContext.Current.CancellationToken);
 
         Assert.Equal(ClientNotificationStatus.Delivered, status);

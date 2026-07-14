@@ -6,6 +6,26 @@ namespace Lakona.Game.Server.ReliablePush;
 
 internal interface IReliablePushRuntime
 {
+    ValueTask<ClientNotificationStatus> PublishGeneratedAsync<TCallback, TPayload>(
+        GameSessionKey session,
+        int serviceId,
+        int methodId,
+        string methodName,
+        TPayload payload,
+        CancellationToken cancellationToken = default)
+        where TCallback : class
+    {
+        return PublishAsync(
+            session,
+            ClientNotificationCommandFactory.CreateGenerated<TCallback, TPayload>(
+                session,
+                serviceId,
+                methodId,
+                methodName,
+                payload),
+            cancellationToken);
+    }
+
     ValueTask<ClientNotificationStatus> PublishAsync(
         GameSessionKey session,
         ClientNotificationCommand command,

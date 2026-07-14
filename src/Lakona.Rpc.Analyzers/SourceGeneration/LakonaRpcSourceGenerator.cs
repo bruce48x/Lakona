@@ -1214,6 +1214,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             writer.Line("using System;");
             writer.Line("using System.Threading;");
             writer.Line("using System.Threading.Tasks;");
+            writer.Line("using System.Text.Json;");
             writer.Line("using Lakona.Rpc.Core;");
             if (emitsFrameworkTerminationNotification)
             {
@@ -1256,6 +1257,63 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
                 writer.CloseBlock();
                 writer.Line();
             }
+
+            writer.OpenBlock("ValueTask IRpcNotificationDispatchTarget.DispatchNotificationAsync<TPayload>(int serviceId, int methodId, TPayload payload, RpcPushMetadata? metadata, CancellationToken cancellationToken)");
+            writer.Line("if (serviceId != ServiceId) throw new InvalidOperationException(\"Notification service id does not match this callback contract.\");");
+            writer.OpenBlock("switch (methodId)");
+            foreach (var method in service.NotificationMethods.OrderBy(static method => method.MethodId))
+            {
+                writer.Line($"case {method.MethodId}:");
+                writer.Indent();
+                if (IsFrameworkSessionTerminationNotification(service, method))
+                {
+                    writer.Line($"var typedPayload{method.MethodId} = ({method.PayloadType})(object)payload!;");
+                    writer.Line($"var encodedPayload{method.MethodId} = LakonaInternalCodec.EncodeSessionTerminationNotice(typedPayload{method.MethodId});");
+                    writer.Line($"return _session.SendRawNotificationAsync(GameSessionNotificationRpcIds.ServiceId, GameSessionNotificationRpcIds.TerminatedNotificationId, encodedPayload{method.MethodId}, metadata, cancellationToken);");
+                }
+                else
+                {
+                    writer.Line($"return _session.SendNotificationAsync<{method.PayloadType}>(serviceId, methodId, ({method.PayloadType})(object)payload!, metadata, cancellationToken);");
+                }
+                writer.Unindent();
+            }
+
+            writer.Line("default:");
+            writer.Indent();
+            writer.Line("throw new InvalidOperationException(\"Unknown notification method id: \" + methodId);");
+            writer.Unindent();
+            writer.CloseBlock();
+            writer.CloseBlock();
+            writer.Line();
+
+            writer.OpenBlock("ValueTask IRpcNotificationDispatchTarget.DispatchNotificationAsync(int serviceId, int methodId, ReadOnlyMemory<byte> payload, RpcPushMetadata? metadata, CancellationToken cancellationToken)");
+            writer.Line("if (serviceId != ServiceId) throw new InvalidOperationException(\"Notification service id does not match this callback contract.\");");
+            writer.OpenBlock("switch (methodId)");
+            foreach (var method in service.NotificationMethods.OrderBy(static method => method.MethodId))
+            {
+                var payloadVariable = "notificationPayload" + method.MethodId;
+                writer.Line($"case {method.MethodId}:");
+                writer.Indent();
+                writer.Line($"var {payloadVariable} = JsonSerializer.Deserialize<{method.PayloadType}>(payload.Span)!;");
+                if (IsFrameworkSessionTerminationNotification(service, method))
+                {
+                    writer.Line($"var encodedPayload{method.MethodId} = LakonaInternalCodec.EncodeSessionTerminationNotice({payloadVariable});");
+                    writer.Line($"return _session.SendRawNotificationAsync(GameSessionNotificationRpcIds.ServiceId, GameSessionNotificationRpcIds.TerminatedNotificationId, encodedPayload{method.MethodId}, metadata, cancellationToken);");
+                }
+                else
+                {
+                    writer.Line($"return _session.SendNotificationAsync<{method.PayloadType}>(serviceId, methodId, {payloadVariable}, metadata, cancellationToken);");
+                }
+                writer.Unindent();
+            }
+
+            writer.Line("default:");
+            writer.Indent();
+            writer.Line("throw new InvalidOperationException(\"Unknown notification method id: \" + methodId);");
+            writer.Unindent();
+            writer.CloseBlock();
+            writer.CloseBlock();
+            writer.Line();
 
             writer.OpenBlock("ValueTask IRpcNotificationDispatchTarget.DispatchNotificationAsync(string methodName, object?[] arguments, RpcPushMetadata? metadata, CancellationToken cancellationToken)");
             writer.Line("if (methodName is null) throw new ArgumentNullException(nameof(methodName));");

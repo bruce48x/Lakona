@@ -1,4 +1,5 @@
 using Lakona.Game.Abstractions;
+using System.Collections.Concurrent;
 
 namespace Lakona.Game.Server.Sessions;
 
@@ -7,9 +8,11 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
     private const int MaxSessionItemKeyLength = 128;
 
     private readonly Lock _gate = new();
-    private readonly Dictionary<GameSessionKey, SessionState> _sessions = new();
-    private readonly Dictionary<string, GameSessionKey> _connectionToSession = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, Dictionary<Type, object>> _legacyCallbacksByConnection = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<GameSessionKey, SessionState> _sessions = new();
+    private readonly ConcurrentDictionary<string, GameSessionKey> _connectionToSession = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, GameSessionKey> _terminatedConnectionToSession = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, ConcurrentDictionary<Type, object>> _legacyCallbacksByConnection = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, long> _ownerGenerations = new(StringComparer.Ordinal);
     private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _resumeWindow;
 
@@ -36,17 +39,14 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         ArgumentException.ThrowIfNullOrWhiteSpace(ownerKey);
         cancellationToken.ThrowIfCancellationRequested();
 
-        lock (_gate)
+        var generation = _ownerGenerations.AddOrUpdate(ownerKey, 1, static (_, current) => checked(current + 1));
+        var session = new GameSessionKey(ownerKey, Guid.NewGuid().ToString("N"), generation);
+        if (!_sessions.TryAdd(session, new SessionState(session, ownerKey)))
         {
-            var generation = _sessions.Keys
-                .Where(session => string.Equals(session.OwnerKey, ownerKey, StringComparison.Ordinal))
-                .Select(session => session.Generation)
-                .DefaultIfEmpty(0)
-                .Max() + 1;
-            var session = new GameSessionKey(ownerKey, Guid.NewGuid().ToString("N"), generation);
-            _sessions.Add(session, new SessionState(session, ownerKey));
-            return new ValueTask<GameSessionKey>(session);
+            throw new InvalidOperationException("Generated a duplicate game session id.");
         }
+
+        return new ValueTask<GameSessionKey>(session);
     }
 
     public ValueTask<SessionResumeDecision> TryResumeAsync(
@@ -56,14 +56,14 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         ValidateSession(session);
         cancellationToken.ThrowIfCancellationRequested();
 
-        lock (_gate)
+        if (!_sessions.TryGetValue(session, out var state))
         {
-            if (!_sessions.TryGetValue(session, out var state))
-            {
-                return new ValueTask<SessionResumeDecision>(
-                    SessionResumeDecision.StateLost("Session was not found."));
-            }
+            return new ValueTask<SessionResumeDecision>(
+                SessionResumeDecision.StateLost("Session was not found."));
+        }
 
+        lock (state.Gate)
+        {
             if (state.Termination is not null)
             {
                 return new ValueTask<SessionResumeDecision>(state.KeepTerminationForResume
@@ -88,13 +88,13 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
     {
         ValidateSession(session);
         cancellationToken.ThrowIfCancellationRequested();
-        lock (_gate)
+        if (!_sessions.TryGetValue(session, out var state))
         {
-            if (!_sessions.TryGetValue(session, out var state))
-            {
-                throw new InvalidOperationException($"Game session '{session}' does not exist.");
-            }
+            throw new InvalidOperationException($"Game session '{session}' does not exist.");
+        }
 
+        lock (state.Gate)
+        {
             if (state.ReliablePushPolicy is { } current && current != enabled)
             {
                 throw new InvalidOperationException("Game session reliable-push policy does not match the endpoint.");
@@ -112,10 +112,14 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
     {
         ValidateSession(session);
         cancellationToken.ThrowIfCancellationRequested();
-        lock (_gate)
+        if (!_sessions.TryGetValue(session, out var state))
         {
-            return new ValueTask<bool>(
-                _sessions.TryGetValue(session, out var state) && state.ReliablePushPolicy == true);
+            return new ValueTask<bool>(false);
+        }
+
+        lock (state.Gate)
+        {
+            return new ValueTask<bool>(state.ReliablePushPolicy == true);
         }
     }
 
@@ -125,9 +129,9 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
     {
         ValidateSession(session);
         cancellationToken.ThrowIfCancellationRequested();
-        lock (_gate)
+        if (_sessions.TryGetValue(session, out var state))
         {
-            if (_sessions.TryGetValue(session, out var state))
+            lock (state.Gate)
             {
                 state.ReliableContinuityLost = true;
             }
@@ -142,10 +146,14 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
     {
         ValidateSession(session);
         cancellationToken.ThrowIfCancellationRequested();
-        lock (_gate)
+        if (!_sessions.TryGetValue(session, out var state))
         {
-            return new ValueTask<bool>(
-                _sessions.TryGetValue(session, out var state) && state.ReliableContinuityLost);
+            return new ValueTask<bool>(false);
+        }
+
+        lock (state.Gate)
+        {
+            return new ValueTask<bool>(state.ReliableContinuityLost);
         }
     }
 
@@ -155,10 +163,14 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
     {
         ValidateSession(session);
         cancellationToken.ThrowIfCancellationRequested();
-        lock (_gate)
+        if (!_sessions.TryGetValue(session, out var state))
         {
-            return new ValueTask<bool>(
-                _sessions.TryGetValue(session, out var state) && state.ReliableReplayPending);
+            return new ValueTask<bool>(false);
+        }
+
+        lock (state.Gate)
+        {
+            return new ValueTask<bool>(state.ReliableReplayPending);
         }
     }
 
@@ -168,9 +180,9 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
     {
         ValidateSession(session);
         cancellationToken.ThrowIfCancellationRequested();
-        lock (_gate)
+        if (_sessions.TryGetValue(session, out var state))
         {
-            if (_sessions.TryGetValue(session, out var state))
+            lock (state.Gate)
             {
                 state.ReliableReplayPending = false;
             }
@@ -267,11 +279,17 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
         cancellationToken.ThrowIfCancellationRequested();
 
-        lock (_gate)
+        if (!_connectionToSession.TryGetValue(connectionId, out var session) ||
+            !_sessions.TryGetValue(session, out var state))
+        {
+            return new ValueTask<GameSessionKey?>((GameSessionKey?)null);
+        }
+
+        lock (state.Gate)
         {
             return new ValueTask<GameSessionKey?>(
-                _connectionToSession.TryGetValue(connectionId, out var session) &&
-                _sessions.ContainsKey(session)
+                string.Equals(state.ConnectionId, connectionId, StringComparison.Ordinal) &&
+                state.DisconnectedAt is null && state.Termination is null
                     ? session
                     : null);
         }
@@ -283,12 +301,14 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
     {
         ValidateSession(session);
         cancellationToken.ThrowIfCancellationRequested();
-        lock (_gate)
+        if (!_sessions.TryGetValue(session, out var state))
         {
-            return new ValueTask<string?>(
-                _sessions.TryGetValue(session, out var state) && state.DisconnectedAt is null
-                    ? state.ConnectionId
-                    : null);
+            return new ValueTask<string?>((string?)null);
+        }
+
+        lock (state.Gate)
+        {
+            return new ValueTask<string?>(state.DisconnectedAt is null ? state.ConnectionId : null);
         }
     }
 
@@ -298,13 +318,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
     {
         ValidateSession(session);
         cancellationToken.ThrowIfCancellationRequested();
-        lock (_gate)
-        {
-            if (!_sessions.TryGetValue(session, out var state))
-                return new ValueTask<IReadOnlyList<Type>>(Array.Empty<Type>());
-
-            return new ValueTask<IReadOnlyList<Type>>(Array.Empty<Type>());
-        }
+        return new ValueTask<IReadOnlyList<Type>>(Array.Empty<Type>());
     }
 
     public ValueTask SetSessionItemAsync(
@@ -322,19 +336,20 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        lock (_gate)
+        if (!_sessions.TryGetValue(session, out var state))
         {
-            if (!_sessions.TryGetValue(session, out var state))
-            {
-                throw new InvalidOperationException($"Game session '{session}' does not exist.");
-            }
+            throw new InvalidOperationException($"Game session '{session}' does not exist.");
+        }
 
+        lock (state.Gate)
+        {
             if (state.Termination is not null)
             {
                 throw new InvalidOperationException($"Game session '{session}' is terminated.");
             }
 
             state.Items[key] = value;
+            state.ItemsSnapshot = new GameSessionItems(state.Items);
         }
 
         return default;
@@ -349,17 +364,15 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         ValidateSessionItemKey(key);
         cancellationToken.ThrowIfCancellationRequested();
 
-        lock (_gate)
+        if (!_sessions.TryGetValue(session, out var state))
         {
-            if (!_sessions.TryGetValue(session, out var state) ||
-                state.Termination is not null ||
-                !state.Items.TryGetValue(key, out var value))
-            {
-                return new ValueTask<GameSessionItemValue?>((GameSessionItemValue?)null);
-            }
-
-            return new ValueTask<GameSessionItemValue?>(value);
+            return new ValueTask<GameSessionItemValue?>((GameSessionItemValue?)null);
         }
+
+        var snapshot = Volatile.Read(ref state.ItemsSnapshot);
+        return new ValueTask<GameSessionItemValue?>(snapshot.TryGetValue(key, out var value)
+            ? value
+            : (GameSessionItemValue?)null);
     }
 
     public ValueTask<GameSessionItems> GetSessionItemsAsync(
@@ -369,17 +382,12 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         ValidateSession(session);
         cancellationToken.ThrowIfCancellationRequested();
 
-        lock (_gate)
+        if (!_sessions.TryGetValue(session, out var state))
         {
-            if (!_sessions.TryGetValue(session, out var state) ||
-                state.Termination is not null ||
-                state.Items.Count == 0)
-            {
-                return new ValueTask<GameSessionItems>(GameSessionItems.Empty);
-            }
-
-            return new ValueTask<GameSessionItems>(new GameSessionItems(state.Items));
+            return new ValueTask<GameSessionItems>(GameSessionItems.Empty);
         }
+
+        return new ValueTask<GameSessionItems>(Volatile.Read(ref state.ItemsSnapshot));
     }
 
     public ValueTask RemoveSessionItemAsync(
@@ -391,19 +399,24 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         ValidateSessionItemKey(key);
         cancellationToken.ThrowIfCancellationRequested();
 
-        lock (_gate)
+        if (!_sessions.TryGetValue(session, out var state))
         {
-            if (!_sessions.TryGetValue(session, out var state))
-            {
-                throw new InvalidOperationException($"Game session '{session}' does not exist.");
-            }
+            throw new InvalidOperationException($"Game session '{session}' does not exist.");
+        }
 
+        lock (state.Gate)
+        {
             if (state.Termination is not null)
             {
                 throw new InvalidOperationException($"Game session '{session}' is terminated.");
             }
 
-            state.Items.Remove(key);
+            if (state.Items.Remove(key))
+            {
+                state.ItemsSnapshot = state.Items.Count == 0
+                    ? GameSessionItems.Empty
+                    : new GameSessionItems(state.Items);
+            }
         }
 
         return default;
@@ -480,18 +493,23 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                 throw new InvalidOperationException($"Game session '{session}' does not exist.");
             }
 
-            var activeConnectionId = state.ConnectionId;
-            if (activeConnectionId is not null)
+            lock (state.Gate)
             {
-                _connectionToSession.Remove(activeConnectionId);
-                _legacyCallbacksByConnection.Remove(activeConnectionId);
-                state.LastTerminatedConnectionId = activeConnectionId;
-            }
+                var activeConnectionId = state.ConnectionId;
+                if (activeConnectionId is not null)
+                {
+                    _connectionToSession.TryRemove(activeConnectionId, out _);
+                    _legacyCallbacksByConnection.TryRemove(activeConnectionId, out _);
+                    _terminatedConnectionToSession[activeConnectionId] = session;
+                    state.LastTerminatedConnectionId = activeConnectionId;
+                }
 
-            state.ConnectionId = null;
-            state.Items.Clear();
-            state.Termination = notice;
-            state.KeepTerminationForResume = keepForResume;
+                state.ConnectionId = null;
+                state.Items.Clear();
+                state.ItemsSnapshot = GameSessionItems.Empty;
+                state.Termination = notice;
+                state.KeepTerminationForResume = keepForResume;
+            }
         }
 
         return default;
@@ -505,16 +523,16 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
         cancellationToken.ThrowIfCancellationRequested();
 
-        lock (_gate)
+        if (_connectionToSession.TryGetValue(connectionId, out var session))
         {
-            if (_connectionToSession.TryGetValue(connectionId, out var session))
+            if (!_sessions.TryGetValue(session, out var activeState))
             {
-                if (!_sessions.TryGetValue(session, out var activeState))
-                {
-                    _connectionToSession.Remove(connectionId);
-                    return new ValueTask<GameSessionHeartbeatResult>(GameSessionHeartbeatResult.StateLost());
-                }
+                _connectionToSession.TryRemove(connectionId, out _);
+                return new ValueTask<GameSessionHeartbeatResult>(GameSessionHeartbeatResult.StateLost());
+            }
 
+            lock (activeState.Gate)
+            {
                 if (activeState.Termination is null)
                 {
                     activeState.LastHeartbeatAt = heartbeatAt;
@@ -522,34 +540,38 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                         GameSessionHeartbeatResult.ActiveSession(activeState.Session));
                 }
             }
+        }
 
-            foreach (var state in _sessions.Values)
+        if (_terminatedConnectionToSession.TryGetValue(connectionId, out var terminatedSession) &&
+            _sessions.TryGetValue(terminatedSession, out var terminatedState))
+        {
+            lock (terminatedState.Gate)
             {
-                if (string.Equals(state.LastTerminatedConnectionId, connectionId, StringComparison.Ordinal) &&
-                    state.Termination is not null)
+                if (string.Equals(terminatedState.LastTerminatedConnectionId, connectionId, StringComparison.Ordinal) &&
+                    terminatedState.Termination is { } termination)
                 {
-                    state.LastHeartbeatAt = heartbeatAt;
+                    terminatedState.LastHeartbeatAt = heartbeatAt;
                     return new ValueTask<GameSessionHeartbeatResult>(
-                        GameSessionHeartbeatResult.Terminated(state.Session, state.Termination));
+                        GameSessionHeartbeatResult.Terminated(terminatedState.Session, termination));
                 }
             }
-
-            return new ValueTask<GameSessionHeartbeatResult>(GameSessionHeartbeatResult.ConnectionOnly());
         }
+
+        return new ValueTask<GameSessionHeartbeatResult>(GameSessionHeartbeatResult.ConnectionOnly());
     }
 
     public GameSessionDiagnosticsSnapshot GetDiagnosticsSnapshot()
     {
-        lock (_gate)
-        {
-            var totalSessions = _sessions.Count;
-            var activeSessions = 0;
-            var activeConnections = 0;
-            var disconnectedSessions = 0;
-            var terminatedSessions = 0;
-            var resumableSessions = 0;
+        var totalSessions = _sessions.Count;
+        var activeSessions = 0;
+        var activeConnections = 0;
+        var disconnectedSessions = 0;
+        var terminatedSessions = 0;
+        var resumableSessions = 0;
 
-            foreach (var state in _sessions.Values)
+        foreach (var state in _sessions.Values)
+        {
+            lock (state.Gate)
             {
                 if (state.Termination is not null)
                 {
@@ -576,14 +598,15 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                 }
             }
 
-            return new GameSessionDiagnosticsSnapshot(
-                totalSessions,
-                activeSessions,
-                activeConnections,
-                disconnectedSessions,
-                terminatedSessions,
-                resumableSessions);
         }
+
+        return new GameSessionDiagnosticsSnapshot(
+            totalSessions,
+            activeSessions,
+            activeConnections,
+            disconnectedSessions,
+            terminatedSessions,
+            resumableSessions);
     }
 
     public ValueTask<TCallback?> GetCallbackAsync<TCallback>(
@@ -594,19 +617,27 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         ValidateSession(session);
         cancellationToken.ThrowIfCancellationRequested();
 
-        lock (_gate)
+        if (!_sessions.TryGetValue(session, out var state))
         {
-            if (!_sessions.TryGetValue(session, out var state) ||
-                state.ConnectionId is null ||
-                state.DisconnectedAt is not null ||
-                !_legacyCallbacksByConnection.TryGetValue(state.ConnectionId, out var callbacks))
-                return new ValueTask<TCallback?>((TCallback?)null);
-
-            var callback = callbacks.TryGetValue(typeof(TCallback), out var exact)
-                ? exact as TCallback
-                : callbacks.Values.OfType<TCallback>().FirstOrDefault();
-            return new ValueTask<TCallback?>(callback);
+            return new ValueTask<TCallback?>((TCallback?)null);
         }
+
+        string? connectionId;
+        lock (state.Gate)
+        {
+            connectionId = state.DisconnectedAt is null ? state.ConnectionId : null;
+        }
+
+        if (connectionId is null ||
+            !_legacyCallbacksByConnection.TryGetValue(connectionId, out var callbacks))
+        {
+            return new ValueTask<TCallback?>((TCallback?)null);
+        }
+
+        var callback = callbacks.TryGetValue(typeof(TCallback), out var exact)
+            ? exact as TCallback
+            : callbacks.Values.OfType<TCallback>().FirstOrDefault();
+        return new ValueTask<TCallback?>(callback);
     }
 
     public ValueTask<GameSessionBinding<TCallback>?> GetSessionBindingAsync<TCallback>(
@@ -617,24 +648,29 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         ValidateSession(session);
         cancellationToken.ThrowIfCancellationRequested();
 
-        lock (_gate)
+        if (!_sessions.TryGetValue(session, out var state))
         {
-            if (!_sessions.TryGetValue(session, out var state) ||
-                state.ConnectionId is null ||
-                state.DisconnectedAt is not null)
-            {
-                return new ValueTask<GameSessionBinding<TCallback>?>((GameSessionBinding<TCallback>?)null);
-            }
-
-            if (!_legacyCallbacksByConnection.TryGetValue(state.ConnectionId, out var callbacks))
-                return new ValueTask<GameSessionBinding<TCallback>?>((GameSessionBinding<TCallback>?)null);
-            var callback = callbacks.TryGetValue(typeof(TCallback), out var exact)
-                ? exact as TCallback
-                : callbacks.Values.OfType<TCallback>().FirstOrDefault();
-            return callback is null
-                ? new ValueTask<GameSessionBinding<TCallback>?>((GameSessionBinding<TCallback>?)null)
-                : new ValueTask<GameSessionBinding<TCallback>?>(new GameSessionBinding<TCallback>(session, state.ConnectionId, callback));
+            return new ValueTask<GameSessionBinding<TCallback>?>((GameSessionBinding<TCallback>?)null);
         }
+
+        string? connectionId;
+        lock (state.Gate)
+        {
+            connectionId = state.DisconnectedAt is null ? state.ConnectionId : null;
+        }
+
+        if (connectionId is null ||
+            !_legacyCallbacksByConnection.TryGetValue(connectionId, out var callbacks))
+        {
+            return new ValueTask<GameSessionBinding<TCallback>?>((GameSessionBinding<TCallback>?)null);
+        }
+
+        var callback = callbacks.TryGetValue(typeof(TCallback), out var exact)
+            ? exact as TCallback
+            : callbacks.Values.OfType<TCallback>().FirstOrDefault();
+        return callback is null
+            ? new ValueTask<GameSessionBinding<TCallback>?>((GameSessionBinding<TCallback>?)null)
+            : new ValueTask<GameSessionBinding<TCallback>?>(new GameSessionBinding<TCallback>(session, connectionId, callback));
     }
 
     public ValueTask<IReadOnlyList<GameSessionSnapshot>> ExpireDisconnectedSessionsAsync(
@@ -643,44 +679,59 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        lock (_gate)
+        var expired = new List<GameSessionSnapshot>();
+        foreach (var item in _sessions)
         {
-            var expired = new List<GameSessionSnapshot>();
-            foreach (var item in _sessions.ToArray())
+            var state = item.Value;
+            string? connectionId;
+            lock (state.Gate)
             {
-                var state = item.Value;
                 if (state.DisconnectedAt is null || state.DisconnectedAt >= disconnectedBefore)
                 {
                     continue;
                 }
 
-                var connectionId = state.LastDisconnectedConnectionId;
+                connectionId = state.LastDisconnectedConnectionId;
                 if (connectionId is null)
                 {
                     continue;
                 }
-
-                expired.Add(CreateSnapshot(state, connectionId));
-                if (state.ConnectionId is not null)
-                {
-                    _connectionToSession.Remove(state.ConnectionId);
-                }
-
-                _sessions.Remove(item.Key);
             }
 
-            return new ValueTask<IReadOnlyList<GameSessionSnapshot>>(expired);
+            lock (_gate)
+            {
+                lock (state.Gate)
+                {
+                    if (state.DisconnectedAt is null || state.DisconnectedAt >= disconnectedBefore ||
+                        !_sessions.TryRemove(item.Key, out _))
+                    {
+                        continue;
+                    }
+
+                    connectionId = state.LastDisconnectedConnectionId;
+                }
+
+                if (connectionId is not null)
+                {
+                    expired.Add(CreateSnapshot(state, connectionId));
+                }
+            }
         }
+
+        return new ValueTask<IReadOnlyList<GameSessionSnapshot>>(expired);
     }
 
     private void DisconnectState(SessionState state, string connectionId, DateTimeOffset disconnectedAt)
     {
-        _connectionToSession.Remove(connectionId);
-        _legacyCallbacksByConnection.Remove(connectionId);
-        state.ConnectionId = null;
-        state.LastDisconnectedConnectionId = connectionId;
-        state.DisconnectedAt = disconnectedAt;
-        state.ResumeDeadlineUtc = disconnectedAt.Add(_resumeWindow);
+        lock (state.Gate)
+        {
+            _connectionToSession.TryRemove(connectionId, out _);
+            _legacyCallbacksByConnection.TryRemove(connectionId, out _);
+            state.ConnectionId = null;
+            state.LastDisconnectedConnectionId = connectionId;
+            state.DisconnectedAt = disconnectedAt;
+            state.ResumeDeadlineUtc = disconnectedAt.Add(_resumeWindow);
+        }
     }
 
     private static GameSessionSnapshot CreateSnapshot(SessionState state, string connectionId)
@@ -697,55 +748,58 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
             throw new InvalidOperationException($"Game session '{session}' does not exist.");
         }
 
-        if (state.Termination is not null)
+        lock (state.Gate)
         {
-            throw new InvalidOperationException($"Game session '{session}' is terminated.");
-        }
-
-        if (_connectionToSession.TryGetValue(connectionId, out var boundSession)
-            && boundSession != session)
-        {
-            throw new InvalidOperationException($"RPC connection '{connectionId}' is already bound to game session '{boundSession}'.");
-        }
-
-        var previousConnectionId = state.ConnectionId;
-        var sessionBecameActive = previousConnectionId is null;
-        if (!string.Equals(previousConnectionId, connectionId, StringComparison.Ordinal))
-        {
-            if (previousConnectionId is not null)
+            if (state.Termination is not null)
             {
-                _connectionToSession.Remove(previousConnectionId);
-                _legacyCallbacksByConnection.Remove(previousConnectionId);
+                throw new InvalidOperationException($"Game session '{session}' is terminated.");
             }
 
-            state.ConnectionId = connectionId;
-            _connectionToSession[connectionId] = session;
-        }
+            if (_connectionToSession.TryGetValue(connectionId, out var boundSession)
+                && boundSession != session)
+            {
+                throw new InvalidOperationException($"RPC connection '{connectionId}' is already bound to game session '{boundSession}'.");
+            }
 
-        if (sessionBecameActive && state.ResumeDeadlineUtc.HasValue && state.ReliablePushPolicy == true)
-        {
-            state.ReliableReplayPending = true;
-        }
-        state.LastDisconnectedConnectionId = null;
-        state.LastTerminatedConnectionId = null;
-        state.DisconnectedAt = null;
-        state.ResumeDeadlineUtc = null;
-        state.LastHeartbeatAt = _timeProvider.GetUtcNow();
+            var previousConnectionId = state.ConnectionId;
+            var sessionBecameActive = previousConnectionId is null;
+            if (!string.Equals(previousConnectionId, connectionId, StringComparison.Ordinal))
+            {
+                if (previousConnectionId is not null)
+                {
+                    _connectionToSession.TryRemove(previousConnectionId, out _);
+                    _legacyCallbacksByConnection.TryRemove(previousConnectionId, out _);
+                }
 
-        return new GameSessionBindResult(sessionBecameActive
-            ? CreateSnapshot(state, connectionId)
-            : null);
+                state.ConnectionId = connectionId;
+                _connectionToSession[connectionId] = session;
+            }
+
+            if (sessionBecameActive && state.ResumeDeadlineUtc.HasValue && state.ReliablePushPolicy == true)
+            {
+                state.ReliableReplayPending = true;
+            }
+            state.LastDisconnectedConnectionId = null;
+            if (state.LastTerminatedConnectionId is { } terminatedConnectionId)
+            {
+                _terminatedConnectionToSession.TryRemove(terminatedConnectionId, out _);
+            }
+            state.LastTerminatedConnectionId = null;
+            state.DisconnectedAt = null;
+            state.ResumeDeadlineUtc = null;
+            state.LastHeartbeatAt = _timeProvider.GetUtcNow();
+
+            return new GameSessionBindResult(sessionBecameActive
+                ? CreateSnapshot(state, connectionId)
+                : null);
+        }
     }
 
-    private Dictionary<Type, object> GetLegacyCallbacks(string connectionId)
+    private ConcurrentDictionary<Type, object> GetLegacyCallbacks(string connectionId)
     {
-        if (!_legacyCallbacksByConnection.TryGetValue(connectionId, out var callbacks))
-        {
-            callbacks = new Dictionary<Type, object>();
-            _legacyCallbacksByConnection.Add(connectionId, callbacks);
-        }
-
-        return callbacks;
+        return _legacyCallbacksByConnection.GetOrAdd(
+            connectionId,
+            static _ => new ConcurrentDictionary<Type, object>());
     }
 
     private static void ValidateSession(GameSessionKey session)
@@ -779,6 +833,8 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
 
         public GameSessionKey Session { get; }
 
+        public Lock Gate { get; } = new();
+
         public string OwnerKey { get; }
 
         public string? ConnectionId { get; set; }
@@ -804,5 +860,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         public bool KeepTerminationForResume { get; set; }
 
         public Dictionary<string, GameSessionItemValue> Items { get; } = new(StringComparer.Ordinal);
+
+        public GameSessionItems ItemsSnapshot = GameSessionItems.Empty;
     }
 }

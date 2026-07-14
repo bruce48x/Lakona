@@ -34,7 +34,7 @@ Current architecture and maintainer contracts:
 | Actors and cluster | [Actors](./docs/actor.md), [Cluster](./docs/cluster.md) |
 | Sessions and configuration | [Sessions](./docs/session.md), [Configuration](./docs/configuration.md) |
 | Runtime validation and recording | [Guardrails](./docs/guardrails.md), [Recording](./docs/recording.md) |
-| Runtime performance | [Performance](./docs/performance.md) |
+| Runtime performance | [Performance](./docs/performance.md), [Cross-Framework Benchmarking](./docs/framework-benchmarking.md) |
 | RPC and generation | [RPC](./docs/rpc.md), [Source Generation](./docs/source-generation.md) |
 | Hotfix | [Architecture](./docs/hotfix/architecture.md), [Actor Behavior](./docs/hotfix/actor-behavior.md), [Service Binding](./docs/hotfix/service-binding.md) |
 | Protocol and API stability | [Wire Protocol](./docs/protocol/wire-protocol-v1.md), [Status Model](./docs/protocol/rpc-status-error-model.md), [Public API Boundaries](./docs/api-stability/public-api-boundaries.md) |

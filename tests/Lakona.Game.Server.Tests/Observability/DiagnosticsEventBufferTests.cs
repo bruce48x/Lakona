@@ -52,6 +52,28 @@ public sealed class DiagnosticsEventBufferTests
     }
 
     [Fact]
+    public async Task Concurrent_publishers_and_snapshots_preserve_the_bound()
+    {
+        const int capacity = 64;
+        var buffer = new BoundedDiagnosticsEventBuffer(capacity, LogLevel.Trace);
+        var publishers = Enumerable.Range(0, 8)
+            .Select(worker => Task.Run(() =>
+            {
+                for (var index = 0; index < 2_000; index++)
+                {
+                    buffer.Publish(CreateEvent(LogLevel.Warning, $"{worker}:{index}"));
+                    Assert.True(buffer.Snapshot(capacity).Count <= capacity);
+                }
+            }, TestContext.Current.CancellationToken));
+
+        await Task.WhenAll(publishers);
+
+        var snapshot = buffer.Snapshot(capacity);
+        Assert.Equal(capacity, snapshot.Count);
+        Assert.Equal(capacity, snapshot.Select(static item => item.Message).Distinct().Count());
+    }
+
+    [Fact]
     public void Sanitized_event_dimensions_do_not_use_sensitive_keys()
     {
         var buffer = new BoundedDiagnosticsEventBuffer(8, LogLevel.Trace);

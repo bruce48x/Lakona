@@ -55,6 +55,11 @@ Public API commitment boundaries are documented in
 Transports and serializers are extension points. Gameplay code should not care
 whether the connection uses TCP, WebSocket, KCP, loopback, JSON, or MemoryPack.
 
+KCP updates are scheduled independently per registered transport. The global
+interval tick may enqueue due work, but a registration is never executed
+concurrently with itself and a blocked connection must not delay updates for
+other connections.
+
 Custom transports, connection acceptors, and serializers belong behind stable
 extension interfaces such as `ITransport`, `IRpcConnectionAcceptor`, and
 `IRpcSerializer`.

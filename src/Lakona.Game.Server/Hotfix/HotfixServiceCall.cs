@@ -4,7 +4,7 @@ using Lakona.Game.Server.Sessions;
 
 namespace Lakona.Game.Server.Hotfix;
 
-public class HotfixServiceCall<TRequest> : IHotfixCallContext
+public readonly struct HotfixServiceCall<TRequest> : IHotfixCallContext
 {
     public HotfixServiceCall(
         TRequest request,
@@ -60,7 +60,7 @@ public class HotfixServiceCall<TRequest> : IHotfixCallContext
     public ILakonaGameServer GameServer { get; }
 }
 
-public sealed class HotfixServiceCall<TRequest, TCallback> : HotfixServiceCall<TRequest>
+public readonly struct HotfixServiceCall<TRequest, TCallback> : IHotfixCallContext
     where TCallback : class
 {
     public HotfixServiceCall(
@@ -95,10 +95,30 @@ public sealed class HotfixServiceCall<TRequest, TCallback> : HotfixServiceCall<T
         IServiceProvider services,
         IActorRuntime actors,
         ILakonaGameServer gameServer)
-        : base(request, connectionId, currentSession, currentSessionItems, services, actors, gameServer)
     {
+        Request = request;
+        ConnectionId = connectionId ?? throw new ArgumentNullException(nameof(connectionId));
         Callback = callback ?? throw new ArgumentNullException(nameof(callback));
+        CurrentSession = currentSession;
+        CurrentSessionItems = currentSessionItems ?? throw new ArgumentNullException(nameof(currentSessionItems));
+        Services = services ?? throw new ArgumentNullException(nameof(services));
+        Actors = actors ?? throw new ArgumentNullException(nameof(actors));
+        GameServer = gameServer ?? throw new ArgumentNullException(nameof(gameServer));
     }
 
+    public TRequest Request { get; }
+
+    public string ConnectionId { get; }
+
     public TCallback Callback { get; }
+
+    public GameSessionKey? CurrentSession { get; }
+
+    public GameSessionItems CurrentSessionItems { get; }
+
+    public IServiceProvider Services { get; }
+
+    public IActorRuntime Actors { get; }
+
+    public ILakonaGameServer GameServer { get; }
 }

@@ -58,14 +58,8 @@ public sealed class RemoteNotificationRelayExampleTests
         };
 
         var status = await notifications
-            .ForSession(session)
-            .NotifyAsync<IPlayerCallback>(
-                target =>
-                {
-                    target.OnMatchmakingStatus(update);
-                    return default;
-                },
-                TestContext.Current.CancellationToken);
+            .ForSession<IPlayerCallback>(session)
+            .OnMatchmakingStatus(update, TestContext.Current.CancellationToken);
 
         stopGateway.Cancel();
         await Task.WhenAny(gatewayTask, Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
@@ -117,14 +111,8 @@ public sealed class RemoteNotificationRelayExampleTests
         };
 
         var status = await notifications
-            .ForSession(session)
-            .NotifyAsync<IBattleCallback>(
-                target =>
-                {
-                    target.OnWorldState(worldState);
-                    return default;
-                },
-                TestContext.Current.CancellationToken);
+            .ForSession<IBattleCallback>(session)
+            .OnWorldState(worldState, TestContext.Current.CancellationToken);
 
         stopGateway.Cancel();
         await Task.WhenAny(gatewayTask, Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
@@ -148,14 +136,8 @@ public sealed class RemoteNotificationRelayExampleTests
         var notifications = businessServices.GetRequiredService<IClientNotifications>();
 
         var status = await notifications
-            .ForSession(session)
-            .NotifyAsync<IPlayerCallback>(
-                callback =>
-                {
-                    callback.OnMatchmakingStatus(new MatchmakingStatusUpdate());
-                    return default;
-                },
-                TestContext.Current.CancellationToken);
+            .ForSession<IPlayerCallback>(session)
+            .OnMatchmakingStatus(new MatchmakingStatusUpdate(), TestContext.Current.CancellationToken);
 
         Assert.Equal(ClientNotificationStatus.RouteNotFound, status);
     }
@@ -183,14 +165,8 @@ public sealed class RemoteNotificationRelayExampleTests
         var notifications = businessServices.GetRequiredService<IClientNotifications>();
 
         var status = await notifications
-            .ForSession(session)
-            .NotifyAsync<IPlayerCallback>(
-                callback =>
-                {
-                    callback.OnMatchmakingStatus(new MatchmakingStatusUpdate());
-                    return default;
-                },
-                TestContext.Current.CancellationToken);
+            .ForSession<IPlayerCallback>(session)
+            .OnMatchmakingStatus(new MatchmakingStatusUpdate(), TestContext.Current.CancellationToken);
 
         Assert.Equal(ClientNotificationStatus.RouteNotFound, status);
     }
@@ -229,14 +205,8 @@ public sealed class RemoteNotificationRelayExampleTests
         var notifications = businessServices.GetRequiredService<IClientNotifications>();
 
         var status = await notifications
-            .ForSession(session)
-            .NotifyAsync<IPlayerCallback>(
-                callback =>
-                {
-                    callback.OnMatchmakingStatus(new MatchmakingStatusUpdate());
-                    return default;
-                },
-                TestContext.Current.CancellationToken);
+            .ForSession<IPlayerCallback>(session)
+            .OnMatchmakingStatus(new MatchmakingStatusUpdate(), TestContext.Current.CancellationToken);
 
         stopGateway.Cancel();
         await Task.WhenAny(gatewayTask, Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));

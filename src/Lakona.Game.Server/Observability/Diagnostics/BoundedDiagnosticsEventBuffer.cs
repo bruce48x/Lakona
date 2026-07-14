@@ -48,8 +48,8 @@ public sealed class BoundedDiagnosticsEventBuffer : IDiagnosticsEventSink
         "correlation_chain"
     };
 
-    private readonly object _gate = new();
-    private readonly Queue<DiagnosticsEvent> _events;
+    private readonly Slot[] _slots;
+    private long _nextSequence;
 
     public BoundedDiagnosticsEventBuffer(int capacity, LogLevel minimumLevel)
     {
@@ -60,7 +60,7 @@ public sealed class BoundedDiagnosticsEventBuffer : IDiagnosticsEventSink
 
         Capacity = capacity;
         MinimumLevel = minimumLevel;
-        _events = new Queue<DiagnosticsEvent>(capacity);
+        _slots = Enumerable.Range(0, capacity).Select(static _ => new Slot()).ToArray();
     }
 
     public int Capacity { get; }
@@ -86,14 +86,12 @@ public sealed class BoundedDiagnosticsEventBuffer : IDiagnosticsEventSink
             Dimensions = SanitizeDimensions(diagnosticEvent.Dimensions)
         };
 
-        lock (_gate)
+        var sequence = Interlocked.Increment(ref _nextSequence) - 1;
+        var slot = _slots[(int)(sequence % Capacity)];
+        lock (slot.Gate)
         {
-            while (_events.Count >= Capacity)
-            {
-                _events.Dequeue();
-            }
-
-            _events.Enqueue(sanitized);
+            slot.Event = sanitized;
+            Volatile.Write(ref slot.Sequence, sequence);
         }
     }
 
@@ -104,13 +102,28 @@ public sealed class BoundedDiagnosticsEventBuffer : IDiagnosticsEventSink
             return [];
         }
 
-        lock (_gate)
+        var latest = Volatile.Read(ref _nextSequence) - 1;
+        if (latest < 0)
         {
-            return _events
-                .Reverse()
-                .Take(limit)
-                .ToArray();
+            return [];
         }
+
+        var count = (int)Math.Min(Math.Min((long)limit, Capacity), latest + 1);
+        var snapshot = new List<DiagnosticsEvent>(count);
+        for (var offset = 0; offset < count; offset++)
+        {
+            var sequence = latest - offset;
+            var slot = _slots[(int)(sequence % Capacity)];
+            lock (slot.Gate)
+            {
+                if (Volatile.Read(ref slot.Sequence) == sequence && slot.Event is { } diagnosticEvent)
+                {
+                    snapshot.Add(diagnosticEvent);
+                }
+            }
+        }
+
+        return snapshot;
     }
 
     private static IReadOnlyDictionary<string, string?> SanitizeDimensions(
@@ -160,5 +173,14 @@ public sealed class BoundedDiagnosticsEventBuffer : IDiagnosticsEventSink
     private static string? LimitNullable(string? value, int maxLength)
     {
         return value is null ? null : Limit(value, maxLength);
+    }
+
+    private sealed class Slot
+    {
+        public object Gate { get; } = new();
+
+        public long Sequence = -1;
+
+        public DiagnosticsEvent? Event;
     }
 }

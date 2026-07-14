@@ -17,14 +17,7 @@ internal sealed class ChatNotifier
         ChatMember member,
         CancellationToken cancellationToken = default)
     {
-        return PublishAsync<ILoginCallback>(
-            recipients,
-            callback =>
-            {
-                callback.OnUserJoined(member);
-                return default;
-            },
-            cancellationToken);
+        return UserJoinedCoreAsync(recipients, member, cancellationToken);
     }
 
     public ValueTask UserLeftAsync(
@@ -32,14 +25,7 @@ internal sealed class ChatNotifier
         string name,
         CancellationToken cancellationToken = default)
     {
-        return PublishAsync<ILoginCallback>(
-            recipients,
-            callback =>
-            {
-                callback.OnUserLeft(new ChatUserLeft { Name = name });
-                return default;
-            },
-            cancellationToken);
+        return UserLeftCoreAsync(recipients, new ChatUserLeft { Name = name }, cancellationToken);
     }
 
     public ValueTask MessageAsync(
@@ -47,26 +33,44 @@ internal sealed class ChatNotifier
         ChatMessage message,
         CancellationToken cancellationToken = default)
     {
-        return PublishAsync<IChatCallback>(
-            recipients,
-            callback =>
-            {
-                callback.OnMessageReceived(message);
-                return default;
-            },
-            cancellationToken);
+        return MessageCoreAsync(recipients, message, cancellationToken);
     }
 
-    private async ValueTask PublishAsync<TCallback>(
+    private async ValueTask UserJoinedCoreAsync(
         IReadOnlyList<GameSessionKey> recipients,
-        Func<TCallback, ValueTask> notify,
+        ChatMember member,
         CancellationToken cancellationToken)
-        where TCallback : class
     {
         foreach (var recipient in recipients)
         {
-            await _notifications.ForSession(recipient)
-                .NotifyAsync(notify, cancellationToken)
+            await _notifications.ForSession<ILoginCallback>(recipient)
+                .OnUserJoined(member, cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private async ValueTask UserLeftCoreAsync(
+        IReadOnlyList<GameSessionKey> recipients,
+        ChatUserLeft left,
+        CancellationToken cancellationToken)
+    {
+        foreach (var recipient in recipients)
+        {
+            await _notifications.ForSession<ILoginCallback>(recipient)
+                .OnUserLeft(left, cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private async ValueTask MessageCoreAsync(
+        IReadOnlyList<GameSessionKey> recipients,
+        ChatMessage message,
+        CancellationToken cancellationToken)
+    {
+        foreach (var recipient in recipients)
+        {
+            await _notifications.ForSession<IChatCallback>(recipient)
+                .OnMessageReceived(message, cancellationToken)
                 .ConfigureAwait(false);
         }
     }
