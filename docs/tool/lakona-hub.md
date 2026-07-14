@@ -144,10 +144,22 @@ current culture.
 
 ## Release And Update Contract
 
-GitHub Actions publishes Lakona Hub from `hub-v<semver>` tags to GitHub
-Releases. The first release targets Windows x64, Linux x64, macOS x64, and
-macOS arm64, covering the three desktop operating-system families. Every
-archive is self-contained and includes the pinned private .NET 10 SDK.
+`src/Lakona.Hub/Lakona.Hub.csproj` is the single source of truth for the Hub
+release version. A relevant change merged to `main` runs Hub tests, validates
+that the version has not already been published, builds the release, creates
+the matching `hub-v<semver>` tag, and publishes the GitHub Release. The manual
+workflow trigger takes no version input and exists only to retry an unpublished
+version.
+
+Relevant release inputs are Hub source, Lakona.ProjectSystem source, Hub
+packaging scripts and workflow, and repository-level .NET build inputs. The Hub
+version guard requires `<Version>` to change whenever one of these inputs
+changes. Existing tags and Releases are immutable release boundaries: never
+replace their assets with a different build.
+
+The release targets Windows x64, Linux x64, macOS x64, and macOS arm64,
+covering the three desktop operating-system families. Every archive is
+self-contained and includes the pinned private .NET 10 SDK.
 
 Each Release contains one full ZIP per runtime identifier and a
 `lakona-hub-manifest.json`. From the second Release onward, the workflow also

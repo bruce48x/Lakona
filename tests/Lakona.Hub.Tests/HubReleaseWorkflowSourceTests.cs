@@ -26,6 +26,30 @@ public sealed class HubReleaseWorkflowSourceTests
     }
 
     [Fact]
+    public void Workflow_PublishesMainFromTheProjectVersionAndRejectsDuplicates()
+    {
+        var root = FindRepositoryRoot();
+        var workflow = File.ReadAllText(Path.Combine(root, ".github", "workflows", "publish-hub.yml"));
+
+        Assert.Contains("branches:", workflow, StringComparison.Ordinal);
+        Assert.Contains("- main", workflow, StringComparison.Ordinal);
+        Assert.Contains("src/Lakona.Hub/**", workflow, StringComparison.Ordinal);
+        Assert.Contains("src/Lakona.ProjectSystem/**", workflow, StringComparison.Ordinal);
+        Assert.Contains("scripts/hub/**", workflow, StringComparison.Ordinal);
+        Assert.Contains("Lakona Hub releases must be published from main", workflow, StringComparison.Ordinal);
+        Assert.Contains("Select-Xml -Path 'src/Lakona.Hub/Lakona.Hub.csproj'", workflow, StringComparison.Ordinal);
+        Assert.Contains("Reject an already-published version", workflow, StringComparison.Ordinal);
+        Assert.Contains("Bump src/Lakona.Hub/Lakona.Hub.csproj", workflow, StringComparison.Ordinal);
+        Assert.Contains("dotnet test tests/Lakona.Hub.Tests/Lakona.Hub.Tests.csproj", workflow, StringComparison.Ordinal);
+        Assert.Contains("--filter HubVersion", workflow, StringComparison.Ordinal);
+        Assert.Contains("-p:Version=${{ needs.validate.outputs.version }}", workflow, StringComparison.Ordinal);
+        Assert.Contains("--target '${{ github.sha }}'", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("inputs.version", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("github.ref_name", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("gh release upload", workflow, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Packager_CreatesFullPackagesThenDeltaPackagesFromPreviousRelease()
     {
         var root = FindRepositoryRoot();

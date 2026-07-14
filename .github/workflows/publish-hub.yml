@@ -2,14 +2,17 @@ name: Publish Lakona Hub
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: Semantic version without the hub-v prefix
-        required: true
-        type: string
   push:
-    tags:
-      - "hub-v*"
+    branches:
+      - main
+    paths:
+      - ".github/workflows/publish-hub.yml"
+      - "Directory.Build.props"
+      - "Directory.Build.targets"
+      - "global.json"
+      - "scripts/hub/**"
+      - "src/Lakona.Hub/**"
+      - "src/Lakona.ProjectSystem/**"
 
 concurrency:
   group: publish-lakona-hub
@@ -20,7 +23,64 @@ env:
   DOTNET_SDK_VERSION: 10.0.100
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+      tag: ${{ steps.version.outputs.tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version from project
+        id: version
+        shell: pwsh
+        run: |
+          if ('${{ github.ref }}' -ne 'refs/heads/main') {
+            throw 'Lakona Hub releases must be published from main.'
+          }
+          $node = Select-Xml -Path 'src/Lakona.Hub/Lakona.Hub.csproj' -XPath '/Project/PropertyGroup/Version' |
+            Select-Object -First 1
+          if ($null -eq $node) {
+            throw 'Lakona.Hub.csproj does not declare a Version.'
+          }
+          $version = $node.Node.InnerText.Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+([-.][0-9A-Za-z.-]+)?$') {
+            throw "Invalid Hub version in Lakona.Hub.csproj: $version"
+          }
+          "value=$version" >> $env:GITHUB_OUTPUT
+          "tag=hub-v$version" >> $env:GITHUB_OUTPUT
+
+      - name: Reject an already-published version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag='${{ steps.version.outputs.tag }}'
+          if git rev-parse --verify "refs/tags/$tag" >/dev/null 2>&1 || gh release view "$tag" >/dev/null 2>&1; then
+            echo "::error::Lakona Hub ${{ steps.version.outputs.value }} is already published. Bump src/Lakona.Hub/Lakona.Hub.csproj before publishing again."
+            exit 1
+          fi
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Test Hub
+        run: dotnet test tests/Lakona.Hub.Tests/Lakona.Hub.Tests.csproj -c Release -m:1 /nr:false /p:UseSharedCompilation=false
+
+      - name: Check Hub version
+        run: dotnet test tests/Lakona.RepositoryGuards.Tests/Lakona.RepositoryGuards.Tests.csproj -c Release -m:1 /nr:false /p:UseSharedCompilation=false --filter HubVersion
+
   build:
+    needs: validate
     strategy:
       fail-fast: false
       matrix:
@@ -45,20 +105,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Resolve version
-        id: version
-        shell: pwsh
-        run: |
-          $version = if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
-            '${{ inputs.version }}'
-          } else {
-            '${{ github.ref_name }}'.Substring('hub-v'.Length)
-          }
-          if ($version -notmatch '^\d+\.\d+\.\d+([-.][0-9A-Za-z.-]+)?$') {
-            throw "Invalid Hub version: $version"
-          }
-          "value=$version" >> $env:GITHUB_OUTPUT
-
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
@@ -71,7 +117,7 @@ jobs:
           -r ${{ matrix.rid }}
           --self-contained true
           -o artifacts/publish/hub-${{ matrix.rid }}
-          -p:Version=${{ steps.version.outputs.value }}
+          -p:Version=${{ needs.validate.outputs.version }}
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
           -p:DebugType=None
@@ -99,7 +145,7 @@ jobs:
           retention-days: 2
 
   release:
-    needs: build
+    needs: [validate, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -107,18 +153,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-
-      - name: Resolve version and tag
-        id: version
-        shell: pwsh
-        run: |
-          $version = if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
-            '${{ inputs.version }}'
-          } else {
-            '${{ github.ref_name }}'.Substring('hub-v'.Length)
-          }
-          "value=$version" >> $env:GITHUB_OUTPUT
-          "tag=hub-v$version" >> $env:GITHUB_OUTPUT
 
       - name: Download platform files
         uses: actions/download-artifact@v8
@@ -132,7 +166,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $currentTag = '${{ steps.version.outputs.tag }}'
+          $currentTag = '${{ needs.validate.outputs.tag }}'
           $releases = gh release list --limit 100 --json tagName,isDraft,isPrerelease | ConvertFrom-Json
           $previous = $releases |
             Where-Object { -not $_.isDraft -and -not $_.isPrerelease -and $_.tagName.StartsWith('hub-v') -and $_.tagName -ne $currentTag } |
@@ -153,8 +187,8 @@ jobs:
         shell: pwsh
         run: |
           $parameters = @{
-            Version = '${{ steps.version.outputs.value }}'
-            Tag = '${{ steps.version.outputs.tag }}'
+            Version = '${{ needs.validate.outputs.version }}'
+            Tag = '${{ needs.validate.outputs.tag }}'
             Repository = '${{ github.repository }}'
             PublishRoot = 'artifacts/publish'
             OutputRoot = 'artifacts/release'
@@ -170,11 +204,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          tag='${{ steps.version.outputs.tag }}'
-          if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" artifacts/release/* --clobber
-          else
-            gh release create "$tag" artifacts/release/* \
-              --title "Lakona Hub ${{ steps.version.outputs.value }}" \
-              --generate-notes
-          fi
+          tag='${{ needs.validate.outputs.tag }}'
+          gh release create "$tag" artifacts/release/* \
+            --target '${{ github.sha }}' \
+            --title "Lakona Hub ${{ needs.validate.outputs.version }}" \
+            --generate-notes
