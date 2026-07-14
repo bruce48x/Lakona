@@ -49,13 +49,12 @@ public sealed class ClientNotificationOwnerIntegrationTests
             TestContext.Current.CancellationToken);
 
         var localStatus = await gateway.GetRequiredService<IClientNotifications>()
-            .ForSession(session)
-            .NotifyAsync<ITestPlayerCallback>(
-                target =>
-                {
-                    target.Notify("queued");
-                    return default;
-                },
+            .ForSession<ITestPlayerCallback>(session)
+            .DispatchGeneratedAsync(
+                1,
+                1,
+                nameof(ITestPlayerCallback.Notify),
+                "queued",
                 TestContext.Current.CancellationToken);
 
         using var stop = new CancellationTokenSource();

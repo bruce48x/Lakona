@@ -109,6 +109,17 @@ actor-directory label; the configured seed is the only actor-directory target.
 advertised cluster endpoint and send framework control messages or replies
 directly to that node.
 
+The in-memory node and route directories use conditional concurrent updates.
+Reads and heartbeats do not wait for a directory-wide lock; query and cleanup
+enumerate a point-in-time-safe view and only replace or remove the exact record
+they observed. A concurrent lease refresh, route generation, node epoch, or
+state update therefore wins over stale cleanup work.
+
+Cluster RPC clients are cached by node, node epoch, and endpoint. Warm cache
+hits are lock-free, concurrent misses for the same identity share one connect
+task, and a superseded or losing client is disposed when the newer identity is
+published.
+
 ## Session Notification Relay
 
 The node that owns a client-session route also owns reliable-push state for

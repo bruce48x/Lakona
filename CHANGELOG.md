@@ -4,6 +4,28 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-14 — Contention-free runtime hot paths
+
+**Key releases:** `Lakona.Game.Server 0.18.10`,
+`Lakona.Game.Server.Hotfix 0.8.2`,
+`Lakona.Game.Server.Hotfix.Generators 0.5.5`,
+`Lakona.Game.Server.Hotfix.Abstractions 0.5.1`,
+`Lakona.Game.Cluster 0.5.1`, `Lakona.Game.Cluster.Rpc 0.4.1`,
+`Lakona.Game.Cluster.Rpc.MemoryPack 0.3.1`, `Lakona.Game.Cluster.Sql 0.4.1`,
+`Lakona.Game.LoadTesting 0.1.2`, `Lakona.Rpc.Server 0.13.9`,
+`Lakona.Rpc.Analyzers 0.3.12`, `Lakona.Rpc.Transport.Kcp 0.11.17`,
+`Lakona.ProjectSystem 0.1.2`, and `Lakona.Tool 0.25.22`.
+
+- Made Hotfix services generation-owned and replaced reflective service and
+  Actor invocation with generated numeric typed dispatch; added value-type
+  request contexts and generated value-type client-notification targets.
+- Removed global contention from session, route, node, cluster-client, KCP,
+  load-recorder, mailbox-metric, and diagnostics-buffer hot paths while
+  preserving lifecycle, replay, ordering, epoch, and cleanup semantics.
+- Updated generated projects and samples to use completion-friendly typed
+  notification methods without per-send targets, callback lambdas,
+  `DispatchProxy`, reflection, or argument lists.
+
 ## 2026-07-14 — Unified generated actor access
 
 **Key releases:** `Lakona.Game.Server 0.18.9`,

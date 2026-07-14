@@ -221,10 +221,8 @@ public sealed class MatchPushService
         CancellationToken cancellationToken)
     {
         return _notifications
-            .ForSession(session)
-            .NotifyAsync<IPlayerCallback>(
-                callback => callback.OnMatchmakingStatus(update),
-                cancellationToken);
+            .ForSession<IPlayerCallback>(session)
+            .OnMatchmakingStatus(update, cancellationToken);
     }
 }
 ```

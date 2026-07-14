@@ -123,14 +123,38 @@ public sealed class LakonaGameServerTests
     [Fact]
     public void Public_client_notification_api_does_not_expose_reliable_push_delivery_controls()
     {
-        var method = Assert.Single(typeof(IClientNotificationTarget).GetMethods());
+        var targetType = typeof(ClientNotificationTarget<>);
+        var method = Assert.Single(targetType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly));
 
+        Assert.True(targetType.IsValueType);
         Assert.Equal(typeof(ValueTask<ClientNotificationStatus>), method.ReturnType);
         Assert.DoesNotContain(
             method.GetParameters(),
             static parameter => parameter.ParameterType.FullName?.Contains(
                 "ClientNotificationIntent",
                 StringComparison.Ordinal) == true);
+    }
+
+    [Fact]
+    public async Task Selecting_a_typed_client_notification_target_does_not_allocate()
+    {
+        var services = new ServiceCollection();
+        services.AddLakonaGameServerSessions();
+        await using var provider = services.BuildServiceProvider();
+        var notifications = provider.GetRequiredService<IClientNotifications>();
+        var session = new GameSessionKey("owner", "session", 1);
+
+        _ = notifications.ForSession<ITestNotificationCallback>(session);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        ClientNotificationTarget<ITestNotificationCallback> target = default;
+        for (var i = 0; i < 10_000; i++)
+        {
+            target = notifications.ForSession<ITestNotificationCallback>(session);
+        }
+
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        GC.KeepAlive(target);
+        Assert.Equal(0, allocated);
     }
 
     [Fact]
@@ -815,9 +839,12 @@ public sealed class LakonaGameServerTests
             TestContext.Current.CancellationToken);
 
         var publish = await notifications
-            .ForSession(session)
-            .NotifyAsync<ITestNotificationCallback>(
-                target => target.NotifyAsync("payload"),
+            .ForSession<ITestNotificationCallback>(session)
+            .DispatchGeneratedAsync(
+                1,
+                1,
+                nameof(ITestNotificationCallback.NotifyAsync),
+                "payload",
                 TestContext.Current.CancellationToken);
 
         await reliablePush.ReplayPendingAsync(session, TestContext.Current.CancellationToken);
@@ -853,9 +880,12 @@ public sealed class LakonaGameServerTests
             TestContext.Current.CancellationToken);
 
         var publish = await notifications
-            .ForSession(session)
-            .NotifyAsync<ITestNotificationCallback>(
-                target => target.NotifyAsync("payload"),
+            .ForSession<ITestNotificationCallback>(session)
+            .DispatchGeneratedAsync(
+                1,
+                1,
+                nameof(ITestNotificationCallback.NotifyAsync),
+                "payload",
                 TestContext.Current.CancellationToken);
         await reliablePush.ReplayPendingAsync(session, TestContext.Current.CancellationToken);
 

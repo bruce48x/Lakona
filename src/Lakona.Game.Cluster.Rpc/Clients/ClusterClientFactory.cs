@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using Lakona.Game.Cluster;
@@ -10,11 +11,12 @@ namespace Lakona.Game.Cluster.Rpc
 {
     public sealed class ClusterClientFactory : IClusterClientFactory, IAsyncDisposable
     {
-        private readonly object _gate = new object();
-        private readonly Dictionary<NodeId, CachedClient> _clients = new Dictionary<NodeId, CachedClient>();
+        private readonly ConcurrentDictionary<ClientKey, Lazy<Task<RpcClientRuntime>>> _clients =
+            new ConcurrentDictionary<ClientKey, Lazy<Task<RpcClientRuntime>>>();
         private readonly IClusterTransportFactory _transportFactory;
         private readonly IRpcSerializer _serializer;
         private readonly ClusterClientFactoryOptions _options;
+        private int _disposed;
 
         public ClusterClientFactory(
             IClusterTransportFactory transportFactory,
@@ -35,23 +37,38 @@ namespace Lakona.Game.Cluster.Rpc
                 throw new ArgumentNullException(nameof(target));
             }
 
-            lock (_gate)
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+            var key = ClientKey.From(target);
+            var candidate = new Lazy<Task<RpcClientRuntime>>(
+                () => ConnectAsync(target),
+                LazyThreadSafetyMode.ExecutionAndPublication);
+            var selected = _clients.GetOrAdd(key, candidate);
+            try
             {
-                if (_clients.TryGetValue(target.Node, out var existing))
+                var runtime = await selected.Value.WaitAsync(cancellationToken).ConfigureAwait(false);
+                if (ReferenceEquals(candidate, selected))
                 {
-                    if (existing.Matches(target))
-                    {
-                        return existing.Runtime;
-                    }
-
-                    _clients.Remove(target.Node);
-                    _ = existing.Runtime.DisposeAsync();
+                    RemoveSuperseded(key);
                 }
-            }
 
+                return runtime;
+            }
+            catch
+            {
+                if (selected.Value.IsCompleted && !selected.Value.IsCompletedSuccessfully)
+                {
+                    ((ICollection<KeyValuePair<ClientKey, Lazy<Task<RpcClientRuntime>>>>)_clients)
+                        .Remove(new KeyValuePair<ClientKey, Lazy<Task<RpcClientRuntime>>>(key, selected));
+                }
+                throw;
+            }
+        }
+
+        private async Task<RpcClientRuntime> ConnectAsync(RouteLocation target)
+        {
             var endpoint = ClusterEndpoint.FromRouteLocation(target);
-            using var timeout = CreateConnectTimeout(cancellationToken);
-            var effectiveToken = timeout?.Token ?? cancellationToken;
+            using var timeout = CreateConnectTimeout(CancellationToken.None);
+            var effectiveToken = timeout?.Token ?? CancellationToken.None;
             var transport = await _transportFactory.ConnectAsync(target, endpoint, effectiveToken).ConfigureAwait(false);
             var runtime = new RpcClientRuntime(
                 transport,
@@ -62,44 +79,71 @@ namespace Lakona.Game.Cluster.Rpc
                 task => _ = task.Exception,
                 TaskContinuationOptions.OnlyOnFaulted);
 
-            lock (_gate)
+            if (Volatile.Read(ref _disposed) != 0)
             {
-                if (_clients.TryGetValue(target.Node, out var existing))
-                {
-                    if (existing.Matches(target))
-                    {
-                        _ = runtime.DisposeAsync();
-                        return existing.Runtime;
-                    }
-
-                    _clients.Remove(target.Node);
-                    _ = existing.Runtime.DisposeAsync();
-                }
-
-                _clients[target.Node] = new CachedClient(runtime, target);
-                return runtime;
+                await runtime.DisposeAsync().ConfigureAwait(false);
+                throw new ObjectDisposedException(nameof(ClusterClientFactory));
             }
+
+            return runtime;
         }
 
         public async ValueTask DisposeAsync()
         {
-            RpcClientRuntime[] clients;
-            lock (_gate)
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
             {
-                clients = new RpcClientRuntime[_clients.Count];
-                var index = 0;
-                foreach (var client in _clients.Values)
-                {
-                    clients[index] = client.Runtime;
-                    index++;
-                }
-
-                _clients.Clear();
+                return;
             }
 
+            var clients = _clients.ToArray();
+            _clients.Clear();
             foreach (var client in clients)
             {
-                await client.DisposeAsync().ConfigureAwait(false);
+                if (!client.Value.IsValueCreated)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    await (await client.Value.Value.ConfigureAwait(false))
+                        .DisposeAsync()
+                        .ConfigureAwait(false);
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        private void RemoveSuperseded(ClientKey current)
+        {
+            foreach (var cached in _clients)
+            {
+                if (cached.Key.Node != current.Node || cached.Key.Equals(current) ||
+                    cached.Key.NodeEpoch > current.NodeEpoch ||
+                    !((ICollection<KeyValuePair<ClientKey, Lazy<Task<RpcClientRuntime>>>>)_clients)
+                        .Remove(cached))
+                {
+                    continue;
+                }
+
+                if (cached.Value.IsValueCreated)
+                {
+                    _ = DisposeWhenReadyAsync(cached.Value.Value);
+                }
+            }
+        }
+
+        private static async Task DisposeWhenReadyAsync(Task<RpcClientRuntime> runtimeTask)
+        {
+            try
+            {
+                var runtime = await runtimeTask.ConfigureAwait(false);
+                await runtime.DisposeAsync().ConfigureAwait(false);
+            }
+            catch
+            {
             }
         }
 
@@ -115,28 +159,31 @@ namespace Lakona.Game.Cluster.Rpc
             return timeout;
         }
 
-        private sealed class CachedClient
+        private readonly struct ClientKey : IEquatable<ClientKey>
         {
-            private readonly string _endpointAddress;
-
-            public CachedClient(
-                RpcClientRuntime runtime,
-                RouteLocation location)
+            private ClientKey(NodeId node, long nodeEpoch, string endpointAddress)
             {
-                Runtime = runtime;
-                NodeEpoch = location.NodeEpoch;
-                _endpointAddress = location.Endpoint.Address;
+                Node = node;
+                NodeEpoch = nodeEpoch;
+                EndpointAddress = endpointAddress;
             }
 
-            public RpcClientRuntime Runtime { get; }
+            public NodeId Node { get; }
 
             public long NodeEpoch { get; }
 
-            public bool Matches(RouteLocation location)
-            {
-                return NodeEpoch == location.NodeEpoch &&
-                    string.Equals(_endpointAddress, location.Endpoint.Address, StringComparison.Ordinal);
-            }
+            public string EndpointAddress { get; }
+
+            public static ClientKey From(RouteLocation location) =>
+                new ClientKey(location.Node, location.NodeEpoch, location.Endpoint.Address);
+
+            public bool Equals(ClientKey other) =>
+                Node == other.Node && NodeEpoch == other.NodeEpoch &&
+                string.Equals(EndpointAddress, other.EndpointAddress, StringComparison.Ordinal);
+
+            public override bool Equals(object? obj) => obj is ClientKey other && Equals(other);
+
+            public override int GetHashCode() => HashCode.Combine(Node, NodeEpoch, EndpointAddress);
         }
     }
 }

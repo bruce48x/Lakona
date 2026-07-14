@@ -23,4 +23,18 @@ public sealed class LoadRunRecorderTests
         Assert.Equal(total, Assert.Single(summary.Latencies).Count);
         Assert.True(recorder.BufferedLatencySampleCount <= LoadRunRecorder.MaxLatencySamplesPerOperation);
     }
+
+    [Fact]
+    public void Parallel_recording_publishes_at_most_the_sample_capacity()
+    {
+        var recorder = new LoadRunRecorder("chat", configuredUsers: 16);
+
+        Parallel.For(0, 100_000, index =>
+            recorder.RecordSucceededOperation("send", TimeSpan.FromTicks(index + 1)));
+        var summary = recorder.CreateSummary(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(100_000, summary.TotalOperations);
+        Assert.Equal(LoadRunRecorder.MaxLatencySamplesPerOperation, recorder.BufferedLatencySampleCount);
+        Assert.Single(summary.Latencies);
+    }
 }

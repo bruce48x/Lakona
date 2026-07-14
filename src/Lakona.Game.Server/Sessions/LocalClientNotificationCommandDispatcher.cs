@@ -20,6 +20,51 @@ public sealed class LocalClientNotificationCommandDispatcher
         _callbacks = callbacks ?? throw new ArgumentNullException(nameof(callbacks));
     }
 
+    internal async ValueTask<ClientNotificationStatus> DispatchGeneratedAsync<TCallback, TPayload>(
+        GameSessionKey session,
+        int serviceId,
+        int methodId,
+        string methodName,
+        TPayload payload,
+        CancellationToken cancellationToken = default)
+        where TCallback : class
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var callback = _callbacks is not null
+            ? await _callbacks.ResolveAsync<TCallback>(session, cancellationToken).ConfigureAwait(false)
+            : await _sessions!.GetCallbackAsync<TCallback>(session, cancellationToken).ConfigureAwait(false);
+        if (callback is null)
+        {
+            return ClientNotificationStatus.CallbackUnavailable;
+        }
+
+        if (callback is IRpcNotificationDispatchTarget generatedTarget)
+        {
+            try
+            {
+                await generatedTarget.DispatchNotificationAsync(
+                    serviceId,
+                    methodId,
+                    payload,
+                    metadata: null,
+                    cancellationToken).ConfigureAwait(false);
+                return ClientNotificationStatus.Delivered;
+            }
+            catch (NotSupportedException)
+            {
+            }
+        }
+
+        return await DispatchAsync(
+            ClientNotificationCommandFactory.CreateGenerated<TCallback, TPayload>(
+                session,
+                serviceId,
+                methodId,
+                methodName,
+                payload),
+            cancellationToken).ConfigureAwait(false);
+    }
+
     public async ValueTask<ClientNotificationStatus> DispatchAsync(
         ClientNotificationCommand command,
         CancellationToken cancellationToken = default)
@@ -49,6 +94,27 @@ public sealed class LocalClientNotificationCommandDispatcher
 
         try
         {
+            if (command.ServiceId > 0 && command.MethodId > 0 &&
+                callback is IRpcNotificationDispatchTarget generatedTarget)
+            {
+                try
+                {
+                    await generatedTarget
+                        .DispatchNotificationAsync(
+                            command.ServiceId,
+                            command.MethodId,
+                            command.Payload,
+                            command.Metadata,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    return ClientNotificationStatus.Delivered;
+                }
+                catch (NotSupportedException)
+                {
+                    // Compatibility targets implement the legacy typed-object dispatcher only.
+                }
+            }
+
             var arguments = DecodeArguments(method, command);
             if (callback is IRpcNotificationDispatchTarget dispatchTarget)
             {
@@ -104,11 +170,12 @@ public sealed class LocalClientNotificationCommandDispatcher
         Type callbackType,
         ClientNotificationCommand command)
     {
+        var payloadCount = command.ServiceId > 0 ? 1 : command.Arguments.Count;
         return callbackType.GetMethods()
             .Where(method => string.Equals(method.Name, command.MethodName, StringComparison.Ordinal))
             .FirstOrDefault(method => method
                 .GetParameters()
-                .Count(parameter => parameter.ParameterType != typeof(CancellationToken)) == command.Arguments.Count);
+                .Count(parameter => parameter.ParameterType != typeof(CancellationToken)) == payloadCount);
     }
 
     private static object?[] DecodeArguments(
@@ -126,8 +193,11 @@ public sealed class LocalClientNotificationCommandDispatcher
                 continue;
             }
 
+            var payload = command.ServiceId > 0
+                ? command.Payload
+                : command.Arguments[commandArgumentIndex].Payload;
             arguments[i] = JsonSerializer.Deserialize(
-                command.Arguments[commandArgumentIndex].Payload,
+                payload,
                 parameters[i].ParameterType);
             commandArgumentIndex++;
         }

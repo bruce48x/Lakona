@@ -231,6 +231,10 @@ Allowed low-cardinality fields include actor type, message type, timeout
 reason, mailbox queue totals, processed counts, rejected counts, and
 slow-message counters.
 
+Mailbox queue totals are maintained at enqueue, dequeue, rejection, and drain
+boundaries. Metrics collection reads the aggregate counter in constant time;
+it must not enumerate every live Actor mailbox during a scrape.
+
 Detail endpoints are disabled by default. Any endpoint that exposes more than
 aggregate actor diagnostics requires explicit diagnostics detail mode.
 

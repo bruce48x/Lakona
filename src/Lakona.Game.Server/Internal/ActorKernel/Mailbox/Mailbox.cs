@@ -1,17 +1,18 @@
-using System.Collections.Concurrent;
-using System.Threading.Tasks.Dataflow;
+using System.Threading.Channels;
 using Lakona.Game.Server.Internal.ActorKernel.Messaging;
 
 namespace Lakona.Game.Server.Internal.ActorKernel.Mailbox;
 
 internal sealed class Mailbox
 {
-    private static readonly ConcurrentDictionary<long, Mailbox> ActiveMailboxes = new();
-    private static long nextId;
+    private static long totalQueuedCount;
 
-    private readonly ActionBlock<Envelope> block;
+    private readonly Channel<Envelope> channel;
+    private readonly Func<Envelope, ValueTask> dispatch;
+    private readonly Task completion;
     private readonly int capacity;
-    private readonly long id;
+    private readonly SemaphoreSlim availableSlots;
+    private long queuedCount;
     private long enqueuedCount;
     private long processedCount;
     private long rejectedCount;
@@ -19,72 +20,70 @@ internal sealed class Mailbox
     public Mailbox(Func<Envelope, ValueTask> dispatch, int capacity)
     {
         ArgumentNullException.ThrowIfNull(dispatch);
-
+        this.dispatch = dispatch;
         this.capacity = capacity;
-        id = Interlocked.Increment(ref nextId);
-        block = new ActionBlock<Envelope>(
-            async envelope =>
-            {
-                try
-                {
-                    await dispatch(envelope).ConfigureAwait(false);
-                }
-                finally
-                {
-                    Interlocked.Increment(ref processedCount);
-                }
-            },
-            new ExecutionDataflowBlockOptions
-            {
-                BoundedCapacity = capacity,
-                EnsureOrdered = true,
-                MaxDegreeOfParallelism = 1
-            });
-        ActiveMailboxes.TryAdd(id, this);
-        _ = RemoveFromActiveWhenCompleted();
+        availableSlots = new SemaphoreSlim(capacity, capacity);
+        channel = Channel.CreateBounded<Envelope>(new BoundedChannelOptions(capacity)
+        {
+            FullMode = BoundedChannelFullMode.Wait,
+            SingleReader = true,
+            SingleWriter = false,
+            AllowSynchronousContinuations = false
+        });
+        completion = ProcessAsync();
     }
 
-    public Task Completion => block.Completion;
+    public Task Completion => completion;
 
     public async ValueTask Send(Envelope envelope, CancellationToken cancellationToken)
     {
-        bool accepted = await block.SendAsync(envelope, cancellationToken).ConfigureAwait(false);
-
-        if (!accepted)
+        await availableSlots.WaitAsync(cancellationToken).ConfigureAwait(false);
+        IncrementQueued();
+        if (channel.Writer.TryWrite(envelope))
         {
-            Interlocked.Increment(ref rejectedCount);
-            throw new InvalidOperationException("The actor mailbox is completed.");
+            Interlocked.Increment(ref enqueuedCount);
+            LakonaActorDiagnostics.MessageAcceptedCounter.Add(1, CreateKindTag(envelope));
+            return;
         }
 
-        Interlocked.Increment(ref enqueuedCount);
-        LakonaActorDiagnostics.MessageAcceptedCounter.Add(1, CreateKindTag(envelope));
+        DecrementQueued();
+        availableSlots.Release();
+        Interlocked.Increment(ref rejectedCount);
+        throw new InvalidOperationException("The actor mailbox is completed.");
     }
 
     public bool TrySend(Envelope envelope)
     {
-        bool accepted = block.Post(envelope);
+        if (!availableSlots.Wait(0))
+        {
+            Interlocked.Increment(ref rejectedCount);
+            return false;
+        }
 
-        if (accepted)
+        IncrementQueued();
+        if (channel.Writer.TryWrite(envelope))
         {
             Interlocked.Increment(ref enqueuedCount);
             LakonaActorDiagnostics.MessageAcceptedCounter.Add(1, CreateKindTag(envelope));
             return true;
         }
 
+        DecrementQueued();
+        availableSlots.Release();
         Interlocked.Increment(ref rejectedCount);
         return false;
     }
 
     public void Complete()
     {
-        block.Complete();
+        channel.Writer.TryComplete();
     }
 
     public MailboxMetrics GetMetrics()
     {
         return new MailboxMetrics(
             capacity,
-            block.InputCount,
+            checked((int)Volatile.Read(ref queuedCount)),
             Interlocked.Read(ref enqueuedCount),
             Interlocked.Read(ref processedCount),
             Interlocked.Read(ref rejectedCount),
@@ -93,7 +92,7 @@ internal sealed class Mailbox
 
     public static long GetTotalQueuedCount()
     {
-        return ActiveMailboxes.Values.Sum(static mailbox => mailbox.block.InputCount);
+        return Volatile.Read(ref totalQueuedCount);
     }
 
     private static KeyValuePair<string, object?> CreateKindTag(Envelope envelope)
@@ -101,15 +100,49 @@ internal sealed class Mailbox
         return new KeyValuePair<string, object?>("kind", envelope.Response is null ? "send" : "call");
     }
 
-    private async Task RemoveFromActiveWhenCompleted()
+    private void IncrementQueued()
+    {
+        Interlocked.Increment(ref queuedCount);
+        Interlocked.Increment(ref totalQueuedCount);
+    }
+
+    private void DecrementQueued()
+    {
+        Interlocked.Decrement(ref queuedCount);
+        Interlocked.Decrement(ref totalQueuedCount);
+    }
+
+    private async Task ProcessAsync()
     {
         try
         {
-            await block.Completion.ConfigureAwait(false);
+            while (await channel.Reader.WaitToReadAsync().ConfigureAwait(false))
+            {
+                while (channel.Reader.TryRead(out var envelope))
+                {
+                    DecrementQueued();
+                    try
+                    {
+                        await dispatch(envelope).ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        Interlocked.Increment(ref processedCount);
+                        availableSlots.Release();
+                    }
+                }
+            }
         }
-        finally
+        catch (Exception exception)
         {
-            ActiveMailboxes.TryRemove(id, out _);
+            channel.Writer.TryComplete(exception);
+            while (channel.Reader.TryRead(out _))
+            {
+                DecrementQueued();
+                availableSlots.Release();
+            }
+
+            throw;
         }
     }
 }

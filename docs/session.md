@@ -334,6 +334,13 @@ snapshot captured before the hotfix method runs. Mutations through
 `ILakonaGameServer` do not update that snapshot. Use `GetSessionItemAsync` for
 fresh reads later in the same call.
 
+The in-memory registry publishes a new immutable item snapshot only when an
+item changes. Repeated request reads for an unchanged session reuse the same
+snapshot and do not copy the item dictionary. Session, connection, callback,
+and terminated-connection indexes remain coordinated during bind,
+disconnect, termination, resume, and expiration; high-frequency reads and
+heartbeats synchronize only the affected session.
+
 Cached items must not bypass route freshness. A cached room id may choose an
 actor key, but generated selectors still resolve placement unless a future node
 lease or epoch design exists.
@@ -515,24 +522,19 @@ the framework resolve delivery:
 
 ```csharp
 await clientNotifications
-    .ForSession(sessionKey)
-    .NotifyAsync<IPlayerCallback>(
-        callback => callback.OnMatchmakingStatusAsync(update),
-        cancellationToken);
+    .ForSession<IPlayerCallback>(sessionKey)
+    .OnMatchmakingStatus(update, cancellationToken);
 ```
 
-The notification lambda is awaitable. Generated or runtime notification
-dispatch must wait for the actual outbound send outcome even when the shared
-callback contract method returns `void`; otherwise a reliable notification can
-be reported as delivered while the transport send is still pending or has
-failed.
-
-The lambda-capture form is the business-facing intent API, but the current
-runtime capture mechanism is not a permanent design commitment. Future
-notification work should prefer generated typed command helpers over
-`DispatchProxy`-style runtime capture so callback method selection is checked
-at build time and the "exactly one callback method" rule is easier to reason
-about.
+`ForSession<TCallback>` returns a readonly value-type target. Source generation
+adds the callback contract's notification methods as completion-friendly
+extensions, so normal publication does not allocate a target object or
+capturing lambda and does not use `DispatchProxy`, runtime method reflection,
+or argument lists. Local best-effort delivery keeps the typed payload and does
+not serialize merely to rediscover the selected method. Reliable and remote
+delivery materialize the bounded command payload required for replay or
+cluster transport. Every path still waits for the actual outbound send outcome
+even when the shared callback contract method returns `void`.
 
 User-targeted notification policy remains business-layer responsibility in this
 iteration. The framework does not own session kind or expose user-and-kind

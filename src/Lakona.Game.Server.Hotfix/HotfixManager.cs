@@ -114,6 +114,7 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
         HotfixAssemblySourceResult? resolved = null;
         HotfixAssemblyLoadContext? pendingContext = null;
         IServiceProvider? hotfixProvider = null;
+        HotfixDispatchTable? pendingTable = null;
         try
         {
             resolved = await source.ResolveAsync(cancellationToken).ConfigureAwait(false);
@@ -152,6 +153,7 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 scan.Services,
                 scan.ActorMethods,
                 scan.ActorLifecycles);
+            pendingTable = table;
             table.ValidateMethodShapes();
             table.ValidateTypedDispatchDelegates();
             hotfixProvider = BuildHotfixProvider(scan.StartupServices, assembly);
@@ -169,6 +171,8 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
 
             if (!publish)
             {
+                await table.DisposeAsync().ConfigureAwait(false);
+                pendingTable = null;
                 DisposeQuietly(hotfixProvider);
                 pendingContext.Unload();
                 pendingContext = null;
@@ -188,6 +192,7 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 onRetired: null,
                 actorStartups: scan.ActorStartups,
                 actorPlacements: scan.ActorPlacements);
+            pendingTable = null;
             var result = await PublishCandidateAsync(
                 runtimeSnapshot,
                 snapshot,
@@ -206,12 +211,20 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
         }
         catch (OperationCanceledException)
         {
+            if (pendingTable is not null)
+            {
+                await pendingTable.DisposeAsync().ConfigureAwait(false);
+            }
             DisposeQuietly(hotfixProvider);
             pendingContext?.Unload();
             throw;
         }
         catch (Exception ex)
         {
+            if (pendingTable is not null)
+            {
+                await pendingTable.DisposeAsync().ConfigureAwait(false);
+            }
             DisposeQuietly(hotfixProvider);
             pendingContext?.Unload();
 

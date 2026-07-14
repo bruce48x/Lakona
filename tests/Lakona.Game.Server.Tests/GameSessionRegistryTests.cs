@@ -341,6 +341,32 @@ public sealed class GameSessionRegistryTests
     }
 
     [Fact]
+    public async Task Unchanged_session_item_snapshot_reads_reuse_the_published_snapshot()
+    {
+        var directory = new InMemoryGameSessionRegistry();
+        var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
+        await directory.SetSessionItemAsync(
+            session,
+            "roomId",
+            GameSessionItemValue.FromString("room-a"),
+            TestContext.Current.CancellationToken);
+
+        var first = await directory.GetSessionItemsAsync(session, TestContext.Current.CancellationToken);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        GameSessionItems current = first;
+        for (var i = 0; i < 10_000; i++)
+        {
+            current = await directory.GetSessionItemsAsync(
+                session,
+                TestContext.Current.CancellationToken);
+        }
+
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.Same(first, current);
+        Assert.Equal(0, allocated);
+    }
+
+    [Fact]
     public async Task Session_item_keys_reject_overlong_values()
     {
         var directory = new InMemoryGameSessionRegistry();

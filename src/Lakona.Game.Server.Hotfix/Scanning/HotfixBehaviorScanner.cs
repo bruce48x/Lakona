@@ -810,7 +810,7 @@ public static class HotfixBehaviorScanner
                 continue;
             }
 
-            services.Add(new HotfixServiceMethodBinding(key, method, serviceType, contractType, returnType, parameterTypes));
+            services.Add(new HotfixServiceMethodBinding(key, methodId, method, serviceType, contractType, returnType, parameterTypes));
         }
     }
 

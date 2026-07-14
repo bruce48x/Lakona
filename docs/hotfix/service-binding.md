@@ -122,7 +122,7 @@ public sealed class ChatService
 The hotfix startup method marked `[HotfixConfigureServices]` registers
 dependencies used by hotfix logic. It does not register `[HotfixService]`
 classes themselves. The dispatch layer owns service implementation lifetime and
-creates one instance per non-static service call.
+creates one instance per published hotfix generation.
 
 Constructor parameters resolve from the current hotfix generation provider
 first and the stable root provider second. Generation-local dependencies should
@@ -136,15 +136,20 @@ must have one public constructor, or one public constructor marked with
 implementations, multiple unmarked public constructors, and activation failures
 fail hotfix validation or reload before the candidate generation is published.
 
-The dispatch layer disposes the per-call service or lifecycle instance after
-the returned `ValueTask` completes, including failure paths. Constructors
-should capture and validate dependencies only; they must not start timers,
-threads, static event subscriptions, long-lived connections, or request work.
+The dispatch layer owns each non-static service or lifecycle instance for the
+entire published generation and disposes it only after that generation retires
+and its in-flight calls drain. Service instances are therefore concurrent
+coordinators: constructors may capture generation-scoped dependencies, but
+request state belongs in the readonly `HotfixServiceCall` value, durable mutable
+state belongs in Actors or Game Sessions, and any mutable coordinator field
+must be synchronized explicitly. Constructors must not start unmanaged
+background work or subscriptions that outlive generation disposal.
 
-For high-frequency realtime methods, a service method may stay static to avoid
-allocating one service implementation instance per request. Keep that exception
-local to the hot method and resolve only the required dependencies from
-`call.Services`.
+Generated dispatch uses stable numeric method ids and cached typed delegates.
+Warm service and Actor calls must not construct method-name keys, type arrays,
+argument arrays, or invoke user methods through reflection. Static service
+methods remain supported for stateless helpers, but are no longer required to
+avoid one implementation allocation per request.
 
 ## Session Lifecycle Boundary
 

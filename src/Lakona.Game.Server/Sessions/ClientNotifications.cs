@@ -9,7 +9,8 @@ internal sealed class ClientNotifications : IClientNotifications
         _router = router ?? throw new ArgumentNullException(nameof(router));
     }
 
-    public IClientNotificationTarget ForSession(GameSessionKey session)
+    public ClientNotificationTarget<TCallback> ForSession<TCallback>(GameSessionKey session)
+        where TCallback : class
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(session.OwnerKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(session.SessionId);
@@ -18,40 +19,6 @@ internal sealed class ClientNotifications : IClientNotifications
             throw new ArgumentException("Session generation must be positive.", nameof(session));
         }
 
-        return new Target(this, session);
-    }
-
-    private async ValueTask<ClientNotificationStatus> NotifyAsync<TCallback>(
-        GameSessionKey session,
-        Func<TCallback, ValueTask> notify,
-        CancellationToken cancellationToken)
-        where TCallback : class
-    {
-        ArgumentNullException.ThrowIfNull(notify);
-
-        var command = await ClientNotificationCommandFactory
-            .CreateAsync(session, notify)
-            .ConfigureAwait(false);
-        if (command is null)
-        {
-            return ClientNotificationStatus.Failed;
-        }
-
-        return await _router.DispatchAsync(command, cancellationToken)
-            .ConfigureAwait(false);
-    }
-
-    private sealed class Target(ClientNotifications owner, GameSessionKey session) : IClientNotificationTarget
-    {
-        public ValueTask<ClientNotificationStatus> NotifyAsync<TCallback>(
-            Func<TCallback, ValueTask> notify,
-            CancellationToken cancellationToken = default)
-            where TCallback : class
-        {
-            return owner.NotifyAsync(
-                session,
-                notify,
-                cancellationToken);
-        }
+        return new ClientNotificationTarget<TCallback>(_router, session);
     }
 }

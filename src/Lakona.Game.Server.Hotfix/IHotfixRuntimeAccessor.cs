@@ -212,6 +212,7 @@ public sealed class HotfixRuntimeSnapshot
 
         if (_ownsRuntimeResources)
         {
+            DisposeQuietly(DispatchTable);
             DisposeQuietly(HotfixServices);
             UnloadQuietly(LoadContext);
         }
@@ -236,11 +237,11 @@ public sealed class HotfixRuntimeSnapshot
         }
     }
 
-    private static void DisposeQuietly(IServiceProvider? provider)
+    private static void DisposeQuietly(object? resource)
     {
         try
         {
-            switch (provider)
+            switch (resource)
             {
                 case IAsyncDisposable asyncDisposable:
                     asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();

@@ -6,7 +6,7 @@ namespace Lakona.Rpc.Transport.Kcp;
 internal static class KcpUpdateScheduler
 {
     private const int IntervalMs = 10;
-    private static readonly ConcurrentDictionary<int, Action> Callbacks = new();
+    private static readonly ConcurrentDictionary<int, Registration> Registrations = new();
     private static readonly Timer Timer = new(static _ => Tick(), null, IntervalMs, IntervalMs);
     private static int _nextId;
     private static int _tickRunning;
@@ -17,8 +17,9 @@ internal static class KcpUpdateScheduler
             throw new ArgumentNullException(nameof(callback));
 
         var id = Interlocked.Increment(ref _nextId);
-        Callbacks[id] = callback;
-        return new Registration(id);
+        var registration = new Registration(id, callback);
+        Registrations[id] = registration;
+        return registration;
     }
 
     private static void Tick()
@@ -28,15 +29,9 @@ internal static class KcpUpdateScheduler
 
         try
         {
-            foreach (var callback in Callbacks.Values)
+            foreach (var registration in Registrations.Values)
             {
-                try
-                {
-                    callback();
-                }
-                catch
-                {
-                }
+                registration.Schedule();
             }
         }
         finally
@@ -48,11 +43,45 @@ internal static class KcpUpdateScheduler
     private sealed class Registration : IDisposable
     {
         private readonly int _id;
+        private readonly Action _callback;
         private int _disposed;
+        private int _running;
 
-        public Registration(int id)
+        public Registration(int id, Action callback)
         {
             _id = id;
+            _callback = callback;
+        }
+
+        public void Schedule()
+        {
+            if (Volatile.Read(ref _disposed) != 0 ||
+                Interlocked.CompareExchange(ref _running, 1, 0) != 0)
+            {
+                return;
+            }
+
+            _ = ThreadPool.UnsafeQueueUserWorkItem(
+                static state => ((Registration)state!).Run(),
+                this);
+        }
+
+        private void Run()
+        {
+            try
+            {
+                if (Volatile.Read(ref _disposed) == 0)
+                {
+                    _callback();
+                }
+            }
+            catch
+            {
+            }
+            finally
+            {
+                Volatile.Write(ref _running, 0);
+            }
         }
 
         public void Dispose()
@@ -60,7 +89,7 @@ internal static class KcpUpdateScheduler
             if (Interlocked.Exchange(ref _disposed, 1) != 0)
                 return;
 
-            Callbacks.TryRemove(_id, out _);
+            Registrations.TryRemove(_id, out _);
         }
     }
 }

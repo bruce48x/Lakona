@@ -381,8 +381,8 @@ public sealed class ToolArchitectureScanTests
         Assert.Contains("internal static partial class ChatRoomBehavior", hotfixText, StringComparison.Ordinal);
         Assert.Contains("ChatSessionLifecycle", hotfixText, StringComparison.Ordinal);
         Assert.Contains("Disconnected sessions stay in the room during the retention window so a client can reconnect without flickering presence.", hotfixText, StringComparison.Ordinal);
-        Assert.Contains("_notifications.ForSession(recipient)", hotfixText, StringComparison.Ordinal);
-        Assert.Contains(".NotifyAsync(notify, cancellationToken)", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("_notifications.ForSession<ILoginCallback>(recipient)", hotfixText, StringComparison.Ordinal);
+        Assert.Contains(".OnUserJoined(member, cancellationToken)", hotfixText, StringComparison.Ordinal);
         Assert.Contains("[HotfixLifecycle(typeof(IGameSessionLifecycle))]", hotfixText, StringComparison.Ordinal);
         Assert.Contains("new ChatRoomLeaveRequest", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain(".AskAsync", hotfixText, StringComparison.Ordinal);

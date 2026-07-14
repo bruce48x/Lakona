@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,9 +9,8 @@ namespace Lakona.Game.Cluster
 {
     public sealed class InMemoryNodeDirectory : INodeDirectory
     {
-        private readonly object _gate = new object();
-        private readonly Dictionary<(string ClusterName, NodeId NodeId), NodeRecord> _nodes =
-            new Dictionary<(string ClusterName, NodeId NodeId), NodeRecord>();
+        private readonly ConcurrentDictionary<(string ClusterName, NodeId NodeId), NodeRecord> _nodes =
+            new ConcurrentDictionary<(string ClusterName, NodeId NodeId), NodeRecord>();
 
         public ValueTask<NodeRegistrationResult> RegisterAsync(
             NodeRegistration registration,
@@ -24,9 +24,9 @@ namespace Lakona.Game.Cluster
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            lock (_gate)
+            var key = Key(registration.ClusterName, registration.NodeId);
+            while (true)
             {
-                var key = Key(registration.ClusterName, registration.NodeId);
                 var epoch = _nodes.TryGetValue(key, out var existing)
                     ? existing.NodeEpoch + 1
                     : 1;
@@ -42,9 +42,14 @@ namespace Lakona.Game.Cluster
                     registration.LeaseExpiresAt,
                     now);
 
-                _nodes[key] = record;
-                return new ValueTask<NodeRegistrationResult>(
-                    new NodeRegistrationResult(NodeRegistrationStatus.Registered, record));
+                var registered = existing is null
+                    ? _nodes.TryAdd(key, record)
+                    : _nodes.TryUpdate(key, record, existing);
+                if (registered)
+                {
+                    return new ValueTask<NodeRegistrationResult>(
+                        new NodeRegistrationResult(NodeRegistrationStatus.Registered, record));
+                }
             }
         }
 
@@ -63,7 +68,7 @@ namespace Lakona.Game.Cluster
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            lock (_gate)
+            while (true)
             {
                 var status = TryGetCurrent(clusterName, node, nodeEpoch, now, out var current);
                 if (status != NodeAccessStatus.Current)
@@ -71,8 +76,10 @@ namespace Lakona.Game.Cluster
                     return new ValueTask<NodeHeartbeatStatus>(ToHeartbeatStatus(status));
                 }
 
-                _nodes[Key(clusterName, node)] = WithLease(current!, leaseExpiresAt, now);
-                return new ValueTask<NodeHeartbeatStatus>(NodeHeartbeatStatus.Refreshed);
+                if (_nodes.TryUpdate(Key(clusterName, node), WithLease(current!, leaseExpiresAt, now), current!))
+                {
+                    return new ValueTask<NodeHeartbeatStatus>(NodeHeartbeatStatus.Refreshed);
+                }
             }
         }
 
@@ -91,7 +98,7 @@ namespace Lakona.Game.Cluster
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            lock (_gate)
+            while (true)
             {
                 var status = TryGetCurrent(clusterName, node, nodeEpoch, now, out var current);
                 if (status != NodeAccessStatus.Current)
@@ -99,8 +106,10 @@ namespace Lakona.Game.Cluster
                     return new ValueTask<NodeStateUpdateStatus>(ToStateUpdateStatus(status));
                 }
 
-                _nodes[Key(clusterName, node)] = WithState(current!, state, now);
-                return new ValueTask<NodeStateUpdateStatus>(NodeStateUpdateStatus.Updated);
+                if (_nodes.TryUpdate(Key(clusterName, node), WithState(current!, state, now), current!))
+                {
+                    return new ValueTask<NodeStateUpdateStatus>(NodeStateUpdateStatus.Updated);
+                }
             }
         }
 
@@ -112,20 +121,17 @@ namespace Lakona.Game.Cluster
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            lock (_gate)
+            if (!_nodes.TryGetValue(Key(clusterName, node), out var record))
             {
-                if (!_nodes.TryGetValue(Key(clusterName, node), out var record))
-                {
-                    return new ValueTask<NodeRecord?>((NodeRecord?)null);
-                }
-
-                if (record.State == NodeState.Dead || record.IsExpired(now))
-                {
-                    return new ValueTask<NodeRecord?>((NodeRecord?)null);
-                }
-
-                return new ValueTask<NodeRecord?>(record);
+                return new ValueTask<NodeRecord?>((NodeRecord?)null);
             }
+
+            if (record.State == NodeState.Dead || record.IsExpired(now))
+            {
+                return new ValueTask<NodeRecord?>((NodeRecord?)null);
+            }
+
+            return new ValueTask<NodeRecord?>(record);
         }
 
         public ValueTask<IReadOnlyList<NodeRecord>> QueryAsync(
@@ -140,15 +146,12 @@ namespace Lakona.Game.Cluster
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            lock (_gate)
-            {
-                var records = _nodes.Values
-                    .Where(record => MatchesQuery(record, query, now))
-                    .OrderBy(record => record.NodeId.Value, StringComparer.Ordinal)
-                    .ToArray();
+            var records = _nodes.Values
+                .Where(record => MatchesQuery(record, query, now))
+                .OrderBy(record => record.NodeId.Value, StringComparer.Ordinal)
+                .ToArray();
 
-                return new ValueTask<IReadOnlyList<NodeRecord>>(records);
-            }
+            return new ValueTask<IReadOnlyList<NodeRecord>>(records);
         }
 
         public ValueTask<int> ExpireAsync(
@@ -158,23 +161,19 @@ namespace Lakona.Game.Cluster
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            lock (_gate)
+            var expired = 0;
+            foreach (var node in _nodes)
             {
-                var expired = _nodes
-                    .Where(node =>
-                        string.Equals(node.Key.ClusterName, clusterName, StringComparison.Ordinal)
-                        && node.Value.State != NodeState.Dead
-                        && node.Value.IsExpired(now))
-                    .Select(node => node.Key)
-                    .ToArray();
-
-                foreach (var key in expired)
+                if (string.Equals(node.Key.ClusterName, clusterName, StringComparison.Ordinal) &&
+                    node.Value.State != NodeState.Dead &&
+                    node.Value.IsExpired(now) &&
+                    _nodes.TryUpdate(node.Key, WithState(node.Value, NodeState.Dead, now), node.Value))
                 {
-                    _nodes[key] = WithState(_nodes[key], NodeState.Dead, now);
+                    expired++;
                 }
-
-                return new ValueTask<int>(expired.Length);
             }
+
+            return new ValueTask<int>(expired);
         }
 
         private NodeAccessStatus TryGetCurrent(

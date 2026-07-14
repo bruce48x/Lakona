@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,8 +9,7 @@ namespace Lakona.Game.Cluster
 {
     public sealed class InMemoryRouteDirectory : IRouteDirectory
     {
-        private readonly object _gate = new object();
-        private readonly Dictionary<RouteKey, RouteLocation> _routes = new Dictionary<RouteKey, RouteLocation>();
+        private readonly ConcurrentDictionary<RouteKey, RouteLocation> _routes = new ConcurrentDictionary<RouteKey, RouteLocation>();
 
         public ValueTask<RouteRegistrationStatus> RegisterAsync(
             RouteLocation location,
@@ -17,24 +17,28 @@ namespace Lakona.Game.Cluster
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            lock (_gate)
+            while (true)
             {
                 if (_routes.TryGetValue(location.Route, out var existing))
                 {
-                    if (existing.IsExpired(DateTimeOffset.UtcNow))
-                    {
-                        _routes.Remove(location.Route);
-                    }
-                    else if (IsStaleRegistration(existing, location))
+                    if (!existing.IsExpired(DateTimeOffset.UtcNow) && IsStaleRegistration(existing, location))
                     {
                         return new ValueTask<RouteRegistrationStatus>(RouteRegistrationStatus.StaleLocation);
                     }
+
+                    if (_routes.TryUpdate(location.Route, location, existing))
+                    {
+                        return new ValueTask<RouteRegistrationStatus>(RouteRegistrationStatus.Registered);
+                    }
+
+                    continue;
                 }
 
-                _routes[location.Route] = location;
+                if (_routes.TryAdd(location.Route, location))
+                {
+                    return new ValueTask<RouteRegistrationStatus>(RouteRegistrationStatus.Registered);
+                }
             }
-
-            return new ValueTask<RouteRegistrationStatus>(RouteRegistrationStatus.Registered);
         }
 
         public ValueTask<RouteUnregisterStatus> UnregisterAsync(
@@ -43,12 +47,9 @@ namespace Lakona.Game.Cluster
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            lock (_gate)
-            {
-                return new ValueTask<RouteUnregisterStatus>(_routes.Remove(route)
-                    ? RouteUnregisterStatus.Removed
-                    : RouteUnregisterStatus.NotFound);
-            }
+            return new ValueTask<RouteUnregisterStatus>(_routes.TryRemove(route, out _)
+                ? RouteUnregisterStatus.Removed
+                : RouteUnregisterStatus.NotFound);
         }
 
         public ValueTask<RouteLocation?> ResolveAsync(
@@ -58,21 +59,18 @@ namespace Lakona.Game.Cluster
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            lock (_gate)
+            if (!_routes.TryGetValue(route, out var location))
             {
-                if (!_routes.TryGetValue(route, out var location))
-                {
-                    return new ValueTask<RouteLocation?>((RouteLocation?)null);
-                }
-
-                if (location.IsExpired(now))
-                {
-                    _routes.Remove(route);
-                    return new ValueTask<RouteLocation?>((RouteLocation?)null);
-                }
-
-                return new ValueTask<RouteLocation?>(location);
+                return new ValueTask<RouteLocation?>((RouteLocation?)null);
             }
+
+            if (location.IsExpired(now))
+            {
+                RemoveExact(route, location);
+                return new ValueTask<RouteLocation?>((RouteLocation?)null);
+            }
+
+            return new ValueTask<RouteLocation?>(location);
         }
 
         public ValueTask<RouteLeaseRefreshStatus> RefreshLeaseAsync(
@@ -83,7 +81,7 @@ namespace Lakona.Game.Cluster
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            lock (_gate)
+            while (true)
             {
                 if (!_routes.TryGetValue(expectedLocation.Route, out var current))
                 {
@@ -92,7 +90,7 @@ namespace Lakona.Game.Cluster
 
                 if (current.IsExpired(now))
                 {
-                    _routes.Remove(expectedLocation.Route);
+                    RemoveExact(expectedLocation.Route, current);
                     return new ValueTask<RouteLeaseRefreshStatus>(RouteLeaseRefreshStatus.Expired);
                 }
 
@@ -101,8 +99,10 @@ namespace Lakona.Game.Cluster
                     return new ValueTask<RouteLeaseRefreshStatus>(RouteLeaseRefreshStatus.StaleLocation);
                 }
 
-                _routes[expectedLocation.Route] = current.WithExpiresAt(expiresAt);
-                return new ValueTask<RouteLeaseRefreshStatus>(RouteLeaseRefreshStatus.Refreshed);
+                if (_routes.TryUpdate(expectedLocation.Route, current.WithExpiresAt(expiresAt), current))
+                {
+                    return new ValueTask<RouteLeaseRefreshStatus>(RouteLeaseRefreshStatus.Refreshed);
+                }
             }
         }
 
@@ -112,20 +112,16 @@ namespace Lakona.Game.Cluster
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            lock (_gate)
+            var expired = 0;
+            foreach (var route in _routes)
             {
-                var expired = _routes
-                    .Where(route => route.Value.IsExpired(now))
-                    .Select(route => route.Key)
-                    .ToArray();
-
-                foreach (var route in expired)
+                if (route.Value.IsExpired(now) && RemoveExact(route.Key, route.Value))
                 {
-                    _routes.Remove(route);
+                    expired++;
                 }
-
-                return new ValueTask<int>(expired.Length);
             }
+
+            return new ValueTask<int>(expired);
         }
 
         public ValueTask<int> ClearByNodeAsync(
@@ -134,20 +130,16 @@ namespace Lakona.Game.Cluster
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            lock (_gate)
+            var removed = 0;
+            foreach (var route in _routes)
             {
-                var stale = _routes
-                    .Where(route => route.Value.Node == node)
-                    .Select(route => route.Key)
-                    .ToArray();
-
-                foreach (var route in stale)
+                if (route.Value.Node == node && RemoveExact(route.Key, route.Value))
                 {
-                    _routes.Remove(route);
+                    removed++;
                 }
-
-                return new ValueTask<int>(stale.Length);
             }
+
+            return new ValueTask<int>(removed);
         }
 
         public ValueTask<int> ClearByNodeEpochAsync(
@@ -162,21 +154,22 @@ namespace Lakona.Game.Cluster
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            lock (_gate)
+            var removed = 0;
+            foreach (var route in _routes)
             {
-                var stale = _routes
-                    .Where(route => route.Value.Node == node && route.Value.NodeEpoch == nodeEpoch)
-                    .Select(route => route.Key)
-                    .ToArray();
-
-                foreach (var route in stale)
+                if (route.Value.Node == node && route.Value.NodeEpoch == nodeEpoch &&
+                    RemoveExact(route.Key, route.Value))
                 {
-                    _routes.Remove(route);
+                    removed++;
                 }
-
-                return new ValueTask<int>(stale.Length);
             }
+
+            return new ValueTask<int>(removed);
         }
+
+        private bool RemoveExact(RouteKey route, RouteLocation location) =>
+            ((ICollection<KeyValuePair<RouteKey, RouteLocation>>)_routes)
+                .Remove(new KeyValuePair<RouteKey, RouteLocation>(route, location));
 
         private static bool IsStaleRegistration(RouteLocation existing, RouteLocation candidate)
         {

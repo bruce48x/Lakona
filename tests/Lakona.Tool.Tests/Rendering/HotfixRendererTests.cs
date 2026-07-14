@@ -42,7 +42,7 @@ public sealed class HotfixRendererTests
         var timer = AssertPath(plan, "Server/Hotfix/Game/GameWorldTimer.cs").Content;
         Assert.Contains("IClientNotifications", timer, StringComparison.Ordinal);
         Assert.Contains("OnWorldUpdated", timer, StringComparison.Ordinal);
-        Assert.Contains("ForSession(session)", timer, StringComparison.Ordinal);
+        Assert.Contains("ForSession<IGameCallback>(session)", timer, StringComparison.Ordinal);
 
         var lifecycle = AssertPath(plan, "Server/Hotfix/Game/GameSessionLifecycle.cs").Content;
         Assert.Contains("SessionDisconnectedAsync", lifecycle, StringComparison.Ordinal);

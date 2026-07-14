@@ -113,11 +113,14 @@ public static class SessionServiceCollectionExtensions
 
     private static IClientNotificationCommandRouter CreateClientNotificationCommandRouter(IServiceProvider services)
     {
-        var localOwner = services.GetRequiredService<IReliablePushRuntime>();
+        var localOwner = services.GetService<IReliablePushRuntime>();
+        var localDispatcher = services.GetRequiredService<LocalClientNotificationCommandDispatcher>();
         var routes = services.GetService<IRouteDirectory>();
         var remoteDispatcher = services.GetService<IClientNotificationRemoteDispatcher>();
         var cluster = services.GetService<ClusterOptions>();
         NodeId? localNode = cluster is null ? (NodeId?)null : new NodeId(cluster.NodeId);
-        return new ClientNotificationCommandRouter(localOwner, routes, remoteDispatcher, localNode);
+        return localOwner is not null
+            ? new ClientNotificationCommandRouter(localOwner, routes, remoteDispatcher, localNode)
+            : new ClientNotificationCommandRouter(localDispatcher, routes, remoteDispatcher, localNode);
     }
 }

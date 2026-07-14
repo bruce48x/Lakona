@@ -76,6 +76,37 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
         return immediateStatus;
     }
 
+    public async ValueTask<ClientNotificationStatus> PublishGeneratedAsync<TCallback, TPayload>(
+        GameSessionKey session,
+        int serviceId,
+        int methodId,
+        string methodName,
+        TPayload payload,
+        CancellationToken cancellationToken = default)
+        where TCallback : class
+    {
+        if (!await _sessions.GetReliablePushPolicyAsync(session, cancellationToken).ConfigureAwait(false))
+        {
+            return await _localDispatcher.DispatchGeneratedAsync<TCallback, TPayload>(
+                session,
+                serviceId,
+                methodId,
+                methodName,
+                payload,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        return await PublishAsync(
+            session,
+            ClientNotificationCommandFactory.CreateGenerated<TCallback, TPayload>(
+                session,
+                serviceId,
+                methodId,
+                methodName,
+                payload),
+            cancellationToken).ConfigureAwait(false);
+    }
+
     public async ValueTask ReplayPendingAsync(
         GameSessionKey session,
         CancellationToken cancellationToken = default)

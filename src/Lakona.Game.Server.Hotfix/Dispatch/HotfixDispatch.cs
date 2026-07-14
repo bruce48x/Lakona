@@ -112,6 +112,49 @@ public static class HotfixDispatch
         throw new InvalidOperationException($"Hotfix method '{invocation.Key}' returned an invalid result.");
     }
 
+    public static async ValueTask InvokeActorAsync(
+        ulong methodId,
+        object actor,
+        object? request,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await ActiveTable.InvokeActorAsync(
+            methodId,
+            actor,
+            request,
+            typeof(void),
+            cancellationToken).ConfigureAwait(false);
+        if (result is not null)
+        {
+            throw new InvalidOperationException($"Hotfix actor method id '{methodId}' returned a result from a resultless invocation.");
+        }
+    }
+
+    public static async ValueTask<TResult> InvokeActorAsync<TResult>(
+        ulong methodId,
+        object actor,
+        object? request,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await ActiveTable.InvokeActorAsync(
+            methodId,
+            actor,
+            request,
+            typeof(TResult),
+            cancellationToken).ConfigureAwait(false);
+        if (result is TResult typedResult)
+        {
+            return typedResult;
+        }
+
+        if (result is null && default(TResult) is null)
+        {
+            return default!;
+        }
+
+        throw new InvalidOperationException($"Hotfix actor method id '{methodId}' returned an invalid result.");
+    }
+
     public static async ValueTask InvokeValueTaskAsync(
         Type stateType,
         string methodName,

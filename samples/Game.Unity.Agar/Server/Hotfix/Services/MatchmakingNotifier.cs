@@ -20,14 +20,8 @@ public sealed class MatchmakingNotifier
     public async ValueTask PublishAsync(GameSessionKey controlSession, MatchmakingStatusUpdate update, CancellationToken cancellationToken = default)
     {
         var status = await _notifications
-            .ForSession(controlSession)
-            .NotifyAsync<IPlayerCallback>(
-                target =>
-                {
-                    target.OnMatchmakingStatus(Clone(update));
-                    return default;
-                },
-                cancellationToken)
+            .ForSession<IPlayerCallback>(controlSession)
+            .OnMatchmakingStatus(Clone(update), cancellationToken)
             .ConfigureAwait(false);
 
         if (status == ClientNotificationStatus.Delivered)
