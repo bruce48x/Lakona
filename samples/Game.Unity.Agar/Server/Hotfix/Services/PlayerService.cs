@@ -15,6 +15,7 @@ using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.Logging;
+using Server.App.Generated;
 using Server.Hotfix;
 using Server.Hotfix.Services;
 using Server.Hotfix.State.Leaderboard;
@@ -43,7 +44,7 @@ public sealed class PlayerService
     }
 
     public async ValueTask<LeaderboardReply> GetLeaderboardAsync(
-        HotfixServiceCall<LeaderboardRequest, IPlayerCallback> call)
+        PlayerServiceCall<LeaderboardRequest> call)
     {
         var req = call.Request;
 
@@ -77,7 +78,7 @@ public sealed class PlayerService
         };
     }
 
-    public async ValueTask StartMatchmakingAsync(HotfixServiceCall<MatchmakingRequest, IPlayerCallback> call)
+    public async ValueTask StartMatchmakingAsync(PlayerServiceCall<MatchmakingRequest> call)
     {
         var playerId = await EnsureControlConnectionAsync(call).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(playerId))
@@ -88,7 +89,7 @@ public sealed class PlayerService
         await EnqueuePlayerAsync(call.Services, playerId, CancellationToken.None).ConfigureAwait(false);
     }
 
-    public async ValueTask CancelMatchmakingAsync(HotfixServiceCall<CancelMatchmakingRequest, IPlayerCallback> call)
+    public async ValueTask CancelMatchmakingAsync(PlayerServiceCall<CancelMatchmakingRequest> call)
     {
         var playerId = await EnsureControlConnectionAsync(call).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(playerId))
@@ -100,7 +101,7 @@ public sealed class PlayerService
             .ConfigureAwait(false);
     }
 
-    public async ValueTask LogoutAsync(HotfixServiceCall<LogoutRequest, IPlayerCallback> call)
+    public async ValueTask LogoutAsync(PlayerServiceCall<LogoutRequest> call)
     {
         var playerId = await EnsureControlConnectionAsync(call).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(playerId))
@@ -111,9 +112,8 @@ public sealed class PlayerService
         await ReleasePlayerAsync(call.Services, playerId, "Logout", CancellationToken.None).ConfigureAwait(false);
     }
 
-    private static async ValueTask<string?> EnsureControlConnectionAsync<TRequest, TCallback>(
-        HotfixServiceCall<TRequest, TCallback> call)
-        where TCallback : class
+    private static async ValueTask<string?> EnsureControlConnectionAsync<TRequest>(
+        PlayerServiceCall<TRequest> call)
     {
         if (call.CurrentSession is not { } currentSession)
         {

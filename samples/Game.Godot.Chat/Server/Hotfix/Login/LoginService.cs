@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using Lakona.Game.Server;
+using Server.App.Generated;
 using Server.App.Chat;
 using Server.Hotfix.Chat;
 using Shared.Contracts.Chat;
@@ -23,7 +24,7 @@ namespace Server.Hotfix.Login
             _notifications = notifications;
         }
 
-        public async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, ILoginCallback> call)
+        public async ValueTask<LoginReply> LoginAsync(LoginServiceCall<LoginRequest> call)
         {
             var playerName = string.IsNullOrWhiteSpace(call.Request.PlayerName)
                 ? "Player"

@@ -10,11 +10,10 @@ public sealed class RpcContractSplitTests
     [Fact]
     public void SharedContractsExposeSeparateLoginPlayerAndBattleServices()
     {
-        AssertRpcService(typeof(ILoginService), 1, typeof(ILoginCallback));
+        AssertRpcService(typeof(ILoginService), 1, notificationContract: null);
         AssertRpcService(typeof(IPlayerService), 2, typeof(IPlayerCallback));
         AssertRpcService(typeof(IBattleService), 3, typeof(IBattleCallback));
 
-        AssertRpcNotification(typeof(ILoginCallback), typeof(ILoginService));
         AssertRpcNotification(typeof(IPlayerCallback), typeof(IPlayerService));
         AssertRpcNotification(typeof(IBattleCallback), typeof(IBattleService));
 

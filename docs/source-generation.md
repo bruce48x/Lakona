@@ -46,7 +46,8 @@ compiler-visible property name through the generator package's
 `buildTransitive` props once packaged.
 
 `Server.App` owns stable RPC service proxies, endpoint binders, required
-hotfix service contract providers, actor state, and actor DTOs. `Server.Hotfix`
+hotfix service contract providers, service-scoped `*ServiceCall<TRequest>`
+contexts, actor state, and actor DTOs. `Server.Hotfix`
 owns replaceable service implementations, lifecycle implementations, behavior
 code, and a behavior-derived `ActorAccess` root. Public extension methods
 in `[HotfixBehaviorOf]` classes define the actor API its selectors expose. The
@@ -55,6 +56,14 @@ selectors plus generic
 `CallAsync` / `PostAsync` helpers that accept behavior method groups such as
 `RoomBehavior.JoinAsync`; it does not emit business methods whose names mirror
 the behavior methods or one plural collection class per actor.
+
+Each generated hotfix-backed RPC service receives one stable call-context type.
+For example, `IChatService` with `IChatCallback` produces
+`ChatServiceCall<TRequest>`, whose `Callback` property is already typed as
+`IChatCallback`. Hotfix handlers therefore repeat only the request type, while
+the shared service contract remains the single source of truth for its callback
+association. Services without a notification contract receive the same call
+shape without a `Callback` property.
 
 `Lakona.Game.Server.Generators`, for stable non-hotfix actor methods, emits the
 same single-root selection model in `Lakona.Game.Server.Generated`. Because C#

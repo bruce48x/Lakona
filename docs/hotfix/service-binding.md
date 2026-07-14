@@ -111,13 +111,26 @@ public sealed class ChatService
         _presence = presence;
     }
 
-    public ValueTask SendAsync(HotfixServiceCall<ChatSendRequest, IChatCallback> call)
+    public ValueTask SendAsync(ChatServiceCall<ChatSendRequest> call)
     {
         // Use _presence for dependencies and call for request-specific data.
         return default;
     }
 }
 ```
+
+`ChatServiceCall<TRequest>` is generated in the stable server assembly from
+the shared `IChatService` contract. Its `Callback` property is statically typed
+as `IChatCallback`, so hotfix handlers do not repeat the service callback type
+on every method. Services without a notification contract receive the same
+service-scoped call shape without a `Callback` property. All generated call
+types expose the request, connection id, current Game Session and item snapshot,
+hotfix services, Actors, and game-server APIs.
+
+The framework-level `HotfixServiceCall<TRequest>` and
+`HotfixServiceCall<TRequest, TCallback>` structs remain dispatch support types.
+Generated projects should author handlers with the service-scoped generated
+call type instead.
 
 The hotfix startup method marked `[HotfixConfigureServices]` registers
 dependencies used by hotfix logic. It does not register `[HotfixService]`

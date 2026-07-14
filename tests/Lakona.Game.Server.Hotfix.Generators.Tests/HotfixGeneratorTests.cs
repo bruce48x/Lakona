@@ -1384,7 +1384,10 @@ public sealed class HotfixGeneratorTests
 
         Assert.Empty(result.ErrorDiagnostics);
         Assert.Contains("internal sealed class ChatServiceProxy : global::Shared.Contracts.Chat.IChatService", result.GeneratedSource);
-        Assert.Contains("HotfixServiceCall<global::Shared.Contracts.Chat.ChatBindRequest, global::Shared.Contracts.Chat.IChatCallback>", result.GeneratedSource);
+        Assert.Contains("public readonly struct ChatServiceCall<TRequest> : global::Lakona.Game.Server.Hotfix.IHotfixServiceCall<TRequest>", result.GeneratedSource);
+        Assert.Contains("HotfixServiceCall<TRequest, global::Shared.Contracts.Chat.IChatCallback>", result.GeneratedSource);
+        Assert.Contains("public global::Shared.Contracts.Chat.IChatCallback Callback => _inner.Callback;", result.GeneratedSource);
+        Assert.Contains("global::Server.App.Generated.ChatServiceCall<global::Shared.Contracts.Chat.ChatBindRequest>", result.GeneratedSource);
         Assert.Contains("using var lease = _hotfixRuntime.AcquireCurrent();", result.GeneratedSource);
         Assert.Contains("var snapshot = lease.Snapshot;", result.GeneratedSource);
         Assert.DoesNotContain("_hotfixRuntime.Current", result.GeneratedSource, StringComparison.Ordinal);
@@ -1421,7 +1424,7 @@ public sealed class HotfixGeneratorTests
         Assert.DoesNotContain("ChatServiceProxy", result.GeneratedSource, StringComparison.Ordinal);
         Assert.DoesNotContain("ChatServiceEndpointBinder", result.GeneratedSource, StringComparison.Ordinal);
         Assert.DoesNotContain("GeneratedHotfixRequiredServiceContracts", result.GeneratedSource, StringComparison.Ordinal);
-        Assert.DoesNotContain("HotfixServiceCall<global::Shared.Contracts.Chat.ChatBindRequest", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("ChatServiceCall<global::Shared.Contracts.Chat.ChatBindRequest", result.GeneratedSource, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1598,6 +1601,11 @@ public sealed class HotfixGeneratorTests
     [Fact]
     public void Hotfix_service_call_exposes_current_session_constructor_contract()
     {
+        Assert.True(typeof(Lakona.Game.Server.Hotfix.IHotfixServiceCall<object>)
+            .IsAssignableFrom(typeof(Lakona.Game.Server.Hotfix.HotfixServiceCall<object>)));
+        Assert.True(typeof(Lakona.Game.Server.Hotfix.IHotfixServiceCall<object>)
+            .IsAssignableFrom(typeof(Lakona.Game.Server.Hotfix.HotfixServiceCall<object, object>)));
+
         var currentSessionProperty = typeof(Lakona.Game.Server.Hotfix.HotfixServiceCall<>)
             .GetProperty("CurrentSession");
 
@@ -1722,6 +1730,9 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("GetSessionItemsAsync(sessionKey, global::System.Threading.CancellationToken.None)", generated);
         Assert.Contains("currentSession,", generated);
         Assert.Contains("currentSessionItems,", generated);
+        Assert.Contains("public readonly struct LoginServiceCall<TRequest>", generated);
+        Assert.Contains("IHotfixServiceCall<TRequest>", generated);
+        Assert.DoesNotContain(" Callback => ", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("UseGeneratedHotfixServices", generated);
     }
 

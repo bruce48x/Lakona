@@ -313,6 +313,8 @@ public sealed class ToolArchitectureScanTests
         Assert.Contains("var text = call.Request.Text ?? \"\";", chatService, StringComparison.Ordinal);
         Assert.Contains("_logger.LogInformation(\"Sending {CharacterCount} characters\", text.Length);", chatService, StringComparison.Ordinal);
         Assert.Contains("await _notifications.MessageAsync(result.Recipients, result.Message);", chatService, StringComparison.Ordinal);
+        Assert.Contains("ChatServiceCall<ChatBindRequest>", chatService, StringComparison.Ordinal);
+        Assert.Contains("ChatServiceCall<ChatSendRequest>", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("call.Request.Text.Length", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("FilterMessage(call.Request.Text ?? \"\")", chatService, StringComparison.Ordinal);
         Assert.Contains("public LoginService(ActorAccess actors, ILakonaGameServer gameServer, ChatNotifier notifications)", loginService, StringComparison.Ordinal);
@@ -320,6 +322,9 @@ public sealed class ToolArchitectureScanTests
         Assert.Contains(".Startup<ChatRoomActor>(ChatRoomIds.Global)", loginService, StringComparison.Ordinal);
         Assert.Contains("ChatRoomBehavior.LoginAsync", loginService, StringComparison.Ordinal);
         Assert.Contains("await _gameServer.StartSessionAsync", loginService, StringComparison.Ordinal);
+        Assert.Contains("LoginServiceCall<LoginRequest>", loginService, StringComparison.Ordinal);
+        Assert.DoesNotContain("HotfixServiceCall<", chatService, StringComparison.Ordinal);
+        Assert.DoesNotContain("HotfixServiceCall<", loginService, StringComparison.Ordinal);
         Assert.DoesNotContain("var starterNodeLocalActors = call.Actors;", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("call.Actors is node-local", chatService, StringComparison.Ordinal);
         Assert.Contains("call.CurrentSession", chatService, StringComparison.Ordinal);

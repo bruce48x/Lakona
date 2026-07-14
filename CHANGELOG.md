@@ -4,6 +4,19 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-15 — Service-scoped Hotfix calls
+
+**Key releases:** `Lakona.Game.Server 0.18.11`,
+`Lakona.Game.Server.Hotfix 0.8.3`,
+`Lakona.Game.Server.Hotfix.Generators 0.5.6`,
+`Lakona.ProjectSystem 0.1.4`, and `Lakona.Tool 0.25.24`.
+
+- Generated one readonly `*ServiceCall<TRequest>` context per RPC service so
+  Hotfix handlers inherit their strongly typed callback contract instead of
+  repeating it on every method.
+- Migrated generated projects and maintained samples to the service-scoped
+  authoring model, and removed Agar's unused login callback contract.
+
 ## 2026-07-14 — Contention-free runtime hot paths
 
 **Key releases:** `Lakona.Game.Server 0.18.10`,

@@ -7,6 +7,7 @@ using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.Logging;
+using Server.App.Generated;
 using Server.Hotfix.State.Users;
 using Shared.Interfaces;
 using System.Security.Cryptography;
@@ -27,7 +28,7 @@ public sealed class LoginService
         _logger = logger;
     }
 
-    public async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, ILoginCallback> call)
+    public async ValueTask<LoginReply> LoginAsync(LoginServiceCall<LoginRequest> call)
     {
         var req = call.Request;
         var account = req.Account;
@@ -110,7 +111,7 @@ public sealed class LoginService
     }
 
     private async ValueTask RollbackLoginSessionAsync(
-        HotfixServiceCall<LoginRequest, ILoginCallback> call,
+        LoginServiceCall<LoginRequest> call,
         GameSessionKey sessionKey)
     {
         try

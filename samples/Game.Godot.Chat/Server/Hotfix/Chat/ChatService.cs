@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using Lakona.Game.Server;
+using Server.App.Generated;
 using Server.App.Chat;
 using Shared.Contracts.Chat;
 using Lakona.Game.Server.Hotfix;
@@ -23,14 +24,14 @@ namespace Server.Hotfix.Chat
             _notifications = notifications;
         }
 
-        public ValueTask BindAsync(HotfixServiceCall<ChatBindRequest, IChatCallback> call)
+        public ValueTask BindAsync(ChatServiceCall<ChatBindRequest> call)
         {
             // The session already owns the connection. Callback proxies are resolved
             // from that connection when notifications are sent.
             return default;
         }
 
-        public async ValueTask SendAsync(HotfixServiceCall<ChatSendRequest, IChatCallback> call)
+        public async ValueTask SendAsync(ChatServiceCall<ChatSendRequest> call)
         {
             var text = call.Request.Text ?? "";
             _logger.LogInformation("Sending {CharacterCount} characters", text.Length);

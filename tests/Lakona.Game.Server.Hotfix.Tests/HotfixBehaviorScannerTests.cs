@@ -878,8 +878,7 @@ public sealed class HotfixBehaviorScannerTests
         Assert.False(scan.Succeeded);
         Assert.Contains(scan.Diagnostics, diagnostic =>
             diagnostic.Contains(nameof(TestServiceWithLifecycleCallImplementation), StringComparison.Ordinal) &&
-            diagnostic.Contains("HotfixServiceCall<TRequest>", StringComparison.Ordinal) &&
-            diagnostic.Contains("HotfixServiceCall<TRequest, TCallback>", StringComparison.Ordinal));
+            diagnostic.Contains("IHotfixServiceCall<TRequest>", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -920,6 +919,18 @@ public sealed class HotfixBehaviorScannerTests
         Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
         var binding = Assert.Single(scan.Services);
         Assert.Equal(typeof(ConstructorDependencyService), binding.ServiceType);
+    }
+
+    [Fact]
+    public void Scanner_accepts_generated_service_call_context()
+    {
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(ConstructorDependencyServiceContract).Assembly,
+            [typeof(GeneratedServiceCallService)]);
+
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        var binding = Assert.Single(scan.Services);
+        Assert.Equal(typeof(GeneratedServiceCall<ConstructorDependencyRequest>), Assert.Single(binding.ParameterTypes));
     }
 
     [Fact]
@@ -1242,6 +1253,22 @@ public sealed class HotfixBehaviorScannerTests
 
     public sealed class ConstructorDependency
     {
+    }
+
+    public readonly struct GeneratedServiceCall<TRequest> : IHotfixServiceCall<TRequest>
+    {
+        public TRequest Request => default!;
+
+        public IServiceProvider Services => null!;
+    }
+
+    [HotfixService(typeof(ConstructorDependencyServiceContract))]
+    public sealed class GeneratedServiceCallService
+    {
+        public ValueTask PingAsync(GeneratedServiceCall<ConstructorDependencyRequest> call)
+        {
+            return default;
+        }
     }
 
     [HotfixService(typeof(ConstructorDependencyServiceContract))]

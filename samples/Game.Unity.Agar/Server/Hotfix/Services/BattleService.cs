@@ -9,6 +9,7 @@ using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
+using Server.App.Generated;
 using Server.Hotfix.Services;
 using Server.Hotfix.State.Rooms;
 using Server.Hotfix.State.Users;
@@ -35,7 +36,7 @@ internal sealed class BattleService
         _localNode = localNode;
     }
 
-    public async ValueTask<RealtimeAttachReply> AttachRealtimeAsync(HotfixServiceCall<RealtimeAttachRequest, IBattleCallback> call)
+    public async ValueTask<RealtimeAttachReply> AttachRealtimeAsync(BattleServiceCall<RealtimeAttachRequest> call)
     {
         var req = call.Request;
         if (string.IsNullOrWhiteSpace(req.PlayerId) ||
@@ -180,7 +181,7 @@ internal sealed class BattleService
         };
     }
 
-    public async ValueTask SubmitInputAsync(HotfixServiceCall<InputMessage, IBattleCallback> call)
+    public async ValueTask SubmitInputAsync(BattleServiceCall<InputMessage> call)
     {
         var req = call.Request;
         var playerId = call.CurrentSession?.OwnerKey;

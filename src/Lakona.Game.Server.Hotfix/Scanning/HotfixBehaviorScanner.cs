@@ -769,7 +769,7 @@ public static class HotfixBehaviorScanner
             {
                 diagnostics.Add(binding.Kind == HotfixServiceBindingKind.Lifecycle
                     ? $"Hotfix lifecycle method '{serviceType.FullName}.{method.Name}' must use HotfixLifecycleCall<TRequest> for instance dispatch; static methods may use raw request DTO parameters."
-                    : $"Hotfix service method '{serviceType.FullName}.{method.Name}' must use HotfixServiceCall<TRequest> or HotfixServiceCall<TRequest, TCallback> for instance dispatch; static methods may use raw request DTO parameters.");
+                    : $"Hotfix service method '{serviceType.FullName}.{method.Name}' must use a generated service call context implementing IHotfixServiceCall<TRequest> for instance dispatch; static methods may use raw request DTO parameters.");
                 continue;
             }
 
@@ -926,6 +926,18 @@ public static class HotfixBehaviorScanner
         out Type contractParameterType)
     {
         contractParameterType = parameterType;
+        if (TryGetServiceCallRequestType(parameterType, out var requestType))
+        {
+            if (bindingKind != HotfixServiceBindingKind.Service)
+            {
+                diagnostics.Add($"Hotfix lifecycle method '{serviceType.FullName}.{method.Name}' must use HotfixLifecycleCall<TRequest>.");
+                return false;
+            }
+
+            contractParameterType = requestType;
+            return true;
+        }
+
         if (!parameterType.IsGenericType)
         {
             return true;
@@ -953,12 +965,37 @@ public static class HotfixBehaviorScanner
 
         if (bindingKind == HotfixServiceBindingKind.Service && !isServiceCall)
         {
-            diagnostics.Add($"Hotfix service method '{serviceType.FullName}.{method.Name}' must use HotfixServiceCall<TRequest> or HotfixServiceCall<TRequest, TCallback>.");
+            diagnostics.Add($"Hotfix service method '{serviceType.FullName}.{method.Name}' must use a generated service call context implementing IHotfixServiceCall<TRequest>.");
             return false;
         }
 
         contractParameterType = parameterType.GetGenericArguments()[0];
         return true;
+    }
+
+    private static bool TryGetServiceCallRequestType(Type parameterType, out Type requestType)
+    {
+        if (parameterType.IsGenericType &&
+            parameterType.GetGenericTypeDefinition() == typeof(IHotfixServiceCall<>))
+        {
+            requestType = parameterType.GetGenericArguments()[0];
+            return true;
+        }
+
+        var serviceCallInterfaces = parameterType
+            .GetInterfaces()
+            .Where(static candidate =>
+                candidate.IsGenericType &&
+                candidate.GetGenericTypeDefinition() == typeof(IHotfixServiceCall<>))
+            .ToArray();
+        if (serviceCallInterfaces.Length == 1)
+        {
+            requestType = serviceCallInterfaces[0].GetGenericArguments()[0];
+            return true;
+        }
+
+        requestType = null!;
+        return false;
     }
 
     private static MethodInfo? ResolveContractMethod(

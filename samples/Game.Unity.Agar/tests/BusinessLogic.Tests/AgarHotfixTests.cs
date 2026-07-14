@@ -21,6 +21,7 @@ using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Server.App.Generated;
 using Server.Hotfix.Services;
 using Server.Hotfix.State.Leaderboard;
 using Server.Hotfix.State.Rooms;
@@ -136,10 +137,11 @@ public sealed class AgarHotfixTests
         var service = new LoginService(
             provider.GetRequiredService<ActorAccess>(),
             provider.GetRequiredService<ILogger<LoginService>>());
-        var call = new HotfixServiceCall<LoginRequest, ILoginCallback>(
+        var call = new LoginServiceCall<LoginRequest>(
             new LoginRequest { GuestLogin = true },
             "control-connection-1",
-            new CapturingLoginCallback(),
+            currentSession: null,
+            GameSessionItems.Empty,
             provider,
             actors,
             new TestGameServer());
@@ -216,17 +218,18 @@ public sealed class AgarHotfixTests
         var actors = provider.GetRequiredService<IActorRuntime>();
         var hotfixRuntime = await TestHotfix.LoadCurrentRuntimeAsync(provider, TestContext.Current.CancellationToken);
         var gameServer = new TestGameServer();
-        var call = new HotfixServiceCall<LeaderboardRequest, IPlayerCallback>(
+        var call = new PlayerServiceCall<LeaderboardRequest>(
             new LeaderboardRequest { TopN = 5 },
             "control-connection-1",
             new CapturingPlayerCallback(),
             new GameSessionKey("player-1", "session-1", 1),
+            GameSessionItems.Empty,
             hotfixRuntime.HotfixServices,
             actors,
             gameServer);
 
         var reply = await hotfixRuntime.Invoker
-            .InvokeAsync<IPlayerService, HotfixServiceCall<LeaderboardRequest, IPlayerCallback>, LeaderboardReply>(
+            .InvokeAsync<IPlayerService, PlayerServiceCall<LeaderboardRequest>, LeaderboardReply>(
                 4,
                 call,
                 TestContext.Current.CancellationToken);
@@ -467,7 +470,7 @@ public sealed class AgarHotfixTests
         CancellationToken cancellationToken)
     {
         var sessionItems = await context.GameServer.GetSessionItemsAsync(context.Session, cancellationToken);
-        var call = new HotfixServiceCall<InputMessage, IBattleCallback>(
+        var call = new BattleServiceCall<InputMessage>(
             new InputMessage
             {
                 MoveX = moveX,
@@ -483,7 +486,7 @@ public sealed class AgarHotfixTests
             context.GameServer);
 
         await context.HotfixRuntime.Invoker
-            .InvokeAsync<IBattleService, HotfixServiceCall<InputMessage, IBattleCallback>>(
+            .InvokeAsync<IBattleService, BattleServiceCall<InputMessage>>(
                 2,
                 call,
                 cancellationToken);
@@ -772,13 +775,6 @@ public sealed class AgarHotfixTests
         {
             return JsonSerializer.Deserialize(payload.Span, type) ??
                 throw new InvalidOperationException($"Could not deserialize {type.FullName}.");
-        }
-    }
-
-    private sealed class CapturingLoginCallback : ILoginCallback
-    {
-        public void OnPlaceHolder(MatchmakingStatusUpdate matchmakingStatus)
-        {
         }
     }
 

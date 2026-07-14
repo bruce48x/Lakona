@@ -4,7 +4,7 @@ using Lakona.Game.Server.Sessions;
 
 namespace Lakona.Game.Server.Hotfix;
 
-public readonly struct HotfixServiceCall<TRequest> : IHotfixCallContext
+public readonly struct HotfixServiceCall<TRequest> : IHotfixServiceCall<TRequest>
 {
     public HotfixServiceCall(
         TRequest request,
@@ -60,7 +60,7 @@ public readonly struct HotfixServiceCall<TRequest> : IHotfixCallContext
     public ILakonaGameServer GameServer { get; }
 }
 
-public readonly struct HotfixServiceCall<TRequest, TCallback> : IHotfixCallContext
+public readonly struct HotfixServiceCall<TRequest, TCallback> : IHotfixServiceCall<TRequest>
     where TCallback : class
 {
     public HotfixServiceCall(

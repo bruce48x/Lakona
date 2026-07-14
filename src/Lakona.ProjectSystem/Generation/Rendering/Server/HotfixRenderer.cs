@@ -73,6 +73,7 @@ internal sealed class HotfixRenderer : IPlanContributor
         using Lakona.Game.Server.Hotfix;
         using Lakona.Game.Server.Hotfix.Abstractions;
         using Server.App.Game;
+        using Server.App.Generated;
         using Shared.Contracts.Game;
 
         namespace Server.Hotfix.Game
@@ -89,7 +90,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                     _gameServer = gameServer;
                 }
 
-                public async ValueTask<LoginReply> LoginAsync(HotfixServiceCall<LoginRequest, IGameCallback> call)
+                public async ValueTask<LoginReply> LoginAsync(GameServiceCall<LoginRequest> call)
                 {
                     var playerName = call.Request.PlayerName?.Trim() ?? "";
                     if (playerName.Length is < 1 or > 20)
@@ -137,7 +138,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                     return reply;
                 }
 
-                public ValueTask SubmitInputAsync(HotfixServiceCall<PlayerInput, IGameCallback> call)
+                public ValueTask SubmitInputAsync(GameServiceCall<PlayerInput> call)
                 {
                     return _actors
                         .Startup<GameWorldActor>(GameWorldIds.Global)
