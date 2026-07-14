@@ -85,7 +85,7 @@ internal sealed class BattleService
             .ConfigureAwait(false);
         try
         {
-            sessionSnapshot = await _users
+            await _users
                 .Route(new UserId(req.PlayerId))
                 .CallAsync(
                     UserBehavior.AttachRealtimeAsync,

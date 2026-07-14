@@ -51,7 +51,8 @@ public sealed class PlayerService
         _logger = logger;
     }
 
-    public async ValueTask<LeaderboardReply> GetLeaderboardAsync(HotfixServiceCall<LeaderboardRequest, IPlayerCallback> call)
+    public async ValueTask<LeaderboardReply> GetLeaderboardAsync(
+        HotfixServiceCall<LeaderboardRequest, IPlayerCallback> call)
     {
         var req = call.Request;
 
@@ -104,7 +105,8 @@ public sealed class PlayerService
             return;
         }
 
-        await CancelMatchmakingAsync(call.Services, playerId, "Matchmaking cancelled", CancellationToken.None).ConfigureAwait(false);
+        await CancelMatchmakingAsync(call.Services, playerId, "Matchmaking cancelled", CancellationToken.None)
+            .ConfigureAwait(false);
     }
 
     public async ValueTask LogoutAsync(HotfixServiceCall<LogoutRequest, IPlayerCallback> call)
@@ -147,8 +149,9 @@ public sealed class PlayerService
         string playerId,
         CancellationToken cancellationToken = default)
     {
+        var userId = new UserId(playerId);
         var snapshot = await users
-            .Route(new UserId(playerId))
+            .Route(userId)
             .CallAsync(
                 UserBehavior.GetSnapshotAsync,
                 new PlayerSessionSnapshotRequest(),
@@ -164,57 +167,59 @@ public sealed class PlayerService
             .CallAsync(
                 MatchmakingBehavior.EnqueueAsync,
                 new MatchmakingEnqueueRequest
-            {
-                UserId = playerId,
-                SessionToken = snapshot.SessionToken,
-                ControlSessionId = snapshot.ControlSessionId,
-                ControlSessionGeneration = snapshot.ControlSessionGeneration,
-                EnqueuedAtUtc = DateTime.UtcNow
-            },
+                {
+                    UserId = playerId,
+                    SessionToken = snapshot.SessionToken,
+                    ControlSessionId = snapshot.ControlSessionId,
+                    ControlSessionGeneration = snapshot.ControlSessionGeneration,
+                    EnqueuedAtUtc = DateTime.UtcNow
+                },
                 cancellationToken)
             .ConfigureAwait(false);
 
         if (string.IsNullOrWhiteSpace(result.TicketId))
         {
             await users
-                .Route(new UserId(playerId))
+                .Route(userId)
                 .CallAsync(
                     UserBehavior.ClearQueueAsync,
                     new PlayerSessionQueueClearRequest
-                {
-                    UserId = playerId,
-                    ClearedAtUtc = DateTime.UtcNow,
-                    Reason = result.Matched ? "Matched" : "Matchmaking enqueue did not return a ticket."
-                },
+                    {
+                        UserId = playerId,
+                        ClearedAtUtc = DateTime.UtcNow,
+                        Reason = result.Matched ? "Matched" : "Matchmaking enqueue did not return a ticket."
+                    },
                     cancellationToken)
                 .ConfigureAwait(false);
         }
         else
         {
             await users
-                .Route(new UserId(playerId))
+                .Route(userId)
                 .CallAsync(
                     UserBehavior.MarkQueuedAsync,
                     new PlayerSessionQueueRequest
-                {
-                    UserId = playerId,
-                    TicketId = result.TicketId,
-                    QueuedAtUtc = DateTime.UtcNow
-                },
+                    {
+                        UserId = playerId,
+                        TicketId = result.TicketId,
+                        QueuedAtUtc = DateTime.UtcNow
+                    },
                     cancellationToken)
                 .ConfigureAwait(false);
         }
 
         if (result.Matched)
         {
-            await PublishMatchedAsync(users, matchmakingNotifier, result.RoomAssignment, cancellationToken).ConfigureAwait(false);
+            await PublishMatchedAsync(users, matchmakingNotifier, result.RoomAssignment, cancellationToken)
+                .ConfigureAwait(false);
             return;
         }
 
         await PublishQueuedAsync(matchmakingNotifier, snapshot, result).ConfigureAwait(false);
     }
 
-    private Task CancelMatchmakingAsync(IServiceProvider services, string playerId, string reason, CancellationToken cancellationToken)
+    private Task CancelMatchmakingAsync(IServiceProvider services, string playerId, string reason,
+        CancellationToken cancellationToken)
     {
         return CancelMatchmakingAsync(
             _users,
@@ -233,8 +238,9 @@ public sealed class PlayerService
         string reason,
         CancellationToken cancellationToken = default)
     {
+        var userId = new UserId(playerId);
         var snapshot = await users
-            .Route(new UserId(playerId))
+            .Route(userId)
             .CallAsync(
                 UserBehavior.GetSnapshotAsync,
                 new PlayerSessionSnapshotRequest(),
@@ -251,26 +257,26 @@ public sealed class PlayerService
             .CallAsync(
                 MatchmakingBehavior.CancelAsync,
                 new MatchmakingCancelRequest
-            {
-                UserId = playerId,
-                TicketId = snapshot.MatchmakingTicketId,
-                CancelledAtUtc = DateTime.UtcNow,
-                Reason = reason
-            },
+                {
+                    UserId = playerId,
+                    TicketId = snapshot.MatchmakingTicketId,
+                    CancelledAtUtc = DateTime.UtcNow,
+                    Reason = reason
+                },
                 cancellationToken)
             .ConfigureAwait(false);
 
         await users
-            .Route(new UserId(playerId))
+            .Route(userId)
             .CallAsync(
                 UserBehavior.ClearQueueAsync,
                 new PlayerSessionQueueClearRequest
-            {
-                UserId = playerId,
-                TicketId = snapshot.MatchmakingTicketId,
-                ClearedAtUtc = DateTime.UtcNow,
-                Reason = reason
-            },
+                {
+                    UserId = playerId,
+                    TicketId = snapshot.MatchmakingTicketId,
+                    ClearedAtUtc = DateTime.UtcNow,
+                    Reason = reason
+                },
                 cancellationToken)
             .ConfigureAwait(false);
         if (!TryCreateControlSession(snapshot, out var controlSession))
@@ -289,7 +295,8 @@ public sealed class PlayerService
         }).ConfigureAwait(false);
     }
 
-    private Task ReleasePlayerAsync(IServiceProvider services, string playerId, string reason, CancellationToken cancellationToken)
+    private Task ReleasePlayerAsync(IServiceProvider services, string playerId, string reason,
+        CancellationToken cancellationToken)
     {
         return ReleasePlayerAsync(
             _users,
@@ -316,8 +323,9 @@ public sealed class PlayerService
     {
         try
         {
+            var userId = new UserId(playerId);
             var snapshot = await users
-                .Route(new UserId(playerId))
+                .Route(userId)
                 .CallAsync(
                     UserBehavior.GetSnapshotAsync,
                     new PlayerSessionSnapshotRequest(),
@@ -326,9 +334,10 @@ public sealed class PlayerService
 
             if (!string.IsNullOrWhiteSpace(snapshot.MatchmakingTicketId))
             {
-                await CancelMatchmakingAsync(users, matchmaking, matchmakingNotifier, playerId, reason, cancellationToken).ConfigureAwait(false);
+                await CancelMatchmakingAsync(users, matchmaking, matchmakingNotifier, playerId, reason,
+                    cancellationToken).ConfigureAwait(false);
                 snapshot = await users
-                    .Route(new UserId(playerId))
+                    .Route(userId)
                     .CallAsync(
                         UserBehavior.GetSnapshotAsync,
                         new PlayerSessionSnapshotRequest(),
@@ -341,7 +350,8 @@ public sealed class PlayerService
             {
                 try
                 {
-                    await LeaveAssignedRoomAsync(rooms, localNode, snapshot, reason, cancellationToken).ConfigureAwait(false);
+                    await LeaveAssignedRoomAsync(rooms, localNode, snapshot, reason, cancellationToken)
+                        .ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -354,35 +364,35 @@ public sealed class PlayerService
                 }
 
                 await users
-                    .Route(new UserId(playerId))
+                    .Route(userId)
                     .CallAsync(
                         UserBehavior.ClearRoomAsync,
                         new PlayerRoomClearRequest
-                    {
-                        UserId = playerId,
-                        RoomId = roomId,
-                        ClearedAtUtc = DateTime.UtcNow,
-                        Reason = reason
-                    },
+                        {
+                            UserId = playerId,
+                            RoomId = roomId,
+                            ClearedAtUtc = DateTime.UtcNow,
+                            Reason = reason
+                        },
                         cancellationToken)
                     .ConfigureAwait(false);
             }
 
             await users
-                .Route(new UserId(playerId))
+                .Route(userId)
                 .CallAsync(
                     UserBehavior.MarkDisconnectedAsync,
                     new PlayerSessionDisconnectRequest
-                {
-                    UserId = playerId,
-                    ConnectionId = snapshot.ConnectionId,
-                    DisconnectedAtUtc = DateTime.UtcNow,
-                    Reason = reason
-                },
+                    {
+                        UserId = playerId,
+                        ConnectionId = snapshot.ConnectionId,
+                        DisconnectedAtUtc = DateTime.UtcNow,
+                        Reason = reason
+                    },
                     cancellationToken)
                 .ConfigureAwait(false);
             await users
-                .Route(new UserId(playerId))
+                .Route(userId)
                 .CallAsync(
                     UserBehavior.SetOnlineAsync,
                     new UserOnlineStatusRequest { IsOnline = false },
@@ -453,8 +463,8 @@ public sealed class PlayerService
 
         foreach (var player in assignment.Players)
         {
-            var user = users.Route(new UserId(player.UserId));
-            var snapshot = await user
+            var userRef = users.Route(new UserId(player.UserId));
+            var snapshot = await userRef
                 .CallAsync(
                     UserBehavior.GetSnapshotAsync,
                     new PlayerSessionSnapshotRequest(),
@@ -465,32 +475,32 @@ public sealed class PlayerService
                 continue;
             }
 
-            await user
+            await userRef
                 .CallAsync(
                     UserBehavior.ClearQueueAsync,
                     new PlayerSessionQueueClearRequest
-                {
-                    UserId = player.UserId,
-                    TicketId = snapshot.MatchmakingTicketId,
-                    ClearedAtUtc = DateTime.UtcNow,
-                    Reason = "Matched"
-                },
+                    {
+                        UserId = player.UserId,
+                        TicketId = snapshot.MatchmakingTicketId,
+                        ClearedAtUtc = DateTime.UtcNow,
+                        Reason = "Matched"
+                    },
                     cancellationToken)
                 .ConfigureAwait(false);
-            await user
+            await userRef
                 .CallAsync(
                     UserBehavior.AssignRoomAsync,
                     new PlayerRoomAssignment
-                {
-                    UserId = player.UserId,
-                    RoomId = assignment.RoomId,
-                    MatchId = assignment.MatchId,
-                    SeatIndex = player.SeatIndex,
-                    SessionToken = snapshot.SessionToken,
-                    ConnectionId = snapshot.ConnectionId,
-                    AssignedAtUtc = DateTime.UtcNow,
-                    RuntimeGateway = assignment.RuntimeGateway
-                },
+                    {
+                        UserId = player.UserId,
+                        RoomId = assignment.RoomId,
+                        MatchId = assignment.MatchId,
+                        SeatIndex = player.SeatIndex,
+                        SessionToken = snapshot.SessionToken,
+                        ConnectionId = snapshot.ConnectionId,
+                        AssignedAtUtc = DateTime.UtcNow,
+                        RuntimeGateway = assignment.RuntimeGateway
+                    },
                     cancellationToken)
                 .ConfigureAwait(false);
 

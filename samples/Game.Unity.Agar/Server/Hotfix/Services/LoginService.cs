@@ -96,7 +96,7 @@ public sealed class LoginService
     {
         var userId = new UserId(account);
         var result = await _users
-            .Place(new UserId(account))
+            .Place(userId)
             .EnsureAsync(cancellationToken)
             .ConfigureAwait(false);
         _logger.LogDebug(

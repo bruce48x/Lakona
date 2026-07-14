@@ -539,15 +539,16 @@ public static partial class RoomBehavior
 
         foreach (var entry in settlement.Entries.Where(static entry => !entry.IsBot && entry.VictoryPoints > 0))
         {
+            var userId = new UserId(entry.PlayerId);
             await users
-                .Route(new UserId(entry.PlayerId))
+                .Route(userId)
                 .CallAsync(
                     UserBehavior.AddVictoryPointsAsync,
                     new UserVictoryPointsRequest { Points = entry.VictoryPoints },
                     CancellationToken.None)
                 .ConfigureAwait(false);
             var profile = await users
-                .Route(new UserId(entry.PlayerId))
+                .Route(userId)
                 .CallAsync(
                     UserBehavior.GetProfileAsync,
                     new UserProfileRequest(),
