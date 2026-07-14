@@ -549,6 +549,12 @@ the default scene. Unity and Godot game visuals must use engine-provided drawing
 primitives and generated runtime textures only; default projects do not pack
 external art assets.
 
+The generated Godot `GameScene` also owns the `LAKONA_GODOT_SMOKE` headless
+verification hook. That hook must exercise the current default arena contract by
+connecting and logging in, emit `Arena smoke ok:` only after login succeeds, and
+terminate Godot with a non-zero exit code when connection or login fails. CI must
+not depend on smoke behavior retained in non-default legacy scenes.
+
 `ConsoleClientRenderer` owns a lightweight SDK-style .NET client:
 
 - `Client/Client.csproj`

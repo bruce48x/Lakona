@@ -102,6 +102,7 @@ public sealed class ClientRendererTests
         Assert.Contains("[node name=\"LoginPanel\"", scene, StringComparison.Ordinal);
         Assert.Contains("[node name=\"Hud\"", scene, StringComparison.Ordinal);
         Assert.Contains("res://Scripts/Game/GameScene.cs", scene, StringComparison.Ordinal);
+        Assert.DoesNotContain("ext_resource type=\"Script\" uid=", scene, StringComparison.Ordinal);
 
         var code = AssertPath(plan, "Client/Scripts/Game/GameScene.cs").Content;
         AssertValidCSharp(code, LanguageVersion.Latest);
@@ -118,6 +119,11 @@ public sealed class ClientRendererTests
         Assert.Contains("new Vector2(bullet.DirectionX, -bullet.DirectionY)", code, StringComparison.Ordinal);
         Assert.Contains("CameraCenter", code, StringComparison.Ordinal);
         Assert.Contains("_loginPending = true", code, StringComparison.Ordinal);
+        Assert.Contains("LAKONA_GODOT_SMOKE", code, StringComparison.Ordinal);
+        Assert.Contains("RunHeadlessSmokeAsync", code, StringComparison.Ordinal);
+        Assert.Contains("await client.LoginAsync(name)", code, StringComparison.Ordinal);
+        Assert.Contains("Arena smoke ok:", code, StringComparison.Ordinal);
+        Assert.Contains("GetTree().Quit(0)", code, StringComparison.Ordinal);
         Assert.Contains("new WsTransport", code, StringComparison.Ordinal);
         Assert.Contains("new JsonRpcSerializer()", code, StringComparison.Ordinal);
         Assert.Contains("2166136261", code, StringComparison.Ordinal);

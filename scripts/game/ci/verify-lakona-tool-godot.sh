@@ -265,7 +265,7 @@ fi
 
 echo "Running generated Godot client headless"
 export LAKONA_GODOT_SMOKE=1
-export LAKONA_GODOT_SMOKE_NAME="godot-smoke-${TRANSPORT}-${SERIALIZER}"
+export LAKONA_GODOT_SMOKE_NAME="godot-${TRANSPORT:0:3}-${SERIALIZER:0:3}"
 "$GODOT_BIN" \
   --headless \
   --path "$CLIENT_DIR" \
@@ -283,7 +283,7 @@ for ((i = 0; i < 90; i++)); do
     exit 1
   fi
 
-  if grep -Fq "Ping ok:" "$GODOT_STDOUT_LOG" "$CLIENT_LOG" 2>/dev/null; then
+  if grep -Fq "Arena smoke ok:" "$GODOT_STDOUT_LOG" "$CLIENT_LOG" 2>/dev/null; then
     echo "Lakona Tool Godot $TRANSPORT + $SERIALIZER verification passed."
     exit 0
   fi
@@ -294,7 +294,7 @@ for ((i = 0; i < 90; i++)); do
     else
       godot_exit_code=$?
     fi
-    echo "Godot exited before producing a successful ping log. Exit code: $godot_exit_code" >&2
+    echo "Godot exited before producing a successful arena smoke log. Exit code: $godot_exit_code" >&2
     print_logs
     exit 1
   fi
@@ -302,6 +302,6 @@ for ((i = 0; i < 90; i++)); do
   sleep 1
 done
 
-echo "Timed out waiting for successful ping from generated Godot client." >&2
+echo "Timed out waiting for successful arena smoke login from generated Godot client." >&2
 print_logs
 exit 1

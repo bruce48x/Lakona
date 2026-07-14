@@ -108,6 +108,7 @@ internal static class GodotClientCodeTemplates
                 _connectButton.Pressed += OnConnectPressed;
                 _nameField.TextSubmitted += _ => OnConnectPressed();
                 ShowLogin("Enter a name to join.");
+                if (IsHeadlessSmokeEnabled()) _ = RunHeadlessSmokeAsync();
             }
 
             public override void _Process(double delta)
@@ -303,6 +304,36 @@ internal static class GodotClientCodeTemplates
                     _connectButton.Disabled = false;
                     _connectButton.Text = "PLAY NOW";
                 }
+            }
+
+            private async Task RunHeadlessSmokeAsync()
+            {
+                var name = System.Environment.GetEnvironmentVariable("LAKONA_GODOT_SMOKE_NAME");
+                if (string.IsNullOrWhiteSpace(name)) name = "godot-arena-smoke";
+                _cts = new CancellationTokenSource();
+                var client = new GameClient(CreateLakonaGameClientOptions());
+                try
+                {
+                    await client.ConnectAsync(_cts.Token);
+                    var reply = await client.LoginAsync(name);
+                    if (!reply.Success) throw new InvalidOperationException(reply.Error);
+                    await client.DisposeAsync();
+                    GD.Print($"Arena smoke ok: player {reply.PlayerId}.");
+                    GetTree().Quit(0);
+                }
+                catch (Exception ex)
+                {
+                    try { await client.DisposeAsync(); } catch (Exception) { }
+                    GD.PrintErr($"Connect failed: {ex.Message}");
+                    GetTree().Quit(1);
+                }
+            }
+
+            private static bool IsHeadlessSmokeEnabled()
+            {
+                var value = System.Environment.GetEnvironmentVariable("LAKONA_GODOT_SMOKE");
+                return string.Equals(value, "1", StringComparison.Ordinal) ||
+                       (bool.TryParse(value, out var enabled) && enabled);
             }
 
             private async Task SendInputAsync(Vector2 direction)

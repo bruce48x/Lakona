@@ -560,6 +560,9 @@ public sealed class ToolArchitectureScanTests
         Assert.Contains("Server/Server.slnx", script, StringComparison.Ordinal);
         Assert.DoesNotContain("Server/Server/Server.csproj", script, StringComparison.Ordinal);
         Assert.DoesNotContain("dotnet build \"$SERVER_PROJECT\"", script, StringComparison.Ordinal);
+        Assert.Contains("Arena smoke ok:", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("Ping ok:", script, StringComparison.Ordinal);
+        Assert.Contains("godot-${TRANSPORT:0:3}-${SERIALIZER:0:3}", script, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -17,7 +17,7 @@ internal static class GodotClientAssetTemplates
         return $$"""
         [gd_scene load_steps=3 format=3]
 
-        [ext_resource type="Script" uid="{{GameSceneScriptUid}}" path="res://Scripts/Game/GameScene.cs" id="1_game"]
+        [ext_resource type="Script" path="res://Scripts/Game/GameScene.cs" id="1_game"]
         [ext_resource type="Theme" path="res://Theme/LakonaTheme.tres" id="2_theme"]
 
         [node name="Game" type="Node2D"]
