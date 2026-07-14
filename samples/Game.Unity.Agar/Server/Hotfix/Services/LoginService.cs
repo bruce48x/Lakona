@@ -50,7 +50,6 @@ public sealed class LoginService
         try
         {
             loginResult = await LoginUserAsync(
-                    call.Services,
                     account,
                     new UserLoginAndAttachRequest
                     {
@@ -91,13 +90,19 @@ public sealed class LoginService
     }
 
     private async ValueTask<UserLoginResult> LoginUserAsync(
-        IServiceProvider services,
         string account,
         UserLoginAndAttachRequest request,
         CancellationToken cancellationToken)
     {
         var userId = new UserId(account);
-        await CreateUserActorOnStateStoreAsync(services, account).ConfigureAwait(false);
+        var result = await _users
+            .Place(new UserId(account))
+            .EnsureAsync()
+            .ConfigureAwait(false);
+        _logger.LogDebug(
+            "Ensured user actor {UserId} on node {NodeId}.",
+            account,
+            result.Owner.Value);
         return await _users
             .Route(userId)
             .CallAsync(UserBehavior.LoginAndAttachAsync, request, cancellationToken)
@@ -127,20 +132,5 @@ public sealed class LoginService
         {
             _logger.LogWarning(exception, "Failed to roll back login session {SessionId}.", sessionKey.SessionId);
         }
-    }
-
-    private async ValueTask CreateUserActorOnStateStoreAsync(
-        IServiceProvider services,
-        string account)
-    {
-        _ = services;
-        var result = await _users
-            .Place(new UserId(account))
-            .EnsureAsync()
-            .ConfigureAwait(false);
-        _logger.LogDebug(
-            "Ensured user actor {UserId} on node {NodeId}.",
-            account,
-            result.Owner.Value);
     }
 }
