@@ -1,0 +1,14 @@
+<Application
+    x:Class="Lakona.Hub.App"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  RequestedThemeVariant="Dark">
+  <Application.Resources>
+    <Color x:Key="SystemAccentColor">#EFBE3E</Color>
+    <Color x:Key="SystemAccentColorLight1">#F7CE62</Color>
+    <Color x:Key="SystemAccentColorDark1">#B68E2F</Color>
+  </Application.Resources>
+  <Application.Styles>
+    <FluentTheme />
+  </Application.Styles>
+</Application>

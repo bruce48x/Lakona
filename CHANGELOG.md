@@ -4,6 +4,17 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-14 — Lakona Hub desktop foundation
+
+- Added the first Avalonia-based Lakona Hub desktop slice and a reusable,
+  read-only ProjectSystem inspector for Unity, Tuanjie, Godot, and Console
+  projects.
+- Established the non-invasive project contract: Hub keeps disposable local
+  metadata outside project directories and never adds project bookkeeping
+  files during import or inspection.
+- Added the black-and-gold project workspace, local editor discovery, and
+  per-project server and client open actions with an explicit IDE selector.
+
 ## 2026-07-14 — Complete Unity-family project generation
 
 **Key release:** `Lakona.Tool 0.25.19`.

@@ -6,8 +6,8 @@ Audience: maintainers and contributors
 
 ## Purpose
 
-`src/Lakona.Tool` owns generated Lakona.Game project creation. The implemented
-architecture is a single generation pipeline:
+`src/Lakona.Tool` currently owns generated Lakona.Game project creation. The
+implemented architecture is a single generation pipeline:
 
 ```txt
 CLI options -> LakonaProjectSpec -> GenerationPlan -> transactional write
@@ -29,6 +29,12 @@ hotfix defaults, reliable push defaults, and generated project docs.
 
 `Lakona.Tool` also owns the v1 production hotfix package format and local node
 operations. It does not own remote deployment or multi-node orchestration.
+
+Lakona Hub introduces `Lakona.ProjectSystem` as the reusable project-tooling
+seam. Project inspection starts there. Generation moves behind the same seam
+incrementally, without duplicating the existing pipeline or changing its
+invariants. The CLI remains a supported adapter; the desktop application does
+not replace it.
 
 ## Architecture Decision
 

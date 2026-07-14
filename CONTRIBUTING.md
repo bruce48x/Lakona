@@ -38,7 +38,7 @@ Current architecture and maintainer contracts:
 | RPC and generation | [RPC](./docs/rpc.md), [Source Generation](./docs/source-generation.md) |
 | Hotfix | [Architecture](./docs/hotfix/architecture.md), [Actor Behavior](./docs/hotfix/actor-behavior.md), [Service Binding](./docs/hotfix/service-binding.md) |
 | Protocol and API stability | [Wire Protocol](./docs/protocol/wire-protocol-v1.md), [Status Model](./docs/protocol/rpc-status-error-model.md), [Public API Boundaries](./docs/api-stability/public-api-boundaries.md) |
-| Project tooling | [Default Experience](./docs/tool/default-experience.md), [Generation Architecture](./docs/tool/generation-architecture.md), [Package Version Graph](./docs/tool/package-version-graph.md), [Server Pack](./docs/tool/server-pack-command.md) |
+| Project tooling | [Default Experience](./docs/tool/default-experience.md), [Generation Architecture](./docs/tool/generation-architecture.md), [Lakona Hub](./docs/tool/lakona-hub.md), [Package Version Graph](./docs/tool/package-version-graph.md), [Server Pack](./docs/tool/server-pack-command.md) |
 
 Durable design notes belong under `docs/**`. Delete completed plans, obsolete
 roadmaps, and history-only notes instead of retaining them in the default

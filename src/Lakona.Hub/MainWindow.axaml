@@ -1,0 +1,349 @@
+<Window
+    x:Class="Lakona.Hub.MainWindow"
+    x:DataType="local:MainWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:applications="using:Lakona.Hub.Applications"
+    xmlns:icons="using:FluentIcons.Avalonia"
+    xmlns:local="using:Lakona.Hub"
+    Title="Lakona Hub"
+    Width="1440"
+    Height="1024"
+    MinWidth="980"
+    MinHeight="680"
+    Background="Transparent"
+    FontFamily="Microsoft YaHei UI"
+    TransparencyLevelHint="Transparent"
+    WindowDecorations="None"
+    WindowStartupLocation="CenterScreen">
+  <Window.Styles>
+    <Style Selector="TextBlock">
+      <Setter Property="Foreground" Value="#F2F1ED" />
+    </Style>
+    <Style Selector="TextBlock.muted">
+      <Setter Property="Foreground" Value="#9C9B97" />
+    </Style>
+    <Style Selector="TextBlock.gold">
+      <Setter Property="Foreground" Value="#EFBE3E" />
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="#EFBE3E" />
+      <Setter Property="Foreground" Value="#15120A" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="Height" Value="64" />
+      <Setter Property="Padding" Value="24,14" />
+      <Setter Property="FontSize" Value="17" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.primary.hero">
+      <Setter Property="Height" Value="74" />
+      <Setter Property="MinWidth" Value="242" />
+      <Setter Property="FontSize" Value="19" />
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#F7CE62" />
+    </Style>
+    <Style Selector="Button.secondary">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#E6E4DE" />
+      <Setter Property="BorderBrush" Value="#B68E2F" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="Height" Value="64" />
+      <Setter Property="Padding" Value="23,13" />
+      <Setter Property="FontSize" Value="17" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.secondary.hero">
+      <Setter Property="Height" Value="74" />
+      <Setter Property="MinWidth" Value="258" />
+      <Setter Property="FontSize" Value="19" />
+    </Style>
+    <Style Selector="Button.secondary:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#171611" />
+      <Setter Property="BorderBrush" Value="#EFBE3E" />
+    </Style>
+    <Style Selector="Button.nav">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#B4B2AC" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Padding" Value="20,15" />
+      <Setter Property="FontSize" Value="16" />
+    </Style>
+    <Style Selector="Button.nav:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#181816" />
+    </Style>
+    <Style Selector="Button.nav.selected">
+      <Setter Property="Background" Value="#1B1B18" />
+      <Setter Property="Foreground" Value="#EFBE3E" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="BorderBrush" Value="#EFBE3E" />
+      <Setter Property="BorderThickness" Value="4,0,0,0" />
+    </Style>
+    <Style Selector="Button.server-open">
+      <Setter Property="Width" Value="58" />
+      <Setter Property="Height" Value="48" />
+      <Setter Property="Padding" Value="8,10" />
+      <Setter Property="Background" Value="#EFBE3E" />
+      <Setter Property="Foreground" Value="#15120A" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.server-open:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#F7CE62" />
+    </Style>
+    <Style Selector="Button.client-open">
+      <Setter Property="MinWidth" Value="142" />
+      <Setter Property="Height" Value="48" />
+      <Setter Property="Padding" Value="13,9" />
+      <Setter Property="Background" Value="#111213" />
+      <Setter Property="Foreground" Value="#E8E6E0" />
+      <Setter Property="BorderBrush" Value="#66645F" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+    </Style>
+    <Style Selector="Button.client-open:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#1A1916" />
+      <Setter Property="BorderBrush" Value="#B68E2F" />
+    </Style>
+    <Style Selector="Button:disabled">
+      <Setter Property="Opacity" Value="0.42" />
+    </Style>
+    <Style Selector="ComboBox.server-editor">
+      <Setter Property="MinWidth" Value="168" />
+      <Setter Property="Height" Value="48" />
+      <Setter Property="Padding" Value="10,6" />
+      <Setter Property="Background" Value="#111213" />
+      <Setter Property="Foreground" Value="#E8E6E0" />
+      <Setter Property="BorderBrush" Value="#B68E2F" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="FontSize" Value="14" />
+    </Style>
+    <Style Selector="ComboBox.server-editor:pointerover /template/ Border#Background">
+      <Setter Property="BorderBrush" Value="#EFBE3E" />
+    </Style>
+    <Style Selector="ListBox.project-list">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="ListBox.project-list ListBoxItem">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="ListBox.project-list ListBoxItem:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#121313" />
+    </Style>
+    <Style Selector="ListBox.project-list ListBoxItem:selected /template/ ContentPresenter">
+      <Setter Property="Background" Value="#171712" />
+    </Style>
+    <Style Selector="Button.window-control">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#A9A8A4" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Width" Value="48" />
+      <Setter Property="Height" Value="40" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="Button.window-control:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#242421" />
+    </Style>
+    <Style Selector="Button.window-control.close:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#B3261E" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Border.window-frame">
+      <Setter Property="CornerRadius" Value="14" />
+    </Style>
+    <Style Selector="Border.window-frame.maximized">
+      <Setter Property="CornerRadius" Value="0" />
+    </Style>
+  </Window.Styles>
+
+  <Border x:Name="WindowFrame" Classes="window-frame" Background="#0B0C0D" ClipToBounds="True">
+  <Grid ColumnDefinitions="220,*">
+    <Border Grid.Column="0" Background="#0E0F10" BorderBrush="#2A2A27" BorderThickness="0,0,1,0">
+      <Grid RowDefinitions="190,Auto,*,Auto" Margin="10,22,10,24">
+        <StackPanel Grid.Row="0" Spacing="2" HorizontalAlignment="Left" Margin="24,0,0,0">
+          <Image Width="102" Height="102" HorizontalAlignment="Left" Source="avares://Lakona.Hub/Assets/lakona-cat.png" />
+          <TextBlock Text="Lakona Hub" FontSize="22" FontWeight="SemiBold" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Spacing="12">
+          <Button Classes="nav selected">
+            <StackPanel Orientation="Horizontal" Spacing="14">
+              <icons:FluentIcon Icon="Folder" IconVariant="Regular" IconSize="Size24" />
+              <TextBlock Text="项目" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button Classes="nav" Click="Environment_Click">
+            <StackPanel Orientation="Horizontal" Spacing="14">
+              <icons:FluentIcon Icon="Cube" IconVariant="Regular" IconSize="Size24" />
+              <TextBlock Text="环境" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button Classes="nav" Click="Settings_Click">
+            <StackPanel Orientation="Horizontal" Spacing="14">
+              <icons:FluentIcon Icon="Settings" IconVariant="Regular" IconSize="Size24" />
+              <TextBlock Text="设置" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </StackPanel>
+
+        <Border Grid.Row="3" BorderBrush="#2A2A27" BorderThickness="0,1,0,0" Padding="4,24,4,0">
+          <Button Classes="nav" Click="Help_Click">
+            <StackPanel Orientation="Horizontal" Spacing="14">
+              <icons:FluentIcon Icon="QuestionCircle" IconVariant="Regular" IconSize="Size24" />
+              <TextBlock Text="帮助与反馈" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </Border>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Column="1" RowDefinitions="56,*" Background="#0B0C0D">
+      <Border Grid.Row="0" Background="#0B0C0D" PointerPressed="TitleBar_PointerPressed">
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+          <Button Classes="window-control" Click="Minimize_Click" ToolTip.Tip="最小化">
+            <icons:FluentIcon Icon="Subtract" IconVariant="Regular" IconSize="Size16" />
+          </Button>
+          <Button Classes="window-control" Click="Maximize_Click" ToolTip.Tip="最大化">
+            <icons:FluentIcon Icon="Square" IconVariant="Regular" IconSize="Size16" />
+          </Button>
+          <Button Classes="window-control close" Click="Close_Click" ToolTip.Tip="关闭">
+            <icons:FluentIcon Icon="Dismiss" IconVariant="Regular" IconSize="Size20" />
+          </Button>
+        </StackPanel>
+      </Border>
+
+      <Grid Grid.Row="1">
+        <ScrollViewer x:Name="EmptyExperience">
+          <StackPanel Margin="82,96,72,64" Spacing="0" MaxWidth="900" HorizontalAlignment="Left">
+            <TextBlock Text="欢迎使用 Lakona Hub" FontSize="48" FontWeight="SemiBold" />
+            <TextBlock Text="创建一个新的 Lakona 项目，或者导入现有项目开始工作。" Classes="muted" FontSize="17" Margin="0,18,0,0" />
+
+            <StackPanel Orientation="Horizontal" Spacing="18" Margin="0,44,0,0">
+              <Button Classes="primary hero" Click="CreateProject_Click">
+                <StackPanel Orientation="Horizontal" Spacing="13">
+                  <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size28" />
+                  <TextBlock Text="创建项目" Foreground="#15120A" FontSize="19" FontWeight="SemiBold" />
+                </StackPanel>
+              </Button>
+              <Button Classes="secondary hero" Click="ImportProject_Click">
+                <StackPanel Orientation="Horizontal" Spacing="13">
+                  <icons:FluentIcon Icon="FolderArrowRight" IconVariant="Regular" IconSize="Size28" />
+                  <TextBlock Text="导入现有项目" Foreground="#E6E4DE" FontSize="19" FontWeight="SemiBold" />
+                </StackPanel>
+              </Button>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="15" Margin="0,38,0,0">
+              <icons:FluentIcon Icon="CheckmarkCircle" IconVariant="Regular" IconSize="Size24" Foreground="#EFBE3E" />
+              <TextBlock Text=".NET 10 环境已就绪" FontSize="15" VerticalAlignment="Center" />
+              <Border Width="1" Height="22" Background="#4A4944" Margin="8,0" />
+              <TextBlock x:Name="EmptyEnvironmentSummaryText" Text="正在识别本机开发工具…" Classes="muted" FontSize="14" VerticalAlignment="Center" />
+            </StackPanel>
+
+          </StackPanel>
+        </ScrollViewer>
+
+        <ScrollViewer x:Name="ProjectExperience" IsVisible="False" HorizontalScrollBarVisibility="Auto">
+          <StackPanel Margin="64,52,36,48" MinWidth="1060">
+            <Grid ColumnDefinitions="196,24,196,16,220,*">
+              <TextBlock Grid.Column="0" Text="我的项目" FontSize="38" FontWeight="SemiBold" VerticalAlignment="Center" />
+              <Button Grid.Column="2" Classes="primary" Click="CreateProject_Click">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                  <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size24" />
+                  <TextBlock Text="创建项目" Foreground="#15120A" FontSize="17" FontWeight="SemiBold" />
+                </StackPanel>
+              </Button>
+              <Button Grid.Column="4" Classes="secondary" Click="ImportProject_Click">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                  <icons:FluentIcon Icon="FolderArrowRight" IconVariant="Regular" IconSize="Size24" />
+                  <TextBlock Text="导入现有项目" Foreground="#E6E4DE" FontSize="17" FontWeight="SemiBold" />
+                </StackPanel>
+              </Button>
+            </Grid>
+
+            <StackPanel Orientation="Horizontal" Spacing="15" Margin="0,24,0,0">
+              <icons:FluentIcon Icon="CheckmarkCircle" IconVariant="Regular" IconSize="Size24" Foreground="#EFBE3E" />
+              <TextBlock Text=".NET 10 环境已就绪" Classes="muted" FontSize="14" VerticalAlignment="Center" />
+              <Border Width="1" Height="22" Background="#4A4944" Margin="8,0" />
+              <TextBlock x:Name="ProjectEnvironmentSummaryText" Text="正在识别本机开发工具…" Classes="muted" FontSize="14" VerticalAlignment="Center" />
+            </StackPanel>
+
+            <StackPanel Margin="0,66,0,0" Spacing="0">
+              <Grid ColumnDefinitions="1.45*,0.9*,1.0*,0.8*,1.65*,1.15*" Margin="0,0,0,22">
+                <TextBlock Grid.Column="0" Text="项目名称" Classes="muted" FontSize="14" />
+                <TextBlock Grid.Column="1" Text="引擎版本" Classes="muted" FontSize="14" />
+                <TextBlock Grid.Column="2" Text="Lakona 版本" Classes="muted" FontSize="14" />
+                <TextBlock Grid.Column="3" Text="上次打开" Classes="muted" FontSize="14" />
+                <TextBlock Grid.Column="4" Text="打开服务端" Classes="muted" FontSize="14" HorizontalAlignment="Center" />
+                <TextBlock Grid.Column="5" Text="打开客户端" Classes="muted" FontSize="14" HorizontalAlignment="Center" />
+              </Grid>
+
+              <Border BorderBrush="#33332F" BorderThickness="0,1,0,0">
+                <ListBox x:Name="ProjectList" Classes="project-list" ItemsSource="{Binding Projects}" SelectionChanged="ProjectList_SelectionChanged">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="local:ProjectListItem">
+                      <Border BorderBrush="#33332F" BorderThickness="0,0,0,1" MinHeight="96" Padding="0,20">
+                        <Grid ColumnDefinitions="1.45*,0.9*,1.0*,0.8*,1.65*,1.15*">
+                          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                            <icons:FluentIcon Icon="Cube" IconVariant="Regular" IconSize="Size24" Foreground="#EFBE3E" />
+                            <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                          </StackPanel>
+                          <TextBlock Grid.Column="1" Text="{Binding Client}" Classes="muted" FontSize="15" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                          <TextBlock Grid.Column="2" Text="{Binding LakonaVersion}" Classes="muted" FontSize="15" VerticalAlignment="Center" />
+                          <TextBlock Grid.Column="3" Text="{Binding LastOpened}" Classes="muted" FontSize="15" VerticalAlignment="Center" />
+
+                          <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="9" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <ComboBox Classes="server-editor" ItemsSource="{Binding ServerEditors}" SelectedItem="{Binding SelectedServerEditor, Mode=TwoWay}" IsEnabled="{Binding CanOpenServer}" ToolTip.Tip="{Binding ServerOpenToolTip}">
+                              <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="applications:LocalApplicationInstallation">
+                                  <StackPanel Orientation="Horizontal" Spacing="9">
+                                    <icons:FluentIcon Icon="Code" IconVariant="Regular" IconSize="Size20" Foreground="#EFBE3E" />
+                                    <TextBlock Text="{Binding DisplayName}" FontSize="14" VerticalAlignment="Center" />
+                                  </StackPanel>
+                                </DataTemplate>
+                              </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <Button Classes="server-open" Content="打开" Click="OpenServer_Click" IsEnabled="{Binding CanOpenServer}" ToolTip.Tip="{Binding ServerOpenToolTip}" />
+                          </StackPanel>
+
+                          <Button Grid.Column="5" Classes="client-open" Click="OpenClient_Click" IsEnabled="{Binding CanOpenClient}" ToolTip.Tip="{Binding ClientOpenToolTip}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="9">
+                              <icons:FluentIcon Icon="WindowDevEdit" IconVariant="Regular" IconSize="Size20" />
+                              <TextBlock Text="{Binding ClientActionText}" Foreground="{Binding $parent[Button].Foreground}" FontSize="14" />
+                            </StackPanel>
+                          </Button>
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </Border>
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+
+        <Border x:Name="ActionFeedback" IsVisible="False" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="24" Padding="18,12" CornerRadius="7" Background="#20201B" BorderBrush="#6F5923" BorderThickness="1" MaxWidth="760">
+          <TextBlock x:Name="ActionFeedbackText" Classes="muted" FontSize="13" TextWrapping="Wrap" />
+        </Border>
+      </Grid>
+    </Grid>
+  </Grid>
+  </Border>
+</Window>
