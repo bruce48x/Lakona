@@ -23,7 +23,9 @@ with NativeAOT once the complete V1 dependency set is known. Hub invokes a
 private, portable .NET 10 SDK for project operations and must not require a
 machine-wide .NET installation.
 
-The SDK lifecycle is distinct from the Hub application lifecycle:
+Release archives contain both the self-contained Hub runtime and the pinned
+private .NET 10 SDK so a first-time user downloads only one archive. Their
+version lifecycles remain distinct:
 
 - the Hub application updater updates Hub
 - the SDK manager installs and switches verified SDK versions
@@ -104,6 +106,7 @@ V1 includes:
 - restore, build, start, stop, and show bounded structured logs
 - open the project or client editor
 - update Hub and the private SDK independently
+- manually check for, download, verify, and install Hub updates
 
 V1 does not include:
 
@@ -138,6 +141,45 @@ English immediately without changing the operating-system language. The
 manual `HubLocalization.SetLanguage` seam is also the test contract: UI model
 tests must select a language explicitly instead of relying on the machine's
 current culture.
+
+## Release And Update Contract
+
+GitHub Actions publishes Lakona Hub from `hub-v<semver>` tags to GitHub
+Releases. The first release targets Windows x64, Linux x64, macOS x64, and
+macOS arm64, covering the three desktop operating-system families. Every
+archive is self-contained and includes the pinned private .NET 10 SDK.
+
+Each Release contains one full ZIP per runtime identifier and a
+`lakona-hub-manifest.json`. From the second Release onward, the workflow also
+compares each new package with the preceding stable Hub Release and emits a
+file-level delta ZIP containing only changed files, a deletion list, and the
+new package manifest. Hub uses a delta only when its `fromVersion` exactly
+matches the installed version and automatically falls back to the full package
+otherwise.
+
+V1 artifacts are portable archives rather than privileged system installers.
+Self-update therefore requires the extracted application directory to be
+writable by the current user. Hub checks this before it exits; if the location
+is not writable, it reports the problem and leaves the running installation
+unchanged.
+
+Update checking is explicit: Settings contains a **Check for updates** action
+and Hub does not poll in the background. The update module exposes only check
+and install operations to the window. GitHub discovery, platform selection,
+semantic-version comparison, delta selection, downloading, verification,
+staging, replacement, and rollback remain behind that interface.
+
+Before activation, Hub verifies the downloaded archive length and SHA-256 from
+the Release manifest. The external updater then constructs a complete staged
+installation and verifies every target file against the package manifest. It
+does not modify the live installation until validation succeeds. The running
+Hub exits, the updater swaps the validated directory into place, and a failed
+swap or restart restores the previous directory. The previous directory is
+deleted only after the updated Hub reaches normal application initialization.
+
+Release assets and manifests are retrieved over authenticated HTTPS from the
+GitHub API and GitHub Releases. Repository release permissions are restricted
+to the publishing job; the desktop client never receives a GitHub token.
 
 ## Guided Project Creation
 

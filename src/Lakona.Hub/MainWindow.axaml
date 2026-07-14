@@ -561,6 +561,26 @@
                 </StackPanel>
               </Border>
             </Grid>
+
+            <Border Background="#111213" BorderBrush="#34342F" BorderThickness="1" CornerRadius="10" Padding="28" Margin="0,24,0,0">
+              <Grid ColumnDefinitions="48,20,*,24,190">
+                <Border Grid.Column="0" Width="48" Height="48" CornerRadius="8" Background="#211F17" VerticalAlignment="Top">
+                  <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="Size24" Foreground="#EFBE3E" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel Grid.Column="2" Spacing="6" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Localization.Text.ApplicationUpdates}" FontSize="22" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Localization.Text.ApplicationUpdatesDescription}" Classes="muted" FontSize="13" TextWrapping="Wrap" />
+                  <TextBlock x:Name="CurrentHubVersionText" Classes="gold" FontSize="12" FontWeight="SemiBold" Margin="0,8,0,0" />
+                  <TextBlock x:Name="UpdateStatusText" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                </StackPanel>
+                <Button x:Name="UpdateButton" Grid.Column="4" Classes="primary" Height="48" Padding="18,8" Click="CheckUpdate_Click" VerticalAlignment="Center">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <icons:FluentIcon Icon="ArrowSync" IconVariant="Regular" IconSize="Size20" Foreground="#15120A" />
+                    <TextBlock x:Name="UpdateButtonText" Foreground="#15120A" FontSize="13" FontWeight="SemiBold" />
+                  </StackPanel>
+                </Button>
+              </Grid>
+            </Border>
           </StackPanel>
         </ScrollViewer>
 

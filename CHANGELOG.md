@@ -13,10 +13,13 @@ date and package versions of important releases are retained.
   metadata outside project directories.
 - Added the black-and-gold project workspace, fully expanded guided creation
   form, local editor discovery, per-project IDE selection, and a unified
-  Settings page with immediate Simplified Chinese and English switching.
+  Settings page with immediate Simplified Chinese and English switching plus
+  manual, verified application updates.
 - Moved the canonical project creation pipeline behind
   `LakonaProjectCreator`, so the CLI and Hub share defaults, validation,
-  rendering, transactional writes, and future generator changes.
+  rendering, transactional writes, and future generator changes; added a
+  GitHub Releases pipeline for self-contained Windows, Linux, and macOS
+  packages with a bundled .NET 10 SDK and file-level incremental updates.
 
 ## 2026-07-14 — Complete Unity-family project generation
 

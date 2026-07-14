@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Lakona.Hub.Updates;
 
 namespace Lakona.Hub;
 
@@ -15,7 +16,10 @@ public sealed partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow();
+            var mainWindow = new MainWindow();
+            desktop.MainWindow = mainWindow;
+            mainWindow.ShowUpdateFailure(HubUpdateStartup.TakeFailureMessage());
+            HubUpdateStartup.Complete();
         }
 
         base.OnFrameworkInitializationCompleted();

@@ -131,7 +131,7 @@ public sealed class HubText
     public string Cancel => Zh ? "取消" : "Cancel";
     public string ContinueCreating => Zh ? "继续创建" : "Create project";
 
-    public string SettingsDescription => Zh ? "管理 Lakona Hub 的显示语言和本机开发环境。" : "Manage the display language and local development environment.";
+    public string SettingsDescription => Zh ? "管理 Lakona Hub 的显示语言、开发环境和应用更新。" : "Manage the display language, development environment, and app updates.";
     public string LanguageAndRegion => Zh ? "语言与区域" : "Language & region";
     public string LanguageDescription => Zh ? "切换后立即应用到整个应用，测试时无需修改系统语言。" : "Changes apply immediately across the app without changing the system language.";
     public string DisplayLanguage => Zh ? "显示语言" : "Display language";
@@ -144,6 +144,21 @@ public sealed class HubText
     public string DetectedTools => Zh ? "已识别的开发工具" : "Detected development tools";
     public string RefreshDetection => Zh ? "重新检测" : "Detect again";
     public string EnvironmentReady => Zh ? "环境就绪" : "Ready";
+    public string ApplicationUpdates => Zh ? "应用更新" : "App updates";
+    public string ApplicationUpdatesDescription => Zh ? "从 GitHub Releases 获取经过校验的三平台更新，优先下载增量包。" : "Get verified cross-platform updates from GitHub Releases, preferring smaller incremental packages.";
+    public string CheckForUpdates => Zh ? "检查更新" : "Check for updates";
+    public string DownloadAndInstall => Zh ? "下载并安装" : "Download & install";
+    public string UpdateCheckDescription => Zh ? "手动检查新版本；有匹配版本时只下载发生变化的文件。" : "Check manually for a new version. Matching releases download only changed files.";
+    public string CheckingForUpdates => Zh ? "正在检查 GitHub Releases…" : "Checking GitHub Releases…";
+    public string NoUpdatesAvailable(string version) => Zh ? $"当前已是最新版本（{version}）。" : $"Lakona Hub is up to date ({version}).";
+    public string RestartingForUpdate => Zh ? "更新已校验，正在重启 Lakona Hub…" : "The update is verified. Restarting Lakona Hub…";
+    public string CurrentHubVersion(string version) => Zh ? $"当前版本 {version}" : $"Current version {version}";
+    public string IncrementalUpdateAvailable(string version) => Zh ? $"发现版本 {version}，可使用增量更新。" : $"Version {version} is available as an incremental update.";
+    public string FullUpdateAvailable(string version) => Zh ? $"发现版本 {version}；没有匹配的增量包，将使用完整更新。" : $"Version {version} is available. A matching delta was not found, so the full update will be used.";
+    public string DownloadingIncrementalUpdate(string version) => Zh ? $"正在下载并校验 {version} 增量更新…" : $"Downloading and verifying incremental update {version}…";
+    public string DownloadingFullUpdate(string version) => Zh ? $"正在下载并校验 {version} 完整更新…" : $"Downloading and verifying full update {version}…";
+    public string UpdateFailed(string message) => Zh ? $"更新失败：{message}" : $"Update failed: {message}";
+    public string PreviousVersionRestored(string message) => Zh ? $"更新未能完成，已恢复并重新打开原版本：{message}" : $"The update could not be completed. The previous version was restored and reopened: {message}";
 
     public string SelectProjectFolder => Zh ? "选择 Lakona 项目目录" : "Select a Lakona project folder";
     public string SelectOutputFolder => Zh ? "选择新项目的保存位置" : "Select a location for the new project";

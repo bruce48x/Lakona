@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Lakona.Hub.Applications;
+using Lakona.Hub.Updates;
 using Lakona.ProjectSystem;
 
 namespace Lakona.Hub;
@@ -16,20 +17,30 @@ public sealed partial class MainWindow : Window
     private readonly LakonaProjectCreator projectCreator = new();
     private readonly InstalledApplicationCatalog applicationCatalog = new();
     private readonly ApplicationLauncher applicationLauncher = new();
+    private readonly IHubUpdateService updateService;
     private IReadOnlyList<LocalApplicationInstallation> installedApplications = [];
     private bool isCreatingProject;
     private bool environmentDetectionComplete;
     private bool environmentDetectionFailed;
+    private bool isUpdating;
+    private bool hasCheckedForUpdates;
+    private HubAvailableUpdate? availableUpdate;
     private HubPage currentPage = HubPage.Projects;
 
     public MainWindow()
-        : this(new HubLocalization())
+        : this(new HubLocalization(), new HubUpdateService())
     {
     }
 
     internal MainWindow(HubLocalization localization)
+        : this(localization, new HubUpdateService())
+    {
+    }
+
+    internal MainWindow(HubLocalization localization, IHubUpdateService updateService)
     {
         Localization = localization;
+        this.updateService = updateService;
         CreationForm = new ProjectCreationForm(localization);
         InitializeComponent();
         DataContext = this;
@@ -38,6 +49,7 @@ public sealed partial class MainWindow : Window
         Localization.PropertyChanged += Localization_PropertyChanged;
         UpdateWindowFrame();
         UpdateEnvironmentTexts();
+        UpdateUpdateTexts();
         UpdateExperience();
     }
 
@@ -46,6 +58,14 @@ public sealed partial class MainWindow : Window
     public ProjectCreationForm CreationForm { get; }
 
     public HubLocalization Localization { get; }
+
+    internal void ShowUpdateFailure(string? message)
+    {
+        if (!string.IsNullOrWhiteSpace(message))
+        {
+            ShowFeedback(Localization.Text.PreviousVersionRestored(message));
+        }
+    }
 
     private async void MainWindow_Opened(object? sender, EventArgs e)
     {
@@ -226,6 +246,45 @@ public sealed partial class MainWindow : Window
         await DetectApplicationsAsync(showFailureFeedback: true);
     }
 
+    private async void CheckUpdate_Click(object? sender, RoutedEventArgs e)
+    {
+        if (isUpdating)
+        {
+            return;
+        }
+
+        isUpdating = true;
+        UpdateButton.IsEnabled = false;
+        try
+        {
+            if (availableUpdate is null)
+            {
+                hasCheckedForUpdates = false;
+                UpdateStatusText.Text = Localization.Text.CheckingForUpdates;
+                availableUpdate = await updateService.CheckAsync();
+                hasCheckedForUpdates = true;
+                UpdateUpdateTexts();
+                return;
+            }
+
+            UpdateStatusText.Text = availableUpdate.IsDelta
+                ? Localization.Text.DownloadingIncrementalUpdate(availableUpdate.Version)
+                : Localization.Text.DownloadingFullUpdate(availableUpdate.Version);
+            await updateService.PrepareAndLaunchAsync(availableUpdate);
+            UpdateStatusText.Text = Localization.Text.RestartingForUpdate;
+            Close();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            UpdateStatusText.Text = Localization.Text.UpdateFailed(ex.Message);
+        }
+        finally
+        {
+            isUpdating = false;
+            UpdateButton.IsEnabled = true;
+        }
+    }
+
     private void Help_Click(object? sender, RoutedEventArgs e)
     {
         ShowFeedback(Localization.Text.HelpComingSoon);
@@ -278,6 +337,26 @@ public sealed partial class MainWindow : Window
         {
             ActionFeedback.IsVisible = false;
             UpdateEnvironmentTexts();
+            UpdateUpdateTexts();
+        }
+    }
+
+    private void UpdateUpdateTexts()
+    {
+        CurrentHubVersionText.Text = Localization.Text.CurrentHubVersion(updateService.CurrentVersion);
+        if (availableUpdate is null)
+        {
+            UpdateStatusText.Text = hasCheckedForUpdates
+                ? Localization.Text.NoUpdatesAvailable(updateService.CurrentVersion)
+                : Localization.Text.UpdateCheckDescription;
+            UpdateButtonText.Text = Localization.Text.CheckForUpdates;
+        }
+        else
+        {
+            UpdateStatusText.Text = availableUpdate.IsDelta
+                ? Localization.Text.IncrementalUpdateAvailable(availableUpdate.Version)
+                : Localization.Text.FullUpdateAvailable(availableUpdate.Version);
+            UpdateButtonText.Text = Localization.Text.DownloadAndInstall;
         }
     }
 
