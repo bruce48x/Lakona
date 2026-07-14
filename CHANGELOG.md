@@ -8,15 +8,12 @@ date and package versions of important releases are retained.
 
 **Key releases:** `Lakona.ProjectSystem 0.1.0` and `Lakona.Tool 0.25.20`.
 
-- Added the first Avalonia-based Lakona Hub desktop slice and a reusable,
-  read-only ProjectSystem inspector for Unity, Tuanjie, Godot, and Console
-  projects.
-- Established the non-invasive project contract: Hub keeps disposable local
-  metadata outside project directories and never adds project bookkeeping
-  files during import or inspection.
+- Added the first Avalonia-based Lakona Hub desktop slice, a reusable read-only
+  ProjectSystem inspector, and a non-invasive project contract that keeps Hub
+  metadata outside project directories.
 - Added the black-and-gold project workspace, fully expanded guided creation
-  form, local editor discovery, and per-project open actions with an explicit
-  IDE selector.
+  form, local editor discovery, per-project IDE selection, and a unified
+  Settings page with immediate Simplified Chinese and English switching.
 - Moved the canonical project creation pipeline behind
   `LakonaProjectCreator`, so the CLI and Hub share defaults, validation,
   rendering, transactional writes, and future generator changes.

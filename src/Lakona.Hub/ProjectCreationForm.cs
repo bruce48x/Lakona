@@ -13,60 +13,46 @@ public sealed record ProjectCreationChoice(string Id, string DisplayName)
 public sealed class ProjectCreationForm : INotifyPropertyChanged
 {
     public static readonly ProjectCreationChoice Unity = new("unity", "Unity");
-    public static readonly ProjectCreationChoice Tuanjie = new("tuanjie", "团结引擎");
+    public static readonly ProjectCreationChoice Tuanjie = new("tuanjie", "Tuanjie");
     public static readonly ProjectCreationChoice Godot = new("godot", "Godot");
     public static readonly ProjectCreationChoice Console = new("console", "Console");
 
-    private static readonly IReadOnlyDictionary<string, ProjectCreationChoice[]> Versions =
-        new Dictionary<string, ProjectCreationChoice[]>(StringComparer.Ordinal)
-        {
-            [Unity.Id] = [new("2022", "Unity 2022 LTS"), new("6.0", "Unity 6.0"), new("6.3", "Unity 6.3")],
-            [Tuanjie.Id] = [new("1.6.7", "团结引擎 1.6.7")],
-            [Godot.Id] = [new("4.6", "Godot 4.6")],
-            [Console.Id] = []
-        };
-
+    private readonly HubLocalization localization;
     private string projectName = "MyGame";
     private string outputDirectory = DefaultOutputDirectory();
     private ProjectCreationChoice selectedClient = Unity;
     private ProjectCreationChoice? selectedClientVersion;
-    private ProjectCreationChoice selectedTransport;
-    private ProjectCreationChoice selectedSerializer;
-    private ProjectCreationChoice selectedPersistence;
-    private ProjectCreationChoice selectedNuGetForUnitySource;
-    private ProjectCreationChoice selectedDeploymentProfile;
+    private ProjectCreationChoice selectedTransport = null!;
+    private ProjectCreationChoice selectedSerializer = null!;
+    private ProjectCreationChoice selectedPersistence = null!;
+    private ProjectCreationChoice selectedNuGetForUnitySource = null!;
+    private ProjectCreationChoice selectedDeploymentProfile = null!;
     private bool isCreating;
 
-    public ProjectCreationForm()
+    public ProjectCreationForm(HubLocalization? localization = null)
     {
-        selectedTransport = TransportOptions[2];
-        selectedSerializer = SerializerOptions[1];
-        selectedPersistence = PersistenceOptions[0];
-        selectedNuGetForUnitySource = NuGetForUnitySourceOptions[0];
-        selectedDeploymentProfile = DeploymentProfileOptions[0];
-        RefreshClientOptions();
+        this.localization = localization ?? new HubLocalization();
+        this.localization.PropertyChanged += Localization_PropertyChanged;
+        RebuildLocalizedOptions();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public IReadOnlyList<ProjectCreationChoice> ClientOptions { get; } = [Unity, Tuanjie, Godot, Console];
+    public HubText Text => localization.Text;
+
+    public IReadOnlyList<ProjectCreationChoice> ClientOptions { get; private set; } = [];
 
     public ObservableCollection<ProjectCreationChoice> ClientVersionOptions { get; } = [];
 
-    public IReadOnlyList<ProjectCreationChoice> TransportOptions { get; } =
-        [new("tcp", "TCP"), new("websocket", "WebSocket"), new("kcp", "KCP")];
+    public IReadOnlyList<ProjectCreationChoice> TransportOptions { get; private set; } = [];
 
-    public IReadOnlyList<ProjectCreationChoice> SerializerOptions { get; } =
-        [new("json", "JSON"), new("memorypack", "MemoryPack")];
+    public IReadOnlyList<ProjectCreationChoice> SerializerOptions { get; private set; } = [];
 
-    public IReadOnlyList<ProjectCreationChoice> PersistenceOptions { get; } =
-        [new("none", "不使用数据库"), new("mysql", "MySQL"), new("postgres", "PostgreSQL")];
+    public IReadOnlyList<ProjectCreationChoice> PersistenceOptions { get; private set; } = [];
 
-    public IReadOnlyList<ProjectCreationChoice> NuGetForUnitySourceOptions { get; } =
-        [new("embedded", "内置包源"), new("openupm", "OpenUPM")];
+    public IReadOnlyList<ProjectCreationChoice> NuGetForUnitySourceOptions { get; private set; } = [];
 
-    public IReadOnlyList<ProjectCreationChoice> DeploymentProfileOptions { get; } =
-        [new("none", "不生成部署配置"), new("compose", "Docker Compose")];
+    public IReadOnlyList<ProjectCreationChoice> DeploymentProfileOptions { get; private set; } = [];
 
     public string ProjectName
     {
@@ -85,7 +71,8 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
         get => selectedClient;
         set
         {
-            if (SetField(ref selectedClient, value))
+            var normalized = ClientOptions.FirstOrDefault(option => option.Id == value.Id) ?? value;
+            if (SetField(ref selectedClient, normalized))
             {
                 RefreshClientOptions();
             }
@@ -138,11 +125,9 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
 
     public bool UsesNuGetForUnity => SelectedClient.Id is "unity" or "tuanjie";
 
-    public string ClientVersionHint => HasClientVersion ? "选择客户端使用的编辑器版本" : "Console 客户端不需要引擎版本";
+    public string ClientVersionHint => Text.ClientVersionHint(HasClientVersion);
 
-    public string NuGetForUnityHint => UsesNuGetForUnity
-        ? "Unity 系客户端的包获取方式"
-        : "当前客户端不使用 NuGetForUnity";
+    public string NuGetForUnityHint => Text.NuGetForUnityHint(UsesNuGetForUnity);
 
     public string TargetPath
     {
@@ -150,7 +135,7 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
         {
             if (string.IsNullOrWhiteSpace(OutputDirectory) || string.IsNullOrWhiteSpace(ProjectName))
             {
-                return "请填写项目名称和保存位置";
+                return Text.TargetPathMissing;
             }
 
             try
@@ -159,7 +144,7 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
             }
             catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
             {
-                return "项目路径无效";
+                return Text.InvalidProjectPath;
             }
         }
     }
@@ -170,42 +155,42 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
         {
             if (string.IsNullOrWhiteSpace(ProjectName))
             {
-                return "请输入项目名称";
+                return Text.ProjectNameRequired;
             }
 
             var name = ProjectName.Trim();
             if (name is "." or ".." || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
             {
-                return "项目名称包含不能用于文件夹的字符";
+                return Text.InvalidProjectName;
             }
 
             if (string.IsNullOrWhiteSpace(OutputDirectory))
             {
-                return "请选择保存位置";
+                return Text.OutputLocationRequired;
             }
 
             try
             {
                 if (!Path.IsPathFullyQualified(Path.GetFullPath(OutputDirectory.Trim())))
                 {
-                    return "请选择完整的保存路径";
+                    return Text.FullOutputPathRequired;
                 }
             }
             catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
             {
-                return "保存路径无效";
+                return Text.InvalidOutputPath;
             }
 
             if (HasClientVersion && SelectedClientVersion is null)
             {
-                return "请选择客户端版本";
+                return Text.ClientVersionRequired;
             }
 
-            return "配置完整，可以继续创建";
+            return Text.ConfigurationReady;
         }
     }
 
-    public bool CanCreate => !IsCreating && ValidationMessage == "配置完整，可以继续创建";
+    public bool CanCreate => !IsCreating && ValidationMessage == Text.ConfigurationReady;
 
     public LakonaProjectCreationRequest CreateRequest()
     {
@@ -257,15 +242,70 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
                 : LakonaDeploymentProfile.None);
     }
 
-    private void RefreshClientOptions()
+    private void Localization_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(HubLocalization.Text))
+        {
+            RebuildLocalizedOptions();
+        }
+    }
+
+    private void RebuildLocalizedOptions()
+    {
+        var clientId = selectedClient?.Id ?? Unity.Id;
+        var clientVersionId = selectedClientVersion?.Id;
+        var transportId = selectedTransport?.Id ?? "kcp";
+        var serializerId = selectedSerializer?.Id ?? "memorypack";
+        var persistenceId = selectedPersistence?.Id ?? "none";
+        var nuGetSourceId = selectedNuGetForUnitySource?.Id ?? "embedded";
+        var deploymentId = selectedDeploymentProfile?.Id ?? "none";
+
+        ClientOptions =
+        [
+            new ProjectCreationChoice(Unity.Id, "Unity"),
+            new ProjectCreationChoice(Tuanjie.Id, Text.Tuanjie),
+            new ProjectCreationChoice(Godot.Id, "Godot"),
+            new ProjectCreationChoice(Console.Id, "Console")
+        ];
+        TransportOptions = [new("tcp", "TCP"), new("websocket", "WebSocket"), new("kcp", "KCP")];
+        SerializerOptions = [new("json", "JSON"), new("memorypack", "MemoryPack")];
+        PersistenceOptions = [new("none", Text.NoDatabase), new("mysql", "MySQL"), new("postgres", "PostgreSQL")];
+        NuGetForUnitySourceOptions = [new("embedded", Text.EmbeddedPackages), new("openupm", "OpenUPM")];
+        DeploymentProfileOptions = [new("none", Text.NoDeploymentProfile), new("compose", "Docker Compose")];
+
+        selectedClient = Find(ClientOptions, clientId);
+        selectedTransport = Find(TransportOptions, transportId);
+        selectedSerializer = Find(SerializerOptions, serializerId);
+        selectedPersistence = Find(PersistenceOptions, persistenceId);
+        selectedNuGetForUnitySource = Find(NuGetForUnitySourceOptions, nuGetSourceId);
+        selectedDeploymentProfile = Find(DeploymentProfileOptions, deploymentId);
+
+        OnPropertyChanged(nameof(Text));
+        OnPropertyChanged(nameof(ClientOptions));
+        OnPropertyChanged(nameof(TransportOptions));
+        OnPropertyChanged(nameof(SerializerOptions));
+        OnPropertyChanged(nameof(PersistenceOptions));
+        OnPropertyChanged(nameof(NuGetForUnitySourceOptions));
+        OnPropertyChanged(nameof(DeploymentProfileOptions));
+        OnPropertyChanged(nameof(SelectedClient));
+        OnPropertyChanged(nameof(SelectedTransport));
+        OnPropertyChanged(nameof(SelectedSerializer));
+        OnPropertyChanged(nameof(SelectedPersistence));
+        OnPropertyChanged(nameof(SelectedNuGetForUnitySource));
+        OnPropertyChanged(nameof(SelectedDeploymentProfile));
+        RefreshClientOptions(clientVersionId);
+    }
+
+    private void RefreshClientOptions(string? preferredVersionId = null)
     {
         ClientVersionOptions.Clear();
-        foreach (var version in Versions[SelectedClient.Id])
+        foreach (var version in VersionsFor(SelectedClient.Id))
         {
             ClientVersionOptions.Add(version);
         }
 
-        SelectedClientVersion = ClientVersionOptions.FirstOrDefault();
+        SelectedClientVersion = ClientVersionOptions.FirstOrDefault(version => version.Id == preferredVersionId)
+                                ?? ClientVersionOptions.FirstOrDefault();
         if (!UsesNuGetForUnity)
         {
             SelectedNuGetForUnitySource = NuGetForUnitySourceOptions[0];
@@ -273,6 +313,18 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
 
         NotifyDerivedProperties();
     }
+
+    private ProjectCreationChoice[] VersionsFor(string clientId) => clientId switch
+    {
+        "unity" => [new("2022", "Unity 2022 LTS"), new("6.0", "Unity 6.0"), new("6.3", "Unity 6.3")],
+        "tuanjie" => [new("1.6.7", Text.TuanjieVersion)],
+        "godot" => [new("4.6", "Godot 4.6")],
+        "console" => [],
+        _ => throw new InvalidOperationException($"Unsupported client: {clientId}")
+    };
+
+    private static ProjectCreationChoice Find(IReadOnlyList<ProjectCreationChoice> choices, string id) =>
+        choices.First(choice => choice.Id == id);
 
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {

@@ -8,24 +8,30 @@ namespace Lakona.Hub;
 
 public sealed class ProjectListItem : INotifyPropertyChanged
 {
+    private readonly HubLocalization localization;
+    private readonly string? inspectedName;
+    private readonly string? inspectedLakonaVersion;
+    private readonly LakonaProjectStatus inspectionStatus;
     private LocalApplicationInstallation? selectedServerEditor;
     private LocalApplicationInstallation? clientApplication;
-    private string lastOpened = "刚刚";
 
-    private ProjectListItem(LakonaProjectInspection inspection)
+    private ProjectListItem(LakonaProjectInspection inspection, HubLocalization localization)
     {
-        Name = string.IsNullOrWhiteSpace(inspection.Name) ? "未命名项目" : inspection.Name;
+        this.localization = localization;
+        inspectedName = inspection.Name;
+        inspectedLakonaVersion = inspection.LakonaVersion;
+        inspectionStatus = inspection.Status;
+        localization.PropertyChanged += Localization_PropertyChanged;
         Path = inspection.RootPath;
         ClientKind = inspection.Client;
         ClientVersion = inspection.ClientVersion;
-        Client = FormatClient(inspection.Client, inspection.ClientVersion);
-        LakonaVersion = inspection.LakonaVersion ?? "未检测到";
-        StatusText = inspection.Status == LakonaProjectStatus.Ready ? "项目结构完整" : "项目结构需要检查";
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public string Name { get; }
+    private HubText Text => localization.Text;
+
+    public string Name => string.IsNullOrWhiteSpace(inspectedName) ? Text.UnnamedProject : inspectedName;
 
     public string Path { get; }
 
@@ -33,11 +39,11 @@ public sealed class ProjectListItem : INotifyPropertyChanged
 
     public string? ClientVersion { get; }
 
-    public string Client { get; }
+    public string Client => FormatClient(ClientKind, ClientVersion);
 
-    public string LakonaVersion { get; }
+    public string LakonaVersion => inspectedLakonaVersion ?? Text.NotDetected;
 
-    public string StatusText { get; }
+    public string StatusText => inspectionStatus == LakonaProjectStatus.Ready ? Text.ProjectReady : Text.ProjectNeedsAttention;
 
     public ObservableCollection<LocalApplicationInstallation> ServerEditors { get; } = [];
 
@@ -80,49 +86,39 @@ public sealed class ProjectListItem : INotifyPropertyChanged
         }
     }
 
-    public string LastOpened
-    {
-        get => lastOpened;
-        private set
-        {
-            if (lastOpened == value)
-            {
-                return;
-            }
-
-            lastOpened = value;
-            OnPropertyChanged();
-        }
-    }
+    public string LastOpened => Text.JustNow;
 
     public bool CanOpenServer => SelectedServerEditor is not null;
 
     public bool CanOpenClient => ClientApplication is not null;
 
+    public string OpenText => Text.Open;
+
     public string ClientActionText => ClientKind switch
     {
-        LakonaProjectClient.Unity => "Unity 打开",
-        LakonaProjectClient.Godot => "Godot 打开",
-        LakonaProjectClient.Tuanjie => "团结引擎打开",
-        LakonaProjectClient.Console when ClientApplication is not null => $"{ClientApplication.DisplayName} 打开",
-        _ => "打开客户端"
+        LakonaProjectClient.Unity => Text.ClientAction("Unity"),
+        LakonaProjectClient.Godot => Text.ClientAction("Godot"),
+        LakonaProjectClient.Tuanjie => Text.ClientAction(Text.Tuanjie),
+        LakonaProjectClient.Console when ClientApplication is not null => Text.ClientAction(ClientApplication.DisplayName),
+        _ => Text.OpenClientAction
     };
 
     public string ServerOpenToolTip => SelectedServerEditor is null
-        ? "未检测到 Rider、Visual Studio 或 VS Code"
-        : $"使用 {SelectedServerEditor.DisplayName} 打开服务端";
+        ? Text.NoServerIde
+        : Text.OpenServerWith(SelectedServerEditor.DisplayName);
 
     public string ClientOpenToolTip => ClientApplication is null
         ? ClientKind == LakonaProjectClient.Console
-            ? "未检测到 Rider、Visual Studio 或 VS Code"
-            : $"未检测到可用于 {ClientActionText.Replace(" 打开", string.Empty, StringComparison.Ordinal)} 的编辑器"
-        : $"使用 {ClientApplication.DisplayName} 打开客户端";
+            ? Text.NoServerIde
+            : Text.NoClientEditor(ClientName(ClientKind))
+        : Text.OpenClientWith(ClientApplication.DisplayName);
 
     public static ProjectListItem FromInspection(
         LakonaProjectInspection inspection,
-        IReadOnlyList<LocalApplicationInstallation> applications)
+        IReadOnlyList<LocalApplicationInstallation> applications,
+        HubLocalization? localization = null)
     {
-        var item = new ProjectListItem(inspection);
+        var item = new ProjectListItem(inspection, localization ?? new HubLocalization());
         item.RefreshApplications(applications);
         return item;
     }
@@ -158,7 +154,7 @@ public sealed class ProjectListItem : INotifyPropertyChanged
         ClientApplication = BestVersionMatch(clientCandidates, ClientVersion);
     }
 
-    public void MarkOpened() => LastOpened = "刚刚";
+    public void MarkOpened() => OnPropertyChanged(nameof(LastOpened));
 
     private static LocalApplicationInstallation? BestVersionMatch(
         IReadOnlyList<LocalApplicationInstallation> candidates,
@@ -183,17 +179,37 @@ public sealed class ProjectListItem : INotifyPropertyChanged
         return candidates[0];
     }
 
-    private static string FormatClient(LakonaProjectClient client, string? version)
+    private string FormatClient(LakonaProjectClient client, string? version)
     {
-        var name = client switch
-        {
-            LakonaProjectClient.Unity => "Unity",
-            LakonaProjectClient.Tuanjie => "团结引擎",
-            LakonaProjectClient.Godot => "Godot",
-            LakonaProjectClient.Console => "Console",
-            _ => "未识别"
-        };
+        var name = ClientName(client);
         return string.IsNullOrWhiteSpace(version) ? name : $"{name} {version}";
+    }
+
+    private string ClientName(LakonaProjectClient client) => client switch
+    {
+        LakonaProjectClient.Unity => "Unity",
+        LakonaProjectClient.Tuanjie => Text.Tuanjie,
+        LakonaProjectClient.Godot => "Godot",
+        LakonaProjectClient.Console => "Console",
+        _ => Text.Unknown
+    };
+
+    private void Localization_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(HubLocalization.Text))
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(Name));
+        OnPropertyChanged(nameof(Client));
+        OnPropertyChanged(nameof(LakonaVersion));
+        OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(LastOpened));
+        OnPropertyChanged(nameof(ClientActionText));
+        OnPropertyChanged(nameof(OpenText));
+        OnPropertyChanged(nameof(ServerOpenToolTip));
+        OnPropertyChanged(nameof(ClientOpenToolTip));
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>

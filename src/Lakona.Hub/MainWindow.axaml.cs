@@ -18,48 +18,45 @@ public sealed partial class MainWindow : Window
     private readonly ApplicationLauncher applicationLauncher = new();
     private IReadOnlyList<LocalApplicationInstallation> installedApplications = [];
     private bool isCreatingProject;
+    private bool environmentDetectionComplete;
+    private bool environmentDetectionFailed;
+    private HubPage currentPage = HubPage.Projects;
 
     public MainWindow()
+        : this(new HubLocalization())
     {
+    }
+
+    internal MainWindow(HubLocalization localization)
+    {
+        Localization = localization;
+        CreationForm = new ProjectCreationForm(localization);
         InitializeComponent();
         DataContext = this;
         Opened += MainWindow_Opened;
         PropertyChanged += MainWindow_PropertyChanged;
+        Localization.PropertyChanged += Localization_PropertyChanged;
         UpdateWindowFrame();
+        UpdateEnvironmentTexts();
         UpdateExperience();
     }
 
     public ObservableCollection<ProjectListItem> Projects { get; } = [];
 
-    public ProjectCreationForm CreationForm { get; } = new();
+    public ProjectCreationForm CreationForm { get; }
+
+    public HubLocalization Localization { get; }
 
     private async void MainWindow_Opened(object? sender, EventArgs e)
     {
-        try
-        {
-            installedApplications = await Task.Run(applicationCatalog.Detect);
-            foreach (var project in Projects)
-            {
-                project.RefreshApplications(installedApplications);
-            }
-
-            var summary = FormatEnvironmentSummary(installedApplications);
-            EmptyEnvironmentSummaryText.Text = summary;
-            ProjectEnvironmentSummaryText.Text = summary;
-        }
-        catch (Exception ex)
-        {
-            EmptyEnvironmentSummaryText.Text = "本机开发工具识别失败";
-            ProjectEnvironmentSummaryText.Text = "本机开发工具识别失败";
-            ShowFeedback($"无法识别本机开发工具：{ex.Message}");
-        }
+        await DetectApplicationsAsync(showFailureFeedback: true);
     }
 
     private async void ImportProject_Click(object? sender, RoutedEventArgs e)
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            Title = "选择 Lakona 项目目录",
+            Title = Localization.Text.SelectProjectFolder,
             AllowMultiple = false
         });
         var folder = folders.FirstOrDefault();
@@ -82,17 +79,17 @@ public sealed partial class MainWindow : Window
                 Projects.Remove(existing);
             }
 
-            Projects.Insert(0, ProjectListItem.FromInspection(inspection, installedApplications));
+            Projects.Insert(0, ProjectListItem.FromInspection(inspection, installedApplications, Localization));
             UpdateExperience();
         }
 
         ShowFeedback(inspection.Status switch
         {
-            LakonaProjectStatus.Ready => $"已导入“{inspection.Name}”。Hub 只读取了项目结构，没有写入任何管理文件。",
-            LakonaProjectStatus.Incomplete => $"“{inspection.Name}”已加入列表，但项目结构需要检查：{inspection.Diagnostics.Count} 项提示。",
-            LakonaProjectStatus.NotLakonaProject => "所选目录不是可识别的 Lakona 项目。项目内容没有被修改。",
-            LakonaProjectStatus.NotFound => "所选项目目录不存在。",
-            _ => "无法识别该项目。"
+            LakonaProjectStatus.Ready => Localization.Text.Imported(inspection.Name),
+            LakonaProjectStatus.Incomplete => Localization.Text.ImportedIncomplete(inspection.Name, inspection.Diagnostics.Count),
+            LakonaProjectStatus.NotLakonaProject => Localization.Text.NotLakonaProject,
+            LakonaProjectStatus.NotFound => Localization.Text.ProjectNotFound,
+            _ => Localization.Text.ProjectUnrecognized
         });
     }
 
@@ -100,7 +97,7 @@ public sealed partial class MainWindow : Window
     {
         if (ProjectList.SelectedItem is ProjectListItem project)
         {
-            ShowFeedback($"{project.Name}：{project.StatusText}。路径：{project.Path}");
+            ShowFeedback(Localization.Text.ProjectSelection(project.Name, project.StatusText, project.Path));
         }
     }
 
@@ -109,7 +106,7 @@ public sealed partial class MainWindow : Window
         if (sender is not Button { DataContext: ProjectListItem project } ||
             project.SelectedServerEditor is not { } editor)
         {
-            ShowFeedback("未检测到 Rider、Visual Studio 或 VS Code。请先安装一个受支持的 IDE。");
+            ShowFeedback(Localization.Text.NoSupportedIde);
             return;
         }
 
@@ -117,11 +114,11 @@ public sealed partial class MainWindow : Window
         {
             applicationLauncher.Launch(ApplicationLaunchPlanner.OpenServer(project.Path, editor));
             project.MarkOpened();
-            ShowFeedback($"正在使用 {editor.DisplayName} 打开“{project.Name}”的服务端。");
+            ShowFeedback(Localization.Text.OpeningServer(editor.DisplayName, project.Name));
         }
         catch (Exception ex) when (IsLaunchFailure(ex))
         {
-            ShowFeedback($"无法打开服务端：{ex.Message}");
+            ShowFeedback(Localization.Text.OpenServerFailed(ex.Message));
         }
     }
 
@@ -130,7 +127,7 @@ public sealed partial class MainWindow : Window
         if (sender is not Button { DataContext: ProjectListItem project } ||
             project.ClientApplication is not { } application)
         {
-            ShowFeedback("没有检测到与当前项目客户端匹配的 Unity 或 Godot 编辑器。");
+            ShowFeedback(Localization.Text.NoMatchingClientEditor);
             return;
         }
 
@@ -141,11 +138,11 @@ public sealed partial class MainWindow : Window
                 project.ClientKind,
                 application));
             project.MarkOpened();
-            ShowFeedback($"正在使用 {application.DisplayName} 打开“{project.Name}”的客户端。");
+            ShowFeedback(Localization.Text.OpeningClient(application.DisplayName, project.Name));
         }
         catch (Exception ex) when (IsLaunchFailure(ex))
         {
-            ShowFeedback($"无法打开客户端：{ex.Message}");
+            ShowFeedback(Localization.Text.OpenClientFailed(ex.Message));
         }
     }
 
@@ -160,7 +157,7 @@ public sealed partial class MainWindow : Window
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            Title = "选择新项目的保存位置",
+            Title = Localization.Text.SelectOutputFolder,
             AllowMultiple = false
         });
         if (folders.FirstOrDefault()?.TryGetLocalPath() is { } path)
@@ -190,17 +187,17 @@ public sealed partial class MainWindow : Window
         }
 
         CreationForm.IsCreating = true;
-        ShowFeedback($"正在创建“{CreationForm.ProjectName.Trim()}”…");
+        ShowFeedback(Localization.Text.CreatingProject(CreationForm.ProjectName.Trim()));
         try
         {
             var result = await projectCreator.CreateAsync(CreationForm.CreateRequest());
             isCreatingProject = false;
             ShowInspection(inspector.Inspect(result.RootPath));
-            ShowFeedback($"已创建“{CreationForm.ProjectName.Trim()}”。项目生成逻辑与 lakona-tool 完全共享。");
+            ShowFeedback(Localization.Text.ProjectCreated(CreationForm.ProjectName.Trim()));
         }
         catch (Exception ex) when (ex is LakonaProjectCreationException or IOException or UnauthorizedAccessException)
         {
-            ShowFeedback($"创建项目失败：{ex.Message}");
+            ShowFeedback(Localization.Text.ProjectCreationFailed(ex.Message));
         }
         finally
         {
@@ -208,27 +205,92 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void Environment_Click(object? sender, RoutedEventArgs e)
+    private void Projects_Click(object? sender, RoutedEventArgs e)
     {
-        ShowFeedback($".NET 10 环境已就绪。{FormatEnvironmentSummary(installedApplications)}。");
+        currentPage = HubPage.Projects;
+        isCreatingProject = false;
+        ActionFeedback.IsVisible = false;
+        UpdateExperience();
     }
 
     private void Settings_Click(object? sender, RoutedEventArgs e)
     {
-        ShowFeedback("默认服务端 IDE 按 Rider、Visual Studio、VS Code 的顺序选择，也可以在每个项目行中切换。");
+        currentPage = HubPage.Settings;
+        isCreatingProject = false;
+        ActionFeedback.IsVisible = false;
+        UpdateExperience();
+    }
+
+    private async void RefreshEnvironment_Click(object? sender, RoutedEventArgs e)
+    {
+        await DetectApplicationsAsync(showFailureFeedback: true);
     }
 
     private void Help_Click(object? sender, RoutedEventArgs e)
     {
-        ShowFeedback("帮助与反馈入口将在发布准备阶段接入。");
+        ShowFeedback(Localization.Text.HelpComingSoon);
     }
 
     private void UpdateExperience()
     {
+        var onProjectsPage = currentPage == HubPage.Projects;
         var hasProjects = Projects.Count > 0;
-        CreateExperience.IsVisible = isCreatingProject;
-        EmptyExperience.IsVisible = !isCreatingProject && !hasProjects;
-        ProjectExperience.IsVisible = !isCreatingProject && hasProjects;
+        CreateExperience.IsVisible = onProjectsPage && isCreatingProject;
+        EmptyExperience.IsVisible = onProjectsPage && !isCreatingProject && !hasProjects;
+        ProjectExperience.IsVisible = onProjectsPage && !isCreatingProject && hasProjects;
+        SettingsExperience.IsVisible = currentPage == HubPage.Settings;
+        ProjectsNavButton.Classes.Set("selected", onProjectsPage);
+        SettingsNavButton.Classes.Set("selected", currentPage == HubPage.Settings);
+    }
+
+    private async Task DetectApplicationsAsync(bool showFailureFeedback)
+    {
+        environmentDetectionComplete = false;
+        environmentDetectionFailed = false;
+        UpdateEnvironmentTexts();
+        try
+        {
+            installedApplications = await Task.Run(applicationCatalog.Detect);
+            foreach (var project in Projects)
+            {
+                project.RefreshApplications(installedApplications);
+            }
+
+            environmentDetectionComplete = true;
+        }
+        catch (Exception ex)
+        {
+            environmentDetectionFailed = true;
+            if (showFailureFeedback)
+            {
+                ShowFeedback(Localization.Text.ToolDetectionError(ex.Message));
+            }
+        }
+        finally
+        {
+            UpdateEnvironmentTexts();
+        }
+    }
+
+    private void Localization_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(HubLocalization.Text))
+        {
+            ActionFeedback.IsVisible = false;
+            UpdateEnvironmentTexts();
+        }
+    }
+
+    private void UpdateEnvironmentTexts()
+    {
+        var summary = environmentDetectionFailed
+            ? Localization.Text.ToolDetectionFailed
+            : environmentDetectionComplete
+                ? FormatEnvironmentSummary(installedApplications)
+                : Localization.Text.DetectingTools;
+        EmptyEnvironmentSummaryText.Text = summary;
+        ProjectEnvironmentSummaryText.Text = summary;
+        SettingsEnvironmentSummaryText.Text = summary;
     }
 
     private void MainWindow_PropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
@@ -248,7 +310,7 @@ public sealed partial class MainWindow : Window
         ActionFeedback.IsVisible = true;
     }
 
-    private static string FormatEnvironmentSummary(
+    private string FormatEnvironmentSummary(
         IReadOnlyList<LocalApplicationInstallation> applications)
     {
         var names = applications
@@ -256,8 +318,8 @@ public sealed partial class MainWindow : Window
             .Select(application => application.DisplayName)
             .ToArray();
         return names.Length == 0
-            ? "未识别 Rider、Visual Studio、VS Code、Unity 或 Godot"
-            : $"已识别 {string.Join("、", names)}";
+            ? Localization.Text.EnvironmentNone
+            : Localization.Text.EnvironmentDetected(string.Join(Localization.Text.EnvironmentSeparator, names));
     }
 
     private static bool IsLaunchFailure(Exception exception) => exception is
@@ -281,4 +343,10 @@ public sealed partial class MainWindow : Window
         WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
 
     private void Close_Click(object? sender, RoutedEventArgs e) => Close();
+
+    private enum HubPage
+    {
+        Projects,
+        Settings
+    }
 }

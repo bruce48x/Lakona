@@ -239,22 +239,16 @@
         </StackPanel>
 
         <StackPanel Grid.Row="1" Spacing="12">
-          <Button Classes="nav selected">
+          <Button x:Name="ProjectsNavButton" Classes="nav selected" Click="Projects_Click">
             <StackPanel Orientation="Horizontal" Spacing="14">
               <icons:FluentIcon Icon="Folder" IconVariant="Regular" IconSize="Size24" />
-              <TextBlock Text="项目" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding Localization.Text.Projects}" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
-          <Button Classes="nav" Click="Environment_Click">
-            <StackPanel Orientation="Horizontal" Spacing="14">
-              <icons:FluentIcon Icon="Cube" IconVariant="Regular" IconSize="Size24" />
-              <TextBlock Text="环境" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
-            </StackPanel>
-          </Button>
-          <Button Classes="nav" Click="Settings_Click">
+          <Button x:Name="SettingsNavButton" Classes="nav" Click="Settings_Click">
             <StackPanel Orientation="Horizontal" Spacing="14">
               <icons:FluentIcon Icon="Settings" IconVariant="Regular" IconSize="Size24" />
-              <TextBlock Text="设置" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding Localization.Text.Settings}" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
         </StackPanel>
@@ -263,7 +257,7 @@
           <Button Classes="nav" Click="Help_Click">
             <StackPanel Orientation="Horizontal" Spacing="14">
               <icons:FluentIcon Icon="QuestionCircle" IconVariant="Regular" IconSize="Size24" />
-              <TextBlock Text="帮助与反馈" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding Localization.Text.HelpAndFeedback}" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
         </Border>
@@ -273,13 +267,13 @@
     <Grid Grid.Column="1" RowDefinitions="56,*" Background="#0B0C0D">
       <Border Grid.Row="0" Background="#0B0C0D" PointerPressed="TitleBar_PointerPressed">
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-          <Button Classes="window-control" Click="Minimize_Click" ToolTip.Tip="最小化">
+          <Button Classes="window-control" Click="Minimize_Click" ToolTip.Tip="{Binding Localization.Text.Minimize}">
             <icons:FluentIcon Icon="Subtract" IconVariant="Regular" IconSize="Size16" />
           </Button>
-          <Button Classes="window-control" Click="Maximize_Click" ToolTip.Tip="最大化">
+          <Button Classes="window-control" Click="Maximize_Click" ToolTip.Tip="{Binding Localization.Text.Maximize}">
             <icons:FluentIcon Icon="Square" IconVariant="Regular" IconSize="Size16" />
           </Button>
-          <Button Classes="window-control close" Click="Close_Click" ToolTip.Tip="关闭">
+          <Button Classes="window-control close" Click="Close_Click" ToolTip.Tip="{Binding Localization.Text.Close}">
             <icons:FluentIcon Icon="Dismiss" IconVariant="Regular" IconSize="Size20" />
           </Button>
         </StackPanel>
@@ -288,29 +282,29 @@
       <Grid Grid.Row="1">
         <ScrollViewer x:Name="EmptyExperience">
           <StackPanel Margin="82,96,72,64" Spacing="0" MaxWidth="900" HorizontalAlignment="Left">
-            <TextBlock Text="欢迎使用 Lakona Hub" FontSize="48" FontWeight="SemiBold" />
-            <TextBlock Text="创建一个新的 Lakona 项目，或者导入现有项目开始工作。" Classes="muted" FontSize="17" Margin="0,18,0,0" />
+            <TextBlock Text="{Binding Localization.Text.WelcomeTitle}" FontSize="48" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding Localization.Text.WelcomeDescription}" Classes="muted" FontSize="17" Margin="0,18,0,0" />
 
             <StackPanel Orientation="Horizontal" Spacing="18" Margin="0,44,0,0">
               <Button Classes="primary hero" Click="CreateProject_Click">
                 <StackPanel Orientation="Horizontal" Spacing="13">
                   <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size28" />
-                  <TextBlock Text="创建项目" Foreground="#15120A" FontSize="19" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Localization.Text.CreateProject}" Foreground="#15120A" FontSize="19" FontWeight="SemiBold" />
                 </StackPanel>
               </Button>
               <Button Classes="secondary hero" Click="ImportProject_Click">
                 <StackPanel Orientation="Horizontal" Spacing="13">
                   <icons:FluentIcon Icon="FolderArrowRight" IconVariant="Regular" IconSize="Size28" />
-                  <TextBlock Text="导入现有项目" Foreground="#E6E4DE" FontSize="19" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Localization.Text.ImportExistingProject}" Foreground="#E6E4DE" FontSize="19" FontWeight="SemiBold" />
                 </StackPanel>
               </Button>
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Spacing="15" Margin="0,38,0,0">
               <icons:FluentIcon Icon="CheckmarkCircle" IconVariant="Regular" IconSize="Size24" Foreground="#EFBE3E" />
-              <TextBlock Text=".NET 10 环境已就绪" FontSize="15" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding Localization.Text.DotNetReady}" FontSize="15" VerticalAlignment="Center" />
               <Border Width="1" Height="22" Background="#4A4944" Margin="8,0" />
-              <TextBlock x:Name="EmptyEnvironmentSummaryText" Text="正在识别本机开发工具…" Classes="muted" FontSize="14" VerticalAlignment="Center" />
+              <TextBlock x:Name="EmptyEnvironmentSummaryText" Classes="muted" FontSize="14" VerticalAlignment="Center" />
             </StackPanel>
 
           </StackPanel>
@@ -319,36 +313,36 @@
         <ScrollViewer x:Name="ProjectExperience" IsVisible="False" HorizontalScrollBarVisibility="Auto">
           <StackPanel Margin="64,52,36,48" MinWidth="1060">
             <Grid ColumnDefinitions="196,24,196,16,220,*">
-              <TextBlock Grid.Column="0" Text="我的项目" FontSize="38" FontWeight="SemiBold" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="0" Text="{Binding Localization.Text.MyProjects}" FontSize="38" FontWeight="SemiBold" VerticalAlignment="Center" />
               <Button Grid.Column="2" Classes="primary" Click="CreateProject_Click">
                 <StackPanel Orientation="Horizontal" Spacing="12">
                   <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size24" />
-                  <TextBlock Text="创建项目" Foreground="#15120A" FontSize="17" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Localization.Text.CreateProject}" Foreground="#15120A" FontSize="17" FontWeight="SemiBold" />
                 </StackPanel>
               </Button>
               <Button Grid.Column="4" Classes="secondary" Click="ImportProject_Click">
                 <StackPanel Orientation="Horizontal" Spacing="12">
                   <icons:FluentIcon Icon="FolderArrowRight" IconVariant="Regular" IconSize="Size24" />
-                  <TextBlock Text="导入现有项目" Foreground="#E6E4DE" FontSize="17" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Localization.Text.ImportExistingProject}" Foreground="#E6E4DE" FontSize="17" FontWeight="SemiBold" />
                 </StackPanel>
               </Button>
             </Grid>
 
             <StackPanel Orientation="Horizontal" Spacing="15" Margin="0,24,0,0">
               <icons:FluentIcon Icon="CheckmarkCircle" IconVariant="Regular" IconSize="Size24" Foreground="#EFBE3E" />
-              <TextBlock Text=".NET 10 环境已就绪" Classes="muted" FontSize="14" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding Localization.Text.DotNetReady}" Classes="muted" FontSize="14" VerticalAlignment="Center" />
               <Border Width="1" Height="22" Background="#4A4944" Margin="8,0" />
-              <TextBlock x:Name="ProjectEnvironmentSummaryText" Text="正在识别本机开发工具…" Classes="muted" FontSize="14" VerticalAlignment="Center" />
+              <TextBlock x:Name="ProjectEnvironmentSummaryText" Classes="muted" FontSize="14" VerticalAlignment="Center" />
             </StackPanel>
 
             <StackPanel Margin="0,66,0,0" Spacing="0">
               <Grid ColumnDefinitions="1.45*,0.9*,1.0*,0.8*,1.65*,1.15*" Margin="0,0,0,22">
-                <TextBlock Grid.Column="0" Text="项目名称" Classes="muted" FontSize="14" />
-                <TextBlock Grid.Column="1" Text="引擎版本" Classes="muted" FontSize="14" />
-                <TextBlock Grid.Column="2" Text="Lakona 版本" Classes="muted" FontSize="14" />
-                <TextBlock Grid.Column="3" Text="上次打开" Classes="muted" FontSize="14" />
-                <TextBlock Grid.Column="4" Text="打开服务端" Classes="muted" FontSize="14" HorizontalAlignment="Center" />
-                <TextBlock Grid.Column="5" Text="打开客户端" Classes="muted" FontSize="14" HorizontalAlignment="Center" />
+                <TextBlock Grid.Column="0" Text="{Binding Localization.Text.ProjectName}" Classes="muted" FontSize="14" />
+                <TextBlock Grid.Column="1" Text="{Binding Localization.Text.EngineVersion}" Classes="muted" FontSize="14" />
+                <TextBlock Grid.Column="2" Text="{Binding Localization.Text.LakonaVersion}" Classes="muted" FontSize="14" />
+                <TextBlock Grid.Column="3" Text="{Binding Localization.Text.LastOpened}" Classes="muted" FontSize="14" />
+                <TextBlock Grid.Column="4" Text="{Binding Localization.Text.OpenServer}" Classes="muted" FontSize="14" HorizontalAlignment="Center" />
+                <TextBlock Grid.Column="5" Text="{Binding Localization.Text.OpenClient}" Classes="muted" FontSize="14" HorizontalAlignment="Center" />
               </Grid>
 
               <Border BorderBrush="#33332F" BorderThickness="0,1,0,0">
@@ -376,7 +370,7 @@
                                 </DataTemplate>
                               </ComboBox.ItemTemplate>
                             </ComboBox>
-                            <Button Classes="server-open" Content="打开" Click="OpenServer_Click" IsEnabled="{Binding CanOpenServer}" ToolTip.Tip="{Binding ServerOpenToolTip}" />
+                            <Button Classes="server-open" Content="{Binding OpenText}" Click="OpenServer_Click" IsEnabled="{Binding CanOpenServer}" ToolTip.Tip="{Binding ServerOpenToolTip}" />
                           </StackPanel>
 
                           <Button Grid.Column="5" Classes="client-open" Click="OpenClient_Click" IsEnabled="{Binding CanOpenClient}" ToolTip.Tip="{Binding ClientOpenToolTip}" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -398,42 +392,42 @@
         <ScrollViewer x:Name="CreateExperience" IsVisible="False" HorizontalScrollBarVisibility="Disabled" DataContext="{Binding CreationForm}">
           <StackPanel x:DataType="local:ProjectCreationForm" Margin="64,44,42,54" MaxWidth="1120" HorizontalAlignment="Stretch">
             <StackPanel Orientation="Horizontal" Spacing="18">
-              <Button Classes="back" Click="CancelCreateProject_Click" ToolTip.Tip="返回项目列表">
+              <Button Classes="back" Click="CancelCreateProject_Click" ToolTip.Tip="{Binding Text.BackToProjects}">
                 <icons:FluentIcon Icon="ArrowLeft" IconVariant="Regular" IconSize="Size24" />
               </Button>
               <StackPanel Spacing="5" VerticalAlignment="Center">
-                <TextBlock Text="创建项目" FontSize="38" FontWeight="SemiBold" />
-                <TextBlock Text="填写项目配置，所有选项都可以直接查看和修改。" Classes="muted" FontSize="15" />
+                <TextBlock Text="{Binding Text.CreateProject}" FontSize="38" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding Text.CreateDescription}" Classes="muted" FontSize="15" />
               </StackPanel>
             </StackPanel>
 
             <Grid ColumnDefinitions="1*,42,1*" Margin="0,42,0,0">
               <StackPanel Grid.Column="0" Spacing="0">
-                <TextBlock Text="基本信息" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,18" />
+                <TextBlock Text="{Binding Text.BasicInformation}" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,18" />
 
                 <StackPanel Spacing="8">
-                  <TextBlock Text="项目名称" FontSize="14" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Text.ProjectName}" FontSize="14" FontWeight="SemiBold" />
                   <TextBox Classes="form-field" Text="{Binding ProjectName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="MyGame" />
-                  <TextBlock Text="将同时作为项目文件夹名称" Classes="muted" FontSize="12" />
+                  <TextBlock Text="{Binding Text.ProjectFolderHint}" Classes="muted" FontSize="12" />
                 </StackPanel>
 
                 <StackPanel Spacing="8" Margin="0,22,0,0">
-                  <TextBlock Text="保存位置" FontSize="14" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Text.OutputLocation}" FontSize="14" FontWeight="SemiBold" />
                   <Grid ColumnDefinitions="*,12,92">
                     <TextBox Grid.Column="0" Classes="form-field" Text="{Binding OutputDirectory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                    <Button Grid.Column="2" Classes="form-browse" Content="浏览…" Click="BrowseProjectOutput_Click" />
+                    <Button Grid.Column="2" Classes="form-browse" Content="{Binding Text.Browse}" Click="BrowseProjectOutput_Click" />
                   </Grid>
-                  <TextBlock Text="项目会创建在该目录下的新文件夹中" Classes="muted" FontSize="12" />
+                  <TextBlock Text="{Binding Text.OutputLocationHint}" Classes="muted" FontSize="12" />
                 </StackPanel>
 
                 <StackPanel Spacing="8" Margin="0,22,0,0">
-                  <TextBlock Text="客户端类型" FontSize="14" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Text.ClientType}" FontSize="14" FontWeight="SemiBold" />
                   <ComboBox Classes="form-field" ItemsSource="{Binding ClientOptions}" SelectedItem="{Binding SelectedClient, Mode=TwoWay}" />
-                  <TextBlock Text="可选择 Unity、团结引擎、Godot 或 Console" Classes="muted" FontSize="12" />
+                  <TextBlock Text="{Binding Text.ClientTypeHint}" Classes="muted" FontSize="12" />
                 </StackPanel>
 
                 <StackPanel Spacing="8" Margin="0,22,0,0">
-                  <TextBlock Text="客户端版本" FontSize="14" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Text.ClientVersion}" FontSize="14" FontWeight="SemiBold" />
                   <ComboBox Classes="form-field" ItemsSource="{Binding ClientVersionOptions}" SelectedItem="{Binding SelectedClientVersion, Mode=TwoWay}" IsEnabled="{Binding HasClientVersion}" />
                   <TextBlock Text="{Binding ClientVersionHint}" Classes="muted" FontSize="12" />
                 </StackPanel>
@@ -442,37 +436,37 @@
               <Border Grid.Column="1" Width="1" Background="#33332F" HorizontalAlignment="Center" />
 
               <StackPanel Grid.Column="2" Spacing="0">
-                <TextBlock Text="项目配置" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,18" />
+                <TextBlock Text="{Binding Text.ProjectConfiguration}" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,18" />
 
                 <Grid ColumnDefinitions="1*,18,1*">
                   <StackPanel Grid.Column="0" Spacing="8">
-                    <TextBlock Text="传输协议" FontSize="14" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Text.Transport}" FontSize="14" FontWeight="SemiBold" />
                     <ComboBox Classes="form-field" ItemsSource="{Binding TransportOptions}" SelectedItem="{Binding SelectedTransport, Mode=TwoWay}" />
-                    <TextBlock Text="默认 KCP" Classes="muted" FontSize="12" />
+                    <TextBlock Text="{Binding Text.DefaultKcp}" Classes="muted" FontSize="12" />
                   </StackPanel>
                   <StackPanel Grid.Column="2" Spacing="8">
-                    <TextBlock Text="序列化方式" FontSize="14" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Text.Serializer}" FontSize="14" FontWeight="SemiBold" />
                     <ComboBox Classes="form-field" ItemsSource="{Binding SerializerOptions}" SelectedItem="{Binding SelectedSerializer, Mode=TwoWay}" />
-                    <TextBlock Text="默认 MemoryPack" Classes="muted" FontSize="12" />
+                    <TextBlock Text="{Binding Text.DefaultMemoryPack}" Classes="muted" FontSize="12" />
                   </StackPanel>
                 </Grid>
 
                 <StackPanel Spacing="8" Margin="0,22,0,0">
-                  <TextBlock Text="持久化" FontSize="14" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Text.Persistence}" FontSize="14" FontWeight="SemiBold" />
                   <ComboBox Classes="form-field" ItemsSource="{Binding PersistenceOptions}" SelectedItem="{Binding SelectedPersistence, Mode=TwoWay}" />
-                  <TextBlock Text="选择项目需要的数据库支持" Classes="muted" FontSize="12" />
+                  <TextBlock Text="{Binding Text.PersistenceHint}" Classes="muted" FontSize="12" />
                 </StackPanel>
 
                 <StackPanel Spacing="8" Margin="0,22,0,0">
-                  <TextBlock Text="NuGetForUnity 来源" FontSize="14" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Text.NuGetForUnitySource}" FontSize="14" FontWeight="SemiBold" />
                   <ComboBox Classes="form-field" ItemsSource="{Binding NuGetForUnitySourceOptions}" SelectedItem="{Binding SelectedNuGetForUnitySource, Mode=TwoWay}" IsEnabled="{Binding UsesNuGetForUnity}" />
                   <TextBlock Text="{Binding NuGetForUnityHint}" Classes="muted" FontSize="12" />
                 </StackPanel>
 
                 <StackPanel Spacing="8" Margin="0,22,0,0">
-                  <TextBlock Text="部署配置" FontSize="14" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Text.DeploymentProfile}" FontSize="14" FontWeight="SemiBold" />
                   <ComboBox Classes="form-field" ItemsSource="{Binding DeploymentProfileOptions}" SelectedItem="{Binding SelectedDeploymentProfile, Mode=TwoWay}" />
-                  <TextBlock Text="可选生成 Docker Compose 配置" Classes="muted" FontSize="12" />
+                  <TextBlock Text="{Binding Text.DeploymentProfileHint}" Classes="muted" FontSize="12" />
                 </StackPanel>
               </StackPanel>
             </Grid>
@@ -480,19 +474,93 @@
             <Border BorderBrush="#33332F" BorderThickness="0,1,0,0" Margin="0,38,0,0" Padding="0,24,0,0">
               <Grid ColumnDefinitions="*,18,132,12,174">
                 <StackPanel Grid.Column="0" Spacing="6" VerticalAlignment="Center">
-                  <TextBlock Text="项目将创建到" Classes="muted" FontSize="12" />
+                  <TextBlock Text="{Binding Text.ProjectWillBeCreatedAt}" Classes="muted" FontSize="12" />
                   <TextBlock Text="{Binding TargetPath}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                   <TextBlock Text="{Binding ValidationMessage}" Classes="gold" FontSize="12" />
                 </StackPanel>
-                <Button Grid.Column="2" Classes="secondary" Height="56" Content="取消" Click="CancelCreateProject_Click" />
+                <Button Grid.Column="2" Classes="secondary" Height="56" Content="{Binding Text.Cancel}" Click="CancelCreateProject_Click" />
                 <Button Grid.Column="4" Classes="primary" Height="56" Click="ContinueCreateProject_Click" IsEnabled="{Binding CanCreate}">
                   <StackPanel Orientation="Horizontal" Spacing="10">
                     <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size24" />
-                    <TextBlock Text="继续创建" Foreground="#15120A" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Text.ContinueCreating}" Foreground="#15120A" FontSize="16" FontWeight="SemiBold" />
                   </StackPanel>
                 </Button>
               </Grid>
             </Border>
+          </StackPanel>
+        </ScrollViewer>
+
+        <ScrollViewer x:Name="SettingsExperience" IsVisible="False" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Margin="64,52,56,64" MaxWidth="1080" HorizontalAlignment="Stretch">
+            <StackPanel Spacing="8">
+              <TextBlock Text="{Binding Localization.Text.Settings}" FontSize="38" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding Localization.Text.SettingsDescription}" Classes="muted" FontSize="16" />
+            </StackPanel>
+
+            <Grid ColumnDefinitions="0.9*,24,1.1*" Margin="0,42,0,0">
+              <Border Grid.Column="0" Background="#111213" BorderBrush="#34342F" BorderThickness="1" CornerRadius="10" Padding="28">
+                <StackPanel Spacing="0">
+                  <Border Width="48" Height="48" CornerRadius="8" Background="#211F17" HorizontalAlignment="Left">
+                    <icons:FluentIcon Icon="LocalLanguage" IconVariant="Regular" IconSize="Size24" Foreground="#EFBE3E" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                  <TextBlock Text="{Binding Localization.Text.LanguageAndRegion}" FontSize="22" FontWeight="SemiBold" Margin="0,22,0,0" />
+                  <TextBlock Text="{Binding Localization.Text.LanguageDescription}" Classes="muted" FontSize="14" TextWrapping="Wrap" Margin="0,9,0,0" />
+
+                  <Border BorderBrush="#33332F" BorderThickness="0,1,0,0" Margin="0,28,0,0" Padding="0,24,0,0">
+                    <StackPanel Spacing="9">
+                      <TextBlock Text="{Binding Localization.Text.DisplayLanguage}" FontSize="14" FontWeight="SemiBold" />
+                      <ComboBox Classes="form-field"
+                                ItemsSource="{Binding Localization.LanguageOptions}"
+                                SelectedItem="{Binding Localization.SelectedLanguage, Mode=TwoWay}" />
+                      <TextBlock Text="{Binding Localization.Text.DisplayLanguageHint}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </Border>
+
+              <Border Grid.Column="2" Background="#111213" BorderBrush="#34342F" BorderThickness="1" CornerRadius="10" Padding="28">
+                <StackPanel Spacing="0">
+                  <Grid ColumnDefinitions="48,*,Auto">
+                    <Border Grid.Column="0" Width="48" Height="48" CornerRadius="8" Background="#211F17">
+                      <icons:FluentIcon Icon="DeveloperBoard" IconVariant="Regular" IconSize="Size24" Foreground="#EFBE3E" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="16,0,18,0" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Localization.Text.DevelopmentEnvironment}" FontSize="22" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding Localization.Text.DevelopmentEnvironmentDescription}" Classes="muted" FontSize="13" TextWrapping="Wrap" Margin="0,5,0,0" />
+                    </StackPanel>
+                    <Border Grid.Column="2" Background="#211F17" BorderBrush="#6F5923" BorderThickness="1" CornerRadius="12" Padding="12,6" VerticalAlignment="Top">
+                      <TextBlock Text="{Binding Localization.Text.EnvironmentReady}" Classes="gold" FontSize="12" FontWeight="SemiBold" />
+                    </Border>
+                  </Grid>
+
+                  <Border BorderBrush="#33332F" BorderThickness="0,1,0,0" Margin="0,28,0,0" Padding="0,24,0,0">
+                    <Grid ColumnDefinitions="32,*">
+                      <icons:FluentIcon Grid.Column="0" Icon="CheckmarkCircle" IconVariant="Regular" IconSize="Size20" Foreground="#EFBE3E" />
+                      <StackPanel Grid.Column="1" Spacing="5">
+                        <TextBlock Text="{Binding Localization.Text.RuntimeStatus}" Classes="muted" FontSize="12" />
+                        <TextBlock Text="{Binding Localization.Text.RuntimeReadyTitle}" FontSize="15" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Localization.Text.RuntimeReadyDescription}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+
+                  <Border BorderBrush="#33332F" BorderThickness="0,1,0,0" Margin="0,24,0,0" Padding="0,24,0,0">
+                    <Grid ColumnDefinitions="*,16,142">
+                      <StackPanel Grid.Column="0" Spacing="6" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Localization.Text.DetectedTools}" Classes="muted" FontSize="12" />
+                        <TextBlock x:Name="SettingsEnvironmentSummaryText" FontSize="14" TextWrapping="Wrap" />
+                      </StackPanel>
+                      <Button Grid.Column="2" Classes="secondary" Height="48" Padding="14,8" Click="RefreshEnvironment_Click">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                          <icons:FluentIcon Icon="ArrowSync" IconVariant="Regular" IconSize="Size20" />
+                          <TextBlock Text="{Binding Localization.Text.RefreshDetection}" Foreground="{Binding $parent[Button].Foreground}" FontSize="13" />
+                        </StackPanel>
+                      </Button>
+                    </Grid>
+                  </Border>
+                </StackPanel>
+              </Border>
+            </Grid>
           </StackPanel>
         </ScrollViewer>
 

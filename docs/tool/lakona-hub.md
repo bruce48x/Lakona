@@ -99,6 +99,7 @@ V1 includes:
 - create a Lakona project through a guided form
 - import and inspect an existing Lakona project without modifying it
 - list locally registered projects
+- manage display language and detected development tools from one settings page
 - detect the private .NET SDK and supported client editors
 - restore, build, start, stop, and show bounded structured logs
 - open the project or client editor
@@ -124,6 +125,19 @@ editor selector defaults to Rider, then Visual Studio, then VS Code, while
 remaining user-selectable. Console clients reuse that selection and priority.
 Unity and Godot clients open with a detected editor matching the inspected
 client kind; Hub disables the action when no compatible editor is available.
+
+## Settings And Localization
+
+Environment status is part of Settings rather than a separate navigation area.
+The settings page owns the Hub display language, bundled .NET status, detected
+editor summary, and an explicit editor re-detection action.
+
+Hub selects Simplified Chinese only when the current UI culture is Chinese and
+uses English otherwise. The user can switch between Simplified Chinese and
+English immediately without changing the operating-system language. The
+manual `HubLocalization.SetLanguage` seam is also the test contract: UI model
+tests must select a language explicitly instead of relying on the machine's
+current culture.
 
 ## Guided Project Creation
 
