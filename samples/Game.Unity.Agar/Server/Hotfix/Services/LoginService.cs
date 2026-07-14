@@ -97,7 +97,7 @@ public sealed class LoginService
         var userId = new UserId(account);
         var result = await _users
             .Place(new UserId(account))
-            .EnsureAsync()
+            .EnsureAsync(cancellationToken)
             .ConfigureAwait(false);
         _logger.LogDebug(
             "Ensured user actor {UserId} on node {NodeId}.",
