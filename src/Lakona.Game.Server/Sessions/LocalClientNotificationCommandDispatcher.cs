@@ -103,7 +103,7 @@ public sealed class LocalClientNotificationCommandDispatcher
                         .DispatchNotificationAsync(
                             command.ServiceId,
                             command.MethodId,
-                            command.Payload,
+                            new ReadOnlyMemory<byte>(command.Payload),
                             command.Metadata,
                             cancellationToken)
                         .ConfigureAwait(false);

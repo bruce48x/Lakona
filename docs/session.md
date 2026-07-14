@@ -536,6 +536,14 @@ delivery materialize the bounded command payload required for replay or
 cluster transport. Every path still waits for the actual outbound send outcome
 even when the shared callback contract method returns `void`.
 
+Materialized notification commands use JSON as a serializer-neutral retained
+representation. The generated callback proxy decodes that representation back
+to the declared notification DTO, then sends the typed value through the live
+RPC session so the endpoint-selected serializer, such as MemoryPack, owns the
+wire payload. Serialized command bytes must enter the proxy's
+`ReadOnlyMemory<byte>` dispatch overload; they are not typed notification DTOs
+and must never flow through the generic typed-payload overload.
+
 User-targeted notification policy remains business-layer responsibility in this
 iteration. The framework does not own session kind or expose user-and-kind
 targeting. Games may still keep business presence and product session policy in

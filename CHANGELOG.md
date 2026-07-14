@@ -4,6 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-15 — Serializer-safe reliable push
+
+**Key releases:** `Lakona.Game.Server 0.18.12`,
+`Lakona.ProjectSystem 0.1.5`, and `Lakona.Tool 0.25.25`.
+
+- Routed retained JSON notification commands through generated serialized
+  dispatch before the active endpoint serializer emits the wire payload,
+  restoring reliable callback delivery for MemoryPack endpoints.
+
 ## 2026-07-15 — Service-scoped Hotfix calls
 
 **Key releases:** `Lakona.Game.Server 0.18.11`,

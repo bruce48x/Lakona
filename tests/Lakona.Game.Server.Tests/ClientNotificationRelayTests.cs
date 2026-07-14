@@ -8,6 +8,7 @@ using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
+using System.Text.Json;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests;
@@ -173,6 +174,35 @@ public sealed class ClientNotificationRelayTests
         Assert.NotNull(callback.LastMetadata);
         Assert.Equal("lakona.game.reliable-push", callback.LastMetadata.Type);
         Assert.Equal(new byte[] { 1, 2, 3 }, callback.LastMetadata.Payload.ToArray());
+    }
+
+    [Fact]
+    public async Task LocalCommandDispatcherRoutesGeneratedCommandBytesToSerializedOverload()
+    {
+        var directory = new InMemoryGameSessionRegistry();
+        var session = await directory.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
+        var callback = new SerializedDispatchTargetCallback();
+        await directory.BindSessionAsync(session, "conn-1", callback, TestContext.Current.CancellationToken);
+        var dispatcher = new LocalClientNotificationCommandDispatcher(directory);
+        var command = ClientNotificationCommandFactory.CreateGenerated<ITestPlayerCallback, string>(
+            session,
+            serviceId: 7,
+            methodId: 11,
+            nameof(ITestPlayerCallback.Notify),
+            "memorypack");
+        command.Metadata = new RpcPushMetadata
+        {
+            Type = "lakona.game.reliable-push",
+            Payload = new byte[] { 4, 5, 6 }
+        };
+
+        var status = await dispatcher.DispatchAsync(command, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientNotificationStatus.Delivered, status);
+        Assert.Equal(0, callback.TypedDispatchCount);
+        Assert.Equal(1, callback.SerializedDispatchCount);
+        Assert.Equal("memorypack", JsonSerializer.Deserialize<string>(callback.LastPayload.Span));
+        Assert.Same(command.Metadata, callback.LastMetadata);
     }
 
     [Fact]
@@ -637,6 +667,54 @@ public sealed class ClientNotificationRelayTests
         {
             _source.Cancel();
             return new ValueTask(Task.FromCanceled(cancellationToken));
+        }
+    }
+
+    private sealed class SerializedDispatchTargetCallback : ITestPlayerCallback, IRpcNotificationDispatchTarget
+    {
+        public int TypedDispatchCount { get; private set; }
+
+        public int SerializedDispatchCount { get; private set; }
+
+        public ReadOnlyMemory<byte> LastPayload { get; private set; }
+
+        public RpcPushMetadata? LastMetadata { get; private set; }
+
+        public void Notify(string message)
+        {
+        }
+
+        public ValueTask DispatchNotificationAsync<TPayload>(
+            int serviceId,
+            int methodId,
+            TPayload payload,
+            RpcPushMetadata? metadata,
+            CancellationToken cancellationToken = default)
+        {
+            TypedDispatchCount++;
+            return default;
+        }
+
+        public ValueTask DispatchNotificationAsync(
+            int serviceId,
+            int methodId,
+            ReadOnlyMemory<byte> payload,
+            RpcPushMetadata? metadata,
+            CancellationToken cancellationToken = default)
+        {
+            SerializedDispatchCount++;
+            LastPayload = payload;
+            LastMetadata = metadata;
+            return default;
+        }
+
+        public ValueTask DispatchNotificationAsync(
+            string methodName,
+            object?[] arguments,
+            RpcPushMetadata? metadata,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
         }
     }
 
