@@ -14,6 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../../src/Lakona.ProjectSystem/Lakona.ProjectSystem.csproj" />
     <ProjectReference Include="../../src/Lakona.Tool/Lakona.Tool.csproj" />
   </ItemGroup>
 

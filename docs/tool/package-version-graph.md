@@ -36,7 +36,8 @@ For example:
 ```txt
 Lakona.Game.Server.Hotfix -> Lakona.Game.Server.Hotfix.Abstractions
 Lakona.Game.Server        -> Lakona.Game.Server.Hotfix
-Lakona.Tool               -> generated starter package versions
+Lakona.ProjectSystem      -> generated starter package versions
+Lakona.Tool               -> Lakona.ProjectSystem
 ```
 
 If `Lakona.Game.Server.Hotfix.Abstractions` changes from version `X` to `Y`,
@@ -44,7 +45,8 @@ then `Lakona.Game.Server.Hotfix` must publish a new version so its `.nuspec`
 depends on `Y`. If `Lakona.Game.Server.Hotfix` publishes a new version, then
 `Lakona.Game.Server` must also publish a new version so its `.nuspec` depends
 on the new `Hotfix` package. If generated projects embed `Game.Server` or
-`Hotfix` versions, `Lakona.Tool` must also publish a new version.
+`Hotfix` versions, `Lakona.ProjectSystem` and its Tool consumer must also
+publish new versions.
 
 The required behavior is not specific to Hotfix packages. It applies to every
 packable package dependency chain in `src/**`.
@@ -100,8 +102,8 @@ metadata marker instead of special-casing package names.
 ### Version-Source Edges
 
 Some package metadata changes are not `ProjectReference` edges. The current
-important case is `Lakona.Tool`, whose build target reads runtime package
-versions through `XmlPeek` and writes `ToolPackageVersions.g.cs`.
+important case is `Lakona.ProjectSystem`, whose build target reads runtime package
+versions through `XmlPeek` and writes `GeneratedProjectPackageVersions.g.cs`.
 
 The guard should discover these edges by parsing package project files for
 `XmlPeek` tasks whose `Query` is `/Project/PropertyGroup/Version/text()` and
@@ -109,10 +111,10 @@ whose `XmlInputPath` resolves to another package node. Every matching task in a
 packable project is a version-source edge unless it is explicitly suppressed by
 future metadata. Do not attempt general MSBuild property dataflow analysis.
 
-For `Lakona.Tool`, each such input project is a version-source edge:
+For `Lakona.ProjectSystem`, each such input project is a version-source edge:
 
 ```txt
-Lakona.Tool -> package read by GenerateToolPackageVersions
+Lakona.ProjectSystem -> package read by GenerateProjectPackageVersions
 ```
 
 The rule is intentionally structural: the edge comes from the project file, not
@@ -228,17 +230,19 @@ If `Lakona.Game.Server.Hotfix.Abstractions` changes version, the guard follows:
 ```txt
 Lakona.Game.Server.Hotfix
 Lakona.Game.Server
+Lakona.ProjectSystem
 Lakona.Tool
 ```
 
-`Lakona.Tool` is reached through the generated version-source edges, not through
-a hard-coded Hotfix rule.
+`Lakona.ProjectSystem` is reached through the generated version-source edges,
+then `Lakona.Tool` through its package reference, not through a hard-coded
+Hotfix rule.
 
 ### Tool Template Version Change
 
-If a runtime package version changes and `Lakona.Tool` embeds that version into
-generated starter projects, `Lakona.Tool` must change version even if no
-`src/Lakona.Tool/**/*.cs` file changed.
+If a runtime package version changes and `Lakona.ProjectSystem` embeds that
+version into generated starter projects, both `Lakona.ProjectSystem` and
+`Lakona.Tool` must change version even if no Tool implementation file changed.
 
 ### Isolated Tool Code Change
 

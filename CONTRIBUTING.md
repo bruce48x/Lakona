@@ -24,7 +24,6 @@ Before changing anything, every contributor and AI agent must:
 | Tests, validation, CI verification, or source-scan coverage | [Testing](./docs/contributing/testing.md) |
 | Shippable content under `src/**`, package versions, packing, or publishing | [NuGet Publishing](./docs/contributing/nuget-publishing.md) |
 | Changelog or release milestone | [Changelog Maintenance](./docs/changelog.md) |
-| Large cross-package, public API, lifecycle, hotfix, scheduling, concurrency, generation, or sample change | [Large Cross-Cutting Changes](./docs/agent-workflows/large-cross-cutting-change.md) |
 
 Current architecture and maintainer contracts:
 

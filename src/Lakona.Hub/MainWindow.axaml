@@ -131,6 +131,62 @@
     <Style Selector="ComboBox.server-editor:pointerover /template/ Border#Background">
       <Setter Property="BorderBrush" Value="#EFBE3E" />
     </Style>
+    <Style Selector="TextBox.form-field">
+      <Setter Property="Height" Value="52" />
+      <Setter Property="Padding" Value="14,10" />
+      <Setter Property="Background" Value="#111213" />
+      <Setter Property="Foreground" Value="#F2F1ED" />
+      <Setter Property="BorderBrush" Value="#4A4944" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="FontSize" Value="15" />
+    </Style>
+    <Style Selector="TextBox.form-field:focus /template/ Border#PART_BorderElement">
+      <Setter Property="BorderBrush" Value="#EFBE3E" />
+    </Style>
+    <Style Selector="ComboBox.form-field">
+      <Setter Property="Height" Value="52" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="Padding" Value="12,8" />
+      <Setter Property="Background" Value="#111213" />
+      <Setter Property="Foreground" Value="#F2F1ED" />
+      <Setter Property="BorderBrush" Value="#4A4944" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="FontSize" Value="15" />
+    </Style>
+    <Style Selector="ComboBox.form-field:pointerover /template/ Border#Background">
+      <Setter Property="BorderBrush" Value="#EFBE3E" />
+    </Style>
+    <Style Selector="Button.form-browse">
+      <Setter Property="Width" Value="92" />
+      <Setter Property="Height" Value="52" />
+      <Setter Property="Background" Value="#171713" />
+      <Setter Property="Foreground" Value="#EFBE3E" />
+      <Setter Property="BorderBrush" Value="#6F5923" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="FontSize" Value="14" />
+    </Style>
+    <Style Selector="Button.form-browse:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#211F17" />
+      <Setter Property="BorderBrush" Value="#EFBE3E" />
+    </Style>
+    <Style Selector="Button.back">
+      <Setter Property="Width" Value="44" />
+      <Setter Property="Height" Value="44" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#C8C6BF" />
+      <Setter Property="BorderBrush" Value="#4A4944" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="7" />
+    </Style>
+    <Style Selector="Button.back:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#181816" />
+      <Setter Property="BorderBrush" Value="#EFBE3E" />
+      <Setter Property="Foreground" Value="#EFBE3E" />
+    </Style>
     <Style Selector="ListBox.project-list">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
@@ -336,6 +392,107 @@
                 </ListBox>
               </Border>
             </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+
+        <ScrollViewer x:Name="CreateExperience" IsVisible="False" HorizontalScrollBarVisibility="Disabled" DataContext="{Binding CreationForm}">
+          <StackPanel x:DataType="local:ProjectCreationForm" Margin="64,44,42,54" MaxWidth="1120" HorizontalAlignment="Stretch">
+            <StackPanel Orientation="Horizontal" Spacing="18">
+              <Button Classes="back" Click="CancelCreateProject_Click" ToolTip.Tip="返回项目列表">
+                <icons:FluentIcon Icon="ArrowLeft" IconVariant="Regular" IconSize="Size24" />
+              </Button>
+              <StackPanel Spacing="5" VerticalAlignment="Center">
+                <TextBlock Text="创建项目" FontSize="38" FontWeight="SemiBold" />
+                <TextBlock Text="填写项目配置，所有选项都可以直接查看和修改。" Classes="muted" FontSize="15" />
+              </StackPanel>
+            </StackPanel>
+
+            <Grid ColumnDefinitions="1*,42,1*" Margin="0,42,0,0">
+              <StackPanel Grid.Column="0" Spacing="0">
+                <TextBlock Text="基本信息" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,18" />
+
+                <StackPanel Spacing="8">
+                  <TextBlock Text="项目名称" FontSize="14" FontWeight="SemiBold" />
+                  <TextBox Classes="form-field" Text="{Binding ProjectName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="MyGame" />
+                  <TextBlock Text="将同时作为项目文件夹名称" Classes="muted" FontSize="12" />
+                </StackPanel>
+
+                <StackPanel Spacing="8" Margin="0,22,0,0">
+                  <TextBlock Text="保存位置" FontSize="14" FontWeight="SemiBold" />
+                  <Grid ColumnDefinitions="*,12,92">
+                    <TextBox Grid.Column="0" Classes="form-field" Text="{Binding OutputDirectory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    <Button Grid.Column="2" Classes="form-browse" Content="浏览…" Click="BrowseProjectOutput_Click" />
+                  </Grid>
+                  <TextBlock Text="项目会创建在该目录下的新文件夹中" Classes="muted" FontSize="12" />
+                </StackPanel>
+
+                <StackPanel Spacing="8" Margin="0,22,0,0">
+                  <TextBlock Text="客户端类型" FontSize="14" FontWeight="SemiBold" />
+                  <ComboBox Classes="form-field" ItemsSource="{Binding ClientOptions}" SelectedItem="{Binding SelectedClient, Mode=TwoWay}" />
+                  <TextBlock Text="可选择 Unity、团结引擎、Godot 或 Console" Classes="muted" FontSize="12" />
+                </StackPanel>
+
+                <StackPanel Spacing="8" Margin="0,22,0,0">
+                  <TextBlock Text="客户端版本" FontSize="14" FontWeight="SemiBold" />
+                  <ComboBox Classes="form-field" ItemsSource="{Binding ClientVersionOptions}" SelectedItem="{Binding SelectedClientVersion, Mode=TwoWay}" IsEnabled="{Binding HasClientVersion}" />
+                  <TextBlock Text="{Binding ClientVersionHint}" Classes="muted" FontSize="12" />
+                </StackPanel>
+              </StackPanel>
+
+              <Border Grid.Column="1" Width="1" Background="#33332F" HorizontalAlignment="Center" />
+
+              <StackPanel Grid.Column="2" Spacing="0">
+                <TextBlock Text="项目配置" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,18" />
+
+                <Grid ColumnDefinitions="1*,18,1*">
+                  <StackPanel Grid.Column="0" Spacing="8">
+                    <TextBlock Text="传输协议" FontSize="14" FontWeight="SemiBold" />
+                    <ComboBox Classes="form-field" ItemsSource="{Binding TransportOptions}" SelectedItem="{Binding SelectedTransport, Mode=TwoWay}" />
+                    <TextBlock Text="默认 KCP" Classes="muted" FontSize="12" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="2" Spacing="8">
+                    <TextBlock Text="序列化方式" FontSize="14" FontWeight="SemiBold" />
+                    <ComboBox Classes="form-field" ItemsSource="{Binding SerializerOptions}" SelectedItem="{Binding SelectedSerializer, Mode=TwoWay}" />
+                    <TextBlock Text="默认 MemoryPack" Classes="muted" FontSize="12" />
+                  </StackPanel>
+                </Grid>
+
+                <StackPanel Spacing="8" Margin="0,22,0,0">
+                  <TextBlock Text="持久化" FontSize="14" FontWeight="SemiBold" />
+                  <ComboBox Classes="form-field" ItemsSource="{Binding PersistenceOptions}" SelectedItem="{Binding SelectedPersistence, Mode=TwoWay}" />
+                  <TextBlock Text="选择项目需要的数据库支持" Classes="muted" FontSize="12" />
+                </StackPanel>
+
+                <StackPanel Spacing="8" Margin="0,22,0,0">
+                  <TextBlock Text="NuGetForUnity 来源" FontSize="14" FontWeight="SemiBold" />
+                  <ComboBox Classes="form-field" ItemsSource="{Binding NuGetForUnitySourceOptions}" SelectedItem="{Binding SelectedNuGetForUnitySource, Mode=TwoWay}" IsEnabled="{Binding UsesNuGetForUnity}" />
+                  <TextBlock Text="{Binding NuGetForUnityHint}" Classes="muted" FontSize="12" />
+                </StackPanel>
+
+                <StackPanel Spacing="8" Margin="0,22,0,0">
+                  <TextBlock Text="部署配置" FontSize="14" FontWeight="SemiBold" />
+                  <ComboBox Classes="form-field" ItemsSource="{Binding DeploymentProfileOptions}" SelectedItem="{Binding SelectedDeploymentProfile, Mode=TwoWay}" />
+                  <TextBlock Text="可选生成 Docker Compose 配置" Classes="muted" FontSize="12" />
+                </StackPanel>
+              </StackPanel>
+            </Grid>
+
+            <Border BorderBrush="#33332F" BorderThickness="0,1,0,0" Margin="0,38,0,0" Padding="0,24,0,0">
+              <Grid ColumnDefinitions="*,18,132,12,174">
+                <StackPanel Grid.Column="0" Spacing="6" VerticalAlignment="Center">
+                  <TextBlock Text="项目将创建到" Classes="muted" FontSize="12" />
+                  <TextBlock Text="{Binding TargetPath}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding ValidationMessage}" Classes="gold" FontSize="12" />
+                </StackPanel>
+                <Button Grid.Column="2" Classes="secondary" Height="56" Content="取消" Click="CancelCreateProject_Click" />
+                <Button Grid.Column="4" Classes="primary" Height="56" Click="ContinueCreateProject_Click" IsEnabled="{Binding CanCreate}">
+                  <StackPanel Orientation="Horizontal" Spacing="10">
+                    <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size24" />
+                    <TextBlock Text="继续创建" Foreground="#15120A" FontSize="16" FontWeight="SemiBold" />
+                  </StackPanel>
+                </Button>
+              </Grid>
+            </Border>
           </StackPanel>
         </ScrollViewer>
 

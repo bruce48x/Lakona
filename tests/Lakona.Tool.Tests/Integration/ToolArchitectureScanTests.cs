@@ -509,7 +509,7 @@ public sealed class ToolArchitectureScanTests
     public void SharedContractSources_DoNotExposeServerSessionIdentityOrCSharp10Syntax()
     {
         var repositoryRoot = FindRepositoryRoot();
-        var rendererText = ReadAllTextFiles(Path.Combine(repositoryRoot, "src", "Lakona.Tool", "Rendering", "Shared"));
+        var rendererText = ReadAllTextFiles(Path.Combine(repositoryRoot, "src", "Lakona.ProjectSystem", "Generation", "Rendering", "Shared"));
         var sampleSharedText = ReadAllTextFiles(Path.Combine(repositoryRoot, "samples", "Game.Godot.Chat", "Shared"));
 
         Assert.DoesNotContain(ForbiddenGameSessionKeyType, rendererText, StringComparison.Ordinal);
@@ -543,7 +543,7 @@ public sealed class ToolArchitectureScanTests
     public void GeneratedSharedContracts_DoNotConstructFrameworkHandshakeDtos()
     {
         var repositoryRoot = FindRepositoryRoot();
-        var toolText = ReadAllTextFiles(Path.Combine(repositoryRoot, "src", "Lakona.Tool", "Rendering", "Shared"));
+        var toolText = ReadAllTextFiles(Path.Combine(repositoryRoot, "src", "Lakona.ProjectSystem", "Generation", "Rendering", "Shared"));
 
         Assert.DoesNotContain("new GameClientHello", toolText, StringComparison.Ordinal);
         Assert.DoesNotContain("new GameServerHello", toolText, StringComparison.Ordinal);
@@ -580,6 +580,23 @@ public sealed class ToolArchitectureScanTests
         Assert.Contains("Publish trimming", design, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ToolAndHub_UseProjectSystemCreatorWithoutComposingGenerators()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var toolSources = ReadAllTextFiles(Path.Combine(repositoryRoot, "src", "Lakona.Tool"));
+        var hubSources = ReadAllTextFiles(Path.Combine(repositoryRoot, "src", "Lakona.Hub"));
+
+        Assert.Contains("new LakonaProjectCreator()", toolSources, StringComparison.Ordinal);
+        Assert.Contains("LakonaProjectCreator projectCreator", hubSources, StringComparison.Ordinal);
+        Assert.DoesNotContain("new LakonaProjectGenerator", toolSources, StringComparison.Ordinal);
+        Assert.DoesNotContain("new LakonaProjectGenerator", hubSources, StringComparison.Ordinal);
+        Assert.DoesNotContain("new LakonaProjectPlanBuilder", toolSources, StringComparison.Ordinal);
+        Assert.DoesNotContain("new LakonaProjectPlanBuilder", hubSources, StringComparison.Ordinal);
+        Assert.DoesNotContain("new TransactionalOutputWriter", toolSources, StringComparison.Ordinal);
+        Assert.DoesNotContain("new TransactionalOutputWriter", hubSources, StringComparison.Ordinal);
+    }
+
     private static LakonaProjectGenerator CreateGenerator()
     {
         return new LakonaProjectGenerator(
@@ -593,7 +610,7 @@ public sealed class ToolArchitectureScanTests
                     new GeneratedProjectGuideRenderer()
                 ],
                 [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
-            new GenerationExecutor(new TransactionalOutputWriter(ToolText.ForCulture(System.Globalization.CultureInfo.InvariantCulture))),
+            new GenerationExecutor(new TransactionalOutputWriter()),
             new GitInitializer(new GitUnavailableRunner()));
     }
 

@@ -1,10 +1,11 @@
 using System.IO.Compression;
 using System.Text;
+using Lakona.ProjectSystem;
 using Lakona.Tool.Planning;
 
 namespace Lakona.Tool.Execution;
 
-internal sealed class TransactionalOutputWriter(ToolText text)
+internal sealed class TransactionalOutputWriter
 {
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
@@ -13,13 +14,13 @@ internal sealed class TransactionalOutputWriter(ToolText text)
         var targetRoot = Path.GetFullPath(plan.RootPath);
         if (Directory.Exists(targetRoot) && Directory.EnumerateFileSystemEntries(targetRoot).Any())
         {
-            throw new CliUsageException(text.TargetDirectoryNotEmpty(targetRoot));
+            throw new LakonaProjectCreationException($"Target directory already exists and is not empty: {targetRoot}");
         }
 
         var parentPath = Path.GetDirectoryName(targetRoot);
         if (string.IsNullOrWhiteSpace(parentPath))
         {
-            throw new CliUsageException(text.UnableToDetermineParentDirectory(targetRoot));
+            throw new LakonaProjectCreationException($"Unable to determine the parent directory for: {targetRoot}");
         }
 
         Directory.CreateDirectory(parentPath);
@@ -65,8 +66,9 @@ internal sealed class TransactionalOutputWriter(ToolText text)
                 }
                 catch (Exception cleanupError)
                 {
-                    throw new CliUsageException(
-                        text.GenerationFailedWithCleanupError(generationError.Message, stagingRootFullPath, cleanupError.Message));
+                    throw new LakonaProjectCreationException(
+                        $"Project generation failed: {generationError.Message}. Cleanup also failed for {stagingRootFullPath}: {cleanupError.Message}",
+                        new AggregateException(generationError, cleanupError));
                 }
             }
 

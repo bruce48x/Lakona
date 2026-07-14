@@ -13,9 +13,11 @@ namespace Lakona.Hub;
 public sealed partial class MainWindow : Window
 {
     private readonly LakonaProjectInspector inspector = new();
+    private readonly LakonaProjectCreator projectCreator = new();
     private readonly InstalledApplicationCatalog applicationCatalog = new();
     private readonly ApplicationLauncher applicationLauncher = new();
     private IReadOnlyList<LocalApplicationInstallation> installedApplications = [];
+    private bool isCreatingProject;
 
     public MainWindow()
     {
@@ -28,6 +30,8 @@ public sealed partial class MainWindow : Window
     }
 
     public ObservableCollection<ProjectListItem> Projects { get; } = [];
+
+    public ProjectCreationForm CreationForm { get; } = new();
 
     private async void MainWindow_Opened(object? sender, EventArgs e)
     {
@@ -147,7 +151,61 @@ public sealed partial class MainWindow : Window
 
     private void CreateProject_Click(object? sender, RoutedEventArgs e)
     {
-        ShowFeedback("项目创建向导将在下一界面切片中接入；当前版本可以安全地导入并检查现有项目。");
+        isCreatingProject = true;
+        ActionFeedback.IsVisible = false;
+        UpdateExperience();
+    }
+
+    private async void BrowseProjectOutput_Click(object? sender, RoutedEventArgs e)
+    {
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "选择新项目的保存位置",
+            AllowMultiple = false
+        });
+        if (folders.FirstOrDefault()?.TryGetLocalPath() is { } path)
+        {
+            CreationForm.OutputDirectory = path;
+        }
+    }
+
+    private void CancelCreateProject_Click(object? sender, RoutedEventArgs e)
+    {
+        isCreatingProject = false;
+        ActionFeedback.IsVisible = false;
+        UpdateExperience();
+    }
+
+    private async void ContinueCreateProject_Click(object? sender, RoutedEventArgs e)
+    {
+        if (CreationForm.IsCreating)
+        {
+            return;
+        }
+
+        if (!CreationForm.CanCreate)
+        {
+            ShowFeedback(CreationForm.ValidationMessage);
+            return;
+        }
+
+        CreationForm.IsCreating = true;
+        ShowFeedback($"正在创建“{CreationForm.ProjectName.Trim()}”…");
+        try
+        {
+            var result = await projectCreator.CreateAsync(CreationForm.CreateRequest());
+            isCreatingProject = false;
+            ShowInspection(inspector.Inspect(result.RootPath));
+            ShowFeedback($"已创建“{CreationForm.ProjectName.Trim()}”。项目生成逻辑与 lakona-tool 完全共享。");
+        }
+        catch (Exception ex) when (ex is LakonaProjectCreationException or IOException or UnauthorizedAccessException)
+        {
+            ShowFeedback($"创建项目失败：{ex.Message}");
+        }
+        finally
+        {
+            CreationForm.IsCreating = false;
+        }
     }
 
     private void Environment_Click(object? sender, RoutedEventArgs e)
@@ -168,8 +226,9 @@ public sealed partial class MainWindow : Window
     private void UpdateExperience()
     {
         var hasProjects = Projects.Count > 0;
-        EmptyExperience.IsVisible = !hasProjects;
-        ProjectExperience.IsVisible = hasProjects;
+        CreateExperience.IsVisible = isCreatingProject;
+        EmptyExperience.IsVisible = !isCreatingProject && !hasProjects;
+        ProjectExperience.IsVisible = !isCreatingProject && hasProjects;
     }
 
     private void MainWindow_PropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)

@@ -62,9 +62,9 @@ pipeline:
 project specification -> validated generation plan -> transactional write
 ```
 
-Hub must reuse that pipeline as it moves behind the ProjectSystem seam. It must
-not call `lakona-tool` as its permanent implementation and must not create a
-second generator.
+Hub and Tool both call `LakonaProjectCreator`; the complete pipeline now lives
+behind the ProjectSystem seam. Hub must not call `lakona-tool` as its permanent
+implementation, and neither adapter may create a second generator.
 
 ## Non-Invasive Project Contract
 
@@ -124,6 +124,19 @@ editor selector defaults to Rider, then Visual Studio, then VS Code, while
 remaining user-selectable. Console clients reuse that selection and priority.
 Unity and Godot clients open with a detected editor matching the inspected
 client kind; Hub disables the action when no compatible editor is available.
+
+## Guided Project Creation
+
+The creation experience is one page rather than a multi-step wizard. It shows
+project name, output location, client and engine version, transport, serializer,
+persistence, NuGetForUnity source, and deployment profile at the same time.
+Options are never hidden behind an advanced-settings disclosure. Fields that do
+not apply to the selected client remain visible but disabled with an explanation.
+
+The form defaults must match the canonical generator: Unity 2022, KCP,
+MemoryPack, no persistence, embedded NuGetForUnity packages, and no deployment
+profile. Changing the client immediately updates its supported version choices.
+The final project path and validation result remain visible before creation.
 
 Future project maintenance begins with a read-only analysis and a visible
 change plan. Applying a plan requires explicit confirmation, transactional

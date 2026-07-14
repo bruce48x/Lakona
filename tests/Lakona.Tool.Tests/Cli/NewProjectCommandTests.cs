@@ -1,3 +1,4 @@
+using Lakona.ProjectSystem;
 using Lakona.Tool.Cli.Commands;
 using Lakona.Tool.Cli.Options;
 using Lakona.Tool.Domain;
@@ -174,20 +175,21 @@ public sealed class NewProjectCommandTests
     {
         return new NewProjectCommand(
             new NewProjectPrompter(text, terminal),
-            new LakonaProjectSpecFactory(),
-            new LakonaProjectGenerator(
-                new LakonaProjectPlanBuilder(
-                    [
-                        new GitRenderer(),
-                        new SharedProjectRenderer(),
-                        new ServerAppRenderer(),
-                        new HotfixRenderer(),
-                        new OperationsRenderer(),
-                        new GeneratedProjectGuideRenderer()
-                    ],
-                    [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
-                new GenerationExecutor(new TransactionalOutputWriter(text)),
-                new GitInitializer(new GitUnavailableRunner())),
+            new LakonaProjectCreator(
+                new ProjectSpecFactory(),
+                new LakonaProjectGenerator(
+                    new LakonaProjectPlanBuilder(
+                        [
+                            new GitRenderer(),
+                            new SharedProjectRenderer(),
+                            new ServerAppRenderer(),
+                            new HotfixRenderer(),
+                            new OperationsRenderer(),
+                            new GeneratedProjectGuideRenderer()
+                        ],
+                        [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
+                    new GenerationExecutor(new TransactionalOutputWriter()),
+                    new GitInitializer(new GitUnavailableRunner()))),
             text,
             terminal);
     }
