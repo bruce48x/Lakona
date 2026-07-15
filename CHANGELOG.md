@@ -6,12 +6,11 @@ date and package versions of important releases are retained.
 
 ## 2026-07-15 — NativeAOT Hub releases
 
-**Key releases:** `Lakona Hub 0.2.3`, `Lakona.ProjectSystem 0.1.7`, and
+**Key releases:** `Lakona Hub 0.2.4`, `Lakona.ProjectSystem 0.1.7`, and
 `Lakona.Tool 0.25.27`.
 
 - Moved every Hub target to warning-clean NativeAOT publishing on its native
-  operating system, with final-executable startup and bundled-SDK smoke gates;
-  deployment-model changes now force a safe full update before deltas resume.
+  operating system, with final-executable startup and bundled-SDK smoke gates.
 
 ## 2026-07-15 — Native Linux installation and updates
 

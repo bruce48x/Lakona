@@ -178,9 +178,6 @@ deletion list, and the new package manifest. Windows and macOS use a delta only
 when its `fromVersion` exactly matches the installed version and automatically
 fall back to the full package otherwise. Linux packages never use file-level
 deltas because their installed files are owned by the system package manager.
-The release manifest also records the deployment model. A CoreCLR-to-NativeAOT
-transition, or any future deployment-model change, forces a full update; deltas
-resume only between releases with the same deployment model.
 
 Windows and macOS self-update requires the portable application directory to
 be writable by the current user. Hub checks this before it exits; if the

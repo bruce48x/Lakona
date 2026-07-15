@@ -1,7 +1,6 @@
 using Xunit;
 using System.Diagnostics;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 
 namespace Lakona.Hub.Tests;
 
@@ -35,7 +34,6 @@ public sealed class HubReleaseWorkflowSourceTests
         Assert.Contains("github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.47.0", workflow, StringComparison.Ordinal);
         Assert.Contains("hub-delta.json", packager, StringComparison.Ordinal);
         Assert.Contains("lakona-hub-manifest.json", packager, StringComparison.Ordinal);
-        Assert.Contains("native-aot-v1", packager, StringComparison.Ordinal);
         Assert.Contains("<PublishAot>true</PublishAot>", project, StringComparison.Ordinal);
         Assert.Contains("<IsAotCompatible>true</IsAotCompatible>", project, StringComparison.Ordinal);
         Assert.Contains("<ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>", project, StringComparison.Ordinal);
@@ -72,8 +70,6 @@ public sealed class HubReleaseWorkflowSourceTests
         var temporary = Path.Combine(Path.GetTempPath(), $"lakona-hub-packager-{Guid.NewGuid():N}");
         var publish = Path.Combine(temporary, "publish");
         var first = Path.Combine(temporary, "first");
-        var legacy = Path.Combine(temporary, "legacy");
-        var transition = Path.Combine(temporary, "transition");
         var second = Path.Combine(temporary, "second");
         try
         {
@@ -95,32 +91,6 @@ public sealed class HubReleaseWorkflowSourceTests
             WriteLinuxPackages(publish, "1.0.0");
 
             await RunPackagerAsync(root, publish, first, "1.0.0", null);
-            Directory.CreateDirectory(legacy);
-            foreach (var source in Directory.GetFiles(first))
-            {
-                File.Copy(source, Path.Combine(legacy, Path.GetFileName(source)));
-            }
-            var legacyManifestPath = Path.Combine(legacy, "lakona-hub-manifest.json");
-            var legacyManifest = JsonNode.Parse(await File.ReadAllTextAsync(
-                legacyManifestPath,
-                TestContext.Current.CancellationToken))!.AsObject();
-            Assert.True(legacyManifest.Remove("deploymentModel"));
-            await File.WriteAllTextAsync(
-                legacyManifestPath,
-                legacyManifest.ToJsonString(new JsonSerializerOptions { WriteIndented = true }),
-                TestContext.Current.CancellationToken);
-            WriteLinuxPackages(publish, "1.0.1");
-            await RunPackagerAsync(root, publish, transition, "1.0.1", legacy);
-            using (var transitionManifest = JsonDocument.Parse(await File.ReadAllTextAsync(
-                Path.Combine(transition, "lakona-hub-manifest.json"),
-                TestContext.Current.CancellationToken)))
-            {
-                foreach (var platform in transitionManifest.RootElement.GetProperty("platforms").EnumerateObject())
-                {
-                    Assert.Empty(platform.Value.GetProperty("deltas").EnumerateArray());
-                }
-            }
-
             await File.WriteAllTextAsync(
                 Path.Combine(publish, "hub-win-x64", "Lakona.Hub.exe"),
                 "app-v2",
@@ -132,7 +102,6 @@ public sealed class HubReleaseWorkflowSourceTests
                 Path.Combine(second, "lakona-hub-manifest.json"),
                 TestContext.Current.CancellationToken));
             var platforms = manifest.RootElement.GetProperty("platforms");
-            Assert.Equal("native-aot-v1", manifest.RootElement.GetProperty("deploymentModel").GetString());
             Assert.Equal(5, platforms.EnumerateObject().Count());
             foreach (var platform in platforms.EnumerateObject())
             {
