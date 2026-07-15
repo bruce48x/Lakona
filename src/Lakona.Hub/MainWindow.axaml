@@ -74,7 +74,7 @@
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="CornerRadius" Value="7" />
       <Setter Property="HorizontalAlignment" Value="Stretch" />
-      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
       <Setter Property="Padding" Value="20,15" />
       <Setter Property="FontSize" Value="16" />
     </Style>
@@ -234,9 +234,9 @@
   <Grid ColumnDefinitions="220,*">
     <Border Grid.Column="0" Background="#0E0F10" BorderBrush="#2A2A27" BorderThickness="0,0,1,0">
       <Grid RowDefinitions="190,Auto,*,Auto" Margin="10,22,10,24">
-        <StackPanel Grid.Row="0" Spacing="2" HorizontalAlignment="Left" Margin="24,0,0,0">
-          <Image Width="102" Height="102" HorizontalAlignment="Left" Source="avares://Lakona.Hub/Assets/lakona-cat.png" />
-          <TextBlock Text="Lakona Hub" FontSize="22" FontWeight="SemiBold" />
+        <StackPanel Grid.Row="0" Spacing="2" HorizontalAlignment="Center">
+          <Image Width="102" Height="102" HorizontalAlignment="Center" Source="avares://Lakona.Hub/Assets/lakona-cat.png" />
+          <TextBlock Text="Lakona Hub" FontSize="22" FontWeight="SemiBold" HorizontalAlignment="Center" TextAlignment="Center" />
         </StackPanel>
 
         <StackPanel Grid.Row="1" Spacing="12">
@@ -290,13 +290,13 @@
               <Button Classes="primary hero" Click="CreateProject_Click">
                 <StackPanel Orientation="Horizontal" Spacing="13">
                   <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size28" />
-                  <TextBlock Text="{Binding Localization.Text.CreateProject}" Foreground="#15120A" FontSize="19" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Localization.Text.CreateProject}" Foreground="#15120A" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
                 </StackPanel>
               </Button>
               <Button Classes="secondary hero" Click="ImportProject_Click">
                 <StackPanel Orientation="Horizontal" Spacing="13">
                   <icons:FluentIcon Icon="FolderArrowRight" IconVariant="Regular" IconSize="Size28" />
-                  <TextBlock Text="{Binding Localization.Text.ImportExistingProject}" Foreground="#E6E4DE" FontSize="19" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Localization.Text.ImportExistingProject}" Foreground="#E6E4DE" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
                 </StackPanel>
               </Button>
             </StackPanel>
@@ -318,13 +318,13 @@
               <Button Grid.Column="2" Classes="primary" Click="CreateProject_Click">
                 <StackPanel Orientation="Horizontal" Spacing="12">
                   <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size24" />
-                  <TextBlock Text="{Binding Localization.Text.CreateProject}" Foreground="#15120A" FontSize="17" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Localization.Text.CreateProject}" Foreground="#15120A" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" />
                 </StackPanel>
               </Button>
               <Button Grid.Column="4" Classes="secondary" Click="ImportProject_Click">
                 <StackPanel Orientation="Horizontal" Spacing="12">
                   <icons:FluentIcon Icon="FolderArrowRight" IconVariant="Regular" IconSize="Size24" />
-                  <TextBlock Text="{Binding Localization.Text.ImportExistingProject}" Foreground="#E6E4DE" FontSize="17" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Localization.Text.ImportExistingProject}" Foreground="#E6E4DE" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" />
                 </StackPanel>
               </Button>
             </Grid>
@@ -493,10 +493,7 @@
 
         <ScrollViewer x:Name="SettingsExperience" IsVisible="False" HorizontalScrollBarVisibility="Disabled">
           <StackPanel Margin="64,52,56,64" MaxWidth="1080" HorizontalAlignment="Stretch">
-            <StackPanel Spacing="8">
-              <TextBlock Text="{Binding Localization.Text.Settings}" FontSize="38" FontWeight="SemiBold" />
-              <TextBlock Text="{Binding Localization.Text.SettingsDescription}" Classes="muted" FontSize="16" />
-            </StackPanel>
+            <TextBlock Text="{Binding Localization.Text.Settings}" FontSize="38" FontWeight="SemiBold" />
 
             <Grid ColumnDefinitions="0.9*,24,1.1*" Margin="0,42,0,0">
               <Border Grid.Column="0" Background="#111213" BorderBrush="#34342F" BorderThickness="1" CornerRadius="10" Padding="28">
@@ -540,24 +537,41 @@
                       <StackPanel Grid.Column="1" Spacing="5">
                         <TextBlock Text="{Binding Localization.Text.RuntimeStatus}" Classes="muted" FontSize="12" />
                         <TextBlock Text="{Binding Localization.Text.RuntimeReadyTitle}" FontSize="15" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding BundledDotNetSdkLabel}" Classes="gold" FontSize="12" FontWeight="SemiBold" />
                         <TextBlock Text="{Binding Localization.Text.RuntimeReadyDescription}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
                       </StackPanel>
                     </Grid>
                   </Border>
 
                   <Border BorderBrush="#33332F" BorderThickness="0,1,0,0" Margin="0,24,0,0" Padding="0,24,0,0">
-                    <Grid ColumnDefinitions="*,16,142">
-                      <StackPanel Grid.Column="0" Spacing="6" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Localization.Text.DetectedTools}" Classes="muted" FontSize="12" />
-                        <TextBlock x:Name="SettingsEnvironmentSummaryText" FontSize="14" TextWrapping="Wrap" />
-                      </StackPanel>
-                      <Button Grid.Column="2" Classes="secondary" Height="48" Padding="14,8" Click="RefreshEnvironment_Click">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                          <icons:FluentIcon Icon="ArrowSync" IconVariant="Regular" IconSize="Size20" />
-                          <TextBlock Text="{Binding Localization.Text.RefreshDetection}" Foreground="{Binding $parent[Button].Foreground}" FontSize="13" />
-                        </StackPanel>
-                      </Button>
-                    </Grid>
+                    <StackPanel>
+                      <Grid ColumnDefinitions="*,16,142">
+                        <TextBlock Grid.Column="0" Text="{Binding Localization.Text.DetectedTools}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <Button Grid.Column="2" Classes="secondary" Height="44" Padding="14,7" Click="RefreshEnvironment_Click">
+                          <StackPanel Orientation="Horizontal" Spacing="8">
+                            <icons:FluentIcon Icon="ArrowSync" IconVariant="Regular" IconSize="Size20" />
+                            <TextBlock Text="{Binding Localization.Text.RefreshDetection}" Foreground="{Binding $parent[Button].Foreground}" FontSize="13" VerticalAlignment="Center" />
+                          </StackPanel>
+                        </Button>
+                      </Grid>
+
+                      <ItemsControl ItemsSource="{Binding ApplicationTools}" Margin="0,14,0,0">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="applications:ApplicationToolItem">
+                            <Border BorderBrush="#33332F" BorderThickness="0,1,0,0" Padding="0,13">
+                              <Grid ColumnDefinitions="116,*,86">
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                  <TextBlock Text="{Binding DisplayName}" FontSize="13" FontWeight="SemiBold" />
+                                  <TextBlock Text="{Binding StatusText}" Classes="gold" FontSize="11" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="1" Text="{Binding PathText}" Classes="muted" FontSize="11" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,12,0" ToolTip.Tip="{Binding PathText}" />
+                                <Button Grid.Column="2" Classes="secondary" Height="38" Padding="12,6" Content="{Binding BrowseText}" Click="BrowseApplicationPath_Click" VerticalAlignment="Center" />
+                              </Grid>
+                            </Border>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
                   </Border>
                 </StackPanel>
               </Border>
@@ -577,7 +591,7 @@
                 <Button x:Name="UpdateButton" Grid.Column="4" Classes="primary" Height="48" Padding="18,8" Click="CheckUpdate_Click" VerticalAlignment="Center">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <icons:FluentIcon Icon="ArrowSync" IconVariant="Regular" IconSize="Size20" Foreground="#15120A" />
-                    <TextBlock x:Name="UpdateButtonText" Foreground="#15120A" FontSize="13" FontWeight="SemiBold" />
+                    <TextBlock x:Name="UpdateButtonText" Foreground="#15120A" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
                   </StackPanel>
                 </Button>
               </Grid>
@@ -590,6 +604,25 @@
         </Border>
       </Grid>
     </Grid>
+
+    <Border x:Name="HelpDialogOverlay" Grid.ColumnSpan="2" IsVisible="False" Background="#B8000000">
+      <Border Width="480" Padding="30" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#111213" BorderBrush="#4A4944" BorderThickness="1" CornerRadius="12">
+        <StackPanel Spacing="0">
+          <Border Width="52" Height="52" HorizontalAlignment="Left" Background="#211F17" CornerRadius="9">
+            <icons:FluentIcon Icon="QuestionCircle" IconVariant="Regular" IconSize="Size28" Foreground="#EFBE3E" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <TextBlock Text="{Binding Localization.Text.HelpAndFeedback}" FontSize="24" FontWeight="SemiBold" Margin="0,22,0,0" />
+          <TextBlock Text="{Binding Localization.Text.HelpDialogDescription}" Classes="muted" FontSize="14" TextWrapping="Wrap" Margin="0,10,0,0" />
+          <Border Background="#0B0C0D" BorderBrush="#34342F" BorderThickness="1" CornerRadius="7" Padding="14,11" Margin="0,18,0,0">
+            <TextBlock Text="https://github.com/bruce48x/Lakona/issues" Classes="gold" FontSize="13" TextWrapping="Wrap" />
+          </Border>
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12" Margin="0,26,0,0">
+            <Button Classes="secondary" Height="48" MinWidth="108" Padding="18,8" Content="{Binding Localization.Text.Cancel}" Click="CancelHelp_Click" />
+            <Button Classes="primary" Height="48" MinWidth="184" Padding="18,8" Content="{Binding Localization.Text.OpenGitHubIssues}" Click="OpenHelpIssues_Click" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Border>
   </Grid>
   </Border>
 </Window>

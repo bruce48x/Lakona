@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -13,11 +14,16 @@ namespace Lakona.Hub;
 
 public sealed partial class MainWindow : Window
 {
+    private const string HelpIssuesUrl = "https://github.com/bruce48x/Lakona/issues";
+
     private readonly LakonaProjectInspector inspector = new();
     private readonly LakonaProjectCreator projectCreator = new();
-    private readonly InstalledApplicationCatalog applicationCatalog = new();
+    private readonly InstalledApplicationCatalog applicationCatalog;
+    private readonly ApplicationPathStore applicationPathStore;
     private readonly ApplicationLauncher applicationLauncher = new();
     private readonly IHubUpdateService updateService;
+    private readonly Dictionary<LocalApplicationKind, string> configuredApplicationPaths;
+    private IReadOnlyList<LocalApplicationInstallation> automaticallyDetectedApplications = [];
     private IReadOnlyList<LocalApplicationInstallation> installedApplications = [];
     private bool isCreatingProject;
     private bool environmentDetectionComplete;
@@ -28,19 +34,39 @@ public sealed partial class MainWindow : Window
     private HubPage currentPage = HubPage.Projects;
 
     public MainWindow()
-        : this(new HubLocalization(), new HubUpdateService())
+        : this(
+            new HubLocalization(),
+            new HubUpdateService(),
+            new InstalledApplicationCatalog(),
+            new ApplicationPathStore())
     {
     }
 
     internal MainWindow(HubLocalization localization)
-        : this(localization, new HubUpdateService())
+        : this(localization, new HubUpdateService(), new InstalledApplicationCatalog(), new ApplicationPathStore())
     {
     }
 
     internal MainWindow(HubLocalization localization, IHubUpdateService updateService)
+        : this(localization, updateService, new InstalledApplicationCatalog(), new ApplicationPathStore())
+    {
+    }
+
+    internal MainWindow(
+        HubLocalization localization,
+        IHubUpdateService updateService,
+        InstalledApplicationCatalog applicationCatalog,
+        ApplicationPathStore applicationPathStore)
     {
         Localization = localization;
         this.updateService = updateService;
+        this.applicationCatalog = applicationCatalog;
+        this.applicationPathStore = applicationPathStore;
+        configuredApplicationPaths = applicationPathStore.Load().ToDictionary(
+            pair => pair.Key,
+            pair => pair.Value);
+        ApplicationTools = new ObservableCollection<ApplicationToolItem>(
+            Enum.GetValues<LocalApplicationKind>().Select(kind => new ApplicationToolItem(kind, localization)));
         CreationForm = new ProjectCreationForm(localization);
         InitializeComponent();
         DataContext = this;
@@ -50,14 +76,19 @@ public sealed partial class MainWindow : Window
         UpdateWindowFrame();
         UpdateEnvironmentTexts();
         UpdateUpdateTexts();
+        ApplyApplications();
         UpdateExperience();
     }
 
     public ObservableCollection<ProjectListItem> Projects { get; } = [];
 
+    public ObservableCollection<ApplicationToolItem> ApplicationTools { get; }
+
     public ProjectCreationForm CreationForm { get; }
 
     public HubLocalization Localization { get; }
+
+    public string BundledDotNetSdkLabel => $".NET SDK {HubRuntimeInfo.BundledDotNetSdkVersion}";
 
     internal void ShowUpdateFailure(string? message)
     {
@@ -246,6 +277,65 @@ public sealed partial class MainWindow : Window
         await DetectApplicationsAsync(showFailureFeedback: true);
     }
 
+    private async void BrowseApplicationPath_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: ApplicationToolItem tool })
+        {
+            return;
+        }
+
+        var startDirectory = ResolveApplicationPickerDirectory(tool.SuggestedPath);
+        IStorageFolder? suggestedStartLocation = null;
+        try
+        {
+            suggestedStartLocation = await StorageProvider.TryGetFolderFromPathAsync(
+                new Uri(Path.GetFullPath(startDirectory)));
+        }
+        catch (Exception ex) when (ex is ArgumentException or UriFormatException or IOException)
+        {
+            // The picker remains usable even when the preferred starting directory is unavailable.
+        }
+
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = Localization.Text.SelectApplicationExecutable(tool.DisplayName),
+            AllowMultiple = false,
+            SuggestedStartLocation = suggestedStartLocation
+        });
+        if (files.FirstOrDefault()?.TryGetLocalPath() is not { } path)
+        {
+            return;
+        }
+
+        if (!SystemApplicationProbeSource.TryCreateInstallation(tool.Kind, path, out var installation))
+        {
+            ShowFeedback(Localization.Text.InvalidApplicationExecutable(tool.DisplayName));
+            return;
+        }
+
+        var updatedPaths = new Dictionary<LocalApplicationKind, string>(configuredApplicationPaths)
+        {
+            [tool.Kind] = installation.ExecutablePath
+        };
+        try
+        {
+            applicationPathStore.Save(updatedPaths);
+            configuredApplicationPaths.Clear();
+            foreach (var (kind, configuredPath) in updatedPaths)
+            {
+                configuredApplicationPaths[kind] = configuredPath;
+            }
+
+            ApplyApplications();
+            UpdateEnvironmentTexts();
+            ShowFeedback(Localization.Text.ApplicationExecutableSaved(tool.DisplayName));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            ShowFeedback(Localization.Text.ApplicationExecutableSaveFailed(ex.Message));
+        }
+    }
+
     private async void CheckUpdate_Click(object? sender, RoutedEventArgs e)
     {
         if (isUpdating)
@@ -287,7 +377,33 @@ public sealed partial class MainWindow : Window
 
     private void Help_Click(object? sender, RoutedEventArgs e)
     {
-        ShowFeedback(Localization.Text.HelpComingSoon);
+        ActionFeedback.IsVisible = false;
+        HelpDialogOverlay.IsVisible = true;
+    }
+
+    private void CancelHelp_Click(object? sender, RoutedEventArgs e)
+    {
+        HelpDialogOverlay.IsVisible = false;
+    }
+
+    private void OpenHelpIssues_Click(object? sender, RoutedEventArgs e)
+    {
+        HelpDialogOverlay.IsVisible = false;
+        try
+        {
+            var startInfo = new ProcessStartInfo(HelpIssuesUrl)
+            {
+                UseShellExecute = true
+            };
+            if (Process.Start(startInfo) is null)
+            {
+                throw new InvalidOperationException("The default browser could not be started.");
+            }
+        }
+        catch (Exception ex) when (IsLaunchFailure(ex))
+        {
+            ShowFeedback(Localization.Text.OpenHelpPageFailed(ex.Message));
+        }
     }
 
     private void UpdateExperience()
@@ -309,12 +425,8 @@ public sealed partial class MainWindow : Window
         UpdateEnvironmentTexts();
         try
         {
-            installedApplications = await Task.Run(applicationCatalog.Detect);
-            foreach (var project in Projects)
-            {
-                project.RefreshApplications(installedApplications);
-            }
-
+            automaticallyDetectedApplications = await Task.Run(applicationCatalog.Detect);
+            ApplyApplications();
             environmentDetectionComplete = true;
         }
         catch (Exception ex)
@@ -369,7 +481,48 @@ public sealed partial class MainWindow : Window
                 : Localization.Text.DetectingTools;
         EmptyEnvironmentSummaryText.Text = summary;
         ProjectEnvironmentSummaryText.Text = summary;
-        SettingsEnvironmentSummaryText.Text = summary;
+    }
+
+    private void ApplyApplications()
+    {
+        var manuallyConfigured = configuredApplicationPaths
+            .Select(pair => SystemApplicationProbeSource.TryCreateInstallation(pair.Key, pair.Value, out var installation)
+                ? installation
+                : null)
+            .OfType<LocalApplicationInstallation>()
+            .ToArray();
+        installedApplications = InstalledApplicationCatalog.MergePreferred(
+            automaticallyDetectedApplications,
+            manuallyConfigured);
+
+        foreach (var tool in ApplicationTools)
+        {
+            configuredApplicationPaths.TryGetValue(tool.Kind, out var configuredPath);
+            var installation = installedApplications.FirstOrDefault(application =>
+                application.Kind == tool.Kind &&
+                string.Equals(application.ExecutablePath, configuredPath, StringComparison.OrdinalIgnoreCase)) ??
+                installedApplications.FirstOrDefault(application => application.Kind == tool.Kind);
+            tool.Update(installation, configuredPath);
+        }
+
+        foreach (var project in Projects)
+        {
+            project.RefreshApplications(installedApplications);
+        }
+    }
+
+    private static string ResolveApplicationPickerDirectory(string? executablePath)
+    {
+        if (!string.IsNullOrWhiteSpace(executablePath))
+        {
+            var directory = Path.GetDirectoryName(executablePath);
+            if (!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory))
+            {
+                return directory;
+            }
+        }
+
+        return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
     }
 
     private void MainWindow_PropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
@@ -406,7 +559,8 @@ public sealed partial class MainWindow : Window
         UnauthorizedAccessException or
         InvalidOperationException or
         ArgumentException or
-        Win32Exception;
+        Win32Exception or
+        PlatformNotSupportedException;
 
     private void TitleBar_PointerPressed(object? sender, PointerPressedEventArgs e)
     {

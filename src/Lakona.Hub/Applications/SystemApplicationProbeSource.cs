@@ -20,17 +20,32 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
 
         foreach (var (kind, path) in candidates)
         {
-            if (!TryNormalizeExecutable(kind, path, out var executablePath))
+            if (!TryCreateInstallation(kind, path, out var installation))
             {
                 continue;
             }
 
-            yield return new LocalApplicationInstallation(
-                kind,
-                DisplayName(kind),
-                executablePath,
-                ReadVersion(kind, executablePath));
+            yield return installation;
         }
+    }
+
+    internal static bool TryCreateInstallation(
+        LocalApplicationKind kind,
+        string path,
+        out LocalApplicationInstallation installation)
+    {
+        installation = null!;
+        if (!TryNormalizeExecutable(kind, path, out var executablePath))
+        {
+            return false;
+        }
+
+        installation = new LocalApplicationInstallation(
+            kind,
+            DisplayName(kind),
+            executablePath,
+            ReadVersion(kind, executablePath));
+        return true;
     }
 
     private static void AddKnownPaths(ICollection<(LocalApplicationKind, string)> candidates)
@@ -251,6 +266,11 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
         try
         {
             var fullPath = Path.GetFullPath(path);
+            if (Directory.Exists(fullPath))
+            {
+                fullPath = ResolveApplicationBundleExecutable(kind, fullPath) ?? string.Empty;
+            }
+
             if (!File.Exists(fullPath) || !MatchesExecutable(kind, Path.GetFileName(fullPath)))
             {
                 return false;
@@ -265,17 +285,39 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
         }
     }
 
+    private static string? ResolveApplicationBundleExecutable(LocalApplicationKind kind, string bundlePath)
+    {
+        var relativeCandidates = kind switch
+        {
+            LocalApplicationKind.Rider => new[] { "Contents/MacOS/rider" },
+            LocalApplicationKind.VisualStudio => new[] { "Contents/MacOS/VisualStudio" },
+            LocalApplicationKind.VisualStudioCode => new[] { "Contents/MacOS/Electron" },
+            LocalApplicationKind.Unity => new[] { "Contents/MacOS/Unity" },
+            LocalApplicationKind.Godot => new[] { "Contents/MacOS/Godot" },
+            _ => []
+        };
+        return relativeCandidates
+            .Select(relative => Path.Combine(bundlePath, relative.Replace('/', Path.DirectorySeparatorChar)))
+            .FirstOrDefault(File.Exists);
+    }
+
     private static bool MatchesExecutable(LocalApplicationKind kind, string fileName)
     {
         return kind switch
         {
             LocalApplicationKind.Rider => fileName.Equals("rider64.exe", StringComparison.OrdinalIgnoreCase) ||
-                                          fileName.Equals("rider.exe", StringComparison.OrdinalIgnoreCase),
-            LocalApplicationKind.VisualStudio => fileName.Equals("devenv.exe", StringComparison.OrdinalIgnoreCase),
-            LocalApplicationKind.VisualStudioCode => fileName.Equals("Code.exe", StringComparison.OrdinalIgnoreCase),
-            LocalApplicationKind.Unity => fileName.Equals("Unity.exe", StringComparison.OrdinalIgnoreCase),
+                                          fileName.Equals("rider.exe", StringComparison.OrdinalIgnoreCase) ||
+                                          fileName.Equals("rider", StringComparison.OrdinalIgnoreCase),
+            LocalApplicationKind.VisualStudio => fileName.Equals("devenv.exe", StringComparison.OrdinalIgnoreCase) ||
+                                                 fileName.Equals("VisualStudio", StringComparison.OrdinalIgnoreCase),
+            LocalApplicationKind.VisualStudioCode => fileName.Equals("Code.exe", StringComparison.OrdinalIgnoreCase) ||
+                                                     fileName.Equals("code", StringComparison.OrdinalIgnoreCase) ||
+                                                     fileName.Equals("Electron", StringComparison.OrdinalIgnoreCase),
+            LocalApplicationKind.Unity => fileName.Equals("Unity.exe", StringComparison.OrdinalIgnoreCase) ||
+                                          fileName.Equals("Unity", StringComparison.OrdinalIgnoreCase),
             LocalApplicationKind.Godot => fileName.StartsWith("Godot", StringComparison.OrdinalIgnoreCase) &&
-                                          fileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase),
+                                          (fileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
+                                           !Path.HasExtension(fileName)),
             _ => false
         };
     }

@@ -32,6 +32,67 @@ public sealed class InstalledApplicationCatalogTests
         Assert.Empty(new InstalledApplicationCatalog(source).Detect());
     }
 
+    [Fact]
+    public void MergePreferred_PutsManualPathFirstAndKeepsOtherDetectedVersions()
+    {
+        var automatic = new[]
+        {
+            new LocalApplicationInstallation(LocalApplicationKind.Unity, "Unity", @"C:\Unity\6000.3\Unity.exe", "6000.3"),
+            new LocalApplicationInstallation(LocalApplicationKind.Unity, "Unity", @"C:\Unity\2022.3\Unity.exe", "2022.3")
+        };
+        var manual = new[]
+        {
+            new LocalApplicationInstallation(LocalApplicationKind.Unity, "Unity", @"D:\Unity\Unity.exe", "6000.2")
+        };
+
+        var merged = InstalledApplicationCatalog.MergePreferred(automatic, manual);
+
+        Assert.Equal(@"D:\Unity\Unity.exe", merged[0].ExecutablePath);
+        Assert.Equal(3, merged.Count);
+    }
+
+    [Fact]
+    public void TryCreateInstallation_ValidatesExecutableForSelectedKind()
+    {
+        using var executables = TestExecutables.Create("rider64.exe", "Godot_v4.6.exe");
+
+        Assert.True(SystemApplicationProbeSource.TryCreateInstallation(
+            LocalApplicationKind.Rider,
+            executables["rider64.exe"],
+            out var rider));
+        Assert.Equal(LocalApplicationKind.Rider, rider.Kind);
+        Assert.False(SystemApplicationProbeSource.TryCreateInstallation(
+            LocalApplicationKind.Unity,
+            executables["Godot_v4.6.exe"],
+            out _));
+    }
+
+    [Fact]
+    public void TryCreateInstallation_ResolvesMacApplicationBundle()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Lakona.Hub.Tests", Guid.NewGuid().ToString("N"));
+        var bundle = Path.Combine(root, "Rider.app");
+        var executable = Path.Combine(bundle, "Contents", "MacOS", "rider");
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(executable)!);
+            File.WriteAllText(executable, string.Empty);
+
+            Assert.True(SystemApplicationProbeSource.TryCreateInstallation(
+                LocalApplicationKind.Rider,
+                bundle,
+                out var installation));
+            Assert.Equal(executable, installation.ExecutablePath);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
     private sealed class FakeProbeSource(IReadOnlyList<LocalApplicationInstallation> applications) : IApplicationProbeSource
     {
         public IEnumerable<LocalApplicationInstallation> FindApplications() => applications;

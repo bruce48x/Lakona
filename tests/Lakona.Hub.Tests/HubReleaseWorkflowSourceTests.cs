@@ -18,7 +18,7 @@ public sealed class HubReleaseWorkflowSourceTests
         Assert.Contains("osx-x64", workflow, StringComparison.Ordinal);
         Assert.Contains("osx-arm64", workflow, StringComparison.Ordinal);
         Assert.Contains("--self-contained true", workflow, StringComparison.Ordinal);
-        Assert.Contains("DOTNET_SDK_VERSION: 10.0.100", workflow, StringComparison.Ordinal);
+        Assert.Contains($"DOTNET_SDK_VERSION: {HubRuntimeInfo.BundledDotNetSdkVersion}", workflow, StringComparison.Ordinal);
         Assert.Contains("-name '*.pdb' -delete", workflow, StringComparison.Ordinal);
         Assert.Contains("New-HubRelease.ps1", workflow, StringComparison.Ordinal);
         Assert.Contains("hub-delta.json", packager, StringComparison.Ordinal);

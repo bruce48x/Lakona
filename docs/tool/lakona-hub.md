@@ -120,8 +120,12 @@ V1 does not include:
 Hub discovers Rider, Visual Studio, VS Code, Unity, and Godot from their
 standard installation locations, the user's `PATH`, and Windows application
 registration. Portable Godot folders at the root of a fixed drive are also
-recognized. Discovery is read-only and does not change editor settings or the
-system environment.
+recognized. Settings shows one row per supported tool with its executable path.
+Each row can open a file picker at the detected executable's directory, or at
+the user's home directory when the tool was not detected, so the user can
+select an executable manually. Manual paths are stored only in Hub's per-user
+application data, take precedence over automatic candidates, and never change
+editor settings, the system environment, or project content.
 
 Each project row keeps editor choice separate from the open action. The server
 editor selector defaults to Rider, then Visual Studio, then VS Code, while
@@ -135,12 +139,14 @@ Environment status is part of Settings rather than a separate navigation area.
 The settings page owns the Hub display language, bundled .NET status, detected
 editor summary, and an explicit editor re-detection action.
 
-Hub selects Simplified Chinese only when the current UI culture is Chinese and
-uses English otherwise. The user can switch between Simplified Chinese and
-English immediately without changing the operating-system language. The
-manual `HubLocalization.SetLanguage` seam is also the test contract: UI model
-tests must select a language explicitly instead of relying on the machine's
-current culture.
+Hub supports Simplified Chinese, Traditional Chinese, and English. It follows
+the same culture detection as Lakona.Tool: `zh-Hant`, `zh-TW`, `zh-HK`,
+`zh-MO`, and `zh-CHT` select Traditional Chinese; other Chinese cultures select
+Simplified Chinese; all other cultures select English. The user can switch
+among all three languages immediately without changing the operating-system
+language. The manual `HubLocalization.SetLanguage` seam is also the test
+contract: UI model tests must select a language explicitly instead of relying
+on the machine's current culture.
 
 ## Release And Update Contract
 

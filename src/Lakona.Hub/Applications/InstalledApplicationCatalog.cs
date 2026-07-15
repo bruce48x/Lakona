@@ -47,4 +47,17 @@ internal sealed class InstalledApplicationCatalog
             .OrderBy(application => KindOrder[application.Kind])
             .ToArray();
     }
+
+    public static IReadOnlyList<LocalApplicationInstallation> MergePreferred(
+        IReadOnlyList<LocalApplicationInstallation> automaticallyDetected,
+        IReadOnlyList<LocalApplicationInstallation> manuallyConfigured)
+    {
+        return automaticallyDetected
+            .Concat(manuallyConfigured)
+            .OrderBy(application => KindOrder[application.Kind])
+            .ThenBy(application => manuallyConfigured.Any(manual =>
+                string.Equals(manual.ExecutablePath, application.ExecutablePath, StringComparison.OrdinalIgnoreCase)) ? 0 : 1)
+            .DistinctBy(application => application.ExecutablePath, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
 }
