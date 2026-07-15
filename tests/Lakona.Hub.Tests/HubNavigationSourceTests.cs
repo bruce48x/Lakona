@@ -40,6 +40,9 @@ public sealed class HubNavigationSourceTests
         var view = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Hub", "MainWindow.axaml"));
 
         Assert.Contains("<Setter Property=\"HorizontalContentAlignment\" Value=\"Center\" />", view, StringComparison.Ordinal);
+        Assert.Contains("<Setter Property=\"VerticalContentAlignment\" Value=\"Center\" />", view, StringComparison.Ordinal);
+        Assert.Contains("<Style Selector=\"Button > StackPanel\">", view, StringComparison.Ordinal);
+        Assert.Contains("<Style Selector=\"Button TextBlock\">", view, StringComparison.Ordinal);
         Assert.DoesNotContain("<Setter Property=\"HorizontalContentAlignment\" Value=\"Left\" />", view, StringComparison.Ordinal);
         Assert.Equal(2, CountOccurrences(view, "Text=\"{Binding Localization.Text.CreateProject}\"", "VerticalAlignment=\"Center\""));
         Assert.Equal(2, CountOccurrences(view, "Text=\"{Binding Localization.Text.ImportExistingProject}\"", "VerticalAlignment=\"Center\""));
