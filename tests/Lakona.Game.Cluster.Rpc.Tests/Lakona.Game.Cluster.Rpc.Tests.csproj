@@ -17,6 +17,5 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Lakona.Game.Cluster.Rpc/Lakona.Game.Cluster.Rpc.csproj" />
     <ProjectReference Include="../../src/Lakona.Game.Cluster.Rpc.MemoryPack/Lakona.Game.Cluster.Rpc.MemoryPack.csproj" />
-    <ProjectReference Include="../../samples/Game.Cluster.TwoNode/Cluster.TwoNode.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

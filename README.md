@@ -408,9 +408,6 @@ Game framework samples:
   dual-channel WebSocket plus KCP
 - [samples/Game.Godot.Chat](samples/Game.Godot.Chat) - Godot .NET
   single-endpoint chat sample
-- [samples/Game.Cluster.TwoNode](samples/Game.Cluster.TwoNode) - Multi-process
-  cluster with directory services
-
 RPC-focused samples:
 
 - [samples/Rpc.Unity.Json.Websocket](samples/Rpc.Unity.Json.Websocket)

@@ -4,9 +4,6 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Folder Name="/samples/">
-    <Project Path="samples/Game.Cluster.TwoNode/Cluster.TwoNode.csproj" />
-  </Folder>
   <Folder Name="/samples/Game.Unity.Agar/">
     <Project Path="samples/Game.Unity.Agar/Shared/Shared.csproj" />
       <Project Path="samples/Game.Unity.Agar/Server/App/Server.App.csproj" />
