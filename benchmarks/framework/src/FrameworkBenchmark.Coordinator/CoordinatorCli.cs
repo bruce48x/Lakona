@@ -36,12 +36,18 @@ public static class CoordinatorCli
 public sealed record CoordinatorOptions(
     string SuitePath,
     IReadOnlyList<string> AdapterManifestPaths,
-    string OutputRoot)
+    string OutputRoot,
+    string? Framework = null,
+    string? Workload = null,
+    bool PrepareAdapters = true)
 {
     public static CoordinatorOptions Parse(IReadOnlyList<string> args)
     {
         string? suite = null;
         string? output = null;
+        string? framework = null;
+        string? workload = null;
+        var prepareAdapters = true;
         var adapters = new List<string>();
 
         for (var index = 0; index < args.Count; index++)
@@ -58,8 +64,18 @@ public sealed record CoordinatorOptions(
                 case "--output":
                     output = NextValue(args, ref index, option);
                     break;
+                case "--framework":
+                    framework = NextValue(args, ref index, option);
+                    break;
+                case "--workload":
+                    workload = NextValue(args, ref index, option);
+                    break;
+                case "--no-prepare":
+                    prepareAdapters = false;
+                    break;
                 default:
-                    throw new ArgumentException($"Unknown option '{option}'. Expected --suite, --adapter, or --output.");
+                    throw new ArgumentException(
+                        $"Unknown option '{option}'. Expected --suite, --adapter, --output, --framework, --workload, or --no-prepare.");
             }
         }
 
@@ -78,7 +94,7 @@ public sealed record CoordinatorOptions(
             throw new ArgumentException("--output <directory> is required.");
         }
 
-        return new CoordinatorOptions(suite, adapters, output);
+        return new CoordinatorOptions(suite, adapters, output, framework, workload, prepareAdapters);
     }
 
     private static string NextValue(IReadOnlyList<string> args, ref int index, string option)

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://lakona.dev/schemas/framework-benchmark/adapter-manifest-v1.json",
   "type": "object",
-  "required": [ "schemaVersion", "framework", "revision", "runtime", "buildMode", "licenseUrl", "supportedWorkloads", "metadata", "servers", "driver" ],
+  "required": [ "schemaVersion", "framework", "revision", "runtime", "buildMode", "licenseUrl", "supportedWorkloads", "metadata", "prepare", "servers", "driver" ],
   "properties": {
     "schemaVersion": { "const": "1" },
     "framework": { "type": "string", "minLength": 1 },
@@ -12,6 +12,7 @@
     "licenseUrl": { "type": "string", "format": "uri" },
     "supportedWorkloads": { "type": "array", "minItems": 1, "items": { "type": "string" }, "uniqueItems": true },
     "metadata": { "type": "object", "additionalProperties": { "type": "string" } },
+    "prepare": { "type": "array", "items": { "type": "object" } },
     "servers": { "type": "array", "minItems": 1 },
     "driver": { "type": "object" }
   },

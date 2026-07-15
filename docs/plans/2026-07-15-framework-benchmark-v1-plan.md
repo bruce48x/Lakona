@@ -10,7 +10,7 @@
 
 - [x] Slice 1: neutral contracts, coordinator, fake process integration, and
   validation script (`2026-07-15`).
-- [ ] Slice 2: Lakona and Pinus `frontdoor.echo`.
+- [x] Slice 2: Lakona and Pinus `frontdoor.echo` (`2026-07-15`).
 - [ ] Slice 3: `cluster.direct`.
 - [ ] Slice 4: `cluster.routed`.
 - [ ] Slice 5: complete version 1 user experience.

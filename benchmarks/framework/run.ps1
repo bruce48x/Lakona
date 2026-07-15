@@ -5,6 +5,9 @@ param(
     [ValidateSet("all", "lakona", "pinus")]
     [string]$Framework = "all",
 
+    [ValidateSet("all", "frontdoor.echo", "cluster.direct", "cluster.routed")]
+    [string]$Workload = "all",
+
     [string]$Output,
 
     [switch]$NoPrepare
@@ -51,6 +54,18 @@ $arguments = @(
 )
 foreach ($manifest in $manifests) {
     $arguments += @("--adapter", $manifest)
+}
+
+if ($Framework -ne "all") {
+    $arguments += @("--framework", $Framework)
+}
+
+if ($Workload -ne "all") {
+    $arguments += @("--workload", $Workload)
+}
+
+if ($NoPrepare) {
+    $arguments += "--no-prepare"
 }
 
 & dotnet @arguments

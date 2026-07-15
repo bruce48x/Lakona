@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("server", "driver")]
+    [ValidateSet("prepare", "server", "driver")]
     [string]$Mode,
 
     [string]$Role,
@@ -14,6 +14,13 @@ $ErrorActionPreference = "Stop"
 $behavior = $env:FAKE_BENCHMARK_BEHAVIOR
 if ([string]::IsNullOrWhiteSpace($behavior)) {
     $behavior = "normal"
+}
+
+if ($Mode -eq "prepare") {
+    $pidDirectory = Split-Path -Parent $PidFile
+    New-Item -ItemType Directory -Force -Path $pidDirectory | Out-Null
+    Set-Content -LiteralPath $PidFile -Value $PID -NoNewline
+    exit 0
 }
 
 if ($Mode -eq "server") {

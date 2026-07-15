@@ -40,6 +40,7 @@ public sealed record AdapterManifest(
     string LicenseUrl,
     IReadOnlyList<string> SupportedWorkloads,
     IReadOnlyDictionary<string, string> Metadata,
+    IReadOnlyList<ProcessCommand> Prepare,
     IReadOnlyList<ServerProcessSpecification> Servers,
     ProcessCommand Driver);
 

@@ -12,8 +12,17 @@ public sealed class BenchmarkCoordinator
         var suite = BenchmarkJson.Read<BenchmarkSuite>(suitePath);
         BenchmarkDefinitionValidator.Validate(suite);
 
+        var benchmarkCases = SuiteExpander.Expand(suite)
+            .Where(benchmarkCase => options.Framework is null || benchmarkCase.Framework == options.Framework)
+            .Where(benchmarkCase => options.Workload is null || benchmarkCase.Workload == options.Workload)
+            .ToArray();
+        if (benchmarkCases.Length == 0)
+        {
+            throw new BenchmarkToolException("The framework/workload selection did not match any suite cases.");
+        }
+
         var manifests = LoadManifests(options.AdapterManifestPaths);
-        foreach (var framework in suite.Frameworks)
+        foreach (var framework in benchmarkCases.Select(static item => item.Framework).Distinct(StringComparer.Ordinal))
         {
             if (!manifests.ContainsKey(framework))
             {
@@ -34,7 +43,20 @@ public sealed class BenchmarkCoordinator
 
         try
         {
-            foreach (var benchmarkCase in SuiteExpander.Expand(suite))
+            if (options.PrepareAdapters)
+            {
+                foreach (var framework in benchmarkCases.Select(static item => item.Framework).Distinct(StringComparer.Ordinal))
+                {
+                    var (manifest, adapterManifestPath) = manifests[framework];
+                    await PrepareAdapterAsync(
+                        manifest,
+                        adapterManifestPath,
+                        runDirectory,
+                        cancellationToken).ConfigureAwait(false);
+                }
+            }
+
+            foreach (var benchmarkCase in benchmarkCases)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var (manifest, adapterManifestPath) = manifests[benchmarkCase.Framework];
@@ -82,6 +104,37 @@ public sealed class BenchmarkCoordinator
                 DateTimeOffset.UtcNow,
                 ex.Message);
             throw;
+        }
+    }
+
+    private static async Task PrepareAdapterAsync(
+        AdapterManifest manifest,
+        string manifestPath,
+        string runDirectory,
+        CancellationToken cancellationToken)
+    {
+        var adapterRoot = Path.GetDirectoryName(manifestPath)!;
+        var placeholders = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["adapterRoot"] = adapterRoot,
+            ["runDir"] = runDirectory,
+            ["framework"] = manifest.Framework
+        };
+
+        for (var index = 0; index < manifest.Prepare.Count; index++)
+        {
+            var exitCode = await ProcessCommandRunner.RunAsync(
+                CommandTemplateExpander.Expand(manifest.Prepare[index], placeholders),
+                adapterRoot,
+                Path.Combine(runDirectory, "logs", $"prepare-{manifest.Framework}-{index}.stdout.log"),
+                Path.Combine(runDirectory, "logs", $"prepare-{manifest.Framework}-{index}.stderr.log"),
+                TimeSpan.FromMinutes(5),
+                cancellationToken).ConfigureAwait(false);
+            if (exitCode != 0)
+            {
+                throw new BenchmarkToolException(
+                    $"Prepare command {index + 1} for adapter '{manifest.Framework}' exited with code {exitCode}.");
+            }
         }
     }
 
@@ -198,7 +251,11 @@ public sealed class BenchmarkCoordinator
                 throw new BenchmarkToolException($"Driver for case '{benchmarkCase.Id}' did not write '{resultFile}'.");
             }
 
-            var result = BenchmarkJson.Read<CaseResult>(resultFile);
+            var driverResult = BenchmarkJson.Read<CaseResult>(resultFile);
+            var result = driverResult with
+            {
+                Metadata = MergeAdapterMetadata(manifest, driverResult.Metadata)
+            };
             var validated = CaseResultValidator.Validate(benchmarkCase, result);
             BenchmarkJson.Write(Path.Combine(runDirectory, "histograms", $"{safeCaseId}.json"), result.Histogram);
             return validated;
@@ -210,6 +267,25 @@ public sealed class BenchmarkCoordinator
                 await servers[index].DisposeAsync().ConfigureAwait(false);
             }
         }
+    }
+
+    private static IReadOnlyDictionary<string, string> MergeAdapterMetadata(
+        AdapterManifest manifest,
+        IReadOnlyDictionary<string, string> driverMetadata)
+    {
+        var metadata = new Dictionary<string, string>(driverMetadata, StringComparer.Ordinal)
+        {
+            ["adapterRevision"] = manifest.Revision,
+            ["adapterRuntime"] = manifest.Runtime,
+            ["adapterBuildMode"] = manifest.BuildMode,
+            ["adapterLicenseUrl"] = manifest.LicenseUrl
+        };
+        foreach (var pair in manifest.Metadata)
+        {
+            metadata[$"adapter.{pair.Key}"] = pair.Value;
+        }
+
+        return metadata;
     }
 
     private static string SafeFileName(string value)

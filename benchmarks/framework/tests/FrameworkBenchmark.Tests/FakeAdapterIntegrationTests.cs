@@ -21,6 +21,7 @@ public sealed class FakeAdapterIntegrationTests
 
         var result = Assert.Single(summary.Cases);
         Assert.True(result.IsValid, string.Join(Environment.NewLine, result.Errors));
+        Assert.Equal("fixture-revision", result.Result.Metadata["adapterRevision"]);
         var runDirectory = Assert.Single(Directory.GetDirectories(fixture.OutputRoot));
         Assert.True(File.Exists(Path.Combine(runDirectory, "run-manifest.json")));
         Assert.Equal(
@@ -29,6 +30,7 @@ public sealed class FakeAdapterIntegrationTests
         Assert.True(File.Exists(Path.Combine(runDirectory, "summary.json")));
         Assert.True(File.Exists(Path.Combine(runDirectory, "validation.json")));
         Assert.True(File.Exists(Path.Combine(runDirectory, "report.md")));
+        Assert.True(File.Exists(Path.Combine(runDirectory, "fake-prepare.pid")));
         Assert.Single(Directory.GetFiles(Path.Combine(runDirectory, "histograms"), "*.json"));
     }
 
@@ -182,6 +184,17 @@ public sealed class FakeAdapterIntegrationTests
                 "https://example.invalid/license",
                 ["frontdoor.echo"],
                 new Dictionary<string, string> { ["fixture"] = "true" },
+                [new ProcessCommand(
+                    "pwsh",
+                    [
+                        "-NoProfile",
+                        "-File",
+                        script,
+                        "-Mode",
+                        "prepare",
+                        "-PidFile",
+                        "${runDir}/fake-prepare.pid"
+                    ])],
                 [new ServerProcessSpecification("frontdoor", ["clientPort"], serverCommand)],
                 driverCommand);
             var path = Path.Combine(root, "adapter.json");

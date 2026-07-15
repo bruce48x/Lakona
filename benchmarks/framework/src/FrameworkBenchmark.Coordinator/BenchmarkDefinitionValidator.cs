@@ -54,6 +54,16 @@ public static class BenchmarkDefinitionValidator
             throw new InvalidDataException($"Adapter '{manifest.Framework}' must declare at least one server process.");
         }
 
+        if (manifest.Prepare is null)
+        {
+            throw new InvalidDataException($"Adapter '{manifest.Framework}' must declare prepare commands, or an empty list.");
+        }
+
+        for (var index = 0; index < manifest.Prepare.Count; index++)
+        {
+            ValidateCommand(manifest.Prepare[index], $"prepare command {index + 1}");
+        }
+
         var roles = new HashSet<string>(StringComparer.Ordinal);
         var ports = new HashSet<string>(StringComparer.Ordinal);
         foreach (var server in manifest.Servers)
