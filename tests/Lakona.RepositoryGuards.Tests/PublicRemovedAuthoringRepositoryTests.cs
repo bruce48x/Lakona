@@ -69,7 +69,7 @@ public sealed class PublicRemovedAuthoringRepositoryTests
     private static bool IsIgnoredPath(string repositoryRoot, string file)
     {
         var relative = NormalizeRelativePath(repositoryRoot, file);
-        return relative.StartsWith("docs/superpowers/", StringComparison.Ordinal) ||
+        return relative.StartsWith("docs/plans/", StringComparison.Ordinal) ||
                relative.Contains("/bin/", StringComparison.Ordinal) ||
                relative.Contains("/obj/", StringComparison.Ordinal) ||
                relative.Contains("/_artifacts/", StringComparison.Ordinal) ||

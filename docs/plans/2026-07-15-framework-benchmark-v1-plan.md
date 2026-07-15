@@ -4,6 +4,7 @@
 **Date:** 2026-07-15
 **Authority:** [Cross-Framework Game Server Benchmarking](../framework-benchmarking.md)
 **Branch:** `codex/framework-benchmark-v1`
+**Lifecycle:** Delete after version 1 decisions are absorbed into durable docs.
 
 ## Outcome
 
