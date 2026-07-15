@@ -18,10 +18,9 @@ modules for them.
 
 ## Technology Decision
 
-The desktop adapter uses Avalonia on .NET 10. Release builds should be evaluated
-with NativeAOT once the complete V1 dependency set is known. Hub invokes a
-private, portable .NET 10 SDK for project operations and must not require a
-machine-wide .NET installation.
+The desktop adapter uses Avalonia on .NET 10 and release builds use NativeAOT.
+Hub invokes a private, portable .NET 10 SDK for project operations and must not
+require a machine-wide .NET installation.
 
 Release artifacts contain both the self-contained Hub runtime and the pinned
 private .NET 10 SDK so a first-time user installs only one artifact. Windows
@@ -166,8 +165,10 @@ replace their assets with a different build.
 
 The release targets Windows x64, Linux x64, macOS x64, and macOS arm64,
 covering the three desktop operating-system families. Every artifact is
-self-contained and includes the pinned private .NET 10 SDK. Linux support is
-limited to glibc-based Debian and RPM distribution families on x64.
+self-contained NativeAOT and includes the pinned private .NET 10 SDK. NativeAOT
+publishing runs on a matching Windows, Linux, or macOS runner; cross-operating-
+system publishing is not a supported release path. Linux support is limited to
+glibc-based Debian and RPM distribution families on x64.
 
 Each Release contains full ZIPs for Windows and macOS, one `amd64` DEB, one
 `x86_64` RPM, and a `lakona-hub-manifest.json`. From the second Release onward,
@@ -177,6 +178,9 @@ deletion list, and the new package manifest. Windows and macOS use a delta only
 when its `fromVersion` exactly matches the installed version and automatically
 fall back to the full package otherwise. Linux packages never use file-level
 deltas because their installed files are owned by the system package manager.
+The release manifest also records the deployment model. A CoreCLR-to-NativeAOT
+transition, or any future deployment-model change, forces a full update; deltas
+resume only between releases with the same deployment model.
 
 Windows and macOS self-update requires the portable application directory to
 be writable by the current user. Hub checks this before it exits; if the
@@ -248,5 +252,11 @@ Release validation must measure, rather than assume:
 - cancellation and cleanup of child processes
 - successful startup on a machine without a globally installed .NET SDK
 
-NativeAOT is enabled only after the complete desktop flow passes trim and AOT
-analysis without suppressing unexplained warnings.
+Every release treats trim and AOT analysis warnings as errors. After each native
+publish, CI starts the produced executable on the matching operating system and
+runs the built-in `--aot-smoke-test`. That path initializes Avalonia and the main
+window's compiled XAML, exercises all three localization resources, starts the
+bundled SDK, and verifies its exact pinned version. Release packaging tests and
+the repository release guards remain mandatory in addition to this executable
+smoke test; suppressing an unexplained trim or AOT warning is not an acceptable
+way to make a release pass.

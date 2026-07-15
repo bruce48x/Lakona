@@ -14,7 +14,7 @@ internal sealed record HubReleaseManifest(
 
     public static HubReleaseManifest Parse(string json)
     {
-        var manifest = JsonSerializer.Deserialize<HubReleaseManifest>(json, JsonOptions)
+        var manifest = JsonSerializer.Deserialize(json, HubJsonContext.Default.HubReleaseManifest)
             ?? throw new InvalidDataException("The update manifest is empty.");
         if (manifest.SchemaVersion != CurrentSchemaVersion)
         {
@@ -45,12 +45,7 @@ internal sealed record HubReleaseManifest(
         return manifest;
     }
 
-    internal static JsonSerializerOptions JsonOptions { get; } = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = true
-    };
+    internal static JsonSerializerOptions JsonOptions => HubJsonContext.Default.Options;
 }
 
 internal sealed record HubReleasePlatform(

@@ -34,11 +34,17 @@ public sealed partial class MainWindow : Window
     private HubPage currentPage = HubPage.Projects;
 
     public MainWindow()
+        : this(enableStartupDetection: true)
+    {
+    }
+
+    internal MainWindow(bool enableStartupDetection)
         : this(
             new HubLocalization(),
             new HubUpdateService(),
             new InstalledApplicationCatalog(),
-            new ApplicationPathStore())
+            new ApplicationPathStore(),
+            enableStartupDetection)
     {
     }
 
@@ -56,7 +62,8 @@ public sealed partial class MainWindow : Window
         HubLocalization localization,
         IHubUpdateService updateService,
         InstalledApplicationCatalog applicationCatalog,
-        ApplicationPathStore applicationPathStore)
+        ApplicationPathStore applicationPathStore,
+        bool enableStartupDetection = true)
     {
         Localization = localization;
         this.updateService = updateService;
@@ -70,7 +77,10 @@ public sealed partial class MainWindow : Window
         CreationForm = new ProjectCreationForm(localization);
         InitializeComponent();
         DataContext = this;
-        Opened += MainWindow_Opened;
+        if (enableStartupDetection)
+        {
+            Opened += MainWindow_Opened;
+        }
         PropertyChanged += MainWindow_PropertyChanged;
         Localization.PropertyChanged += Localization_PropertyChanged;
         UpdateWindowFrame();

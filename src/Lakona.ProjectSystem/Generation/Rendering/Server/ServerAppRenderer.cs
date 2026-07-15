@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Lakona.Tool.Domain;
 using Lakona.Tool.Planning;
 using Lakona.Tool.Rendering.Common;
@@ -7,11 +6,6 @@ namespace Lakona.Tool.Rendering.Server;
 
 internal sealed class ServerAppRenderer : IPlanContributor
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = true
-    };
-
     public void AddFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
         builder.AddFile("Server/Server.slnx", RenderSolution(), FileWriteMode.Replace, GeneratedFileKind.Solution);
@@ -328,6 +322,6 @@ internal sealed class ServerAppRenderer : IPlanContributor
             }
         };
 
-        return JsonSerializer.Serialize(settings, JsonOptions);
+        return System.Text.Json.JsonSerializer.Serialize(settings, ServerAppJsonContext.Default.AppSettings);
     }
 }

@@ -193,7 +193,7 @@ internal sealed class HubUpdateService : IHubUpdateService
         var planPath = Path.Combine(updateDirectory, "apply-update.json");
         await File.WriteAllTextAsync(
             planPath,
-            JsonSerializer.Serialize(plan, HubReleaseManifest.JsonOptions),
+            JsonSerializer.Serialize(plan, HubJsonContext.Default.HubUpdateLaunchPlan),
             cancellationToken);
 
         var startInfo = new ProcessStartInfo(updaterPath)

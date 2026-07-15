@@ -20,8 +20,9 @@ internal sealed class ApplicationPathStore
                 return new Dictionary<LocalApplicationKind, string>();
             }
 
-            var serialized = JsonSerializer.Deserialize<Dictionary<string, string>>(
-                File.ReadAllText(settingsFilePath));
+            var serialized = JsonSerializer.Deserialize(
+                File.ReadAllText(settingsFilePath),
+                HubJsonContext.Default.ApplicationPaths);
             if (serialized is null)
             {
                 return new Dictionary<LocalApplicationKind, string>();
@@ -58,10 +59,9 @@ internal sealed class ApplicationPathStore
         var temporaryPath = Path.Combine(directory, $".{Path.GetFileName(settingsFilePath)}.{Guid.NewGuid():N}.tmp");
         try
         {
-            File.WriteAllText(temporaryPath, JsonSerializer.Serialize(serialized, new JsonSerializerOptions
-            {
-                WriteIndented = true
-            }));
+            File.WriteAllText(
+                temporaryPath,
+                JsonSerializer.Serialize(serialized, HubJsonContext.Default.ApplicationPaths));
             File.Move(temporaryPath, settingsFilePath, overwrite: true);
         }
         finally

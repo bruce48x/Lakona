@@ -13,7 +13,7 @@ internal static class Program
             return;
         }
 
-        var applicationArgs = HubUpdateStartup.Capture(args);
+        var applicationArgs = HubAotSmokeTest.Capture(HubUpdateStartup.Capture(args));
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(applicationArgs);
     }
 

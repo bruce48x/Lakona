@@ -31,9 +31,9 @@ internal static class HubUpdateInstaller
 
     internal static async Task ApplyAsync(string planPath)
     {
-        var plan = JsonSerializer.Deserialize<HubUpdateLaunchPlan>(
+        var plan = JsonSerializer.Deserialize(
             await File.ReadAllTextAsync(planPath),
-            HubReleaseManifest.JsonOptions)
+            HubJsonContext.Default.HubUpdateLaunchPlan)
             ?? throw new InvalidDataException("The update launch plan is empty.");
         WaitForParent(plan.ParentProcessId);
 
@@ -132,9 +132,9 @@ internal static class HubUpdateInstaller
             Directory.CreateDirectory(overlay);
             HubFileSystem.ExtractZip(plan.ArchivePath, overlay);
             var deltaPath = Path.Combine(overlay, DeltaManifestName);
-            var delta = JsonSerializer.Deserialize<HubDeltaManifest>(
+            var delta = JsonSerializer.Deserialize(
                 await File.ReadAllTextAsync(deltaPath),
-                HubReleaseManifest.JsonOptions)
+                HubJsonContext.Default.HubDeltaManifest)
                 ?? throw new InvalidDataException("The delta manifest is empty.");
             if (delta.SchemaVersion != HubReleaseManifest.CurrentSchemaVersion)
             {
@@ -170,9 +170,9 @@ internal static class HubUpdateInstaller
     private static async Task VerifyCandidateAsync(string candidate, string targetVersion)
     {
         var manifestPath = Path.Combine(candidate, PackageManifestName);
-        var manifest = JsonSerializer.Deserialize<HubPackageManifest>(
+        var manifest = JsonSerializer.Deserialize(
             await File.ReadAllTextAsync(manifestPath),
-            HubReleaseManifest.JsonOptions)
+            HubJsonContext.Default.HubPackageManifest)
             ?? throw new InvalidDataException("The package manifest is empty.");
         if (manifest.SchemaVersion != HubReleaseManifest.CurrentSchemaVersion)
         {
@@ -299,9 +299,9 @@ internal static class HubUpdateInstaller
     {
         try
         {
-            var plan = JsonSerializer.Deserialize<HubUpdateLaunchPlan>(
+            var plan = JsonSerializer.Deserialize(
                 File.ReadAllText(planPath),
-                HubReleaseManifest.JsonOptions);
+                HubJsonContext.Default.HubUpdateLaunchPlan);
             if (plan is null || !Directory.Exists(plan.InstallDirectory))
             {
                 return;

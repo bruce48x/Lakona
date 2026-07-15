@@ -20,6 +20,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
+$deploymentModel = 'native-aot-v1'
 
 $portablePlatforms = @(
     @{ Rid = 'win-x64'; PackageRoot = 'Lakona Hub'; ExecutablePath = 'Lakona.Hub.exe'; SdkExecutable = 'dotnet/dotnet.exe' },
@@ -140,6 +141,9 @@ function New-Delta(
     if ($null -eq $PreviousManifest) {
         return $null
     }
+    if ($PreviousManifest.deploymentModel -ne $deploymentModel) {
+        return $null
+    }
     $previousPlatform = $PreviousManifest.platforms.($Platform.Rid)
     if ($null -eq $previousPlatform) {
         return $null
@@ -247,6 +251,7 @@ try {
 
     Write-JsonFile (Join-Path $OutputRoot 'lakona-hub-manifest.json') ([ordered]@{
         schemaVersion = 1
+        deploymentModel = $deploymentModel
         version = $Version
         tag = $Tag
         publishedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')

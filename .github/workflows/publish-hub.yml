@@ -86,18 +86,22 @@ jobs:
       matrix:
         include:
           - rid: win-x64
+            runs_on: windows-latest
             sdk_os: win
             sdk_arch: x64
           - rid: linux-x64
+            runs_on: ubuntu-22.04
             sdk_os: linux
             sdk_arch: x64
           - rid: osx-x64
+            runs_on: macos-15-intel
             sdk_os: osx
             sdk_arch: x64
           - rid: osx-arm64
+            runs_on: macos-15
             sdk_os: osx
             sdk_arch: arm64
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runs_on }}
     permissions:
       contents: read
 
@@ -110,7 +114,12 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Publish self-contained app
+      - name: Install Linux NativeAOT prerequisites
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev xvfb xauth
+
+      - name: Publish NativeAOT app with analysis warnings as errors
+        shell: pwsh
         run: >-
           dotnet publish src/Lakona.Hub/Lakona.Hub.csproj
           -c Release
@@ -118,16 +127,32 @@ jobs:
           --self-contained true
           -o artifacts/publish/hub-${{ matrix.rid }}
           -p:Version=${{ needs.validate.outputs.version }}
-          -p:PublishSingleFile=true
-          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:TreatWarningsAsErrors=true
+          -p:ILLinkTreatWarningsAsErrors=true
+          -p:SuppressTrimAnalysisWarnings=false
           -p:DebugType=None
           -p:DebugSymbols=false
 
-      - name: Add private .NET 10 SDK
+      - name: Remove debug symbols
+        shell: pwsh
+        run: Get-ChildItem 'artifacts/publish/hub-${{ matrix.rid }}' -Recurse -Filter '*.pdb' | Remove-Item -Force
+
+      - name: Add private .NET 10 SDK on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://dot.net/v1/dotnet-install.ps1 -OutFile dotnet-install.ps1
+          ./dotnet-install.ps1 `
+            -Version $env:DOTNET_SDK_VERSION `
+            -Architecture '${{ matrix.sdk_arch }}' `
+            -InstallDir 'artifacts/publish/hub-${{ matrix.rid }}/dotnet' `
+            -NoPath
+
+      - name: Add private .NET 10 SDK on Unix
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           set -euo pipefail
-          find "artifacts/publish/hub-${{ matrix.rid }}" -type f -name '*.pdb' -delete
           curl -fsSL https://dot.net/v1/dotnet-install.sh -o dotnet-install.sh
           bash dotnet-install.sh \
             --version "$DOTNET_SDK_VERSION" \
@@ -135,6 +160,27 @@ jobs:
             --architecture "${{ matrix.sdk_arch }}" \
             --install-dir "artifacts/publish/hub-${{ matrix.rid }}/dotnet" \
             --no-path
+
+      - name: Smoke test Windows NativeAOT artifact
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: "& 'artifacts/publish/hub-${{ matrix.rid }}/Lakona.Hub.exe' --aot-smoke-test"
+
+      - name: Smoke test Linux NativeAOT artifact
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          chmod +x artifacts/publish/hub-${{ matrix.rid }}/Lakona.Hub
+          chmod +x artifacts/publish/hub-${{ matrix.rid }}/dotnet/dotnet
+          xvfb-run --auto-servernum artifacts/publish/hub-${{ matrix.rid }}/Lakona.Hub --aot-smoke-test
+
+      - name: Smoke test macOS NativeAOT artifact
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          chmod +x artifacts/publish/hub-${{ matrix.rid }}/Lakona.Hub
+          chmod +x artifacts/publish/hub-${{ matrix.rid }}/dotnet/dotnet
+          artifacts/publish/hub-${{ matrix.rid }}/Lakona.Hub --aot-smoke-test
 
       - name: Upload platform files
         uses: actions/upload-artifact@v7
