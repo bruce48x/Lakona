@@ -1,6 +1,7 @@
 interface EchoMessage {
   requestId: number;
   payload: number[];
+  targetKey: string;
 }
 
 export default function (app: any): EchoHandler {
@@ -21,5 +22,9 @@ export class EchoHandler {
 
   public async direct(message: EchoMessage, _session: any): Promise<object> {
     return await this.app.rpc.worker.echoRemote.echo.toServer("worker-server-1", message);
+  }
+
+  public async routed(message: EchoMessage, _session: any): Promise<object> {
+    return await this.app.rpc.worker.echoRemote.echo.route(message.targetKey)(message);
   }
 }

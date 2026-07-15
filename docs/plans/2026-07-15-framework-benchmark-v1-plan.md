@@ -12,7 +12,7 @@
   validation script (`2026-07-15`).
 - [x] Slice 2: Lakona and Pinus `frontdoor.echo` (`2026-07-15`).
 - [x] Slice 3: `cluster.direct` (`2026-07-15`).
-- [ ] Slice 4: `cluster.routed`.
+- [x] Slice 4: `cluster.routed` (`2026-07-15`).
 - [ ] Slice 5: complete version 1 user experience.
 
 ## Outcome
@@ -176,16 +176,17 @@ comparison metric.
 | --- | --- | --- | --- |
 | `frontdoor.echo` | Native client RPC -> generated server dispatch -> echo service | Pomelo-compatible client request -> connector handler | Same request ID and payload; terminal node is the front-door node |
 | `cluster.direct` | Front-door RPC -> generated Lakona.Rpc request over TCP to a configured worker -> response through front door | Connector handler -> RPC to an explicitly selected backend server ID -> response through connector | Terminal node is the configured direct worker |
-| `cluster.routed` | Front-door RPC -> `IRouteDirectory` lookup through `IClusterRouter` -> owning worker -> response | Connector handler -> registered Pinus router using logical target key -> selected backend RPC -> response | Terminal node equals the deterministic owner for the target key |
+| `cluster.routed` | Front-door RPC -> `IRouteDirectory` lookup -> generated RPC to the owning worker -> response | Connector handler -> registered Pinus router using logical target key -> selected backend RPC -> response | Terminal node equals the deterministic owner for the target key |
 
 The routed topology starts two eligible backend workers. A stable hash of the
 logical target key selects the expected owner. The test target set includes
 keys owned by both workers so a hard-coded single destination cannot pass.
 
-For Lakona routed workloads, use public node and route registration plus the
-production cluster transport. Its direct workload uses generated unary RPC
-because `IClusterNodeSender` is a one-way delivery API that returns only an
-acceptance status, while `cluster.direct` requires the worker response. For
+For Lakona routed workloads, use public route registration and lookup plus the
+production TCP transport. The resolved owner is called with generated unary
+RPC because `IClusterRouter` and `IClusterNodeSender` are one-way delivery APIs
+that return only an acceptance status, while these workloads require the
+worker response. For
 Pinus, use normal server discovery, router registration, and
 backend RPC. If the exact Pinus release exposes different public names, adapt
 the implementation to that release without changing the observable semantics;

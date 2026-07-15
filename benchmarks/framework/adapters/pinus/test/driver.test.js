@@ -7,6 +7,7 @@ const {
   quantizeUpperBound,
   request
 } = require("../dist/driver");
+const { ownerNumber, targetKey, workerNode } = require("../dist/routing");
 
 test("payload generation is deterministic at both version 1 sizes", () => {
   for (const size of [32, 256]) {
@@ -15,6 +16,13 @@ test("payload generation is deterministic at both version 1 sizes", () => {
     assert.equal(first.length, size);
     assert.deepEqual(first, second);
   }
+});
+
+test("routed targets have stable ownership across both workers", () => {
+  assert.equal(targetKey(256), "entity/0");
+  assert.equal(ownerNumber("entity/0"), 2);
+  assert.equal(workerNode("entity/1"), "worker-server-1");
+  assert.deepEqual(new Set(Array.from({ length: 256 }, (_, index) => ownerNumber(targetKey(index)))), new Set([1, 2]));
 });
 
 test("response classification distinguishes every completed outcome", () => {

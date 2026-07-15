@@ -45,4 +45,13 @@ public sealed class DriverConformanceTests
     {
         Assert.Equal(expected, HistogramBucketQuantizer.UpperBound(value, 3));
     }
+
+    [Theory]
+    [InlineData("entity/0", "worker-2")]
+    [InlineData("entity/1", "worker-1")]
+    [InlineData("entity/42", "worker-2")]
+    public void RoutedTargetOwnershipIsStable(string targetKey, string expectedOwner)
+    {
+        Assert.Equal(expectedOwner, BenchmarkRouting.Owner(targetKey));
+    }
 }

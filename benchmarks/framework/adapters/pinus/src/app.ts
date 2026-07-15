@@ -1,16 +1,18 @@
 import { mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 import "reflect-metadata";
+import { workerNode } from "./routing";
 
 const { pinus } = require("pinus") as { pinus: any };
 
 console.log = (...values: unknown[]) => console.error(...values);
 
 const options = readOptions(process.argv.slice(2));
-const role = options.role === "master" ? "master" : options.role === "worker" ? "worker" : "frontdoor";
+const role = options.role ?? "frontdoor";
 const clientPort = readPort(options, "clientPort");
 const connectorPort = readPort(options, "connectorPort");
-const workerPort = readPort(options, "workerPort");
+const worker1Port = readPort(options, "worker1Port");
+const worker2Port = readPort(options, "worker2Port");
 const masterPort = readPort(options, "masterPort");
 const base = __dirname;
 const configDirectory = join(base, "config");
@@ -31,7 +33,11 @@ const servers = {
   worker: [{
     id: "worker-server-1",
     host: "127.0.0.1",
-    port: workerPort
+    port: worker1Port
+  }, {
+    id: "worker-server-2",
+    host: "127.0.0.1",
+    port: worker2Port
   }]
 };
 writeFileSync(join(configDirectory, "servers.json"), JSON.stringify({
@@ -41,6 +47,14 @@ writeFileSync(join(configDirectory, "servers.json"), JSON.stringify({
 
 const app = pinus.createApp({ base });
 app.set("name", "framework-benchmark-pinus");
+app.route("worker", (routeFrom: unknown, _message: unknown, _app: unknown, callback: (error: Error | null, serverId?: string) => void) => {
+  if (typeof routeFrom !== "string") {
+    callback(new Error("A target key is required for worker routing."));
+    return;
+  }
+
+  callback(null, workerNode(routeFrom));
+});
 app.configure("production|development", "connector", () => {
   app.set("connectorConfig", {
     connector: pinus.connectors.hybridconnector,
@@ -65,7 +79,7 @@ app.start((error?: Error) => {
   process.stdout.write(`${JSON.stringify({
     event: "ready",
     role,
-    nodeId: role === "master" ? "master-1" : role === "worker" ? "worker-server-1" : "connector-server-1",
+    nodeId: role === "master" ? "master-1" : role.startsWith("worker-") ? app.getServerId() : "connector-server-1",
     endpoints: role === "frontdoor" ? { client: `ws://127.0.0.1:${clientPort}` } : {}
   })}\n`);
 });

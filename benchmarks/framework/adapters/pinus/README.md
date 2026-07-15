@@ -16,6 +16,10 @@ is lifecycle-only and is outside the measured request path.
 The backend remote returns `worker-server-1` through the connector, proving
 that the request did not execute locally.
 
+`cluster.routed` uses Pinus's normal `app.route("worker", ...)` registration and
+routed remote proxy. The shared FNV-1a target fixture spans both backend
+workers, and every response is checked against the target's expected owner.
+
 Exact npm artifacts and integrity hashes are recorded by `package-lock.json`.
 Pinus 1.7.3 currently emits a Node.js deprecation warning for `util.isFunction`
 on Node.js 22; it is captured in server stderr and does not invalidate a run.

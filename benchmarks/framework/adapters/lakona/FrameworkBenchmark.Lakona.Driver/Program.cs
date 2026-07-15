@@ -20,7 +20,7 @@ internal static class DriverProgram
             var casePath = ReadOption(args, "--case");
             var resultPath = ReadOption(args, "--result");
             var command = BenchmarkJson.Read<CaseCommand>(casePath);
-            if (command.Workload is not ("frontdoor.echo" or "cluster.direct"))
+            if (command.Workload is not ("frontdoor.echo" or "cluster.direct" or "cluster.routed"))
             {
                 throw new InvalidDataException($"Lakona driver does not support '{command.Workload}'.");
             }
@@ -110,7 +110,7 @@ internal static class DriverProgram
             var requestId = requestIds.Next();
             var payload = PayloadGenerator.Create(command.Seed, requestId, command.PayloadSize);
             var response = await CallAsync(client, command, requestId, payload);
-            if (!IsValid(response, requestId, payload, ExpectedTerminalNode(command.Workload)))
+            if (!IsValid(response, requestId, payload, ExpectedTerminalNode(command.Workload, requestId)))
             {
                 throw new InvalidDataException("Lakona returned an invalid response during warm-up.");
             }
@@ -138,7 +138,7 @@ internal static class DriverProgram
                     response,
                     requestId,
                     payload,
-                    ExpectedTerminalNode(command.Workload)))
+                    ExpectedTerminalNode(command.Workload, requestId)))
                 {
                     case EchoResponseOutcome.Corrupt: accumulator.Corrupt(); break;
                     case EchoResponseOutcome.Misrouted: accumulator.Misrouted(); break;
@@ -169,16 +169,28 @@ internal static class DriverProgram
         long requestId,
         byte[] payload)
     {
-        var request = new EchoRequest { RequestId = requestId, Payload = payload };
-        var call = command.Workload == "cluster.direct"
-            ? client.Api.Benchmark.Echo.DirectAsync(request)
-            : client.Api.Benchmark.Echo.EchoAsync(request);
+        var request = new EchoRequest
+        {
+            RequestId = requestId,
+            Payload = payload,
+            TargetKey = BenchmarkRouting.TargetKey(requestId)
+        };
+        var call = command.Workload switch
+        {
+            "cluster.direct" => client.Api.Benchmark.Echo.DirectAsync(request),
+            "cluster.routed" => client.Api.Benchmark.Echo.RoutedAsync(request),
+            _ => client.Api.Benchmark.Echo.EchoAsync(request)
+        };
         return await call.AsTask().WaitAsync(
             TimeSpan.FromMilliseconds(command.Timing.RequestTimeoutMilliseconds));
     }
 
-    private static string ExpectedTerminalNode(string workload) =>
-        workload == "cluster.direct" ? "worker-1" : "frontdoor-1";
+    private static string ExpectedTerminalNode(string workload, long requestId) => workload switch
+    {
+        "cluster.direct" => "worker-1",
+        "cluster.routed" => BenchmarkRouting.Owner(BenchmarkRouting.TargetKey(requestId)),
+        _ => "frontdoor-1"
+    };
 
     private static bool IsValid(EchoResponse response, long requestId, byte[] payload, string terminalNode) =>
         response.RequestId == requestId &&

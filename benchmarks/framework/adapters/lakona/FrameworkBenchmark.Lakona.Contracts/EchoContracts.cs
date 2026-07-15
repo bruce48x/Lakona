@@ -11,6 +11,9 @@ public interface IEchoService
 
     [RpcMethod(2)]
     ValueTask<EchoResponse> DirectAsync(EchoRequest request);
+
+    [RpcMethod(3)]
+    ValueTask<EchoResponse> RoutedAsync(EchoRequest request);
 }
 
 [RpcService(2, ApiGroup = "Benchmark", ApiName = "Worker")]
@@ -28,6 +31,9 @@ public sealed partial class EchoRequest
 
     [MemoryPackOrder(1)]
     public byte[] Payload { get; set; } = [];
+
+    [MemoryPackOrder(2)]
+    public string TargetKey { get; set; } = string.Empty;
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]

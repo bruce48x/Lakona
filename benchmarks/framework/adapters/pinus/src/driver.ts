@@ -2,6 +2,7 @@ import { EventEmitter } from "events";
 import { createHash } from "crypto";
 import { readFileSync, writeFileSync } from "fs";
 import { resolve } from "path";
+import { targetKey, workerNode } from "./routing";
 
 type PomeloClient = EventEmitter & {
   init(options: { host: string; port: number; user: object; handshakeCallback: () => void }, callback: () => void): void;
@@ -46,7 +47,7 @@ async function main(): Promise<void> {
   const casePath = readOption("--case");
   const resultPath = readOption("--result");
   const command = JSON.parse(readFileSync(casePath, "utf8")) as CaseCommand;
-  if (command.workload !== "frontdoor.echo" && command.workload !== "cluster.direct") {
+  if (!(["frontdoor.echo", "cluster.direct", "cluster.routed"] as string[]).includes(command.workload)) {
     throw new Error(`Pinus driver does not support '${command.workload}'.`);
   }
 
@@ -120,11 +121,11 @@ async function warmup(
     const payload = createPayload(command.seed, requestId, command.payloadSize);
     const response = await request(
       client,
-      { requestId, payload },
+      { requestId, payload, targetKey: targetKey(requestId) },
       command.timing.requestTimeoutMilliseconds,
       () => undefined,
       routeFor(command.workload));
-    if (!valid(response, requestId, payload, terminalNodeFor(command.workload))) {
+    if (!valid(response, requestId, payload, terminalNodeFor(command.workload, requestId))) {
       throw new Error("Pinus returned an invalid response during warm-up.");
     }
   }
@@ -144,13 +145,13 @@ async function measure(
     try {
       const response = await request(
         client,
-        { requestId, payload },
+        { requestId, payload, targetKey: targetKey(requestId) },
         command.timing.requestTimeoutMilliseconds,
         () => accumulator.duplicateResponses++,
         routeFor(command.workload));
       accumulator.recordLatency(Number((process.hrtime.bigint() - started + 999n) / 1_000n));
       accumulator.completed++;
-      switch (classifyResponse(response, requestId, payload, terminalNodeFor(command.workload))) {
+      switch (classifyResponse(response, requestId, payload, terminalNodeFor(command.workload, requestId))) {
         case "rejected": accumulator.rejected++; break;
         case "corrupt": accumulator.corrupt++; break;
         case "misrouted": accumulator.misrouted++; break;
@@ -212,11 +213,15 @@ export function classifyResponse(
 }
 
 function routeFor(workload: string): string {
-  return workload === "cluster.direct" ? "connector.echoHandler.direct" : "connector.echoHandler.echo";
+  if (workload === "cluster.direct") return "connector.echoHandler.direct";
+  if (workload === "cluster.routed") return "connector.echoHandler.routed";
+  return "connector.echoHandler.echo";
 }
 
-function terminalNodeFor(workload: string): string {
-  return workload === "cluster.direct" ? "worker-server-1" : "connector-server-1";
+function terminalNodeFor(workload: string, requestId: number): string {
+  if (workload === "cluster.direct") return "worker-server-1";
+  if (workload === "cluster.routed") return workerNode(targetKey(requestId));
+  return "connector-server-1";
 }
 
 function equalPayload(actual: unknown, expected: number[]): boolean {
