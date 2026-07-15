@@ -27,6 +27,11 @@ public sealed class HotfixRuntimeSnapshotLease : IDisposable
 
     public IServiceProvider Services => Snapshot.Services;
 
+    internal IDisposable EnterDispatchScope()
+    {
+        return HotfixDispatchRuntimeScope.Enter(this);
+    }
+
     public void Dispose()
     {
         _dispatchRuntimeScope?.Dispose();

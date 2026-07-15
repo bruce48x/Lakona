@@ -575,21 +575,14 @@ public static partial class RoomBehavior
             return;
         }
 
-        try
-        {
-            self.BattleRuntimeTimerId = await LakonaTimer
-                .CreatePeriodicTimerAsync<BattleRuntimeTimerCallbacks, BattleRuntimeTimerArgs>(
-                    TimeSpan.Zero,
-                    TimeSpan.FromMilliseconds(50),
-                    nameof(BattleRuntimeTimerCallbacks.TickAsync),
-                    new BattleRuntimeTimerArgs { RoomId = roomId },
-                    cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (InvalidOperationException ex) when (IsMissingLakonaTimerScope(ex))
-        {
-            return;
-        }
+        self.BattleRuntimeTimerId = await LakonaTimer
+            .CreatePeriodicTimerAsync<BattleRuntimeTimerCallbacks, BattleRuntimeTimerArgs>(
+                TimeSpan.Zero,
+                TimeSpan.FromMilliseconds(50),
+                nameof(BattleRuntimeTimerCallbacks.TickAsync),
+                new BattleRuntimeTimerArgs { RoomId = roomId },
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private static async ValueTask DestroyBattleRuntimeTimerAsync(RoomActor self)
@@ -598,23 +591,8 @@ public static partial class RoomBehavior
         self.BattleRuntimeTimerId = default;
         if (timerId.IsValid)
         {
-            try
-            {
-                await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (InvalidOperationException ex) when (IsMissingLakonaTimerScope(ex))
-            {
-                return;
-            }
+            await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None).ConfigureAwait(false);
         }
-    }
-
-    private static bool IsMissingLakonaTimerScope(InvalidOperationException ex)
-    {
-        return string.Equals(
-            ex.Message,
-            "Lakona timers can only be used inside an active hotfix execution scope.",
-            StringComparison.Ordinal);
     }
 
     private static void EnsureState(RoomActor self, string roomId)

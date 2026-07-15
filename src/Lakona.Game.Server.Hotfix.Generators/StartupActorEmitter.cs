@@ -10,16 +10,16 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("    where TActor : global::Lakona.Game.Server.Actors.Actor");
             builder.AppendLine("{");
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IStartupActorInvoker _startup;");
-            builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorRuntime _runtime;");
+            builder.AppendLine("    private readonly ActorAccess _actors;");
             builder.AppendLine("    private readonly TKey _key;");
             builder.AppendLine();
             builder.AppendLine("    internal StartupActor(");
             builder.AppendLine("        global::Lakona.Game.Server.Actors.IStartupActorInvoker startup,");
-            builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorRuntime runtime,");
+            builder.AppendLine("        ActorAccess actors,");
             builder.AppendLine("        TKey key)");
             builder.AppendLine("    {");
             builder.AppendLine("        _startup = startup;");
-            builder.AppendLine("        _runtime = runtime;");
+            builder.AppendLine("        _actors = actors;");
             builder.AppendLine("        _key = key;");
             builder.AppendLine("    }");
             builder.AppendLine();
@@ -30,7 +30,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        TRequest request,");
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken)");
             builder.AppendLine("    {");
-            builder.AppendLine("        var runtime = _runtime;");
+            builder.AppendLine("        var runtime = _actors.Runtime;");
+            builder.AppendLine("        var runtimeAccessor = _actors.HotfixRuntime;");
             builder.AppendLine("        return _startup.CallAsync<TActor, TKey, TRequest>(");
             builder.AppendLine("            _key,");
             builder.AppendLine("            GeneratedActorMetadata<TActor>.ActorName,");
@@ -49,7 +50,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        TRequest request,");
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken)");
             builder.AppendLine("    {");
-            builder.AppendLine("        var runtime = _runtime;");
+            builder.AppendLine("        var runtime = _actors.Runtime;");
+            builder.AppendLine("        var runtimeAccessor = _actors.HotfixRuntime;");
             builder.AppendLine("        return _startup.CallAsync<TActor, TKey, TRequest, TResult>(");
             builder.AppendLine("            _key,");
             builder.AppendLine("            GeneratedActorMetadata<TActor>.ActorName,");
@@ -68,7 +70,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        TRequest request,");
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken)");
             builder.AppendLine("    {");
-            builder.AppendLine("        var runtime = _runtime;");
+            builder.AppendLine("        var runtime = _actors.Runtime;");
+            builder.AppendLine("        var runtimeAccessor = _actors.HotfixRuntime;");
             builder.AppendLine("        return _startup.PostAsync<TActor, TKey, TRequest>(");
             builder.AppendLine("            _key,");
             builder.AppendLine("            GeneratedActorMetadata<TActor>.ActorName,");
@@ -86,13 +89,14 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
         private static void AppendStartupDispatchLambda(StringBuilder builder, bool isResult, bool isTryTell)
         {
-            builder.Append("                (actor, innerCt) => global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync");
+            builder.Append("                (actor, innerCt) => global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeActorAsync");
             if (isResult)
             {
                 builder.Append("<TResult>");
             }
 
             builder.AppendLine("(");
+            builder.AppendLine("                    runtimeAccessor,");
             builder.AppendLine("                    typeof(TActor),");
             builder.AppendLine("                    method.MethodName,");
             builder.AppendLine("                    actor,");

@@ -205,21 +205,14 @@ public static partial class MatchmakingBehavior
             return;
         }
 
-        try
-        {
-            self.MatchmakingTimerId = await LakonaTimer
-                .CreatePeriodicTimerAsync<MatchmakingTimerCallbacks, MatchmakingTimerArgs>(
-                    TimeSpan.Zero,
-                    TimeSpan.FromSeconds(1),
-                    nameof(MatchmakingTimerCallbacks.TickAsync),
-                    new MatchmakingTimerArgs { OwnerActorId = self.Context.Id.Value },
-                    cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (InvalidOperationException ex) when (IsMissingLakonaTimerScope(ex))
-        {
-            return;
-        }
+        self.MatchmakingTimerId = await LakonaTimer
+            .CreatePeriodicTimerAsync<MatchmakingTimerCallbacks, MatchmakingTimerArgs>(
+                TimeSpan.Zero,
+                TimeSpan.FromSeconds(1),
+                nameof(MatchmakingTimerCallbacks.TickAsync),
+                new MatchmakingTimerArgs { OwnerActorId = self.Context.Id.Value },
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 
     internal static async ValueTask DestroyMatchmakingTimerAsync(this MatchmakingActor self)
@@ -231,14 +224,7 @@ public static partial class MatchmakingBehavior
             return;
         }
 
-        try
-        {
-            await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (InvalidOperationException ex) when (IsMissingLakonaTimerScope(ex))
-        {
-            return;
-        }
+        await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None).ConfigureAwait(false);
     }
 
     private static async ValueTask<Dictionary<string, RoomAssignment>> TryMatchAsync(
@@ -581,14 +567,6 @@ public static partial class MatchmakingBehavior
             DefaultRoomSize = MatchmakingActor.DefaultRoomSize
         };
         self.RecordExists = true;
-    }
-
-    private static bool IsMissingLakonaTimerScope(InvalidOperationException ex)
-    {
-        return string.Equals(
-            ex.Message,
-            "Lakona timers can only be used inside an active hotfix execution scope.",
-            StringComparison.Ordinal);
     }
 
     private static string GetQueueId(MatchmakingActor self) => self.Context.Id.Value;

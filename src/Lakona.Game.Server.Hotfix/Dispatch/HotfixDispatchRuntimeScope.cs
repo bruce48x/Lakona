@@ -54,9 +54,7 @@ internal sealed class HotfixDispatchRuntimeScope : IDisposable
         return new HotfixDispatchRuntimeScope(lease, timerBackend);
     }
 
-    internal static HotfixDispatchRuntimeScope Enter(
-        HotfixRuntimeSnapshotLease lease,
-        ILakonaTimerBackend? timerBackend)
+    internal static HotfixDispatchRuntimeScope Enter(HotfixRuntimeSnapshotLease lease)
     {
         ArgumentNullException.ThrowIfNull(lease);
 
@@ -65,6 +63,7 @@ internal sealed class HotfixDispatchRuntimeScope : IDisposable
             throw new InvalidOperationException("A hotfix dispatch runtime scope requires a dispatch table.");
         }
 
+        var timerBackend = lease.Snapshot.Services.GetService<ILakonaTimerBackend>();
         return new HotfixDispatchRuntimeScope(lease, timerBackend);
     }
 

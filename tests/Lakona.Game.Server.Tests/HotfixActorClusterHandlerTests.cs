@@ -71,6 +71,35 @@ public sealed class HotfixActorClusterHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_reenters_hotfix_scope_inside_actor_mailbox()
+    {
+        var serializer = new JsonRemoteActorSerializer();
+        var runtime = new RecordingActorRuntime { SuppressExecutionContextFlow = true };
+        var handler = CreateHandler(
+            runtime,
+            serializer,
+            new RecordingClusterNodeSender(),
+            CreateSnapshot(CreatePingDescriptor()));
+        var message = new ClusterActorEnvelope(
+            ClusterActorRouteKeys.ForActor("user/scoped"),
+            "user/scoped",
+            HotfixActorApiMetadata.ActorMessageKind,
+            serializer.Serialize(new PingRequest("require-scope"), typeof(PingRequest)),
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            new NodeId("node-a"),
+            replyCorrelationId: "reply-scoped",
+            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [HotfixActorApiMetadata.MethodIdKey] = PingMethodId
+            }).ToClusterMessage();
+
+        var status = await handler.HandleAsync(message, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.Accepted, status);
+        Assert.Equal("require-scope", runtime.Actor.LastPing);
+    }
+
+    [Fact]
     public async Task HandleAsync_returns_reply_delivery_failure_after_behavior_executes()
     {
         var serializer = new JsonRemoteActorSerializer();
@@ -626,6 +655,11 @@ public sealed class HotfixActorClusterHandlerTests
         PingRequest request,
         CancellationToken cancellationToken)
     {
+        if (request.Value == "require-scope" && HotfixDispatchRuntimeScope.Current is null)
+        {
+            throw new InvalidOperationException("Hotfix dispatch scope is not active inside the actor mailbox.");
+        }
+
         return actor.PingAsync(request, cancellationToken);
     }
 
@@ -696,6 +730,8 @@ public sealed class HotfixActorClusterHandlerTests
         public TaskCompletionSource? TellEntered { get; init; }
 
         public Task? TellRelease { get; init; }
+
+        public bool SuppressExecutionContextFlow { get; init; }
 
         public int DynamicTellCount { get; private set; }
 
@@ -791,6 +827,19 @@ public sealed class HotfixActorClusterHandlerTests
         {
             LastActorType = actorType;
             LastActorId = id;
+            if (SuppressExecutionContextFlow)
+            {
+                Task<object?> dispatchTask;
+                using (ExecutionContext.SuppressFlow())
+                {
+                    dispatchTask = Task.Run(
+                        async () => await message(Actor, cancellationToken).ConfigureAwait(false),
+                        cancellationToken);
+                }
+
+                return await dispatchTask.ConfigureAwait(false);
+            }
+
             return await message(Actor, cancellationToken).ConfigureAwait(false);
         }
 

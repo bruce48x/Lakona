@@ -4,6 +4,18 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-15 — Generation-pinned Hotfix actor dispatch
+
+**Key releases:** `Lakona.Game.Server 0.18.13`,
+`Lakona.Game.Server.Hotfix 0.8.4`, and
+`Lakona.Game.Server.Hotfix.Generators 0.5.7`.
+
+- Pinned local and cross-node Hotfix actor invocations to one runtime
+  generation while their mailbox handlers execute, restoring the active
+  execution scope required by generation-aware services and Lakona timers.
+- Restored Agar battle ticks and realtime `WorldState` publication after a
+  room starts on a remote battle node.
+
 ## 2026-07-15 — Serializer-safe reliable push
 
 **Key releases:** `Lakona.Game.Server 0.18.12`,

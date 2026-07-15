@@ -115,6 +115,7 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
                         {
                             try
                             {
+                                using var dispatchScope = callState.EnterDispatchScope();
                                 await callState.Table.InvokeActorAsync(
                                     callState.MethodKey,
                                     actor,
@@ -176,6 +177,7 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
                     {
                         try
                         {
+                            using var dispatchScope = postState.EnterDispatchScope();
                             await postState.Table.InvokeActorAsync(
                                 postState.MethodKey,
                                 actor,
@@ -213,12 +215,16 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
                 result = await _runtime.AskAsync(
                     descriptor.ActorType,
                     actorId,
-                    async (actor, ct) => await table.InvokeActorAsync(
-                        descriptor.MethodKey,
-                        actor,
-                        request,
-                        descriptor.ResultType,
-                        ct).ConfigureAwait(false),
+                    async (actor, ct) =>
+                    {
+                        using var dispatchScope = lease.EnterDispatchScope();
+                        return await table.InvokeActorAsync(
+                            descriptor.MethodKey,
+                            actor,
+                            request,
+                            descriptor.ResultType,
+                            ct).ConfigureAwait(false);
+                    },
                     cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -421,6 +427,11 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
         public string MethodKey { get; } = methodKey;
 
         public object? Request { get; } = request;
+
+        public IDisposable EnterDispatchScope()
+        {
+            return lease.EnterDispatchScope();
+        }
 
         public void DisposeLease()
         {
