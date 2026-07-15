@@ -1,4 +1,5 @@
 using System.Reflection;
+using Server.App.State.Contracts;
 using Server.App.State.Contracts.Rooms;
 using Server.App.State.Contracts.Sessions;
 using Server.App.State.Contracts.Users;
@@ -6,6 +7,7 @@ using Server.App.State.Rooms;
 using Server.App.State.Users;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Hotfix;
 using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.State.Rooms;
 using Server.Hotfix.State.Users;
@@ -401,7 +403,8 @@ public sealed class PlayerSessionActorStateTests
         var actors = provider.GetRequiredService<IActorRuntime>();
         var roomId = "room-realtime-input-accept";
 
-        await CreateReadyStartedRoomAsync(actors, provider.GetRequiredService<ActorHosting>(), roomId, cancellationToken);
+        await TestHotfix.LoadCurrentRuntimeAsync(provider, cancellationToken);
+        await CreateReadyStartedRoomAsync(provider, roomId, cancellationToken);
 
         var input = await SubmitInputAndReadAsync(
             actors,
@@ -432,7 +435,8 @@ public sealed class PlayerSessionActorStateTests
         var actors = provider.GetRequiredService<IActorRuntime>();
         var roomId = $"room-realtime-input-reject-{DescribeRealtimeIdentity(requestRealtimeSessionId)}-{requestRealtimeSessionGeneration}";
 
-        await CreateReadyStartedRoomAsync(actors, provider.GetRequiredService<ActorHosting>(), roomId, cancellationToken);
+        await TestHotfix.LoadCurrentRuntimeAsync(provider, cancellationToken);
+        await CreateReadyStartedRoomAsync(provider, roomId, cancellationToken);
         var before = await ReadSubmittedInputAsync(actors, roomId, cancellationToken);
 
         var after = await SubmitInputAndReadAsync(
@@ -449,11 +453,12 @@ public sealed class PlayerSessionActorStateTests
     }
 
     private static async Task CreateReadyStartedRoomAsync(
-        IActorRuntime actors,
-        ActorHosting hosting,
+        IServiceProvider services,
         string roomId,
         CancellationToken cancellationToken)
     {
+        var actors = services.GetRequiredService<IActorRuntime>();
+        var hosting = services.GetRequiredService<ActorHosting>();
         await hosting.EnsureAsync<RoomActor>(ActorId.From(roomId), cancellationToken);
         await actors.AskAsync<RoomActor, RoomSettlementResult>(
             ActorId.From(roomId),
@@ -490,15 +495,17 @@ public sealed class PlayerSessionActorStateTests
                 UpdatedAtUtc = DateTime.UtcNow
             }),
             cancellationToken);
-        await actors.AskAsync<RoomActor, RoomSettlementResult>(
-            ActorId.From(roomId),
-            (actor, _) => actor.StartAsync(new RoomStartRequest
-            {
-                RoomId = roomId,
-                StartedByUserId = "player-1",
-                StartedAtUtc = DateTime.UtcNow
-            }),
-            cancellationToken);
+        await services.GetRequiredService<ActorAccess>()
+            .Local<RoomActor>(new RoomId(roomId))
+            .CallAsync(
+                RoomBehavior.StartAsync,
+                new RoomStartRequest
+                {
+                    RoomId = roomId,
+                    StartedByUserId = "player-1",
+                    StartedAtUtc = DateTime.UtcNow
+                },
+                cancellationToken);
     }
 
     private static ValueTask<SubmittedInputState> SubmitInputAndReadAsync(

@@ -44,7 +44,9 @@ internal static class TestHotfix
             throw new InvalidOperationException(BuildReloadDiagnostics(reload));
         }
 
-        return ((IHotfixRuntimeAccessor)manager).Current;
+        var runtime = ((IHotfixRuntimeAccessor)manager).Current;
+        rootServices.UseTestHotfixRuntime(runtime);
+        return runtime;
     }
 
     public static string FindHotfixAssemblyPath(
@@ -145,6 +147,16 @@ internal static class TestHotfix
 
 internal static class AgarTestServiceCollectionExtensions
 {
+    public static void UseTestHotfixRuntime(
+        this IServiceProvider services,
+        HotfixRuntimeSnapshot runtime)
+    {
+        if (services.GetService<IHotfixRuntimeAccessor>() is TestHotfixRuntimeAccessor accessor)
+        {
+            accessor.Use(runtime);
+        }
+    }
+
     public static IServiceCollection AddGeneratedActorSelectorTestDependencies(this IServiceCollection services)
     {
         new global::GeneratedHotfixActorRegistration().Register(services);
@@ -162,11 +174,13 @@ internal static class AgarTestServiceCollectionExtensions
 
     private sealed class TestHotfixRuntimeAccessor : IHotfixRuntimeAccessor
     {
+        private HotfixRuntimeSnapshot current;
+
         public TestHotfixRuntimeAccessor(IServiceProvider services)
         {
             var actors = new ActorHostBuilder();
             Server.Hotfix.HotfixStartup.ConfigureActors(actors);
-            Current = new HotfixRuntimeSnapshot(
+            current = new HotfixRuntimeSnapshot(
                 new HotfixServiceInvoker(),
                 services,
                 actors.Startups,
@@ -174,7 +188,13 @@ internal static class AgarTestServiceCollectionExtensions
                 "hotfix");
         }
 
-        public HotfixRuntimeSnapshot Current { get; }
+        public HotfixRuntimeSnapshot Current => Volatile.Read(ref current);
+
+        public void Use(HotfixRuntimeSnapshot runtime)
+        {
+            ArgumentNullException.ThrowIfNull(runtime);
+            Volatile.Write(ref current, runtime);
+        }
     }
 
     private sealed class FailingRemoteActorInvoker : IRemoteActorInvoker

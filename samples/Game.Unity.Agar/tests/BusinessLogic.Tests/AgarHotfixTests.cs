@@ -1,6 +1,7 @@
 using System.Reflection;
 using Server.App.State.Contracts;
 using Server.App.State.Contracts.Leaderboard;
+using Server.App.State.Contracts.Matchmaking;
 using Server.App.State.Contracts.Rooms;
 using Server.App.State.Contracts.Sessions;
 using Server.App.State.Contracts.Users;
@@ -24,6 +25,7 @@ using Microsoft.Extensions.Logging;
 using Server.App.Generated;
 using Server.Hotfix.Services;
 using Server.Hotfix.State.Leaderboard;
+using Server.Hotfix.State.Matchmaking;
 using Server.Hotfix.State.Rooms;
 using Server.Hotfix.State.Users;
 using Server.Hotfix.Timers;
@@ -37,6 +39,33 @@ namespace Agar.Unity.Tests;
 
 public sealed class AgarHotfixTests
 {
+    [Fact]
+    public async Task StartingMatchmakingTimerWithoutHotfixScopeFailsFast()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddLakonaGameServer();
+        services.AddGeneratedActorSelectorTestDependencies();
+
+        await using var provider = services.BuildServiceProvider();
+        var actorId = ActorId.From("missing-timer-scope");
+        await provider.GetRequiredService<ActorHosting>()
+            .EnsureAsync<MatchmakingActor>(actorId, cancellationToken);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            provider.GetRequiredService<IActorRuntime>()
+                .TellAsync<MatchmakingActor>(
+                    actorId,
+                    (actor, _) => actor.StartTimerAsync(new MatchmakingTimerStartRequest(), cancellationToken),
+                    cancellationToken)
+                .AsTask());
+
+        Assert.Equal(
+            "Lakona timers can only be used inside an active hotfix execution scope.",
+            exception.Message);
+    }
+
     [Fact]
     public void AgarHotfixTimers_DoNotRegisterRemovedMessageHandlers()
     {
@@ -364,8 +393,8 @@ public sealed class AgarHotfixTests
 
         var provider = services.BuildServiceProvider();
         var actors = provider.GetRequiredService<IActorRuntime>();
-        await CreateReadyStartedRoomAsync(actors, provider.GetRequiredService<ActorHosting>(), roomId, cancellationToken);
         var hotfixRuntime = await TestHotfix.LoadCurrentRuntimeAsync(provider, cancellationToken);
+        await CreateReadyStartedRoomAsync(provider, roomId, cancellationToken);
         var gameServer = provider.GetRequiredService<ILakonaGameServer>();
         var session = await gameServer
             .StartSessionAsync("player-1", "battle-connection-1", cancellationToken)
@@ -374,11 +403,12 @@ public sealed class AgarHotfixTests
     }
 
     private static async Task CreateReadyStartedRoomAsync(
-        IActorRuntime actors,
-        ActorHosting hosting,
+        IServiceProvider services,
         string roomId,
         CancellationToken cancellationToken)
     {
+        var actors = services.GetRequiredService<IActorRuntime>();
+        var hosting = services.GetRequiredService<ActorHosting>();
         await hosting.EnsureAsync<RoomActor>(ActorId.From(roomId), cancellationToken);
         await actors.AskAsync<RoomActor, RoomSettlementResult>(
             ActorId.From(roomId),
@@ -403,15 +433,17 @@ public sealed class AgarHotfixTests
                 UpdatedAtUtc = DateTime.UtcNow
             }),
             cancellationToken);
-        await actors.AskAsync<RoomActor, RoomSettlementResult>(
-            ActorId.From(roomId),
-            (actor, _) => actor.StartAsync(new RoomStartRequest
-            {
-                RoomId = roomId,
-                StartedByUserId = "player-1",
-                StartedAtUtc = DateTime.UtcNow
-            }),
-            cancellationToken);
+        await services.GetRequiredService<ActorAccess>()
+            .Local<RoomActor>(new RoomId(roomId))
+            .CallAsync(
+                RoomBehavior.StartAsync,
+                new RoomStartRequest
+                {
+                    RoomId = roomId,
+                    StartedByUserId = "player-1",
+                    StartedAtUtc = DateTime.UtcNow
+                },
+                cancellationToken);
     }
 
     private static async Task SetBattleSessionItemsAsync(
