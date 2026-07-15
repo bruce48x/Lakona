@@ -5,10 +5,11 @@
   "runtime": ".NET 10",
   "buildMode": "Release",
   "licenseUrl": "https://github.com/bruce48x/Lakona/blob/main/LICENSE",
-  "supportedWorkloads": [ "frontdoor.echo" ],
+  "supportedWorkloads": [ "frontdoor.echo", "cluster.direct" ],
   "metadata": {
     "source": "https://github.com/bruce48x/Lakona",
     "transport": "Lakona.Rpc WebSocket",
+    "directTransport": "Lakona.Rpc TCP",
     "serializer": "MemoryPack 1.21.4",
     "clientLibrary": "Lakona.Rpc.Client 0.13.2"
   },
@@ -24,11 +25,20 @@
   ],
   "servers": [
     {
+      "role": "worker",
+      "ports": [ "workerPort" ],
+      "command": {
+        "fileName": "dotnet",
+        "arguments": [ "${adapterRoot}/FrameworkBenchmark.Lakona.Server/bin/Release/net10.0/FrameworkBenchmark.Lakona.Server.dll", "--role", "worker", "--worker-port", "${workerPort}" ],
+        "environment": { "Logging__LogLevel__Default": "None" }
+      }
+    },
+    {
       "role": "frontdoor",
       "ports": [ "clientPort" ],
       "command": {
         "fileName": "dotnet",
-        "arguments": [ "${adapterRoot}/FrameworkBenchmark.Lakona.Server/bin/Release/net10.0/FrameworkBenchmark.Lakona.Server.dll", "--port", "${clientPort}" ],
+        "arguments": [ "${adapterRoot}/FrameworkBenchmark.Lakona.Server/bin/Release/net10.0/FrameworkBenchmark.Lakona.Server.dll", "--role", "frontdoor", "--client-port", "${clientPort}", "--worker-port", "${workerPort}" ],
         "environment": { "Logging__LogLevel__Default": "None" }
       }
     }

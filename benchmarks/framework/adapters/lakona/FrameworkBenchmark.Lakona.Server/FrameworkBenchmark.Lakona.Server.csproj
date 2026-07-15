@@ -8,16 +8,22 @@
     <IsPackable>false</IsPackable>
     <LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>
     <LakonaRpcServerGeneratedNamespace>FrameworkBenchmark.Lakona.Server.Generated</LakonaRpcServerGeneratedNamespace>
+    <LakonaRpcGenerateClient>true</LakonaRpcGenerateClient>
+    <LakonaRpcGeneratedNamespace>FrameworkBenchmark.Lakona.Server.Generated</LakonaRpcGeneratedNamespace>
   </PropertyGroup>
   <ItemGroup>
     <CompilerVisibleProperty Include="LakonaRpcGenerateServer" />
     <CompilerVisibleProperty Include="LakonaRpcServerGeneratedNamespace" />
+    <CompilerVisibleProperty Include="LakonaRpcGenerateClient" />
+    <CompilerVisibleProperty Include="LakonaRpcGeneratedNamespace" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\FrameworkBenchmark.Lakona.Contracts\FrameworkBenchmark.Lakona.Contracts.csproj" />
     <ProjectReference Include="..\..\..\..\..\src\Lakona.Rpc.Analyzers\Lakona.Rpc.Analyzers.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" PrivateAssets="all" />
+    <ProjectReference Include="..\..\..\..\..\src\Lakona.Rpc.Client\Lakona.Rpc.Client.csproj" />
     <ProjectReference Include="..\..\..\..\..\src\Lakona.Rpc.Server\Lakona.Rpc.Server.csproj" />
     <ProjectReference Include="..\..\..\..\..\src\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj" />
+    <ProjectReference Include="..\..\..\..\..\src\Lakona.Rpc.Transport.Tcp\Lakona.Rpc.Transport.Tcp.csproj" />
     <ProjectReference Include="..\..\..\..\..\src\Lakona.Rpc.Transport.WebSocket\Lakona.Rpc.Transport.WebSocket.csproj" />
   </ItemGroup>
 </Project>

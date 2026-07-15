@@ -21,7 +21,7 @@ public sealed class ContractFileTests
     }
 
     [Theory]
-    [InlineData("smoke.json", 6)]
+    [InlineData("smoke.json", 4)]
     [InlineData("v1.json", 48)]
     public void CheckedInSuitesLoadAndExpand(string fileName, int expectedCases)
     {

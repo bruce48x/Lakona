@@ -18,4 +18,8 @@ export class EchoHandler {
       terminalNode: this.app.getServerId()
     };
   }
+
+  public async direct(message: EchoMessage, _session: any): Promise<object> {
+    return await this.app.rpc.worker.echoRemote.echo.toServer("worker-server-1", message);
+  }
 }

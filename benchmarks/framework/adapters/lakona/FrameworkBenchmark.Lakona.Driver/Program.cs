@@ -13,8 +13,6 @@ return await DriverProgram.RunAsync(args);
 
 internal static class DriverProgram
 {
-    private const string TerminalNode = "frontdoor-1";
-
     public static async Task<int> RunAsync(string[] args)
     {
         try
@@ -22,9 +20,9 @@ internal static class DriverProgram
             var casePath = ReadOption(args, "--case");
             var resultPath = ReadOption(args, "--result");
             var command = BenchmarkJson.Read<CaseCommand>(casePath);
-            if (command.Workload != "frontdoor.echo")
+            if (command.Workload is not ("frontdoor.echo" or "cluster.direct"))
             {
-                throw new InvalidDataException($"Lakona Slice 2 driver does not support '{command.Workload}'.");
+                throw new InvalidDataException($"Lakona driver does not support '{command.Workload}'.");
             }
 
             var endpoint = command.Endpoints.TryGetValue("client", out var value)
@@ -111,12 +109,8 @@ internal static class DriverProgram
         {
             var requestId = requestIds.Next();
             var payload = PayloadGenerator.Create(command.Seed, requestId, command.PayloadSize);
-            var response = await client.Api.Benchmark.Echo.EchoAsync(new EchoRequest
-            {
-                RequestId = requestId,
-                Payload = payload
-            }).AsTask().WaitAsync(TimeSpan.FromMilliseconds(command.Timing.RequestTimeoutMilliseconds));
-            if (!IsValid(response, requestId, payload))
+            var response = await CallAsync(client, command, requestId, payload);
+            if (!IsValid(response, requestId, payload, ExpectedTerminalNode(command.Workload)))
             {
                 throw new InvalidDataException("Lakona returned an invalid response during warm-up.");
             }
@@ -138,13 +132,13 @@ internal static class DriverProgram
             var started = Stopwatch.GetTimestamp();
             try
             {
-                var response = await client.Api.Benchmark.Echo.EchoAsync(new EchoRequest
-                {
-                    RequestId = requestId,
-                    Payload = payload
-                }).AsTask().WaitAsync(TimeSpan.FromMilliseconds(command.Timing.RequestTimeoutMilliseconds));
+                var response = await CallAsync(client, command, requestId, payload);
                 accumulator.Completed(ToMicroseconds(Stopwatch.GetTimestamp() - started));
-                switch (EchoResponseClassifier.Classify(response, requestId, payload, TerminalNode))
+                switch (EchoResponseClassifier.Classify(
+                    response,
+                    requestId,
+                    payload,
+                    ExpectedTerminalNode(command.Workload)))
                 {
                     case EchoResponseOutcome.Corrupt: accumulator.Corrupt(); break;
                     case EchoResponseOutcome.Misrouted: accumulator.Misrouted(); break;
@@ -169,9 +163,26 @@ internal static class DriverProgram
         }
     }
 
-    private static bool IsValid(EchoResponse response, long requestId, byte[] payload) =>
+    private static async Task<EchoResponse> CallAsync(
+        RpcClient client,
+        CaseCommand command,
+        long requestId,
+        byte[] payload)
+    {
+        var request = new EchoRequest { RequestId = requestId, Payload = payload };
+        var call = command.Workload == "cluster.direct"
+            ? client.Api.Benchmark.Echo.DirectAsync(request)
+            : client.Api.Benchmark.Echo.EchoAsync(request);
+        return await call.AsTask().WaitAsync(
+            TimeSpan.FromMilliseconds(command.Timing.RequestTimeoutMilliseconds));
+    }
+
+    private static string ExpectedTerminalNode(string workload) =>
+        workload == "cluster.direct" ? "worker-1" : "frontdoor-1";
+
+    private static bool IsValid(EchoResponse response, long requestId, byte[] payload, string terminalNode) =>
         response.RequestId == requestId &&
-        response.TerminalNode == TerminalNode &&
+        response.TerminalNode == terminalNode &&
         response.Payload.AsSpan().SequenceEqual(payload);
 
     private static long ToStopwatchTicks(int milliseconds) =>

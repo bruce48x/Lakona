@@ -8,6 +8,16 @@ public interface IEchoService
 {
     [RpcMethod(1)]
     ValueTask<EchoResponse> EchoAsync(EchoRequest request);
+
+    [RpcMethod(2)]
+    ValueTask<EchoResponse> DirectAsync(EchoRequest request);
+}
+
+[RpcService(2, ApiGroup = "Benchmark", ApiName = "Worker")]
+public interface IWorkerService
+{
+    [RpcMethod(1)]
+    ValueTask<EchoResponse> EchoAsync(EchoRequest request);
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]

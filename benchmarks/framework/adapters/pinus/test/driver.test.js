@@ -24,6 +24,17 @@ test("response classification distinguishes every completed outcome", () => {
   assert.equal(classifyResponse({ ...valid, code: 500 }, 9, payload), "rejected");
   assert.equal(classifyResponse({ ...valid, requestId: 10 }, 9, payload), "corrupt");
   assert.equal(classifyResponse({ ...valid, terminalNode: "wrong" }, 9, payload), "misrouted");
+  assert.equal(
+    classifyResponse({ ...valid, terminalNode: "worker-server-1" }, 9, payload, "worker-server-1"),
+    "succeeded");
+});
+
+test("request uses the selected direct handler route", async () => {
+  const client = new FakeClient();
+  const pending = request(client, {}, 100, () => undefined, "connector.echoHandler.direct");
+  assert.equal(client.route, "connector.echoHandler.direct");
+  client.respond({ ok: true });
+  await pending;
 });
 
 test("three-digit histogram buckets round upward deterministically", () => {
@@ -50,7 +61,8 @@ test("request rejects when the native client disconnects", async () => {
 });
 
 class FakeClient extends EventEmitter {
-  request(_route, _message, callback) {
+  request(route, _message, callback) {
+    this.route = route;
     this.callback = callback;
   }
 

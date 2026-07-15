@@ -1,6 +1,6 @@
 # Pinus Framework Benchmark Adapter
 
-Slice 2 maps `frontdoor.echo` to the ordinary Pinus connector handler route
+`frontdoor.echo` maps to the ordinary Pinus connector handler route
 `connector.echoHandler.echo`. The connector is Pinus 1.7.3's
 `hybridconnector` in WebSocket mode with its normal JSON fallback encoding;
 protobuf and route dictionaries are disabled because this benchmark contract
@@ -10,6 +10,11 @@ The native driver uses the MIT-licensed `pomelo-jsclient-websocket` 0.1.1
 client with `pinus-protocol` 1.7.3. One independently instantiated compatible
 client owns each persistent connection. Pinus's required local master process
 is lifecycle-only and is outside the measured request path.
+
+`cluster.direct` maps `connector.echoHandler.direct` to the public
+`app.rpc.worker.echoRemote.echo.toServer("worker-server-1", message)` path.
+The backend remote returns `worker-server-1` through the connector, proving
+that the request did not execute locally.
 
 Exact npm artifacts and integrity hashes are recorded by `package-lock.json`.
 Pinus 1.7.3 currently emits a Node.js deprecation warning for `util.isFunction`

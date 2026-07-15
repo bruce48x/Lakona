@@ -2,7 +2,7 @@
   "schemaVersion": "1",
   "id": "framework-v1-smoke",
   "frameworks": [ "lakona", "pinus" ],
-  "workloads": [ "frontdoor.echo", "cluster.direct", "cluster.routed" ],
+  "workloads": [ "frontdoor.echo", "cluster.direct" ],
   "payloadSizes": [ 32 ],
   "concurrency": [ 16 ],
   "seed": 20260715,

@@ -7,9 +7,10 @@ const { pinus } = require("pinus") as { pinus: any };
 console.log = (...values: unknown[]) => console.error(...values);
 
 const options = readOptions(process.argv.slice(2));
-const role = options.role === "master" ? "master" : "frontdoor";
+const role = options.role === "master" ? "master" : options.role === "worker" ? "worker" : "frontdoor";
 const clientPort = readPort(options, "clientPort");
-const rpcPort = readPort(options, "port");
+const connectorPort = readPort(options, "connectorPort");
+const workerPort = readPort(options, "workerPort");
 const masterPort = readPort(options, "masterPort");
 const base = __dirname;
 const configDirectory = join(base, "config");
@@ -22,10 +23,15 @@ const servers = {
   connector: [{
     id: "connector-server-1",
     host: "127.0.0.1",
-    port: rpcPort,
+    port: connectorPort,
     clientHost: "127.0.0.1",
     clientPort,
     frontend: true
+  }],
+  worker: [{
+    id: "worker-server-1",
+    host: "127.0.0.1",
+    port: workerPort
   }]
 };
 writeFileSync(join(configDirectory, "servers.json"), JSON.stringify({
@@ -59,8 +65,8 @@ app.start((error?: Error) => {
   process.stdout.write(`${JSON.stringify({
     event: "ready",
     role,
-    nodeId: role === "master" ? "master-1" : "connector-server-1",
-    endpoints: role === "master" ? {} : { client: `ws://127.0.0.1:${clientPort}` }
+    nodeId: role === "master" ? "master-1" : role === "worker" ? "worker-server-1" : "connector-server-1",
+    endpoints: role === "frontdoor" ? { client: `ws://127.0.0.1:${clientPort}` } : {}
   })}\n`);
 });
 

@@ -5,11 +5,12 @@
   "runtime": "Node.js >=12.9.0",
   "buildMode": "TypeScript 4.3.5 / Node.js",
   "licenseUrl": "https://github.com/node-pinus/pinus/blob/master/LICENSE",
-  "supportedWorkloads": [ "frontdoor.echo" ],
+  "supportedWorkloads": [ "frontdoor.echo", "cluster.direct" ],
   "metadata": {
     "source": "https://www.npmjs.com/package/pinus/v/1.7.3",
     "pinusLicense": "https://github.com/node-pinus/pinus/blob/master/LICENSE",
     "transport": "Pinus hybridconnector WebSocket",
+    "directTransport": "Pinus RPC toServer",
     "serializer": "Pinus JSON (protobuf disabled)",
     "clientLibrary": "pomelo-jsclient-websocket 0.1.1",
     "clientSource": "https://www.npmjs.com/package/pomelo-jsclient-websocket/v/0.1.1",
@@ -28,15 +29,23 @@
       "ports": [ "masterPort" ],
       "command": {
         "fileName": "node",
-        "arguments": [ "${adapterRoot}/dist/app.js", "env=development", "id=master-server-1", "role=master", "clientPort=${clientPort}", "port=${rpcPort}", "masterPort=${masterPort}", "mode=stand-alone" ]
+        "arguments": [ "${adapterRoot}/dist/app.js", "env=development", "id=master-server-1", "role=master", "clientPort=${clientPort}", "connectorPort=${connectorPort}", "workerPort=${workerPort}", "masterPort=${masterPort}", "mode=stand-alone" ]
+      }
+    },
+    {
+      "role": "worker",
+      "ports": [ "workerPort" ],
+      "command": {
+        "fileName": "node",
+        "arguments": [ "${adapterRoot}/dist/app.js", "env=development", "serverType=worker", "id=worker-server-1", "role=worker", "host=127.0.0.1", "port=${workerPort}", "clientPort=${clientPort}", "connectorPort=${connectorPort}", "workerPort=${workerPort}", "masterPort=${masterPort}", "mode=stand-alone" ]
       }
     },
     {
       "role": "frontdoor",
-      "ports": [ "rpcPort", "clientPort" ],
+      "ports": [ "connectorPort", "clientPort" ],
       "command": {
         "fileName": "node",
-        "arguments": [ "${adapterRoot}/dist/app.js", "env=development", "serverType=connector", "id=connector-server-1", "role=frontdoor", "host=127.0.0.1", "port=${rpcPort}", "clientHost=127.0.0.1", "clientPort=${clientPort}", "masterPort=${masterPort}", "frontend=true", "mode=stand-alone" ]
+        "arguments": [ "${adapterRoot}/dist/app.js", "env=development", "serverType=connector", "id=connector-server-1", "role=frontdoor", "host=127.0.0.1", "port=${connectorPort}", "clientHost=127.0.0.1", "clientPort=${clientPort}", "connectorPort=${connectorPort}", "workerPort=${workerPort}", "masterPort=${masterPort}", "frontend=true", "mode=stand-alone" ]
       }
     }
   ],

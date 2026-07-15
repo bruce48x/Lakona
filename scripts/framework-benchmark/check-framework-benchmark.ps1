@@ -23,7 +23,6 @@ if ($LASTEXITCODE -ne 0 -or -not $RealAdapters) {
 }
 
 & pwsh -NoProfile -File (Join-Path $repositoryRoot "benchmarks/framework/run.ps1") `
-    -Workload frontdoor.echo `
     -Output (Join-Path $repositoryRoot "artifacts/framework-benchmark/conformance-smoke")
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE

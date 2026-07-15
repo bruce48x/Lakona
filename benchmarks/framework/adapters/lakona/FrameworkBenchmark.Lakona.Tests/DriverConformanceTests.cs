@@ -32,6 +32,9 @@ public sealed class DriverConformanceTests
         Assert.Equal(EchoResponseOutcome.Succeeded, EchoResponseClassifier.Classify(response, 9, payload, "frontdoor-1"));
         Assert.Equal(EchoResponseOutcome.Corrupt, EchoResponseClassifier.Classify(response, 10, payload, "frontdoor-1"));
         Assert.Equal(EchoResponseOutcome.Misrouted, EchoResponseClassifier.Classify(response, 9, payload, "wrong"));
+
+        response.TerminalNode = "worker-1";
+        Assert.Equal(EchoResponseOutcome.Succeeded, EchoResponseClassifier.Classify(response, 9, payload, "worker-1"));
     }
 
     [Theory]

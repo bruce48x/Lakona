@@ -46,8 +46,8 @@ async function main(): Promise<void> {
   const casePath = readOption("--case");
   const resultPath = readOption("--result");
   const command = JSON.parse(readFileSync(casePath, "utf8")) as CaseCommand;
-  if (command.workload !== "frontdoor.echo") {
-    throw new Error(`Pinus Slice 2 driver does not support '${command.workload}'.`);
+  if (command.workload !== "frontdoor.echo" && command.workload !== "cluster.direct") {
+    throw new Error(`Pinus driver does not support '${command.workload}'.`);
   }
 
   const endpoint = new URL(command.endpoints.client);
@@ -118,8 +118,13 @@ async function warmup(
   while (Date.now() < end) {
     const requestId = ++ids.value;
     const payload = createPayload(command.seed, requestId, command.payloadSize);
-    const response = await request(client, { requestId, payload }, command.timing.requestTimeoutMilliseconds);
-    if (!valid(response, requestId, payload)) {
+    const response = await request(
+      client,
+      { requestId, payload },
+      command.timing.requestTimeoutMilliseconds,
+      () => undefined,
+      routeFor(command.workload));
+    if (!valid(response, requestId, payload, terminalNodeFor(command.workload))) {
       throw new Error("Pinus returned an invalid response during warm-up.");
     }
   }
@@ -141,10 +146,11 @@ async function measure(
         client,
         { requestId, payload },
         command.timing.requestTimeoutMilliseconds,
-        () => accumulator.duplicateResponses++);
+        () => accumulator.duplicateResponses++,
+        routeFor(command.workload));
       accumulator.recordLatency(Number((process.hrtime.bigint() - started + 999n) / 1_000n));
       accumulator.completed++;
-      switch (classifyResponse(response, requestId, payload)) {
+      switch (classifyResponse(response, requestId, payload, terminalNodeFor(command.workload))) {
         case "rejected": accumulator.rejected++; break;
         case "corrupt": accumulator.corrupt++; break;
         case "misrouted": accumulator.misrouted++; break;
@@ -165,7 +171,8 @@ export function request(
   client: PomeloClient,
   message: object,
   timeoutMilliseconds: number,
-  onLateResponse: () => void = () => undefined): Promise<any> {
+  onLateResponse: () => void = () => undefined,
+  route = "connector.echoHandler.echo"): Promise<any> {
   return new Promise((accept, reject) => {
     let settled = false;
     const onDisconnect = () => finish(() => reject(new DisconnectError("Pinus client disconnected.")));
@@ -181,7 +188,7 @@ export function request(
       return true;
     };
     client.once("disconnect", onDisconnect);
-    client.request("connector.echoHandler.echo", message, response => {
+    client.request(route, message, response => {
       if (!finish(() => accept(response))) {
         onLateResponse();
       }
@@ -189,18 +196,27 @@ export function request(
   });
 }
 
-function valid(response: any, requestId: number, payload: number[]): boolean {
-  return classifyResponse(response, requestId, payload) === "succeeded";
+function valid(response: any, requestId: number, payload: number[], terminalNode: string): boolean {
+  return classifyResponse(response, requestId, payload, terminalNode) === "succeeded";
 }
 
 export function classifyResponse(
   response: any,
   requestId: number,
-  payload: number[]): "succeeded" | "rejected" | "corrupt" | "misrouted" {
+  payload: number[],
+  terminalNode = "connector-server-1"): "succeeded" | "rejected" | "corrupt" | "misrouted" {
   if (response?.code && response.code !== 200) return "rejected";
   if (response?.requestId !== requestId || !equalPayload(response?.payload, payload)) return "corrupt";
-  if (response?.terminalNode !== "connector-server-1") return "misrouted";
+  if (response?.terminalNode !== terminalNode) return "misrouted";
   return "succeeded";
+}
+
+function routeFor(workload: string): string {
+  return workload === "cluster.direct" ? "connector.echoHandler.direct" : "connector.echoHandler.echo";
+}
+
+function terminalNodeFor(workload: string): string {
+  return workload === "cluster.direct" ? "worker-server-1" : "connector-server-1";
 }
 
 function equalPayload(actual: unknown, expected: number[]): boolean {
