@@ -36,8 +36,8 @@ $env:HUB_PUBLISH_ROOT = $publishDirectory
 $config = Join-Path $PSScriptRoot 'linux/nfpm.yaml'
 
 $targets = @(
-    @{ Packager = 'deb'; Name = "lakona-hub_${Version}_amd64.deb" },
-    @{ Packager = 'rpm'; Name = "lakona-hub-${Version}-1.x86_64.rpm" }
+    @{ Packager = 'deb'; Name = "lakona-hub-$Version-linux-x64.deb" },
+    @{ Packager = 'rpm'; Name = "lakona-hub-$Version-linux-x64.rpm" }
 )
 foreach ($target in $targets) {
     $path = Join-Path $outputDirectory $target.Name

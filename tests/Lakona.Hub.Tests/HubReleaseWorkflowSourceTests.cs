@@ -30,9 +30,16 @@ public sealed class HubReleaseWorkflowSourceTests
         Assert.Contains($"DOTNET_SDK_VERSION: {HubRuntimeInfo.BundledDotNetSdkVersion}", workflow, StringComparison.Ordinal);
         Assert.Contains("-Filter '*.pdb'", workflow, StringComparison.Ordinal);
         Assert.Contains("New-HubRelease.ps1", workflow, StringComparison.Ordinal);
+        Assert.Contains("New-HubWindowsPackage.ps1", workflow, StringComparison.Ordinal);
+        Assert.Contains("New-HubMacPackage.ps1", workflow, StringComparison.Ordinal);
         Assert.Contains("New-HubLinuxPackages.ps1", workflow, StringComparison.Ordinal);
+        Assert.Contains("wix --version 5.0.2", workflow, StringComparison.Ordinal);
+        Assert.Contains("hdiutil attach", workflow, StringComparison.Ordinal);
         Assert.Contains("github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.47.0", workflow, StringComparison.Ordinal);
-        Assert.Contains("hub-delta.json", packager, StringComparison.Ordinal);
+        Assert.Contains(".msi", packager, StringComparison.Ordinal);
+        Assert.Contains(".dmg", packager, StringComparison.Ordinal);
+        Assert.Contains("linux-x64.deb", packager, StringComparison.Ordinal);
+        Assert.Contains("linux-x64.rpm", packager, StringComparison.Ordinal);
         Assert.Contains("lakona-hub-manifest.json", packager, StringComparison.Ordinal);
         Assert.Contains("<PublishAot>true</PublishAot>", project, StringComparison.Ordinal);
         Assert.Contains("<IsAotCompatible>true</IsAotCompatible>", project, StringComparison.Ordinal);
@@ -86,61 +93,32 @@ public sealed class HubReleaseWorkflowSourceTests
     }
 
     [Fact]
-    public async Task Packager_CreatesFullPackagesThenDeltaPackagesFromPreviousRelease()
+    public async Task Packager_CreatesInstallerManifestForEveryPlatform()
     {
         var root = FindRepositoryRoot();
         var temporary = Path.Combine(Path.GetTempPath(), $"lakona-hub-packager-{Guid.NewGuid():N}");
         var publish = Path.Combine(temporary, "publish");
-        var first = Path.Combine(temporary, "first");
-        var second = Path.Combine(temporary, "second");
+        var output = Path.Combine(temporary, "output");
         try
         {
-            foreach (var rid in new[] { "win-x64", "linux-x64", "osx-x64", "osx-arm64" })
-            {
-                var platform = Path.Combine(publish, $"hub-{rid}");
-                var sdk = Path.Combine(platform, "dotnet");
-                Directory.CreateDirectory(sdk);
-                await File.WriteAllTextAsync(
-                    Path.Combine(platform, rid == "win-x64" ? "Lakona.Hub.exe" : "Lakona.Hub"),
-                    "app-v1",
-                    TestContext.Current.CancellationToken);
-                await File.WriteAllTextAsync(
-                    Path.Combine(sdk, rid == "win-x64" ? "dotnet.exe" : "dotnet"),
-                    "sdk",
-                    TestContext.Current.CancellationToken);
-            }
-
-            WriteLinuxPackages(publish, "1.0.0");
-
-            await RunPackagerAsync(root, publish, first, "1.0.0", null);
-            await File.WriteAllTextAsync(
-                Path.Combine(publish, "hub-win-x64", "Lakona.Hub.exe"),
-                "app-v2",
-                TestContext.Current.CancellationToken);
-            WriteLinuxPackages(publish, "1.1.0");
-            await RunPackagerAsync(root, publish, second, "1.1.0", first);
+            WriteInstallerPackages(publish, "1.1.0");
+            await RunPackagerAsync(root, publish, output, "1.1.0");
 
             using var manifest = JsonDocument.Parse(await File.ReadAllTextAsync(
-                Path.Combine(second, "lakona-hub-manifest.json"),
+                Path.Combine(output, "lakona-hub-manifest.json"),
                 TestContext.Current.CancellationToken));
             var platforms = manifest.RootElement.GetProperty("platforms");
             Assert.Equal(5, platforms.EnumerateObject().Count());
             foreach (var platform in platforms.EnumerateObject())
             {
-                Assert.True(File.Exists(Path.Combine(second, platform.Value.GetProperty("full").GetProperty("assetName").GetString()!)));
-                if (platform.Name.StartsWith("linux-", StringComparison.Ordinal))
-                {
-                    Assert.Empty(platform.Value.GetProperty("deltas").EnumerateArray());
-                }
-                else
-                {
-                    var delta = Assert.Single(platform.Value.GetProperty("deltas").EnumerateArray());
-                    Assert.Equal("1.0.0", delta.GetProperty("fromVersion").GetString());
-                    Assert.True(File.Exists(Path.Combine(second, delta.GetProperty("assetName").GetString()!)));
-                }
+                Assert.True(File.Exists(Path.Combine(output, platform.Value.GetProperty("full").GetProperty("assetName").GetString()!)));
+                Assert.Empty(platform.Value.GetProperty("deltas").EnumerateArray());
             }
-            Assert.EndsWith(".deb", platforms.GetProperty("linux-x64-deb").GetProperty("full").GetProperty("assetName").GetString(), StringComparison.Ordinal);
-            Assert.EndsWith(".rpm", platforms.GetProperty("linux-x64-rpm").GetProperty("full").GetProperty("assetName").GetString(), StringComparison.Ordinal);
+            Assert.EndsWith(".msi", platforms.GetProperty("win-x64").GetProperty("full").GetProperty("assetName").GetString(), StringComparison.Ordinal);
+            Assert.EndsWith(".dmg", platforms.GetProperty("osx-x64").GetProperty("full").GetProperty("assetName").GetString(), StringComparison.Ordinal);
+            Assert.EndsWith(".dmg", platforms.GetProperty("osx-arm64").GetProperty("full").GetProperty("assetName").GetString(), StringComparison.Ordinal);
+            Assert.Contains("linux", platforms.GetProperty("linux-x64-deb").GetProperty("full").GetProperty("assetName").GetString(), StringComparison.Ordinal);
+            Assert.Contains("linux", platforms.GetProperty("linux-x64-rpm").GetProperty("full").GetProperty("assetName").GetString(), StringComparison.Ordinal);
         }
         finally
         {
@@ -151,20 +129,32 @@ public sealed class HubReleaseWorkflowSourceTests
         }
     }
 
-    private static void WriteLinuxPackages(string publish, string version)
+    private static void WriteInstallerPackages(string publish, string version)
     {
-        var packages = Path.Combine(publish, "hub-linux-packages");
-        Directory.CreateDirectory(packages);
-        File.WriteAllText(Path.Combine(packages, $"lakona-hub_{version}_amd64.deb"), $"deb-{version}");
-        File.WriteAllText(Path.Combine(packages, $"lakona-hub-{version}-1.x86_64.rpm"), $"rpm-{version}");
+        var files = new Dictionary<string, string>
+        {
+            ["hub-win-x64-package"] = $"lakona-hub-{version}-win-x64.msi",
+            ["hub-osx-x64-package"] = $"lakona-hub-{version}-osx-x64.dmg",
+            ["hub-osx-arm64-package"] = $"lakona-hub-{version}-osx-arm64.dmg"
+        };
+        foreach (var (directory, file) in files)
+        {
+            var root = Path.Combine(publish, directory);
+            Directory.CreateDirectory(root);
+            File.WriteAllText(Path.Combine(root, file), directory);
+        }
+
+        var linux = Path.Combine(publish, "hub-linux-packages");
+        Directory.CreateDirectory(linux);
+        File.WriteAllText(Path.Combine(linux, $"lakona-hub-{version}-linux-x64.deb"), $"deb-{version}");
+        File.WriteAllText(Path.Combine(linux, $"lakona-hub-{version}-linux-x64.rpm"), $"rpm-{version}");
     }
 
     private static async Task RunPackagerAsync(
         string root,
         string publish,
         string output,
-        string version,
-        string? previous)
+        string version)
     {
         var startInfo = new ProcessStartInfo("pwsh")
         {
@@ -185,12 +175,6 @@ public sealed class HubReleaseWorkflowSourceTests
         {
             startInfo.ArgumentList.Add(argument);
         }
-        if (previous is not null)
-        {
-            startInfo.ArgumentList.Add("-PreviousRoot");
-            startInfo.ArgumentList.Add(previous);
-        }
-
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Could not start PowerShell.");
         var outputText = await process.StandardOutput.ReadToEndAsync(TestContext.Current.CancellationToken);

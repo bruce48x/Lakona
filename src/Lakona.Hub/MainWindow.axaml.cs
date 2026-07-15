@@ -100,14 +100,6 @@ public sealed partial class MainWindow : Window
 
     public string BundledDotNetSdkLabel => $".NET SDK {HubRuntimeInfo.BundledDotNetSdkVersion}";
 
-    internal void ShowUpdateFailure(string? message)
-    {
-        if (!string.IsNullOrWhiteSpace(message))
-        {
-            ShowFeedback(Localization.Text.PreviousVersionRestored(message));
-        }
-    }
-
     private async void MainWindow_Opened(object? sender, EventArgs e)
     {
         await DetectApplicationsAsync(showFailureFeedback: true);
@@ -367,21 +359,9 @@ public sealed partial class MainWindow : Window
                 return;
             }
 
-            UpdateStatusText.Text = availableUpdate.IsSystemPackage
-                ? Localization.Text.DownloadingSystemPackage(availableUpdate.Version)
-                : availableUpdate.IsDelta
-                    ? Localization.Text.DownloadingIncrementalUpdate(availableUpdate.Version)
-                    : Localization.Text.DownloadingFullUpdate(availableUpdate.Version);
+            UpdateStatusText.Text = Localization.Text.DownloadingSystemPackage(availableUpdate.Version);
             await updateService.PrepareAndLaunchAsync(availableUpdate);
-            if (availableUpdate.IsSystemPackage)
-            {
-                UpdateStatusText.Text = Localization.Text.SystemPackageInstallerOpened;
-            }
-            else
-            {
-                UpdateStatusText.Text = Localization.Text.RestartingForUpdate;
-                Close();
-            }
+            UpdateStatusText.Text = Localization.Text.SystemPackageInstallerOpened;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -484,11 +464,7 @@ public sealed partial class MainWindow : Window
         }
         else
         {
-            UpdateStatusText.Text = availableUpdate.IsSystemPackage
-                ? Localization.Text.SystemPackageUpdateAvailable(availableUpdate.Version)
-                : availableUpdate.IsDelta
-                    ? Localization.Text.IncrementalUpdateAvailable(availableUpdate.Version)
-                    : Localization.Text.FullUpdateAvailable(availableUpdate.Version);
+            UpdateStatusText.Text = Localization.Text.SystemPackageUpdateAvailable(availableUpdate.Version);
             UpdateButtonText.Text = Localization.Text.DownloadAndInstall;
         }
     }

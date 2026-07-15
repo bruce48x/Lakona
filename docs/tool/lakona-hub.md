@@ -24,7 +24,7 @@ require a machine-wide .NET installation.
 
 Release artifacts contain both the self-contained Hub runtime and the pinned
 private .NET 10 SDK so a first-time user installs only one artifact. Windows
-and macOS use portable archives; Linux uses native DEB and RPM packages. Their
+uses MSI, macOS uses DMG, and Linux uses native DEB and RPM packages. Their
 version lifecycles remain distinct:
 
 - the Hub application updater updates Hub
@@ -170,24 +170,17 @@ publishing runs on a matching Windows, Linux, or macOS runner; cross-operating-
 system publishing is not a supported release path. Linux support is limited to
 glibc-based Debian and RPM distribution families on x64.
 
-Each Release contains full ZIPs for Windows and macOS, one `amd64` DEB, one
-`x86_64` RPM, and a `lakona-hub-manifest.json`. From the second Release onward,
-the workflow compares each new portable package with the preceding stable Hub
-Release and emits a file-level delta ZIP containing only changed files, a
-deletion list, and the new package manifest. Windows and macOS use a delta only
-when its `fromVersion` exactly matches the installed version and automatically
-fall back to the full package otherwise. Linux packages never use file-level
-deltas because their installed files are owned by the system package manager.
+Each Release contains one x64 MSI for Windows, x64 and arm64 DMGs for macOS,
+one x64 DEB, one x64 RPM, and a `lakona-hub-manifest.json`. Linux asset names
+include `linux-x64` so their target platform remains visible outside package
+manager metadata.
 
-Windows and macOS self-update requires the portable application directory to
-be writable by the current user. Hub checks this before it exits; if the
-location is not writable, it reports the problem and leaves the running
-installation unchanged. On Linux, Hub identifies the DEB or RPM family from
-`/etc/os-release`, downloads and verifies the matching full package, then opens
-it through the desktop system installer. Hub does not overwrite files under
-`/usr/lib/lakona-hub`, request elevation itself, or bypass `dpkg` or RPM package
-ownership. A legacy portable Linux installation must be replaced manually by
-the first DEB or RPM installation.
+Hub updates are installer-based on all platforms. After downloading and
+verifying the matching MSI, DMG, DEB, or RPM, Hub opens it through the operating
+system. Windows Installer owns files under Program Files, macOS users install
+the app from the mounted DMG, and Linux package managers own files under
+`/usr/lib/lakona-hub`. Hub does not overwrite package-managed application files,
+request elevation itself, or bypass the platform installer.
 
 Update checking is explicit: Settings contains a **Check for updates** action
 and Hub does not poll in the background. The update module exposes only check
@@ -196,13 +189,9 @@ package-family selection, semantic-version comparison, delta selection,
 downloading, verification, staging, replacement, package-installer launch, and
 rollback remain behind that interface.
 
-Before activation, Hub verifies the downloaded archive length and SHA-256 from
-the Release manifest. The external updater then constructs a complete staged
-installation and verifies every target file against the package manifest. It
-does not modify the live installation until validation succeeds. The running
-Hub exits, the updater swaps the validated directory into place, and a failed
-swap or restart restores the previous directory. The previous directory is
-deleted only after the updated Hub reaches normal application initialization.
+Before opening an installer, Hub verifies its length and SHA-256 against the
+Release manifest. A failed download or verification leaves the installed Hub
+unchanged.
 
 Release assets and manifests are retrieved over authenticated HTTPS from the
 GitHub API and GitHub Releases. Repository release permissions are restricted

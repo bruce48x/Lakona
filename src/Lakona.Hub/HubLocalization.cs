@@ -173,20 +173,14 @@ public sealed class HubText
     public string ApplicationUpdatesDescription => L("从 GitHub Releases 获取经过校验的更新；Linux 使用系统安装包。", "從 GitHub Releases 取得經過驗證的更新；Linux 使用系統安裝套件。", "Get verified updates from GitHub Releases. Linux uses native system packages.");
     public string CheckForUpdates => L("检查更新", "檢查更新", "Check for updates");
     public string DownloadAndInstall => L("下载并安装", "下載並安裝", "Download & install");
-    public string UpdateCheckDescription => L("手动检查新版本；Windows 和 macOS 支持增量更新，Linux 交由系统安装器升级。", "手動檢查新版本；Windows 與 macOS 支援差異更新，Linux 交由系統安裝程式升級。", "Check manually for updates. Windows and macOS support deltas; Linux upgrades through the system installer.");
+    public string UpdateCheckDescription => L("手动检查新版本；下载并校验后交由系统安装器升级。", "手動檢查新版本；下載並驗證後交由系統安裝程式升級。", "Check manually for updates. Verified updates open in the system installer.");
     public string CheckingForUpdates => L("正在检查 GitHub Releases…", "正在檢查 GitHub Releases…", "Checking GitHub Releases…");
     public string NoUpdatesAvailable(string version) => L($"当前已是最新版本（{version}）。", $"目前已是最新版本（{version}）。", $"Lakona Hub is up to date ({version}).");
-    public string RestartingForUpdate => L("更新已校验，正在重启 Lakona Hub…", "更新已驗證，正在重新啟動 Lakona Hub…", "The update is verified. Restarting Lakona Hub…");
     public string CurrentHubVersion(string version) => L($"当前版本 {version}", $"目前版本 {version}", $"Current version {version}");
-    public string IncrementalUpdateAvailable(string version) => L($"发现版本 {version}，可使用增量更新。", $"發現版本 {version}，可使用差異更新。", $"Version {version} is available as an incremental update.");
-    public string FullUpdateAvailable(string version) => L($"发现版本 {version}；没有匹配的增量包，将使用完整更新。", $"發現版本 {version}；沒有相符的差異套件，將使用完整更新。", $"Version {version} is available. A matching delta was not found, so the full update will be used.");
-    public string SystemPackageUpdateAvailable(string version) => L($"发现版本 {version}；将下载适用于当前 Linux 发行版的系统安装包。", $"發現版本 {version}；將下載適用於目前 Linux 發行版的系統安裝套件。", $"Version {version} is available as a package for this Linux distribution.");
-    public string DownloadingIncrementalUpdate(string version) => L($"正在下载并校验 {version} 增量更新…", $"正在下載並驗證 {version} 差異更新…", $"Downloading and verifying incremental update {version}…");
-    public string DownloadingFullUpdate(string version) => L($"正在下载并校验 {version} 完整更新…", $"正在下載並驗證 {version} 完整更新…", $"Downloading and verifying full update {version}…");
-    public string DownloadingSystemPackage(string version) => L($"正在下载并校验 {version} Linux 系统安装包…", $"正在下載並驗證 {version} Linux 系統安裝套件…", $"Downloading and verifying Linux system package {version}…");
+    public string SystemPackageUpdateAvailable(string version) => L($"发现版本 {version}；将下载适用于当前系统的安装包。", $"發現版本 {version}；將下載適用於目前系統的安裝套件。", $"Version {version} is available as an installer for this system.");
+    public string DownloadingSystemPackage(string version) => L($"正在下载并校验 {version} 系统安装包…", $"正在下載並驗證 {version} 系統安裝套件…", $"Downloading and verifying system installer {version}…");
     public string SystemPackageInstallerOpened => L("安装包已经校验并交给系统安装器；请确认授权，并在安装完成后重启 Hub。", "安裝套件已驗證並交給系統安裝程式；請確認授權，並在安裝完成後重新啟動 Hub。", "The verified package was opened in the system installer. Confirm authorization, then restart Hub after installation.");
     public string UpdateFailed(string message) => L($"更新失败：{message}", $"更新失敗：{message}", $"Update failed: {message}");
-    public string PreviousVersionRestored(string message) => L($"更新未能完成，已恢复并重新打开原版本：{message}", $"更新未能完成，已還原並重新開啟原版本：{message}", $"The update could not be completed. The previous version was restored and reopened: {message}");
 
     public string SelectProjectFolder => L("选择 Lakona 项目目录", "選擇 Lakona 專案目錄", "Select a Lakona project folder");
     public string SelectOutputFolder => L("选择新项目的保存位置", "選擇新專案的儲存位置", "Select a location for the new project");

@@ -20,13 +20,7 @@ internal sealed record HubAvailableUpdate(
     string Version,
     string Platform,
     string Tag,
-    string PackageRoot,
-    string ExecutablePath,
-    HubReleaseAsset Asset,
-    bool IsDelta)
-{
-    public bool IsSystemPackage => HubPlatform.IsSystemPackage(Platform);
-}
+    HubReleaseAsset Asset);
 
 internal sealed class HubUpdateService : IHubUpdateService
 {
@@ -118,21 +112,11 @@ internal sealed class HubUpdateService : IHubUpdateService
                 throw new PlatformNotSupportedException($"Release {manifest.Version} does not support {platform}.");
             }
 
-            var delta = HubPlatform.IsSystemPackage(platform)
-                ? null
-                : releasePlatform.Deltas.FirstOrDefault(candidate =>
-                    HubVersionComparer.Equals(candidate.FromVersion, CurrentVersion));
-            var asset = delta is null
-                ? releasePlatform.Full
-                : new HubReleaseAsset(delta.AssetName, delta.Sha256, delta.Size);
             return new HubAvailableUpdate(
                 manifest.Version,
                 platform,
                 manifest.Tag,
-                releasePlatform.PackageRoot,
-                releasePlatform.ExecutablePath,
-                asset,
-                delta is not null);
+                releasePlatform.Full);
         }
 
         return null;
@@ -163,48 +147,7 @@ internal sealed class HubUpdateService : IHubUpdateService
 
         await VerifyAssetAsync(archivePath, update.Asset, cancellationToken);
 
-        if (update.IsSystemPackage)
-        {
-            systemPackageLauncher.Open(archivePath);
-            return;
-        }
-
-        HubFileSystem.EnsureDirectoryWritable(
-            Directory.GetParent(HubInstallation.CurrentDirectory())?.FullName
-            ?? throw new InvalidOperationException("The Lakona Hub installation has no parent directory."));
-
-        var processPath = Environment.ProcessPath
-            ?? throw new InvalidOperationException("Could not determine the Lakona Hub executable path.");
-        var updaterPath = Path.Combine(
-            updateDirectory,
-            OperatingSystem.IsWindows() ? "Lakona.Hub.Updater.exe" : "Lakona.Hub.Updater");
-        File.Copy(processPath, updaterPath, overwrite: true);
-        HubFileSystem.MakeExecutable(updaterPath);
-
-        var plan = new HubUpdateLaunchPlan(
-            HubInstallation.CurrentDirectory(),
-            archivePath,
-            update.PackageRoot,
-            update.ExecutablePath,
-            CurrentVersion,
-            update.Version,
-            update.IsDelta,
-            Environment.ProcessId);
-        var planPath = Path.Combine(updateDirectory, "apply-update.json");
-        await File.WriteAllTextAsync(
-            planPath,
-            JsonSerializer.Serialize(plan, HubJsonContext.Default.HubUpdateLaunchPlan),
-            cancellationToken);
-
-        var startInfo = new ProcessStartInfo(updaterPath)
-        {
-            UseShellExecute = false,
-            WorkingDirectory = updateDirectory
-        };
-        startInfo.ArgumentList.Add("--apply-update");
-        startInfo.ArgumentList.Add(planPath);
-        _ = Process.Start(startInfo)
-            ?? throw new InvalidOperationException("Could not start the Lakona Hub updater.");
+        systemPackageLauncher.Open(archivePath);
     }
 
     private static async Task VerifyAssetAsync(
@@ -274,9 +217,6 @@ internal static class HubPlatform
         throw new PlatformNotSupportedException("Lakona Hub updates support Windows, macOS, and Linux.");
     }
 
-    public static bool IsSystemPackage(string platform) =>
-        platform.EndsWith("-deb", StringComparison.Ordinal) ||
-        platform.EndsWith("-rpm", StringComparison.Ordinal);
 }
 
 internal static class LinuxPackageFormat
@@ -342,19 +282,31 @@ internal sealed class HubSystemPackageLauncher : IHubSystemPackageLauncher
 {
     public void Open(string packagePath)
     {
-        if (!OperatingSystem.IsLinux())
+        ProcessStartInfo startInfo;
+        if (OperatingSystem.IsWindows())
         {
-            throw new PlatformNotSupportedException("System package installation is supported only on Linux.");
+            startInfo = new ProcessStartInfo(packagePath)
+            {
+                UseShellExecute = true,
+                WorkingDirectory = Path.GetDirectoryName(packagePath) ?? Environment.CurrentDirectory
+            };
+        }
+        else if (OperatingSystem.IsMacOS() || OperatingSystem.IsLinux())
+        {
+            startInfo = new ProcessStartInfo(OperatingSystem.IsMacOS() ? "open" : "xdg-open")
+            {
+                UseShellExecute = false,
+                WorkingDirectory = Path.GetDirectoryName(packagePath) ?? Environment.CurrentDirectory
+            };
+            startInfo.ArgumentList.Add(packagePath);
+        }
+        else
+        {
+            throw new PlatformNotSupportedException("System package installation is supported only on Windows, macOS, and Linux.");
         }
 
-        var startInfo = new ProcessStartInfo("xdg-open")
-        {
-            UseShellExecute = false,
-            WorkingDirectory = Path.GetDirectoryName(packagePath) ?? Environment.CurrentDirectory
-        };
-        startInfo.ArgumentList.Add(packagePath);
         _ = Process.Start(startInfo)
-            ?? throw new InvalidOperationException("Could not open the Linux system package installer.");
+            ?? throw new InvalidOperationException("Could not open the system package installer.");
     }
 }
 
@@ -397,23 +349,6 @@ internal static class HubVersionComparer
 
 internal static class HubInstallation
 {
-    public static string CurrentDirectory()
-    {
-        var baseDirectory = Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory);
-        if (OperatingSystem.IsMacOS())
-        {
-            var macOs = new DirectoryInfo(baseDirectory);
-            if (macOs.Name == "MacOS" &&
-                macOs.Parent?.Name == "Contents" &&
-                macOs.Parent.Parent is { } appBundle)
-            {
-                return appBundle.FullName;
-            }
-        }
-
-        return baseDirectory;
-    }
-
     public static string UpdateRoot()
     {
         var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);

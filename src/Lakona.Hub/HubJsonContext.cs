@@ -8,7 +8,4 @@ namespace Lakona.Hub;
     WriteIndented = true)]
 [JsonSerializable(typeof(Dictionary<string, string>), TypeInfoPropertyName = "ApplicationPaths")]
 [JsonSerializable(typeof(HubReleaseManifest))]
-[JsonSerializable(typeof(HubUpdateLaunchPlan))]
-[JsonSerializable(typeof(HubPackageManifest))]
-[JsonSerializable(typeof(HubDeltaManifest))]
 internal sealed partial class HubJsonContext : JsonSerializerContext;

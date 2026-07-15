@@ -182,7 +182,76 @@ jobs:
           chmod +x artifacts/publish/hub-${{ matrix.rid }}/dotnet/dotnet
           artifacts/publish/hub-${{ matrix.rid }}/Lakona.Hub --aot-smoke-test
 
-      - name: Upload platform files
+      - name: Install pinned WiX Toolset
+        if: runner.os == 'Windows'
+        run: dotnet tool install --global wix --version 5.0.2
+
+      - name: Build Windows MSI
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: >-
+          ./scripts/hub/New-HubWindowsPackage.ps1
+          -Version '${{ needs.validate.outputs.version }}'
+          -PublishRoot artifacts/publish/hub-${{ matrix.rid }}
+          -OutputRoot artifacts/packages/hub-${{ matrix.rid }}
+
+      - name: Smoke test Windows MSI payload
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $package = Resolve-Path 'artifacts/packages/hub-${{ matrix.rid }}/lakona-hub-${{ needs.validate.outputs.version }}-${{ matrix.rid }}.msi'
+          $extract = Join-Path $PWD 'artifacts/msi-extract'
+          New-Item -ItemType Directory -Path $extract -Force | Out-Null
+          $process = Start-Process msiexec.exe `
+            -ArgumentList @('/a', $package.Path, '/qn', '/norestart', "TARGETDIR=$extract") `
+            -Wait `
+            -PassThru
+          if ($process.ExitCode -ne 0) { throw "MSI administrative extraction failed with exit code $($process.ExitCode)." }
+          $executable = Get-ChildItem $extract -Recurse -Filter 'Lakona.Hub.exe' |
+            Where-Object { $_.FullName -notmatch '[\\/]dotnet[\\/]' } |
+            Select-Object -First 1
+          if ($null -eq $executable) { throw 'The MSI does not contain Lakona.Hub.exe.' }
+          $smoke = Start-Process $executable.FullName -ArgumentList '--aot-smoke-test' -Wait -PassThru
+          if ($smoke.ExitCode -ne 0) { throw 'The extracted MSI payload failed its smoke test.' }
+
+      - name: Build macOS DMG
+        if: runner.os == 'macOS'
+        shell: pwsh
+        run: >-
+          ./scripts/hub/New-HubMacPackage.ps1
+          -Version '${{ needs.validate.outputs.version }}'
+          -Rid '${{ matrix.rid }}'
+          -PublishRoot artifacts/publish/hub-${{ matrix.rid }}
+          -OutputRoot artifacts/packages/hub-${{ matrix.rid }}
+
+      - name: Smoke test macOS DMG payload
+        if: runner.os == 'macOS'
+        shell: pwsh
+        run: |
+          $package = Resolve-Path 'artifacts/packages/hub-${{ matrix.rid }}/lakona-hub-${{ needs.validate.outputs.version }}-${{ matrix.rid }}.dmg'
+          $mount = Join-Path $PWD 'artifacts/dmg-mount'
+          New-Item -ItemType Directory -Path $mount -Force | Out-Null
+          & hdiutil attach $package -mountpoint $mount -nobrowse -readonly
+          if ($LASTEXITCODE -ne 0) { throw 'Could not mount the generated DMG.' }
+          try {
+            & (Join-Path $mount 'Lakona Hub.app/Contents/MacOS/Lakona.Hub') --aot-smoke-test
+            if ($LASTEXITCODE -ne 0) { throw 'The mounted DMG payload failed its smoke test.' }
+          }
+          finally {
+            & hdiutil detach $mount
+          }
+
+      - name: Upload installer package
+        if: runner.os != 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: hub-${{ matrix.rid }}-package
+          path: artifacts/packages/hub-${{ matrix.rid }}
+          if-no-files-found: error
+          retention-days: 2
+
+      - name: Upload Linux platform files
+        if: runner.os == 'Linux'
         uses: actions/upload-artifact@v7
         with:
           name: hub-${{ matrix.rid }}
@@ -247,29 +316,7 @@ jobs:
           pattern: hub-*
           path: artifacts/publish
 
-      - name: Download previous Hub release
-        id: previous
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $currentTag = '${{ needs.validate.outputs.tag }}'
-          $releases = gh release list --limit 100 --json tagName,isDraft,isPrerelease | ConvertFrom-Json
-          $previous = $releases |
-            Where-Object { -not $_.isDraft -and -not $_.isPrerelease -and $_.tagName.StartsWith('hub-v') -and $_.tagName -ne $currentTag } |
-            Select-Object -First 1
-          if ($null -eq $previous) {
-            'found=false' >> $env:GITHUB_OUTPUT
-            exit 0
-          }
-          New-Item -ItemType Directory -Path artifacts/previous -Force | Out-Null
-          gh release download $previous.tagName --pattern 'lakona-hub-manifest.json' --dir artifacts/previous
-          gh release download $previous.tagName --pattern 'lakona-hub-*-win-x64.zip' --dir artifacts/previous
-          gh release download $previous.tagName --pattern 'lakona-hub-*-osx-x64.zip' --dir artifacts/previous
-          gh release download $previous.tagName --pattern 'lakona-hub-*-osx-arm64.zip' --dir artifacts/previous
-          'found=true' >> $env:GITHUB_OUTPUT
-
-      - name: Build full and incremental release assets
+      - name: Build release manifest
         shell: pwsh
         run: |
           $parameters = @{
@@ -278,9 +325,6 @@ jobs:
             Repository = '${{ github.repository }}'
             PublishRoot = 'artifacts/publish'
             OutputRoot = 'artifacts/release'
-          }
-          if ('${{ steps.previous.outputs.found }}' -eq 'true') {
-            $parameters.PreviousRoot = 'artifacts/previous'
           }
           ./scripts/hub/New-HubRelease.ps1 @parameters
 

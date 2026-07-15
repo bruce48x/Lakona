@@ -57,27 +57,3 @@ internal sealed record HubReleasePlatform(
 internal sealed record HubReleaseAsset(string AssetName, string Sha256, long Size);
 
 internal sealed record HubReleaseDelta(string FromVersion, string AssetName, string Sha256, long Size);
-
-internal sealed record HubPackageManifest(
-    int SchemaVersion,
-    string Version,
-    IReadOnlyList<HubPackageFile> Files,
-    IReadOnlyList<string> ExecutableFiles);
-
-internal sealed record HubPackageFile(string Path, string Sha256, long Size);
-
-internal sealed record HubDeltaManifest(
-    int SchemaVersion,
-    string FromVersion,
-    string ToVersion,
-    IReadOnlyList<string> DeletedFiles);
-
-internal sealed record HubUpdateLaunchPlan(
-    string InstallDirectory,
-    string ArchivePath,
-    string PackageRoot,
-    string ExecutablePath,
-    string CurrentVersion,
-    string TargetVersion,
-    bool IsDelta,
-    int ParentProcessId);

@@ -3,7 +3,6 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
-using Lakona.Hub.Updates;
 
 namespace Lakona.Hub;
 
@@ -20,8 +19,6 @@ public sealed partial class App : Application
         {
             var mainWindow = new MainWindow(enableStartupDetection: !HubAotSmokeTest.IsRequested);
             desktop.MainWindow = mainWindow;
-            mainWindow.ShowUpdateFailure(HubUpdateStartup.TakeFailureMessage());
-            HubUpdateStartup.Complete();
             if (HubAotSmokeTest.IsRequested)
             {
                 desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;

@@ -1,0 +1,84 @@
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $true)]
+    [string]$Version,
+
+    [Parameter(Mandatory = $true)]
+    [string]$Rid,
+
+    [Parameter(Mandatory = $true)]
+    [string]$PublishRoot,
+
+    [Parameter(Mandatory = $true)]
+    [string]$OutputRoot
+)
+
+$ErrorActionPreference = 'Stop'
+if (-not $IsMacOS) {
+    throw 'The macOS DMG must be built on macOS.'
+}
+if ($Rid -notin @('osx-x64', 'osx-arm64')) {
+    throw "Unsupported macOS RID: $Rid"
+}
+
+$publishDirectory = (Resolve-Path -LiteralPath $PublishRoot).Path
+$hubExecutable = Join-Path $publishDirectory 'Lakona.Hub'
+$sdkExecutable = Join-Path $publishDirectory 'dotnet/dotnet'
+if (-not (Test-Path -LiteralPath $hubExecutable) -or -not (Test-Path -LiteralPath $sdkExecutable)) {
+    throw "The $Rid publish output is incomplete: $publishDirectory"
+}
+
+& chmod 0755 $hubExecutable $sdkExecutable
+if ($LASTEXITCODE -ne 0) {
+    throw 'Could not mark the Hub and bundled SDK entry points executable.'
+}
+
+New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
+$outputDirectory = (Resolve-Path -LiteralPath $OutputRoot).Path
+$stage = Join-Path $outputDirectory '.dmg-stage'
+if (Test-Path -LiteralPath $stage) {
+    Remove-Item -LiteralPath $stage -Recurse -Force
+}
+
+$app = Join-Path $stage 'Lakona Hub.app'
+$macOs = Join-Path $app 'Contents/MacOS'
+$resources = Join-Path $app 'Contents/Resources'
+New-Item -ItemType Directory -Path $macOs -Force | Out-Null
+New-Item -ItemType Directory -Path $resources -Force | Out-Null
+Get-ChildItem -LiteralPath $publishDirectory -Force | Where-Object Name -ne 'dotnet' | ForEach-Object {
+    & ditto $_.FullName (Join-Path $macOs $_.Name)
+    if ($LASTEXITCODE -ne 0) { throw "Could not copy $($_.FullName) into the app bundle." }
+}
+& ditto (Join-Path $publishDirectory 'dotnet') (Join-Path $resources 'dotnet')
+if ($LASTEXITCODE -ne 0) { throw 'Could not copy the bundled SDK into the app bundle.' }
+
+@"
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>Lakona Hub</string>
+  <key>CFBundleDisplayName</key><string>Lakona Hub</string>
+  <key>CFBundleIdentifier</key><string>dev.lakona.hub</string>
+  <key>CFBundleVersion</key><string>$Version</string>
+  <key>CFBundleShortVersionString</key><string>$Version</string>
+  <key>CFBundleExecutable</key><string>Lakona.Hub</string>
+  <key>LSMinimumSystemVersion</key><string>12.0</string>
+  <key>NSHighResolutionCapable</key><true/>
+</dict>
+</plist>
+"@ | Set-Content -LiteralPath (Join-Path $app 'Contents/Info.plist') -Encoding utf8NoBOM
+
+New-Item -ItemType SymbolicLink -Path (Join-Path $stage 'Applications') -Target '/Applications' | Out-Null
+$packagePath = Join-Path $outputDirectory "lakona-hub-$Version-$Rid.dmg"
+try {
+    & hdiutil create -volname 'Lakona Hub' -srcfolder $stage -ov -format UDZO $packagePath
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $packagePath)) {
+        throw 'hdiutil failed to create the macOS DMG.'
+    }
+}
+finally {
+    if (Test-Path -LiteralPath $stage) {
+        Remove-Item -LiteralPath $stage -Recurse -Force
+    }
+}

@@ -1,6 +1,4 @@
 using Avalonia;
-using Lakona.Hub.Updates;
-
 namespace Lakona.Hub;
 
 internal static class Program
@@ -8,12 +6,7 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        if (HubUpdateInstaller.TryRun(args))
-        {
-            return;
-        }
-
-        var applicationArgs = HubAotSmokeTest.Capture(HubUpdateStartup.Capture(args));
+        var applicationArgs = HubAotSmokeTest.Capture(args);
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(applicationArgs);
     }
 
