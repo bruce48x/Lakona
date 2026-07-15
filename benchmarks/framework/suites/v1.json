@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "1",
+  "id": "framework-v1",
+  "frameworks": [ "lakona", "pinus" ],
+  "workloads": [ "frontdoor.echo", "cluster.direct", "cluster.routed" ],
+  "payloadSizes": [ 32, 256 ],
+  "concurrency": [ 1, 16, 64, 256 ],
+  "seed": 20260715,
+  "timing": {
+    "startupTimeoutMilliseconds": 30000,
+    "readinessTimeoutMilliseconds": 15000,
+    "warmupMilliseconds": 5000,
+    "measurementMilliseconds": 15000,
+    "requestTimeoutMilliseconds": 5000,
+    "drainTimeoutMilliseconds": 5000,
+    "shutdownTimeoutMilliseconds": 5000
+  },
+  "histogram": {
+    "unit": "microseconds",
+    "lowestDiscernibleValue": 1,
+    "highestTrackableValue": 60000000,
+    "significantDigits": 3
+  }
+}

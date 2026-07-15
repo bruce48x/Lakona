@@ -1,0 +1,65 @@
+{
+  "schemaVersion": "1",
+  "framework": "pinus",
+  "revision": "npm:pinus@1.7.3",
+  "runtime": "Node.js >=12.9.0",
+  "buildMode": "TypeScript 4.3.5 / Node.js",
+  "licenseUrl": "https://github.com/node-pinus/pinus/blob/master/LICENSE",
+  "supportedWorkloads": [ "frontdoor.echo", "cluster.direct", "cluster.routed" ],
+  "metadata": {
+    "source": "https://www.npmjs.com/package/pinus/v/1.7.3",
+    "pinusLicense": "https://github.com/node-pinus/pinus/blob/master/LICENSE",
+    "transport": "Pinus hybridconnector WebSocket",
+    "directTransport": "Pinus RPC toServer",
+    "routedDirectory": "Pinus app.route worker router",
+    "serializer": "Pinus JSON (protobuf disabled)",
+    "clientLibrary": "pomelo-jsclient-websocket 0.1.1",
+    "clientSource": "https://www.npmjs.com/package/pomelo-jsclient-websocket/v/0.1.1",
+    "clientLicense": "https://github.com/pomelonode/pomelo-jsclient-websocket/blob/master/README.md#license",
+    "protocolLibrary": "pinus-protocol 1.7.3"
+  },
+  "prepare": [
+    {
+      "fileName": "pwsh",
+      "arguments": [ "-NoProfile", "-File", "${adapterRoot}/prepare.ps1" ]
+    }
+  ],
+  "servers": [
+    {
+      "role": "master",
+      "ports": [ "masterPort" ],
+      "command": {
+        "fileName": "node",
+        "arguments": [ "${adapterRoot}/dist/app.js", "env=development", "id=master-server-1", "role=master", "clientPort=${clientPort}", "connectorPort=${connectorPort}", "worker1Port=${worker1Port}", "worker2Port=${worker2Port}", "masterPort=${masterPort}", "mode=stand-alone" ]
+      }
+    },
+    {
+      "role": "worker-1",
+      "ports": [ "worker1Port" ],
+      "command": {
+        "fileName": "node",
+        "arguments": [ "${adapterRoot}/dist/app.js", "env=development", "serverType=worker", "id=worker-server-1", "role=worker-1", "host=127.0.0.1", "port=${worker1Port}", "clientPort=${clientPort}", "connectorPort=${connectorPort}", "worker1Port=${worker1Port}", "worker2Port=${worker2Port}", "masterPort=${masterPort}", "mode=stand-alone" ]
+      }
+    },
+    {
+      "role": "worker-2",
+      "ports": [ "worker2Port" ],
+      "command": {
+        "fileName": "node",
+        "arguments": [ "${adapterRoot}/dist/app.js", "env=development", "serverType=worker", "id=worker-server-2", "role=worker-2", "host=127.0.0.1", "port=${worker2Port}", "clientPort=${clientPort}", "connectorPort=${connectorPort}", "worker1Port=${worker1Port}", "worker2Port=${worker2Port}", "masterPort=${masterPort}", "mode=stand-alone" ]
+      }
+    },
+    {
+      "role": "frontdoor",
+      "ports": [ "connectorPort", "clientPort" ],
+      "command": {
+        "fileName": "node",
+        "arguments": [ "${adapterRoot}/dist/app.js", "env=development", "serverType=connector", "id=connector-server-1", "role=frontdoor", "host=127.0.0.1", "port=${connectorPort}", "clientHost=127.0.0.1", "clientPort=${clientPort}", "connectorPort=${connectorPort}", "worker1Port=${worker1Port}", "worker2Port=${worker2Port}", "masterPort=${masterPort}", "frontend=true", "mode=stand-alone" ]
+      }
+    }
+  ],
+  "driver": {
+    "fileName": "node",
+    "arguments": [ "${adapterRoot}/dist/driver.js", "--case", "${caseFile}", "--result", "${resultFile}" ]
+  }
+}

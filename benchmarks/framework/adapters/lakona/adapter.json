@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "1",
+  "framework": "lakona",
+  "revision": "26a2f4dbb512e3b039ff72c1b8432f40a7cee282",
+  "runtime": ".NET 10",
+  "buildMode": "Release",
+  "licenseUrl": "https://github.com/bruce48x/Lakona/blob/main/LICENSE",
+  "supportedWorkloads": [ "frontdoor.echo", "cluster.direct", "cluster.routed" ],
+  "metadata": {
+    "source": "https://github.com/bruce48x/Lakona",
+    "transport": "Lakona.Rpc WebSocket",
+    "directTransport": "Lakona.Rpc TCP",
+    "routedDirectory": "Lakona.Game.Cluster InMemoryRouteDirectory",
+    "serializer": "MemoryPack 1.21.4",
+    "clientLibrary": "Lakona.Rpc.Client 0.13.2"
+  },
+  "prepare": [
+    {
+      "fileName": "dotnet",
+      "arguments": [ "build", "${adapterRoot}/FrameworkBenchmark.Lakona.Server/FrameworkBenchmark.Lakona.Server.csproj", "--configuration", "Release" ]
+    },
+    {
+      "fileName": "dotnet",
+      "arguments": [ "build", "${adapterRoot}/FrameworkBenchmark.Lakona.Driver/FrameworkBenchmark.Lakona.Driver.csproj", "--configuration", "Release" ]
+    }
+  ],
+  "servers": [
+    {
+      "role": "worker-1",
+      "ports": [ "worker1Port" ],
+      "command": {
+        "fileName": "dotnet",
+        "arguments": [ "${adapterRoot}/FrameworkBenchmark.Lakona.Server/bin/Release/net10.0/FrameworkBenchmark.Lakona.Server.dll", "--role", "worker-1", "--worker-1-port", "${worker1Port}", "--worker-2-port", "${worker2Port}" ],
+        "environment": { "Logging__LogLevel__Default": "None" }
+      }
+    },
+    {
+      "role": "worker-2",
+      "ports": [ "worker2Port" ],
+      "command": {
+        "fileName": "dotnet",
+        "arguments": [ "${adapterRoot}/FrameworkBenchmark.Lakona.Server/bin/Release/net10.0/FrameworkBenchmark.Lakona.Server.dll", "--role", "worker-2", "--worker-1-port", "${worker1Port}", "--worker-2-port", "${worker2Port}" ],
+        "environment": { "Logging__LogLevel__Default": "None" }
+      }
+    },
+    {
+      "role": "frontdoor",
+      "ports": [ "clientPort" ],
+      "command": {
+        "fileName": "dotnet",
+        "arguments": [ "${adapterRoot}/FrameworkBenchmark.Lakona.Server/bin/Release/net10.0/FrameworkBenchmark.Lakona.Server.dll", "--role", "frontdoor", "--client-port", "${clientPort}", "--worker-1-port", "${worker1Port}", "--worker-2-port", "${worker2Port}" ],
+        "environment": { "Logging__LogLevel__Default": "None" }
+      }
+    }
+  ],
+  "driver": {
+    "fileName": "dotnet",
+    "arguments": [ "${adapterRoot}/FrameworkBenchmark.Lakona.Driver/bin/Release/net10.0/FrameworkBenchmark.Lakona.Driver.dll", "--case", "${caseFile}", "--result", "${resultFile}" ]
+  }
+}
