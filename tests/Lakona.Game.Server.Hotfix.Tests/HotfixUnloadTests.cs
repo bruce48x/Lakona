@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Runtime.Loader;
 using GameServer::Lakona.Game.Server.Actors;
 using Lakona.Game.Cluster;
+using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Generators;
@@ -117,9 +118,11 @@ public sealed class HotfixUnloadTests
         Func<HotfixUnloadHarness, Task> invokeAsync,
         bool createActor)
     {
-        await using var provider = new ServiceCollection()
-            .AddLakonaGameServerActors()
-            .BuildServiceProvider();
+        var services = new ServiceCollection()
+            .AddLakonaGameServerActors();
+        services.AddSingleton<IHotfixRuntimeAccessor>(provider =>
+            new FixedHotfixRuntimeAccessor(new HotfixRuntimeSnapshot(new HotfixServiceInvoker(), provider)));
+        await using var provider = services.BuildServiceProvider();
 
         var appAssembly = loadContext.LoadFromStream(new MemoryStream(assemblies.AppBytes));
         var hotfixAssembly = loadContext.LoadFromStream(new MemoryStream(assemblies.HotfixBytes));
@@ -426,6 +429,11 @@ public sealed class HotfixUnloadTests
     }
 
     private sealed record GeneratedHotfixAssemblies(byte[] AppBytes, byte[] HotfixBytes);
+
+    private sealed class FixedHotfixRuntimeAccessor(HotfixRuntimeSnapshot current) : IHotfixRuntimeAccessor
+    {
+        public HotfixRuntimeSnapshot Current { get; } = current;
+    }
 
     private sealed class ThrowingActorPlacementService : IActorPlacementService
     {
