@@ -17,6 +17,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Server.App.State;
+using Server.App.State.Contracts;
 using Server.App.State.Contracts.Matchmaking;
 using Server.App.State.Contracts.Rooms;
 using Server.App.State.Contracts.Sessions;
@@ -27,8 +28,10 @@ using Server.App.State.Rooms;
 using Server.App.State.Users;
 using Server.Hotfix.Services;
 using Server.Hotfix.State.Matchmaking;
+using Server.Hotfix.State.Rooms;
 using Server.Hotfix.State.Users;
 using Server.Hotfix.Timers;
+using Shared.Interfaces;
 using System.Net;
 using System.Net.Sockets;
 using Xunit;
@@ -37,6 +40,25 @@ namespace Agar.Unity.Tests;
 
 public sealed class DistributedTopologyConfigurationTests
 {
+    private sealed class CapturingBattleCallback : IBattleCallback
+    {
+        public TaskCompletionSource<WorldState> WorldState { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void OnWorldState(WorldState worldState)
+        {
+            WorldState.TrySetResult(worldState);
+        }
+
+        public void OnPlayerDead(PlayerDead deadEvent)
+        {
+        }
+
+        public void OnMatchEnd(MatchEnd matchEnd)
+        {
+        }
+    }
+
     [Fact]
     public void DataNodeOwnsStateAndClusterEndpointWithoutClientEndpoints()
     {
@@ -449,6 +471,112 @@ public sealed class DistributedTopologyConfigurationTests
             }
 
             Assert.Fail("The startup actor's matchmaking timer did not process the expired ticket.");
+        }
+        finally
+        {
+            await clusterRegistration.StopAsync(CancellationToken.None);
+            await timerScheduler.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task BattleRuntimeTimerPublishesWorldState()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var services = BuildProgramServices("appsettings.json");
+        var hotfixAssemblyPath = TestHotfix.FindHotfixAssemblyPath();
+        services.AddLakonaGameHotfix(
+            new Lakona.Game.Server.Hotfix.Loading.CurrentDirectoryHotfixAssemblySource(
+                Path.GetDirectoryName(hotfixAssemblyPath)!,
+                Path.GetFileName(hotfixAssemblyPath)),
+            TestHotfix.HostAssemblyNames());
+
+        await using var provider = services.BuildServiceProvider();
+        var reload = await provider.GetRequiredService<IHotfixManager>().ReloadAsync(cancellationToken);
+        Assert.True(reload.Succeeded, TestHotfix.BuildReloadDiagnostics(reload));
+
+        var hostedServices = provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>().ToArray();
+        var timerScheduler = hostedServices.Single(service => service.GetType().Name == "LakonaTimerScheduler");
+        var clusterRegistration = hostedServices.OfType<LakonaGameClusterRegistrationHostedService>().Single();
+
+        await timerScheduler.StartAsync(cancellationToken);
+        await clusterRegistration.StartAsync(cancellationToken);
+        try
+        {
+            const string playerId = "battle-timer-player";
+            const string roomId = "battle-timer-room";
+            const string matchId = "battle-timer-match";
+            var callback = new CapturingBattleCallback();
+            var gameServer = provider.GetRequiredService<ILakonaGameServer>();
+#pragma warning disable CS0618
+            var session = await gameServer.StartSessionAsync(
+                playerId,
+                "battle-timer-connection",
+                callback,
+                cancellationToken);
+#pragma warning restore CS0618
+            await provider.GetRequiredService<ActorHosting>()
+                .EnsureAsync<RoomActor>(ActorId.From(roomId), cancellationToken);
+            var actors = provider.GetRequiredService<ActorAccess>();
+
+            await actors.Route<RoomActor>(new RoomId(roomId)).CallAsync(
+                RoomBehavior.CreateAsync,
+                new RoomCreateRequest
+                {
+                    RoomId = roomId,
+                    MatchId = matchId,
+                    CreatedByUserId = playerId,
+                    CreatedAtUtc = DateTime.UtcNow,
+                    Players =
+                    [
+                        new PlayerRoomAssignment
+                        {
+                            UserId = playerId,
+                            RoomId = roomId,
+                            MatchId = matchId,
+                            SessionToken = "battle-timer-token",
+                            ConnectionId = "battle-timer-control",
+                            ControlSessionId = "battle-timer-control-session",
+                            ControlSessionGeneration = 1,
+                            AssignedAtUtc = DateTime.UtcNow
+                        }
+                    ]
+                },
+                cancellationToken);
+            await actors.Route<RoomActor>(new RoomId(roomId)).CallAsync(
+                RoomBehavior.SetReadyAsync,
+                new RoomPlayerReadyRequest
+                {
+                    UserId = playerId,
+                    RoomId = roomId,
+                    IsReady = true,
+                    RealtimeSessionId = session.SessionId,
+                    RealtimeSessionGeneration = session.Generation,
+                    UpdatedAtUtc = DateTime.UtcNow
+                },
+                cancellationToken);
+            await actors.Route<RoomActor>(new RoomId(roomId)).CallAsync(
+                RoomBehavior.StartAsync,
+                new RoomStartRequest
+                {
+                    RoomId = roomId,
+                    StartedByUserId = playerId,
+                    StartedAtUtc = DateTime.UtcNow
+                },
+                cancellationToken);
+
+            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
+            var snapshot = await actors.Route<RoomActor>(new RoomId(roomId)).CallAsync(
+                RoomBehavior.GetSnapshotAsync,
+                new RoomSnapshotRequest(),
+                cancellationToken);
+            Assert.True(snapshot.Revision > 3, $"Battle timer did not advance the room; revision={snapshot.Revision}.");
+
+            var worldState = await callback.WorldState.Task.WaitAsync(
+                TimeSpan.FromSeconds(3),
+                cancellationToken);
+            Assert.True(worldState.Tick >= 0);
+            Assert.Contains(worldState.Players, player => player.PlayerId == playerId);
         }
         finally
         {

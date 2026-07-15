@@ -142,6 +142,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        TRequest request,");
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken)");
             builder.AppendLine("    {");
+            builder.AppendLine("        var runtimeAccessor = _actors.HotfixRuntime;");
             builder.AppendLine("        await _actors.Runtime.TellAsync<TActor>(");
             builder.AppendLine("            _actorId,");
             AppendRouteDispatchLambda(builder, isResult: false);
@@ -153,6 +154,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        TRequest request,");
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken)");
             builder.AppendLine("    {");
+            builder.AppendLine("        var runtimeAccessor = _actors.HotfixRuntime;");
             builder.AppendLine("        return await _actors.Runtime.AskAsync<TActor, TResult>(");
             builder.AppendLine("            _actorId,");
             AppendRouteDispatchLambda(builder, isResult: true);
@@ -162,13 +164,14 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
         private static void AppendRouteDispatchLambda(StringBuilder builder, bool isResult)
         {
-            builder.Append("            (actor, ct) => global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeValueTaskAsync");
+            builder.Append("            (actor, ct) => global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeActorAsync");
             if (isResult)
             {
                 builder.Append("<TResult>");
             }
 
             builder.AppendLine("(");
+            builder.AppendLine("                runtimeAccessor,");
             builder.AppendLine("                typeof(TActor),");
             builder.AppendLine("                method.MethodName,");
             builder.AppendLine("                actor,");

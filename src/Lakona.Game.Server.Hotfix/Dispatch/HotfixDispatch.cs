@@ -155,6 +155,44 @@ public static class HotfixDispatch
         throw new InvalidOperationException($"Hotfix actor method id '{methodId}' returned an invalid result.");
     }
 
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public static async ValueTask InvokeActorAsync(
+        IHotfixRuntimeAccessor runtimeAccessor,
+        Type stateType,
+        string methodName,
+        object state,
+        Type[] parameterTypes,
+        object?[] arguments)
+    {
+        ArgumentNullException.ThrowIfNull(runtimeAccessor);
+        using var lease = runtimeAccessor.AcquireCurrent();
+        await InvokeValueTaskAsync(
+            stateType,
+            methodName,
+            state,
+            parameterTypes,
+            arguments).ConfigureAwait(false);
+    }
+
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public static async ValueTask<TResult> InvokeActorAsync<TResult>(
+        IHotfixRuntimeAccessor runtimeAccessor,
+        Type stateType,
+        string methodName,
+        object state,
+        Type[] parameterTypes,
+        object?[] arguments)
+    {
+        ArgumentNullException.ThrowIfNull(runtimeAccessor);
+        using var lease = runtimeAccessor.AcquireCurrent();
+        return await InvokeValueTaskAsync<TResult>(
+            stateType,
+            methodName,
+            state,
+            parameterTypes,
+            arguments).ConfigureAwait(false);
+    }
+
     public static async ValueTask InvokeValueTaskAsync(
         Type stateType,
         string methodName,

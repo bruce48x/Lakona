@@ -162,6 +162,9 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("public readonly struct ActorRoute<TActor>", generated, StringComparison.Ordinal);
         Assert.Contains("public readonly struct LocalActor<TActor>", generated, StringComparison.Ordinal);
         Assert.Contains("private readonly ActorAccess _actors;", generated, StringComparison.Ordinal);
+        Assert.Contains("IHotfixRuntimeAccessor HotfixRuntime", generated, StringComparison.Ordinal);
+        Assert.Contains("HotfixDispatch.InvokeActorAsync", generated, StringComparison.Ordinal);
+        Assert.Contains("runtimeAccessor,", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("dynamic", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("object _inner", generated, StringComparison.Ordinal);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask<TResult> CallAsync<TRequest, TResult>(", generated, StringComparison.Ordinal);

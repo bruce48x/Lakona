@@ -89,7 +89,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 builder.Append("    ").Append(accessibility).Append(" LocalActor<TActor> Local<TActor>(").Append(keyType).AppendLine(" id)");
                 builder.Append("        where TActor : global::Lakona.Game.Server.Actors.Actor<").Append(keyType).AppendLine(">");
                 builder.AppendLine("    {");
-                builder.AppendLine("        return new LocalActor<TActor>(_runtime, global::Lakona.Game.Server.Actors.ActorId.From(id.ToString()));");
+                builder.AppendLine("        return new LocalActor<TActor>(this, global::Lakona.Game.Server.Actors.ActorId.From(id.ToString()));");
                 builder.AppendLine("    }");
                 builder.AppendLine();
                 builder.Append("    ").Append(accessibility).Append(" ActorRoute<TActor> Route<TActor>(").Append(keyType).AppendLine(" id)");
@@ -113,12 +113,13 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 builder.Append("    ").Append(accessibility).Append(" StartupActor<TActor, ").Append(keyType).Append("> Startup<TActor>(").Append(keyType).AppendLine(" key)");
                 builder.AppendLine("        where TActor : global::Lakona.Game.Server.Actors.Actor");
                 builder.AppendLine("    {");
-                builder.Append("        return new StartupActor<TActor, ").Append(keyType).AppendLine(">(_startup, _runtime, key);");
+                builder.Append("        return new StartupActor<TActor, ").Append(keyType).AppendLine(">(_startup, this, key);");
                 builder.AppendLine("    }");
             }
 
             builder.AppendLine();
             builder.AppendLine("    internal global::Lakona.Game.Server.Actors.IActorRuntime Runtime => _runtime;");
+            builder.AppendLine("    internal global::Lakona.Game.Server.Hotfix.IHotfixRuntimeAccessor HotfixRuntime => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Lakona.Game.Server.Hotfix.IHotfixRuntimeAccessor>(_services);");
             builder.AppendLine("    internal global::Lakona.Game.Server.Actors.IRemoteActorInvoker Remote => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Lakona.Game.Server.Actors.IRemoteActorInvoker>(_services);");
             builder.AppendLine("    internal global::Lakona.Game.Server.Actors.IRemoteActorSerializer Serializer => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Lakona.Game.Server.Actors.IRemoteActorSerializer>(_services);");
             builder.AppendLine("    internal global::Lakona.Game.Server.Actors.RemoteActorOptions Options => _options;");
