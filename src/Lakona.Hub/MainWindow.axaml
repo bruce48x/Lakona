@@ -73,6 +73,7 @@
       <Setter Property="Foreground" Value="#B4B2AC" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
       <Setter Property="HorizontalContentAlignment" Value="Left" />
       <Setter Property="Padding" Value="20,15" />
       <Setter Property="FontSize" Value="16" />

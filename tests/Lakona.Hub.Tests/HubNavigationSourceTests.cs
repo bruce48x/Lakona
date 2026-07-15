@@ -17,6 +17,7 @@ public sealed class HubNavigationSourceTests
         Assert.Contains("x:Name=\"UpdateButton\"", view, StringComparison.Ordinal);
         Assert.Contains("Click=\"CheckUpdate_Click\"", view, StringComparison.Ordinal);
         Assert.Contains("IHubUpdateService", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("<Setter Property=\"HorizontalAlignment\" Value=\"Stretch\" />", view, StringComparison.Ordinal);
         Assert.DoesNotContain("Click=\"Environment_Click\"", view, StringComparison.Ordinal);
         Assert.DoesNotContain("void Environment_Click", codeBehind, StringComparison.Ordinal);
     }
