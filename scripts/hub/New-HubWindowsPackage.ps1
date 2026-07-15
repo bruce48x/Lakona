@@ -9,7 +9,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$OutputRoot,
 
-    [string]$WixPath = 'wix'
+    [string]$WixPath = 'wix',
+
+    [string]$IconPath = (Join-Path $PSScriptRoot '../../src/Lakona.Hub/Assets/lakona-hub.ico')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -18,6 +20,7 @@ if (-not $IsWindows) {
 }
 
 $publishDirectory = (Resolve-Path -LiteralPath $PublishRoot).Path
+$resolvedIconPath = (Resolve-Path -LiteralPath $IconPath).Path
 $hubExecutable = Join-Path $publishDirectory 'Lakona.Hub.exe'
 $sdkExecutable = Join-Path $publishDirectory 'dotnet/dotnet.exe'
 if (-not (Test-Path -LiteralPath $hubExecutable) -or -not (Test-Path -LiteralPath $sdkExecutable)) {
@@ -34,11 +37,14 @@ New-Item -ItemType Directory -Path $workDirectory | Out-Null
 
 $sourcePattern = [Security.SecurityElement]::Escape((Join-Path $publishDirectory '**'))
 $executableSource = [Security.SecurityElement]::Escape($hubExecutable)
+$iconSource = [Security.SecurityElement]::Escape($resolvedIconPath)
 $source = Join-Path $workDirectory 'Lakona.Hub.wxs'
 @"
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="Lakona Hub" Manufacturer="Lakona" Version="$Version" UpgradeCode="D781E216-AC16-4F40-A74B-51AB25034019" Scope="perMachine">
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+    <Icon Id="LakonaHubIcon" SourceFile="$iconSource" />
+    <Property Id="ARPPRODUCTICON" Value="LakonaHubIcon" />
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="Lakona Hub" />
     </StandardDirectory>
@@ -48,7 +54,7 @@ $source = Join-Path $workDirectory 'Lakona.Hub.wxs'
     </Files>
     <Component Id="HubExecutableComponent" Directory="INSTALLFOLDER" Bitness="always64">
       <File Id="HubExecutable" Source="$executableSource" KeyPath="yes">
-        <Shortcut Id="HubStartMenuShortcut" Directory="ProgramMenuFolder" Name="Lakona Hub" WorkingDirectory="INSTALLFOLDER" Advertise="yes" />
+        <Shortcut Id="HubStartMenuShortcut" Directory="ProgramMenuFolder" Name="Lakona Hub" WorkingDirectory="INSTALLFOLDER" Advertise="yes" Icon="LakonaHubIcon" />
       </File>
     </Component>
   </Package>

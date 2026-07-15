@@ -12,6 +12,7 @@ public sealed class HubReleaseWorkflowSourceTests
         var root = FindRepositoryRoot();
         var workflow = File.ReadAllText(Path.Combine(root, ".github", "workflows", "publish-hub.yml"));
         var packager = File.ReadAllText(Path.Combine(root, "scripts", "hub", "New-HubRelease.ps1"));
+        var windowsPackager = File.ReadAllText(Path.Combine(root, "scripts", "hub", "New-HubWindowsPackage.ps1"));
         var project = File.ReadAllText(Path.Combine(root, "src", "Lakona.Hub", "Lakona.Hub.csproj"));
 
         Assert.Contains("win-x64", workflow, StringComparison.Ordinal);
@@ -44,6 +45,11 @@ public sealed class HubReleaseWorkflowSourceTests
         Assert.Contains("<PublishAot>true</PublishAot>", project, StringComparison.Ordinal);
         Assert.Contains("<IsAotCompatible>true</IsAotCompatible>", project, StringComparison.Ordinal);
         Assert.Contains("<ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>", project, StringComparison.Ordinal);
+        Assert.Contains("<ApplicationIcon>Assets\\lakona-hub.ico</ApplicationIcon>", project, StringComparison.Ordinal);
+        Assert.Contains("ARPPRODUCTICON", windowsPackager, StringComparison.Ordinal);
+        Assert.Contains("Icon=\"LakonaHubIcon\"", windowsPackager, StringComparison.Ordinal);
+        Assert.True(File.Exists(Path.Combine(root, "src", "Lakona.Hub", "Assets", "lakona-hub.ico")));
+        Assert.True(File.Exists(Path.Combine(root, "src", "Lakona.Hub", "Assets", "lakona-hub-2048.png")));
     }
 
     [Fact]
