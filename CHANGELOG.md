@@ -6,7 +6,7 @@ date and package versions of important releases are retained.
 
 ## 2026-07-15 — NativeAOT Hub releases
 
-**Key releases:** `Lakona Hub 0.2.11`, `Lakona.ProjectSystem 0.1.7`, and
+**Key releases:** `Lakona Hub 0.2.12`, `Lakona.ProjectSystem 0.1.7`, and
 `Lakona.Tool 0.25.27`.
 
 - Moved every Hub target to warning-clean NativeAOT publishing on its native
@@ -18,8 +18,9 @@ date and package versions of important releases are retained.
   made Linux DEB/RPM asset names explicitly include `linux-x64`.
 - Added Lakona branding to the Windows executable, Start menu shortcut, and
   installed-app entry.
-- Added native macOS and Linux application icons, and kept NativeAOT restricted
-  to release builds so Avalonia design-time previews retain dynamic XAML loading.
+- Added native macOS and Linux application icons, ensured release checkouts
+  resolve their LFS-backed bitmap assets, and kept NativeAOT restricted to
+  release builds so Avalonia design-time previews retain dynamic XAML loading.
 - Standardized button content alignment across navigation, project actions,
   settings, tool browsing, and dialogs.
 

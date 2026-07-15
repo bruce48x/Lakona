@@ -15,6 +15,9 @@ public sealed class HubReleaseWorkflowSourceTests
         var windowsPackager = File.ReadAllText(Path.Combine(root, "scripts", "hub", "New-HubWindowsPackage.ps1"));
         var project = File.ReadAllText(Path.Combine(root, "src", "Lakona.Hub", "Lakona.Hub.csproj"));
 
+        var checkoutCount = workflow.Split("uses: actions/checkout@v5", StringSplitOptions.None).Length - 1;
+        var lfsCheckoutCount = workflow.Split("lfs: true", StringSplitOptions.None).Length - 1;
+        Assert.Equal(checkoutCount, lfsCheckoutCount);
         Assert.Contains("win-x64", workflow, StringComparison.Ordinal);
         Assert.Contains("linux-x64", workflow, StringComparison.Ordinal);
         Assert.Contains("osx-x64", workflow, StringComparison.Ordinal);
