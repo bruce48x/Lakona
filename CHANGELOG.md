@@ -38,68 +38,21 @@ date and package versions of important releases are retained.
 - Migrated generated projects and maintained samples to the service-scoped
   authoring model, and removed Agar's unused login callback contract.
 
-## 2026-07-14 — Contention-free runtime hot paths
+## 2026-07-14 — Generated runtime and desktop tooling
 
 **Key releases:** `Lakona.Game.Server 0.18.10`,
-`Lakona.Game.Server.Hotfix 0.8.2`,
 `Lakona.Game.Server.Hotfix.Generators 0.5.5`,
-`Lakona.Game.Server.Hotfix.Abstractions 0.5.1`,
-`Lakona.Game.Cluster 0.5.1`, `Lakona.Game.Cluster.Rpc 0.4.1`,
-`Lakona.Game.Cluster.Rpc.MemoryPack 0.3.1`, `Lakona.Game.Cluster.Sql 0.4.1`,
-`Lakona.Game.LoadTesting 0.1.2`, `Lakona.Rpc.Server 0.13.9`,
-`Lakona.Rpc.Analyzers 0.3.12`, `Lakona.Rpc.Transport.Kcp 0.11.17`,
 `Lakona.ProjectSystem 0.1.2`, and `Lakona.Tool 0.25.22`.
 
-- Made Hotfix services generation-owned and replaced reflective service and
-  Actor invocation with generated numeric typed dispatch; added value-type
-  request contexts and generated value-type client-notification targets.
-- Removed global contention from session, route, node, cluster-client, KCP,
-  load-recorder, mailbox-metric, and diagnostics-buffer hot paths while
-  preserving lifecycle, replay, ordering, epoch, and cleanup semantics.
-- Updated generated projects and samples to use completion-friendly typed
-  notification methods without per-send targets, callback lambdas,
-  `DispatchProxy`, reflection, or argument lists.
-
-## 2026-07-14 — Unified generated actor access
-
-**Key releases:** `Lakona.Game.Server 0.18.9`,
-`Lakona.Game.Server.Generators 0.3.1`,
-`Lakona.Game.Server.Hotfix.Generators 0.5.4`,
-`Lakona.ProjectSystem 0.1.1`, and `Lakona.Tool 0.25.21`.
-
-- Replaced one generated plural collection per actor with a single injectable
-  `ActorAccess` root and constrained `Route<TActor>`, `Local<TActor>`,
-  `Place<TActor>`, and `Startup<TActor>` selectors.
-- Kept selection allocation-free through readonly value-type selectors,
-  preserved compile-time actor/key checks and Hotfix method-group completion,
-  and migrated generated projects and samples to the smaller API.
-
-## 2026-07-14 — Lakona Hub desktop foundation
-
-**Key releases:** `Lakona.ProjectSystem 0.1.0` and `Lakona.Tool 0.25.20`.
-
-- Added the first Avalonia-based Lakona Hub desktop slice, a reusable read-only
-  ProjectSystem inspector, and a non-invasive project contract that keeps Hub
-  metadata outside project directories.
-- Added the black-and-gold project workspace, fully expanded guided creation
-  form, local editor discovery, per-project IDE selection, and a unified
-  Settings page with immediate Simplified Chinese and English switching plus
-  manual, verified application updates.
-- Moved the canonical project creation pipeline behind
-  `LakonaProjectCreator`, so the CLI and Hub share defaults, validation,
-  rendering, transactional writes, and future generator changes; added a
-  GitHub Releases pipeline for self-contained Windows, Linux, and macOS
-  packages with a bundled .NET 10 SDK and file-level incremental updates.
-
-## 2026-07-14 — Complete Unity-family project generation
-
-**Key release:** `Lakona.Tool 0.25.19`.
-
-- Matched generated Unity and Tuanjie projects to each editor's complete default
-  package baseline, with Lakona's Input System and networking dependencies added
-  on top; Unity generation now selects `2022`, `6.0`, or `6.3` through
-  `--client-engine-version`, while Tuanjie and Godot remain pinned to their
-  current supported versions.
+- Replaced reflective Hotfix and actor invocation with generated typed dispatch,
+  unified actor access behind one injectable root, and removed contention from
+  runtime hot paths without weakening lifecycle or ordering guarantees.
+- Introduced the Avalonia-based Lakona Hub with shared project inspection and
+  creation, editor discovery, language and update settings, and self-contained
+  cross-platform releases that bundle the .NET 10 SDK.
+- Completed Unity and Tuanjie project-generation baselines and added explicit
+  Unity editor-version selection while keeping other engines pinned to their
+  supported versions.
 
 ## 2026-07-13 — Generated multiplayer projects and local operations
 
